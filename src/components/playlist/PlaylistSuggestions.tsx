@@ -1,11 +1,13 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Play, Plus, RefreshCw, Square } from 'lucide-react';
+import { ChevronRight, Heart, Play, Plus, RefreshCw, Square } from 'lucide-react';
 import type { ColDef } from '../../utils/useTracklistColumns';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import { usePlayerStore } from '../../store/playerStore';
 import { usePreviewStore } from '../../store/previewStore';
+import StarRating from '../StarRating';
+import { PlaylistArtistCell } from './PlaylistArtistCell';
 import { useThemeStore } from '../../store/themeStore';
 import { usePlaylistLayoutStore } from '../../store/playlistLayoutStore';
 import { songToTrack } from '../../utils/playback/songToTrack';
@@ -31,6 +33,10 @@ interface Props {
   setHoveredSuggestionId: React.Dispatch<React.SetStateAction<string | null>>;
   addSong: (song: SubsonicSong) => void;
   startPreview: (song: SubsonicSong) => void;
+  ratings: Record<string, number>;
+  starredSongs: Set<string>;
+  handleRate: (songId: string, rating: number) => void;
+  handleToggleStar: (song: SubsonicSong, e: React.MouseEvent) => void;
 }
 
 export default function PlaylistSuggestions({
@@ -40,10 +46,13 @@ export default function PlaylistSuggestions({
   contextMenuSongId, setContextMenuSongId,
   hoveredSuggestionId, setHoveredSuggestionId,
   addSong, startPreview,
+  ratings, starredSongs, handleRate, handleToggleStar,
 }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
+  const starredOverrides = usePlayerStore(s => s.starredOverrides);
+  const userRatingOverrides = usePlayerStore(s => s.userRatingOverrides);
   const previewingId = usePreviewStore(s => s.previewingId);
   const previewAudioStarted = usePreviewStore(s => s.audioStarted);
   const showBitrate = useThemeStore(s => s.showBitrate);
@@ -86,15 +95,22 @@ export default function PlaylistSuggestions({
               if (key === 'num') return <div key="num" className="col-center">#</div>;
               if (key === 'title') return <div key="title" style={{ paddingLeft: 12 }}>{label}</div>;
               if (key === 'delete') return <div key="delete" />;
-              if (key === 'favorite' || key === 'rating') return <div key={key} />;
               return <div key={key} className={isCentered ? 'col-center' : ''} style={!isCentered ? { paddingLeft: 12 } : undefined}>{label}</div>;
             })}
           </div>
 
-          {filteredSuggestions.map((song, idx) => (
+          {filteredSuggestions.map((song, idx) => {
+            const isStarred = song.id in starredOverrides
+              ? !!starredOverrides[song.id]
+              : (starredSongs.has(song.id) || !!song.starred);
+            const ratingValue = ratings[song.id]
+              ?? userRatingOverrides[song.id]
+              ?? song.userRating
+              ?? 0;
+            return (
             <div
               key={song.id}
-              className={`track-row track-row-va tracklist-playlist${contextMenuSongId === song.id ? ' context-active' : ''}`}
+              className={`track-row track-row-va track-row-with-actions tracklist-playlist${contextMenuSongId === song.id ? ' context-active' : ''}`}
               style={gridStyle}
               onMouseEnter={() => setHoveredSuggestionId(song.id)}
               onMouseLeave={() => setHoveredSuggestionId(null)}
@@ -156,18 +172,20 @@ export default function PlaylistSuggestions({
                       <span className="track-title">{song.title}</span>
                     </div>
                   );
-                  case 'artist': return (
-                    <div key="artist" className="track-artist-cell">
-                      <span className={`track-artist${song.artistId ? ' track-artist-link' : ''}`} style={{ cursor: song.artistId ? 'pointer' : 'default' }} onClick={e => { if (song.artistId) { e.stopPropagation(); navigate(`/artist/${song.artistId}`); } }}>{song.artist}</span>
-                    </div>
-                  );
+                  case 'artist': return <PlaylistArtistCell key="artist" song={song} />;
                   case 'album': return (
                     <div key="album" className="track-artist-cell">
                       <span className={`track-artist${song.albumId ? ' track-artist-link' : ''}`} style={{ cursor: song.albumId ? 'pointer' : 'default' }} onClick={e => { if (song.albumId) { e.stopPropagation(); navigate(`/album/${song.albumId}`); } }}>{song.album}</span>
                     </div>
                   );
-                  case 'favorite': return <div key="favorite" />;
-                  case 'rating': return <div key="rating" />;
+                  case 'favorite': return (
+                    <div key="favorite" className="track-star-cell">
+                      <button className="btn btn-ghost track-star-btn" onClick={e => handleToggleStar(song, e)} style={{ color: isStarred ? 'var(--color-star-active, var(--accent))' : 'var(--color-star-inactive, var(--text-muted))' }} data-tooltip={isStarred ? t('albumDetail.favoriteRemove') : t('albumDetail.favoriteAdd')}>
+                        <Heart size={14} fill={isStarred ? 'currentColor' : 'none'} />
+                      </button>
+                    </div>
+                  );
+                  case 'rating': return <StarRating key="rating" value={ratingValue} onChange={r => handleRate(song.id, r)} />;
                   case 'duration': return <div key="duration" className="track-duration">{formatTrackTime(song.duration ?? 0)}</div>;
                   case 'format': return (
                     <div key="format" className="track-meta">
@@ -197,7 +215,8 @@ export default function PlaylistSuggestions({
                 }
               })}
             </div>
-          ))}
+            );
+          })}
         </>
       )}
     </div>

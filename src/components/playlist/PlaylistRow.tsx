@@ -8,6 +8,7 @@ import { formatLastSeen } from '../../utils/componentHelpers/userMgmtHelpers';
 import i18n from '../../i18n';
 import { formatTrackTime } from '../../utils/format/formatDuration';
 import StarRating from '../StarRating';
+import { PlaylistArtistCell } from './PlaylistArtistCell';
 
 export interface PlaylistRowCallbacks {
   activate: (song: SubsonicSong, index: number, e: React.MouseEvent) => void;
@@ -104,11 +105,7 @@ function PlaylistRow({
               <span className="track-title">{song.title}</span>
             </div>
           );
-          case 'artist': return (
-            <div key="artist" className="track-artist-cell">
-              <span className={`track-artist${song.artistId ? ' track-artist-link' : ''}`} style={{ cursor: song.artistId ? 'pointer' : 'default' }} onClick={e => { if (song.artistId) { e.stopPropagation(); cb.navArtist(song.artistId); } }}>{song.artist}</span>
-            </div>
-          );
+          case 'artist': return <PlaylistArtistCell key="artist" song={song} />;
           case 'album': return (
             <div key="album" className="track-artist-cell">
               <span className={`track-artist${song.albumId ? ' track-artist-link' : ''}`} style={{ cursor: song.albumId ? 'pointer' : 'default' }} onClick={e => { if (song.albumId) { e.stopPropagation(); cb.navAlbum(song.albumId); } }}>{song.album}</span>

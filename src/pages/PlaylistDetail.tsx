@@ -390,6 +390,10 @@ export default function PlaylistDetail() {
         setHoveredSuggestionId={setHoveredSuggestionId}
         addSong={addSong}
         startPreview={startPreview}
+        ratings={ratings}
+        starredSongs={starredSongs}
+        handleRate={handleRate}
+        handleToggleStar={handleToggleStar}
       />
 
       {editingMeta && playlist && (
