@@ -457,6 +457,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Player bar — stable waveform when showing remaining time
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by Asra on the Psysonic Discord, PR [#987](https://github.com/Psychotoxical/psysonic/pull/987)**
+
+* **Show remaining time** no longer reticks the seekbar width every second — fixed-width playbar clocks stop `WaveformSeek` resize/redraw jitter; clocks sit tighter against the waveform with an inline duration toggle icon.
+
+
 ### Album view — bulk add to playlist selection
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#844](https://github.com/Psychotoxical/psysonic/pull/844)**
