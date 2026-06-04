@@ -236,6 +236,13 @@
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: var(--space-4);
+  /* Own semi-transparent bar, a bit darker than the info bar above for contrast.
+     Full-width: cancel the foot's side padding like .fsp-info-row. Negative top
+     margin cancels the foot's flex gap so this bar touches the info bar above
+     (the gap to the waveform below stays). */
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-6)) 0;
+  padding: var(--space-3) var(--space-6);
+  background: rgba(0, 0, 0, 0.62);
 }
 
 .fsp-transport {
@@ -290,29 +297,37 @@
   color: var(--accent);
 }
 
+/* Bottom-right action cluster: larger tap targets than the transport's small buttons. */
+.fsp-actions .fsp-btn-sm {
+  width: 46px;
+  height: 46px;
+}
+
 /* Reused FsPlayBtn (renders .fs-btn.fs-btn-play) — scope its look to this player. */
 .fsp .playback-transport-play-wrap {
   position: relative;
   display: inline-flex;
 }
 
+/* Match the plain transport buttons — no white circle. */
 .fsp .fs-btn-play {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 60px;
-  height: 60px;
-  margin: 0 var(--space-2);
+  width: 44px;
+  height: 44px;
+  margin: 0;
   border: none;
   border-radius: var(--radius-full);
-  background: #fff;
-  color: #06060e;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
   cursor: pointer;
-  transition: transform var(--transition-fast), background var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .fsp .fs-btn-play:hover {
-  transform: scale(1.04);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
 }
 
 /* ── True waveform seekbar (WaveformSeek) — full-width media-center bar ──
@@ -327,4 +342,129 @@
    here for the fullscreen view. Its ResizeObserver redraws at the new size. */
 .fsp .waveform-seek-container canvas {
   height: clamp(32px, 5vh, 52px) !important;
+}
+
+/* ── "Up next" overlay (FsQueueModal) — semi-transparent popover anchored
+   bottom-right at the queue button, no blur. Transparent backdrop just catches
+   the outside click to close. ── */
+.fsq-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: transparent;
+}
+
+.fsq-panel {
+  position: absolute;
+  right: var(--space-6);
+  bottom: 163px; /* flush with the top of the black info frame */
+  width: min(420px, 40%);
+  max-height: 62vh;
+  display: flex;
+  flex-direction: column;
+  background: rgba(18, 18, 22, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.fsq-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.fsq-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.fsq-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+}
+
+.fsq-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.fsq-list {
+  overflow-y: auto;
+  padding: var(--space-2) 0;
+}
+
+.fsq-empty {
+  padding: var(--space-5);
+  text-align: center;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 13px;
+}
+
+.fsq-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-5);
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  text-align: left;
+}
+
+.fsq-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.fsq-item-pos {
+  width: 24px;
+  flex-shrink: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.fsq-item-info {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.fsq-item-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.fsq-item-artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.fsq-item-dur {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
 }

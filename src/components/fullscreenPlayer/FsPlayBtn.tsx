@@ -37,7 +37,7 @@ export const FsPlayBtn = memo(function FsPlayBtn({
                 : <Sunrise size={12} strokeWidth={2.5} />}
               <span className="player-btn-schedule-time player-btn-schedule-time--fs">{scheduleRemaining.remaining}</span>
             </span>
-          ) : isPlaying ? <Pause size={25} /> : <Play size={25} fill="currentColor" />}
+          ) : isPlaying ? <Pause size={20} /> : <Play size={20} fill="currentColor" />}
         </button>
       </span>
       <PlaybackDelayModal open={delayModalOpen} onClose={() => setDelayModalOpen(false)} anchorRef={controlsAnchorRef} />

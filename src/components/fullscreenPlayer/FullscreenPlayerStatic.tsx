@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   SkipBack, SkipForward, Square, Repeat, Repeat1, Heart,
   Shuffle, ListMusic, ChevronDown, Star,
@@ -13,6 +13,7 @@ import { useFsArtistPortrait } from '../../hooks/useFsArtistPortrait';
 import { useFsIdleFade } from '../../hooks/useFsIdleFade';
 import { useQueueTrackAt } from '../../hooks/useQueueTracks';
 import WaveformSeek from '../WaveformSeek';
+import { FsQueueModal } from './FsQueueModal';
 import { FsPlayBtn } from './FsPlayBtn';
 import { FsClock } from './FsClock';
 import { FsTimeReadout } from './FsTimeReadout';
@@ -31,7 +32,6 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
   const previous = usePlayerStore(s => s.previous);
   const stop = usePlayerStore(s => s.stop);
   const toggleRepeat = usePlayerStore(s => s.toggleRepeat);
-  const toggleQueue = usePlayerStore(s => s.toggleQueue);
   const shuffleUpcomingQueue = usePlayerStore(s => s.shuffleUpcomingQueue);
   const queueIndex = usePlayerStore(s => s.queueIndex);
   const queueLen = usePlayerStore(s => s.queueItems.length);
@@ -66,6 +66,7 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
 
   const { isIdle, handleMouseMove } = useFsIdleFade(onClose);
   const controlsRef = useRef<HTMLDivElement>(null);
+  const [queueOpen, setQueueOpen] = useState(false);
 
   // Prefix the title with the queue position so it matches "Track x / N".
   const titlePrefix = queueLen > 0
@@ -164,8 +165,8 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
           <FsTimeReadout duration={duration} />
 
           <div className="fsp-actions">
-            <button className="fsp-btn fsp-btn-sm" onClick={toggleQueue} aria-label="Queue" data-tooltip="Queue">
-              <ListMusic size={16} />
+            <button className="fsp-btn fsp-btn-sm" onClick={() => setQueueOpen(true)} aria-label="Queue" data-tooltip="Queue">
+              <ListMusic size={20} />
             </button>
             {currentTrack && (
               <button
@@ -174,7 +175,7 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
                 aria-label={isStarred ? t('contextMenu.unfavorite') : t('contextMenu.favorite')}
                 data-tooltip={isStarred ? t('contextMenu.unfavorite') : t('contextMenu.favorite')}
               >
-                <Heart size={16} fill={isStarred ? 'currentColor' : 'none'} />
+                <Heart size={20} fill={isStarred ? 'currentColor' : 'none'} />
               </button>
             )}
             <button
@@ -183,10 +184,10 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
               aria-label={t('player.repeat')}
               data-tooltip={`${t('player.repeat')}: ${repeatMode === 'off' ? t('player.repeatOff') : repeatMode === 'all' ? t('player.repeatAll') : t('player.repeatOne')}`}
             >
-              {repeatMode === 'one' ? <Repeat1 size={16} /> : <Repeat size={16} />}
+              {repeatMode === 'one' ? <Repeat1 size={20} /> : <Repeat size={20} />}
             </button>
             <button className="fsp-btn fsp-btn-sm" onClick={shuffleUpcomingQueue} aria-label="Shuffle" data-tooltip="Shuffle">
-              <Shuffle size={16} />
+              <Shuffle size={20} />
             </button>
           </div>
         </div>
@@ -194,6 +195,8 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
         {/* True waveform seekbar (cucadmuh's idea) instead of the thin bar. */}
         <WaveformSeek trackId={currentTrack?.id} />
       </div>
+
+      {queueOpen && <FsQueueModal onClose={() => setQueueOpen(false)} />}
     </div>
   );
 }
