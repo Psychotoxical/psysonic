@@ -9,6 +9,7 @@ import { usePlayerStore } from '../store/playerStore';
 export function usePlaybackCoverArt(
   coverRef: CoverArtRef | undefined,
   displayCssPx: number,
+  opts?: { fullRes?: boolean },
 ): CoverArtHandle {
   const queueServerId = usePlayerStore(s => s.queueServerId);
   const queueLength = usePlayerStore(s => s.queueItems.length);
@@ -29,5 +30,6 @@ export function usePlaybackCoverArt(
   );
   return useCoverArt(refWithScope, displayCssPx, {
     surface: 'sparse',
+    fullRes: opts?.fullRes,
   });
 }

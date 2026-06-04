@@ -53,7 +53,10 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
   // Cover (thumbnail 300px) + a larger one used as the background fallback.
   const playbackCoverRef = usePlaybackTrackCoverRef(currentTrack ?? undefined);
   const artCover = usePlaybackCoverArt(playbackCoverRef, 300);
-  const bgCover = usePlaybackCoverArt(playbackCoverRef, 500);
+  // Full-screen background wants a crisp image — fetch the high-res (2000px)
+  // cover via the existing on-demand `fullRes` path (cucadmuh's mechanism), not
+  // the low-res pipeline tier. Same getCoverArt fetch, saved as a 2000px WebP.
+  const bgCover = usePlaybackCoverArt(playbackCoverRef, 2000, { fullRes: true });
   // `true` = show the raw URL immediately while the blob resolves (same as FsArt),
   // otherwise the FS-specific 300/500px keys stay blank until/if they warm.
   const resolvedCoverUrl = useCachedUrl(bgCover.src, bgCover.cacheKey, true);
