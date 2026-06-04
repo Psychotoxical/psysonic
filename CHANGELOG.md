@@ -5,13 +5,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> **🛡️ A note on safety investments:** Making sure Psysonic is trusted on every OS takes real money out of my pocket — an Apple Developer Account (now active, which is why macOS builds are signed + notarized for everyone starting with this release) and a Windows code-signing certificate (ordered, currently in validation). If you'd like to help cover those costs, you can chip in at [ko-fi.com/psychotoxic](https://ko-fi.com/psychotoxic) — completely voluntary, no pressure at all. Every bit helps keep Psysonic free and safe across Windows, macOS and Linux.
+> **🛡️ A note on safety investments:** Making sure Psysonic is trusted on every OS takes real money out of my pocket — an Apple Developer Account and a Windows code-signing certificate. If you'd like to help cover those costs, you can chip in at [ko-fi.com/psychotoxic](https://ko-fi.com/psychotoxic) — completely voluntary, no pressure at all. Every bit helps keep Psysonic free and safe across Windows, macOS and Linux.
 >
-> **⚠️ Windows users:** This is one of the last releases with an unsigned Windows installer. Until the certificate clears validation, any SmartScreen or antivirus warning on the installer is a false positive — the binary itself is safe.
->
-> **🎉 macOS users:** Starting with **v1.40.0**, Psysonic is signed + notarized and can **update itself silently**. No more DMG downloading and dragging to Applications — the updater fetches the signed `.app` bundle, verifies the signature, replaces the app in place, and relaunches. Just click "Install now" when the update notification appears.
->
-> **📦 Version jump 1.34.x → 1.40.0:** The 1.34.x patch series was bumped a lot as each small feature landed. 1.40.0 consolidates the last few weeks of work — macOS signing + auto-updater, the Device-Sync overhaul, theme work and contrast audits — into a single coherent release. The next major bump (2.0.0) is planned once Windows code-signing + Windows auto-updater are active as well.
 
 
 ## [1.47.0]
