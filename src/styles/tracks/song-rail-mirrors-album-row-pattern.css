@@ -25,7 +25,9 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  /* Square to match the album/artist row nav (`.album-row-nav .nav-btn`); this
+     rail had drifted to a circle. */
+  border-radius: var(--radius-sm);
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
