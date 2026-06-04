@@ -5,7 +5,7 @@ import {
   LIVE_SEARCH_DEBOUNCE_NETWORK_MS,
   LIVE_SEARCH_DEBOUNCE_RACE_MS,
   EMPTY_SEARCH_RESULTS,
-  liveSearchQueryTooShort,
+  liveSearchQueryRejected,
   mergeLiveSearchResults,
   runLocalLiveSearch,
   runNetworkLiveSearch,
@@ -261,10 +261,10 @@ export default function LiveSearch() {
         setLoading(true);
         const searchT0 = performance.now();
         try {
-          if (liveSearchQueryTooShort(q)) {
+          if (liveSearchQueryRejected(q)) {
             if (!isStale()) {
               setResults(EMPTY_SEARCH_RESULTS);
-              setSearchSource('local');
+              setSearchSource(null);
               setOpen(true);
             }
             return;
@@ -688,7 +688,7 @@ export default function LiveSearch() {
           )}
 
           {!hasResults && !loading && (
-            <div className="search-empty">{t('search.noResults', { query })}</div>
+            <div className="search-empty">{t('search.noResults', { query: query.trim() })}</div>
           )}
 
           {share.shareMatch && (

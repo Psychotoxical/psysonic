@@ -14,6 +14,7 @@ import {
   trackToSong,
 } from './advancedSearchLocal';
 import { logLibrarySearch, timed } from './libraryDevLog';
+import { searchQueryIsFtsSafe } from './searchQueryFtsSafe';
 
 export const LIVE_SEARCH_DEBOUNCE_LOCAL_MS = 200;
 export const LIVE_SEARCH_DEBOUNCE_NETWORK_MS = 300;
@@ -45,6 +46,14 @@ export function liveSearchQueryTooShort(query: string): boolean {
   return !q || queryGraphemeCount(q) < LOCAL_FTS_MIN_QUERY_CHARS;
 }
 
+/** Skip local FTS and search3 when the query would only produce junk wildcard hits. */
+export function liveSearchQueryRejected(query: string): boolean {
+  const q = query.trim();
+  if (!q) return true;
+  if (liveSearchQueryTooShort(q)) return true;
+  return !searchQueryIsFtsSafe(q);
+}
+
 export type LiveSearchStaleCheck = () => boolean;
 
 export interface LiveSearchRunContext {
@@ -61,7 +70,7 @@ export async function runLocalLiveSearch(
 ): Promise<SearchResults | null> {
   if (!serverId || ctx.isStale()) return null;
   const q = query.trim();
-  if (liveSearchQueryTooShort(q)) return null;
+  if (liveSearchQueryRejected(q)) return null;
   const t0 = performance.now();
   try {
     const { result: resp, ms: invokeMs } = await timed(() =>
@@ -131,7 +140,7 @@ export async function runNetworkLiveSearch(
   signal?: AbortSignal,
 ): Promise<SearchResults | null> {
   const q = query.trim();
-  if (liveSearchQueryTooShort(q)) return null;
+  if (liveSearchQueryRejected(q)) return null;
   try {
     return await search(q, {
       signal,

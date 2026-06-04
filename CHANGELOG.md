@@ -529,6 +529,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#983](https://github.com/Psychotoxical/psysonic/pull/983)**
 
 * Queries such as `1=2` or `M=c` no longer return unrelated albums and artists — FTS5 was parsing `=` and similar characters as query syntax instead of a literal token.
+* The same guard applies to **Server search** (search3): wildcard-only queries like `**` or `****` no longer return unrelated hits.
 
 
 ### In-page browse — virtual scroll and cover-art priority

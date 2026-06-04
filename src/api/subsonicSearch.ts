@@ -1,4 +1,5 @@
 import { api, libraryFilterParams } from './subsonicClient';
+import { searchQueryIsFtsSafe } from '../utils/library/searchQueryFtsSafe';
 import type {
   SearchResults,
   SubsonicAlbum,
@@ -26,6 +27,7 @@ export async function search(
   },
 ): Promise<SearchResults> {
   if (!query.trim()) return { artists: [], albums: [], songs: [] };
+  if (!searchQueryIsFtsSafe(query)) return { artists: [], albums: [], songs: [] };
   const data = await api<{
     searchResult3: {
       artist?: SubsonicArtist[];
@@ -58,6 +60,7 @@ export async function search(
  * Caller handles empty results gracefully (Tracks page falls back to its random pool).
  */
 export async function searchSongsPaged(query: string, songCount: number, songOffset: number): Promise<SubsonicSong[]> {
+  if (!searchQueryIsFtsSafe(query.trim())) return [];
   const data = await api<{ searchResult3: { song?: SubsonicSong[] } }>('search3.view', {
     query,
     artistCount: 0,

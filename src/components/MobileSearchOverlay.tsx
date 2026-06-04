@@ -311,7 +311,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
         {/* ── No results ── */}
         {!loading && query && !hasResults && !isLiveSearchDropdownBlocked(scope) && (
           <div className="mobile-search-noresults">
-            {t('search.noResults', { query })}
+            {t('search.noResults', { query: query.trim() })}
           </div>
         )}
 

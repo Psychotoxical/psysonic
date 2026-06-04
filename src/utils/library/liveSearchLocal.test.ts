@@ -3,6 +3,7 @@ import { onInvoke } from '@/test/mocks/tauri';
 import type { SearchResults } from '../../api/subsonicTypes';
 import { useAuthStore } from '@/store/authStore';
 import {
+  liveSearchQueryRejected,
   liveSearchQueryTooShort,
   mergeLiveSearchResults,
   runLocalLiveSearch,
@@ -89,6 +90,16 @@ describe('runLocalLiveSearch', () => {
     });
     await runLocalLiveSearch('s1', 'foo', neverStale);
     expect(captured).toMatchObject({ request: { serverId: 's1', libraryScope: 'lib7' } });
+  });
+});
+
+describe('liveSearchQueryRejected', () => {
+  it('rejects syntax junk and single-character queries', () => {
+    expect(liveSearchQueryRejected('**')).toBe(true);
+    expect(liveSearchQueryRejected('1=2')).toBe(true);
+    expect(liveSearchQueryRejected('а')).toBe(true);
+    expect(liveSearchQueryRejected('ab')).toBe(false);
+    expect(liveSearchQueryRejected('metallica')).toBe(false);
   });
 });
 
