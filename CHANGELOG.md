@@ -567,7 +567,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#986](https://github.com/Psychotoxical/psysonic/pull/986)**
 
-* Horizontal rails (Home New Releases, Discover, …) no longer flash the **New** cover badge on the first pointer hover — cover stacking matches the New Releases grid (`contain: paint`, compositor layers) so the badge stays visible during hover zoom.
+* Horizontal album rails (Home New Releases, Discover, Favorites, Statistics, search rows, …) no longer hide the **New** / offline cover badges during hover zoom — cover stacking is shared with grid pages; rails keep dim-on-`::before` for play controls.
 
 
 ### Album view — bulk add to playlist selection
