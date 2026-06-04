@@ -885,6 +885,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Suggested Songs now show the favorite heart and star rating like the playlist above, so the Favorite/Rating columns no longer leave an empty gap.
 * Tracks with several artists split into individually clickable names, matching the rest of the app — and reading the same before and after you add the track.
 
+### Small windows — usable layout when scaled down
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#981](https://github.com/Psychotoxical/psysonic/pull/981)**
+
+* Browse toolbars (Albums, Artists, …) collapse their filter buttons to icons on a narrow window instead of wrapping into rows that pushed the list off-screen; hover or focus still shows each button's label.
+* The minimum window size is a touch larger so the layout can no longer be shrunk past the point where it breaks.
+* On a short window the Now Playing cover scales down to fit instead of overlapping the track title.
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
