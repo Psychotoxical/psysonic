@@ -32,7 +32,26 @@ fn apply_linux_webkit_nvidia_quirk() {
     }
 }
 
+#[cfg(target_os = "linux")]
+fn apply_pipewire_latency() {
+    // Linux audio output goes through the pipewire-alsa bridge, which on some
+    // setups negotiates a huge default buffer (~1M frames ≈ 10–20 s); play/pause/
+    // seek/volume then lag until it drains (issue #862). cpal's buffer-size clamp
+    // is ignored by those bridges. Setting the client-node latency via
+    // `PIPEWIRE_LATENCY` caps it — the reporter confirmed `256/48000` makes
+    // play/pause/volume instant. No-op on non-PipeWire Linux (var is ignored).
+    // A user-provided value is left untouched.
+    if std::env::var_os("PIPEWIRE_LATENCY").is_none() {
+        std::env::set_var("PIPEWIRE_LATENCY", "256/48000");
+    }
+}
+
 fn main() {
+    // Linux audio: cap the pipewire-alsa client latency so play/pause/seek/volume
+    // respond promptly (issue #862). Must run before any audio stream is opened.
+    #[cfg(target_os = "linux")]
+    apply_pipewire_latency();
+
     // Linux GTK/WebKit: `webkit2gtk-nvidia-quirk` (skipped when `PSYSONIC_WEBKIT_GPU_ACCEL` is set).
     // Forced `GDK_BACKEND=x11` uses the X11-only mitigation path — see `apply_linux_webkit_nvidia_quirk`.
     #[cfg(target_os = "linux")]
