@@ -64,6 +64,13 @@ fn flip_rgba_horizontal(rgba: &mut [u8], width: u32, height: u32) {
     }
 }
 
+/// Stable tray-icon id. Without a fixed id, `TrayIconBuilder::new()` assigns a
+/// fresh id on every rebuild; on KDE (StatusNotifierItem) each new id registers
+/// a new item, and KDE keeps the stale ones in its "hidden icons" list — so
+/// toggling the tray off/on piled up duplicate entries (Asra, 1.47-RC4). A
+/// constant id makes every rebuild reuse the same item.
+const TRAY_ICON_ID: &str = "psysonic-tray";
+
 pub(crate) fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon> {
     let labels = app
         .try_state::<TrayMenuLabelsState>()
@@ -144,7 +151,7 @@ pub(crate) fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon>
     }
 
     #[cfg(target_os = "windows")]
-    let tray_builder = TrayIconBuilder::new()
+    let tray_builder = TrayIconBuilder::with_id(TRAY_ICON_ID)
         .icon(app_tray_icon(app))
         .menu(&menu)
         .tooltip(&tooltip_with_icon)
@@ -154,7 +161,7 @@ pub(crate) fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon>
         // (see on_tray_icon_event); keep the menu on right-click like typical Windows tray apps.
         .show_menu_on_left_click(false);
     #[cfg(not(target_os = "windows"))]
-    let tray_builder = TrayIconBuilder::new()
+    let tray_builder = TrayIconBuilder::with_id(TRAY_ICON_ID)
         .icon(app_tray_icon(app))
         .menu(&menu)
         .tooltip(&cached_tooltip);
