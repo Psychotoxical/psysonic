@@ -72,6 +72,8 @@ export interface SubsonicSong {
   genre?: string;
   path?: string;
   albumArtist?: string;
+  /** OpenSubsonic: single-string album-artist for display (mirrors `albumArtists` joined). */
+  displayAlbumArtist?: string;
   /** ISRC code when available (e.g., Navidrome) */
   isrc?: string;
   /** Times the track has been played, surfaced by Navidrome's Subsonic API. */

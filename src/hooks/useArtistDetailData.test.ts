@@ -72,6 +72,38 @@ describe('useArtistDetailData — id-gated info', () => {
     await waitFor(() => expect(result.current.info).toEqual({ largeImageUrl: 'B.jpg' }));
   });
 
+  it('keeps the album-artist credit on featured compilation albums', async () => {
+    // "Also featured on" synthesises albums from search3 child songs. A
+    // compilation has no flat `albumArtist` on the child — the credit lives in
+    // OpenSubsonic's structured `albumArtists` (and/or `displayAlbumArtist`).
+    // Dropping it made the card render "—" instead of "Various Artists".
+    vi.mocked(getArtist).mockResolvedValue({ artist: { id: 'A', name: 'A' }, albums: [] } as any);
+    vi.mocked(search).mockResolvedValue({
+      artists: [],
+      albums: [],
+      songs: [
+        {
+          id: 's1', title: 'Track', artistId: 'A', artist: 'A',
+          album: 'A Compilation', albumId: 'comp1', coverArt: 'c1', duration: 100,
+          albumArtists: [{ id: 'va', name: 'Various Artists' }],
+        },
+        {
+          id: 's2', title: 'Other', artistId: 'A', artist: 'A',
+          album: 'Display Only', albumId: 'comp2', coverArt: 'c2', duration: 90,
+          displayAlbumArtist: 'Various Artists',
+        },
+      ],
+    } as any);
+
+    const { result } = renderHook(() => useArtistDetailData('A'));
+
+    await waitFor(() => expect(result.current.featuredAlbums).toHaveLength(2));
+    const structured = result.current.featuredAlbums.find(a => a.id === 'comp1');
+    const displayOnly = result.current.featuredAlbums.find(a => a.id === 'comp2');
+    expect(structured?.artists).toEqual([{ id: 'va', name: 'Various Artists' }]);
+    expect(displayOnly?.artist).toBe('Various Artists');
+  });
+
   it('ignores a late-arriving resolve for a stale id', async () => {
     vi.mocked(getArtist).mockImplementation(async (id) => (
       { artist: { id, name: id }, albums: [] } as any

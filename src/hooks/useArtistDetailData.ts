@@ -150,8 +150,13 @@ export function useArtistDetailData(
             albumMap.set(song.albumId, {
               id: song.albumId,
               name: song.album,
-              artist: song.albumArtist ?? '',
+              // search3 children carry the album-artist credit in OpenSubsonic's
+              // structured `albumArtists` / `displayAlbumArtist` (e.g. "Various
+              // Artists" on compilations), not the flat `albumArtist` field — keep
+              // all of them so the card resolves a name instead of "—".
+              artist: song.albumArtist ?? song.displayAlbumArtist ?? '',
               artistId: '',
+              artists: song.albumArtists,
               coverArt: song.coverArt,
               songCount: 1,
               duration: song.duration,
