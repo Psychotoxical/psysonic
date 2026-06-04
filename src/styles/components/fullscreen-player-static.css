@@ -315,53 +315,16 @@
   transform: scale(1.04);
 }
 
-/* ── Reused FsSeekbar (renders .fs-seekbar-*) — full-width, no glow ── */
-.fsp .fs-seekbar-wrap {
-  position: static;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 0;
-}
-
-/* Time now lives centered in the control bar (FsTimeReadout); hide the seekbar's
-   own labels so the bar is a clean thin line at the very bottom. */
-.fsp .fs-seekbar-times {
-  display: none;
-}
-
-.fsp .fs-seekbar {
-  position: relative;
-  height: 6px;
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-
-.fsp .fs-seekbar-bg {
-  position: absolute;
-  inset: 0;
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.fsp .fs-seekbar-buf {
-  position: absolute;
-  inset: 0 auto 0 0;
-  background: rgba(255, 255, 255, 0.28);
-}
-
-.fsp .fs-seekbar-played {
-  position: absolute;
-  inset: 0 auto 0 0;
-  background: var(--accent);
-  box-shadow: none; /* perf: no glow recompute on every tick */
-}
-
-.fsp .fs-seekbar input[type='range'] {
-  position: absolute;
-  inset: -6px 0;
+/* ── True waveform seekbar (WaveformSeek) — full-width media-center bar ──
+   Replaces the old thin FsSeekbar. Time stays centered in the control row
+   (FsTimeReadout). The taller canvas makes the foot grow upward, shifting the
+   info/control rows up. */
+.fsp .waveform-seek-container {
   width: 100%;
-  height: calc(100% + 12px);
-  margin: 0;
-  opacity: 0;
-  cursor: pointer;
+}
+
+/* WaveformSeek hardcodes a 24px canvas inline for the player bar; override it
+   here for the fullscreen view. Its ResizeObserver redraws at the new size. */
+.fsp .waveform-seek-container canvas {
+  height: clamp(32px, 5vh, 52px) !important;
 }

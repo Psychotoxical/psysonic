@@ -12,7 +12,7 @@ import { useCachedUrl } from '../CachedImage';
 import { useFsArtistPortrait } from '../../hooks/useFsArtistPortrait';
 import { useFsIdleFade } from '../../hooks/useFsIdleFade';
 import { useQueueTrackAt } from '../../hooks/useQueueTracks';
-import { FsSeekbar } from './FsSeekbar';
+import WaveformSeek from '../WaveformSeek';
 import { FsPlayBtn } from './FsPlayBtn';
 import { FsClock } from './FsClock';
 import { FsTimeReadout } from './FsTimeReadout';
@@ -191,7 +191,8 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
           </div>
         </div>
 
-        <FsSeekbar duration={duration} />
+        {/* True waveform seekbar (cucadmuh's idea) instead of the thin bar. */}
+        <WaveformSeek trackId={currentTrack?.id} />
       </div>
     </div>
   );
