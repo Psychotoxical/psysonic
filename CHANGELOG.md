@@ -864,6 +864,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The track-list column header keeps its background on hover instead of turning transparent and letting rows show through.
 * **Track of the moment** and the browse rows split multi-artist tracks into individually clickable artist links, matching the album track list.
 
+### Queue, Genre cards, and the Artists index
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#977](https://github.com/Psychotoxical/psysonic/pull/977)**
+
+* The artist and album in the Queue's now-playing card now underline on hover like every other clickable name, instead of only changing colour.
+* Album cards on a **Genre** page split multi-artist credits into individually clickable artist links, matching the rest of the app.
+* On the **Artists** page the `#` index button now holds only names that start with a number; accented and non-Latin names (Æ Ø Å, Chinese, Japanese, Cyrillic, …) move to a new **Other** section instead of the `#` catch-all.
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
