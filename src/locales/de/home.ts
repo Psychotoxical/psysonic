@@ -14,5 +14,8 @@ export const home = {
   becauseYouLikeFor: 'Weil du {{artist}} gehört hast',
   similarTo: 'Ähnlich wie {{artist}}',
   becauseYouLikeTracks_one: '{{count}} Titel',
-  becauseYouLikeTracks_other: '{{count}} Titel'
+  becauseYouLikeTracks_other: '{{count}} Titel',
+  mainstageEmptyTitle: 'Deine Mainstage ist leer',
+  mainstageEmptyBody: 'Alle Bereiche sind ausgeschaltet. Schalte Bereiche wieder ein oder blende die Mainstage aus der Seitenleiste aus.',
+  mainstageEmptyCta: 'Personalisierung öffnen'
 };

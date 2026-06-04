@@ -390,7 +390,7 @@ export const settings = {
   searchNoResults: 'No settings match your search.',
   integrationsPrivacyTitle: 'Privacy notice',
   integrationsPrivacyBody: 'All integrations on this tab are <strong>opt-in</strong> and send data to external services or to your Navidrome server when enabled. Last.fm receives your listening history, Discord shows the currently playing track in your profile, Bandsintown is queried per artist to fetch tour dates, and the Now-Playing share publishes your current track to other users of your Navidrome server. If you don\'t want any of this, simply leave the corresponding section disabled.',
-  homeCustomizerTitle: 'Home Page',
+  homeCustomizerTitle: 'Mainstage',
   queueModeTitle: 'Queue Display Mode',
   queueModeQueueSub: 'Show only upcoming tracks. The current track stays in the header and leaves the list once it has played.',
   queueModePlaylistSub: 'Keep the whole queue in the list with the current track highlighted at the top; played tracks stay.',

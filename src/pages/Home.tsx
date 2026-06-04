@@ -298,6 +298,11 @@ export default function Home() {
     mostPlayed.length === 0 &&
     recentlyPlayed.length === 0 &&
     starred.length === 0;
+  // Every section toggled off in Settings → Personalisation → Mainstage. The
+  // page would otherwise be entirely blank, so surface a guided empty state
+  // pointing back at the toggles (or the option to hide Mainstage from the
+  // sidebar) instead of leaving the user on nothing.
+  const allSectionsHidden = homeSections.every(s => !s.visible);
   return (
     <div className={`animate-fade-in${homeLiteArtworkFx ? ' home-lite-artwork' : ''}${homeFlatArtworkClip ? ' home-flat-artwork-clip' : ''}`}>
       {!loading && !perfFlags.disableMainstageHero && isVisible('hero') && <Hero albums={heroAlbums} />}
@@ -306,6 +311,21 @@ export default function Home() {
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
             <div className="spinner" />
+          </div>
+        ) : allSectionsHidden ? (
+          <div className="empty-state" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)' }}>
+              {t('home.mainstageEmptyTitle')}
+            </div>
+            <div style={{ maxWidth: 460 }}>{t('home.mainstageEmptyBody')}</div>
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ marginTop: '0.5rem' }}
+              onClick={() => navigate('/settings', { state: { tab: 'personalisation' } })}
+            >
+              {t('home.mainstageEmptyCta')}
+            </button>
           </div>
         ) : libraryEmpty ? (
           <div className="empty-state" style={{ padding: '4rem 1rem', textAlign: 'center' }}>

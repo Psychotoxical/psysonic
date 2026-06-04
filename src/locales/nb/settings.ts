@@ -322,7 +322,7 @@ export const settings = {
   aboutMaintainersLabel: 'Ansvarlige',
   integrationsPrivacyTitle: 'Personvern-merknad',
   integrationsPrivacyBody: 'Alle integrasjoner på denne fanen er <strong>frivillige</strong> og sender, når aktivert, data til eksterne tjenester eller til Navidrome-serveren din. Last.fm mottar lyttehistorikken din, Discord viser gjeldende spor i profilen din, Bandsintown spørres per artist for turnédatoer, og "Spilles nå"-delingen publiserer gjeldende spor til andre brukere av Navidrome-serveren din. Hvis du ikke ønsker noe av dette, la den aktuelle seksjonen stå deaktivert.',
-  homeCustomizerTitle: 'Hjemmeside',
+  homeCustomizerTitle: 'Hovedscene',
   queueModeTitle: 'Visningsmodus for kø',
   queueModeQueueSub: 'Viser bare kommende spor. Det gjeldende sporet blir i toppen og forsvinner fra listen når det er spilt.',
   queueModePlaylistSub: 'Beholder hele køen i listen med gjeldende spor uthevet øverst; avspilte spor blir værende.',

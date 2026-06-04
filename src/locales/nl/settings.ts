@@ -323,7 +323,7 @@ export const settings = {
   aboutMaintainersLabel: 'Beheerders',
   integrationsPrivacyTitle: 'Privacyverklaring',
   integrationsPrivacyBody: 'Alle integraties op dit tabblad zijn <strong>opt-in</strong> en sturen, eenmaal ingeschakeld, gegevens naar externe diensten of naar je Navidrome-server. Last.fm ontvangt je luistergeschiedenis, Discord toont het nu spelende nummer in je profiel, Bandsintown wordt per artiest bevraagd voor tourdatums, en de "Nu aan het afspelen"-deling publiceert je huidige nummer bij andere gebruikers van je Navidrome-server. Wil je dit niet, laat dan de bijbehorende sectie gewoon uitgeschakeld.',
-  homeCustomizerTitle: 'Startpagina',
+  homeCustomizerTitle: 'Hoofdpodium',
   queueModeTitle: 'Weergavemodus wachtrij',
   queueModeQueueSub: 'Toont alleen komende nummers. Het huidige nummer blijft in de kop en verdwijnt uit de lijst zodra het is afgespeeld.',
   queueModePlaylistSub: 'Houdt de hele wachtrij in de lijst met het huidige nummer bovenaan gemarkeerd; afgespeelde nummers blijven staan.',

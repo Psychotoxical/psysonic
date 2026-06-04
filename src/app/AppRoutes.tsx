@@ -1,7 +1,11 @@
 import { lazy } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import MobilePlayerView from '../components/MobilePlayerView';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useSidebarStore } from '../store/sidebarStore';
+import { useAuthStore } from '../store/authStore';
+import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
+import { resolveStartRoute } from '../utils/componentHelpers/sidebarNavReorder';
 
 // Route-level lazy loading: keeps the non-page graph (shell, player, stores) in
 // the entry chunk; each page is fetched when its route is first visited.
@@ -37,6 +41,23 @@ const Genres = lazy(() => import('../pages/Genres'));
 const GenreDetail = lazy(() => import('../pages/GenreDetail'));
 
 /**
+ * Index route ("/") = Mainstage. When the user has hidden Mainstage from the
+ * sidebar there is no nav link back to it, so landing on "/" would strand them
+ * on a page they deliberately removed (and which is blank when its sections are
+ * all off too). In that case redirect to the first visible library entry —
+ * mirroring the sidebar's own ordering — so the app never opens on a dead page.
+ */
+function MainstageRoute() {
+  const items = useSidebarStore(s => s.items);
+  const randomNavMode = useAuthStore(s => s.randomNavMode);
+  const luckyMixAvailable = useLuckyMixAvailable() && randomNavMode === 'separate';
+  const mainstageVisible = items.find(i => i.id === 'mainstage')?.visible ?? true;
+  if (mainstageVisible) return <Home />;
+  const target = resolveStartRoute(items, randomNavMode, luckyMixAvailable);
+  return target ? <Navigate to={target} replace /> : <Home />;
+}
+
+/**
  * The main application route table. Rendered inside `AppShell`'s scroll
  * viewport. `/now-playing` swaps to the mobile player view on narrow widths;
  * `MobilePlayerView` is intentionally not lazy because the mobile breakpoint
@@ -46,7 +67,7 @@ export default function AppRoutes() {
   const isMobile = useIsMobile();
   return (
     <Routes>
-      <Route path="/" element={<Home />} />
+      <Route path="/" element={<MainstageRoute />} />
       <Route path="/albums" element={<Albums />} />
       <Route path="/tracks" element={<SearchBrowsePage />} />
       <Route path="/random" element={<RandomLanding />} />

@@ -14,5 +14,8 @@ export const home = {
   becauseYouLikeFor: 'Omdat je naar {{artist}} hebt geluisterd',
   similarTo: 'Lijkt op {{artist}}',
   becauseYouLikeTracks_one: '{{count}} nummer',
-  becauseYouLikeTracks_other: '{{count}} nummers'
+  becauseYouLikeTracks_other: '{{count}} nummers',
+  mainstageEmptyTitle: 'Je Hoofdpodium is leeg',
+  mainstageEmptyBody: 'Alle secties zijn uitgeschakeld. Schakel secties weer in of verberg het Hoofdpodium in de zijbalk.',
+  mainstageEmptyCta: 'Personalisatie openen'
 };

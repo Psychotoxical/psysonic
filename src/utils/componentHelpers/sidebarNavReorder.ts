@@ -26,6 +26,31 @@ export function getSystemItemsForReorder(items: SidebarItemConfig[]): SidebarIte
   return items.filter(cfg => ALL_NAV_ITEMS[cfg.id]?.section === 'system');
 }
 
+/**
+ * Resolve the route the app should open on "/" when the Mainstage entry is
+ * hidden from the sidebar. Mirrors the sidebar's own visible-library ordering
+ * (same filter + randomNavMode + luckyMix gating) and returns the first visible
+ * library item's route, skipping Mainstage itself ('/'). Returns null when no
+ * other library item is visible, so the caller can fall back to rendering the
+ * (empty) Mainstage rather than redirecting nowhere.
+ */
+export function resolveStartRoute(
+  items: SidebarItemConfig[],
+  randomNavMode: 'hub' | 'separate',
+  luckyMixAvailable: boolean,
+): string | null {
+  const libraryConfigs = getLibraryItemsForReorder(items, randomNavMode).filter(cfg => {
+    if (!cfg.visible) return false;
+    if (cfg.id === 'luckyMix' && !luckyMixAvailable) return false;
+    return true;
+  });
+  for (const cfg of libraryConfigs) {
+    const to = ALL_NAV_ITEMS[cfg.id]?.to;
+    if (to && to !== '/') return to;
+  }
+  return null;
+}
+
 /** Same entries as in Settings toggles — safe to hide via drag-out. */
 export function isSidebarNavItemUserHideable(id: string): boolean {
   return Boolean(ALL_NAV_ITEMS[id]) && !CONSERVED_SIDEBAR_NAV_IDS.has(id);

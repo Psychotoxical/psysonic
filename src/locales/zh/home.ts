@@ -14,5 +14,8 @@ export const home = {
   becauseYouLikeFor: '因为你听过 {{artist}}',
   similarTo: '类似 {{artist}}',
   becauseYouLikeTracks_one: '{{count}} 首',
-  becauseYouLikeTracks_other: '{{count}} 首'
+  becauseYouLikeTracks_other: '{{count}} 首',
+  mainstageEmptyTitle: '你的主舞台是空的',
+  mainstageEmptyBody: '所有板块均已关闭。重新开启板块，或在侧边栏中隐藏主舞台。',
+  mainstageEmptyCta: '打开个性化设置'
 };

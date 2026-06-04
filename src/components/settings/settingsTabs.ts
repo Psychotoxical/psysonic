@@ -45,7 +45,7 @@ export const SETTINGS_INDEX: SearchIndexEntry[] = [
   { tab: 'integrations',   titleKey: 'settings.nowPlayingEnabled',        keywords: 'now playing share dropdown presence' },
   { tab: 'personalisation',titleKey: 'settings.sidebarTitle',             keywords: 'sidebar nav navigation items reorder customize' },
   { tab: 'personalisation',titleKey: 'settings.artistLayoutTitle',        keywords: 'artist page layout sections order' },
-  { tab: 'personalisation',titleKey: 'settings.homeCustomizerTitle',      keywords: 'home page customize sections' },
+  { tab: 'personalisation',titleKey: 'settings.homeCustomizerTitle',      keywords: 'mainstage home page customize sections' },
   { tab: 'personalisation',titleKey: 'settings.queueToolbarTitle',        keywords: 'queue toolbar buttons reorder customize shuffle save load' },
   { tab: 'personalisation',titleKey: 'settings.playlistLayoutTitle',     keywords: 'playlist page layout add songs import csv download zip cache offline suggestions controls hide show' },
   { tab: 'personalisation',titleKey: 'settings.playerBarTitle',          keywords: 'player bar playback favorites stars rating lastfm love equalizer mini player controls hide show' },

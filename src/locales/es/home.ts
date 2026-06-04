@@ -14,5 +14,8 @@ export const home = {
   becauseYouLikeFor: 'Porque escuchaste a {{artist}}',
   similarTo: 'Similar a {{artist}}',
   becauseYouLikeTracks_one: '{{count}} canción',
-  becauseYouLikeTracks_other: '{{count}} canciones'
+  becauseYouLikeTracks_other: '{{count}} canciones',
+  mainstageEmptyTitle: 'Tu Escenario Principal está vacío',
+  mainstageEmptyBody: 'Todas las secciones están desactivadas. Vuelve a activarlas u oculta el Escenario Principal de la barra lateral.',
+  mainstageEmptyCta: 'Abrir Personalización'
 };

@@ -14,5 +14,8 @@ export const home = {
   becauseYouLikeFor: 'Deoarece ai ascultat {{artist}}',
   similarTo: 'Similar cu {{artist}}',
   becauseYouLikeTracks_one: '{{count}} piesă',
-  becauseYouLikeTracks_other: '{{count}} piese'
+  becauseYouLikeTracks_other: '{{count}} piese',
+  mainstageEmptyTitle: 'Scena Principală este goală',
+  mainstageEmptyBody: 'Toate secțiunile sunt dezactivate. Reactivează secțiuni sau ascunde Scena Principală din bara laterală.',
+  mainstageEmptyCta: 'Deschide Personalizare'
 };

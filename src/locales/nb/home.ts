@@ -14,5 +14,8 @@ export const home = {
   becauseYouLikeFor: 'Fordi du har hørt på {{artist}}',
   similarTo: 'Likt {{artist}}',
   becauseYouLikeTracks_one: '{{count}} spor',
-  becauseYouLikeTracks_other: '{{count}} spor'
+  becauseYouLikeTracks_other: '{{count}} spor',
+  mainstageEmptyTitle: 'Hovedscenen din er tom',
+  mainstageEmptyBody: 'Alle seksjoner er slått av. Slå på seksjoner igjen, eller skjul Hovedscene fra sidefeltet.',
+  mainstageEmptyCta: 'Åpne Tilpasning'
 };
