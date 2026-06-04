@@ -34,7 +34,7 @@ import { AlbumCoverArtImage } from '../cover/AlbumCoverArtImage';
 import { ArtistCoverArtImage } from '../cover/ArtistCoverArtImage';
 import { CoverArtImage } from '../cover/CoverArtImage';
 import { COVER_DENSE_SEARCH_CSS_PX } from '../cover/layoutSizes';
-import { albumCoverRefForSong } from '../cover/ref';
+import { albumCoverRef } from '../cover/ref';
 import { showToast } from '../utils/ui/toast';
 import { useShareSearch } from '../hooks/useShareSearch';
 import ShareSearchResults from './search/ShareSearchResults';
@@ -71,11 +71,18 @@ function LiveSearchAlbumThumb({ albumId, coverArt }: { albumId: string; coverArt
 }
 
 function LiveSearchSongThumb({ song }: { song: Pick<SubsonicSong, 'id' | 'albumId' | 'coverArt' | 'discNumber'> }) {
+  // Search results carry the per-track `mf-…` coverArt id, which the cover
+  // pipeline fails to resolve and the thumbnail goes blank. The album-scoped
+  // `al-<albumId>_0` id is what actually loads (verified in the RC1 blank-thumb
+  // investigation), and a song's search thumbnail is its album cover anyway —
+  // so fetch the album cover from the albumId. Falls back to a music glyph when
+  // there is no album to key on.
+  const albumId = song.albumId?.trim();
   const coverRef = React.useMemo(
-    () => (song.albumId?.trim() ? albumCoverRefForSong(song) : undefined),
-    [song.id, song.albumId, song.coverArt, song.discNumber],
+    () => (albumId ? albumCoverRef(albumId, `al-${albumId}_0`) : undefined),
+    [albumId],
   );
-  if (!coverRef) return null;
+  if (!coverRef) return <div className="search-result-icon"><Music size={14} /></div>;
   return (
     <CoverArtImage
       coverRef={coverRef}
@@ -797,11 +804,7 @@ export default function LiveSearch() {
                           openContextMenu(e.clientX, e.clientY, songToTrack(s), 'song');
                         }}
                         role="option" aria-selected={activeIndex === i}>
-                        {(s.coverArt ?? s.albumId) ? (
-                          <LiveSearchSongThumb song={s} />
-                        ) : (
-                          <div className="search-result-icon"><Music size={14} /></div>
-                        )}
+                        <LiveSearchSongThumb song={s} />
                         <div>
                           <div className="search-result-name">{s.title}</div>
                           <div className="search-result-sub">{s.artist} · {s.album}</div>
