@@ -8,8 +8,15 @@
 }
 
 .mp-cover {
-  width: min(calc(100vw - 28px), 55vh);
-  max-width: 440px;
+  /* Largest square that fits BOTH the viewport width and the height the flex
+     column leaves for the cover. `max-height: 100%` ties the image to its
+     (shrinkable) wrap, so on a short window it scales down instead of growing
+     past its slot and overlapping the title (zunoz, RC2 small-window report).
+     `width/height: auto` + `aspect-ratio` keep it square while it shrinks. */
+  max-width: min(calc(100vw - 28px), 440px);
+  max-height: 100%;
+  width: auto;
+  height: auto;
   aspect-ratio: 1;
   object-fit: cover;
   border-radius: 14px;
