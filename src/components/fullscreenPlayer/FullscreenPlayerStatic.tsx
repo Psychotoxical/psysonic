@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   SkipBack, SkipForward, Square, Repeat, Repeat1, Heart,
-  Shuffle, ListMusic, ChevronDown, Star,
+  Shuffle, ListMusic, ChevronDown, Star, MicVocal,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../../store/playerStore';
@@ -14,6 +14,7 @@ import { useFsIdleFade } from '../../hooks/useFsIdleFade';
 import { useQueueTrackAt } from '../../hooks/useQueueTracks';
 import WaveformSeek from '../WaveformSeek';
 import { FsQueueModal } from './FsQueueModal';
+import { FsLyricsApple } from './FsLyricsApple';
 import { FsPlayBtn } from './FsPlayBtn';
 import { FsClock } from './FsClock';
 import { FsTimeReadout } from './FsTimeReadout';
@@ -70,6 +71,7 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
   const { isIdle, handleMouseMove } = useFsIdleFade(onClose);
   const controlsRef = useRef<HTMLDivElement>(null);
   const [queueOpen, setQueueOpen] = useState(false);
+  const [lyricsOpen, setLyricsOpen] = useState(false);
 
   // Prefix the title with the queue position so it matches "Track x / N".
   const titlePrefix = queueLen > 0
@@ -115,7 +117,7 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
       </div>
 
       <button className="fsp-close" onClick={onClose} aria-label={t('player.closeFullscreen')}>
-        <ChevronDown size={28} />
+        <ChevronDown size={20} />
       </button>
 
       {/* Bottom bar */}
@@ -171,6 +173,14 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
             <button className="fsp-btn fsp-btn-sm" onClick={() => setQueueOpen(true)} aria-label="Queue" data-tooltip="Queue">
               <ListMusic size={20} />
             </button>
+            <button
+              className={`fsp-btn fsp-btn-sm${lyricsOpen ? ' active' : ''}`}
+              onClick={() => setLyricsOpen(v => !v)}
+              aria-label="Lyrics"
+              data-tooltip="Lyrics"
+            >
+              <MicVocal size={20} />
+            </button>
             {currentTrack && (
               <button
                 className={`fsp-btn fsp-btn-sm${isStarred ? ' active' : ''}`}
@@ -200,6 +210,14 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
       </div>
 
       {queueOpen && <FsQueueModal onClose={() => setQueueOpen(false)} />}
+
+      {/* Scrolling synced lyrics (reuses FsLyricsApple) in a semi-transparent
+          overlay over the upper area. */}
+      {lyricsOpen && (
+        <div className="fsp-lyrics-overlay">
+          <FsLyricsApple currentTrack={currentTrack} />
+        </div>
+      )}
     </div>
   );
 }

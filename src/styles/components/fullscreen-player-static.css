@@ -98,8 +98,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border: none;
   border-radius: var(--radius-full);
   background: rgba(0, 0, 0, 0.35);
@@ -242,7 +242,7 @@
      (the gap to the waveform below stays). */
   margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-6)) 0;
   padding: var(--space-3) var(--space-6);
-  background: rgba(0, 0, 0, 0.62);
+  background: rgba(0, 0, 0, 0.88);
 }
 
 .fsp-transport {
@@ -467,4 +467,30 @@
   font-variant-numeric: tabular-nums;
   font-size: 12px;
   color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── Scrolling lyrics overlay (reuses FsLyricsApple) — semi-transparent, no blur.
+   FsLyricsApple's .fsa-lyrics-container is position:absolute inset:0, so it fills
+   this box. ── */
+.fsp-lyrics-overlay {
+  position: absolute;
+  top: var(--space-6);
+  left: 14%;
+  right: 14%;
+  bottom: 360px; /* ends above the song-info / cover block; tune */
+  z-index: 4;
+  background: rgba(0, 0, 0, 0.88);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* Centered lyrics text in the fullscreen overlay (FsLyricsApple defaults to
+   left-aligned for the old layout). */
+.fsp-lyrics-overlay .fsa-lyrics-container {
+  text-align: center;
+}
+
+.fsp-lyrics-overlay .fsa-lyric-line {
+  text-align: center;
+  transform-origin: center center;
 }
