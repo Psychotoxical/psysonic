@@ -144,7 +144,7 @@ export default function YearFilterButton({
         }}
       >
         <CalendarRange size={14} />
-        {active && activeLabel ? activeLabel : t('albums.yearFilterLabel')}
+        <span className="toolbar-btn-label">{active && activeLabel ? activeLabel : t('albums.yearFilterLabel')}</span>
         {active && <FilterQuickClear onActiveChip onClear={clear} />}
       </button>
 

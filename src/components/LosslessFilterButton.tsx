@@ -25,7 +25,7 @@ export default function LosslessFilterButton({ active, onChange }: Props) {
       }}
     >
       <Gem size={14} />
-      {t('albums.losslessLabel')}
+      <span className="toolbar-btn-label">{t('albums.losslessLabel')}</span>
       {active && <FilterQuickClear onActiveChip onClear={() => onChange(false)} />}
     </button>
   );

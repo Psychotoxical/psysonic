@@ -158,7 +158,7 @@ export default function GenreFilterBar({
         style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
       >
         <Filter size={14} />
-        {t('common.filterGenre')}
+        <span className="toolbar-btn-label">{t('common.filterGenre')}</span>
         {count > 0 && <span className="genre-filter-count">{count}</span>}
         {count > 0 && <FilterQuickClear onActiveChip onClear={clear} />}
       </button>

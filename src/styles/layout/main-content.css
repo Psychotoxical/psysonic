@@ -180,6 +180,15 @@
   min-height: 0;
 }
 
+/* Compact mode: the sticky toolbar is `flex-shrink: 0`, so labelled filter
+   buttons wrap into several rows on a narrow window and starve the `flex: 1`
+   list below them, clipping the album grid (zunoz, RC2). Collapse the toolbar
+   buttons to icon-only (label hidden, icon + tooltip + aria-label kept) so the
+   row stays short and the list keeps its height. */
+.app-shell[data-mobile] .mainstage-inpage-toolbar .toolbar-btn-label {
+  display: none;
+}
+
 .mainstage-inpage-scroll__viewport {
   padding-bottom: var(--space-6);
   padding-right: var(--space-6);

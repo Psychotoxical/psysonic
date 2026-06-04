@@ -98,7 +98,7 @@ export default function SortDropdown<V extends string>({ value, options, onChang
         style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
       >
         <ArrowDownUp size={14} />
-        {current?.label ?? value}
+        <span className="toolbar-btn-label">{current?.label ?? value}</span>
       </button>
 
       {open && createPortal(

@@ -365,17 +365,17 @@ export default function Albums() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               {selectionMode && selectedIds.size > 0 ? (
                 <>
-                  <button className="btn btn-surface albums-selection-action-btn" onClick={handleEnqueueSelected}>
+                  <button className="btn btn-surface albums-selection-action-btn" onClick={handleEnqueueSelected} data-tooltip={t('albums.enqueueSelected', { count: selectedIds.size })} data-tooltip-pos="bottom">
                     <ListPlus size={15} />
-                    {t('albums.enqueueSelected', { count: selectedIds.size })}
+                    <span className="toolbar-btn-label">{t('albums.enqueueSelected', { count: selectedIds.size })}</span>
                   </button>
-                  <button className="btn btn-surface albums-selection-action-btn" onClick={handleAddOffline}>
+                  <button className="btn btn-surface albums-selection-action-btn" onClick={handleAddOffline} data-tooltip={t('albums.addOffline')} data-tooltip-pos="bottom">
                     <HardDriveDownload size={15} />
-                    {t('albums.addOffline')}
+                    <span className="toolbar-btn-label">{t('albums.addOffline')}</span>
                   </button>
-                  <button className="btn btn-surface albums-selection-action-btn" onClick={handleDownloadZips}>
+                  <button className="btn btn-surface albums-selection-action-btn" onClick={handleDownloadZips} data-tooltip={t('albums.downloadZips')} data-tooltip-pos="bottom">
                     <Download size={15} />
-                    {t('albums.downloadZips')}
+                    <span className="toolbar-btn-label">{t('albums.downloadZips')}</span>
                   </button>
                 </>
               ) : (
@@ -422,9 +422,11 @@ export default function Albums() {
                     }}
                   >
                     <Disc3 size={14} />
-                    {compFilter === 'all' ? t('albums.compilationLabel')
-                      : compFilter === 'only' ? t('albums.compilationOnly')
-                      : t('albums.compilationHide')}
+                    <span className="toolbar-btn-label">
+                      {compFilter === 'all' ? t('albums.compilationLabel')
+                        : compFilter === 'only' ? t('albums.compilationOnly')
+                        : t('albums.compilationHide')}
+                    </span>
                     {compFilter !== 'all' && (
                       <FilterQuickClear onActiveChip onClear={() => setCompFilter('all')} />
                     )}
@@ -440,7 +442,7 @@ export default function Albums() {
                 style={selectionMode ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}}
               >
                 <CheckSquare2 size={15} />
-                {selectionMode ? t('albums.cancelSelect') : t('albums.select')}
+                <span className="toolbar-btn-label">{selectionMode ? t('albums.cancelSelect') : t('albums.select')}</span>
               </button>
             </div>
           </div>

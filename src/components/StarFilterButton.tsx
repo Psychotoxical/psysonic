@@ -62,7 +62,7 @@ export default function StarFilterButton({ active, onChange, size = 'default' }:
       }}
     >
       <Star size={14} fill={active ? 'currentColor' : 'none'} />
-      {t('common.favorites')}
+      <span className="toolbar-btn-label">{t('common.favorites')}</span>
       {active && <FilterQuickClear onActiveChip onClear={() => onChange(false)} />}
     </button>
   );
