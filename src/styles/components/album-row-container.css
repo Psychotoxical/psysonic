@@ -120,6 +120,22 @@
   transform: none;
 }
 
+/* Dim below badges/play controls — overlay background on a later sibling made
+   the New badge flicker on first cover:hover (WebKitGTK mainstage rails). */
+.album-grid .album-card-cover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: transparent;
+}
+
+.album-grid .album-card-cover:hover::before,
+.album-grid .album-card-cover:focus-within::before {
+  background: rgba(0, 0, 0, 0.4);
+}
+
 .album-grid .album-card-cover img {
   transform-origin: center center;
   transform: scale(1);
@@ -131,28 +147,33 @@
 }
 
 .album-grid .album-card .album-card-play-overlay {
+  z-index: 2;
   opacity: 1;
   background-color: transparent;
   transition: none;
+  pointer-events: none;
 }
 
 .album-grid .album-card .album-card-details-btn {
-  visibility: hidden;
   opacity: 0;
+  visibility: visible;
   pointer-events: none;
   transition: none;
 }
 
 .album-grid .album-card-cover:hover .album-card-play-overlay,
 .album-grid .album-card-cover:focus-within .album-card-play-overlay {
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: transparent;
 }
 
 .album-grid .album-card-cover:hover .album-card-details-btn,
 .album-grid .album-card-cover:focus-within .album-card-details-btn {
-  visibility: visible;
   opacity: 1;
   pointer-events: auto;
+}
+
+.album-grid .album-card-cover-badges-tr {
+  z-index: 3;
 }
 
 .album-grid .artist-card {
