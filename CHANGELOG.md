@@ -411,6 +411,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Mainstage — renamed to match the sidebar
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#975](https://github.com/Psychotoxical/psysonic/pull/975)**
+
+* The **Settings → Personalisation** section for customising the home page is renamed **Mainstage** so it matches the sidebar entry it controls. Localised across all 9 languages; settings search still finds it under the new name.
+
+
+
 
 ## Fixed
 
@@ -839,6 +847,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The queue collapse handle now shows a hand cursor like every other button; the thin resize line beside it keeps the resize cursor.
 * On Favorites, the **Plays**, **Last Played** and **BPM** columns are now actually sortable — they showed a clickable cursor but clicking did nothing.
+
+### Mainstage — no more blank start page
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#975](https://github.com/Psychotoxical/psysonic/pull/975)**
+
+* Hiding **Mainstage** from the sidebar no longer leaves the app opening on a blank page — it now starts on the first visible library entry instead.
+* When every Mainstage section is turned off, the page shows a short message with a shortcut into **Settings → Personalisation** rather than appearing empty.
 
 ## [1.46.0] - 2026-05-18
 
