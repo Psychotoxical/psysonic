@@ -563,6 +563,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Album grids and song rails:** overlay `pointer-events` so the dim layer does not steal hover from the card.
 
 
+### Mainstage album rails — stable New badge on first hover
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#986](https://github.com/Psychotoxical/psysonic/pull/986)**
+
+* Horizontal rails (Home New Releases, Discover, …) no longer flash the **New** cover badge on the first pointer hover — dimming sits on a cover layer below badges instead of the play overlay.
+
 
 ### Album view — bulk add to playlist selection
 
