@@ -855,6 +855,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Hiding **Mainstage** from the sidebar no longer leaves the app opening on a blank page — it now starts on the first visible library entry instead.
 * When every Mainstage section is turned off, the page shows a short message with a shortcut into **Settings → Personalisation** rather than appearing empty.
 
+### Tracks — spacing, Duration column, header hover, multi-artist links
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#976](https://github.com/Psychotoxical/psysonic/pull/976)**
+
+* The Tracks hub sections (tagline, **Track of the moment**, **Random Pick** rail, **Browse all tracks**) no longer bunch together — even vertical spacing is restored, so the rail's navigation buttons stop riding up into the card above.
+* The **Browse all tracks** table no longer clips the **Duration** column header.
+* The track-list column header keeps its background on hover instead of turning transparent and letting rows show through.
+* **Track of the moment** and the browse rows split multi-artist tracks into individually clickable artist links, matching the album track list.
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
