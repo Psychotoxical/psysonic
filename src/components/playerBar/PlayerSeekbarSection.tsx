@@ -2,9 +2,9 @@ import { ArrowLeftRight } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import type { RadioMetadata } from '../../hooks/useRadioMetadata';
 import { useThemeStore } from '../../store/themeStore';
-import { formatTrackTime } from '../../utils/format/formatDuration';
+import { formatTrackTime, playbarMinuteFieldWidth } from '../../utils/format/formatDuration';
 import WaveformSeek from '../WaveformSeek';
-import { PlaybackTime, RemainingTime } from './PlaybackClock';
+import { PlaybackTime, ToggleClock } from './PlaybackClock';
 
 interface Props {
   isRadio: boolean;
@@ -21,8 +21,14 @@ export function PlayerSeekbarSection({
   isRadio, radioMeta, trackId, duration, localShowRemaining, setLocalShowRemaining,
   disableWaveformCanvas, t,
 }: Props) {
+  const minuteFieldWidth = playbarMinuteFieldWidth(duration);
+  const playbarClockStyle = {
+    '--playbar-clock-body-ch': minuteFieldWidth + 3,
+    '--playbar-clock-signed-ch': minuteFieldWidth + 4,
+  } as React.CSSProperties;
+
   return (
-    <div className="player-waveform-section">
+    <div className="player-waveform-section" style={playbarClockStyle}>
       {isRadio ? (
         <>
           {radioMeta.source === 'azuracast' && radioMeta.elapsed != null && radioMeta.duration != null && radioMeta.duration > 0 ? (
@@ -50,7 +56,7 @@ export function PlayerSeekbarSection({
         </>
       ) : (
         <>
-          <PlaybackTime className="player-time" />
+          <PlaybackTime className="player-time" minuteFieldWidth={minuteFieldWidth} />
           <div className="player-waveform-wrap">
             {disableWaveformCanvas
               ? <div className="radio-progress-bar" aria-hidden />
@@ -65,8 +71,13 @@ export function PlayerSeekbarSection({
             }}
             data-tooltip={localShowRemaining ? t('player.showDuration') : t('player.showRemainingTime')}
           >
-            {localShowRemaining ? <RemainingTime duration={duration} /> : formatTrackTime(duration)}
-            <ArrowLeftRight size={10} style={{ marginLeft: 4, opacity: 0.6 }} />
+            <ToggleClock
+              className="player-time-toggle__label"
+              duration={duration}
+              minuteFieldWidth={minuteFieldWidth}
+              remaining={localShowRemaining}
+            />
+            <ArrowLeftRight className="player-time-toggle__icon" size={10} aria-hidden />
           </span>
         </>
       )}

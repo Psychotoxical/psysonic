@@ -30,7 +30,6 @@ import { usePlaybackScheduleRemaining } from '../utils/format/playbackScheduleFo
 import { usePreviewStore } from '../store/previewStore';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { formatTrackTime } from '../utils/format/formatDuration';
-import { PlaybackTime, RemainingTime } from './playerBar/PlaybackClock';
 import { PlayerTrackInfo } from './playerBar/PlayerTrackInfo';
 import { PlayerTransportControls } from './playerBar/PlayerTransportControls';
 import { PlayerSeekbarSection } from './playerBar/PlayerSeekbarSection';

@@ -279,7 +279,7 @@ html[data-platform="windows"] .player-bar.floating {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 4px;
   margin-left: 24px;
   margin-right: 24px;
 }
@@ -298,7 +298,10 @@ html[data-platform="windows"] .player-bar.floating {
   min-width: 2.5rem;
 }
 
-.player-time:first-child {
+.player-waveform-section > .player-time:first-child {
+  flex: 0 0 calc(var(--playbar-clock-body-ch, 4) * 1ch);
+  width: calc(var(--playbar-clock-body-ch, 4) * 1ch);
+  min-width: unset;
   text-align: right;
 }
 
@@ -307,13 +310,30 @@ html[data-platform="windows"] .player-bar.floating {
 }
 
 /* Clickable time toggle with swap indicator */
+.player-time.player-time-toggle {
+  min-width: unset;
+}
+
 .player-time-toggle {
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  padding: 2px 4px;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 2px 0 2px 2px;
   border-radius: 4px;
   transition: background-color 0.15s, color 0.15s;
+}
+
+.player-time-toggle__label {
+  flex: 0 0 calc(var(--playbar-clock-signed-ch, 5) * 1ch);
+  width: calc(var(--playbar-clock-signed-ch, 5) * 1ch);
+  font-variant-numeric: tabular-nums;
+}
+
+.player-time-toggle__icon {
+  flex-shrink: 0;
+  opacity: 0.6;
 }
 
 .player-time-toggle:hover {
