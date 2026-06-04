@@ -988,6 +988,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Show remaining time** no longer reticks the seekbar width every second — fixed-width playbar clocks stop `WaveformSeek` resize/redraw jitter; clocks sit tighter against the waveform with an inline duration toggle icon.
 
 
+### Linux — instant play/pause/seek/volume on PipeWire
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by PHLAK, PR [#990](https://github.com/Psychotoxical/psysonic/pull/990)**
+
+* On some PipeWire setups, play, pause, seek and volume changes only took effect after a long delay (10+ seconds). Root cause: the PipeWire ALSA bridge negotiated a multi-second audio buffer, so changes were only heard once it drained. Psysonic now caps that buffer, so the controls respond immediately.
+
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
