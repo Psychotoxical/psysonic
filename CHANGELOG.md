@@ -878,6 +878,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Compilation albums under **Also featured on** show their album artist (e.g. *Various Artists*) again instead of a bare `—`, and the credit links to the artist when the server provides one.
 
+### Playlist — Suggested Songs row matches the playlist
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#980](https://github.com/Psychotoxical/psysonic/pull/980)**
+
+* Suggested Songs now show the favorite heart and star rating like the playlist above, so the Favorite/Rating columns no longer leave an empty gap.
+* Tracks with several artists split into individually clickable names, matching the rest of the app — and reading the same before and after you add the track.
+
 ## [1.46.0] - 2026-05-18
 
 > **🙏 Special thanks to [@zz5zz](https://github.com/zz5zz)** for his tireless quirk-spotting and bug reports on the [Psysonic Discord](https://discord.gg/AMnDRErm4u) — several of the polish fixes in this release landed directly off the back of his messages.
