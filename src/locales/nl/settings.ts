@@ -371,6 +371,8 @@ export const settings = {
   advancedBadge: 'Geavanceerd',
   sidebarDrag: 'Slepen om te herordenen',
   sidebarFixed: 'Altijd zichtbaar',
+  nowPlayingTopTitle: '"Nu bezig" bovenaan',
+  nowPlayingTopDesc: 'Zet "Nu bezig" bovenaan de zijbalk in plaats van onderaan.',
   randomNavSplitTitle: 'Mix-navigatie splitsen',
   randomNavSplitDesc: 'Toon "Willekeurige mix", "Willekeurige albums" en "Geluksmix" als afzonderlijke zijbalkitems in plaats van de "Mix samenstellen"-hub.',
   tabInput: 'Invoer',

@@ -373,6 +373,8 @@ export const settings = {
   advancedBadge: 'Avanzado',
   sidebarDrag: 'Arrastra para reordenar',
   sidebarFixed: 'Siempre visible',
+  nowPlayingTopTitle: '"Reproduciendo Ahora" arriba',
+  nowPlayingTopDesc: 'Fijar la entrada "Reproduciendo Ahora" en la parte superior de la barra lateral en lugar de abajo.',
   randomNavSplitTitle: 'Dividir navegación Mix',
   randomNavSplitDesc: 'Mostrar "Mezcla Aleatoria", "Álbumes Aleatorios" y "Mezcla Suerte" como entradas separadas en la barra lateral en lugar del hub "Crear Mezcla".',
   tabInput: 'Entrada',

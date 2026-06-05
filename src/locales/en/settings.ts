@@ -438,6 +438,8 @@ export const settings = {
   advancedBadge: 'Advanced',
   sidebarDrag: 'Drag to reorder',
   sidebarFixed: 'Always visible',
+  nowPlayingTopTitle: 'Now Playing at top',
+  nowPlayingTopDesc: 'Pin the "Now Playing" entry to the top of the sidebar instead of the bottom.',
   randomNavSplitTitle: 'Split Mix navigation',
   randomNavSplitDesc: 'Show "Random Mix", "Random Albums", and "Lucky Mix" as separate sidebar entries instead of the "Build a Mix" hub.',
   tabInput: 'Input',

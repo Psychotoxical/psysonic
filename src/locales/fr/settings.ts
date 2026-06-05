@@ -371,6 +371,8 @@ export const settings = {
   advancedBadge: 'Avancé',
   sidebarDrag: 'Glisser pour réorganiser',
   sidebarFixed: 'Toujours visible',
+  nowPlayingTopTitle: '« En cours » en haut',
+  nowPlayingTopDesc: 'Épingler l\'entrée « En cours » en haut de la barre latérale au lieu du bas.',
   randomNavSplitTitle: 'Diviser la navigation Mix',
   randomNavSplitDesc: 'Afficher "Mix Aléatoire", "Albums Aléatoires" et "Mix Chance" comme entrées séparées dans la barre latérale plutôt que le hub "Créer un Mix".',
   tabInput: 'Entrée',

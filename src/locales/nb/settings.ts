@@ -370,6 +370,8 @@ export const settings = {
   advancedBadge: 'Avansert',
   sidebarDrag: 'Dra for å endre rekkefølge',
   sidebarFixed: 'Alltid synlig',
+  nowPlayingTopTitle: '"Spilles nå" øverst',
+  nowPlayingTopDesc: 'Fest "Spilles nå" øverst i sidefeltet i stedet for nederst.',
   randomNavSplitTitle: 'Del Mix-navigasjon',
   randomNavSplitDesc: 'Vis "Tilfeldig miks", "Tilfeldige album" og "Lykkemiks" som separate sidefeltsoppføringer i stedet for "Lag en miks"-huben.',
   tabShortcuts: 'Snarveier',

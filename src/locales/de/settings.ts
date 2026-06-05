@@ -374,6 +374,8 @@ export const settings = {
   advancedBadge: 'Erweitert',
   sidebarDrag: 'Ziehen zum Umsortieren',
   sidebarFixed: 'Immer sichtbar',
+  nowPlayingTopTitle: 'Now Playing oben',
+  nowPlayingTopDesc: '"Now Playing" oben in der Seitenleiste anheften statt unten.',
   randomNavSplitTitle: 'Mix-Navigation aufteilen',
   randomNavSplitDesc: '"Zufallsmix", "Zufallsalben" und "Glücks-Mix" als separate Sidebar-Einträge statt als "Mix erstellen"-Hub anzeigen.',
   tabInput: 'Eingabe',

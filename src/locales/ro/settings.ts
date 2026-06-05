@@ -376,6 +376,8 @@ export const settings = {
   advancedBadge: 'Avansat',
   sidebarDrag: 'Trage pentru a reordona',
   sidebarFixed: 'Mereu vizibil',
+  nowPlayingTopTitle: '"Se Redă Acum" sus',
+  nowPlayingTopDesc: 'Fixează intrarea "Se Redă Acum" în partea de sus a barei laterale în loc de jos.',
   randomNavSplitTitle: 'Navigare Mix împărțită',
   randomNavSplitDesc: 'Arată "Mix Aleatoriu", "Albume Aleatorii", și "Mix Norocos" ca intrări separate în bara laterală în loc de hub-ul "Construiește un Mix".',
   tabInput: 'Input',

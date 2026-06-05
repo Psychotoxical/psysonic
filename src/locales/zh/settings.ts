@@ -370,6 +370,8 @@ export const settings = {
   advancedBadge: '高级',
   sidebarDrag: '拖动以重新排序',
   sidebarFixed: '始终显示',
+  nowPlayingTopTitle: '"正在播放"置顶',
+  nowPlayingTopDesc: '将"正在播放"固定在侧边栏顶部，而非底部。',
   randomNavSplitTitle: '拆分混音导航',
   randomNavSplitDesc: '在侧边栏中将“随机混音”、“随机专辑”和“好运混音”显示为独立条目，而非“创建混音”合并入口。',
   tabInput: '输入',
