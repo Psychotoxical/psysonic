@@ -4,8 +4,9 @@ import type { CoverServerScope } from '../../cover/types';
 import { useAuthStore } from '../../store/authStore';
 import type { PinnedGroup, PinSource } from '../../store/localPlaybackStore';
 import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
-import type { OfflineAlbumMeta } from '../../store/offlineStore';
-import { trackToSong } from '../library/advancedSearchLocal';
+import { useOfflineStore, type OfflineAlbumMeta } from '../../store/offlineStore';
+import { resolveTrackCoverArtId } from '../library/advancedSearchLocal';
+import { resolveIndexKey } from '../server/serverIndexKey';
 import { switchActiveServer } from '../server/switchActiveServer';
 import type { Track } from '../../store/playerStoreTypes';
 import { findServerByIdOrIndexKey, resolveServerIdForIndexKey } from '../server/serverLookup';
@@ -49,6 +50,26 @@ export function libraryDtoToTrack(dto: LibraryTrackDto): Track {
   };
 }
 
+function legacyCoverForPinnedGroup(group: PinnedGroup): string | undefined {
+  const albums: OfflineAlbumMeta[] = [...Object.values(useOfflineStore.getState().albums)];
+  try {
+    const raw = localStorage.getItem('psysonic-offline');
+    if (raw) {
+      const blob = JSON.parse(raw) as { state?: { albums?: Record<string, OfflineAlbumMeta> } };
+      albums.push(...Object.values(blob.state?.albums ?? {}));
+    }
+  } catch { /* ignore */ }
+
+  for (const album of albums) {
+    if (album.id !== group.pinSource.sourceId) continue;
+    const albumKey = resolveIndexKey(album.serverId);
+    if (albumKey !== group.serverIndexKey && album.serverId !== group.serverIndexKey) continue;
+    const cover = album.coverArt?.trim();
+    if (cover) return cover;
+  }
+  return undefined;
+}
+
 export async function hydrateOfflineLibraryCards(
   groups: PinnedGroup[],
 ): Promise<OfflineLibraryCard[]> {
@@ -63,8 +84,9 @@ export async function hydrateOfflineLibraryCards(
   const byId = new Map(tracks.map(t => [`${t.serverId}:${t.id}`, t]));
 
   return groups.map(group => {
+    const libraryServerId = resolveServerIdForIndexKey(group.serverIndexKey) || group.serverIndexKey;
     const first = group.trackIds
-      .map(tid => byId.get(`${resolveServerIdForIndexKey(group.serverIndexKey) || group.serverIndexKey}:${tid}`))
+      .map(tid => byId.get(`${libraryServerId}:${tid}`))
       .find(Boolean);
     const displayName = group.pinSource.displayName
       ?? first?.album
@@ -73,13 +95,15 @@ export async function hydrateOfflineLibraryCards(
     const artist = group.pinSource.kind === 'artist'
       ? (group.pinSource.displayName ?? first?.artist ?? '')
       : (first?.artist ?? first?.albumArtist ?? '');
+    const coverArt = (first ? resolveTrackCoverArtId(first) : undefined)
+      ?? legacyCoverForPinnedGroup(group);
     return {
       serverIndexKey: group.serverIndexKey,
       pinSource: group.pinSource,
       trackIds: group.trackIds,
       name: displayName,
       artist,
-      coverArt: first?.coverArtId ?? undefined,
+      coverArt,
       year: first?.year ?? undefined,
     };
   });

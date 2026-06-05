@@ -19,6 +19,10 @@ import {
 } from '../utils/offline/offlineLibraryHelpers';
 import { showToast } from '../utils/ui/toast';
 import { resolveIndexKey } from '../utils/server/serverIndexKey';
+import {
+  inferPinSourcesFromLibraryIndex,
+  restoreOfflineLibraryPinSources,
+} from '../utils/migrations/legacyOfflineFileMigration';
 
 const OFFLINE_CARD_COVER_CSS_PX = 300;
 
@@ -45,12 +49,16 @@ export default function OfflineLibrary() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    const groups = useLocalPlaybackStore.getState().listPinnedGroups();
-    void hydrateOfflineLibraryCards(groups).then(hydrated => {
-      if (!cancelled) {
-        setCards(hydrated);
-        setLoading(false);
-      }
+    void (async () => {
+      restoreOfflineLibraryPinSources();
+      await inferPinSourcesFromLibraryIndex();
+      if (cancelled) return;
+      const groups = useLocalPlaybackStore.getState().listPinnedGroups();
+      return hydrateOfflineLibraryCards(groups);
+    })().then(hydrated => {
+      if (!hydrated || cancelled) return;
+      setCards(hydrated);
+      setLoading(false);
     }).catch(() => {
       if (!cancelled) setLoading(false);
     });
@@ -95,7 +103,10 @@ export default function OfflineLibrary() {
     const coverScope = offlineAlbumCoverScope(card);
     const trackCount = offlineTrackCount(card);
     const serverLabel = serverNames[resolveIndexKey(card.serverIndexKey)] ?? serverNames[card.serverIndexKey];
-    const albumId = card.pinSource.kind === 'album' ? card.pinSource.sourceId : card.trackIds[0] ?? card.pinSource.sourceId;
+    const albumId = card.coverArt
+      ?? (card.pinSource.kind === 'album'
+        ? card.pinSource.sourceId
+        : card.trackIds[0] ?? card.pinSource.sourceId);
     return (
       <div className="album-card card offline-library-card">
         <div className="album-card-cover">
@@ -104,6 +115,7 @@ export default function OfflineLibrary() {
               albumId={albumId}
               coverArt={card.coverArt}
               serverScope={coverScope}
+              libraryResolve
               displayCssPx={OFFLINE_CARD_COVER_CSS_PX}
               surface="dense"
               alt={`${card.name} Cover`}

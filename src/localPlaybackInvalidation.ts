@@ -5,7 +5,7 @@ import { useAuthStore } from './store/authStore';
 import { useLocalPlaybackStore } from './store/localPlaybackStore';
 import { layoutFingerprintFromLibraryTrack } from './utils/media/mediaLayout';
 import { getMediaDir } from './utils/media/mediaDir';
-import { migrateLegacyOfflineFiles } from './utils/migrations/legacyOfflineFileMigration';
+import { runLegacyOfflineFileMigration } from './utils/migrations/legacyOfflineFileMigration';
 import { resolveServerIdForIndexKey } from './utils/server/serverLookup';
 import { serverIndexKeyFromUrl } from './utils/server/serverIndexKey';
 
@@ -46,7 +46,7 @@ export function initLocalPlaybackInvalidation(): () => void {
     if (!libraryServerId) return;
     void (async () => {
       const indexKey = serverIndexKeyForLibraryId(libraryServerId);
-      await migrateLegacyOfflineFiles(indexKey);
+      await runLegacyOfflineFileMigration(indexKey);
       await invalidateEntriesForLibraryServer(libraryServerId);
     })();
   }).then(fn => {

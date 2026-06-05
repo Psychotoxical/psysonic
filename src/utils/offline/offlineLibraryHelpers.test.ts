@@ -1,20 +1,31 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAuthStore } from '../../store/authStore';
 import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
+import { useOfflineStore } from '../../store/offlineStore';
 import { switchActiveServer } from '../server/switchActiveServer';
 import {
   ensureServerForOfflineCard,
   hasAnyOfflineAlbums,
+  hydrateOfflineLibraryCards,
   offlineAlbumCoverScope,
   offlineTrackCount,
   type OfflineLibraryCard,
 } from './offlineLibraryHelpers';
+import * as libraryApi from '../../api/library';
 import { coverStorageKey } from '../../cover/storageKeys';
 import { resolveCoverDisplayTier } from '../../cover/tiers';
 
 vi.mock('../server/switchActiveServer', () => ({
   switchActiveServer: vi.fn(async () => true),
 }));
+
+vi.mock('../../api/library', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../api/library')>();
+  return {
+    ...actual,
+    libraryGetTracksBatch: vi.fn(),
+  };
+});
 
 describe('offlineLibraryHelpers', () => {
   beforeEach(() => {
@@ -110,6 +121,47 @@ describe('offlineLibraryHelpers', () => {
     };
     await expect(ensureServerForOfflineCard(card)).resolves.toBe(true);
     expect(switchActiveServer).not.toHaveBeenCalled();
+  });
+
+  it('hydrateOfflineLibraryCards falls back to albumId when coverArtId is missing', async () => {
+    vi.mocked(libraryApi.libraryGetTracksBatch).mockResolvedValueOnce([{
+      serverId: 'a',
+      id: 't1',
+      title: 'Song',
+      album: 'Al',
+      albumId: 'al-1',
+      durationSec: 100,
+      syncedAt: 1,
+      rawJson: {},
+    }]);
+    const cards = await hydrateOfflineLibraryCards([{
+      serverIndexKey: 'a.test',
+      pinSource: { kind: 'album', sourceId: 'al-1', displayName: 'Al' },
+      trackIds: ['t1'],
+    }]);
+    expect(cards[0]?.coverArt).toBe('al-1');
+  });
+
+  it('hydrateOfflineLibraryCards uses legacy offline album coverArt', async () => {
+    vi.mocked(libraryApi.libraryGetTracksBatch).mockResolvedValueOnce([]);
+    useOfflineStore.setState({
+      albums: {
+        'a.test:al-1': {
+          id: 'al-1',
+          serverId: 'a.test',
+          name: 'Al',
+          artist: 'Ar',
+          coverArt: 'legacy-cover',
+          trackIds: ['t1'],
+        },
+      },
+    });
+    const cards = await hydrateOfflineLibraryCards([{
+      serverIndexKey: 'a.test',
+      pinSource: { kind: 'album', sourceId: 'al-1' },
+      trackIds: ['t1'],
+    }]);
+    expect(cards[0]?.coverArt).toBe('legacy-cover');
   });
 
   it('ensureServerForOfflineCard switches when card is on another server', async () => {

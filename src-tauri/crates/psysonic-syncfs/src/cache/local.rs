@@ -9,9 +9,11 @@ use std::sync::Arc;
 
 use psysonic_analysis::analysis_runtime::{enqueue_track_analysis, AnalysisBackfillPriority};
 use psysonic_audio as audio;
+use psysonic_core::cover_cache_layout::sanitize_path_segment;
 use psysonic_core::media_layout::{
     absolute_track_path, layout_fingerprint, LocalTier, TrackPathInput,
 };
+use psysonic_library::repos::TrackRow;
 use psysonic_library::{repos::TrackRepository, LibraryRuntime};
 use tauri::{AppHandle, Manager, State};
 
@@ -340,16 +342,6 @@ pub async fn promote_stream_cache_to_local(
     }))
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LegacyOfflineMigrationItem {
-    pub track_id: String,
-    pub server_index_key: String,
-    pub library_server_id: String,
-    pub old_path: String,
-    pub suffix: String,
-}
-
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LegacyOfflineMigrationResult {
@@ -364,6 +356,157 @@ pub struct LegacyOfflineMigrationResult {
 
 fn default_legacy_offline_root(app: &AppHandle) -> Option<std::path::PathBuf> {
     app.path().app_data_dir().ok().map(|d| d.join("psysonic-offline"))
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LegacyOfflineDiskEntry {
+    pub server_segment: String,
+    pub track_id: String,
+    pub path: String,
+    pub suffix: String,
+    pub size_bytes: u64,
+}
+
+fn scan_flat_offline_root(root: &std::path::Path) -> Vec<LegacyOfflineDiskEntry> {
+    let mut out = Vec::new();
+    if !root.is_dir() {
+        return out;
+    }
+    let Ok(server_dirs) = std::fs::read_dir(root) else {
+        return out;
+    };
+    for server_entry in server_dirs.flatten() {
+        let server_path = server_entry.path();
+        if !server_path.is_dir() {
+            continue;
+        }
+        let server_segment = server_entry.file_name().to_string_lossy().to_string();
+        let Ok(files) = std::fs::read_dir(&server_path) else {
+            continue;
+        };
+        for file_entry in files.flatten() {
+            let path = file_entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            let Some((track_id, suffix)) = name.rsplit_once('.') else {
+                continue;
+            };
+            if track_id.is_empty() || suffix.is_empty() {
+                continue;
+            }
+            let size_bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+            out.push(LegacyOfflineDiskEntry {
+                server_segment: server_segment.clone(),
+                track_id: track_id.to_string(),
+                path: path.to_string_lossy().to_string(),
+                suffix: suffix.to_string(),
+                size_bytes,
+            });
+        }
+    }
+    out
+}
+
+fn legacy_offline_roots(
+    app: &AppHandle,
+    custom_offline_dir: Option<&str>,
+) -> Vec<std::path::PathBuf> {
+    let mut roots = Vec::new();
+    if let Some(root) = default_legacy_offline_root(app) {
+        roots.push(root);
+    }
+    if let Some(cd) = custom_offline_dir.filter(|s| !s.is_empty()) {
+        let custom = std::path::PathBuf::from(cd);
+        if roots.iter().all(|r| r != &custom) {
+            roots.push(custom);
+        }
+    }
+    roots
+}
+
+fn server_index_key_from_url(url: &str) -> String {
+    let trimmed = url.trim().trim_end_matches('/');
+    trimmed
+        .strip_prefix("https://")
+        .or_else(|| trimmed.strip_prefix("http://"))
+        .unwrap_or(trimmed)
+        .to_string()
+}
+
+fn base_url_for_server(runtime: &LibraryRuntime, server_id: &str) -> Option<String> {
+    runtime
+        .sync_sessions
+        .lock()
+        .ok()
+        .and_then(|sessions| sessions.get(server_id).map(|s| s.base_url.clone()))
+}
+
+fn server_index_key_for_disk(
+    runtime: &LibraryRuntime,
+    server_id: &str,
+    disk_segment: &str,
+) -> String {
+    if let Some(url) = base_url_for_server(runtime, server_id) {
+        let key = server_index_key_from_url(&url);
+        if !key.is_empty() {
+            return key;
+        }
+    }
+    disk_segment.to_string()
+}
+
+fn disk_segment_matches(disk_segment: &str, server_id: &str, index_key: &str) -> bool {
+    if disk_segment == server_id || disk_segment == index_key {
+        return true;
+    }
+    sanitize_path_segment(disk_segment) == sanitize_path_segment(index_key)
+        || sanitize_path_segment(disk_segment) == sanitize_path_segment(server_id)
+}
+
+fn resolve_track_for_disk_file(
+    repo: &TrackRepository,
+    runtime: &LibraryRuntime,
+    disk_segment: &str,
+    track_id: &str,
+) -> Result<Option<(TrackRow, String)>, String> {
+    if let Some(row) = repo.find_one(disk_segment, track_id)? {
+        let key = server_index_key_for_disk(runtime, &row.server_id, disk_segment);
+        return Ok(Some((row, key)));
+    }
+    let candidates = repo.find_live_by_id(track_id)?;
+    if candidates.is_empty() {
+        return Ok(None);
+    }
+    for row in &candidates {
+        let key = server_index_key_for_disk(runtime, &row.server_id, disk_segment);
+        if disk_segment_matches(disk_segment, &row.server_id, &key) {
+            return Ok(Some((row.clone(), key)));
+        }
+    }
+    if candidates.len() == 1 {
+        let row = candidates[0].clone();
+        let key = server_index_key_for_disk(runtime, &row.server_id, disk_segment);
+        return Ok(Some((row, key)));
+    }
+    Ok(None)
+}
+
+fn passes_server_filter(
+    filter: Option<&str>,
+    disk_segment: &str,
+    server_index_key: &str,
+) -> bool {
+    let Some(filter) = filter.filter(|s| !s.is_empty()) else {
+        return true;
+    };
+    disk_segment == filter
+        || server_index_key == filter
+        || sanitize_path_segment(disk_segment) == sanitize_path_segment(filter)
 }
 
 /// Move `old_path` → `target_path` when needed (rename, or copy+delete on EXDEV).
@@ -415,31 +558,140 @@ fn prune_legacy_offline_parents(old_path: &std::path::Path, app: &AppHandle) {
     }
 }
 
-/// Relocate flat `psysonic-offline/{segment}/{trackId}.ext` files into
-/// `{media}/library/{artist}/{album}/{track}.ext` using the library index row.
+async fn relocate_legacy_track_file(
+    track_id: &str,
+    server_index_key: &str,
+    old_path: &std::path::Path,
+    suffix: &str,
+    row: &TrackRow,
+    media_root: &std::path::Path,
+    library_boundary: &std::path::Path,
+    app: &AppHandle,
+) -> LegacyOfflineMigrationResult {
+    let path_input = track_row_to_path_input(row);
+    let fingerprint = layout_fingerprint(&path_input);
+    let target_path = absolute_track_path(
+        media_root,
+        LocalTier::Library,
+        server_index_key,
+        &path_input,
+        suffix,
+    );
+    let target_str = target_path.to_string_lossy().to_string();
+    let old_path_str = old_path.to_string_lossy().to_string();
+
+    if old_path.is_file() && old_path == target_path {
+        let size = tokio::fs::metadata(&target_path)
+            .await
+            .map(|m| m.len())
+            .unwrap_or(0);
+        return LegacyOfflineMigrationResult {
+            track_id: track_id.to_string(),
+            server_index_key: server_index_key.to_string(),
+            path: target_str,
+            size,
+            layout_fingerprint: fingerprint,
+            relocated: false,
+            skipped_reason: None,
+        };
+    }
+
+    if target_path.is_file() {
+        if old_path.is_file() && old_path != target_path {
+            let _ = tokio::fs::remove_file(old_path).await;
+            prune_legacy_offline_parents(old_path, app);
+        }
+        let size = tokio::fs::metadata(&target_path)
+            .await
+            .map(|m| m.len())
+            .unwrap_or(0);
+        return LegacyOfflineMigrationResult {
+            track_id: track_id.to_string(),
+            server_index_key: server_index_key.to_string(),
+            path: target_str,
+            size,
+            layout_fingerprint: fingerprint,
+            relocated: old_path.is_file(),
+            skipped_reason: None,
+        };
+    }
+
+    match relocate_file_to_target(old_path, &target_path).await {
+        Ok(relocated) => {
+            if relocated {
+                prune_legacy_offline_parents(old_path, app);
+                if let Some(parent) = target_path.parent() {
+                    super::fs_utils::prune_empty_dirs_up_to(parent, library_boundary);
+                }
+            }
+            let size = if target_path.is_file() {
+                tokio::fs::metadata(&target_path)
+                    .await
+                    .map(|m| m.len())
+                    .unwrap_or(0)
+            } else {
+                0
+            };
+            LegacyOfflineMigrationResult {
+                track_id: track_id.to_string(),
+                server_index_key: server_index_key.to_string(),
+                path: target_str,
+                size,
+                layout_fingerprint: fingerprint,
+                relocated,
+                skipped_reason: if target_path.is_file() {
+                    None
+                } else {
+                    Some("source_missing".to_string())
+                },
+            }
+        }
+        Err(reason) => LegacyOfflineMigrationResult {
+            track_id: track_id.to_string(),
+            server_index_key: server_index_key.to_string(),
+            path: old_path_str,
+            size: 0,
+            layout_fingerprint: fingerprint,
+            relocated: false,
+            skipped_reason: Some(reason),
+        },
+    }
+}
+
+/// Scan `psysonic-offline/{segment}/{trackId}.ext`, verify each id in the library
+/// index, and relocate live tracks into `{media}/library/…`.
 #[tauri::command]
-pub async fn migrate_legacy_offline_files(
-    items: Vec<LegacyOfflineMigrationItem>,
+pub async fn migrate_legacy_offline_disk(
     media_dir: Option<String>,
+    custom_offline_dir: Option<String>,
+    server_index_key_filter: Option<String>,
     runtime: State<'_, LibraryRuntime>,
     app: AppHandle,
 ) -> Result<Vec<LegacyOfflineMigrationResult>, String> {
     let media_root = resolve_media_dir(media_dir.as_deref(), &app)?;
     let library_boundary = media_root.join(LocalTier::Library.subdir());
     let repo = TrackRepository::new(&runtime.store);
-    let mut out = Vec::with_capacity(items.len());
+    let filter = server_index_key_filter.as_deref();
 
-    for item in items {
-        let old_path = std::path::PathBuf::from(&item.old_path);
-        let suffix = item.suffix.trim().trim_start_matches('.');
+    let mut disk_files = Vec::new();
+    for root in legacy_offline_roots(&app, custom_offline_dir.as_deref()) {
+        disk_files.extend(scan_flat_offline_root(&root));
+    }
+
+    let mut out = Vec::with_capacity(disk_files.len());
+    for file in disk_files {
+        let suffix = file.suffix.trim().trim_start_matches('.');
         let suffix = if suffix.is_empty() { "mp3" } else { suffix };
+        let old_path = std::path::PathBuf::from(&file.path);
 
-        let Some(row) = repo.find_one(&item.library_server_id, &item.track_id)? else {
+        let Some((row, server_index_key)) =
+            resolve_track_for_disk_file(&repo, &runtime, &file.server_segment, &file.track_id)?
+        else {
             out.push(LegacyOfflineMigrationResult {
-                track_id: item.track_id,
-                server_index_key: item.server_index_key,
-                path: item.old_path,
-                size: 0,
+                track_id: file.track_id,
+                server_index_key: file.server_segment.clone(),
+                path: file.path,
+                size: file.size_bytes,
                 layout_fingerprint: String::new(),
                 relocated: false,
                 skipped_reason: Some("library_track_not_found".to_string()),
@@ -447,97 +699,23 @@ pub async fn migrate_legacy_offline_files(
             continue;
         };
 
-        let path_input = track_row_to_path_input(&row);
-        let fingerprint = layout_fingerprint(&path_input);
-        let target_path = absolute_track_path(
-            &media_root,
-            LocalTier::Library,
-            &item.server_index_key,
-            &path_input,
-            suffix,
+        if !passes_server_filter(filter, &file.server_segment, &server_index_key) {
+            continue;
+        }
+
+        out.push(
+            relocate_legacy_track_file(
+                &file.track_id,
+                &server_index_key,
+                &old_path,
+                suffix,
+                &row,
+                &media_root,
+                &library_boundary,
+                &app,
+            )
+            .await,
         );
-        let target_str = target_path.to_string_lossy().to_string();
-
-        if old_path.is_file() && old_path == target_path {
-            let size = tokio::fs::metadata(&target_path)
-                .await
-                .map(|m| m.len())
-                .unwrap_or(0);
-            out.push(LegacyOfflineMigrationResult {
-                track_id: item.track_id,
-                server_index_key: item.server_index_key,
-                path: target_str,
-                size,
-                layout_fingerprint: fingerprint,
-                relocated: false,
-                skipped_reason: None,
-            });
-            continue;
-        }
-
-        if target_path.is_file() {
-            if old_path.is_file() && old_path != target_path {
-                let _ = tokio::fs::remove_file(&old_path).await;
-                prune_legacy_offline_parents(&old_path, &app);
-            }
-            let size = tokio::fs::metadata(&target_path)
-                .await
-                .map(|m| m.len())
-                .unwrap_or(0);
-            out.push(LegacyOfflineMigrationResult {
-                track_id: item.track_id,
-                server_index_key: item.server_index_key,
-                path: target_str,
-                size,
-                layout_fingerprint: fingerprint,
-                relocated: old_path.is_file(),
-                skipped_reason: None,
-            });
-            continue;
-        }
-
-        match relocate_file_to_target(&old_path, &target_path).await {
-            Ok(relocated) => {
-                if relocated {
-                    prune_legacy_offline_parents(&old_path, &app);
-                    if let Some(parent) = target_path.parent() {
-                        super::fs_utils::prune_empty_dirs_up_to(parent, &library_boundary);
-                    }
-                }
-                let size = if target_path.is_file() {
-                    tokio::fs::metadata(&target_path)
-                        .await
-                        .map(|m| m.len())
-                        .unwrap_or(0)
-                } else {
-                    0
-                };
-                out.push(LegacyOfflineMigrationResult {
-                    track_id: item.track_id,
-                    server_index_key: item.server_index_key,
-                    path: target_str,
-                    size,
-                    layout_fingerprint: fingerprint,
-                    relocated,
-                    skipped_reason: if target_path.is_file() {
-                        None
-                    } else {
-                        Some("source_missing".to_string())
-                    },
-                });
-            }
-            Err(reason) => {
-                out.push(LegacyOfflineMigrationResult {
-                    track_id: item.track_id,
-                    server_index_key: item.server_index_key,
-                    path: item.old_path,
-                    size: 0,
-                    layout_fingerprint: fingerprint,
-                    relocated: false,
-                    skipped_reason: Some(reason),
-                });
-            }
-        }
     }
 
     Ok(out)
@@ -546,6 +724,24 @@ pub async fn migrate_legacy_offline_files(
 #[cfg(test)]
 mod migrate_tests {
     use super::*;
+
+    #[test]
+    fn scan_flat_offline_root_lists_track_files() {
+        let base = std::env::temp_dir().join(format!(
+            "psysonic-scan-test-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&base);
+        let track = base.join("my.server").join("abc123.flac");
+        std::fs::create_dir_all(track.parent().unwrap()).unwrap();
+        std::fs::write(&track, b"x").unwrap();
+        let found = scan_flat_offline_root(&base);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].track_id, "abc123");
+        assert_eq!(found[0].suffix, "flac");
+        assert_eq!(found[0].server_segment, "my.server");
+        let _ = std::fs::remove_dir_all(&base);
+    }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn relocate_moves_file_to_nested_target() {
