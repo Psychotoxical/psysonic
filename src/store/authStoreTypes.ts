@@ -42,7 +42,7 @@ export type DurationMode = 'total' | 'remaining' | 'eta';
  * - `queue`: the list shows upcoming tracks only — the current track lives in
  *   the header and drops out of the list once it has played.
  */
-export type QueueDisplayMode = 'playlist' | 'queue';
+export type QueueDisplayMode = 'playlist' | 'queue' | 'timeline';
 export type LoggingMode = 'off' | 'normal' | 'debug';
 /**
  * Wall-clock format for ETA / sleep-timer labels. `'auto'` follows the user's
@@ -185,7 +185,9 @@ export interface AuthState {
   queueNowPlayingCollapsed: boolean;
   /** Queue header duration chip mode (cycle: total → remaining → ETA). */
   queueDurationDisplayMode: DurationMode;
-  /** Queue panel render mode: full timeline (`playlist`) vs. upcoming-only (`queue`). */
+  /** Queue panel render mode: full list from top (`playlist`), upcoming-only
+   *  (`queue`), or full list centered on the current track with history above
+   *  and up-next below (`timeline`). */
   queueDisplayMode: QueueDisplayMode;
 
   /** Alpha: native hi-res sample rate output (disabled = safe 44.1 kHz mode) */

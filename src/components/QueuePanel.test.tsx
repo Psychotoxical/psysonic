@@ -156,16 +156,16 @@ describe('QueuePanel — display mode', () => {
     expect(container.textContent).toContain('No upcoming tracks');
   });
 
-  it('header mode-toggle button flips queueDisplayMode (default queue → playlist)', () => {
+  it('header mode-toggle button advances queueDisplayMode (default queue → timeline)', () => {
     seedQueue(makeTracks(3), { index: 0, currentTrack: makeTrack() });
     const { container } = renderWithProviders(<QueuePanel />);
     // The mode toggle is the first .queue-action-btn in the header (the
-    // collapse chevron is the second). The default mode is 'queue', so the
-    // toggle's label names its target ("Playlist").
+    // collapse chevron is the second). The toggle's label names its target;
+    // from the default 'queue' that is the next mode in the cycle, "Timeline".
     const toggle = container.querySelector<HTMLButtonElement>('.queue-header .queue-action-btn');
-    expect(toggle?.getAttribute('aria-label')).toBe('Playlist');
+    expect(toggle?.getAttribute('aria-label')).toBe('Timeline');
     toggle!.click();
-    expect(useAuthStore.getState().queueDisplayMode).toBe('playlist');
+    expect(useAuthStore.getState().queueDisplayMode).toBe('timeline');
   });
 });
 

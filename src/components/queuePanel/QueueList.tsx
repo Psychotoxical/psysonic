@@ -108,6 +108,16 @@ export function QueueList({
       return pinToTop(0, displayBaseIndex);
     }
 
+    if (queueDisplayMode === 'timeline') {
+      // Anchor the current track in the middle — history above, up-next below.
+      rowVirtualizer.scrollToIndex(queueIndex, { align: 'center' });
+      const id = requestAnimationFrame(() => {
+        const el = queueListRef.current?.querySelector<HTMLElement>(`[data-queue-idx="${queueIndex}"]`);
+        el?.scrollIntoView({ block: 'center', behavior: 'instant' });
+      });
+      return () => cancelAnimationFrame(id);
+    }
+
     // Playlist: lazy. Let the highlight wander while the now-playing row stays
     // visible; only re-pin it to the top once it has scrolled out of view.
     const viewport = queueListRef.current;
@@ -148,6 +158,8 @@ export function QueueList({
           const base = queue[idx];
           const track = resolveQueueTrack(base);
           const isPlaying = absIdx === queueIndex;
+          const isTimeline = queueDisplayMode === 'timeline';
+          const isPast = isTimeline && absIdx < queueIndex;
           const isFirstAutoAdded = base.autoAdded && (idx === 0 || !queue[idx - 1].autoAdded);
           const isFirstRadioAdded = base.radioAdded && (idx === 0 || !queue[idx - 1].radioAdded);
 
@@ -169,6 +181,16 @@ export function QueueList({
               ref={rowVirtualizer.measureElement}
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vi.start}px)` }}
             >
+            {isTimeline && idx === 0 && queueIndex > 0 && (
+              <div className="queue-divider" style={{ margin: '2px 0' }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)' }}>{t('queue.history')}</span>
+              </div>
+            )}
+            {isTimeline && absIdx === queueIndex + 1 && (
+              <div className="queue-divider" style={{ margin: '2px 0' }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)' }}>{t('queue.upNext')}</span>
+              </div>
+            )}
             {isFirstRadioAdded && (
               <div className="queue-divider" style={{ margin: '2px 0' }}>
                 <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)' }}>{t('queue.radioAdded')}</span>
@@ -213,7 +235,7 @@ export function QueueList({
                 document.addEventListener('mousemove', onMove);
                 document.addEventListener('mouseup', onUp);
               }}
-              style={dragStyle}
+              style={{ ...(isPast && !isPlaying ? { opacity: 0.5 } : null), ...dragStyle }}
             >
               <div className="queue-item-info">
                 <div className="queue-item-title truncate" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

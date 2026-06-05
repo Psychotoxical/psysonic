@@ -106,7 +106,7 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
 
   // Missing key (pre-feature persist) / garbage maps to 'queue' — the default
   // mode, which lists only upcoming tracks.
-  const VALID_QUEUE_DISPLAY_MODES = new Set<string>(['playlist', 'queue']);
+  const VALID_QUEUE_DISPLAY_MODES = new Set<string>(['playlist', 'queue', 'timeline']);
   const queueDisplayModeMigrated = VALID_QUEUE_DISPLAY_MODES.has(
     (state as { queueDisplayMode?: unknown }).queueDisplayMode as string,
   )

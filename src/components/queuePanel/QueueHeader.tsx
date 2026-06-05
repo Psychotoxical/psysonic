@@ -1,5 +1,5 @@
 import { useDeferredValue, useMemo, useSyncExternalStore } from 'react';
-import { ChevronDown, ListMusic, ListOrdered } from 'lucide-react';
+import { AlignCenterVertical, ChevronDown, ListMusic, ListOrdered } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { usePlayerStore } from '../../store/playerStore';
@@ -81,6 +81,16 @@ export function QueueHeader({
 
   const isEta = durationMode === 'eta';
 
+  // Cycle the panel through the three render modes; icon + title show the active
+  // one, tooltip names the one a click switches to.
+  const DISPLAY_MODE_CYCLE: QueueDisplayMode[] = ['queue', 'timeline', 'playlist'];
+  const nextDisplayMode =
+    DISPLAY_MODE_CYCLE[(DISPLAY_MODE_CYCLE.indexOf(queueDisplayMode) + 1) % DISPLAY_MODE_CYCLE.length];
+  const displayModeLabel = (m: QueueDisplayMode) =>
+    m === 'playlist' ? t('queue.modePlaylist') : m === 'timeline' ? t('queue.modeTimeline') : t('queue.title');
+  const displayModeIcon = (m: QueueDisplayMode) =>
+    m === 'playlist' ? <ListMusic size={15} /> : m === 'timeline' ? <AlignCenterVertical size={15} /> : <ListOrdered size={15} />;
+
   return (
     <div className="queue-header">
       <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
@@ -91,17 +101,17 @@ export function QueueHeader({
           <button
             type="button"
             className="queue-action-btn"
-            onClick={() => setQueueDisplayMode(queueDisplayMode === 'playlist' ? 'queue' : 'playlist')}
-            data-tooltip={queueDisplayMode === 'playlist' ? t('queue.title') : t('queue.modePlaylist')}
-            aria-label={queueDisplayMode === 'playlist' ? t('queue.title') : t('queue.modePlaylist')}
+            onClick={() => setQueueDisplayMode(nextDisplayMode)}
+            data-tooltip={displayModeLabel(nextDisplayMode)}
+            aria-label={displayModeLabel(nextDisplayMode)}
             style={{ width: 24, height: 24, alignSelf: 'center', flexShrink: 0 }}
           >
-            {queueDisplayMode === 'playlist' ? <ListMusic size={15} /> : <ListOrdered size={15} />}
+            {displayModeIcon(queueDisplayMode)}
           </button>
-          {/* Title doubles as the mode indicator so the panel reads "Playlist"
-              in playlist mode rather than the misleading "Queue". */}
+          {/* Title doubles as the mode indicator so the panel names the active
+              mode rather than always reading "Queue". */}
           <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0, flexShrink: 0 }}>
-            {queueDisplayMode === 'playlist' ? t('queue.modePlaylist') : t('queue.title')}
+            {displayModeLabel(queueDisplayMode)}
           </h2>
           {queue.length > 0 && (
             <span style={{ fontSize: "13px", color: "var(--text-muted)", whiteSpace: "nowrap", userSelect: "none" }}>

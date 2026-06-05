@@ -84,8 +84,8 @@ export function PersonalisationTab() {
         icon={<ListOrdered size={16} />}
       >
         <div className="settings-card">
-          {/* Two mutually exclusive modes — exactly one is always active, so
-              turning one on turns the other off; the active one cannot be
+          {/* Three mutually exclusive modes — exactly one is always active, so
+              turning one on turns the others off; the active one cannot be
               switched off directly (ignore the uncheck). */}
           <div className="settings-toggle-row">
             <div>
@@ -112,6 +112,21 @@ export function PersonalisationTab() {
                 type="checkbox"
                 checked={queueDisplayMode === 'playlist'}
                 onChange={e => { if (e.target.checked) setQueueDisplayMode('playlist'); }}
+              />
+              <span className="toggle-track" />
+            </label>
+          </div>
+          <div className="settings-section-divider" />
+          <div className="settings-toggle-row">
+            <div>
+              <div style={{ fontWeight: 500 }}>{t('queue.modeTimeline')}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.queueModeTimelineSub')}</div>
+            </div>
+            <label className="toggle-switch" aria-label={t('queue.modeTimeline')}>
+              <input
+                type="checkbox"
+                checked={queueDisplayMode === 'timeline'}
+                onChange={e => { if (e.target.checked) setQueueDisplayMode('timeline'); }}
               />
               <span className="toggle-track" />
             </label>
