@@ -219,6 +219,23 @@ export default function WaveformSeek({ trackId }: Props) {
     return () => observer.disconnect();
   }, [seekbarStyle]);
 
+  // Dev-only: a theme's CSS variables can change via Vite HMR without the
+  // `data-theme` attribute changing, so the observer above never fires and the
+  // cached colours + canvas keep the old palette until a manual theme switch
+  // (annoying during theme dev — issue: waveform doesn't reflect CSS var edits).
+  // On every HMR update, drop the colour cache and repaint. `import.meta.hot` is
+  // undefined in production builds, so this whole effect is stripped there.
+  useEffect(() => {
+    if (!import.meta.hot) return;
+    const repaint = () => {
+      invalidateColorCache();
+      const canvas = canvasRef.current;
+      if (canvas) drawSeekbar(canvas, seekbarStyle, heightsRef.current, progressRef.current, bufferedRef.current, animStateRef.current);
+    };
+    import.meta.hot.on('vite:afterUpdate', repaint);
+    return () => { import.meta.hot?.off('vite:afterUpdate', repaint); };
+  }, [seekbarStyle]);
+
   const trackIdRef = useRef(trackId);
   trackIdRef.current = trackId;
   const seekRef = useRef(seek);
