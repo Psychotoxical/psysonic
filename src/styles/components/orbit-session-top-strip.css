@@ -187,8 +187,8 @@
   transition: color 150ms ease, background 150ms ease, transform 180ms ease;
 }
 .orbit-bar__exit:hover {
-  color: var(--ctp-red, #f38ba8);
-  background: color-mix(in srgb, var(--ctp-red, #f38ba8) 12%, transparent);
+  color: var(--danger, #f38ba8);
+  background: color-mix(in srgb, var(--danger, #f38ba8) 12%, transparent);
   transform: rotate(90deg);
 }
 
@@ -217,7 +217,7 @@
   min-width: 280px;
   max-width: 380px;
   padding: 6px;
-  background: var(--ctp-base, #1e1e2e);
+  background: var(--bg-app, #1e1e2e);
   border: 1px solid color-mix(in srgb, var(--accent) 22%, rgba(255,255,255,0.1));
   border-radius: var(--radius-md);
   box-shadow: 0 10px 30px rgba(0,0,0,0.5);
@@ -228,7 +228,7 @@
   min-width: 320px;
   max-width: 380px;
   padding: 12px 14px 14px;
-  background: var(--ctp-base, #1e1e2e);
+  background: var(--bg-app, #1e1e2e);
   border: 1px solid color-mix(in srgb, var(--accent) 22%, rgba(255,255,255,0.1));
   border-radius: var(--radius-md);
   box-shadow: 0 10px 30px rgba(0,0,0,0.5);
@@ -356,19 +356,19 @@
   transition: color 140ms ease, background 140ms ease, border-color 140ms ease;
 }
 .orbit-participants-pop__kick:hover {
-  color: var(--ctp-yellow, #f9e2af);
-  background: color-mix(in srgb, var(--ctp-yellow, #f9e2af) 12%, transparent);
-  border-color: color-mix(in srgb, var(--ctp-yellow, #f9e2af) 35%, transparent);
+  color: var(--highlight, #f9e2af);
+  background: color-mix(in srgb, var(--highlight, #f9e2af) 12%, transparent);
+  border-color: color-mix(in srgb, var(--highlight, #f9e2af) 35%, transparent);
 }
 .orbit-participants-pop__kick--ban:hover {
-  color: var(--ctp-red, #f38ba8);
-  background: color-mix(in srgb, var(--ctp-red, #f38ba8) 12%, transparent);
-  border-color: color-mix(in srgb, var(--ctp-red, #f38ba8) 35%, transparent);
+  color: var(--danger, #f38ba8);
+  background: color-mix(in srgb, var(--danger, #f38ba8) 12%, transparent);
+  border-color: color-mix(in srgb, var(--danger, #f38ba8) 35%, transparent);
 }
 .orbit-participants-pop__kick.is-active {
-  color: var(--ctp-peach, #fab387);
-  background: color-mix(in srgb, var(--ctp-peach, #fab387) 16%, transparent);
-  border-color: color-mix(in srgb, var(--ctp-peach, #fab387) 45%, transparent);
+  color: var(--accent-2, #fab387);
+  background: color-mix(in srgb, var(--accent-2, #fab387) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent-2, #fab387) 45%, transparent);
 }
 
 /* ── Exit modal ────────────────────────────────────────────────────── */
@@ -405,7 +405,7 @@
 /* ── Topbar "start Orbit" trigger — same form as Live, accent-tinted ── */
 .orbit-start-trigger {
   color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--ctp-surface1));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--bg-hover));
   transition: color 150ms ease, border-color 150ms ease, background 150ms ease, box-shadow 200ms ease;
 }
 .orbit-start-trigger__spin { transition: transform 260ms ease; }
@@ -520,15 +520,15 @@
   gap: 4px;
   margin-top: 10px;
   padding: 10px 12px;
-  background: color-mix(in srgb, var(--ctp-yellow, #f9e2af) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ctp-yellow, #f9e2af) 40%, transparent);
+  background: color-mix(in srgb, var(--highlight, #f9e2af) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--highlight, #f9e2af) 40%, transparent);
   border-radius: var(--radius-sm);
   font-size: 12px;
   line-height: 1.5;
   color: var(--text-primary);
 }
 .orbit-help-modal__warn strong {
-  color: var(--ctp-yellow, #f9e2af);
+  color: var(--highlight, #f9e2af);
   font-weight: 700;
 }
 
@@ -696,15 +696,15 @@
   font-weight: 600;
 }
 .orbit-start-modal__tip--warn {
-  background: color-mix(in srgb, var(--ctp-yellow, #f9e2af) 14%, transparent);
-  border-color: color-mix(in srgb, var(--ctp-yellow, #f9e2af) 45%, transparent);
+  background: color-mix(in srgb, var(--highlight, #f9e2af) 14%, transparent);
+  border-color: color-mix(in srgb, var(--highlight, #f9e2af) 45%, transparent);
   color: var(--text-primary);
 }
 .orbit-start-modal__tip--warn svg {
-  color: var(--ctp-yellow, #f9e2af);
+  color: var(--highlight, #f9e2af);
 }
 .orbit-start-modal__tip--warn strong {
-  color: var(--ctp-yellow, #f9e2af);
+  color: var(--highlight, #f9e2af);
 }
 
 .orbit-start-modal__field {
@@ -810,7 +810,7 @@
   flex: 1;
   min-width: 0;
   padding: 9px 12px;
-  background: var(--ctp-base);
+  background: var(--bg-app);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
@@ -848,7 +848,7 @@
   min-width: 320px;
   max-width: 380px;
   padding: 14px;
-  background: var(--ctp-base, #1e1e2e);
+  background: var(--bg-app, #1e1e2e);
   border: 1px solid color-mix(in srgb, var(--accent) 22%, rgba(255,255,255,0.1));
   border-radius: var(--radius-md);
   box-shadow: 0 10px 30px rgba(0,0,0,0.5);
@@ -1121,20 +1121,20 @@
   border-style: solid;
 }
 .orbit-queue-head__presence--online {
-  color: var(--ctp-green, #a6e3a1);
-  background: color-mix(in srgb, var(--ctp-green, #a6e3a1) 14%, transparent);
-  border-color: color-mix(in srgb, var(--ctp-green, #a6e3a1) 40%, transparent);
+  color: var(--positive, #a6e3a1);
+  background: color-mix(in srgb, var(--positive, #a6e3a1) 14%, transparent);
+  border-color: color-mix(in srgb, var(--positive, #a6e3a1) 40%, transparent);
 }
 .orbit-queue-head__presence--online svg {
-  color: var(--ctp-green, #a6e3a1);
+  color: var(--positive, #a6e3a1);
 }
 .orbit-queue-head__presence--away {
-  color: var(--ctp-yellow, #f9e2af);
-  background: color-mix(in srgb, var(--ctp-yellow, #f9e2af) 14%, transparent);
-  border-color: color-mix(in srgb, var(--ctp-yellow, #f9e2af) 40%, transparent);
+  color: var(--highlight, #f9e2af);
+  background: color-mix(in srgb, var(--highlight, #f9e2af) 14%, transparent);
+  border-color: color-mix(in srgb, var(--highlight, #f9e2af) 40%, transparent);
 }
 .orbit-queue-head__presence--away svg {
-  color: var(--ctp-yellow, #f9e2af);
+  color: var(--highlight, #f9e2af);
 }
 .orbit-queue-head__meta {
   display: flex;
@@ -1173,7 +1173,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ctp-crust, #11111b);
+  color: var(--text-on-accent, #11111b);
   background: var(--accent);
   border-radius: var(--radius-sm);
 }
@@ -1384,9 +1384,9 @@
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 .host-approval__btn--approve:hover {
-  background: color-mix(in srgb, var(--ctp-green, #a6e3a1) 28%, transparent);
-  border-color: var(--ctp-green, #a6e3a1);
-  color: var(--ctp-green, #a6e3a1);
+  background: color-mix(in srgb, var(--positive, #a6e3a1) 28%, transparent);
+  border-color: var(--positive, #a6e3a1);
+  color: var(--positive, #a6e3a1);
 }
 .host-approval__btn--decline:hover {
   background: color-mix(in srgb, var(--danger, #f38ba8) 28%, transparent);
@@ -1404,10 +1404,10 @@
   padding-bottom: 6px;
 }
 .orbit-guest-queue__section-head--pending {
-  color: var(--ctp-yellow, #f9e2af);
+  color: var(--highlight, #f9e2af);
 }
 .orbit-guest-queue__section-head--pending svg {
-  color: var(--ctp-yellow, #f9e2af);
+  color: var(--highlight, #f9e2af);
 }
 .orbit-guest-queue__item--pending {
   opacity: 0.85;
@@ -1456,9 +1456,9 @@
   padding: 8px 10px;
   font-size: 12px;
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--ctp-red, #f38ba8) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ctp-red, #f38ba8) 35%, transparent);
-  color: var(--ctp-red, #f38ba8);
+  background: color-mix(in srgb, var(--danger, #f38ba8) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger, #f38ba8) 35%, transparent);
+  color: var(--danger, #f38ba8);
 }
 
 .orbit-start-modal__actions {
@@ -1474,7 +1474,7 @@
   gap: 8px;
   margin-bottom: 18px;
   padding: 10px 12px;
-  background: var(--ctp-base);
+  background: var(--bg-app);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-family: var(--font-mono, ui-monospace, 'Courier New', monospace);
@@ -1522,7 +1522,7 @@
   --fps-overlay-opacity: 0.82;
   background: color-mix(
     in srgb,
-    var(--ctp-crust, #111) calc(var(--fps-overlay-opacity) * 100%),
+    var(--text-on-accent, #111) calc(var(--fps-overlay-opacity) * 100%),
     transparent
   );
   border: 1px solid color-mix(

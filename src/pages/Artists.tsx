@@ -329,7 +329,7 @@ export default function Artists() {
                   <button
                     className={`btn btn-surface`}
                     onClick={() => setShowArtistImages(!showArtistImages)}
-                    style={showArtistImages ? { background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '0.5rem' } : { padding: '0.5rem' }}
+                    style={showArtistImages ? { background: 'var(--accent)', color: 'var(--text-on-accent)', padding: '0.5rem' } : { padding: '0.5rem' }}
                     data-tooltip={showArtistImages ? t('artists.imagesOn') : t('artists.imagesOff')}
                     data-tooltip-wrap
                     data-tooltip-pos="bottom"
@@ -339,7 +339,7 @@ export default function Artists() {
                   <button
                     className={`btn btn-surface ${viewMode === 'grid' ? 'btn-sort-active' : ''}`}
                     onClick={() => setViewMode('grid')}
-                    style={viewMode === 'grid' ? { background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '0.5rem' } : { padding: '0.5rem' }}
+                    style={viewMode === 'grid' ? { background: 'var(--accent)', color: 'var(--text-on-accent)', padding: '0.5rem' } : { padding: '0.5rem' }}
                     data-tooltip={t('artists.gridView')}
                     data-tooltip-pos="bottom"
                   >
@@ -348,7 +348,7 @@ export default function Artists() {
                   <button
                     className={`btn btn-surface ${viewMode === 'list' ? 'btn-sort-active' : ''}`}
                     onClick={() => setViewMode('list')}
-                    style={viewMode === 'list' ? { background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '0.5rem' } : { padding: '0.5rem' }}
+                    style={viewMode === 'list' ? { background: 'var(--accent)', color: 'var(--text-on-accent)', padding: '0.5rem' } : { padding: '0.5rem' }}
                     data-tooltip={t('artists.listView')}
                     data-tooltip-pos="bottom"
                   >
@@ -361,7 +361,7 @@ export default function Artists() {
                 onClick={toggleSelectionMode}
                 data-tooltip={selectionMode ? t('artists.cancelSelect') : t('artists.startSelect')}
                 data-tooltip-pos="bottom"
-                style={selectionMode ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}}
+                style={selectionMode ? { background: 'var(--accent)', color: 'var(--text-on-accent)' } : {}}
               >
                 <CheckSquare2 size={15} />
                 {selectionMode ? t('artists.cancelSelect') : t('artists.select')}

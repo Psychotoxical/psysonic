@@ -160,7 +160,7 @@
   cursor: default;
 }
 .queue-round-btn.active {
-  color: var(--ctp-base);
+  color: var(--bg-app);
   background: var(--accent);
 }
 
@@ -248,7 +248,7 @@
   font-size: 9px;
   font-family: monospace;
   letter-spacing: 0.05em;
-  background: var(--ctp-surface1);
+  background: var(--bg-hover);
   color: var(--accent);
   padding: 3px var(--space-4);
   white-space: nowrap;

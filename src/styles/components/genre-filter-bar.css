@@ -9,7 +9,7 @@
   margin-left: 0.35rem;
   border-radius: 9px;
   background: var(--accent);
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
   font-size: 0.7rem;
   font-weight: 700;
   line-height: 1;
@@ -99,7 +99,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
   background: transparent;
 }
 

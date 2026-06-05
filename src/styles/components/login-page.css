@@ -20,7 +20,7 @@
 .login-card {
   width: 100%;
   max-width: 520px;
-  background: var(--ctp-mantle);
+  background: var(--bg-sidebar);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-xl);
   padding: var(--space-8);
@@ -67,7 +67,7 @@
   font-family: var(--font-display);
   font-size: 28px;
   font-weight: 800;
-  background: linear-gradient(135deg, var(--ctp-mauve), var(--ctp-blue));
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

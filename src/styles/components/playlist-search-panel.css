@@ -123,7 +123,7 @@
 
 .playlist-search-add-btn:hover {
   background: var(--accent);
-  color: var(--ctp-base);
+  color: var(--bg-app);
 }
 
 .playlist-suggestions {

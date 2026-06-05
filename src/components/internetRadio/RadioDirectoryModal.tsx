@@ -133,7 +133,7 @@ export default function RadioDirectoryModal({ onClose, onAdded }: RadioDirectory
           width: '80vw',
           maxWidth: 800,
           height: '80vh',
-          background: 'var(--ctp-surface0)',
+          background: 'var(--bg-card)',
           border: '1px solid var(--border)',
           borderRadius: 12,
           boxShadow: 'var(--shadow-lg)',
@@ -148,7 +148,7 @@ export default function RadioDirectoryModal({ onClose, onAdded }: RadioDirectory
           style={{
             flexShrink: 0,
             padding: 20,
-            background: 'var(--ctp-surface0)',
+            background: 'var(--bg-card)',
             zIndex: 10,
             position: 'relative',
             borderBottom: '1px solid var(--border)',

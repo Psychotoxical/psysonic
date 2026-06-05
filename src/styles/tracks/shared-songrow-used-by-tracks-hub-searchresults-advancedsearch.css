@@ -114,7 +114,7 @@
 
 .song-list-row-btn--play:hover {
   background: var(--accent);
-  color: var(--ctp-crust, #11111b);
+  color: var(--text-on-accent, #11111b);
 }
 
 .song-list-row.is-current .song-list-row-btn--play {

@@ -31,7 +31,7 @@
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  background: linear-gradient(135deg, var(--accent), var(--ctp-blue));
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -366,7 +366,7 @@
   padding: 0 5px;
   border-radius: 999px;
   background: var(--accent);
-  color: var(--ctp-crust, #11111b);
+  color: var(--text-on-accent, #11111b);
   font-size: 10px;
   font-weight: 700;
   line-height: 18px;

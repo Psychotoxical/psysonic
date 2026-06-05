@@ -180,7 +180,7 @@ export default function PlayerBar() {
   }, [volume, setVolume, utilityOverflow]);
 
   const volumeStyle = {
-    background: `linear-gradient(to right, var(--volume-accent, var(--accent)) ${volume * 100}%, var(--ctp-surface2) ${volume * 100}%)`,
+    background: `linear-gradient(to right, var(--volume-accent, var(--accent)) ${volume * 100}%, var(--bg-elevated) ${volume * 100}%)`,
   };
 
   const playerBarContent = (

@@ -247,7 +247,7 @@ export default function CachedImage({
   };
 
   const fallbackStyle: React.CSSProperties = isFallback
-    ? { objectFit: 'contain', background: 'var(--bg-card, var(--ctp-surface0, #313244))', padding: '15%' }
+    ? { objectFit: 'contain', background: 'var(--bg-card, var(--bg-card, #313244))', padding: '15%' }
     : {};
 
   return (

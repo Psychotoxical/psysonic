@@ -75,7 +75,7 @@ export function UserMgmtRow({
         <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>· {u.name}</span>
       )}
       {isSelf && (
-        <span style={{ fontSize: 10, background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '1px 6px', borderRadius: 10, fontWeight: 600, flexShrink: 0 }}>
+        <span style={{ fontSize: 10, background: 'var(--accent)', color: 'var(--text-on-accent)', padding: '1px 6px', borderRadius: 10, fontWeight: 600, flexShrink: 0 }}>
           {t('settings.userMgmtYouBadge')}
         </span>
       )}

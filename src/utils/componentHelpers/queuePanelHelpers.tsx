@@ -27,8 +27,8 @@ export function renderStars(rating?: number) {
       <Star
         key={i}
         size={12}
-        fill={i <= rating ? 'var(--ctp-yellow)' : 'none'}
-        color={i <= rating ? 'var(--ctp-yellow)' : 'var(--text-muted)'}
+        fill={i <= rating ? 'var(--highlight)' : 'none'}
+        color={i <= rating ? 'var(--highlight)' : 'var(--text-muted)'}
       />
     );
   }

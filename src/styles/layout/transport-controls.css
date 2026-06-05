@@ -37,12 +37,12 @@
   width: 64px;
   height: 64px;
   background: var(--accent);
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 .mp-ctrl-play:hover {
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
   filter: brightness(1.1);
   transform: scale(1.06);
   box-shadow: 0 6px 28px rgba(0, 0, 0, 0.4), var(--shadow-glow);

@@ -23,13 +23,13 @@
   font-weight: 500;
   background: var(--bg-card);
   color: var(--text-secondary);
-  border: 1px solid var(--ctp-surface1);
+  border: 1px solid var(--bg-hover);
   white-space: nowrap;
   flex-shrink: 0;
   transition: all 0.15s;
 }
 .radio-filter-chip:hover { background: var(--bg-hover); color: var(--text-primary); }
-.radio-filter-chip.active { background: var(--accent); color: var(--ctp-crust); border-color: var(--accent); }
+.radio-filter-chip.active { background: var(--accent); color: var(--text-on-accent); border-color: var(--accent); }
 
 
 .radio-card-drop-before {

@@ -22,7 +22,7 @@
 .artist-card-select-check--on {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
 }
 
 .artist-card--selectable {

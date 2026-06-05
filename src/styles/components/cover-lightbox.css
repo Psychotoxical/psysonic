@@ -201,7 +201,7 @@
 .album-detail-badge {
   margin-bottom: 0.5rem;
   background: var(--accent);
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
   /* Konsistenz mit `.album-card-new-badge`: eckig, nicht pill. */
   border-radius: var(--radius-sm);
 }
@@ -288,7 +288,7 @@
 
 .download-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--ctp-mauve), var(--ctp-blue));
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
   border-radius: 2px;
   transition: width 0.2s ease;
 }

@@ -73,8 +73,8 @@
 }
 
 .np-badge-hires {
-  background: color-mix(in srgb, var(--ctp-yellow) 30%, transparent);
-  color: var(--ctp-yellow);
+  background: color-mix(in srgb, var(--highlight) 30%, transparent);
+  color: var(--highlight);
   font-weight: 700;
   letter-spacing: 0.05em;
 }
@@ -200,7 +200,7 @@
 }
 .np-dash-toolbar-badge {
   background: var(--accent);
-  color: var(--ctp-base, #1e1e2e);
+  color: var(--bg-app, #1e1e2e);
   font-size: 10px;
   font-weight: 700;
   padding: 1px 6px;
@@ -214,7 +214,7 @@
   top: calc(100% + 4px);
   right: 0;
   min-width: 220px;
-  background: var(--ctp-base, #1e1e2e);
+  background: var(--bg-app, #1e1e2e);
   border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: var(--radius-md);
   padding: 6px;

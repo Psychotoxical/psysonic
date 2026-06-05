@@ -38,8 +38,8 @@ function renderStars(rating?: number) {
     <div className="np-stars-inline">
       {[1, 2, 3, 4, 5].map(i => (
         <Star key={i} size={13}
-          fill={i <= rating ? 'var(--ctp-yellow)' : 'none'}
-          color={i <= rating ? 'var(--ctp-yellow)' : 'var(--ctp-overlay1)'}
+          fill={i <= rating ? 'var(--highlight)' : 'none'}
+          color={i <= rating ? 'var(--highlight)' : 'var(--border-subtle)'}
         />
       ))}
     </div>
@@ -115,7 +115,7 @@ const Hero = memo(function Hero({ track, artistRefs, genre, playCount, userRatin
         <div className="np-dash-hero-actions">
           <button onClick={onToggleStar} className="np-dash-icon-btn"
             data-tooltip={starred ? t('contextMenu.unfavorite') : t('contextMenu.favorite')}>
-            <Heart size={18} fill={starred ? 'var(--ctp-yellow)' : 'none'} color={starred ? 'var(--ctp-yellow)' : 'currentColor'} />
+            <Heart size={18} fill={starred ? 'var(--highlight)' : 'none'} color={starred ? 'var(--highlight)' : 'currentColor'} />
           </button>
           {lfmLoveEnabled && (
             <button onClick={onToggleLfmLove}

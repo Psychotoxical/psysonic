@@ -381,7 +381,7 @@ export default function Statistics() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <span style={{ fontSize: '0.875rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.name}</span>
                           {track.nowPlaying && (
-                            <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: 'var(--accent)', color: 'var(--ctp-base)', opacity: 0.85, letterSpacing: '0.04em', textTransform: 'uppercase', flexShrink: 0 }}>{t('statistics.lfmNowPlaying')}</span>
+                            <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: 'var(--accent)', color: 'var(--bg-app)', opacity: 0.85, letterSpacing: '0.04em', textTransform: 'uppercase', flexShrink: 0 }}>{t('statistics.lfmNowPlaying')}</span>
                           )}
                         </div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

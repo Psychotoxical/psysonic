@@ -17,5 +17,5 @@
 }
 
 .filter-quick-clear--on-active-chip:hover {
-  background: color-mix(in srgb, var(--ctp-crust) 22%, transparent);
+  background: color-mix(in srgb, var(--bg-deep) 22%, transparent);
 }

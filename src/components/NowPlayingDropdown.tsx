@@ -108,7 +108,7 @@ export default function NowPlayingDropdown() {
         {visible.length > 0 && (
           <span style={{
             background: 'var(--accent)',
-            color: 'var(--ctp-crust)',
+            color: 'var(--text-on-accent)',
             fontSize: '10px',
             fontWeight: 'bold',
             padding: '2px 6px',

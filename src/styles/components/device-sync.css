@@ -269,7 +269,7 @@
 }
 
 .device-sync-template-preset-btn:hover {
-  background: var(--ctp-surface0);
+  background: var(--bg-card);
   color: var(--text-primary);
 }
 
@@ -331,7 +331,7 @@
   font-family: monospace;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  background: var(--ctp-surface0);
+  background: var(--bg-card);
   color: var(--text-secondary);
   cursor: pointer;
   transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
@@ -339,7 +339,7 @@
 }
 
 .device-sync-template-token:hover {
-  background: color-mix(in srgb, var(--accent) 15%, var(--ctp-surface0));
+  background: color-mix(in srgb, var(--accent) 15%, var(--bg-card));
   border-color: var(--accent);
   color: var(--accent);
 }

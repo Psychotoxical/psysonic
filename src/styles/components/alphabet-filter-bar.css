@@ -19,5 +19,5 @@
   transition: color 0.12s, background 0.12s;
 }
 .alphabet-filter-btn:hover { background: var(--bg-hover); }
-.alphabet-filter-btn.active { background: var(--accent); color: var(--ctp-crust); }
+.alphabet-filter-btn.active { background: var(--accent); color: var(--text-on-accent); }
 

@@ -90,7 +90,7 @@
 }
 
 .playlist-edit-cover-menu-item--danger {
-  color: var(--ctp-red, #f38ba8);
+  color: var(--danger, #f38ba8);
 }
 
 /* Right side fields */
@@ -216,7 +216,7 @@
   padding: 5px 12px;
   border-radius: var(--radius-sm);
   background: var(--bg-card);
-  border: 1px solid var(--ctp-surface1);
+  border: 1px solid var(--bg-hover);
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
@@ -227,7 +227,7 @@
 .artist-ext-link:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
-  border-color: var(--ctp-overlay0);
+  border-color: var(--border);
 }
 
 /* Bio section */

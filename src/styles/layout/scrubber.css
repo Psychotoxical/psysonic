@@ -19,7 +19,7 @@
   right: 0;
   height: 4px;
   border-radius: 2px;
-  background: var(--ctp-surface2, rgba(255,255,255,0.12));
+  background: var(--bg-elevated, rgba(255,255,255,0.12));
 }
 
 .mp-scrubber-fill {

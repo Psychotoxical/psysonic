@@ -62,7 +62,7 @@
 
 .song-card-action-btn {
   background: var(--accent);
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
   border: none;
   width: 32px;
   height: 32px;

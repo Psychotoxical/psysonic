@@ -140,7 +140,7 @@ export default function YearFilterButton({
         {...tooltipAttrs(t('albums.yearFilterTooltip'), { pos: 'bottom' })}
         style={{
           display: 'flex', alignItems: 'center', gap: '0.4rem',
-          ...(active ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}),
+          ...(active ? { background: 'var(--accent)', color: 'var(--text-on-accent)' } : {}),
         }}
       >
         <CalendarRange size={14} />

@@ -14,7 +14,7 @@ interface Props {
 export default function StarFilterButton({ active, onChange, size = 'default' }: Props) {
   const { t } = useTranslation();
   const tooltip = active ? t('common.favoritesTooltipOn') : t('common.favoritesTooltipOff');
-  const activeStyle = active ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {};
+  const activeStyle = active ? { background: 'var(--accent)', color: 'var(--text-on-accent)' } : {};
 
   if (size === 'compact') {
     return (

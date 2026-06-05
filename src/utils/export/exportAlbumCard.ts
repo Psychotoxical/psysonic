@@ -101,7 +101,7 @@ function getCachedLogoSvg(color: string): string {
   const raw = renderToStaticMarkup(React.createElement(PsysonicLogo, { gradientIdSuffix: 'export' }));
   const swapped = raw
     .replace('var(--logo-color-start, var(--accent))', color)
-    .replace('var(--logo-color-end, var(--ctp-blue))', color);
+    .replace('var(--logo-color-end, var(--accent-2))', color);
   cachedLogoSvg = swapped;
   cachedLogoSvgKey = color;
   return swapped;

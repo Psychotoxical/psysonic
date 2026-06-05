@@ -328,7 +328,7 @@ export default function LosslessAlbums() {
                 onClick={toggleSelectionMode}
                 data-tooltip={selectionMode ? t('albums.cancelSelect') : t('albums.startSelect')}
                 data-tooltip-pos="bottom"
-                style={selectionMode ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}}
+                style={selectionMode ? { background: 'var(--accent)', color: 'var(--text-on-accent)' } : {}}
               >
                 <CheckSquare2 size={15} />
                 {selectionMode ? t('albums.cancelSelect') : t('albums.select')}

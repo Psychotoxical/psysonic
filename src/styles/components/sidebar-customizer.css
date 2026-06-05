@@ -245,7 +245,7 @@
 .toggle-track {
   position: absolute;
   inset: 0;
-  background: var(--ctp-surface2);
+  background: var(--bg-elevated);
   border-radius: var(--radius-full);
   transition: background var(--transition-base);
 }
@@ -264,7 +264,7 @@
 }
 
 .toggle-switch:hover .toggle-track {
-  background: var(--ctp-overlay0);
+  background: var(--border);
 }
 
 .toggle-switch input:checked+.toggle-track {

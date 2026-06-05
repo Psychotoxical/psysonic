@@ -10,7 +10,7 @@ interface Props {
 export default function LosslessFilterButton({ active, onChange }: Props) {
   const { t } = useTranslation();
   const tooltip = active ? t('albums.losslessTooltipOn') : t('albums.losslessTooltipOff');
-  const activeStyle = active ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {};
+  const activeStyle = active ? { background: 'var(--accent)', color: 'var(--text-on-accent)' } : {};
 
   return (
     <button

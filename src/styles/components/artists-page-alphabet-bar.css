@@ -10,13 +10,13 @@
 }
 .artists-alpha-btn:not(.artists-alpha-btn--active):hover {
   background: var(--accent);
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
   border-color: var(--accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 .artists-alpha-btn--active {
   background: var(--accent);
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
   border-color: var(--accent);
 }
 .alphabet-filter-btn.empty { opacity: 0.28; pointer-events: none; }

@@ -258,7 +258,7 @@
 }
 
 .np-queue-remove:hover {
-  color: var(--ctp-red);
+  color: var(--danger);
   background: var(--bg-hover);
 }
 

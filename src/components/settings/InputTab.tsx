@@ -74,7 +74,7 @@ export function InputTab() {
                         minWidth: 72, padding: '3px 10px', borderRadius: 'var(--radius-sm)',
                         fontSize: 12, fontWeight: 600, fontFamily: 'monospace',
                         background: isListening ? 'var(--accent)' : bound ? 'var(--bg-hover)' : 'var(--bg-card)',
-                        color: isListening ? 'var(--ctp-base)' : bound ? 'var(--text-primary)' : 'var(--text-muted)',
+                        color: isListening ? 'var(--bg-app)' : bound ? 'var(--text-primary)' : 'var(--text-muted)',
                         border: `1px solid ${isListening ? 'var(--accent)' : 'var(--border-subtle)'}`,
                         cursor: 'pointer',
                       }}
@@ -156,7 +156,7 @@ export function InputTab() {
                         minWidth: 120, padding: '3px 10px', borderRadius: 'var(--radius-sm)',
                         fontSize: 12, fontWeight: 600, fontFamily: 'monospace',
                         background: isListening ? 'var(--accent)' : bound ? 'var(--bg-hover)' : 'var(--bg-card)',
-                        color: isListening ? 'var(--ctp-base)' : bound ? 'var(--text-primary)' : 'var(--text-muted)',
+                        color: isListening ? 'var(--bg-app)' : bound ? 'var(--text-primary)' : 'var(--text-muted)',
                         border: `1px solid ${isListening ? 'var(--accent)' : 'var(--border-subtle)'}`,
                         cursor: 'pointer',
                       }}

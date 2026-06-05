@@ -15,8 +15,8 @@
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: var(--ctp-base);
-  border: 1px solid var(--ctp-overlay0);
+  background: var(--bg-app);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   width: 280px;
   max-width: 100%;

@@ -63,7 +63,7 @@
   background: var(--accent);
   border: none;
   border-radius: var(--radius-sm);
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
   padding: 4px 6px;
   cursor: pointer;
   display: flex;

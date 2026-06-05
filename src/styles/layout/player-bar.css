@@ -259,7 +259,7 @@ html[data-platform="windows"] .player-bar.floating {
   width: 46px;
   height: 46px;
   background: var(--accent);
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
   border-radius: 50%;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
   flex-shrink: 0;
@@ -267,7 +267,7 @@ html[data-platform="windows"] .player-bar.floating {
 
 .player-btn-primary:hover {
   background: var(--accent);
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
   transform: scale(1.06);
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4), var(--shadow-glow);
   filter: brightness(1.12);

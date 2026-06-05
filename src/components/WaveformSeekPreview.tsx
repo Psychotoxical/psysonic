@@ -59,11 +59,11 @@ export function SeekbarPreview({ style, label, selected, onClick }: Props) {
     <button
       onClick={onClick}
       style={{
-        border: `2px solid ${selected ? 'var(--accent)' : 'var(--ctp-surface1)'}`,
+        border: `2px solid ${selected ? 'var(--accent)' : 'var(--bg-hover)'}`,
         borderRadius: 8,
         background: selected
           ? 'color-mix(in srgb, var(--accent) 12%, transparent)'
-          : 'var(--bg-card, var(--ctp-base))',
+          : 'var(--bg-card, var(--bg-app))',
         padding: '10px 12px 8px',
         cursor: 'pointer',
         width: 130,

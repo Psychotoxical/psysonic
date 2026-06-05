@@ -66,12 +66,12 @@ export function LoadPlaylistModal({ onClose, onLoad }: Props) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
             {playlists.filter(p => p.name.toLowerCase().includes(filter.toLowerCase())).map(p => (
-              <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--ctp-surface1)', borderRadius: 'var(--radius-md)' }}>
+              <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg-hover)', borderRadius: 'var(--radius-md)' }}>
                 <span style={{ fontWeight: 500 }} className="truncate" data-tooltip={p.name}>{p.name}</span>
                 <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
                   <button className="nav-btn" onClick={() => onLoad(p.id, p.name, 'replace')} data-tooltip={t('queue.load')} style={{ width: '28px', height: '28px', background: 'transparent' }}><Play size={14} /></button>
                   <button className="nav-btn" onClick={() => onLoad(p.id, p.name, 'append')} data-tooltip={t('queue.appendToQueue')} style={{ width: '28px', height: '28px', background: 'transparent' }}><ListPlus size={14} /></button>
-                  <button className="nav-btn" onClick={() => handleDelete(p.id, p.name)} data-tooltip={t('queue.delete')} style={{ width: '28px', height: '28px', background: 'transparent', color: 'var(--ctp-red)' }}><Trash2 size={14} /></button>
+                  <button className="nav-btn" onClick={() => handleDelete(p.id, p.name)} data-tooltip={t('queue.delete')} style={{ width: '28px', height: '28px', background: 'transparent', color: 'var(--danger)' }}><Trash2 size={14} /></button>
                 </div>
               </div>
             ))}

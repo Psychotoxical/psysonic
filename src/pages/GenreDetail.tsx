@@ -256,7 +256,7 @@ export default function GenreDetail() {
                   display: 'flex',
                   justifyContent: 'center',
                   paddingTop: '3rem',
-                  background: 'var(--ctp-base)',
+                  background: 'var(--bg-app)',
                 }}
               >
                 <div className="spinner" />

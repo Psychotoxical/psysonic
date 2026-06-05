@@ -21,7 +21,7 @@
 }
 
 .modal-content {
-  background: var(--ctp-surface0);
+  background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   padding: var(--space-8);
@@ -99,7 +99,7 @@
   margin: 12px 0 10px;
   padding: 4px;
   border-radius: 12px;
-  background: color-mix(in srgb, var(--bg-card, var(--ctp-base)) 88%, transparent);
+  background: color-mix(in srgb, var(--bg-card, var(--bg-app)) 88%, transparent);
   border: 1px solid color-mix(in srgb, var(--text-muted) 18%, transparent);
 }
 
@@ -122,12 +122,12 @@
 
 .sidebar-perf-modal__tab:hover {
   color: var(--text-primary);
-  background: color-mix(in srgb, var(--bg-hover, var(--ctp-surface1)) 70%, transparent);
+  background: color-mix(in srgb, var(--bg-hover, var(--bg-hover)) 70%, transparent);
 }
 
 .sidebar-perf-modal__tab--active {
   color: var(--text-primary);
-  background: color-mix(in srgb, var(--accent) 16%, var(--bg-card, var(--ctp-base)));
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-card, var(--bg-app)));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
@@ -287,7 +287,7 @@
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--text-muted) 18%, transparent);
-  background: color-mix(in srgb, var(--bg-card, var(--ctp-base)) 82%, transparent);
+  background: color-mix(in srgb, var(--bg-card, var(--bg-app)) 82%, transparent);
 }
 
 .perf-live-poll__title {
@@ -365,7 +365,7 @@
   margin-bottom: 10px;
   border: 1px solid color-mix(in srgb, var(--text-muted) 18%, transparent);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--bg-card, var(--ctp-base)) 82%, transparent);
+  background: color-mix(in srgb, var(--bg-card, var(--bg-app)) 82%, transparent);
   overflow: hidden;
 }
 
@@ -417,7 +417,7 @@
   padding: 10px 10px 9px;
   border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--text-muted) 14%, transparent);
-  background: color-mix(in srgb, var(--ctp-mantle, var(--ctp-base)) 72%, transparent);
+  background: color-mix(in srgb, var(--bg-sidebar, var(--bg-app)) 72%, transparent);
   min-height: 84px;
   display: flex;
   flex-direction: column;
@@ -540,7 +540,7 @@
 .perf-tree-group {
   border: 1px solid color-mix(in srgb, var(--text-muted) 16%, transparent);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--bg-card, var(--ctp-base)) 78%, transparent);
+  background: color-mix(in srgb, var(--bg-card, var(--bg-app)) 78%, transparent);
   overflow: hidden;
 }
 
@@ -634,7 +634,7 @@
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--text-muted) 18%, transparent);
-  background: color-mix(in srgb, var(--bg-card, var(--ctp-base)) 82%, transparent);
+  background: color-mix(in srgb, var(--bg-card, var(--bg-app)) 82%, transparent);
 }
 
 .perf-overlay-mode__title {
@@ -656,7 +656,7 @@
   padding: 6px 8px;
   border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--text-muted) 22%, transparent);
-  background: color-mix(in srgb, var(--bg-card, var(--ctp-base)) 70%, transparent);
+  background: color-mix(in srgb, var(--bg-card, var(--bg-app)) 70%, transparent);
   color: var(--text-muted);
   font-size: 11px;
   line-height: 1.2;
@@ -670,7 +670,7 @@
 
 .perf-overlay-mode__segment--active {
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-  background: color-mix(in srgb, var(--accent) 14%, var(--bg-card, var(--ctp-base)));
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-card, var(--bg-app)));
   color: var(--text-primary);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
 }
@@ -687,7 +687,7 @@
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--text-muted) 18%, transparent);
-  background: color-mix(in srgb, var(--bg-card, var(--ctp-base)) 82%, transparent);
+  background: color-mix(in srgb, var(--bg-card, var(--bg-app)) 82%, transparent);
 }
 
 .perf-overlay-appearance__title {
@@ -734,7 +734,7 @@
   height: 36px;
   border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--text-muted) 22%, transparent);
-  background: color-mix(in srgb, var(--ctp-mantle, var(--ctp-base)) 70%, transparent);
+  background: color-mix(in srgb, var(--bg-sidebar, var(--bg-app)) 70%, transparent);
   cursor: pointer;
   padding: 0;
 }
@@ -815,14 +815,14 @@
   border: 1px solid color-mix(in srgb, var(--text-muted) 22%, transparent);
   border-radius: 10px;
   padding: 8px 10px 10px;
-  background: color-mix(in srgb, var(--bg-card, var(--ctp-base)) 78%, transparent);
+  background: color-mix(in srgb, var(--bg-card, var(--bg-app)) 78%, transparent);
 }
 
 .sidebar-perf-modal__phase--nested {
   margin-left: 10px;
   margin-right: 2px;
   padding-top: 6px;
-  background: color-mix(in srgb, var(--bg-card, var(--ctp-base)) 68%, transparent);
+  background: color-mix(in srgb, var(--bg-card, var(--bg-app)) 68%, transparent);
 }
 
 .sidebar-perf-modal__phase-title {
@@ -843,7 +843,7 @@
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--text-muted) 22%, transparent);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--bg-card, var(--ctp-base)) 80%, transparent);
+  background: color-mix(in srgb, var(--bg-card, var(--bg-app)) 80%, transparent);
 }
 
 .sidebar-perf-modal__cpu-title {

@@ -10,7 +10,7 @@ export default function PSmallLogo({ className, style }: Props) {
     <svg viewBox="0 0 115.549 130.30972" xmlns="http://www.w3.org/2000/svg" style={style} className={className}><defs id="defs1">
       <linearGradient id="psmallGrad" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stopColor="var(--accent)" />
-        <stop offset="100%" stopColor="var(--ctp-blue)" />
+        <stop offset="100%" stopColor="var(--accent-2)" />
       </linearGradient>
     </defs><g
      id="layer1"

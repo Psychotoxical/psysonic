@@ -5,7 +5,7 @@
   padding: 2px 8px;
   border-radius: var(--radius-sm);
   background: var(--text-secondary);
-  color: var(--ctp-surface1);
+  color: var(--bg-hover);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.03em;
@@ -14,7 +14,7 @@
 }
 .radio-card-chip:hover {
   background: var(--accent);
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
 }
 
 /* Radio card: buttons row always pinned to bottom */

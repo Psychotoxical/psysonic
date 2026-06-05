@@ -122,7 +122,7 @@ function DragGhost({ state }: { state: DragState }) {
           size={16}
           strokeWidth={2.25}
           aria-hidden
-          style={{ flexShrink: 0, color: 'var(--danger, var(--ctp-red, #f38ba8))' }}
+          style={{ flexShrink: 0, color: 'var(--danger, var(--danger, #f38ba8))' }}
         />
       )}
       {coverUrl && (

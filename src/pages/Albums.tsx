@@ -418,7 +418,7 @@ export default function Albums() {
                     data-tooltip-pos="bottom"
                     style={{
                       display: 'flex', alignItems: 'center', gap: '0.4rem',
-                      ...(compFilter !== 'all' ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}),
+                      ...(compFilter !== 'all' ? { background: 'var(--accent)', color: 'var(--text-on-accent)' } : {}),
                     }}
                   >
                     <Disc3 size={14} />
@@ -439,7 +439,7 @@ export default function Albums() {
                 onClick={toggleSelectionMode}
                 data-tooltip={selectionMode ? t('albums.cancelSelect') : t('albums.startSelect')}
                 data-tooltip-pos="bottom"
-                style={selectionMode ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}}
+                style={selectionMode ? { background: 'var(--accent)', color: 'var(--text-on-accent)' } : {}}
               >
                 <CheckSquare2 size={15} />
                 <span className="toolbar-btn-label">{selectionMode ? t('albums.cancelSelect') : t('albums.select')}</span>
@@ -534,7 +534,7 @@ export default function Albums() {
                   display: 'flex',
                   justifyContent: 'center',
                   paddingTop: '3rem',
-                  background: 'var(--ctp-base)',
+                  background: 'var(--bg-app)',
                 }}
               >
                 <div className="spinner" />

@@ -68,9 +68,9 @@
   transform: rotate(90deg) scale(0.94);
 }
 
-.playback-delay-modal--pause { --pd-accent: var(--ctp-lavender, #b4befe); }
-.playback-delay-modal--start { --pd-accent: var(--ctp-peach, #fab387); }
-.playback-delay-modal--idle  { --pd-accent: var(--ctp-overlay1, #7f849c); }
+.playback-delay-modal--pause { --pd-accent: var(--accent-2, #b4befe); }
+.playback-delay-modal--start { --pd-accent: var(--accent-2, #fab387); }
+.playback-delay-modal--idle  { --pd-accent: var(--border-subtle, #7f849c); }
 
 .playback-delay-modal__head {
   display: flex;
@@ -127,7 +127,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
   background: var(--accent);
   padding: 1px 6px;
   border-radius: 4px;
@@ -165,7 +165,7 @@
 
 .player-btn-preview-ring-track {
   fill: none;
-  stroke: var(--ctp-overlay0);
+  stroke: var(--border);
   stroke-width: 4;
 }
 
@@ -279,7 +279,7 @@
    button carries the mode distinction, so the ring stays consistent with
    the rest of the app. */
 .playback-schedule-ring__grad-a { stop-color: var(--accent); }
-.playback-schedule-ring__grad-b { stop-color: var(--ctp-lavender, #b4befe); }
+.playback-schedule-ring__grad-b { stop-color: var(--accent-2, #b4befe); }
 
 /* Replaces the Play/Pause icon while a schedule timer is armed. Two-line
    stack: mode icon (Moon for sleep, Sunrise for delayed-start) above the
@@ -358,7 +358,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-4);
-  background: color-mix(in srgb, var(--ctp-base) 40%, transparent);
+  background: color-mix(in srgb, var(--bg-app) 40%, transparent);
 }
 
 .playback-delay-section--disabled {
@@ -406,7 +406,7 @@
   padding: 7px 12px;
   font-size: 0.82rem;
   font-weight: 500;
-  background: var(--ctp-surface1);
+  background: var(--bg-hover);
   color: var(--text-primary);
   cursor: pointer;
   transition:
@@ -419,7 +419,7 @@
 
 .playback-delay-chip:hover {
   border-color: color-mix(in srgb, var(--pd-accent, var(--accent)) 55%, var(--border));
-  background: color-mix(in srgb, var(--pd-accent, var(--accent)) 14%, var(--ctp-surface1));
+  background: color-mix(in srgb, var(--pd-accent, var(--accent)) 14%, var(--bg-hover));
   color: var(--pd-accent, var(--accent));
   transform: translateY(-1px);
   box-shadow: 0 3px 10px color-mix(in srgb, var(--pd-accent, var(--accent)) 22%, transparent);
@@ -429,7 +429,7 @@
 
 .playback-delay-chip--on {
   border-color: var(--pd-accent, var(--accent));
-  background: color-mix(in srgb, var(--pd-accent, var(--accent)) 22%, var(--ctp-surface1));
+  background: color-mix(in srgb, var(--pd-accent, var(--accent)) 22%, var(--bg-hover));
   color: var(--pd-accent, var(--accent));
 }
 
@@ -462,7 +462,7 @@
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   font-size: 0.9rem;
-  background: var(--ctp-base);
+  background: var(--bg-app);
   color: var(--text-primary);
 }
 

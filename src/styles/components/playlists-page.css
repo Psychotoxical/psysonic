@@ -89,7 +89,7 @@
   height: 28px;
   border-radius: 50%;
   background: var(--accent);
-  color: var(--ctp-base);
+  color: var(--bg-app);
   border: none;
   cursor: pointer;
   opacity: 0;
@@ -119,7 +119,7 @@
 
 .playlist-delete-btn {
   opacity: 0;
-  color: var(--ctp-red) !important;
+  color: var(--danger) !important;
   padding: 4px;
   height: auto;
   min-height: unset;
@@ -146,7 +146,7 @@
 }
 
 .fav-remove-btn:hover {
-  color: var(--ctp-red);
+  color: var(--danger);
 }
 
 .track-row:hover .fav-remove-btn,

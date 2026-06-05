@@ -105,7 +105,7 @@ export default function PlaylistsHeader({
           onClick={toggleSelectionMode}
           data-tooltip={selectionMode ? t('playlists.cancelSelect') : t('playlists.startSelect')}
           data-tooltip-pos="bottom"
-          style={selectionMode ? { background: 'var(--accent)', color: 'var(--ctp-crust)' } : {}}
+          style={selectionMode ? { background: 'var(--accent)', color: 'var(--text-on-accent)' } : {}}
         >
           <CheckSquare2 size={15} />
           {selectionMode ? t('playlists.cancelSelect') : t('playlists.select')}

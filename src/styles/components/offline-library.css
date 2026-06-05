@@ -108,7 +108,7 @@
 
 .offline-filter-tab.active {
   background: var(--accent);
-  color: var(--ctp-base);
+  color: var(--bg-app);
   border-color: var(--accent);
   font-weight: 600;
 }

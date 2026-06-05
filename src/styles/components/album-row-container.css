@@ -177,7 +177,7 @@
 }
 
 .album-card-more:hover {
-  background: var(--ctp-surface0);
+  background: var(--bg-card);
   color: var(--text-primary);
   border-color: var(--accent);
   box-shadow: var(--shadow-sm);
@@ -199,7 +199,7 @@
 .album-card-offline-badge {
   flex-shrink: 0;
   background: color-mix(in srgb, var(--accent) 85%, transparent);
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
   border-radius: var(--radius-sm);
   padding: 3px 4px;
   display: flex;
@@ -210,7 +210,7 @@
 .album-card-new-badge {
   flex-shrink: 0;
   background: var(--accent);
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
   border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
   border-radius: var(--radius-sm);
   padding: 3px 6px;
@@ -243,7 +243,7 @@
 
 .album-card-details-btn {
   background: var(--accent);
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
   border: none;
   padding: 8px 20px;
   border-radius: var(--radius-full);
@@ -386,6 +386,6 @@
 .album-card-select-check--on {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
 }
 
