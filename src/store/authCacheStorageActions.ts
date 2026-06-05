@@ -13,6 +13,7 @@ export function createCacheStorageActions(set: SetState): Pick<
   | 'setHotCacheMaxMb'
   | 'setHotCacheDebounceSec'
   | 'setHotCacheDownloadDir'
+  | 'setMediaDir'
 > {
   return {
     setMaxCacheMb: (v) => set({ maxCacheMb: v }),
@@ -22,5 +23,6 @@ export function createCacheStorageActions(set: SetState): Pick<
     setHotCacheMaxMb: (v) => set({ hotCacheMaxMb: v }),
     setHotCacheDebounceSec: (v) => set({ hotCacheDebounceSec: v }),
     setHotCacheDownloadDir: (v) => set({ hotCacheDownloadDir: v }),
+    setMediaDir: (v) => set({ mediaDir: v }),
   };
 }

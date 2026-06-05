@@ -89,6 +89,8 @@ export interface AuthState {
   coverRevalidateMaxProbesPerMinute: number;
   downloadFolder: string;
   offlineDownloadDir: string;
+  /** Unified local playback root `M` (replaces hot/offline dir pickers). */
+  mediaDir: string;
   excludeAudiobooks: boolean;
   customGenreBlacklist: string[];
   replayGainEnabled: boolean;
@@ -346,6 +348,7 @@ export interface AuthState {
   setHotCacheMaxMb: (v: number) => void;
   setHotCacheDebounceSec: (v: number) => void;
   setHotCacheDownloadDir: (v: string) => void;
+  setMediaDir: (v: string) => void;
   setSkipStarOnManualSkipsEnabled: (v: boolean) => void;
   setSkipStarManualSkipThreshold: (v: number) => void;
   setMixMinRatingFilterEnabled: (v: boolean) => void;

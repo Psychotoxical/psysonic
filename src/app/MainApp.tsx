@@ -13,6 +13,7 @@ import { useAuthStore } from '../store/authStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useGlobalShortcutsStore } from '../store/globalShortcutsStore';
 import { initHotCachePrefetch } from '../hotCachePrefetch';
+import { initLocalPlaybackInvalidation } from '../localPlaybackInvalidation';
 import { initMiniPlayerBridgeOnMain } from '../utils/miniPlayerBridge';
 import { runAdvancedModeMigration } from '../utils/migrations/advancedModeMigration';
 import { bootstrapAllIndexedServers } from '../utils/library/librarySession';
@@ -96,6 +97,11 @@ export default function MainApp() {
   useEffect(() => {
     if (!migrationReady) return undefined;
     return initHotCachePrefetch();
+  }, [migrationReady]);
+
+  useEffect(() => {
+    if (!migrationReady) return undefined;
+    return initLocalPlaybackInvalidation();
   }, [migrationReady]);
 
   useEffect(() => {

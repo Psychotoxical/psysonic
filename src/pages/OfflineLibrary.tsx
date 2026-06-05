@@ -1,23 +1,26 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Play, HardDriveDownload, Trash2, ListPlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useOfflineStore, type OfflineAlbumMeta } from '../store/offlineStore';
+import { useOfflineStore } from '../store/offlineStore';
+import { useLocalPlaybackStore } from '../store/localPlaybackStore';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
-import { CoverArtImage } from '../cover/CoverArtImage';
 import { AlbumCoverArtImage } from '../cover/AlbumCoverArtImage';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import {
-  buildOfflineTracksForAlbum,
-  ensureServerForOfflineAlbum,
+  buildTracksForOfflineCard,
+  ensureServerForOfflineCard,
+  hydrateOfflineLibraryCards,
   offlineAlbumCoverScope,
   offlineTrackCount,
+  type OfflineLibraryCard,
 } from '../utils/offline/offlineLibraryHelpers';
+import { showToast } from '../utils/ui/toast';
+import { resolveIndexKey } from '../utils/server/serverIndexKey';
 
 const OFFLINE_CARD_COVER_CSS_PX = 300;
-import { showToast } from '../utils/ui/toast';
 
 type FilterType = 'all' | 'album' | 'playlist' | 'artist';
 
@@ -25,72 +28,85 @@ export default function OfflineLibrary() {
   const { t } = useTranslation();
   const perfFlags = usePerfProbeFlags();
   const servers = useAuthStore(s => s.servers);
+  const localEntries = useLocalPlaybackStore(s => s.entries);
+  const deleteAlbum = useOfflineStore(s => s.deleteAlbum);
+  const playTrack = usePlayerStore(s => s.playTrack);
+  const enqueue = usePlayerStore(s => s.enqueue);
+  const [filter, setFilter] = useState<FilterType>('all');
+  const [cards, setCards] = useState<OfflineLibraryCard[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const serverNames = useMemo(
     () => Object.fromEntries(servers.map(s => [s.id, s.name])),
     [servers],
   );
   const showServerLabels = servers.length > 1;
-  const offlineAlbums = useOfflineStore(s => s.albums);
-  const offlineTracks = useOfflineStore(s => s.tracks);
-  const deleteAlbum = useOfflineStore(s => s.deleteAlbum);
-  const playTrack = usePlayerStore(s => s.playTrack);
-  const enqueue = usePlayerStore(s => s.enqueue);
-  const [filter, setFilter] = useState<FilterType>('all');
 
-  const albums = useMemo(
-    () => Object.values(offlineAlbums).sort((a, b) => a.name.localeCompare(b.name)),
-    [offlineAlbums],
-  );
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const groups = useLocalPlaybackStore.getState().listPinnedGroups();
+    void hydrateOfflineLibraryCards(groups).then(hydrated => {
+      if (!cancelled) {
+        setCards(hydrated);
+        setLoading(false);
+      }
+    }).catch(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [localEntries]);
 
   const countByType = (type: FilterType) => {
-    if (type === 'all') return albums.length;
-    return albums.filter(a => (a.type ?? 'album') === type).length;
+    if (type === 'all') return cards.length;
+    return cards.filter(c => (c.pinSource.kind ?? 'album') === type).length;
   };
 
   const filtered = filter === 'all'
-    ? albums
-    : albums.filter(a => (a.type ?? 'album') === filter);
+    ? cards
+    : cards.filter(c => (c.pinSource.kind ?? 'album') === filter);
 
-  const runWithAlbumServer = useCallback(async (
-    album: OfflineAlbumMeta,
-    action: () => void,
+  const runWithCardServer = useCallback(async (
+    card: OfflineLibraryCard,
+    action: () => void | Promise<void>,
   ) => {
-    const ok = await ensureServerForOfflineAlbum(album);
+    const ok = await ensureServerForOfflineCard(card);
     if (!ok) {
       showToast(t('connection.switchFailed'), 4500, 'error');
       return;
     }
-    action();
+    await action();
   }, [t]);
 
-  const handlePlay = (album: OfflineAlbumMeta) => {
-    void runWithAlbumServer(album, () => {
-      const tracks = buildOfflineTracksForAlbum(album, offlineTracks);
+  const handlePlay = (card: OfflineLibraryCard) => {
+    void runWithCardServer(card, async () => {
+      const tracks = await buildTracksForOfflineCard(card);
       if (tracks[0]) playTrack(tracks[0], tracks);
     });
   };
 
-  const handleEnqueue = (album: OfflineAlbumMeta) => {
-    void runWithAlbumServer(album, () => {
-      enqueue(buildOfflineTracksForAlbum(album, offlineTracks));
+  const handleEnqueue = (card: OfflineLibraryCard) => {
+    void runWithCardServer(card, async () => {
+      enqueue(await buildTracksForOfflineCard(card));
     });
   };
 
-  const renderCard = (album: OfflineAlbumMeta) => {
-    const coverScope = offlineAlbumCoverScope(album);
-    const trackCount = offlineTrackCount(album, offlineTracks);
-    const serverLabel = serverNames[album.serverId];
+  const renderCard = (card: OfflineLibraryCard) => {
+    const coverScope = offlineAlbumCoverScope(card);
+    const trackCount = offlineTrackCount(card);
+    const serverLabel = serverNames[resolveIndexKey(card.serverIndexKey)] ?? serverNames[card.serverIndexKey];
+    const albumId = card.pinSource.kind === 'album' ? card.pinSource.sourceId : card.trackIds[0] ?? card.pinSource.sourceId;
     return (
       <div className="album-card card offline-library-card">
         <div className="album-card-cover">
-          {coverScope ? (
+          {coverScope && card.coverArt ? (
             <AlbumCoverArtImage
-              albumId={album.id}
-              coverArt={album.coverArt}
+              albumId={albumId}
+              coverArt={card.coverArt}
               serverScope={coverScope}
               displayCssPx={OFFLINE_CARD_COVER_CSS_PX}
               surface="dense"
-              alt={`${album.name} Cover`}
+              alt={`${card.name} Cover`}
               loading="lazy"
             />
           ) : (
@@ -101,26 +117,26 @@ export default function OfflineLibrary() {
           <div className="album-card-play-overlay">
             <button
               className="album-card-details-btn"
-              onClick={() => handlePlay(album)}
-              aria-label={`${album.name} abspielen`}
+              onClick={() => handlePlay(card)}
+              aria-label={`${card.name} abspielen`}
             >
               <Play size={15} fill="currentColor" />
             </button>
           </div>
         </div>
         <div className="album-card-info">
-          <p className="album-card-title truncate">{album.name}</p>
-          <p className="album-card-artist truncate">{album.artist}</p>
+          <p className="album-card-title truncate">{card.name}</p>
+          <p className="album-card-artist truncate">{card.artist}</p>
           {showServerLabels && serverLabel && (
             <p className="offline-library-server truncate" title={serverLabel}>
               {t('connection.offlineCachedOnServer', { server: serverLabel })}
             </p>
           )}
-          {album.year && <p className="album-card-year">{album.year}</p>}
+          {card.year && <p className="album-card-year">{card.year}</p>}
           <div className="offline-library-card-meta">
             <button
               className="offline-library-enqueue"
-              onClick={() => handleEnqueue(album)}
+              onClick={() => handleEnqueue(card)}
               data-tooltip={t('queue.appendToQueue')}
               data-tooltip-pos="top"
               aria-label={t('queue.appendToQueue')}
@@ -132,7 +148,7 @@ export default function OfflineLibrary() {
             </span>
             <button
               className="offline-library-delete"
-              onClick={() => deleteAlbum(album.id, album.serverId)}
+              onClick={() => deleteAlbum(card.pinSource.sourceId, card.serverIndexKey)}
               data-tooltip={t('albumDetail.removeOffline')}
               data-tooltip-pos="top"
             >
@@ -145,11 +161,11 @@ export default function OfflineLibrary() {
   };
 
   const renderArtistGroups = () => {
-    const groups: Record<string, OfflineAlbumMeta[]> = {};
-    for (const album of filtered) {
-      const key = album.artist || '—';
+    const groups: Record<string, OfflineLibraryCard[]> = {};
+    for (const card of filtered) {
+      const key = card.artist || '—';
       if (!groups[key]) groups[key] = [];
-      groups[key].push(album);
+      groups[key].push(card);
     }
     const sortedArtists = Object.keys(groups).sort((a, b) => a.localeCompare(b));
     return sortedArtists.map(artistName => (
@@ -157,7 +173,7 @@ export default function OfflineLibrary() {
         <h2 className="offline-artist-group-heading">{artistName}</h2>
         <VirtualCardGrid
           items={groups[artistName]}
-          itemKey={(a, _i) => `${a.serverId}:${a.id}`}
+          itemKey={(c, _i) => `${c.serverIndexKey}:${c.pinSource.kind}:${c.pinSource.sourceId}`}
           rowVariant="album"
           disableVirtualization={perfFlags.disableMainstageVirtualLists}
           layoutSignal={groups[artistName].length}
@@ -169,10 +185,10 @@ export default function OfflineLibrary() {
   };
 
   const TABS: { id: FilterType; labelKey: string }[] = [
-    { id: 'all',      labelKey: 'connection.offlineFilterAll' },
-    { id: 'album',    labelKey: 'connection.offlineFilterAlbums' },
+    { id: 'all', labelKey: 'connection.offlineFilterAll' },
+    { id: 'album', labelKey: 'connection.offlineFilterAlbums' },
     { id: 'playlist', labelKey: 'connection.offlineFilterPlaylists' },
-    { id: 'artist',   labelKey: 'connection.offlineFilterArtists' },
+    { id: 'artist', labelKey: 'connection.offlineFilterArtists' },
   ];
 
   return (
@@ -182,7 +198,7 @@ export default function OfflineLibrary() {
         <div>
           <h1 className="offline-library-title">{t('connection.offlineLibraryTitle')}</h1>
           <p className="offline-library-count">
-            {t('connection.offlineAlbumCount', { n: albums.length, count: albums.length })}
+            {t('connection.offlineAlbumCount', { n: cards.length, count: cards.length })}
           </p>
         </div>
       </div>
@@ -204,14 +220,16 @@ export default function OfflineLibrary() {
         })}
       </div>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="empty-state">{t('common.loading', { defaultValue: 'Loading…' })}</div>
+      ) : filtered.length === 0 ? (
         <div className="empty-state">{t('connection.offlineLibraryEmpty')}</div>
       ) : filter === 'artist' ? (
         renderArtistGroups()
       ) : (
         <VirtualCardGrid
           items={filtered}
-          itemKey={(a, _i) => `${a.serverId}:${a.id}`}
+          itemKey={(c, _i) => `${c.serverIndexKey}:${c.pinSource.kind}:${c.pinSource.sourceId}`}
           rowVariant="album"
           disableVirtualization={perfFlags.disableMainstageVirtualLists}
           layoutSignal={filtered.length}

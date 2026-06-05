@@ -42,6 +42,7 @@ export const useAuthStore = create<AuthState>()(
       coverRevalidateMaxProbesPerMinute: 20,
       downloadFolder: '',
       offlineDownloadDir: '',
+      mediaDir: '',
       excludeAudiobooks: false,
       customGenreBlacklist: [],
       replayGainEnabled: false,
