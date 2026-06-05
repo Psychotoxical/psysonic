@@ -1,8 +1,8 @@
 /* ─── Sidebar device-sync queue ─── */
 .sidebar-sync-queue {
-  background: color-mix(in srgb, var(--success, #4ade80) 10%, var(--bg-sidebar));
-  border-color: color-mix(in srgb, var(--success, #4ade80) 25%, transparent);
-  color: var(--success, #4ade80);
+  background: color-mix(in srgb, var(--positive, #4ade80) 10%, var(--bg-sidebar));
+  border-color: color-mix(in srgb, var(--positive, #4ade80) 25%, transparent);
+  color: var(--positive, #4ade80);
 }
 
 @keyframes spin-slow {

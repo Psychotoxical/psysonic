@@ -1,0 +1,64 @@
+/* ── W3.1 (Operating Systems) ───────────────────────────────── */
+[data-theme='w3-1'] {
+  color-scheme: light;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* ── Authentische W3.1 Palette ── */
+  --ctp-crust: #808080;
+  --ctp-mantle: #a0a0a0;
+  --ctp-base: #c0c0c0;
+  /* Reines W3.1 Grau */
+  --ctp-surface0: #ffffff;
+  --ctp-surface1: #e0e0e0;
+  --ctp-surface2: #c0c0c0;
+  --ctp-overlay0: #808080;
+  --ctp-overlay1: #404040;
+  --ctp-overlay2: #000000;
+  --ctp-text: #000000;
+  --ctp-subtext1: #000000;
+  --ctp-subtext0: #000000;
+
+  --ctp-mauve: #000080;
+  --ctp-lavender: #0000a0;
+  --ctp-green: #008000;
+  --ctp-teal: #008080;
+  --ctp-sky: #0000ff;
+  --ctp-blue: #000080;
+  --ctp-sapphire: #000080;
+  --ctp-pink: #ff00ff;
+  --ctp-flamingo: #ff00ff;
+  --ctp-rosewater: #ffffff;
+  --ctp-yellow: #ffff00;
+  --ctp-peach: #ff8000;
+  --ctp-maroon: #800000;
+  --ctp-red: #ff0000;
+
+  --bg-app: #008080;
+  /* Teal Desktop */
+  --bg-sidebar: #c0c0c0;
+  --bg-card: #ffffff;
+  --bg-hover: #000080;
+  --bg-player: #c0c0c0;
+  --bg-glass: #c0c0c0;
+
+  --accent: #000080;
+  --accent-dim: rgba(0, 0, 128, 0.12);
+  --accent-glow: transparent;
+  --volume-accent: #000080;
+
+  --text-primary: #000000;
+  --text-secondary: #000000;
+  --text-muted: #000000;
+
+  --border: #000000;
+  --border-subtle: #808080;
+  --border-dropdown: #000000;
+  --shadow-dropdown: rgba(0, 0, 0, 0.4);
+
+  --positive: #008000;
+  --warning: #808000;
+  --danger: #ff0000;
+
+  /* player readout */
+  --player-title: #ffffff;
+}

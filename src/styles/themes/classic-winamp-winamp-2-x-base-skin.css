@@ -63,5 +63,8 @@
   --waveform-played:   #d4cc46;
   --waveform-buffered: #8a8a96;
   --waveform-unplayed: #4a4a60;
+  /* Signature LCD-green readout */
+  --player-title:  #00ff00;
+  --player-artist: #00cc00;
 }
 

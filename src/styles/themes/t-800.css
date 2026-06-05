@@ -1,0 +1,75 @@
+/* ── T-800 — Terminator 2: Judgment Day ─────────────────────── */
+/* Endoskeleton HUD red + machine data green + industrial dark   */
+[data-theme='t-800'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23ff2000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* Industrial dark — machine oil, scorched steel, warm black */
+  --ctp-crust: #080606;
+  --ctp-mantle: #0e0a0a;
+  --ctp-base: #140e0e;
+  --ctp-surface0: #1e1414;
+  --ctp-surface1: #281c1c;
+  --ctp-surface2: #342424;
+  --ctp-overlay0: #584040;
+  --ctp-overlay1: #806060;
+  --ctp-overlay2: #a88888;
+  --ctp-text: #e8d8c8;
+  /* CRT terminal warm white */
+  --ctp-subtext1: #c8b8a0;
+  --ctp-subtext0: #a08888;
+
+  /* T2 palette */
+  --ctp-red: #ff2000;
+  /* T-800 eye / HUD targeting red */
+  --ctp-maroon: #cc1800;
+  --ctp-flamingo: #ff4020;
+  --ctp-mauve: #ff2000;
+  --ctp-lavender: #ff5040;
+  --ctp-pink: #ff4020;
+  --ctp-rosewater: #ff8060;
+  --ctp-green: #00e040;
+  /* machine data readout green */
+  --ctp-teal: #00b830;
+  --ctp-sky: #40ff80;
+  --ctp-yellow: #f0a000;
+  /* Judgment Day fire / nuclear orange */
+  --ctp-peach: #ff6000;
+  /* napalm / explosion */
+  --ctp-blue: #2040c0;
+  /* future war laser / Skynet */
+  --ctp-sapphire: #1830a0;
+
+  --bg-app: #140e0e;
+  /* scorched industrial dark */
+  --bg-sidebar: #0e0a0a;
+  /* machine interior */
+  --bg-card: #1e1414;
+  --bg-hover: rgba(255, 32, 0, 0.08);
+  --bg-player: #080606;
+  /* endoskeleton chassis */
+  --bg-glass: rgba(14, 10, 10, 0.96);
+
+  --accent: #ff2000;
+  /* T-800 eye red */
+  --accent-dim: rgba(255, 32, 0, 0.12);
+  --accent-glow: rgba(255, 32, 0, 0.5);
+  --volume-accent: #00e040;
+  /* data-green for volume */
+
+  --text-primary: #e8d8c8;
+  /* warm terminal white */
+  --text-secondary: #00e040;
+  /* machine data green */
+  --text-muted: #584040;
+  --border: #2a1a1a;
+  --border-subtle: #1e1414;
+  --shadow-dropdown: rgba(0, 0, 0, 0.9);
+
+  --positive: #00e040;
+  --warning: #f0a000;
+  --danger: #ff2000;
+
+  /* player readout */
+  --player-title: #ff2000;
+}

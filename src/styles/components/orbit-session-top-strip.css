@@ -919,7 +919,7 @@
   gap: 4px;
   padding: 3px 8px;
   font-size: 11px;
-  background: var(--bg-input);
+  background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
@@ -927,7 +927,7 @@
   transition: background 120ms ease, border-color 120ms ease;
 }
 .orbit-diag-pop__btn:hover {
-  background: var(--bg-hover, var(--bg-input));
+  background: var(--bg-hover, var(--bg-card));
   border-color: var(--accent);
 }
 .orbit-diag-pop__log {
@@ -937,7 +937,7 @@
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 10.5px;
   line-height: 1.45;
-  background: var(--bg-input);
+  background: var(--bg-card);
   color: var(--text-secondary);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
@@ -1743,7 +1743,7 @@
   height: 160px;
   border-radius: 6px;
   overflow: hidden;
-  background: var(--bg-input, rgba(0, 0, 0, 0.15));
+  background: var(--bg-card, rgba(0, 0, 0, 0.15));
 }
 .because-card-cover {
   width: 100%;
@@ -1768,7 +1768,7 @@
 .because-card--skeleton .because-card-cover-placeholder {
   width: 100%;
   height: 100%;
-  background: color-mix(in srgb, var(--text-primary) 14%, var(--bg-input, rgba(0, 0, 0, 0.15)));
+  background: color-mix(in srgb, var(--text-primary) 14%, var(--bg-card, rgba(0, 0, 0, 0.15)));
   animation: because-cover-pulse 1.1s ease-in-out infinite;
 }
 .because-card-skeleton-line {

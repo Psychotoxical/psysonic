@@ -1,0 +1,50 @@
+/* ═══════════════════════════════════════════════════════════════════
+   HORDE — World of Warcraft, Durotar blood-red earth, forge-fire
+   ═══════════════════════════════════════════════════════════════════ */
+[data-theme='horde'] {
+  /* Catppuccin-compatible palette — dark blood-iron */
+  --ctp-base: #1a0500;
+  --ctp-mantle: #140300;
+  --ctp-crust: #0e0200;
+  --ctp-surface0: #2e0a02;
+  --ctp-surface1: #3e1104;
+  --ctp-surface2: #521806;
+  --ctp-overlay0: #8a5030;
+  --ctp-overlay1: #a06038;
+  --ctp-overlay2: #b87048;
+  --ctp-subtext0: #c88850;
+  --ctp-subtext1: #d89860;
+  --ctp-text: #e8d4b8;
+  --ctp-lavender: #cc4422;
+  --ctp-blue: #cc2200;
+  --ctp-sapphire: #aa1800;
+  --ctp-sky: #dd3300;
+  --ctp-teal: #cc5500;
+  --ctp-green: #887722;
+  --ctp-yellow: #ffd890;
+  --ctp-peach: #ff8844;
+  --ctp-maroon: #991100;
+  --ctp-red: #cc2200;
+  --ctp-mauve: #cc4422;
+  --ctp-pink: #dd5533;
+  --ctp-flamingo: #ee6644;
+  --ctp-rosewater: #ffaa66;
+
+  /* Semantic tokens */
+  --bg-app: #1a0500;
+  --bg-sidebar: #110300;
+  --bg-player: #120400;
+  --bg-card: #2e0a02;
+  --border-subtle: rgba(140, 60, 20, 0.30);
+  --border: rgba(180, 80, 30, 0.35);
+  --text-primary: #e8d4b8;
+  --text-secondary: #c09070;
+  --text-muted: #a07848;
+  --accent: #cc2200;
+  --accent-glow: rgba(204, 34, 0, 0.35);
+  --danger: #ff4422;
+  --positive: #887722;
+  --warning: #ff8844;
+  /* player readout */
+  --player-title: #ffd890;
+}

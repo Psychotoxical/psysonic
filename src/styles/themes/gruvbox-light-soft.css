@@ -48,19 +48,3 @@
   --warning: #b57614;
   --danger: #9d0006;
 }
-
-/* ── Gruvbox Light Soft overrides ── */
-[data-theme='gruvbox-light-soft'] .album-detail-back {
-  color: #fbf1c7;
-}
-
-[data-theme='gruvbox-light-soft'] .album-detail-back:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
-}
-
-[data-theme='gruvbox-light-soft'] .album-detail-badge {
-  background: var(--accent);
-  color: #fbf1c7;
-}
-

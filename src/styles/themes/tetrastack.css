@@ -1,0 +1,68 @@
+/* ── TetraStack (Games) — 7-tetromino NES Tetris ─────────────── */
+/* I=cyan  O=yellow  T=purple  S=green  Z=red  J=blue  L=orange  */
+[data-theme='tetrastack'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2300f0f0%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* Dark navy — NES Tetris backdrop, not pure black */
+  --ctp-crust: #000008;
+  --ctp-mantle: #00000e;
+  --ctp-base: #060614;
+  --ctp-surface0: #0d0d22;
+  --ctp-surface1: #141432;
+  --ctp-surface2: #1e1e48;
+  --ctp-overlay0: #3a3a6a;
+  --ctp-overlay1: #6060a8;
+  --ctp-overlay2: #9090cc;
+  --ctp-text: #ffffff;
+  --ctp-subtext1: #d0d0ff;
+  --ctp-subtext0: #9090cc;
+
+  /* 7 Tetromino colours mapped to palette slots */
+  --ctp-sky: #00f0f0;
+  /* I-piece  — cyan   */
+  --ctp-teal: #00f0f0;
+  --ctp-yellow: #f0d000;
+  /* O-piece  — yellow */
+  --ctp-mauve: #c070ff;
+  /* T-piece  — purple */
+  --ctp-lavender: #c070ff;
+  --ctp-pink: #c070ff;
+  --ctp-green: #00d000;
+  /* S-piece  — green  */
+  --ctp-red: #f02000;
+  /* Z-piece  — red    */
+  --ctp-flamingo: #f02000;
+  --ctp-maroon: #f02000;
+  --ctp-blue: #4090ff;
+  /* J-piece  — blue   */
+  --ctp-sapphire: #4090ff;
+  --ctp-peach: #f07800;
+  /* L-piece  — orange */
+  --ctp-rosewater: #f07800;
+
+  --bg-app: #060614;
+  --bg-sidebar: #00000e;
+  --bg-card: #0d0d22;
+  --bg-hover: rgba(0, 240, 240, 0.07);
+  --bg-player: #000008;
+  --bg-glass: rgba(6, 6, 20, 0.96);
+
+  --accent: #00f0f0;
+  /* I-piece cyan */
+  --accent-dim: rgba(0, 240, 240, 0.12);
+  --accent-glow: rgba(0, 240, 240, 0.5);
+  --volume-accent: #f0d000;
+  /* O-piece yellow — classic score-panel feel */
+
+  --text-primary: #ffffff;
+  --text-secondary: #f0d000;
+  /* O-piece yellow — like the score readout */
+  --text-muted: #7878b8;
+  --border: #1e1e48;
+  --border-subtle: #0d0d22;
+
+  /* All corners square — every element is a block */
+  /* player readout */
+  --player-title: #00f0f0;
+}

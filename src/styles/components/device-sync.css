@@ -177,7 +177,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   padding: 5px 8px;
-  background: var(--bg-input);
+  background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
@@ -262,7 +262,7 @@
   font-size: 0.78rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  background: var(--bg-input);
+  background: var(--bg-card);
   color: var(--text-secondary);
   cursor: pointer;
   transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
@@ -531,8 +531,8 @@
 }
 
 .device-sync-badge.synced {
-  background: color-mix(in srgb, var(--success, #4ade80) 15%, transparent);
-  color: var(--success, #4ade80);
+  background: color-mix(in srgb, var(--positive, #4ade80) 15%, transparent);
+  color: var(--positive, #4ade80);
 }
 
 .device-sync-badge.pending {
@@ -573,7 +573,7 @@
   flex-shrink: 0;
 }
 
-.device-sync-status-icon.synced { color: var(--success, #4ade80); }
+.device-sync-status-icon.synced { color: var(--positive, #4ade80); }
 .device-sync-status-icon.pending { color: var(--warning, #f59e0b); }
 .device-sync-status-icon.deletion { color: var(--danger, #f38ba8); }
 
@@ -659,12 +659,12 @@
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  background: color-mix(in srgb, var(--success, #4ade80) 4%, transparent);
+  background: color-mix(in srgb, var(--positive, #4ade80) 4%, transparent);
 }
 
 .device-sync-bg-progress-bar-wrap {
   height: 3px;
-  background: var(--bg-input);
+  background: var(--bg-card);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -685,7 +685,7 @@
 }
 
 .device-sync-stat-error { color: var(--danger); display: flex; align-items: center; gap: 3px; }
-.color-success { color: var(--success, #4ade80); }
+.color-success { color: var(--positive, #4ade80); }
 
 /* ── Browser panel ── */
 

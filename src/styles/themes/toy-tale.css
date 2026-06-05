@@ -1,0 +1,68 @@
+/* ── Toy Tale (Movies) ──────────────────────────────────────── */
+[data-theme='toy-tale'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23FFD600%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* Warm toy-box palette */
+  --ctp-crust: #080603;
+  --ctp-mantle: #100d08;
+  --ctp-base: #1a1208;
+  --ctp-surface0: #2a1c10;
+  --ctp-surface1: #3a2818;
+  --ctp-surface2: #4a3422;
+  --ctp-overlay0: #7a5a35;
+  --ctp-overlay1: #9a7848;
+  --ctp-overlay2: #b89060;
+  --ctp-text: #f0e8d8;
+  --ctp-subtext1: #d8c8a8;
+  --ctp-subtext0: #c0a880;
+
+  /* Woody gold */
+  --ctp-mauve: #FFD600;
+  --ctp-yellow: #FFD600;
+  --ctp-peach: #FFA000;
+  --ctp-rosewater: #FFE0A0;
+
+  /* Buzz Lightyear purple + green */
+  --ctp-lavender: #9B72D6;
+  --ctp-blue: #7B4FD6;
+  --ctp-sapphire: #5c35a0;
+  --ctp-sky: #4FC3F7;
+  --ctp-teal: #4CAF50;
+  --ctp-green: #4CAF50;
+
+  --ctp-pink: #FF6B9D;
+  --ctp-flamingo: #FF4488;
+  --ctp-maroon: #b71c1c;
+  --ctp-red: #e53935;
+
+  --bg-app: #1a1208;
+  --bg-sidebar: #1e3a5f;
+  /* Andy's sky-blue wallpaper */
+  --bg-card: #2a1c10;
+  --bg-hover: rgba(255, 214, 0, 0.10);
+  --bg-player: #0d0a06;
+  --bg-glass: rgba(26, 18, 8, 0.90);
+
+  --accent: #FFD600;
+  --accent-dim: rgba(255, 214, 0, 0.15);
+  --accent-glow: rgba(255, 214, 0, 0.40);
+  --volume-accent: #7B4FD6;
+  /* Buzz purple */
+
+  --text-primary: #f0e8d8;
+  --text-secondary: #c8a878;
+  --text-muted: #6a5030;
+  --border: rgba(255, 214, 0, 0.22);
+  --border-subtle: rgba(255, 214, 0, 0.10);
+  --border-dropdown: rgba(255, 214, 0, 0.25);
+  --shadow-dropdown: rgba(8, 6, 3, 0.92);
+
+  --positive: #4CAF50;
+  --warning: #FFA000;
+  --danger: #e53935;
+
+  /* player readout */
+  --player-title: #FFD600;
+  --player-artist: #c8a060;
+}

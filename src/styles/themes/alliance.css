@@ -1,0 +1,50 @@
+/* ═══════════════════════════════════════════════════════════════════
+   ALLIANCE — World of Warcraft, Stormwind navy, cathedral stone & gold
+   ═══════════════════════════════════════════════════════════════════ */
+[data-theme='alliance'] {
+  /* Catppuccin-compatible palette — deep navy / cathedral stone */
+  --ctp-base: #06101e;
+  --ctp-mantle: #040c18;
+  --ctp-crust: #020810;
+  --ctp-surface0: #0c1e34;
+  --ctp-surface1: #122440;
+  --ctp-surface2: #1a2e50;
+  --ctp-overlay0: #506888;
+  --ctp-overlay1: #607898;
+  --ctp-overlay2: #7088a8;
+  --ctp-subtext0: #8098b8;
+  --ctp-subtext1: #90a8c8;
+  --ctp-text: #d8e8f8;
+  --ctp-lavender: #5588cc;
+  --ctp-blue: #3388cc;
+  --ctp-sapphire: #2266aa;
+  --ctp-sky: #44aadd;
+  --ctp-teal: #3399cc;
+  --ctp-green: #88bb44;
+  --ctp-yellow: #f0c840;
+  --ctp-peach: #dd9944;
+  --ctp-maroon: #aa3322;
+  --ctp-red: #cc4433;
+  --ctp-mauve: #7766cc;
+  --ctp-pink: #997acc;
+  --ctp-flamingo: #aa88cc;
+  --ctp-rosewater: #bbaacc;
+
+  /* Semantic tokens */
+  --bg-app: #06101e;
+  --bg-sidebar: #040c18;
+  --bg-player: #050e1a;
+  --bg-card: #0c1e34;
+  --border-subtle: rgba(60, 100, 160, 0.28);
+  --border: rgba(80, 120, 180, 0.35);
+  --text-primary: #d8e8f8;
+  --text-secondary: #8098b8;
+  --text-muted: #6880a0;
+  --accent: #3388cc;
+  --accent-glow: rgba(51, 136, 204, 0.35);
+  --danger: #cc4433;
+  --positive: #88bb44;
+  --warning: #dd9944;
+  /* player readout */
+  --player-title: #e8f4ff;
+}

@@ -6,7 +6,7 @@
   padding: 10px 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--bg-input, var(--bg-sidebar));
+  background: var(--bg-card, var(--bg-sidebar));
   margin-bottom: 12px;
 }
 

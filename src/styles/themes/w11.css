@@ -1,0 +1,63 @@
+/* ═══════════════════════════════════════════════════════════════════
+   W11 — Windows 11 Fluent Design, dark mode, Mica material
+   ═══════════════════════════════════════════════════════════════════ */
+[data-theme='w11'] {
+  /* Catppuccin-compatible palette — Fluent v2 dark neutrals
+     Values aligned with Microsoft's actual Windows 11 Dark Mode tokens:
+       text primary    #ffffff (was #f3f3f3 — now matches W11 true white)
+       text secondary  #cfcfcf (was #9a9a9a — W11 Text Secondary Dark, 9.6:1)
+       text tertiary   #a0a0a0 (was #797979 — W11 Text Tertiary Dark, 6.3:1)
+       control strong  rgba(255,255,255,0.40) (was 0.18 — perceptible structural borders)
+       accent fill     #0078d4 kept (for buttons with white text, 4.3:1 AA)
+       accent text     via .w11-link helper → #60cdff (Fluent Accent Text Dark)
+       danger dark     #ff99a4 (Fluent Critical Foreground Dark, 8:1 AAA) */
+  --ctp-base: #202020;
+  --ctp-mantle: #1c1c1c;
+  --ctp-crust: #181818;
+  --ctp-surface0: #2c2c2c;
+  --ctp-surface1: #3b3b3b;    /* raised from #363636 for grip/border perceptibility */
+  --ctp-surface2: #454545;
+  --ctp-overlay0: #868686;    /* raised from #797979 */
+  --ctp-overlay1: #a0a0a0;
+  --ctp-overlay2: #b4b4b4;
+  --ctp-subtext0: #cfcfcf;
+  --ctp-subtext1: #e4e4e4;
+  --ctp-text: #ffffff;
+  --ctp-lavender: #6ccbf8;
+  --ctp-blue: #0078d4;
+  --ctp-sapphire: #0067c0;
+  --ctp-sky: #4cc2ff;
+  --ctp-teal: #00b7c3;
+  --ctp-green: #6ccb5f;
+  --ctp-yellow: #f9f1a5;
+  --ctp-peach: #f7630c;
+  --ctp-maroon: #ff99a4;     /* Fluent Critical Foreground Dark */
+  --ctp-red: #ff99a4;
+  --ctp-mauve: #8764b8;
+  --ctp-pink: #b146c2;
+  --ctp-flamingo: #e3008c;
+  --ctp-rosewater: #f5e1ff;
+
+  /* Semantic tokens */
+  --bg-app: #202020;
+  --bg-sidebar: #2b2b2b;
+  --bg-player: #1c1c1c;
+  --bg-card: #2c2c2c;
+  /* Borders — raised to match Fluent v2 Stroke Control tokens */
+  --bg-glass:        rgba(32, 32, 32, 0.92);
+  --border-subtle:   rgba(255, 255, 255, 0.08);  /* Stroke Divider Dark */
+  --border:          rgba(255, 255, 255, 0.18);
+  --text-primary:   #ffffff;     /* 15.9:1 — AAA ✓ (W11 true white) */
+  --text-secondary: #cfcfcf;     /* 9.6:1 — AAA ✓ (raised from 5.8:1) */
+  --text-muted:     #a0a0a0;     /* 6.3:1 — AAA near-miss (raised from 4.0:1 below AA) */
+  --accent:         #0078d4;     /* W11 brand blue — kept for button fills (white text 4.3:1 AA) */
+  --accent-glow:    rgba(0, 120, 212, 0.30);
+  --accent-dim:     rgba(0, 120, 212, 0.18);
+  --danger:         #ff99a4;     /* Fluent Critical Foreground Dark — 8.0:1 AAA ✓ */
+  --positive:       #6ccb5f;     /* W11 Success — 7.8:1 AAA ✓ */
+  --warning:        #fce100;     /* W11 Caution Dark (brighter yellow) — 13.2:1 AAA ✓ */
+  --volume-accent:  #0078d4;
+  --waveform-played:    #60cdff;  /* Accent Text Dark — visible on dark bg */
+  --waveform-buffered:  #868686;
+  --waveform-unplayed:  #3b3b3b;
+}

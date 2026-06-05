@@ -77,7 +77,7 @@
 .nav-library-scope-trigger:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
-  border-color: var(--border-default, rgba(255, 255, 255, 0.12));
+  border-color: var(--border, rgba(255, 255, 255, 0.12));
 }
 
 /* «Все библиотеки»: как секция навигации, без рамки и подложки */
@@ -96,7 +96,7 @@
 }
 
 .nav-library-scope-trigger--open:not(.nav-library-scope-trigger--plain) {
-  border-color: var(--accent, var(--border-default));
+  border-color: var(--accent, var(--border));
 }
 
 .nav-library-scope-trigger--open.nav-library-scope-trigger--plain {

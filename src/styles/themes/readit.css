@@ -1,0 +1,52 @@
+/* ── ReadIt (Social Media) ──────────────────────────────────── */
+[data-theme='readit'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23FF4500%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  --ctp-crust: #030303;
+  --ctp-mantle: #1A1A1B;
+  --ctp-base: #030303;
+  --ctp-surface0: #1A1A1B;
+  --ctp-surface1: #272729;
+  --ctp-surface2: #343536;
+  --ctp-overlay0: #818384;
+  --ctp-overlay1: #D7DADC;
+  --ctp-overlay2: #FFFFFF;
+  --ctp-text: #D7DADC;
+  --ctp-subtext1: #D7DADC;
+  --ctp-subtext0: #818384;
+
+  --ctp-mauve: #FF4500;
+  --ctp-lavender: #FF581A;
+  --ctp-green: #46D160;
+  --ctp-yellow: #FFD635;
+  --ctp-red: #FF4500;
+  --ctp-blue: #0079D3;
+  --ctp-teal: #00AD96;
+  --ctp-sky: #7193FF;
+  --ctp-sapphire: #3E5EB3;
+  --ctp-pink: #FF66AC;
+  --ctp-flamingo: #FF8280;
+  --ctp-rosewater: #FFB3A6;
+  --ctp-maroon: #EA0027;
+  --ctp-peach: #FFB000;
+
+  --bg-app: #030303;
+  --bg-sidebar: #1A1A1B;
+  --bg-card: #1A1A1B;
+  --bg-hover: #272729;
+  --bg-player: #1A1A1B;
+  --bg-glass: rgba(26, 26, 27, 0.9);
+
+  --accent: #FF4500;
+  --accent-dim: rgba(255, 69, 0, 0.1);
+  --accent-glow: rgba(255, 69, 0, 0.3);
+  --volume-accent: #FF4500;
+
+  --text-primary: #D7DADC;
+  --text-secondary: #D7DADC;
+  --text-muted: #818384;
+  --border: #343536;
+  --border-subtle: #272729;
+
+}
