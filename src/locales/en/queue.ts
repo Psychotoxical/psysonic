@@ -1,6 +1,9 @@
 export const queue = {
   title: 'Queue',
   modePlaylist: 'Playlist',
+  modeTimeline: 'Timeline',
+  upNext: 'Up next',
+  history: 'History',
   noUpcoming: 'No upcoming tracks.',
   savePlaylist: 'Save Playlist',
   updatePlaylist: 'Update Playlist',

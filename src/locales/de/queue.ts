@@ -1,6 +1,9 @@
 export const queue = {
   title: 'Warteschlange',
   modePlaylist: 'Playlist',
+  modeTimeline: 'Zeitachse',
+  upNext: 'Als Nächstes',
+  history: 'Verlauf',
   noUpcoming: 'Keine weiteren Titel.',
   savePlaylist: 'Playlist speichern',
   updatePlaylist: 'Playlist aktualisieren',

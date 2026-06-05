@@ -1,6 +1,9 @@
 export const queue = {
   title: 'Kø',
   modePlaylist: 'Spilleliste',
+  modeTimeline: 'Tidslinje',
+  upNext: 'Neste',
+  history: 'Historikk',
   noUpcoming: 'Ingen kommende spor.',
   savePlaylist: 'Lagre spilleliste',
   updatePlaylist: 'Oppdater spilleliste',

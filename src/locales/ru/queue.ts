@@ -1,6 +1,9 @@
 export const queue = {
   title: 'Очередь',
   modePlaylist: 'Плейлист',
+  modeTimeline: 'Хронология',
+  upNext: 'Далее',
+  history: 'История',
   noUpcoming: 'Нет следующих треков.',
   savePlaylist: 'Сохранить как плейлист',
   updatePlaylist: 'Обновить плейлист',

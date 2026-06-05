@@ -1,6 +1,9 @@
 export const queue = {
   title: 'Wachtrij',
   modePlaylist: 'Afspeellijst',
+  modeTimeline: 'Tijdlijn',
+  upNext: 'Hierna',
+  history: 'Geschiedenis',
   noUpcoming: 'Geen volgende nummers.',
   savePlaylist: 'Afspeellijst opslaan',
   updatePlaylist: 'Afspeellijst bijwerken',
