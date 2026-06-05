@@ -22,6 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Audio — Symphonia 0.6 upgrade
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#999](https://github.com/Psychotoxical/psysonic/pull/999)**
+
+* Audio decode + analysis pipeline ported to **Symphonia 0.6** (new `AudioDecoder` API, `GenericAudioBufferRef`, `Time`/`Timestamp` units); `symphonia-adapter-libopus` bumped to **0.3** and the vendored `symphonia-format-isomp4` 0.5 patch dropped in favour of upstream ISO-BMFF fixes.
+* `rodio`'s `symphonia-all` feature dropped so the workspace no longer pulls a duplicate `symphonia-core`.
+
+
+
 ## Fixed
 
 ### Servers — complete border on the active server card
@@ -29,6 +38,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#998](https://github.com/Psychotoxical/psysonic/pull/998)**
 
 * The active server card under **Settings → Servers** now draws its border on all four sides; previously only the left and right edges showed.
+
+
+
+### Audio streaming — start latency and stall recovery
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#999](https://github.com/Psychotoxical/psysonic/pull/999)**
+
+* Ranged-HTTP FLAC/MP3/OGG streams start playing as soon as enough data is buffered again, instead of waiting for the whole file to download (Symphonia 0.6's trailing-metadata probe scan is skipped for progressive non-MP4 streams).
+* The streaming format probe now runs under a 20s timeout on a worker thread, so a stalled stream (e.g. right after a server switch) no longer blocks playback start until a manual player restart.
 
 
 
