@@ -41,6 +41,7 @@ interface Props {
   handleNavRowPointerDown: (e: React.PointerEvent, section: 'library' | 'system', sectionIdx: number) => void;
   isPlaying: boolean;
   hasNowPlayingTrack: boolean;
+  nowPlayingAtTop: boolean;
   hasOfflineContent: boolean;
   activeJobsCount: number;
   cancelAllDownloads: () => void;
@@ -60,14 +61,32 @@ export default function SidebarNavBody(props: Props) {
     visibleSystemConfigs, systemItemsForReorder,
     playlistsExpanded, setPlaylistsExpanded, playlists, playlistsLoading,
     newReleasesUnreadCount, navDnd, navDndRowClass, handleNavRowPointerDown,
-    isPlaying, hasNowPlayingTrack, hasOfflineContent,
+    isPlaying, hasNowPlayingTrack, nowPlayingAtTop, hasOfflineContent,
     activeJobsCount, cancelAllDownloads,
     isSyncing, syncJobDone, syncJobSkip, syncJobFail, syncJobTotal,
   } = props;
   const { t } = useTranslation();
 
+  // Now Playing — fixed entry (not hideable). Rendered either pinned at the
+  // very top of the sidebar or after the bottom spacer, per the user setting.
+  const nowPlayingLink = (
+    <NavLink
+      to="/now-playing"
+      className={({ isActive }) => `nav-link nav-link-nowplaying ${isActive ? 'active' : ''}`}
+      data-tooltip={isCollapsed ? t('sidebar.nowPlaying') : undefined}
+      data-tooltip-pos="bottom"
+    >
+      <span className="nav-np-icon-wrap">
+        <AudioLines size={isCollapsed ? 22 : 18} />
+        {isPlaying && hasNowPlayingTrack && <span className="nav-np-dot" />}
+      </span>
+      {!isCollapsed && <span>{t('sidebar.nowPlaying')}</span>}
+    </NavLink>
+  );
+
   return (
     <>
+        {nowPlayingAtTop && nowPlayingLink}
         {!isCollapsed && (showLibraryPicker ? (
           <SidebarLibraryPicker
             filterId={filterId}
@@ -195,19 +214,8 @@ export default function SidebarNavBody(props: Props) {
         {/* What's New banner — only visible while the current release hasn't been seen. */}
         <WhatsNewBanner collapsed={isCollapsed} />
 
-        {/* Now Playing — fixed, always visible */}
-        <NavLink
-          to="/now-playing"
-          className={({ isActive }) => `nav-link nav-link-nowplaying ${isActive ? 'active' : ''}`}
-          data-tooltip={isCollapsed ? t('sidebar.nowPlaying') : undefined}
-          data-tooltip-pos="bottom"
-        >
-          <span className="nav-np-icon-wrap">
-            <AudioLines size={isCollapsed ? 22 : 18} />
-            {isPlaying && hasNowPlayingTrack && <span className="nav-np-dot" />}
-          </span>
-          {!isCollapsed && <span>{t('sidebar.nowPlaying')}</span>}
-        </NavLink>
+        {/* Now Playing — pinned at the bottom unless the user moved it to the top. */}
+        {!nowPlayingAtTop && nowPlayingLink}
 
         {hasOfflineContent && (
           <NavLink

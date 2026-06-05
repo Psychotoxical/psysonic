@@ -373,6 +373,10 @@ export interface AuthState {
   randomNavMode: 'hub' | 'separate';
   setRandomNavMode: (v: 'hub' | 'separate') => void;
 
+  /** Pin the fixed "Now Playing" sidebar entry to the top instead of the bottom. */
+  nowPlayingAtTop: boolean;
+  setNowPlayingAtTop: (v: boolean) => void;
+
   logout: () => void;
 
   // Derived

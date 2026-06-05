@@ -39,6 +39,8 @@ export function SidebarCustomizer() {
   itemsRef.current = items;
   const randomNavMode = useAuthStore(s => s.randomNavMode);
   const setRandomNavMode = useAuthStore(s => s.setRandomNavMode);
+  const nowPlayingAtTop = useAuthStore(s => s.nowPlayingAtTop);
+  const setNowPlayingAtTop = useAuthStore(s => s.setNowPlayingAtTop);
   const luckyMixBase = useLuckyMixAvailable();
   const luckyMixAvailable = luckyMixBase && randomNavMode === 'separate';
 
@@ -134,6 +136,20 @@ export function SidebarCustomizer() {
               type="checkbox"
               checked={randomNavMode === 'separate'}
               onChange={e => setRandomNavMode(e.target.checked ? 'separate' : 'hub')}
+            />
+            <span className="toggle-track" />
+          </label>
+        </div>
+        <div className="settings-toggle-row" data-settings-search={t('settings.nowPlayingTopTitle')}>
+          <div>
+            <div style={{ fontWeight: 500 }}>{t('settings.nowPlayingTopTitle')}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.nowPlayingTopDesc')}</div>
+          </div>
+          <label className="toggle-switch" aria-label={t('settings.nowPlayingTopTitle')}>
+            <input
+              type="checkbox"
+              checked={nowPlayingAtTop}
+              onChange={e => setNowPlayingAtTop(e.target.checked)}
             />
             <span className="toggle-track" />
           </label>

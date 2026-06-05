@@ -65,6 +65,7 @@ export default function Sidebar({
   const sidebarItems = useSidebarStore(s => s.items);
   const setSidebarItems = useSidebarStore(s => s.setItems);
   const randomNavMode = useAuthStore(s => s.randomNavMode);
+  const nowPlayingAtTop = useAuthStore(s => s.nowPlayingAtTop);
   const luckyMixBase = useLuckyMixAvailable();
   // Sidebar surfaces Lucky Mix as its own entry only in "separate" nav mode —
   // in hub mode it lives inside the Build-a-Mix landing page instead.
@@ -227,6 +228,7 @@ export default function Sidebar({
           handleNavRowPointerDown={handleNavRowPointerDown}
           isPlaying={isPlaying}
           hasNowPlayingTrack={!!currentTrack}
+          nowPlayingAtTop={nowPlayingAtTop}
           hasOfflineContent={hasOfflineContent}
           activeJobsCount={activeJobs.length}
           cancelAllDownloads={cancelAllDownloads}

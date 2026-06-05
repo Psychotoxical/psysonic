@@ -21,6 +21,7 @@ export function createDiscoveryActions(set: SetState): Pick<
   | 'setRandomMixSize'
   | 'setShowLuckyMixMenu'
   | 'setRandomNavMode'
+  | 'setNowPlayingAtTop'
   | 'setInfiniteQueueEnabled'
   | 'setPreservePlayNextOrder'
 > {
@@ -32,6 +33,7 @@ export function createDiscoveryActions(set: SetState): Pick<
     setRandomMixSize: (v) => set({ randomMixSize: clampRandomMixSize(v) }),
     setShowLuckyMixMenu: (v) => set({ showLuckyMixMenu: v }),
     setRandomNavMode: (v) => set({ randomNavMode: v }),
+    setNowPlayingAtTop: (v) => set({ nowPlayingAtTop: v }),
     setInfiniteQueueEnabled: (v) => set({ infiniteQueueEnabled: v }),
     setPreservePlayNextOrder: (v) => set({ preservePlayNextOrder: v }),
   };

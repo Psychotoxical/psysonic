@@ -116,6 +116,7 @@ export const useAuthStore = create<AuthState>()(
       randomMixSize: 50,
       showLuckyMixMenu: true,
       randomNavMode: 'hub',
+      nowPlayingAtTop: false,
       musicFolders: [],
       musicLibraryFilterByServer: {},
       musicLibraryFilterVersion: 0,
