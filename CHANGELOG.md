@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Under the hood — server cluster identity store
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1003](https://github.com/Psychotoxical/psysonic/pull/1003)**
+
+* Derived multi-server cluster identity keys (`artist+title+album`) now live in a separate attached `library-cluster.db`, rebuildable without touching the main library index (server cluster v1 groundwork).
+
+
+
 ## Changed
 
 ### Dependencies — npm and Rust refresh
