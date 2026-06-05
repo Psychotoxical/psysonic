@@ -6,7 +6,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../../store/playerStore';
 import { queueSongStar, queueSongRating } from '../../store/pendingStarSync';
-import { usePlaybackTrackCoverRef } from '../../cover/useLibraryCoverRef';
+import { useAlbumCoverRef } from '../../cover/useLibraryCoverRef';
 import { usePlaybackCoverArt } from '../../hooks/usePlaybackCoverArt';
 import { useCachedUrl } from '../CachedImage';
 import { useFsArtistPortrait } from '../../hooks/useFsArtistPortrait';
@@ -51,17 +51,22 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
 
   const duration = currentTrack?.duration ?? 0;
 
-  // Cover (thumbnail 300px) + a larger one used as the background fallback.
-  const playbackCoverRef = usePlaybackTrackCoverRef(currentTrack ?? undefined);
-  const artCover = usePlaybackCoverArt(playbackCoverRef, 300);
-  // Full-screen background wants a crisp image — fetch the high-res (2000px)
-  // cover via the existing on-demand `fullRes` path (cucadmuh's mechanism), not
-  // the low-res pipeline tier. Same getCoverArt fetch, saved as a 2000px WebP.
-  const bgCover = usePlaybackCoverArt(playbackCoverRef, 2000, { fullRes: true });
-  // `true` = show the raw URL immediately while the blob resolves (same as FsArt),
-  // otherwise the FS-specific 300/500px keys stay blank until/if they warm.
-  const resolvedCoverUrl = useCachedUrl(bgCover.src, bgCover.cacheKey, true);
-  const thumbUrl = useCachedUrl(artCover.src, artCover.cacheKey, true);
+  // Album-keyed cover ref so the cover stays stable across track changes within
+  // the same album. A per-track ref re-keys on `track.coverArt` (Navidrome hands
+  // out `mf-<trackId>` per track), which the distinct-disc heuristic mistakes for
+  // per-disc art and reloads the cover on every song change. Keying on albumId
+  // sidesteps that — same lesson as the artist portrait keying on artistId.
+  // `usePlaybackCoverArt` still re-scopes it to the playback server.
+  const playbackCoverRef =
+    useAlbumCoverRef(currentTrack?.albumId, undefined, undefined, { libraryResolve: false }) ?? undefined;
+  // One high-res cover (cucadmuh's fullRes 2000px path) feeds both the background
+  // fallback and the foreground thumbnail: crisp instead of the old low-res tier,
+  // and a single fetch/decode shared by both.
+  const cover = usePlaybackCoverArt(playbackCoverRef, 2000, { fullRes: true });
+  // `true` = show the raw URL immediately while the blob resolves (same as FsArt).
+  const coverUrl = useCachedUrl(cover.src, cover.cacheKey, true);
+  const resolvedCoverUrl = coverUrl;
+  const thumbUrl = coverUrl;
   // Artist photo is the background; fall back to the album cover.
   const artistBgUrl = useFsArtistPortrait(currentTrack?.artistId);
   const bgUrl = artistBgUrl || resolvedCoverUrl;
