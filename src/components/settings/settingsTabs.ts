@@ -57,7 +57,7 @@ export const SETTINGS_INDEX: SearchIndexEntry[] = [
   { tab: 'library',        titleKey: 'settings.ratingsSectionTitle',      keywords: 'ratings stars skip threshold manual' },
   { tab: 'storage',        titleKey: 'settings.coverCacheStrategyTitle', keywords: 'cover art cache webp aggressive lazy disk per server' },
   { tab: 'storage',        titleKey: 'settings.offlineDirTitle',          keywords: 'offline library download directory folder cache' },
-  { tab: 'storage',        titleKey: 'settings.nextTrackBufferingTitle',  keywords: 'next track buffering preload hot cache streaming' },
+  { tab: 'storage',        titleKey: 'settings.nextTrackBufferingTitle',  keywords: 'next track buffering hot cache streaming' },
   { tab: 'storage',        titleKey: 'settings.downloadsTitle',           keywords: 'downloads zip export archive folder' },
   { tab: 'appearance',     titleKey: 'settings.theme',                    keywords: 'theme color palette dark light' },
   { tab: 'appearance',     titleKey: 'settings.themeSchedulerTitle',      keywords: 'theme scheduler auto time dark mode sunset' },

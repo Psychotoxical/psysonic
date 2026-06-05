@@ -207,46 +207,22 @@ export function handleAudioProgress(
     markStoreProgressCommit(nowCommit);
   }
 
-  // Pre-buffer / pre-chain next track based on preload mode and crossfade.
+  // Pre-buffer / pre-chain next track for gapless and crossfade.
   const {
     gaplessEnabled,
-    preloadMode,
-    preloadCustomSeconds,
     hotCacheEnabled,
     crossfadeEnabled,
     crossfadeSecs,
   } = useAuthStore.getState();
   const remaining = dur - current_time;
 
-  // Gapless chain: always triggers at 30s regardless of preloadMode.
   const shouldChainGapless = gaplessEnabled && remaining < 30 && remaining > 0;
-  // Byte pre-download: skip when Hot Cache is active (it already handles buffering).
-  // Even with preload mode OFF, crossfade needs the next track bytes ready before
-  // we enter the fade window to avoid a hard gap after track boundary.
-  const shouldBytePreloadFromMode = preloadMode !== 'off' && (
-    preloadMode === 'early'
-      ? current_time >= 5
-      : preloadMode === 'custom'
-        ? remaining < preloadCustomSeconds && remaining > 0
-        : remaining < 30 && remaining > 0 // balanced (default)
-  );
+  // Crossfade needs the next track bytes ready before the fade window.
   const crossfadeWindowSecs = Math.max(8, Math.min(30, crossfadeSecs + 6));
   const shouldBytePreloadForCrossfade =
-    !gaplessEnabled && crossfadeEnabled && remaining < crossfadeWindowSecs && remaining > 0;
-  const shouldBytePreload = !hotCacheEnabled && (
-    shouldBytePreloadFromMode ||
-    shouldBytePreloadForCrossfade
-  );
-  // Hot/offline cache: seed enrichment from disk (playback also uses psysonic-local://).
-  const shouldPreloadLocalFileAnalysis = preloadMode !== 'off' && (
-    preloadMode === 'early'
-      ? current_time >= 5
-      : preloadMode === 'custom'
-        ? remaining < preloadCustomSeconds && remaining > 0
-        : remaining < 30 && remaining > 0
-  );
+    !hotCacheEnabled && !gaplessEnabled && crossfadeEnabled && remaining < crossfadeWindowSecs && remaining > 0;
 
-  if (shouldChainGapless || shouldBytePreload || shouldPreloadLocalFileAnalysis || gaplessEnabled) {
+  if (shouldChainGapless || shouldBytePreloadForCrossfade || gaplessEnabled) {
     const { queueItems, queueIndex, repeatMode } = store;
     const nextIdx = queueIndex + 1;
     // Next track for preload/chain. The resolver bridge keeps the window around
@@ -281,11 +257,10 @@ export function handleAudioProgress(
     const serverId = getPlaybackCacheServerKey();
     const analysisServerId = getPlaybackIndexKey();
     const nextUrl = resolvePlaybackUrl(nextTrack.id, serverId);
-    const nextIsLocalFile = nextUrl.startsWith('psysonic-local://');
 
-    // Byte pre-download — runs early so bytes are cached by chain time.
+    // Byte pre-download — gapless backup or crossfade; runs early so bytes are ready by chain time.
     if (
-      (shouldBytePreload || shouldBytePreloadForGaplessBackup || (shouldPreloadLocalFileAnalysis && nextIsLocalFile))
+      (shouldBytePreloadForCrossfade || shouldBytePreloadForGaplessBackup)
       && nextTrack.id !== getBytePreloadingId()
     ) {
       setBytePreloadingId(nextTrack.id);
@@ -296,10 +271,8 @@ export function handleAudioProgress(
         console.info('[psysonic][preload-request]', {
           nextTrackId: nextTrack.id,
           nextUrl,
-          shouldBytePreload,
+          shouldBytePreloadForCrossfade,
           shouldBytePreloadForGaplessBackup,
-          shouldPreloadLocalFileAnalysis,
-          nextIsLocalFile,
           remaining,
           gaplessEnabled,
         });

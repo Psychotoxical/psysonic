@@ -59,8 +59,6 @@ export const useAuthStore = create<AuthState>()(
       trackPreviewLocations: { ...DEFAULT_TRACK_PREVIEW_LOCATIONS },
       trackPreviewStartRatio: 0.33,
       trackPreviewDurationSec: 30,
-      preloadMode: 'balanced',
-      preloadCustomSeconds: 30,
       infiniteQueueEnabled: false,
       preservePlayNextOrder: false,
       showArtistImages: false,

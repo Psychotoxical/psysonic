@@ -82,7 +82,6 @@ describe('trivial pass-through setters', () => {
     ['setMaxCacheMb', 'maxCacheMb', 2048],
     ['setHotCacheMaxMb', 'hotCacheMaxMb', 1024],
     ['setHotCacheDebounceSec', 'hotCacheDebounceSec', 60],
-    ['setPreloadCustomSeconds', 'preloadCustomSeconds', 45],
   ])('%s stores a numeric value', (setter, key, value) => {
     (useAuthStore.getState() as unknown as Record<string, (v: unknown) => void>)[setter](value);
     expect((useAuthStore.getState() as unknown as Record<string, unknown>)[key]).toBe(value);
@@ -207,14 +206,7 @@ describe('replay-gain related setters (write through to player store)', () => {
   });
 });
 
-describe('preload mode + discord cover source setters', () => {
-  it('setPreloadMode accepts off / balanced / early / custom', () => {
-    for (const mode of ['off', 'balanced', 'early', 'custom'] as const) {
-      useAuthStore.getState().setPreloadMode(mode);
-      expect(useAuthStore.getState().preloadMode).toBe(mode);
-    }
-  });
-
+describe('discord cover source setters', () => {
   it('setDiscordCoverSource accepts none / apple / server', () => {
     for (const src of ['none', 'apple', 'server'] as const) {
       useAuthStore.getState().setDiscordCoverSource(src);

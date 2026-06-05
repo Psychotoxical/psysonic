@@ -203,65 +203,6 @@ export function StorageTab() {
         icon={<Download size={16} />}
       >
         <div className="settings-card">
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '0.75rem' }}>
-            {t('settings.preloadHotCacheMutualExclusive')}
-          </div>
-
-          {/* Preload mode */}
-          <div className="settings-toggle-row">
-            <div>
-              <div style={{ fontWeight: 500 }}>{t('settings.preloadMode')}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.preloadModeDesc')}</div>
-            </div>
-            <label className="toggle-switch" aria-label={t('settings.preloadMode')}>
-              <input
-                type="checkbox"
-                checked={auth.preloadMode !== 'off'}
-                onChange={e => {
-                  if (e.target.checked) {
-                    auth.setPreloadMode('balanced');
-                    if (auth.hotCacheEnabled) auth.setHotCacheEnabled(false);
-                  } else {
-                    auth.setPreloadMode('off');
-                  }
-                }}
-              />
-              <span className="toggle-track" />
-            </label>
-          </div>
-          {auth.preloadMode !== 'off' && (
-            <>
-              <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                {(['balanced', 'early', 'custom'] as const).map(mode => (
-                  <button
-                    key={mode}
-                    className={`btn ${auth.preloadMode === mode ? 'btn-primary' : 'btn-surface'}`}
-                    style={{ fontSize: 12, padding: '3px 12px' }}
-                    onClick={() => auth.setPreloadMode(mode)}
-                  >
-                    {t(`settings.preload${mode.charAt(0).toUpperCase() + mode.slice(1)}` as any)}
-                  </button>
-                ))}
-              </div>
-              {auth.preloadMode === 'custom' && (
-                <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                  <input
-                    type="range"
-                    min={5} max={120} step={5}
-                    value={auth.preloadCustomSeconds}
-                    onChange={e => auth.setPreloadCustomSeconds(parseInt(e.target.value))}
-                    style={{ flex: 1, minWidth: 80, maxWidth: 200 }}
-                  />
-                  <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 36 }}>
-                    {t('settings.preloadCustomSeconds', { n: auth.preloadCustomSeconds })}
-                  </span>
-                </div>
-              )}
-            </>
-          )}
-
-          <div className="divider" />
-
           {/* Hot Cache */}
           <div className="settings-toggle-row">
             <div>
@@ -280,7 +221,6 @@ export function StorageTab() {
                     auth.setHotCacheEnabled(false);
                   } else {
                     auth.setHotCacheEnabled(true);
-                    if (auth.preloadMode !== 'off') auth.setPreloadMode('off');
                     invoke<number>('get_hot_cache_size', { customDir: auth.hotCacheDownloadDir || null })
                       .then(setHotCacheBytes)
                       .catch(() => setHotCacheBytes(0));

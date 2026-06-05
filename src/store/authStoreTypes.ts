@@ -115,8 +115,6 @@ export interface AuthState {
   trackPreviewStartRatio: number;
   /** Preview window length in seconds. Default 30 s. */
   trackPreviewDurationSec: number;
-  preloadMode: 'off' | 'balanced' | 'early' | 'custom';
-  preloadCustomSeconds: number;
   infiniteQueueEnabled: boolean;
   preservePlayNextOrder: boolean;
   showArtistImages: boolean;
@@ -307,8 +305,6 @@ export interface AuthState {
   setTrackPreviewLocation: (location: TrackPreviewLocation, enabled: boolean) => void;
   setTrackPreviewStartRatio: (v: number) => void;
   setTrackPreviewDurationSec: (v: number) => void;
-  setPreloadMode: (v: 'off' | 'balanced' | 'early' | 'custom') => void;
-  setPreloadCustomSeconds: (v: number) => void;
   setInfiniteQueueEnabled: (v: boolean) => void;
   setPreservePlayNextOrder: (v: boolean) => void;
   setShowArtistImages: (v: boolean) => void;

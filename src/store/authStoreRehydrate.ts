@@ -34,11 +34,9 @@ import type {
  * and writes the one-shot Linux smooth-scroll migration sentinel.
  */
 export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState> {
-  // If both hot cache and preload were enabled before mutual exclusion was enforced, reset both.
-  const conflictingLegacyState =
-    state.hotCacheEnabled && state.preloadMode !== 'off'
-      ? { hotCacheEnabled: false, preloadMode: 'off' as const }
-      : {};
+  // Drop removed preload-next-track settings from legacy persist blobs.
+  delete (state as { preloadMode?: unknown }).preloadMode;
+  delete (state as { preloadCustomSeconds?: unknown }).preloadCustomSeconds;
 
   // Migrate lyricsServerFirst + enableNeteaselyrics → lyricsSources (one-time).
   // Only for an *existing* persisted state (upgrade from a build without
@@ -166,7 +164,6 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     loudnessTargetLufs: targetSan,
     loudnessPreAnalysisAttenuationDb: preSan,
     loudnessPreIsRefV1: true,
-    ...conflictingLegacyState,
     ...lyricsSourcesMigrated,
     ...youLyPlusMigrated,
     ...wheelSmoothOneTime,

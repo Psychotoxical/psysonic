@@ -291,7 +291,7 @@ impl AnalysisBackfillQueueState {
     }
 }
 
-/// Frontend-maintained set of queue-neighbour track ids (next ~5 + preload next).
+/// Frontend-maintained set of queue-neighbour track ids (next ~5 in queue).
 #[derive(Default)]
 pub struct PlaybackPriorityHints {
     middle_track_ids: Mutex<HashSet<String>>,
