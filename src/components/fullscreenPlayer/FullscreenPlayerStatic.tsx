@@ -22,9 +22,6 @@ import { FsTimeReadout } from './FsTimeReadout';
 interface Props {
   onClose: () => void;
 }
-
-// NOTE: new-label strings (Now playing / Track x of N / Next / shuffle / queue)
-// are English-only for the experiment; add the i18n keys before opening a PR.
 export default function FullscreenPlayerStatic({ onClose }: Props) {
   const { t } = useTranslation();
   const currentTrack = usePlayerStore(s => s.currentTrack);
@@ -120,9 +117,9 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
       {/* Top bar */}
       <div className="fsp-top">
         <div className="fsp-nowplaying">
-          <span className="fsp-nowplaying-label">Now playing…</span>
+          <span className="fsp-nowplaying-label">{t('player.fsNowPlaying')}</span>
           {queueLen > 0 && (
-            <span className="fsp-nowplaying-pos">Track {queueIndex + 1} / {queueLen}</span>
+            <span className="fsp-nowplaying-pos">{t('player.fsTrackPosition', { current: queueIndex + 1, total: queueLen })}</span>
           )}
         </div>
         <FsClock />
@@ -180,7 +177,7 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
               </div>
             )}
             {nextTrack && (
-              <p className="fsp-next">Next: {nextTrack.artist} – {nextTrack.title}</p>
+              <p className="fsp-next">{t('player.fsNext')}: {nextTrack.artist} – {nextTrack.title}</p>
             )}
           </div>
         </div>
@@ -202,14 +199,14 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
           <FsTimeReadout duration={duration} />
 
           <div className="fsp-actions">
-            <button className="fsp-btn fsp-btn-sm" onClick={() => setQueueOpen(true)} aria-label="Queue" data-tooltip="Queue">
+            <button className="fsp-btn fsp-btn-sm" onClick={() => setQueueOpen(true)} aria-label={t('queue.title')} data-tooltip={t('queue.title')}>
               <ListMusic size={20} />
             </button>
             <button
               className={`fsp-btn fsp-btn-sm${lyricsOpen ? ' active' : ''}`}
               onClick={() => setLyricsOpen(v => !v)}
-              aria-label="Lyrics"
-              data-tooltip="Lyrics"
+              aria-label={t('player.lyrics')}
+              data-tooltip={t('player.lyrics')}
             >
               <MicVocal size={20} />
             </button>
@@ -231,7 +228,7 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
             >
               {repeatMode === 'one' ? <Repeat1 size={20} /> : <Repeat size={20} />}
             </button>
-            <button className="fsp-btn fsp-btn-sm" onClick={shuffleUpcomingQueue} aria-label="Shuffle" data-tooltip="Shuffle">
+            <button className="fsp-btn fsp-btn-sm" onClick={shuffleUpcomingQueue} aria-label={t('player.shuffle')} data-tooltip={t('player.shuffle')}>
               <Shuffle size={20} />
             </button>
           </div>

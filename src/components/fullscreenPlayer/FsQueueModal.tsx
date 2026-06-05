@@ -1,4 +1,5 @@
 import { memo, useMemo, useSyncExternalStore } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
 import type { Track } from '../../store/playerStoreTypes';
@@ -19,6 +20,7 @@ interface Props {
  * jumps to that queue item (same-queue jump as the queue panel).
  */
 export const FsQueueModal = memo(function FsQueueModal({ onClose }: Props) {
+  const { t } = useTranslation();
   const queueItems = usePlayerStore(s => s.queueItems);
   const queueIndex = usePlayerStore(s => s.queueIndex);
   const playTrack = usePlayerStore(s => s.playTrack);
@@ -41,18 +43,18 @@ export const FsQueueModal = memo(function FsQueueModal({ onClose }: Props) {
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Up next"
+      aria-label={t('player.fsUpNext')}
     >
       <div className="fsq-panel" onClick={e => e.stopPropagation()}>
         <div className="fsq-header">
-          <span className="fsq-title">Up next</span>
-          <button className="fsq-close" onClick={onClose} aria-label="Close">
+          <span className="fsq-title">{t('player.fsUpNext')}</span>
+          <button className="fsq-close" onClick={onClose} aria-label={t('common.close')}>
             <X size={18} />
           </button>
         </div>
         <div className="fsq-list">
           {upcoming.length === 0 ? (
-            <div className="fsq-empty">Nothing queued.</div>
+            <div className="fsq-empty">{t('player.fsQueueEmpty')}</div>
           ) : (
             upcoming.map(({ track, absIdx }) => (
               <button
