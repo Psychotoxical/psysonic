@@ -21,6 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Fullscreen player — rebuilt for much lower CPU/RAM
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1001](https://github.com/Psychotoxical/psysonic/pull/1001)**
+
+* The previous fullscreen player was a heavy CPU and memory consumer — constant repaints from animated/blurred backgrounds and effects kept the GPU and a CPU core busy the whole time it was open. It has been **completely replaced** by a static, low-overhead screen: only the seekbar, elapsed time, and clock update live; everything else stays still.
+* Features: sharp high-res background, large album cover, true waveform seekbar, up-next queue popover, scrolling synced lyrics, clickable rating stars, and an on-screen clock.
+* The artist photo now always shows as the background (album cover as fallback); the old **Appearance → "Fullscreen player"** settings were removed.
+
+
+
 ## Changed
 
 ### Dependencies — npm and Rust refresh
