@@ -381,8 +381,16 @@ export function ServersTab({
                   style={{
                     border: isActive ? '1px solid var(--accent)' : undefined,
                     background: isActive ? 'color-mix(in srgb, var(--accent) 10%, var(--bg-card))' : undefined,
-                    borderTop:    isBefore ? '2px solid var(--accent)' : undefined,
-                    borderBottom: isAfter  ? '2px solid var(--accent)' : undefined,
+                    // Drop-target indicator via inset shadow rather than
+                    // borderTop/borderBottom: mixing the `border` shorthand with
+                    // border-side longhands in one inline style object makes React
+                    // clear the unset sides, which drops the top/bottom border on
+                    // the active card (only left/right remain).
+                    boxShadow: isBefore
+                      ? 'inset 0 2px 0 0 var(--accent)'
+                      : isAfter
+                      ? 'inset 0 -2px 0 0 var(--accent)'
+                      : undefined,
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.75rem' }}>
