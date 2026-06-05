@@ -331,6 +331,7 @@ async fn open_preview_decoder(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // Tauri IPC — args map 1:1 to the JS invoke payload.
 pub async fn audio_preview_play(
     id: String,
     url: String,
