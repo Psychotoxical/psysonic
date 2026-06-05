@@ -60,6 +60,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Playback — Preload Next Track setting removed
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1007](https://github.com/Psychotoxical/psysonic/pull/1007)**
+
+* The **Preload Next Track** toggle and timing modes under **Settings → Storage → Buffering** are gone — ranged streaming now starts playback without that extra RAM prefetch.
+* Gapless and crossfade still prefetch the next track internally when Hot Cache is off; Hot Cache is unchanged.
+
+
+
 ## Fixed
 
 ### Servers — complete border on the active server card
