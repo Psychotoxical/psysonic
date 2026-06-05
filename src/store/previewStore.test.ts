@@ -6,18 +6,9 @@
  *
  * Drives the store through its public action surface with the real
  * Zustand instance, stubs the Tauri commands via `onInvoke`, and uses
- * `vi.mock` for stream URL resolution — `startPreview` uses `buildPreviewStreamUrl`.
+ * `vi.mock('@/api/subsonic')` because `startPreview` calls `buildStreamUrl`.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-
-const { resolvePlaybackUrlMock } = vi.hoisted(() => ({
-  resolvePlaybackUrlMock: vi.fn((trackId: string, serverId?: string) =>
-    `https://mock/stream/${serverId || 'default'}/${trackId}`),
-}));
-
-vi.mock('../utils/playback/resolvePlaybackUrl', () => ({
-  resolvePlaybackUrl: resolvePlaybackUrlMock,
-}));
 
 vi.mock('@/api/subsonic', () => ({
   savePlayQueue: vi.fn(async () => undefined),
@@ -173,7 +164,6 @@ describe('previewStore — startPreview', () => {
     resetAuthStore();
     resetOrbitStore();
     resetPlayerStore();
-    resolvePlaybackUrlMock.mockClear();
     onInvoke('audio_preview_play', () => undefined);
     onInvoke('audio_preview_stop', () => undefined);
     onInvoke('audio_preview_set_volume', () => undefined);
@@ -210,26 +200,10 @@ describe('previewStore — startPreview', () => {
     expect(state.duration).toBe(30);
   });
 
-  it('resolves stream URL on clusterBrowseServerId member, not active server', async () => {
-    useAuthStore.setState({
-      servers: [
-        { id: 'a', name: 'A', url: 'http://a.test', username: 'u', password: 'p' },
-        { id: 'b', name: 'B', url: 'http://b.test', username: 'u', password: 'p' },
-      ],
-      activeServerId: 'a',
-    });
-
-    await usePreviewStore.getState().startPreview({
-      ...song('track-x'),
-      clusterBrowseServerId: 'b',
-    }, 'albums');
-
-    expect(resolvePlaybackUrlMock).toHaveBeenCalledWith('track-x', 'b');
+  it('passes Subsonic suffix as formatSuffix for Symphonia container hints', async () => {
+    await usePreviewStore.getState().startPreview({ ...song('flac-1'), suffix: 'flac' }, 'albums');
     const call = invokeMock.mock.calls.find(c => c[0] === 'audio_preview_play');
-    expect(call?.[1]).toMatchObject({
-      url: 'https://mock/stream/b/track-x',
-    });
-    expect(usePreviewStore.getState().previewingTrack?.clusterBrowseServerId).toBe('b');
+    expect(call?.[1]).toMatchObject({ formatSuffix: 'flac' });
   });
 
   it('starts at 0 when the track is too short to need a mid-track seek', async () => {

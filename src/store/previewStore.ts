@@ -1,3 +1,4 @@
+import { buildStreamUrl } from '../api/subsonicStreamUrl';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import type { TrackPreviewLocation } from './authStoreTypes';
 import { create } from 'zustand';
@@ -5,8 +6,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { usePlayerStore } from './playerStore';
 import { useAuthStore } from './authStore';
 import { isOrbitPlaybackSyncActive } from '../utils/orbit';
-import { resolveStreamServerIdForTrack } from '../utils/playback/playbackServer';
-import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 
 /** Minimal track info needed to surface the preview in the player bar UI. */
 export interface PreviewingTrack {
@@ -14,7 +13,6 @@ export interface PreviewingTrack {
   title: string;
   artist: string;
   coverArt?: string;
-  clusterBrowseServerId?: string;
 }
 
 export interface PreviewSongInput {
@@ -24,12 +22,11 @@ export interface PreviewSongInput {
   coverArt?: string;
   duration?: number;
   suffix?: string;
-  clusterBrowseServerId?: string;
 }
 
-/** Map a browse/playlist song row into preview input (keeps cluster member id). */
+/** Map a browse/playlist song row into preview input (keeps Subsonic suffix for format hints). */
 export function previewInputFromSong(
-  song: Pick<SubsonicSong, 'id' | 'title' | 'artist' | 'coverArt' | 'duration' | 'suffix' | 'clusterBrowseServerId'>,
+  song: Pick<SubsonicSong, 'id' | 'title' | 'artist' | 'coverArt' | 'duration' | 'suffix'>,
 ): PreviewSongInput {
   return {
     id: song.id,
@@ -38,7 +35,6 @@ export function previewInputFromSong(
     coverArt: song.coverArt,
     duration: song.duration,
     suffix: song.suffix,
-    clusterBrowseServerId: song.clusterBrowseServerId,
   };
 }
 
@@ -93,14 +89,6 @@ export function computePreviewVolume(): number {
   return Math.max(0, Math.min(1, volume));
 }
 
-/** Cluster-aware stream URL — same member resolution as main playback. */
-export function buildPreviewStreamUrl(song: Pick<PreviewSongInput, 'id' | 'clusterBrowseServerId'>): string {
-  const streamServerId = resolveStreamServerIdForTrack(
-    song.clusterBrowseServerId ? { clusterBrowseServerId: song.clusterBrowseServerId } : null,
-  );
-  return resolvePlaybackUrl(song.id, streamServerId);
-}
-
 export const usePreviewStore = create<PreviewState>((set, get) => ({
   previewingId: null,
   previewingTrack: null,
@@ -128,7 +116,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
 
     const previewDuration = auth.trackPreviewDurationSec;
     const startRatio = auth.trackPreviewStartRatio;
-    const url = buildPreviewStreamUrl(song);
+    const url = buildStreamUrl(song.id);
     const trackDuration = Math.max(song.duration ?? 0, 0);
     const startSec = trackDuration > previewDuration * 1.5
       ? trackDuration * startRatio
@@ -141,7 +129,6 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
         title: song.title,
         artist: song.artist,
         coverArt: song.coverArt,
-        clusterBrowseServerId: song.clusterBrowseServerId,
       },
       elapsed: 0,
       duration: previewDuration,

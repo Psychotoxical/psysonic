@@ -61,9 +61,7 @@ export function PlayerTrackInfo({
     showPreviewMeta ? coverArtId : null,
     showPreviewMeta ? coverArtId : null,
     undefined,
-    showPreviewMeta
-      ? { clusterSeedServerId: previewingTrack?.clusterBrowseServerId, libraryResolve: false }
-      : undefined,
+    showPreviewMeta ? { libraryResolve: false } : undefined,
   );
   const activeCoverRef = showPreviewMeta ? previewCoverRef : playbackCoverRef;
   const layoutItems = usePlayerBarLayoutStore(s => s.items);
