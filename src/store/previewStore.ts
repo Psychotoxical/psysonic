@@ -1,10 +1,12 @@
-import { buildStreamUrl } from '../api/subsonicStreamUrl';
+import type { SubsonicSong } from '../api/subsonicTypes';
 import type { TrackPreviewLocation } from './authStoreTypes';
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import { usePlayerStore } from './playerStore';
 import { useAuthStore } from './authStore';
 import { isOrbitPlaybackSyncActive } from '../utils/orbit';
+import { resolveStreamServerIdForTrack } from '../utils/playback/playbackServer';
+import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 
 /** Minimal track info needed to surface the preview in the player bar UI. */
 export interface PreviewingTrack {
@@ -12,6 +14,32 @@ export interface PreviewingTrack {
   title: string;
   artist: string;
   coverArt?: string;
+  clusterBrowseServerId?: string;
+}
+
+export interface PreviewSongInput {
+  id: string;
+  title: string;
+  artist: string;
+  coverArt?: string;
+  duration?: number;
+  suffix?: string;
+  clusterBrowseServerId?: string;
+}
+
+/** Map a browse/playlist song row into preview input (keeps cluster member id). */
+export function previewInputFromSong(
+  song: Pick<SubsonicSong, 'id' | 'title' | 'artist' | 'coverArt' | 'duration' | 'suffix' | 'clusterBrowseServerId'>,
+): PreviewSongInput {
+  return {
+    id: song.id,
+    title: song.title,
+    artist: song.artist,
+    coverArt: song.coverArt,
+    duration: song.duration,
+    suffix: song.suffix,
+    clusterBrowseServerId: song.clusterBrowseServerId,
+  };
 }
 
 interface PreviewState {
@@ -33,7 +61,7 @@ interface PreviewState {
    */
   audioStarted: boolean;
 
-  startPreview: (song: { id: string; title: string; artist: string; coverArt?: string; duration?: number }, location: TrackPreviewLocation) => Promise<void>;
+  startPreview: (song: PreviewSongInput, location: TrackPreviewLocation) => Promise<void>;
   stopPreview: () => Promise<void>;
 
   /** Internal — called from the TauriEventBridge on `audio:preview-start`. */
@@ -65,6 +93,14 @@ export function computePreviewVolume(): number {
   return Math.max(0, Math.min(1, volume));
 }
 
+/** Cluster-aware stream URL — same member resolution as main playback. */
+export function buildPreviewStreamUrl(song: Pick<PreviewSongInput, 'id' | 'clusterBrowseServerId'>): string {
+  const streamServerId = resolveStreamServerIdForTrack(
+    song.clusterBrowseServerId ? { clusterBrowseServerId: song.clusterBrowseServerId } : null,
+  );
+  return resolvePlaybackUrl(song.id, streamServerId);
+}
+
 export const usePreviewStore = create<PreviewState>((set, get) => ({
   previewingId: null,
   previewingTrack: null,
@@ -92,7 +128,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
 
     const previewDuration = auth.trackPreviewDurationSec;
     const startRatio = auth.trackPreviewStartRatio;
-    const url = buildStreamUrl(song.id);
+    const url = buildPreviewStreamUrl(song);
     const trackDuration = Math.max(song.duration ?? 0, 0);
     const startSec = trackDuration > previewDuration * 1.5
       ? trackDuration * startRatio
@@ -100,7 +136,13 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
 
     set({
       previewingId: song.id,
-      previewingTrack: { id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt },
+      previewingTrack: {
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        coverArt: song.coverArt,
+        clusterBrowseServerId: song.clusterBrowseServerId,
+      },
       elapsed: 0,
       duration: previewDuration,
       audioStarted: false,
@@ -113,13 +155,14 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
         startSec,
         durationSec: previewDuration,
         volume: computePreviewVolume(),
+        formatSuffix: song.suffix ?? null,
       });
     } catch (e) {
       // Roll back optimistic state on failure.
       if (get().previewingId === song.id) {
         set({ previewingId: null, previewingTrack: null, elapsed: 0, audioStarted: false });
       }
-      throw e;
+      console.error('Preview playback failed', e);
     }
   },
 

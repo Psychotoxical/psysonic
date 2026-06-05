@@ -13,7 +13,7 @@ import { useCoverArt } from './useCoverArt';
 import type { CoverArtRef, CoverPrefetchPriority, CoverSurfaceKind } from './types';
 
 export type CoverArtImageProps = {
-  coverRef: CoverArtRef;
+  coverRef: CoverArtRef | null | undefined;
   displayCssPx: number;
   surface?: CoverSurfaceKind;
   fullRes?: boolean;
@@ -39,6 +39,18 @@ export function CoverArtImage({
   onError: restOnError,
   ...rest
 }: CoverArtImageProps) {
+  if (!coverRef) {
+    return (
+      <div
+        className={className}
+        data-cover-provisional="true"
+        role="img"
+        aria-label={alt ?? ''}
+        {...(rest as React.HTMLAttributes<HTMLDivElement>)}
+      />
+    );
+  }
+
   const pinnedHigh = ensurePriorityProp === 'high';
   const [ensurePriority, setEnsurePriority] = useState<CoverPrefetchPriority>(
     ensurePriorityProp ?? 'middle',

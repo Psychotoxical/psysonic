@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { AudioLines, ChevronRight, Play, Square } from 'lucide-react';
 import type { SubsonicAlbum, SubsonicSong } from '../../api/subsonicTypes';
 import { usePlayerStore } from '../../store/playerStore';
-import { usePreviewStore } from '../../store/previewStore';
+import { previewInputFromSong, usePreviewStore } from '../../store/previewStore';
 import { useOrbitSongRowBehavior } from '../../hooks/useOrbitSongRowBehavior';
 import { songToTrack } from '../../utils/playback/songToTrack';
 import { formatTrackTime } from '../../utils/format/formatDuration';
@@ -82,7 +82,7 @@ export default function ArtistDetailTopTracks({
           <button
             type="button"
             className={`playlist-suggestion-preview-btn${previewingId === song.id ? ' is-previewing' : ''}${previewingId === song.id && previewAudioStarted ? ' audio-started' : ''}`}
-            onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview({ id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration }, 'artist'); }}
+            onClick={e => { e.stopPropagation(); usePreviewStore.getState().startPreview(previewInputFromSong(song), 'artist'); }}
             data-tooltip={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
             aria-label={previewingId === song.id ? t('playlists.previewStop') : t('playlists.preview')}
           >

@@ -13,7 +13,7 @@ import type { ColDef } from '../../utils/useTracklistColumns';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import type { Track } from '../../store/playerStoreTypes';
 import { usePlayerStore } from '../../store/playerStore';
-import { usePreviewStore } from '../../store/previewStore';
+import { previewInputFromSong, usePreviewStore } from '../../store/previewStore';
 import { useThemeStore } from '../../store/themeStore';
 import { useDragDrop } from '../../contexts/DragDropContext';
 import { useOrbitSongRowBehavior } from '../../hooks/useOrbitSongRowBehavior';
@@ -149,7 +149,7 @@ export default function PlaylistTracklist({
       L.playTrack(L.displayedTracks[index], L.displayedTracks);
     },
     startPreview: (song) => usePreviewStore.getState().startPreview(
-      { id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration },
+      previewInputFromSong(song),
       'playlists',
     ),
     toggleStar: (song, e) => latest.current.handleToggleStar(song, e),

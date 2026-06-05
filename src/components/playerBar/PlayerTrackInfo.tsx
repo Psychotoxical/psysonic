@@ -60,7 +60,12 @@ export function PlayerTrackInfo({
   const previewCoverRef = useAlbumCoverRef(
     showPreviewMeta ? coverArtId : null,
     showPreviewMeta ? coverArtId : null,
+    undefined,
+    showPreviewMeta
+      ? { clusterSeedServerId: previewingTrack?.clusterBrowseServerId, libraryResolve: false }
+      : undefined,
   );
+  const activeCoverRef = showPreviewMeta ? previewCoverRef : playbackCoverRef;
   const layoutItems = usePlayerBarLayoutStore(s => s.items);
   const isLayoutVisible = (id: PlayerBarLayoutItemId) =>
     layoutItems.find(i => i.id === id)?.visible !== false;
@@ -86,10 +91,10 @@ export function PlayerTrackInfo({
               <Cast size={20} />
             </div>
           )
-        ) : !isRadio && (showPreviewMeta ? coverArtId : playbackCoverRef) ? (
+        ) : !isRadio && activeCoverRef ? (
           <CoverArtImage
             className="player-album-art"
-            coverRef={showPreviewMeta ? previewCoverRef! : playbackCoverRef!}
+            coverRef={activeCoverRef}
             displayCssPx={128}
             surface="sparse"
             ensurePriority="high"

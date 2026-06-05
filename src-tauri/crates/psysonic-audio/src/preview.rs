@@ -9,7 +9,11 @@ use tauri::{AppHandle, Emitter, State};
 
 use super::decode::SizedDecoder;
 use super::engine::{audio_http_client, AudioEngine};
-use super::helpers::MASTER_HEADROOM;
+use super::helpers::{
+    content_type_to_hint, format_hint_from_content_disposition, resolve_playback_format_hint,
+    MASTER_HEADROOM,
+};
+use super::play_input::url_format_hint;
 use super::sources::PriorityBoostSource;
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -90,17 +94,42 @@ pub(crate) fn preview_resume_main(state: &AudioEngine) {
     }
 }
 
-/// Format hint inferred from a Subsonic stream URL. The frontend always passes
-/// a `format=flac` query param for `.opus` files (server transcodes); for
-/// everything else we guess from the URL's `format=` value or fall back to None.
+/// `format=` query param on Subsonic stream URLs (transcode targets).
 pub(crate) fn preview_format_hint_from_url(url: &str) -> Option<String> {
     url.split('?')
         .nth(1)?
         .split('&')
         .find_map(|kv| {
             let (k, v) = kv.split_once('=')?;
-            if k.eq_ignore_ascii_case("format") { Some(v.to_string()) } else { None }
+            if k.eq_ignore_ascii_case("format") {
+                Some(v.to_string())
+            } else {
+                None
+            }
         })
+}
+
+/// Symphonia container hint for preview downloads — mirrors main playback:
+/// Content-Type / Content-Disposition, URL tail, Subsonic suffix, magic-byte sniff.
+pub(crate) fn resolve_preview_format_hint(
+    url: &str,
+    content_type: Option<&str>,
+    content_disposition: Option<&str>,
+    stream_suffix: Option<&str>,
+    bytes: &[u8],
+) -> Option<String> {
+    let media_hint = content_type
+        .and_then(content_type_to_hint)
+        .or_else(|| {
+            content_disposition.and_then(format_hint_from_content_disposition)
+        });
+    let url_hint = preview_format_hint_from_url(url).or_else(|| url_format_hint(url));
+    resolve_playback_format_hint(
+        url_hint.as_deref(),
+        stream_suffix,
+        media_hint.as_deref(),
+        Some(bytes),
+    )
 }
 
 #[tauri::command]
@@ -110,6 +139,7 @@ pub async fn audio_preview_play(
     start_sec: f64,
     duration_sec: f64,
     volume: f32,
+    format_suffix: Option<String>,
     app: AppHandle,
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
@@ -147,13 +177,24 @@ pub async fn audio_preview_play(
         .user_agent(psysonic_core::user_agent::subsonic_wire_user_agent())
         .build()
         .unwrap_or_else(|_| audio_http_client(&state));
-    let bytes = preview_http
+    let response = preview_http
         .get(&url)
         .send()
         .await
         .map_err(|e| format!("preview: connection failed: {e}"))?
         .error_for_status()
-        .map_err(|e| format!("preview: HTTP {e}"))?
+        .map_err(|e| format!("preview: HTTP {e}"))?;
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    let content_disposition = response
+        .headers()
+        .get(reqwest::header::CONTENT_DISPOSITION)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    let bytes = response
         .bytes()
         .await
         .map_err(|e| format!("preview: read body: {e}"))?
@@ -165,7 +206,13 @@ pub async fn audio_preview_play(
     }
 
     // ── Decode ───────────────────────────────────────────────────────────────
-    let hint = preview_format_hint_from_url(&url);
+    let hint = resolve_preview_format_hint(
+        &url,
+        content_type.as_deref(),
+        content_disposition.as_deref(),
+        format_suffix.as_deref(),
+        &bytes,
+    );
     let bytes_for_blocking = bytes;
     let hint_for_blocking = hint.clone();
     let decoder = tokio::task::spawn_blocking(move || {
@@ -269,6 +316,55 @@ pub async fn audio_preview_play(
     });
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_preview_format_hint_sniffs_flac_from_bytes() {
+        let hint = resolve_preview_format_hint(
+            "https://host/rest/stream.view?id=1",
+            None,
+            None,
+            None,
+            b"fLaC\x00\x00\x00\x22",
+        );
+        assert_eq!(hint.as_deref(), Some("flac"));
+    }
+
+    #[test]
+    fn resolve_preview_format_hint_prefers_content_type_over_sniff() {
+        let hint = resolve_preview_format_hint(
+            "https://host/rest/stream.view?id=1",
+            Some("audio/mpeg"),
+            None,
+            None,
+            b"fLaC\x00\x00\x00\x22",
+        );
+        assert_eq!(hint.as_deref(), Some("mp3"));
+    }
+
+    #[test]
+    fn resolve_preview_format_hint_uses_subsonic_suffix() {
+        let hint = resolve_preview_format_hint(
+            "https://host/rest/stream.view?id=1",
+            None,
+            None,
+            Some("flac"),
+            &[0x00, 0x01, 0x02, 0x03],
+        );
+        assert_eq!(hint.as_deref(), Some("flac"));
+    }
+
+    #[test]
+    fn preview_format_hint_from_url_reads_format_query_param() {
+        assert_eq!(
+            preview_format_hint_from_url("https://h/stream.view?format=opus&id=x"),
+            Some("opus".into())
+        );
+    }
 }
 
 #[tauri::command]

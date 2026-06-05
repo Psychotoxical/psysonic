@@ -6,9 +6,18 @@
  *
  * Drives the store through its public action surface with the real
  * Zustand instance, stubs the Tauri commands via `onInvoke`, and uses
- * `vi.mock('@/api/subsonic')` because `startPreview` calls `buildStreamUrl`.
+ * `vi.mock` for stream URL resolution — `startPreview` uses `buildPreviewStreamUrl`.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+const { resolvePlaybackUrlMock } = vi.hoisted(() => ({
+  resolvePlaybackUrlMock: vi.fn((trackId: string, serverId?: string) =>
+    `https://mock/stream/${serverId || 'default'}/${trackId}`),
+}));
+
+vi.mock('../utils/playback/resolvePlaybackUrl', () => ({
+  resolvePlaybackUrl: resolvePlaybackUrlMock,
+}));
 
 vi.mock('@/api/subsonic', () => ({
   savePlayQueue: vi.fn(async () => undefined),
@@ -164,6 +173,7 @@ describe('previewStore — startPreview', () => {
     resetAuthStore();
     resetOrbitStore();
     resetPlayerStore();
+    resolvePlaybackUrlMock.mockClear();
     onInvoke('audio_preview_play', () => undefined);
     onInvoke('audio_preview_stop', () => undefined);
     onInvoke('audio_preview_set_volume', () => undefined);
@@ -198,6 +208,28 @@ describe('previewStore — startPreview', () => {
     expect(state.elapsed).toBe(0);
     expect(state.audioStarted).toBe(false);
     expect(state.duration).toBe(30);
+  });
+
+  it('resolves stream URL on clusterBrowseServerId member, not active server', async () => {
+    useAuthStore.setState({
+      servers: [
+        { id: 'a', name: 'A', url: 'http://a.test', username: 'u', password: 'p' },
+        { id: 'b', name: 'B', url: 'http://b.test', username: 'u', password: 'p' },
+      ],
+      activeServerId: 'a',
+    });
+
+    await usePreviewStore.getState().startPreview({
+      ...song('track-x'),
+      clusterBrowseServerId: 'b',
+    }, 'albums');
+
+    expect(resolvePlaybackUrlMock).toHaveBeenCalledWith('track-x', 'b');
+    const call = invokeMock.mock.calls.find(c => c[0] === 'audio_preview_play');
+    expect(call?.[1]).toMatchObject({
+      url: 'https://mock/stream/b/track-x',
+    });
+    expect(usePreviewStore.getState().previewingTrack?.clusterBrowseServerId).toBe('b');
   });
 
   it('starts at 0 when the track is too short to need a mid-track seek', async () => {
@@ -277,7 +309,7 @@ describe('previewStore — startPreview', () => {
       throw new Error('engine offline');
     });
 
-    await expect(usePreviewStore.getState().startPreview(song('song-2'), 'suggestions')).rejects.toThrow(/engine offline/);
+    await usePreviewStore.getState().startPreview(song('song-2'), 'suggestions');
 
     // Only rolls back when the rolled-back id is still the optimistic one.
     const state = usePreviewStore.getState();
