@@ -340,3 +340,234 @@ pub async fn promote_stream_cache_to_local(
     }))
 }
 
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LegacyOfflineMigrationItem {
+    pub track_id: String,
+    pub server_index_key: String,
+    pub library_server_id: String,
+    pub old_path: String,
+    pub suffix: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LegacyOfflineMigrationResult {
+    pub track_id: String,
+    pub server_index_key: String,
+    pub path: String,
+    pub size: u64,
+    pub layout_fingerprint: String,
+    pub relocated: bool,
+    pub skipped_reason: Option<String>,
+}
+
+fn default_legacy_offline_root(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_data_dir().ok().map(|d| d.join("psysonic-offline"))
+}
+
+/// Move `old_path` → `target_path` when needed (rename, or copy+delete on EXDEV).
+async fn relocate_file_to_target(
+    old_path: &std::path::Path,
+    target_path: &std::path::Path,
+) -> Result<bool, String> {
+    if old_path == target_path {
+        return Ok(false);
+    }
+    if target_path.is_file() {
+        if old_path.is_file() && old_path != target_path {
+            let _ = tokio::fs::remove_file(old_path).await;
+        }
+        return Ok(old_path != target_path);
+    }
+    if !old_path.is_file() {
+        return Err("SOURCE_MISSING".to_string());
+    }
+    if let Some(parent) = target_path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    match tokio::fs::rename(old_path, target_path).await {
+        Ok(()) => Ok(true),
+        Err(e) if e.raw_os_error() == Some(18) => {
+            tokio::fs::copy(old_path, target_path)
+                .await
+                .map_err(|e| e.to_string())?;
+            tokio::fs::remove_file(old_path)
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok(true)
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+fn prune_legacy_offline_parents(old_path: &std::path::Path, app: &AppHandle) {
+    let Some(legacy_root) = default_legacy_offline_root(app) else {
+        return;
+    };
+    let Some(parent) = old_path.parent() else {
+        return;
+    };
+    if parent.starts_with(&legacy_root) {
+        super::fs_utils::prune_empty_dirs_up_to(parent, &legacy_root);
+    }
+}
+
+/// Relocate flat `psysonic-offline/{segment}/{trackId}.ext` files into
+/// `{media}/library/{artist}/{album}/{track}.ext` using the library index row.
+#[tauri::command]
+pub async fn migrate_legacy_offline_files(
+    items: Vec<LegacyOfflineMigrationItem>,
+    media_dir: Option<String>,
+    runtime: State<'_, LibraryRuntime>,
+    app: AppHandle,
+) -> Result<Vec<LegacyOfflineMigrationResult>, String> {
+    let media_root = resolve_media_dir(media_dir.as_deref(), &app)?;
+    let library_boundary = media_root.join(LocalTier::Library.subdir());
+    let repo = TrackRepository::new(&runtime.store);
+    let mut out = Vec::with_capacity(items.len());
+
+    for item in items {
+        let old_path = std::path::PathBuf::from(&item.old_path);
+        let suffix = item.suffix.trim().trim_start_matches('.');
+        let suffix = if suffix.is_empty() { "mp3" } else { suffix };
+
+        let Some(row) = repo.find_one(&item.library_server_id, &item.track_id)? else {
+            out.push(LegacyOfflineMigrationResult {
+                track_id: item.track_id,
+                server_index_key: item.server_index_key,
+                path: item.old_path,
+                size: 0,
+                layout_fingerprint: String::new(),
+                relocated: false,
+                skipped_reason: Some("library_track_not_found".to_string()),
+            });
+            continue;
+        };
+
+        let path_input = track_row_to_path_input(&row);
+        let fingerprint = layout_fingerprint(&path_input);
+        let target_path = absolute_track_path(
+            &media_root,
+            LocalTier::Library,
+            &item.server_index_key,
+            &path_input,
+            suffix,
+        );
+        let target_str = target_path.to_string_lossy().to_string();
+
+        if old_path.is_file() && old_path == target_path {
+            let size = tokio::fs::metadata(&target_path)
+                .await
+                .map(|m| m.len())
+                .unwrap_or(0);
+            out.push(LegacyOfflineMigrationResult {
+                track_id: item.track_id,
+                server_index_key: item.server_index_key,
+                path: target_str,
+                size,
+                layout_fingerprint: fingerprint,
+                relocated: false,
+                skipped_reason: None,
+            });
+            continue;
+        }
+
+        if target_path.is_file() {
+            if old_path.is_file() && old_path != target_path {
+                let _ = tokio::fs::remove_file(&old_path).await;
+                prune_legacy_offline_parents(&old_path, &app);
+            }
+            let size = tokio::fs::metadata(&target_path)
+                .await
+                .map(|m| m.len())
+                .unwrap_or(0);
+            out.push(LegacyOfflineMigrationResult {
+                track_id: item.track_id,
+                server_index_key: item.server_index_key,
+                path: target_str,
+                size,
+                layout_fingerprint: fingerprint,
+                relocated: old_path.is_file(),
+                skipped_reason: None,
+            });
+            continue;
+        }
+
+        match relocate_file_to_target(&old_path, &target_path).await {
+            Ok(relocated) => {
+                if relocated {
+                    prune_legacy_offline_parents(&old_path, &app);
+                    if let Some(parent) = target_path.parent() {
+                        super::fs_utils::prune_empty_dirs_up_to(parent, &library_boundary);
+                    }
+                }
+                let size = if target_path.is_file() {
+                    tokio::fs::metadata(&target_path)
+                        .await
+                        .map(|m| m.len())
+                        .unwrap_or(0)
+                } else {
+                    0
+                };
+                out.push(LegacyOfflineMigrationResult {
+                    track_id: item.track_id,
+                    server_index_key: item.server_index_key,
+                    path: target_str,
+                    size,
+                    layout_fingerprint: fingerprint,
+                    relocated,
+                    skipped_reason: if target_path.is_file() {
+                        None
+                    } else {
+                        Some("source_missing".to_string())
+                    },
+                });
+            }
+            Err(reason) => {
+                out.push(LegacyOfflineMigrationResult {
+                    track_id: item.track_id,
+                    server_index_key: item.server_index_key,
+                    path: item.old_path,
+                    size: 0,
+                    layout_fingerprint: fingerprint,
+                    relocated: false,
+                    skipped_reason: Some(reason),
+                });
+            }
+        }
+    }
+
+    Ok(out)
+}
+
+#[cfg(test)]
+mod migrate_tests {
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn relocate_moves_file_to_nested_target() {
+        let base = std::env::temp_dir().join(format!(
+            "psysonic-migrate-test-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&base);
+        let old = base.join("psysonic-offline").join("srv").join("t1.mp3");
+        let target = base
+            .join("media")
+            .join("library")
+            .join("Artist")
+            .join("Album")
+            .join("01 - Song.mp3");
+        std::fs::create_dir_all(old.parent().unwrap()).unwrap();
+        std::fs::write(&old, b"abc").unwrap();
+        let relocated = relocate_file_to_target(&old, &target).await.unwrap();
+        assert!(relocated);
+        assert!(target.is_file());
+        assert!(!old.exists());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+}
+

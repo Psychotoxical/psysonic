@@ -780,6 +780,7 @@ pub fn run() {
             psysonic_syncfs::cache::local::purge_media_tier,
             psysonic_syncfs::cache::local::delete_media_file,
             psysonic_syncfs::cache::local::promote_stream_cache_to_local,
+            psysonic_syncfs::cache::local::migrate_legacy_offline_files,
             psysonic_syncfs::cache::hot::download_track_hot_cache,
             psysonic_syncfs::cache::hot::promote_stream_cache_to_hot_cache,
             psysonic_syncfs::cache::hot::get_hot_cache_size,

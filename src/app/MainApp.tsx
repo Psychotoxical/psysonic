@@ -14,6 +14,7 @@ import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useGlobalShortcutsStore } from '../store/globalShortcutsStore';
 import { initHotCachePrefetch } from '../hotCachePrefetch';
 import { initLocalPlaybackInvalidation } from '../localPlaybackInvalidation';
+import { migrateLegacyOfflineFiles } from '../utils/migrations/legacyOfflineFileMigration';
 import { initMiniPlayerBridgeOnMain } from '../utils/miniPlayerBridge';
 import { runAdvancedModeMigration } from '../utils/migrations/advancedModeMigration';
 import { bootstrapAllIndexedServers } from '../utils/library/librarySession';
@@ -101,6 +102,7 @@ export default function MainApp() {
 
   useEffect(() => {
     if (!migrationReady) return undefined;
+    void migrateLegacyOfflineFiles();
     return initLocalPlaybackInvalidation();
   }, [migrationReady]);
 

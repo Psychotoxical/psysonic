@@ -1,10 +1,13 @@
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { libraryGetTrack } from './api/library';
+import { useAuthStore } from './store/authStore';
 import { useLocalPlaybackStore } from './store/localPlaybackStore';
 import { layoutFingerprintFromLibraryTrack } from './utils/media/mediaLayout';
 import { getMediaDir } from './utils/media/mediaDir';
+import { migrateLegacyOfflineFiles } from './utils/migrations/legacyOfflineFileMigration';
 import { resolveServerIdForIndexKey } from './utils/server/serverLookup';
+import { serverIndexKeyFromUrl } from './utils/server/serverIndexKey';
 
 async function invalidateEntriesForLibraryServer(libraryServerId: string): Promise<void> {
   const store = useLocalPlaybackStore.getState();
@@ -29,13 +32,23 @@ async function invalidateEntriesForLibraryServer(libraryServerId: string): Promi
   }
 }
 
-/** Drop stale local files after library sync updates metadata or tombstones tracks. */
+function serverIndexKeyForLibraryId(libraryServerId: string): string | undefined {
+  const server = useAuthStore.getState().servers.find(s => s.id === libraryServerId);
+  if (!server) return undefined;
+  return serverIndexKeyFromUrl(server.url) || server.id;
+}
+
+/** Drop stale local files after library sync; relocate legacy offline bytes when index is ready. */
 export function initLocalPlaybackInvalidation(): () => void {
   let unlisten: (() => void) | null = null;
   void listen<{ serverId?: string }>('library:sync-idle', ({ payload }) => {
     const libraryServerId = payload?.serverId?.trim();
     if (!libraryServerId) return;
-    void invalidateEntriesForLibraryServer(libraryServerId);
+    void (async () => {
+      const indexKey = serverIndexKeyForLibraryId(libraryServerId);
+      await migrateLegacyOfflineFiles(indexKey);
+      await invalidateEntriesForLibraryServer(libraryServerId);
+    })();
   }).then(fn => {
     unlisten = fn;
   });
