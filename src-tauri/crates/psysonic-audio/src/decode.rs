@@ -1,19 +1,20 @@
 //! Symphonia `SizedDecoder`, gapless trim, and `build_source` / `build_streaming_source`.
 use std::io::{Cursor, Read, Seek};
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
 use rodio::source::UniformSourceIterator;
 use rodio::Source;
 use symphonia::core::{
-    audio::{AudioBufferRef, SampleBuffer, SignalSpec},
-    codecs::{DecoderOptions, CODEC_TYPE_NULL},
+    audio::{AudioSpec, GenericAudioBufferRef},
+    codecs::audio::{AudioCodecParameters, AudioDecoder, AudioDecoderOptions},
+    formats::probe::Hint,
     formats::{FormatOptions, FormatReader, SeekMode, SeekTo},
+    common::Limit,
     io::{MediaSource, MediaSourceStream, MediaSourceStreamOptions},
     meta::MetadataOptions,
-    probe::Hint,
-    units::{self, Time},
+    units::{Time, Timestamp},
 };
 
 use super::codec::{psysonic_codec_registry, try_make_radio_decoder};
@@ -52,6 +53,46 @@ impl MediaSource for SizedCursorSource {
     fn byte_len(&self) -> Option<u64> { Some(self.len) }
 }
 
+// ─── ProbeSeekGate — temporarily hide seekability during probing ──────────────
+//
+// Symphonia 0.6's `Probe::probe` scans for *trailing* metadata (ID3v1/APEv2/…)
+// whenever the source reports `is_seekable() == true` and a known `byte_len()`.
+// That scan seeks to the end of the stream. For a progressive ranged-HTTP source
+// this forces a download all the way to EOF before the first sample can play
+// (FLAC/MP3/OGG regressed to "won't start until fully downloaded").
+//
+// These formats are demuxed sequentially from the start, and their seek paths
+// re-check `is_seekable()` dynamically, so we can advertise the source as
+// non-seekable for the duration of the probe (skipping the trailing scan) and
+// flip it back to seekable afterwards to preserve scrubbing. MP4/ISO-BMFF is
+// excluded because its demuxer captures seekability at construction and relies
+// on seeking to locate `moov` (its tail is prefetched separately instead).
+struct ProbeSeekGate {
+    inner: Box<dyn MediaSource>,
+    seekable: Arc<AtomicBool>,
+}
+
+impl Read for ProbeSeekGate {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.inner.read(buf)
+    }
+}
+
+impl Seek for ProbeSeekGate {
+    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        self.inner.seek(pos)
+    }
+}
+
+impl MediaSource for ProbeSeekGate {
+    fn is_seekable(&self) -> bool {
+        self.seekable.load(Ordering::Relaxed) && self.inner.is_seekable()
+    }
+    fn byte_len(&self) -> Option<u64> {
+        self.inner.byte_len()
+    }
+}
+
 // ─── SizedDecoder — symphonia decoder with correct byte_len ───────────────────
 //
 // Replaces rodio::Decoder::new() which wraps the source in ReadSeekSource
@@ -65,19 +106,19 @@ impl MediaSource for SizedCursorSource {
 /// playback is genuinely lossless.
 pub(crate) fn log_codec_resolution(
     tag: &str,
-    params: &symphonia::core::codecs::CodecParameters,
+    params: &AudioCodecParameters,
     container_hint: Option<&str>,
 ) {
     let codec_name = symphonia::default::get_codecs()
-        .get_codec(params.codec)
-        .map(|d| d.short_name)
+        .get_audio_decoder(params.codec)
+        .map(|d| d.codec.info.short_name)
         .unwrap_or("?");
     let rate = params.sample_rate.map(|r| format!("{} Hz", r)).unwrap_or_else(|| "? Hz".into());
     let bits = params.bits_per_sample
         .or(params.bits_per_coded_sample)
         .map(|b| format!("{}-bit", b))
         .unwrap_or_else(|| "?-bit".into());
-    let ch = params.channels
+    let ch = params.channels.as_ref()
         .map(|c| format!("{}ch", c.count()))
         .unwrap_or_else(|| "?ch".into());
     let lossless = codec_name.starts_with("pcm")
@@ -99,14 +140,20 @@ const DECODE_MAX_RETRIES: usize = 3;
 /// this limit so a handful of corrupt MP3 frames never aborts an otherwise
 /// playable track (VLC-style frame dropping).
 const MAX_CONSECUTIVE_DECODE_ERRORS: usize = 100;
+/// Wall-clock cap for the streaming `probe()` call. A ranged-HTTP source whose
+/// download stalls (e.g. right after a server switch) can otherwise block the
+/// probe — and therefore playback start — indefinitely. On timeout we abort with
+/// an error so the player can recover/retry instead of hanging until a restart.
+const STREAM_PROBE_TIMEOUT: Duration = Duration::from_secs(20);
 
 pub(crate) struct SizedDecoder {
-    decoder: Box<dyn symphonia::core::codecs::Decoder>,
+    decoder: Box<dyn AudioDecoder>,
     current_frame_offset: usize,
     format: Box<dyn FormatReader>,
     total_duration: Option<Time>,
-    buffer: SampleBuffer<f32>,
-    spec: SignalSpec,
+    /// Interleaved f32 samples of the currently decoded packet.
+    buffer: Vec<f32>,
+    spec: AudioSpec,
     /// Counts consecutive DecodeErrors in the hot-path. Reset to 0 on every
     /// successfully decoded frame. Used to detect fully undecodable streams.
     consecutive_decode_errors: usize,
@@ -133,22 +180,15 @@ impl SizedDecoder {
         if let Some(ext) = format_hint {
             hint.with_extension(ext);
         }
-        let format_opts = FormatOptions {
-            // Disable gapless parsing — Symphonia 0.5.5 crashes on `edts` atoms
-            // present in older iTunes-purchased M4A files.
-            enable_gapless: false,
-            ..Default::default()
-        };
+        let format_opts = FormatOptions::default();
 
-        let meta_opts = symphonia::core::meta::MetadataOptions {
-            // Cap embedded cover art at 8 MiB so oversized MJPEG images in
-            // iTunes M4A files don't choke the parser.
-            limit_visual_bytes: symphonia::core::meta::Limit::Maximum(8 * 1024 * 1024),
-            ..Default::default()
-        };
+        // Cap embedded cover art at 8 MiB so oversized MJPEG images in
+        // iTunes M4A files don't choke the parser.
+        let meta_opts =
+            MetadataOptions::default().limit_visual_bytes(Limit::Maximum(8 * 1024 * 1024));
 
-        let probed = symphonia::default::get_probe()
-            .format(&hint, mss, &format_opts, &meta_opts)
+        let mut format = symphonia::default::get_probe()
+            .probe(&hint, mss, format_opts, meta_opts)
             .map_err(|e| {
                 let hint_str = format_hint.unwrap_or("unknown");
                 // Always print the raw Symphonia error to the terminal for diagnosis.
@@ -160,30 +200,45 @@ impl SizedDecoder {
                 }
             })?;
 
-        let track = probed.format
+        let track = format
             .tracks()
             .iter()
-            // Explicitly select only audio tracks: must have a valid codec and a
+            // Explicitly select only audio tracks: must have an audio codec and a
             // sample_rate. This skips MJPEG cover-art streams that iTunes M4A
             // files embed as a secondary video track.
             .find(|t| {
-                t.codec_params.codec != CODEC_TYPE_NULL
-                    && t.codec_params.sample_rate.is_some()
+                t.codec_params
+                    .as_ref()
+                    .and_then(|c| c.audio())
+                    .is_some_and(|a| a.sample_rate.is_some())
             })
             .ok_or_else(|| {
-                crate::app_eprintln!("[psysonic] no audio track found among {} tracks", probed.format.tracks().len());
+                crate::app_eprintln!("[psysonic] no audio track found among {} tracks", format.tracks().len());
                 "no playable audio track found in file".to_string()
             })?;
 
         let track_id = track.id;
-        let total_duration = track.codec_params.time_base
-            .zip(track.codec_params.n_frames)
-            .map(|(base, frames)| base.calc_time(frames));
+        // Encoder-delay-aware total duration (timebase units → Time).
+        let total_duration = track
+            .time_base
+            .zip(track.num_frames)
+            .and_then(|(base, frames)| {
+                Timestamp::try_from(frames).ok().and_then(|ts| base.calc_time(ts))
+            });
 
-        log_codec_resolution("bytes", &track.codec_params, format_hint);
+        let audio_params = track
+            .codec_params
+            .as_ref()
+            .and_then(|c| c.audio())
+            .ok_or_else(|| "selected track has no audio codec parameters".to_string())?
+            .clone();
 
+        log_codec_resolution("bytes", &audio_params, format_hint);
+
+        // Gapless trimming is performed by `build_source` (iTunSMPB), so disable
+        // the decoder's built-in trimming to avoid double-trimming.
         let mut decoder = psysonic_codec_registry()
-            .make(&track.codec_params, &DecoderOptions::default())
+            .make_audio_decoder(&audio_params, &AudioDecoderOptions::default().gapless(false))
             .map_err(|e| {
                 crate::app_eprintln!("[psysonic] codec init failed: {e}");
                 if e.to_string().to_lowercase().contains("unsupported") {
@@ -193,15 +248,15 @@ impl SizedDecoder {
                 }
             })?;
 
-        let mut format = probed.format;
-
         // Decode the first packet to initialise spec + buffer.
         // DecodeErrors (e.g. "invalid main_data offset") are non-fatal: drop the
         // frame and try the next packet up to MAX_CONSECUTIVE_DECODE_ERRORS times.
         let mut decode_errors: usize = 0;
         let decoded = loop {
             let packet = match format.next_packet() {
-                Ok(p) => p,
+                Ok(Some(p)) => p,
+                // Clean EOF before any decodable packet.
+                Ok(None) => break decoder.last_decoded(),
                 Err(symphonia::core::errors::Error::IoError(_)) => {
                     break decoder.last_decoded();
                 }
@@ -210,8 +265,8 @@ impl SizedDecoder {
                     return Err(format!("could not read audio data: {e}"));
                 }
             };
-            if packet.track_id() != track_id {
-                crate::app_eprintln!("[psysonic] skipping packet for track {} (want {})", packet.track_id(), track_id);
+            if packet.track_id != track_id {
+                crate::app_eprintln!("[psysonic] skipping packet for track {} (want {})", packet.track_id, track_id);
                 continue;
             }
             match decoder.decode(&packet) {
@@ -230,8 +285,8 @@ impl SizedDecoder {
             }
         };
 
-        let spec = decoded.spec().to_owned();
-        let buffer = Self::make_buffer(decoded, &spec);
+        let spec = decoded.spec().clone();
+        let buffer = Self::make_buffer(&decoded);
 
         Ok(SizedDecoder {
             decoder,
@@ -252,34 +307,107 @@ impl SizedDecoder {
         format_hint: Option<&str>,
         source_tag: &str,
     ) -> Result<Self, String> {
+        // For non-MP4 progressive streams, hide seekability during the probe so
+        // Symphonia 0.6 skips its trailing-metadata scan (which would seek to EOF
+        // and block until the whole file is downloaded). Re-enabled right after.
+        // MP4 keeps seekability (its demuxer needs it to find `moov`; tail is
+        // prefetched separately).
+        let stream_len = media.byte_len();
+        let probe_seek_gate = (!crate::stream::container_hint_is_mp4(format_hint))
+            .then(|| Arc::new(AtomicBool::new(false)));
+        let media: Box<dyn MediaSource> = match &probe_seek_gate {
+            Some(gate) => Box::new(ProbeSeekGate { inner: media, seekable: gate.clone() }),
+            None => media,
+        };
+
         // Larger read-ahead buffer for the live streaming SPSC consumer — reduces
         // read() call frequency into the ring buffer, easing I/O spikes.
         let mss = MediaSourceStream::new(media, MediaSourceStreamOptions { buffer_len: 512 * 1024 });
-        let mut hint = Hint::new();
-        if let Some(ext) = format_hint { hint.with_extension(ext); }
-        let format_opts = FormatOptions { enable_gapless: false, ..Default::default() };
-        let probed = symphonia::default::get_probe()
-            .format(&hint, mss, &format_opts, &MetadataOptions::default())
-            .map_err(|e| format!("{source_tag}: format probe failed: {e}"))?;
+        let format_opts = FormatOptions::default();
+        let meta_opts = MetadataOptions::default();
 
-        let track = probed.format.tracks().iter()
-            .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+        crate::app_deprintln!(
+            "[stream] {source_tag}: probe start (hint={}, stream_len={})",
+            format_hint.unwrap_or("?"),
+            stream_len.map(|n| n.to_string()).unwrap_or_else(|| "?".into()),
+        );
+        let probe_start = std::time::Instant::now();
+
+        // Run the probe on a dedicated thread guarded by a timeout. If a ranged
+        // source stalls (download never reaches the bytes Symphonia needs), the
+        // probe blocks forever; without this guard playback start would hang until
+        // the user restarts the player. On timeout we abandon the worker thread
+        // (it unblocks once the underlying read errors/returns) and surface an
+        // error so the caller can retry.
+        let hint_ext = format_hint.map(|s| s.to_string());
+        let tag_owned = source_tag.to_string();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::Builder::new()
+            .name("symphonia-probe".into())
+            .spawn(move || {
+                let mut hint = Hint::new();
+                if let Some(ext) = &hint_ext {
+                    hint.with_extension(ext);
+                }
+                let result = symphonia::default::get_probe()
+                    .probe(&hint, mss, format_opts, meta_opts)
+                    .map_err(|e| format!("{tag_owned}: format probe failed: {e}"));
+                // Receiver is gone if we already timed out — ignore the send error.
+                let _ = tx.send(result);
+            })
+            .map_err(|e| format!("{source_tag}: failed to spawn probe thread: {e}"))?;
+
+        let mut format = match rx.recv_timeout(STREAM_PROBE_TIMEOUT) {
+            Ok(Ok(format)) => format,
+            Ok(Err(e)) => return Err(e),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                crate::app_eprintln!(
+                    "[stream] {source_tag}: probe timed out after {STREAM_PROBE_TIMEOUT:?} \
+                     (stream stalled?) — aborting so the player can retry"
+                );
+                return Err(format!(
+                    "{source_tag}: format probe timed out after {STREAM_PROBE_TIMEOUT:?}"
+                ));
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                return Err(format!("{source_tag}: probe thread ended unexpectedly"));
+            }
+        };
+
+        crate::app_deprintln!(
+            "[stream] {source_tag}: probe done in {} ms",
+            probe_start.elapsed().as_millis()
+        );
+
+        // Trailing-metadata scan is done; restore real seekability for scrubbing.
+        if let Some(gate) = &probe_seek_gate {
+            gate.store(true, Ordering::Relaxed);
+        }
+
+        let track = format.tracks().iter()
+            .find(|t| t.codec_params.as_ref().and_then(|c| c.audio()).is_some())
             .ok_or_else(|| format!("{source_tag}: no audio track found"))?;
         let track_id = track.id;
-        log_codec_resolution(source_tag, &track.codec_params, format_hint);
+        let audio_params = track
+            .codec_params
+            .as_ref()
+            .and_then(|c| c.audio())
+            .ok_or_else(|| format!("{source_tag}: track has no audio codec parameters"))?
+            .clone();
+        log_codec_resolution(source_tag, &audio_params, format_hint);
         // Live streams have no known total frame count → total_duration = None.
         let total_duration = None;
-        let mut decoder = try_make_radio_decoder(&track.codec_params, &DecoderOptions::default())
+        let mut decoder = try_make_radio_decoder(&audio_params, &AudioDecoderOptions::default().gapless(false))
             .map_err(|e| format!("{source_tag}: codec init failed: {e}"))?;
-        let mut format = probed.format;
 
         let mut errors = 0usize;
         let decoded = loop {
             let packet = match format.next_packet() {
-                Ok(p) => p,
+                Ok(Some(p)) => p,
+                Ok(None) => break decoder.last_decoded(),
                 Err(_) => break decoder.last_decoded(),
             };
-            if packet.track_id() != track_id { continue; }
+            if packet.track_id != track_id { continue; }
             match decoder.decode(&packet) {
                 Ok(d) => break d,
                 Err(symphonia::core::errors::Error::DecodeError(ref msg)) => {
@@ -292,16 +420,15 @@ impl SizedDecoder {
                 Err(e) => return Err(format!("{source_tag}: decode error: {e}")),
             }
         };
-        let spec = decoded.spec().to_owned();
-        let buffer = Self::make_buffer(decoded, &spec);
+        let spec = decoded.spec().clone();
+        let buffer = Self::make_buffer(&decoded);
         Ok(SizedDecoder { decoder, current_frame_offset: 0, format, total_duration, buffer, spec, consecutive_decode_errors: 0 })
     }
 
     #[inline]
-    fn make_buffer(decoded: AudioBufferRef, spec: &SignalSpec) -> SampleBuffer<f32> {
-        let duration = units::Duration::from(decoded.capacity() as u64);
-        let mut buffer = SampleBuffer::<f32>::new(duration, *spec);
-        buffer.copy_interleaved_ref(decoded);
+    fn make_buffer(decoded: &GenericAudioBufferRef<'_>) -> Vec<f32> {
+        let mut buffer = Vec::new();
+        decoded.copy_to_vec_interleaved(&mut buffer);
         buffer
     }
 
@@ -311,29 +438,43 @@ impl SizedDecoder {
         &mut self,
         seek_res: symphonia::core::formats::SeekedTo,
     ) -> Result<(), String> {
-        let mut samples_to_pass = seek_res.required_ts - seek_res.actual_ts;
+        // Number of frames between where the demuxer landed and the requested ts.
+        let mut samples_to_pass: u64 = seek_res
+            .required_ts
+            .get()
+            .saturating_sub(seek_res.actual_ts.get())
+            .max(0) as u64;
         let packet = loop {
-            let candidate = self.format.next_packet()
-                .map_err(|e| format!("refine seek: {e}"))?;
-            if candidate.dur() > samples_to_pass {
+            let candidate = match self.format.next_packet()
+                .map_err(|e| format!("refine seek: {e}"))?
+            {
+                Some(p) => p,
+                // EOF while refining — nothing more to skip.
+                None => return Ok(()),
+            };
+            if candidate.dur.get() > samples_to_pass {
                 break candidate;
             }
-            samples_to_pass -= candidate.dur();
+            samples_to_pass -= candidate.dur.get();
         };
 
         let mut decoded = self.decoder.decode(&packet);
         for _ in 0..DECODE_MAX_RETRIES {
             if decoded.is_err() {
-                let p = self.format.next_packet()
-                    .map_err(|e| format!("refine retry: {e}"))?;
+                let p = match self.format.next_packet()
+                    .map_err(|e| format!("refine retry: {e}"))?
+                {
+                    Some(p) => p,
+                    None => break,
+                };
                 decoded = self.decoder.decode(&p);
             }
         }
 
         let decoded = decoded.map_err(|e| format!("refine decode: {e}"))?;
-        decoded.spec().clone_into(&mut self.spec);
-        self.buffer = Self::make_buffer(decoded, &self.spec);
-        self.current_frame_offset = samples_to_pass as usize * self.spec.channels.count();
+        self.spec = decoded.spec().clone();
+        self.buffer = Self::make_buffer(&decoded);
+        self.current_frame_offset = samples_to_pass as usize * self.spec.channels().count();
         Ok(())
     }
 }
@@ -349,12 +490,12 @@ impl Iterator for SizedDecoder {
             // drop the frame and advance to the next packet. IO errors and a
             // clean end-of-stream both terminate the iterator normally.
             loop {
-                let packet = self.format.next_packet().ok()?;
+                let packet = self.format.next_packet().ok()??;
                 match self.decoder.decode(&packet) {
                     Ok(decoded) => {
                         self.consecutive_decode_errors = 0;
-                        decoded.spec().clone_into(&mut self.spec);
-                        self.buffer = Self::make_buffer(decoded, &self.spec);
+                        self.spec = decoded.spec().clone();
+                        self.buffer = Self::make_buffer(&decoded);
                         self.current_frame_offset = 0;
                         break;
                     }
@@ -385,7 +526,7 @@ impl Iterator for SizedDecoder {
             }
         }
 
-        let sample = *self.buffer.samples().get(self.current_frame_offset)?;
+        let sample = *self.buffer.get(self.current_frame_offset)?;
         self.current_frame_offset += 1;
         Some(sample)
     }
@@ -394,25 +535,24 @@ impl Iterator for SizedDecoder {
 impl Source for SizedDecoder {
     #[inline]
     fn current_span_len(&self) -> Option<usize> {
-        Some(self.buffer.samples().len())
+        Some(self.buffer.len())
     }
 
     #[inline]
     fn channels(&self) -> rodio::ChannelCount {
-        std::num::NonZeroU16::new(self.spec.channels.count() as u16)
+        std::num::NonZeroU16::new(self.spec.channels().count() as u16)
             .unwrap_or(std::num::NonZeroU16::MIN)
     }
 
     #[inline]
     fn sample_rate(&self) -> rodio::SampleRate {
-        std::num::NonZeroU32::new(self.spec.rate).unwrap_or(std::num::NonZeroU32::MIN)
+        std::num::NonZeroU32::new(self.spec.rate()).unwrap_or(std::num::NonZeroU32::MIN)
     }
 
     #[inline]
     fn total_duration(&self) -> Option<Duration> {
-        self.total_duration.map(|Time { seconds, frac }| {
-            Duration::new(seconds, (frac * 1_000_000_000.0) as u32)
-        })
+        self.total_duration
+            .map(|t| Duration::from_secs_f64(t.as_secs_f64().max(0.0)))
     }
 
     fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
@@ -420,19 +560,18 @@ impl Source for SizedDecoder {
             .total_duration()
             .is_some_and(|dur| dur.saturating_sub(pos).as_millis() < 1);
 
-        let time: Time = if seek_beyond_end {
-            let t = self.total_duration.unwrap_or(pos.as_secs_f64().into());
+        let target_secs = if seek_beyond_end {
             // Step back a tiny bit — some demuxers can't seek to the exact end.
-            let mut secs = t.seconds;
-            let mut frac = t.frac - 0.0001;
-            if frac < 0.0 {
-                secs = secs.saturating_sub(1);
-                frac = 1.0 - frac;
-            }
-            Time { seconds: secs, frac }
+            let total = self
+                .total_duration
+                .map(|t| t.as_secs_f64())
+                .unwrap_or_else(|| pos.as_secs_f64());
+            (total - 0.0001).max(0.0)
         } else {
-            pos.as_secs_f64().into()
+            pos.as_secs_f64()
         };
+
+        let time = Time::try_from_secs_f64(target_secs).unwrap_or(Time::ZERO);
 
         let to_skip = self.current_frame_offset % self.channels().get() as usize;
 
@@ -841,8 +980,8 @@ mod tests {
     fn sized_decoder_constructs_from_synthetic_wav() {
         let wav = synthetic_wav_bytes(0.5);
         let decoder = SizedDecoder::new(wav, Some("wav"), false).expect("WAV decode setup");
-        assert_eq!(decoder.spec.rate, 44_100);
-        assert_eq!(decoder.spec.channels.count(), 1);
+        assert_eq!(decoder.spec.rate(), 44_100);
+        assert_eq!(decoder.spec.channels().count(), 1);
     }
 
     #[test]
@@ -861,17 +1000,17 @@ mod tests {
 
     #[test]
     fn log_codec_resolution_does_not_panic_for_valid_params() {
-        let mut params = symphonia::core::codecs::CodecParameters::new();
-        params.codec = symphonia::core::codecs::CODEC_TYPE_PCM_S16LE;
+        let mut params = AudioCodecParameters::new();
+        params.codec = symphonia::core::codecs::audio::well_known::CODEC_ID_PCM_S16LE;
         params.sample_rate = Some(44_100);
         params.bits_per_sample = Some(16);
-        params.channels = Some(symphonia::core::audio::Channels::FRONT_LEFT);
+        params.channels = Some(symphonia::core::audio::Channels::Discrete(1));
         log_codec_resolution("test-tag", &params, Some("wav"));
     }
 
     #[test]
     fn log_codec_resolution_handles_unknown_codec_gracefully() {
-        let params = symphonia::core::codecs::CodecParameters::new();
+        let params = AudioCodecParameters::new();
         log_codec_resolution("unknown", &params, None);
     }
 }

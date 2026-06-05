@@ -2,13 +2,12 @@ use std::io::Cursor;
 use std::time::Instant;
 
 use ebur128::{EbuR128, Mode as Ebur128Mode};
-use symphonia::core::audio::SampleBuffer;
-use symphonia::core::codecs::{Decoder, DecoderOptions, CODEC_TYPE_NULL};
+use symphonia::core::codecs::audio::{AudioDecoder, AudioDecoderOptions};
 use symphonia::core::errors::Error as SymphoniaError;
-use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo};
+use symphonia::core::formats::probe::Hint;
+use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo, TrackType};
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
-use symphonia::core::probe::Hint;
 use symphonia::core::units::Time;
 use tauri::{Manager, Runtime};
 use psysonic_core::track_enrichment::TrackEnrichmentOutcome;
@@ -299,7 +298,7 @@ fn analyze_loudness_and_waveform(
 /// when the container reports total track length.
 struct DecodeSession {
     format: Box<dyn FormatReader>,
-    decoder: Box<dyn Decoder>,
+    decoder: Box<dyn AudioDecoder>,
     track_id: u32,
     timeline_hint: Option<u64>,
 }
@@ -334,25 +333,25 @@ fn open_decode_session(bytes: &[u8], format_hint: Option<&str>) -> Option<Decode
     if let Some(ext) = format_hint.or(sniffed.as_deref()) {
         hint.with_extension(ext);
     }
-    let probed = symphonia::default::get_probe()
-        .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())
+    let format = symphonia::default::get_probe()
+        .probe(&hint, mss, FormatOptions::default(), MetadataOptions::default())
         .ok()?;
-    let format = probed.format;
+    // Prefer an audio track that reports both sample rate and channels; fall back to
+    // the first audio track with a known codec (skips e.g. MJPEG cover-art tracks).
     let track = format
-        .default_track()
-        .filter(|t| t.codec_params.codec != CODEC_TYPE_NULL)
-        .or_else(|| {
-            format.tracks().iter().find(|t| {
-                t.codec_params.codec != CODEC_TYPE_NULL
-                    && t.codec_params.sample_rate.is_some()
-                    && t.codec_params.channels.is_some()
-            })
+        .tracks()
+        .iter()
+        .find(|t| {
+            t.codec_params
+                .as_ref()
+                .and_then(|c| c.audio())
+                .is_some_and(|a| a.sample_rate.is_some() && a.channels.is_some())
         })
-        .or_else(|| format.tracks().iter().find(|t| t.codec_params.codec != CODEC_TYPE_NULL))?;
+        .or_else(|| format.first_track_known_codec(TrackType::Audio))?;
     let track_id = track.id;
-    let timeline_hint = track.codec_params.n_frames.filter(|&n| n > 0);
-    let codec_params = track.codec_params.clone();
-    let decoder = match make_decoder(&codec_params, &DecoderOptions::default()) {
+    let timeline_hint = track.num_frames.filter(|&n| n > 0);
+    let audio_params = track.codec_params.as_ref()?.audio()?.clone();
+    let decoder = match make_decoder(&audio_params, &AudioDecoderOptions::default().gapless(false)) {
         Ok(v) => v,
         Err(e) => {
             crate::app_deprintln!("[analysis] decoder make failed: {}", e);
@@ -372,8 +371,9 @@ fn count_mono_frames_from_audio_bytes(bytes: &[u8], format_hint: Option<&str>) -
 
     let mut total: u64 = 0;
     let mut loop_i: u32 = 0;
-    while let Ok(packet) = format.next_packet() {
-        if packet.track_id() != track_id {
+    let mut samples_buf: Vec<f32> = Vec::new();
+    while let Ok(Some(packet)) = format.next_packet() {
+        if packet.track_id != track_id {
             continue;
         }
         let decoded = match decoder.decode(&packet) {
@@ -382,14 +382,12 @@ fn count_mono_frames_from_audio_bytes(bytes: &[u8], format_hint: Option<&str>) -
             Err(SymphoniaError::ResetRequired) => break,
             Err(_) => break,
         };
-        let spec = *decoded.spec();
-        let n_ch = spec.channels.count();
+        let n_ch = decoded.spec().channels().count();
         if n_ch == 0 {
             continue;
         }
-        let mut samples = SampleBuffer::<f32>::new(decoded.capacity() as u64, spec);
-        samples.copy_interleaved_ref(decoded);
-        let n = samples.samples().len();
+        decoded.copy_to_vec_interleaved(&mut samples_buf);
+        let n = samples_buf.len();
         if n < n_ch || !n.is_multiple_of(n_ch) {
             continue;
         }
@@ -460,8 +458,9 @@ fn decode_scan_pcm(
     }
     let bin_grid_frames = decoded_frames.max(1);
 
-    while let Ok(packet) = format.next_packet() {
-        if packet.track_id() != track_id {
+    let mut samples_buf: Vec<f32> = Vec::new();
+    while let Ok(Some(packet)) = format.next_packet() {
+        if packet.track_id != track_id {
             continue;
         }
         let decoded = match decoder.decode(&packet) {
@@ -471,15 +470,14 @@ fn decode_scan_pcm(
             Err(_) => break,
         };
 
-        let spec = *decoded.spec();
-        let n_ch = spec.channels.count();
+        let n_ch = decoded.spec().channels().count();
         if n_ch == 0 {
             continue;
         }
 
         if loudness_target_lufs.is_some() && ebu.is_none() {
-            let ch = spec.channels.count() as u32;
-            let sr = spec.rate;
+            let ch = decoded.spec().channels().count() as u32;
+            let sr = decoded.spec().rate();
             match EbuR128::new(ch, sr, Ebur128Mode::I | Ebur128Mode::TRUE_PEAK) {
                 Ok(v) => {
                     ebu = Some(v);
@@ -497,9 +495,8 @@ fn decode_scan_pcm(
             }
         }
 
-        let mut samples = SampleBuffer::<f32>::new(decoded.capacity() as u64, spec);
-        samples.copy_interleaved_ref(decoded);
-        let slice = samples.samples();
+        decoded.copy_to_vec_interleaved(&mut samples_buf);
+        let slice = samples_buf.as_slice();
         if slice.len() < n_ch || !slice.len().is_multiple_of(n_ch) {
             continue;
         }
@@ -531,7 +528,7 @@ fn decode_scan_pcm(
 
         if loudness_target_lufs.is_some() {
             if let Some(e) = ebu.as_mut() {
-                match e.add_frames_f32(samples.samples()) {
+                match e.add_frames_f32(&samples_buf) {
                     Ok(_) => fed_any_frames = true,
                     Err(err) => {
                         crate::app_deprintln!("[analysis] loudness add_frames failed: {}", err);
@@ -634,9 +631,11 @@ pub fn audio_duration_from_bytes(bytes: &[u8]) -> Option<f64> {
     let session = open_decode_session(bytes, None)?;
     let sample_rate = session
         .format
-        .default_track()
+        .default_track(TrackType::Audio)
         .or_else(|| session.format.tracks().first())
-        .and_then(|t| t.codec_params.sample_rate)
+        .and_then(|t| t.codec_params.as_ref())
+        .and_then(|c| c.audio())
+        .and_then(|a| a.sample_rate)
         .filter(|&sr| sr > 0)?;
     let frames = session.timeline_hint?;
     Some(frames as f64 / sample_rate as f64)
@@ -659,7 +658,8 @@ pub fn decode_mono_pcm_window(
     } = open_decode_session(bytes, None).ok_or_else(|| "failed to open audio decode session".to_string())?;
 
     if start_sec.is_finite() && start_sec > 0.0 {
-        let time: Time = start_sec.max(0.0).into();
+        let time = Time::try_from_secs_f64(start_sec.max(0.0))
+            .ok_or_else(|| "pcm window: invalid seek time".to_string())?;
         format
             .seek(
                 SeekMode::Accurate,
@@ -693,7 +693,7 @@ pub fn decode_mono_pcm_limited(
 
 fn decode_mono_pcm_from_session(
     format: &mut Box<dyn FormatReader>,
-    decoder: &mut Box<dyn Decoder>,
+    decoder: &mut Box<dyn AudioDecoder>,
     track_id: u32,
     max_seconds: Option<f64>,
 ) -> Result<(Vec<f32>, f32), String> {
@@ -701,9 +701,10 @@ fn decode_mono_pcm_from_session(
     let mut sample_rate = 0_f32;
     let mut max_frames: Option<u64> = None;
     let mut loop_i: u32 = 0;
+    let mut samples_buf: Vec<f32> = Vec::new();
 
-    while let Ok(packet) = format.next_packet() {
-        if packet.track_id() != track_id {
+    while let Ok(Some(packet)) = format.next_packet() {
+        if packet.track_id != track_id {
             continue;
         }
         let decoded = match decoder.decode(&packet) {
@@ -713,13 +714,12 @@ fn decode_mono_pcm_from_session(
             Err(_) => break,
         };
 
-        let spec = *decoded.spec();
-        let n_ch = spec.channels.count();
+        let n_ch = decoded.spec().channels().count();
         if n_ch == 0 {
             continue;
         }
         if sample_rate <= 0.0 {
-            sample_rate = spec.rate as f32;
+            sample_rate = decoded.spec().rate() as f32;
             if sample_rate <= 0.0 {
                 return Err("invalid sample rate".to_string());
             }
@@ -732,9 +732,8 @@ fn decode_mono_pcm_from_session(
             });
         }
 
-        let mut samples = SampleBuffer::<f32>::new(decoded.capacity() as u64, spec);
-        samples.copy_interleaved_ref(decoded);
-        let slice = samples.samples();
+        decoded.copy_to_vec_interleaved(&mut samples_buf);
+        let slice = samples_buf.as_slice();
         if slice.len() < n_ch || !slice.len().is_multiple_of(n_ch) {
             continue;
         }

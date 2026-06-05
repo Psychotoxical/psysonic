@@ -1,21 +1,22 @@
 //! Symphonia codec registry (incl. Opus) and radio decoder factory.
 use std::sync::OnceLock;
 
-use symphonia::core::codecs::{CodecRegistry, DecoderOptions};
+use symphonia::core::codecs::audio::{AudioCodecParameters, AudioDecoder, AudioDecoderOptions};
+use symphonia::core::codecs::registry::CodecRegistry;
 
 pub(crate) fn psysonic_codec_registry() -> &'static CodecRegistry {
     static REGISTRY: OnceLock<CodecRegistry> = OnceLock::new();
     REGISTRY.get_or_init(|| {
         let mut registry = CodecRegistry::new();
         symphonia::default::register_enabled_codecs(&mut registry);
-        registry.register_all::<symphonia_adapter_libopus::OpusDecoder>();
+        registry.register_audio_decoder::<symphonia_adapter_libopus::OpusDecoder>();
         registry
     })
 }
 
 pub(crate) fn try_make_radio_decoder(
-    params: &symphonia::core::codecs::CodecParameters,
-    opts: &DecoderOptions,
-) -> Result<Box<dyn symphonia::core::codecs::Decoder>, symphonia::core::errors::Error> {
-    psysonic_codec_registry().make(params, opts)
+    params: &AudioCodecParameters,
+    opts: &AudioDecoderOptions,
+) -> Result<Box<dyn AudioDecoder>, symphonia::core::errors::Error> {
+    psysonic_codec_registry().make_audio_decoder(params, opts)
 }

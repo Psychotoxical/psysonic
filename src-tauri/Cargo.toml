@@ -51,8 +51,8 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-rodio = { version = "0.22", default-features = false, features = ["playback", "symphonia-all"] }
-symphonia = { version = "0.5", default-features = false, features = ["flac", "mp3", "pcm", "aac", "alac", "isomp4", "vorbis", "ogg", "wav", "adpcm"] }
+rodio = { version = "0.22", default-features = false, features = ["playback"] }
+symphonia = { version = "0.6", default-features = false, features = ["flac", "mp3", "pcm", "aac", "alac", "isomp4", "vorbis", "ogg", "wav", "adpcm", "all-meta"] }
 reqwest = { version = "0.13", default-features = false, features = ["stream", "json", "multipart", "query", "form", "rustls", "blocking", "gzip", "brotli"] }
 futures-util = "0.3"
 md5 = "0.8"
@@ -69,7 +69,7 @@ thread-priority = "3"
 lofty = "0.24"
 sysinfo = { version = "0.39", default-features = false, features = ["disk", "system"] }
 id3 = "1.17"
-symphonia-adapter-libopus = "0.2.9"
+symphonia-adapter-libopus = "0.3"
 rusqlite = { version = "0.40", features = ["bundled"] }
 ebur128 = "0.1"
 dasp_sample = "0.11.0"
@@ -102,11 +102,10 @@ windows = { version = "0.62", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 
-[patch.crates-io]
-# Local patch for Symphonia's isomp4 demuxer:
-# - Fixes descriptor.unwrap() panic on malformed esds atoms (older iTunes M4A)
-# - Tolerates SL predefined=0x01 (null) used by some older iTunes-purchased files
-# - Gracefully skips malformed trak atoms (e.g. MJPEG cover-art streams) instead
-#   of failing the entire probe
-symphonia-format-isomp4 = { path = "patches/symphonia-format-isomp4" }
+# NOTE: The local `symphonia-format-isomp4` path patch (0.5-based) was removed for
+# the Symphonia 0.6 migration. Symphonia 0.6 upstream already covers the esds
+# missing-descriptor and SL predefined=null fixes. The malformed-trak skip and
+# moov-at-end tail scan are validated against the fixture corpus on stock 0.6; if a
+# case regresses, re-create the patch from the 0.6 isomp4 source and re-add the
+# [patch.crates-io] entry here. See workdocs task 2026-05-symphonia-0.6-migration.
 
