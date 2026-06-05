@@ -220,6 +220,22 @@
   color: var(--accent);
 }
 
+.fsp-star-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  line-height: 0;
+  transition: transform 80ms ease;
+}
+
+.fsp-star-btn:hover {
+  transform: scale(1.15);
+}
+
 .fsp-next {
   margin: 3px 0 0;
   font-size: 16px;

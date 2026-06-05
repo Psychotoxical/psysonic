@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../../store/playerStore';
-import { queueSongStar } from '../../store/pendingStarSync';
+import { queueSongStar, queueSongRating } from '../../store/pendingStarSync';
 import { usePlaybackTrackCoverRef } from '../../cover/useLibraryCoverRef';
 import { usePlaybackCoverArt } from '../../hooks/usePlaybackCoverArt';
 import { useCachedUrl } from '../CachedImage';
@@ -88,6 +88,13 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
     if (!track) return 0;
     return track.id in s.userRatingOverrides ? s.userRatingOverrides[track.id] : (track.userRating ?? 0);
   });
+  // Hover preview for the clickable rating stars (0 = no preview).
+  const [hoverRating, setHoverRating] = useState(0);
+  const applyRating = useCallback((stars: number) => {
+    if (!currentTrack) return;
+    // Click the current rating again to clear it (matches StarRating's toggle-off).
+    queueSongRating(currentTrack.id, rating === stars ? 0 : stars);
+  }, [currentTrack, rating]);
 
   return (
     <div
@@ -140,10 +147,30 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
                     <span>{part}</span>
                   </React.Fragment>
                 ))}
-                <span className="fsp-stars" aria-label={`${rating} / 5`}>
-                  {Array.from({ length: 5 }, (_, i) => (
-                    <Star key={i} size={16} fill={i < rating ? 'currentColor' : 'none'} strokeWidth={1.5} />
-                  ))}
+                <span
+                  className="fsp-stars"
+                  role="radiogroup"
+                  aria-label={t('albumDetail.ratingLabel')}
+                  onMouseLeave={() => setHoverRating(0)}
+                >
+                  {Array.from({ length: 5 }, (_, i) => {
+                    const n = i + 1;
+                    const filled = (hoverRating || rating) >= n;
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        className="fsp-star-btn"
+                        role="radio"
+                        aria-checked={rating === n}
+                        aria-label={`${n}`}
+                        onMouseEnter={() => setHoverRating(n)}
+                        onClick={() => applyRating(n)}
+                      >
+                        <Star size={16} fill={filled ? 'currentColor' : 'none'} strokeWidth={1.5} />
+                      </button>
+                    );
+                  })}
                 </span>
               </div>
             )}
