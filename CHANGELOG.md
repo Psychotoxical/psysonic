@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.48.0]
 
+## Added
+
+### Sidebar — pin Now Playing to the top
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1000](https://github.com/Psychotoxical/psysonic/pull/1000), suggested by [@PHLAK](https://github.com/PHLAK)**
+
+* New **Settings → Sidebar** toggle moves the "Now Playing" entry to the top of the sidebar instead of the bottom (off by default).
+
+
+
 ## Changed
 
 ### Dependencies — npm and Rust refresh
