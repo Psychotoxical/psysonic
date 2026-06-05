@@ -166,15 +166,24 @@ impl SizedDecoder {
             inner: Cursor::new(data),
             len: data_len,
         };
+        // Symphonia 0.6 scans trailing metadata on seekable sources — hide
+        // seekability during probe (same as `new_streaming`) so preview does not
+        // read the entire in-memory file before the first sample.
+        let probe_seek_gate = (!crate::stream::container_hint_is_mp4(format_hint))
+            .then(|| Arc::new(AtomicBool::new(false)));
+        let media: Box<dyn MediaSource> = match &probe_seek_gate {
+            Some(gate) => Box::new(ProbeSeekGate {
+                inner: Box::new(source),
+                seekable: gate.clone(),
+            }),
+            None => Box::new(source),
+        };
         // Hi-Res: 4 MB read-ahead so Symphonia demuxes fewer Read calls for
         // high-bitrate files (88.2 kHz/24-bit FLAC ≈ 1800 kbps).
         // Standard: 512 KB is plenty for MP3/AAC — larger buffers waste allocation
         // and compete with the playback thread at track start.
         let buf_len = if hi_res { 4 * 1024 * 1024 } else { 512 * 1024 };
-        let mss = MediaSourceStream::new(
-            Box::new(source) as Box<dyn MediaSource>,
-            MediaSourceStreamOptions { buffer_len: buf_len },
-        );
+        let mss = MediaSourceStream::new(media, MediaSourceStreamOptions { buffer_len: buf_len });
 
         let mut hint = Hint::new();
         if let Some(ext) = format_hint {
@@ -199,6 +208,10 @@ impl SizedDecoder {
                     format!("could not open audio stream (.{hint_str}): {e}")
                 }
             })?;
+
+        if let Some(gate) = &probe_seek_gate {
+            gate.store(true, Ordering::Relaxed);
+        }
 
         let track = format
             .tracks()
