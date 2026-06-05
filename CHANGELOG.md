@@ -416,6 +416,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Dependencies — npm and Rust refresh
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#997](https://github.com/Psychotoxical/psysonic/pull/997)**
+
+* Frontend and Tauri npm dependencies bumped (React, Vite, Vitest, i18next, axios, Tauri plugins); test stack upgraded to **jsdom** 29.
+* Rust workspace: `id3` 1.17, `reqwest` 0.13.4, `sysinfo` 0.39, **zip** 8 for library backups. Symphonia 0.6 and `mach2` 0.6 remain deferred (upstream constraints).
+
+
 
 ## Fixed
 
