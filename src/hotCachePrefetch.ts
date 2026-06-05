@@ -4,8 +4,10 @@ import type { QueueItemRef } from './store/playerStoreTypes';
 import { resolveQueueTrack } from './utils/library/queueTrackView';
 import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from './store/authStore';
-import { useHotCacheStore } from './store/hotCacheStore';
-import { useOfflineStore } from './store/offlineStore';
+import { selectHotCacheEntries, useHotCacheStore } from './store/hotCacheStore';
+import { useLocalPlaybackStore } from './store/localPlaybackStore';
+import { getMediaDir } from './utils/media/mediaDir';
+import { resolveServerIdForIndexKey } from './utils/server/serverLookup';
 import { usePlayerStore } from './store/playerStore';
 import {
   bumpHotCachePreviousTrackGrace,
@@ -99,12 +101,12 @@ async function runWorker() {
         continue;
       }
 
-      const offline = useOfflineStore.getState();
-      if (offline.isDownloaded(job.trackId, job.serverId)) {
+      if (useLocalPlaybackStore.getState().isPinned(job.trackId, job.serverId)) {
         hotCacheFrontendDebug({ event: 'prefetch-skip-job', trackId: job.trackId, reason: 'offline-library' });
         continue;
       }
-      if (useHotCacheStore.getState().entries[entryKey(job.serverId, job.trackId)]) {
+      const hotIndex = selectHotCacheEntries(useLocalPlaybackStore.getState().entries);
+      if (hotIndex[entryKey(job.serverId, job.trackId)]) {
         hotCacheFrontendDebug({
           event: 'prefetch-skip-job',
           trackId: job.trackId,
@@ -141,7 +143,7 @@ async function runWorker() {
         continue;
       }
       const track = resolveQueueTrack(jobRef);
-      const hotEntries = useHotCacheStore.getState().entries;
+      const hotEntries = selectHotCacheEntries(useLocalPlaybackStore.getState().entries);
       const occupied = sumCachedBytesInProtectedWindow(queueItems, queueIndex, job.serverId, hotEntries);
       const est = estimateTrackHotCacheBytes(track);
       const isImmediateNext = queueItems[queueIndex + 1]?.trackId === job.trackId;
@@ -159,16 +161,27 @@ async function runWorker() {
 
       const url = buildStreamUrlForServer(job.serverId, job.trackId);
       try {
-        const customDir = auth.hotCacheDownloadDir || null;
+        const mediaDir = getMediaDir();
         hotCacheFrontendDebug({ event: 'prefetch-invoke', trackId: job.trackId });
-        const res = await invoke<{ path: string; size: number }>('download_track_hot_cache', {
+        const res = await invoke<{ path: string; size: number; layoutFingerprint: string }>('download_track_local', {
+          tier: 'ephemeral',
           trackId: job.trackId,
-          serverId: job.serverId,
+          serverIndexKey: job.serverId,
+          libraryServerId: resolveServerIdForIndexKey(job.serverId),
           url,
           suffix: job.suffix,
-          customDir,
+          mediaDir,
+          downloadId: null,
         });
-        useHotCacheStore.getState().setEntry(job.trackId, job.serverId, res.path, res.size, 'prefetch');
+        useHotCacheStore.getState().setEntry(
+          job.trackId,
+          job.serverId,
+          res.path,
+          res.size,
+          'prefetch',
+          res.layoutFingerprint,
+          job.suffix,
+        );
         hotCacheFrontendDebug({ event: 'prefetch-stored', trackId: job.trackId, sizeBytes: res.size });
         const fresh = usePlayerStore.getState();
         const authAfter = useAuthStore.getState();
@@ -178,7 +191,7 @@ async function runWorker() {
           fresh.queueIndex,
           maxAfter,
           getPlaybackCacheServerKey(),
-          authAfter.hotCacheDownloadDir || null,
+          getMediaDir(),
         );
       } catch (e: unknown) {
         hotCacheFrontendDebug({ event: 'prefetch-download-failed', trackId: job.trackId, error: String(e) });
@@ -216,7 +229,7 @@ async function replanNow() {
 
   const serverId = playbackSid;
   const maxBytes = Math.max(0, auth.hotCacheMaxMb) * 1024 * 1024;
-  const customDir = auth.hotCacheDownloadDir || null;
+  const mediaDir = getMediaDir();
   if (maxBytes <= 0) return;
 
   const { queueItems, queueIndex, currentRadio } = usePlayerStore.getState();
@@ -225,13 +238,11 @@ async function replanNow() {
     return;
   }
 
-  const offline = useOfflineStore.getState();
-
-  await useHotCacheStore.getState().evictToFit(queueItems, queueIndex, maxBytes, serverId, customDir);
+  await useHotCacheStore.getState().evictToFit(queueItems, queueIndex, maxBytes, serverId, mediaDir);
 
   // Must read entries after eviction: the pre-evict snapshot still lists removed keys and would
   // skip prefetch for upcoming tracks that no longer have on-disk rows.
-  const hotEntries = useHotCacheStore.getState().entries;
+  const hotEntries = selectHotCacheEntries(useLocalPlaybackStore.getState().entries);
 
   // Thin-state: resolve only the small upcoming window (within the resolver-warm
   // range) to full Tracks for the size estimates / suffix.
@@ -242,7 +253,7 @@ async function replanNow() {
   const jobs: PrefetchJob[] = [];
   const skipped: { trackId: string; reason: string }[] = [];
   for (const t of targets) {
-    if (offline.isDownloaded(t.id, serverId)) {
+    if (useLocalPlaybackStore.getState().isPinned(t.id, serverId)) {
       skipped.push({ trackId: t.id, reason: 'offline-library' });
       continue;
     }
@@ -307,7 +318,7 @@ export function initHotCachePrefetch(): () => void {
 
   let lastAuthSig = '';
   const unsubAuth = useAuthStore.subscribe((state, prev) => {
-    const sig = `${state.hotCacheEnabled}:${state.hotCacheDebounceSec}:${state.hotCacheMaxMb}:${state.hotCacheDownloadDir ?? ''}:${state.activeServerId ?? ''}:${state.isLoggedIn}`;
+    const sig = `${state.hotCacheEnabled}:${state.hotCacheDebounceSec}:${state.hotCacheMaxMb}:${state.mediaDir ?? ''}:${state.activeServerId ?? ''}:${state.isLoggedIn}`;
     if (sig === lastAuthSig) return;
     lastAuthSig = sig;
 
@@ -326,7 +337,7 @@ export function initHotCachePrefetch(): () => void {
     const budgetSettingsChanged =
       !prev ||
       state.hotCacheMaxMb !== prev.hotCacheMaxMb ||
-      state.hotCacheDownloadDir !== prev.hotCacheDownloadDir ||
+      state.mediaDir !== prev.mediaDir ||
       state.hotCacheEnabled !== prev.hotCacheEnabled ||
       state.activeServerId !== prev.activeServerId ||
       state.isLoggedIn !== prev.isLoggedIn;

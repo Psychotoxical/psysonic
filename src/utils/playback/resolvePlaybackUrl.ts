@@ -1,6 +1,5 @@
 import { buildStreamUrlForServer } from '../../api/subsonicStreamUrl';
-import { useOfflineStore } from '../../store/offlineStore';
-import { useHotCacheStore } from '../../store/hotCacheStore';
+import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
 import { getPlaybackCacheServerKey, getPlaybackServerId } from './playbackServer';
 
 /** Same resolution order as {@link resolvePlaybackUrl} — for UI hints only. */
@@ -32,6 +31,10 @@ export function streamUrlTrackId(url: string): string | null {
   return null;
 }
 
+function localUrlForKey(trackId: string, serverKey: string, tier?: 'library' | 'ephemeral'): string | null {
+  return useLocalPlaybackStore.getState().getLocalUrl(trackId, serverKey, tier);
+}
+
 /**
  * @param enginePreloadedTrackId — song id for which `audio_preload` finished into the engine RAM slot
  *   (parsed from `audio:preload-ready` payload URL).
@@ -42,13 +45,13 @@ export function getPlaybackSourceKind(
   enginePreloadedTrackId: string | null = null,
 ): PlaybackSourceKind {
   const legacySid = getPlaybackServerId();
-  const offline =
-    useOfflineStore.getState().getLocalUrl(trackId, serverId)
-    || (legacySid && legacySid !== serverId ? useOfflineStore.getState().getLocalUrl(trackId, legacySid) : null);
-  if (offline) return 'offline';
+  const pinned =
+    localUrlForKey(trackId, serverId, 'library')
+    || (legacySid && legacySid !== serverId ? localUrlForKey(trackId, legacySid, 'library') : null);
+  if (pinned) return 'offline';
   const hot =
-    useHotCacheStore.getState().getLocalUrl(trackId, serverId)
-    || (legacySid && legacySid !== serverId ? useHotCacheStore.getState().getLocalUrl(trackId, legacySid) : null);
+    localUrlForKey(trackId, serverId, 'ephemeral')
+    || (legacySid && legacySid !== serverId ? localUrlForKey(trackId, legacySid, 'ephemeral') : null);
   if (hot) return 'hot';
   const resolved = resolvePlaybackUrl(trackId, serverId);
   if (
@@ -61,17 +64,17 @@ export function getPlaybackSourceKind(
   return 'stream';
 }
 
-/** Offline library → hot playback cache → HTTP stream. */
+/** Pinned library → ephemeral cache → HTTP stream. */
 export function resolvePlaybackUrl(trackId: string, serverId?: string): string {
   const sid = serverId && serverId.length > 0 ? serverId : getPlaybackCacheServerKey();
   const legacySid = getPlaybackServerId();
-  const offline =
-    useOfflineStore.getState().getLocalUrl(trackId, sid)
-    || (legacySid && legacySid !== sid ? useOfflineStore.getState().getLocalUrl(trackId, legacySid) : null);
-  if (offline) return offline;
+  const pinned =
+    localUrlForKey(trackId, sid, 'library')
+    || (legacySid && legacySid !== sid ? localUrlForKey(trackId, legacySid, 'library') : null);
+  if (pinned) return pinned;
   const hot =
-    useHotCacheStore.getState().getLocalUrl(trackId, sid)
-    || (legacySid && legacySid !== sid ? useHotCacheStore.getState().getLocalUrl(trackId, legacySid) : null);
+    localUrlForKey(trackId, sid)
+    || (legacySid && legacySid !== sid ? localUrlForKey(trackId, legacySid) : null);
   if (hot) return hot;
   return buildStreamUrlForServer(sid, trackId);
 }

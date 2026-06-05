@@ -1,7 +1,7 @@
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { useAnalysisStrategyStore } from '../../store/analysisStrategyStore';
 import { useCoverStrategyStore } from '../../store/coverStrategyStore';
-import { useHotCacheStore } from '../../store/hotCacheStore';
+import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
 import { useLibraryIndexStore } from '../../store/libraryIndexStore';
 import { useOfflineStore } from '../../store/offlineStore';
 import { usePlayerStore } from '../../store/playerStore';
@@ -27,21 +27,6 @@ function buildMappings(servers: ServerProfile[]): Mapping[] {
 function rewriteOfflineStoreKeys(mappings: Mapping[]): void {
   const map = new Map(mappings.map(mapping => [mapping.legacyId, mapping.indexKey]));
   useOfflineStore.setState((state) => {
-    const tracks = { ...state.tracks };
-    for (const [key, meta] of Object.entries(state.tracks)) {
-      const i = key.indexOf(':');
-      if (i <= 0) continue;
-      const legacyId = key.slice(0, i);
-      const trackId = key.slice(i + 1);
-      const indexKey = map.get(legacyId);
-      if (!indexKey) continue;
-      const nextKey = `${indexKey}:${trackId}`;
-      if (!tracks[nextKey]) {
-        tracks[nextKey] = { ...meta, serverId: indexKey };
-      }
-      delete tracks[key];
-    }
-
     const albums = { ...state.albums };
     for (const [key, meta] of Object.entries(state.albums)) {
       const i = key.indexOf(':');
@@ -56,13 +41,13 @@ function rewriteOfflineStoreKeys(mappings: Mapping[]): void {
       }
       delete albums[key];
     }
-    return { tracks, albums };
+    return { albums };
   });
 }
 
-function rewriteHotCacheStoreKeys(mappings: Mapping[]): void {
+function rewriteLocalPlaybackStoreKeys(mappings: Mapping[]): void {
   const map = new Map(mappings.map(mapping => [mapping.legacyId, mapping.indexKey]));
-  useHotCacheStore.setState((state) => {
+  useLocalPlaybackStore.setState((state) => {
     const entries = { ...state.entries };
     for (const [key, entry] of Object.entries(state.entries)) {
       const i = key.indexOf(':');
@@ -73,7 +58,7 @@ function rewriteHotCacheStoreKeys(mappings: Mapping[]): void {
       if (!indexKey) continue;
       const nextKey = `${indexKey}:${trackId}`;
       if (!entries[nextKey]) {
-        entries[nextKey] = entry;
+        entries[nextKey] = { ...entry, serverIndexKey: indexKey };
       }
       delete entries[key];
     }
@@ -111,7 +96,7 @@ export async function rewriteFrontendStoreKeys(servers: ServerProfile[]): Promis
   const mappings = buildMappings(servers);
   if (mappings.length === 0) return;
   rewriteOfflineStoreKeys(mappings);
-  rewriteHotCacheStoreKeys(mappings);
+  rewriteLocalPlaybackStoreKeys(mappings);
   rewriteAnalysisStrategyStoreKeys(mappings);
   // Keep migration explicit: Zustand persist writes the current state snapshot.
   useAnalysisStrategyStore.getState().migrateServerOverrides(servers);
@@ -139,7 +124,7 @@ export async function rewriteFrontendStoreKeysForRemap(
   if (mappings.length === 0) return;
 
   rewriteOfflineStoreKeys(mappings);
-  rewriteHotCacheStoreKeys(mappings);
+  rewriteLocalPlaybackStoreKeys(mappings);
   rewriteAnalysisStrategyStoreKeys(mappings);
 
   // Player queue: queueServerId is a single string, not a keyed map.
