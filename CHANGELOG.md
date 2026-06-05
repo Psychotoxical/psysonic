@@ -31,6 +31,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Queue — Timeline display mode
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1004](https://github.com/Psychotoxical/psysonic/pull/1004), suggested by [@Legislate3030](https://github.com/Legislate3030)**
+
+* New third queue display mode (cycle the header button, or pick it in **Settings → Personalisation → Queue display**). Timeline keeps the current track centered with played history above and upcoming tracks below — both visible at once — so it's easy to follow playback and jump back to earlier songs.
+* The up-next order respects shuffle, and a "History" / "Up next" divider marks the boundary.
+
+
+
 ## Changed
 
 ### Dependencies — npm and Rust refresh
