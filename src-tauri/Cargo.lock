@@ -4266,6 +4266,7 @@ dependencies = [
  "psysonic-analysis",
  "psysonic-audio",
  "psysonic-core",
+ "psysonic-library",
  "reqwest",
  "serde",
  "serde_json",

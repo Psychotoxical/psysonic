@@ -775,6 +775,7 @@ pub fn run() {
             psysonic_syncfs::cache::offline::clear_offline_cancel,
             psysonic_syncfs::cache::offline::delete_offline_track,
             psysonic_syncfs::cache::offline::get_offline_cache_size,
+            psysonic_syncfs::cache::local::download_track_local,
             psysonic_syncfs::cache::hot::download_track_hot_cache,
             psysonic_syncfs::cache::hot::promote_stream_cache_to_hot_cache,
             psysonic_syncfs::cache::hot::get_hot_cache_size,
