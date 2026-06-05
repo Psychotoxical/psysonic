@@ -173,14 +173,8 @@ export interface AuthState {
    * Honoured in both lyrics modes.
    */
   lyricsStaticOnly: boolean;
-  showFullscreenLyrics: boolean;
-  /** 'rail' = classic 5-line sliding rail; 'apple' = full-screen scrolling list */
-  fsLyricsStyle: 'rail' | 'apple';
   /** Sidebar lyrics scroll style: 'classic' = scrollIntoView center; 'apple' = scroll to 35% */
   sidebarLyricsStyle: 'classic' | 'apple';
-  showFsArtistPortrait: boolean;
-  /** Portrait dimming 0–100 (percent), applied as CSS rgba alpha */
-  fsPortraitDim: number;
   showChangelogOnUpdate: boolean;
   lastSeenChangelogVersion: string;
   /** Reveals sub-sections marked `advanced` across all Settings tabs. */
@@ -340,11 +334,7 @@ export interface AuthState {
   setLyricsSources: (sources: LyricsSourceConfig[]) => void;
   setYouLyPlusEnabled: (v: boolean) => void;
   setLyricsStaticOnly: (v: boolean) => void;
-  setShowFullscreenLyrics: (v: boolean) => void;
-  setFsLyricsStyle: (v: 'rail' | 'apple') => void;
   setSidebarLyricsStyle: (v: 'classic' | 'apple') => void;
-  setShowFsArtistPortrait: (v: boolean) => void;
-  setFsPortraitDim: (v: number) => void;
   setShowChangelogOnUpdate: (v: boolean) => void;
   setLastSeenChangelogVersion: (v: string) => void;
   setAdvancedSettingsEnabled: (v: boolean) => void;

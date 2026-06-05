@@ -63,7 +63,6 @@ describe('trivial pass-through setters', () => {
     ['setLinuxWebkitKineticScroll', 'linuxWebkitKineticScroll', false],
     ['setLinuxWaylandTextRenderProfile', 'linuxWaylandTextRenderProfile', 'gpu'],
     ['setNowPlayingEnabled', 'nowPlayingEnabled', true],
-    ['setShowFullscreenLyrics', 'showFullscreenLyrics', false],
     ['setLyricsStaticOnly', 'lyricsStaticOnly', true],
     ['setShowChangelogOnUpdate', 'showChangelogOnUpdate', false],
     ['setQueueNowPlayingCollapsed', 'queueNowPlayingCollapsed', true],
@@ -84,7 +83,6 @@ describe('trivial pass-through setters', () => {
     ['setHotCacheMaxMb', 'hotCacheMaxMb', 1024],
     ['setHotCacheDebounceSec', 'hotCacheDebounceSec', 60],
     ['setPreloadCustomSeconds', 'preloadCustomSeconds', 45],
-    ['setFsPortraitDim', 'fsPortraitDim', 64],
   ])('%s stores a numeric value', (setter, key, value) => {
     (useAuthStore.getState() as unknown as Record<string, (v: unknown) => void>)[setter](value);
     expect((useAuthStore.getState() as unknown as Record<string, unknown>)[key]).toBe(value);
@@ -295,14 +293,11 @@ describe('lyrics source setters', () => {
     expect(useAuthStore.getState().lyricsSources).toEqual(sources);
   });
 
-  it('setYouLyPlusEnabled + setFsLyricsStyle + setSidebarLyricsStyle write values through', () => {
+  it('setYouLyPlusEnabled + setSidebarLyricsStyle write values through', () => {
     useAuthStore.getState().setYouLyPlusEnabled(true);
     expect(useAuthStore.getState().youLyPlusEnabled).toBe(true);
     useAuthStore.getState().setYouLyPlusEnabled(false);
     expect(useAuthStore.getState().youLyPlusEnabled).toBe(false);
-
-    useAuthStore.getState().setFsLyricsStyle('apple');
-    expect(useAuthStore.getState().fsLyricsStyle).toBe('apple');
 
     useAuthStore.getState().setSidebarLyricsStyle('apple');
     expect(useAuthStore.getState().sidebarLyricsStyle).toBe('apple');

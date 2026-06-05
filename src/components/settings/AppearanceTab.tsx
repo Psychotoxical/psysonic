@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
-import { Clock, LayoutGrid, Maximize2, Palette, Sliders, Type, ZoomIn } from 'lucide-react';
+import { Clock, LayoutGrid, Palette, Sliders, Type, ZoomIn } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import {
   LIBRARY_GRID_MAX_COLUMNS_MAX,
@@ -364,41 +364,6 @@ export function AppearanceTab() {
               </button>
             ))}
           </div>
-        </div>
-      </SettingsSubSection>
-
-      <SettingsSubSection
-        title={t('settings.fsPlayerSection')}
-        icon={<Maximize2 size={16} />}
-      >
-        <div className="settings-card">
-          <div className="settings-toggle-row">
-            <div>
-              <div style={{ fontWeight: 500 }}>{t('settings.fsShowArtistPortrait')}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.fsShowArtistPortraitDesc')}</div>
-            </div>
-            <label className="toggle-switch" aria-label={t('settings.fsShowArtistPortrait')}>
-              <input type="checkbox" checked={auth.showFsArtistPortrait} onChange={e => auth.setShowFsArtistPortrait(e.target.checked)} />
-              <span className="toggle-track" />
-            </label>
-          </div>
-          {auth.showFsArtistPortrait && (
-            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('settings.fsPortraitDim')}</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', minWidth: 36, textAlign: 'right' }}>{auth.fsPortraitDim}%</span>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={80}
-                step={1}
-                value={auth.fsPortraitDim}
-                onChange={e => auth.setFsPortraitDim(parseInt(e.target.value, 10))}
-                className="ui-scale-slider"
-              />
-            </div>
-          )}
         </div>
       </SettingsSubSection>
 

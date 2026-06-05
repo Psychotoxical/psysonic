@@ -64,7 +64,6 @@ export const SETTINGS_INDEX: SearchIndexEntry[] = [
   { tab: 'appearance',     titleKey: 'settings.visualOptionsTitle',       keywords: 'visual options animations effects titlebar mini player' },
   { tab: 'appearance',     titleKey: 'settings.uiScaleTitle',             keywords: 'ui scale zoom dpi size' },
   { tab: 'appearance',     titleKey: 'settings.font',                     keywords: 'font typography typeface' },
-  { tab: 'appearance',     titleKey: 'settings.fsPlayerSection',          keywords: 'fullscreen player mesh blob' },
   { tab: 'appearance',     titleKey: 'settings.seekbarStyle',             keywords: 'seekbar progress bar waveform reduced animations performance gpu fps low-end framerate cap' },
   { tab: 'input',          titleKey: 'settings.inputKeybindingsTitle',    keywords: 'keybindings shortcuts hotkeys keyboard' },
   { tab: 'input',          titleKey: 'settings.globalShortcutsTitle',     keywords: 'global shortcuts hotkeys system-wide media keys' },
