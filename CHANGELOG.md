@@ -79,6 +79,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Track preview — Symphonia 0.6 format hints and fast stream start
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1006](https://github.com/Psychotoxical/psysonic/pull/1006)**
+
+* Preview resolves container format from HTTP headers, Subsonic `suffix`, and magic-byte sniff so Symphonia 0.6 no longer fails with `.unknown` demuxer errors.
+* Preview opens via ranged HTTP when the server supports byte ranges — audio starts after ~384 KiB buffered instead of waiting for a full-file download; buffered fallback uses the same probe seek-gate as main playback.
+* Player bar cover guard while preview metadata loads; progress ring leaves the loading spinner once the engine emits `audio:preview-start`.
+
+
+
 ## [1.47.0]
 
 > **🙏 Thank you to our amazing Discord community.** This release would not have been possible without your tireless support, quality checks, bug reports and all-round collaboration. Every report, every repro and every bit of feedback shaped what shipped here — thank you. Come join us: [discord.gg/AMnDRErm4u](https://discord.gg/AMnDRErm4u)
