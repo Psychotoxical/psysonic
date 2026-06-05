@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 >
 
 
+## [1.48.0]
+
+## Changed
+
+### Dependencies — npm and Rust refresh
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#997](https://github.com/Psychotoxical/psysonic/pull/997)**
+
+* Frontend and Tauri npm dependencies bumped (React, Vite, Vitest, i18next, axios, Tauri plugins); test stack upgraded to **jsdom** 29.
+* Rust workspace: `id3` 1.17, `reqwest` 0.13.4, `sysinfo` 0.39, **zip** 8 for library backups. Symphonia 0.6 and `mach2` 0.6 remain deferred (upstream constraints).
+
+
+
 ## [1.47.0]
 
 > **🙏 Thank you to our amazing Discord community.** This release would not have been possible without your tireless support, quality checks, bug reports and all-round collaboration. Every report, every repro and every bit of feedback shaped what shipped here — thank you. Come join us: [discord.gg/AMnDRErm4u](https://discord.gg/AMnDRErm4u)
@@ -414,14 +427,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The **Settings → Personalisation** section for customising the home page is renamed **Mainstage** so it matches the sidebar entry it controls. Localised across all 9 languages; settings search still finds it under the new name.
 
-
-
-### Dependencies — npm and Rust refresh
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#997](https://github.com/Psychotoxical/psysonic/pull/997)**
-
-* Frontend and Tauri npm dependencies bumped (React, Vite, Vitest, i18next, axios, Tauri plugins); test stack upgraded to **jsdom** 29.
-* Rust workspace: `id3` 1.17, `reqwest` 0.13.4, `sysinfo` 0.39, **zip** 8 for library backups. Symphonia 0.6 and `mach2` 0.6 remain deferred (upstream constraints).
 
 
 
