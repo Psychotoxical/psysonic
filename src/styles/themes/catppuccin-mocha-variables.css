@@ -58,5 +58,11 @@
   --bg-deep: var(--ctp-crust);
   --bg-elevated: var(--ctp-surface2);
   --text-on-accent: var(--ctp-crust);
+
+  /* Player readout colours — optional. Default to the standard text tones so
+     nothing changes unless a theme overrides them (e.g. a coloured LCD-style
+     track name). */
+  --player-title: var(--text-primary);
+  --player-artist: var(--text-secondary);
 }
 

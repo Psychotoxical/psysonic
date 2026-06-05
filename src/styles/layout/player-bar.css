@@ -160,12 +160,12 @@ html[data-platform="windows"] .player-bar.floating {
 .player-track-name {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--player-title);
 }
 
 .player-track-artist {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--player-artist);
   margin-top: 2px;
 }
 
