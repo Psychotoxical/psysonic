@@ -30,7 +30,6 @@ export const THEME_GROUPS: { group: string; themes: ThemeDef[] }[] = [
       { id: 'blade',                label: 'Blade',                bg: '#121212', card: '#050505', accent: '#b30000' },
       { id: 'dune',                 label: 'Dune',                 bg: '#1c1408', card: '#0e0c1a', accent: '#c8780a' },
       { id: 'hill-valley-85',       label: 'Hill Valley 85',       bg: '#0d0b18', card: '#141120', accent: '#ff8c00' },
-      { id: 'middle-earth',         label: 'Middle Earth',         bg: '#f0e0b0', card: '#241a0e', accent: '#d4a820' },
       { id: 'morpheus',             label: 'Morpheus',             bg: '#050905', card: '#0a120a', accent: '#00ff41' },
       { id: 'spider-tech',          label: 'Spider-Tech',          bg: '#0e0c18', card: '#181428', accent: '#E62429' },
       { id: 'stark-hud',            label: 'Stark HUD',            bg: '#0b0f15', card: '#05070a', accent: '#00f2ff' },
@@ -86,8 +85,6 @@ export const THEME_GROUPS: { group: string; themes: ThemeDef[] }[] = [
   {
     group: 'Operating Systems',
     themes: [
-      { id: 'ubuntu-ambiance', label: 'Ubuntu',          bg: '#f4efea', card: '#3d1f3d', accent: '#e95420' },
-      { id: 'aqua-quartz',     label: 'Aqua Quartz',     bg: '#f6f6f6', card: '#ffffff',  accent: '#3876f7' },
       { id: 'cupertino-light', label: 'Cupertino Light', bg: '#ffffff', card: '#f2f2f7', accent: '#0071e3' },
       { id: 'cupertino-dark',  label: 'Cupertino Dark',  bg: '#1e1e1f', card: '#2d2d2f', accent: '#007aff' },
       { id: 'dos',             label: 'DOS',             bg: '#0000AA', card: '#000080', accent: '#FFFF55' },
@@ -95,7 +92,6 @@ export const THEME_GROUPS: { group: string; themes: ThemeDef[] }[] = [
       { id: 'w3-1',            label: 'W3.1',            bg: '#c0c0c0', card: '#ffffff',  accent: '#000080' },
       { id: 'w98',             label: 'W98',             bg: '#008080', card: '#d4d0c8', accent: '#000080' },
       { id: 'luna-teal',       label: 'WXP',             bg: '#ece9d8', card: '#1248b8', accent: '#3c9d29' },
-      { id: 'wista',           label: 'Wista',           bg: '#eef3fc', card: '#0e1e3e', accent: '#1565c8' },
       { id: 'aero-glass',      label: 'W7',              bg: '#b8cfe8', card: '#05080f', accent: '#1878e8' },
       { id: 'w10',             label: 'W10',             bg: '#f3f3f3', card: '#ffffff',  accent: '#0078d4' },
       { id: 'w11',             label: 'W11',             bg: '#202020', card: '#2c2c2c', accent: '#0078d4' },
@@ -147,14 +143,12 @@ export const THEME_GROUPS: { group: string; themes: ThemeDef[] }[] = [
       { id: 'doh-matic',    label: "D'oh-matic",              bg: '#FFFDF0', card: '#FFD90F', accent: '#1F75FE' },
       { id: 'heisenberg',   label: 'Heisenberg',              bg: '#0b0e12', card: '#141a22', accent: '#35d4f8' },
       { id: 'turtle-power', label: 'Turtle Power',            bg: '#1a1a1a', card: '#0a0a0a', accent: '#33cc33' },
-      { id: 'north-park',   label: 'North Park',              bg: '#F5F1E8', card: '#FFFFFF',  accent: '#FF8C00' },
     ],
   },
   {
     group: 'Famous Albums',
     themes: [
       { id: 'dark-side-of-the-moon', label: 'Dark Side of the Moon (inspired)', bg: '#050505', card: '#0D0D0D', accent: '#9B30FF' },
-      { id: 'powerslave',            label: 'Powerslave (inspired)',            bg: '#F0DFB0', card: '#2A1808', accent: '#C8960C' },
     ],
   },
   {
@@ -169,7 +163,6 @@ export const THEME_GROUPS: { group: string; themes: ThemeDef[] }[] = [
     themes: [
       { id: 'insta',    label: 'Insta',    bg: '#121212', card: '#000000', accent: '#E1306C' },
       { id: 'readit',   label: 'ReadIt',   bg: '#030303', card: '#1A1A1B', accent: '#FF4500' },
-      { id: 'the-book', label: 'The Book', bg: '#F0F2F5', card: '#FFFFFF',  accent: '#1877F2' },
     ],
   },
 ];
