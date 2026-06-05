@@ -226,14 +226,18 @@ export default function WaveformSeek({ trackId }: Props) {
   // On every HMR update, drop the colour cache and repaint. `import.meta.hot` is
   // undefined in production builds, so this whole effect is stripped there.
   useEffect(() => {
-    if (!import.meta.hot) return;
+    // `import.meta.hot` is undefined in prod builds and only a partial stub in
+    // the test/SSR env (has `.on` but not `.off`), so feature-detect both before
+    // wiring — otherwise the cleanup throws under vitest.
+    const hot = import.meta.hot;
+    if (!hot || typeof hot.on !== 'function' || typeof hot.off !== 'function') return;
     const repaint = () => {
       invalidateColorCache();
       const canvas = canvasRef.current;
       if (canvas) drawSeekbar(canvas, seekbarStyle, heightsRef.current, progressRef.current, bufferedRef.current, animStateRef.current);
     };
-    import.meta.hot.on('vite:afterUpdate', repaint);
-    return () => { import.meta.hot?.off('vite:afterUpdate', repaint); };
+    hot.on('vite:afterUpdate', repaint);
+    return () => { hot.off('vite:afterUpdate', repaint); };
   }, [seekbarStyle]);
 
   const trackIdRef = useRef(trackId);
