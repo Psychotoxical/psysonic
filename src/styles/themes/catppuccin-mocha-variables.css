@@ -48,5 +48,15 @@
   --positive: var(--ctp-green);
   --warning: var(--ctp-yellow);
   --danger: var(--ctp-red);
+
+  /* Semantic tokens added for the theme-store contract (B0): readable names that
+     replace direct --ctp-* use in components. Defined here on :root so they
+     resolve per-theme automatically (every theme sets --ctp-*); a theme can
+     override any of them directly. See workdocs theme-store/b0-semantic-refactor. */
+  --highlight: var(--ctp-yellow);
+  --accent-2: var(--ctp-blue);
+  --bg-deep: var(--ctp-crust);
+  --bg-elevated: var(--ctp-surface2);
+  --text-on-accent: var(--ctp-crust);
 }
 
