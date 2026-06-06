@@ -67,12 +67,22 @@ function isPinAlreadyScheduled(albumId: string): boolean {
  * entry; the queue drains one album at a time so parallel pins do not evict each other.
  */
 export function enqueueOfflinePin(task: OfflinePinTask): boolean {
+  cancelledDownloads.delete(task.albumId);
+  pinTasks.set(task.albumId, task);
+
+  const store = useOfflineJobStore.getState();
+  const existing = store.pinQueue.find(p => p.albumId === task.albumId);
+  if (existing?.status === 'downloading') {
+    return false;
+  }
+  if (existing?.status === 'queued') {
+    scheduleOfflinePinQueue();
+    return true;
+  }
   if (isPinAlreadyScheduled(task.albumId)) {
     return false;
   }
-  // A prior cancel/remove may have left a stale flag; a fresh enqueue overrides it.
-  cancelledDownloads.delete(task.albumId);
-  pinTasks.set(task.albumId, task);
+
   const entry: OfflinePinQueueEntry = {
     albumId: task.albumId,
     albumName: task.albumName,

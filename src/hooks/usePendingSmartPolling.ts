@@ -84,6 +84,10 @@ export function usePendingSmartPolling(
               firstSeenCoverArt: firstCover,
               attempts: item.attempts + 1,
             });
+          } else if (pl.id) {
+            void import('../utils/offline/pinnedPlaylistOfflineSync')
+              .then(m => m.schedulePinnedPlaylistSync(pl.id))
+              .catch(() => {});
           }
         }
         return next;
