@@ -14,7 +14,7 @@ function ephemeral(
     layoutFingerprint: 'fp',
     tier: 'ephemeral',
     suffix: 'mp3',
-    cachedAt: '2026-01-01T00:00:00.000Z',
+    cachedAt: Date.parse('2026-01-01T00:00:00.000Z'),
   };
 }
 
