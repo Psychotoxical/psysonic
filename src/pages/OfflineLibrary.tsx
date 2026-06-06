@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { Play, HardDriveDownload, Trash2, ListPlus, ListMusic, Heart } from 'lucide-react';
@@ -27,6 +27,7 @@ import {
   offlineQueueServerKeyForCard,
   hydrateOfflineLibraryCards,
   offlineAlbumCoverScope,
+  offlineLibraryCardKey,
   offlineTrackCount,
   type OfflineCoverQuadCell,
   type OfflineLibraryCard,
@@ -85,6 +86,8 @@ export default function OfflineLibrary() {
     library: null,
     favorites: null,
   });
+  const hasLoadedOnceRef = useRef(false);
+  const cardsRefreshGenerationRef = useRef(0);
 
   const favoritesTrackCount = useMemo(
     () => countFavoriteAutoTracks(),
@@ -121,17 +124,32 @@ export default function OfflineLibrary() {
   }, [refreshOfflineDiskSizes]);
 
   useEffect(() => {
+    const generation = ++cardsRefreshGenerationRef.current;
     let cancelled = false;
-    setLoading(true);
+    if (!hasLoadedOnceRef.current) {
+      setLoading(true);
+    }
     void refreshCardsFromDisk().then(hydrated => {
-      if (cancelled) return;
+      if (cancelled || generation !== cardsRefreshGenerationRef.current) return;
       setCards(hydrated);
       setLoading(false);
+      hasLoadedOnceRef.current = true;
     }).catch(() => {
-      if (!cancelled) setLoading(false);
+      if (cancelled || generation !== cardsRefreshGenerationRef.current) return;
+      setLoading(false);
+      hasLoadedOnceRef.current = true;
     });
     return () => { cancelled = true; };
   }, [pinRefreshKey, mediaDir, favoritesTrackCount, refreshCardsFromDisk]);
+
+  const handleDeleteCard = useCallback((card: OfflineLibraryCard) => {
+    cardsRefreshGenerationRef.current += 1;
+    const key = offlineLibraryCardKey(card);
+    setCards(prev => prev.filter(c => offlineLibraryCardKey(c) !== key));
+    void deleteAlbum(card.pinSource.sourceId, card.serverIndexKey).then(() => {
+      void refreshOfflineDiskSizes();
+    });
+  }, [deleteAlbum, refreshOfflineDiskSizes]);
 
   useEffect(() => {
     void refreshOfflineDiskSizes();
@@ -556,7 +574,10 @@ export default function OfflineLibrary() {
             </span>
             <button
               className="offline-library-delete"
-              onClick={() => deleteAlbum(card.pinSource.sourceId, card.serverIndexKey)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteCard(card);
+              }}
               data-tooltip={t('albumDetail.removeOffline')}
               data-tooltip-pos="top"
             >
@@ -574,7 +595,7 @@ export default function OfflineLibrary() {
       itemKey={(item, _i) => {
         if (item.kind === 'cache') return OFFLINE_CACHE_GRID_KEY;
         if (item.kind === 'favorites') return OFFLINE_FAVORITES_GRID_KEY;
-        return `${item.card.serverIndexKey}:${item.card.pinSource.kind}:${item.card.pinSource.sourceId}`;
+        return offlineLibraryCardKey(item.card);
       }}
       rowVariant="offline"
       disableVirtualization={perfFlags.disableMainstageVirtualLists}

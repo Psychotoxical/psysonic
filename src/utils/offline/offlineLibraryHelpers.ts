@@ -584,3 +584,7 @@ export function offlineTrackCount(card: OfflineLibraryCard): number {
   const serverId = resolveServerIdForIndexKey(card.serverIndexKey) || card.serverIndexKey;
   return card.trackIds.filter(tid => hasLocalLibraryBytes(tid, serverId)).length;
 }
+
+export function offlineLibraryCardKey(card: OfflineLibraryCard): string {
+  return `${card.serverIndexKey}:${card.pinSource.kind}:${card.pinSource.sourceId}`;
+}
