@@ -25,6 +25,8 @@ export const connection = {
   offlineCacheQueueTitle: 'Queue cache',
   offlineCacheQueueSubtitle: '{{n}} tracks in media/cache — shuffle and play',
   offlineCacheQueuePlayAria: 'Shuffle and play all cached tracks',
+  offlineFavoritesQueueTitle: 'Favorites',
+  offlineFavoritesQueuePlayAria: 'Shuffle and play all favorites saved offline',
   retry: 'Retry',
   serverSettings: 'Server Settings',
   switchServerTitle: 'Switch server',

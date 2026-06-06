@@ -24,6 +24,8 @@ export const connection = {
   offlineCacheQueueTitle: 'Cache hors ligne',
   offlineCacheQueueSubtitle: '{{n}} pistes sur le disque — lecture aléatoire',
   offlineCacheQueuePlayAria: 'Lecture aléatoire de toutes les pistes en cache',
+  offlineFavoritesQueueTitle: 'Favoris',
+  offlineFavoritesQueuePlayAria: 'Lecture aléatoire de tous les favoris hors ligne',
   retry: 'Réessayer',
   serverSettings: 'Paramètres serveur',
   switchServerTitle: 'Changer de serveur',

@@ -20,6 +20,8 @@ export const connection = {
   offlineCacheQueueTitle: '离线缓存',
   offlineCacheQueueSubtitle: '磁盘上 {{n}} 首曲目 — 随机播放',
   offlineCacheQueuePlayAria: '随机播放所有已缓存曲目',
+  offlineFavoritesQueueTitle: '收藏',
+  offlineFavoritesQueuePlayAria: '随机播放所有离线收藏曲目',
   retry: '重试',
   serverSettings: '服务器设置',
   switchServerTitle: '切换服务器',

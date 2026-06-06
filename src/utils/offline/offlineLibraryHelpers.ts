@@ -380,6 +380,91 @@ export async function collectEphemeralCacheCoverQuad(): Promise<(string | null)[
   return Array.from({ length: 4 }, (_, i) => covers[i] ?? null);
 }
 
+function listFavoriteAutoEntries(): LocalPlaybackEntry[] {
+  return Object.values(useLocalPlaybackStore.getState().entries)
+    .filter(e => e.tier === 'favorite-auto' && e.localPath)
+    .sort((a, b) => (b.lastPlayedAt ?? b.cachedAt) - (a.lastPlayedAt ?? a.cachedAt));
+}
+
+/** Indexed favorite-auto rows with on-disk bytes under `{media}/favorites/`. */
+export function countFavoriteAutoTracks(): number {
+  return listFavoriteAutoEntries().length;
+}
+
+export function favoriteAutoCoverScope(): CoverServerScope | null {
+  const entry = listFavoriteAutoEntries()[0];
+  if (!entry) return null;
+  const server = findServerByIdOrIndexKey(entry.serverIndexKey);
+  if (!server) return null;
+  return {
+    kind: 'server',
+    serverId: server.id,
+    url: server.url,
+    username: server.username,
+    password: server.password,
+  };
+}
+
+/** Up to four cover IDs for a collage from favorites-tier tracks. */
+export async function collectFavoriteAutoCoverQuad(): Promise<(string | null)[]> {
+  const favorites = listFavoriteAutoEntries();
+  if (favorites.length === 0) return [null, null, null, null];
+  const refs = favorites.slice(0, 16).map(e => ({
+    serverId: resolveServerIdForIndexKey(e.serverIndexKey) || e.serverIndexKey,
+    trackId: e.trackId,
+  }));
+  const dtos = await libraryGetTracksBatch(refs).catch(() => []);
+  const covers: string[] = [];
+  for (const dto of dtos) {
+    const cover = resolveTrackCoverArtId(dto);
+    if (cover && !covers.includes(cover)) covers.push(cover);
+    if (covers.length >= 4) break;
+  }
+  return Array.from({ length: 4 }, (_, i) => covers[i] ?? null);
+}
+
+/** Playable tracks under `{media}/favorites/` only (favorite-auto tier). */
+export async function buildOfflineFavoritesQueueTracks(): Promise<{
+  tracks: Track[];
+  queueServerIndexKey: string | null;
+}> {
+  const favorites = listFavoriteAutoEntries();
+  if (favorites.length === 0) {
+    return { tracks: [], queueServerIndexKey: null };
+  }
+
+  const refs = favorites.map(e => ({
+    serverId: resolveServerIdForIndexKey(e.serverIndexKey) || e.serverIndexKey,
+    trackId: e.trackId,
+  }));
+  const dtos = await libraryGetTracksBatch(refs).catch(() => []);
+  const dtoById = new Map(dtos.map(d => [`${d.serverId}:${d.id}`, d]));
+
+  const tracks: Track[] = [];
+  let queueServerIndexKey: string | null = null;
+  for (const entry of favorites) {
+    const serverId = resolveServerIdForIndexKey(entry.serverIndexKey) || entry.serverIndexKey;
+    const dto = dtoById.get(`${serverId}:${entry.trackId}`);
+    if (dto) {
+      tracks.push(libraryDtoToTrack(dto));
+    } else {
+      tracks.push({
+        id: entry.trackId,
+        title: entry.trackId,
+        artist: '',
+        album: '',
+        albumId: '',
+        duration: 0,
+        suffix: entry.suffix,
+        size: entry.sizeBytes,
+      });
+    }
+    queueServerIndexKey ??= entry.serverIndexKey;
+  }
+
+  return { tracks, queueServerIndexKey };
+}
+
 /** Playable tracks under `{media}/cache/` only (ephemeral / hot-cache tier). */
 export async function buildOfflineCacheQueueTracks(): Promise<{
   tracks: Track[];

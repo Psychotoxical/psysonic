@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
-import { Play, HardDriveDownload, Trash2, ListPlus, ListMusic } from 'lucide-react';
+import { Play, HardDriveDownload, Trash2, ListPlus, ListMusic, Heart } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useOfflineStore } from '../store/offlineStore';
 import { useLocalPlaybackStore } from '../store/localPlaybackStore';
@@ -12,9 +13,13 @@ import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import {
   buildOfflineCacheQueueTracks,
+  buildOfflineFavoritesQueueTracks,
   buildTracksForOfflineCard,
   collectEphemeralCacheCoverQuad,
+  collectFavoriteAutoCoverQuad,
   countEphemeralCacheTracks,
+  countFavoriteAutoTracks,
+  favoriteAutoCoverScope,
   ensureServerForOfflineCard,
   ensureServerForOfflineIndexKey,
   ephemeralCacheCoverScope,
@@ -37,21 +42,27 @@ import {
 
 const OFFLINE_CARD_COVER_CSS_PX = 300;
 const OFFLINE_CACHE_GRID_KEY = '__offline_cache__';
+const OFFLINE_FAVORITES_GRID_KEY = '__offline_favorites__';
 
 type FilterType = 'all' | 'album' | 'playlist' | 'artist';
 
 type OfflineGridItem =
   | { kind: 'cache' }
+  | { kind: 'favorites' }
   | { kind: 'card'; card: OfflineLibraryCard };
 
 export default function OfflineLibrary() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const perfFlags = usePerfProbeFlags();
   const servers = useAuthStore(s => s.servers);
   const mediaDir = useAuthStore(s => s.mediaDir || null);
   const hotCacheEnabled = useAuthStore(s => s.hotCacheEnabled);
   const localPlaybackEntries = useLocalPlaybackStore(s => s.entries);
   const [cacheCoverQuad, setCacheCoverQuad] = useState<(string | null)[]>([
+    null, null, null, null,
+  ]);
+  const [favoritesCoverQuad, setFavoritesCoverQuad] = useState<(string | null)[]>([
     null, null, null, null,
   ]);
   const pinRefreshKey = useLocalPlaybackStore(s => {
@@ -134,10 +145,21 @@ export default function OfflineLibrary() {
     [localPlaybackEntries],
   );
 
+  const favoritesTrackCount = useMemo(
+    () => countFavoriteAutoTracks(),
+    [localPlaybackEntries],
+  );
+
   const showCacheQueueCard = hotCacheEnabled && cacheQueueTrackCount > 0;
+  const showFavoritesCard = favoritesTrackCount > 0;
 
   const cacheCoverScope = useMemo(
     () => ephemeralCacheCoverScope(),
+    [localPlaybackEntries],
+  );
+
+  const favoritesCoverScope = useMemo(
+    () => favoriteAutoCoverScope(),
     [localPlaybackEntries],
   );
 
@@ -153,12 +175,28 @@ export default function OfflineLibrary() {
     return () => { cancelled = true; };
   }, [showCacheQueueCard, localPlaybackEntries]);
 
-  const gridItems = useMemo((): OfflineGridItem[] => {
+  useEffect(() => {
+    if (!showFavoritesCard) {
+      setFavoritesCoverQuad([null, null, null, null]);
+      return;
+    }
+    let cancelled = false;
+    void collectFavoriteAutoCoverQuad().then(quad => {
+      if (!cancelled) setFavoritesCoverQuad(quad);
+    });
+    return () => { cancelled = true; };
+  }, [showFavoritesCard, localPlaybackEntries]);
+
+  const systemGridItems = useMemo((): OfflineGridItem[] => {
     const out: OfflineGridItem[] = [];
     if (showCacheQueueCard) out.push({ kind: 'cache' });
-    for (const card of filtered) out.push({ kind: 'card', card });
+    if (showFavoritesCard) out.push({ kind: 'favorites' });
     return out;
-  }, [filtered, showCacheQueueCard]);
+  }, [showCacheQueueCard, showFavoritesCard]);
+
+  const gridItems = useMemo((): OfflineGridItem[] => {
+    return [...systemGridItems, ...filtered.map(card => ({ kind: 'card' as const, card }))];
+  }, [filtered, systemGridItems]);
 
   const runWithCardServer = useCallback(async (
     card: OfflineLibraryCard,
@@ -204,6 +242,45 @@ export default function OfflineLibrary() {
     playTrack(queue[0], queue);
   }, [playTrack, t]);
 
+  const handlePlayOfflineFavorites = useCallback(async () => {
+    const { tracks, queueServerIndexKey } = await buildOfflineFavoritesQueueTracks();
+    if (!tracks.length) {
+      showToast(t('connection.offlinePlaybackUnavailable'), 4500, 'error');
+      return;
+    }
+    if (queueServerIndexKey) {
+      const ok = await ensureServerForOfflineIndexKey(queueServerIndexKey);
+      if (!ok) {
+        showToast(t('connection.switchFailed'), 4500, 'error');
+        return;
+      }
+      usePlayerStore.setState({
+        queueServerId: canonicalQueueServerKey(queueServerIndexKey),
+      });
+    }
+    const queue = shuffleArray(tracks);
+    playTrack(queue[0], queue);
+  }, [playTrack, t]);
+
+  const handleEnqueueFavorites = useCallback(async () => {
+    const { tracks, queueServerIndexKey } = await buildOfflineFavoritesQueueTracks();
+    if (!tracks.length) {
+      showToast(t('connection.offlinePlaybackUnavailable'), 4500, 'error');
+      return;
+    }
+    if (queueServerIndexKey) {
+      const ok = await ensureServerForOfflineIndexKey(queueServerIndexKey);
+      if (!ok) {
+        showToast(t('connection.switchFailed'), 4500, 'error');
+        return;
+      }
+      usePlayerStore.setState({
+        queueServerId: canonicalQueueServerKey(queueServerIndexKey),
+      });
+    }
+    enqueue(tracks);
+  }, [enqueue, t]);
+
   const handleEnqueueCache = useCallback(async () => {
     const { tracks, queueServerIndexKey } = await buildOfflineCacheQueueTracks();
     if (!tracks.length) {
@@ -233,6 +310,80 @@ export default function OfflineLibrary() {
       }
       enqueue(tracks);
     });
+  };
+
+  const renderFavoritesCard = () => {
+    const showQuad = favoritesCoverQuad.some(Boolean) && favoritesCoverScope;
+    return (
+      <div
+        className="album-card card offline-library-card offline-library-favorites-card"
+        onClick={() => navigate('/favorites')}
+      >
+        <div className="album-card-cover">
+          {showQuad ? (
+            <div className="playlist-cover-grid">
+              {favoritesCoverQuad.map((coverId, i) => (
+                coverId ? (
+                  <AlbumCoverArtImage
+                    key={`${coverId}-${i}`}
+                    albumId={coverId}
+                    coverArt={coverId}
+                    serverScope={favoritesCoverScope!}
+                    libraryResolve
+                    displayCssPx={OFFLINE_CARD_COVER_CSS_PX / 2}
+                    surface="dense"
+                    className="playlist-cover-cell"
+                    alt=""
+                    loading="lazy"
+                  />
+                ) : (
+                  <div key={i} className="playlist-cover-cell playlist-cover-cell--empty" />
+                )
+              ))}
+            </div>
+          ) : (
+            <div className="album-card-cover-placeholder playlist-card-icon">
+              <Heart size={48} strokeWidth={1.2} />
+            </div>
+          )}
+          <div className="album-card-play-overlay">
+            <button
+              className="album-card-details-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                void handlePlayOfflineFavorites();
+              }}
+              aria-label={t('connection.offlineFavoritesQueuePlayAria')}
+            >
+              <Play size={15} fill="currentColor" />
+            </button>
+          </div>
+        </div>
+        <div className="album-card-info">
+          <p className="album-card-title truncate">{t('connection.offlineFavoritesQueueTitle')}</p>
+          <p className="album-card-artist truncate">{'\u00A0'}</p>
+          <p className="album-card-year offline-library-card-year">{'\u00A0'}</p>
+          <div className="offline-library-card-meta">
+            <button
+              className="offline-library-enqueue"
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleEnqueueFavorites();
+              }}
+              data-tooltip={t('queue.appendToQueue')}
+              data-tooltip-pos="top"
+              aria-label={t('queue.appendToQueue')}
+            >
+              <ListPlus size={12} />
+            </button>
+            <span className="offline-library-tracks">
+              {t('albumDetail.tracksCount', { n: favoritesTrackCount })}
+            </span>
+            <span className="offline-library-delete offline-library-delete--spacer" aria-hidden />
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const renderCacheQueueCard = () => {
@@ -302,6 +453,7 @@ export default function OfflineLibrary() {
 
   const renderGridItem = (item: OfflineGridItem) => {
     if (item.kind === 'cache') return renderCacheQueueCard();
+    if (item.kind === 'favorites') return renderFavoritesCard();
     return renderCard(item.card);
   };
 
@@ -408,11 +560,11 @@ export default function OfflineLibrary() {
   const renderOfflineGrid = (items: OfflineGridItem[], layoutSignal: number) => (
     <VirtualCardGrid
       items={items}
-      itemKey={(item, _i) => (
-        item.kind === 'cache'
-          ? OFFLINE_CACHE_GRID_KEY
-          : `${item.card.serverIndexKey}:${item.card.pinSource.kind}:${item.card.pinSource.sourceId}`
-      )}
+      itemKey={(item, _i) => {
+        if (item.kind === 'cache') return OFFLINE_CACHE_GRID_KEY;
+        if (item.kind === 'favorites') return OFFLINE_FAVORITES_GRID_KEY;
+        return `${item.card.serverIndexKey}:${item.card.pinSource.kind}:${item.card.pinSource.sourceId}`;
+      }}
       rowVariant="offline"
       disableVirtualization={perfFlags.disableMainstageVirtualLists}
       layoutSignal={layoutSignal}
@@ -490,7 +642,7 @@ export default function OfflineLibrary() {
         <div className="empty-state">{t('connection.offlineLibraryEmpty')}</div>
       ) : filter === 'artist' ? (
         <>
-          {showCacheQueueCard && renderOfflineGrid([{ kind: 'cache' }], 1)}
+          {systemGridItems.length > 0 && renderOfflineGrid(systemGridItems, systemGridItems.length)}
           {filtered.length > 0 ? renderArtistGroups() : null}
         </>
       ) : (

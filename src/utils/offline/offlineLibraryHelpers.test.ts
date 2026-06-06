@@ -5,6 +5,7 @@ import { useOfflineStore } from '../../store/offlineStore';
 import { switchActiveServer } from '../server/switchActiveServer';
 import {
   buildOfflineCacheQueueTracks,
+  countFavoriteAutoTracks,
   buildTracksForOfflineCard,
   ensureServerForOfflineCard,
   hasAnyOfflineAlbums,
@@ -39,6 +40,35 @@ describe('offlineLibraryHelpers', () => {
       activeServerId: 'a',
     });
     useLocalPlaybackStore.setState({ entries: {} });
+  });
+
+  it('countFavoriteAutoTracks counts favorite-auto tier rows only', () => {
+    expect(countFavoriteAutoTracks()).toBe(0);
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/fav/t1.mp3',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'favorite-auto',
+          cachedAt: 1,
+          suffix: 'mp3',
+        },
+        'a.test:t2': {
+          serverIndexKey: 'a.test',
+          trackId: 't2',
+          localPath: '/lib/t2.mp3',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'library',
+          cachedAt: 1,
+          suffix: 'mp3',
+        },
+      },
+    });
+    expect(countFavoriteAutoTracks()).toBe(1);
   });
 
   it('pendingOfflinePinSongs skips already pinned tracks', () => {

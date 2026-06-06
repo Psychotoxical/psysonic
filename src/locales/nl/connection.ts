@@ -24,6 +24,8 @@ export const connection = {
   offlineCacheQueueTitle: 'Offline-cache',
   offlineCacheQueueSubtitle: '{{n}} nummers op schijf — shuffle en afspelen',
   offlineCacheQueuePlayAria: 'Shuffle en speel alle gecachte nummers af',
+  offlineFavoritesQueueTitle: 'Favorieten',
+  offlineFavoritesQueuePlayAria: 'Shuffle en speel alle offline favorieten af',
   retry: 'Opnieuw proberen',
   serverSettings: 'Serverinstellingen',
   switchServerTitle: 'Server wisselen',

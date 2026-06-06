@@ -24,6 +24,8 @@ export const connection = {
   offlineCacheQueueTitle: 'Cache offline',
   offlineCacheQueueSubtitle: '{{n}} piese pe disc — amestecă și redă',
   offlineCacheQueuePlayAria: 'Amestecă și redă toate piesele din cache',
+  offlineFavoritesQueueTitle: 'Favorite',
+  offlineFavoritesQueuePlayAria: 'Amestecă și redă toate favoritele offline',
   retry: 'Reîncearcă',
   serverSettings: 'Setările serverului',
   switchServerTitle: 'Schimbă serverul',

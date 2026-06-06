@@ -24,6 +24,8 @@ export const connection = {
   offlineCacheQueueTitle: 'Offline-Cache',
   offlineCacheQueueSubtitle: '{{n}} Titel auf dem Datenträger — mischen und abspielen',
   offlineCacheQueuePlayAria: 'Alle gecachten Titel mischen und abspielen',
+  offlineFavoritesQueueTitle: 'Favoriten',
+  offlineFavoritesQueuePlayAria: 'Alle offline gespeicherten Favoriten mischen und abspielen',
   retry: 'Erneut versuchen',
   serverSettings: 'Server-Einstellungen',
   switchServerTitle: 'Server wechseln',

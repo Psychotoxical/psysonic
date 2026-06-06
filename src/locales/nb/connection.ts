@@ -24,6 +24,8 @@ export const connection = {
   offlineCacheQueueTitle: 'Frakoblet hurtigbuffer',
   offlineCacheQueueSubtitle: '{{n}} spor på disk — bland og spill',
   offlineCacheQueuePlayAria: 'Bland og spill alle hurtigbufrede spor',
+  offlineFavoritesQueueTitle: 'Favoritter',
+  offlineFavoritesQueuePlayAria: 'Bland og spill alle offline-favoritter',
   retry: 'Prøv igjen',
   serverSettings: 'Serverinnstillinger',
   switchServerTitle: 'Bytt server',

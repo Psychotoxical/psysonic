@@ -28,6 +28,8 @@ export const connection = {
   offlineCacheQueueTitle: 'Кэш очереди',
   offlineCacheQueueSubtitle: '{{n}} треков в media/cache — перемешать и играть',
   offlineCacheQueuePlayAria: 'Перемешать и воспроизвести все треки из кэша',
+  offlineFavoritesQueueTitle: 'Избранное',
+  offlineFavoritesQueuePlayAria: 'Перемешать и воспроизвести offline-избранное',
   retry: 'Повторить',
   serverSettings: 'Настройки сервера',
   switchServerTitle: 'Сменить сервер',
