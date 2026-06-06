@@ -24,8 +24,8 @@
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border-subtle);
+  color: var(--col-header-text);
+  border-bottom: 1px solid var(--row-divider);
   margin-bottom: var(--space-2);
 }
 
@@ -45,7 +45,7 @@
 .tracklist-total {
   display: grid;
   align-items: center;
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--row-divider);
   padding: var(--space-2) var(--space-3);
   margin-top: var(--space-1);
 }
@@ -53,7 +53,7 @@
 .tracklist-total-label {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--row-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   text-align: right;
@@ -62,7 +62,7 @@
 .tracklist-total-value {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--row-text-secondary);
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
@@ -95,7 +95,7 @@
 
 .col-resize-handle:hover::after,
 .col-resize-handle:active::after {
-  background: var(--accent);
+  background: var(--col-resize-active);
 }
 
 /* ── Column visibility picker ── */
@@ -424,15 +424,15 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
 
 .track-row:hover,
 .track-row.context-active {
-  background: var(--bg-hover);
+  background: var(--row-hover);
 }
 
 .track-row.active {
-  background: var(--accent-dim);
+  background: var(--row-playing-bg);
 }
 
 .track-row.active:hover {
-  background: var(--accent-dim);
+  background: var(--row-playing-bg);
 }
 
 .track-row>* {
@@ -465,7 +465,7 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
 /* Default: show track number */
 .track-num-number {
   font-size: 13px;
-  color: var(--text-muted);
+  color: var(--row-text-muted);
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
@@ -490,7 +490,7 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
 
 /* ── Active (currently playing): hide number, show eq-bars ── */
 .track-num.track-num-active .track-num-number { display: none; }
-.track-num.track-num-active .track-num-number { color: var(--accent); } /* kept for when visible */
+.track-num.track-num-active .track-num-number { color: var(--row-playing-text); } /* kept for when visible */
 
 /* ── Active + hover: hide eq-bars, show play icon ── */
 .track-row:hover .track-num.track-num-active .track-num-eq  { display: none; }
@@ -525,7 +525,7 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
  * compositing (NVIDIA proprietary + WEBKIT_DISABLE_COMPOSITING_MODE=1) and
  * pegged the WebProcess at ~80% CPU on AlbumDetail with a long tracklist. */
 .eq-bars {
-  color: var(--accent);
+  color: var(--row-playing-text);
   display: block;
 }
 
@@ -574,7 +574,7 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
 .track-title {
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--row-text);
   overflow-wrap: break-word;
   word-break: break-word;
 }
@@ -587,7 +587,7 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
 
 .track-artist {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--row-text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -626,7 +626,7 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
   justify-content: center;
   align-items: center;
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--row-text-muted);
   font-variant-numeric: tabular-nums;
 }
 

@@ -10,19 +10,19 @@
   font-size: 13px;
   cursor: default;
   transition: background var(--transition-fast);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--row-divider);
 }
 
 .song-list-row:hover {
-  background: var(--bg-hover);
+  background: var(--row-hover);
 }
 
 .song-list-row.is-current {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: var(--row-playing-bg);
 }
 
 .song-list-row.is-current .song-list-row-title {
-  color: var(--accent);
+  color: var(--row-playing-text);
 }
 
 .song-list-row--header {
@@ -31,7 +31,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-muted);
+  color: var(--col-header-text);
   cursor: default;
   /* Header lives inside the scroll container so its width matches the rows'
      (scrollbar gutter applies to both). Sticky keeps it pinned while scrolling
@@ -40,7 +40,7 @@
   top: 0;
   z-index: 2;
   background: var(--bg-card);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--row-divider);
 }
 
 /* Header is sticky and opaque — keep its card background on hover so the
@@ -62,18 +62,18 @@
 
 .song-list-row-title {
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--row-text);
 }
 
 .song-list-row-genre {
-  color: var(--text-muted);
+  color: var(--row-text-muted);
   font-size: 12px;
 }
 
 .song-list-row-duration {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
+  color: var(--row-text-muted);
   font-size: 12px;
 }
 
@@ -84,14 +84,14 @@
 .song-list-row-bpm {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
+  color: var(--row-text-muted);
   font-size: 12px;
 }
 
 .song-list-row-btn {
   background: transparent;
   border: none;
-  color: var(--text-muted);
+  color: var(--row-text-muted);
   width: 28px;
   height: 28px;
   border-radius: 50%;
@@ -104,8 +104,8 @@
 }
 
 .song-list-row-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: var(--row-hover);
+  color: var(--row-text);
 }
 
 .song-list-row-btn--play {
@@ -114,7 +114,7 @@
 
 .song-list-row-btn--play:hover {
   background: var(--accent);
-  color: var(--text-on-accent, #11111b);
+  color: var(--text-on-accent);
 }
 
 .song-list-row.is-current .song-list-row-btn--play {
