@@ -8,6 +8,7 @@ import {
   isLanUrl,
   type ServerEndpointKind,
 } from '../utils/server/serverEndpoint';
+import { setActiveServerReachable } from '../utils/network/activeServerReachability';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 
 // Backward-compatible re-export for call sites that still import from the hook.
@@ -29,11 +30,13 @@ export function useConnectionStatus() {
   const check = useCallback(async () => {
     const server = useAuthStore.getState().getActiveServer();
     if (!server) {
+      setActiveServerReachable(false);
       setStatus('disconnected');
       return;
     }
 
     if (!navigator.onLine) {
+      setActiveServerReachable(false);
       setStatus('disconnected');
       return;
     }
@@ -58,6 +61,7 @@ export function useConnectionStatus() {
     } else {
       setActiveEndpointKind(null);
     }
+    setActiveServerReachable(probe.ok);
     setStatus(probe.ok ? 'connected' : 'disconnected');
   }, []);
 
@@ -77,6 +81,7 @@ export function useConnectionStatus() {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+      setActiveServerReachable(true);
       setStatus('connected');
       return;
     }
@@ -90,7 +95,10 @@ export function useConnectionStatus() {
       if (sid) invalidateReachableEndpointCache(sid);
       check();
     };
-    const handleOffline = () => setStatus('disconnected');
+    const handleOffline = () => {
+      setActiveServerReachable(false);
+      setStatus('disconnected');
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);

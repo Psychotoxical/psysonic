@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { queueSongStar } from '../store/pendingStarSync';
 import type { SubsonicSong } from '../api/subsonicTypes';
+import type { Track } from '../store/playerStoreTypes';
 import {
   lastfmLoveTrack, lastfmUnloveTrack,
   type LastfmTrackInfo,
 } from '../api/lastfm';
 
 export interface NowPlayingStarLoveDeps {
-  currentTrack: { id: string; title: string; artist: string } | null;
+  currentTrack: Pick<Track, 'id' | 'title' | 'artist' | 'serverId'> | null;
   songMeta: SubsonicSong | null;
   lfmTrack: LastfmTrackInfo | null;
   lfmLoveEnabled: boolean;
@@ -31,7 +32,7 @@ export function useNowPlayingStarLove(deps: NowPlayingStarLoveDeps): NowPlayingS
     if (!currentTrack) return;
     const next = !starred;
     setStarred(next); // local view; helper owns the override + retried server sync (no rollback)
-    queueSongStar(currentTrack.id, next);
+    queueSongStar(currentTrack.id, next, currentTrack.serverId);
   }, [currentTrack, starred]);
 
   // Last.fm love (seeded from track.getInfo, toggle via love/unlove)

@@ -61,6 +61,7 @@ export default function AlbumContextItems(props: ContextMenuItemsProps) {
                 const starred = isStarred(album.id, album.starred);
                 setStarredOverride(album.id, !starred);
                 const meta = {
+                  serverId: album.serverId,
                   name: album.name,
                   artist: album.artist,
                   artistId: album.artistId,

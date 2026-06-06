@@ -3,8 +3,7 @@
  * (a) the module-scoped `lastOpenedWithHttpTrackId` only persists for HTTP
  * URLs (offline / hot-cache plays clear it), (b) the rebind check matches
  * across the `stream:` / bare id forms, and (c) the source-kind classifier
- * picks 'offline' vs 'hot' only when the offline store actually has a local
- * URL for the track.
+ * picks 'offline' vs 'hot' only when the library index has a local file.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -12,12 +11,12 @@ const { offlineStoreState } = vi.hoisted(() => ({
   offlineStoreState: { localUrlByKey: new Map<string, string>() },
 }));
 
-vi.mock('./offlineStore', () => ({
-  useOfflineStore: {
-    getState: () => ({
-      getLocalUrl: (trackId: string, serverId: string) =>
-        offlineStoreState.localUrlByKey.get(`${serverId}:${trackId}`) ?? null,
-    }),
+vi.mock('../utils/offline/offlineLibraryHelpers', () => ({
+  findLocalPlaybackUrl: (trackId: string, serverId: string, tier: string) => {
+    if (tier !== 'library') return null;
+    return offlineStoreState.localUrlByKey.has(`${serverId}:${trackId}`)
+      ? `psysonic-local://${serverId}/${trackId}`
+      : null;
   },
 }));
 
@@ -50,7 +49,7 @@ describe('playbackSourceHintForResolvedUrl', () => {
     expect(playbackSourceHintForResolvedUrl('t1', 'srv', 'https://mock/srv/t1')).toBe('stream');
   });
 
-  it("classifies psysonic-local:// as 'offline' when the offline store has the file", () => {
+  it("classifies psysonic-local:// as 'offline' when the library index has the file", () => {
     offlineStoreState.localUrlByKey.set('srv:t1', 'file:///cache/t1.mp3');
     expect(playbackSourceHintForResolvedUrl('t1', 'srv', 'psysonic-local://srv/t1')).toBe('offline');
   });
@@ -96,7 +95,6 @@ describe('recordEnginePlayUrl + shouldRebindPlaybackToHotCache', () => {
 
   it('returns false when the resolved URL is still HTTP (no hot-cache entry)', () => {
     recordEnginePlayUrl('t1', 'https://mock/srv/t1');
-    // No entry in offlineStoreState → resolvePlaybackUrl mock returns https://...
     expect(shouldRebindPlaybackToHotCache('t1', 'srv')).toBe(false);
   });
 });

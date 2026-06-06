@@ -19,27 +19,16 @@ import {
 import { clearSeekDebounce } from './seekDebounce';
 import { clearSeekFallbackRetry } from './seekFallbackState';
 import { clearSeekTarget } from './seekTargetState';
-import i18n from '../i18n';
 import { playListenSessionFinalize } from './playListenSession';
 import {
   clearQueueServerForPlayback,
   ensureQueueServerPinned,
-  playbackServerDiffersFromActive,
 } from '../utils/playback/playbackServer';
-import { useLuckyMixStore } from './luckyMixStore';
-import { showToast } from '../utils/ui/toast';
 
 type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
 ) => void;
 type GetState = () => PlayerState;
-
-function blockCrossServerEnqueue(): boolean {
-  if (useLuckyMixStore.getState().isRolling) return false;
-  if (!playbackServerDiffersFromActive()) return false;
-  showToast(i18n.t('queue.crossServerEnqueueBlocked'), 4500, 'error');
-  return true;
-}
 
 /**
  * The canonical working ref list for a mutation (thin-state). Mutations
@@ -53,8 +42,10 @@ const itemsOf = (state: PlayerState): QueueItemRef[] => [...state.queueItems];
  *  without a network round-trip once `queue: Track[]` is dropped (seed-before-
  *  splice). No-op without a real playback server (e.g. unit tests). */
 function seedIncoming(state: PlayerState, tracks: Track[]): void {
-  const serverId = state.queueServerId ?? '';
-  if (serverId) seedQueueResolver(serverId, tracks);
+  for (const t of tracks) {
+    const serverId = t.serverId ?? state.queueServerId ?? '';
+    if (serverId) seedQueueResolver(serverId, [t]);
+  }
 }
 
 /**
@@ -80,7 +71,6 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
 > {
   return {
     enqueue: (tracks, _orbitConfirmed = false, skipQueueUndo = false) => {
-      if (blockCrossServerEnqueue()) return;
       if (!_orbitConfirmed && tracks.length > 1) {
         void orbitBulkGuard(tracks.length).then(ok => {
           if (ok) get().enqueue(tracks, true, skipQueueUndo);
@@ -88,7 +78,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
         return;
       }
       if (!skipQueueUndo) pushQueueUndoFromGetter(get);
-      ensureQueueServerPinned();
+      ensureQueueServerPinned(tracks);
       set(state => {
         seedIncoming(state, tracks);
         const items = itemsOf(state);
@@ -164,7 +154,6 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
     },
 
     enqueueAt: (tracks, insertIndex, _orbitConfirmed = false) => {
-      if (blockCrossServerEnqueue()) return;
       if (!_orbitConfirmed && tracks.length > 1) {
         void orbitBulkGuard(tracks.length).then(ok => {
           if (ok) get().enqueueAt(tracks, insertIndex, true);
@@ -172,7 +161,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
         return;
       }
       pushQueueUndoFromGetter(get);
-      ensureQueueServerPinned();
+      ensureQueueServerPinned(tracks);
       set(state => {
         seedIncoming(state, tracks);
         const items = itemsOf(state);
@@ -190,8 +179,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
 
     playNext: (tracks) => {
       if (tracks.length === 0) return;
-      if (blockCrossServerEnqueue()) return;
-      ensureQueueServerPinned();
+      ensureQueueServerPinned(tracks);
       const state = get();
       const tagged = tracks.map(t => ({ ...t, playNextAdded: true as const }));
       if (!state.currentTrack) {

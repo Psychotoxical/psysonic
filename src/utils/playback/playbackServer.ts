@@ -4,32 +4,59 @@ import { coverEntryToRef, resolveAlbumCoverEntry } from '../../cover/resolveEntr
 import { coverStorageKeyFromRef } from '../../cover/storageKeys';
 import { resolveCoverDisplayTier } from '../../cover/tiers';
 import { useAuthStore } from '../../store/authStore';
+import type { ServerProfile } from '../../store/authStoreTypes';
 import { usePlayerStore } from '../../store/playerStore';
 import { switchActiveServer } from '../server/switchActiveServer';
 import { sameQueueTrackId } from './queueIdentity';
 import type { QueueItemRef, Track } from '../../store/playerStoreTypes';
-import { resolveServerIdForIndexKey } from '../server/serverLookup';
+import { findServerByIdOrIndexKey, resolveServerIdForIndexKey } from '../server/serverLookup';
 import {
+  canonicalQueueServerKey,
   resolveIndexKey,
   serverIndexKeyForProfile,
   serverIndexKeyFromUrl,
 } from '../server/serverIndexKey';
+import {
+  activeServerProfileId,
+  isMultiServerQueue,
+  profileIdFromQueueRef,
+  queueItemRefAt,
+  stampTrackServerIds,
+} from './trackServerScope';
 
-/** Server that owns the current queue / stream URLs (may differ from the browsed server). */
+function playbackServerFromRef(ref: QueueItemRef): ServerProfile | undefined {
+  const profileId = profileIdFromQueueRef(ref);
+  return findServerByIdOrIndexKey(profileId) ?? findServerByIdOrIndexKey(ref.serverId);
+}
+
+/** Profile id for the currently playing queue item (mixed-server safe). */
 export function getPlaybackServerId(): string {
+  const playingRef = queueItemRefAt();
+  if (playingRef?.serverId) {
+    const server = playbackServerFromRef(playingRef);
+    if (server) return server.id;
+  }
   const { queueServerId, queueItems } = usePlayerStore.getState();
   if ((queueItems?.length ?? 0) > 0 && queueServerId) {
-    return resolveServerIdForIndexKey(queueServerId);
+    const resolved = resolveServerIdForIndexKey(queueServerId);
+    const server = findServerByIdOrIndexKey(resolved);
+    return server?.id ?? resolved;
   }
-  return useAuthStore.getState().activeServerId ?? '';
+  return activeServerProfileId() ?? '';
 }
 
 export function getPlaybackIndexKey(): string {
+  const playingRef = queueItemRefAt();
+  if (playingRef?.serverId) {
+    const server = playbackServerFromRef(playingRef);
+    if (server) return serverIndexKeyForProfile(server) || server.id;
+    return playbackCacheKeyForRef(playingRef);
+  }
   const { queueServerId, queueItems } = usePlayerStore.getState();
   if ((queueItems?.length ?? 0) > 0 && queueServerId) {
     return resolveIndexKey(queueServerId);
   }
-  const activeId = useAuthStore.getState().activeServerId ?? '';
+  const activeId = activeServerProfileId() ?? '';
   if (!activeId) return '';
   const server = useAuthStore.getState().servers.find(s => s.id === activeId);
   return server ? serverIndexKeyFromUrl(server.url) || activeId : activeId;
@@ -48,13 +75,60 @@ export function getPlaybackCacheServerKey(): string {
 export function bindQueueServerForPlayback(): void {
   const sid = useAuthStore.getState().activeServerId;
   if (!sid) return;
-  const server = useAuthStore.getState().servers.find(s => s.id === sid);
-  // Canonical index key on writes so mixed-server queues stay unambiguous —
-  // every ref/queue-level server identifier follows the same shape that the
-  // library index already uses. Falls back to the raw id when the server
-  // profile cannot be resolved (e.g. tests with a stubbed auth store).
-  const canonical = server ? serverIndexKeyForProfile(server) || sid : sid;
+  bindQueueServerId(sid);
+}
+
+/** Pin queue playback to an explicit server profile or index key. */
+export function bindQueueServerId(serverId: string): void {
+  const server = findServerByIdOrIndexKey(serverId);
+  const canonical = server
+    ? serverIndexKeyForProfile(server) || server.id
+    : canonicalQueueServerKey(serverId) || serverId;
   usePlayerStore.setState({ queueServerId: canonical });
+}
+
+/**
+ * Pin the queue-level server anchor from incoming tracks.
+ * Per-item `QueueItemRef.serverId` remains authoritative for mixed-server queues;
+ * `queueServerId` is the first track's bucket (legacy hot-cache / sync hints).
+ */
+export function bindQueueServerForTracks(tracks: Track[]): void {
+  const scoped = stampTrackServerIds(tracks);
+  const sid = scoped[0]?.serverId ?? activeServerProfileId();
+  if (!sid) return;
+  bindQueueServerId(sid);
+}
+
+export function playbackCacheKeyForRef(ref: QueueItemRef | null | undefined): string {
+  if (ref?.serverId) {
+    return canonicalQueueServerKey(ref.serverId) || ref.serverId;
+  }
+  return getPlaybackCacheServerKey();
+}
+
+export function playbackProfileIdForRef(ref: QueueItemRef | null | undefined): string {
+  const key = playbackCacheKeyForRef(ref);
+  if (!key) return getPlaybackServerId();
+  return resolveServerIdForIndexKey(key) || key;
+}
+
+export function playbackCacheKeyForTrack(
+  track: Track,
+  ref?: QueueItemRef | null,
+): string {
+  if (ref?.serverId) return playbackCacheKeyForRef(ref);
+  if (track.serverId) {
+    return canonicalQueueServerKey(track.serverId) || track.serverId;
+  }
+  return getPlaybackCacheServerKey();
+}
+
+export function playbackProfileIdForTrack(
+  track: Track,
+  ref?: QueueItemRef | null,
+): string {
+  const key = playbackCacheKeyForTrack(track, ref);
+  return resolveServerIdForIndexKey(key) || key || getPlaybackServerId();
 }
 
 /**
@@ -71,9 +145,10 @@ export function bindQueueServerForPlayback(): void {
  * Idempotent: no-op when already pinned. Returns `''` when no active server is
  * available to pin (e.g. unit tests without an authed store).
  */
-export function ensureQueueServerPinned(): string {
+export function ensureQueueServerPinned(tracks?: Track[]): string {
   if (usePlayerStore.getState().queueServerId == null) {
-    bindQueueServerForPlayback();
+    if (tracks?.length) bindQueueServerForTracks(tracks);
+    else bindQueueServerForPlayback();
   }
   return usePlayerStore.getState().queueServerId ?? '';
 }
@@ -83,11 +158,20 @@ export function clearQueueServerForPlayback(): void {
 }
 
 export function playbackServerDiffersFromActive(): boolean {
+  const activeSid = activeServerProfileId();
+  if (!activeSid) return false;
+  const playingRef = queueItemRefAt();
+  if (playingRef?.serverId) {
+    const playbackSid = getPlaybackServerId();
+    return Boolean(playbackSid) && playbackSid !== activeSid;
+  }
   const { queueServerId, queueItems } = usePlayerStore.getState();
   if ((queueItems?.length ?? 0) === 0 || !queueServerId) return false;
-  const activeSid = useAuthStore.getState().activeServerId;
-  const resolvedQueue = resolveServerIdForIndexKey(queueServerId);
-  return !!activeSid && resolvedQueue !== activeSid;
+  return resolveServerIdForIndexKey(queueServerId) !== activeSid;
+}
+
+export function queueIsMultiServer(): boolean {
+  return isMultiServerQueue(usePlayerStore.getState().queueItems);
 }
 
 /**

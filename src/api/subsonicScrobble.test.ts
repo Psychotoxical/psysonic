@@ -11,6 +11,9 @@ vi.mock('./subsonicClient', () => ({
   api: vi.fn(),
   apiForServer: apiForServerMock,
 }));
+vi.mock('../utils/network/subsonicNetworkGuard', () => ({
+  shouldAttemptSubsonicForServer: () => true,
+}));
 
 describe('subsonicScrobble', () => {
   beforeEach(() => {

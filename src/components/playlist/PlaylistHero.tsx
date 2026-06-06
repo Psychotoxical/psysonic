@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import type { SubsonicPlaylist, SubsonicSong } from '../../api/subsonicTypes';
 import type { ZipDownload } from '../../store/zipDownloadStore';
+import type { AlbumOfflineStatus } from '../../hooks/useAlbumOfflineState';
+import { dequeueOfflinePin } from '../../utils/offline/offlinePinQueue';
 import { useThemeStore } from '../../store/themeStore';
 import { usePlaylistLayoutStore, type PlaylistLayoutItemId } from '../../store/playlistLayoutStore';
 import {
@@ -29,8 +31,7 @@ interface Props {
   searchOpen: boolean;
   csvImporting: boolean;
   activeZip: ZipDownload | undefined;
-  isCached: boolean;
-  isDownloading: boolean;
+  offlineStatus: AlbumOfflineStatus;
   offlineProgress: { done: number; total: number } | null;
   activeServerId: string;
   setEditingMeta: React.Dispatch<React.SetStateAction<boolean>>;
@@ -52,7 +53,7 @@ export default function PlaylistHero({
   playlist, songs, id,
   customCoverId, coverQuadIds,
   resolvedBgUrl, saving, searchOpen, csvImporting, activeZip,
-  isCached, isDownloading, offlineProgress, activeServerId,
+  offlineStatus, offlineProgress, activeServerId,
   setEditingMeta, setSearchOpen, setSearchQuery, setSearchResults,
   setSelectedSearchIds, setSearchPlPickerOpen,
   handlePlayAll, handleShuffleAll, handleEnqueueAll, handleImportCsv, handleDownload,
@@ -206,27 +207,39 @@ export default function PlaylistHero({
                   </button>
                 )
               )}
-              {isLayoutVisible('offlineCache') && songs.length > 0 && id && (
+              {isLayoutVisible('offlineCache') && songs.length > 0 && id
+                && (!isSmartPlaylistName(playlist.name) || offlineStatus !== 'none') && (
                 <button
-                  className={`btn btn-ghost${isCached ? ' btn-danger' : ''}`}
-                  disabled={isDownloading}
+                  className={`btn btn-ghost${offlineStatus === 'cached' ? ' btn-danger' : ''}${offlineStatus === 'queued' ? ' offline-cache-btn--queued' : ''}`}
+                  disabled={offlineStatus === 'downloading'}
                   onClick={() => {
-                    if (isCached) {
+                    if (offlineStatus === 'cached') {
                       deleteAlbum(id, activeServerId);
+                    } else if (offlineStatus === 'queued') {
+                      dequeueOfflinePin(id);
                     } else if (playlist) {
                       downloadPlaylist(id, playlist.name, playlist.coverArt, songs, activeServerId);
                     }
                   }}
-                  data-tooltip={isDownloading
+                  data-tooltip={offlineStatus === 'downloading'
                     ? t('albumDetail.offlineDownloading', { n: offlineProgress?.done ?? 0, total: offlineProgress?.total ?? 0 })
-                    : isCached ? t('playlists.removeOffline') : t('playlists.cacheOffline')}
+                    : offlineStatus === 'queued'
+                      ? t('albumDetail.removeFromOfflineQueue')
+                      : offlineStatus === 'cached'
+                        ? t('playlists.removeOffline')
+                        : t('playlists.cacheOffline')}
                 >
-                  {isDownloading ? (
+                  {offlineStatus === 'downloading' ? (
                     <>
                       <div className="spinner" style={{ width: 14, height: 14, borderTopColor: 'currentColor' }} />
                       {t('albumDetail.offlineDownloading', { n: offlineProgress?.done ?? 0, total: offlineProgress?.total ?? 0 })}
                     </>
-                  ) : isCached ? (
+                  ) : offlineStatus === 'queued' ? (
+                    <>
+                      <HardDriveDownload size={16} />
+                      {t('albumDetail.offlineQueued')}
+                    </>
+                  ) : offlineStatus === 'cached' ? (
                     <>
                       <Trash2 size={16} />
                       {t('playlists.removeOffline')}

@@ -473,6 +473,18 @@ export function libraryGetTrack(
     .then(track => (track ? { ...track, serverId } : track));
 }
 
+/** Seed library index rows from live Subsonic song payloads (pin/download cold miss). */
+export function libraryUpsertSongsFromApi(
+  serverId: string,
+  songs: unknown[],
+): Promise<number> {
+  const indexKey = serverIndexKeyForId(serverId);
+  return invoke<number>('library_upsert_songs_from_api', { serverId: indexKey, songs });
+}
+
+/** `library_get_tracks_batch` cap (spec §7.1). */
+export const LIBRARY_TRACKS_BATCH_LIMIT = 100;
+
 export function libraryGetTracksBatch(refs: TrackRefDto[]): Promise<LibraryTrackDto[]> {
   const indexKeyMap = new Map<string, string>();
   const remapped = refs.map(ref => {
@@ -485,6 +497,18 @@ export function libraryGetTracksBatch(refs: TrackRefDto[]): Promise<LibraryTrack
       ...track,
       serverId: mapServerIdFromIndexKey(track.serverId, indexKeyMap.get(track.serverId)),
     })));
+}
+
+/** Chunked batch fetch — safe when `refs.length` exceeds {@link LIBRARY_TRACKS_BATCH_LIMIT}. */
+export async function libraryGetTracksBatchChunked(refs: TrackRefDto[]): Promise<LibraryTrackDto[]> {
+  if (refs.length === 0) return [];
+  const out: LibraryTrackDto[] = [];
+  for (let i = 0; i < refs.length; i += LIBRARY_TRACKS_BATCH_LIMIT) {
+    const chunk = refs.slice(i, i + LIBRARY_TRACKS_BATCH_LIMIT);
+    const batch = await libraryGetTracksBatch(chunk).catch(() => []);
+    out.push(...batch);
+  }
+  return out;
 }
 
 export function libraryGetTracksByAlbum(

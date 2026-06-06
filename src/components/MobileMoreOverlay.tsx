@@ -7,7 +7,10 @@ import { useAuthStore } from '../store/authStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { ALL_NAV_ITEMS } from '../config/navItems';
 import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
+import { isOfflineSidebarLibraryNavAllowed } from '../utils/offline/favoritesOfflineBrowse';
 import { hasAnyOfflineAlbums } from '../utils/offline/offlineLibraryHelpers';
+import { useConnectionStatus } from '../hooks/useConnectionStatus';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
 
 const BOTTOM_NAV_ROUTES = new Set(['/', '/albums', '/now-playing']);
 
@@ -15,6 +18,12 @@ export default function MobileMoreOverlay({ onClose }: { onClose: () => void }) 
   const { t } = useTranslation();
   const sidebarItems = useSidebarStore(s => s.items);
   const randomNavMode = useAuthStore(s => s.randomNavMode);
+  const serverId = useAuthStore(s => s.activeServerId ?? '');
+  const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
+  const libraryIndexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
+  const favoritesOfflineBrowse = favoritesOfflineEnabled && libraryIndexEnabled;
+  const { status: connStatus } = useConnectionStatus();
+  const isServerOffline = connStatus === 'disconnected';
   const offlineAlbums = useOfflineStore(s => s.albums);
   const hasOfflineContent = hasAnyOfflineAlbums(offlineAlbums);
   const luckyMixBase = useLuckyMixAvailable();
@@ -29,6 +38,9 @@ export default function MobileMoreOverlay({ onClose }: { onClose: () => void }) 
       if (randomNavMode === 'hub' && (cfg.id === 'randomMix' || cfg.id === 'randomAlbums')) return false;
       if (randomNavMode === 'separate' && cfg.id === 'randomPicker') return false;
       if (cfg.id === 'luckyMix' && !luckyMixAvailable) return false;
+      if (isServerOffline && !isOfflineSidebarLibraryNavAllowed(cfg.id, favoritesOfflineBrowse)) {
+        return false;
+      }
       return true;
     })
     .map(cfg => ALL_NAV_ITEMS[cfg.id]);

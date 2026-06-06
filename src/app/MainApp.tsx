@@ -13,6 +13,12 @@ import { useAuthStore } from '../store/authStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useGlobalShortcutsStore } from '../store/globalShortcutsStore';
 import { initHotCachePrefetch } from '../hotCachePrefetch';
+import { initLocalPlaybackInvalidation } from '../localPlaybackInvalidation';
+import { initFavoritesOfflineSync } from '../utils/offline/favoritesOfflineSync';
+import { initPinnedOfflineSync } from '../utils/offline/pinnedOfflineSync';
+import { initResumeIncompleteOfflinePins, scheduleResumeIncompleteOfflinePins } from '../utils/offline/resumeIncompleteOfflinePins';
+import { runLegacyOfflineFileMigration } from '../utils/migrations/legacyOfflineFileMigration';
+import { reconcileLibraryTierForServer } from '../utils/offline/libraryTierReconcile';
 import { initMiniPlayerBridgeOnMain } from '../utils/miniPlayerBridge';
 import { runAdvancedModeMigration } from '../utils/migrations/advancedModeMigration';
 import { bootstrapAllIndexedServers } from '../utils/library/librarySession';
@@ -97,6 +103,28 @@ export default function MainApp() {
     if (!migrationReady) return undefined;
     return initHotCachePrefetch();
   }, [migrationReady]);
+
+  useEffect(() => {
+    if (!migrationReady) return undefined;
+    void (async () => {
+      await runLegacyOfflineFileMigration();
+      const servers = useAuthStore.getState().servers;
+      for (const server of servers) {
+        await reconcileLibraryTierForServer(server.id);
+      }
+      scheduleResumeIncompleteOfflinePins();
+    })();
+    const stopInvalidation = initLocalPlaybackInvalidation();
+    const stopFavoritesSync = initFavoritesOfflineSync();
+    const stopPinnedOfflineSync = initPinnedOfflineSync();
+    const stopOfflineResume = initResumeIncompleteOfflinePins();
+    return () => {
+      stopInvalidation();
+      stopFavoritesSync();
+      stopPinnedOfflineSync();
+      stopOfflineResume();
+    };
+  }, [migrationReady, serverIdsKey]);
 
   useEffect(() => {
     if (!migrationReady) return;

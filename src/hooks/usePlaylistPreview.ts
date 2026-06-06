@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { usePreviewStore } from '../store/previewStore';
+import { previewInputFromSong, usePreviewStore } from '../store/previewStore';
 import type { SubsonicSong } from '../api/subsonicTypes';
 
 export function usePlaylistPreview(): {
@@ -9,13 +9,7 @@ export function usePlaylistPreview(): {
   // handled in `audio_preview_play` / `audio_preview_stop`. The store mirrors
   // engine events so we just dispatch here and read `previewingId` for UI.
   const startPreview = useCallback((song: SubsonicSong) => {
-    usePreviewStore.getState().startPreview({
-      id: song.id,
-      title: song.title,
-      artist: song.artist,
-      coverArt: song.coverArt,
-      duration: song.duration,
-    }, 'suggestions').catch(() => { /* engine errored — store already rolled back */ });
+    usePreviewStore.getState().startPreview(previewInputFromSong(song), 'suggestions').catch(() => { /* engine errored — store already rolled back */ });
   }, []);
 
   // Cancel any in-flight preview when the user navigates away.

@@ -4,6 +4,8 @@ import { HardDriveDownload, HardDriveUpload, X } from 'lucide-react';
 interface Props {
   isCollapsed: boolean;
   activeJobsCount: number;
+  activePinName: string | null;
+  queuedPinCount: number;
   cancelAllDownloads: () => void;
   isSyncing: boolean;
   syncJobDone: number;
@@ -13,21 +15,32 @@ interface Props {
 }
 
 export default function SidebarActiveJobs({
-  isCollapsed, activeJobsCount, cancelAllDownloads,
+  isCollapsed, activeJobsCount, activePinName, queuedPinCount, cancelAllDownloads,
   isSyncing, syncJobDone, syncJobSkip, syncJobFail, syncJobTotal,
 }: Props) {
   const { t } = useTranslation();
+  const showPinQueue = !!activePinName || queuedPinCount > 0;
+  const offlineQueueLabel = showPinQueue
+    ? (queuedPinCount > 0
+      ? t('sidebar.offlinePinActiveQueued', { name: activePinName ?? '', queued: queuedPinCount })
+      : t('sidebar.offlinePinActive', { name: activePinName ?? '' }))
+    : t('sidebar.downloadingTracks', { n: activeJobsCount });
+  const syncLabel = t('sidebar.syncingTracks', {
+    done: syncJobDone + syncJobSkip + syncJobFail,
+    total: syncJobTotal,
+  });
+
   return (
     <>
-      {activeJobsCount > 0 && (
+      {(activeJobsCount > 0 || showPinQueue) && (
         <div
           className={`sidebar-offline-queue ${isCollapsed ? 'sidebar-offline-queue--collapsed' : ''}`}
-          data-tooltip={isCollapsed ? t('sidebar.downloadingTracks', { n: activeJobsCount }) : undefined}
+          data-tooltip={offlineQueueLabel}
           data-tooltip-pos="right"
         >
           <HardDriveDownload size={isCollapsed ? 18 : 14} className="spin-slow" />
           {!isCollapsed && (
-            <span>{t('sidebar.downloadingTracks', { n: activeJobsCount })}</span>
+            <span>{offlineQueueLabel}</span>
           )}
           <button
             className="sidebar-offline-cancel"
@@ -44,12 +57,12 @@ export default function SidebarActiveJobs({
       {isSyncing && (
         <div
           className={`sidebar-offline-queue sidebar-sync-queue ${isCollapsed ? 'sidebar-offline-queue--collapsed' : ''}`}
-          data-tooltip={isCollapsed ? t('sidebar.syncingTracks', { done: syncJobDone + syncJobSkip + syncJobFail, total: syncJobTotal }) : undefined}
+          data-tooltip={syncLabel}
           data-tooltip-pos="right"
         >
           <HardDriveUpload size={isCollapsed ? 18 : 14} className="spin-slow" />
           {!isCollapsed && (
-            <span>{t('sidebar.syncingTracks', { done: syncJobDone + syncJobSkip + syncJobFail, total: syncJobTotal })}</span>
+            <span>{syncLabel}</span>
           )}
         </div>
       )}

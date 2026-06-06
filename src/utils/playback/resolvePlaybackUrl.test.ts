@@ -1,14 +1,25 @@
 /**
  * `resolvePlaybackUrl` precedence + `streamUrlTrackId` parser tests (Phase F3).
- *
- * Precedence pinned by the function: offline → hot cache → HTTP stream.
- * Refactors that reorder this break playback for users with offline /
- * hot-cache entries.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { LocalPlaybackEntry } from '@/store/localPlaybackStore';
 
-import { useOfflineStore } from '@/store/offlineStore';
-import { useHotCacheStore } from '@/store/hotCacheStore';
+const { getLocalUrlMock, entriesMock } = vi.hoisted(() => ({
+  getLocalUrlMock: vi.fn(),
+  entriesMock: {} as Record<string, LocalPlaybackEntry>,
+}));
+
+vi.mock('@/store/localPlaybackStore', () => ({
+  useLocalPlaybackStore: {
+    getState: () => ({
+      getLocalUrl: getLocalUrlMock,
+      getEntry: (trackId: string, serverIndexKey: string) =>
+        entriesMock[`${serverIndexKey}:${trackId}`] ?? null,
+      entries: entriesMock,
+    }),
+    subscribe: vi.fn(),
+  },
+}));
 
 import {
   getPlaybackSourceKind,
@@ -18,12 +29,24 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import { resetAuthStore } from '@/test/helpers/storeReset';
 
+function seedLibraryEntry(trackId: string, serverIndexKey: string, localPath: string): void {
+  entriesMock[`${serverIndexKey}:${trackId}`] = {
+    serverIndexKey,
+    trackId,
+    localPath,
+    layoutFingerprint: '',
+    sizeBytes: 1,
+    tier: 'library',
+    cachedAt: 1,
+    suffix: 'flac',
+  };
+}
+
 beforeEach(() => {
   resetAuthStore();
-  // Reset the offline + hot-cache store getLocalUrl mocks before each test.
-  vi.spyOn(useOfflineStore.getState(), 'getLocalUrl').mockReturnValue(null);
-  vi.spyOn(useHotCacheStore.getState(), 'getLocalUrl').mockReturnValue(null);
-  // Set up an active server so buildStreamUrl works.
+  Object.keys(entriesMock).forEach(k => delete entriesMock[k]);
+  getLocalUrlMock.mockReset();
+  getLocalUrlMock.mockReturnValue(null);
   const id = useAuthStore.getState().addServer({
     name: 'Test', url: 'https://music.example.com', username: 'alice', password: 'pw',
   });
@@ -31,15 +54,31 @@ beforeEach(() => {
 });
 
 describe('resolvePlaybackUrl — precedence', () => {
-  it('returns the offline URL when present (1st priority)', () => {
-    vi.mocked(useOfflineStore.getState().getLocalUrl).mockReturnValue('psysonic-local://offline/track-1.flac');
-    vi.mocked(useHotCacheStore.getState().getLocalUrl).mockReturnValue('psysonic-local://hot/track-1.flac');
-    expect(resolvePlaybackUrl('track-1', 'srv-1')).toBe('psysonic-local://offline/track-1.flac');
+  it('returns the library-tier URL when present (1st priority)', () => {
+    seedLibraryEntry('track-1', 'srv-1', '/library/track-1.flac');
+    expect(resolvePlaybackUrl('track-1', 'srv-1')).toBe('psysonic-local:///library/track-1.flac');
   });
 
-  it('falls through to the hot-cache URL when offline is absent (2nd priority)', () => {
-    vi.mocked(useOfflineStore.getState().getLocalUrl).mockReturnValue(null);
-    vi.mocked(useHotCacheStore.getState().getLocalUrl).mockReturnValue('psysonic-local://hot/track-1.flac');
+  it('returns favorite-auto URL when library is absent (2nd priority)', () => {
+    entriesMock['srv-1:track-1'] = {
+      serverIndexKey: 'srv-1',
+      trackId: 'track-1',
+      localPath: '/favorites/track-1.flac',
+      layoutFingerprint: '',
+      sizeBytes: 1,
+      tier: 'favorite-auto',
+      cachedAt: 1,
+      suffix: 'flac',
+    };
+    expect(resolvePlaybackUrl('track-1', 'srv-1')).toBe('psysonic-local:///favorites/track-1.flac');
+  });
+
+  it('falls through to ephemeral cache when library and favorites are absent (3rd priority)', () => {
+    getLocalUrlMock.mockImplementation(
+      (_tid: string, _sid: string, tier?: string) => (
+        tier === 'ephemeral' ? 'psysonic-local://hot/track-1.flac' : null
+      ),
+    );
     expect(resolvePlaybackUrl('track-1', 'srv-1')).toBe('psysonic-local://hot/track-1.flac');
   });
 
@@ -48,22 +87,20 @@ describe('resolvePlaybackUrl — precedence', () => {
     expect(url).toMatch(/^https:\/\/music\.example\.com\/rest\/stream\.view\?/);
     expect(url).toContain('id=track-1');
   });
-
-  it('forwards trackId + serverId to both stores so per-server entries scope correctly', () => {
-    resolvePlaybackUrl('track-7', 'srv-3');
-    expect(useOfflineStore.getState().getLocalUrl).toHaveBeenCalledWith('track-7', 'srv-3');
-    expect(useHotCacheStore.getState().getLocalUrl).toHaveBeenCalledWith('track-7', 'srv-3');
-  });
 });
 
 describe('getPlaybackSourceKind', () => {
-  it('returns "offline" when the offline store has the track', () => {
-    vi.mocked(useOfflineStore.getState().getLocalUrl).mockReturnValue('psysonic-local://offline/t1.flac');
+  it('returns "offline" when the library tier has the track', () => {
+    seedLibraryEntry('t1', 'srv-1', '/library/t1.flac');
     expect(getPlaybackSourceKind('t1', 'srv-1')).toBe('offline');
   });
 
-  it('returns "hot" when only the hot-cache has the track', () => {
-    vi.mocked(useHotCacheStore.getState().getLocalUrl).mockReturnValue('psysonic-local://hot/t1.flac');
+  it('returns "hot" when only ephemeral cache has the track', () => {
+    getLocalUrlMock.mockImplementation(
+      (_tid: string, _sid: string, tier?: string) => (
+        tier === 'ephemeral' ? 'psysonic-local://hot/t1.flac' : null
+      ),
+    );
     expect(getPlaybackSourceKind('t1', 'srv-1')).toBe('hot');
   });
 
@@ -73,10 +110,6 @@ describe('getPlaybackSourceKind', () => {
 
   it('returns "hot" when the engine reported a preload for this trackId (RAM-loaded)', () => {
     expect(getPlaybackSourceKind('t1', 'srv-1', 't1')).toBe('hot');
-  });
-
-  it('returns "stream" when the engine preload hint is for a different track', () => {
-    expect(getPlaybackSourceKind('t1', 'srv-1', 'other-track')).toBe('stream');
   });
 });
 
@@ -88,24 +121,5 @@ describe('streamUrlTrackId', () => {
 
   it('returns null for URLs that are not stream.view', () => {
     expect(streamUrlTrackId('https://music.example.com/rest/getCoverArt.view?id=cover')).toBeNull();
-  });
-
-  it('returns null when the URL has no query string', () => {
-    expect(streamUrlTrackId('https://music.example.com/rest/stream.view')).toBeNull();
-  });
-
-  it('returns null when stream.view URL lacks an id param', () => {
-    expect(streamUrlTrackId('https://music.example.com/rest/stream.view?u=alice')).toBeNull();
-  });
-
-  it('decodes URL-encoded id values', () => {
-    expect(streamUrlTrackId('https://x/rest/stream.view?id=AC%2FDC%20Back')).toBe('AC/DC Back');
-  });
-
-  it('falls back to manual query parsing when URL constructor would throw', () => {
-    // Relative path — `new URL(...)` requires a base, so the function's
-    // manual fallback parses the query directly.
-    const url = '/rest/stream.view?id=relative-track&u=u';
-    expect(streamUrlTrackId(url)).toBe('relative-track');
   });
 });

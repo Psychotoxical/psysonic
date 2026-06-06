@@ -1,96 +1,534 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { Play, HardDriveDownload, Trash2, ListPlus } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { invoke } from '@tauri-apps/api/core';
+import { Play, HardDriveDownload, Trash2, ListPlus, ListMusic, Heart } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useOfflineStore, type OfflineAlbumMeta } from '../store/offlineStore';
+import { useOfflineStore } from '../store/offlineStore';
+import { useLocalPlaybackStore } from '../store/localPlaybackStore';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
-import { CoverArtImage } from '../cover/CoverArtImage';
 import { AlbumCoverArtImage } from '../cover/AlbumCoverArtImage';
+import { coverServerScopeForServerId } from '../cover/serverScope';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
-import { albumGridWarmCovers } from '../cover/layoutSizes';
+import { GRID_COVER_WARM_LIMIT } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
+import { OfflineLibraryDiskStat } from '../components/OfflineLibraryDiskStat';
 import {
-  buildOfflineTracksForAlbum,
-  ensureServerForOfflineAlbum,
+  buildOfflineCacheQueueTracks,
+  buildOfflineFavoritesQueueTracks,
+  buildTracksForOfflineCard,
+  collectEphemeralCacheCoverQuad,
+  collectFavoriteAutoCoverQuad,
+  countEphemeralCacheTracks,
+  countFavoriteAutoTracks,
+  ensureServerForOfflineCard,
+  ensureServerForOfflineIndexKey,
+  ephemeralCacheCoverScope,
+  offlineQueueServerKeyForCard,
+  hydrateOfflineLibraryCards,
   offlineAlbumCoverScope,
+  offlineLibraryCardKey,
   offlineTrackCount,
+  type OfflineCoverQuadCell,
+  type OfflineLibraryCard,
 } from '../utils/offline/offlineLibraryHelpers';
+import { showToast } from '../utils/ui/toast';
+import { shuffleArray } from '../utils/playback/shuffleArray';
+import { getMediaDir } from '../utils/media/mediaDir';
+import { canonicalQueueServerKey, resolveIndexKey } from '../utils/server/serverIndexKey';
+import { reconcileAllLibraryTiersFromDisk } from '../utils/offline/libraryTierReconcile';
+import {
+  inferPinSourcesFromLibraryIndex,
+  restoreOfflineLibraryPinSources,
+} from '../utils/migrations/legacyOfflineFileMigration';
 
 const OFFLINE_CARD_COVER_CSS_PX = 300;
-import { showToast } from '../utils/ui/toast';
+const OFFLINE_CACHE_GRID_KEY = '__offline_cache__';
+const OFFLINE_FAVORITES_GRID_KEY = '__offline_favorites__';
+
+type OfflineDiskBytes = { library: number | null; favorites: number | null };
 
 type FilterType = 'all' | 'album' | 'playlist' | 'artist';
 
+type OfflineGridItem =
+  | { kind: 'cache' }
+  | { kind: 'favorites' }
+  | { kind: 'card'; card: OfflineLibraryCard };
+
 export default function OfflineLibrary() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const perfFlags = usePerfProbeFlags();
   const servers = useAuthStore(s => s.servers);
+  const mediaDir = useAuthStore(s => s.mediaDir || null);
+  const hotCacheEnabled = useAuthStore(s => s.hotCacheEnabled);
+  const localPlaybackEntries = useLocalPlaybackStore(s => s.entries);
+  const [cacheCoverQuad, setCacheCoverQuad] = useState<(string | null)[]>([
+    null, null, null, null,
+  ]);
+  const [favoritesCoverQuad, setFavoritesCoverQuad] = useState<OfflineCoverQuadCell[]>([
+    null, null, null, null,
+  ]);
+  const pinRefreshKey = useLocalPlaybackStore(s => {
+    const groups = s.listPinnedGroups();
+    return groups
+      .map(g => `${g.serverIndexKey}\0${g.pinSource.kind}\0${g.pinSource.sourceId}\0${g.trackIds.join(',')}`)
+      .sort()
+      .join('\n');
+  });
+  const deleteAlbum = useOfflineStore(s => s.deleteAlbum);
+  const playTrack = usePlayerStore(s => s.playTrack);
+  const enqueue = usePlayerStore(s => s.enqueue);
+  const [filter, setFilter] = useState<FilterType>('all');
+  const [cards, setCards] = useState<OfflineLibraryCard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [offlineDiskBytes, setOfflineDiskBytes] = useState<OfflineDiskBytes>({
+    library: null,
+    favorites: null,
+  });
+  const hasLoadedOnceRef = useRef(false);
+  const cardsRefreshGenerationRef = useRef(0);
+
+  const favoritesTrackCount = useMemo(
+    () => countFavoriteAutoTracks(),
+    [localPlaybackEntries],
+  );
+
+  const refreshOfflineDiskSizes = useCallback(async () => {
+    const mediaDir = getMediaDir();
+    const [library, favorites] = await Promise.all([
+      invoke<number>('get_media_tier_size', { tier: 'library', mediaDir }).catch(() => 0),
+      invoke<number>('get_media_tier_size', { tier: 'favorites', mediaDir }).catch(() => 0),
+    ]);
+    setOfflineDiskBytes({ library, favorites });
+  }, []);
+
+  const totalOfflineDiskBytes = useMemo(() => {
+    if (offlineDiskBytes.library === null || offlineDiskBytes.favorites === null) return null;
+    return offlineDiskBytes.library + offlineDiskBytes.favorites;
+  }, [offlineDiskBytes]);
+
   const serverNames = useMemo(
     () => Object.fromEntries(servers.map(s => [s.id, s.name])),
     [servers],
   );
   const showServerLabels = servers.length > 1;
-  const offlineAlbums = useOfflineStore(s => s.albums);
-  const offlineTracks = useOfflineStore(s => s.tracks);
-  const deleteAlbum = useOfflineStore(s => s.deleteAlbum);
-  const playTrack = usePlayerStore(s => s.playTrack);
-  const enqueue = usePlayerStore(s => s.enqueue);
-  const [filter, setFilter] = useState<FilterType>('all');
 
-  const albums = useMemo(
-    () => Object.values(offlineAlbums).sort((a, b) => a.name.localeCompare(b.name)),
-    [offlineAlbums],
-  );
+  const refreshCardsFromDisk = useCallback(async (): Promise<OfflineLibraryCard[]> => {
+    await Promise.all([reconcileAllLibraryTiersFromDisk(), refreshOfflineDiskSizes()]);
+    restoreOfflineLibraryPinSources();
+    await inferPinSourcesFromLibraryIndex();
+    const groups = useLocalPlaybackStore.getState().listPinnedGroups();
+    const hydrated = await hydrateOfflineLibraryCards(groups);
+    return hydrated.filter(card => offlineTrackCount(card) > 0);
+  }, [refreshOfflineDiskSizes]);
+
+  useEffect(() => {
+    const generation = ++cardsRefreshGenerationRef.current;
+    let cancelled = false;
+    if (!hasLoadedOnceRef.current) {
+      setLoading(true);
+    }
+    void refreshCardsFromDisk().then(hydrated => {
+      if (cancelled || generation !== cardsRefreshGenerationRef.current) return;
+      setCards(hydrated);
+      setLoading(false);
+      hasLoadedOnceRef.current = true;
+    }).catch(() => {
+      if (cancelled || generation !== cardsRefreshGenerationRef.current) return;
+      setLoading(false);
+      hasLoadedOnceRef.current = true;
+    });
+    return () => { cancelled = true; };
+  }, [pinRefreshKey, mediaDir, favoritesTrackCount, refreshCardsFromDisk]);
+
+  const handleDeleteCard = useCallback((card: OfflineLibraryCard) => {
+    cardsRefreshGenerationRef.current += 1;
+    const key = offlineLibraryCardKey(card);
+    setCards(prev => prev.filter(c => offlineLibraryCardKey(c) !== key));
+    void deleteAlbum(card.pinSource.sourceId, card.serverIndexKey).then(() => {
+      void refreshOfflineDiskSizes();
+    });
+  }, [deleteAlbum, refreshOfflineDiskSizes]);
+
+  useEffect(() => {
+    void refreshOfflineDiskSizes();
+  }, [favoritesTrackCount, mediaDir, refreshOfflineDiskSizes]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void refreshCardsFromDisk().then(hydrated => setCards(hydrated)).catch(() => {});
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', refresh);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [refreshCardsFromDisk]);
 
   const countByType = (type: FilterType) => {
-    if (type === 'all') return albums.length;
-    return albums.filter(a => (a.type ?? 'album') === type).length;
+    if (type === 'all') return cards.length;
+    return cards.filter(c => (c.pinSource.kind ?? 'album') === type).length;
   };
 
   const filtered = filter === 'all'
-    ? albums
-    : albums.filter(a => (a.type ?? 'album') === filter);
+    ? cards
+    : cards.filter(c => (c.pinSource.kind ?? 'album') === filter);
 
-  const runWithAlbumServer = useCallback(async (
-    album: OfflineAlbumMeta,
-    action: () => void,
+  const cacheQueueTrackCount = useMemo(
+    () => countEphemeralCacheTracks(),
+    [localPlaybackEntries],
+  );
+
+  const showCacheQueueCard = hotCacheEnabled && cacheQueueTrackCount > 0;
+  const showFavoritesCard = favoritesTrackCount > 0;
+
+  const cacheCoverScope = useMemo(
+    () => ephemeralCacheCoverScope(),
+    [localPlaybackEntries],
+  );
+
+  useEffect(() => {
+    if (!showCacheQueueCard) {
+      setCacheCoverQuad([null, null, null, null]);
+      return;
+    }
+    let cancelled = false;
+    void collectEphemeralCacheCoverQuad().then(quad => {
+      if (!cancelled) setCacheCoverQuad(quad);
+    });
+    return () => { cancelled = true; };
+  }, [showCacheQueueCard, localPlaybackEntries]);
+
+  useEffect(() => {
+    if (!showFavoritesCard) {
+      setFavoritesCoverQuad([null, null, null, null]);
+      return;
+    }
+    let cancelled = false;
+    void collectFavoriteAutoCoverQuad().then(quad => {
+      if (!cancelled) setFavoritesCoverQuad(quad);
+    });
+    return () => { cancelled = true; };
+  }, [showFavoritesCard, localPlaybackEntries]);
+
+  const systemGridItems = useMemo((): OfflineGridItem[] => {
+    const out: OfflineGridItem[] = [];
+    if (showCacheQueueCard) out.push({ kind: 'cache' });
+    if (showFavoritesCard) out.push({ kind: 'favorites' });
+    return out;
+  }, [showCacheQueueCard, showFavoritesCard]);
+
+  const gridItems = useMemo((): OfflineGridItem[] => {
+    return [...systemGridItems, ...filtered.map(card => ({ kind: 'card' as const, card }))];
+  }, [filtered, systemGridItems]);
+
+  const runWithCardServer = useCallback(async (
+    card: OfflineLibraryCard,
+    action: () => void | Promise<void>,
   ) => {
-    const ok = await ensureServerForOfflineAlbum(album);
+    const ok = await ensureServerForOfflineCard(card);
     if (!ok) {
       showToast(t('connection.switchFailed'), 4500, 'error');
       return;
     }
-    action();
+    await action();
   }, [t]);
 
-  const handlePlay = (album: OfflineAlbumMeta) => {
-    void runWithAlbumServer(album, () => {
-      const tracks = buildOfflineTracksForAlbum(album, offlineTracks);
-      if (tracks[0]) playTrack(tracks[0], tracks);
+  const handlePlay = (card: OfflineLibraryCard) => {
+    void runWithCardServer(card, async () => {
+      usePlayerStore.setState({ queueServerId: offlineQueueServerKeyForCard(card) });
+      const tracks = await buildTracksForOfflineCard(card);
+      if (!tracks[0]) {
+        showToast(t('connection.offlinePlaybackUnavailable'), 4500, 'error');
+        return;
+      }
+      playTrack(tracks[0], tracks);
     });
   };
 
-  const handleEnqueue = (album: OfflineAlbumMeta) => {
-    void runWithAlbumServer(album, () => {
-      enqueue(buildOfflineTracksForAlbum(album, offlineTracks));
+  const handlePlayOfflineCache = useCallback(async () => {
+    const { tracks, queueServerIndexKey } = await buildOfflineCacheQueueTracks();
+    if (!tracks.length) {
+      showToast(t('connection.offlinePlaybackUnavailable'), 4500, 'error');
+      return;
+    }
+    if (queueServerIndexKey) {
+      const ok = await ensureServerForOfflineIndexKey(queueServerIndexKey);
+      if (!ok) {
+        showToast(t('connection.switchFailed'), 4500, 'error');
+        return;
+      }
+      usePlayerStore.setState({
+        queueServerId: canonicalQueueServerKey(queueServerIndexKey),
+      });
+    }
+    const queue = shuffleArray(tracks);
+    playTrack(queue[0], queue);
+  }, [playTrack, t]);
+
+  const handlePlayOfflineFavorites = useCallback(async () => {
+    const { tracks, queueServerIndexKey } = await buildOfflineFavoritesQueueTracks();
+    if (!tracks.length) {
+      showToast(t('connection.offlinePlaybackUnavailable'), 4500, 'error');
+      return;
+    }
+    if (queueServerIndexKey) {
+      const ok = await ensureServerForOfflineIndexKey(queueServerIndexKey);
+      if (!ok) {
+        showToast(t('connection.switchFailed'), 4500, 'error');
+        return;
+      }
+      usePlayerStore.setState({
+        queueServerId: canonicalQueueServerKey(queueServerIndexKey),
+      });
+    }
+    const queue = shuffleArray(tracks);
+    playTrack(queue[0], queue);
+  }, [playTrack, t]);
+
+  const handleEnqueueFavorites = useCallback(async () => {
+    const { tracks, queueServerIndexKey } = await buildOfflineFavoritesQueueTracks();
+    if (!tracks.length) {
+      showToast(t('connection.offlinePlaybackUnavailable'), 4500, 'error');
+      return;
+    }
+    if (queueServerIndexKey) {
+      const ok = await ensureServerForOfflineIndexKey(queueServerIndexKey);
+      if (!ok) {
+        showToast(t('connection.switchFailed'), 4500, 'error');
+        return;
+      }
+      usePlayerStore.setState({
+        queueServerId: canonicalQueueServerKey(queueServerIndexKey),
+      });
+    }
+    enqueue(tracks);
+  }, [enqueue, t]);
+
+  const handleEnqueueCache = useCallback(async () => {
+    const { tracks, queueServerIndexKey } = await buildOfflineCacheQueueTracks();
+    if (!tracks.length) {
+      showToast(t('connection.offlinePlaybackUnavailable'), 4500, 'error');
+      return;
+    }
+    if (queueServerIndexKey) {
+      const ok = await ensureServerForOfflineIndexKey(queueServerIndexKey);
+      if (!ok) {
+        showToast(t('connection.switchFailed'), 4500, 'error');
+        return;
+      }
+      usePlayerStore.setState({
+        queueServerId: canonicalQueueServerKey(queueServerIndexKey),
+      });
+    }
+    enqueue(tracks);
+  }, [enqueue, t]);
+
+  const handleEnqueue = (card: OfflineLibraryCard) => {
+    void runWithCardServer(card, async () => {
+      usePlayerStore.setState({ queueServerId: offlineQueueServerKeyForCard(card) });
+      const tracks = await buildTracksForOfflineCard(card);
+      if (tracks.length === 0) {
+        showToast(t('connection.offlinePlaybackUnavailable'), 4500, 'error');
+        return;
+      }
+      enqueue(tracks);
     });
   };
 
-  const renderCard = (album: OfflineAlbumMeta) => {
-    const coverScope = offlineAlbumCoverScope(album);
-    const trackCount = offlineTrackCount(album, offlineTracks);
-    const serverLabel = serverNames[album.serverId];
+  const renderFavoritesCard = () => {
+    const showQuad = favoritesCoverQuad.some(Boolean);
+    return (
+      <div
+        className="album-card card offline-library-card offline-library-favorites-card"
+        onClick={() => navigate('/favorites')}
+      >
+        <div className="album-card-cover">
+          {showQuad ? (
+            <div className="playlist-cover-grid">
+              {favoritesCoverQuad.map((cell, i) => (
+                cell ? (
+                  <AlbumCoverArtImage
+                    key={`${cell.serverId}:${cell.coverArtId}-${i}`}
+                    albumId={cell.coverArtId}
+                    coverArt={cell.coverArtId}
+                    serverScope={coverServerScopeForServerId(cell.serverId)}
+                    libraryResolve
+                    displayCssPx={OFFLINE_CARD_COVER_CSS_PX / 2}
+                    surface="dense"
+                    className="playlist-cover-cell"
+                    alt=""
+                    loading="lazy"
+                  />
+                ) : (
+                  <div key={i} className="playlist-cover-cell playlist-cover-cell--empty" />
+                )
+              ))}
+            </div>
+          ) : (
+            <div className="album-card-cover-placeholder playlist-card-icon">
+              <Heart size={48} strokeWidth={1.2} />
+            </div>
+          )}
+          <div className="album-card-play-overlay">
+            <button
+              className="album-card-details-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                void handlePlayOfflineFavorites();
+              }}
+              aria-label={t('connection.offlineFavoritesQueuePlayAria')}
+            >
+              <Play size={15} fill="currentColor" />
+            </button>
+          </div>
+        </div>
+        <div className="album-card-info">
+          <p className="album-card-title truncate">{t('connection.offlineFavoritesQueueTitle')}</p>
+          <p className="album-card-artist truncate">{'\u00A0'}</p>
+          <p className="album-card-year offline-library-card-year">{'\u00A0'}</p>
+          <div className="offline-library-card-meta">
+            <button
+              className="offline-library-enqueue"
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleEnqueueFavorites();
+              }}
+              data-tooltip={t('queue.appendToQueue')}
+              data-tooltip-pos="top"
+              aria-label={t('queue.appendToQueue')}
+            >
+              <ListPlus size={12} />
+            </button>
+            <span className="offline-library-tracks">
+              {t('albumDetail.tracksCount', { n: favoritesTrackCount })}
+            </span>
+            <span className="offline-library-delete offline-library-delete--spacer" aria-hidden />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderCacheQueueCard = () => {
+    const showQuad = cacheCoverQuad.some(Boolean) && cacheCoverScope;
+    return (
+      <div className="album-card card offline-library-card offline-library-cache-card">
+        <div className="album-card-cover">
+          {showQuad ? (
+            <div className="playlist-cover-grid">
+              {cacheCoverQuad.map((coverId, i) => (
+                coverId ? (
+                  <AlbumCoverArtImage
+                    key={`${coverId}-${i}`}
+                    albumId={coverId}
+                    coverArt={coverId}
+                    serverScope={cacheCoverScope!}
+                    libraryResolve
+                    displayCssPx={OFFLINE_CARD_COVER_CSS_PX / 2}
+                    surface="dense"
+                    className="playlist-cover-cell"
+                    alt=""
+                    loading="lazy"
+                  />
+                ) : (
+                  <div key={i} className="playlist-cover-cell playlist-cover-cell--empty" />
+                )
+              ))}
+            </div>
+          ) : (
+            <div className="album-card-cover-placeholder playlist-card-icon">
+              <ListMusic size={48} strokeWidth={1.2} />
+            </div>
+          )}
+          <div className="album-card-play-overlay">
+            <button
+              className="album-card-details-btn"
+              onClick={() => void handlePlayOfflineCache()}
+              aria-label={t('connection.offlineCacheQueuePlayAria')}
+            >
+              <Play size={15} fill="currentColor" />
+            </button>
+          </div>
+        </div>
+        <div className="album-card-info">
+          <p className="album-card-title truncate">{t('connection.offlineCacheQueueTitle')}</p>
+          <p className="album-card-artist truncate">{'\u00A0'}</p>
+          <p className="album-card-year offline-library-card-year">{'\u00A0'}</p>
+          <div className="offline-library-card-meta">
+            <button
+              className="offline-library-enqueue"
+              onClick={() => void handleEnqueueCache()}
+              data-tooltip={t('queue.appendToQueue')}
+              data-tooltip-pos="top"
+              aria-label={t('queue.appendToQueue')}
+            >
+              <ListPlus size={12} />
+            </button>
+            <span className="offline-library-tracks">
+              {t('albumDetail.tracksCount', { n: cacheQueueTrackCount })}
+            </span>
+            <span className="offline-library-delete offline-library-delete--spacer" aria-hidden />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderGridItem = (item: OfflineGridItem) => {
+    if (item.kind === 'cache') return renderCacheQueueCard();
+    if (item.kind === 'favorites') return renderFavoritesCard();
+    return renderCard(item.card);
+  };
+
+  const renderCard = (card: OfflineLibraryCard) => {
+    const coverScope = offlineAlbumCoverScope(card);
+    const trackCount = offlineTrackCount(card);
+    const serverLabel = serverNames[resolveIndexKey(card.serverIndexKey)] ?? serverNames[card.serverIndexKey];
+    const albumId = card.coverArt
+      ?? (card.pinSource.kind === 'album'
+        ? card.pinSource.sourceId
+        : card.pinSource.sourceId);
+    const quadCovers = card.pinSource.kind === 'playlist' ? card.coverQuadIds : undefined;
+    const showQuad = !!quadCovers?.some(Boolean) && coverScope;
     return (
       <div className="album-card card offline-library-card">
         <div className="album-card-cover">
-          {coverScope ? (
+          {showQuad ? (
+            <div className="playlist-cover-grid">
+              {quadCovers!.map((coverId, i) => (
+                coverId ? (
+                  <AlbumCoverArtImage
+                    key={`${coverId}-${i}`}
+                    albumId={coverId}
+                    coverArt={coverId}
+                    serverScope={coverScope!}
+                    libraryResolve
+                    displayCssPx={OFFLINE_CARD_COVER_CSS_PX / 2}
+                    surface="dense"
+                    className="playlist-cover-cell"
+                    alt=""
+                    loading="lazy"
+                  />
+                ) : (
+                  <div key={i} className="playlist-cover-cell playlist-cover-cell--empty" />
+                )
+              ))}
+            </div>
+          ) : coverScope && card.coverArt ? (
             <AlbumCoverArtImage
-              albumId={album.id}
-              coverArt={album.coverArt}
+              albumId={albumId}
+              coverArt={card.coverArt}
               serverScope={coverScope}
+              libraryResolve
               displayCssPx={OFFLINE_CARD_COVER_CSS_PX}
               surface="dense"
-              alt={`${album.name} Cover`}
+              alt={`${card.name} Cover`}
               loading="lazy"
             />
           ) : (
@@ -101,26 +539,30 @@ export default function OfflineLibrary() {
           <div className="album-card-play-overlay">
             <button
               className="album-card-details-btn"
-              onClick={() => handlePlay(album)}
-              aria-label={`${album.name} abspielen`}
+              onClick={() => handlePlay(card)}
+              aria-label={`${card.name} abspielen`}
             >
               <Play size={15} fill="currentColor" />
             </button>
           </div>
         </div>
         <div className="album-card-info">
-          <p className="album-card-title truncate">{album.name}</p>
-          <p className="album-card-artist truncate">{album.artist}</p>
+          <p className="album-card-title truncate">{card.name}</p>
+          {card.artist ? (
+            <p className="album-card-artist truncate">{card.artist}</p>
+          ) : null}
           {showServerLabels && serverLabel && (
             <p className="offline-library-server truncate" title={serverLabel}>
               {t('connection.offlineCachedOnServer', { server: serverLabel })}
             </p>
           )}
-          {album.year && <p className="album-card-year">{album.year}</p>}
+          <p className="album-card-year offline-library-card-year">
+            {card.year ?? '\u00A0'}
+          </p>
           <div className="offline-library-card-meta">
             <button
               className="offline-library-enqueue"
-              onClick={() => handleEnqueue(album)}
+              onClick={() => handleEnqueue(card)}
               data-tooltip={t('queue.appendToQueue')}
               data-tooltip-pos="top"
               aria-label={t('queue.appendToQueue')}
@@ -132,7 +574,10 @@ export default function OfflineLibrary() {
             </span>
             <button
               className="offline-library-delete"
-              onClick={() => deleteAlbum(album.id, album.serverId)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteCard(card);
+              }}
               data-tooltip={t('albumDetail.removeOffline')}
               data-tooltip-pos="top"
             >
@@ -144,47 +589,71 @@ export default function OfflineLibrary() {
     );
   };
 
+  const renderOfflineGrid = (items: OfflineGridItem[], layoutSignal: number) => (
+    <VirtualCardGrid
+      items={items}
+      itemKey={(item, _i) => {
+        if (item.kind === 'cache') return OFFLINE_CACHE_GRID_KEY;
+        if (item.kind === 'favorites') return OFFLINE_FAVORITES_GRID_KEY;
+        return offlineLibraryCardKey(item.card);
+      }}
+      rowVariant="offline"
+      disableVirtualization={perfFlags.disableMainstageVirtualLists}
+      layoutSignal={layoutSignal}
+      warmGridCovers={{
+        pickCoverArtId: (item: OfflineGridItem) =>
+          item.kind === 'card' ? item.card.coverArt : undefined,
+        displayCssPx: OFFLINE_CARD_COVER_CSS_PX,
+        limit: GRID_COVER_WARM_LIMIT,
+      }}
+      renderItem={renderGridItem}
+    />
+  );
+
   const renderArtistGroups = () => {
-    const groups: Record<string, OfflineAlbumMeta[]> = {};
-    for (const album of filtered) {
-      const key = album.artist || '—';
+    const groups: Record<string, OfflineLibraryCard[]> = {};
+    for (const card of filtered) {
+      const key = card.artist || '—';
       if (!groups[key]) groups[key] = [];
-      groups[key].push(album);
+      groups[key].push(card);
     }
     const sortedArtists = Object.keys(groups).sort((a, b) => a.localeCompare(b));
     return sortedArtists.map(artistName => (
       <div key={artistName} className="offline-artist-group">
         <h2 className="offline-artist-group-heading">{artistName}</h2>
-        <VirtualCardGrid
-          items={groups[artistName]}
-          itemKey={(a, _i) => `${a.serverId}:${a.id}`}
-          rowVariant="album"
-          disableVirtualization={perfFlags.disableMainstageVirtualLists}
-          layoutSignal={groups[artistName].length}
-          warmGridCovers={albumGridWarmCovers(OFFLINE_CARD_COVER_CSS_PX)}
-          renderItem={renderCard}
-        />
+        {renderOfflineGrid(
+          groups[artistName].map(card => ({ kind: 'card', card })),
+          groups[artistName].length,
+        )}
       </div>
     ));
   };
 
   const TABS: { id: FilterType; labelKey: string }[] = [
-    { id: 'all',      labelKey: 'connection.offlineFilterAll' },
-    { id: 'album',    labelKey: 'connection.offlineFilterAlbums' },
+    { id: 'all', labelKey: 'connection.offlineFilterAll' },
+    { id: 'album', labelKey: 'connection.offlineFilterAlbums' },
     { id: 'playlist', labelKey: 'connection.offlineFilterPlaylists' },
-    { id: 'artist',   labelKey: 'connection.offlineFilterArtists' },
+    { id: 'artist', labelKey: 'connection.offlineFilterArtists' },
   ];
 
   return (
     <div className="offline-library animate-fade-in">
       <div className="offline-library-header">
-        <HardDriveDownload size={24} />
-        <div>
-          <h1 className="offline-library-title">{t('connection.offlineLibraryTitle')}</h1>
-          <p className="offline-library-count">
-            {t('connection.offlineAlbumCount', { n: albums.length, count: albums.length })}
-          </p>
+        <div className="offline-library-header-main">
+          <HardDriveDownload size={24} className="offline-library-header-icon" />
+          <div>
+            <h1 className="offline-library-title">{t('connection.offlineLibraryTitle')}</h1>
+            <p className="offline-library-count">
+              {t('connection.offlineAlbumCount', { n: cards.length, count: cards.length })}
+            </p>
+          </div>
         </div>
+        <OfflineLibraryDiskStat
+          label={t('connection.offlineLibraryDiskLabel')}
+          totalBytes={totalOfflineDiskBytes}
+          libraryBytes={offlineDiskBytes.library}
+          favoritesBytes={offlineDiskBytes.favorites}
+        />
       </div>
 
       <div className="offline-filter-tabs">
@@ -204,20 +673,17 @@ export default function OfflineLibrary() {
         })}
       </div>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="empty-state">{t('common.loading', { defaultValue: 'Loading…' })}</div>
+      ) : gridItems.length === 0 ? (
         <div className="empty-state">{t('connection.offlineLibraryEmpty')}</div>
       ) : filter === 'artist' ? (
-        renderArtistGroups()
+        <>
+          {systemGridItems.length > 0 && renderOfflineGrid(systemGridItems, systemGridItems.length)}
+          {filtered.length > 0 ? renderArtistGroups() : null}
+        </>
       ) : (
-        <VirtualCardGrid
-          items={filtered}
-          itemKey={(a, _i) => `${a.serverId}:${a.id}`}
-          rowVariant="album"
-          disableVirtualization={perfFlags.disableMainstageVirtualLists}
-          layoutSignal={filtered.length}
-          warmGridCovers={albumGridWarmCovers(OFFLINE_CARD_COVER_CSS_PX)}
-          renderItem={renderCard}
-        />
+        renderOfflineGrid(gridItems, gridItems.length)
       )}
     </div>
   );

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getAlbumList } from '../api/subsonicLibrary';
+import { isActiveServerReachable } from '../utils/network/activeServerReachability';
 import {
   NEW_RELEASES_RESET_DELAY_MS,
   NEW_RELEASES_SEEN_MAX_IDS,
@@ -62,7 +63,7 @@ export function useSidebarNewReleasesUnread({ serverId, filterId, isLoggedIn, pa
     const seq = ++newReleasesRefreshSeqRef.current;
     const isCurrent = () => seq === newReleasesRefreshSeqRef.current;
 
-    if (!isLoggedIn || !serverId) {
+    if (!isLoggedIn || !serverId || !isActiveServerReachable()) {
       if (isCurrent()) setNewReleasesUnreadCount(0);
       return;
     }

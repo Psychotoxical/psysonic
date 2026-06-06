@@ -3,10 +3,12 @@ name = "psysonic-syncfs"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish = false
 
 [dependencies]
 psysonic-core = { path = "../psysonic-core" }
+psysonic-library = { path = "../psysonic-library" }
 psysonic-analysis = { path = "../psysonic-analysis" }
 psysonic-audio = { path = "../psysonic-audio" }
 

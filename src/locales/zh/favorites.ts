@@ -16,4 +16,9 @@ export const favorites = {
   topArtists: '按收藏数排行的艺术家',
   topArtistsSongCount_one: '{{count}} 首歌曲',
   topArtistsSongCount_other: '{{count}} 首歌曲',
+  offlineTooltip: '保存收藏以便离线播放',
+  offlineJobName: '收藏',
+  offlineSemaphoreSyncing: '正在同步收藏… {{saved}} / {{total}}',
+  offlineSemaphoreSynced: '所有收藏已保存，可离线播放',
+  offlineSemaphoreError: '同步出错，部分曲目未能保存',
 };

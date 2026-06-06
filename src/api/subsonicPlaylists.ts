@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from '../store/authStore';
-import { api } from './subsonicClient';
+import { shouldAttemptSubsonicForServer } from '../utils/network/subsonicNetworkGuard';
+import { api, apiForServer } from './subsonicClient';
 import type { SubsonicPlaylist, SubsonicSong } from './subsonicTypes';
 
 export async function getPlaylists(includeOrbit = false): Promise<SubsonicPlaylist[]> {
@@ -15,6 +16,22 @@ export async function getPlaylists(includeOrbit = false): Promise<SubsonicPlayli
 
 export async function getPlaylist(id: string): Promise<{ playlist: SubsonicPlaylist; songs: SubsonicSong[] }> {
   const data = await api<{ playlist: SubsonicPlaylist & { entry: SubsonicSong[] } }>('getPlaylist.view', { id });
+  const { entry, ...playlist } = data.playlist;
+  return { playlist, songs: entry ?? [] };
+}
+
+export async function getPlaylistForServer(
+  serverId: string,
+  id: string,
+): Promise<{ playlist: SubsonicPlaylist; songs: SubsonicSong[] }> {
+  if (!shouldAttemptSubsonicForServer(serverId)) {
+    throw new Error('Subsonic unavailable');
+  }
+  const data = await apiForServer<{ playlist: SubsonicPlaylist & { entry: SubsonicSong[] } }>(
+    serverId,
+    'getPlaylist.view',
+    { id },
+  );
   const { entry, ...playlist } = data.playlist;
   return { playlist, songs: entry ?? [] };
 }
@@ -40,6 +57,9 @@ export async function updatePlaylist(id: string, songIds: string[], prevCount = 
       songIndexToRemove: Array.from({ length: prevCount }, (_, i) => i),
     });
   }
+  void import('../utils/offline/pinnedOfflineSync')
+    .then(m => m.schedulePinnedPlaylistSync(id))
+    .catch(() => {});
 }
 
 export async function updatePlaylistMeta(

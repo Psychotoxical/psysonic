@@ -2,9 +2,9 @@ import type { Track } from './playerStoreTypes';
 import { invoke } from '@tauri-apps/api/core';
 import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
 import {
-  getPlaybackCacheServerKey,
   getPlaybackIndexKey,
-  getPlaybackServerId,
+  playbackCacheKeyForTrack,
+  playbackProfileIdForTrack,
 } from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
@@ -43,9 +43,9 @@ export function queueUndoRestoreAudioEngine(opts: {
     isReplayGainActive(), authState.replayGainMode,
   );
   const replayGainPeak = isReplayGainActive() ? (track.replayGainPeak ?? null) : null;
-  const playbackSid = getPlaybackServerId();
-  const playbackCacheSid = getPlaybackCacheServerKey();
-  const playbackIndexKey = getPlaybackIndexKey();
+  const playbackSid = playbackProfileIdForTrack(track);
+  const playbackCacheSid = playbackCacheKeyForTrack(track);
+  const playbackIndexKey = playbackCacheKeyForTrack(track) || getPlaybackIndexKey();
   const url = resolvePlaybackUrl(track.id, playbackCacheSid);
   recordEnginePlayUrl(track.id, url);
   usePlayerStore.setState({

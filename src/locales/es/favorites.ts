@@ -16,4 +16,9 @@ export const favorites = {
   topArtists: 'Artistas favoritos principales',
   topArtistsSongCount_one: '{{count}} canción',
   topArtistsSongCount_other: '{{count}} canciones',
+  offlineTooltip: 'Guarda tus favoritos para escuchar sin conexión',
+  offlineJobName: 'Favoritos',
+  offlineSemaphoreSyncing: 'Sincronizando favoritos… {{saved}} de {{total}}',
+  offlineSemaphoreSynced: 'Todos los favoritos guardados para offline',
+  offlineSemaphoreError: 'Error de sincronización — no se pudieron guardar algunas pistas',
 };

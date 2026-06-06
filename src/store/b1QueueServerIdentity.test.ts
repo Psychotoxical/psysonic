@@ -36,6 +36,9 @@ vi.mock('@/api/subsonicPlayQueue', () => ({
   savePlayQueue: vi.fn(async () => undefined),
   getPlayQueue: vi.fn(async () => ({ songs: [], current: undefined, position: 0 })),
 }));
+vi.mock('@/utils/network/activeServerReachability', () => ({
+  isActiveServerReachable: () => true,
+}));
 
 const SERVER_A = {
   id: 'uuid-a',
@@ -376,8 +379,7 @@ describe('B1+ — add-to-queue mutations pin queueServerId when it is null', () 
     usePlayerStore.getState().enqueue([track('t1', 'Y')], true);
 
     // Already pinned → ensureQueueServerPinned is a no-op even though the
-    // active server has since switched (cross-server enqueue is blocked
-    // elsewhere via `blockCrossServerEnqueue`, not here).
+    // active server has since switched (mixed-server enqueue keeps the anchor).
     expect(usePlayerStore.getState().queueServerId).toBe(KEY_A);
   });
 });

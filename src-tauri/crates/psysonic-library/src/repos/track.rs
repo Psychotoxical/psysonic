@@ -228,6 +228,18 @@ impl<'a> TrackRepository<'a> {
         })
     }
 
+    /// All live rows for a Subsonic track id (any server). Used when legacy offline
+    /// folders name the server by URL index key rather than profile UUID.
+    pub fn find_live_by_id(&self, track_id: &str) -> Result<Vec<TrackRow>, String> {
+        self.store.with_read_conn(|conn| {
+            let mut stmt = conn.prepare(SELECT_TRACK_BY_ID_ONLY)?;
+            let rows = stmt
+                .query_map(params![track_id], row_to_track_row)?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(rows)
+        })
+    }
+
     /// Batch SELECT — `library_get_tracks_batch`. Caller-supplied refs
     /// preserve their order in the result; unknown / deleted refs
     /// are silently dropped (frontend reads `tracks.length` against
@@ -289,6 +301,26 @@ impl<'a> TrackRepository<'a> {
             let mut stmt = conn.prepare(sql)?;
             let rows = stmt.query_map(params![server_id, after_id, limit], |row| row.get(0))?;
             rows.collect::<rusqlite::Result<Vec<String>>>()
+        })
+    }
+
+    /// Legacy offline rows keyed by library `server_id` (index key scope).
+    pub fn list_offline_local_paths(
+        &self,
+        server_id: &str,
+    ) -> Result<Vec<(String, String, Option<String>)>, String> {
+        self.store.with_read_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT track_id, local_path, suffix FROM track_offline WHERE server_id = ?1",
+            )?;
+            let rows = stmt.query_map(params![server_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                ))
+            })?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
         })
     }
 
@@ -582,6 +614,13 @@ const SELECT_TRACK_BY_ID: &str = "SELECT server_id, id, title, title_sort, artis
   server_path, library_id, isrc, mbid_recording, bpm, replay_gain_track_db, replay_gain_album_db, \
   content_hash, server_updated_at, server_created_at, deleted, synced_at, raw_json \
   FROM track WHERE server_id = ?1 AND id = ?2 AND deleted = 0";
+
+const SELECT_TRACK_BY_ID_ONLY: &str = "SELECT server_id, id, title, title_sort, artist, artist_id, \
+  album, album_id, album_artist, duration_sec, track_number, disc_number, year, genre, suffix, \
+  bit_rate, size_bytes, cover_art_id, starred_at, user_rating, play_count, played_at, \
+  server_path, library_id, isrc, mbid_recording, bpm, replay_gain_track_db, replay_gain_album_db, \
+  content_hash, server_updated_at, server_created_at, deleted, synced_at, raw_json \
+  FROM track WHERE id = ?1 AND deleted = 0";
 
 const SELECT_TRACKS_BY_ALBUM: &str = "SELECT server_id, id, title, title_sort, artist, artist_id, \
   album, album_id, album_artist, duration_sec, track_number, disc_number, year, genre, suffix, \

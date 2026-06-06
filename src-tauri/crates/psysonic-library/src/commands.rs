@@ -396,6 +396,40 @@ pub async fn library_get_tracks_by_album(
     Ok(rows.iter().map(LibraryTrackDto::from_row).collect())
 }
 
+/// Upsert Subsonic API song payloads into the library index so pin/download can
+/// build `media/library/…` paths before a full sync has ingested the rows.
+#[tauri::command]
+pub fn library_upsert_songs_from_api(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    songs: Vec<serde_json::Value>,
+) -> Result<u32, String> {
+    use crate::sync::subsonic_song_to_track_row;
+    use psysonic_integration::subsonic::Song;
+
+    if songs.is_empty() {
+        return Ok(0);
+    }
+    let synced_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_secs() as i64;
+    let repo = TrackRepository::new(&runtime.store);
+    let mut rows = Vec::with_capacity(songs.len());
+    for raw in songs {
+        let song: Song = serde_json::from_value(raw.clone()).map_err(|e| e.to_string())?;
+        rows.push(subsonic_song_to_track_row(
+            &server_id,
+            &song,
+            &raw,
+            synced_at,
+            None,
+        ));
+    }
+    repo.upsert_batch(&rows)?;
+    Ok(rows.len() as u32)
+}
+
 #[tauri::command]
 pub async fn library_get_artifact(
     runtime: State<'_, LibraryRuntime>,

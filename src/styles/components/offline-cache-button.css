@@ -11,6 +11,11 @@
   border-color: var(--color-star-active, var(--accent));
 }
 
+.offline-cache-btn--queued {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
 .offline-cache-btn--progress {
   display: flex;
   align-items: center;

@@ -9,10 +9,13 @@ import { getPlaybackServerId } from '../utils/playback/playbackServer';
  */
 export function usePlaybackServerId(): string {
   const queueServerId = usePlayerStore(s => s.queueServerId);
-  const queueLength = usePlayerStore(s => s.queueItems.length);
+  const queueIndex = usePlayerStore(s => s.queueIndex);
+  const playingServerId = usePlayerStore(
+    s => s.queueItems[s.queueIndex]?.serverId ?? '',
+  );
   const activeServerId = useAuthStore(s => s.activeServerId);
   return useMemo(
     () => getPlaybackServerId(),
-    [queueServerId, queueLength, activeServerId],
+    [queueServerId, queueIndex, playingServerId, activeServerId],
   );
 }

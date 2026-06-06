@@ -17,7 +17,7 @@ function job(over: Partial<DownloadJob>): DownloadJob {
 }
 
 beforeEach(() => {
-  useOfflineJobStore.setState({ jobs: [], bulkProgress: {} });
+  useOfflineJobStore.setState({ jobs: [], pinQueue: [], bulkProgress: {} });
   cancelledDownloads.clear();
 });
 
@@ -34,6 +34,13 @@ describe('offlineJobStore cancellation', () => {
         job({ trackId: 'done', status: 'done' }),
         job({ trackId: 'err', status: 'error' }),
       ],
+      pinQueue: [{
+        albumId: 'b',
+        albumName: 'B',
+        pinKind: 'album',
+        status: 'queued',
+        queuedAt: 1,
+      }],
       bulkProgress: {},
     });
 
@@ -41,9 +48,26 @@ describe('offlineJobStore cancellation', () => {
 
     // Only settled jobs survive → the sidebar toast clears.
     expect(useOfflineJobStore.getState().jobs.map(j => j.status).sort()).toEqual(['done', 'error']);
+    expect(useOfflineJobStore.getState().pinQueue).toEqual([]);
     expect(cancelledDownloads.has('a')).toBe(true);
     // Rust is told to abort the in-flight transfers for this download id.
     expect(calls).toEqual([['a-1']]);
+  });
+
+  it('cancelDownload drops pin queue entry for the album', () => {
+    useOfflineJobStore.setState({
+      jobs: [],
+      pinQueue: [{
+        albumId: 'a',
+        albumName: 'A',
+        pinKind: 'album',
+        status: 'queued',
+        queuedAt: 1,
+      }],
+      bulkProgress: {},
+    });
+    useOfflineJobStore.getState().cancelDownload('a');
+    expect(useOfflineJobStore.getState().pinQueue).toEqual([]);
   });
 
   it('cancelDownload drops every job for one album and leaves others running', () => {

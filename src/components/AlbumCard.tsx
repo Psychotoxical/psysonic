@@ -7,8 +7,9 @@ import { useNavigateToAlbum } from '../hooks/useNavigateToAlbum';
 import { Play, ListPlus, HardDriveDownload, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../store/playerStore';
-import { useOfflineStore } from '../store/offlineStore';
 import { useAuthStore } from '../store/authStore';
+import { useLocalPlaybackStore } from '../store/localPlaybackStore';
+import { isOfflinePinComplete } from '../utils/offline/offlineLibraryHelpers';
 import { CoverArtImage } from '../cover/CoverArtImage';
 import { useAlbumCoverRef } from '../cover/useLibraryCoverRef';
 import { coverStorageKeyFromRef } from '../cover/storageKeys';
@@ -23,6 +24,8 @@ import { LongPressWaveOverlay } from './LongPressWaveOverlay';
 import { useDragDrop } from '../contexts/DragDropContext';
 import { isAlbumRecentlyAdded } from '../utils/albumRecency';
 import { deriveAlbumArtistRefs } from '../utils/album/deriveAlbumHeaderArtistRefs';
+import { coverServerScopeForServerId } from '../cover/serverScope';
+import { appendServerQuery } from '../utils/navigation/detailServerScope';
 
 interface AlbumCardProps {
   album: SubsonicAlbum;
@@ -63,21 +66,28 @@ function AlbumCard({
 }: AlbumCardProps) {
   const { t } = useTranslation();
   const { isHolding, pressBind } = useLongPressAction({
-    onShortPress: () => playAlbum(album.id),
-    onLongPress: () => playAlbumShuffled(album.id),
+    onShortPress: () => playAlbum(album.id, album.serverId ? { serverId: album.serverId } : undefined),
+    onLongPress: () => playAlbumShuffled(album.id, album.serverId ? { serverId: album.serverId } : undefined),
   });
   const navigate = useNavigate();
   const navigateToAlbum = useNavigateToAlbum();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const enqueue = usePlayerStore(s => s.enqueue);
-  const serverId = useAuthStore(s => s.activeServerId ?? '');
-  const isOffline = useOfflineStore(s => {
-    const meta = s.albums[`${serverId}:${album.id}`];
-    if (!meta || meta.trackIds.length === 0) return false;
-    return meta.trackIds.every(tid => !!s.tracks[`${serverId}:${tid}`]);
-  });
+  const activeServerId = useAuthStore(s => s.activeServerId ?? '');
+  const offlineServerId = album.serverId ?? activeServerId;
+  const localEntries = useLocalPlaybackStore(s => s.entries);
+  const isOffline = isOfflinePinComplete(album.id, offlineServerId);
+  const albumLinkQuery = useMemo(
+    () => appendServerQuery(linkQuery, album.serverId),
+    [linkQuery, album.serverId],
+  );
+  void localEntries;
   const psyDrag = useDragDrop();
-  const coverRef = useAlbumCoverRef(album.id, album.coverArt, undefined, { libraryResolve });
+  const coverServerScope = useMemo(
+    () => coverServerScopeForServerId(album.serverId),
+    [album.serverId],
+  );
+  const coverRef = useAlbumCoverRef(album.id, album.coverArt, coverServerScope, { libraryResolve });
   const dragCoverKey = useMemo(() => {
     if (!coverRef) return '';
     const tier = resolveCoverDisplayTier(displayCssPx, { surface: 'dense' });
@@ -88,7 +98,7 @@ function AlbumCard({
 
   const handleClick = (opts?: { shiftKey?: boolean }) => {
     if (selectionMode) { onToggleSelect?.(album.id, opts); return; }
-    navigateToAlbum(album.id, { search: linkQuery });
+    navigateToAlbum(album.id, { search: albumLinkQuery });
   };
 
   return (

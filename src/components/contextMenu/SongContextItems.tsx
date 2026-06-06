@@ -121,7 +121,7 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
                 </div>
               )}
               <div className="context-menu-item" onClick={() => handleAction(() => {
-                queueSongStar(song.id, !isStarred(song.id, song.starred));
+                queueSongStar(song.id, !isStarred(song.id, song.starred), song.serverId);
               })}>
                 <Heart size={14} fill={isStarred(song.id, song.starred) ? 'currentColor' : 'none'} />
                 {isStarred(song.id, song.starred) ? t('contextMenu.unfavorite') : t('contextMenu.favorite')}
@@ -303,7 +303,7 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
               </div>
               <div className="context-menu-divider" />
               <div className="context-menu-item" style={{ color: 'var(--danger)' }} onClick={() => handleAction(() => {
-                queueSongStar(song.id, false);
+                queueSongStar(song.id, false, song.serverId);
               })}>
                 <HeartCrack size={14} /> {t('contextMenu.unfavorite')}
               </div>

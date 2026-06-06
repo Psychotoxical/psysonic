@@ -200,6 +200,12 @@ describe('previewStore — startPreview', () => {
     expect(state.duration).toBe(30);
   });
 
+  it('passes Subsonic suffix as formatSuffix for Symphonia container hints', async () => {
+    await usePreviewStore.getState().startPreview({ ...song('flac-1'), suffix: 'flac' }, 'albums');
+    const call = invokeMock.mock.calls.find(c => c[0] === 'audio_preview_play');
+    expect(call?.[1]).toMatchObject({ formatSuffix: 'flac' });
+  });
+
   it('starts at 0 when the track is too short to need a mid-track seek', async () => {
     // duration <= previewDuration * 1.5 → start at 0.
     await usePreviewStore.getState().startPreview({ ...song(), duration: 30 }, 'suggestions');
@@ -277,7 +283,7 @@ describe('previewStore — startPreview', () => {
       throw new Error('engine offline');
     });
 
-    await expect(usePreviewStore.getState().startPreview(song('song-2'), 'suggestions')).rejects.toThrow(/engine offline/);
+    await usePreviewStore.getState().startPreview(song('song-2'), 'suggestions');
 
     // Only rolls back when the rolled-back id is still the optimistic one.
     const state = usePreviewStore.getState();

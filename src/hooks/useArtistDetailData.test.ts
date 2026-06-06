@@ -10,6 +10,8 @@
  * otherwise persist into IndexedDB.
  */
 import { renderHook, act, waitFor } from '@testing-library/react';
+import React from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SubsonicArtistInfo } from '../api/subsonicTypes';
 
@@ -33,6 +35,10 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+function routerWrapper({ children }: { children: React.ReactNode }) {
+  return React.createElement(MemoryRouter, null, children);
+}
+
 function deferred<T>() {
   let resolve!: (v: T) => void;
   let reject!: (e?: unknown) => void;
@@ -55,7 +61,7 @@ describe('useArtistDetailData — id-gated info', () => {
 
     const { result, rerender } = renderHook(
       ({ id }: { id: string }) => useArtistDetailData(id),
-      { initialProps: { id: 'A' } },
+      { initialProps: { id: 'A' }, wrapper: routerWrapper },
     );
 
     await act(async () => { a.resolve({ largeImageUrl: 'A.jpg' } as SubsonicArtistInfo); });
@@ -95,7 +101,7 @@ describe('useArtistDetailData — id-gated info', () => {
       ],
     } as any);
 
-    const { result } = renderHook(() => useArtistDetailData('A'));
+    const { result } = renderHook(() => useArtistDetailData('A'), { wrapper: routerWrapper });
 
     await waitFor(() => expect(result.current.featuredAlbums).toHaveLength(2));
     const structured = result.current.featuredAlbums.find(a => a.id === 'comp1');
@@ -117,7 +123,7 @@ describe('useArtistDetailData — id-gated info', () => {
 
     const { result, rerender } = renderHook(
       ({ id }: { id: string }) => useArtistDetailData(id),
-      { initialProps: { id: 'A' } },
+      { initialProps: { id: 'A' }, wrapper: routerWrapper },
     );
 
     rerender({ id: 'B' });

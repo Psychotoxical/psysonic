@@ -8,7 +8,7 @@ import type { Track } from '../../store/playerStoreTypes';
 import { songToTrack } from '../../utils/playback/songToTrack';
 import { useSelectionStore } from '../../store/selectionStore';
 import { useThemeStore } from '../../store/themeStore';
-import { usePreviewStore } from '../../store/previewStore';
+import { previewInputFromSong, usePreviewStore } from '../../store/previewStore';
 import StarRating from '../StarRating';
 import { codecLabel, type ColKey } from '../../utils/componentHelpers/albumTrackListHelpers';
 import { formatLongDuration } from '../../utils/format/formatDuration';
@@ -116,7 +116,7 @@ export const TrackRow = React.memo(function TrackRow({
               className={`playlist-suggestion-preview-btn${isPreviewing ? ' is-previewing' : ''}${isPreviewAudioStarted ? ' audio-started' : ''}`}
               onClick={e => {
                 e.stopPropagation();
-                usePreviewStore.getState().startPreview({ id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration }, 'albums');
+                usePreviewStore.getState().startPreview(previewInputFromSong(song), 'albums');
               }}
               data-tooltip={isPreviewing ? t('playlists.previewStop') : t('playlists.preview')}
               aria-label={isPreviewing ? t('playlists.previewStop') : t('playlists.preview')}

@@ -17,6 +17,8 @@ export const sidebar = {
   expand: 'Развернуть боковую панель',
   collapse: 'Свернуть боковую панель',
   downloadingTracks: 'Кэширование {{n}} треков…',
+  offlinePinActive: 'Кэшируется «{{name}}»…',
+  offlinePinActiveQueued: 'Кэшируется «{{name}}» · ещё {{queued}} в очереди',
   syncingTracks: 'Синхронизация {{done}}/{{total}}…',
   cancelDownload: 'Отменить загрузку',
   offlineLibrary: 'Офлайн-библиотека',

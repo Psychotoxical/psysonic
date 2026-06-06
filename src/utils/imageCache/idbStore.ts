@@ -139,8 +139,10 @@ export async function putBlob(key: string, blob: Blob): Promise<void> {
       tx.oncomplete = () => resolve();
       tx.onerror = () => resolve();
     });
-    const maxBytes = useAuthStore.getState().maxCacheMb * 1024 * 1024;
-    scheduleEvictDiskIfNeeded(maxBytes);
+    const maxCacheMb = useAuthStore.getState().maxCacheMb;
+    if (maxCacheMb > 0) {
+      scheduleEvictDiskIfNeeded(maxCacheMb * 1024 * 1024);
+    }
   } catch {
     // Ignore write errors
   }

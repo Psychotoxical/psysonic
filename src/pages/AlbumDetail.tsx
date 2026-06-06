@@ -1,12 +1,13 @@
 import { buildDownloadUrl } from '../api/subsonicStreamUrl';
 import { setRating, star, unstar } from '../api/subsonicStarRating';
 import { queueSongStar, queueSongRating } from '../store/pendingStarSync';
+import { getAlbumForServer } from '../api/subsonicLibrary';
 import { getArtistInfo } from '../api/subsonicArtists';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import { shuffleArray } from '../utils/playback/shuffleArray';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
@@ -16,6 +17,11 @@ import { useAlbumOfflineState } from '../hooks/useAlbumOfflineState';
 import { useAlbumDetailSort } from '../hooks/useAlbumDetailSort';
 import { useDownloadModalStore } from '../store/downloadModalStore';
 import { useOfflineStore } from '../store/offlineStore';
+import { useOfflineJobStore } from '../store/offlineJobStore';
+import { isOfflinePinComplete } from '../utils/offline/offlineLibraryHelpers';
+import { dequeueOfflinePin } from '../utils/offline/offlinePinQueue';
+import { reconcileLibraryTierForAlbum } from '../utils/offline/libraryTierReconcile';
+import { shouldAttemptSubsonicForServer } from '../utils/network/subsonicNetworkGuard';
 import { join } from '@tauri-apps/api/path';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
 import AlbumCard from '../components/AlbumCard';
@@ -39,12 +45,12 @@ import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import LosslessModeBanner from '../components/LosslessModeBanner';
 import { isLosslessSuffix } from '../utils/library/losslessFormats';
 import { isLosslessMode } from '../utils/library/losslessMode';
+import { readDetailServerId } from '../utils/navigation/detailServerScope';
 
 export default function AlbumDetail() {
   const { t } = useTranslation();
   const perfFlags = usePerfProbeFlags();
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const losslessOnly = isLosslessMode(searchParams);
   const auth = useAuthStore();
@@ -64,11 +70,9 @@ export default function AlbumDetail() {
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [bio, setBio] = useState<string | null>(null);
   const [bioOpen, setBioOpen] = useState(false);
-  const [offlineStorageFull, setOfflineStorageFull] = useState(false);
-
   const downloadAlbum = useOfflineStore(s => s.downloadAlbum);
   const deleteAlbum = useOfflineStore(s => s.deleteAlbum);
-  const serverId = auth.activeServerId ?? '';
+  const serverId = readDetailServerId(searchParams, auth.activeServerId) ?? '';
   const entityRatingSupportByServer = useAuthStore(s => s.entityRatingSupportByServer);
   const setEntityRatingSupport = useAuthStore(s => s.setEntityRatingSupport);
   const albumEntityRatingSupport = entityRatingSupportByServer[serverId] ?? 'unknown';
@@ -82,8 +86,6 @@ export default function AlbumDetail() {
   // Derive a stable albumId for the selectors below (empty string when not yet loaded).
   const albumId = album?.album.id ?? '';
 
-  const { resolvedOfflineStatus, offlineProgress } = useAlbumOfflineState(albumId, serverId);
-
   useEffect(() => {
     if (!id) return;
     if (album && album.album.id === id) setAlbumEntityRating(album.album.userRating ?? 0);
@@ -94,6 +96,30 @@ export default function AlbumDetail() {
     if (!losslessOnly) return album.songs;
     return album.songs.filter(s => isLosslessSuffix(s.suffix));
   }, [album?.songs, losslessOnly]);
+
+  const offlineSongIds = useMemo(
+    () => (effectiveSongs ?? album?.songs ?? []).map(s => s.id),
+    [effectiveSongs, album?.songs],
+  );
+  const { resolvedOfflineStatus, offlineProgress } = useAlbumOfflineState(albumId, serverId, offlineSongIds);
+
+  useEffect(() => {
+    if (!albumId || !album || offlineSongIds.length === 0) return;
+    const songs = effectiveSongs ?? album.songs;
+    let cancelled = false;
+    void reconcileLibraryTierForAlbum(
+      serverId,
+      songs,
+      { kind: 'album', sourceId: albumId, displayName: album.album.name },
+    ).then(() => {
+      if (cancelled) return;
+      if (!isOfflinePinComplete(albumId, serverId, offlineSongIds)) return;
+      useOfflineJobStore.setState(s => ({
+        jobs: s.jobs.filter(j => j.albumId !== albumId),
+      }));
+    });
+    return () => { cancelled = true; };
+  }, [albumId, serverId, album, effectiveSongs, offlineSongIds]);
 
   useEffect(() => {
     if (!albumId || !effectiveSongs?.length) return;
@@ -222,6 +248,7 @@ const handleShuffleAll = () => {
     setIsStarred(!wasStarred);
     try {
       const meta = {
+        serverId: serverId || album.album.serverId,
         name: album.album.name,
         artist: album.album.artist,
         artistId: album.album.artistId,
@@ -243,24 +270,29 @@ const handleShuffleAll = () => {
     if (wasStarred) next.delete(song.id); else next.add(song.id);
     setStarredSongs(next);
     // F4: optimistic override + retried server sync via the central helper.
-    queueSongStar(song.id, !wasStarred);
+    queueSongStar(song.id, !wasStarred, song.serverId ?? (serverId || undefined));
   };
 
   const handleCacheOffline = useCallback(async () => {
     if (!album) return;
-    const maxBytes = auth.maxCacheMb * 1024 * 1024;
-    try {
-      const usedBytes = await invoke<number>('get_offline_cache_size');
-      if (usedBytes >= maxBytes) {
-        setOfflineStorageFull(true);
-        return;
-      }
-    } catch {
-      // If we can't check, proceed anyway
+    if (resolvedOfflineStatus === 'queued') {
+      dequeueOfflinePin(album.album.id);
+      return;
     }
-    setOfflineStorageFull(false);
-    downloadAlbum(album.album.id, album.album.name, album.album.artist, album.album.coverArt, album.album.year, effectiveSongs ?? album.songs, serverId);
-  }, [album, auth.maxCacheMb, downloadAlbum, serverId, effectiveSongs]);
+    let songs = effectiveSongs ?? album.songs;
+    if (serverId && shouldAttemptSubsonicForServer(serverId)) {
+      try {
+        const fresh = await getAlbumForServer(serverId, album.album.id);
+        songs = losslessOnly
+          ? fresh.songs.filter(s => isLosslessSuffix(s.suffix))
+          : fresh.songs;
+      } catch {
+        /* keep album.songs from the page */
+      }
+    }
+    if (isOfflinePinComplete(album.album.id, serverId, songs.map(s => s.id))) return;
+    downloadAlbum(album.album.id, album.album.name, album.album.artist, album.album.coverArt, album.album.year, songs, serverId);
+  }, [album, downloadAlbum, serverId, effectiveSongs, losslessOnly, resolvedOfflineStatus]);
 
   const handleRemoveOffline = () => {
     if (!album) return;
@@ -339,18 +371,6 @@ const handleShuffleAll = () => {
         entityRatingSupport={albumEntityRatingSupport}
       />
       {losslessOnly && <LosslessModeBanner />}
-      {offlineStorageFull && (
-        <div className="offline-storage-full-banner" role="alert">
-          <span>{t('albumDetail.offlineStorageFull', { mb: auth.maxCacheMb })}</span>
-          <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={() => navigate('/offline')}>
-            {t('albumDetail.offlineStorageGoToLibrary')}
-          </button>
-          <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={() => navigate('/settings', { state: { tab: 'library' } })}>
-            {t('albumDetail.offlineStorageGoToSettings')}
-          </button>
-          <button className="offline-storage-full-dismiss" onClick={() => setOfflineStorageFull(false)} aria-label="Dismiss">×</button>
-        </div>
-      )}
 
       {songs.length > 0 && (
         <AlbumDetailToolbar

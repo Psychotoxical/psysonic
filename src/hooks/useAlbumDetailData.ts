@@ -1,7 +1,20 @@
 import { useEffect, useState } from 'react';
-import { getAlbum } from '../api/subsonicLibrary';
-import { getArtist } from '../api/subsonicArtists';
+import { useSearchParams } from 'react-router-dom';
+import { getAlbum, getAlbumForServer } from '../api/subsonicLibrary';
+import { getArtist, getArtistForServer } from '../api/subsonicArtists';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
+import { useAuthStore } from '../store/authStore';
+import { useConnectionStatus } from './useConnectionStatus';
+import {
+  loadAlbumFromLibraryIndex,
+  loadArtistFromLibraryIndex,
+  resolveAlbumForServer,
+} from '../utils/offline/favoritesOfflineBrowse';
+import { readDetailServerId } from '../utils/navigation/detailServerScope';
+import {
+  shouldAttemptSubsonicForActiveServer,
+  shouldAttemptSubsonicForServer,
+} from '../utils/network/subsonicNetworkGuard';
 
 type AlbumPayload = Awaited<ReturnType<typeof getAlbum>>;
 
@@ -20,12 +33,6 @@ interface UseAlbumDetailDataResult {
  * Load an album payload by id, then resolve the artist's other albums in
  * a follow-up call so the related-albums grid can render without blocking
  * the initial paint.
- *
- * On every id change we reset `relatedAlbums` to an empty array so the
- * grid doesn't briefly show the previous album's neighbours while the
- * new fetch is in flight. The two starred state pieces (`isStarred`,
- * `starredSongs`) are seeded from the response so optimistic toggles
- * have a baseline to revert to.
  */
 export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataResult {
   const [album, setAlbum] = useState<AlbumPayload | null>(null);
@@ -33,26 +40,105 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
   const [loading, setLoading] = useState(true);
   const [isStarred, setIsStarred] = useState(false);
   const [starredSongs, setStarredSongs] = useState<Set<string>>(new Set());
+  const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
+  const activeServerId = useAuthStore(s => s.activeServerId);
+  const [searchParams] = useSearchParams();
+  const detailServerId = readDetailServerId(searchParams, activeServerId);
+  const { status: connStatus } = useConnectionStatus();
 
   useEffect(() => {
     if (!id) return;
     setLoading(true);
     setRelatedAlbums([]);
-    getAlbum(id).then(async data => {
+
+    const applyAlbumPayload = (data: AlbumPayload) => {
       setAlbum(data);
       setIsStarred(!!data.album.starred);
       const initialStarred = new Set<string>();
       data.songs.forEach(s => { if (s.starred) initialStarred.add(s.id); });
       setStarredSongs(initialStarred);
       setLoading(false);
+    };
+
+    const loadRelatedAlbums = async (
+      serverId: string | null,
+      artistId: string | undefined,
+      useLocalArtist: boolean,
+    ) => {
+      if (!artistId) return;
       try {
-        const artistData = await getArtist(data.album.artistId);
+        if (useLocalArtist && serverId) {
+          const artistLocal = await loadArtistFromLibraryIndex(serverId, artistId);
+          if (artistLocal) {
+            setRelatedAlbums(artistLocal.albums.filter(a => a.id !== id));
+            return;
+          }
+        }
+        const relatedServerId = serverId ?? detailServerId ?? activeServerId;
+        if (!relatedServerId || !shouldAttemptSubsonicForServer(relatedServerId)) return;
+        const artistData = detailServerId
+          ? await getArtistForServer(detailServerId, artistId)
+          : await getArtist(artistId);
         setRelatedAlbums(artistData.albums.filter(a => a.id !== id));
       } catch (e) {
         console.error('Failed to fetch related albums', e);
       }
-    }).catch(() => setLoading(false));
-  }, [id]);
+    };
+
+    const libraryFirst = favoritesOfflineEnabled && !!detailServerId;
+
+    void (async () => {
+      if (libraryFirst && detailServerId) {
+        try {
+          const local = await resolveAlbumForServer(detailServerId, id);
+          if (local) {
+            applyAlbumPayload(local);
+            await loadRelatedAlbums(detailServerId, local.album.artistId, true);
+            return;
+          }
+        } catch { /* fall through */ }
+      }
+
+      const detailNetworkAllowed = detailServerId
+        ? shouldAttemptSubsonicForServer(detailServerId)
+        : shouldAttemptSubsonicForActiveServer();
+
+      if (!detailNetworkAllowed) {
+        if (favoritesOfflineEnabled && detailServerId) {
+          try {
+            const local = await loadAlbumFromLibraryIndex(detailServerId, id);
+            if (local) {
+              applyAlbumPayload(local);
+              await loadRelatedAlbums(detailServerId, local.album.artistId, true);
+              return;
+            }
+          } catch { /* ignore */ }
+        }
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const data = detailServerId
+          ? await getAlbumForServer(detailServerId, id)
+          : await getAlbum(id);
+        applyAlbumPayload(data);
+        await loadRelatedAlbums(detailServerId, data.album.artistId, false);
+      } catch {
+        if (favoritesOfflineEnabled && detailServerId) {
+          try {
+            const local = await loadAlbumFromLibraryIndex(detailServerId, id);
+            if (local) {
+              applyAlbumPayload(local);
+              await loadRelatedAlbums(detailServerId, local.album.artistId, true);
+              return;
+            }
+          } catch { /* ignore */ }
+        }
+        setLoading(false);
+      }
+    })();
+  }, [id, connStatus, favoritesOfflineEnabled, detailServerId, searchParams]);
 
   return { album, setAlbum, relatedAlbums, loading, isStarred, setIsStarred, starredSongs, setStarredSongs };
 }

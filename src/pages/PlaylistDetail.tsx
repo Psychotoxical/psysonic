@@ -1,6 +1,6 @@
 import { updatePlaylist } from '../api/subsonicPlaylists';
 import type { SubsonicPlaylist, SubsonicSong } from '../api/subsonicTypes';
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronDown, ChevronLeft, ChevronRight, Play, ListPlus, Trash2, Search, X, Loader2, Plus, GripVertical, Star, RefreshCw, Shuffle, Heart, HardDriveDownload, Check, Pencil, Globe, Lock, Camera, Download, FileUp, RotateCcw, Sparkles, Square, AudioLines } from 'lucide-react';
 import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
@@ -10,7 +10,9 @@ import { useShallow } from 'zustand/react/shallow';
 import { usePlaylistStore } from '../store/playlistStore';
 import { usePreviewStore } from '../store/previewStore';
 import { useOfflineStore } from '../store/offlineStore';
-import { useOfflineJobStore } from '../store/offlineJobStore';
+import { useLocalPlaybackStore } from '../store/localPlaybackStore';
+import { useAlbumOfflineState } from '../hooks/useAlbumOfflineState';
+import { dequeueOfflinePin } from '../utils/offline/offlinePinQueue';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { useDownloadModalStore } from '../store/downloadModalStore';
@@ -93,21 +95,7 @@ export default function PlaylistDetail() {
   const downloadPlaylist = useOfflineStore(s => s.downloadPlaylist);
   const deleteAlbum = useOfflineStore(s => s.deleteAlbum);
   const activeServerId = useAuthStore(s => s.activeServerId) ?? '';
-  const isDownloading = useOfflineJobStore(s =>
-    !!id && s.jobs.some(j => j.albumId === id && (j.status === 'queued' || j.status === 'downloading'))
-  );
-  const isCached = useOfflineStore(s => {
-    if (!id) return false;
-    const meta = s.albums[`${activeServerId}:${id}`];
-    if (!meta || meta.trackIds.length === 0) return false;
-    return meta.trackIds.every(tid => !!s.tracks[`${activeServerId}:${tid}`]);
-  });
-  const offlineProgressDone = useOfflineJobStore(s => {
-    if (!id) return 0;
-    return s.jobs.filter(j => j.albumId === id && (j.status === 'done' || j.status === 'error')).length;
-  });
-  const offlineProgressTotal = useOfflineJobStore(s => (!id ? 0 : s.jobs.filter(j => j.albumId === id).length));
-  const offlineProgress = offlineProgressTotal > 0 ? { done: offlineProgressDone, total: offlineProgressTotal } : null;
+  void useLocalPlaybackStore(s => s.entries);
   const downloadFolder = useAuthStore(s => s.downloadFolder);
   const setDownloadFolder = useAuthStore(s => s.setDownloadFolder);
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
@@ -117,6 +105,8 @@ export default function PlaylistDetail() {
 
   const [playlist, setPlaylist] = useState<SubsonicPlaylist | null>(null);
   const [songs, setSongs] = useState<SubsonicSong[]>([]);
+  const offlineSongIds = useMemo(() => songs.map(s => s.id), [songs]);
+  const { resolvedOfflineStatus, offlineProgress } = useAlbumOfflineState(id ?? '', activeServerId, offlineSongIds);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [ratings, setRatings] = useState<Record<string, number>>({});
@@ -287,8 +277,7 @@ export default function PlaylistDetail() {
         searchOpen={searchOpen}
         csvImporting={csvImporting}
         activeZip={activeZip}
-        isCached={isCached}
-        isDownloading={isDownloading}
+        offlineStatus={resolvedOfflineStatus}
         offlineProgress={offlineProgress}
         activeServerId={activeServerId}
         setEditingMeta={setEditingMeta}

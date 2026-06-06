@@ -7,6 +7,12 @@ import type {
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import type { TopFavoriteArtist } from '../components/favorites/TopFavoriteArtists';
+import { useConnectionStatus } from './useConnectionStatus';
+import { isActiveServerReachable } from '../utils/network/activeServerReachability';
+import {
+  loadStarredFromAllLibraryIndexes,
+  loadStarredFromAllServersOnline,
+} from '../utils/offline/favoritesOfflineBrowse';
 
 export interface FavoritesDataResult {
   albums: SubsonicAlbum[];
@@ -20,6 +26,12 @@ export interface FavoritesDataResult {
   unfavoriteStation: (id: string) => void;
 }
 
+function topArtistKey(song: SubsonicSong): string {
+  const artistKey = song.artistId || song.artist;
+  if (!artistKey) return '';
+  return song.serverId ? `${song.serverId}:${artistKey}` : artistKey;
+}
+
 export function useFavoritesData(): FavoritesDataResult {
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [artists, setArtists] = useState<SubsonicArtist[]>([]);
@@ -28,39 +40,74 @@ export function useFavoritesData(): FavoritesDataResult {
   const [loading, setLoading] = useState(true);
 
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
+  const servers = useAuthStore(s => s.servers);
+  const { status: connStatus } = useConnectionStatus();
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
 
   useEffect(() => {
-    const loadAll = async () => {
-      const [starredResult] = await Promise.allSettled([
-        getStarred(),
-      ]);
-      if (starredResult.status === 'fulfilled') {
-        setAlbums(starredResult.value.albums);
-        setArtists(starredResult.value.artists);
-        setSongs(starredResult.value.songs);
-      }
+    let cancelled = false;
 
-      // Radio favorites: read IDs from localStorage, fetch all stations, filter
+    const applyStarred = (starred: {
+      albums: SubsonicAlbum[];
+      artists: SubsonicArtist[];
+      songs: SubsonicSong[];
+    }) => {
+      if (cancelled) return;
+      setAlbums(starred.albums);
+      setArtists(starred.artists);
+      setSongs(starred.songs);
+    };
+
+    const loadRadioFavorites = async () => {
+      if (!isActiveServerReachable()) return;
       try {
         const favIds = new Set<string>(JSON.parse(localStorage.getItem('psysonic_radio_favorites') ?? '[]'));
-        if (favIds.size > 0) {
-          const all = await getInternetRadioStations();
+        if (favIds.size === 0) return;
+        const all = await getInternetRadioStations();
+        if (!cancelled) {
           setRadioStations(all.filter(s => favIds.has(s.id)));
         }
       } catch { /* ignore */ }
-
-      setLoading(false);
     };
-    loadAll();
-  }, [musicLibraryFilterVersion]);
+
+    const loadAll = async () => {
+      setLoading(true);
+
+      if (favoritesOfflineEnabled) {
+        try {
+          applyStarred(await loadStarredFromAllLibraryIndexes());
+        } catch { /* ignore */ }
+        if (!cancelled) setLoading(false);
+
+        if (connStatus === 'connected' && isActiveServerReachable()) {
+          try {
+            applyStarred(await loadStarredFromAllServersOnline());
+          } catch { /* keep library snapshot */ }
+        }
+      } else {
+        if (connStatus === 'connected' && isActiveServerReachable()) {
+          const [starredResult] = await Promise.allSettled([getStarred()]);
+          if (starredResult.status === 'fulfilled') {
+            applyStarred(starredResult.value);
+          }
+        }
+        if (!cancelled) setLoading(false);
+      }
+
+      void loadRadioFavorites();
+    };
+
+    void loadAll();
+    return () => { cancelled = true; };
+  }, [musicLibraryFilterVersion, connStatus, favoritesOfflineEnabled, servers]);
 
   // ── Top Favorite Artists aggregated from favorited songs ─────────────
   const topFavoriteArtists = useMemo<TopFavoriteArtist[]>(() => {
     const counts = new Map<string, TopFavoriteArtist>();
     for (const s of songs) {
       if (starredOverrides[s.id] === false) continue;
-      const key = s.artistId || s.artist;
+      const key = topArtistKey(s);
       if (!key) continue;
       const existing = counts.get(key);
       if (existing) {
@@ -71,6 +118,8 @@ export function useFavoritesData(): FavoritesDataResult {
           name: s.artist || key,
           count: 1,
           coverArtId: s.artistId || '',
+          serverId: s.serverId,
+          artistId: s.artistId || s.artist,
         });
       }
     }

@@ -49,6 +49,7 @@
 @import './genre-tag-cloud.css';
 @import './random-landing.css';
 @import './playlists-overview-header.css';
+@import './favorites-offline-control.css';
 @import './playlist-card-grid-overview.css';
 @import './internet-radio.css';
 @import './radio-toolbar.css';

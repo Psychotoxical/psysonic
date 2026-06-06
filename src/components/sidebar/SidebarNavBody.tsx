@@ -44,6 +44,8 @@ interface Props {
   nowPlayingAtTop: boolean;
   hasOfflineContent: boolean;
   activeJobsCount: number;
+  activePinName: string | null;
+  queuedPinCount: number;
   cancelAllDownloads: () => void;
   isSyncing: boolean;
   syncJobDone: number;
@@ -62,7 +64,7 @@ export default function SidebarNavBody(props: Props) {
     playlistsExpanded, setPlaylistsExpanded, playlists, playlistsLoading,
     newReleasesUnreadCount, navDnd, navDndRowClass, handleNavRowPointerDown,
     isPlaying, hasNowPlayingTrack, nowPlayingAtTop, hasOfflineContent,
-    activeJobsCount, cancelAllDownloads,
+    activeJobsCount, activePinName, queuedPinCount, cancelAllDownloads,
     isSyncing, syncJobDone, syncJobSkip, syncJobFail, syncJobTotal,
   } = props;
   const { t } = useTranslation();
@@ -289,6 +291,8 @@ export default function SidebarNavBody(props: Props) {
         <SidebarActiveJobs
           isCollapsed={isCollapsed}
           activeJobsCount={activeJobsCount}
+          activePinName={activePinName}
+          queuedPinCount={queuedPinCount}
           cancelAllDownloads={cancelAllDownloads}
           isSyncing={isSyncing}
           syncJobDone={syncJobDone}

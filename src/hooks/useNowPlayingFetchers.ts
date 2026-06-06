@@ -8,6 +8,8 @@ import {
   type LastfmArtistStats, type LastfmTrackInfo,
 } from '../api/lastfm';
 import { makeCache } from '../utils/cache/nowPlayingCache';
+import { shouldAttemptSubsonicForServer } from '../utils/network/subsonicNetworkGuard';
+import { useConnectionStatus } from './useConnectionStatus';
 
 // Module-level TTL caches (shared across mounts)
 const songMetaCache    = makeCache<SubsonicSong | null>();
@@ -79,6 +81,7 @@ export async function prewarmNowPlayingFetchers(
   } = deps;
 
   if (!fetchEnabled || !subsonicServerId) return;
+  if (!shouldAttemptSubsonicForServer(subsonicServerId, songId)) return;
 
   const jobs: Array<Promise<unknown>> = [];
 
@@ -196,9 +199,14 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
   const [lfmArtistEntry, setLfmArtistEntry] = useState<KeySlot<LastfmArtistStats | null>>(() =>
     seedKeySlot(lfmArtistKey, k => lfmArtistCache.get(k)));
 
+  const { status: connStatus } = useConnectionStatus();
+  const subsonicFetchAllowed = fetchEnabled
+    && !!subsonicServerId
+    && shouldAttemptSubsonicForServer(subsonicServerId, songId);
+
   // Fetch batch per entity change (not per song switch — same-artist songs share artist/top/tour fetches)
   useEffect(() => {
-    if (!fetchEnabled || !subsonicServerId || !songId) { setSongMetaEntry(null); return; }
+    if (!subsonicFetchAllowed || !songId) { setSongMetaEntry(null); return; }
     const cacheKey = subsonicCacheKey(subsonicServerId, songId);
     const cached = songMetaCache.get(cacheKey);
     if (cached !== undefined) { setSongMetaEntry({ id: songId, value: cached }); return; }
@@ -208,10 +216,10 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
       .then(v => { if (!cancelled) { songMetaCache.set(cacheKey, v ?? null); setSongMetaEntry({ id: songId, value: v ?? null }); } })
       .catch(() => { if (!cancelled) { songMetaCache.set(cacheKey, null); setSongMetaEntry({ id: songId, value: null }); } });
     return () => { cancelled = true; };
-  }, [fetchEnabled, subsonicServerId, songId]);
+  }, [subsonicFetchAllowed, subsonicServerId, songId, connStatus]);
 
   useEffect(() => {
-    if (!fetchEnabled || !subsonicServerId || !artistId) { setArtistInfoEntry(null); return; }
+    if (!subsonicFetchAllowed || !artistId) { setArtistInfoEntry(null); return; }
     const cacheKey = subsonicCacheKey(subsonicServerId, artistId);
     const cached = artistInfoCache.get(cacheKey);
     if (cached !== undefined) { setArtistInfoEntry({ id: artistId, value: cached }); return; }
@@ -221,10 +229,10 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
       .then(v => { if (!cancelled) { artistInfoCache.set(cacheKey, v ?? null); setArtistInfoEntry({ id: artistId, value: v ?? null }); } })
       .catch(() => { if (!cancelled) { artistInfoCache.set(cacheKey, null); setArtistInfoEntry({ id: artistId, value: null }); } });
     return () => { cancelled = true; };
-  }, [fetchEnabled, subsonicServerId, artistId, audiomuseNavidromeEnabled]);
+  }, [subsonicFetchAllowed, subsonicServerId, artistId, audiomuseNavidromeEnabled, connStatus]);
 
   useEffect(() => {
-    if (!fetchEnabled || !subsonicServerId || !albumId) { setAlbumDataEntry(null); return; }
+    if (!subsonicFetchAllowed || !albumId) { setAlbumDataEntry(null); return; }
     const cacheKey = subsonicCacheKey(subsonicServerId, albumId);
     const cached = albumCache.get(cacheKey);
     if (cached !== undefined) { setAlbumDataEntry({ id: albumId, value: cached }); return; }
@@ -234,10 +242,10 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
       .then(v => { if (!cancelled) { albumCache.set(cacheKey, v); setAlbumDataEntry({ id: albumId, value: v }); } })
       .catch(() => { if (!cancelled) { albumCache.set(cacheKey, null); setAlbumDataEntry({ id: albumId, value: null }); } });
     return () => { cancelled = true; };
-  }, [fetchEnabled, subsonicServerId, albumId]);
+  }, [subsonicFetchAllowed, subsonicServerId, albumId, connStatus]);
 
   useEffect(() => {
-    if (!fetchEnabled || !topSongsKey) { setTopSongsEntry(null); return; }
+    if (!subsonicFetchAllowed || !topSongsKey) { setTopSongsEntry(null); return; }
     const cached = topSongsCache.get(topSongsKey);
     if (cached !== undefined) { setTopSongsEntry({ key: topSongsKey, value: cached }); return; }
     setTopSongsEntry(null);
@@ -246,7 +254,7 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
       .then(v => { if (!cancelled) { topSongsCache.set(topSongsKey, v); setTopSongsEntry({ key: topSongsKey, value: v }); } })
       .catch(() => { if (!cancelled) { topSongsCache.set(topSongsKey, []); setTopSongsEntry({ key: topSongsKey, value: [] }); } });
     return () => { cancelled = true; };
-  }, [fetchEnabled, topSongsKey, subsonicServerId, artistName]);
+  }, [subsonicFetchAllowed, topSongsKey, subsonicServerId, artistName, connStatus]);
 
   useEffect(() => {
     if (!tourKey) { setTourEventsEntry(null); setTourLoading(false); return; }
@@ -263,7 +271,7 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
 
   // Discography via getArtist
   useEffect(() => {
-    if (!fetchEnabled || !subsonicServerId || !artistId) { setDiscographyEntry(null); return; }
+    if (!subsonicFetchAllowed || !artistId) { setDiscographyEntry(null); return; }
     const cacheKey = subsonicCacheKey(subsonicServerId, artistId);
     const cached = discographyCache.get(cacheKey);
     if (cached !== undefined) { setDiscographyEntry({ id: artistId, value: cached }); return; }
@@ -273,7 +281,7 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
       .then(v => { if (!cancelled) { discographyCache.set(cacheKey, v.albums); setDiscographyEntry({ id: artistId, value: v.albums }); } })
       .catch(() => { if (!cancelled) { discographyCache.set(cacheKey, []); setDiscographyEntry({ id: artistId, value: [] }); } });
     return () => { cancelled = true; };
-  }, [fetchEnabled, subsonicServerId, artistId]);
+  }, [subsonicFetchAllowed, subsonicServerId, artistId, connStatus]);
 
   // Last.fm track info (per-track)
   useEffect(() => {

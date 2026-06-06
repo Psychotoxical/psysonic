@@ -4,8 +4,7 @@
  * Covers Zustand persist's hydration path (via `useAuthStore.persist.rehydrate()`):
  * existing localStorage shapes load, missing fields default to the store's
  * initial values, corrupt JSON does not crash bootstrap, the
- * hotCacheEnabled / preloadMode≠'off' conflicting-legacy migration clears
- * both, and a few smaller field-level migrations.
+ * legacy field stripping, and a few smaller field-level migrations.
  *
  * Also pins the **synchronous storage** invariant called out in `CLAUDE.md`
  * ("never switch to async storage") — regression §2 of the pre-refactor
@@ -53,7 +52,6 @@ describe('hydration — loads existing localStorage shape', () => {
     expect(s.gaplessEnabled).toBe(false);
     expect(s.replayGainEnabled).toBe(false);
     expect(s.normalizationEngine).toBe('off');
-    expect(s.preloadMode).toBe('balanced');
   });
 
   it('preserves saved fields verbatim when present', async () => {
@@ -94,34 +92,21 @@ describe('hydration — corrupt / unexpected input', () => {
 });
 
 describe('onRehydrate migrations', () => {
-  it('clears the conflicting hotCacheEnabled + preloadMode≠"off" legacy combo', async () => {
+  it('keeps hotCacheEnabled when legacy preloadMode fields are present', async () => {
     writePersistedState({
       servers: [],
       activeServerId: null,
       hotCacheEnabled: true,
       preloadMode: 'balanced',
-    });
-
-    await useAuthStore.persist.rehydrate();
-
-    const s = useAuthStore.getState();
-    expect(s.hotCacheEnabled).toBe(false);
-    expect(s.preloadMode).toBe('off');
-  });
-
-  it('keeps hotCacheEnabled when preloadMode was already "off"', async () => {
-    writePersistedState({
-      servers: [],
-      activeServerId: null,
-      hotCacheEnabled: true,
-      preloadMode: 'off',
+      preloadCustomSeconds: 45,
     });
 
     await useAuthStore.persist.rehydrate();
 
     const s = useAuthStore.getState();
     expect(s.hotCacheEnabled).toBe(true);
-    expect(s.preloadMode).toBe('off');
+    expect((s as { preloadMode?: unknown }).preloadMode).toBeUndefined();
+    expect((s as { preloadCustomSeconds?: unknown }).preloadCustomSeconds).toBeUndefined();
   });
 
   it('migrates a legacy `waveform` seekbarStyle to `truewave`', async () => {

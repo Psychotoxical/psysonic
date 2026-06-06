@@ -99,7 +99,11 @@ export default function ComposerDetail() {
     setIsStarred(next);
     setStarredOverride(artist.id, next);
     try {
-      const meta = { name: artist.name, albumCount: artist.albumCount };
+      const meta = {
+        serverId: artist.serverId,
+        name: artist.name,
+        albumCount: artist.albumCount,
+      };
       if (next) await star(artist.id, 'artist', meta);
       else await unstar(artist.id, 'artist', meta);
     } catch (err) {

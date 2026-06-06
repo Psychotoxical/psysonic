@@ -12,6 +12,8 @@ type TrackPatch = {
 
 /** Optional metadata on star/unstar (album/artist); not mirrored into the local index. */
 export type StarPatchMeta = {
+  /** Owning saved-server profile (cross-server favorites / `?server=` detail). */
+  serverId?: string;
   name?: string;
   artist?: string;
   artistId?: string;

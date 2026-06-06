@@ -15,8 +15,21 @@ pub fn plan_track_analysis(
     track_id: &str,
     content_hash: &str,
 ) -> TrackAnalysisPlan {
-    let (need_waveform, need_loudness) = cache_gaps(app, server_id, track_id, content_hash);
-    let enrichment = enrichment_plan(app, server_id, track_id, content_hash);
+    plan_track_analysis_offline_library(app, &[server_id], server_id, track_id, content_hash)
+}
+
+/// Offline/library download: waveform cache and enrichment facts may live under the
+/// playback index key while library rows use the UUID — try every scope before seeding.
+pub fn plan_track_analysis_offline_library(
+    app: &AppHandle,
+    cache_server_ids: &[&str],
+    _enrichment_server_id: &str,
+    track_id: &str,
+    content_hash: &str,
+) -> TrackAnalysisPlan {
+    let (need_waveform, need_loudness) =
+        cache_gaps_multi(app, cache_server_ids, track_id, content_hash);
+    let enrichment = enrichment_plan_multi(app, cache_server_ids, track_id, content_hash);
     TrackAnalysisPlan {
         need_waveform,
         need_loudness,
@@ -103,6 +116,32 @@ fn cache_gaps(
     )
 }
 
+fn cache_gaps_multi(
+    app: &AppHandle,
+    server_ids: &[&str],
+    track_id: &str,
+    content_hash: &str,
+) -> (bool, bool) {
+    let mut need_waveform = true;
+    let mut need_loudness = true;
+    for &server_id in server_ids {
+        if server_id.is_empty() {
+            continue;
+        }
+        let (nw, nl) = cache_gaps(app, server_id, track_id, content_hash);
+        if !nw {
+            need_waveform = false;
+        }
+        if !nl {
+            need_loudness = false;
+        }
+        if !need_waveform && !need_loudness {
+            break;
+        }
+    }
+    (need_waveform, need_loudness)
+}
+
 fn enrichment_plan(
     app: &AppHandle,
     server_id: &str,
@@ -115,6 +154,45 @@ fn enrichment_plan(
     app.try_state::<TrackEnrichmentPort>()
         .map(|port| port.plan(server_id, track_id, content_hash))
         .unwrap_or_default()
+}
+
+fn enrichment_plan_multi(
+    app: &AppHandle,
+    server_ids: &[&str],
+    track_id: &str,
+    content_hash: &str,
+) -> psysonic_core::track_enrichment::TrackEnrichmentPlan {
+    let mut need_bpm = true;
+    let mut need_valence = true;
+    let mut need_arousal = true;
+    let mut need_moods = true;
+    for &server_id in server_ids {
+        if server_id.is_empty() {
+            continue;
+        }
+        let plan = enrichment_plan(app, server_id, track_id, content_hash);
+        if !plan.need_bpm {
+            need_bpm = false;
+        }
+        if !plan.need_valence {
+            need_valence = false;
+        }
+        if !plan.need_arousal {
+            need_arousal = false;
+        }
+        if !plan.need_moods {
+            need_moods = false;
+        }
+        if !need_bpm && !need_valence && !need_arousal && !need_moods {
+            break;
+        }
+    }
+    psysonic_core::track_enrichment::TrackEnrichmentPlan {
+        need_bpm,
+        need_valence,
+        need_arousal,
+        need_moods,
+    }
 }
 
 fn cache_gaps_for_content(
@@ -192,6 +270,16 @@ mod tests {
         seed_waveform_loudness(&cache, "s1", "stream:t1", "abc");
         let (wf, ld) = cache_gaps_for_content(Some(&cache), "s1", "t1", "abc");
         assert!(!wf && !ld, "bare id should resolve stream: cached fingerprint");
+    }
+
+    #[test]
+    fn playback_index_cache_row_not_visible_under_library_uuid_only() {
+        let cache = AnalysisCache::open_in_memory();
+        seed_waveform_loudness(&cache, "navidrome.test:4533", "t1", "abc");
+        let (wf, ld) = cache_gaps_for_content(Some(&cache), "library-uuid", "t1", "abc");
+        assert!(wf && ld, "library uuid alone should miss playback-scoped cache");
+        let (wf2, ld2) = cache_gaps_for_content(Some(&cache), "navidrome.test:4533", "t1", "abc");
+        assert!(!wf2 && !ld2, "playback index key should hit the cached row");
     }
 
 }

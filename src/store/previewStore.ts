@@ -1,4 +1,5 @@
 import { buildStreamUrl } from '../api/subsonicStreamUrl';
+import type { SubsonicSong } from '../api/subsonicTypes';
 import type { TrackPreviewLocation } from './authStoreTypes';
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
@@ -12,6 +13,29 @@ export interface PreviewingTrack {
   title: string;
   artist: string;
   coverArt?: string;
+}
+
+export interface PreviewSongInput {
+  id: string;
+  title: string;
+  artist: string;
+  coverArt?: string;
+  duration?: number;
+  suffix?: string;
+}
+
+/** Map a browse/playlist song row into preview input (keeps Subsonic suffix for format hints). */
+export function previewInputFromSong(
+  song: Pick<SubsonicSong, 'id' | 'title' | 'artist' | 'coverArt' | 'duration' | 'suffix'>,
+): PreviewSongInput {
+  return {
+    id: song.id,
+    title: song.title,
+    artist: song.artist,
+    coverArt: song.coverArt,
+    duration: song.duration,
+    suffix: song.suffix,
+  };
 }
 
 interface PreviewState {
@@ -33,7 +57,7 @@ interface PreviewState {
    */
   audioStarted: boolean;
 
-  startPreview: (song: { id: string; title: string; artist: string; coverArt?: string; duration?: number }, location: TrackPreviewLocation) => Promise<void>;
+  startPreview: (song: PreviewSongInput, location: TrackPreviewLocation) => Promise<void>;
   stopPreview: () => Promise<void>;
 
   /** Internal — called from the TauriEventBridge on `audio:preview-start`. */
@@ -100,7 +124,12 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
 
     set({
       previewingId: song.id,
-      previewingTrack: { id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt },
+      previewingTrack: {
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        coverArt: song.coverArt,
+      },
       elapsed: 0,
       duration: previewDuration,
       audioStarted: false,
@@ -113,13 +142,14 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
         startSec,
         durationSec: previewDuration,
         volume: computePreviewVolume(),
+        formatSuffix: song.suffix ?? null,
       });
     } catch (e) {
       // Roll back optimistic state on failure.
       if (get().previewingId === song.id) {
         set({ previewingId: null, previewingTrack: null, elapsed: 0, audioStarted: false });
       }
-      throw e;
+      console.error('Preview playback failed', e);
     }
   },
 

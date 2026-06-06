@@ -19,8 +19,8 @@ export interface FavoriteSongRowCallbacks {
   startPreview: (song: SubsonicSong) => void;
   rate: (songId: string, rating: number) => void;
   remove: (songId: string) => void;
-  navArtist: (artistId: string) => void;
-  navAlbum: (albumId: string) => void;
+  navArtist: (artistId: string, serverId?: string) => void;
+  navAlbum: (albumId: string, serverId?: string) => void;
 }
 
 interface Props {
@@ -100,12 +100,12 @@ function FavoriteSongRow({
           );
           case 'artist': return (
             <div key="artist" className="track-artist-cell">
-              <span className={`track-artist${song.artistId ? ' track-artist-link' : ''}`} style={{ cursor: song.artistId ? 'pointer' : 'default' }} onClick={e => { if (song.artistId) { e.stopPropagation(); cb.navArtist(song.artistId); } }}>{song.artist}</span>
+              <span className={`track-artist${song.artistId ? ' track-artist-link' : ''}`} style={{ cursor: song.artistId ? 'pointer' : 'default' }} onClick={e => { if (song.artistId) { e.stopPropagation(); cb.navArtist(song.artistId, song.serverId); } }}>{song.artist}</span>
             </div>
           );
           case 'album': return (
             <div key="album" className="track-artist-cell">
-              <span className={`track-artist${song.albumId ? ' track-artist-link' : ''}`} style={{ cursor: song.albumId ? 'pointer' : 'default' }} onClick={e => { if (song.albumId) { e.stopPropagation(); cb.navAlbum(song.albumId); } }}>{song.album}</span>
+              <span className={`track-artist${song.albumId ? ' track-artist-link' : ''}`} style={{ cursor: song.albumId ? 'pointer' : 'default' }} onClick={e => { if (song.albumId) { e.stopPropagation(); cb.navAlbum(song.albumId, song.serverId); } }}>{song.album}</span>
             </div>
           );
           case 'genre': return (

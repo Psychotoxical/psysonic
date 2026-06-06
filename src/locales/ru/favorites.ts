@@ -18,4 +18,9 @@ export const favorites = {
   topArtistsSongCount_few: '{{count}} трека',
   topArtistsSongCount_many: '{{count}} треков',
   topArtistsSongCount_other: '{{count}} трека',
+  offlineTooltip: 'Сохранять избранное для прослушивания offline',
+  offlineJobName: 'Избранное',
+  offlineSemaphoreSyncing: 'Синхронизация… {{saved}} из {{total}}',
+  offlineSemaphoreSynced: 'Всё избранное сохранено для offline',
+  offlineSemaphoreError: 'Ошибка синхронизации — часть треков не сохранилась',
 };

@@ -20,7 +20,6 @@ type AnalysisPrunePendingResult = {
 
 export function scheduleAnalysisQueuePruneFromPlaybackQueue(): void {
   const { queueItems, currentTrack, queueIndex } = usePlayerStore.getState();
-  const { preloadMode } = useAuthStore.getState();
   const rawServerId = getPlaybackServerId() ?? '';
   const server = useAuthStore.getState().servers.find(s => s.id === rawServerId);
   const serverId = server ? serverIndexKeyFromUrl(server.url) : rawServerId;
@@ -42,7 +41,6 @@ export function scheduleAnalysisQueuePruneFromPlaybackQueue(): void {
     queueItems,
     queueIndex,
     currentTrack,
-    preloadMode,
   );
   const sig = JSON.stringify({ keepTrackIds, middleTrackIds, serverId });
   if (sig === lastAnalysisPruneSig) return;

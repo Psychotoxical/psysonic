@@ -33,6 +33,7 @@ export const artistDetail = {
   similarArtists: '相似艺术家',
   cacheOffline: '离线保存全部专辑',
   offlineCached: '全部专辑已缓存',
+  offlineQueued: '排队中',
   offlineDownloading: '正在缓存… ({{done}}/{{total}} 张专辑)',
   uploadImage: '上传艺术家图片',
   uploadImageError: '图片上传失败',

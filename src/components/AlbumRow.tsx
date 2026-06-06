@@ -251,7 +251,7 @@ export default function AlbumRow({
         <div className="album-grid" ref={scrollRef} onScroll={handleScroll}>
           {uniqueAlbums.map((a, idx) => (
             <AlbumCard
-              key={a.id}
+              key={a.serverId ? `${a.serverId}:${a.id}` : a.id}
               album={a}
               showRating={showRating}
               linkQuery={albumLinkQuery}

@@ -1,7 +1,7 @@
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { useAnalysisStrategyStore } from '../../store/analysisStrategyStore';
 import { useCoverStrategyStore } from '../../store/coverStrategyStore';
-import { useHotCacheStore } from '../../store/hotCacheStore';
+import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
 import { useLibraryIndexStore } from '../../store/libraryIndexStore';
 import { useOfflineStore } from '../../store/offlineStore';
 import { usePlayerStore } from '../../store/playerStore';
@@ -27,21 +27,6 @@ function buildMappings(servers: ServerProfile[]): Mapping[] {
 function rewriteOfflineStoreKeys(mappings: Mapping[]): void {
   const map = new Map(mappings.map(mapping => [mapping.legacyId, mapping.indexKey]));
   useOfflineStore.setState((state) => {
-    const tracks = { ...state.tracks };
-    for (const [key, meta] of Object.entries(state.tracks)) {
-      const i = key.indexOf(':');
-      if (i <= 0) continue;
-      const legacyId = key.slice(0, i);
-      const trackId = key.slice(i + 1);
-      const indexKey = map.get(legacyId);
-      if (!indexKey) continue;
-      const nextKey = `${indexKey}:${trackId}`;
-      if (!tracks[nextKey]) {
-        tracks[nextKey] = { ...meta, serverId: indexKey };
-      }
-      delete tracks[key];
-    }
-
     const albums = { ...state.albums };
     for (const [key, meta] of Object.entries(state.albums)) {
       const i = key.indexOf(':');
@@ -56,13 +41,13 @@ function rewriteOfflineStoreKeys(mappings: Mapping[]): void {
       }
       delete albums[key];
     }
-    return { tracks, albums };
+    return { albums };
   });
 }
 
-function rewriteHotCacheStoreKeys(mappings: Mapping[]): void {
+function rewriteLocalPlaybackStoreKeys(mappings: Mapping[]): void {
   const map = new Map(mappings.map(mapping => [mapping.legacyId, mapping.indexKey]));
-  useHotCacheStore.setState((state) => {
+  useLocalPlaybackStore.setState((state) => {
     const entries = { ...state.entries };
     for (const [key, entry] of Object.entries(state.entries)) {
       const i = key.indexOf(':');
@@ -73,7 +58,7 @@ function rewriteHotCacheStoreKeys(mappings: Mapping[]): void {
       if (!indexKey) continue;
       const nextKey = `${indexKey}:${trackId}`;
       if (!entries[nextKey]) {
-        entries[nextKey] = entry;
+        entries[nextKey] = { ...entry, serverIndexKey: indexKey };
       }
       delete entries[key];
     }
@@ -111,7 +96,7 @@ export async function rewriteFrontendStoreKeys(servers: ServerProfile[]): Promis
   const mappings = buildMappings(servers);
   if (mappings.length === 0) return;
   rewriteOfflineStoreKeys(mappings);
-  rewriteHotCacheStoreKeys(mappings);
+  rewriteLocalPlaybackStoreKeys(mappings);
   rewriteAnalysisStrategyStoreKeys(mappings);
   // Keep migration explicit: Zustand persist writes the current state snapshot.
   useAnalysisStrategyStore.getState().migrateServerOverrides(servers);
@@ -126,9 +111,8 @@ export async function rewriteFrontendStoreKeys(servers: ServerProfile[]): Promis
  * `cover_cache_rename_server_bucket` has moved the disk bucket — without
  * this step the in-memory zustand state would still point at the old keys.
  *
- * Player queue `queueServerId` is included here: if the queue is currently
- * bound to a remapped index key, it gets re-pointed at the new one so the
- * queue keeps playing through the rename instead of looking unbound.
+ * Player queue `queueServerId` and per-item `queueItems[].serverId` are
+ * included here so mixed-server playback keeps resolving through the rename.
  */
 export async function rewriteFrontendStoreKeysForRemap(
   remaps: ReadonlyArray<{ oldKey: string; newKey: string }>,
@@ -139,16 +123,32 @@ export async function rewriteFrontendStoreKeysForRemap(
   if (mappings.length === 0) return;
 
   rewriteOfflineStoreKeys(mappings);
-  rewriteHotCacheStoreKeys(mappings);
+  rewriteLocalPlaybackStoreKeys(mappings);
   rewriteAnalysisStrategyStoreKeys(mappings);
 
-  // Player queue: queueServerId is a single string, not a keyed map.
+  // Player queue: queueServerId + per-item refs may carry remapped index keys.
   const queueRemap = new Map(mappings.map(m => [m.legacyId, m.indexKey]));
   usePlayerStore.setState(state => {
-    if (!state.queueServerId) return state;
-    const next = queueRemap.get(state.queueServerId);
-    if (!next) return state;
-    return { ...state, queueServerId: next };
+    let queueServerId = state.queueServerId;
+    if (queueServerId) {
+      const next = queueRemap.get(queueServerId);
+      if (next) queueServerId = next;
+    }
+    let queueItems = state.queueItems;
+    if (queueItems.length > 0) {
+      let changed = queueServerId !== state.queueServerId;
+      const nextItems = queueItems.map(ref => {
+        const nextServerId = queueRemap.get(ref.serverId);
+        if (!nextServerId) return ref;
+        changed = true;
+        return { ...ref, serverId: nextServerId };
+      });
+      if (changed) queueItems = nextItems;
+    }
+    if (queueServerId === state.queueServerId && queueItems === state.queueItems) {
+      return state;
+    }
+    return { queueServerId, queueItems };
   });
 
   // The analysis/cover strategy stores carry per-server-id maps that the

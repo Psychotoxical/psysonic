@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { AudioLines, ChevronRight, Heart, Play, Square } from 'lucide-react';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import type { Track } from '../../store/playerStoreTypes';
-import { usePreviewStore } from '../../store/previewStore';
+import { previewInputFromSong, usePreviewStore } from '../../store/previewStore';
 import { useDragDrop } from '../../contexts/DragDropContext';
 import { formatRandomMixDuration } from '../../utils/componentHelpers/randomMixHelpers';
 
@@ -110,7 +110,7 @@ export default function RandomMixTrackRow({
           onClick={e => {
             e.stopPropagation();
             usePreviewStore.getState().startPreview(
-              { id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration },
+              previewInputFromSong(song),
               'randomMix',
             );
           }}

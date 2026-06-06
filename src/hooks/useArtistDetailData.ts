@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { search } from '../api/subsonicSearch';
-import { getArtist, getArtistInfo, getTopSongs } from '../api/subsonicArtists';
+import { getArtist, getArtistForServer, getArtistInfo, getTopSongs } from '../api/subsonicArtists';
 import type {
   SubsonicAlbum, SubsonicArtist, SubsonicArtistInfo, SubsonicSong,
 } from '../api/subsonicTypes';
 import { useAuthStore } from '../store/authStore';
+import { useConnectionStatus } from './useConnectionStatus';
+import { loadArtistFromLibraryIndex } from '../utils/offline/favoritesOfflineBrowse';
+import { readDetailServerId } from '../utils/navigation/detailServerScope';
 import { runLocalArtistLosslessBrowse } from '../utils/library/browseTextSearch';
 import { isLosslessSuffix } from '../utils/library/losslessFormats';
 
@@ -45,11 +49,18 @@ export function useArtistDetailData(
   options: UseArtistDetailDataOptions = {},
 ): ArtistDetailDataResult {
   const losslessOnly = options.losslessOnly ?? false;
-  const serverId = useAuthStore(s => s.activeServerId);
+  const activeServerId = useAuthStore(s => s.activeServerId);
+  const [searchParams] = useSearchParams();
+  const serverId = readDetailServerId(searchParams, activeServerId);
+  const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
+  const { status: connStatus } = useConnectionStatus();
   const audiomuseNavidromeEnabled = useAuthStore(
-    s => !!(s.activeServerId && s.audiomuseNavidromeByServer[s.activeServerId]),
+    s => !!(serverId && s.audiomuseNavidromeByServer[serverId]),
   );
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const preferLocalArtist = connStatus === 'disconnected'
+    && favoritesOfflineEnabled
+    && !!serverId;
 
   const [artist, setArtist] = useState<SubsonicArtist | null>(null);
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
@@ -71,11 +82,26 @@ export function useArtistDetailData(
 
     (async () => {
       try {
+        if (preferLocalArtist && serverId && id) {
+          const local = await loadArtistFromLibraryIndex(serverId, id);
+          if (cancelled) return;
+          if (local) {
+            setArtist(local.artist);
+            setIsStarred(!!local.artist.starred);
+            setAlbums(local.albums);
+            setTopSongs([]);
+            setLoading(false);
+            return;
+          }
+        }
+
         if (losslessOnly && serverId) {
           const local = await runLocalArtistLosslessBrowse(serverId, id);
           if (cancelled) return;
           if (local) {
-            const artistData = await getArtist(id).catch(() => null);
+            const artistData = serverId
+              ? await getArtistForServer(serverId, id).catch(() => null)
+              : await getArtist(id).catch(() => null);
             if (cancelled) return;
             if (artistData) {
               setArtist(artistData.artist);
@@ -88,7 +114,9 @@ export function useArtistDetailData(
           }
         }
 
-        const artistData = await getArtist(id);
+        const artistData = serverId
+          ? await getArtistForServer(serverId, id)
+          : await getArtist(id);
         if (cancelled) return;
         setArtist(artistData.artist);
         let nextAlbums = artistData.albums;
@@ -105,6 +133,20 @@ export function useArtistDetailData(
         setTopSongs(nextSongs);
       } catch (err) {
         if (!cancelled) {
+          if (preferLocalArtist && serverId && id) {
+            try {
+              const local = await loadArtistFromLibraryIndex(serverId, id);
+              if (cancelled) return;
+              if (local) {
+                setArtist(local.artist);
+                setIsStarred(!!local.artist.starred);
+                setAlbums(local.albums);
+                setTopSongs([]);
+                setLoading(false);
+                return;
+              }
+            } catch { /* ignore */ }
+          }
           console.error(err);
           setLoading(false);
         }
@@ -112,10 +154,10 @@ export function useArtistDetailData(
     })();
 
     return () => { cancelled = true; };
-  }, [id, losslessOnly, serverId]);
+  }, [id, losslessOnly, serverId, preferLocalArtist, searchParams]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || preferLocalArtist) return;
     let cancelled = false;
     setArtistInfoLoading(true);
     getArtistInfo(id, { similarArtistCount: audiomuseNavidromeEnabled ? 24 : undefined })
@@ -129,10 +171,10 @@ export function useArtistDetailData(
         if (!cancelled) setArtistInfoLoading(false);
       });
     return () => { cancelled = true; };
-  }, [id, audiomuseNavidromeEnabled]);
+  }, [id, audiomuseNavidromeEnabled, preferLocalArtist]);
 
   useEffect(() => {
-    if (!id || !artist) return;
+    if (!id || !artist || preferLocalArtist) return;
     const ownAlbumIds = new Set(albums.map(a => a.id));
     setFeaturedLoading(true);
     search(artist.name, { songCount: 500, artistCount: 0, albumCount: 0 })
@@ -172,7 +214,7 @@ export function useArtistDetailData(
         setFeaturedLoading(false);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artist?.id, musicLibraryFilterVersion, losslessOnly, albums]);
+  }, [artist?.id, musicLibraryFilterVersion, losslessOnly, albums, preferLocalArtist]);
 
   const info = infoEntry && infoEntry.id === id ? infoEntry.value : null;
 

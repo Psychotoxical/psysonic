@@ -1,5 +1,7 @@
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import type { Track } from '../../store/playerStoreTypes';
+import { activeServerProfileId } from './trackServerScope';
+
 export function songToTrack(song: SubsonicSong): Track {
   return {
     id: song.id,
@@ -25,5 +27,6 @@ export function songToTrack(song: SubsonicSong): Track {
     samplingRate: song.samplingRate,
     bitDepth: song.bitDepth,
     size: song.size,
+    serverId: song.serverId ?? activeServerProfileId(),
   };
 }

@@ -89,6 +89,8 @@ export interface AuthState {
   coverRevalidateMaxProbesPerMinute: number;
   downloadFolder: string;
   offlineDownloadDir: string;
+  /** Unified local playback root `M` (replaces hot/offline dir pickers). */
+  mediaDir: string;
   excludeAudiobooks: boolean;
   customGenreBlacklist: string[];
   replayGainEnabled: boolean;
@@ -115,8 +117,6 @@ export interface AuthState {
   trackPreviewStartRatio: number;
   /** Preview window length in seconds. Default 30 s. */
   trackPreviewDurationSec: number;
-  preloadMode: 'off' | 'balanced' | 'early' | 'custom';
-  preloadCustomSeconds: number;
   infiniteQueueEnabled: boolean;
   preservePlayNextOrder: boolean;
   showArtistImages: boolean;
@@ -194,6 +194,9 @@ export interface AuthState {
   enableHiRes: boolean;
   /** Selected audio output device name. null = system default. */
   audioOutputDevice: string | null;
+
+  /** Auto-download starred favorites into `media/favorites/` (separate from offline library). */
+  favoritesOfflineEnabled: boolean;
 
   /** Alpha: ephemeral queue prefetch cache on disk */
   hotCacheEnabled: boolean;
@@ -307,8 +310,6 @@ export interface AuthState {
   setTrackPreviewLocation: (location: TrackPreviewLocation, enabled: boolean) => void;
   setTrackPreviewStartRatio: (v: number) => void;
   setTrackPreviewDurationSec: (v: number) => void;
-  setPreloadMode: (v: 'off' | 'balanced' | 'early' | 'custom') => void;
-  setPreloadCustomSeconds: (v: number) => void;
   setInfiniteQueueEnabled: (v: boolean) => void;
   setPreservePlayNextOrder: (v: boolean) => void;
   setShowArtistImages: (v: boolean) => void;
@@ -346,10 +347,12 @@ export interface AuthState {
   setQueueDisplayMode: (v: QueueDisplayMode) => void;
   setEnableHiRes: (v: boolean) => void;
   setAudioOutputDevice: (v: string | null) => void;
+  setFavoritesOfflineEnabled: (v: boolean) => void;
   setHotCacheEnabled: (v: boolean) => void;
   setHotCacheMaxMb: (v: number) => void;
   setHotCacheDebounceSec: (v: number) => void;
   setHotCacheDownloadDir: (v: string) => void;
+  setMediaDir: (v: string) => void;
   setSkipStarOnManualSkipsEnabled: (v: boolean) => void;
   setSkipStarManualSkipThreshold: (v: number) => void;
   setMixMinRatingFilterEnabled: (v: boolean) => void;

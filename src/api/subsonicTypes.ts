@@ -26,6 +26,8 @@ export interface SubsonicAlbum {
   displayArtist?: string;
   /** OpenSubsonic: per-disc subtitles (e.g. "Sessions" on CD 3 of a deluxe edition). */
   discTitles?: SubsonicDiscTitle[];
+  /** Set when favorites are merged across servers (offline favorites tier). */
+  serverId?: string;
 }
 
 export interface SubsonicDiscTitle {
@@ -90,6 +92,8 @@ export interface SubsonicSong {
     trackPeak?: number;
     albumPeak?: number;
   };
+  /** Set when favorites are merged across servers (offline favorites tier). */
+  serverId?: string;
   /** OpenSubsonic: structured composer credit (string for back-compat). */
   displayComposer?: string;
   /** OpenSubsonic: structured contributors list — Navidrome ≥ 0.55. */
@@ -144,6 +148,8 @@ export interface SubsonicArtist {
   starred?: string;
   /** Present on some servers (e.g. OpenSubsonic) for artist-level rating. */
   userRating?: number;
+  /** Set when favorites are merged across servers (offline favorites tier). */
+  serverId?: string;
 }
 
 export interface SubsonicGenre {

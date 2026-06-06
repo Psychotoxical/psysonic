@@ -1,8 +1,11 @@
-import { useOfflineStore } from '../store/offlineStore';
+import { useLocalPlaybackStore } from '../store/localPlaybackStore';
 import { useOfflineJobStore } from '../store/offlineJobStore';
+import { isOfflinePinComplete } from '../utils/offline/offlineLibraryHelpers';
+
+export type AlbumOfflineStatus = 'none' | 'queued' | 'downloading' | 'cached';
 
 interface UseAlbumOfflineStateResult {
-  resolvedOfflineStatus: 'none' | 'downloading' | 'cached';
+  resolvedOfflineStatus: AlbumOfflineStatus;
   offlineProgress: { done: number; total: number } | null;
 }
 
@@ -14,36 +17,51 @@ interface UseAlbumOfflineStateResult {
  * downloads (each track flip would otherwise trigger a full page render).
  *
  * Resolution rules:
- *  - If there's any queued / downloading job for this album, status is
- *    `downloading` and we expose a `{ done, total }` progress tuple.
- *  - Else we look at the persisted cache map: a fully-cached album is
- *    one where every trackId in the album-meta has a matching track entry.
+ *  - Fully pinned → `cached`.
+ *  - Active pin jobs or pin-queue `downloading` → `downloading` + progress.
+ *  - Pin-queue `queued` (waiting behind another album) → `queued`.
  *  - Else `none`.
  *
  * `albumId` is allowed to be empty (e.g. while the page is still
  * fetching) — in that case every selector short-circuits to a benign
  * default.
  */
-export function useAlbumOfflineState(albumId: string, serverId: string): UseAlbumOfflineStateResult {
-  const offlineStatus = useOfflineStore((s): 'none' | 'downloading' | 'cached' => {
-    if (!albumId) return 'none';
-    const meta = s.albums[`${serverId}:${albumId}`];
-    const isDownloaded = meta && meta.trackIds.length > 0 && meta.trackIds.every(tid => !!s.tracks[`${serverId}:${tid}`]);
-    return isDownloaded ? 'cached' : 'none';
-  });
+export function useAlbumOfflineState(
+  albumId: string,
+  serverId: string,
+  songIds?: string[],
+): UseAlbumOfflineStateResult {
+  useLocalPlaybackStore(s => s.entries);
+  const pinComplete = !!albumId && isOfflinePinComplete(albumId, serverId, songIds);
+  const isPinQueued = useOfflineJobStore(s =>
+    !pinComplete
+    && !!albumId
+    && s.pinQueue.some(p => p.albumId === albumId && p.status === 'queued'),
+  );
   const isOfflineDownloading = useOfflineJobStore(s =>
-    !!albumId && s.jobs.some(j => j.albumId === albumId && (j.status === 'queued' || j.status === 'downloading')),
+    !pinComplete
+    && !!albumId
+    && (
+      s.pinQueue.some(p => p.albumId === albumId && p.status === 'downloading')
+      || s.jobs.some(j => j.albumId === albumId && (j.status === 'queued' || j.status === 'downloading'))
+    ),
   );
   const offlineProgressDone = useOfflineJobStore(s => {
-    if (!albumId) return 0;
+    if (!albumId || pinComplete) return 0;
     return s.jobs.filter(j => j.albumId === albumId && (j.status === 'done' || j.status === 'error')).length;
   });
   const offlineProgressTotal = useOfflineJobStore(s => {
-    if (!albumId) return 0;
+    if (!albumId || pinComplete) return 0;
     return s.jobs.filter(j => j.albumId === albumId).length;
   });
-  const resolvedOfflineStatus = isOfflineDownloading ? 'downloading' : offlineStatus;
-  const offlineProgress = offlineProgressTotal > 0
+  const resolvedOfflineStatus = pinComplete
+    ? 'cached'
+    : isOfflineDownloading
+      ? 'downloading'
+      : isPinQueued
+        ? 'queued'
+        : 'none';
+  const offlineProgress = isOfflineDownloading && offlineProgressTotal > 0
     ? { done: offlineProgressDone, total: offlineProgressTotal }
     : null;
 

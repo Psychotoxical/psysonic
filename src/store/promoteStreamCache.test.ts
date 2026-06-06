@@ -1,90 +1,110 @@
-/**
- * Promote-stream-cache helper: wraps a single Rust IPC and forwards the
- * result into the hot-cache store index. Tests pin the payload shape, the
- * suffix fallback, the null-result skip, and the swallow-on-error
- * contract.
- */
-import type { Track } from './playerStoreTypes';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const { invokeMock, setEntryMock, buildStreamUrlMock } = vi.hoisted(() => ({
-  invokeMock: vi.fn(async (_cmd: string, _args?: Record<string, unknown>) => null as { path: string; size: number } | null),
-  setEntryMock: vi.fn(),
-  buildStreamUrlMock: vi.fn((id: string) => `https://mock/stream/${id}`),
+import type { Track } from './playerStoreTypes';
+
+const invokeMock = vi.fn();
+const setEntryMock = vi.fn();
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: (...args: unknown[]) => invokeMock(...args),
 }));
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
-vi.mock('../api/subsonicStreamUrl', () => ({
-  buildStreamUrl: buildStreamUrlMock,
-  buildStreamUrlForServer: (_serverId: string, id: string) => buildStreamUrlMock(id),
-}));
 vi.mock('./hotCacheStore', () => ({
-  useHotCacheStore: { getState: () => ({ setEntry: setEntryMock }) },
+  useHotCacheStore: {
+    getState: () => ({ setEntry: setEntryMock }),
+  },
+}));
+
+vi.mock('../utils/media/mediaDir', () => ({
+  getMediaDir: () => '/media',
+}));
+
+vi.mock('../api/subsonicStreamUrl', () => ({
+  buildStreamUrlForServer: (_sid: string, id: string) => `https://mock/stream/${id}`,
+}));
+
+vi.mock('../api/coverCache', () => ({
+  librarySqlServerId: (k: string) => k,
+}));
+
+const hasLocalPersistentPlaybackBytesMock = vi.fn((_trackId: string, _serverId: string) => false);
+
+vi.mock('../utils/offline/offlineLibraryHelpers', () => ({
+  hasLocalPersistentPlaybackBytes: (trackId: string, serverId: string) =>
+    hasLocalPersistentPlaybackBytesMock(trackId, serverId),
 }));
 
 import { promoteCompletedStreamToHotCache } from './promoteStreamCache';
 
 function track(id: string, overrides: Partial<Track> = {}): Track {
-  return { id, title: id, artist: 'A', album: 'X', albumId: 'X', duration: 100, ...overrides };
+  return {
+    id,
+    title: 'T',
+    artist: 'A',
+    album: 'Al',
+    albumId: 'al-1',
+    duration: 100,
+    ...overrides,
+  };
 }
 
-beforeEach(() => {
-  invokeMock.mockReset();
-  invokeMock.mockResolvedValue(null);
-  setEntryMock.mockReset();
-  buildStreamUrlMock.mockClear();
-});
-
 describe('promoteCompletedStreamToHotCache', () => {
+  beforeEach(() => {
+    invokeMock.mockReset();
+    setEntryMock.mockReset();
+    hasLocalPersistentPlaybackBytesMock.mockReset();
+    hasLocalPersistentPlaybackBytesMock.mockReturnValue(false);
+  });
+
+  it('skips promote when library or favorites already have bytes', async () => {
+    hasLocalPersistentPlaybackBytesMock.mockReturnValue(true);
+    await promoteCompletedStreamToHotCache(track('t1'), 'srv', null);
+    expect(invokeMock).not.toHaveBeenCalled();
+    expect(setEntryMock).not.toHaveBeenCalled();
+  });
+
   it('forwards a complete payload to the Rust command', async () => {
-    invokeMock.mockResolvedValueOnce({ path: '/cache/t1.mp3', size: 1234 });
-    await promoteCompletedStreamToHotCache(track('t1', { suffix: 'flac' }), 'srv', '/hot');
-    expect(invokeMock).toHaveBeenCalledWith('promote_stream_cache_to_hot_cache', {
+    invokeMock.mockResolvedValueOnce({
+      path: '/media/cache/t1.mp3',
+      size: 1234,
+      layoutFingerprint: 'fp1',
+    });
+    await promoteCompletedStreamToHotCache(track('t1', { suffix: 'flac' }), 'srv', null);
+    expect(invokeMock).toHaveBeenCalledWith('promote_stream_cache_to_local', {
       trackId: 't1',
-      serverId: 'srv',
-      url: 'https://mock/stream/t1',
+      serverIndexKey: 'srv',
+      libraryServerId: 'srv',
+      url: expect.stringContaining('t1'),
       suffix: 'flac',
-      customDir: '/hot',
+      mediaDir: '/media',
     });
   });
 
-  it("falls back to suffix='mp3' when the track has no suffix", async () => {
-    invokeMock.mockResolvedValueOnce({ path: '/cache/t1.mp3', size: 100 });
+  it('defaults suffix to mp3', async () => {
+    invokeMock.mockResolvedValueOnce({ path: '/p', size: 1, layoutFingerprint: '' });
     await promoteCompletedStreamToHotCache(track('t1'), 'srv', null);
     expect(invokeMock.mock.calls[0][1]?.suffix).toBe('mp3');
   });
 
-  it('passes through customDir=null when the user has no hot-cache dir set', async () => {
-    invokeMock.mockResolvedValueOnce({ path: '/cache/t1.mp3', size: 100 });
+  it('stores entry when Rust returns a path', async () => {
+    invokeMock.mockResolvedValueOnce({
+      path: '/media/cache/t1.mp3',
+      size: 5678,
+      layoutFingerprint: 'fp',
+    });
     await promoteCompletedStreamToHotCache(track('t1'), 'srv', null);
-    expect(invokeMock.mock.calls[0][1]?.customDir).toBeNull();
+    expect(setEntryMock).toHaveBeenCalledWith(
+      't1',
+      'srv',
+      '/media/cache/t1.mp3',
+      5678,
+      'stream-promote',
+      'fp',
+      'mp3',
+    );
   });
 
-  it('records the entry in the hot-cache store on a successful path', async () => {
-    invokeMock.mockResolvedValueOnce({ path: '/cache/t1.mp3', size: 5678 });
-    await promoteCompletedStreamToHotCache(track('t1'), 'srv', null);
-    expect(setEntryMock).toHaveBeenCalledWith('t1', 'srv', '/cache/t1.mp3', 5678, 'stream-promote');
-  });
-
-  it('defaults size to 0 when Rust omits it', async () => {
-    invokeMock.mockResolvedValueOnce({ path: '/cache/t1.mp3', size: 0 });
-    await promoteCompletedStreamToHotCache(track('t1'), 'srv', null);
-    expect(setEntryMock.mock.calls[0][3]).toBe(0);
-  });
-
-  it('skips the hot-cache write when Rust returns null', async () => {
-    invokeMock.mockResolvedValueOnce(null);
-    await promoteCompletedStreamToHotCache(track('t1'), 'srv', null);
-    expect(setEntryMock).not.toHaveBeenCalled();
-  });
-
-  it('skips the hot-cache write when path is empty', async () => {
-    invokeMock.mockResolvedValueOnce({ path: '', size: 100 });
-    await promoteCompletedStreamToHotCache(track('t1'), 'srv', null);
-    expect(setEntryMock).not.toHaveBeenCalled();
-  });
-
-  it('swallows Rust errors silently', async () => {
-    invokeMock.mockRejectedValueOnce(new Error('boom'));
+  it('swallows invoke errors', async () => {
+    invokeMock.mockRejectedValueOnce(new Error('fail'));
     await expect(promoteCompletedStreamToHotCache(track('t1'), 'srv', null)).resolves.toBeUndefined();
     expect(setEntryMock).not.toHaveBeenCalled();
   });

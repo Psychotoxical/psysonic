@@ -261,7 +261,7 @@ export const SHORTCUT_ACTION_REGISTRY = {
         showToast(i18n.t('contextMenu.cliMixNeedsTrack', { defaultValue: 'Load a track first.' }), 5000, 'error');
         return;
       }
-      queueSongStar(track.id, true);
+      queueSongStar(track.id, true, track.serverId);
     },
   },
   'open-help': {
@@ -309,7 +309,7 @@ export const SHORTCUT_ACTION_REGISTRY = {
         showToast(i18n.t('contextMenu.cliMixNeedsTrack'), 5000, 'error');
         return;
       }
-      queueSongStar(track.id, true);
+      queueSongStar(track.id, true, track.serverId);
     },
     cli: { verb: 'star', description: 'star' },
   },
@@ -322,7 +322,7 @@ export const SHORTCUT_ACTION_REGISTRY = {
         showToast(i18n.t('contextMenu.cliMixNeedsTrack'), 5000, 'error');
         return;
       }
-      queueSongStar(track.id, false);
+      queueSongStar(track.id, false, track.serverId);
     },
     cli: { verb: 'unstar', description: 'unstar' },
   },

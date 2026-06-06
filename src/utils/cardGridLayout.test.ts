@@ -32,6 +32,11 @@ describe('estimateRowHeightPx', () => {
     it('playlist behaves like album', () => {
       expect(estimateRowHeightPx(200, 'playlist')).toBe(308);
     });
+
+    it('offline is taller than album for the track-count footer', () => {
+      expect(estimateRowHeightPx(200, 'offline')).toBe(340);
+      expect(estimateRowHeightPx(200, 'album')).toBe(308);
+    });
   });
 });
 

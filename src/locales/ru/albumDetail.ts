@@ -13,8 +13,10 @@ export const albumDetail = {
   downloading: 'Загрузка…',
   cacheOffline: 'Сохранить офлайн',
   offlineCached: 'Доступно офлайн',
+  offlineQueued: 'В очереди',
   offlineDownloading: 'Кэширование… ({{n}} из {{total}})',
   removeOffline: 'Удалить офлайн-копию',
+  removeFromOfflineQueue: 'Убрать из очереди',
   offlineStorageFull:
     'Место для офлайн закончилось (лимит {{mb}} МБ). Освободите место в офлайн-библиотеке или увеличьте лимит в настройках.',
   offlineStorageGoToLibrary: 'Офлайн-библиотека',

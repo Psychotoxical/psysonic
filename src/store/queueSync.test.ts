@@ -7,8 +7,9 @@
  */
 import type { QueueItemRef, Track } from './playerStoreTypes';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const { savePlayQueueMock, playerState, progressSnapshot } = vi.hoisted(() => ({
+const { savePlayQueueMock, playerState, progressSnapshot, isActiveServerReachableMock } = vi.hoisted(() => ({
   savePlayQueueMock: vi.fn(async (_ids: string[], _currentId: string | undefined, _pos: number, _serverId: string) => undefined),
+  isActiveServerReachableMock: vi.fn(() => true),
   playerState: {
     queueItems: [] as QueueItemRef[],
     currentTrack: null as Track | null,
@@ -18,6 +19,9 @@ const { savePlayQueueMock, playerState, progressSnapshot } = vi.hoisted(() => ({
 }));
 
 vi.mock('../api/subsonicPlayQueue', () => ({ savePlayQueue: savePlayQueueMock }));
+vi.mock('../utils/network/activeServerReachability', () => ({
+  isActiveServerReachable: () => isActiveServerReachableMock(),
+}));
 vi.mock('../utils/playback/playbackServer', () => ({
   getPlaybackServerId: () => 'srv-a',
 }));
@@ -48,6 +52,7 @@ function ref(id: string): QueueItemRef {
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-05-12T12:00:00Z'));
+  isActiveServerReachableMock.mockReturnValue(true);
   savePlayQueueMock.mockClear();
   savePlayQueueMock.mockResolvedValue(undefined);
   playerState.queueItems = [];
@@ -63,6 +68,13 @@ afterEach(() => {
 
 describe('syncQueueToServer (debounced)', () => {
   const queue = [ref('a'), ref('b')];
+
+  it('skips sync while the active server is unreachable', () => {
+    isActiveServerReachableMock.mockReturnValue(false);
+    syncQueueToServer(queue, track('a'), 30);
+    vi.advanceTimersByTime(5000);
+    expect(savePlayQueueMock).not.toHaveBeenCalled();
+  });
 
   it('does not fire before 5 s elapse', () => {
     syncQueueToServer(queue, track('a'), 30);

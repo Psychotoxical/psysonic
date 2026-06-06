@@ -16,4 +16,9 @@ export const favorites = {
   topArtists: 'Toppartister etter favoritter',
   topArtistsSongCount_one: '{{count}} sang',
   topArtistsSongCount_other: '{{count}} sanger',
+  offlineTooltip: 'Lagre favorittene dine for offline lytting',
+  offlineJobName: 'Favoritter',
+  offlineSemaphoreSyncing: 'Synkroniserer favoritter… {{saved}} av {{total}}',
+  offlineSemaphoreSynced: 'Alle favoritter lagret for offline',
+  offlineSemaphoreError: 'Synkfeil — noen spor kunne ikke lagres',
 };

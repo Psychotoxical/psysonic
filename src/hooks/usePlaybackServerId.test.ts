@@ -31,6 +31,23 @@ describe('usePlaybackServerId', () => {
     expect(result.current).toBe('a');
   });
 
+  it('updates when the playing slot moves in a mixed-server queue', () => {
+    useAuthStore.setState({ activeServerId: 'a' });
+    usePlayerStore.setState({
+      queueItems: [
+        { serverId: 'a.test', trackId: 't1' },
+        { serverId: 'b.test', trackId: 't2' },
+      ],
+      queueServerId: 'a.test',
+      queueIndex: 0,
+    });
+    const { result, rerender } = renderHook(() => usePlaybackServerId());
+    expect(result.current).toBe('a');
+    usePlayerStore.setState({ queueIndex: 1 });
+    rerender();
+    expect(result.current).toBe('b');
+  });
+
   it('does not call switchActiveServer when browsed server changes', async () => {
     const { switchActiveServer } = await import('../utils/server/switchActiveServer');
     vi.mocked(switchActiveServer).mockClear();

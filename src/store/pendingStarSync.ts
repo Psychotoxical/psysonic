@@ -24,7 +24,7 @@ import { patchCachedTrack } from '../utils/library/queueTrackResolver';
  */
 
 type Task =
-  | { kind: 'star'; id: string; starred: boolean }
+  | { kind: 'star'; id: string; starred: boolean; serverId?: string }
   | { kind: 'rating'; id: string; rating: number };
 
 const pending = new Map<string, Task>(); // key `${kind}:${id}` — latest wins
@@ -33,7 +33,8 @@ const attempts = new Map<string, number>();
 const MAX_BACKOFF_MS = 30_000;
 let listenersArmed = false;
 
-const keyOf = (t: Task) => `${t.kind}:${t.id}`;
+const keyOf = (t: Task) =>
+  t.kind === 'star' ? `star:${t.serverId ?? ''}:${t.id}` : `${t.kind}:${t.id}`;
 
 function armListeners(): void {
   if (listenersArmed || typeof window === 'undefined') return;
@@ -62,8 +63,9 @@ async function run(k: string): Promise<void> {
   if (!task) return;
   try {
     if (task.kind === 'star') {
-      if (task.starred) await star(task.id, 'song');
-      else await unstar(task.id, 'song');
+      const meta = task.serverId ? { serverId: task.serverId } : undefined;
+      if (task.starred) await star(task.id, 'song', meta);
+      else await unstar(task.id, 'song', meta);
       onStarSuccess(task.id, task.starred);
     } else {
       await setRating(task.id, task.rating);
@@ -114,9 +116,9 @@ function onRatingSuccess(id: string): void {
 }
 
 /** Optimistically (un)star a song and sync it to the server with retry. */
-export function queueSongStar(id: string, starred: boolean): void {
+export function queueSongStar(id: string, starred: boolean, serverId?: string): void {
   usePlayerStore.getState().setStarredOverride(id, starred);
-  const t: Task = { kind: 'star', id, starred };
+  const t: Task = { kind: 'star', id, starred, serverId };
   const k = keyOf(t);
   pending.set(k, t);
   attempts.delete(k);

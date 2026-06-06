@@ -5,12 +5,18 @@ import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
 import { orbitBulkGuard } from '../utils/orbitBulkGuard';
 import { sameQueueTrackId } from '../utils/playback/queueIdentity';
 import {
-  bindQueueServerForPlayback,
+  bindQueueServerForTracks,
   getPlaybackCacheServerKey,
   getPlaybackIndexKey,
-  getPlaybackServerId,
+  playbackCacheKeyForTrack,
+  playbackProfileIdForTrack,
   shouldBindQueueServerForPlay,
 } from '../utils/playback/playbackServer';
+import { stampTrackServerId, stampTrackServerIds } from '../utils/playback/trackServerScope';
+import {
+  findLocalPlaybackUrl,
+  hasLocalPersistentPlaybackBytes,
+} from '../utils/offline/offlineLibraryHelpers';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 import { useAuthStore } from './authStore';
@@ -163,6 +169,9 @@ export function runPlayTrack(
 
   void playListenSessionFinalize('skip');
 
+  const scopedTrack = stampTrackServerId(track);
+  const scopedQueue = queue ? stampTrackServerIds(queue) : queue;
+
   clearAllPlaybackScheduleTimers();
   set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null, scheduledResumeAtMs: null, scheduledResumeStartMs: null });
 
@@ -181,11 +190,11 @@ export function runPlayTrack(
 
   const state = get();
   const prevTrack = state.currentTrack;
-  if (prevTrack?.id !== track.id) {
+  if (prevTrack?.id !== scopedTrack.id) {
     setSeekFallbackTrackId(null);
   }
   const visualOnEntry = getSeekFallbackVisualTarget();
-  if (visualOnEntry?.trackId !== track.id) {
+  if (visualOnEntry?.trackId !== scopedTrack.id) {
     setSeekFallbackVisualTarget(null);
   }
   // Thin-state: only a real queue *replacement* (explicit `queue` arg) rebuilds
@@ -193,10 +202,10 @@ export function runPlayTrack(
   // canonical refs and just moves the index — so we never resolve the whole
   // queue here (O(visible), not O(queue length)), which would hitch + churn
   // every subscriber on each track change at scale.
-  const replacing = queue !== undefined;
-  const srcLen = replacing ? queue.length : state.queueItems.length;
-  if (replacing && shouldBindQueueServerForPlay(state.queueItems, queue, queue)) {
-    bindQueueServerForPlayback();
+  const replacing = scopedQueue !== undefined;
+  const srcLen = replacing ? scopedQueue.length : state.queueItems.length;
+  if (replacing && shouldBindQueueServerForPlay(state.queueItems, scopedQueue, scopedQueue)) {
+    bindQueueServerForTracks(scopedQueue);
   }
   // Prefer an explicit target index from the caller (next/previous/queue-row
   // click already know the exact slot). `findIndex` returns the *first*
@@ -204,8 +213,8 @@ export function runPlayTrack(
   // track twice — breaking radio playback (issue #500).
   const matchesAt = (i: number): boolean =>
     replacing
-      ? sameQueueTrackId(queue[i]?.id, track.id)
-      : sameQueueTrackId(state.queueItems[i]?.trackId, track.id);
+      ? sameQueueTrackId(scopedQueue[i]?.id, scopedTrack.id)
+      : sameQueueTrackId(state.queueItems[i]?.trackId, scopedTrack.id);
   const explicitIdxValid =
     typeof targetQueueIndex === 'number'
     && targetQueueIndex >= 0
@@ -214,16 +223,18 @@ export function runPlayTrack(
   const idx = explicitIdxValid
     ? (targetQueueIndex as number)
     : replacing
-      ? queue.findIndex(t => sameQueueTrackId(t.id, track.id))
-      : state.queueItems.findIndex(r => sameQueueTrackId(r.trackId, track.id));
+      ? scopedQueue.findIndex(t => sameQueueTrackId(t.id, scopedTrack.id))
+      : state.queueItems.findIndex(r => sameQueueTrackId(r.trackId, scopedTrack.id));
   const playIdx = idx >= 0 ? idx : 0;
+  const playingRef = replacing ? undefined : state.queueItems[playIdx];
+  const prevPlayingRef = replacing ? undefined : state.queueItems[state.queueIndex];
   // ±1 neighbours for replaygain normalization — resolve only these (not the
   // whole queue). On replace they come from the provided Track[]; on navigation
   // from the resolver cache (the bridge keeps that window warm).
   const neighbourAt = (i: number): Track | null => {
     if (i < 0 || i >= srcLen) return null;
-    if (replacing) return queue[i] ?? null;
-    if (i === playIdx) return track;
+    if (replacing) return scopedQueue[i] ?? null;
+    if (i === playIdx) return scopedTrack;
     const ref = state.queueItems[i];
     return ref ? resolveQueueTrack(ref) : null;
   };
@@ -232,49 +243,60 @@ export function runPlayTrack(
   // Minimal window so deriveNormalizationSnapshot reads ±1 without a full array.
   const normWindow: Track[] = prevNeighbour ? [prevNeighbour] : [];
   const normIdx = normWindow.length;
-  normWindow.push(track);
+  normWindow.push(scopedTrack);
   if (nextNeighbour) normWindow.push(nextNeighbour);
   if (manual) {
     pushQueueUndoFromGetter(get);
   }
   const visualForInitial = getSeekFallbackVisualTarget();
-  const pendingVisualTarget = visualForInitial?.trackId === track.id
+  const pendingVisualTarget = visualForInitial?.trackId === scopedTrack.id
     ? visualForInitial.seconds
     : null;
   const initialTime = pendingVisualTarget !== null
-    ? Math.max(0, Math.min(pendingVisualTarget, track.duration || pendingVisualTarget))
+    ? Math.max(0, Math.min(pendingVisualTarget, scopedTrack.duration || pendingVisualTarget))
     : 0;
   const initialProgress =
-    track.duration && track.duration > 0 ? Math.max(0, Math.min(1, initialTime / track.duration)) : 0;
+    scopedTrack.duration && scopedTrack.duration > 0
+      ? Math.max(0, Math.min(1, initialTime / scopedTrack.duration))
+      : 0;
 
   const authState = useAuthStore.getState();
+  const playbackProfileId = playbackProfileIdForTrack(scopedTrack, playingRef);
+  const libraryLocalUrl = playbackProfileId
+    ? findLocalPlaybackUrl(scopedTrack.id, playbackProfileId, 'library')
+    : null;
   // Same-track replay: Rust `fetch_data` consumes `stream_completed_cache` with
   // `take()` once; a second replay would full HTTP-range again unless we flush
   // RAM to hot disk first (promote was only run when switching to another track).
   const needSameTrackHotPromote =
-    Boolean(
+    !libraryLocalUrl
+    && !(playbackProfileId && hasLocalPersistentPlaybackBytes(scopedTrack.id, playbackProfileId))
+    && Boolean(
       prevTrack
-      && sameQueueTrackId(prevTrack.id, track.id)
+      && sameQueueTrackId(prevTrack.id, scopedTrack.id)
       && authState.hotCacheEnabled
       && getPlaybackCacheServerKey(),
     );
 
   const runPlayTrackBody = () => {
     const authStateNow = useAuthStore.getState();
-    const playbackSid = getPlaybackServerId();
-    const playbackCacheSid = getPlaybackCacheServerKey();
-    const url = resolvePlaybackUrl(track.id, playbackCacheSid);
-    recordEnginePlayUrl(track.id, url);
+    const playbackSid = playbackProfileIdForTrack(scopedTrack, playingRef);
+    const playbackCacheSid = playbackCacheKeyForTrack(scopedTrack, playingRef);
+    const url = libraryLocalUrl
+      ?? findLocalPlaybackUrl(scopedTrack.id, playbackSid, 'library')
+      ?? findLocalPlaybackUrl(scopedTrack.id, playbackSid, 'favorite-auto')
+      ?? resolvePlaybackUrl(scopedTrack.id, playbackCacheSid);
+    recordEnginePlayUrl(scopedTrack.id, url);
     const preloadedTrackId = get().enginePreloadedTrackId;
-    const keepPreloadHint = preloadedTrackId === track.id;
+    const keepPreloadHint = preloadedTrackId === scopedTrack.id;
     const playbackSourceHint = playbackSourceHintForResolvedUrl(
-      track.id,
+      scopedTrack.id,
       playbackCacheSid,
       url,
     );
     if (import.meta.env.DEV) {
       console.info('[psysonic][playTrack-source]', {
-        trackId: track.id,
+        trackId: scopedTrack.id,
         resolvedUrl: url,
         preloadedTrackId,
         keepPreloadHint,
@@ -288,14 +310,21 @@ export function runPlayTrack(
     // When the caller replaced the queue (explicit `queue` arg), seed the
     // resolver with those tracks so the UI / hot paths resolve them without a
     // network round-trip. No-arg jumps reuse already-cached refs.
-    if (queue && queueSid) seedQueueResolver(queueSid, queue);
+    if (scopedQueue) {
+      for (const t of scopedQueue) {
+        const sid = playbackCacheKeyForTrack(t);
+        if (sid) seedQueueResolver(sid, [t]);
+      }
+    } else if (queueSid) {
+      seedQueueResolver(queueSid, [scopedTrack]);
+    }
     set({
-      currentTrack: track,
+      currentTrack: scopedTrack,
       currentRadio: null,
       waveformBins: null,
-      ...deriveNormalizationSnapshot(track, normWindow, normIdx),
+      ...deriveNormalizationSnapshot(scopedTrack, normWindow, normIdx),
       // Only a replace rewrites the queue; navigation keeps the canonical refs.
-      ...(replacing ? { queueItems: toQueueItemRefs(queueSid, queue) } : {}),
+      ...(replacing ? { queueItems: toQueueItemRefs(queueSid, scopedQueue) } : {}),
       queueIndex: idx >= 0 ? idx : 0,
       progress: initialProgress,
       buffered: 0,
@@ -307,15 +336,15 @@ export function runPlayTrack(
       isPlaying: playbackSourceHint !== 'stream',
       isPlaybackBuffering: playbackSourceHint === 'stream',
       currentPlaybackSource: playbackSourceHint,
-      enginePreloadedTrackId: keepPreloadHint ? track.id : null,
+      enginePreloadedTrackId: keepPreloadHint ? scopedTrack.id : null,
     });
 
     if (
       prevTrack
-      && !sameQueueTrackId(prevTrack.id, track.id)
+      && !sameQueueTrackId(prevTrack.id, scopedTrack.id)
       && authStateNow.hotCacheEnabled
     ) {
-      const prevPromoteSid = getPlaybackCacheServerKey();
+      const prevPromoteSid = playbackCacheKeyForTrack(prevTrack, prevPlayingRef);
       if (prevPromoteSid) {
         void promoteCompletedStreamToHotCache(
           prevTrack,
@@ -324,35 +353,35 @@ export function runPlayTrack(
         );
       }
     }
-    void refreshWaveformForTrack(track.id);
-    void refreshLoudnessForTrack(track.id);
+    void refreshWaveformForTrack(scopedTrack.id);
+    void refreshLoudnessForTrack(scopedTrack.id);
     setDeferHotCachePrefetch(true);
     const replayGainDb = resolveReplayGainDb(
-      track, prevTrack, nextNeighbour,
+      scopedTrack, prevTrack, nextNeighbour,
       isReplayGainActive(), authStateNow.replayGainMode,
     );
-    const replayGainPeak = isReplayGainActive() ? (track.replayGainPeak ?? null) : null;
+    const replayGainPeak = isReplayGainActive() ? (scopedTrack.replayGainPeak ?? null) : null;
     invoke('audio_play', {
       url,
       volume: state.volume,
-      durationHint: track.duration,
+      durationHint: scopedTrack.duration,
       replayGainDb,
       replayGainPeak,
-      loudnessGainDb: loudnessGainDbForEngineBind(track.id),
+      loudnessGainDb: loudnessGainDbForEngineBind(scopedTrack.id),
       preGainDb: authStateNow.replayGainPreGainDb,
       fallbackDb: authStateNow.replayGainFallbackDb,
       manual,
       hiResEnabled: authStateNow.enableHiRes,
-      analysisTrackId: track.id,
+      analysisTrackId: scopedTrack.id,
       serverId: getPlaybackIndexKey() || null,
-      streamFormatSuffix: track.suffix ?? null,
+      streamFormatSuffix: scopedTrack.suffix ?? null,
     })
       .then(() => {
         if (getPlayGeneration() !== gen) return;
         if (keepPreloadHint) {
           set({ enginePreloadedTrackId: null });
         }
-        const durSeek = track.duration && track.duration > 0 ? track.duration : null;
+        const durSeek = scopedTrack.duration && scopedTrack.duration > 0 ? scopedTrack.duration : null;
         const seekTo = initialTime;
         const canSeekAfterPlay =
           seekTo > 0.05 && (durSeek == null || seekTo < durSeek - 0.05);
@@ -361,12 +390,12 @@ export function runPlayTrack(
             .then(() => {
               if (getPlayGeneration() !== gen) return;
               setSeekTarget(seekTo);
-              if (getSeekFallbackVisualTarget()?.trackId === track.id) {
+              if (getSeekFallbackVisualTarget()?.trackId === scopedTrack.id) {
                 setSeekFallbackVisualTarget(null);
               }
             })
             .catch(() => {
-              if (getSeekFallbackVisualTarget()?.trackId === track.id) {
+              if (getSeekFallbackVisualTarget()?.trackId === scopedTrack.id) {
                 setSeekFallbackVisualTarget(null);
               }
             });
@@ -385,25 +414,25 @@ export function runPlayTrack(
 
     // Report Now Playing to Navidrome (for Live/getNowPlaying) + Last.fm
     const { nowPlayingEnabled: npEnabled, scrobblingEnabled: lfmEnabled, lastfmSessionKey: lfmKey } = useAuthStore.getState();
-    if (npEnabled) reportNowPlaying(track.id, getPlaybackServerId());
+    if (npEnabled) reportNowPlaying(scopedTrack.id, playbackSid);
     if (lfmKey) {
-      if (lfmEnabled) lastfmUpdateNowPlaying(track, lfmKey);
-      lastfmGetTrackLoved(track.title, track.artist, lfmKey).then(loved => {
-        const cacheKey = `${track.title}::${track.artist}`;
+      if (lfmEnabled) lastfmUpdateNowPlaying(scopedTrack, lfmKey);
+      lastfmGetTrackLoved(scopedTrack.title, scopedTrack.artist, lfmKey).then(loved => {
+        const cacheKey = `${scopedTrack.title}::${scopedTrack.artist}`;
         set(s => ({
           lastfmLoved: loved,
           lastfmLovedCache: { ...s.lastfmLovedCache, [cacheKey]: loved },
         }));
       });
     }
-    syncQueueToServer(get().queueItems, track, initialTime);
-    touchHotCacheOnPlayback(track.id, playbackCacheSid);
+    syncQueueToServer(get().queueItems, scopedTrack, initialTime);
+    touchHotCacheOnPlayback(scopedTrack.id, playbackCacheSid);
   };
 
   const hotPromoteSid = getPlaybackCacheServerKey();
   if (needSameTrackHotPromote && hotPromoteSid) {
     void promoteCompletedStreamToHotCache(
-      track,
+      scopedTrack,
       hotPromoteSid,
       authState.hotCacheDownloadDir || null,
     )

@@ -16,4 +16,9 @@ export const favorites = {
   topArtists: 'Top Artiști din Favorite',
   topArtistsSongCount_one: '{{count}} piesă',
   topArtistsSongCount_other: '{{count}} piese',
+  offlineTooltip: 'Salvează favoritele pentru ascultare offline',
+  offlineJobName: 'Favorite',
+  offlineSemaphoreSyncing: 'Se sincronizează favoritele… {{saved}} din {{total}}',
+  offlineSemaphoreSynced: 'Toate favoritele sunt salvate pentru offline',
+  offlineSemaphoreError: 'Eroare de sincronizare — unele piese nu au putut fi salvate',
 };

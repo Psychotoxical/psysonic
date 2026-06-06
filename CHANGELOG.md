@@ -40,6 +40,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Offline — unified local playback, library index join, and favorites sync
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1008](https://github.com/Psychotoxical/psysonic/pull/1008)**
+
+* All local audio bytes live under one **`media/`** tree: `cache/` (ephemeral hot-cache), `library/` (user-pinned offline), and `favorites/` (auto-synced stars). Paths use library-index metadata and the URL-derived server index key so two profiles on the same server share one bucket.
+* **`localPlaybackStore`** replaces the split hot-cache / offline metadata stores — one index drives prefetch, promotion, eviction, and `psysonic-local://` playback resolution.
+* **Offline Library** lists pinned and favorites-tier tracks by joining that index with the SQLite library catalog (no duplicate offline album cards). Pin album, playlist, or artist from browse; disk usage shown in the Offline Library header.
+* **Favorites auto-sync** keeps starred tracks on disk in `media/favorites/` with a compact toggle, cross-server reconcile, and cancel-on-unstar so orphaned files are not left behind.
+* **Cached offline pins stay in sync** — manually pinned **albums** and **artist discographies** reconcile after a library index sync (delta/full); **regular playlists** reconcile hourly and when edited in-app. Added tracks download and removed ones are pruned. **Smart playlists** (`psy-smart-…`) are excluded — their contents refresh from server rules automatically.
+* Mixed-server queues play offline with correct per-track server scope; network guards skip Subsonic when local bytes exist.
+* Startup migration from legacy `psysonic-offline/` layout; Settings → Storage uses a single **media directory** picker and a live hot-cache track count.
+
+
+
 ## Changed
 
 ### Dependencies — npm and Rust refresh
@@ -60,6 +74,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Playback — Preload Next Track setting removed
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1007](https://github.com/Psychotoxical/psysonic/pull/1007)**
+
+* The **Preload Next Track** toggle and timing modes under **Settings → Storage → Buffering** are gone — ranged streaming now starts playback without that extra RAM prefetch.
+* Gapless and crossfade still prefetch the next track internally when Hot Cache is off; Hot Cache is unchanged.
+
+
+
 ## Fixed
 
 ### Servers — complete border on the active server card
@@ -76,6 +99,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Ranged-HTTP FLAC/MP3/OGG streams start playing as soon as enough data is buffered again, instead of waiting for the whole file to download (Symphonia 0.6's trailing-metadata probe scan is skipped for progressive non-MP4 streams).
 * The streaming format probe now runs under a 20s timeout on a worker thread, so a stalled stream (e.g. right after a server switch) no longer blocks playback start until a manual player restart.
+
+
+
+### Track preview — Symphonia 0.6 format hints and fast stream start
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1006](https://github.com/Psychotoxical/psysonic/pull/1006)**
+
+* Preview resolves container format from HTTP headers, Subsonic `suffix`, and magic-byte sniff so Symphonia 0.6 no longer fails with `.unknown` demuxer errors.
+* Preview opens via ranged HTTP when the server supports byte ranges — audio starts after ~384 KiB buffered instead of waiting for a full-file download; buffered fallback uses the same probe seek-gate as main playback.
+* Player bar cover guard while preview metadata loads; progress ring leaves the loading spinner once the engine emits `audio:preview-start`.
 
 
 

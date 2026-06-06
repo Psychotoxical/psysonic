@@ -33,6 +33,7 @@ export const artistDetail = {
   similarArtists: 'Artiști similari',
   cacheOffline: 'Salvează discografia offline',
   offlineCached: 'Discografie stocată în cache',
+  offlineQueued: 'În coadă',
   offlineDownloading: 'Se salvează în cache… ({{done}}/{{total}} albume)',
   uploadImage: 'Încarcă imaginea artistului',
   uploadImageError: 'Nu s-a reușit încărcarea imaginii',

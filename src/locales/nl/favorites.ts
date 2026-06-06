@@ -16,4 +16,9 @@ export const favorites = {
   topArtists: 'Top-artiesten op favorieten',
   topArtistsSongCount_one: '{{count}} nummer',
   topArtistsSongCount_other: '{{count}} nummers',
+  offlineTooltip: 'Sla je favorieten op voor offline luisteren',
+  offlineJobName: 'Favorieten',
+  offlineSemaphoreSyncing: 'Favorieten synchroniseren… {{saved}} van {{total}}',
+  offlineSemaphoreSynced: 'Alle favorieten opgeslagen voor offline',
+  offlineSemaphoreError: 'Syncfout — sommige nummers konden niet worden opgeslagen',
 };

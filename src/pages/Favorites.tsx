@@ -24,6 +24,7 @@ import { useSelectionStore } from '../store/selectionStore';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import { AddToPlaylistSubmenu } from '../components/ContextMenu';
 import GenreFilterBar from '../components/GenreFilterBar';
+import FavoritesOfflineHeader from '../components/favorites/FavoritesOfflineHeader';
 
 const FAV_COLUMNS: readonly ColDef[] = [
   { key: 'num',        i18nKey: null,              minWidth: 60,  defaultWidth: 60,  required: true  },
@@ -104,7 +105,8 @@ export default function Favorites() {
 
   function removeSong(id: string) {
     // F4: optimistic un-star + retried server sync via the central helper.
-    queueSongStar(id, false);
+    const song = songs.find(s => s.id === id);
+    queueSongStar(id, false, song?.serverId);
     setSongs(prev => prev.filter(s => s.id !== id));
   }
 
@@ -133,8 +135,9 @@ export default function Favorites() {
 
   return (
     <div className="content-body animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
-      <div style={{ marginBottom: '-1.5rem' }}>
-        <h1 className="page-title">{t('favorites.title')}</h1>
+      <div className="playlists-header" style={{ marginBottom: '-1.5rem' }}>
+        <h1 className="page-title" style={{ marginBottom: 0 }}>{t('favorites.title')}</h1>
+        <FavoritesOfflineHeader />
       </div>
 
       {!hasAnyFavorites ? (

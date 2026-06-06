@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { usePlayerStore } from '../store/playerStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useOfflineJobStore } from '../store/offlineJobStore';
+import { clearOfflinePinTasks } from '../utils/offline/offlinePinQueue';
 import { useDeviceSyncJobStore } from '../store/deviceSyncJobStore';
 import { useAuthStore } from '../store/authStore';
 import { useSidebarStore } from '../store/sidebarStore';
@@ -23,7 +24,10 @@ import { useSidebarNewReleasesUnread } from '../hooks/useSidebarNewReleasesUnrea
 import { useSidebarNavDnd } from '../hooks/useSidebarNavDnd';
 import { useSidebarLibraryDropdown } from '../hooks/useSidebarLibraryDropdown';
 import { useSidebarScrollVisible } from '../hooks/useSidebarScrollVisible';
+import { isOfflineSidebarLibraryNavAllowed } from '../utils/offline/favoritesOfflineBrowse';
 import { hasAnyOfflineAlbums } from '../utils/offline/offlineLibraryHelpers';
+import { useConnectionStatus } from '../hooks/useConnectionStatus';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useSidebarPerfProbe } from '../hooks/useSidebarPerfProbe';
 import SidebarPerfProbeModal from './sidebar/SidebarPerfProbeModal';
 import SidebarNavBody from './sidebar/SidebarNavBody';
@@ -41,8 +45,16 @@ export default function Sidebar({
   const isPlaying   = usePlayerStore(s => s.isPlaying);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const offlineJobs = useOfflineJobStore(s => s.jobs);
-  const cancelAllDownloads = useOfflineJobStore(s => s.cancelAllDownloads);
+  const pinQueue = useOfflineJobStore(s => s.pinQueue);
+  const cancelAllDownloadsStore = useOfflineJobStore(s => s.cancelAllDownloads);
   const activeJobs = offlineJobs.filter(j => j.status === 'queued' || j.status === 'downloading');
+  const activePin = pinQueue.find(p => p.status === 'downloading')
+    ?? pinQueue.find(p => p.status === 'queued');
+  const queuedPinCount = pinQueue.filter(p => p.status === 'queued').length;
+  const cancelAllDownloads = () => {
+    clearOfflinePinTasks();
+    cancelAllDownloadsStore();
+  };
   const syncJobStatus = useDeviceSyncJobStore(s => s.status);
   const syncJobDone   = useDeviceSyncJobStore(s => s.done);
   const syncJobSkip   = useDeviceSyncJobStore(s => s.skipped);
@@ -61,7 +73,12 @@ export default function Sidebar({
   const setNormalizationEngine = useAuthStore(s => s.setNormalizationEngine);
   const loggingMode = useAuthStore(s => s.loggingMode);
   const setLoggingMode = useAuthStore(s => s.setLoggingMode);
+  const { status: connStatus } = useConnectionStatus();
+  const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
+  const libraryIndexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
+  const favoritesOfflineBrowse = favoritesOfflineEnabled && libraryIndexEnabled;
   const hasOfflineContent = hasAnyOfflineAlbums(offlineAlbums);
+  const isServerOffline = connStatus === 'disconnected';
   const sidebarItems = useSidebarStore(s => s.items);
   const setSidebarItems = useSidebarStore(s => s.setItems);
   const randomNavMode = useAuthStore(s => s.randomNavMode);
@@ -101,13 +118,20 @@ export default function Sidebar({
       libraryItemsForReorder.filter(c => {
         if (!c.visible) return false;
         if (c.id === 'luckyMix' && !luckyMixAvailable) return false;
+        if (isServerOffline && !isOfflineSidebarLibraryNavAllowed(c.id, favoritesOfflineBrowse)) {
+          return false;
+        }
         return true;
       }),
-    [libraryItemsForReorder, luckyMixAvailable],
+    [libraryItemsForReorder, luckyMixAvailable, isServerOffline, favoritesOfflineBrowse],
   );
   const visibleSystemConfigs = useMemo(
-    () => systemItemsForReorder.filter(c => c.visible),
-    [systemItemsForReorder],
+    () => systemItemsForReorder.filter(c => {
+      if (!c.visible) return false;
+      if (isServerOffline) return false;
+      return true;
+    }),
+    [systemItemsForReorder, isServerOffline],
   );
 
   const sidebarItemsRef = useRef(sidebarItems);
@@ -231,6 +255,8 @@ export default function Sidebar({
           nowPlayingAtTop={nowPlayingAtTop}
           hasOfflineContent={hasOfflineContent}
           activeJobsCount={activeJobs.length}
+          activePinName={activePin?.albumName ?? null}
+          queuedPinCount={queuedPinCount}
           cancelAllDownloads={cancelAllDownloads}
           isSyncing={isSyncing}
           syncJobDone={syncJobDone}

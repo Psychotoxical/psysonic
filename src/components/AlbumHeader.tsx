@@ -74,7 +74,7 @@ interface AlbumHeaderProps {
   resolvedCoverUrl: string | null;
   isStarred: boolean;
   downloadProgress: number | null;
-  offlineStatus: 'none' | 'downloading' | 'cached';
+  offlineStatus: 'none' | 'queued' | 'downloading' | 'cached';
   offlineProgress: { done: number; total: number } | null;
   bio: string | null;
   bioOpen: boolean;
@@ -300,6 +300,15 @@ export default function AlbumHeader({
                       <div className="album-icon-btn album-icon-btn--sm album-icon-btn--progress">
                         <Loader2 size={14} className="spin" />
                       </div>
+                    ) : offlineStatus === 'queued' ? (
+                      <button
+                        className="album-icon-btn album-icon-btn--sm album-icon-btn--active"
+                        onClick={onCacheOffline}
+                        aria-label={t('albumDetail.offlineQueued')}
+                        data-tooltip={t('albumDetail.removeFromOfflineQueue')}
+                      >
+                        <HardDriveDownload size={16} />
+                      </button>
                     ) : offlineStatus === 'cached' ? (
                       <button
                         className="album-icon-btn album-icon-btn--sm album-icon-btn--active"
@@ -400,6 +409,15 @@ export default function AlbumHeader({
                       <Loader2 size={14} className="spin" />
                       {t('albumDetail.offlineDownloading', { n: offlineProgress.done, total: offlineProgress.total })}
                     </div>
+                  ) : offlineStatus === 'queued' ? (
+                    <button
+                      className="btn btn-surface offline-cache-btn offline-cache-btn--queued"
+                      onClick={onCacheOffline}
+                      data-tooltip={t('albumDetail.removeFromOfflineQueue')}
+                    >
+                      <HardDriveDownload size={16} />
+                      {t('albumDetail.offlineQueued')}
+                    </button>
                   ) : offlineStatus === 'cached' ? (
                     <button
                       className="btn btn-surface offline-cache-btn offline-cache-btn--cached"

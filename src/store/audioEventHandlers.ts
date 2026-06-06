@@ -16,7 +16,9 @@ import { bumpPerfCounter } from '../utils/perf/perfTelemetry';
 import {
   getPlaybackCacheServerKey,
   getPlaybackIndexKey,
-  getPlaybackServerId,
+  playbackCacheKeyForRef,
+  playbackProfileIdForRef,
+  playbackProfileIdForTrack,
 } from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
@@ -91,9 +93,10 @@ export function handleAudioPlaying(duration: number): void {
   resetProgressEmitThrottles();
   usePlayerStore.setState({ isPlaying: true, isPlaybackBuffering: false });
   notifyLibraryPlaybackHint('playing');
-  const track = usePlayerStore.getState().currentTrack;
+  const { currentTrack: track, queueItems, queueIndex } = usePlayerStore.getState();
   if (track) {
-    void playListenSessionOpen(track, getPlaybackServerId(), duration);
+    const ref = queueItems[queueIndex];
+    void playListenSessionOpen(track, playbackProfileIdForTrack(track, ref), duration);
   }
 }
 
@@ -187,7 +190,11 @@ export function handleAudioProgress(
   // Scrobble at 50%: Last.fm + Navidrome (updates play_date / recently played)
   if (progress >= 0.5 && !store.scrobbled) {
     usePlayerStore.setState({ scrobbled: true });
-    scrobbleSong(track.id, Date.now(), getPlaybackServerId());
+    scrobbleSong(
+      track.id,
+      Date.now(),
+      playbackProfileIdForTrack(track, store.queueItems[store.queueIndex]),
+    );
     const { scrobblingEnabled, lastfmSessionKey } = useAuthStore.getState();
     if (scrobblingEnabled && lastfmSessionKey) {
       lastfmScrobble(track, Date.now(), lastfmSessionKey);
@@ -207,46 +214,22 @@ export function handleAudioProgress(
     markStoreProgressCommit(nowCommit);
   }
 
-  // Pre-buffer / pre-chain next track based on preload mode and crossfade.
+  // Pre-buffer / pre-chain next track for gapless and crossfade.
   const {
     gaplessEnabled,
-    preloadMode,
-    preloadCustomSeconds,
     hotCacheEnabled,
     crossfadeEnabled,
     crossfadeSecs,
   } = useAuthStore.getState();
   const remaining = dur - current_time;
 
-  // Gapless chain: always triggers at 30s regardless of preloadMode.
   const shouldChainGapless = gaplessEnabled && remaining < 30 && remaining > 0;
-  // Byte pre-download: skip when Hot Cache is active (it already handles buffering).
-  // Even with preload mode OFF, crossfade needs the next track bytes ready before
-  // we enter the fade window to avoid a hard gap after track boundary.
-  const shouldBytePreloadFromMode = preloadMode !== 'off' && (
-    preloadMode === 'early'
-      ? current_time >= 5
-      : preloadMode === 'custom'
-        ? remaining < preloadCustomSeconds && remaining > 0
-        : remaining < 30 && remaining > 0 // balanced (default)
-  );
+  // Crossfade needs the next track bytes ready before the fade window.
   const crossfadeWindowSecs = Math.max(8, Math.min(30, crossfadeSecs + 6));
   const shouldBytePreloadForCrossfade =
-    !gaplessEnabled && crossfadeEnabled && remaining < crossfadeWindowSecs && remaining > 0;
-  const shouldBytePreload = !hotCacheEnabled && (
-    shouldBytePreloadFromMode ||
-    shouldBytePreloadForCrossfade
-  );
-  // Hot/offline cache: seed enrichment from disk (playback also uses psysonic-local://).
-  const shouldPreloadLocalFileAnalysis = preloadMode !== 'off' && (
-    preloadMode === 'early'
-      ? current_time >= 5
-      : preloadMode === 'custom'
-        ? remaining < preloadCustomSeconds && remaining > 0
-        : remaining < 30 && remaining > 0
-  );
+    !hotCacheEnabled && !gaplessEnabled && crossfadeEnabled && remaining < crossfadeWindowSecs && remaining > 0;
 
-  if (shouldChainGapless || shouldBytePreload || shouldPreloadLocalFileAnalysis || gaplessEnabled) {
+  if (shouldChainGapless || shouldBytePreloadForCrossfade || gaplessEnabled) {
     const { queueItems, queueIndex, repeatMode } = store;
     const nextIdx = queueIndex + 1;
     // Next track for preload/chain. The resolver bridge keeps the window around
@@ -278,14 +261,15 @@ export function handleAudioProgress(
     const shouldBytePreloadForGaplessBackup =
       gaplessEnabled && remaining < gaplessBackupWindowSecs && remaining > 0;
 
-    const serverId = getPlaybackCacheServerKey();
-    const analysisServerId = getPlaybackIndexKey();
+    const serverId = nextRef ? playbackCacheKeyForRef(nextRef) : getPlaybackCacheServerKey();
+    const analysisServerId = nextRef
+      ? playbackCacheKeyForRef(nextRef)
+      : getPlaybackIndexKey();
     const nextUrl = resolvePlaybackUrl(nextTrack.id, serverId);
-    const nextIsLocalFile = nextUrl.startsWith('psysonic-local://');
 
-    // Byte pre-download — runs early so bytes are cached by chain time.
+    // Byte pre-download — gapless backup or crossfade; runs early so bytes are ready by chain time.
     if (
-      (shouldBytePreload || shouldBytePreloadForGaplessBackup || (shouldPreloadLocalFileAnalysis && nextIsLocalFile))
+      (shouldBytePreloadForCrossfade || shouldBytePreloadForGaplessBackup)
       && nextTrack.id !== getBytePreloadingId()
     ) {
       setBytePreloadingId(nextTrack.id);
@@ -296,10 +280,8 @@ export function handleAudioProgress(
         console.info('[psysonic][preload-request]', {
           nextTrackId: nextTrack.id,
           nextUrl,
-          shouldBytePreload,
+          shouldBytePreloadForCrossfade,
           shouldBytePreloadForGaplessBackup,
-          shouldPreloadLocalFileAnalysis,
-          nextIsLocalFile,
           remaining,
           gaplessEnabled,
         });
@@ -435,7 +417,8 @@ export function handleAudioTrackSwitched(_duration: number): void {
 
   void playListenSessionOnTrackSwitched(nextTrack);
 
-  const switchServerId = getPlaybackCacheServerKey();
+  const switchRef = queueItems[newIndex];
+  const switchServerId = playbackCacheKeyForRef(switchRef);
   const switchResolvedUrl = resolvePlaybackUrl(nextTrack.id, switchServerId);
   const switchPlaybackSource = playbackSourceHintForResolvedUrl(nextTrack.id, switchServerId, switchResolvedUrl);
 
@@ -476,7 +459,9 @@ export function handleAudioTrackSwitched(_duration: number): void {
 
   // Report Now Playing to Navidrome + Last.fm
   const { nowPlayingEnabled, scrobblingEnabled, lastfmSessionKey } = useAuthStore.getState();
-  if (nowPlayingEnabled) reportNowPlaying(nextTrack.id, getPlaybackServerId());
+  if (nowPlayingEnabled) {
+    reportNowPlaying(nextTrack.id, playbackProfileIdForTrack(nextTrack, switchRef));
+  }
   if (lastfmSessionKey) {
     if (scrobblingEnabled) lastfmUpdateNowPlaying(nextTrack, lastfmSessionKey);
     lastfmGetTrackLoved(nextTrack.title, nextTrack.artist, lastfmSessionKey).then(loved => {
@@ -488,7 +473,7 @@ export function handleAudioTrackSwitched(_duration: number): void {
     });
   }
   syncQueueToServer(queueItems, nextTrack, 0);
-  touchHotCacheOnPlayback(nextTrack.id, getPlaybackCacheServerKey());
+  touchHotCacheOnPlayback(nextTrack.id, switchServerId);
 }
 
 export function handleAudioError(message: string): void {

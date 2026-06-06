@@ -46,12 +46,11 @@ export function collectLoudnessBackfillWindowTrackIds(
   return Array.from(ids);
 }
 
-/** Next ~5 queue neighbours (+ immediate next when preload is on) for middle-tier analysis. */
+/** Next ~5 queue neighbours for middle-tier analysis priority hints. */
 export function collectPlaybackMiddlePriorityTrackIds(
   queue: QueueItemRef[],
   queueIndex: number,
   currentTrack: Track | null,
-  preloadMode: 'off' | 'balanced' | 'early' | 'custom',
 ): string[] {
   const ids = new Set<string>();
   const start = Math.max(0, queueIndex + 1);
@@ -59,13 +58,6 @@ export function collectPlaybackMiddlePriorityTrackIds(
   for (let i = start; i < end; i++) {
     const tid = queue[i]?.trackId;
     if (tid && tid !== currentTrack?.id) ids.add(tid);
-  }
-  if (preloadMode !== 'off') {
-    const nextIdx = queueIndex + 1;
-    if (nextIdx >= 0 && nextIdx < queue.length) {
-      const tid = queue[nextIdx]?.trackId;
-      if (tid && tid !== currentTrack?.id) ids.add(tid);
-    }
   }
   return Array.from(ids);
 }

@@ -78,11 +78,15 @@ export function useFavoritesSongFiltering(deps: FavoritesSongFilteringDeps): Fav
       // Remove unfavorited
       if (starredOverrides[s.id] === false) return false;
 
-      // Artist filter
+      // Artist filter (composite key when favorites span servers)
       if (selectedArtist) {
-        const artistMatch = s.artistId === selectedArtist ||
-                           s.artist === selectedArtist ||
-                           s.albumArtist === selectedArtist;
+        const compositeKey = s.serverId
+          ? `${s.serverId}:${s.artistId || s.artist}`
+          : (s.artistId || s.artist);
+        const artistMatch = selectedArtist === compositeKey
+          || s.artistId === selectedArtist
+          || s.artist === selectedArtist
+          || s.albumArtist === selectedArtist;
         if (!artistMatch) return false;
       }
 

@@ -34,7 +34,7 @@ export function usePlaylistStarRating(deps: PlaylistStarRatingDeps): PlaylistSta
       return next;
     });
     // F4: optimistic override + retried server sync via the central helper (no rollback).
-    queueSongStar(song.id, !isStarred);
+    queueSongStar(song.id, !isStarred, song.serverId);
   };
 
   return { handleRate, handleToggleStar };

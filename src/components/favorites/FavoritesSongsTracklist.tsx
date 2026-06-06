@@ -7,12 +7,13 @@ import { useNavigate } from 'react-router-dom';
 import type { ColDef } from '../../utils/useTracklistColumns';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import { usePlayerStore } from '../../store/playerStore';
-import { usePreviewStore } from '../../store/previewStore';
+import { previewInputFromSong, usePreviewStore } from '../../store/previewStore';
 import { useSelectionStore } from '../../store/selectionStore';
 import { useThemeStore } from '../../store/themeStore';
 import { useDragDrop } from '../../contexts/DragDropContext';
 import { useOrbitSongRowBehavior } from '../../hooks/useOrbitSongRowBehavior';
 import { songToTrack } from '../../utils/playback/songToTrack';
+import { appendServerQuery } from '../../utils/navigation/detailServerScope';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../../constants/appScroll';
 import { useElementClientHeightById } from '../../hooks/useResizeClientHeight';
 import { SORTABLE_COLUMNS } from '../../hooks/useFavoritesSongFiltering';
@@ -122,13 +123,19 @@ export default function FavoritesSongsTracklist({
       L.playTrack(L.visibleTracks[index], L.visibleTracks);
     },
     startPreview: (song) => usePreviewStore.getState().startPreview(
-      { id: song.id, title: song.title, artist: song.artist, coverArt: song.coverArt, duration: song.duration },
+      previewInputFromSong(song),
       'favorites',
     ),
     rate: (songId, r) => latest.current.handleRate(songId, r),
     remove: (songId) => latest.current.removeSong(songId),
-    navArtist: (artistId) => latest.current.navigate(`/artist/${artistId}`),
-    navAlbum: (albumId) => latest.current.navigate(`/album/${albumId}`),
+    navArtist: (artistId, serverId) => {
+      const query = appendServerQuery(undefined, serverId);
+      latest.current.navigate(query ? `/artist/${artistId}?${query}` : `/artist/${artistId}`);
+    },
+    navAlbum: (albumId, serverId) => {
+      const query = appendServerQuery(undefined, serverId);
+      latest.current.navigate(query ? `/album/${albumId}?${query}` : `/album/${albumId}`);
+    },
   }), []);
 
   const listWrapRef = useRef<HTMLDivElement | null>(null);

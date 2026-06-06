@@ -37,6 +37,7 @@ export const artistDetail = {
   similarArtists: 'Похожие исполнители',
   cacheOffline: 'Сохранить дискографию офлайн',
   offlineCached: 'Дискография сохранена',
+  offlineQueued: 'В очереди',
   offlineDownloading: 'Кэширование… ({{done}} из {{total}} альбомов)',
   uploadImage: 'Загрузить фото исполнителя',
   uploadImageError: 'Не удалось загрузить изображение',

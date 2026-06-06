@@ -152,6 +152,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Performance Probe: throughput (analysis tpm, cover cpm) measured over a trailing 5s window so the rate reacts promptly instead of coasting on minute-long inertia (PR #948)',
       'Cover backfill: follow the smart local/public endpoint switch so off-LAN clients stop fetching covers from the unreachable local address (PR #952)',
       'Audio: Symphonia 0.6 migration with libopus adapter 0.3; ranged-stream start latency fix (probe seek-gate) and a probe timeout so a stalled stream no longer hangs playback start (PR #999)',
+      'Offline experience — unified media layout (cache/library/favorites), localPlaybackStore, library-index Offline Library, favorites auto-sync, cached album/playlist/artist pin reconcile, mixed-server offline queue, and single mediaDir setting (PR #1008)',
     ],
   },
   {

@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useAnalysisStrategyStore } from '../../store/analysisStrategyStore';
 import { useCoverStrategyStore } from '../../store/coverStrategyStore';
-import { useHotCacheStore } from '../../store/hotCacheStore';
+import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
 import { useOfflineStore } from '../../store/offlineStore';
 import { usePlayerStore } from '../../store/playerStore';
 import { rewriteFrontendStoreKeysForRemap } from './rewriteFrontendStoreKeys';
 
 describe('rewriteFrontendStoreKeysForRemap', () => {
   beforeEach(() => {
-    useOfflineStore.setState({ tracks: {}, albums: {} });
-    useHotCacheStore.setState({ entries: {} });
+    useOfflineStore.setState({ albums: {} });
+    useLocalPlaybackStore.setState({ entries: {} });
     useAnalysisStrategyStore.setState({
       strategyByServer: {},
       advancedParallelismByServer: {},
@@ -19,42 +19,70 @@ describe('rewriteFrontendStoreKeysForRemap', () => {
   });
 
   it('no-ops on empty remap list', async () => {
-    useOfflineStore.setState({
-      tracks: { 'old:t1': { serverId: 'old' } as never },
-      albums: {},
+    useLocalPlaybackStore.setState({
+      entries: {
+        'old:t1': {
+          serverIndexKey: 'old',
+          trackId: 't1',
+          localPath: '/x',
+          layoutFingerprint: '',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'mp3',
+        },
+      },
     });
     await rewriteFrontendStoreKeysForRemap([]);
-    expect(useOfflineStore.getState().tracks).toHaveProperty('old:t1');
+    expect(useLocalPlaybackStore.getState().entries).toHaveProperty('old:t1');
   });
 
   it('no-ops when oldKey === newKey', async () => {
-    useOfflineStore.setState({
-      tracks: { 'same:t1': { serverId: 'same' } as never },
-      albums: {},
+    useLocalPlaybackStore.setState({
+      entries: {
+        'same:t1': {
+          serverIndexKey: 'same',
+          trackId: 't1',
+          localPath: '/x',
+          layoutFingerprint: '',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'mp3',
+        },
+      },
     });
     await rewriteFrontendStoreKeysForRemap([{ oldKey: 'same', newKey: 'same' }]);
-    expect(useOfflineStore.getState().tracks).toHaveProperty('same:t1');
+    expect(useLocalPlaybackStore.getState().entries).toHaveProperty('same:t1');
   });
 
-  it('rewrites offline tracks + albums under the new key', async () => {
+  it('rewrites offline albums under the new key', async () => {
     useOfflineStore.setState({
-      tracks: { 'old:t1': { serverId: 'old' } as never },
-      albums: { 'old:al-1': { serverId: 'old' } as never },
+      albums: { 'old:al-1': { serverId: 'old', id: 'al-1', name: 'X', artist: 'Y', trackIds: [] } },
     });
     await rewriteFrontendStoreKeysForRemap([{ oldKey: 'old', newKey: 'new' }]);
     const state = useOfflineStore.getState();
-    expect(state.tracks).toHaveProperty('new:t1');
-    expect(state.tracks).not.toHaveProperty('old:t1');
     expect(state.albums).toHaveProperty('new:al-1');
     expect(state.albums).not.toHaveProperty('old:al-1');
   });
 
-  it('rewrites hot-cache entries under the new key', async () => {
-    useHotCacheStore.setState({
-      entries: { 'old:t1': { trackId: 't1' } as never },
+  it('rewrites local playback entries under the new key', async () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'old:t1': {
+          serverIndexKey: 'old',
+          trackId: 't1',
+          localPath: '/x',
+          layoutFingerprint: '',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'mp3',
+        },
+      },
     });
     await rewriteFrontendStoreKeysForRemap([{ oldKey: 'old', newKey: 'new' }]);
-    const entries = useHotCacheStore.getState().entries;
+    const entries = useLocalPlaybackStore.getState().entries;
     expect(entries).toHaveProperty('new:t1');
     expect(entries).not.toHaveProperty('old:t1');
   });
@@ -88,6 +116,22 @@ describe('rewriteFrontendStoreKeysForRemap', () => {
     expect(usePlayerStore.getState().queueServerId).toBe('new');
   });
 
+  it('repoints queueItems serverId when refs match the old key', async () => {
+    usePlayerStore.setState({
+      queueServerId: 'old',
+      queueItems: [
+        { serverId: 'old', trackId: 't1' },
+        { serverId: 'other', trackId: 't2' },
+      ],
+      queueIndex: 0,
+    });
+    await rewriteFrontendStoreKeysForRemap([{ oldKey: 'old', newKey: 'new' }]);
+    const s = usePlayerStore.getState();
+    expect(s.queueServerId).toBe('new');
+    expect(s.queueItems[0]).toEqual({ serverId: 'new', trackId: 't1' });
+    expect(s.queueItems[1]).toEqual({ serverId: 'other', trackId: 't2' });
+  });
+
   it('leaves queueServerId untouched when it is bound to a different server', async () => {
     usePlayerStore.setState({ queueServerId: 'other' });
     await rewriteFrontendStoreKeysForRemap([{ oldKey: 'old', newKey: 'new' }]);
@@ -95,18 +139,33 @@ describe('rewriteFrontendStoreKeysForRemap', () => {
   });
 
   it('does not clobber an existing entry under the new key', async () => {
-    useOfflineStore.setState({
-      tracks: {
-        'old:t1': { serverId: 'old', tag: 'from-old' } as never,
-        'new:t1': { serverId: 'new', tag: 'from-new' } as never,
+    useLocalPlaybackStore.setState({
+      entries: {
+        'old:t1': {
+          serverIndexKey: 'old',
+          trackId: 't1',
+          localPath: '/old',
+          layoutFingerprint: '',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'mp3',
+        },
+        'new:t1': {
+          serverIndexKey: 'new',
+          trackId: 't1',
+          localPath: '/new',
+          layoutFingerprint: '',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'mp3',
+        },
       },
-      albums: {},
     });
     await rewriteFrontendStoreKeysForRemap([{ oldKey: 'old', newKey: 'new' }]);
-    const tracks = useOfflineStore.getState().tracks as unknown as Record<string, { tag: string }>;
-    // Existing destination preserved — same prefer-existing semantics as
-    // the disk-side cover bucket merge.
-    expect(tracks['new:t1']?.tag).toBe('from-new');
-    expect(tracks).not.toHaveProperty('old:t1');
+    const entries = useLocalPlaybackStore.getState().entries;
+    expect(entries['new:t1']?.localPath).toBe('/new');
+    expect(entries).not.toHaveProperty('old:t1');
   });
 });
