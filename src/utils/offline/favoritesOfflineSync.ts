@@ -26,6 +26,8 @@ const CONCURRENCY = 2;
 const DEBOUNCE_MS = 600;
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+/** Accumulates server ids across debounced calls; `'all'` means fan-out to every server. */
+let pendingSyncServerIds: Set<string> | 'all' = new Set();
 let runToken = 0;
 
 function serverIndexKeyForSync(serverId: string): string {
@@ -139,10 +141,20 @@ export async function disableFavoritesOfflineSync(): Promise<void> {
 export function scheduleFavoritesOfflineSync(serverId?: string): void {
   if (!useAuthStore.getState().favoritesOfflineEnabled) return;
   if (!isActiveServerReachable()) return;
+  if (serverId) {
+    if (pendingSyncServerIds !== 'all') {
+      pendingSyncServerIds.add(serverId);
+    }
+  } else {
+    pendingSyncServerIds = 'all';
+  }
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     debounceTimer = null;
-    const serverIds = serverId ? [serverId] : favoritesServerIds();
+    const serverIds = pendingSyncServerIds === 'all'
+      ? favoritesServerIds()
+      : [...pendingSyncServerIds];
+    pendingSyncServerIds = new Set();
     void runFavoritesOfflineSyncBatch(serverIds);
   }, DEBOUNCE_MS);
 }
@@ -169,6 +181,9 @@ export function onFavoritesOfflineStarChange(
 async function runFavoritesOfflineSyncBatch(serverIds: string[]): Promise<void> {
   const auth = useAuthStore.getState();
   if (!auth.favoritesOfflineEnabled || serverIds.length === 0) return;
+
+  cancelledDownloads.delete(FAVORITES_OFFLINE_JOB_ID);
+  invoke('clear_offline_cancel', { downloadId: FAVORITES_OFFLINE_JOB_ID }).catch(() => {});
 
   const token = ++runToken;
   const syncStore = useFavoritesOfflineSyncStore.getState();

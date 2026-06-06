@@ -4,10 +4,10 @@
 //! under `{media}/{cache|library}/…`. Legacy `download_track_hot_cache` /
 //! `download_track_offline` remain until LP-2/3 switch call sites.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use psysonic_analysis::analysis_runtime::{
     enqueue_offline_library_analysis_from_file, enqueue_track_analysis, AnalysisBackfillPriority,
@@ -15,7 +15,8 @@ use psysonic_analysis::analysis_runtime::{
 use psysonic_audio as audio;
 use psysonic_core::cover_cache_layout::sanitize_path_segment;
 use psysonic_core::media_layout::{
-    absolute_track_path, layout_fingerprint, LocalTier, TrackPathInput,
+    absolute_track_path, ensure_track_path_within_tier, layout_fingerprint, LocalTier,
+    TrackPathInput,
 };
 use psysonic_library::repos::TrackRow;
 use psysonic_library::{repos::TrackRepository, LibraryRuntime};
@@ -135,6 +136,39 @@ fn normalize_path_key(path: &Path) -> String {
         .to_string()
 }
 
+/// Per-track download mutex — serializes concurrent `download_track_local` /
+/// `promote_stream_cache_to_local` for the same `(tier, server, track)` so two
+/// callers do not stream into the same `.part` file (M5).
+fn track_download_locks(
+) -> &'static tokio::sync::Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>> {
+    static LOCKS: OnceLock<tokio::sync::Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>> =
+        OnceLock::new();
+    LOCKS.get_or_init(|| tokio::sync::Mutex::new(HashMap::new()))
+}
+
+async fn acquire_per_track_download_lock(key: &str) -> tokio::sync::OwnedMutexGuard<()> {
+    let lock_arc = {
+        let mut map = track_download_locks().lock().await;
+        map.entry(key.to_string())
+            .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+            .clone()
+    };
+    lock_arc.lock_owned().await
+}
+
+fn per_track_download_lock_key(tier: LocalTier, server_index_key: &str, track_id: &str) -> String {
+    format!("{}:{}:{}", tier.subdir(), server_index_key, track_id)
+}
+
+/// Part file beside the final track; keyed by sanitized `track_id` instead of
+/// replacing the media extension so concurrent different-suffix attempts do not
+/// share one `{suffix}.part` on the same stem.
+fn unique_part_path(file_path: &Path, suffix: &str, track_id: &str) -> PathBuf {
+    let parent = file_path.parent().unwrap_or_else(|| Path::new("."));
+    let safe_id = sanitize_path_segment(track_id);
+    parent.join(format!("{safe_id}.{suffix}.part"))
+}
+
 fn track_row_to_path_input(row: &psysonic_library::repos::TrackRow) -> TrackPathInput {
     TrackPathInput {
         artist: row.artist.clone(),
@@ -146,6 +180,45 @@ fn track_row_to_path_input(row: &psysonic_library::repos::TrackRow) -> TrackPath
         suffix: row.suffix.clone(),
         raw_json: Some(row.raw_json.clone()),
     }
+}
+
+async fn local_track_hit_if_exists(
+    file_path: &Path,
+    path_str: &str,
+    fingerprint: &str,
+    app: &AppHandle,
+    server_index_key: &str,
+    library_server_id: &str,
+    track_id: &str,
+) -> Result<Option<LocalTrackDownloadResult>, String> {
+    if !file_path.is_file() {
+        return Ok(None);
+    }
+    let size = tokio::fs::metadata(file_path)
+        .await
+        .map(|m| m.len())
+        .unwrap_or(0);
+    let app_seed = app.clone();
+    let tid = track_id.to_string();
+    let index_key = server_index_key.to_string();
+    let library_id = library_server_id.to_string();
+    let fp = file_path.to_path_buf();
+    tokio::spawn(async move {
+        let _ = enqueue_offline_library_analysis_from_file(
+            &app_seed,
+            &index_key,
+            &library_id,
+            &tid,
+            &fp,
+            None,
+        )
+        .await;
+    });
+    Ok(Some(LocalTrackDownloadResult {
+        path: path_str.to_string(),
+        size,
+        layout_fingerprint: fingerprint.to_string(),
+    }))
 }
 
 /// Downloads a track into the unified media layout. Requires a library index row
@@ -182,7 +255,7 @@ pub async fn download_track_local(
     } else {
         let repo = TrackRepository::new(&runtime.store);
         let Some(row) = repo.find_one(&library_server_id, &track_id)? else {
-            return Err("LIBRARY_TRACK_NOT_FOUND".to_string());
+            return Err("TRACK_NOT_INDEXED".to_string());
         };
         let path_input = track_row_to_path_input(&row);
         let fingerprint = layout_fingerprint(&path_input);
@@ -206,32 +279,43 @@ pub async fn download_track_local(
         layout_fingerprint: fingerprint,
     } = resolved;
 
-    if file_path.is_file() {
-        let size = tokio::fs::metadata(&file_path)
-            .await
-            .map(|m| m.len())
-            .unwrap_or(0);
-        let app_seed = app.clone();
-        let tid = track_id.clone();
-        let index_key = server_index_key.clone();
-        let library_id = library_server_id.clone();
-        let fp = file_path.clone();
-        tokio::spawn(async move {
-            let _ = enqueue_offline_library_analysis_from_file(
-                &app_seed,
-                &index_key,
-                &library_id,
-                &tid,
-                &fp,
-                None,
-            )
-            .await;
-        });
-        return Ok(LocalTrackDownloadResult {
-            path: path_str,
-            size,
-            layout_fingerprint: fingerprint,
-        });
+    let media_root = resolve_media_dir(media_dir.as_deref(), &app)?;
+    ensure_track_path_within_tier(&media_root, local_tier, &file_path)
+        .map_err(|e| e.to_string())?;
+
+    if let Some(hit) = local_track_hit_if_exists(
+        &file_path,
+        &path_str,
+        &fingerprint,
+        &app,
+        &server_index_key,
+        &library_server_id,
+        &track_id,
+    )
+    .await?
+    {
+        return Ok(hit);
+    }
+
+    let _track_guard = acquire_per_track_download_lock(&per_track_download_lock_key(
+        local_tier,
+        &server_index_key,
+        &track_id,
+    ))
+    .await;
+
+    if let Some(hit) = local_track_hit_if_exists(
+        &file_path,
+        &path_str,
+        &fingerprint,
+        &app,
+        &server_index_key,
+        &library_server_id,
+        &track_id,
+    )
+    .await?
+    {
+        return Ok(hit);
     }
 
     let cancel_flag: Option<Arc<AtomicBool>> = download_id.as_deref().and_then(|id| {
@@ -249,6 +333,20 @@ pub async fn download_track_local(
         return Err("CANCELLED".to_string());
     }
 
+    if let Some(hit) = local_track_hit_if_exists(
+        &file_path,
+        &path_str,
+        &fingerprint,
+        &app,
+        &server_index_key,
+        &library_server_id,
+        &track_id,
+    )
+    .await?
+    {
+        return Ok(hit);
+    }
+
     if let Some(parent) = file_path.parent() {
         tokio::fs::create_dir_all(parent)
             .await
@@ -261,7 +359,7 @@ pub async fn download_track_local(
         return Err(format!("HTTP {}", response.status().as_u16()));
     }
 
-    let part_path = file_path.with_extension(format!("{suffix}.part"));
+    let part_path = unique_part_path(&file_path, &suffix, &track_id);
     finalize_streamed_download(
         response,
         &file_path,
@@ -694,6 +792,28 @@ pub async fn promote_stream_cache_to_local(
     );
     let path_str = file_path.to_string_lossy().to_string();
 
+    ensure_track_path_within_tier(&media_root, LocalTier::Ephemeral, &file_path)
+        .map_err(|e| e.to_string())?;
+
+    if file_path.is_file() {
+        let size = tokio::fs::metadata(&file_path)
+            .await
+            .map(|m| m.len())
+            .unwrap_or(0);
+        return Ok(Some(LocalTrackDownloadResult {
+            path: path_str,
+            size,
+            layout_fingerprint: fingerprint,
+        }));
+    }
+
+    let _track_guard = acquire_per_track_download_lock(&per_track_download_lock_key(
+        LocalTier::Ephemeral,
+        &server_index_key,
+        &track_id,
+    ))
+    .await;
+
     if file_path.is_file() {
         let size = tokio::fs::metadata(&file_path)
             .await
@@ -712,7 +832,7 @@ pub async fn promote_stream_cache_to_local(
             .map_err(|e| e.to_string())?;
     }
 
-    let part_path = file_path.with_extension(format!("{suffix}.part"));
+    let part_path = unique_part_path(&file_path, &suffix, &track_id);
 
     if let Some(bytes) = audio::take_stream_completed_for_url(&state, &url) {
         if let Err(e) = tokio::fs::write(&part_path, &bytes).await {

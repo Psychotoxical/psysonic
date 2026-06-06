@@ -1,12 +1,21 @@
 import type { LibraryTrackDto } from '../../api/library';
 
 const MAX_SEGMENT_LEN = 120;
-const FORBIDDEN = /[\\/:*?"<>|]/g;
+const FORBIDDEN = /[\\/:*?"<>|\u0000-\u001f\u007f]/g;
+const WINDOWS_RESERVED = new Set([
+  'CON', 'PRN', 'AUX', 'NUL',
+  'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+  'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
+]);
 
+/** Keep path-segment rules aligned with `psysonic_core::cover_cache_layout::sanitize_path_segment`. */
 function sanitizeSegment(segment: string): string {
-  const trimmed = segment.trim();
+  let trimmed = segment.trim().replace(/[. ]+$/, '');
   if (!trimmed) return '_';
-  return trimmed.replace(FORBIDDEN, '_');
+  const cleaned = trimmed.replace(FORBIDDEN, '_');
+  if (!cleaned || cleaned === '.' || cleaned === '..') return '_';
+  if (WINDOWS_RESERVED.has(cleaned.toUpperCase())) return `_${cleaned}`;
+  return cleaned;
 }
 
 function shortHash(s: string): string {
@@ -19,10 +28,11 @@ function shortHash(s: string): string {
 
 function sanitizeAndTruncate(segment: string, maxLen: number): string {
   const sanitized = sanitizeSegment(segment);
-  if (sanitized.length <= maxLen) return sanitized;
+  const chars = [...sanitized];
+  if (chars.length <= maxLen) return sanitized;
   const hash = shortHash(segment);
   const keep = maxLen - 1 - hash.length;
-  return `${sanitized.slice(0, keep)}_${hash}`;
+  return `${chars.slice(0, keep).join('')}_${hash}`;
 }
 
 function variousArtistsLabel(s: string): boolean {

@@ -4,9 +4,7 @@
 //! `server_segment` uses [`cover_cache_layout::sanitize_path_segment`] on the URL
 //! index key; artist/album/filename segments are derived from track metadata only.
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use crate::cover_cache_layout::sanitize_path_segment;
 
@@ -118,6 +116,31 @@ pub fn absolute_track_path(
         .join(relative_path_for_track(server_index_key, input, suffix))
 }
 
+/// Defense-in-depth: resolved paths must stay under `{media_root}/{tier}/`.
+pub fn ensure_track_path_within_tier(
+    media_root: &Path,
+    tier: LocalTier,
+    absolute: &Path,
+) -> Result<(), String> {
+    let tier_root = media_root.join(tier.subdir());
+    let Ok(rel) = absolute.strip_prefix(&tier_root) else {
+        return Err(format!(
+            "path `{}` escapes tier root `{}`",
+            absolute.display(),
+            tier_root.display()
+        ));
+    };
+    for comp in rel.components() {
+        if matches!(comp, Component::ParentDir | Component::RootDir | Component::Prefix(_)) {
+            return Err(format!(
+                "path `{}` contains forbidden component `{comp:?}`",
+                absolute.display()
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn artist_folder_segment(input: &TrackPathInput) -> String {
     let artist = input.artist.as_deref().map(str::trim).unwrap_or("");
     let album_artist = input.album_artist.as_deref().map(str::trim).unwrap_or("");
@@ -190,10 +213,13 @@ fn sanitize_and_truncate_segment(segment: &str, max_len: usize) -> String {
     out
 }
 
+/// Keep in sync with `shortHash` in `src/utils/media/mediaLayout.ts` (UTF-16 code units).
 fn short_hash(s: &str) -> String {
-    let mut h = DefaultHasher::new();
-    s.hash(&mut h);
-    format!("{:08x}", h.finish() as u32)
+    let mut h: u32 = 0;
+    for unit in s.encode_utf16() {
+        h = h.wrapping_mul(31).wrapping_add(unit as u32);
+    }
+    format!("{:08x}", h)
 }
 
 #[cfg(test)]
@@ -292,5 +318,29 @@ mod tests {
         let root = Path::new("/media");
         let path = absolute_track_path(root, LocalTier::Library, "srv", &sample_input(), "mp3");
         assert!(path.starts_with(root.join("library")));
+    }
+
+    #[test]
+    fn dot_dot_metadata_does_not_escape_tier_root() {
+        let input = TrackPathInput {
+            artist: Some("..".to_string()),
+            album_artist: None,
+            album: "..".to_string(),
+            title: "Song".to_string(),
+            track_number: Some(1),
+            disc_number: Some(1),
+            suffix: Some("mp3".to_string()),
+            raw_json: None,
+        };
+        let root = Path::new("/media");
+        let path = absolute_track_path(root, LocalTier::Library, "srv", &input, "mp3");
+        assert!(path.starts_with(root.join("library")));
+        ensure_track_path_within_tier(root, LocalTier::Library, &path).unwrap();
+    }
+
+    #[test]
+    fn short_hash_matches_ts_imul31_utf16() {
+        // "Radiohead" — same as mediaLayout.test parity anchor.
+        assert_eq!(short_hash("Radiohead"), "3da68c3b");
     }
 }

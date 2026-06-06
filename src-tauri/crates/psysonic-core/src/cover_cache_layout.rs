@@ -29,17 +29,38 @@ pub fn is_fetch_only_cover_id(id: &str) -> bool {
         || id.starts_with("ra-")
 }
 
+/// Windows reserved device names (case-insensitive) — invalid as path components.
+const WINDOWS_RESERVED_NAMES: &[&str] = &[
+    "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+    "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+];
+
 /// Sanitize a single path segment for Windows / Unix (Navidrome ids are usually already safe).
+/// Also used for media layout artist/album/title segments from server metadata.
 pub fn sanitize_path_segment(segment: &str) -> String {
     const FORBIDDEN: &[char] = &['\\', '/', ':', '*', '?', '"', '<', '>', '|'];
-    let trimmed = segment.trim();
+    let trimmed = segment.trim().trim_end_matches(['.', ' ']).to_string();
     if trimmed.is_empty() {
         return "_".to_string();
     }
-    trimmed
+    let cleaned: String = trimmed
         .chars()
-        .map(|c| if FORBIDDEN.contains(&c) { '_' } else { c })
-        .collect()
+        .map(|c| {
+            if c.is_control() || FORBIDDEN.contains(&c) {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect();
+    if cleaned.is_empty() || cleaned == "." || cleaned == ".." {
+        return "_".to_string();
+    }
+    let upper = cleaned.to_ascii_uppercase();
+    if WINDOWS_RESERVED_NAMES.contains(&upper.as_str()) {
+        return format!("_{cleaned}");
+    }
+    cleaned
 }
 
 /// Relative path under `{root}/{server_segment}/` — change format here only.
@@ -254,6 +275,13 @@ mod tests {
         let base = std::env::temp_dir().join(format!("psysonic-cover-layout-{label}"));
         let _ = std::fs::remove_dir_all(&base);
         base
+    }
+
+    #[test]
+    fn sanitize_rejects_dot_dot_and_reserved_names() {
+        assert_eq!(sanitize_path_segment(".."), "_");
+        assert_eq!(sanitize_path_segment("CON"), "_CON");
+        assert_eq!(sanitize_path_segment(" trailing. "), "trailing");
     }
 
     #[test]

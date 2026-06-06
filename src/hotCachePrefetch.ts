@@ -203,7 +203,16 @@ async function runWorker() {
           getMediaDir(),
         );
       } catch (e: unknown) {
-        hotCacheFrontendDebug({ event: 'prefetch-download-failed', trackId: job.trackId, error: String(e) });
+        const msg = String(e);
+        if (msg.includes('TRACK_NOT_INDEXED')) {
+          hotCacheFrontendDebug({
+            event: 'prefetch-skip-job',
+            trackId: job.trackId,
+            reason: 'track-not-indexed',
+          });
+          continue;
+        }
+        hotCacheFrontendDebug({ event: 'prefetch-download-failed', trackId: job.trackId, error: msg });
       }
     }
   } finally {

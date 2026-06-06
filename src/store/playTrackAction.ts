@@ -227,6 +227,7 @@ export function runPlayTrack(
       : state.queueItems.findIndex(r => sameQueueTrackId(r.trackId, scopedTrack.id));
   const playIdx = idx >= 0 ? idx : 0;
   const playingRef = replacing ? undefined : state.queueItems[playIdx];
+  const prevPlayingRef = replacing ? undefined : state.queueItems[state.queueIndex];
   // ±1 neighbours for replaygain normalization — resolve only these (not the
   // whole queue). On replace they come from the provided Track[]; on navigation
   // from the resolver cache (the bridge keeps that window warm).
@@ -343,7 +344,7 @@ export function runPlayTrack(
       && !sameQueueTrackId(prevTrack.id, scopedTrack.id)
       && authStateNow.hotCacheEnabled
     ) {
-      const prevPromoteSid = getPlaybackCacheServerKey();
+      const prevPromoteSid = playbackCacheKeyForTrack(prevTrack, prevPlayingRef);
       if (prevPromoteSid) {
         void promoteCompletedStreamToHotCache(
           prevTrack,
