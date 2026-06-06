@@ -1,6 +1,7 @@
 import { installQueueUndoHotkey } from '../store/queueUndoHotkey';
 import { invoke } from '@tauri-apps/api/core';
 import { getWindowKind } from './windowKind';
+import { migrateThemeSelection } from '../utils/themes/themeMigration';
 
 /** Sync backend HTTP User-Agent from the main webview once at startup. */
 export function pushUserAgentToBackend(): void {
@@ -46,6 +47,9 @@ export function markDevBuildDocument(): void {
 export function runPreReactBootstrap(): void {
   // Pre-warm the window-kind cache so subsequent reads are sync + safe.
   getWindowKind();
+  // Reset any persisted theme that is no longer bundled and not installed, so
+  // the store hydrates onto a paintable theme (no unstyled-:root flash).
+  migrateThemeSelection();
   markDevBuildDocument();
   pushUserAgentToBackend();
   pushLoggingModeToBackend();
