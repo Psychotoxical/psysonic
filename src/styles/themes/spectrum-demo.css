@@ -1,0 +1,91 @@
+/* ─── Spectrum (Demo) ───
+   A deliberately loud showcase of the per-region granular tokens. The base is a
+   neutral dark palette; each UI region is then overridden with its OWN vivid
+   hue — sidebar green, player bar pink, track lists cyan, cards gold, menus red,
+   controls blue, scrollbar violet. Nobody would ship this, but switching to it
+   makes the independent per-region control obvious at a glance. */
+[data-theme='spectrum-demo'] {
+  color-scheme: dark;
+  --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23b8b8c8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+
+  /* Neutral dark base */
+  --bg-app: #0e0e14;
+  --bg-sidebar: #14141f;
+  --bg-card: #1a1a26;
+  --bg-hover: #24243a;
+  --bg-elevated: #2e2e44;
+  --bg-player: #14141f;
+  --bg-deep: #08080c;
+  --bg-glass: rgba(14, 14, 20, 0.8);
+  --border: #2e2e44;
+  --border-subtle: #20202e;
+  --border-dropdown: #3a3a52;
+  --text-primary: #f0f0f5;
+  --text-secondary: #b8b8c8;
+  --text-muted: #7a7a90;
+  --text-on-accent: #0e0e14;
+  --accent: #8b5cf6;
+  --accent-dim: rgba(139, 92, 246, 0.18);
+  --accent-glow: rgba(139, 92, 246, 0.4);
+  --accent-2: #ec4899;
+  --highlight: #fbbf24;
+  --danger: #ef4444;
+  --positive: #22c55e;
+  --warning: #f59e0b;
+  --shadow-dropdown: rgba(0, 0, 0, 0.6);
+
+  /* ── Sidebar → GREEN ── */
+  --sidebar-item-hover: rgba(34, 197, 94, 0.18);
+  --sidebar-item-active-bg: rgba(34, 197, 94, 0.26);
+  --sidebar-item-active-text: #4ade80;
+  --sidebar-text: #86efac;
+  --sidebar-trigger-bg: #0f1f14;
+  --sidebar-border: #1e3a28;
+
+  /* ── Player bar → PINK ── */
+  --player-control: #f9a8d4;
+  --player-control-hover: #ec4899;
+  --player-control-hover-bg: rgba(236, 72, 153, 0.22);
+  --player-time-toggle-hover: rgba(236, 72, 153, 0.22);
+  --player-time-toggle-active: rgba(236, 72, 153, 0.38);
+  --player-border: #3a1f2e;
+
+  /* ── Track lists → CYAN ── */
+  --row-hover: rgba(34, 211, 238, 0.13);
+  --row-playing-bg: rgba(34, 211, 238, 0.24);
+  --row-playing-text: #22d3ee;
+  --row-divider: #15323a;
+  --row-text: #e0f7fa;
+  --row-text-secondary: #7dd3e0;
+  --row-text-muted: #4a8a96;
+  --col-header-text: #22d3ee;
+  --col-resize-active: #22d3ee;
+
+  /* ── Cards → GOLD ── */
+  --card-hover-border: #f59e0b;
+  --card-title: #fbbf24;
+  --card-subtitle: #d97706;
+  --card-placeholder-bg: #2a2010;
+
+  /* ── Menus / modals → RED ── */
+  --menu-bg: #1f1416;
+  --menu-item-hover: rgba(239, 68, 68, 0.22);
+  --menu-item-active-text: #f87171;
+  --menu-divider: #3a2024;
+  --modal-bg: #1f1416;
+  --modal-scrim: rgba(20, 5, 8, 0.85);
+
+  /* ── Controls → BLUE ── */
+  --input-bg: #0c1424;
+  --input-border: #1e3a5f;
+  --input-focus-border: #3b82f6;
+  --button-hover: rgba(59, 130, 246, 0.22);
+  --slider-track: #1e3a5f;
+  --slider-thumb: #60a5fa;
+  --slider-thumb-hover: #3b82f6;
+
+  /* ── Scrollbar → VIOLET ── */
+  --scrollbar-thumb: #8b5cf6;
+  --scrollbar-thumb-hover: #a78bfa;
+  --scrollbar-track: rgba(139, 92, 246, 0.08);
+}

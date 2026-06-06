@@ -1,8 +1,8 @@
 /* ───────────────────────────────────────────────────────────────────────────
    Semantic cascade layer — granular, per-region theme override points.
 
-   Every token here defaults to a base token (or, for on-media surfaces, a
-   media-safe literal). That makes this file a VISUAL NO-OP: the app looks
+   Every token here defaults to a base token. That makes this file a VISUAL
+   NO-OP: the app looks
    identical until a theme deliberately overrides one of these tokens. It only
    ADDS fine-grained control — e.g. a theme can recolour the sidebar hover
    without touching every other hover.
@@ -22,7 +22,6 @@
   --sidebar-item-active-bg: var(--accent-dim);
   --sidebar-item-active-text: var(--accent);
   --sidebar-text: var(--text-secondary);
-  --sidebar-text-active: var(--accent);
   --sidebar-trigger-bg: var(--bg-card);
   --sidebar-border: var(--border-subtle);
 
@@ -36,7 +35,6 @@
 
   /* ── Lists / tracklist / queue ───────────────────────────── */
   --row-hover: var(--bg-hover);
-  --row-active-bg: var(--accent-dim);
   --row-playing-bg: var(--accent-dim);
   --row-playing-text: var(--accent);
   --row-divider: var(--border-subtle);
@@ -73,15 +71,4 @@
   --scrollbar-thumb: var(--bg-elevated);
   --scrollbar-thumb-hover: var(--text-muted);
   --scrollbar-track: transparent;
-
-  /* ── On-media — surfaces over cover art (fullscreen, hero, np-dash).
-        Media-safe defaults (white-on-image text, dark glass). Themeable,
-        but safe by default over any album cover. ────────────────────── */
-  --on-media-text: rgba(255, 255, 255, 0.92);
-  --on-media-text-dim: rgba(255, 255, 255, 0.6);
-  --on-media-text-muted: rgba(255, 255, 255, 0.45);
-  --on-media-surface: rgba(0, 0, 0, 0.5);
-  --on-media-surface-strong: rgba(0, 0, 0, 0.88);
-  --on-media-hover: rgba(255, 255, 255, 0.12);
-  --on-media-border: rgba(255, 255, 255, 0.1);
 }

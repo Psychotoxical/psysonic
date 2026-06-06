@@ -12,6 +12,12 @@ interface ThemeDef {
 
 export const THEME_GROUPS: { group: string; themes: ThemeDef[] }[] = [
   {
+    group: 'Demo',
+    themes: [
+      { id: 'spectrum-demo', label: 'Spectrum (Demo)', bg: '#0e0e14', card: '#1a1a26', accent: '#8b5cf6', family: 'Demo' },
+    ],
+  },
+  {
     group: 'Games',
     themes: [
       { id: 'gw1',               label: 'GW1',               bg: '#0e0b08', card: '#1a1208', accent: '#c8960c' },
