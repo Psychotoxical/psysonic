@@ -143,10 +143,10 @@ export default function Favorites() {
 
   return (
     <div className="content-body animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
-      <div style={{ marginBottom: '-1.5rem' }}>
-        <h1 className="page-title">{t('favorites.title')}</h1>
+      <div className="playlists-header" style={{ marginBottom: '-1.5rem' }}>
+        <h1 className="page-title" style={{ marginBottom: 0 }}>{t('favorites.title')}</h1>
+        <FavoritesOfflineHeader />
       </div>
-      <FavoritesOfflineHeader />
 
       {!hasAnyFavorites ? (
         <div className="empty-state">{t('favorites.empty')}</div>

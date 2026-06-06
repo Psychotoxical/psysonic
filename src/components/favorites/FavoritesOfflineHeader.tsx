@@ -1,88 +1,74 @@
-import { CloudDownload, CloudOff, Loader2 } from 'lucide-react';
+import { HardDrive } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/authStore';
-import { useFavoritesOfflineStatus } from '../../hooks/useFavoritesOfflineStatus';
+import {
+  useFavoritesOfflineStatus,
+  type FavoritesOfflineSemaphore,
+} from '../../hooks/useFavoritesOfflineStatus';
 import {
   disableFavoritesOfflineSync,
   scheduleFavoritesOfflineSync,
 } from '../../utils/offline/favoritesOfflineSync';
 
+function semaphoreTooltipKey(semaphore: FavoritesOfflineSemaphore): string {
+  switch (semaphore) {
+    case 'red':
+      return 'favorites.offlineSemaphoreError';
+    case 'yellow':
+      return 'favorites.offlineSemaphoreSyncing';
+    case 'green':
+      return 'favorites.offlineSemaphoreSynced';
+  }
+}
+
 export default function FavoritesOfflineHeader() {
   const { t } = useTranslation();
   const setEnabled = useAuthStore(s => s.setFavoritesOfflineEnabled);
-  const { enabled, status, savedCount, targetCount } = useFavoritesOfflineStatus();
+  const { enabled, semaphore, savedCount, targetCount } = useFavoritesOfflineStatus();
 
-  const statusLabel = (() => {
-    switch (status) {
-      case 'disabled':
-        return t('favorites.offlineStatusDisabled');
-      case 'syncing':
-        return t('favorites.offlineStatusSyncing');
-      case 'complete':
-        return t('favorites.offlineStatusComplete', { count: savedCount });
-      case 'partial':
-        return t('favorites.offlineStatusPartial', { saved: savedCount, total: targetCount });
-      case 'error':
-        return t('favorites.offlineStatusError');
-      default:
-        return savedCount > 0
-          ? t('favorites.offlineStatusComplete', { count: savedCount })
-          : t('favorites.offlineStatusIdle');
-    }
-  })();
+  const semaphoreLabel = semaphore
+    ? t(semaphoreTooltipKey(semaphore), { saved: savedCount, total: targetCount })
+    : undefined;
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'space-between',
-        gap: '1rem',
-        padding: '0.875rem 1rem',
-        borderRadius: 8,
-        border: '1px solid var(--border-subtle)',
-        background: 'var(--surface-elevated)',
-        marginBottom: '1.5rem',
-      }}
-    >
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
-          {enabled ? <CloudDownload size={16} /> : <CloudOff size={16} />}
-          <span>{t('favorites.offlineTitle')}</span>
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-          {t('favorites.offlineHint')}
-        </div>
-        <div
-          style={{
-            fontSize: 12,
-            color: 'var(--text-secondary)',
-            marginTop: 6,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-        >
-          {status === 'syncing' && <Loader2 size={12} className="spin" />}
-          {statusLabel}
-        </div>
-      </div>
-      <label className="toggle-switch" aria-label={t('favorites.offlineToggle')}>
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={async e => {
-            const next = e.target.checked;
-            if (!next) {
-              await disableFavoritesOfflineSync();
-            } else {
-              setEnabled(true);
-              scheduleFavoritesOfflineSync();
-            }
-          }}
+    <div className="favorites-offline-control">
+      {enabled && semaphore && (
+        <span
+          className={`favorites-offline-led favorites-offline-led--${semaphore}`}
+          role="status"
+          aria-live="polite"
+          aria-label={semaphoreLabel}
+          data-tooltip={semaphoreLabel}
+          data-tooltip-pos="bottom"
         />
-        <span className="toggle-track" />
-      </label>
+      )}
+      <div
+        className="favorites-offline-toggle"
+        data-tooltip={t('favorites.offlineTooltip')}
+        data-tooltip-pos="bottom"
+      >
+        <HardDrive
+          size={16}
+          className={`favorites-offline-disk-icon${enabled ? ' favorites-offline-disk-icon--on' : ''}`}
+          aria-hidden
+        />
+        <label className="toggle-switch" aria-label={t('favorites.offlineTooltip')}>
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={async e => {
+              const next = e.target.checked;
+              if (!next) {
+                await disableFavoritesOfflineSync();
+              } else {
+                setEnabled(true);
+                scheduleFavoritesOfflineSync();
+              }
+            }}
+          />
+          <span className="toggle-track" />
+        </label>
+      </div>
     </div>
   );
 }

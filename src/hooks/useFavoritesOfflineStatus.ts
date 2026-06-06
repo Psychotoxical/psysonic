@@ -14,9 +14,12 @@ export type FavoritesOfflineUiStatus =
   | 'error'
   | 'idle';
 
+export type FavoritesOfflineSemaphore = 'red' | 'yellow' | 'green';
+
 export interface FavoritesOfflineStatusResult {
   enabled: boolean;
   status: FavoritesOfflineUiStatus;
+  semaphore: FavoritesOfflineSemaphore | null;
   savedCount: number;
   targetCount: number;
   jobDone: number;
@@ -37,6 +40,7 @@ export function useFavoritesOfflineStatus(): FavoritesOfflineStatusResult {
       return {
         enabled: false,
         status: 'disabled' as const,
+        semaphore: null,
         savedCount: 0,
         targetCount: 0,
         jobDone: 0,
@@ -47,6 +51,8 @@ export function useFavoritesOfflineStatus(): FavoritesOfflineStatusResult {
     const favJobs = jobs.filter(j => j.albumId === FAVORITES_OFFLINE_JOB_ID);
     const jobDone = favJobs.filter(j => j.status === 'done').length;
     const jobTotal = favJobs.length;
+    const hasActiveJobs = favJobs.some(j => j.status === 'downloading' || j.status === 'queued');
+    const hasJobErrors = favJobs.some(j => j.status === 'error');
 
     const savedCount = serverId
       ? Object.values(entries).filter(
@@ -57,9 +63,9 @@ export function useFavoritesOfflineStatus(): FavoritesOfflineStatusResult {
     const targetCount = targetTrackIds.length;
 
     let status: FavoritesOfflineUiStatus = 'idle';
-    if (running || favJobs.some(j => j.status === 'downloading' || j.status === 'queued')) {
+    if (running || hasActiveJobs) {
       status = 'syncing';
-    } else if (lastError) {
+    } else if (lastError || hasJobErrors) {
       status = 'error';
     } else if (targetCount > 0 && savedCount >= targetCount) {
       status = 'complete';
@@ -69,6 +75,13 @@ export function useFavoritesOfflineStatus(): FavoritesOfflineStatusResult {
       status = 'complete';
     }
 
-    return { enabled, status, savedCount, targetCount, jobDone, jobTotal };
+    let semaphore: FavoritesOfflineSemaphore = 'green';
+    if (lastError || hasJobErrors) {
+      semaphore = 'red';
+    } else if (running || hasActiveJobs || (targetCount > 0 && savedCount < targetCount)) {
+      semaphore = 'yellow';
+    }
+
+    return { enabled, status, semaphore, savedCount, targetCount, jobDone, jobTotal };
   }, [enabled, serverId, entries, running, lastError, targetTrackIds, jobs]);
 }
