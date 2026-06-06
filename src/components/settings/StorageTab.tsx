@@ -4,32 +4,26 @@ import { invoke } from '@tauri-apps/api/core';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { Download, FolderOpen, Trash2, X } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
-import { selectHotCacheEntries } from '../../store/hotCacheStore';
+import { countHotCacheTracks } from '../../store/hotCacheStore';
 import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
 import { formatBytes, snapHotCacheMb } from '../../utils/format/formatBytes';
-import { getPlaybackIndexKey } from '../../utils/playback/playbackServer';
 import SettingsSubSection from '../SettingsSubSection';
 import CoverCacheStrategySection from './CoverCacheStrategySection';
 
 export function StorageTab() {
   const { t } = useTranslation();
   const auth = useAuthStore();
-  const serverId = auth.activeServerId ?? '';
-  const serverIndexKey = getPlaybackIndexKey();
   const clearHotCacheDisk = useLocalPlaybackStore(s => s.purgeEphemeralDisk);
   const localPlaybackEntries = useLocalPlaybackStore(s => s.entries);
-  const hotCacheEntries = useMemo(
-    () => selectHotCacheEntries(localPlaybackEntries),
-    [localPlaybackEntries],
-  );
   const [hotCacheBytes, setHotCacheBytes] = useState<number | null>(null);
 
   const mediaDir = auth.mediaDir || null;
 
-  const hotCacheTrackCount = useMemo(() => {
-    const prefix = `${serverIndexKey || serverId}:`;
-    return Object.keys(hotCacheEntries).filter(k => k.startsWith(prefix)).length;
-  }, [hotCacheEntries, serverIndexKey, serverId]);
+  /** Match ephemeral disk usage (all servers); resolve UUID vs URL index keys. */
+  const hotCacheTrackCount = useMemo(
+    () => countHotCacheTracks(localPlaybackEntries),
+    [localPlaybackEntries],
+  );
 
   const refreshHotCacheSize = useCallback(() => {
     invoke<number>('get_media_tier_size', { tier: 'ephemeral', mediaDir })
@@ -52,7 +46,7 @@ export function StorageTab() {
     if (!auth.hotCacheEnabled) return;
     const handle = window.setTimeout(refreshHotCacheSize, 400);
     return () => window.clearTimeout(handle);
-  }, [hotCacheEntries, auth.hotCacheEnabled, refreshHotCacheSize]);
+  }, [localPlaybackEntries, auth.hotCacheEnabled, refreshHotCacheSize]);
 
   const pickMediaDir = async () => {
     const selected = await openDialog({

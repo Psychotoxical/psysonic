@@ -1,7 +1,8 @@
 import type { QueueItemRef } from './playerStoreTypes';
 import { create } from 'zustand';
 import type { HotCacheEntry } from './hotCacheStoreTypes';
-import { useLocalPlaybackStore } from './localPlaybackStore';
+import { useLocalPlaybackStore, type LocalPlaybackEntry } from './localPlaybackStore';
+import { entryBelongsToServer } from '../utils/offline/offlineLibraryHelpers';
 import { invoke } from '@tauri-apps/api/core';
 import { getMediaDir } from '../utils/media/mediaDir';
 
@@ -48,6 +49,20 @@ export function selectHotCacheEntries(
     };
   }
   return out;
+}
+
+/** Ephemeral-tier row count for Settings (optional active-server scope). */
+export function countHotCacheTracks(
+  entries: Record<string, LocalPlaybackEntry>,
+  scopeServerId?: string,
+): number {
+  let n = 0;
+  for (const e of Object.values(entries)) {
+    if (e.tier !== 'ephemeral') continue;
+    if (scopeServerId && !entryBelongsToServer(e, scopeServerId)) continue;
+    n++;
+  }
+  return n;
 }
 
 export const useHotCacheStore = create<HotCacheState>()(() => ({
