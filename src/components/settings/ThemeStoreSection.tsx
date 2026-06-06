@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, Download, RefreshCw, Trash2 } from 'lucide-react';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
+import CoverLightbox from '../CoverLightbox';
 import { useThemeStore } from '../../store/themeStore';
 import { useInstalledThemesStore, type InstalledTheme } from '../../store/installedThemesStore';
 import {
@@ -47,14 +48,6 @@ export function ThemeStoreSection() {
   };
 
   useEffect(() => { load(false); }, []);
-
-  // Close the preview lightbox on Escape.
-  useEffect(() => {
-    if (!lightbox) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightbox(null); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [lightbox]);
 
   const installedMap = useMemo(() => {
     const m = new Map<string, InstalledTheme>();
@@ -166,18 +159,18 @@ export function ThemeStoreSection() {
       </div>
 
       {loading && (
-        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('settings.themeStoreLoading')}</p>
+        <p role="status" style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('settings.themeStoreLoading')}</p>
       )}
 
       {!loading && error && (
-        <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+        <div role="alert" style={{ fontSize: 13, color: 'var(--text-muted)' }}>
           <p style={{ marginBottom: 8 }}>{t('settings.themeStoreError')}</p>
           <button className="btn btn-ghost" onClick={() => load(true)}>{t('settings.themeStoreRetry')}</button>
         </div>
       )}
 
       {!loading && !error && filtered.length === 0 && (
-        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('settings.themeStoreEmpty')}</p>
+        <p role="status" style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('settings.themeStoreEmpty')}</p>
       )}
 
       {!loading && !error && filtered.length > 0 && (
@@ -207,7 +200,7 @@ export function ThemeStoreSection() {
                   aria-label={t('settings.themeStoreEnlarge')}
                   data-tooltip={t('settings.themeStoreEnlarge')}
                   data-tooltip-pos="right"
-                  style={{ padding: 0, border: 'none', background: 'none', cursor: 'zoom-in', flexShrink: 0, lineHeight: 0, borderRadius: 6 }}
+                  style={{ padding: 0, border: 'none', background: 'none', cursor: 'zoom-in', flexShrink: 0, alignSelf: 'flex-start', lineHeight: 0, borderRadius: 6 }}
                 >
                   <img
                     src={cdnUrl(th.thumbnail)}
@@ -215,6 +208,9 @@ export function ThemeStoreSection() {
                     loading="lazy"
                     width={120}
                     height={75}
+                    // Offline / missing thumbnail: hide the broken-image glyph; the
+                    // image's own neutral background stands in as a placeholder.
+                    onError={e => { e.currentTarget.style.opacity = '0'; }}
                     style={{ width: 120, height: 75, objectFit: 'cover', borderRadius: 6, background: 'var(--bg-deep)' }}
                   />
                 </button>
@@ -274,7 +270,7 @@ export function ThemeStoreSection() {
                       </button>
                     )}
                     {failedId === th.id && (
-                      <span style={{ fontSize: 12, color: 'var(--danger)', alignSelf: 'center' }}>
+                      <span role="status" style={{ fontSize: 12, color: 'var(--danger)', alignSelf: 'center' }}>
                         {t('settings.themeStoreInstallFailed')}
                       </span>
                     )}
@@ -287,19 +283,7 @@ export function ThemeStoreSection() {
       )}
 
       {lightbox && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={lightbox.name}
-          onClick={() => setLightbox(null)}
-          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.82)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'zoom-out' }}
-        >
-          <img
-            src={lightbox.src}
-            alt={lightbox.name}
-            style={{ maxWidth: '90vw', maxHeight: '85vh', borderRadius: 10, boxShadow: '0 12px 48px rgba(0,0,0,0.6)' }}
-          />
-        </div>
+        <CoverLightbox src={lightbox.src} alt={lightbox.name} onClose={() => setLightbox(null)} />
       )}
     </div>
   );

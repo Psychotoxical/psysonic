@@ -61,7 +61,7 @@ export function InstalledThemes() {
           const isActive = active === c.id;
           return (
             <div key={c.id} style={{ position: 'relative' }}>
-              <button className="theme-card-btn" style={{ width: '100%' }} onClick={() => setTheme(c.id)}>
+              <button className="theme-card-btn" style={{ width: '100%' }} aria-pressed={isActive} onClick={() => setTheme(c.id)}>
                 <div className={`theme-card-preview${isActive ? ' is-active' : ''}`}>
                   <div style={{ background: c.bg, height: '55%' }} />
                   <div style={{ background: c.card, height: '20%' }} />
