@@ -2,10 +2,7 @@ import { setRating, star, unstar } from '../api/subsonicStarRating';
 import { usePlayerStore } from './playerStore';
 import { patchCachedTrack } from '../utils/library/queueTrackResolver';
 import { useAuthStore } from './authStore';
-import {
-  removeFavoriteAutoForTrack,
-  scheduleFavoritesOfflineSync,
-} from '../utils/offline/favoritesOfflineSync';
+import { removeFavoriteAutoForTrack } from '../utils/offline/favoritesOfflineSync';
 
 /**
  * F4 — pending-sync for **song** star + rating (spec §6.5 / R7-18).
@@ -103,10 +100,6 @@ function onStarSuccess(id: string, starred: boolean): void {
   // to the synced value rather than dropping it — a dropped entry would blank the
   // visible queue row to a "…" placeholder until the next window re-resolve.
   patchCachedTrack(id, { starred: starredVal });
-  const auth = useAuthStore.getState();
-  if (!auth.favoritesOfflineEnabled || !auth.activeServerId) return;
-  if (starred) scheduleFavoritesOfflineSync(auth.activeServerId);
-  else void removeFavoriteAutoForTrack(id, auth.activeServerId);
 }
 
 function onRatingSuccess(id: string): void {
@@ -125,6 +118,10 @@ function onRatingSuccess(id: string): void {
 /** Optimistically (un)star a song and sync it to the server with retry. */
 export function queueSongStar(id: string, starred: boolean): void {
   usePlayerStore.getState().setStarredOverride(id, starred);
+  const auth = useAuthStore.getState();
+  if (!starred && auth.favoritesOfflineEnabled && auth.activeServerId) {
+    void removeFavoriteAutoForTrack(id, auth.activeServerId);
+  }
   const t: Task = { kind: 'star', id, starred };
   const k = keyOf(t);
   pending.set(k, t);

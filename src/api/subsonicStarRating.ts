@@ -45,6 +45,9 @@ export async function star(
     const indexEnabled = useLibraryIndexStore.getState().isIndexEnabled(serverId);
     void refreshStarredAlbumIndexFromServer(serverId, indexEnabled).catch(() => {});
   }
+  void import('../utils/offline/favoritesOfflineSync')
+    .then(m => m.onFavoritesOfflineStarChange(id, type, true))
+    .catch(() => {});
 }
 
 export async function unstar(
@@ -65,6 +68,9 @@ export async function unstar(
     const indexEnabled = useLibraryIndexStore.getState().isIndexEnabled(serverId);
     void refreshStarredAlbumIndexFromServer(serverId, indexEnabled).catch(() => {});
   }
+  void import('../utils/offline/favoritesOfflineSync')
+    .then(m => m.onFavoritesOfflineStarChange(id, type, false))
+    .catch(() => {});
 }
 
 export async function setRating(id: string, rating: number): Promise<void> {

@@ -133,6 +133,20 @@ export function scheduleFavoritesOfflineSync(serverId?: string): void {
   }, DEBOUNCE_MS);
 }
 
+/** Called after any successful star/unstar (song, album, or artist) — not tied to the Favorites page. */
+export function onFavoritesOfflineStarChange(
+  id: string,
+  type: 'song' | 'album' | 'artist',
+  starred: boolean,
+): void {
+  const auth = useAuthStore.getState();
+  if (!auth.favoritesOfflineEnabled || !auth.activeServerId) return;
+  if (type === 'song' && !starred) {
+    void removeFavoriteAutoForTrack(id, auth.activeServerId);
+  }
+  scheduleFavoritesOfflineSync(auth.activeServerId);
+}
+
 async function runFavoritesOfflineSync(explicitServerId?: string): Promise<void> {
   const auth = useAuthStore.getState();
   if (!auth.favoritesOfflineEnabled) return;

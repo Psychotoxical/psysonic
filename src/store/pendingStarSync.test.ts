@@ -9,6 +9,10 @@ vi.mock('../api/subsonicStarRating', () => ({
   setRating: (...a: unknown[]) => setRatingMock(...a),
 }));
 
+vi.mock('../utils/offline/favoritesOfflineSync', () => ({
+  removeFavoriteAutoForTrack: vi.fn(async () => undefined),
+}));
+
 import { usePlayerStore } from './playerStore';
 import type { Track } from './playerStoreTypes';
 import { queueSongStar, queueSongRating, _resetPendingStarSyncForTest } from './pendingStarSync';
