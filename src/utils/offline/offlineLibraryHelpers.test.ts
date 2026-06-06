@@ -7,6 +7,8 @@ import {
   ensureServerForOfflineCard,
   hasAnyOfflineAlbums,
   hydrateOfflineLibraryCards,
+  isOfflinePinComplete,
+  pendingOfflinePinSongs,
   offlineAlbumCoverScope,
   offlineTrackCount,
   type OfflineLibraryCard,
@@ -34,6 +36,72 @@ describe('offlineLibraryHelpers', () => {
       activeServerId: 'a',
     });
     useLocalPlaybackStore.setState({ entries: {} });
+  });
+
+  it('pendingOfflinePinSongs skips already pinned tracks', () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/x',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'library',
+          cachedAt: 1,
+          suffix: 'mp3',
+        },
+      },
+    });
+    expect(pendingOfflinePinSongs([{ id: 't1' }, { id: 't2' }], 'a')).toEqual([{ id: 't2' }]);
+  });
+
+  it('isOfflinePinComplete with songIds finds entries stored under server UUID', () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a:t1': {
+          serverIndexKey: 'a',
+          trackId: 't1',
+          localPath: '/x',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'library',
+          cachedAt: 1,
+          suffix: 'mp3',
+        },
+      },
+    });
+    expect(isOfflinePinComplete('al1', 'a', ['t1'])).toBe(true);
+  });
+
+  it('isOfflinePinComplete checks localPlaybackStore pins by index key', () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/x',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'library',
+          cachedAt: 1,
+          suffix: 'mp3',
+          pinSource: { kind: 'album', sourceId: 'al1' },
+        },
+      },
+    });
+    useOfflineStore.setState({
+      albums: {
+        'a.test:al1': {
+          id: 'al1',
+          serverId: 'a.test',
+          name: 'Al',
+          artist: 'Ar',
+          trackIds: ['t1'],
+        },
+      },
+    });
+    expect(isOfflinePinComplete('al1', 'a')).toBe(true);
   });
 
   it('hasAnyOfflineAlbums is true when pinned groups exist', () => {

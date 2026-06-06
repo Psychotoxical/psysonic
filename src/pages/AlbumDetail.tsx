@@ -16,6 +16,9 @@ import { useAlbumOfflineState } from '../hooks/useAlbumOfflineState';
 import { useAlbumDetailSort } from '../hooks/useAlbumDetailSort';
 import { useDownloadModalStore } from '../store/downloadModalStore';
 import { useOfflineStore } from '../store/offlineStore';
+import { useOfflineJobStore } from '../store/offlineJobStore';
+import { isOfflinePinComplete } from '../utils/offline/offlineLibraryHelpers';
+import { reconcileLibraryTierForAlbum } from '../utils/offline/libraryTierReconcile';
 import { join } from '@tauri-apps/api/path';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
 import AlbumCard from '../components/AlbumCard';
@@ -82,8 +85,6 @@ export default function AlbumDetail() {
   // Derive a stable albumId for the selectors below (empty string when not yet loaded).
   const albumId = album?.album.id ?? '';
 
-  const { resolvedOfflineStatus, offlineProgress } = useAlbumOfflineState(albumId, serverId);
-
   useEffect(() => {
     if (!id) return;
     if (album && album.album.id === id) setAlbumEntityRating(album.album.userRating ?? 0);
@@ -94,6 +95,30 @@ export default function AlbumDetail() {
     if (!losslessOnly) return album.songs;
     return album.songs.filter(s => isLosslessSuffix(s.suffix));
   }, [album?.songs, losslessOnly]);
+
+  const offlineSongIds = useMemo(
+    () => (effectiveSongs ?? album?.songs ?? []).map(s => s.id),
+    [effectiveSongs, album?.songs],
+  );
+  const { resolvedOfflineStatus, offlineProgress } = useAlbumOfflineState(albumId, serverId, offlineSongIds);
+
+  useEffect(() => {
+    if (!albumId || !album || offlineSongIds.length === 0) return;
+    const songs = effectiveSongs ?? album.songs;
+    let cancelled = false;
+    void reconcileLibraryTierForAlbum(
+      serverId,
+      songs,
+      { kind: 'album', sourceId: albumId, displayName: album.album.name },
+    ).then(() => {
+      if (cancelled) return;
+      if (!isOfflinePinComplete(albumId, serverId, offlineSongIds)) return;
+      useOfflineJobStore.setState(s => ({
+        jobs: s.jobs.filter(j => j.albumId !== albumId),
+      }));
+    });
+    return () => { cancelled = true; };
+  }, [albumId, serverId, album, effectiveSongs, offlineSongIds]);
 
   useEffect(() => {
     if (!albumId || !effectiveSongs?.length) return;
@@ -248,9 +273,14 @@ const handleShuffleAll = () => {
 
   const handleCacheOffline = useCallback(async () => {
     if (!album) return;
+    const songs = effectiveSongs ?? album.songs;
+    if (isOfflinePinComplete(album.album.id, serverId, songs.map(s => s.id))) return;
     const maxBytes = auth.maxCacheMb * 1024 * 1024;
     try {
-      const usedBytes = await invoke<number>('get_offline_cache_size');
+      const usedBytes = await invoke<number>('get_media_tier_size', {
+        tier: 'library',
+        mediaDir: auth.mediaDir?.trim() || null,
+      });
       if (usedBytes >= maxBytes) {
         setOfflineStorageFull(true);
         return;
@@ -259,8 +289,8 @@ const handleShuffleAll = () => {
       // If we can't check, proceed anyway
     }
     setOfflineStorageFull(false);
-    downloadAlbum(album.album.id, album.album.name, album.album.artist, album.album.coverArt, album.album.year, effectiveSongs ?? album.songs, serverId);
-  }, [album, auth.maxCacheMb, downloadAlbum, serverId, effectiveSongs]);
+    downloadAlbum(album.album.id, album.album.name, album.album.artist, album.album.coverArt, album.album.year, songs, serverId);
+  }, [album, auth.maxCacheMb, auth.mediaDir, downloadAlbum, serverId, effectiveSongs]);
 
   const handleRemoveOffline = () => {
     if (!album) return;

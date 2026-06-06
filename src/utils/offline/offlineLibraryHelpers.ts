@@ -1,8 +1,9 @@
 import type { LibraryTrackDto } from '../../api/library';
 import { libraryGetTracksBatch } from '../../api/library';
+import type { SubsonicSong } from '../../api/subsonicTypes';
 import type { CoverServerScope } from '../../cover/types';
 import { useAuthStore } from '../../store/authStore';
-import type { PinnedGroup, PinSource } from '../../store/localPlaybackStore';
+import type { LocalPlaybackEntry, PinnedGroup, PinSource } from '../../store/localPlaybackStore';
 import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
 import { useOfflineStore, type OfflineAlbumMeta } from '../../store/offlineStore';
 import { resolveTrackCoverArtId } from '../library/advancedSearchLocal';
@@ -10,6 +11,7 @@ import { resolveIndexKey } from '../server/serverIndexKey';
 import { switchActiveServer } from '../server/switchActiveServer';
 import type { Track } from '../../store/playerStoreTypes';
 import { findServerByIdOrIndexKey, resolveServerIdForIndexKey } from '../server/serverLookup';
+import { serverIndexKeyForProfile } from '../server/serverIndexKey';
 
 export interface OfflineLibraryCard {
   serverIndexKey: string;
@@ -19,6 +21,124 @@ export interface OfflineLibraryCard {
   artist: string;
   coverArt?: string;
   year?: number;
+}
+
+export function resolveOfflineAlbumMeta(
+  albumId: string,
+  serverId: string,
+): OfflineAlbumMeta | undefined {
+  const albums = useOfflineStore.getState().albums;
+  const server = useAuthStore.getState().servers.find(s => s.id === serverId);
+  const indexKey = server ? serverIndexKeyForProfile(server) : serverId;
+  return albums[`${indexKey}:${albumId}`] ?? albums[`${serverId}:${albumId}`];
+}
+
+function serverIndexKeysForServerId(serverId: string): string[] {
+  const servers = useAuthStore.getState().servers;
+  const server = servers.find(s => s.id === serverId);
+  const keys = new Set<string>();
+  if (server) {
+    const profileKey = serverIndexKeyForProfile(server);
+    if (profileKey) keys.add(profileKey);
+    keys.add(server.id);
+  }
+  keys.add(resolveIndexKey(serverId));
+  keys.add(serverId);
+  return [...keys].filter(Boolean);
+}
+
+export function entryBelongsToServer(entry: LocalPlaybackEntry, serverId: string): boolean {
+  return serverIndexKeysForServerId(serverId).includes(entry.serverIndexKey);
+}
+
+export function indexKeyBelongsToServer(serverIndexKey: string, serverId: string): boolean {
+  return serverIndexKeysForServerId(serverId).includes(serverIndexKey);
+}
+
+/** Resolve a library-tier row across legacy UUID / URL index-key variants. */
+export function findLocalPlaybackEntry(
+  trackId: string,
+  serverId: string,
+): LocalPlaybackEntry | null {
+  const lp = useLocalPlaybackStore.getState();
+  for (const key of serverIndexKeysForServerId(serverId)) {
+    const hit = lp.getEntry(trackId, key);
+    if (hit) return hit;
+  }
+  for (const entry of Object.values(lp.entries)) {
+    if (entry.trackId !== trackId || entry.tier !== 'library') continue;
+    if (entryBelongsToServer(entry, serverId)) return entry;
+  }
+  return null;
+}
+
+/** Index cache; run {@link reconcileLibraryTierForAlbum} / server reconcile so rows match disk. */
+export function hasLocalLibraryBytes(trackId: string, serverId: string): boolean {
+  return !!findLocalPlaybackEntry(trackId, serverId)?.localPath;
+}
+
+/** Resolve `psysonic-local://` across legacy UUID / host index-key variants. */
+export function findLocalPlaybackUrl(
+  trackId: string,
+  serverId: string,
+  tier: 'library' | 'ephemeral',
+): string | null {
+  if (tier === 'library') {
+    const entry = findLocalPlaybackEntry(trackId, serverId);
+    if (entry?.localPath) return `psysonic-local://${entry.localPath}`;
+    return null;
+  }
+  const lp = useLocalPlaybackStore.getState();
+  for (const key of serverIndexKeysForServerId(serverId)) {
+    const url = lp.getLocalUrl(trackId, key, 'ephemeral');
+    if (url) return url;
+  }
+  return null;
+}
+
+/** Songs that still need a library-tier pin (used to skip redundant downloads). */
+export function pendingOfflinePinSongs<T extends { id: string }>(
+  songs: T[],
+  serverId: string,
+): T[] {
+  return songs.filter(s => !hasLocalLibraryBytes(s.id, serverId));
+}
+
+/** True when every track in the offline pin group has local library-tier bytes. */
+export function isOfflinePinComplete(
+  albumId: string,
+  serverId: string,
+  songIds?: string[],
+): boolean {
+  if (songIds?.length) {
+    return songIds.every(tid => hasLocalLibraryBytes(tid, serverId));
+  }
+  const server = useAuthStore.getState().servers.find(s => s.id === serverId);
+  const indexKey = server ? (serverIndexKeyForProfile(server) || serverId) : serverId;
+  const meta = resolveOfflineAlbumMeta(albumId, serverId);
+  const groupTrackIds = useLocalPlaybackStore.getState()
+    .listPinnedGroups(indexKey)
+    .find(g => g.pinSource.sourceId === albumId)?.trackIds;
+  const trackIds = meta?.trackIds.length
+    ? meta.trackIds
+    : (groupTrackIds ?? []);
+  if (trackIds.length === 0) return false;
+  return trackIds.every(tid => hasLocalLibraryBytes(tid, serverId));
+}
+
+/** @deprecated Use {@link reconcileLibraryTierForAlbum} from `./libraryTierReconcile`. */
+export async function syncAlbumLibraryTierFromDisk(
+  albumId: string,
+  serverId: string,
+  songs: SubsonicSong[],
+  pinSource?: PinSource,
+): Promise<number> {
+  const { reconcileLibraryTierForAlbum } = await import('./libraryTierReconcile');
+  const result = await reconcileLibraryTierForAlbum(serverId, songs, pinSource ?? {
+    kind: 'album',
+    sourceId: albumId,
+  });
+  return result.syncedFromDisk;
 }
 
 /** @deprecated Use {@link listOfflineLibraryCards}. */
@@ -152,7 +272,6 @@ export async function ensureServerForOfflineCard(card: OfflineLibraryCard): Prom
 }
 
 export function offlineTrackCount(card: OfflineLibraryCard): number {
-  return card.trackIds.filter(tid =>
-    useLocalPlaybackStore.getState().isPinned(tid, card.serverIndexKey),
-  ).length;
+  const serverId = resolveServerIdForIndexKey(card.serverIndexKey) || card.serverIndexKey;
+  return card.trackIds.filter(tid => hasLocalLibraryBytes(tid, serverId)).length;
 }

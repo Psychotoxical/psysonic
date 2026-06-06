@@ -19,6 +19,7 @@ import {
 } from '../utils/offline/offlineLibraryHelpers';
 import { showToast } from '../utils/ui/toast';
 import { resolveIndexKey } from '../utils/server/serverIndexKey';
+import { reconcileAllLibraryTiersFromDisk } from '../utils/offline/libraryTierReconcile';
 import {
   inferPinSourcesFromLibraryIndex,
   restoreOfflineLibraryPinSources,
@@ -32,7 +33,13 @@ export default function OfflineLibrary() {
   const { t } = useTranslation();
   const perfFlags = usePerfProbeFlags();
   const servers = useAuthStore(s => s.servers);
-  const localEntries = useLocalPlaybackStore(s => s.entries);
+  const pinRefreshKey = useLocalPlaybackStore(s => {
+    const groups = s.listPinnedGroups();
+    return groups
+      .map(g => `${g.serverIndexKey}\0${g.pinSource.kind}\0${g.pinSource.sourceId}\0${g.trackIds.join(',')}`)
+      .sort()
+      .join('\n');
+  });
   const deleteAlbum = useOfflineStore(s => s.deleteAlbum);
   const playTrack = usePlayerStore(s => s.playTrack);
   const enqueue = usePlayerStore(s => s.enqueue);
@@ -46,24 +53,42 @@ export default function OfflineLibrary() {
   );
   const showServerLabels = servers.length > 1;
 
+  const refreshCardsFromDisk = useCallback(async (): Promise<OfflineLibraryCard[]> => {
+    await reconcileAllLibraryTiersFromDisk();
+    restoreOfflineLibraryPinSources();
+    await inferPinSourcesFromLibraryIndex();
+    const groups = useLocalPlaybackStore.getState().listPinnedGroups();
+    const hydrated = await hydrateOfflineLibraryCards(groups);
+    return hydrated.filter(card => offlineTrackCount(card) > 0);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    void (async () => {
-      restoreOfflineLibraryPinSources();
-      await inferPinSourcesFromLibraryIndex();
+    void refreshCardsFromDisk().then(hydrated => {
       if (cancelled) return;
-      const groups = useLocalPlaybackStore.getState().listPinnedGroups();
-      return hydrateOfflineLibraryCards(groups);
-    })().then(hydrated => {
-      if (!hydrated || cancelled) return;
       setCards(hydrated);
       setLoading(false);
     }).catch(() => {
       if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [localEntries]);
+  }, [pinRefreshKey, refreshCardsFromDisk]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void refreshCardsFromDisk().then(hydrated => setCards(hydrated)).catch(() => {});
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', refresh);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [refreshCardsFromDisk]);
 
   const countByType = (type: FilterType) => {
     if (type === 'all') return cards.length;

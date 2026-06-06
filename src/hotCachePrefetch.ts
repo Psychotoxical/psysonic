@@ -7,7 +7,7 @@ import { useAuthStore } from './store/authStore';
 import { selectHotCacheEntries, useHotCacheStore } from './store/hotCacheStore';
 import { useLocalPlaybackStore } from './store/localPlaybackStore';
 import { getMediaDir } from './utils/media/mediaDir';
-import { resolveServerIdForIndexKey } from './utils/server/serverLookup';
+import { librarySqlServerId } from './api/coverCache';
 import { usePlayerStore } from './store/playerStore';
 import {
   bumpHotCachePreviousTrackGrace,
@@ -167,7 +167,7 @@ async function runWorker() {
           tier: 'ephemeral',
           trackId: job.trackId,
           serverIndexKey: job.serverId,
-          libraryServerId: resolveServerIdForIndexKey(job.serverId),
+          libraryServerId: librarySqlServerId(job.serverId),
           url,
           suffix: job.suffix,
           mediaDir,

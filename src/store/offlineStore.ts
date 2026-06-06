@@ -1,3 +1,4 @@
+import { libraryUpsertSongsFromApi } from '../api/library';
 import { buildStreamUrl } from '../api/subsonicStreamUrl';
 import { getAlbum } from '../api/subsonicLibrary';
 import { getArtist } from '../api/subsonicArtists';
@@ -10,7 +11,11 @@ import { showToast } from '../utils/ui/toast';
 import { useOfflineJobStore, cancelledDownloads } from './offlineJobStore';
 import { useLocalPlaybackStore, type PinSource } from './localPlaybackStore';
 import { getMediaDir } from '../utils/media/mediaDir';
-import { resolveServerIdForIndexKey } from '../utils/server/serverLookup';
+import {
+  findLocalPlaybackEntry,
+  pendingOfflinePinSongs,
+} from '../utils/offline/offlineLibraryHelpers';
+import { librarySqlServerId } from '../api/coverCache';
 import { resolveIndexKey, serverIndexKeyForProfile } from '../utils/server/serverIndexKey';
 
 /** @deprecated Metadata lives in the library index; kept for type-compat during transition. */
@@ -55,8 +60,9 @@ function serverIndexKeyForOffline(serverId: string): string {
   return resolveIndexKey(serverId) || serverId;
 }
 
-function libraryServerIdForOffline(serverId: string): string {
-  return resolveServerIdForIndexKey(serverId) || serverId;
+/** Library SQLite scope (host index key) — not the auth profile UUID. */
+function librarySqlScopeForOffline(serverId: string): string {
+  return librarySqlServerId(serverId);
 }
 
 interface OfflineState {
@@ -143,7 +149,7 @@ export const useOfflineStore = create<OfflineState>()(
         const jobStore = useOfflineJobStore;
         const downloadId = `${albumId}-${Date.now()}`;
         const serverIndexKey = serverIndexKeyForOffline(serverId);
-        const libraryServerId = libraryServerIdForOffline(serverId);
+        const libraryServerId = librarySqlScopeForOffline(serverId);
         const pinSource: PinSource = { kind: type, sourceId: albumId, displayName: albumName };
         const mediaDir = getMediaDir();
 
@@ -171,23 +177,44 @@ export const useOfflineStore = create<OfflineState>()(
           },
         }));
 
+        await libraryUpsertSongsFromApi(libraryServerId, songs).catch(() => {});
+
+        const lp = useLocalPlaybackStore.getState();
+        const pendingSongs = pendingOfflinePinSongs(songs, serverId);
+        if (pendingSongs.length === 0) {
+          for (const song of songs) {
+            const prev = findLocalPlaybackEntry(song.id, serverId);
+            if (!prev) continue;
+            lp.upsertEntry({
+              ...prev,
+              serverIndexKey,
+              tier: 'library',
+              pinSource,
+            });
+          }
+          jobStore.setState(state => ({
+            jobs: state.jobs.filter(j => j.albumId !== albumId),
+          }));
+          return;
+        }
+
         jobStore.setState(state => ({
           jobs: [
             ...state.jobs.filter(j => j.albumId !== albumId),
-            ...songs.map((s, i) => ({
+            ...pendingSongs.map((s, i) => ({
               trackId: s.id,
               albumId,
               albumName,
               trackTitle: s.title,
               trackIndex: i,
-              totalTracks: songs.length,
+              totalTracks: pendingSongs.length,
               status: 'queued' as const,
               downloadId,
             })),
           ],
         }));
 
-        for (let i = 0; i < songs.length; i += CONCURRENCY) {
+        for (let i = 0; i < pendingSongs.length; i += CONCURRENCY) {
           if (cancelledDownloads.has(albumId)) {
             cancelledDownloads.delete(albumId);
             jobStore.setState(state => ({ jobs: state.jobs.filter(j => j.albumId !== albumId) }));
@@ -195,7 +222,7 @@ export const useOfflineStore = create<OfflineState>()(
             return;
           }
 
-          const batch = songs.slice(i, i + CONCURRENCY);
+          const batch = pendingSongs.slice(i, i + CONCURRENCY);
           const batchIds = new Set(batch.map(s => s.id));
 
           jobStore.setState(state => ({
@@ -211,6 +238,16 @@ export const useOfflineStore = create<OfflineState>()(
               const suffix = song.suffix || 'mp3';
               if (cancelledDownloads.has(albumId)) {
                 return { song, localPath: null as string | null, error: 'CANCELLED' };
+              }
+              const existing = findLocalPlaybackEntry(song.id, serverId);
+              if (existing?.tier === 'library' && existing.localPath) {
+                useLocalPlaybackStore.getState().upsertEntry({
+                  ...existing,
+                  serverIndexKey,
+                  pinSource,
+                  suffix: existing.suffix || suffix,
+                });
+                return { song, localPath: existing.localPath, error: null as string | null };
               }
               try {
                 const res = await invoke<{ path: string; size: number; layoutFingerprint: string }>(

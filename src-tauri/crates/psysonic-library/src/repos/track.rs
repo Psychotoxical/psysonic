@@ -304,6 +304,26 @@ impl<'a> TrackRepository<'a> {
         })
     }
 
+    /// Legacy offline rows keyed by library `server_id` (index key scope).
+    pub fn list_offline_local_paths(
+        &self,
+        server_id: &str,
+    ) -> Result<Vec<(String, String, Option<String>)>, String> {
+        self.store.with_read_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT track_id, local_path, suffix FROM track_offline WHERE server_id = ?1",
+            )?;
+            let rows = stmt.query_map(params![server_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                ))
+            })?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
+        })
+    }
+
     /// Tracks with `content_hash` and an analysis BPM fact — may still lack waveform/LUFS.
     /// Confirmed per id via [`TrackAnalysisNeedsWorkQuery`].
     pub fn list_analysis_hash_bpm_ids_after(

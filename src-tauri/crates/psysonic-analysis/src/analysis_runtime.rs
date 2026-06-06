@@ -516,6 +516,141 @@ pub async fn enqueue_track_analysis_from_file(
     enqueue_track_analysis(app, server_id, track_id, &bytes, format_hint.as_deref(), priority).await
 }
 
+/// Library-tier offline pin: reuse waveform/LUFS cached under the playback index key,
+/// plan enrichment under the library UUID, and skip work when both scopes are complete.
+pub async fn enqueue_offline_library_analysis_from_file(
+    app: &tauri::AppHandle,
+    server_index_key: &str,
+    library_server_id: &str,
+    track_id: &str,
+    file_path: &std::path::Path,
+    explicit_priority: Option<AnalysisBackfillPriority>,
+) -> Result<(), String> {
+    use tokio::io::AsyncReadExt;
+
+    use crate::track_analysis_plan::plan_track_analysis_offline_library;
+
+    let mut file = tokio::fs::File::open(file_path)
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut prefix = vec![0u8; 16384];
+    let n = file.read(&mut prefix).await.map_err(|e| e.to_string())?;
+    prefix.truncate(n);
+    if prefix.is_empty() {
+        return Ok(());
+    }
+    let content_hash = analysis_cache::md5_first_16kb(&prefix);
+    let plan = plan_track_analysis_offline_library(
+        app,
+        &[server_index_key, library_server_id],
+        library_server_id,
+        track_id,
+        &content_hash,
+    );
+    if !plan.any() {
+        crate::app_deprintln!(
+            "[analysis] offline library seed skip (complete) track_id={} index={} library={}",
+            track_id,
+            server_index_key,
+            library_server_id,
+        );
+        return Ok(());
+    }
+    let bytes = tokio::fs::read(file_path)
+        .await
+        .map_err(|e| e.to_string())?;
+    let format_hint = file_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .filter(|e| !e.is_empty());
+    let priority = explicit_priority.unwrap_or_else(|| {
+        analysis_backfill_resolve_priority(app, server_index_key, track_id, None)
+    });
+    enqueue_track_analysis_offline_library_with_plan(
+        app,
+        server_index_key,
+        library_server_id,
+        track_id,
+        &bytes,
+        format_hint.as_deref(),
+        priority,
+        plan,
+        0,
+    )
+    .await?;
+    Ok(())
+}
+
+async fn enqueue_track_analysis_offline_library_with_plan(
+    app: &tauri::AppHandle,
+    cache_server_id: &str,
+    enrichment_server_id: &str,
+    track_id: &str,
+    bytes: &[u8],
+    format_hint: Option<&str>,
+    priority: AnalysisBackfillPriority,
+    plan: psysonic_core::track_analysis::TrackAnalysisPlan,
+    fetch_ms: u64,
+) -> Result<EnqueueTrackAnalysisOutcome, String> {
+    if bytes.is_empty() || !plan.any() {
+        return Ok(EnqueueTrackAnalysisOutcome::Complete);
+    }
+    let content_hash = analysis_cache::md5_first_16kb(bytes);
+    if plan.needs_full_cpu_seed() {
+        crate::app_deprintln!(
+            "[analysis] queue full seed track_id={} hash={} need_waveform={} need_loudness={} need_enrichment={}",
+            track_id,
+            content_hash,
+            plan.need_waveform,
+            plan.need_loudness,
+            plan.enrichment.any()
+        );
+        submit_analysis_cpu_seed(
+            app.clone(),
+            cache_server_id.to_string(),
+            track_id.to_string(),
+            bytes.to_vec(),
+            format_hint.map(str::to_string),
+            priority,
+            fetch_ms,
+        )
+        .await?;
+        return Ok(EnqueueTrackAnalysisOutcome::QueuedFullSeed);
+    }
+    if plan.needs_enrichment_only() {
+        crate::app_deprintln!(
+            "[analysis] enrichment-only track_id={} hash={}",
+            track_id,
+            content_hash
+        );
+        let bpm_started = std::time::Instant::now();
+        let outcome = run_track_enrichment_from_bytes(
+            app,
+            enrichment_server_id,
+            track_id,
+            bytes,
+            analysis_emits_ui_events(priority),
+        )
+        .await;
+        if matches!(outcome, TrackEnrichmentOutcome::Failed) {
+            if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
+                let key = analysis_cache::TrackKey {
+                    server_id: cache_server_id.to_string(),
+                    track_id: track_id.to_string(),
+                    md5_16kb: content_hash.clone(),
+                };
+                let _ = cache.touch_track_status(&key, "failed");
+            }
+            return Err("track enrichment failed".to_string());
+        }
+        let bpm_ms = bpm_started.elapsed().as_millis() as u64;
+        emit_analysis_track_perf(app, track_id, fetch_ms, 0, bpm_ms);
+        return Ok(EnqueueTrackAnalysisOutcome::RanEnrichmentOnly);
+    }
+    Ok(EnqueueTrackAnalysisOutcome::Complete)
+}
+
 /// Decode `bytes` for `track_id` via the cpu-seed queue. Prefer [`enqueue_track_analysis`].
 pub async fn enqueue_analysis_seed(
     app: &tauri::AppHandle,

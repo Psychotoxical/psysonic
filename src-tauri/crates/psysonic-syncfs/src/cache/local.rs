@@ -4,10 +4,14 @@
 //! under `{media}/{cache|library}/…`. Legacy `download_track_hot_cache` /
 //! `download_track_offline` remain until LP-2/3 switch call sites.
 
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use psysonic_analysis::analysis_runtime::{enqueue_track_analysis, AnalysisBackfillPriority};
+use psysonic_analysis::analysis_runtime::{
+    enqueue_offline_library_analysis_from_file, enqueue_track_analysis, AnalysisBackfillPriority,
+};
 use psysonic_audio as audio;
 use psysonic_core::cover_cache_layout::sanitize_path_segment;
 use psysonic_core::media_layout::{
@@ -47,6 +51,68 @@ pub struct LocalTrackDownloadResult {
     pub layout_fingerprint: String,
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryTrackProbeResult {
+    pub path: String,
+    pub size: u64,
+    pub layout_fingerprint: String,
+    pub exists: bool,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryTierDiskHit {
+    pub track_id: String,
+    pub path: String,
+    pub size: u64,
+    pub layout_fingerprint: String,
+    pub suffix: String,
+}
+
+struct ResolvedLibraryTrackPath {
+    file_path: PathBuf,
+    path_str: String,
+    layout_fingerprint: String,
+}
+
+fn resolve_library_track_path(
+    track_id: &str,
+    server_index_key: &str,
+    library_server_id: &str,
+    suffix: &str,
+    media_dir: Option<&str>,
+    app: &AppHandle,
+    runtime: &LibraryRuntime,
+) -> Result<ResolvedLibraryTrackPath, String> {
+    let repo = TrackRepository::new(&runtime.store);
+    let Some(row) = repo.find_one(library_server_id, track_id)? else {
+        return Err("LIBRARY_TRACK_NOT_FOUND".to_string());
+    };
+    let path_input = track_row_to_path_input(&row);
+    let fingerprint = layout_fingerprint(&path_input);
+    let media_root = resolve_media_dir(media_dir, app)?;
+    let file_path = absolute_track_path(
+        &media_root,
+        LocalTier::Library,
+        server_index_key,
+        &path_input,
+        suffix,
+    );
+    Ok(ResolvedLibraryTrackPath {
+        path_str: file_path.to_string_lossy().to_string(),
+        file_path,
+        layout_fingerprint: fingerprint,
+    })
+}
+
+fn normalize_path_key(path: &Path) -> String {
+    path.canonicalize()
+        .unwrap_or_else(|_| path.to_path_buf())
+        .to_string_lossy()
+        .to_string()
+}
+
 fn track_row_to_path_input(row: &psysonic_library::repos::TrackRow) -> TrackPathInput {
     TrackPathInput {
         artist: row.artist.clone(),
@@ -80,22 +146,42 @@ pub async fn download_track_local(
 ) -> Result<LocalTrackDownloadResult, String> {
     let local_tier = LocalTier::parse(&tier).ok_or_else(|| format!("unknown local tier: `{tier}`"))?;
 
-    let repo = TrackRepository::new(&runtime.store);
-    let Some(row) = repo.find_one(&library_server_id, &track_id)? else {
-        return Err("LIBRARY_TRACK_NOT_FOUND".to_string());
+    let resolved = if local_tier == LocalTier::Library {
+        resolve_library_track_path(
+            &track_id,
+            &server_index_key,
+            &library_server_id,
+            &suffix,
+            media_dir.as_deref(),
+            &app,
+            &runtime,
+        )?
+    } else {
+        let repo = TrackRepository::new(&runtime.store);
+        let Some(row) = repo.find_one(&library_server_id, &track_id)? else {
+            return Err("LIBRARY_TRACK_NOT_FOUND".to_string());
+        };
+        let path_input = track_row_to_path_input(&row);
+        let fingerprint = layout_fingerprint(&path_input);
+        let media_root = resolve_media_dir(media_dir.as_deref(), &app)?;
+        let file_path = absolute_track_path(
+            &media_root,
+            local_tier,
+            &server_index_key,
+            &path_input,
+            &suffix,
+        );
+        ResolvedLibraryTrackPath {
+            path_str: file_path.to_string_lossy().to_string(),
+            file_path,
+            layout_fingerprint: fingerprint,
+        }
     };
-
-    let path_input = track_row_to_path_input(&row);
-    let fingerprint = layout_fingerprint(&path_input);
-    let media_root = resolve_media_dir(media_dir.as_deref(), &app)?;
-    let file_path = absolute_track_path(
-        &media_root,
-        local_tier,
-        &server_index_key,
-        &path_input,
-        &suffix,
-    );
-    let path_str = file_path.to_string_lossy().to_string();
+    let ResolvedLibraryTrackPath {
+        file_path,
+        path_str,
+        layout_fingerprint: fingerprint,
+    } = resolved;
 
     if file_path.is_file() {
         let size = tokio::fs::metadata(&file_path)
@@ -104,10 +190,19 @@ pub async fn download_track_local(
             .unwrap_or(0);
         let app_seed = app.clone();
         let tid = track_id.clone();
-        let sid = library_server_id.clone();
+        let index_key = server_index_key.clone();
+        let library_id = library_server_id.clone();
         let fp = file_path.clone();
         tokio::spawn(async move {
-            enqueue_analysis_seed_from_file(&app_seed, &sid, &tid, &fp, None).await;
+            let _ = enqueue_offline_library_analysis_from_file(
+                &app_seed,
+                &index_key,
+                &library_id,
+                &tid,
+                &fp,
+                None,
+            )
+            .await;
         });
         return Ok(LocalTrackDownloadResult {
             path: path_str,
@@ -152,14 +247,15 @@ pub async fn download_track_local(
     )
     .await?;
 
-    enqueue_analysis_seed_from_file(
+    enqueue_offline_library_analysis_from_file(
         &app,
+        &server_index_key,
         &library_server_id,
         &track_id,
         &file_path,
         None,
     )
-    .await;
+    .await?;
 
     let size = tokio::fs::metadata(&file_path)
         .await
@@ -171,6 +267,187 @@ pub async fn download_track_local(
         size,
         layout_fingerprint: fingerprint,
     })
+}
+
+/// Scan library-tier bytes on disk and match them to known candidates only
+/// (`track_offline.local_path` + canonical paths for `candidate_track_ids`).
+#[tauri::command]
+pub async fn discover_library_tier_on_disk(
+    server_index_key: String,
+    library_server_id: String,
+    candidate_track_ids: Vec<String>,
+    media_dir: Option<String>,
+    runtime: State<'_, LibraryRuntime>,
+    app: AppHandle,
+) -> Result<Vec<LibraryTierDiskHit>, String> {
+    let media_root = resolve_media_dir(media_dir.as_deref(), &app)?;
+    let segment = sanitize_path_segment(&server_index_key);
+    let tier_root = media_root
+        .join(LocalTier::Library.subdir())
+        .join(&segment);
+    let disk_files: HashSet<String> = if tier_root.is_dir() {
+        super::fs_utils::collect_regular_files_under(&tier_root)
+            .into_iter()
+            .map(|p| normalize_path_key(&p))
+            .collect()
+    } else {
+        HashSet::new()
+    };
+    if disk_files.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let repo = TrackRepository::new(&runtime.store);
+    let mut hits: Vec<LibraryTierDiskHit> = Vec::new();
+    let mut seen_tracks: HashSet<String> = HashSet::new();
+
+    let offline_rows = repo.list_offline_local_paths(&library_server_id)?;
+
+    for (track_id, local_path, suffix_opt) in offline_rows {
+        if seen_tracks.contains(&track_id) {
+            continue;
+        }
+        let path = PathBuf::from(&local_path);
+        let key = normalize_path_key(&path);
+        if !disk_files.contains(&key) && !path.is_file() {
+            continue;
+        }
+        let Some(row) = repo.find_one(&library_server_id, &track_id)? else {
+            continue;
+        };
+        let suffix = suffix_opt
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .or_else(|| row.suffix.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+            .unwrap_or("mp3");
+        let path_input = track_row_to_path_input(&row);
+        let fingerprint = layout_fingerprint(&path_input);
+        let size = tokio::fs::metadata(&path).await.map(|m| m.len()).unwrap_or(0);
+        seen_tracks.insert(track_id.clone());
+        hits.push(LibraryTierDiskHit {
+            track_id,
+            path: local_path,
+            size,
+            layout_fingerprint: fingerprint,
+            suffix: suffix.to_string(),
+        });
+    }
+
+    for track_id in candidate_track_ids {
+        if seen_tracks.contains(&track_id) {
+            continue;
+        }
+        let Some(row) = repo.find_one(&library_server_id, &track_id)? else {
+            continue;
+        };
+        let suffix = row
+            .suffix
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or("mp3");
+        let resolved = resolve_library_track_path(
+            &track_id,
+            &server_index_key,
+            &library_server_id,
+            suffix,
+            media_dir.as_deref(),
+            &app,
+            &runtime,
+        )?;
+        let canonical_key = normalize_path_key(&resolved.file_path);
+        if !disk_files.contains(&canonical_key) && !resolved.file_path.is_file() {
+            continue;
+        }
+        let size = tokio::fs::metadata(&resolved.file_path)
+            .await
+            .map(|m| m.len())
+            .unwrap_or(0);
+        seen_tracks.insert(track_id.clone());
+        hits.push(LibraryTierDiskHit {
+            track_id,
+            path: resolved.path_str,
+            size,
+            layout_fingerprint: resolved.layout_fingerprint,
+            suffix: suffix.to_string(),
+        });
+    }
+
+    Ok(hits)
+}
+
+/// Resolve the canonical `library/` path for a track and report on-disk presence only
+/// (no download, no analysis seed).
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn probe_library_track_local(
+    track_id: String,
+    server_index_key: String,
+    library_server_id: String,
+    suffix: String,
+    media_dir: Option<String>,
+    runtime: State<'_, LibraryRuntime>,
+    app: AppHandle,
+) -> Result<LibraryTrackProbeResult, String> {
+    let resolved = resolve_library_track_path(
+        &track_id,
+        &server_index_key,
+        &library_server_id,
+        &suffix,
+        media_dir.as_deref(),
+        &app,
+        &runtime,
+    )?;
+    let exists = resolved.file_path.is_file();
+    let size = if exists {
+        tokio::fs::metadata(&resolved.file_path)
+            .await
+            .map(|m| m.len())
+            .unwrap_or(0)
+    } else {
+        0
+    };
+    Ok(LibraryTrackProbeResult {
+        path: resolved.path_str,
+        size,
+        layout_fingerprint: resolved.layout_fingerprint,
+        exists,
+    })
+}
+
+/// Remove library-tier files under `{server_index_key}` that are not listed in `keep_paths`.
+#[tauri::command]
+pub async fn prune_orphan_library_tier_files(
+    server_index_key: String,
+    keep_paths: Vec<String>,
+    media_dir: Option<String>,
+    app: AppHandle,
+) -> Result<Vec<String>, String> {
+    let media_root = resolve_media_dir(media_dir.as_deref(), &app)?;
+    let segment = sanitize_path_segment(&server_index_key);
+    let root = media_root.join(LocalTier::Library.subdir()).join(segment);
+    if !root.is_dir() {
+        return Ok(Vec::new());
+    }
+    let keep: HashSet<String> = keep_paths
+        .iter()
+        .map(|p| normalize_path_key(Path::new(p)))
+        .collect();
+    let mut removed = Vec::new();
+    for file in super::fs_utils::collect_regular_files_under(&root) {
+        if keep.contains(&normalize_path_key(&file)) {
+            continue;
+        }
+        if tokio::fs::remove_file(&file).await.is_err() {
+            continue;
+        }
+        removed.push(file.to_string_lossy().to_string());
+        if let Some(parent) = file.parent() {
+            super::fs_utils::prune_empty_dirs_up_to(parent, &root);
+        }
+    }
+    Ok(removed)
 }
 
 fn resolve_media_tier_root(

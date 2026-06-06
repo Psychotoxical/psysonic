@@ -25,6 +25,30 @@ pub fn dir_size_recursive(root: &Path) -> u64 {
     total
 }
 
+/// All regular files under `root` (recursive). Missing or unreadable roots yield an empty list.
+pub fn collect_regular_files_under(root: &Path) -> Vec<std::path::PathBuf> {
+    if !root.is_dir() {
+        return Vec::new();
+    }
+    let mut files = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let rd = match std::fs::read_dir(&dir) {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+        for entry in rd.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.is_file() {
+                files.push(path);
+            }
+        }
+    }
+    files
+}
+
 /// Walks upward from `start_dir`, removing each empty directory using `remove_dir`
 /// (never `remove_dir_all`). Stops as soon as a non-empty directory is hit, the
 /// boundary is reached, or removal fails.
@@ -85,6 +109,17 @@ mod tests {
         let path = dir.path();
         prune_empty_dirs_up_to(path, path);
         assert!(path.exists(), "boundary dir must never be removed");
+    }
+
+    #[test]
+    fn collect_regular_files_under_lists_nested_files() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.mp3"), b"x").unwrap();
+        let sub = dir.path().join("Artist/Album");
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join("b.flac"), b"yy").unwrap();
+        let files = collect_regular_files_under(dir.path());
+        assert_eq!(files.len(), 2);
     }
 
     #[test]

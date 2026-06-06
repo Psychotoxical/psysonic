@@ -6,6 +6,7 @@ import { useLocalPlaybackStore } from './store/localPlaybackStore';
 import { layoutFingerprintFromLibraryTrack } from './utils/media/mediaLayout';
 import { getMediaDir } from './utils/media/mediaDir';
 import { runLegacyOfflineFileMigration } from './utils/migrations/legacyOfflineFileMigration';
+import { reconcileLibraryTierForServer } from './utils/offline/libraryTierReconcile';
 import { resolveServerIdForIndexKey } from './utils/server/serverLookup';
 import { serverIndexKeyFromUrl } from './utils/server/serverIndexKey';
 
@@ -42,12 +43,14 @@ function serverIndexKeyForLibraryId(libraryServerId: string): string | undefined
 export function initLocalPlaybackInvalidation(): () => void {
   let unlisten: (() => void) | null = null;
   void listen<{ serverId?: string }>('library:sync-idle', ({ payload }) => {
-    const libraryServerId = payload?.serverId?.trim();
-    if (!libraryServerId) return;
+    const scopeId = payload?.serverId?.trim();
+    if (!scopeId) return;
     void (async () => {
-      const indexKey = serverIndexKeyForLibraryId(libraryServerId);
+      const profileId = resolveServerIdForIndexKey(scopeId) || scopeId;
+      const indexKey = serverIndexKeyForLibraryId(profileId);
       await runLegacyOfflineFileMigration(indexKey);
-      await invalidateEntriesForLibraryServer(libraryServerId);
+      await reconcileLibraryTierForServer(profileId);
+      await invalidateEntriesForLibraryServer(profileId);
     })();
   }).then(fn => {
     unlisten = fn;

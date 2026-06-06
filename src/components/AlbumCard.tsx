@@ -7,8 +7,9 @@ import { useNavigateToAlbum } from '../hooks/useNavigateToAlbum';
 import { Play, ListPlus, HardDriveDownload, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../store/playerStore';
-import { useOfflineStore } from '../store/offlineStore';
 import { useAuthStore } from '../store/authStore';
+import { useLocalPlaybackStore } from '../store/localPlaybackStore';
+import { isOfflinePinComplete } from '../utils/offline/offlineLibraryHelpers';
 import { CoverArtImage } from '../cover/CoverArtImage';
 import { useAlbumCoverRef } from '../cover/useLibraryCoverRef';
 import { coverStorageKeyFromRef } from '../cover/storageKeys';
@@ -71,11 +72,9 @@ function AlbumCard({
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const enqueue = usePlayerStore(s => s.enqueue);
   const serverId = useAuthStore(s => s.activeServerId ?? '');
-  const isOffline = useOfflineStore(s => {
-    const meta = s.albums[`${serverId}:${album.id}`];
-    if (!meta || meta.trackIds.length === 0) return false;
-    return meta.trackIds.every(tid => !!s.tracks[`${serverId}:${tid}`]);
-  });
+  const localEntries = useLocalPlaybackStore(s => s.entries);
+  const isOffline = isOfflinePinComplete(album.id, serverId);
+  void localEntries;
   const psyDrag = useDragDrop();
   const coverRef = useAlbumCoverRef(album.id, album.coverArt, undefined, { libraryResolve });
   const dragCoverKey = useMemo(() => {

@@ -1,5 +1,6 @@
-import { useOfflineStore } from '../store/offlineStore';
+import { useLocalPlaybackStore } from '../store/localPlaybackStore';
 import { useOfflineJobStore } from '../store/offlineJobStore';
+import { isOfflinePinComplete } from '../utils/offline/offlineLibraryHelpers';
 
 interface UseAlbumOfflineStateResult {
   resolvedOfflineStatus: 'none' | 'downloading' | 'cached';
@@ -24,26 +25,32 @@ interface UseAlbumOfflineStateResult {
  * fetching) — in that case every selector short-circuits to a benign
  * default.
  */
-export function useAlbumOfflineState(albumId: string, serverId: string): UseAlbumOfflineStateResult {
-  const offlineStatus = useOfflineStore((s): 'none' | 'downloading' | 'cached' => {
-    if (!albumId) return 'none';
-    const meta = s.albums[`${serverId}:${albumId}`];
-    const isDownloaded = meta && meta.trackIds.length > 0 && meta.trackIds.every(tid => !!s.tracks[`${serverId}:${tid}`]);
-    return isDownloaded ? 'cached' : 'none';
-  });
+export function useAlbumOfflineState(
+  albumId: string,
+  serverId: string,
+  songIds?: string[],
+): UseAlbumOfflineStateResult {
+  useLocalPlaybackStore(s => s.entries);
+  const pinComplete = !!albumId && isOfflinePinComplete(albumId, serverId, songIds);
   const isOfflineDownloading = useOfflineJobStore(s =>
-    !!albumId && s.jobs.some(j => j.albumId === albumId && (j.status === 'queued' || j.status === 'downloading')),
+    !pinComplete
+    && !!albumId
+    && s.jobs.some(j => j.albumId === albumId && (j.status === 'queued' || j.status === 'downloading')),
   );
   const offlineProgressDone = useOfflineJobStore(s => {
-    if (!albumId) return 0;
+    if (!albumId || pinComplete) return 0;
     return s.jobs.filter(j => j.albumId === albumId && (j.status === 'done' || j.status === 'error')).length;
   });
   const offlineProgressTotal = useOfflineJobStore(s => {
-    if (!albumId) return 0;
+    if (!albumId || pinComplete) return 0;
     return s.jobs.filter(j => j.albumId === albumId).length;
   });
-  const resolvedOfflineStatus = isOfflineDownloading ? 'downloading' : offlineStatus;
-  const offlineProgress = offlineProgressTotal > 0
+  const resolvedOfflineStatus = pinComplete
+    ? 'cached'
+    : isOfflineDownloading
+      ? 'downloading'
+      : 'none';
+  const offlineProgress = isOfflineDownloading && offlineProgressTotal > 0
     ? { done: offlineProgressDone, total: offlineProgressTotal }
     : null;
 

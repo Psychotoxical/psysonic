@@ -15,6 +15,7 @@ import { useGlobalShortcutsStore } from '../store/globalShortcutsStore';
 import { initHotCachePrefetch } from '../hotCachePrefetch';
 import { initLocalPlaybackInvalidation } from '../localPlaybackInvalidation';
 import { runLegacyOfflineFileMigration } from '../utils/migrations/legacyOfflineFileMigration';
+import { reconcileLibraryTierForServer } from '../utils/offline/libraryTierReconcile';
 import { initMiniPlayerBridgeOnMain } from '../utils/miniPlayerBridge';
 import { runAdvancedModeMigration } from '../utils/migrations/advancedModeMigration';
 import { bootstrapAllIndexedServers } from '../utils/library/librarySession';
@@ -102,9 +103,15 @@ export default function MainApp() {
 
   useEffect(() => {
     if (!migrationReady) return undefined;
-    void runLegacyOfflineFileMigration();
+    void (async () => {
+      await runLegacyOfflineFileMigration();
+      const servers = useAuthStore.getState().servers;
+      for (const server of servers) {
+        await reconcileLibraryTierForServer(server.id);
+      }
+    })();
     return initLocalPlaybackInvalidation();
-  }, [migrationReady]);
+  }, [migrationReady, serverIdsKey]);
 
   useEffect(() => {
     if (!migrationReady) return;

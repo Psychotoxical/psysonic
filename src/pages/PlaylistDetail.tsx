@@ -11,6 +11,8 @@ import { usePlaylistStore } from '../store/playlistStore';
 import { usePreviewStore } from '../store/previewStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useOfflineJobStore } from '../store/offlineJobStore';
+import { useLocalPlaybackStore } from '../store/localPlaybackStore';
+import { isOfflinePinComplete } from '../utils/offline/offlineLibraryHelpers';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { useDownloadModalStore } from '../store/downloadModalStore';
@@ -93,21 +95,25 @@ export default function PlaylistDetail() {
   const downloadPlaylist = useOfflineStore(s => s.downloadPlaylist);
   const deleteAlbum = useOfflineStore(s => s.deleteAlbum);
   const activeServerId = useAuthStore(s => s.activeServerId) ?? '';
+  const localEntries = useLocalPlaybackStore(s => s.entries);
+  const isCached = id ? isOfflinePinComplete(id, activeServerId) : false;
+  void localEntries;
   const isDownloading = useOfflineJobStore(s =>
-    !!id && s.jobs.some(j => j.albumId === id && (j.status === 'queued' || j.status === 'downloading'))
+    !isCached
+    && !!id
+    && s.jobs.some(j => j.albumId === id && (j.status === 'queued' || j.status === 'downloading')),
   );
-  const isCached = useOfflineStore(s => {
-    if (!id) return false;
-    const meta = s.albums[`${activeServerId}:${id}`];
-    if (!meta || meta.trackIds.length === 0) return false;
-    return meta.trackIds.every(tid => !!s.tracks[`${activeServerId}:${tid}`]);
-  });
   const offlineProgressDone = useOfflineJobStore(s => {
-    if (!id) return 0;
+    if (!id || isCached) return 0;
     return s.jobs.filter(j => j.albumId === id && (j.status === 'done' || j.status === 'error')).length;
   });
-  const offlineProgressTotal = useOfflineJobStore(s => (!id ? 0 : s.jobs.filter(j => j.albumId === id).length));
-  const offlineProgress = offlineProgressTotal > 0 ? { done: offlineProgressDone, total: offlineProgressTotal } : null;
+  const offlineProgressTotal = useOfflineJobStore(s => {
+    if (!id || isCached) return 0;
+    return s.jobs.filter(j => j.albumId === id).length;
+  });
+  const offlineProgress = isDownloading && offlineProgressTotal > 0
+    ? { done: offlineProgressDone, total: offlineProgressTotal }
+    : null;
   const downloadFolder = useAuthStore(s => s.downloadFolder);
   const setDownloadFolder = useAuthStore(s => s.setDownloadFolder);
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);

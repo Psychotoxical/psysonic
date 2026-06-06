@@ -3,7 +3,7 @@ import type { Track } from './playerStoreTypes';
 import { invoke } from '@tauri-apps/api/core';
 import { useHotCacheStore } from './hotCacheStore';
 import { getMediaDir } from '../utils/media/mediaDir';
-import { resolveServerIdForIndexKey } from '../utils/server/serverLookup';
+import { librarySqlServerId } from '../api/coverCache';
 
 /**
  * Promote a track whose stream cache is full to the on-disk ephemeral tier.
@@ -15,7 +15,7 @@ export async function promoteCompletedStreamToHotCache(
   _customDir: string | null,
 ): Promise<void> {
   try {
-    const libraryServerId = resolveServerIdForIndexKey(serverIndexKey);
+    const libraryServerId = librarySqlServerId(serverIndexKey);
     const res = await invoke<{ path: string; size: number; layoutFingerprint: string } | null>(
       'promote_stream_cache_to_local',
       {

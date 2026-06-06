@@ -473,6 +473,15 @@ export function libraryGetTrack(
     .then(track => (track ? { ...track, serverId } : track));
 }
 
+/** Seed library index rows from live Subsonic song payloads (pin/download cold miss). */
+export function libraryUpsertSongsFromApi(
+  serverId: string,
+  songs: unknown[],
+): Promise<number> {
+  const indexKey = serverIndexKeyForId(serverId);
+  return invoke<number>('library_upsert_songs_from_api', { serverId: indexKey, songs });
+}
+
 export function libraryGetTracksBatch(refs: TrackRefDto[]): Promise<LibraryTrackDto[]> {
   const indexKeyMap = new Map<string, string>();
   const remapped = refs.map(ref => {

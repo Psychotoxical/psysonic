@@ -22,8 +22,8 @@ vi.mock('../api/subsonicStreamUrl', () => ({
   buildStreamUrlForServer: (_sid: string, id: string) => `https://mock/stream/${id}`,
 }));
 
-vi.mock('../utils/server/serverLookup', () => ({
-  resolveServerIdForIndexKey: (k: string) => (k === 'srv' ? 'uuid-srv' : k),
+vi.mock('../api/coverCache', () => ({
+  librarySqlServerId: (k: string) => k,
 }));
 
 import { promoteCompletedStreamToHotCache } from './promoteStreamCache';
@@ -56,7 +56,7 @@ describe('promoteCompletedStreamToHotCache', () => {
     expect(invokeMock).toHaveBeenCalledWith('promote_stream_cache_to_local', {
       trackId: 't1',
       serverIndexKey: 'srv',
-      libraryServerId: 'uuid-srv',
+      libraryServerId: 'srv',
       url: expect.stringContaining('t1'),
       suffix: 'flac',
       mediaDir: '/media',
