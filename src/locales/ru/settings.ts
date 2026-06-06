@@ -389,6 +389,7 @@ export const settings = {
   tabAudio: 'Звук',
   tabStorage: 'Офлайн и кэш',
   tabAppearance: 'Внешний вид',
+  tabThemes: 'Темы',
   tabLibrary: 'Библиотека',
   tabServers: 'Серверы',
   tabLyrics: 'Тексты песен',

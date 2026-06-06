@@ -314,6 +314,7 @@ export const settings = {
   tabAudio: 'Audio',
   tabStorage: 'Offline & Cache',
   tabAppearance: 'Darstellung',
+  tabThemes: 'Themes',
   tabLibrary: 'Bibliothek',
   tabServers: 'Server',
   tabLyrics: 'Songtexte',

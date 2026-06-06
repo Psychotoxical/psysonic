@@ -316,6 +316,7 @@ export const settings = {
   tabAudio: 'Audio',
   tabStorage: 'Offline & Cache',
   tabAppearance: 'Aparență',
+  tabThemes: 'Teme',
   tabLibrary: 'Librărie',
   tabServers: 'Servere',
   tabLyrics: 'Versuri',

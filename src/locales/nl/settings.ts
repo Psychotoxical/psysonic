@@ -310,6 +310,7 @@ export const settings = {
   tabAudio: 'Audio',
   tabStorage: 'Offline & Cache',
   tabAppearance: 'Weergave',
+  tabThemes: "Thema's",
   tabLibrary: 'Bibliotheek',
   tabServers: 'Servers',
   tabLyrics: 'Songteksten',

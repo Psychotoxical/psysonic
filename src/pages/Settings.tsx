@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  AudioLines, HardDrive, Info, Keyboard, LayoutGrid, Music2, Palette, Search, Server, Sparkles, Users, X,
+  AudioLines, HardDrive, Info, Keyboard, LayoutGrid, Music2, Paintbrush, Palette, Search, Server, Sparkles, Users, X,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { IS_MACOS } from '../utils/platform';
 import { AppearanceTab } from '../components/settings/AppearanceTab';
+import { ThemesTab } from '../components/settings/ThemesTab';
 import { AudioTab } from '../components/settings/AudioTab';
 import { InputTab } from '../components/settings/InputTab';
 import { IntegrationsTab } from '../components/settings/IntegrationsTab';
@@ -143,6 +144,7 @@ export default function Settings() {
     { id: 'audio',           label: t('settings.tabAudio'),           icon: <AudioLines size={15} /> },
     { id: 'lyrics',          label: t('settings.tabLyrics'),          icon: <Music2 size={15} /> },
     { id: 'appearance',      label: t('settings.tabAppearance'),      icon: <Palette size={15} /> },
+    { id: 'themes',          label: t('settings.tabThemes'),          icon: <Paintbrush size={15} /> },
     { id: 'personalisation', label: t('settings.tabPersonalisation'), icon: <LayoutGrid size={15} /> },
     { id: 'integrations',    label: t('settings.tabIntegrations'),    icon: <Sparkles size={15} /> },
     { id: 'input',           label: t('settings.tabInput'),           icon: <Keyboard size={15} /> },
@@ -306,6 +308,9 @@ export default function Settings() {
       {/* ── Appearance ───────────────────────────────────────────────────────── */}
       {activeTab === 'appearance' && <AppearanceTab />}
 
+      {/* ── Themes ───────────────────────────────────────────────────────────── */}
+      {activeTab === 'themes' && <ThemesTab />}
+
       {/* ── Input ────────────────────────────────────────────────────────────── */}
       {activeTab === 'input' && <InputTab />}
 
@@ -338,6 +343,7 @@ const TAB_LABEL_KEY: Record<Tab, string> = {
   audio:           'settings.tabAudio',
   lyrics:          'settings.tabLyrics',
   appearance:      'settings.tabAppearance',
+  themes:          'settings.tabThemes',
   personalisation: 'settings.tabPersonalisation',
   integrations:    'settings.tabIntegrations',
   input:           'settings.tabInput',

@@ -4,6 +4,7 @@ export type Tab =
   | 'audio'
   | 'lyrics'
   | 'appearance'
+  | 'themes'
   | 'personalisation'
   | 'integrations'
   | 'input'
@@ -23,7 +24,7 @@ export function resolveTab(input: string | undefined | null): Tab {
   if (!input) return 'servers';
   const aliased = LEGACY_TAB_ALIAS[input];
   if (aliased) return aliased;
-  const known: Tab[] = ['library', 'servers', 'audio', 'lyrics', 'appearance', 'personalisation', 'integrations', 'input', 'storage', 'system', 'users'];
+  const known: Tab[] = ['library', 'servers', 'audio', 'lyrics', 'appearance', 'themes', 'personalisation', 'integrations', 'input', 'storage', 'system', 'users'];
   return (known as string[]).includes(input) ? (input as Tab) : 'servers';
 }
 
@@ -59,8 +60,8 @@ export const SETTINGS_INDEX: SearchIndexEntry[] = [
   { tab: 'storage',        titleKey: 'settings.offlineDirTitle',          keywords: 'offline library download directory folder cache' },
   { tab: 'storage',        titleKey: 'settings.nextTrackBufferingTitle',  keywords: 'next track buffering preload hot cache streaming' },
   { tab: 'storage',        titleKey: 'settings.downloadsTitle',           keywords: 'downloads zip export archive folder' },
-  { tab: 'appearance',     titleKey: 'settings.theme',                    keywords: 'theme color palette dark light' },
-  { tab: 'appearance',     titleKey: 'settings.themeSchedulerTitle',      keywords: 'theme scheduler auto time dark mode sunset' },
+  { tab: 'themes',         titleKey: 'settings.theme',                    keywords: 'theme color palette dark light store community install' },
+  { tab: 'themes',         titleKey: 'settings.themeSchedulerTitle',      keywords: 'theme scheduler auto time dark mode sunset' },
   { tab: 'appearance',     titleKey: 'settings.visualOptionsTitle',       keywords: 'visual options animations effects titlebar mini player' },
   { tab: 'appearance',     titleKey: 'settings.uiScaleTitle',             keywords: 'ui scale zoom dpi size' },
   { tab: 'appearance',     titleKey: 'settings.font',                     keywords: 'font typography typeface' },

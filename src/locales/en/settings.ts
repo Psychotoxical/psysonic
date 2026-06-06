@@ -378,6 +378,7 @@ export const settings = {
   tabAudio: 'Audio',
   tabStorage: 'Offline & Cache',
   tabAppearance: 'Appearance',
+  tabThemes: 'Themes',
   tabLibrary: 'Library',
   tabServers: 'Servers',
   tabLyrics: 'Lyrics',

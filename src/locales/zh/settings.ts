@@ -309,6 +309,7 @@ export const settings = {
   tabAudio: '音频',
   tabStorage: '离线与缓存',
   tabAppearance: '外观',
+  tabThemes: '主题',
   tabLibrary: '媒体库',
   tabServers: '服务器',
   tabLyrics: '歌词',

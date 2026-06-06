@@ -310,6 +310,7 @@ export const settings = {
   tabAudio: 'Audio',
   tabStorage: 'Hors ligne & Cache',
   tabAppearance: 'Apparence',
+  tabThemes: 'Thèmes',
   tabLibrary: 'Bibliothèque',
   tabServers: 'Serveurs',
   tabLyrics: 'Paroles',

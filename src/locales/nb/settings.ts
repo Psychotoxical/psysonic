@@ -313,6 +313,7 @@ export const settings = {
   tabPersonalisation: 'Personalisering',
   tabIntegrations: 'Integrasjoner',
   tabAppearance: 'Utseende',
+  tabThemes: 'Temaer',
   tabStorage: 'Frakoblet & Cache',
   inputKeybindingsTitle: 'Tastatursnarveier',
   aboutContributorsCount_one: '{{count}} bidrag',

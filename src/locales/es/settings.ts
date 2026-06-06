@@ -312,6 +312,7 @@ export const settings = {
   tabAudio: 'Audio',
   tabStorage: 'Sin conexión y caché',
   tabAppearance: 'Apariencia',
+  tabThemes: 'Temas',
   tabLibrary: 'Biblioteca',
   tabServers: 'Servidores',
   tabLyrics: 'Letras',
