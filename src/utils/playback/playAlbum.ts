@@ -1,5 +1,6 @@
-import { getAlbum, getAlbumForServer } from '../../api/subsonicLibrary';
+import { getAlbum } from '../../api/subsonicLibrary';
 import { usePlayerStore } from '../../store/playerStore';
+import { resolveAlbumForServer } from '../offline/favoritesOfflineBrowse';
 import { songToTrack } from './songToTrack';
 import { useOrbitStore } from '../../store/orbitStore';
 import { fadeOut } from './fadeOut';
@@ -8,12 +9,14 @@ import { shuffleArray } from './shuffleArray';
 
 async function fetchAlbumTracks(albumId: string, serverId?: string): Promise<Track[]> {
   const albumData = serverId
-    ? await getAlbumForServer(serverId, albumId)
-    : await getAlbum(albumId);
+    ? await resolveAlbumForServer(serverId, albumId)
+    : await getAlbum(albumId).then(d => ({ album: d.album, songs: d.songs }));
+  if (!albumData) throw new Error(`Album ${albumId} not available`);
   const albumGenre = albumData.album.genre;
+  const ownerServerId = serverId ?? albumData.album.serverId;
   return albumData.songs.map(s => {
     const track = songToTrack(s);
-    if (serverId) track.serverId = serverId;
+    if (ownerServerId) track.serverId = ownerServerId;
     if (!track.genre && albumGenre) track.genre = albumGenre;
     return track;
   });

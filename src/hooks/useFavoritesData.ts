@@ -8,6 +8,7 @@ import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import type { TopFavoriteArtist } from '../components/favorites/TopFavoriteArtists';
 import { useConnectionStatus } from './useConnectionStatus';
+import { isActiveServerReachable } from '../utils/network/activeServerReachability';
 import {
   loadStarredFromAllLibraryIndexes,
   loadStarredFromAllServersOnline,
@@ -45,45 +46,60 @@ export function useFavoritesData(): FavoritesDataResult {
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
 
   useEffect(() => {
-    const loadAll = async () => {
-      setLoading(true);
+    let cancelled = false;
 
-      const applyStarred = (starred: {
-        albums: SubsonicAlbum[];
-        artists: SubsonicArtist[];
-        songs: SubsonicSong[];
-      }) => {
-        setAlbums(starred.albums);
-        setArtists(starred.artists);
-        setSongs(starred.songs);
-      };
+    const applyStarred = (starred: {
+      albums: SubsonicAlbum[];
+      artists: SubsonicArtist[];
+      songs: SubsonicSong[];
+    }) => {
+      if (cancelled) return;
+      setAlbums(starred.albums);
+      setArtists(starred.artists);
+      setSongs(starred.songs);
+    };
 
-      if (favoritesOfflineEnabled) {
-        try {
-          const starred = connStatus === 'disconnected'
-            ? await loadStarredFromAllLibraryIndexes()
-            : await loadStarredFromAllServersOnline();
-          applyStarred(starred);
-        } catch { /* ignore */ }
-      } else {
-        const [starredResult] = await Promise.allSettled([getStarred()]);
-        if (starredResult.status === 'fulfilled') {
-          applyStarred(starredResult.value);
-        }
-      }
-
-      // Radio favorites: read IDs from localStorage, fetch all stations, filter
+    const loadRadioFavorites = async () => {
+      if (!isActiveServerReachable()) return;
       try {
         const favIds = new Set<string>(JSON.parse(localStorage.getItem('psysonic_radio_favorites') ?? '[]'));
-        if (favIds.size > 0) {
-          const all = await getInternetRadioStations();
+        if (favIds.size === 0) return;
+        const all = await getInternetRadioStations();
+        if (!cancelled) {
           setRadioStations(all.filter(s => favIds.has(s.id)));
         }
       } catch { /* ignore */ }
-
-      setLoading(false);
     };
-    loadAll();
+
+    const loadAll = async () => {
+      setLoading(true);
+
+      if (favoritesOfflineEnabled) {
+        try {
+          applyStarred(await loadStarredFromAllLibraryIndexes());
+        } catch { /* ignore */ }
+        if (!cancelled) setLoading(false);
+
+        if (connStatus === 'connected' && isActiveServerReachable()) {
+          try {
+            applyStarred(await loadStarredFromAllServersOnline());
+          } catch { /* keep library snapshot */ }
+        }
+      } else {
+        if (connStatus === 'connected' && isActiveServerReachable()) {
+          const [starredResult] = await Promise.allSettled([getStarred()]);
+          if (starredResult.status === 'fulfilled') {
+            applyStarred(starredResult.value);
+          }
+        }
+        if (!cancelled) setLoading(false);
+      }
+
+      void loadRadioFavorites();
+    };
+
+    void loadAll();
+    return () => { cancelled = true; };
   }, [musicLibraryFilterVersion, connStatus, favoritesOfflineEnabled, servers]);
 
   // ── Top Favorite Artists aggregated from favorited songs ─────────────

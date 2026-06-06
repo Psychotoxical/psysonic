@@ -17,6 +17,9 @@ vi.mock('../api/subsonicArtists');
 vi.mock('../api/subsonicLibrary');
 vi.mock('../api/bandsintown');
 vi.mock('../api/lastfm');
+vi.mock('../utils/network/subsonicNetworkGuard', () => ({
+  shouldAttemptSubsonicForServer: () => true,
+}));
 
 import { getArtistForServer, getArtistInfoForServer, getTopSongsForServer } from '../api/subsonicArtists';
 import { getAlbumForServer, getSongForServer } from '../api/subsonicLibrary';

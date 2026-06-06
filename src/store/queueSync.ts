@@ -1,5 +1,6 @@
 import { savePlayQueue } from '../api/subsonicPlayQueue';
 import type { QueueItemRef, Track } from './playerStoreTypes';
+import { isActiveServerReachable } from '../utils/network/activeServerReachability';
 import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { getPlaybackProgressSnapshot } from './playbackProgress';
 import { usePlayerStore } from './playerStore';
@@ -27,14 +28,16 @@ let syncTimeout: ReturnType<typeof setTimeout> | null = null;
 let lastQueueHeartbeatAt = 0;
 
 export function syncQueueToServer(queue: QueueItemRef[], currentTrack: Track | null, currentTime: number): void {
+  if (!isActiveServerReachable()) return;
   if (syncTimeout) clearTimeout(syncTimeout);
   syncTimeout = setTimeout(() => {
     syncTimeout = null;
+    if (!isActiveServerReachable()) return;
     const ids = queue.slice(0, QUEUE_ID_LIMIT).map(r => r.trackId);
     const pos = Math.floor(currentTime * 1000);
     const serverId = getPlaybackServerId();
-    savePlayQueue(ids, currentTrack?.id, pos, serverId).catch(err => {
-      console.error('Failed to sync play queue to server', err);
+    savePlayQueue(ids, currentTrack?.id, pos, serverId).catch(() => {
+      // Expected when offline or the playback server is unreachable.
     });
   }, SYNC_DEBOUNCE_MS);
 }
@@ -44,13 +47,14 @@ export function flushQueueSyncToServer(queue: QueueItemRef[], currentTrack: Trac
     clearTimeout(syncTimeout);
     syncTimeout = null;
   }
+  if (!isActiveServerReachable()) return Promise.resolve();
   if (!currentTrack || queue.length === 0) return Promise.resolve();
   lastQueueHeartbeatAt = Date.now();
   const ids = queue.slice(0, QUEUE_ID_LIMIT).map(r => r.trackId);
   const pos = Math.floor(currentTime * 1000);
   const serverId = getPlaybackServerId();
-  return savePlayQueue(ids, currentTrack.id, pos, serverId).catch(err => {
-    console.error('Failed to flush play queue to server', err);
+  return savePlayQueue(ids, currentTrack.id, pos, serverId).catch(() => {
+    // Expected when offline or the playback server is unreachable.
   });
 }
 

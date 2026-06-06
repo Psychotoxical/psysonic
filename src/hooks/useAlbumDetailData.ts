@@ -8,8 +8,13 @@ import { useConnectionStatus } from './useConnectionStatus';
 import {
   loadAlbumFromLibraryIndex,
   loadArtistFromLibraryIndex,
+  resolveAlbumForServer,
 } from '../utils/offline/favoritesOfflineBrowse';
 import { readDetailServerId } from '../utils/navigation/detailServerScope';
+import {
+  shouldAttemptSubsonicForActiveServer,
+  shouldAttemptSubsonicForServer,
+} from '../utils/network/subsonicNetworkGuard';
 
 type AlbumPayload = Awaited<ReturnType<typeof getAlbum>>;
 
@@ -69,6 +74,8 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
             return;
           }
         }
+        const relatedServerId = serverId ?? detailServerId ?? activeServerId;
+        if (!relatedServerId || !shouldAttemptSubsonicForServer(relatedServerId)) return;
         const artistData = detailServerId
           ? await getArtistForServer(detailServerId, artistId)
           : await getArtist(artistId);
@@ -78,20 +85,37 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
       }
     };
 
-    const preferLocal = connStatus === 'disconnected'
-      && favoritesOfflineEnabled
-      && !!detailServerId;
+    const libraryFirst = favoritesOfflineEnabled && !!detailServerId;
 
     void (async () => {
-      if (preferLocal && detailServerId) {
+      if (libraryFirst && detailServerId) {
         try {
-          const local = await loadAlbumFromLibraryIndex(detailServerId, id);
+          const local = await resolveAlbumForServer(detailServerId, id);
           if (local) {
             applyAlbumPayload(local);
             await loadRelatedAlbums(detailServerId, local.album.artistId, true);
             return;
           }
         } catch { /* fall through */ }
+      }
+
+      const detailNetworkAllowed = detailServerId
+        ? shouldAttemptSubsonicForServer(detailServerId)
+        : shouldAttemptSubsonicForActiveServer();
+
+      if (!detailNetworkAllowed) {
+        if (favoritesOfflineEnabled && detailServerId) {
+          try {
+            const local = await loadAlbumFromLibraryIndex(detailServerId, id);
+            if (local) {
+              applyAlbumPayload(local);
+              await loadRelatedAlbums(detailServerId, local.album.artistId, true);
+              return;
+            }
+          } catch { /* ignore */ }
+        }
+        setLoading(false);
+        return;
       }
 
       try {

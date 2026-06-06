@@ -1,15 +1,36 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAuthStore } from '../../store/authStore';
 import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
 import {
   favoritesOfflineBrowseEnabled,
   hasOfflineBrowsingContent,
   isOfflineSidebarLibraryNavAllowed,
+  loadStarredFromLibraryIndex,
   mergeStarredFromServers,
+  resolveAlbumForServer,
 } from './favoritesOfflineBrowse';
+
+const isActiveServerReachableMock = vi.fn(() => true);
+vi.mock('../network/activeServerReachability', () => ({
+  isActiveServerReachable: () => isActiveServerReachableMock(),
+}));
+
+const getAlbumForServerMock = vi.fn();
+const libraryAdvancedSearchMock = vi.fn();
+const libraryGetTracksByAlbumMock = vi.fn();
+
+vi.mock('../../api/subsonicLibrary', () => ({
+  getAlbumForServer: (...args: unknown[]) => getAlbumForServerMock(...args),
+}));
+
+vi.mock('../../api/library', () => ({
+  libraryAdvancedSearch: (...args: unknown[]) => libraryAdvancedSearchMock(...args),
+  libraryGetTracksByAlbum: (...args: unknown[]) => libraryGetTracksByAlbumMock(...args),
+}));
 
 describe('favoritesOfflineBrowse', () => {
   beforeEach(() => {
+    isActiveServerReachableMock.mockReturnValue(true);
     useAuthStore.setState({
       favoritesOfflineEnabled: false,
       activeServerId: 'srv-1',
@@ -61,6 +82,69 @@ describe('favoritesOfflineBrowse', () => {
     expect(isOfflineSidebarLibraryNavAllowed('favorites', true)).toBe(true);
     expect(isOfflineSidebarLibraryNavAllowed('favorites', false)).toBe(false);
     expect(isOfflineSidebarLibraryNavAllowed('albums', true)).toBe(false);
+  });
+
+  it('loadStarredFromLibraryIndex omits artist entity (no artist.starred_at in index)', async () => {
+    libraryAdvancedSearchMock.mockResolvedValue({
+      albums: [{ id: 'alb-1', name: 'A', artist: 'X', artistId: 'art-1', serverId: 'srv-1' }],
+      artists: [{ id: 'art-99', name: 'Not A Favorite', serverId: 'srv-1' }],
+      tracks: [{ id: 't-1', title: 'S', artist: 'X', album: 'A', albumId: 'alb-1', durationSec: 1, serverId: 'srv-1' }],
+    });
+
+    const starred = await loadStarredFromLibraryIndex('srv-1');
+    expect(libraryAdvancedSearchMock).toHaveBeenCalledWith(expect.objectContaining({
+      entityTypes: ['album', 'track'],
+      starredOnly: true,
+    }));
+    expect(starred.artists).toEqual([]);
+    expect(starred.songs).toHaveLength(1);
+  });
+
+  it('resolveAlbumForServer uses library index when network fails', async () => {
+    useAuthStore.setState({ favoritesOfflineEnabled: true });
+    getAlbumForServerMock.mockRejectedValue(new Error('Network Error'));
+    libraryGetTracksByAlbumMock.mockResolvedValue([
+      {
+        id: 't1',
+        title: 'Track',
+        artist: 'Artist',
+        album: 'Album',
+        albumId: 'alb-1',
+        artistId: 'art-1',
+        durationSec: 200,
+        serverId: 'srv-1',
+      },
+    ]);
+    libraryAdvancedSearchMock.mockResolvedValue({
+      albums: [{
+        id: 'alb-1',
+        name: 'Album',
+        artist: 'Artist',
+        artistId: 'art-1',
+        serverId: 'srv-1',
+      }],
+      artists: [],
+      tracks: [],
+    });
+
+    const result = await resolveAlbumForServer('srv-1', 'alb-1');
+    expect(result?.album.id).toBe('alb-1');
+    expect(result?.songs).toHaveLength(1);
+    expect(getAlbumForServerMock).not.toHaveBeenCalled();
+  });
+
+  it('resolveAlbumForServer falls back to network when index misses', async () => {
+    useAuthStore.setState({ favoritesOfflineEnabled: true });
+    isActiveServerReachableMock.mockReturnValue(true);
+    libraryGetTracksByAlbumMock.mockResolvedValue([]);
+    getAlbumForServerMock.mockResolvedValue({
+      album: { id: 'alb-2', name: 'Net', artist: 'A', artistId: 'a1', songCount: 1, duration: 1 },
+      songs: [{ id: 't2', title: 'T', artist: 'A', album: 'Net', albumId: 'alb-2', duration: 1 }],
+    });
+
+    const result = await resolveAlbumForServer('srv-1', 'alb-2');
+    expect(result?.album.id).toBe('alb-2');
+    expect(getAlbumForServerMock).toHaveBeenCalledWith('srv-1', 'alb-2');
   });
 
   it('hasOfflineBrowsingContent includes favorite-auto bytes when browse is enabled', () => {

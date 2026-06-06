@@ -36,6 +36,9 @@ vi.mock('@/api/subsonicPlayQueue', () => ({
   savePlayQueue: vi.fn(async () => undefined),
   getPlayQueue: vi.fn(async () => ({ songs: [], current: undefined, position: 0 })),
 }));
+vi.mock('@/utils/network/activeServerReachability', () => ({
+  isActiveServerReachable: () => true,
+}));
 
 const SERVER_A = {
   id: 'uuid-a',

@@ -14,6 +14,7 @@ import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
 import { getMediaDir } from '../media/mediaDir';
 import { resolveIndexKey, serverIndexKeyForProfile } from '../server/serverIndexKey';
 import { FAVORITES_OFFLINE_JOB_ID } from './favoritesOfflineConstants';
+import { isActiveServerReachable } from '../network/activeServerReachability';
 import { favoritesServerIds } from './favoritesOfflineBrowse';
 import {
   entryBelongsToServer,
@@ -127,6 +128,7 @@ export async function disableFavoritesOfflineSync(): Promise<void> {
 
 export function scheduleFavoritesOfflineSync(serverId?: string): void {
   if (!useAuthStore.getState().favoritesOfflineEnabled) return;
+  if (!isActiveServerReachable()) return;
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     debounceTimer = null;

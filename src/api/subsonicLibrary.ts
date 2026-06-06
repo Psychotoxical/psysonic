@@ -1,4 +1,8 @@
 import { useAuthStore } from '../store/authStore';
+import {
+  shouldAttemptSubsonicForActiveServer,
+  shouldAttemptSubsonicForServer,
+} from '../utils/network/subsonicNetworkGuard';
 import { api, apiForServer, libraryFilterParams, libraryFilterParamsForServer } from './subsonicClient';
 import type {
   RandomSongsFilters,
@@ -57,6 +61,7 @@ export async function getMusicFolders(): Promise<SubsonicMusicFolder[]> {
 }
 
 export async function getRandomAlbums(size = 6): Promise<SubsonicAlbum[]> {
+  if (!shouldAttemptSubsonicForActiveServer()) return [];
   const data = await api<{ albumList2: { album: SubsonicAlbum[] } }>('getAlbumList2.view', {
     type: 'random',
     size,
@@ -71,6 +76,7 @@ export async function getAlbumList(
   offset = 0,
   extra: Record<string, unknown> = {}
 ): Promise<SubsonicAlbum[]> {
+  if (!shouldAttemptSubsonicForActiveServer()) return [];
   const data = await api<{ albumList2: { album: SubsonicAlbum[] } }>('getAlbumList2.view', {
     type,
     size,
@@ -212,6 +218,7 @@ export async function getAlbumListForServer(
   offset = 0,
   extra: Record<string, unknown> = {},
 ): Promise<SubsonicAlbum[]> {
+  if (!shouldAttemptSubsonicForServer(serverId)) return [];
   const data = await apiForServer<{ albumList2: { album: SubsonicAlbum[] } }>(serverId, 'getAlbumList2.view', {
     type,
     size,
@@ -224,6 +231,7 @@ export async function getAlbumListForServer(
 }
 
 export async function getSong(id: string): Promise<SubsonicSong | null> {
+  if (!shouldAttemptSubsonicForActiveServer()) return null;
   try {
     const data = await api<{ song: SubsonicSong }>('getSong.view', { id });
     return data.song ?? null;
@@ -233,6 +241,7 @@ export async function getSong(id: string): Promise<SubsonicSong | null> {
 }
 
 export async function getSongForServer(serverId: string, id: string): Promise<SubsonicSong | null> {
+  if (!shouldAttemptSubsonicForServer(serverId, id)) return null;
   try {
     const data = await apiForServer<{ song: SubsonicSong }>(serverId, 'getSong.view', { id });
     return data.song ?? null;
@@ -242,6 +251,9 @@ export async function getSongForServer(serverId: string, id: string): Promise<Su
 }
 
 export async function getAlbum(id: string): Promise<{ album: SubsonicAlbum; songs: SubsonicSong[] }> {
+  if (!shouldAttemptSubsonicForActiveServer()) {
+    throw new Error('Subsonic unavailable');
+  }
   const data = await api<{ album: SubsonicAlbum & { song: SubsonicSong[] } }>('getAlbum.view', { id });
   const { song, ...album } = data.album;
   return { album, songs: song ?? [] };
@@ -251,6 +263,9 @@ export async function getAlbumForServer(
   serverId: string,
   id: string,
 ): Promise<{ album: SubsonicAlbum; songs: SubsonicSong[] }> {
+  if (!shouldAttemptSubsonicForServer(serverId)) {
+    throw new Error('Subsonic unavailable');
+  }
   const data = await apiForServer<{ album: SubsonicAlbum & { song: SubsonicSong[] } }>(serverId, 'getAlbum.view', { id });
   const { song, ...album } = data.album;
   return { album, songs: song ?? [] };

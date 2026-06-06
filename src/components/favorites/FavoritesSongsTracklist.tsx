@@ -13,6 +13,7 @@ import { useThemeStore } from '../../store/themeStore';
 import { useDragDrop } from '../../contexts/DragDropContext';
 import { useOrbitSongRowBehavior } from '../../hooks/useOrbitSongRowBehavior';
 import { songToTrack } from '../../utils/playback/songToTrack';
+import { appendServerQuery } from '../../utils/navigation/detailServerScope';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../../constants/appScroll';
 import { useElementClientHeightById } from '../../hooks/useResizeClientHeight';
 import { SORTABLE_COLUMNS } from '../../hooks/useFavoritesSongFiltering';
@@ -127,8 +128,14 @@ export default function FavoritesSongsTracklist({
     ),
     rate: (songId, r) => latest.current.handleRate(songId, r),
     remove: (songId) => latest.current.removeSong(songId),
-    navArtist: (artistId) => latest.current.navigate(`/artist/${artistId}`),
-    navAlbum: (albumId) => latest.current.navigate(`/album/${albumId}`),
+    navArtist: (artistId, serverId) => {
+      const query = appendServerQuery(undefined, serverId);
+      latest.current.navigate(query ? `/artist/${artistId}?${query}` : `/artist/${artistId}`);
+    },
+    navAlbum: (albumId, serverId) => {
+      const query = appendServerQuery(undefined, serverId);
+      latest.current.navigate(query ? `/album/${albumId}?${query}` : `/album/${albumId}`);
+    },
   }), []);
 
   const listWrapRef = useRef<HTMLDivElement | null>(null);

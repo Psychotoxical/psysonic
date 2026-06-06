@@ -1,6 +1,7 @@
 import { api, apiForServer } from './subsonicClient';
 import type { SubsonicNowPlaying } from './subsonicTypes';
 import { patchLibraryTrackOnUse } from '../utils/library/patchOnUse';
+import { shouldAttemptSubsonicForServer } from '../utils/network/subsonicNetworkGuard';
 
 async function scrobbleOnServer(
   serverId: string,
@@ -8,6 +9,7 @@ async function scrobbleOnServer(
   submission: boolean,
   time?: number,
 ): Promise<void> {
+  if (!shouldAttemptSubsonicForServer(serverId, id)) return;
   const params: Record<string, unknown> = { id, submission };
   if (time !== undefined) params.time = time;
   await apiForServer(serverId, 'scrobble.view', params);

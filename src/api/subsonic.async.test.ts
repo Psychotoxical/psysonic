@@ -20,6 +20,11 @@ vi.mock('axios', () => ({
   default: { get: vi.fn() },
 }));
 
+vi.mock('../utils/network/subsonicNetworkGuard', () => ({
+  shouldAttemptSubsonicForActiveServer: () => true,
+  shouldAttemptSubsonicForServer: () => true,
+}));
+
 import axios from 'axios';
 import { pingWithCredentials, ping } from './subsonic';
 import { getAlbumInfo2 } from './subsonicAlbumInfo';

@@ -1,4 +1,6 @@
 import { getStarredForServer } from '../../api/subsonicStarRating';
+import { isActiveServerReachable } from '../network/activeServerReachability';
+import { getAlbumForServer } from '../../api/subsonicLibrary';
 import { libraryAdvancedSearch, libraryGetTracksByAlbum } from '../../api/library';
 import type {
   StarredResults,
@@ -80,14 +82,17 @@ export function mergeStarredFromServers(
 }
 
 export async function loadStarredFromLibraryIndex(serverId: string): Promise<StarredResults> {
+  // Artist-level favorites are network-only today (`artist` has no `starred_at`;
+  // `starredOnly` on artists would return the whole artist table). Songs/albums
+  // use track/album stars in the index.
   const response = await libraryAdvancedSearch({
     serverId,
-    entityTypes: ['artist', 'album', 'track'],
+    entityTypes: ['album', 'track'],
     starredOnly: true,
     limit: 10_000,
   });
   return {
-    artists: response.artists.map(artistToArtist),
+    artists: [],
     albums: response.albums.map(albumToAlbum),
     songs: response.tracks.map(trackToSong),
   };
@@ -110,6 +115,9 @@ export async function loadStarredFromAllLibraryIndexes(): Promise<StarredResults
 
 /** Online starred merge with per-server local index fallback. */
 export async function loadStarredFromAllServersOnline(): Promise<StarredResults> {
+  if (!isActiveServerReachable()) {
+    return loadStarredFromAllLibraryIndexes();
+  }
   const serverIds = favoritesServerIds();
   const entries = await Promise.all(
     serverIds.map(async serverId => {
@@ -127,6 +135,42 @@ export async function loadStarredFromAllServersOnline(): Promise<StarredResults>
     }),
   );
   return mergeStarredFromServers(entries);
+}
+
+/**
+ * Album detail / play: library index first when offline favorites is on, then
+ * network. Survives unreachable servers while the active server stays connected.
+ */
+export async function resolveAlbumForServer(
+  serverId: string,
+  albumId: string,
+): Promise<{ album: SubsonicAlbum; songs: SubsonicSong[] } | null> {
+  const favoritesOffline = useAuthStore.getState().favoritesOfflineEnabled;
+  if (favoritesOffline) {
+    try {
+      const local = await loadAlbumFromLibraryIndex(serverId, albumId);
+      if (local) return local;
+    } catch { /* fall through */ }
+  }
+  if (!isActiveServerReachable()) {
+    if (!favoritesOffline) return null;
+    try {
+      return await loadAlbumFromLibraryIndex(serverId, albumId);
+    } catch {
+      return null;
+    }
+  }
+  try {
+    const data = await getAlbumForServer(serverId, albumId);
+    return { album: data.album, songs: data.songs };
+  } catch {
+    if (!favoritesOffline) return null;
+    try {
+      return await loadAlbumFromLibraryIndex(serverId, albumId);
+    } catch {
+      return null;
+    }
+  }
 }
 
 export async function loadAlbumFromLibraryIndex(

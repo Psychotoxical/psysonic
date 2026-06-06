@@ -12,6 +12,12 @@ const getStarredForServerMock = vi.fn(async () => ({
   songs: [{ id: 't1', title: 'T', artist: 'A', album: 'Al', albumId: 'al-1', duration: 1 }],
 }));
 
+const isActiveServerReachableMock = vi.fn(() => true);
+
+vi.mock('../network/activeServerReachability', () => ({
+  isActiveServerReachable: () => isActiveServerReachableMock(),
+}));
+
 vi.mock('../../api/subsonicStarRating', () => ({
   getStarredForServer: (...args: unknown[]) => getStarredForServerMock(...args),
 }));
@@ -42,6 +48,7 @@ function song(id: string): SubsonicSong {
 describe('onFavoritesOfflineStarChange', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    isActiveServerReachableMock.mockReturnValue(true);
     getStarredForServerMock.mockClear();
     useAuthStore.setState({
       favoritesOfflineEnabled: true,
@@ -55,6 +62,13 @@ describe('onFavoritesOfflineStarChange', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('does not schedule sync while the active server is unreachable', async () => {
+    isActiveServerReachableMock.mockReturnValue(false);
+    onFavoritesOfflineStarChange('t1', 'song', true, 'srv-b');
+    await vi.advanceTimersByTimeAsync(700);
+    expect(getStarredForServerMock).not.toHaveBeenCalled();
   });
 
   it('schedules sync for the explicit server, not only the active one', async () => {
