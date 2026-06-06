@@ -231,9 +231,11 @@ export async function hydrateOfflineLibraryCards(
 
 export async function buildTracksForOfflineCard(card: OfflineLibraryCard): Promise<Track[]> {
   const serverId = resolveServerIdForIndexKey(card.serverIndexKey) || card.serverIndexKey;
-  const refs = card.trackIds.map(trackId => ({ serverId, trackId }));
+  const localTrackIds = card.trackIds.filter(tid => hasLocalLibraryBytes(tid, serverId));
+  if (localTrackIds.length === 0) return [];
+  const refs = localTrackIds.map(trackId => ({ serverId, trackId }));
   const dtos = await libraryGetTracksBatch(refs);
-  const order = new Map(card.trackIds.map((id, i) => [id, i]));
+  const order = new Map(localTrackIds.map((id, i) => [id, i]));
   return dtos
     .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
     .map(libraryDtoToTrack);

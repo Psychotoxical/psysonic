@@ -32,8 +32,8 @@ export function streamUrlTrackId(url: string): string | null {
   return null;
 }
 
-function localUrlForKey(trackId: string, serverKey: string, tier?: 'library' | 'ephemeral'): string | null {
-  return useLocalPlaybackStore.getState().getLocalUrl(trackId, serverKey, tier);
+function resolvePlaybackProfileId(serverIdOrKey: string): string {
+  return resolveServerIdForIndexKey(serverIdOrKey) || serverIdOrKey || getPlaybackServerId();
 }
 
 /**
@@ -45,15 +45,9 @@ export function getPlaybackSourceKind(
   serverId: string,
   enginePreloadedTrackId: string | null = null,
 ): PlaybackSourceKind {
-  const legacySid = getPlaybackServerId();
-  const pinned =
-    localUrlForKey(trackId, serverId, 'library')
-    || (legacySid && legacySid !== serverId ? localUrlForKey(trackId, legacySid, 'library') : null);
-  if (pinned) return 'offline';
-  const hot =
-    localUrlForKey(trackId, serverId, 'ephemeral')
-    || (legacySid && legacySid !== serverId ? localUrlForKey(trackId, legacySid, 'ephemeral') : null);
-  if (hot) return 'hot';
+  const profileId = resolvePlaybackProfileId(serverId);
+  if (findLocalPlaybackUrl(trackId, profileId, 'library')) return 'offline';
+  if (findLocalPlaybackUrl(trackId, profileId, 'ephemeral')) return 'hot';
   const resolved = resolvePlaybackUrl(trackId, serverId);
   if (
     !resolved.startsWith('psysonic-local://')
@@ -67,15 +61,11 @@ export function getPlaybackSourceKind(
 
 /** Pinned library → ephemeral cache → HTTP stream. */
 export function resolvePlaybackUrl(trackId: string, serverId?: string): string {
-  const sid = serverId && serverId.length > 0 ? serverId : getPlaybackCacheServerKey();
-  const legacySid = getPlaybackServerId();
-  const pinned =
-    localUrlForKey(trackId, sid, 'library')
-    || (legacySid && legacySid !== sid ? localUrlForKey(trackId, legacySid, 'library') : null);
+  const cacheKey = serverId && serverId.length > 0 ? serverId : getPlaybackCacheServerKey();
+  const profileId = resolvePlaybackProfileId(cacheKey);
+  const pinned = findLocalPlaybackUrl(trackId, profileId, 'library');
   if (pinned) return pinned;
-  const hot =
-    localUrlForKey(trackId, sid)
-    || (legacySid && legacySid !== sid ? localUrlForKey(trackId, legacySid) : null);
+  const hot = findLocalPlaybackUrl(trackId, profileId, 'ephemeral');
   if (hot) return hot;
-  return buildStreamUrlForServer(sid, trackId);
+  return buildStreamUrlForServer(profileId, trackId);
 }

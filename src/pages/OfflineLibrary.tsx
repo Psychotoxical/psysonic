@@ -18,7 +18,7 @@ import {
   type OfflineLibraryCard,
 } from '../utils/offline/offlineLibraryHelpers';
 import { showToast } from '../utils/ui/toast';
-import { resolveIndexKey } from '../utils/server/serverIndexKey';
+import { canonicalQueueServerKey, resolveIndexKey } from '../utils/server/serverIndexKey';
 import { reconcileAllLibraryTiersFromDisk } from '../utils/offline/libraryTierReconcile';
 import {
   inferPinSourcesFromLibraryIndex,
@@ -113,6 +113,9 @@ export default function OfflineLibrary() {
 
   const handlePlay = (card: OfflineLibraryCard) => {
     void runWithCardServer(card, async () => {
+      usePlayerStore.setState({
+        queueServerId: canonicalQueueServerKey(card.serverIndexKey),
+      });
       const tracks = await buildTracksForOfflineCard(card);
       if (tracks[0]) playTrack(tracks[0], tracks);
     });
@@ -120,6 +123,9 @@ export default function OfflineLibrary() {
 
   const handleEnqueue = (card: OfflineLibraryCard) => {
     void runWithCardServer(card, async () => {
+      usePlayerStore.setState({
+        queueServerId: canonicalQueueServerKey(card.serverIndexKey),
+      });
       enqueue(await buildTracksForOfflineCard(card));
     });
   };

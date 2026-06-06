@@ -2,14 +2,21 @@
  * `resolvePlaybackUrl` precedence + `streamUrlTrackId` parser tests (Phase F3).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { LocalPlaybackEntry } from '@/store/localPlaybackStore';
 
-const { getLocalUrlMock } = vi.hoisted(() => ({
+const { getLocalUrlMock, entriesMock } = vi.hoisted(() => ({
   getLocalUrlMock: vi.fn(),
+  entriesMock: {} as Record<string, LocalPlaybackEntry>,
 }));
 
 vi.mock('@/store/localPlaybackStore', () => ({
   useLocalPlaybackStore: {
-    getState: () => ({ getLocalUrl: getLocalUrlMock, entries: {} }),
+    getState: () => ({
+      getLocalUrl: getLocalUrlMock,
+      getEntry: (trackId: string, serverIndexKey: string) =>
+        entriesMock[`${serverIndexKey}:${trackId}`] ?? null,
+      entries: entriesMock,
+    }),
     subscribe: vi.fn(),
   },
 }));
@@ -22,8 +29,22 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import { resetAuthStore } from '@/test/helpers/storeReset';
 
+function seedLibraryEntry(trackId: string, serverIndexKey: string, localPath: string): void {
+  entriesMock[`${serverIndexKey}:${trackId}`] = {
+    serverIndexKey,
+    trackId,
+    localPath,
+    layoutFingerprint: '',
+    sizeBytes: 1,
+    tier: 'library',
+    cachedAt: 1,
+    suffix: 'flac',
+  };
+}
+
 beforeEach(() => {
   resetAuthStore();
+  Object.keys(entriesMock).forEach(k => delete entriesMock[k]);
   getLocalUrlMock.mockReset();
   getLocalUrlMock.mockReturnValue(null);
   const id = useAuthStore.getState().addServer({
@@ -34,15 +55,15 @@ beforeEach(() => {
 
 describe('resolvePlaybackUrl — precedence', () => {
   it('returns the library-tier URL when present (1st priority)', () => {
-    getLocalUrlMock.mockImplementation(
-      (_tid: string, _sid: string, tier?: string) => (tier === 'library' ? 'psysonic-local://library/track-1.flac' : null),
-    );
-    expect(resolvePlaybackUrl('track-1', 'srv-1')).toBe('psysonic-local://library/track-1.flac');
+    seedLibraryEntry('track-1', 'srv-1', '/library/track-1.flac');
+    expect(resolvePlaybackUrl('track-1', 'srv-1')).toBe('psysonic-local:///library/track-1.flac');
   });
 
   it('falls through to ephemeral cache when library is absent (2nd priority)', () => {
     getLocalUrlMock.mockImplementation(
-      (_tid: string, _sid: string, tier?: string) => (tier === 'ephemeral' || tier === undefined ? 'psysonic-local://hot/track-1.flac' : null),
+      (_tid: string, _sid: string, tier?: string) => (
+        tier === 'ephemeral' ? 'psysonic-local://hot/track-1.flac' : null
+      ),
     );
     expect(resolvePlaybackUrl('track-1', 'srv-1')).toBe('psysonic-local://hot/track-1.flac');
   });
@@ -56,15 +77,15 @@ describe('resolvePlaybackUrl — precedence', () => {
 
 describe('getPlaybackSourceKind', () => {
   it('returns "offline" when the library tier has the track', () => {
-    getLocalUrlMock.mockImplementation(
-      (_tid: string, _sid: string, tier?: string) => (tier === 'library' ? 'psysonic-local://library/t1.flac' : null),
-    );
+    seedLibraryEntry('t1', 'srv-1', '/library/t1.flac');
     expect(getPlaybackSourceKind('t1', 'srv-1')).toBe('offline');
   });
 
   it('returns "hot" when only ephemeral cache has the track', () => {
     getLocalUrlMock.mockImplementation(
-      (_tid: string, _sid: string, tier?: string) => (tier === 'ephemeral' ? 'psysonic-local://hot/t1.flac' : null),
+      (_tid: string, _sid: string, tier?: string) => (
+        tier === 'ephemeral' ? 'psysonic-local://hot/t1.flac' : null
+      ),
     );
     expect(getPlaybackSourceKind('t1', 'srv-1')).toBe('hot');
   });
