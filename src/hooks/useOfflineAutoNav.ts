@@ -4,10 +4,11 @@ import type { NavigateFunction } from 'react-router-dom';
 type ConnStatus = 'connected' | 'disconnected' | 'connecting' | 'unknown';
 
 /**
- * Auto-route the user between the offline library and main pages based on
+ * Auto-route the user between offline-capable pages and main pages based on
  * connection status:
- *  - Disconnect with cached content → push `/offline`.
- *  - Reconnect while sitting on `/offline` → push back to `/`.
+ *  - Disconnect with manual offline pins → push `/offline`.
+ *  - Disconnect with favorites offline browse enabled → push `/favorites`.
+ *  - Reconnect while sitting on `/offline` or `/favorites` → push back to `/`.
  *
  * Only fires on transitions (not on every render). Reconnect-bounce is
  * gated on `prev === 'disconnected'` so a user who navigates to `/offline`
@@ -15,7 +16,8 @@ type ConnStatus = 'connected' | 'disconnected' | 'connecting' | 'unknown';
  */
 export function useOfflineAutoNav(
   connStatus: ConnStatus | string,
-  hasOfflineContent: boolean,
+  hasManualOfflineContent: boolean,
+  favoritesOfflineBrowse: boolean,
   pathname: string,
   navigate: NavigateFunction,
 ): void {
@@ -24,11 +26,25 @@ export function useOfflineAutoNav(
     const prev = prevConnStatus.current;
     prevConnStatus.current = connStatus;
 
-    if (connStatus === 'disconnected' && hasOfflineContent && prev !== 'disconnected') {
-      navigate('/offline', { replace: true });
+    if (connStatus === 'disconnected' && prev !== 'disconnected') {
+      if (hasManualOfflineContent) {
+        navigate('/offline', { replace: true });
+      } else if (favoritesOfflineBrowse) {
+        navigate('/favorites', { replace: true });
+      }
     }
-    if (connStatus === 'connected' && prev === 'disconnected' && pathname === '/offline') {
+    if (
+      connStatus === 'connected'
+      && prev === 'disconnected'
+      && (pathname === '/offline' || pathname === '/favorites')
+    ) {
       navigate('/', { replace: true });
     }
-  }, [connStatus, hasOfflineContent, pathname, navigate]);
+  }, [
+    connStatus,
+    hasManualOfflineContent,
+    favoritesOfflineBrowse,
+    pathname,
+    navigate,
+  ]);
 }

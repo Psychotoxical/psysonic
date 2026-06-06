@@ -23,7 +23,10 @@ import { useSidebarNewReleasesUnread } from '../hooks/useSidebarNewReleasesUnrea
 import { useSidebarNavDnd } from '../hooks/useSidebarNavDnd';
 import { useSidebarLibraryDropdown } from '../hooks/useSidebarLibraryDropdown';
 import { useSidebarScrollVisible } from '../hooks/useSidebarScrollVisible';
+import { isOfflineSidebarLibraryNavAllowed } from '../utils/offline/favoritesOfflineBrowse';
 import { hasAnyOfflineAlbums } from '../utils/offline/offlineLibraryHelpers';
+import { useConnectionStatus } from '../hooks/useConnectionStatus';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useSidebarPerfProbe } from '../hooks/useSidebarPerfProbe';
 import SidebarPerfProbeModal from './sidebar/SidebarPerfProbeModal';
 import SidebarNavBody from './sidebar/SidebarNavBody';
@@ -61,7 +64,12 @@ export default function Sidebar({
   const setNormalizationEngine = useAuthStore(s => s.setNormalizationEngine);
   const loggingMode = useAuthStore(s => s.loggingMode);
   const setLoggingMode = useAuthStore(s => s.setLoggingMode);
+  const { status: connStatus } = useConnectionStatus();
+  const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
+  const libraryIndexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
+  const favoritesOfflineBrowse = favoritesOfflineEnabled && libraryIndexEnabled;
   const hasOfflineContent = hasAnyOfflineAlbums(offlineAlbums);
+  const isServerOffline = connStatus === 'disconnected';
   const sidebarItems = useSidebarStore(s => s.items);
   const setSidebarItems = useSidebarStore(s => s.setItems);
   const randomNavMode = useAuthStore(s => s.randomNavMode);
@@ -101,13 +109,20 @@ export default function Sidebar({
       libraryItemsForReorder.filter(c => {
         if (!c.visible) return false;
         if (c.id === 'luckyMix' && !luckyMixAvailable) return false;
+        if (isServerOffline && !isOfflineSidebarLibraryNavAllowed(c.id, favoritesOfflineBrowse)) {
+          return false;
+        }
         return true;
       }),
-    [libraryItemsForReorder, luckyMixAvailable],
+    [libraryItemsForReorder, luckyMixAvailable, isServerOffline, favoritesOfflineBrowse],
   );
   const visibleSystemConfigs = useMemo(
-    () => systemItemsForReorder.filter(c => c.visible),
-    [systemItemsForReorder],
+    () => systemItemsForReorder.filter(c => {
+      if (!c.visible) return false;
+      if (isServerOffline) return false;
+      return true;
+    }),
+    [systemItemsForReorder, isServerOffline],
   );
 
   const sidebarItemsRef = useRef(sidebarItems);

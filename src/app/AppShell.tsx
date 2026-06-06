@@ -38,7 +38,11 @@ import { useOrbitHost } from '../hooks/useOrbitHost';
 import { useOrbitGuest } from '../hooks/useOrbitGuest';
 import { useOrbitBodyAttrs } from '../hooks/useOrbitBodyAttrs';
 import { usePlatformShellSetup } from '../hooks/usePlatformShellSetup';
+import {
+  hasOfflineBrowsingContent,
+} from '../utils/offline/favoritesOfflineBrowse';
 import { hasAnyOfflineAlbums } from '../utils/offline/offlineLibraryHelpers';
+import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useWindowFullscreenState } from '../hooks/useWindowFullscreenState';
 import { useNowPlayingTrayTitle } from '../hooks/useNowPlayingTrayTitle';
 import { useTrayMenuI18n } from '../hooks/useTrayMenuI18n';
@@ -106,7 +110,12 @@ export function AppShell() {
   useNowPlayingPrewarm();
   const useCustomTitlebar = useAuthStore(s => s.useCustomTitlebar);
   const offlineAlbums = useOfflineStore(s => s.albums);
-  const hasOfflineContent = hasAnyOfflineAlbums(offlineAlbums);
+  const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
+  const activeServerId = useAuthStore(s => s.activeServerId);
+  const libraryIndexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(activeServerId));
+  const favoritesOfflineBrowse = favoritesOfflineEnabled && libraryIndexEnabled;
+  const hasManualOfflineContent = hasAnyOfflineAlbums(offlineAlbums);
+  const hasOfflineContent = hasOfflineBrowsingContent(offlineAlbums);
   const floatingPlayerBar = useThemeStore(s => s.floatingPlayerBar);
   const perfFlags = usePerfProbeFlags();
 
@@ -134,7 +143,13 @@ export function AppShell() {
     document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID)?.scrollTo({ top: 0 });
   }, [location.pathname, location.state]);
 
-  useOfflineAutoNav(connStatus, hasOfflineContent, location.pathname, navigate);
+  useOfflineAutoNav(
+    connStatus,
+    hasManualOfflineContent,
+    favoritesOfflineBrowse,
+    location.pathname,
+    navigate,
+  );
 
   useEffect(() => {
     initializeFromServerQueue();

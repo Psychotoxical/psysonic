@@ -7,6 +7,8 @@ import type {
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import type { TopFavoriteArtist } from '../components/favorites/TopFavoriteArtists';
+import { useConnectionStatus } from './useConnectionStatus';
+import { loadStarredFromLibraryIndex } from '../utils/offline/favoritesOfflineBrowse';
 
 export interface FavoritesDataResult {
   albums: SubsonicAlbum[];
@@ -28,17 +30,41 @@ export function useFavoritesData(): FavoritesDataResult {
   const [loading, setLoading] = useState(true);
 
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
+  const activeServerId = useAuthStore(s => s.activeServerId);
+  const { status: connStatus } = useConnectionStatus();
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
 
   useEffect(() => {
     const loadAll = async () => {
-      const [starredResult] = await Promise.allSettled([
-        getStarred(),
-      ]);
-      if (starredResult.status === 'fulfilled') {
-        setAlbums(starredResult.value.albums);
-        setArtists(starredResult.value.artists);
-        setSongs(starredResult.value.songs);
+      setLoading(true);
+
+      const loadStarredLocal = async (serverId: string) => {
+        const local = await loadStarredFromLibraryIndex(serverId);
+        setAlbums(local.albums);
+        setArtists(local.artists);
+        setSongs(local.songs);
+      };
+
+      const preferLocalStarred = connStatus === 'disconnected'
+        && favoritesOfflineEnabled
+        && !!activeServerId;
+
+      if (preferLocalStarred) {
+        try {
+          await loadStarredLocal(activeServerId!);
+        } catch { /* ignore */ }
+      } else {
+        const [starredResult] = await Promise.allSettled([getStarred()]);
+        if (starredResult.status === 'fulfilled') {
+          setAlbums(starredResult.value.albums);
+          setArtists(starredResult.value.artists);
+          setSongs(starredResult.value.songs);
+        } else if (favoritesOfflineEnabled && activeServerId) {
+          try {
+            await loadStarredLocal(activeServerId);
+          } catch { /* ignore */ }
+        }
       }
 
       // Radio favorites: read IDs from localStorage, fetch all stations, filter
@@ -53,7 +79,7 @@ export function useFavoritesData(): FavoritesDataResult {
       setLoading(false);
     };
     loadAll();
-  }, [musicLibraryFilterVersion]);
+  }, [musicLibraryFilterVersion, connStatus, favoritesOfflineEnabled, activeServerId]);
 
   // ── Top Favorite Artists aggregated from favorited songs ─────────────
   const topFavoriteArtists = useMemo<TopFavoriteArtist[]>(() => {
