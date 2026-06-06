@@ -4,12 +4,17 @@ import { ChevronLeft, ChevronRight, Users } from 'lucide-react';
 import { CoverArtImage } from '../../cover/CoverArtImage';
 import { ArtistCoverArtImage } from '../../cover/ArtistCoverArtImage';
 import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../../cover/layoutSizes';
+import { coverServerScopeForServerId } from '../../cover/serverScope';
 
 export interface TopFavoriteArtist {
   id: string;
   name: string;
   count: number;
   coverArtId: string;
+  /** Present when favorites are merged across servers. */
+  serverId?: string;
+  /** Raw artist id for song filtering (without server prefix). */
+  artistId?: string;
 }
 
 interface TopFavoriteArtistsRowProps {
@@ -84,6 +89,7 @@ interface TopFavoriteArtistCardProps {
 
 function TopFavoriteArtistCard({ artist, isSelected, onClick, songCountLabel }: TopFavoriteArtistCardProps) {
   const coverId = artist.coverArtId;
+  const artistEntityId = artist.artistId ?? artist.coverArtId;
 
   return (
     <div
@@ -94,8 +100,9 @@ function TopFavoriteArtistCard({ artist, isSelected, onClick, songCountLabel }: 
       <div className="artist-card-avatar">
         {coverId ? (
           <ArtistCoverArtImage
-            artistId={artist.id}
+            artistId={artistEntityId}
             coverArt={artist.coverArtId}
+            serverScope={coverServerScopeForServerId(artist.serverId)}
             displayCssPx={COVER_DENSE_GRID_MIN_CELL_CSS_PX}
             surface="dense"
             alt={artist.name}

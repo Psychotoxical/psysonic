@@ -1,11 +1,13 @@
 import type { SubsonicArtist } from '../api/subsonicTypes';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { CoverArtImage } from '../cover/CoverArtImage';
 import { useArtistCoverRef } from '../cover/useLibraryCoverRef';
 import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../cover/layoutSizes';
 import { useNavigateToArtist } from '../hooks/useNavigateToArtist';
+import { coverServerScopeForServerId } from '../cover/serverScope';
+import { appendServerQuery } from '../utils/navigation/detailServerScope';
 
 interface Props {
   artist: SubsonicArtist;
@@ -18,12 +20,17 @@ interface Props {
 export default function ArtistCardLocal({ artist, linkQuery, libraryResolve = false }: Props) {
   const { t } = useTranslation();
   const navigateToArtist = useNavigateToArtist();
-  const coverRef = useArtistCoverRef(artist.id, artist.coverArt, undefined, { libraryResolve });
+  const coverServerScope = useMemo(
+    () => coverServerScopeForServerId(artist.serverId),
+    [artist.serverId],
+  );
+  const coverRef = useArtistCoverRef(artist.id, artist.coverArt, coverServerScope, { libraryResolve });
+  const artistLinkQuery = appendServerQuery(linkQuery, artist.serverId);
 
   return (
     <div
       className="artist-card"
-      onClick={() => navigateToArtist(artist.id, linkQuery ? { search: linkQuery } : undefined)}
+      onClick={() => navigateToArtist(artist.id, artistLinkQuery ? { search: artistLinkQuery } : undefined)}
     >
       <div className="artist-card-avatar">
         {coverRef ? (

@@ -5,6 +5,7 @@ import {
   favoritesOfflineBrowseEnabled,
   hasOfflineBrowsingContent,
   isOfflineSidebarLibraryNavAllowed,
+  mergeStarredFromServers,
 } from './favoritesOfflineBrowse';
 
 describe('favoritesOfflineBrowse', () => {
@@ -12,16 +13,48 @@ describe('favoritesOfflineBrowse', () => {
     useAuthStore.setState({
       favoritesOfflineEnabled: false,
       activeServerId: 'srv-1',
+      servers: [{ id: 'srv-1', name: 'A', url: 'https://a.test', username: 'u', password: 'p' }],
     });
     useLocalPlaybackStore.setState({ entries: {} });
   });
 
-  it('favoritesOfflineBrowseEnabled requires setting and active server', () => {
+  it('favoritesOfflineBrowseEnabled requires setting and at least one indexed server', () => {
     expect(favoritesOfflineBrowseEnabled()).toBe(false);
     useAuthStore.setState({ favoritesOfflineEnabled: true });
     expect(favoritesOfflineBrowseEnabled()).toBe(true);
-    useAuthStore.setState({ activeServerId: null });
+    useAuthStore.setState({ servers: [] });
     expect(favoritesOfflineBrowseEnabled()).toBe(false);
+    useAuthStore.setState({
+      favoritesOfflineEnabled: true,
+      activeServerId: null,
+      servers: [{ id: 'srv-2', name: 'B', url: 'https://b.test', username: 'u', password: 'p' }],
+    });
+    expect(favoritesOfflineBrowseEnabled()).toBe(true);
+  });
+
+  it('mergeStarredFromServers tags serverId and dedupes per server', () => {
+    const merged = mergeStarredFromServers([
+      {
+        serverId: 'srv-1',
+        starred: {
+          albums: [{ id: 'alb-1', name: 'A', artist: 'X', artistId: 'art-1', songCount: 1, duration: 1 }],
+          artists: [],
+          songs: [{ id: 't-1', title: 'S', artist: 'X', album: 'A', albumId: 'alb-1', duration: 1 }],
+        },
+      },
+      {
+        serverId: 'srv-2',
+        starred: {
+          albums: [{ id: 'alb-1', name: 'B', artist: 'Y', artistId: 'art-2', songCount: 1, duration: 1 }],
+          artists: [],
+          songs: [{ id: 't-1', title: 'S2', artist: 'Y', album: 'B', albumId: 'alb-1', duration: 1 }],
+        },
+      },
+    ]);
+    expect(merged.albums).toHaveLength(2);
+    expect(merged.albums.map(a => a.serverId)).toEqual(['srv-1', 'srv-2']);
+    expect(merged.songs).toHaveLength(2);
+    expect(merged.songs.map(s => s.serverId)).toEqual(['srv-1', 'srv-2']);
   });
 
   it('isOfflineSidebarLibraryNavAllowed keeps only favorites when offline', () => {

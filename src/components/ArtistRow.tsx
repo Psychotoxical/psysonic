@@ -117,7 +117,7 @@ export default function ArtistRow({
         <div className="album-grid" ref={scrollRef} onScroll={handleScroll}>
           {artists.map(a => (
             <ArtistCardLocal
-              key={a.id}
+              key={a.serverId ? `${a.serverId}:${a.id}` : a.id}
               artist={a}
               linkQuery={artistLinkQuery}
               libraryResolve={libraryResolve}

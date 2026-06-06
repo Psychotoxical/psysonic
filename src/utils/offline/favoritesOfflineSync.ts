@@ -1,9 +1,9 @@
 import { libraryUpsertSongsFromApi } from '../../api/library';
 import { librarySqlServerId } from '../../api/coverCache';
-import { getAlbum } from '../../api/subsonicLibrary';
-import { getArtist } from '../../api/subsonicArtists';
-import { getStarred } from '../../api/subsonicStarRating';
-import { buildStreamUrl } from '../../api/subsonicStreamUrl';
+import { getAlbumForServer } from '../../api/subsonicLibrary';
+import { getArtistForServer } from '../../api/subsonicArtists';
+import { getStarredForServer } from '../../api/subsonicStarRating';
+import { buildStreamUrlForServer } from '../../api/subsonicStreamUrl';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import { invoke } from '@tauri-apps/api/core';
 import i18n from '../../i18n';
@@ -14,6 +14,7 @@ import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
 import { getMediaDir } from '../media/mediaDir';
 import { resolveIndexKey, serverIndexKeyForProfile } from '../server/serverIndexKey';
 import { FAVORITES_OFFLINE_JOB_ID } from './favoritesOfflineConstants';
+import { favoritesServerIds } from './favoritesOfflineBrowse';
 import {
   entryBelongsToServer,
   hasLocalLibraryBytes,
@@ -57,13 +58,13 @@ export function mergeStarredSongsUnion(
   return [...byId.values()];
 }
 
-/** Collect every starred track (direct songs + album/artist expansion). */
+/** Collect every starred track (direct songs + album/artist expansion) for one server. */
 export async function collectStarredSongs(serverId: string): Promise<SubsonicSong[]> {
-  const starred = await getStarred();
+  const starred = await getStarredForServer(serverId);
   const albumTrackLists: SubsonicSong[][] = [];
   for (const album of starred.albums) {
     try {
-      const detail = await getAlbum(album.id);
+      const detail = await getAlbumForServer(serverId, album.id);
       albumTrackLists.push(detail.songs);
     } catch {
       // skip unavailable album
@@ -73,10 +74,10 @@ export async function collectStarredSongs(serverId: string): Promise<SubsonicSon
   const artistAlbumTrackLists: SubsonicSong[][] = [];
   for (const artist of starred.artists) {
     try {
-      const detail = await getArtist(artist.id);
+      const detail = await getArtistForServer(serverId, artist.id);
       for (const alb of detail.albums ?? []) {
         try {
-          const albumDetail = await getAlbum(alb.id);
+          const albumDetail = await getAlbumForServer(serverId, alb.id);
           artistAlbumTrackLists.push(albumDetail.songs);
         } catch {
           // skip album
@@ -129,7 +130,8 @@ export function scheduleFavoritesOfflineSync(serverId?: string): void {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     debounceTimer = null;
-    void runFavoritesOfflineSync(serverId);
+    const serverIds = serverId ? [serverId] : favoritesServerIds();
+    void runFavoritesOfflineSyncBatch(serverIds);
   }, DEBOUNCE_MS);
 }
 
@@ -149,25 +151,37 @@ export function onFavoritesOfflineStarChange(
   scheduleFavoritesOfflineSync(auth.activeServerId);
 }
 
-async function runFavoritesOfflineSync(explicitServerId?: string): Promise<void> {
+async function runFavoritesOfflineSyncBatch(serverIds: string[]): Promise<void> {
   const auth = useAuthStore.getState();
-  if (!auth.favoritesOfflineEnabled) return;
-
-  const serverId = explicitServerId || auth.activeServerId;
-  if (!serverId) return;
+  if (!auth.favoritesOfflineEnabled || serverIds.length === 0) return;
 
   const token = ++runToken;
   const syncStore = useFavoritesOfflineSyncStore.getState();
+  syncStore.setRunning(true);
+  syncStore.setLastError(null);
+
+  try {
+    for (const serverId of serverIds) {
+      if (token !== runToken) return;
+      await runFavoritesOfflineSyncOneServer(serverId, token);
+    }
+  } finally {
+    if (token === runToken) {
+      syncStore.setRunning(false);
+    }
+  }
+}
+
+async function runFavoritesOfflineSyncOneServer(serverId: string, token: number): Promise<void> {
+  const auth = useAuthStore.getState();
+  if (!auth.favoritesOfflineEnabled) return;
+  const syncStore = useFavoritesOfflineSyncStore.getState();
   const jobStore = useOfflineJobStore;
-  const lp = useLocalPlaybackStore.getState();
   const serverIndexKey = serverIndexKeyForSync(serverId);
   const libraryServerId = librarySqlScope(serverId);
   const mediaDir = getMediaDir();
   const downloadId = `favorites-${Date.now()}`;
   const albumName = i18n.t('favorites.offlineJobName');
-
-  syncStore.setRunning(true);
-  syncStore.setLastError(null);
 
   try {
     const allSongs = await collectStarredSongs(serverId);
@@ -243,7 +257,7 @@ async function runFavoritesOfflineSync(explicitServerId?: string): Promise<void>
                 trackId: song.id,
                 serverIndexKey,
                 libraryServerId,
-                url: buildStreamUrl(song.id),
+                url: buildStreamUrlForServer(serverId, song.id),
                 suffix,
                 mediaDir,
                 downloadId,
@@ -293,10 +307,6 @@ async function runFavoritesOfflineSync(explicitServerId?: string): Promise<void>
       const msg = err instanceof Error ? err.message : String(err);
       syncStore.setLastError(msg);
     }
-  } finally {
-    if (token === runToken) {
-      syncStore.setRunning(false);
-    }
   }
 }
 
@@ -309,10 +319,7 @@ export function initFavoritesOfflineSync(): () => void {
   };
   runIfEnabled();
   return useAuthStore.subscribe((state, prev) => {
-    if (
-      state.favoritesOfflineEnabled !== prev.favoritesOfflineEnabled
-      || state.activeServerId !== prev.activeServerId
-    ) {
+    if (state.favoritesOfflineEnabled && !prev.favoritesOfflineEnabled) {
       runIfEnabled();
     }
   });

@@ -405,8 +405,13 @@ export function favoriteAutoCoverScope(): CoverServerScope | null {
   };
 }
 
-/** Up to four cover IDs for a collage from favorites-tier tracks. */
-export async function collectFavoriteAutoCoverQuad(): Promise<(string | null)[]> {
+export type OfflineCoverQuadCell = {
+  coverArtId: string;
+  serverId: string;
+} | null;
+
+/** Up to four cover cells for a collage from favorites-tier tracks (per-server scope). */
+export async function collectFavoriteAutoCoverQuad(): Promise<OfflineCoverQuadCell[]> {
   const favorites = listFavoriteAutoEntries();
   if (favorites.length === 0) return [null, null, null, null];
   const refs = favorites.slice(0, 16).map(e => ({
@@ -414,13 +419,18 @@ export async function collectFavoriteAutoCoverQuad(): Promise<(string | null)[]>
     trackId: e.trackId,
   }));
   const dtos = await libraryGetTracksBatch(refs).catch(() => []);
-  const covers: string[] = [];
+  const cells: { coverArtId: string; serverId: string }[] = [];
+  const seen = new Set<string>();
   for (const dto of dtos) {
-    const cover = resolveTrackCoverArtId(dto);
-    if (cover && !covers.includes(cover)) covers.push(cover);
-    if (covers.length >= 4) break;
+    const coverArtId = resolveTrackCoverArtId(dto);
+    if (!coverArtId) continue;
+    const dedupeKey = `${dto.serverId}:${coverArtId}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    cells.push({ coverArtId, serverId: dto.serverId });
+    if (cells.length >= 4) break;
   }
-  return Array.from({ length: 4 }, (_, i) => covers[i] ?? null);
+  return Array.from({ length: 4 }, (_, i) => cells[i] ?? null);
 }
 
 /** Playable tracks under `{media}/favorites/` only (favorite-auto tier). */

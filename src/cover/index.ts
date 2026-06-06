@@ -2,6 +2,7 @@
  * Unified cover art pipeline — see workdocs tasks/2026-05-cover-art-pipeline/contracts.md
  */
 export * from './types';
+export { coverServerScopeForServerId } from './serverScope';
 export * from './tiers';
 export * from './ids';
 export * from './storageKeys';

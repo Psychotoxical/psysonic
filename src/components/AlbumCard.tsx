@@ -24,6 +24,8 @@ import { LongPressWaveOverlay } from './LongPressWaveOverlay';
 import { useDragDrop } from '../contexts/DragDropContext';
 import { isAlbumRecentlyAdded } from '../utils/albumRecency';
 import { deriveAlbumArtistRefs } from '../utils/album/deriveAlbumHeaderArtistRefs';
+import { coverServerScopeForServerId } from '../cover/serverScope';
+import { appendServerQuery } from '../utils/navigation/detailServerScope';
 
 interface AlbumCardProps {
   album: SubsonicAlbum;
@@ -71,12 +73,21 @@ function AlbumCard({
   const navigateToAlbum = useNavigateToAlbum();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const enqueue = usePlayerStore(s => s.enqueue);
-  const serverId = useAuthStore(s => s.activeServerId ?? '');
+  const activeServerId = useAuthStore(s => s.activeServerId ?? '');
+  const offlineServerId = album.serverId ?? activeServerId;
   const localEntries = useLocalPlaybackStore(s => s.entries);
-  const isOffline = isOfflinePinComplete(album.id, serverId);
+  const isOffline = isOfflinePinComplete(album.id, offlineServerId);
+  const albumLinkQuery = useMemo(
+    () => appendServerQuery(linkQuery, album.serverId),
+    [linkQuery, album.serverId],
+  );
   void localEntries;
   const psyDrag = useDragDrop();
-  const coverRef = useAlbumCoverRef(album.id, album.coverArt, undefined, { libraryResolve });
+  const coverServerScope = useMemo(
+    () => coverServerScopeForServerId(album.serverId),
+    [album.serverId],
+  );
+  const coverRef = useAlbumCoverRef(album.id, album.coverArt, coverServerScope, { libraryResolve });
   const dragCoverKey = useMemo(() => {
     if (!coverRef) return '';
     const tier = resolveCoverDisplayTier(displayCssPx, { surface: 'dense' });
@@ -87,7 +98,7 @@ function AlbumCard({
 
   const handleClick = (opts?: { shiftKey?: boolean }) => {
     if (selectionMode) { onToggleSelect?.(album.id, opts); return; }
-    navigateToAlbum(album.id, { search: linkQuery });
+    navigateToAlbum(album.id, { search: albumLinkQuery });
   };
 
   return (

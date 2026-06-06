@@ -8,7 +8,10 @@ import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import type { TopFavoriteArtist } from '../components/favorites/TopFavoriteArtists';
 import { useConnectionStatus } from './useConnectionStatus';
-import { loadStarredFromLibraryIndex } from '../utils/offline/favoritesOfflineBrowse';
+import {
+  loadStarredFromAllLibraryIndexes,
+  loadStarredFromAllServersOnline,
+} from '../utils/offline/favoritesOfflineBrowse';
 
 export interface FavoritesDataResult {
   albums: SubsonicAlbum[];
@@ -22,6 +25,12 @@ export interface FavoritesDataResult {
   unfavoriteStation: (id: string) => void;
 }
 
+function topArtistKey(song: SubsonicSong): string {
+  const artistKey = song.artistId || song.artist;
+  if (!artistKey) return '';
+  return song.serverId ? `${song.serverId}:${artistKey}` : artistKey;
+}
+
 export function useFavoritesData(): FavoritesDataResult {
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [artists, setArtists] = useState<SubsonicArtist[]>([]);
@@ -31,7 +40,7 @@ export function useFavoritesData(): FavoritesDataResult {
 
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
-  const activeServerId = useAuthStore(s => s.activeServerId);
+  const servers = useAuthStore(s => s.servers);
   const { status: connStatus } = useConnectionStatus();
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
 
@@ -39,31 +48,27 @@ export function useFavoritesData(): FavoritesDataResult {
     const loadAll = async () => {
       setLoading(true);
 
-      const loadStarredLocal = async (serverId: string) => {
-        const local = await loadStarredFromLibraryIndex(serverId);
-        setAlbums(local.albums);
-        setArtists(local.artists);
-        setSongs(local.songs);
+      const applyStarred = (starred: {
+        albums: SubsonicAlbum[];
+        artists: SubsonicArtist[];
+        songs: SubsonicSong[];
+      }) => {
+        setAlbums(starred.albums);
+        setArtists(starred.artists);
+        setSongs(starred.songs);
       };
 
-      const preferLocalStarred = connStatus === 'disconnected'
-        && favoritesOfflineEnabled
-        && !!activeServerId;
-
-      if (preferLocalStarred) {
+      if (favoritesOfflineEnabled) {
         try {
-          await loadStarredLocal(activeServerId!);
+          const starred = connStatus === 'disconnected'
+            ? await loadStarredFromAllLibraryIndexes()
+            : await loadStarredFromAllServersOnline();
+          applyStarred(starred);
         } catch { /* ignore */ }
       } else {
         const [starredResult] = await Promise.allSettled([getStarred()]);
         if (starredResult.status === 'fulfilled') {
-          setAlbums(starredResult.value.albums);
-          setArtists(starredResult.value.artists);
-          setSongs(starredResult.value.songs);
-        } else if (favoritesOfflineEnabled && activeServerId) {
-          try {
-            await loadStarredLocal(activeServerId);
-          } catch { /* ignore */ }
+          applyStarred(starredResult.value);
         }
       }
 
@@ -79,14 +84,14 @@ export function useFavoritesData(): FavoritesDataResult {
       setLoading(false);
     };
     loadAll();
-  }, [musicLibraryFilterVersion, connStatus, favoritesOfflineEnabled, activeServerId]);
+  }, [musicLibraryFilterVersion, connStatus, favoritesOfflineEnabled, servers]);
 
   // ── Top Favorite Artists aggregated from favorited songs ─────────────
   const topFavoriteArtists = useMemo<TopFavoriteArtist[]>(() => {
     const counts = new Map<string, TopFavoriteArtist>();
     for (const s of songs) {
       if (starredOverrides[s.id] === false) continue;
-      const key = s.artistId || s.artist;
+      const key = topArtistKey(s);
       if (!key) continue;
       const existing = counts.get(key);
       if (existing) {
@@ -97,6 +102,8 @@ export function useFavoritesData(): FavoritesDataResult {
           name: s.artist || key,
           count: 1,
           coverArtId: s.artistId || '',
+          serverId: s.serverId,
+          artistId: s.artistId || s.artist,
         });
       }
     }

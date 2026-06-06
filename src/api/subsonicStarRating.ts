@@ -1,4 +1,4 @@
-import { api, libraryFilterParams } from './subsonicClient';
+import { api, apiForServer, libraryFilterParams, libraryFilterParamsForServer } from './subsonicClient';
 import { invalidateEntityUserRatingCaches } from './subsonicRatings';
 import { useAuthStore } from '../store/authStore';
 import { patchLibraryTrackOnUse, type StarPatchMeta } from '../utils/library/patchOnUse';
@@ -15,6 +15,17 @@ import type {
   SubsonicSong,
 } from './subsonicTypes';
 
+function parseStarred2Response(data: {
+  starred2?: {
+    artist?: SubsonicArtist[];
+    album?: SubsonicAlbum[];
+    song?: SubsonicSong[];
+  };
+}): StarredResults {
+  const r = data.starred2 ?? {};
+  return { artists: r.artist ?? [], albums: r.album ?? [], songs: r.song ?? [] };
+}
+
 export async function getStarred(): Promise<StarredResults> {
   const data = await api<{
     starred2: {
@@ -23,8 +34,19 @@ export async function getStarred(): Promise<StarredResults> {
       song?: SubsonicSong[];
     }
   }>('getStarred2.view', { ...libraryFilterParams() });
-  const r = data.starred2 ?? {};
-  return { artists: r.artist ?? [], albums: r.album ?? [], songs: r.song ?? [] };
+  return parseStarred2Response(data);
+}
+
+/** Starred entities for an explicit saved server (not necessarily the active one). */
+export async function getStarredForServer(serverId: string): Promise<StarredResults> {
+  const data = await apiForServer<{
+    starred2: {
+      artist?: SubsonicArtist[];
+      album?: SubsonicAlbum[];
+      song?: SubsonicSong[];
+    };
+  }>(serverId, 'getStarred2.view', { ...libraryFilterParamsForServer(serverId) });
+  return parseStarred2Response(data);
 }
 
 export async function star(

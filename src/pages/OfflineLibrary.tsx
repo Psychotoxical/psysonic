@@ -8,6 +8,7 @@ import { useLocalPlaybackStore } from '../store/localPlaybackStore';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import { AlbumCoverArtImage } from '../cover/AlbumCoverArtImage';
+import { coverServerScopeForServerId } from '../cover/serverScope';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
@@ -20,7 +21,6 @@ import {
   collectFavoriteAutoCoverQuad,
   countEphemeralCacheTracks,
   countFavoriteAutoTracks,
-  favoriteAutoCoverScope,
   ensureServerForOfflineCard,
   ensureServerForOfflineIndexKey,
   ephemeralCacheCoverScope,
@@ -28,6 +28,7 @@ import {
   hydrateOfflineLibraryCards,
   offlineAlbumCoverScope,
   offlineTrackCount,
+  type OfflineCoverQuadCell,
   type OfflineLibraryCard,
 } from '../utils/offline/offlineLibraryHelpers';
 import { showToast } from '../utils/ui/toast';
@@ -64,7 +65,7 @@ export default function OfflineLibrary() {
   const [cacheCoverQuad, setCacheCoverQuad] = useState<(string | null)[]>([
     null, null, null, null,
   ]);
-  const [favoritesCoverQuad, setFavoritesCoverQuad] = useState<(string | null)[]>([
+  const [favoritesCoverQuad, setFavoritesCoverQuad] = useState<OfflineCoverQuadCell[]>([
     null, null, null, null,
   ]);
   const pinRefreshKey = useLocalPlaybackStore(s => {
@@ -170,11 +171,6 @@ export default function OfflineLibrary() {
 
   const cacheCoverScope = useMemo(
     () => ephemeralCacheCoverScope(),
-    [localPlaybackEntries],
-  );
-
-  const favoritesCoverScope = useMemo(
-    () => favoriteAutoCoverScope(),
     [localPlaybackEntries],
   );
 
@@ -328,7 +324,7 @@ export default function OfflineLibrary() {
   };
 
   const renderFavoritesCard = () => {
-    const showQuad = favoritesCoverQuad.some(Boolean) && favoritesCoverScope;
+    const showQuad = favoritesCoverQuad.some(Boolean);
     return (
       <div
         className="album-card card offline-library-card offline-library-favorites-card"
@@ -337,13 +333,13 @@ export default function OfflineLibrary() {
         <div className="album-card-cover">
           {showQuad ? (
             <div className="playlist-cover-grid">
-              {favoritesCoverQuad.map((coverId, i) => (
-                coverId ? (
+              {favoritesCoverQuad.map((cell, i) => (
+                cell ? (
                   <AlbumCoverArtImage
-                    key={`${coverId}-${i}`}
-                    albumId={coverId}
-                    coverArt={coverId}
-                    serverScope={favoritesCoverScope!}
+                    key={`${cell.serverId}:${cell.coverArtId}-${i}`}
+                    albumId={cell.coverArtId}
+                    coverArt={cell.coverArtId}
+                    serverScope={coverServerScopeForServerId(cell.serverId)}
                     libraryResolve
                     displayCssPx={OFFLINE_CARD_COVER_CSS_PX / 2}
                     surface="dense"

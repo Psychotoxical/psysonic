@@ -51,6 +51,7 @@ import { useWarmGridCovers } from '../hooks/useWarmGridCovers';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
 import { sortArtistAlbumsByYear } from '../utils/library/sortArtistAlbums';
+import { readDetailServerId } from '../utils/navigation/detailServerScope';
 
 
 export default function ArtistDetail() {
@@ -88,9 +89,10 @@ export default function ArtistDetail() {
   const previewAudioStarted = usePreviewStore(s => s.audioStarted);
   const downloadArtist = useOfflineStore(s => s.downloadArtist);
   const bulkProgress = useOfflineJobStore(s => s.bulkProgress);
-  const activeServerId = useAuthStore(s => s.activeServerId) ?? '';
+  const authActiveServerId = useAuthStore(s => s.activeServerId);
+  const activeServerId = readDetailServerId(searchParams, authActiveServerId) ?? '';
   const audiomuseNavidromeEnabled = useAuthStore(
-    s => !!(s.activeServerId && s.audiomuseNavidromeByServer[s.activeServerId]),
+    s => !!(activeServerId && s.audiomuseNavidromeByServer[activeServerId]),
   );
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const albumYearOrder = useArtistAlbumYearSortStore(
