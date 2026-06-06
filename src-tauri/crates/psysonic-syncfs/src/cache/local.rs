@@ -86,8 +86,8 @@ fn resolve_library_track_path(
     app: &AppHandle,
     runtime: &LibraryRuntime,
 ) -> Result<ResolvedLibraryTrackPath, String> {
-    resolve_track_path_for_tier(
-        LocalTier::Library,
+    resolve_track_path_for_tier(ResolveTrackPathForTier {
+        tier: LocalTier::Library,
         track_id,
         server_index_key,
         library_server_id,
@@ -95,32 +95,36 @@ fn resolve_library_track_path(
         media_dir,
         app,
         runtime,
-    )
+    })
+}
+
+struct ResolveTrackPathForTier<'a> {
+    tier: LocalTier,
+    track_id: &'a str,
+    server_index_key: &'a str,
+    library_server_id: &'a str,
+    suffix: &'a str,
+    media_dir: Option<&'a str>,
+    app: &'a AppHandle,
+    runtime: &'a LibraryRuntime,
 }
 
 fn resolve_track_path_for_tier(
-    tier: LocalTier,
-    track_id: &str,
-    server_index_key: &str,
-    library_server_id: &str,
-    suffix: &str,
-    media_dir: Option<&str>,
-    app: &AppHandle,
-    runtime: &LibraryRuntime,
+    args: ResolveTrackPathForTier<'_>,
 ) -> Result<ResolvedLibraryTrackPath, String> {
-    let repo = TrackRepository::new(&runtime.store);
-    let Some(row) = repo.find_one(library_server_id, track_id)? else {
+    let repo = TrackRepository::new(&args.runtime.store);
+    let Some(row) = repo.find_one(args.library_server_id, args.track_id)? else {
         return Err("LIBRARY_TRACK_NOT_FOUND".to_string());
     };
     let path_input = track_row_to_path_input(&row);
     let fingerprint = layout_fingerprint(&path_input);
-    let media_root = resolve_media_dir(media_dir, app)?;
+    let media_root = resolve_media_dir(args.media_dir, args.app)?;
     let file_path = absolute_track_path(
         &media_root,
-        tier,
-        server_index_key,
+        args.tier,
+        args.server_index_key,
         &path_input,
-        suffix,
+        args.suffix,
     );
     Ok(ResolvedLibraryTrackPath {
         path_str: file_path.to_string_lossy().to_string(),
@@ -242,16 +246,16 @@ pub async fn download_track_local(
     let local_tier = LocalTier::parse(&tier).ok_or_else(|| format!("unknown local tier: `{tier}`"))?;
 
     let resolved = if local_tier == LocalTier::Library || local_tier == LocalTier::Favorites {
-        resolve_track_path_for_tier(
-            local_tier,
-            &track_id,
-            &server_index_key,
-            &library_server_id,
-            &suffix,
-            media_dir.as_deref(),
-            &app,
-            &runtime,
-        )?
+        resolve_track_path_for_tier(ResolveTrackPathForTier {
+            tier: local_tier,
+            track_id: &track_id,
+            server_index_key: &server_index_key,
+            library_server_id: &library_server_id,
+            suffix: &suffix,
+            media_dir: media_dir.as_deref(),
+            app: &app,
+            runtime: &runtime,
+        })?
     } else {
         let repo = TrackRepository::new(&runtime.store);
         let Some(row) = repo.find_one(&library_server_id, &track_id)? else {
@@ -1105,36 +1109,40 @@ fn prune_legacy_offline_parents(old_path: &std::path::Path, app: &AppHandle) {
     }
 }
 
+struct RelocateLegacyTrackFile<'a> {
+    track_id: &'a str,
+    server_index_key: &'a str,
+    old_path: &'a Path,
+    suffix: &'a str,
+    row: &'a TrackRow,
+    media_root: &'a Path,
+    library_boundary: &'a Path,
+    app: &'a AppHandle,
+}
+
 async fn relocate_legacy_track_file(
-    track_id: &str,
-    server_index_key: &str,
-    old_path: &std::path::Path,
-    suffix: &str,
-    row: &TrackRow,
-    media_root: &std::path::Path,
-    library_boundary: &std::path::Path,
-    app: &AppHandle,
+    args: RelocateLegacyTrackFile<'_>,
 ) -> LegacyOfflineMigrationResult {
-    let path_input = track_row_to_path_input(row);
+    let path_input = track_row_to_path_input(args.row);
     let fingerprint = layout_fingerprint(&path_input);
     let target_path = absolute_track_path(
-        media_root,
+        args.media_root,
         LocalTier::Library,
-        server_index_key,
+        args.server_index_key,
         &path_input,
-        suffix,
+        args.suffix,
     );
     let target_str = target_path.to_string_lossy().to_string();
-    let old_path_str = old_path.to_string_lossy().to_string();
+    let old_path_str = args.old_path.to_string_lossy().to_string();
 
-    if old_path.is_file() && old_path == target_path {
+    if args.old_path.is_file() && args.old_path == target_path {
         let size = tokio::fs::metadata(&target_path)
             .await
             .map(|m| m.len())
             .unwrap_or(0);
         return LegacyOfflineMigrationResult {
-            track_id: track_id.to_string(),
-            server_index_key: server_index_key.to_string(),
+            track_id: args.track_id.to_string(),
+            server_index_key: args.server_index_key.to_string(),
             path: target_str,
             size,
             layout_fingerprint: fingerprint,
@@ -1144,31 +1152,31 @@ async fn relocate_legacy_track_file(
     }
 
     if target_path.is_file() {
-        if old_path.is_file() && old_path != target_path {
-            let _ = tokio::fs::remove_file(old_path).await;
-            prune_legacy_offline_parents(old_path, app);
+        if args.old_path.is_file() && args.old_path != target_path {
+            let _ = tokio::fs::remove_file(args.old_path).await;
+            prune_legacy_offline_parents(args.old_path, args.app);
         }
         let size = tokio::fs::metadata(&target_path)
             .await
             .map(|m| m.len())
             .unwrap_or(0);
         return LegacyOfflineMigrationResult {
-            track_id: track_id.to_string(),
-            server_index_key: server_index_key.to_string(),
+            track_id: args.track_id.to_string(),
+            server_index_key: args.server_index_key.to_string(),
             path: target_str,
             size,
             layout_fingerprint: fingerprint,
-            relocated: old_path.is_file(),
+            relocated: args.old_path.is_file(),
             skipped_reason: None,
         };
     }
 
-    match relocate_file_to_target(old_path, &target_path).await {
+    match relocate_file_to_target(args.old_path, &target_path).await {
         Ok(relocated) => {
             if relocated {
-                prune_legacy_offline_parents(old_path, app);
+                prune_legacy_offline_parents(args.old_path, args.app);
                 if let Some(parent) = target_path.parent() {
-                    super::fs_utils::prune_empty_dirs_up_to(parent, library_boundary);
+                    super::fs_utils::prune_empty_dirs_up_to(parent, args.library_boundary);
                 }
             }
             let size = if target_path.is_file() {
@@ -1180,8 +1188,8 @@ async fn relocate_legacy_track_file(
                 0
             };
             LegacyOfflineMigrationResult {
-                track_id: track_id.to_string(),
-                server_index_key: server_index_key.to_string(),
+                track_id: args.track_id.to_string(),
+                server_index_key: args.server_index_key.to_string(),
                 path: target_str,
                 size,
                 layout_fingerprint: fingerprint,
@@ -1194,8 +1202,8 @@ async fn relocate_legacy_track_file(
             }
         }
         Err(reason) => LegacyOfflineMigrationResult {
-            track_id: track_id.to_string(),
-            server_index_key: server_index_key.to_string(),
+            track_id: args.track_id.to_string(),
+            server_index_key: args.server_index_key.to_string(),
             path: old_path_str,
             size: 0,
             layout_fingerprint: fingerprint,
@@ -1251,16 +1259,16 @@ pub async fn migrate_legacy_offline_disk(
         }
 
         out.push(
-            relocate_legacy_track_file(
-                &file.track_id,
-                &server_index_key,
-                &old_path,
+            relocate_legacy_track_file(RelocateLegacyTrackFile {
+                track_id: &file.track_id,
+                server_index_key: &server_index_key,
+                old_path: &old_path,
                 suffix,
-                &row,
-                &media_root,
-                &library_boundary,
-                &app,
-            )
+                row: &row,
+                media_root: &media_root,
+                library_boundary: &library_boundary,
+                app: &app,
+            })
             .await,
         );
     }
