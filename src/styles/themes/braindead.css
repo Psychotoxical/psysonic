@@ -1,10 +1,9 @@
-/* ─── Spectrum (Demo) ───
-   A deliberately HIDEOUS showcase of the per-region granular tokens. Every
-   region screams a different neon hue at full saturation so the independent
-   per-region control is impossible to miss: sidebar toxic green, player bar
-   magenta, track lists cyan, cards acid yellow, menus blood red, controls
-   electric blue, scrollbar purple. Nobody would ship this — that's the point. */
-[data-theme='spectrum-demo'] {
+/* ─── Braindead ───
+   A gloriously HIDEOUS showcase of the per-region granular tokens. Every region
+   screams a different neon hue at full saturation: sidebar toxic green, player
+   bar magenta, track lists cyan, cards acid yellow, menus blood red, controls
+   electric blue, scrollbar purple. Clashes like a broken TV — by design. */
+[data-theme='braindead'] {
   color-scheme: dark;
   --select-arrow: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23ff00ff%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
 

@@ -14,7 +14,7 @@ export const THEME_GROUPS: { group: string; themes: ThemeDef[] }[] = [
   {
     group: 'Demo',
     themes: [
-      { id: 'spectrum-demo', label: 'Spectrum (Demo)', bg: '#0e0e14', card: '#1a1a26', accent: '#8b5cf6', family: 'Demo' },
+      { id: 'braindead', label: 'Braindead', bg: '#0a0012', card: '#1a1500', accent: '#ff6600', family: 'Demo' },
     ],
   },
   {
