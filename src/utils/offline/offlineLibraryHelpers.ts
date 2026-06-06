@@ -99,6 +99,11 @@ export function hasLocalFavoriteAutoBytes(trackId: string, serverId: string): bo
   return !!findFavoriteAutoEntry(trackId, serverId)?.localPath;
 }
 
+/** Manual offline library or favorites auto-sync — skip redundant hot-cache prefetch/promote. */
+export function hasLocalPersistentPlaybackBytes(trackId: string, serverId: string): boolean {
+  return hasLocalLibraryBytes(trackId, serverId) || hasLocalFavoriteAutoBytes(trackId, serverId);
+}
+
 /** Resolve `psysonic-local://` across legacy UUID / host index-key variants. */
 export function findLocalPlaybackUrl(
   trackId: string,

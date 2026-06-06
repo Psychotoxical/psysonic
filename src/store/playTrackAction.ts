@@ -11,7 +11,10 @@ import {
   getPlaybackServerId,
   shouldBindQueueServerForPlay,
 } from '../utils/playback/playbackServer';
-import { findLocalPlaybackUrl } from '../utils/offline/offlineLibraryHelpers';
+import {
+  findLocalPlaybackUrl,
+  hasLocalPersistentPlaybackBytes,
+} from '../utils/offline/offlineLibraryHelpers';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 import { useAuthStore } from './authStore';
@@ -258,6 +261,7 @@ export function runPlayTrack(
   // RAM to hot disk first (promote was only run when switching to another track).
   const needSameTrackHotPromote =
     !libraryLocalUrl
+    && !(playbackProfileId && hasLocalPersistentPlaybackBytes(track.id, playbackProfileId))
     && Boolean(
       prevTrack
       && sameQueueTrackId(prevTrack.id, track.id)

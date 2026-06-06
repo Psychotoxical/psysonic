@@ -28,6 +28,7 @@ import {
   resetAnalysisPruneState,
 } from './hotCachePrefetch/analysisPrune';
 import { reconcileEphemeralCache } from './utils/cache/ephemeralTierReconcile';
+import { hasLocalPersistentPlaybackBytes } from './utils/offline/offlineLibraryHelpers';
 
 /** Periodic index↔disk sync (stale rows + empty dirs); unindexed files evicted only on budget pressure. */
 const EPHEMERAL_MAINTENANCE_MS = 10 * 60 * 1000;
@@ -105,8 +106,12 @@ async function runWorker() {
         continue;
       }
 
-      if (useLocalPlaybackStore.getState().isPinned(job.trackId, job.serverId)) {
-        hotCacheFrontendDebug({ event: 'prefetch-skip-job', trackId: job.trackId, reason: 'offline-library' });
+      if (hasLocalPersistentPlaybackBytes(job.trackId, job.serverId)) {
+        hotCacheFrontendDebug({
+          event: 'prefetch-skip-job',
+          trackId: job.trackId,
+          reason: 'persistent-local-bytes',
+        });
         continue;
       }
       const hotIndex = selectHotCacheEntries(useLocalPlaybackStore.getState().entries);
@@ -257,8 +262,8 @@ async function replanNow() {
   const jobs: PrefetchJob[] = [];
   const skipped: { trackId: string; reason: string }[] = [];
   for (const t of targets) {
-    if (useLocalPlaybackStore.getState().isPinned(t.id, serverId)) {
-      skipped.push({ trackId: t.id, reason: 'offline-library' });
+    if (hasLocalPersistentPlaybackBytes(t.id, serverId)) {
+      skipped.push({ trackId: t.id, reason: 'persistent-local-bytes' });
       continue;
     }
     if (hotEntries[entryKey(serverId, t.id)]) {

@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useHotCacheStore } from './hotCacheStore';
 import { getMediaDir } from '../utils/media/mediaDir';
 import { librarySqlServerId } from '../api/coverCache';
+import { hasLocalPersistentPlaybackBytes } from '../utils/offline/offlineLibraryHelpers';
 
 /**
  * Promote a track whose stream cache is full to the on-disk ephemeral tier.
@@ -14,6 +15,7 @@ export async function promoteCompletedStreamToHotCache(
   serverIndexKey: string,
   _customDir: string | null,
 ): Promise<void> {
+  if (hasLocalPersistentPlaybackBytes(track.id, serverIndexKey)) return;
   try {
     const libraryServerId = librarySqlServerId(serverIndexKey);
     const res = await invoke<{ path: string; size: number; layoutFingerprint: string } | null>(

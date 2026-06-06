@@ -26,6 +26,13 @@ vi.mock('../api/coverCache', () => ({
   librarySqlServerId: (k: string) => k,
 }));
 
+const hasLocalPersistentPlaybackBytesMock = vi.fn(() => false);
+
+vi.mock('../utils/offline/offlineLibraryHelpers', () => ({
+  hasLocalPersistentPlaybackBytes: (...args: unknown[]) =>
+    hasLocalPersistentPlaybackBytesMock(...args),
+}));
+
 import { promoteCompletedStreamToHotCache } from './promoteStreamCache';
 
 function track(id: string, overrides: Partial<Track> = {}): Track {
@@ -44,6 +51,15 @@ describe('promoteCompletedStreamToHotCache', () => {
   beforeEach(() => {
     invokeMock.mockReset();
     setEntryMock.mockReset();
+    hasLocalPersistentPlaybackBytesMock.mockReset();
+    hasLocalPersistentPlaybackBytesMock.mockReturnValue(false);
+  });
+
+  it('skips promote when library or favorites already have bytes', async () => {
+    hasLocalPersistentPlaybackBytesMock.mockReturnValue(true);
+    await promoteCompletedStreamToHotCache(track('t1'), 'srv', null);
+    expect(invokeMock).not.toHaveBeenCalled();
+    expect(setEntryMock).not.toHaveBeenCalled();
   });
 
   it('forwards a complete payload to the Rust command', async () => {
