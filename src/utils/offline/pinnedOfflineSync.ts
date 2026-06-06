@@ -1,6 +1,6 @@
 import { libraryGetTracksByAlbum, subscribeLibrarySyncIdle } from '../../api/library';
 import { getAlbumForServer, filterSongsToServerLibrary } from '../../api/subsonicLibrary';
-import { getPlaylist } from '../../api/subsonicPlaylists';
+import { getPlaylistForServer } from '../../api/subsonicPlaylists';
 import { getArtistForServer } from '../../api/subsonicArtists';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import { invoke } from '@tauri-apps/api/core';
@@ -29,8 +29,8 @@ const PLAYLIST_SYNC_INTERVAL_MS = 60 * 60 * 1000;
 
 let playlistDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let albumArtistDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-const pendingPlaylistJobs: { sourceId: string; serverId?: string }[] = [];
-const pendingAlbumJobs: { sourceId: string; serverId?: string }[] = [];
+const pendingPlaylistJobs: { sourceId: string; serverId: string }[] = [];
+const pendingAlbumJobs: { sourceId: string; serverId: string }[] = [];
 const pendingArtistJobs: { artistId: string; serverId: string; albumIds?: string[] }[] = [];
 /** Empty set entry means all servers; otherwise profile ids from library idle. */
 const pendingAlbumArtistServers = new Set<string | null>();
@@ -224,7 +224,7 @@ export async function syncPinnedSourceIfNeeded(
   if (!songs) {
     try {
       if (kind === 'playlist') {
-        const data = await getPlaylist(sourceId);
+        const data = await getPlaylistForServer(serverId, sourceId);
         displayName = data.playlist.name;
         coverArt = data.playlist.coverArt ?? coverArt;
         songs = await filterSongsToServerLibrary(data.songs, serverId);
@@ -324,6 +324,8 @@ function listPinnedArtistAlbumIds(serverId: string): string[] {
 /**
  * Reconcile a cached artist discography: refresh pinned albums, drop albums
  * removed from the catalog, and fetch new albums when the scope was fully cached.
+ * When every album in the known scope is already pinned, newly released albums
+ * download automatically (intended “keep discography complete” UX).
  */
 export async function syncPinnedArtistIfNeeded(
   artistId: string,
@@ -373,18 +375,28 @@ export async function syncPinnedArtistIfNeeded(
   }
 }
 
+function pushUniquePlaylistJob(sourceId: string, serverId: string): void {
+  if (pendingPlaylistJobs.some(j => j.sourceId === sourceId && j.serverId === serverId)) return;
+  pendingPlaylistJobs.push({ sourceId, serverId });
+}
+
+function pushUniqueAlbumJob(sourceId: string, serverId: string): void {
+  if (pendingAlbumJobs.some(j => j.sourceId === sourceId && j.serverId === serverId)) return;
+  pendingAlbumJobs.push({ sourceId, serverId });
+}
+
+function pushUniqueArtistJob(artistId: string, serverId: string, albumIds?: string[]): void {
+  if (pendingArtistJobs.some(j => j.artistId === artistId && j.serverId === serverId)) return;
+  pendingArtistJobs.push({ artistId, serverId, albumIds });
+}
+
 function flushPendingPlaylistJobs(): void {
   playlistDebounceTimer = null;
   const jobs = [...pendingPlaylistJobs];
   pendingPlaylistJobs.length = 0;
-  const activeId = useAuthStore.getState().activeServerId;
 
   for (const job of jobs) {
-    void syncPinnedSourceIfNeeded(
-      job.sourceId,
-      job.serverId ?? activeId ?? '',
-      'playlist',
-    );
+    void syncPinnedSourceIfNeeded(job.sourceId, job.serverId, 'playlist');
   }
 }
 
@@ -396,14 +408,9 @@ function flushPendingAlbumArtistJobs(): void {
   pendingAlbumJobs.length = 0;
   pendingArtistJobs.length = 0;
   pendingAlbumArtistServers.clear();
-  const activeId = useAuthStore.getState().activeServerId;
 
   for (const job of albums) {
-    void syncPinnedSourceIfNeeded(
-      job.sourceId,
-      job.serverId ?? activeId ?? '',
-      'album',
-    );
+    void syncPinnedSourceIfNeeded(job.sourceId, job.serverId, 'album');
   }
   for (const job of artists) {
     void syncPinnedArtistIfNeeded(job.artistId, job.serverId, job.albumIds);
@@ -456,7 +463,7 @@ export function schedulePinnedPlaylistSync(playlistId: string, serverId?: string
   if (!isSourcePinnedOffline(playlistId, sid, 'playlist')) return;
   if (!isManualOfflinePlaylist(playlistId, sid)) return;
   if (!isActiveServerReachable()) return;
-  pendingPlaylistJobs.push({ sourceId: playlistId, serverId: sid });
+  pushUniquePlaylistJob(playlistId, sid);
   scheduleDebouncedPlaylistSync();
 }
 
@@ -465,7 +472,7 @@ export function schedulePinnedAlbumSync(albumId: string, serverId?: string): voi
   if (!albumId || !sid) return;
   if (!isSourcePinnedOffline(albumId, sid, 'album')) return;
   if (!isActiveServerReachable()) return;
-  pendingAlbumJobs.push({ sourceId: albumId, serverId: sid });
+  pushUniqueAlbumJob(albumId, sid);
   scheduleDebouncedAlbumArtistSync();
 }
 
@@ -478,7 +485,7 @@ export function schedulePinnedArtistSync(
   if (!sid || !artistId) return;
   if (!isArtistDiscographyPinnedOffline(sid, albumIds ?? listPinnedArtistAlbumIds(sid))) return;
   if (!isActiveServerReachable()) return;
-  pendingArtistJobs.push({ artistId, serverId: sid, albumIds });
+  pushUniqueArtistJob(artistId, sid, albumIds);
   scheduleDebouncedAlbumArtistSync();
 }
 

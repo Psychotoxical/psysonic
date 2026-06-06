@@ -11,11 +11,14 @@ import {
   schedulePinnedAlbumSync,
   schedulePinnedPlaylistSync,
   scheduleSyncPinnedAlbumsAndArtists,
+  syncAllPinnedPlaylists,
+  syncPinnedArtistIfNeeded,
 } from './pinnedOfflineSync';
 import { SMART_PREFIX } from '../componentHelpers/playlistDetailHelpers';
 
 const getPlaylistMock = vi.fn();
 const getAlbumForServerMock = vi.fn();
+const getArtistForServerMock = vi.fn();
 const filterSongsMock = vi.fn(async (songs: SubsonicSong[]) => songs);
 const isReachableMock = vi.fn(() => true);
 const enqueueMock = vi.fn((_task: unknown) => true);
@@ -27,12 +30,16 @@ vi.mock('../network/activeServerReachability', () => ({
 }));
 
 vi.mock('../../api/subsonicPlaylists', () => ({
-  getPlaylist: (id: string) => getPlaylistMock(id),
+  getPlaylistForServer: (serverId: string, id: string) => getPlaylistMock(serverId, id),
 }));
 
 vi.mock('../../api/subsonicLibrary', () => ({
   getAlbumForServer: (serverId: string, id: string) => getAlbumForServerMock(serverId, id),
   filterSongsToServerLibrary: (songs: SubsonicSong[]) => filterSongsMock(songs),
+}));
+
+vi.mock('../../api/subsonicArtists', () => ({
+  getArtistForServer: (serverId: string, artistId: string) => getArtistForServerMock(serverId, artistId),
 }));
 
 vi.mock('../../api/library', () => ({
@@ -184,7 +191,7 @@ describe('schedulePinnedPlaylistSync', () => {
     schedulePinnedPlaylistSync('pl-1');
     await vi.advanceTimersByTimeAsync(700);
 
-    expect(getPlaylistMock).toHaveBeenCalledWith('pl-1');
+    expect(getPlaylistMock).toHaveBeenCalledWith('srv-a', 'pl-1');
     expect(invokeMock).toHaveBeenCalledWith(
       'delete_media_file',
       expect.objectContaining({ localPath: '/media/library/a.test/a/al/t1.mp3' }),
@@ -299,6 +306,177 @@ describe('schedulePinnedAlbumSync', () => {
       }),
     );
     expect(useOfflineStore.getState().albums['a.test:al-1']?.trackIds).toEqual(['t2']);
+  });
+});
+
+function seedArtistAlbumPin(albumId: string, trackId: string, serverIndexKey = 'a.test'): void {
+  useOfflineStore.setState(state => ({
+    albums: {
+      ...state.albums,
+      [`${serverIndexKey}:${albumId}`]: {
+        id: albumId,
+        serverId: serverIndexKey,
+        name: `Album ${albumId}`,
+        artist: 'Artist',
+        trackIds: [trackId],
+        type: 'artist',
+      },
+    },
+  }));
+  useLocalPlaybackStore.setState(state => ({
+    entries: {
+      ...state.entries,
+      [`${serverIndexKey}:${trackId}`]: {
+        serverIndexKey,
+        trackId,
+        localPath: `/media/library/${serverIndexKey}/a/${albumId}/${trackId}.mp3`,
+        layoutFingerprint: 'fp',
+        sizeBytes: 1000,
+        tier: 'library',
+        cachedAt: 1,
+        suffix: 'mp3',
+        pinSource: { kind: 'artist', sourceId: albumId },
+      },
+    },
+  }));
+}
+
+describe('syncPinnedArtistIfNeeded', () => {
+  beforeEach(() => {
+    isReachableMock.mockReturnValue(true);
+    getArtistForServerMock.mockReset();
+    getAlbumForServerMock.mockReset();
+    enqueueMock.mockReset();
+    invokeMock.mockClear();
+    useOfflineJobStoreReset();
+    useOfflineStore.setState({ albums: {} });
+    useLocalPlaybackStore.setState({ entries: {} });
+    seedAuth();
+  });
+
+  it('prunes albums removed from the live artist catalog', async () => {
+    seedArtistAlbumPin('al-1', 't1');
+    seedArtistAlbumPin('al-2', 't2');
+    getArtistForServerMock.mockResolvedValue({
+      artist: { id: 'art-1', name: 'Artist' },
+      albums: [{ id: 'al-1', name: 'One', artist: 'Artist' }],
+    });
+    getAlbumForServerMock.mockImplementation(async (_sid: string, id: string) => ({
+      album: { id, name: id, artist: 'Artist' },
+      songs: [song(id === 'al-1' ? 't1' : 't9')],
+    }));
+
+    await syncPinnedArtistIfNeeded('art-1', 'srv-a');
+
+    expect(useOfflineStore.getState().albums['a.test:al-2']).toBeUndefined();
+    expect(invokeMock).toHaveBeenCalledWith(
+      'delete_media_file',
+      expect.objectContaining({ localPath: '/media/library/a.test/a/al-2/t2.mp3' }),
+    );
+    expect(useLocalPlaybackStore.getState().entries['a.test:t2']).toBeUndefined();
+  });
+
+  it('auto-downloads a new album when the full discography scope was pinned', async () => {
+    seedArtistAlbumPin('al-1', 't1');
+    seedArtistAlbumPin('al-2', 't2');
+    getArtistForServerMock.mockResolvedValue({
+      artist: { id: 'art-1', name: 'Artist' },
+      albums: [
+        { id: 'al-1', name: 'One', artist: 'Artist' },
+        { id: 'al-2', name: 'Two', artist: 'Artist' },
+        { id: 'al-3', name: 'Three', artist: 'Artist' },
+      ],
+    });
+    getAlbumForServerMock.mockImplementation(async (_sid: string, id: string) => ({
+      album: { id, name: id, artist: 'Artist' },
+      songs: [song(`track-${id}`)],
+    }));
+
+    await syncPinnedArtistIfNeeded('art-1', 'srv-a', ['al-1', 'al-2']);
+
+    expect(enqueueMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        albumId: 'al-3',
+        type: 'artist',
+        artistProgressGroupId: 'art-1',
+      }),
+    );
+  });
+});
+
+describe('syncAllPinnedPlaylists', () => {
+  beforeEach(() => {
+    isReachableMock.mockReturnValue(true);
+    getPlaylistMock.mockReset();
+    enqueueMock.mockReset();
+    useOfflineJobStoreReset();
+    useOfflineStore.setState({
+      albums: {
+        'b.test:pl-b': {
+          id: 'pl-b',
+          serverId: 'b.test',
+          name: 'Remote mix',
+          artist: '',
+          trackIds: ['tb1'],
+          type: 'playlist',
+        },
+      },
+    });
+    useAuthStore.setState({
+      activeServerId: 'srv-a',
+      servers: [
+        { id: 'srv-a', name: 'A', url: 'https://a.test', username: 'u', password: 'p' },
+        { id: 'srv-b', name: 'B', url: 'https://b.test', username: 'u', password: 'p' },
+      ],
+    });
+    getPlaylistMock.mockResolvedValue({
+      playlist: { id: 'pl-b', name: 'Remote mix', songCount: 1 },
+      songs: [song('tb2')],
+    });
+  });
+
+  it('fetches each cached playlist from its owning server, not the active server', async () => {
+    await syncAllPinnedPlaylists();
+    expect(getPlaylistMock).toHaveBeenCalledWith('srv-b', 'pl-b');
+    expect(useOfflineStore.getState().albums['b.test:pl-b']?.trackIds).toEqual(['tb2']);
+  });
+});
+
+describe('schedulePinnedPlaylistSync dedupe', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    isReachableMock.mockReturnValue(true);
+    getPlaylistMock.mockReset();
+    enqueueMock.mockReset();
+    useOfflineJobStoreReset();
+    useOfflineStore.setState({
+      albums: {
+        'a.test:pl-1': {
+          id: 'pl-1',
+          serverId: 'a.test',
+          name: 'Road mix',
+          artist: '',
+          trackIds: ['t1'],
+          type: 'playlist',
+        },
+      },
+    });
+    seedAuth();
+    getPlaylistMock.mockResolvedValue({
+      playlist: { id: 'pl-1', name: 'Road mix', songCount: 1 },
+      songs: [song('t1')],
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('coalesces duplicate schedule calls in one debounce window', async () => {
+    schedulePinnedPlaylistSync('pl-1');
+    schedulePinnedPlaylistSync('pl-1');
+    await vi.advanceTimersByTimeAsync(700);
+    expect(getPlaylistMock).toHaveBeenCalledTimes(1);
   });
 });
 

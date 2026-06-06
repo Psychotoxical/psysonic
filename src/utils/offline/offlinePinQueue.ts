@@ -68,13 +68,15 @@ function isPinAlreadyScheduled(albumId: string): boolean {
  */
 export function enqueueOfflinePin(task: OfflinePinTask): boolean {
   cancelledDownloads.delete(task.albumId);
-  pinTasks.set(task.albumId, task);
 
   const store = useOfflineJobStore.getState();
   const existing = store.pinQueue.find(p => p.albumId === task.albumId);
   if (existing?.status === 'downloading') {
     return false;
   }
+
+  pinTasks.set(task.albumId, task);
+
   if (existing?.status === 'queued') {
     scheduleOfflinePinQueue();
     return true;

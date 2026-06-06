@@ -119,6 +119,43 @@ describe('offlinePinQueue', () => {
     expect(useOfflineJobStore.getState().pinQueue).toHaveLength(1);
   });
 
+  it('does not replace the in-flight task when a download is active', async () => {
+    let capturedTrackIds: string[] = [];
+    const gate = { unblock: undefined as (() => void) | undefined };
+    registerOfflinePinExecutor(async task => {
+      capturedTrackIds = task.songs.map(s => s.id);
+      await new Promise<void>(resolve => {
+        gate.unblock = () => resolve();
+      });
+    });
+
+    const base = {
+      albumId: 'alb-1',
+      albumName: 'One',
+      albumArtist: 'A',
+      coverArt: undefined,
+      year: undefined,
+      serverId: 'srv',
+      type: 'album' as const,
+    };
+
+    enqueueOfflinePin({ ...base, songs: [{ id: 't1', title: 't1', artist: 'A', album: 'Al', albumId: 'alb-1', duration: 1 }] });
+    await vi.waitFor(() => {
+      expect(useOfflineJobStore.getState().pinQueue[0]?.status).toBe('downloading');
+    });
+
+    expect(enqueueOfflinePin({
+      ...base,
+      songs: [
+        { id: 't1', title: 't1', artist: 'A', album: 'Al', albumId: 'alb-1', duration: 1 },
+        { id: 't2', title: 't2', artist: 'A', album: 'Al', albumId: 'alb-1', duration: 1 },
+      ],
+    })).toBe(false);
+
+    gate.unblock?.();
+    await vi.waitFor(() => expect(capturedTrackIds).toEqual(['t1']));
+  });
+
   it('processes albums one after another', async () => {
     const order: string[] = [];
     const gate = { unblock: undefined as (() => void) | undefined };
