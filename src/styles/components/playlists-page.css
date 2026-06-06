@@ -12,7 +12,7 @@
 }
 
 .playlist-filter-input {
-  background: var(--bg-surface);
+  background: var(--input-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   color: var(--text-primary);

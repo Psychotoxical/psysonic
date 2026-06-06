@@ -119,7 +119,7 @@
 }
 
 .mp-artist-avatar--placeholder {
-  background: var(--bg-surface);
+  background: var(--card-placeholder-bg);
 }
 
 .mp-artist-info {
@@ -226,7 +226,7 @@
 }
 
 .mp-album-cover--placeholder {
-  background: var(--bg-surface);
+  background: var(--card-placeholder-bg);
 }
 
 .mp-album-meta {

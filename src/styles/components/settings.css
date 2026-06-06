@@ -460,13 +460,13 @@
   padding: var(--space-3) var(--space-4);
   margin-bottom: var(--space-4);
   border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--color-warning, #f59e0b) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-warning, #f59e0b) 40%, transparent);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
   color: var(--text-primary);
 }
 
 .settings-privacy-notice-icon {
-  color: var(--color-warning, #f59e0b);
+  color: var(--warning);
   flex-shrink: 0;
   margin-top: 2px;
 }

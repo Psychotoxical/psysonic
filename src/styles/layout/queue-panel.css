@@ -185,7 +185,7 @@
   flex-shrink: 0;
   border-radius: var(--radius-md);
   overflow: hidden;
-  background: var(--bg-surface);
+  background: var(--card-placeholder-bg);
   display: flex;
   align-items: center;
   justify-content: center;

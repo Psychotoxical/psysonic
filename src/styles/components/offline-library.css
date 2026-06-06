@@ -77,7 +77,7 @@
 }
 
 .offline-library-delete:hover {
-  color: var(--color-error, #e05050);
+  color: var(--danger);
 }
 
 /* Filter tabs */
