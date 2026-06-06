@@ -39,9 +39,9 @@ function variousArtistsLabel(s: string): boolean {
   return s.trim().toLowerCase().includes('various artists');
 }
 
-function trackIsCompilation(track: Pick<LibraryTrackDto, 'artist' | 'raw_json'>): boolean {
+function trackIsCompilation(track: Pick<LibraryTrackDto, 'artist' | 'rawJson'>): boolean {
   if (variousArtistsLabel(track.artist ?? '')) return true;
-  const raw = track.raw_json;
+  const raw = track.rawJson;
   if (!raw || typeof raw !== 'object') return false;
   const obj = raw as Record<string, unknown>;
   if (obj.isCompilation === true) return true;
@@ -55,19 +55,21 @@ function trackIsCompilation(track: Pick<LibraryTrackDto, 'artist' | 'raw_json'>)
   return false;
 }
 
-function artistFolderSegment(track: Pick<LibraryTrackDto, 'artist' | 'album_artist'>): string {
+function artistFolderSegment(
+  track: Pick<LibraryTrackDto, 'artist' | 'albumArtist' | 'rawJson'>,
+): string {
   const artist = (track.artist ?? '').trim();
-  const albumArtist = (track.album_artist ?? '').trim();
+  const albumArtist = (track.albumArtist ?? '').trim();
   const chosen = !artist || trackIsCompilation(track)
     ? (albumArtist || 'Various Artists')
     : artist;
   return sanitizeAndTruncate(chosen, MAX_SEGMENT_LEN);
 }
 
-function trackFilenameStem(track: Pick<LibraryTrackDto, 'title' | 'track_number' | 'disc_number'>): string {
+function trackFilenameStem(track: Pick<LibraryTrackDto, 'title' | 'trackNumber' | 'discNumber'>): string {
   const title = (track.title ?? '').trim() || 'Unknown Title';
-  const trackN = Math.max(0, track.track_number ?? 0);
-  const discN = Math.max(0, track.disc_number ?? 1);
+  const trackN = Math.max(0, track.trackNumber ?? 0);
+  const discN = Math.max(0, track.discNumber ?? 1);
   if (discN > 1) {
     return `${String(discN).padStart(2, '0')}-${String(trackN).padStart(2, '0')} - ${title}`;
   }
@@ -83,8 +85,8 @@ export function layoutFingerprintFromLibraryTrack(
   const albumSeg = sanitizeAndTruncate((track.album ?? '').trim() || 'Unknown Album', MAX_SEGMENT_LEN);
   const stem = trackFilenameStem(track);
   const ext = (suffix ?? track.suffix ?? '').trim();
-  const trackN = track.track_number ?? 0;
-  const discN = track.disc_number ?? 0;
-  const albumArtist = (track.album_artist ?? '').trim();
+  const trackN = track.trackNumber ?? 0;
+  const discN = track.discNumber ?? 0;
+  const albumArtist = (track.albumArtist ?? '').trim();
   return `artist=${artistSeg}|album_artist=${albumArtist}|album=${albumSeg}|title=${(track.title ?? '').trim()}|track=${trackN}|disc=${discN}|stem=${stem}|suffix=${ext}`;
 }

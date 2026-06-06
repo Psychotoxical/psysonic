@@ -2,10 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActiveServerReachable } from './activeServerReachability';
 import { shouldAttemptSubsonicForServer } from './subsonicNetworkGuard';
 
-const resolvePlaybackUrlMock = vi.fn(() => 'https://music.test/stream');
+const resolvePlaybackUrlMock = vi.fn((_trackId: string, _serverId?: string) =>
+  'https://music.test/stream',
+);
 
 vi.mock('../playback/resolvePlaybackUrl', () => ({
-  resolvePlaybackUrl: (...args: unknown[]) => resolvePlaybackUrlMock(...args),
+  resolvePlaybackUrl: (trackId: string, serverId?: string) =>
+    resolvePlaybackUrlMock(trackId, serverId),
 }));
 
 describe('shouldAttemptSubsonicForServer', () => {

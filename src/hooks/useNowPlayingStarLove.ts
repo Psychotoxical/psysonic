@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { queueSongStar } from '../store/pendingStarSync';
 import type { SubsonicSong } from '../api/subsonicTypes';
+import type { Track } from '../store/playerStoreTypes';
 import {
   lastfmLoveTrack, lastfmUnloveTrack,
   type LastfmTrackInfo,
 } from '../api/lastfm';
 
 export interface NowPlayingStarLoveDeps {
-  currentTrack: { id: string; title: string; artist: string } | null;
+  currentTrack: Pick<Track, 'id' | 'title' | 'artist' | 'serverId'> | null;
   songMeta: SubsonicSong | null;
   lfmTrack: LastfmTrackInfo | null;
   lfmLoveEnabled: boolean;

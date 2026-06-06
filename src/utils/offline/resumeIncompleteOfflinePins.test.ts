@@ -4,7 +4,7 @@ import { useOfflineStore } from '../../store/offlineStore';
 import { resumeIncompleteOfflinePins } from './resumeIncompleteOfflinePins';
 
 const isActiveServerReachableMock = vi.fn(() => true);
-const isOfflinePinCompleteMock = vi.fn(() => false);
+const isOfflinePinCompleteMock = vi.fn((_albumId: string, _serverId: string) => false);
 const resolveAlbumForServerMock = vi.fn();
 const downloadAlbumMock = vi.fn();
 
@@ -14,11 +14,13 @@ vi.mock('../network/activeServerReachability', () => ({
 }));
 
 vi.mock('./offlineLibraryHelpers', () => ({
-  isOfflinePinComplete: (...args: unknown[]) => isOfflinePinCompleteMock(...args),
+  isOfflinePinComplete: (albumId: string, serverId: string) =>
+    isOfflinePinCompleteMock(albumId, serverId),
 }));
 
 vi.mock('./favoritesOfflineBrowse', () => ({
-  resolveAlbumForServer: (...args: unknown[]) => resolveAlbumForServerMock(...args),
+  resolveAlbumForServer: (serverId: string, albumId: string) =>
+    resolveAlbumForServerMock(serverId, albumId),
 }));
 
 vi.mock('../../api/library', () => ({

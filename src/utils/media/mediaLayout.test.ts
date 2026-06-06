@@ -18,17 +18,20 @@ describe('mediaLayout', () => {
   it('layout fingerprint uses truncated hash for very long segments', () => {
     const longName = 'A'.repeat(200);
     const track = {
+      serverId: 'srv',
       id: 't1',
       title: 'Song',
       artist: longName,
       album: 'Album',
-      album_artist: null,
-      track_number: 1,
-      disc_number: 1,
+      albumArtist: null,
+      trackNumber: 1,
+      discNumber: 1,
+      durationSec: 180,
       suffix: 'mp3',
-      raw_json: null,
+      rawJson: null,
+      syncedAt: 0,
     };
-    const fp = layoutFingerprintFromLibraryTrack(track as never);
+    const fp = layoutFingerprintFromLibraryTrack(track);
     expect(fp).toContain('_');
     expect(fp.length).toBeLessThan(600);
   });

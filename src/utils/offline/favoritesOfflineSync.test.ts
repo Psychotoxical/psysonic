@@ -8,7 +8,7 @@ import {
   onFavoritesOfflineStarChange,
 } from './favoritesOfflineSync';
 
-const getStarredForServerMock = vi.fn(async () => ({
+const getStarredForServerMock = vi.fn(async (_serverId: string) => ({
   artists: [],
   albums: [],
   songs: [{ id: 't1', title: 'T', artist: 'A', album: 'Al', albumId: 'al-1', duration: 1 }],
@@ -21,7 +21,7 @@ vi.mock('../network/activeServerReachability', () => ({
 }));
 
 vi.mock('../../api/subsonicStarRating', () => ({
-  getStarredForServer: (...args: unknown[]) => getStarredForServerMock(...args),
+  getStarredForServer: (serverId: string) => getStarredForServerMock(serverId),
 }));
 
 vi.mock('../../api/subsonicLibrary', () => ({
@@ -32,10 +32,10 @@ vi.mock('../../api/subsonicArtists', () => ({
   getArtistForServer: vi.fn(async () => ({ albums: [] })),
 }));
 
-const invokeMock = vi.fn(async () => ({}));
+const invokeMock = vi.fn(async (_cmd: string, _args?: unknown) => ({}));
 
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: (...args: unknown[]) => invokeMock(...args),
+  invoke: (cmd: string, args?: unknown) => invokeMock(cmd, args),
 }));
 
 function song(id: string): SubsonicSong {

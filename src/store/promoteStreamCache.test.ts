@@ -26,11 +26,11 @@ vi.mock('../api/coverCache', () => ({
   librarySqlServerId: (k: string) => k,
 }));
 
-const hasLocalPersistentPlaybackBytesMock = vi.fn(() => false);
+const hasLocalPersistentPlaybackBytesMock = vi.fn((_trackId: string, _serverId: string) => false);
 
 vi.mock('../utils/offline/offlineLibraryHelpers', () => ({
-  hasLocalPersistentPlaybackBytes: (...args: unknown[]) =>
-    hasLocalPersistentPlaybackBytesMock(...args),
+  hasLocalPersistentPlaybackBytes: (trackId: string, serverId: string) =>
+    hasLocalPersistentPlaybackBytesMock(trackId, serverId),
 }));
 
 import { promoteCompletedStreamToHotCache } from './promoteStreamCache';

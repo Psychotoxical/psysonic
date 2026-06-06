@@ -10,7 +10,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { AlbumCoverArtImage } from '../cover/AlbumCoverArtImage';
 import { coverServerScopeForServerId } from '../cover/serverScope';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
-import { albumGridWarmCovers } from '../cover/layoutSizes';
+import { GRID_COVER_WARM_LIMIT } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import { OfflineLibraryDiskStat } from '../components/OfflineLibraryDiskStat';
 import {
@@ -600,7 +600,12 @@ export default function OfflineLibrary() {
       rowVariant="offline"
       disableVirtualization={perfFlags.disableMainstageVirtualLists}
       layoutSignal={layoutSignal}
-      warmGridCovers={albumGridWarmCovers(OFFLINE_CARD_COVER_CSS_PX)}
+      warmGridCovers={{
+        pickCoverArtId: (item: OfflineGridItem) =>
+          item.kind === 'card' ? item.card.coverArt : undefined,
+        displayCssPx: OFFLINE_CARD_COVER_CSS_PX,
+        limit: GRID_COVER_WARM_LIMIT,
+      }}
       renderItem={renderGridItem}
     />
   );

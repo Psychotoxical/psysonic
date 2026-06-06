@@ -17,10 +17,10 @@ describe('offlinePinQueue', () => {
   });
 
   it('dequeues a queued album without affecting an active download', async () => {
-    let release: (() => void) | null = null;
+    const gate = { unblock: undefined as (() => void) | undefined };
     registerOfflinePinExecutor(async () => {
       await new Promise<void>(resolve => {
-        release = resolve;
+        gate.unblock = () => resolve();
       });
     });
 
@@ -50,7 +50,7 @@ describe('offlinePinQueue', () => {
     expect(isAlbumPinQueued('alb-2')).toBe(false);
     expect(useOfflineJobStore.getState().pinQueue).toHaveLength(1);
 
-    release?.();
+    gate.unblock?.();
     await vi.waitFor(() => expect(useOfflineJobStore.getState().pinQueue).toHaveLength(0));
   });
 
@@ -121,11 +121,11 @@ describe('offlinePinQueue', () => {
 
   it('processes albums one after another', async () => {
     const order: string[] = [];
-    let release: (() => void) | null = null;
+    const gate = { unblock: undefined as (() => void) | undefined };
     registerOfflinePinExecutor(async task => {
       order.push(task.albumId);
       await new Promise<void>(resolve => {
-        release = resolve;
+        gate.unblock = () => resolve();
       });
     });
 
@@ -153,7 +153,7 @@ describe('offlinePinQueue', () => {
     await vi.waitFor(() => expect(order).toEqual(['alb-1']));
     expect(useOfflineJobStore.getState().pinQueue.some(p => p.albumId === 'alb-2' && p.status === 'queued')).toBe(true);
 
-    release?.();
+    gate.unblock?.();
     await vi.waitFor(() => expect(order).toEqual(['alb-1', 'alb-2']));
   });
 });

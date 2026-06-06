@@ -1,7 +1,10 @@
 export type AnalysisStorageChangedReason =
   | 'offline-delete'
   | 'hotcache-delete'
-  | 'hotcache-purge';
+  | 'hotcache-purge'
+  | 'local-playback-delete'
+  | 'offline-purge'
+  | 'favorites-offline-purge';
 
 export type AnalysisStorageChangedDetail = {
   trackId?: string | null;

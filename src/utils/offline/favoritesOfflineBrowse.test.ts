@@ -11,12 +11,13 @@ import {
 } from './favoritesOfflineBrowse';
 
 const isActiveServerReachableMock = vi.fn(() => true);
-const shouldAttemptSubsonicForServerMock = vi.fn(() => true);
+const shouldAttemptSubsonicForServerMock = vi.fn((_serverId: string, _trackId?: string) => true);
 vi.mock('../network/activeServerReachability', () => ({
   isActiveServerReachable: () => isActiveServerReachableMock(),
 }));
 vi.mock('../network/subsonicNetworkGuard', () => ({
-  shouldAttemptSubsonicForServer: (...args: unknown[]) => shouldAttemptSubsonicForServerMock(...args),
+  shouldAttemptSubsonicForServer: (serverId: string, trackId?: string) =>
+    shouldAttemptSubsonicForServerMock(serverId, trackId),
 }));
 
 const getAlbumForServerMock = vi.fn();
