@@ -225,8 +225,9 @@ async fn local_track_hit_if_exists(
     }))
 }
 
-/// Downloads a track into the unified media layout. Requires a library index row
-/// (cold miss → `LIBRARY_TRACK_NOT_FOUND`). Disk scope uses `server_index_key`;
+/// Downloads a track into the unified media layout. Library/Favorites tiers require
+/// a library index row (cold miss → `LIBRARY_TRACK_NOT_FOUND`); Ephemeral returns
+/// `TRACK_NOT_INDEXED` when the row is missing. Disk scope uses `server_index_key`;
 /// SQL lookup uses `library_server_id`.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]

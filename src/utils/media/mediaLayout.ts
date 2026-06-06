@@ -76,6 +76,11 @@ function trackFilenameStem(track: Pick<LibraryTrackDto, 'title' | 'trackNumber' 
   return `${String(trackN).padStart(2, '0')} - ${title}`;
 }
 
+/** Parity-tested with `sanitize_and_truncate_segment` in `media_layout.rs`. */
+export function sanitizeAndTruncateSegment(segment: string): string {
+  return sanitizeAndTruncate(segment, MAX_SEGMENT_LEN);
+}
+
 /** Stable fingerprint — keep in sync with `psysonic_core::media_layout::layout_fingerprint`. */
 export function layoutFingerprintFromLibraryTrack(
   track: LibraryTrackDto,

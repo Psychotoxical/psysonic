@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { layoutFingerprintFromLibraryTrack } from './mediaLayout';
+import { layoutFingerprintFromLibraryTrack, sanitizeAndTruncateSegment } from './mediaLayout';
 
 // Keep in sync with `short_hash` in `src-tauri/crates/psysonic-core/src/media_layout.rs`.
 function shortHash(s: string): string {
@@ -13,6 +13,20 @@ function shortHash(s: string): string {
 describe('mediaLayout', () => {
   it('shortHash parity anchor matches Rust imul-31 UTF-16', () => {
     expect(shortHash('Radiohead')).toBe('3da68c3b');
+  });
+
+  it('does not truncate Cyrillic segments under 120 code points (byte length may exceed 120)', () => {
+    const segment = 'а'.repeat(100);
+    expect([...segment].length).toBe(100);
+    expect(Buffer.byteLength(segment, 'utf8')).toBeGreaterThan(120);
+    expect(sanitizeAndTruncateSegment(segment)).toBe(segment);
+  });
+
+  it('truncates long Cyrillic segments with the same hash suffix as Rust', () => {
+    const segment = 'а'.repeat(130);
+    expect(sanitizeAndTruncateSegment(segment)).toBe(
+      `${'а'.repeat(111)}_eef20600`,
+    );
   });
 
   it('layout fingerprint uses truncated hash for very long segments', () => {

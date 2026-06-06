@@ -202,7 +202,8 @@ fn various_artists_label(s: &str) -> bool {
 
 fn sanitize_and_truncate_segment(segment: &str, max_len: usize) -> String {
     let sanitized = sanitize_path_segment(segment);
-    if sanitized.len() <= max_len {
+    // Code points — keep in sync with `[...sanitized].length` in `mediaLayout.ts`.
+    if sanitized.chars().count() <= max_len {
         return sanitized;
     }
     let hash = short_hash(segment);
@@ -342,5 +343,22 @@ mod tests {
     fn short_hash_matches_ts_imul31_utf16() {
         // "Radiohead" — same as mediaLayout.test parity anchor.
         assert_eq!(short_hash("Radiohead"), "3da68c3b");
+    }
+
+    #[test]
+    fn sanitize_and_truncate_uses_code_point_threshold() {
+        let cyrillic_a = '\u{0430}';
+        let hundred: String = std::iter::repeat_n(cyrillic_a, 100).collect();
+        assert!(hundred.len() > MAX_SEGMENT_LEN);
+        assert_eq!(hundred.chars().count(), 100);
+        assert_eq!(
+            sanitize_and_truncate_segment(&hundred, MAX_SEGMENT_LEN),
+            hundred
+        );
+
+        let long: String = std::iter::repeat_n(cyrillic_a, 130).collect();
+        let truncated = sanitize_and_truncate_segment(&long, MAX_SEGMENT_LEN);
+        assert!(truncated.ends_with("_eef20600"));
+        assert_eq!(truncated.chars().count(), MAX_SEGMENT_LEN);
     }
 }
