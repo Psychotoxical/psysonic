@@ -26,9 +26,20 @@ vi.mock('../server/switchActiveServer', () => ({
 
 vi.mock('../../api/library', async importOriginal => {
   const actual = await importOriginal<typeof import('../../api/library')>();
+  const libraryGetTracksBatch = vi.fn();
   return {
     ...actual,
-    libraryGetTracksBatch: vi.fn(),
+    libraryGetTracksBatch,
+    libraryGetTracksBatchChunked: async (refs: Parameters<typeof actual.libraryGetTracksBatch>[0]) => {
+      if (refs.length === 0) return [];
+      const out: Awaited<ReturnType<typeof actual.libraryGetTracksBatch>> = [];
+      for (let i = 0; i < refs.length; i += actual.LIBRARY_TRACKS_BATCH_LIMIT) {
+        const chunk = refs.slice(i, i + actual.LIBRARY_TRACKS_BATCH_LIMIT);
+        const batch = await libraryGetTracksBatch(chunk).catch(() => []);
+        out.push(...batch);
+      }
+      return out;
+    },
     libraryGetTrack: vi.fn(),
   };
 });

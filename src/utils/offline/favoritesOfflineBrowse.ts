@@ -1,5 +1,6 @@
 import { getStarredForServer } from '../../api/subsonicStarRating';
 import { isActiveServerReachable } from '../network/activeServerReachability';
+import { shouldAttemptSubsonicForServer } from '../network/subsonicNetworkGuard';
 import { getAlbumForServer } from '../../api/subsonicLibrary';
 import { libraryAdvancedSearch, libraryGetTracksByAlbum } from '../../api/library';
 import type {
@@ -138,38 +139,34 @@ export async function loadStarredFromAllServersOnline(): Promise<StarredResults>
 }
 
 /**
- * Album detail / play: library index first when offline favorites is on, then
- * network. Survives unreachable servers while the active server stays connected.
+ * Album detail / play / offline pin: use the network album when reachable so the
+ * track list is complete. The library index may only contain a subset (e.g.
+ * starred tracks or a partial sync) — never prefer that over `getAlbum` online.
+ * When the server is unreachable, fall back to the index when favorites-offline
+ * browsing is enabled.
  */
 export async function resolveAlbumForServer(
   serverId: string,
   albumId: string,
 ): Promise<{ album: SubsonicAlbum; songs: SubsonicSong[] } | null> {
   const favoritesOffline = useAuthStore.getState().favoritesOfflineEnabled;
-  if (favoritesOffline) {
+  const networkAllowed = shouldAttemptSubsonicForServer(serverId);
+
+  if (networkAllowed) {
     try {
-      const local = await loadAlbumFromLibraryIndex(serverId, albumId);
-      if (local) return local;
-    } catch { /* fall through */ }
-  }
-  if (!isActiveServerReachable()) {
-    if (!favoritesOffline) return null;
-    try {
-      return await loadAlbumFromLibraryIndex(serverId, albumId);
+      const data = await getAlbumForServer(serverId, albumId);
+      return { album: data.album, songs: data.songs };
     } catch {
-      return null;
+      /* fall through to library index */
     }
+  } else if (!favoritesOffline) {
+    return null;
   }
+
   try {
-    const data = await getAlbumForServer(serverId, albumId);
-    return { album: data.album, songs: data.songs };
+    return await loadAlbumFromLibraryIndex(serverId, albumId);
   } catch {
-    if (!favoritesOffline) return null;
-    try {
-      return await loadAlbumFromLibraryIndex(serverId, albumId);
-    } catch {
-      return null;
-    }
+    return null;
   }
 }
 

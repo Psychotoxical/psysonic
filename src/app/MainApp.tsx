@@ -15,6 +15,7 @@ import { useGlobalShortcutsStore } from '../store/globalShortcutsStore';
 import { initHotCachePrefetch } from '../hotCachePrefetch';
 import { initLocalPlaybackInvalidation } from '../localPlaybackInvalidation';
 import { initFavoritesOfflineSync } from '../utils/offline/favoritesOfflineSync';
+import { initResumeIncompleteOfflinePins, scheduleResumeIncompleteOfflinePins } from '../utils/offline/resumeIncompleteOfflinePins';
 import { runLegacyOfflineFileMigration } from '../utils/migrations/legacyOfflineFileMigration';
 import { reconcileLibraryTierForServer } from '../utils/offline/libraryTierReconcile';
 import { initMiniPlayerBridgeOnMain } from '../utils/miniPlayerBridge';
@@ -110,12 +111,15 @@ export default function MainApp() {
       for (const server of servers) {
         await reconcileLibraryTierForServer(server.id);
       }
+      scheduleResumeIncompleteOfflinePins();
     })();
     const stopInvalidation = initLocalPlaybackInvalidation();
     const stopFavoritesSync = initFavoritesOfflineSync();
+    const stopOfflineResume = initResumeIncompleteOfflinePins();
     return () => {
       stopInvalidation();
       stopFavoritesSync();
+      stopOfflineResume();
     };
   }, [migrationReady, serverIdsKey]);
 

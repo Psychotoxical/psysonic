@@ -1,6 +1,7 @@
 import { buildDownloadUrl } from '../api/subsonicStreamUrl';
 import { setRating, star, unstar } from '../api/subsonicStarRating';
 import { queueSongStar, queueSongRating } from '../store/pendingStarSync';
+import { getAlbumForServer } from '../api/subsonicLibrary';
 import { getArtistInfo } from '../api/subsonicArtists';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
@@ -19,6 +20,7 @@ import { useOfflineStore } from '../store/offlineStore';
 import { useOfflineJobStore } from '../store/offlineJobStore';
 import { isOfflinePinComplete } from '../utils/offline/offlineLibraryHelpers';
 import { reconcileLibraryTierForAlbum } from '../utils/offline/libraryTierReconcile';
+import { shouldAttemptSubsonicForServer } from '../utils/network/subsonicNetworkGuard';
 import { join } from '@tauri-apps/api/path';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
 import AlbumCard from '../components/AlbumCard';
@@ -272,10 +274,20 @@ const handleShuffleAll = () => {
 
   const handleCacheOffline = useCallback(async () => {
     if (!album) return;
-    const songs = effectiveSongs ?? album.songs;
+    let songs = effectiveSongs ?? album.songs;
+    if (serverId && shouldAttemptSubsonicForServer(serverId)) {
+      try {
+        const fresh = await getAlbumForServer(serverId, album.album.id);
+        songs = losslessOnly
+          ? fresh.songs.filter(s => isLosslessSuffix(s.suffix))
+          : fresh.songs;
+      } catch {
+        /* keep album.songs from the page */
+      }
+    }
     if (isOfflinePinComplete(album.album.id, serverId, songs.map(s => s.id))) return;
     downloadAlbum(album.album.id, album.album.name, album.album.artist, album.album.coverArt, album.album.year, songs, serverId);
-  }, [album, downloadAlbum, serverId, effectiveSongs]);
+  }, [album, downloadAlbum, serverId, effectiveSongs, losslessOnly]);
 
   const handleRemoveOffline = () => {
     if (!album) return;

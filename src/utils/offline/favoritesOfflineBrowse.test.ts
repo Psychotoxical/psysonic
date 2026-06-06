@@ -11,8 +11,12 @@ import {
 } from './favoritesOfflineBrowse';
 
 const isActiveServerReachableMock = vi.fn(() => true);
+const shouldAttemptSubsonicForServerMock = vi.fn(() => true);
 vi.mock('../network/activeServerReachability', () => ({
   isActiveServerReachable: () => isActiveServerReachableMock(),
+}));
+vi.mock('../network/subsonicNetworkGuard', () => ({
+  shouldAttemptSubsonicForServer: (...args: unknown[]) => shouldAttemptSubsonicForServerMock(...args),
 }));
 
 const getAlbumForServerMock = vi.fn();
@@ -31,6 +35,10 @@ vi.mock('../../api/library', () => ({
 describe('favoritesOfflineBrowse', () => {
   beforeEach(() => {
     isActiveServerReachableMock.mockReturnValue(true);
+    shouldAttemptSubsonicForServerMock.mockReturnValue(true);
+    getAlbumForServerMock.mockReset();
+    libraryGetTracksByAlbumMock.mockReset();
+    libraryAdvancedSearchMock.mockReset();
     useAuthStore.setState({
       favoritesOfflineEnabled: false,
       activeServerId: 'srv-1',
@@ -102,6 +110,7 @@ describe('favoritesOfflineBrowse', () => {
 
   it('resolveAlbumForServer uses library index when network fails', async () => {
     useAuthStore.setState({ favoritesOfflineEnabled: true });
+    shouldAttemptSubsonicForServerMock.mockReturnValue(true);
     getAlbumForServerMock.mockRejectedValue(new Error('Network Error'));
     libraryGetTracksByAlbumMock.mockResolvedValue([
       {
@@ -129,6 +138,66 @@ describe('favoritesOfflineBrowse', () => {
 
     const result = await resolveAlbumForServer('srv-1', 'alb-1');
     expect(result?.album.id).toBe('alb-1');
+    expect(result?.songs).toHaveLength(1);
+    expect(getAlbumForServerMock).toHaveBeenCalledWith('srv-1', 'alb-1');
+  });
+
+  it('resolveAlbumForServer prefers full network album over partial library index', async () => {
+    useAuthStore.setState({ favoritesOfflineEnabled: true });
+    shouldAttemptSubsonicForServerMock.mockReturnValue(true);
+    libraryGetTracksByAlbumMock.mockResolvedValue([
+      {
+        id: 't1',
+        title: 'Indexed only',
+        artist: 'Artist',
+        album: 'Album',
+        albumId: 'alb-1',
+        durationSec: 100,
+        serverId: 'srv-1',
+      },
+    ]);
+    getAlbumForServerMock.mockResolvedValue({
+      album: { id: 'alb-1', name: 'Album', artist: 'Artist', artistId: 'art-1', songCount: 3, duration: 600 },
+      songs: [
+        { id: 't1', title: 'One', artist: 'Artist', album: 'Album', albumId: 'alb-1', duration: 200 },
+        { id: 't2', title: 'Two', artist: 'Artist', album: 'Album', albumId: 'alb-1', duration: 200 },
+        { id: 't3', title: 'Three', artist: 'Artist', album: 'Album', albumId: 'alb-1', duration: 200 },
+      ],
+    });
+
+    const result = await resolveAlbumForServer('srv-1', 'alb-1');
+    expect(getAlbumForServerMock).toHaveBeenCalledWith('srv-1', 'alb-1');
+    expect(result?.songs).toHaveLength(3);
+    expect(result?.songs.map(s => s.id)).toEqual(['t1', 't2', 't3']);
+  });
+
+  it('resolveAlbumForServer uses library index when server is unreachable', async () => {
+    useAuthStore.setState({ favoritesOfflineEnabled: true });
+    shouldAttemptSubsonicForServerMock.mockReturnValue(false);
+    libraryGetTracksByAlbumMock.mockResolvedValue([
+      {
+        id: 't1',
+        title: 'Offline track',
+        artist: 'Artist',
+        album: 'Album',
+        albumId: 'alb-1',
+        durationSec: 200,
+        serverId: 'srv-1',
+      },
+    ]);
+    libraryAdvancedSearchMock.mockResolvedValue({
+      albums: [{
+        id: 'alb-1',
+        name: 'Album',
+        artist: 'Artist',
+        artistId: 'art-1',
+        serverId: 'srv-1',
+      }],
+      artists: [],
+      tracks: [],
+    });
+
+    const result = await resolveAlbumForServer('srv-1', 'alb-1');
     expect(result?.songs).toHaveLength(1);
     expect(getAlbumForServerMock).not.toHaveBeenCalled();
   });

@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getActiveServerReachable,
   isActiveServerReachable,
+  onActiveServerBecameReachable,
   setActiveServerReachable,
 } from './activeServerReachability';
 
@@ -21,5 +22,15 @@ describe('activeServerReachability', () => {
   it('exposes the last probe result', () => {
     setActiveServerReachable(true);
     expect(getActiveServerReachable()).toBe(true);
+  });
+
+  it('onActiveServerBecameReachable fires only on false/null → true', () => {
+    const listener = vi.fn();
+    onActiveServerBecameReachable(listener);
+    setActiveServerReachable(false);
+    setActiveServerReachable(true);
+    expect(listener).toHaveBeenCalledTimes(1);
+    setActiveServerReachable(true);
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 });

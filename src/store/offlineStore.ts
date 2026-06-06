@@ -54,6 +54,9 @@ export interface OfflineAlbumMeta {
 
 export type { DownloadJob } from './offlineJobStore';
 
+/** One `downloadAlbum` run per `albumId` — survives page navigation; cleared in `finally`. */
+const downloadAlbumInFlight = new Set<string>();
+
 function serverIndexKeyForOffline(serverId: string): string {
   const server = useAuthStore.getState().servers.find(s => s.id === serverId);
   if (server) return serverIndexKeyForProfile(server) || resolveIndexKey(serverId) || serverId;
@@ -144,6 +147,8 @@ export const useOfflineStore = create<OfflineState>()(
       },
 
       downloadAlbum: async (albumId, albumName, albumArtist, coverArt, year, songs, serverId, type = 'album') => {
+        if (downloadAlbumInFlight.has(albumId)) return;
+        downloadAlbumInFlight.add(albumId);
         const CONCURRENCY = 8;
         const trackIds = songs.map(s => s.id);
         const jobStore = useOfflineJobStore;
@@ -153,6 +158,7 @@ export const useOfflineStore = create<OfflineState>()(
         const pinSource: PinSource = { kind: type, sourceId: albumId, displayName: albumName };
         const mediaDir = getMediaDir();
 
+        try {
         if (mediaDir) {
           const ok = await invoke<boolean>('check_dir_accessible', { path: mediaDir }).catch(() => false);
           if (!ok) {
@@ -305,6 +311,9 @@ export const useOfflineStore = create<OfflineState>()(
             ),
           }));
         }, 2500);
+        } finally {
+          downloadAlbumInFlight.delete(albumId);
+        }
       },
 
       downloadPlaylist: async (playlistId, playlistName, coverArt, songs, serverId) => {
@@ -342,6 +351,8 @@ export const useOfflineStore = create<OfflineState>()(
       },
 
       deleteAlbum: async (albumId, serverId) => {
+        useOfflineJobStore.getState().cancelDownload(albumId);
+        downloadAlbumInFlight.delete(albumId);
         const indexKey = serverIndexKeyForOffline(serverId);
         const album = get().albums[`${indexKey}:${albumId}`]
           ?? get().albums[`${serverId}:${albumId}`];

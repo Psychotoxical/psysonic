@@ -1,5 +1,5 @@
 import type { LibraryTrackDto } from '../../api/library';
-import { libraryGetTrack, libraryGetTracksBatch } from '../../api/library';
+import { libraryGetTrack, libraryGetTracksBatchChunked } from '../../api/library';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import type { CoverServerScope } from '../../cover/types';
 import { useAuthStore } from '../../store/authStore';
@@ -255,7 +255,7 @@ export async function hydrateOfflineLibraryCards(
       trackId,
     })),
   );
-  const tracks = await libraryGetTracksBatch(refs);
+  const tracks = await libraryGetTracksBatchChunked(refs);
   const byId = new Map(tracks.map(t => [`${t.serverId}:${t.id}`, t]));
 
   return groups.map(group => {
@@ -371,7 +371,7 @@ export async function collectEphemeralCacheCoverQuad(): Promise<(string | null)[
     serverId: resolveServerIdForIndexKey(e.serverIndexKey) || e.serverIndexKey,
     trackId: e.trackId,
   }));
-  const dtos = await libraryGetTracksBatch(refs).catch(() => []);
+  const dtos = await libraryGetTracksBatchChunked(refs);
   const covers: string[] = [];
   for (const dto of dtos) {
     const cover = resolveTrackCoverArtId(dto);
@@ -419,7 +419,7 @@ export async function collectFavoriteAutoCoverQuad(): Promise<OfflineCoverQuadCe
     serverId: resolveServerIdForIndexKey(e.serverIndexKey) || e.serverIndexKey,
     trackId: e.trackId,
   }));
-  const dtos = await libraryGetTracksBatch(refs).catch(() => []);
+  const dtos = await libraryGetTracksBatchChunked(refs);
   const cells: { coverArtId: string; serverId: string }[] = [];
   const seen = new Set<string>();
   for (const dto of dtos) {
@@ -448,7 +448,7 @@ export async function buildOfflineFavoritesQueueTracks(): Promise<{
     serverId: resolveServerIdForIndexKey(e.serverIndexKey) || e.serverIndexKey,
     trackId: e.trackId,
   }));
-  const dtos = await libraryGetTracksBatch(refs).catch(() => []);
+  const dtos = await libraryGetTracksBatchChunked(refs);
   const dtoById = new Map(dtos.map(d => [`${d.serverId}:${d.id}`, d]));
 
   const tracks: Track[] = [];
@@ -491,7 +491,7 @@ export async function buildOfflineCacheQueueTracks(): Promise<{
     serverId: resolveServerIdForIndexKey(e.serverIndexKey) || e.serverIndexKey,
     trackId: e.trackId,
   }));
-  const dtos = await libraryGetTracksBatch(refs).catch(() => []);
+  const dtos = await libraryGetTracksBatchChunked(refs);
   const dtoById = new Map(dtos.map(d => [`${d.serverId}:${d.id}`, d]));
 
   const tracks: Track[] = [];
@@ -526,7 +526,7 @@ export async function buildTracksForOfflineCard(card: OfflineLibraryCard): Promi
   if (localTrackIds.length === 0) return [];
 
   const refs = localTrackIds.map(trackId => ({ serverId, trackId }));
-  const dtos = await libraryGetTracksBatch(refs);
+  const dtos = await libraryGetTracksBatchChunked(refs);
   const dtoById = new Map(dtos.map(d => [d.id, d]));
   const order = new Map(localTrackIds.map((id, i) => [id, i]));
   const tracks: Track[] = [];

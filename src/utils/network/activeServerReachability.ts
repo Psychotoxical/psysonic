@@ -5,8 +5,20 @@
  */
 let activeServerReachable: boolean | null = null;
 
+const reachableListeners = new Set<() => void>();
+
+/** Fires when the active server transitions to reachable (`false`/`null` → `true`). */
+export function onActiveServerBecameReachable(listener: () => void): () => void {
+  reachableListeners.add(listener);
+  return () => reachableListeners.delete(listener);
+}
+
 export function setActiveServerReachable(ok: boolean | null): void {
+  const wasReachable = activeServerReachable === true;
   activeServerReachable = ok;
+  if (!wasReachable && ok === true) {
+    for (const listener of reachableListeners) listener();
+  }
 }
 
 export function getActiveServerReachable(): boolean | null {

@@ -15,7 +15,7 @@ import { getMediaDir } from '../media/mediaDir';
 import { resolveIndexKey, serverIndexKeyForProfile } from '../server/serverIndexKey';
 import { FAVORITES_OFFLINE_JOB_ID } from './favoritesOfflineConstants';
 import { isActiveServerReachable } from '../network/activeServerReachability';
-import { favoritesServerIds } from './favoritesOfflineBrowse';
+import { favoritesServerIds, loadAlbumFromLibraryIndex } from './favoritesOfflineBrowse';
 import {
   entryBelongsToServer,
   hasLocalLibraryBytes,
@@ -68,7 +68,12 @@ export async function collectStarredSongs(serverId: string): Promise<SubsonicSon
       const detail = await getAlbumForServer(serverId, album.id);
       albumTrackLists.push(detail.songs);
     } catch {
-      // skip unavailable album
+      try {
+        const local = await loadAlbumFromLibraryIndex(serverId, album.id);
+        if (local) albumTrackLists.push(local.songs);
+      } catch {
+        // skip unavailable album
+      }
     }
   }
 
@@ -81,7 +86,12 @@ export async function collectStarredSongs(serverId: string): Promise<SubsonicSon
           const albumDetail = await getAlbumForServer(serverId, alb.id);
           artistAlbumTrackLists.push(albumDetail.songs);
         } catch {
-          // skip album
+          try {
+            const local = await loadAlbumFromLibraryIndex(serverId, alb.id);
+            if (local) artistAlbumTrackLists.push(local.songs);
+          } catch {
+            // skip album
+          }
         }
       }
     } catch {
