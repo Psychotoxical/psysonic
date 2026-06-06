@@ -12,13 +12,14 @@ import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import {
   buildTracksForOfflineCard,
   ensureServerForOfflineCard,
+  offlineQueueServerKeyForCard,
   hydrateOfflineLibraryCards,
   offlineAlbumCoverScope,
   offlineTrackCount,
   type OfflineLibraryCard,
 } from '../utils/offline/offlineLibraryHelpers';
 import { showToast } from '../utils/ui/toast';
-import { canonicalQueueServerKey, resolveIndexKey } from '../utils/server/serverIndexKey';
+import { resolveIndexKey } from '../utils/server/serverIndexKey';
 import { reconcileAllLibraryTiersFromDisk } from '../utils/offline/libraryTierReconcile';
 import {
   inferPinSourcesFromLibraryIndex,
@@ -113,20 +114,25 @@ export default function OfflineLibrary() {
 
   const handlePlay = (card: OfflineLibraryCard) => {
     void runWithCardServer(card, async () => {
-      usePlayerStore.setState({
-        queueServerId: canonicalQueueServerKey(card.serverIndexKey),
-      });
+      usePlayerStore.setState({ queueServerId: offlineQueueServerKeyForCard(card) });
       const tracks = await buildTracksForOfflineCard(card);
-      if (tracks[0]) playTrack(tracks[0], tracks);
+      if (!tracks[0]) {
+        showToast(t('connection.offlinePlaybackUnavailable'), 4500, 'error');
+        return;
+      }
+      playTrack(tracks[0], tracks);
     });
   };
 
   const handleEnqueue = (card: OfflineLibraryCard) => {
     void runWithCardServer(card, async () => {
-      usePlayerStore.setState({
-        queueServerId: canonicalQueueServerKey(card.serverIndexKey),
-      });
-      enqueue(await buildTracksForOfflineCard(card));
+      usePlayerStore.setState({ queueServerId: offlineQueueServerKeyForCard(card) });
+      const tracks = await buildTracksForOfflineCard(card);
+      if (tracks.length === 0) {
+        showToast(t('connection.offlinePlaybackUnavailable'), 4500, 'error');
+        return;
+      }
+      enqueue(tracks);
     });
   };
 
@@ -137,11 +143,34 @@ export default function OfflineLibrary() {
     const albumId = card.coverArt
       ?? (card.pinSource.kind === 'album'
         ? card.pinSource.sourceId
-        : card.trackIds[0] ?? card.pinSource.sourceId);
+        : card.pinSource.sourceId);
+    const quadCovers = card.pinSource.kind === 'playlist' ? card.coverQuadIds : undefined;
+    const showQuad = !!quadCovers?.some(Boolean) && coverScope;
     return (
       <div className="album-card card offline-library-card">
         <div className="album-card-cover">
-          {coverScope && card.coverArt ? (
+          {showQuad ? (
+            <div className="playlist-cover-grid">
+              {quadCovers!.map((coverId, i) => (
+                coverId ? (
+                  <AlbumCoverArtImage
+                    key={`${coverId}-${i}`}
+                    albumId={coverId}
+                    coverArt={coverId}
+                    serverScope={coverScope!}
+                    libraryResolve
+                    displayCssPx={OFFLINE_CARD_COVER_CSS_PX / 2}
+                    surface="dense"
+                    className="playlist-cover-cell"
+                    alt=""
+                    loading="lazy"
+                  />
+                ) : (
+                  <div key={i} className="playlist-cover-cell playlist-cover-cell--empty" />
+                )
+              ))}
+            </div>
+          ) : coverScope && card.coverArt ? (
             <AlbumCoverArtImage
               albumId={albumId}
               coverArt={card.coverArt}
@@ -169,7 +198,9 @@ export default function OfflineLibrary() {
         </div>
         <div className="album-card-info">
           <p className="album-card-title truncate">{card.name}</p>
-          <p className="album-card-artist truncate">{card.artist}</p>
+          {card.artist ? (
+            <p className="album-card-artist truncate">{card.artist}</p>
+          ) : null}
           {showServerLabels && serverLabel && (
             <p className="offline-library-server truncate" title={serverLabel}>
               {t('connection.offlineCachedOnServer', { server: serverLabel })}

@@ -11,6 +11,7 @@ import {
   getPlaybackServerId,
   shouldBindQueueServerForPlay,
 } from '../utils/playback/playbackServer';
+import { findLocalPlaybackUrl } from '../utils/offline/offlineLibraryHelpers';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 import { useAuthStore } from './authStore';
@@ -248,11 +249,16 @@ export function runPlayTrack(
     track.duration && track.duration > 0 ? Math.max(0, Math.min(1, initialTime / track.duration)) : 0;
 
   const authState = useAuthStore.getState();
+  const playbackProfileId = getPlaybackServerId();
+  const libraryLocalUrl = playbackProfileId
+    ? findLocalPlaybackUrl(track.id, playbackProfileId, 'library')
+    : null;
   // Same-track replay: Rust `fetch_data` consumes `stream_completed_cache` with
   // `take()` once; a second replay would full HTTP-range again unless we flush
   // RAM to hot disk first (promote was only run when switching to another track).
   const needSameTrackHotPromote =
-    Boolean(
+    !libraryLocalUrl
+    && Boolean(
       prevTrack
       && sameQueueTrackId(prevTrack.id, track.id)
       && authState.hotCacheEnabled
@@ -263,7 +269,9 @@ export function runPlayTrack(
     const authStateNow = useAuthStore.getState();
     const playbackSid = getPlaybackServerId();
     const playbackCacheSid = getPlaybackCacheServerKey();
-    const url = resolvePlaybackUrl(track.id, playbackCacheSid);
+    const url = libraryLocalUrl
+      ?? findLocalPlaybackUrl(track.id, playbackSid, 'library')
+      ?? resolvePlaybackUrl(track.id, playbackCacheSid);
     recordEnginePlayUrl(track.id, url);
     const preloadedTrackId = get().enginePreloadedTrackId;
     const keepPreloadHint = preloadedTrackId === track.id;

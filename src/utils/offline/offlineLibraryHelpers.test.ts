@@ -4,6 +4,7 @@ import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
 import { useOfflineStore } from '../../store/offlineStore';
 import { switchActiveServer } from '../server/switchActiveServer';
 import {
+  buildTracksForOfflineCard,
   ensureServerForOfflineCard,
   hasAnyOfflineAlbums,
   hydrateOfflineLibraryCards,
@@ -26,6 +27,7 @@ vi.mock('../../api/library', async importOriginal => {
   return {
     ...actual,
     libraryGetTracksBatch: vi.fn(),
+    libraryGetTrack: vi.fn(),
   };
 });
 
@@ -210,6 +212,44 @@ describe('offlineLibraryHelpers', () => {
     expect(cards[0]?.coverArt).toBe('al-1');
   });
 
+  it('hydrateOfflineLibraryCards uses playlist name, quad cover, and no artist line', async () => {
+    vi.mocked(libraryApi.libraryGetTracksBatch).mockResolvedValueOnce([
+      {
+        serverId: 'a',
+        id: 't1',
+        title: 'Song A',
+        artist: 'Artist A',
+        album: 'Album A',
+        albumId: 'al-a',
+        coverArtId: 'cov-a',
+        durationSec: 100,
+        syncedAt: 1,
+        rawJson: {},
+      },
+      {
+        serverId: 'a',
+        id: 't2',
+        title: 'Song B',
+        artist: 'Artist B',
+        album: 'Album B',
+        albumId: 'al-b',
+        coverArtId: 'cov-b',
+        durationSec: 100,
+        syncedAt: 1,
+        rawJson: {},
+      },
+    ]);
+    const cards = await hydrateOfflineLibraryCards([{
+      serverIndexKey: 'a.test',
+      pinSource: { kind: 'playlist', sourceId: 'pl-1', displayName: 'My Mix' },
+      trackIds: ['t1', 't2'],
+    }]);
+    expect(cards[0]?.name).toBe('My Mix');
+    expect(cards[0]?.artist).toBe('');
+    expect(cards[0]?.coverArt).toBeUndefined();
+    expect(cards[0]?.coverQuadIds).toEqual(['cov-a', 'cov-b', 'cov-a', 'cov-b']);
+  });
+
   it('hydrateOfflineLibraryCards uses legacy offline album coverArt', async () => {
     vi.mocked(libraryApi.libraryGetTracksBatch).mockResolvedValueOnce([]);
     useOfflineStore.setState({
@@ -232,6 +272,36 @@ describe('offlineLibraryHelpers', () => {
     expect(cards[0]?.coverArt).toBe('legacy-cover');
   });
 
+  it('buildTracksForOfflineCard falls back to local index when library batch misses', async () => {
+    vi.mocked(libraryApi.libraryGetTracksBatch).mockResolvedValueOnce([]);
+    vi.mocked(libraryApi.libraryGetTrack).mockResolvedValue(null as never);
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/media/library/a.test/Artist/Album/track.mp3',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1000,
+          tier: 'library',
+          cachedAt: 1,
+          suffix: 'mp3',
+          pinSource: { kind: 'album', sourceId: 'al1' },
+        },
+      },
+    });
+    const tracks = await buildTracksForOfflineCard({
+      serverIndexKey: 'a.test',
+      pinSource: { kind: 'album', sourceId: 'al1', displayName: 'Album' },
+      trackIds: ['t1'],
+      name: 'Album',
+      artist: 'Artist',
+    });
+    expect(tracks).toHaveLength(1);
+    expect(tracks[0]?.id).toBe('t1');
+    expect(tracks[0]?.suffix).toBe('mp3');
+  });
+
   it('ensureServerForOfflineCard switches when card is on another server', async () => {
     useAuthStore.setState({
       servers: [
@@ -248,8 +318,7 @@ describe('offlineLibraryHelpers', () => {
       artist: 'Ar',
     };
     await expect(ensureServerForOfflineCard(card)).resolves.toBe(true);
-    expect(switchActiveServer).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'a' }),
-    );
+    expect(useAuthStore.getState().activeServerId).toBe('a');
+    expect(switchActiveServer).not.toHaveBeenCalled();
   });
 });

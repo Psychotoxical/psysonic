@@ -1,6 +1,7 @@
+import { findLocalPlaybackUrl } from '../utils/offline/offlineLibraryHelpers';
 import { resolvePlaybackUrl, type PlaybackSourceKind } from '../utils/playback/resolvePlaybackUrl';
+import { resolveServerIdForIndexKey } from '../utils/server/serverLookup';
 import { sameQueueTrackId } from '../utils/playback/queueIdentity';
-import { useOfflineStore } from './offlineStore';
 
 /**
  * Helpers that classify the URL `audio_play` was last invoked with, so the
@@ -22,7 +23,8 @@ export function recordEnginePlayUrl(trackId: string, url: string): void {
 /** Matches `playTrack` / PlayerBar: stream vs hot-cache vs offline file from resolved `audio_play` URL. */
 export function playbackSourceHintForResolvedUrl(trackId: string, serverId: string, url: string): PlaybackSourceKind {
   if (!url.startsWith('psysonic-local://')) return 'stream';
-  return useOfflineStore.getState().getLocalUrl(trackId, serverId) ? 'offline' : 'hot';
+  const profileId = resolveServerIdForIndexKey(serverId) || serverId;
+  return findLocalPlaybackUrl(trackId, profileId, 'library') ? 'offline' : 'hot';
 }
 
 export function shouldRebindPlaybackToHotCache(trackId: string, serverId: string): boolean {

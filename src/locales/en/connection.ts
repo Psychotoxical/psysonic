@@ -11,6 +11,7 @@ export const connection = {
   offlineNoCacheBanner: 'No server connection — cannot reach {{server}}',
   offlineLibraryTitle: 'Offline Library',
   offlineLibraryEmpty: 'No albums cached yet. Go online, open an album and click "Make available offline".',
+  offlinePlaybackUnavailable: 'Local files for this album are missing or not indexed.',
   offlineCachedOnServer: 'On {{server}}',
   offlineAlbumCount: '{{n}} album',
   offlineAlbumCount_plural: '{{n}} albums',

@@ -1,14 +1,13 @@
 import type { LibraryTrackDto } from '../../api/library';
-import { libraryGetTracksBatch } from '../../api/library';
+import { libraryGetTrack, libraryGetTracksBatch } from '../../api/library';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import type { CoverServerScope } from '../../cover/types';
 import { useAuthStore } from '../../store/authStore';
 import type { LocalPlaybackEntry, PinnedGroup, PinSource } from '../../store/localPlaybackStore';
 import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
 import { useOfflineStore, type OfflineAlbumMeta } from '../../store/offlineStore';
-import { resolveTrackCoverArtId } from '../library/advancedSearchLocal';
-import { resolveIndexKey } from '../server/serverIndexKey';
-import { switchActiveServer } from '../server/switchActiveServer';
+import { resolveTrackCoverArtId, trackToSong } from '../library/advancedSearchLocal';
+import { canonicalQueueServerKey, resolveIndexKey } from '../server/serverIndexKey';
 import type { Track } from '../../store/playerStoreTypes';
 import { findServerByIdOrIndexKey, resolveServerIdForIndexKey } from '../server/serverLookup';
 import { serverIndexKeyForProfile } from '../server/serverIndexKey';
@@ -20,6 +19,8 @@ export interface OfflineLibraryCard {
   name: string;
   artist: string;
   coverArt?: string;
+  /** 2×2 collage when the playlist has no single custom cover. */
+  coverQuadIds?: (string | null)[];
   year?: number;
 }
 
@@ -180,14 +181,36 @@ function legacyCoverForPinnedGroup(group: PinnedGroup): string | undefined {
     }
   } catch { /* ignore */ }
 
+  const pinKind = group.pinSource.kind ?? 'album';
   for (const album of albums) {
     if (album.id !== group.pinSource.sourceId) continue;
+    if (album.type && album.type !== pinKind) continue;
     const albumKey = resolveIndexKey(album.serverId);
     if (albumKey !== group.serverIndexKey && album.serverId !== group.serverIndexKey) continue;
     const cover = album.coverArt?.trim();
     if (cover) return cover;
   }
   return undefined;
+}
+
+function buildPlaylistCoverQuad(
+  trackIds: string[],
+  byId: Map<string, LibraryTrackDto>,
+  libraryServerId: string,
+): (string | null)[] {
+  const seen = new Set<string>();
+  const covers: string[] = [];
+  for (const trackId of trackIds) {
+    const dto = byId.get(`${libraryServerId}:${trackId}`);
+    if (!dto) continue;
+    const cover = resolveTrackCoverArtId(dto);
+    if (!cover || seen.has(cover)) continue;
+    seen.add(cover);
+    covers.push(cover);
+    if (covers.length >= 4) break;
+  }
+  if (covers.length === 0) return [];
+  return Array.from({ length: 4 }, (_, i) => covers[i % covers.length] ?? null);
 }
 
 export async function hydrateOfflineLibraryCards(
@@ -208,15 +231,35 @@ export async function hydrateOfflineLibraryCards(
     const first = group.trackIds
       .map(tid => byId.get(`${libraryServerId}:${tid}`))
       .find(Boolean);
-    const displayName = group.pinSource.displayName
-      ?? first?.album
-      ?? first?.title
-      ?? group.pinSource.sourceId;
-    const artist = group.pinSource.kind === 'artist'
+    const pinKind = group.pinSource.kind ?? 'album';
+    const pinnedMeta = resolveOfflineAlbumMeta(group.pinSource.sourceId, libraryServerId);
+    const legacyCover = legacyCoverForPinnedGroup(group);
+    const displayName = pinKind === 'album'
+      ? (group.pinSource.displayName
+        ?? first?.album
+        ?? first?.title
+        ?? group.pinSource.sourceId)
+      : (group.pinSource.displayName ?? group.pinSource.sourceId);
+    const artist = pinKind === 'artist'
       ? (group.pinSource.displayName ?? first?.artist ?? '')
-      : (first?.artist ?? first?.albumArtist ?? '');
-    const coverArt = (first ? resolveTrackCoverArtId(first) : undefined)
-      ?? legacyCoverForPinnedGroup(group);
+      : pinKind === 'playlist'
+        ? ''
+        : (first?.artist ?? first?.albumArtist ?? '');
+
+    let coverArt: string | undefined;
+    let coverQuadIds: (string | null)[] | undefined;
+    if (pinKind === 'playlist') {
+      coverArt = pinnedMeta?.coverArt?.trim() || legacyCover || undefined;
+      if (!coverArt) {
+        const quad = buildPlaylistCoverQuad(group.trackIds, byId, libraryServerId);
+        if (quad.some(Boolean)) coverQuadIds = quad;
+      }
+    } else {
+      coverArt = pinnedMeta?.coverArt?.trim()
+        || legacyCover
+        || (first ? resolveTrackCoverArtId(first) : undefined);
+    }
+
     return {
       serverIndexKey: group.serverIndexKey,
       pinSource: group.pinSource,
@@ -224,21 +267,59 @@ export async function hydrateOfflineLibraryCards(
       name: displayName,
       artist,
       coverArt,
-      year: first?.year ?? undefined,
+      coverQuadIds,
+      year: pinKind === 'album' ? (first?.year ?? undefined) : undefined,
     };
   });
+}
+
+function fallbackTrackFromLocalEntry(
+  trackId: string,
+  serverId: string,
+  card: OfflineLibraryCard,
+): Track | null {
+  const entry = findLocalPlaybackEntry(trackId, serverId);
+  if (!entry?.localPath) return null;
+  return {
+    id: trackId,
+    title: card.pinSource.displayName ?? card.name,
+    artist: card.artist,
+    album: card.name,
+    albumId: card.pinSource.kind === 'album' ? card.pinSource.sourceId : '',
+    duration: 0,
+    coverArt: card.coverArt,
+    suffix: entry.suffix ?? 'mp3',
+    size: entry.sizeBytes,
+  };
 }
 
 export async function buildTracksForOfflineCard(card: OfflineLibraryCard): Promise<Track[]> {
   const serverId = resolveServerIdForIndexKey(card.serverIndexKey) || card.serverIndexKey;
   const localTrackIds = card.trackIds.filter(tid => hasLocalLibraryBytes(tid, serverId));
   if (localTrackIds.length === 0) return [];
+
   const refs = localTrackIds.map(trackId => ({ serverId, trackId }));
   const dtos = await libraryGetTracksBatch(refs);
+  const dtoById = new Map(dtos.map(d => [d.id, d]));
   const order = new Map(localTrackIds.map((id, i) => [id, i]));
-  return dtos
-    .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
-    .map(libraryDtoToTrack);
+  const tracks: Track[] = [];
+
+  for (const trackId of localTrackIds) {
+    const dto = dtoById.get(trackId);
+    if (dto) {
+      tracks.push(libraryDtoToTrack(dto));
+      continue;
+    }
+    const single = await libraryGetTrack(serverId, trackId).catch(() => null);
+    if (single) {
+      tracks.push(libraryDtoToTrack(single));
+      continue;
+    }
+    const fallback = fallbackTrackFromLocalEntry(trackId, serverId, card);
+    if (fallback) tracks.push(fallback);
+  }
+
+  return tracks.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 }
 
 /** @deprecated */
@@ -263,14 +344,22 @@ export function offlineAlbumCoverScope(card: Pick<OfflineLibraryCard, 'serverInd
   };
 }
 
+/** Offline play only needs the library index + on-disk bytes — no live server ping. */
 export async function ensureServerForOfflineCard(card: OfflineLibraryCard): Promise<boolean> {
   const { activeServerId, servers } = useAuthStore.getState();
-  const resolved = resolveServerIdForIndexKey(card.serverIndexKey);
+  const resolved = resolveServerIdForIndexKey(card.serverIndexKey) || card.serverIndexKey;
   if (resolved === activeServerId) return true;
   const server = servers.find(s => s.id === resolved)
     ?? findServerByIdOrIndexKey(card.serverIndexKey);
   if (!server) return false;
-  return switchActiveServer(server);
+  const auth = useAuthStore.getState();
+  auth.setActiveServer(server.id);
+  auth.setLoggedIn(true);
+  return true;
+}
+
+export function offlineQueueServerKeyForCard(card: OfflineLibraryCard): string {
+  return canonicalQueueServerKey(card.serverIndexKey);
 }
 
 export function offlineTrackCount(card: OfflineLibraryCard): number {
