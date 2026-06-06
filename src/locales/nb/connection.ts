@@ -13,6 +13,8 @@ export const connection = {
   offlineLibraryDiskLabel: 'På disk',
   offlineLibraryDiskUsage: 'På disk: {{size}}',
   offlineLibraryDiskUsageLoading: 'På disk: …',
+  offlineLibraryDiskTierLibrary: 'Offline-bibliotek (media/library): {{size}}',
+  offlineLibraryDiskTierFavorites: 'Favoritter (media/favorites): {{size}}',
   offlineLibraryEmpty: 'Ingen album bufret ennå. Kobl deg til nettverket, åpne et album og klikk "Gjør tilgjengelig frakoblet".',
   offlineCachedOnServer: 'På {{server}}',
   offlineAlbumCount: '{{n}} album',

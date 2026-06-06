@@ -13,6 +13,8 @@ export const connection = {
   offlineLibraryDiskLabel: '磁盘占用',
   offlineLibraryDiskUsage: '磁盘占用：{{size}}',
   offlineLibraryDiskUsageLoading: '磁盘占用：…',
+  offlineLibraryDiskTierLibrary: '离线库 (media/library)：{{size}}',
+  offlineLibraryDiskTierFavorites: '收藏 (media/favorites)：{{size}}',
   offlineLibraryEmpty: '尚未缓存任何专辑。请联网，打开专辑并点击"设为离线可用"。',
   offlineCachedOnServer: '来自 {{server}}',
   offlineAlbumCount_one: '{{n}} 张专辑',

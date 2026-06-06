@@ -13,6 +13,8 @@ export const connection = {
   offlineLibraryDiskLabel: 'Pe disc',
   offlineLibraryDiskUsage: 'Pe disc: {{size}}',
   offlineLibraryDiskUsageLoading: 'Pe disc: …',
+  offlineLibraryDiskTierLibrary: 'Bibliotecă offline (media/library): {{size}}',
+  offlineLibraryDiskTierFavorites: 'Favorite (media/favorites): {{size}}',
   offlineLibraryEmpty: 'Niciun album adăugat în cache. Conectează-te, deschide un album și apasă "Fă disponibil offline".',
   offlineCachedOnServer: 'Pe {{server}}',
   offlineAlbumCount: '{{n}} album',

@@ -11,6 +11,7 @@ import { AlbumCoverArtImage } from '../cover/AlbumCoverArtImage';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
+import { OfflineLibraryDiskStat } from '../components/OfflineLibraryDiskStat';
 import {
   buildOfflineCacheQueueTracks,
   buildOfflineFavoritesQueueTracks,
@@ -31,7 +32,6 @@ import {
 } from '../utils/offline/offlineLibraryHelpers';
 import { showToast } from '../utils/ui/toast';
 import { shuffleArray } from '../utils/playback/shuffleArray';
-import { formatBytes } from '../utils/format/formatBytes';
 import { getMediaDir } from '../utils/media/mediaDir';
 import { canonicalQueueServerKey, resolveIndexKey } from '../utils/server/serverIndexKey';
 import { reconcileAllLibraryTiersFromDisk } from '../utils/offline/libraryTierReconcile';
@@ -43,6 +43,8 @@ import {
 const OFFLINE_CARD_COVER_CSS_PX = 300;
 const OFFLINE_CACHE_GRID_KEY = '__offline_cache__';
 const OFFLINE_FAVORITES_GRID_KEY = '__offline_favorites__';
+
+type OfflineDiskBytes = { library: number | null; favorites: number | null };
 
 type FilterType = 'all' | 'album' | 'playlist' | 'artist';
 
@@ -78,15 +80,29 @@ export default function OfflineLibrary() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [cards, setCards] = useState<OfflineLibraryCard[]>([]);
   const [loading, setLoading] = useState(true);
-  const [libraryDiskBytes, setLibraryDiskBytes] = useState<number | null>(null);
+  const [offlineDiskBytes, setOfflineDiskBytes] = useState<OfflineDiskBytes>({
+    library: null,
+    favorites: null,
+  });
 
-  const refreshLibraryDiskSize = useCallback(async () => {
-    const bytes = await invoke<number>('get_media_tier_size', {
-      tier: 'library',
-      mediaDir: getMediaDir(),
-    }).catch(() => 0);
-    setLibraryDiskBytes(bytes);
+  const favoritesTrackCount = useMemo(
+    () => countFavoriteAutoTracks(),
+    [localPlaybackEntries],
+  );
+
+  const refreshOfflineDiskSizes = useCallback(async () => {
+    const mediaDir = getMediaDir();
+    const [library, favorites] = await Promise.all([
+      invoke<number>('get_media_tier_size', { tier: 'library', mediaDir }).catch(() => 0),
+      invoke<number>('get_media_tier_size', { tier: 'favorites', mediaDir }).catch(() => 0),
+    ]);
+    setOfflineDiskBytes({ library, favorites });
   }, []);
+
+  const totalOfflineDiskBytes = useMemo(() => {
+    if (offlineDiskBytes.library === null || offlineDiskBytes.favorites === null) return null;
+    return offlineDiskBytes.library + offlineDiskBytes.favorites;
+  }, [offlineDiskBytes]);
 
   const serverNames = useMemo(
     () => Object.fromEntries(servers.map(s => [s.id, s.name])),
@@ -95,13 +111,13 @@ export default function OfflineLibrary() {
   const showServerLabels = servers.length > 1;
 
   const refreshCardsFromDisk = useCallback(async (): Promise<OfflineLibraryCard[]> => {
-    await Promise.all([reconcileAllLibraryTiersFromDisk(), refreshLibraryDiskSize()]);
+    await Promise.all([reconcileAllLibraryTiersFromDisk(), refreshOfflineDiskSizes()]);
     restoreOfflineLibraryPinSources();
     await inferPinSourcesFromLibraryIndex();
     const groups = useLocalPlaybackStore.getState().listPinnedGroups();
     const hydrated = await hydrateOfflineLibraryCards(groups);
     return hydrated.filter(card => offlineTrackCount(card) > 0);
-  }, [refreshLibraryDiskSize]);
+  }, [refreshOfflineDiskSizes]);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,7 +130,11 @@ export default function OfflineLibrary() {
       if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [pinRefreshKey, mediaDir, refreshCardsFromDisk]);
+  }, [pinRefreshKey, mediaDir, favoritesTrackCount, refreshCardsFromDisk]);
+
+  useEffect(() => {
+    void refreshOfflineDiskSizes();
+  }, [favoritesTrackCount, mediaDir, refreshOfflineDiskSizes]);
 
   useEffect(() => {
     const refresh = () => {
@@ -142,11 +162,6 @@ export default function OfflineLibrary() {
 
   const cacheQueueTrackCount = useMemo(
     () => countEphemeralCacheTracks(),
-    [localPlaybackEntries],
-  );
-
-  const favoritesTrackCount = useMemo(
-    () => countFavoriteAutoTracks(),
     [localPlaybackEntries],
   );
 
@@ -611,12 +626,12 @@ export default function OfflineLibrary() {
             </p>
           </div>
         </div>
-        <div className="offline-library-header-stat" aria-live="polite">
-          <span className="offline-library-disk-label">{t('connection.offlineLibraryDiskLabel')}</span>
-          <span className="offline-library-disk-value">
-            {libraryDiskBytes !== null ? formatBytes(libraryDiskBytes) : '…'}
-          </span>
-        </div>
+        <OfflineLibraryDiskStat
+          label={t('connection.offlineLibraryDiskLabel')}
+          totalBytes={totalOfflineDiskBytes}
+          libraryBytes={offlineDiskBytes.library}
+          favoritesBytes={offlineDiskBytes.favorites}
+        />
       </div>
 
       <div className="offline-filter-tabs">

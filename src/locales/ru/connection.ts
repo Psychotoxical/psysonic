@@ -13,6 +13,8 @@ export const connection = {
   offlineLibraryDiskLabel: 'На диске',
   offlineLibraryDiskUsage: 'На диске: {{size}}',
   offlineLibraryDiskUsageLoading: 'На диске: …',
+  offlineLibraryDiskTierLibrary: 'Офлайн-библиотека (media/library): {{size}}',
+  offlineLibraryDiskTierFavorites: 'Избранное (media/favorites): {{size}}',
   offlineLibraryEmpty:
     'Пока ничего не сохранено. Подключитесь к сети, откройте альбом и нажмите «Сохранить офлайн».',
   offlinePlaybackUnavailable: 'Локальные файлы альбома не найдены или не проиндексированы.',

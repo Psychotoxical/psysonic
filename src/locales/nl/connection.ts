@@ -13,6 +13,8 @@ export const connection = {
   offlineLibraryDiskLabel: 'Op schijf',
   offlineLibraryDiskUsage: 'Op schijf: {{size}}',
   offlineLibraryDiskUsageLoading: 'Op schijf: …',
+  offlineLibraryDiskTierLibrary: 'Offline-bibliotheek (media/library): {{size}}',
+  offlineLibraryDiskTierFavorites: 'Favorieten (media/favorites): {{size}}',
   offlineLibraryEmpty: 'Nog geen albums gecached. Ga online, open een album en klik op "Offline beschikbaar maken".',
   offlineCachedOnServer: 'Op {{server}}',
   offlineAlbumCount: '{{n}} album',

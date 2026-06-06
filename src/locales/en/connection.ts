@@ -13,6 +13,8 @@ export const connection = {
   offlineLibraryDiskLabel: 'On disk',
   offlineLibraryDiskUsage: 'On disk: {{size}}',
   offlineLibraryDiskUsageLoading: 'On disk: …',
+  offlineLibraryDiskTierLibrary: 'Offline library (media/library): {{size}}',
+  offlineLibraryDiskTierFavorites: 'Favorites (media/favorites): {{size}}',
   offlineLibraryEmpty: 'No albums cached yet. Go online, open an album and click "Make available offline".',
   offlinePlaybackUnavailable: 'Local files for this album are missing or not indexed.',
   offlineCachedOnServer: 'On {{server}}',

@@ -13,6 +13,8 @@ export const connection = {
   offlineLibraryDiskLabel: 'En disco',
   offlineLibraryDiskUsage: 'En disco: {{size}}',
   offlineLibraryDiskUsageLoading: 'En disco: …',
+  offlineLibraryDiskTierLibrary: 'Biblioteca offline (media/library): {{size}}',
+  offlineLibraryDiskTierFavorites: 'Favoritos (media/favorites): {{size}}',
   offlineLibraryEmpty: 'No hay álbumes en caché aún. Conéctate, abre un álbum y click en "Disponible offline".',
   offlineCachedOnServer: 'En {{server}}',
   offlineAlbumCount: '{{n}} álbum',
