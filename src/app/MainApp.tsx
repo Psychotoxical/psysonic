@@ -15,7 +15,7 @@ import { useGlobalShortcutsStore } from '../store/globalShortcutsStore';
 import { initHotCachePrefetch } from '../hotCachePrefetch';
 import { initLocalPlaybackInvalidation } from '../localPlaybackInvalidation';
 import { initFavoritesOfflineSync } from '../utils/offline/favoritesOfflineSync';
-import { initPinnedPlaylistOfflineSync } from '../utils/offline/pinnedPlaylistOfflineSync';
+import { initPinnedOfflineSync } from '../utils/offline/pinnedOfflineSync';
 import { initResumeIncompleteOfflinePins, scheduleResumeIncompleteOfflinePins } from '../utils/offline/resumeIncompleteOfflinePins';
 import { runLegacyOfflineFileMigration } from '../utils/migrations/legacyOfflineFileMigration';
 import { reconcileLibraryTierForServer } from '../utils/offline/libraryTierReconcile';
@@ -116,12 +116,12 @@ export default function MainApp() {
     })();
     const stopInvalidation = initLocalPlaybackInvalidation();
     const stopFavoritesSync = initFavoritesOfflineSync();
-    const stopPinnedPlaylistSync = initPinnedPlaylistOfflineSync();
+    const stopPinnedOfflineSync = initPinnedOfflineSync();
     const stopOfflineResume = initResumeIncompleteOfflinePins();
     return () => {
       stopInvalidation();
       stopFavoritesSync();
-      stopPinnedPlaylistSync();
+      stopPinnedOfflineSync();
       stopOfflineResume();
     };
   }, [migrationReady, serverIdsKey]);

@@ -7,11 +7,14 @@ import { useOfflineStore } from '../../store/offlineStore';
 import {
   isManualOfflinePlaylist,
   isPlaylistPinnedOffline,
+  isSourcePinnedOffline,
+  schedulePinnedAlbumSync,
   schedulePinnedPlaylistSync,
-} from './pinnedPlaylistOfflineSync';
+} from './pinnedOfflineSync';
 import { SMART_PREFIX } from '../componentHelpers/playlistDetailHelpers';
 
 const getPlaylistMock = vi.fn();
+const getAlbumForServerMock = vi.fn();
 const filterSongsMock = vi.fn(async (songs: SubsonicSong[]) => songs);
 const isReachableMock = vi.fn(() => true);
 const enqueueMock = vi.fn((_task: unknown) => true);
@@ -27,6 +30,7 @@ vi.mock('../../api/subsonicPlaylists', () => ({
 }));
 
 vi.mock('../../api/subsonicLibrary', () => ({
+  getAlbumForServer: (serverId: string, id: string) => getAlbumForServerMock(serverId, id),
   filterSongsToServerLibrary: (songs: SubsonicSong[]) => filterSongsMock(songs),
 }));
 
@@ -53,14 +57,18 @@ function song(id: string): SubsonicSong {
   };
 }
 
+function seedAuth(): void {
+  useAuthStore.setState({
+    activeServerId: 'srv-a',
+    servers: [{ id: 'srv-a', name: 'A', url: 'https://a.test', username: 'u', password: 'p' }],
+  });
+}
+
 describe('isPlaylistPinnedOffline', () => {
   beforeEach(() => {
     useOfflineStore.setState({ albums: {} });
     useLocalPlaybackStore.setState({ entries: {} });
-    useAuthStore.setState({
-      activeServerId: 'srv-a',
-      servers: [{ id: 'srv-a', name: 'A', url: 'https://a.test', username: 'u', password: 'p' }],
-    });
+    seedAuth();
   });
 
   it('returns true when offline meta marks a playlist pin', () => {
@@ -85,12 +93,7 @@ describe('isPlaylistPinnedOffline', () => {
 });
 
 describe('isManualOfflinePlaylist', () => {
-  beforeEach(() => {
-    useAuthStore.setState({
-      activeServerId: 'srv-a',
-      servers: [{ id: 'srv-a', name: 'A', url: 'https://a.test', username: 'u', password: 'p' }],
-    });
-  });
+  beforeEach(() => seedAuth());
 
   it('rejects smart playlist names', () => {
     expect(isManualOfflinePlaylist('pl-1', 'srv-a', `${SMART_PREFIX}Jazz`)).toBe(false);
@@ -136,10 +139,7 @@ describe('schedulePinnedPlaylistSync', () => {
         },
       },
     });
-    useAuthStore.setState({
-      activeServerId: 'srv-a',
-      servers: [{ id: 'srv-a', name: 'A', url: 'https://a.test', username: 'u', password: 'p' }],
-    });
+    seedAuth();
     getPlaylistMock.mockResolvedValue({
       playlist: { id: 'pl-1', name: 'Road mix', songCount: 1 },
       songs: [song('t2')],
@@ -192,6 +192,69 @@ describe('schedulePinnedPlaylistSync', () => {
       }),
     );
     expect(useOfflineStore.getState().albums['a.test:pl-1']?.trackIds).toEqual(['t2']);
+  });
+});
+
+describe('schedulePinnedAlbumSync', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    isReachableMock.mockReturnValue(true);
+    getAlbumForServerMock.mockReset();
+    enqueueMock.mockReset();
+    invokeMock.mockClear();
+    useOfflineJobStoreReset();
+    useOfflineStore.setState({
+      albums: {
+        'a.test:al-1': {
+          id: 'al-1',
+          serverId: 'a.test',
+          name: 'Album',
+          artist: 'Artist',
+          trackIds: ['t1'],
+          type: 'album',
+        },
+      },
+    });
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/media/library/a.test/a/al/t1.mp3',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1000,
+          tier: 'library',
+          cachedAt: 1,
+          suffix: 'mp3',
+          pinSource: { kind: 'album', sourceId: 'al-1', displayName: 'Album' },
+        },
+      },
+    });
+    seedAuth();
+    getAlbumForServerMock.mockResolvedValue({
+      album: { id: 'al-1', name: 'Album', artist: 'Artist', coverArt: 'c1' },
+      songs: [song('t2')],
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('reconciles a cached album against the live track list', async () => {
+    expect(isSourcePinnedOffline('al-1', 'srv-a', 'album')).toBe(true);
+    schedulePinnedAlbumSync('al-1');
+    await vi.advanceTimersByTimeAsync(700);
+
+    expect(getAlbumForServerMock).toHaveBeenCalledWith('srv-a', 'al-1');
+    expect(enqueueMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        albumId: 'al-1',
+        type: 'album',
+        songs: [expect.objectContaining({ id: 't2' })],
+      }),
+    );
+    expect(useOfflineStore.getState().albums['a.test:al-1']?.trackIds).toEqual(['t2']);
   });
 });
 

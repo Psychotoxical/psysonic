@@ -34,7 +34,7 @@ export async function runPlaylistLoad(deps: RunPlaylistLoadDeps): Promise<void> 
     setStarredSongs(starred);
     const serverId = useAuthStore.getState().activeServerId;
     if (serverId) {
-      void import('../offline/pinnedPlaylistOfflineSync')
+      void import('../offline/pinnedOfflineSync')
         .then(m => {
           if (m.isManualOfflinePlaylist(id, serverId) && m.isPlaylistPinnedOffline(id, serverId)) {
             m.schedulePinnedPlaylistSync(id, serverId);

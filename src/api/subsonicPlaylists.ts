@@ -40,7 +40,7 @@ export async function updatePlaylist(id: string, songIds: string[], prevCount = 
       songIndexToRemove: Array.from({ length: prevCount }, (_, i) => i),
     });
   }
-  void import('../utils/offline/pinnedPlaylistOfflineSync')
+  void import('../utils/offline/pinnedOfflineSync')
     .then(m => m.schedulePinnedPlaylistSync(id))
     .catch(() => {});
 }

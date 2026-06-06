@@ -48,7 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **`localPlaybackStore`** replaces the split hot-cache / offline metadata stores — one index drives prefetch, promotion, eviction, and `psysonic-local://` playback resolution.
 * **Offline Library** lists pinned and favorites-tier tracks by joining that index with the SQLite library catalog (no duplicate offline album cards). Pin album, playlist, or artist from browse; disk usage shown in the Offline Library header.
 * **Favorites auto-sync** keeps starred tracks on disk in `media/favorites/` with a compact toggle, cross-server reconcile, and cancel-on-unstar so orphaned files are not left behind.
-* **Cached playlists stay in sync** — a manually offline-pinned regular playlist re-downloads added tracks and removes dropped ones when the track list changes; **smart playlists** (`psy-smart-…`) are excluded because their contents refresh from server rules automatically.
+* **Cached offline pins stay in sync** — manually pinned **albums**, **regular playlists**, and **artist discographies** re-download added tracks and remove dropped ones when the server track list changes (including on reopen and reconnect). **Smart playlists** (`psy-smart-…`) are excluded — their contents refresh from server rules automatically.
 * Mixed-server queues play offline with correct per-track server scope; network guards skip Subsonic when local bytes exist.
 * Startup migration from legacy `psysonic-offline/` layout; Settings → Storage uses a single **media directory** picker and a live hot-cache track count.
 

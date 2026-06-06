@@ -58,6 +58,16 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
       data.songs.forEach(s => { if (s.starred) initialStarred.add(s.id); });
       setStarredSongs(initialStarred);
       setLoading(false);
+      const serverForSync = detailServerId ?? activeServerId;
+      if (serverForSync && id) {
+        void import('../utils/offline/pinnedOfflineSync')
+          .then(m => {
+            if (m.isSourcePinnedOffline(id, serverForSync, 'album')) {
+              m.schedulePinnedAlbumSync(id, serverForSync);
+            }
+          })
+          .catch(() => {});
+      }
     };
 
     const loadRelatedAlbums = async (
