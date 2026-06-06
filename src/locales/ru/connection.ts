@@ -10,6 +10,9 @@ export const connection = {
   offlineModeBanner: 'Офлайн — воспроизведение из локального кэша',
   offlineNoCacheBanner: 'Нет соединения с сервером — {{server}} недоступен',
   offlineLibraryTitle: 'Офлайн-библиотека',
+  offlineLibraryDiskLabel: 'На диске',
+  offlineLibraryDiskUsage: 'На диске: {{size}}',
+  offlineLibraryDiskUsageLoading: 'На диске: …',
   offlineLibraryEmpty:
     'Пока ничего не сохранено. Подключитесь к сети, откройте альбом и нажмите «Сохранить офлайн».',
   offlinePlaybackUnavailable: 'Локальные файлы альбома не найдены или не проиндексированы.',

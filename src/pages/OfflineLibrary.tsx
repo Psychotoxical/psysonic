@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { Play, HardDriveDownload, Trash2, ListPlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useOfflineStore } from '../store/offlineStore';
@@ -19,6 +20,8 @@ import {
   type OfflineLibraryCard,
 } from '../utils/offline/offlineLibraryHelpers';
 import { showToast } from '../utils/ui/toast';
+import { formatBytes } from '../utils/format/formatBytes';
+import { getMediaDir } from '../utils/media/mediaDir';
 import { resolveIndexKey } from '../utils/server/serverIndexKey';
 import { reconcileAllLibraryTiersFromDisk } from '../utils/offline/libraryTierReconcile';
 import {
@@ -34,6 +37,7 @@ export default function OfflineLibrary() {
   const { t } = useTranslation();
   const perfFlags = usePerfProbeFlags();
   const servers = useAuthStore(s => s.servers);
+  const mediaDir = useAuthStore(s => s.mediaDir || null);
   const pinRefreshKey = useLocalPlaybackStore(s => {
     const groups = s.listPinnedGroups();
     return groups
@@ -47,6 +51,15 @@ export default function OfflineLibrary() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [cards, setCards] = useState<OfflineLibraryCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [libraryDiskBytes, setLibraryDiskBytes] = useState<number | null>(null);
+
+  const refreshLibraryDiskSize = useCallback(async () => {
+    const bytes = await invoke<number>('get_media_tier_size', {
+      tier: 'library',
+      mediaDir: getMediaDir(),
+    }).catch(() => 0);
+    setLibraryDiskBytes(bytes);
+  }, []);
 
   const serverNames = useMemo(
     () => Object.fromEntries(servers.map(s => [s.id, s.name])),
@@ -55,13 +68,13 @@ export default function OfflineLibrary() {
   const showServerLabels = servers.length > 1;
 
   const refreshCardsFromDisk = useCallback(async (): Promise<OfflineLibraryCard[]> => {
-    await reconcileAllLibraryTiersFromDisk();
+    await Promise.all([reconcileAllLibraryTiersFromDisk(), refreshLibraryDiskSize()]);
     restoreOfflineLibraryPinSources();
     await inferPinSourcesFromLibraryIndex();
     const groups = useLocalPlaybackStore.getState().listPinnedGroups();
     const hydrated = await hydrateOfflineLibraryCards(groups);
     return hydrated.filter(card => offlineTrackCount(card) > 0);
-  }, []);
+  }, [refreshLibraryDiskSize]);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,7 +87,7 @@ export default function OfflineLibrary() {
       if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [pinRefreshKey, refreshCardsFromDisk]);
+  }, [pinRefreshKey, mediaDir, refreshCardsFromDisk]);
 
   useEffect(() => {
     const refresh = () => {
@@ -268,12 +281,20 @@ export default function OfflineLibrary() {
   return (
     <div className="offline-library animate-fade-in">
       <div className="offline-library-header">
-        <HardDriveDownload size={24} />
-        <div>
-          <h1 className="offline-library-title">{t('connection.offlineLibraryTitle')}</h1>
-          <p className="offline-library-count">
-            {t('connection.offlineAlbumCount', { n: cards.length, count: cards.length })}
-          </p>
+        <div className="offline-library-header-main">
+          <HardDriveDownload size={24} className="offline-library-header-icon" />
+          <div>
+            <h1 className="offline-library-title">{t('connection.offlineLibraryTitle')}</h1>
+            <p className="offline-library-count">
+              {t('connection.offlineAlbumCount', { n: cards.length, count: cards.length })}
+            </p>
+          </div>
+        </div>
+        <div className="offline-library-header-stat" aria-live="polite">
+          <span className="offline-library-disk-label">{t('connection.offlineLibraryDiskLabel')}</span>
+          <span className="offline-library-disk-value">
+            {libraryDiskBytes !== null ? formatBytes(libraryDiskBytes) : '…'}
+          </span>
         </div>
       </div>
 
