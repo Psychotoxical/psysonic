@@ -40,6 +40,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Offline — unified local playback, library index join, and favorites sync
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1008](https://github.com/Psychotoxical/psysonic/pull/1008)**
+
+* All local audio bytes live under one **`media/`** tree: `cache/` (ephemeral hot-cache), `library/` (user-pinned offline), and `favorites/` (auto-synced stars). Paths use library-index metadata and the URL-derived server index key so two profiles on the same server share one bucket.
+* **`localPlaybackStore`** replaces the split hot-cache / offline metadata stores — one index drives prefetch, promotion, eviction, and `psysonic-local://` playback resolution.
+* **Offline Library** lists pinned and favorites-tier tracks by joining that index with the SQLite library catalog (no duplicate offline album cards). Pin album, playlist, or artist from browse; disk usage shown in the Offline Library header.
+* **Favorites auto-sync** keeps starred tracks on disk in `media/favorites/` with a compact toggle, cross-server reconcile, and cancel-on-unstar so orphaned files are not left behind.
+* Mixed-server queues play offline with correct per-track server scope; network guards skip Subsonic when local bytes exist.
+* Startup migration from legacy `psysonic-offline/` layout; Settings → Storage uses a single **media directory** picker and a live hot-cache track count.
+
+
+
 ## Changed
 
 ### Dependencies — npm and Rust refresh
