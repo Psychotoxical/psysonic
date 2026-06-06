@@ -1,0 +1,86 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   Semantic cascade layer — granular, per-region theme override points.
+
+   Every token here defaults to a base token (or, for on-media surfaces, a
+   media-safe literal). That makes this file a VISUAL NO-OP: the app looks
+   identical until a theme deliberately overrides one of these tokens. It only
+   ADDS fine-grained control — e.g. a theme can recolour the sidebar hover
+   without touching every other hover.
+
+   Imported right after the base theme (catppuccin-mocha-variables.css) and
+   before every other theme file, so any [data-theme] block can override a
+   token here (equal specificity → later source wins). Resolution is per-theme:
+   `--sidebar-item-hover: var(--bg-hover)` picks up whatever --bg-hover the
+   active theme set.
+
+   Community theme-store contract: these are the OPTIONAL granular tokens. The
+   required base set stays the ~25 core tokens. See psysonic-themes/schema.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* ── Sidebar ─────────────────────────────────────────────── */
+  --sidebar-item-hover: var(--bg-hover);
+  --sidebar-item-active-bg: var(--accent-dim);
+  --sidebar-item-active-text: var(--accent);
+  --sidebar-text: var(--text-secondary);
+  --sidebar-text-active: var(--accent);
+  --sidebar-trigger-bg: var(--bg-card);
+  --sidebar-border: var(--border-subtle);
+
+  /* ── Player bar ──────────────────────────────────────────── */
+  --player-control: var(--text-muted);
+  --player-control-hover: var(--text-primary);
+  --player-control-hover-bg: var(--bg-hover);
+  --player-time-toggle-hover: var(--bg-hover);
+  --player-time-toggle-active: var(--bg-card);
+  --player-border: var(--border-subtle);
+
+  /* ── Lists / tracklist / queue ───────────────────────────── */
+  --row-hover: var(--bg-hover);
+  --row-active-bg: var(--accent-dim);
+  --row-playing-bg: var(--accent-dim);
+  --row-playing-text: var(--accent);
+  --row-divider: var(--border-subtle);
+  --row-text: var(--text-primary);
+  --row-text-secondary: var(--text-secondary);
+  --row-text-muted: var(--text-muted);
+  --col-header-text: var(--text-muted);
+  --col-resize-active: var(--accent);
+
+  /* ── Cards / grids ───────────────────────────────────────── */
+  --card-hover-border: var(--border);
+  --card-title: var(--text-primary);
+  --card-subtitle: var(--text-muted);
+  --card-placeholder-bg: var(--bg-hover);
+
+  /* ── Menus / dropdowns / modals ──────────────────────────── */
+  --menu-bg: var(--bg-card);
+  --menu-item-hover: var(--bg-hover);
+  --menu-item-active-text: var(--accent);
+  --menu-divider: var(--border-subtle);
+  --modal-bg: var(--bg-card);
+  --modal-scrim: rgba(17, 17, 27, 0.85);
+
+  /* ── Controls — buttons / inputs / sliders ───────────────── */
+  --input-bg: var(--bg-card);
+  --input-border: var(--border);
+  --input-focus-border: var(--accent);
+  --button-ghost-hover: var(--bg-hover);
+  --slider-track: var(--bg-hover);
+  --slider-thumb: var(--text-primary);
+  --slider-thumb-hover: var(--accent);
+
+  /* ── Scrollbar ───────────────────────────────────────────── */
+  --scrollbar-thumb: var(--border);
+  --scrollbar-track: transparent;
+
+  /* ── On-media — surfaces over cover art (fullscreen, hero, np-dash).
+        Media-safe defaults (white-on-image text, dark glass). Themeable,
+        but safe by default over any album cover. ────────────────────── */
+  --on-media-text: rgba(255, 255, 255, 0.92);
+  --on-media-text-dim: rgba(255, 255, 255, 0.6);
+  --on-media-text-muted: rgba(255, 255, 255, 0.45);
+  --on-media-surface: rgba(0, 0, 0, 0.5);
+  --on-media-surface-strong: rgba(0, 0, 0, 0.88);
+  --on-media-hover: rgba(255, 255, 255, 0.12);
+  --on-media-border: rgba(255, 255, 255, 0.1);
+}

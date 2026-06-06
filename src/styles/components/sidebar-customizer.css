@@ -10,7 +10,7 @@
 }
 
 .sidebar-customizer-row:hover {
-  background: var(--bg-hover);
+  background: var(--sidebar-item-hover);
 }
 
 .sidebar-customizer-row.drag-over {

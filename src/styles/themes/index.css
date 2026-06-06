@@ -1,5 +1,6 @@
 @import './_intro.css';
 @import './catppuccin-mocha-variables.css';
+@import './semantic-cascade.css';
 @import './catppuccin-macchiato-variables.css';
 @import './catppuccin-frapp-variables.css';
 @import './catppuccin-latte-variables-light-theme.css';

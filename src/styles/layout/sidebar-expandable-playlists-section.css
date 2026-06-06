@@ -33,13 +33,13 @@
 }
 
 .sidebar-playlists-toggle:hover {
-  background: var(--bg-hover);
+  background: var(--sidebar-item-hover);
   color: var(--text-primary);
 }
 
 .sidebar-playlists-toggle.expanded {
   transform: rotate(90deg);
-  color: var(--accent);
+  color: var(--sidebar-item-active-text);
 }
 
 .sidebar-playlists-section {
@@ -54,7 +54,7 @@
   width: 100%;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
-  color: var(--text-secondary);
+  color: var(--sidebar-text);
   font-size: 14px;
   font-weight: 500;
   transition: background var(--transition-fast), color var(--transition-fast);
@@ -65,13 +65,13 @@
 }
 
 .sidebar-playlists-header:hover {
-  background: var(--bg-hover);
+  background: var(--sidebar-item-hover);
   color: var(--text-primary);
 }
 
 .sidebar-playlists-header.active {
-  background: var(--accent-dim);
-  color: var(--accent);
+  background: var(--sidebar-item-active-bg);
+  color: var(--sidebar-item-active-text);
 }
 
 .sidebar-playlists-chevron {
@@ -99,7 +99,7 @@
   gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-md);
-  color: var(--text-secondary);
+  color: var(--sidebar-text);
   font-size: 13px;
   font-weight: 400;
   transition: background var(--transition-fast), color var(--transition-fast);
@@ -115,13 +115,13 @@
 }
 
 .sidebar-playlist-item:hover {
-  background: var(--bg-hover);
+  background: var(--sidebar-item-hover);
   color: var(--text-primary);
 }
 
 .sidebar-playlist-item.active {
-  background: var(--accent-dim);
-  color: var(--accent);
+  background: var(--sidebar-item-active-bg);
+  color: var(--sidebar-item-active-text);
 }
 
 .sidebar-playlists-loading {
