@@ -10,6 +10,7 @@ import {
   isSourcePinnedOffline,
   schedulePinnedAlbumSync,
   schedulePinnedPlaylistSync,
+  scheduleSyncPinnedAlbumsAndArtists,
 } from './pinnedOfflineSync';
 import { SMART_PREFIX } from '../componentHelpers/playlistDetailHelpers';
 
@@ -32,6 +33,11 @@ vi.mock('../../api/subsonicPlaylists', () => ({
 vi.mock('../../api/subsonicLibrary', () => ({
   getAlbumForServer: (serverId: string, id: string) => getAlbumForServerMock(serverId, id),
   filterSongsToServerLibrary: (songs: SubsonicSong[]) => filterSongsMock(songs),
+}));
+
+vi.mock('../../api/library', () => ({
+  libraryGetTracksByAlbum: vi.fn(async () => []),
+  subscribeLibrarySyncIdle: vi.fn(async () => () => {}),
 }));
 
 vi.mock('./offlinePinQueue', async (importOriginal) => {
@@ -192,6 +198,44 @@ describe('schedulePinnedPlaylistSync', () => {
       }),
     );
     expect(useOfflineStore.getState().albums['a.test:pl-1']?.trackIds).toEqual(['t2']);
+  });
+});
+
+describe('scheduleSyncPinnedAlbumsAndArtists', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    isReachableMock.mockReturnValue(true);
+    getAlbumForServerMock.mockReset();
+    enqueueMock.mockReset();
+    useOfflineJobStoreReset();
+    useOfflineStore.setState({
+      albums: {
+        'a.test:al-1': {
+          id: 'al-1',
+          serverId: 'a.test',
+          name: 'Album',
+          artist: 'Artist',
+          trackIds: ['t1'],
+          type: 'album',
+        },
+      },
+    });
+    seedAuth();
+    getAlbumForServerMock.mockResolvedValue({
+      album: { id: 'al-1', name: 'Album', artist: 'Artist', coverArt: 'c1' },
+      songs: [song('t2')],
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('reconciles cached albums after a debounced library-scope trigger', async () => {
+    scheduleSyncPinnedAlbumsAndArtists('srv-a');
+    await vi.advanceTimersByTimeAsync(700);
+    expect(getAlbumForServerMock).toHaveBeenCalledWith('srv-a', 'al-1');
+    expect(useOfflineStore.getState().albums['a.test:al-1']?.trackIds).toEqual(['t2']);
   });
 });
 

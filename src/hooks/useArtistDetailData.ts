@@ -32,22 +32,6 @@ export interface ArtistDetailDataResult {
   losslessOnly: boolean;
 }
 
-function scheduleArtistOfflineResync(
-  artistId: string,
-  serverId: string | null | undefined,
-  albumList: SubsonicAlbum[],
-): void {
-  if (!serverId) return;
-  const albumIds = albumList.map(a => a.id);
-  void import('../utils/offline/pinnedOfflineSync')
-    .then(m => {
-      if (m.isArtistDiscographyPinnedOffline(serverId, albumIds)) {
-        m.schedulePinnedArtistSync(artistId, serverId, albumIds);
-      }
-    })
-    .catch(() => {});
-}
-
 function filterNetworkArtistToLossless(
   albums: SubsonicAlbum[],
   songs: SubsonicSong[],
@@ -107,7 +91,6 @@ export function useArtistDetailData(
             setAlbums(local.albums);
             setTopSongs([]);
             setLoading(false);
-            scheduleArtistOfflineResync(id, serverId, local.albums);
             return;
           }
         }
@@ -127,7 +110,6 @@ export function useArtistDetailData(
             setAlbums(local.albums);
             setTopSongs([...local.songs].sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0)));
             setLoading(false);
-            scheduleArtistOfflineResync(id, serverId, local.albums);
             return;
           }
         }
@@ -149,7 +131,6 @@ export function useArtistDetailData(
         }
         setAlbums(nextAlbums);
         setTopSongs(nextSongs);
-        scheduleArtistOfflineResync(id, serverId, nextAlbums);
       } catch (err) {
         if (!cancelled) {
           if (preferLocalArtist && serverId && id) {
@@ -162,7 +143,6 @@ export function useArtistDetailData(
                 setAlbums(local.albums);
                 setTopSongs([]);
                 setLoading(false);
-                scheduleArtistOfflineResync(id, serverId, local.albums);
                 return;
               }
             } catch { /* ignore */ }

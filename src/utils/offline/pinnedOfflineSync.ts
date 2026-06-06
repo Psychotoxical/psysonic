@@ -1,3 +1,4 @@
+import { libraryGetTracksByAlbum, subscribeLibrarySyncIdle } from '../../api/library';
 import { getAlbumForServer, filterSongsToServerLibrary } from '../../api/subsonicLibrary';
 import { getPlaylist } from '../../api/subsonicPlaylists';
 import { getArtistForServer } from '../../api/subsonicArtists';
@@ -23,11 +24,19 @@ export type OfflinePinKind = PinSource['kind'];
 
 const DEBOUNCE_MS = 600;
 const RETRY_WHILE_DOWNLOADING_MS = 2500;
+/** Cached regular playlists reconcile on this interval (and on in-app edits). */
+const PLAYLIST_SYNC_INTERVAL_MS = 60 * 60 * 1000;
 
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-const pendingSourceJobs: { kind: OfflinePinKind; sourceId: string; serverId?: string }[] = [];
+let playlistDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let albumArtistDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+const pendingPlaylistJobs: { sourceId: string; serverId?: string }[] = [];
+const pendingAlbumJobs: { sourceId: string; serverId?: string }[] = [];
 const pendingArtistJobs: { artistId: string; serverId: string; albumIds?: string[] }[] = [];
+/** Empty set entry means all servers; otherwise profile ids from library idle. */
+const pendingAlbumArtistServers = new Set<string | null>();
 const retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+let playlistSyncInterval: ReturnType<typeof setInterval> | null = null;
+let stopLibraryIdle: (() => void) | null = null;
 
 function serverIndexKeyForOffline(serverId: string): string {
   const server = useAuthStore.getState().servers.find(s => s.id === serverId);
@@ -364,29 +373,81 @@ export async function syncPinnedArtistIfNeeded(
   }
 }
 
-function flushPendingSyncJobs(): void {
-  debounceTimer = null;
-  const sources = [...pendingSourceJobs];
-  const artists = [...pendingArtistJobs];
-  pendingSourceJobs.length = 0;
-  pendingArtistJobs.length = 0;
+function flushPendingPlaylistJobs(): void {
+  playlistDebounceTimer = null;
+  const jobs = [...pendingPlaylistJobs];
+  pendingPlaylistJobs.length = 0;
   const activeId = useAuthStore.getState().activeServerId;
 
-  for (const job of sources) {
+  for (const job of jobs) {
     void syncPinnedSourceIfNeeded(
       job.sourceId,
       job.serverId ?? activeId ?? '',
-      job.kind,
+      'playlist',
+    );
+  }
+}
+
+function flushPendingAlbumArtistJobs(): void {
+  albumArtistDebounceTimer = null;
+  const albums = [...pendingAlbumJobs];
+  const artists = [...pendingArtistJobs];
+  const servers = [...pendingAlbumArtistServers];
+  pendingAlbumJobs.length = 0;
+  pendingArtistJobs.length = 0;
+  pendingAlbumArtistServers.clear();
+  const activeId = useAuthStore.getState().activeServerId;
+
+  for (const job of albums) {
+    void syncPinnedSourceIfNeeded(
+      job.sourceId,
+      job.serverId ?? activeId ?? '',
+      'album',
     );
   }
   for (const job of artists) {
     void syncPinnedArtistIfNeeded(job.artistId, job.serverId, job.albumIds);
   }
+  if (servers.length > 0) {
+    for (const serverId of servers) {
+      void syncAllPinnedAlbumsAndArtists(serverId ?? undefined);
+    }
+  }
 }
 
-function scheduleDebouncedSync(): void {
-  if (debounceTimer) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(flushPendingSyncJobs, DEBOUNCE_MS);
+function scheduleDebouncedPlaylistSync(): void {
+  if (playlistDebounceTimer) clearTimeout(playlistDebounceTimer);
+  playlistDebounceTimer = setTimeout(flushPendingPlaylistJobs, DEBOUNCE_MS);
+}
+
+function scheduleDebouncedAlbumArtistSync(): void {
+  if (albumArtistDebounceTimer) clearTimeout(albumArtistDebounceTimer);
+  albumArtistDebounceTimer = setTimeout(flushPendingAlbumArtistJobs, DEBOUNCE_MS);
+}
+
+function metaMatchesServer(metaServerKey: string, serverId?: string): boolean {
+  if (!serverId) return true;
+  return belongsToProfile(metaServerKey, serverId);
+}
+
+async function groupPinnedArtistAlbumsByArtistId(
+  serverId: string,
+  albumIds: Iterable<string>,
+): Promise<Map<string, string[]>> {
+  const byArtist = new Map<string, string[]>();
+  for (const albumId of albumIds) {
+    try {
+      const tracks = await libraryGetTracksByAlbum(serverId, albumId);
+      const artistId = tracks[0]?.artistId;
+      if (!artistId) continue;
+      const list = byArtist.get(artistId) ?? [];
+      list.push(albumId);
+      byArtist.set(artistId, list);
+    } catch {
+      // index row missing — fall back to per-album reconcile below
+    }
+  }
+  return byArtist;
 }
 
 export function schedulePinnedPlaylistSync(playlistId: string, serverId?: string): void {
@@ -395,8 +456,8 @@ export function schedulePinnedPlaylistSync(playlistId: string, serverId?: string
   if (!isSourcePinnedOffline(playlistId, sid, 'playlist')) return;
   if (!isManualOfflinePlaylist(playlistId, sid)) return;
   if (!isActiveServerReachable()) return;
-  pendingSourceJobs.push({ kind: 'playlist', sourceId: playlistId, serverId: sid });
-  scheduleDebouncedSync();
+  pendingPlaylistJobs.push({ sourceId: playlistId, serverId: sid });
+  scheduleDebouncedPlaylistSync();
 }
 
 export function schedulePinnedAlbumSync(albumId: string, serverId?: string): void {
@@ -404,8 +465,8 @@ export function schedulePinnedAlbumSync(albumId: string, serverId?: string): voi
   if (!albumId || !sid) return;
   if (!isSourcePinnedOffline(albumId, sid, 'album')) return;
   if (!isActiveServerReachable()) return;
-  pendingSourceJobs.push({ kind: 'album', sourceId: albumId, serverId: sid });
-  scheduleDebouncedSync();
+  pendingAlbumJobs.push({ sourceId: albumId, serverId: sid });
+  scheduleDebouncedAlbumArtistSync();
 }
 
 export function schedulePinnedArtistSync(
@@ -418,64 +479,150 @@ export function schedulePinnedArtistSync(
   if (!isArtistDiscographyPinnedOffline(sid, albumIds ?? listPinnedArtistAlbumIds(sid))) return;
   if (!isActiveServerReachable()) return;
   pendingArtistJobs.push({ artistId, serverId: sid, albumIds });
-  scheduleDebouncedSync();
+  scheduleDebouncedAlbumArtistSync();
 }
 
-export async function syncAllPinnedOffline(): Promise<void> {
+/** Reconcile every cached album pin and artist discography (optionally one server). */
+export async function syncAllPinnedAlbumsAndArtists(serverId?: string): Promise<void> {
+  if (!isActiveServerReachable()) return;
+
+  const seenAlbums = new Set<string>();
+  const artistAlbumIdsByServer = new Map<string, Set<string>>();
+
+  const albumJobs: { sourceId: string; serverId: string }[] = [];
+
+  const consider = (kind: OfflinePinKind, sourceId: string, metaServerKey: string) => {
+    if (kind === 'playlist') return;
+    const sid = resolveServerIdForIndexKey(metaServerKey) || metaServerKey;
+    if (!metaMatchesServer(metaServerKey, serverId) && !metaMatchesServer(sid, serverId)) return;
+
+    if (kind === 'album') {
+      const dedupe = `${sid}:${sourceId}`;
+      if (seenAlbums.has(dedupe)) return;
+      seenAlbums.add(dedupe);
+      albumJobs.push({ sourceId, serverId: sid });
+      return;
+    }
+    if (kind === 'artist') {
+      const set = artistAlbumIdsByServer.get(sid) ?? new Set<string>();
+      set.add(sourceId);
+      artistAlbumIdsByServer.set(sid, set);
+    }
+  };
+
+  for (const meta of Object.values(useOfflineStore.getState().albums)) {
+    consider(meta.type ?? 'album', meta.id, meta.serverId);
+  }
+  for (const group of useLocalPlaybackStore.getState().listPinnedGroups()) {
+    consider(group.pinSource.kind, group.pinSource.sourceId, group.serverIndexKey);
+  }
+
+  for (const job of albumJobs) {
+    await syncPinnedSourceIfNeeded(job.sourceId, job.serverId, 'album');
+  }
+
+  for (const [sid, albumIds] of artistAlbumIdsByServer) {
+    const byArtist = await groupPinnedArtistAlbumsByArtistId(sid, albumIds);
+    const assignedAlbums = new Set<string>();
+    for (const [artistId, ids] of byArtist) {
+      ids.forEach(id => assignedAlbums.add(id));
+      await syncPinnedArtistIfNeeded(artistId, sid, ids);
+    }
+    for (const albumId of albumIds) {
+      if (assignedAlbums.has(albumId)) continue;
+      await syncPinnedSourceIfNeeded(albumId, sid, 'artist');
+    }
+  }
+}
+
+/** Reconcile every manually cached regular playlist (optionally one server). */
+export async function syncAllPinnedPlaylists(serverId?: string): Promise<void> {
   if (!isActiveServerReachable()) return;
 
   const seen = new Set<string>();
-  const jobs: { sourceId: string; serverId: string; kind: OfflinePinKind }[] = [];
+  const jobs: { sourceId: string; serverId: string }[] = [];
 
   for (const meta of Object.values(useOfflineStore.getState().albums)) {
-    const kind = meta.type ?? 'album';
-    if (kind === 'playlist' && isSmartPlaylistName(meta.name)) continue;
-    const serverId = resolveServerIdForIndexKey(meta.serverId) || meta.serverId;
-    const dedupe = `${kind}:${serverId}:${meta.id}`;
+    if (meta.type !== 'playlist') continue;
+    if (isSmartPlaylistName(meta.name)) continue;
+    const sid = resolveServerIdForIndexKey(meta.serverId) || meta.serverId;
+    if (!metaMatchesServer(meta.serverId, serverId) && !metaMatchesServer(sid, serverId)) continue;
+    const dedupe = `${sid}:${meta.id}`;
     if (seen.has(dedupe)) continue;
     seen.add(dedupe);
-    jobs.push({ sourceId: meta.id, serverId, kind });
+    jobs.push({ sourceId: meta.id, serverId: sid });
   }
 
   for (const group of useLocalPlaybackStore.getState().listPinnedGroups()) {
-    const kind = group.pinSource.kind;
-    if (kind === 'playlist' && isSmartPlaylistName(group.pinSource.displayName ?? '')) continue;
-    const serverId = resolveServerIdForIndexKey(group.serverIndexKey) || group.serverIndexKey;
-    const dedupe = `${kind}:${serverId}:${group.pinSource.sourceId}`;
+    if (group.pinSource.kind !== 'playlist') continue;
+    if (isSmartPlaylistName(group.pinSource.displayName ?? '')) continue;
+    const sid = resolveServerIdForIndexKey(group.serverIndexKey) || group.serverIndexKey;
+    if (!metaMatchesServer(group.serverIndexKey, serverId) && !metaMatchesServer(sid, serverId)) continue;
+    const dedupe = `${sid}:${group.pinSource.sourceId}`;
     if (seen.has(dedupe)) continue;
     seen.add(dedupe);
-    jobs.push({ sourceId: group.pinSource.sourceId, serverId, kind });
+    jobs.push({ sourceId: group.pinSource.sourceId, serverId: sid });
   }
 
   for (const job of jobs) {
-    if (job.kind === 'playlist' && !isManualOfflinePlaylist(job.sourceId, job.serverId)) continue;
-    await syncPinnedSourceIfNeeded(job.sourceId, job.serverId, job.kind);
+    if (!isManualOfflinePlaylist(job.sourceId, job.serverId)) continue;
+    await syncPinnedSourceIfNeeded(job.sourceId, job.serverId, 'playlist');
   }
 }
 
-/** @deprecated Use {@link syncAllPinnedOffline}. */
-export async function syncAllPinnedPlaylists(): Promise<void> {
-  await syncAllPinnedOffline();
+/** @deprecated Use {@link syncAllPinnedAlbumsAndArtists} + {@link syncAllPinnedPlaylists}. */
+export async function syncAllPinnedOffline(): Promise<void> {
+  await syncAllPinnedAlbumsAndArtists();
+  await syncAllPinnedPlaylists();
 }
 
+export function scheduleSyncPinnedAlbumsAndArtists(serverId?: string): void {
+  if (!isActiveServerReachable()) return;
+  pendingAlbumArtistServers.add(serverId ?? null);
+  scheduleDebouncedAlbumArtistSync();
+}
+
+/** @deprecated Use {@link scheduleSyncPinnedAlbumsAndArtists}. */
 export function scheduleSyncAllPinnedOffline(): void {
-  if (debounceTimer) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => {
-    debounceTimer = null;
-    void syncAllPinnedOffline();
-  }, DEBOUNCE_MS);
+  scheduleSyncPinnedAlbumsAndArtists();
+  void syncAllPinnedPlaylists();
 }
 
-/** @deprecated Use {@link scheduleSyncAllPinnedOffline}. */
+/** @deprecated Use hourly {@link syncAllPinnedPlaylists}. */
 export function scheduleSyncAllPinnedPlaylists(): void {
-  scheduleSyncAllPinnedOffline();
+  if (!isActiveServerReachable()) return;
+  void syncAllPinnedPlaylists();
+}
+
+function onLibraryBecameIdle(serverIndexKey: string, kind: string, ok: boolean): void {
+  if (!ok) return;
+  if (kind !== 'initial_sync' && kind !== 'delta_sync') return;
+  if (!isActiveServerReachable()) return;
+  const serverId = resolveServerIdForIndexKey(serverIndexKey);
+  scheduleSyncPinnedAlbumsAndArtists(serverId);
 }
 
 export function initPinnedOfflineSync(): () => void {
-  scheduleSyncAllPinnedOffline();
-  const stopReachable = onActiveServerBecameReachable(() => scheduleSyncAllPinnedOffline());
+  void subscribeLibrarySyncIdle(payload => {
+    onLibraryBecameIdle(payload.serverId, payload.kind, payload.ok);
+  }).then(unlisten => {
+    stopLibraryIdle = unlisten;
+  });
+
+  playlistSyncInterval = setInterval(() => {
+    if (isActiveServerReachable()) void syncAllPinnedPlaylists();
+  }, PLAYLIST_SYNC_INTERVAL_MS);
+
+  const stopReachable = onActiveServerBecameReachable(() => {
+    scheduleSyncPinnedAlbumsAndArtists();
+  });
+
   return () => {
-    if (debounceTimer) clearTimeout(debounceTimer);
+    if (playlistDebounceTimer) clearTimeout(playlistDebounceTimer);
+    if (albumArtistDebounceTimer) clearTimeout(albumArtistDebounceTimer);
+    if (playlistSyncInterval) clearInterval(playlistSyncInterval);
+    stopLibraryIdle?.();
+    stopLibraryIdle = null;
     for (const t of retryTimers.values()) clearTimeout(t);
     retryTimers.clear();
     stopReachable();

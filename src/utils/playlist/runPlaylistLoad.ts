@@ -2,7 +2,6 @@ import type React from 'react';
 import { getPlaylist } from '../../api/subsonicPlaylists';
 import { filterSongsToActiveLibrary } from '../../api/subsonicLibrary';
 import type { SubsonicPlaylist, SubsonicSong } from '../../api/subsonicTypes';
-import { useAuthStore } from '../../store/authStore';
 import { usePlaylistStore } from '../../store/playlistStore';
 
 export interface RunPlaylistLoadDeps {
@@ -32,16 +31,6 @@ export async function runPlaylistLoad(deps: RunPlaylistLoadDeps): Promise<void> 
     });
     setRatings(init);
     setStarredSongs(starred);
-    const serverId = useAuthStore.getState().activeServerId;
-    if (serverId) {
-      void import('../offline/pinnedOfflineSync')
-        .then(m => {
-          if (m.isManualOfflinePlaylist(id, serverId) && m.isPlaylistPinnedOffline(id, serverId)) {
-            m.schedulePinnedPlaylistSync(id, serverId);
-          }
-        })
-        .catch(() => {});
-    }
   } catch {
     const stub = usePlaylistStore.getState().playlists.find(p => p.id === id);
     if (stub) {
