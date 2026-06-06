@@ -16,7 +16,6 @@ import { resolveIndexKey, serverIndexKeyForProfile } from '../server/serverIndex
 import { FAVORITES_OFFLINE_JOB_ID } from './favoritesOfflineConstants';
 import {
   entryBelongsToServer,
-  findFavoriteAutoEntry,
   hasLocalLibraryBytes,
   hasLocalFavoriteAutoBytes,
 } from './offlineLibraryHelpers';
@@ -37,35 +36,48 @@ function librarySqlScope(serverId: string): string {
   return librarySqlServerId(serverId);
 }
 
+/**
+ * Union of all tracks implied by starred songs, albums, and artists (deduped by track id).
+ * File/index lifecycle keys off this set — never per-entity pin — so overlapping stars
+ * (artist + song on the same album) share one `favorite-auto` row per track.
+ */
+export function mergeStarredSongsUnion(
+  directSongs: SubsonicSong[],
+  albumTrackLists: SubsonicSong[][],
+  artistAlbumTrackLists: SubsonicSong[][],
+): SubsonicSong[] {
+  const byId = new Map<string, SubsonicSong>();
+  for (const song of directSongs) byId.set(song.id, song);
+  for (const songs of albumTrackLists) {
+    for (const song of songs) byId.set(song.id, song);
+  }
+  for (const songs of artistAlbumTrackLists) {
+    for (const song of songs) byId.set(song.id, song);
+  }
+  return [...byId.values()];
+}
+
 /** Collect every starred track (direct songs + album/artist expansion). */
 export async function collectStarredSongs(serverId: string): Promise<SubsonicSong[]> {
   const starred = await getStarred();
-  const byId = new Map<string, SubsonicSong>();
-
-  for (const song of starred.songs) {
-    byId.set(song.id, song);
-  }
-
+  const albumTrackLists: SubsonicSong[][] = [];
   for (const album of starred.albums) {
     try {
       const detail = await getAlbum(album.id);
-      for (const song of detail.songs) {
-        byId.set(song.id, song);
-      }
+      albumTrackLists.push(detail.songs);
     } catch {
       // skip unavailable album
     }
   }
 
+  const artistAlbumTrackLists: SubsonicSong[][] = [];
   for (const artist of starred.artists) {
     try {
       const detail = await getArtist(artist.id);
       for (const alb of detail.albums ?? []) {
         try {
           const albumDetail = await getAlbum(alb.id);
-          for (const song of albumDetail.songs) {
-            byId.set(song.id, song);
-          }
+          artistAlbumTrackLists.push(albumDetail.songs);
         } catch {
           // skip album
         }
@@ -75,7 +87,7 @@ export async function collectStarredSongs(serverId: string): Promise<SubsonicSon
     }
   }
 
-  return [...byId.values()];
+  return mergeStarredSongsUnion(starred.songs, albumTrackLists, artistAlbumTrackLists);
 }
 
 function pendingFavoriteAutoSongs(songs: SubsonicSong[], serverId: string): SubsonicSong[] {
@@ -96,18 +108,6 @@ async function pruneOrphanFavoriteAuto(
     lp.removeEntry(entry.trackId, entry.serverIndexKey, 'favorite-unstar-prune');
   }
   await invoke('prune_empty_media_tier_dirs', { tier: 'favorite-auto', mediaDir }).catch(() => {});
-}
-
-export async function removeFavoriteAutoForTrack(trackId: string, serverId: string): Promise<void> {
-  if (!serverId) return;
-  const entry = findFavoriteAutoEntry(trackId, serverId);
-  if (!entry) return;
-  const mediaDir = getMediaDir();
-  await invoke('delete_media_file', { localPath: entry.localPath, mediaDir }).catch(() => {});
-  useLocalPlaybackStore.getState().removeEntry(entry.trackId, entry.serverIndexKey, 'favorite-unstar');
-  useOfflineJobStore.setState(state => ({
-    jobs: state.jobs.filter(j => !(j.albumId === FAVORITES_OFFLINE_JOB_ID && j.trackId === trackId)),
-  }));
 }
 
 export async function disableFavoritesOfflineSync(): Promise<void> {
@@ -133,17 +133,19 @@ export function scheduleFavoritesOfflineSync(serverId?: string): void {
   }, DEBOUNCE_MS);
 }
 
-/** Called after any successful star/unstar (song, album, or artist) — not tied to the Favorites page. */
+/**
+ * Called after any successful star/unstar (song, album, or artist).
+ * Deletions run only inside {@link runFavoritesOfflineSync} via {@link pruneOrphanFavoriteAuto}
+ * against the merged track union — never eager per-entity removes (avoids deleting a file
+ * that is still required because the same track is starred via artist/album).
+ */
 export function onFavoritesOfflineStarChange(
-  id: string,
-  type: 'song' | 'album' | 'artist',
-  starred: boolean,
+  _id: string,
+  _type: 'song' | 'album' | 'artist',
+  _starred: boolean,
 ): void {
   const auth = useAuthStore.getState();
   if (!auth.favoritesOfflineEnabled || !auth.activeServerId) return;
-  if (type === 'song' && !starred) {
-    void removeFavoriteAutoForTrack(id, auth.activeServerId);
-  }
   scheduleFavoritesOfflineSync(auth.activeServerId);
 }
 

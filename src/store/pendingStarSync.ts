@@ -1,8 +1,6 @@
 import { setRating, star, unstar } from '../api/subsonicStarRating';
 import { usePlayerStore } from './playerStore';
 import { patchCachedTrack } from '../utils/library/queueTrackResolver';
-import { useAuthStore } from './authStore';
-import { removeFavoriteAutoForTrack } from '../utils/offline/favoritesOfflineSync';
 
 /**
  * F4 — pending-sync for **song** star + rating (spec §6.5 / R7-18).
@@ -118,10 +116,6 @@ function onRatingSuccess(id: string): void {
 /** Optimistically (un)star a song and sync it to the server with retry. */
 export function queueSongStar(id: string, starred: boolean): void {
   usePlayerStore.getState().setStarredOverride(id, starred);
-  const auth = useAuthStore.getState();
-  if (!starred && auth.favoritesOfflineEnabled && auth.activeServerId) {
-    void removeFavoriteAutoForTrack(id, auth.activeServerId);
-  }
   const t: Task = { kind: 'star', id, starred };
   const k = keyOf(t);
   pending.set(k, t);
