@@ -4,6 +4,7 @@ import { Clock, Palette, Store } from 'lucide-react';
 import { useThemeStore } from '../../store/themeStore';
 import { useInstalledThemesStore } from '../../store/installedThemesStore';
 import CustomSelect from '../CustomSelect';
+import BackToTopButton from '../BackToTopButton';
 import { FIXED_THEMES } from './fixedThemes';
 import { InstalledThemes } from './InstalledThemes';
 import { ThemeStoreSection } from './ThemeStoreSection';
@@ -115,6 +116,8 @@ export function ThemesTab() {
       <ThemesSection icon={<Store size={16} />} title={t('settings.themeStoreTitle')}>
         <ThemeStoreSection />
       </ThemesSection>
+
+      <BackToTopButton />
     </>
   );
 }

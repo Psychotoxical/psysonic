@@ -8,6 +8,7 @@ export const common = {
   downloading: 'Descargando…',
   downloadZip: 'Descargar (ZIP)',
   back: 'Volver',
+  backToTop: 'Volver arriba',
   cancel: 'Cancelar',
   save: 'Guardar',
   delete: 'Eliminar',

@@ -1,0 +1,45 @@
+/* ─── Back to top button ─── */
+@keyframes back-to-top-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Pinned to the bottom-right of the content area (its portal host
+   `.app-shell-route-host` spans the region between sidebar/queue and above the
+   player bar). Absolute against that host so it never drifts with the scrolling
+   content — the scroll viewport's `contain: paint` rules out `position: fixed`
+   here. */
+.back-to-top-btn {
+  position: absolute;
+  bottom: 16px;
+  right: 20px;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: var(--bg-elevated);
+  color: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  animation: back-to-top-in 0.25s ease both;
+  transition: background 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+
+.back-to-top-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.back-to-top-btn:active {
+  transform: translateY(0);
+}
+
+.back-to-top-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

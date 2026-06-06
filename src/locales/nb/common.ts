@@ -8,6 +8,7 @@ export const common = {
   downloading: 'Laster ned…',
   downloadZip: 'Last ned (ZIP)',
   back: 'Tilbake',
+  backToTop: 'Til toppen',
   cancel: 'Avbryt',
   save: 'Lagre',
   delete: 'Slett',
