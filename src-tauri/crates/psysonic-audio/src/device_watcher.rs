@@ -224,9 +224,18 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                 }
             }
 
-            // Enumerate all available output devices and the current default.
+            // The full `output_devices()` + per-device `description()` scan is the
+            // CoreAudio HAL call that contends with the audio render thread and
+            // produces a brief dropout once per poll interval (issue #996: stutter
+            // every ~3s, cadence tracking the poll exactly). It is only needed to
+            // detect a *pinned* output device disappearing. With no pin — system
+            // default, the common case — only the current default is needed, a
+            // single cheap query, so the full enumeration is skipped entirely.
+            let pinned = selected_device.lock().unwrap().clone();
+            let need_full_enum = pinned.is_some();
+
             // Suppress stderr on Unix to avoid ALSA probing noise (JACK, OSS, dmix).
-            let (current_default, available) = tauri::async_runtime::spawn_blocking(|| {
+            let (current_default, available) = tauri::async_runtime::spawn_blocking(move || {
                 use rodio::cpal::traits::{DeviceTrait, HostTrait};
                 #[cfg(unix)]
                 let _guard = unsafe {
@@ -244,25 +253,27 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                 let default = host
                     .default_output_device()
                     .and_then(|d| d.description().ok().map(|desc| desc.name().to_string()));
-                let available: Vec<String> = host
-                    .output_devices()
-                    .map(|iter| {
-                        iter.filter_map(|d| d.description().ok().map(|desc| desc.name().to_string()))
-                            .collect()
-                    })
-                    .unwrap_or_default();
+                let available: Vec<String> = if need_full_enum {
+                    host.output_devices()
+                        .map(|iter| {
+                            iter.filter_map(|d| d.description().ok().map(|desc| desc.name().to_string()))
+                                .collect()
+                        })
+                        .unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
                 (default, available)
             }).await.unwrap_or((None, vec![]));
 
-            // Empty list almost always means a transient enumeration failure, not
-            // that every output device vanished. Treating it as "pinned missing"
-            // caused false audio:device-reset (UI jumped back to system default)
-            // when switching to external USB / class-compliant interfaces.
-            if available.is_empty() {
+            // Empty list (only when we actually enumerated for a pinned device)
+            // almost always means a transient enumeration failure, not that every
+            // output device vanished. Treating it as "pinned missing" caused false
+            // audio:device-reset (UI jumped back to system default) when switching
+            // to external USB / class-compliant interfaces.
+            if need_full_enum && available.is_empty() {
                 continue;
             }
-
-            let pinned = selected_device.lock().unwrap().clone();
 
             #[cfg(target_os = "linux")]
             if pinned.is_some() {
