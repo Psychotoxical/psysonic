@@ -116,6 +116,22 @@ describe('rewriteFrontendStoreKeysForRemap', () => {
     expect(usePlayerStore.getState().queueServerId).toBe('new');
   });
 
+  it('repoints queueItems serverId when refs match the old key', async () => {
+    usePlayerStore.setState({
+      queueServerId: 'old',
+      queueItems: [
+        { serverId: 'old', trackId: 't1' },
+        { serverId: 'other', trackId: 't2' },
+      ],
+      queueIndex: 0,
+    });
+    await rewriteFrontendStoreKeysForRemap([{ oldKey: 'old', newKey: 'new' }]);
+    const s = usePlayerStore.getState();
+    expect(s.queueServerId).toBe('new');
+    expect(s.queueItems[0]).toEqual({ serverId: 'new', trackId: 't1' });
+    expect(s.queueItems[1]).toEqual({ serverId: 'other', trackId: 't2' });
+  });
+
   it('leaves queueServerId untouched when it is bound to a different server', async () => {
     usePlayerStore.setState({ queueServerId: 'other' });
     await rewriteFrontendStoreKeysForRemap([{ oldKey: 'old', newKey: 'new' }]);

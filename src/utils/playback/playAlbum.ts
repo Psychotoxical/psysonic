@@ -1,4 +1,4 @@
-import { getAlbum } from '../../api/subsonicLibrary';
+import { getAlbum, getAlbumForServer } from '../../api/subsonicLibrary';
 import { usePlayerStore } from '../../store/playerStore';
 import { songToTrack } from './songToTrack';
 import { useOrbitStore } from '../../store/orbitStore';
@@ -6,11 +6,14 @@ import { fadeOut } from './fadeOut';
 import type { Track } from '../../store/playerStoreTypes';
 import { shuffleArray } from './shuffleArray';
 
-async function fetchAlbumTracks(albumId: string): Promise<Track[]> {
-  const albumData = await getAlbum(albumId);
+async function fetchAlbumTracks(albumId: string, serverId?: string): Promise<Track[]> {
+  const albumData = serverId
+    ? await getAlbumForServer(serverId, albumId)
+    : await getAlbum(albumId);
   const albumGenre = albumData.album.genre;
   return albumData.songs.map(s => {
     const track = songToTrack(s);
+    if (serverId) track.serverId = serverId;
     if (!track.genre && albumGenre) track.genre = albumGenre;
     return track;
   });
@@ -44,10 +47,10 @@ async function startAlbumPlayback(tracks: Track[]): Promise<void> {
   usePlayerStore.getState().playTrack(tracks[0], tracks);
 }
 
-export async function playAlbum(albumId: string): Promise<void> {
-  await startAlbumPlayback(await fetchAlbumTracks(albumId));
+export async function playAlbum(albumId: string, opts?: { serverId?: string }): Promise<void> {
+  await startAlbumPlayback(await fetchAlbumTracks(albumId, opts?.serverId));
 }
 
-export async function playAlbumShuffled(albumId: string): Promise<void> {
-  await startAlbumPlayback(shuffleArray(await fetchAlbumTracks(albumId)));
+export async function playAlbumShuffled(albumId: string, opts?: { serverId?: string }): Promise<void> {
+  await startAlbumPlayback(shuffleArray(await fetchAlbumTracks(albumId, opts?.serverId)));
 }

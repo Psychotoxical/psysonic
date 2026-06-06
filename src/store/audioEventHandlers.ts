@@ -16,7 +16,9 @@ import { bumpPerfCounter } from '../utils/perf/perfTelemetry';
 import {
   getPlaybackCacheServerKey,
   getPlaybackIndexKey,
-  getPlaybackServerId,
+  playbackCacheKeyForRef,
+  playbackProfileIdForRef,
+  playbackProfileIdForTrack,
 } from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
@@ -91,9 +93,10 @@ export function handleAudioPlaying(duration: number): void {
   resetProgressEmitThrottles();
   usePlayerStore.setState({ isPlaying: true, isPlaybackBuffering: false });
   notifyLibraryPlaybackHint('playing');
-  const track = usePlayerStore.getState().currentTrack;
+  const { currentTrack: track, queueItems, queueIndex } = usePlayerStore.getState();
   if (track) {
-    void playListenSessionOpen(track, getPlaybackServerId(), duration);
+    const ref = queueItems[queueIndex];
+    void playListenSessionOpen(track, playbackProfileIdForTrack(track, ref), duration);
   }
 }
 
@@ -187,7 +190,11 @@ export function handleAudioProgress(
   // Scrobble at 50%: Last.fm + Navidrome (updates play_date / recently played)
   if (progress >= 0.5 && !store.scrobbled) {
     usePlayerStore.setState({ scrobbled: true });
-    scrobbleSong(track.id, Date.now(), getPlaybackServerId());
+    scrobbleSong(
+      track.id,
+      Date.now(),
+      playbackProfileIdForTrack(track, store.queueItems[store.queueIndex]),
+    );
     const { scrobblingEnabled, lastfmSessionKey } = useAuthStore.getState();
     if (scrobblingEnabled && lastfmSessionKey) {
       lastfmScrobble(track, Date.now(), lastfmSessionKey);
@@ -254,8 +261,10 @@ export function handleAudioProgress(
     const shouldBytePreloadForGaplessBackup =
       gaplessEnabled && remaining < gaplessBackupWindowSecs && remaining > 0;
 
-    const serverId = getPlaybackCacheServerKey();
-    const analysisServerId = getPlaybackIndexKey();
+    const serverId = nextRef ? playbackCacheKeyForRef(nextRef) : getPlaybackCacheServerKey();
+    const analysisServerId = nextRef
+      ? playbackCacheKeyForRef(nextRef)
+      : getPlaybackIndexKey();
     const nextUrl = resolvePlaybackUrl(nextTrack.id, serverId);
 
     // Byte pre-download — gapless backup or crossfade; runs early so bytes are ready by chain time.
@@ -408,7 +417,8 @@ export function handleAudioTrackSwitched(_duration: number): void {
 
   void playListenSessionOnTrackSwitched(nextTrack);
 
-  const switchServerId = getPlaybackCacheServerKey();
+  const switchRef = queueItems[newIndex];
+  const switchServerId = playbackCacheKeyForRef(switchRef);
   const switchResolvedUrl = resolvePlaybackUrl(nextTrack.id, switchServerId);
   const switchPlaybackSource = playbackSourceHintForResolvedUrl(nextTrack.id, switchServerId, switchResolvedUrl);
 
@@ -449,7 +459,9 @@ export function handleAudioTrackSwitched(_duration: number): void {
 
   // Report Now Playing to Navidrome + Last.fm
   const { nowPlayingEnabled, scrobblingEnabled, lastfmSessionKey } = useAuthStore.getState();
-  if (nowPlayingEnabled) reportNowPlaying(nextTrack.id, getPlaybackServerId());
+  if (nowPlayingEnabled) {
+    reportNowPlaying(nextTrack.id, playbackProfileIdForTrack(nextTrack, switchRef));
+  }
   if (lastfmSessionKey) {
     if (scrobblingEnabled) lastfmUpdateNowPlaying(nextTrack, lastfmSessionKey);
     lastfmGetTrackLoved(nextTrack.title, nextTrack.artist, lastfmSessionKey).then(loved => {
@@ -461,7 +473,7 @@ export function handleAudioTrackSwitched(_duration: number): void {
     });
   }
   syncQueueToServer(queueItems, nextTrack, 0);
-  touchHotCacheOnPlayback(nextTrack.id, getPlaybackCacheServerKey());
+  touchHotCacheOnPlayback(nextTrack.id, switchServerId);
 }
 
 export function handleAudioError(message: string): void {

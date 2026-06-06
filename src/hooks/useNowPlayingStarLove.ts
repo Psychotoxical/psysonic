@@ -31,7 +31,7 @@ export function useNowPlayingStarLove(deps: NowPlayingStarLoveDeps): NowPlayingS
     if (!currentTrack) return;
     const next = !starred;
     setStarred(next); // local view; helper owns the override + retried server sync (no rollback)
-    queueSongStar(currentTrack.id, next);
+    queueSongStar(currentTrack.id, next, currentTrack.serverId);
   }, [currentTrack, starred]);
 
   // Last.fm love (seeded from track.getInfo, toggle via love/unlove)

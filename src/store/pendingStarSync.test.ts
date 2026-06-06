@@ -53,7 +53,7 @@ describe('pendingStarSync', () => {
 
     await vi.runAllTimersAsync();
 
-    expect(starMock).toHaveBeenCalledWith('t1', 'song');
+    expect(starMock).toHaveBeenCalledWith('t1', 'song', undefined);
     const s = usePlayerStore.getState();
     expect('t1' in s.starredOverrides).toBe(false); // cleared on success
     expect(s.currentTrack?.starred).toBeTruthy(); // in-memory track patched
@@ -75,11 +75,17 @@ describe('pendingStarSync', () => {
     expect(usePlayerStore.getState().starredOverrides.t1).toBe(true); // override survives (no rollback)
   });
 
+  it('passes serverId through to star/unstar for cross-server favorites', async () => {
+    queueSongStar('t1', true, 'srv-b');
+    await vi.runAllTimersAsync();
+    expect(starMock).toHaveBeenCalledWith('t1', 'song', { serverId: 'srv-b' });
+  });
+
   it('latest toggle wins when re-queued before sync', async () => {
     queueSongStar('t1', true);
     queueSongStar('t1', false); // user toggled back off
     await vi.runAllTimersAsync();
-    expect(unstarMock).toHaveBeenCalledWith('t1', 'song');
+    expect(unstarMock).toHaveBeenCalledWith('t1', 'song', undefined);
     expect('t1' in usePlayerStore.getState().starredOverrides).toBe(false);
     expect(usePlayerStore.getState().currentTrack?.starred).toBeFalsy();
   });

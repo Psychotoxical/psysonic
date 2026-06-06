@@ -238,7 +238,7 @@ export default function MobilePlayerView() {
 
   const toggleStar = useCallback(() => {
     if (!currentTrack) return;
-    queueSongStar(currentTrack.id, !isStarred);
+    queueSongStar(currentTrack.id, !isStarred, currentTrack.serverId);
   }, [currentTrack, isStarred]);
 
   // Scrubber touch/mouse drag

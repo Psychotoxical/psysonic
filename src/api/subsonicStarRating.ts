@@ -49,17 +49,35 @@ export async function getStarredForServer(serverId: string): Promise<StarredResu
   return parseStarred2Response(data);
 }
 
+function resolveStarServerId(meta?: StarPatchMeta): string | null {
+  return meta?.serverId ?? useAuthStore.getState().activeServerId;
+}
+
+async function starApi(
+  serverId: string | null | undefined,
+  endpoint: string,
+  params: Record<string, string>,
+): Promise<void> {
+  const sid = serverId ?? useAuthStore.getState().activeServerId;
+  if (!sid) throw new Error('No server for star API');
+  if (sid === useAuthStore.getState().activeServerId) {
+    await api(endpoint, params);
+  } else {
+    await apiForServer(sid, endpoint, params);
+  }
+}
+
 export async function star(
   id: string,
   type: 'song' | 'album' | 'artist' = 'album',
-  _meta?: StarPatchMeta,
+  meta?: StarPatchMeta,
 ): Promise<void> {
   const params: Record<string, string> = {};
   if (type === 'song') params.id = id;
   if (type === 'album') params.albumId = id;
   if (type === 'artist') params.artistId = id;
-  await api('star.view', params);
-  const serverId = useAuthStore.getState().activeServerId;
+  const serverId = resolveStarServerId(meta);
+  await starApi(serverId, 'star.view', params);
   if (type === 'song') {
     patchLibraryTrackOnUse(serverId, id, { starredAt: Date.now() });
   } else if (type === 'album' && serverId) {
@@ -68,21 +86,21 @@ export async function star(
     void refreshStarredAlbumIndexFromServer(serverId, indexEnabled).catch(() => {});
   }
   void import('../utils/offline/favoritesOfflineSync')
-    .then(m => m.onFavoritesOfflineStarChange(id, type, true))
+    .then(m => m.onFavoritesOfflineStarChange(id, type, true, serverId ?? undefined))
     .catch(() => {});
 }
 
 export async function unstar(
   id: string,
   type: 'song' | 'album' | 'artist' = 'album',
-  _meta?: StarPatchMeta,
+  meta?: StarPatchMeta,
 ): Promise<void> {
   const params: Record<string, string> = {};
   if (type === 'song') params.id = id;
   if (type === 'album') params.albumId = id;
   if (type === 'artist') params.artistId = id;
-  await api('unstar.view', params);
-  const serverId = useAuthStore.getState().activeServerId;
+  const serverId = resolveStarServerId(meta);
+  await starApi(serverId, 'unstar.view', params);
   if (type === 'song') {
     patchLibraryTrackOnUse(serverId, id, { starredAt: null });
   } else if (type === 'album' && serverId) {
@@ -91,7 +109,7 @@ export async function unstar(
     void refreshStarredAlbumIndexFromServer(serverId, indexEnabled).catch(() => {});
   }
   void import('../utils/offline/favoritesOfflineSync')
-    .then(m => m.onFavoritesOfflineStarChange(id, type, false))
+    .then(m => m.onFavoritesOfflineStarChange(id, type, false, serverId ?? undefined))
     .catch(() => {});
 }
 

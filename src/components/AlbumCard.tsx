@@ -66,8 +66,8 @@ function AlbumCard({
 }: AlbumCardProps) {
   const { t } = useTranslation();
   const { isHolding, pressBind } = useLongPressAction({
-    onShortPress: () => playAlbum(album.id),
-    onLongPress: () => playAlbumShuffled(album.id),
+    onShortPress: () => playAlbum(album.id, album.serverId ? { serverId: album.serverId } : undefined),
+    onLongPress: () => playAlbumShuffled(album.id, album.serverId ? { serverId: album.serverId } : undefined),
   });
   const navigate = useNavigate();
   const navigateToAlbum = useNavigateToAlbum();

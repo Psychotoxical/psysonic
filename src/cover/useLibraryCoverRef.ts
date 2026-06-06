@@ -10,6 +10,9 @@ import {
   resolveDistinctDiscCoversForAlbum,
   resolvePlaybackCoverScope,
 } from './ref';
+import { coverServerScopeForServerId } from './serverScope';
+import { resolveServerIdForIndexKey } from '../utils/server/serverLookup';
+import { sameQueueTrackId } from '../utils/playback/queueIdentity';
 import {
   resolveAlbumCoverRefFromLibrary,
   resolveArtistCoverRefFromLibrary,
@@ -200,6 +203,8 @@ export function usePlaybackTrackCoverRef(
   track: Parameters<typeof albumCoverRefForPlayback>[0] | null | undefined,
 ): CoverArtRef | undefined {
   const queueServerId = usePlayerStore(s => s.queueServerId);
+  const queueIndex = usePlayerStore(s => s.queueIndex);
+  const queueItems = usePlayerStore(s => s.queueItems);
   const queueLength = usePlayerStore(s => s.queueItems.length);
   const activeServerId = useAuthStore(s => s.activeServerId);
   const serversFingerprint = useAuthStore(s =>
@@ -208,10 +213,20 @@ export function usePlaybackTrackCoverRef(
       .join('\u0002'),
   );
 
-  const scope = useMemo(
-    () => resolvePlaybackCoverScope(),
-    [queueServerId, queueLength, activeServerId, serversFingerprint],
-  );
+  const scope = useMemo(() => {
+    if (track?.id) {
+      const ref = queueItems[queueIndex];
+      if (ref && sameQueueTrackId(ref.trackId, track.id)) {
+        const profileId = resolveServerIdForIndexKey(ref.serverId) || ref.serverId;
+        return coverServerScopeForServerId(profileId);
+      }
+      const scopedTrack = track as { serverId?: string };
+      if (scopedTrack.serverId) {
+        return coverServerScopeForServerId(scopedTrack.serverId);
+      }
+    }
+    return resolvePlaybackCoverScope();
+  }, [track, queueItems, queueIndex, queueServerId, queueLength, activeServerId, serversFingerprint]);
   const scopeKey = coverScopeKey(scope);
 
   const trackId = track?.id;

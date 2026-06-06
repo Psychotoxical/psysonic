@@ -105,7 +105,8 @@ export default function Favorites() {
 
   function removeSong(id: string) {
     // F4: optimistic un-star + retried server sync via the central helper.
-    queueSongStar(id, false);
+    const song = songs.find(s => s.id === id);
+    queueSongStar(id, false, song?.serverId);
     setSongs(prev => prev.filter(s => s.id !== id));
   }
 

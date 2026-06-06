@@ -199,6 +199,7 @@ export function libraryDtoToTrack(dto: LibraryTrackDto): Track {
     replayGainTrackDb: dto.replayGainTrackDb ?? undefined,
     replayGainAlbumDb: dto.replayGainAlbumDb ?? undefined,
     size: song.size,
+    serverId: dto.serverId,
   };
 }
 
@@ -467,6 +468,7 @@ export async function buildOfflineFavoritesQueueTracks(): Promise<{
         duration: 0,
         suffix: entry.suffix,
         size: entry.sizeBytes,
+        serverId,
       });
     }
     queueServerIndexKey ??= entry.serverIndexKey;
@@ -509,6 +511,7 @@ export async function buildOfflineCacheQueueTracks(): Promise<{
         duration: 0,
         suffix: entry.suffix,
         size: entry.sizeBytes,
+        serverId,
       });
     }
     queueServerIndexKey ??= entry.serverIndexKey;

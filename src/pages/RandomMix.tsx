@@ -145,7 +145,7 @@ export default function RandomMix() {
     else nextStarred.add(song.id);
     setStarredSongs(nextStarred);
     // F4: optimistic override + retried server sync via the central helper (no rollback).
-    queueSongStar(song.id, !currentlyStarred);
+    queueSongStar(song.id, !currentlyStarred, song.serverId);
   };
 
   const loadGenreMix = async (genre: string, overrideSize?: number) => {

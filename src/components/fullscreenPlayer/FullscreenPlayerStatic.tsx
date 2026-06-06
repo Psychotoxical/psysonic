@@ -43,7 +43,7 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
   });
   const toggleStar = useCallback(() => {
     if (!currentTrack) return;
-    queueSongStar(currentTrack.id, !isStarred);
+    queueSongStar(currentTrack.id, !isStarred, currentTrack.serverId);
   }, [currentTrack, isStarred]);
 
   const duration = currentTrack?.duration ?? 0;

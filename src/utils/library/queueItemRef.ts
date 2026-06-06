@@ -1,4 +1,5 @@
 import type { QueueItemRef, Track } from '../../store/playerStoreTypes';
+import { stampTrackServerId } from '../playback/trackServerScope';
 import { canonicalQueueServerKey } from '../server/serverIndexKey';
 
 /**
@@ -12,8 +13,9 @@ import { canonicalQueueServerKey } from '../server/serverIndexKey';
  * circular dependency.
  */
 export function toQueueItemRefs(serverId: string, queue: Track[]): QueueItemRef[] {
-  const canonicalId = canonicalQueueServerKey(serverId);
   return queue.map(t => {
+    const scoped = stampTrackServerId(t, serverId);
+    const canonicalId = canonicalQueueServerKey(scoped.serverId ?? serverId);
     const ref: QueueItemRef = { serverId: canonicalId, trackId: t.id };
     if (t.autoAdded) ref.autoAdded = true;
     if (t.radioAdded) ref.radioAdded = true;

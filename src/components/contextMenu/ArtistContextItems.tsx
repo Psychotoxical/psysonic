@@ -54,7 +54,11 @@ export default function ArtistContextItems(props: ContextMenuItemsProps) {
               <div className="context-menu-item" onClick={() => handleAction(() => {
                 const starred = isStarred(artist.id, artist.starred);
                 setStarredOverride(artist.id, !starred);
-                const meta = { name: artist.name, albumCount: artist.albumCount };
+                const meta = {
+                  serverId: artist.serverId,
+                  name: artist.name,
+                  albumCount: artist.albumCount,
+                };
                 return starred
                   ? unstar(artist.id, 'artist', meta)
                   : star(artist.id, 'artist', meta);

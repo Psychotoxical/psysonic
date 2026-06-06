@@ -1,6 +1,6 @@
 import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { useAuthStore } from '../store/authStore';
-import { findServerByIdOrIndexKey } from '../utils/server/serverLookup';
+import { coverServerScopeForServerId } from './serverScope';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import type { CoverArtId, CoverArtRef, CoverCacheKind, CoverServerScope } from './types';
 import {
@@ -187,18 +187,8 @@ export function coverArtRef(
 
 export function resolvePlaybackCoverScope(): CoverServerScope {
   const playbackSid = getPlaybackServerId();
+  if (!playbackSid) return { kind: 'playback' };
   const activeSid = useAuthStore.getState().activeServerId;
-  if (playbackSid && activeSid && playbackSid !== activeSid) {
-    const server = findServerByIdOrIndexKey(playbackSid);
-    if (server) {
-      return {
-        kind: 'server',
-        serverId: server.id,
-        url: server.url,
-        username: server.username,
-        password: server.password,
-      };
-    }
-  }
-  return { kind: 'playback' };
+  if (playbackSid === activeSid) return { kind: 'playback' };
+  return coverServerScopeForServerId(playbackSid);
 }

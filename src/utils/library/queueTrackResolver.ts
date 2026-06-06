@@ -1,8 +1,9 @@
 import { libraryGetTracksBatch, type TrackRefDto } from '../../api/library';
-import { getSong } from '../../api/subsonicLibrary';
+import { getSongForServer } from '../../api/subsonicLibrary';
 import { usePlayerStore } from '../../store/playerStore';
 import type { QueueItemRef, Track } from '../../store/playerStoreTypes';
 import { songToTrack } from '../playback/songToTrack';
+import { resolveServerIdForIndexKey } from '../server/serverLookup';
 import { canonicalQueueServerKey } from '../server/serverIndexKey';
 import { trackToSong } from './advancedSearchLocal';
 import { libraryIsReady } from './libraryReady';
@@ -158,7 +159,11 @@ export async function resolveBatch(refs: QueueItemRef[]): Promise<void> {
           try {
             const dtos = await libraryGetTracksBatch(chunk);
             for (const d of dtos) {
-              const track = carryFlags(songToTrack(trackToSong(d)), refByTrack.get(d.id));
+              const profileId = resolveServerIdForIndexKey(serverId) || serverId;
+              const track = carryFlags(
+                { ...songToTrack(trackToSong(d)), serverId: d.serverId ?? profileId },
+                refByTrack.get(d.id),
+              );
               cacheSet(refKey({ serverId, trackId: d.id }), track);
               stillMissing.delete(d.id);
               changed = true;
@@ -168,11 +173,15 @@ export async function resolveBatch(refs: QueueItemRef[]): Promise<void> {
       }
 
       // Network fallback (P8) for refs the index couldn't serve.
+      const profileId = resolveServerIdForIndexKey(serverId) || serverId;
       for (const trackId of stillMissing) {
         try {
-          const song = await getSong(trackId);
+          const song = await getSongForServer(profileId, trackId);
           if (song) {
-            const track = carryFlags(songToTrack(song), refByTrack.get(trackId));
+            const track = carryFlags(
+              { ...songToTrack(song), serverId: profileId },
+              refByTrack.get(trackId),
+            );
             cacheSet(refKey({ serverId, trackId }), track);
             changed = true;
           }

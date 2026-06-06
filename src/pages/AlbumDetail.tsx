@@ -245,6 +245,7 @@ const handleShuffleAll = () => {
     setIsStarred(!wasStarred);
     try {
       const meta = {
+        serverId: serverId || album.album.serverId,
         name: album.album.name,
         artist: album.album.artist,
         artistId: album.album.artistId,
@@ -266,7 +267,7 @@ const handleShuffleAll = () => {
     if (wasStarred) next.delete(song.id); else next.add(song.id);
     setStarredSongs(next);
     // F4: optimistic override + retried server sync via the central helper.
-    queueSongStar(song.id, !wasStarred);
+    queueSongStar(song.id, !wasStarred, song.serverId ?? serverId || undefined);
   };
 
   const handleCacheOffline = useCallback(async () => {

@@ -27,6 +27,8 @@ export interface Track {
   bitDepth?: number;
   /** Subsonic `size` in bytes when provided by the server (helps hot-cache budgeting). */
   size?: number;
+  /** Owning server profile id when the queue spans multiple servers (e.g. offline favorites). */
+  serverId?: string;
   autoAdded?: boolean;
   radioAdded?: boolean;
   /** Inserted via "Play Next". Used by the preserve-order toggle to find the

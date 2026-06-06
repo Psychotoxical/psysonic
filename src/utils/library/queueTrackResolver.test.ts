@@ -65,13 +65,13 @@ describe('queueTrackResolver', () => {
     expect(getCachedTrack(ref('t2'))?.playNextAdded).toBe(true);
   });
 
-  it('falls back to network getSong when the index is not ready', async () => {
+  it('falls back to network getSongForServer when the index is not ready', async () => {
     notReady();
-    const spy = vi.spyOn(subsonic, 'getSong').mockResolvedValue({
+    const spy = vi.spyOn(subsonic, 'getSongForServer').mockResolvedValue({
       id: 't9', title: 'Net Song', album: 'A', duration: 1,
     } as never);
     await resolveBatch([ref('t9')]);
-    expect(spy).toHaveBeenCalledWith('t9');
+    expect(spy).toHaveBeenCalledWith('s1', 't9');
     expect(getCachedTrack(ref('t9'))?.title).toBe('Net Song');
   });
 

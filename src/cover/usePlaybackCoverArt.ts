@@ -12,6 +12,10 @@ export function usePlaybackCoverArt(
   opts?: { fullRes?: boolean },
 ): CoverArtHandle {
   const queueServerId = usePlayerStore(s => s.queueServerId);
+  const queueIndex = usePlayerStore(s => s.queueIndex);
+  const playingServerId = usePlayerStore(
+    s => s.queueItems[s.queueIndex]?.serverId ?? '',
+  );
   const queueLength = usePlayerStore(s => s.queueItems.length);
   const activeServerId = useAuthStore(s => s.activeServerId);
   const serversFingerprint = useAuthStore(s =>
@@ -22,7 +26,7 @@ export function usePlaybackCoverArt(
 
   const scope = useMemo(
     () => resolvePlaybackCoverScope(),
-    [queueServerId, queueLength, activeServerId, serversFingerprint],
+    [queueServerId, queueIndex, playingServerId, queueLength, activeServerId, serversFingerprint],
   );
   const refWithScope = useMemo(
     () => (coverRef ? { ...coverRef, serverScope: scope } : null),

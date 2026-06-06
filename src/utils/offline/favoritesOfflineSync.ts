@@ -145,10 +145,13 @@ export function onFavoritesOfflineStarChange(
   _id: string,
   _type: 'song' | 'album' | 'artist',
   _starred: boolean,
+  serverId?: string,
 ): void {
   const auth = useAuthStore.getState();
-  if (!auth.favoritesOfflineEnabled || !auth.activeServerId) return;
-  scheduleFavoritesOfflineSync(auth.activeServerId);
+  if (!auth.favoritesOfflineEnabled) return;
+  const target = serverId ?? auth.activeServerId;
+  if (!target) return;
+  scheduleFavoritesOfflineSync(target);
 }
 
 async function runFavoritesOfflineSyncBatch(serverIds: string[]): Promise<void> {

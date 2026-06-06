@@ -3,9 +3,11 @@ import { useAuthStore } from '../../store/authStore';
 import { usePlayerStore } from '../../store/playerStore';
 import {
   bindQueueServerForPlayback,
+  bindQueueServerForTracks,
   clearQueueServerForPlayback,
   ensurePlaybackServerActive,
   getPlaybackServerId,
+  playbackCacheKeyForTrack,
   playbackCoverArtForId,
   playbackServerDiffersFromActive,
   prepareActiveServerForNewMix,
@@ -39,6 +41,19 @@ describe('playbackServer', () => {
   it('getPlaybackServerId returns queue server while queue is non-empty', () => {
     useAuthStore.setState({ activeServerId: 'b' });
     expect(getPlaybackServerId()).toBe('a');
+  });
+
+  it('getPlaybackServerId follows the playing ref in a mixed-server queue', () => {
+    useAuthStore.setState({ activeServerId: 'a' });
+    usePlayerStore.setState({
+      queueItems: [
+        { serverId: 'a.test', trackId: 't1' },
+        { serverId: 'b.test', trackId: 't2' },
+      ],
+      queueServerId: 'a.test',
+      queueIndex: 1,
+    });
+    expect(getPlaybackServerId()).toBe('b');
   });
 
   it('getPlaybackServerId falls back to active when queue is empty', () => {
@@ -88,7 +103,8 @@ describe('playbackServer', () => {
     useAuthStore.setState({ activeServerId: 'b' });
     usePlayerStore.setState({ queueServerId: null });
     expect(shouldHandoffQueueToActiveServer()).toBe(true);
-    expect(playbackServerDiffersFromActive()).toBe(false);
+    // Playing ref still owns playback even when queueServerId is unpinned.
+    expect(playbackServerDiffersFromActive()).toBe(true);
   });
 
   it('shouldHandoffQueueToActiveServer when queue server differs from active', () => {
@@ -122,5 +138,21 @@ describe('playbackServer', () => {
     ];
     expect(shouldBindQueueServerForPlay(prevRefs, next, next)).toBe(true);
     expect(shouldBindQueueServerForPlay(prevRefs, sameTrack, undefined)).toBe(false);
+  });
+
+  it('bindQueueServerForTracks pins the first track server, not the active server', () => {
+    useAuthStore.setState({ activeServerId: 'a' });
+    bindQueueServerForTracks([
+      { id: 't1', title: 'T', artist: '', album: '', albumId: '', duration: 1, serverId: 'b' },
+    ]);
+    expect(usePlayerStore.getState().queueServerId).toBe('b.test');
+  });
+
+  it('playbackCacheKeyForTrack prefers track.serverId over queue server', () => {
+    usePlayerStore.setState({ queueServerId: 'a.test' });
+    const key = playbackCacheKeyForTrack({
+      id: 't1', title: 'T', artist: '', album: '', albumId: '', duration: 1, serverId: 'b',
+    });
+    expect(key).toBe('b.test');
   });
 });

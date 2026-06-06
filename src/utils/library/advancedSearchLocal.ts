@@ -205,6 +205,7 @@ export function trackToSong(t: LibraryTrackDto): SubsonicSong {
   if (t.bpmSource === 'analysis' || t.bpmSource === 'tag') {
     merged.localBpmSource = t.bpmSource;
   }
+  if (t.serverId) merged.serverId = t.serverId;
   return merged;
 }
 
