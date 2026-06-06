@@ -5,14 +5,14 @@
 
 .context-menu-item--submenu.active,
 .context-menu-item--submenu:hover {
-  background: var(--surface-2);
-  color: var(--accent);
+  background: var(--menu-item-hover);
+  color: var(--menu-item-active-text);
 }
 
 .context-submenu {
   position: absolute;
   top: -4px;
-  background: var(--bg-card);
+  background: var(--menu-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-1) 0;
@@ -45,7 +45,7 @@
 .context-submenu-input {
   flex: 1;
   min-width: 0;
-  background: var(--bg-surface);
+  background: var(--input-bg);
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
   color: var(--text-primary);

@@ -2,7 +2,7 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(17, 17, 27, 0.85);
+  background: var(--modal-scrim);
   backdrop-filter: blur(8px);
   display: flex;
   align-items: flex-start;
@@ -21,7 +21,7 @@
 }
 
 .modal-content {
-  background: var(--bg-card);
+  background: var(--modal-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   padding: var(--space-8);

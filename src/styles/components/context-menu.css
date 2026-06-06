@@ -2,7 +2,7 @@
 .context-menu {
   position: fixed;
   z-index: 10000;
-  background: var(--bg-card);
+  background: var(--menu-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-1) 0;
@@ -24,14 +24,14 @@
 }
 
 .context-menu-item:hover {
-  background: var(--surface-2);
-  color: var(--accent);
+  background: var(--menu-item-hover);
+  color: var(--menu-item-active-text);
 }
 
 .context-menu-item.context-menu-keyboard-active,
 .context-menu-rating-row.context-menu-keyboard-active {
-  background: var(--surface-2);
-  color: var(--accent);
+  background: var(--menu-item-hover);
+  color: var(--menu-item-active-text);
 }
 
 .context-menu-item.context-menu-keyboard-active {
@@ -39,7 +39,7 @@
 }
 
 .context-menu-rating-row.context-menu-keyboard-active {
-  background: color-mix(in srgb, var(--accent) 18%, var(--surface-2));
+  background: color-mix(in srgb, var(--accent) 18%, var(--menu-item-hover));
   box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
@@ -50,7 +50,7 @@
 
 .context-menu-divider {
   height: 1px;
-  background: var(--border-subtle);
+  background: var(--menu-divider);
   margin: var(--space-1) 0;
 }
 

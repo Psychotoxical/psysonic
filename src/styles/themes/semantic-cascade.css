@@ -61,16 +61,17 @@
   --modal-scrim: rgba(17, 17, 27, 0.85);
 
   /* ── Controls — buttons / inputs / sliders ───────────────── */
-  --input-bg: var(--bg-card);
+  --input-bg: var(--bg-app);
   --input-border: var(--border);
   --input-focus-border: var(--accent);
-  --button-ghost-hover: var(--bg-hover);
-  --slider-track: var(--bg-hover);
+  --button-hover: var(--bg-hover);
+  --slider-track: var(--bg-elevated);
   --slider-thumb: var(--text-primary);
   --slider-thumb-hover: var(--accent);
 
   /* ── Scrollbar ───────────────────────────────────────────── */
-  --scrollbar-thumb: var(--border);
+  --scrollbar-thumb: var(--bg-elevated);
+  --scrollbar-thumb-hover: var(--text-muted);
   --scrollbar-track: transparent;
 
   /* ── On-media — surfaces over cover art (fullscreen, hero, np-dash).

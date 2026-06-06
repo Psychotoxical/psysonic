@@ -5,7 +5,7 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
@@ -15,14 +15,14 @@
 }
 
 *:hover::-webkit-scrollbar-thumb {
-  background: var(--ctp-surface2);
+  background: var(--scrollbar-thumb);
 }
 
 .is-scrolling::-webkit-scrollbar-thumb {
-  background: var(--ctp-surface2);
+  background: var(--scrollbar-thumb);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--ctp-overlay0);
+  background: var(--scrollbar-thumb-hover);
 }
 

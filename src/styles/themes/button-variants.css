@@ -14,7 +14,7 @@
 
 .btn-primary {
   background: var(--accent);
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
   font-weight: 600;
   /* Match .btn-surface border box so toggling primary/surface does not shift layout. */
   border: 1px solid transparent;
@@ -38,19 +38,19 @@
 }
 
 .btn-ghost:hover {
-  background: var(--bg-hover);
+  background: var(--button-hover);
   color: var(--text-primary);
 }
 
 .btn-surface {
   background: var(--bg-card);
   color: var(--text-primary);
-  border: 1px solid var(--ctp-surface1);
+  border: 1px solid var(--border);
 }
 
 .btn-surface:hover {
-  background: var(--bg-hover);
-  border-color: var(--ctp-overlay0);
+  background: var(--button-hover);
+  border-color: var(--border);
 }
 
 .btn-danger {
