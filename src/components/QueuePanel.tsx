@@ -33,6 +33,7 @@ import { QueueToolbar } from './queuePanel/QueueToolbar';
 import { QueueList } from './queuePanel/QueueList';
 import { QueueTabBar } from './queuePanel/QueueTabBar';
 import { useQueueAutoScroll } from '../hooks/useQueueAutoScroll';
+import { activeServerQueueTrackIds } from '../utils/playback/trackServerScope';
 
 export default function QueuePanel() {
   const orbitRole = useOrbitStore(s => s.role);
@@ -170,11 +171,12 @@ function QueuePanelHostOrSolo() {
   const [loadModalOpen, setLoadModalOpen] = useState(false);
 
   const handleSave = async () => {
-    if (queueItems.length === 0) return;
+    const exportTrackIds = activeServerQueueTrackIds(queueItems);
+    if (exportTrackIds.length === 0) return;
     if (activePlaylist) {
       setSaveState('saving');
       try {
-        await updatePlaylist(activePlaylist.id, queueItems.map(r => r.trackId));
+        await updatePlaylist(activePlaylist.id, exportTrackIds);
         setSaveState('saved');
         setTimeout(() => setSaveState('idle'), 1500);
       } catch (e) {
@@ -196,7 +198,8 @@ function QueuePanelHostOrSolo() {
   };
 
   const handleCopyQueueShare = async () => {
-    if (queueItems.length === 0) {
+    const ids = activeServerQueueTrackIds(queueItems);
+    if (ids.length === 0) {
       showToast(t('queue.shareQueueEmpty'), 3000, 'info');
       return;
     }
@@ -207,7 +210,6 @@ function QueuePanelHostOrSolo() {
     if (!active) return;
     const srv = serverShareBaseUrl(active);
     if (!srv) return;
-    const ids = queueItems.map(r => r.trackId);
     const ok = await copyTextToClipboard(encodeSharePayload({ srv, k: 'queue', ids }));
     if (ok) showToast(t('contextMenu.shareCopied'));
     else showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
@@ -381,7 +383,7 @@ function QueuePanelHostOrSolo() {
           onSave={async (name) => {
             try {
               const createPlaylist = usePlaylistStore.getState().createPlaylist;
-              const pl = await createPlaylist(name, queueItems.map(r => r.trackId));
+              const pl = await createPlaylist(name, activeServerQueueTrackIds(queueItems));
               if (pl) setActivePlaylist({ id: pl.id, name: pl.name });
               setSaveModalOpen(false);
             } catch (e) {

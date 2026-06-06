@@ -3,6 +3,8 @@ import { useAuthStore } from '../../store/authStore';
 import { usePlayerStore } from '../../store/playerStore';
 import type { Track } from '../../store/playerStoreTypes';
 import {
+  activeServerQueueTrackIds,
+  filterQueueRefsForActiveServer,
   isMultiServerQueue,
   queueItemRefAt,
   stampTrackServerId,
@@ -45,6 +47,23 @@ describe('trackServerScope', () => {
       queueIndex: 0,
     });
     expect(queueItemRefAt()?.trackId).toBe('t1');
+  });
+
+  it('filterQueueRefsForActiveServer keeps only the active server bucket', () => {
+    useAuthStore.setState({
+      activeServerId: 'srv-a',
+      servers: [
+        { id: 'srv-a', name: 'A', url: 'https://a.test', username: 'u', password: 'p' },
+        { id: 'srv-b', name: 'B', url: 'https://b.test', username: 'u', password: 'p' },
+      ],
+    });
+    const mixed = [
+      { serverId: 'a.test', trackId: 't1' },
+      { serverId: 'b.test', trackId: 't2' },
+      { serverId: 'srv-a', trackId: 't3' },
+    ];
+    expect(filterQueueRefsForActiveServer(mixed).map(r => r.trackId)).toEqual(['t1', 't3']);
+    expect(activeServerQueueTrackIds(mixed)).toEqual(['t1', 't3']);
   });
 
   it('isMultiServerQueue detects mixed refs', () => {
