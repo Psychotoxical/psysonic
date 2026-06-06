@@ -14,7 +14,7 @@ describe('reconcileEphemeralCache', () => {
     useLocalPlaybackStore.setState({ entries: {} });
   });
 
-  it('drops stale index rows and prunes disk orphans', async () => {
+  it('drops stale index rows and prunes empty dirs without deleting unindexed files', async () => {
     useLocalPlaybackStore.setState({
       entries: {
         'srv:gone': {
@@ -45,18 +45,21 @@ describe('reconcileEphemeralCache', () => {
         const paths = (args as { localPaths: string[] }).localPaths;
         return paths.map(p => p.endsWith('keep.flac'));
       }
-      if (cmd === 'prune_orphan_ephemeral_cache_files') return ['/media/cache/srv/orphan.flac'];
       if (cmd === 'prune_empty_media_tier_dirs') return undefined;
       throw new Error(`unexpected invoke ${cmd}`);
     });
 
     const result = await reconcileEphemeralCache();
 
-    expect(result).toEqual({ removedStaleIndex: 1, orphansRemoved: 1 });
+    expect(result).toEqual({ removedStaleIndex: 1 });
     expect(useLocalPlaybackStore.getState().entries['srv:keep']).toBeDefined();
     expect(useLocalPlaybackStore.getState().entries['srv:gone']).toBeUndefined();
-    expect(invoke).toHaveBeenCalledWith('prune_orphan_ephemeral_cache_files', {
-      keepPaths: ['/media/cache/srv/keep.flac'],
+    expect(invoke).not.toHaveBeenCalledWith(
+      'prune_orphan_ephemeral_cache_files',
+      expect.anything(),
+    );
+    expect(invoke).toHaveBeenCalledWith('prune_empty_media_tier_dirs', {
+      tier: 'ephemeral',
       mediaDir: null,
     });
   });

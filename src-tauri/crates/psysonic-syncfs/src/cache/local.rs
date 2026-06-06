@@ -455,6 +455,79 @@ pub async fn prune_orphan_library_tier_files(
     Ok(prune_orphan_files_under_root(&root, &keep_paths).await)
 }
 
+struct OrphanCacheFile {
+    path: PathBuf,
+    size: u64,
+    modified: std::time::SystemTime,
+}
+
+/// Delete cache files not in `keep_paths`, oldest mtime first, until total size ≤ `max_bytes`.
+async fn evict_orphan_files_under_root_to_fit(
+    root: &Path,
+    keep_paths: &[String],
+    max_bytes: u64,
+) -> Vec<String> {
+    if !root.is_dir() {
+        return Vec::new();
+    }
+    let mut total = super::fs_utils::dir_size_recursive(root);
+    if total <= max_bytes {
+        return Vec::new();
+    }
+
+    let keep: HashSet<String> = keep_paths
+        .iter()
+        .map(|p| normalize_path_key(Path::new(p)))
+        .collect();
+
+    let mut orphans: Vec<OrphanCacheFile> = Vec::new();
+    for file in super::fs_utils::collect_regular_files_under(root) {
+        if keep.contains(&normalize_path_key(&file)) {
+            continue;
+        }
+        let meta = match std::fs::metadata(&file) {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        orphans.push(OrphanCacheFile {
+            path: file,
+            size: meta.len(),
+            modified: meta.modified().unwrap_or(std::time::UNIX_EPOCH),
+        });
+    }
+    orphans.sort_by_key(|f| f.modified);
+
+    let mut removed = Vec::new();
+    for orphan in orphans {
+        if total <= max_bytes {
+            break;
+        }
+        if tokio::fs::remove_file(&orphan.path).await.is_err() {
+            continue;
+        }
+        total = total.saturating_sub(orphan.size);
+        removed.push(orphan.path.to_string_lossy().to_string());
+        if let Some(parent) = orphan.path.parent() {
+            super::fs_utils::prune_empty_dirs_up_to(parent, root);
+        }
+    }
+    super::fs_utils::prune_empty_subdirs_under(root);
+    removed
+}
+
+/// Evict unindexed ephemeral cache files (oldest first) until tier size ≤ `max_bytes`.
+#[tauri::command]
+pub async fn evict_ephemeral_cache_orphans_to_fit(
+    keep_paths: Vec<String>,
+    max_bytes: u64,
+    media_dir: Option<String>,
+    app: AppHandle,
+) -> Result<Vec<String>, String> {
+    let media_root = resolve_media_dir(media_dir.as_deref(), &app)?;
+    let root = media_root.join(LocalTier::Ephemeral.subdir());
+    Ok(evict_orphan_files_under_root_to_fit(&root, &keep_paths, max_bytes).await)
+}
+
 /// Remove ephemeral-tier files under `{media}/cache/` not listed in `keep_paths`.
 #[tauri::command]
 pub async fn prune_orphan_ephemeral_cache_files(
@@ -1071,6 +1144,59 @@ mod migrate_tests {
         assert_eq!(found[0].track_id, "abc123");
         assert_eq!(found[0].suffix, "flac");
         assert_eq!(found[0].server_segment, "my.server");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn evict_ephemeral_cache_orphans_to_fit_removes_oldest_first_when_over_budget() {
+        let base = std::env::temp_dir().join(format!(
+            "psysonic-ephemeral-evict-age-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&base);
+        let cache = base.join("cache");
+        let keep = cache.join("srv").join("keep.flac");
+        let old_orphan = cache.join("srv").join("old.flac");
+        let new_orphan = cache.join("srv").join("new.flac");
+        std::fs::create_dir_all(keep.parent().unwrap()).unwrap();
+        std::fs::write(&keep, b"keep").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::fs::write(&old_orphan, b"oldorphan!").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::fs::write(&new_orphan, b"new!!").unwrap();
+
+        let removed =
+            evict_orphan_files_under_root_to_fit(&cache, &[keep.to_string_lossy().to_string()], 10)
+                .await;
+
+        assert_eq!(removed.len(), 1);
+        assert!(removed[0].contains("old.flac"));
+        assert!(keep.is_file());
+        assert!(!old_orphan.exists());
+        assert!(new_orphan.is_file());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn evict_ephemeral_cache_orphans_to_fit_noop_when_under_budget() {
+        let base = std::env::temp_dir().join(format!(
+            "psysonic-ephemeral-evict-noop-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&base);
+        let cache = base.join("cache");
+        let keep = cache.join("srv").join("keep.flac");
+        let orphan = cache.join("srv").join("extra.flac");
+        std::fs::create_dir_all(keep.parent().unwrap()).unwrap();
+        std::fs::write(&keep, b"keep").unwrap();
+        std::fs::write(&orphan, b"x").unwrap();
+
+        let removed =
+            evict_orphan_files_under_root_to_fit(&cache, &[keep.to_string_lossy().to_string()], 100)
+                .await;
+
+        assert!(removed.is_empty());
+        assert!(orphan.is_file());
         let _ = std::fs::remove_dir_all(&base);
     }
 

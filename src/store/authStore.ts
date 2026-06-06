@@ -36,7 +36,7 @@ export const useAuthStore = create<AuthState>()(
       lastfmSessionKey: '',
       lastfmUsername: '',
       scrobblingEnabled: true,
-      maxCacheMb: 500,
+      maxCacheMb: 0,
       coverRevalidateCycleDays: 30,
       coverRevalidateMaxProbesPerSession: 500,
       coverRevalidateMaxProbesPerMinute: 20,

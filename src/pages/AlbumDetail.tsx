@@ -6,7 +6,7 @@ import type { SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import { shuffleArray } from '../utils/playback/shuffleArray';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
@@ -47,7 +47,6 @@ export default function AlbumDetail() {
   const { t } = useTranslation();
   const perfFlags = usePerfProbeFlags();
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const losslessOnly = isLosslessMode(searchParams);
   const auth = useAuthStore();
@@ -67,8 +66,6 @@ export default function AlbumDetail() {
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [bio, setBio] = useState<string | null>(null);
   const [bioOpen, setBioOpen] = useState(false);
-  const [offlineStorageFull, setOfflineStorageFull] = useState(false);
-
   const downloadAlbum = useOfflineStore(s => s.downloadAlbum);
   const deleteAlbum = useOfflineStore(s => s.deleteAlbum);
   const serverId = auth.activeServerId ?? '';
@@ -275,22 +272,8 @@ const handleShuffleAll = () => {
     if (!album) return;
     const songs = effectiveSongs ?? album.songs;
     if (isOfflinePinComplete(album.album.id, serverId, songs.map(s => s.id))) return;
-    const maxBytes = auth.maxCacheMb * 1024 * 1024;
-    try {
-      const usedBytes = await invoke<number>('get_media_tier_size', {
-        tier: 'library',
-        mediaDir: auth.mediaDir?.trim() || null,
-      });
-      if (usedBytes >= maxBytes) {
-        setOfflineStorageFull(true);
-        return;
-      }
-    } catch {
-      // If we can't check, proceed anyway
-    }
-    setOfflineStorageFull(false);
     downloadAlbum(album.album.id, album.album.name, album.album.artist, album.album.coverArt, album.album.year, songs, serverId);
-  }, [album, auth.maxCacheMb, auth.mediaDir, downloadAlbum, serverId, effectiveSongs]);
+  }, [album, downloadAlbum, serverId, effectiveSongs]);
 
   const handleRemoveOffline = () => {
     if (!album) return;
@@ -369,18 +352,6 @@ const handleShuffleAll = () => {
         entityRatingSupport={albumEntityRatingSupport}
       />
       {losslessOnly && <LosslessModeBanner />}
-      {offlineStorageFull && (
-        <div className="offline-storage-full-banner" role="alert">
-          <span>{t('albumDetail.offlineStorageFull', { mb: auth.maxCacheMb })}</span>
-          <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={() => navigate('/offline')}>
-            {t('albumDetail.offlineStorageGoToLibrary')}
-          </button>
-          <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={() => navigate('/settings', { state: { tab: 'library' } })}>
-            {t('albumDetail.offlineStorageGoToSettings')}
-          </button>
-          <button className="offline-storage-full-dismiss" onClick={() => setOfflineStorageFull(false)} aria-label="Dismiss">×</button>
-        </div>
-      )}
 
       {songs.length > 0 && (
         <AlbumDetailToolbar

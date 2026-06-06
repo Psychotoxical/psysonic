@@ -150,6 +150,16 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     discordCoverSourceMigrated = { discordCoverSource: 'apple' };
   }
 
+  // One-time: legacy unified `maxCacheMb` cap removed from Settings (offline + IDB covers).
+  const maxCacheMbMigrationKey = 'psysonic-max-cache-mb-removed-v1';
+  let maxCacheMbMigrated: { maxCacheMb?: number } = {};
+  try {
+    if (!localStorage.getItem(maxCacheMbMigrationKey)) {
+      maxCacheMbMigrated = { maxCacheMb: 0 };
+      localStorage.setItem(maxCacheMbMigrationKey, '1');
+    }
+  } catch { /* ignore */ }
+
   let mediaDirMigrated: { mediaDir?: string } = {};
   const stMedia = state as { mediaDir?: unknown; offlineDownloadDir?: string; hotCacheDownloadDir?: string };
   if (!stMedia.mediaDir || (typeof stMedia.mediaDir === 'string' && stMedia.mediaDir.trim() === '')) {
@@ -185,5 +195,6 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     ...queueDisplayModeMigrated,
     ...linuxWaylandTextRenderProfileMigrated,
     ...discordCoverSourceMigrated,
+    ...maxCacheMbMigrated,
   };
 }

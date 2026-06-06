@@ -781,6 +781,7 @@ pub fn run() {
             psysonic_syncfs::cache::local::discover_library_tier_on_disk,
             psysonic_syncfs::cache::local::prune_orphan_library_tier_files,
             psysonic_syncfs::cache::local::prune_orphan_ephemeral_cache_files,
+            psysonic_syncfs::cache::local::evict_ephemeral_cache_orphans_to_fit,
             psysonic_syncfs::cache::local::probe_media_files,
             psysonic_syncfs::cache::local::get_media_tier_size,
             psysonic_syncfs::cache::local::purge_media_tier,

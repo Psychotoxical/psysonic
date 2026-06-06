@@ -29,7 +29,7 @@ import {
 } from './hotCachePrefetch/analysisPrune';
 import { reconcileEphemeralCache } from './utils/cache/ephemeralTierReconcile';
 
-/** Periodic disk↔index sweep so orphan dirs/files do not accumulate between queue events. */
+/** Periodic index↔disk sync (stale rows + empty dirs); unindexed files evicted only on budget pressure. */
 const EPHEMERAL_MAINTENANCE_MS = 10 * 60 * 1000;
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;

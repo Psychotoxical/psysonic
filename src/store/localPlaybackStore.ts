@@ -11,7 +11,11 @@ import {
   legacyMigrationAlreadyDone,
   markLegacyMigrationDone,
 } from './localPlaybackMigration';
-import { reconcileEphemeralCache } from '../utils/cache/ephemeralTierReconcile';
+import {
+  evictEphemeralOrphansToFit,
+  getEphemeralDiskBytes,
+  reconcileEphemeralCache,
+} from '../utils/cache/ephemeralTierReconcile';
 
 export type LocalPlaybackTier = 'ephemeral' | 'library';
 
@@ -212,6 +216,9 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
 
         await reconcileEphemeralCache();
 
+        let diskBytes = await getEphemeralDiskBytes(mediaDir);
+        if (diskBytes <= maxBytes) return;
+
         const protectLo = Math.max(0, queueIndex);
         const protectHi = Math.min(queue.length - 1, queueIndex + LOCAL_PLAYBACK_PROTECT_AFTER_CURRENT);
         const protectedIds = new Set<string>();
@@ -228,7 +235,6 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
         let sum = Object.values(entries)
           .filter(e => e.tier === 'ephemeral')
           .reduce((a, e) => a + (e.sizeBytes || 0), 0);
-        if (sum <= maxBytes) return;
 
         type Cand = { key: string; tier: number; primary: number; lru: number };
         const cands: Cand[] = [];
@@ -284,6 +290,15 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
         }
 
         set({ entries });
+
+        diskBytes = await getEphemeralDiskBytes(mediaDir);
+        if (diskBytes > maxBytes) {
+          const keepPaths = Object.values(get().entries)
+            .filter(e => e.tier === 'ephemeral')
+            .map(e => e.localPath);
+          await evictEphemeralOrphansToFit(maxBytes, mediaDir, keepPaths);
+        }
+
         await invoke('prune_empty_media_tier_dirs', { tier: 'ephemeral', mediaDir }).catch(() => {});
       },
 
