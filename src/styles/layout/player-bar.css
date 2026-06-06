@@ -6,7 +6,7 @@
   gap: var(--space-6);
   padding: 0 var(--space-5);
   background: var(--bg-player);
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--player-border);
   height: var(--player-height);
   position: relative;
   z-index: 100;
@@ -227,14 +227,14 @@ html[data-platform="windows"] .player-bar.floating {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  color: var(--text-muted);
+  color: var(--player-control);
   transition: all var(--transition-fast);
   flex-shrink: 0;
 }
 
 .player-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: var(--player-control-hover-bg);
+  color: var(--player-control-hover);
   transform: scale(1.12);
 }
 
@@ -246,7 +246,7 @@ html[data-platform="windows"] .player-bar.floating {
 /* Star + Last.fm heart — visually separated from track title */
 .player-star-btn {
   margin: var(--space-1);
-  color: var(--text-muted);
+  color: var(--player-control);
   transition: color var(--transition-fast);
 }
 
@@ -337,12 +337,12 @@ html[data-platform="windows"] .player-bar.floating {
 }
 
 .player-time-toggle:hover {
-  background-color: var(--surface-hover, rgba(128, 128, 128, 0.2));
+  background-color: var(--player-time-toggle-hover);
   color: var(--text-primary);
 }
 
 .player-time-toggle:active {
-  background-color: var(--surface-active, rgba(128, 128, 128, 0.3));
+  background-color: var(--player-time-toggle-active);
 }
 
 /* Volume section */
@@ -384,7 +384,7 @@ html[data-platform="windows"] .player-bar.floating {
 }
 
 .player-eq-btn {
-  color: var(--text-muted);
+  color: var(--player-control);
   flex-shrink: 0;
   transition: color 0.15s;
 }
@@ -406,7 +406,7 @@ html[data-platform="windows"] .player-bar.floating {
   padding: 10px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
-  background: var(--bg-card);
+  background: var(--menu-bg);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
   z-index: 240;
   display: flex;
