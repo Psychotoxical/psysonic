@@ -5,9 +5,11 @@ import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
 import { useOfflineJobStore } from '../../store/offlineJobStore';
 import { useOfflineStore } from '../../store/offlineStore';
 import {
+  isManualOfflinePlaylist,
   isPlaylistPinnedOffline,
   schedulePinnedPlaylistSync,
 } from './pinnedPlaylistOfflineSync';
+import { SMART_PREFIX } from '../componentHelpers/playlistDetailHelpers';
 
 const getPlaylistMock = vi.fn();
 const filterSongsMock = vi.fn(async (songs: SubsonicSong[]) => songs);
@@ -82,6 +84,23 @@ describe('isPlaylistPinnedOffline', () => {
   });
 });
 
+describe('isManualOfflinePlaylist', () => {
+  beforeEach(() => {
+    useAuthStore.setState({
+      activeServerId: 'srv-a',
+      servers: [{ id: 'srv-a', name: 'A', url: 'https://a.test', username: 'u', password: 'p' }],
+    });
+  });
+
+  it('rejects smart playlist names', () => {
+    expect(isManualOfflinePlaylist('pl-1', 'srv-a', `${SMART_PREFIX}Jazz`)).toBe(false);
+  });
+
+  it('allows regular playlist names', () => {
+    expect(isManualOfflinePlaylist('pl-1', 'srv-a', 'Road mix')).toBe(true);
+  });
+});
+
 describe('schedulePinnedPlaylistSync', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -133,6 +152,24 @@ describe('schedulePinnedPlaylistSync', () => {
 
   it('does nothing when the playlist is not cached offline', async () => {
     schedulePinnedPlaylistSync('pl-9');
+    await vi.advanceTimersByTimeAsync(700);
+    expect(getPlaylistMock).not.toHaveBeenCalled();
+  });
+
+  it('does not sync smart playlists even when previously cached', async () => {
+    useOfflineStore.setState({
+      albums: {
+        'a.test:pl-smart': {
+          id: 'pl-smart',
+          serverId: 'a.test',
+          name: `${SMART_PREFIX}Daily`,
+          artist: '',
+          trackIds: ['t1'],
+          type: 'playlist',
+        },
+      },
+    });
+    schedulePinnedPlaylistSync('pl-smart');
     await vi.advanceTimersByTimeAsync(700);
     expect(getPlaylistMock).not.toHaveBeenCalled();
   });

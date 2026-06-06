@@ -5,6 +5,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from '../../store/authStore';
 import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
 import { useOfflineStore } from '../../store/offlineStore';
+import { usePlaylistStore } from '../../store/playlistStore';
+import { isSmartPlaylistName } from '../componentHelpers/playlistDetailHelpers';
 import { getMediaDir } from '../media/mediaDir';
 import {
   isActiveServerReachable,
@@ -32,6 +34,17 @@ function offlinePlaylistMeta(playlistId: string, serverId: string) {
   const indexKey = serverIndexKeyForOffline(serverId);
   const albums = useOfflineStore.getState().albums;
   return albums[`${indexKey}:${playlistId}`] ?? albums[`${serverId}:${playlistId}`];
+}
+
+function resolvePlaylistName(playlistId: string, serverId: string): string | undefined {
+  return offlinePlaylistMeta(playlistId, serverId)?.name
+    ?? usePlaylistStore.getState().playlists.find(p => p.id === playlistId)?.name;
+}
+
+/** Smart playlists refresh from server rules — not eligible for manual offline cache/sync. */
+export function isManualOfflinePlaylist(playlistId: string, serverId: string, name?: string): boolean {
+  const resolved = name ?? resolvePlaylistName(playlistId, serverId);
+  return !resolved || !isSmartPlaylistName(resolved);
 }
 
 /** True when this playlist was cached offline (manual pin). */
@@ -143,6 +156,7 @@ export async function syncPinnedPlaylistIfNeeded(
   if (!isActiveServerReachable()) return;
   const sid = serverId ?? useAuthStore.getState().activeServerId;
   if (!sid || !isPlaylistPinnedOffline(playlistId, sid)) return;
+  if (!isManualOfflinePlaylist(playlistId, sid)) return;
 
   let songs = prefetchedSongs;
   let playlistName = offlinePlaylistMeta(playlistId, sid)?.name ?? playlistId;
@@ -195,6 +209,7 @@ export function schedulePinnedPlaylistSync(
   if (!playlistId) return;
   const sid = serverId ?? useAuthStore.getState().activeServerId;
   if (!sid || !isPlaylistPinnedOffline(playlistId, sid)) return;
+  if (!isManualOfflinePlaylist(playlistId, sid)) return;
   if (!isActiveServerReachable()) return;
 
   pendingPlaylistIds.add(playlistId);
@@ -219,6 +234,7 @@ export async function syncAllPinnedPlaylists(): Promise<void> {
 
   for (const meta of Object.values(useOfflineStore.getState().albums)) {
     if (meta.type !== 'playlist') continue;
+    if (isSmartPlaylistName(meta.name)) continue;
     const serverId = resolveServerIdForIndexKey(meta.serverId) || meta.serverId;
     const key = `${serverId}:${meta.id}`;
     if (seen.has(key)) continue;
@@ -228,6 +244,7 @@ export async function syncAllPinnedPlaylists(): Promise<void> {
 
   for (const group of useLocalPlaybackStore.getState().listPinnedGroups()) {
     if (group.pinSource.kind !== 'playlist') continue;
+    if (isSmartPlaylistName(group.pinSource.displayName ?? '')) continue;
     const serverId = resolveServerIdForIndexKey(group.serverIndexKey) || group.serverIndexKey;
     const key = `${serverId}:${group.pinSource.sourceId}`;
     if (seen.has(key)) continue;

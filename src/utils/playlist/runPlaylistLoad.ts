@@ -36,7 +36,7 @@ export async function runPlaylistLoad(deps: RunPlaylistLoadDeps): Promise<void> 
     if (serverId) {
       void import('../offline/pinnedPlaylistOfflineSync')
         .then(m => {
-          if (m.isPlaylistPinnedOffline(id, serverId)) {
+          if (m.isManualOfflinePlaylist(id, serverId) && m.isPlaylistPinnedOffline(id, serverId)) {
             m.schedulePinnedPlaylistSync(id, serverId);
           }
         })

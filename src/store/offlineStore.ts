@@ -18,6 +18,7 @@ import {
 } from '../utils/offline/offlineLibraryHelpers';
 import { librarySqlServerId } from '../api/coverCache';
 import { resolveIndexKey, serverIndexKeyForProfile } from '../utils/server/serverIndexKey';
+import { isSmartPlaylistName } from '../utils/componentHelpers/playlistDetailHelpers';
 import {
   enqueueOfflinePin,
   registerOfflinePinExecutor,
@@ -345,6 +346,7 @@ export const useOfflineStore = create<OfflineState>()(
       },
 
       downloadPlaylist: async (playlistId, playlistName, coverArt, songs, serverId) => {
+        if (isSmartPlaylistName(playlistName)) return;
         const seen = new Set<string>();
         const unique = songs.filter(s => { if (seen.has(s.id)) return false; seen.add(s.id); return true; });
         await get().downloadAlbum(playlistId, playlistName, '', coverArt, undefined, unique, serverId, 'playlist');
