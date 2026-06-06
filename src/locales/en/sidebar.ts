@@ -18,6 +18,8 @@ export const sidebar = {
   collapse: 'Collapse Sidebar',
 
   downloadingTracks: 'Caching {{n}} tracks…',
+  offlinePinActive: 'Caching «{{name}}»…',
+  offlinePinActiveQueued: 'Caching «{{name}}» · +{{queued}} queued',
   syncingTracks: 'Syncing {{done}}/{{total}}…',
   cancelDownload: 'Cancel download',
   offlineLibrary: 'Offline Library',

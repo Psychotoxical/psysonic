@@ -19,6 +19,7 @@ import { useDownloadModalStore } from '../store/downloadModalStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useOfflineJobStore } from '../store/offlineJobStore';
 import { isOfflinePinComplete } from '../utils/offline/offlineLibraryHelpers';
+import { dequeueOfflinePin } from '../utils/offline/offlinePinQueue';
 import { reconcileLibraryTierForAlbum } from '../utils/offline/libraryTierReconcile';
 import { shouldAttemptSubsonicForServer } from '../utils/network/subsonicNetworkGuard';
 import { join } from '@tauri-apps/api/path';
@@ -274,6 +275,10 @@ const handleShuffleAll = () => {
 
   const handleCacheOffline = useCallback(async () => {
     if (!album) return;
+    if (resolvedOfflineStatus === 'queued') {
+      dequeueOfflinePin(album.album.id);
+      return;
+    }
     let songs = effectiveSongs ?? album.songs;
     if (serverId && shouldAttemptSubsonicForServer(serverId)) {
       try {
@@ -287,7 +292,7 @@ const handleShuffleAll = () => {
     }
     if (isOfflinePinComplete(album.album.id, serverId, songs.map(s => s.id))) return;
     downloadAlbum(album.album.id, album.album.name, album.album.artist, album.album.coverArt, album.album.year, songs, serverId);
-  }, [album, downloadAlbum, serverId, effectiveSongs, losslessOnly]);
+  }, [album, downloadAlbum, serverId, effectiveSongs, losslessOnly, resolvedOfflineStatus]);
 
   const handleRemoveOffline = () => {
     if (!album) return;

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { usePlayerStore } from '../store/playerStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useOfflineJobStore } from '../store/offlineJobStore';
+import { clearOfflinePinTasks } from '../utils/offline/offlinePinQueue';
 import { useDeviceSyncJobStore } from '../store/deviceSyncJobStore';
 import { useAuthStore } from '../store/authStore';
 import { useSidebarStore } from '../store/sidebarStore';
@@ -44,8 +45,16 @@ export default function Sidebar({
   const isPlaying   = usePlayerStore(s => s.isPlaying);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const offlineJobs = useOfflineJobStore(s => s.jobs);
-  const cancelAllDownloads = useOfflineJobStore(s => s.cancelAllDownloads);
+  const pinQueue = useOfflineJobStore(s => s.pinQueue);
+  const cancelAllDownloadsStore = useOfflineJobStore(s => s.cancelAllDownloads);
   const activeJobs = offlineJobs.filter(j => j.status === 'queued' || j.status === 'downloading');
+  const activePin = pinQueue.find(p => p.status === 'downloading')
+    ?? pinQueue.find(p => p.status === 'queued');
+  const queuedPinCount = pinQueue.filter(p => p.status === 'queued').length;
+  const cancelAllDownloads = () => {
+    clearOfflinePinTasks();
+    cancelAllDownloadsStore();
+  };
   const syncJobStatus = useDeviceSyncJobStore(s => s.status);
   const syncJobDone   = useDeviceSyncJobStore(s => s.done);
   const syncJobSkip   = useDeviceSyncJobStore(s => s.skipped);
@@ -246,6 +255,8 @@ export default function Sidebar({
           nowPlayingAtTop={nowPlayingAtTop}
           hasOfflineContent={hasOfflineContent}
           activeJobsCount={activeJobs.length}
+          activePinName={activePin?.albumName ?? null}
+          queuedPinCount={queuedPinCount}
           cancelAllDownloads={cancelAllDownloads}
           isSyncing={isSyncing}
           syncJobDone={syncJobDone}
