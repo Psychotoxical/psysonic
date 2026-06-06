@@ -1,7 +1,25 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-type Theme = 'mocha' | 'macchiato' | 'frappe' | 'latte' | 'nord' | 'nord-snowstorm' | 'nord-frost' | 'nord-aurora' | 'psychowave' | 'wnamp' | 'poison' | 'nucleo' | 'muma-jukebox' | 'winmedplayer' | 'p-dvd' | 'vintage-tube-radio' | 'neon-drift' | 'aero-glass' | 'luna-teal' | 'w98' | 'cupertino-light' | 'cupertino-dark' | 'gruvbox-dark-hard' | 'gruvbox-dark-medium' | 'gruvbox-dark-soft' | 'gruvbox-light-hard' | 'gruvbox-light-medium' | 'gruvbox-light-soft' | 'spotless' | 'dzr0' | 'cupertino-beats' | 'lambda-17' | 'gw1' | 'grand-theft-audio' | 'v-tactical' | 'nightcity-2077' | 'morpheus' |'stark-hud' | 'blade' | 'heisenberg' | 'ice-and-fire' | 'doh-matic' | 't-800' | 'dune' | 'tetrastack' | 'readit' |'insta' | 'hill-valley-85' | 'turtle-power' | 'w3-1' | 'spider-tech' |'dos' | 'unix' | 'jayfin' | 'horde' | 'alliance' | 'w11' | 'w10' | 'dark-side-of-the-moon' | 'nightfox' |'dayfox' | 'dawnfox' | 'duskfox' | 'nordfox' | 'terafox' | 'carbonfox' | 'dracula' | 'kanagawa-wave' | 'kanagawa-dragon' | 'kanagawa-lotus' | 'one-dark' | 'one-light' | 'vs-1984' | 'vs-1984-cyberpunk' | 'vs-1984-light' | 'vs-1984-orwell' | 'vision-dark' | 'vision-navy' | 'braindead';
+/** Themes that ship bundled with the app and can never be uninstalled. */
+export type BuiltinTheme =
+  | 'mocha'
+  | 'latte'
+  | 'kanagawa-wave'
+  | 'stark-hud'
+  | 'vision-dark'
+  | 'vision-navy';
+
+/**
+ * A theme id. Built-in ids get autocomplete; installed community themes apply
+ * any string id (the `& {}` keeps the literal hints without collapsing to a
+ * bare `string`). The full set of currently-bundled non-core ids is still
+ * listed here for back-compat until the bundle is slimmed down.
+ */
+export type Theme =
+  | BuiltinTheme
+  | 'macchiato' | 'frappe' | 'nord' | 'nord-snowstorm' | 'nord-frost' | 'nord-aurora' | 'psychowave' | 'wnamp' | 'poison' | 'nucleo' | 'muma-jukebox' | 'winmedplayer' | 'p-dvd' | 'vintage-tube-radio' | 'neon-drift' | 'aero-glass' | 'luna-teal' | 'w98' | 'cupertino-light' | 'cupertino-dark' | 'gruvbox-dark-hard' | 'gruvbox-dark-medium' | 'gruvbox-dark-soft' | 'gruvbox-light-hard' | 'gruvbox-light-medium' | 'gruvbox-light-soft' | 'spotless' | 'dzr0' | 'cupertino-beats' | 'lambda-17' | 'gw1' | 'grand-theft-audio' | 'v-tactical' | 'nightcity-2077' | 'morpheus' | 'blade' | 'heisenberg' | 'ice-and-fire' | 'doh-matic' | 't-800' | 'dune' | 'tetrastack' | 'readit' | 'insta' | 'hill-valley-85' | 'turtle-power' | 'w3-1' | 'spider-tech' | 'dos' | 'unix' | 'jayfin' | 'horde' | 'alliance' | 'w11' | 'w10' | 'dark-side-of-the-moon' | 'nightfox' | 'dayfox' | 'dawnfox' | 'duskfox' | 'nordfox' | 'terafox' | 'carbonfox' | 'dracula' | 'kanagawa-dragon' | 'kanagawa-lotus' | 'one-dark' | 'one-light' | 'vs-1984' | 'vs-1984-cyberpunk' | 'vs-1984-light' | 'vs-1984-orwell' | 'braindead'
+  | (string & {});
 
 interface ThemeState {
   theme: Theme;

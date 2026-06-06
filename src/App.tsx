@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { useAuthStore } from './store/authStore';
 import { useThemeStore } from './store/themeStore';
+import { useInstalledThemesStore } from './store/installedThemesStore';
+import { syncInjectedThemes } from './utils/themes/themeInjection';
 import { useThemeScheduler } from './hooks/useThemeScheduler';
 import { useFontStore } from './store/fontStore';
 import { getWindowKind } from './app/windowKind';
@@ -13,10 +15,21 @@ export default function App() {
   useThemeStore(s => s.theme);
   const effectiveTheme = useThemeScheduler();
   const font = useFontStore(s => s.font);
+  const installedThemes = useInstalledThemesStore(s => s.themes);
 
   // Document-attribute hooks are shared between both window kinds — each
   // webview has its own `document`, and theme / font / track-preview tokens
   // are read by CSS in both trees.
+
+  // Installed community themes have no build-time CSS — inject their
+  // `[data-theme='<id>']` blocks into <head> from the persisted (localStorage)
+  // store. Runs before the data-theme effect below so the matching style exists
+  // when the attribute is applied. The store hydrates synchronously, so an
+  // active community theme is painted without a network round-trip.
+  useEffect(() => {
+    syncInjectedThemes(installedThemes);
+  }, [installedThemes]);
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', effectiveTheme);
   }, [effectiveTheme]);
