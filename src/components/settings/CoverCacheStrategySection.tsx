@@ -1,5 +1,5 @@
 import { Image, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { listen } from '@tauri-apps/api/event';
 import SettingsSubSection from '../SettingsSubSection';
@@ -16,17 +16,45 @@ import { serverListDisplayLabel } from '../../utils/server/serverDisplayName';
 import { serverIndexKeyForProfile } from '../../utils/server/serverIndexKey';
 import { showToast } from '../../utils/ui/toast';
 import { formatBytes } from '../../utils/format/formatBytes';
+import { clearImageCache, getImageCacheSize } from '../../utils/imageCache';
 import { wakeLibraryCoverBackfill } from '../../utils/library/coverBackfillWake';
 import {
   COVER_CACHE_STRATEGIES,
   type CoverCacheStrategy,
 } from '../../utils/library/coverStrategy';
 
-type ClearTarget = {
-  serverId: string;
-  indexKey: string;
-  label: string;
+type ClearTarget =
+  | { kind: 'image' }
+  | { kind: 'disk'; serverId: string; indexKey: string; label: string };
+
+const ROW_BORDER = { borderTop: '1px solid var(--border-subtle, rgba(255,255,255,0.06))' } as const;
+const TH_STYLE = {
+  textAlign: 'left' as const,
+  padding: '8px 10px',
+  fontSize: 12,
+  color: 'var(--text-muted)',
 };
+
+const TABLE_STYLE = {
+  width: '100%',
+  borderCollapse: 'collapse',
+  minWidth: 520,
+  tableLayout: 'fixed',
+} as const;
+
+const STRATEGY_GAP_TH: CSSProperties = { ...TH_STYLE, padding: '8px 10px' };
+const STRATEGY_GAP_TD: CSSProperties = { padding: '10px' };
+
+function CoverCacheColGroup() {
+  return (
+    <colgroup>
+      <col style={{ width: '22%' }} />
+      <col style={{ width: '38%' }} />
+      <col style={{ width: '22%' }} />
+      <col style={{ width: '18%' }} />
+    </colgroup>
+  );
+}
 
 type ServerRowState = {
   bytes: number;
@@ -38,12 +66,14 @@ type ServerRowState = {
 
 export default function CoverCacheStrategySection() {
   const { t } = useTranslation();
-  const servers = useAuthStore(s => s.servers);
-  const activeServerId = useAuthStore(s => s.activeServerId);
+  const auth = useAuthStore();
+  const servers = auth.servers;
+  const activeServerId = auth.activeServerId;
   const { strategyByServer, setServerStrategy, getStrategyForServer } = useCoverStrategyStore();
   const [rowState, setRowState] = useState<Record<string, ServerRowState>>({});
   const [clearTarget, setClearTarget] = useState<ClearTarget | null>(null);
   const [clearingKey, setClearingKey] = useState<string | null>(null);
+  const [imageCacheBytes, setImageCacheBytes] = useState<number | null>(null);
 
   const activeIndexKeys = useMemo(
     () => new Set(servers.map(server => serverIndexKeyForProfile(server))),
@@ -85,6 +115,7 @@ export default function CoverCacheStrategySection() {
   // safety net for changes made outside this view (e.g. browsing-time caching); it is
   // not needed for correctness, so we avoid re-walking the cover dirs in a tight loop.
   useEffect(() => {
+    void getImageCacheSize().then(setImageCacheBytes);
     refreshAll();
     const id = window.setInterval(refreshAll, 300_000);
     return () => window.clearInterval(id);
@@ -168,8 +199,19 @@ export default function CoverCacheStrategySection() {
     }
   };
 
-  const handleClearCoverCache = async () => {
+  const handleClearConfirm = async () => {
     if (!clearTarget) return;
+    if (clearTarget.kind === 'image') {
+      setClearingKey('image');
+      try {
+        await clearImageCache();
+        setImageCacheBytes(await getImageCacheSize());
+      } finally {
+        setClearingKey(null);
+        setClearTarget(null);
+      }
+      return;
+    }
     setClearingKey(clearTarget.indexKey);
     try {
       await coverCacheClearServer(clearTarget.indexKey);
@@ -191,21 +233,62 @@ export default function CoverCacheStrategySection() {
     <SettingsSubSection title={t('settings.coverCacheStrategyTitle')} icon={<Image size={16} />}>
       <div className="settings-card">
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
+          <table style={TABLE_STYLE}>
+            <CoverCacheColGroup />
             <thead>
               <tr>
-                <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 12, color: 'var(--text-muted)' }}>
-                  {t('settings.coverCacheStrategyServerLabel')}
-                </th>
-                <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 12, color: 'var(--text-muted)' }}>
-                  {t('settings.coverCacheStrategyLabel')}
-                </th>
-                <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 12, color: 'var(--text-muted)' }}>
-                  {t('settings.coverCacheStrategyProgressLabel')}
-                </th>
-                <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 12, color: 'var(--text-muted)' }}>
-                  {t('settings.coverCacheStrategyActionsLabel')}
-                </th>
+                <th style={TH_STYLE}>{t('settings.imageCacheScopeLabel')}</th>
+                <th style={STRATEGY_GAP_TH} aria-hidden="true" />
+                <th style={TH_STYLE}>{t('settings.coverCacheStrategyProgressLabel')}</th>
+                <th style={TH_STYLE}>{t('settings.coverCacheStrategyActionsLabel')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ padding: '10px', fontSize: 13, color: 'var(--text-primary)' }}>
+                  {t('settings.imageCacheSubTitle')}
+                </td>
+                <td style={STRATEGY_GAP_TD} aria-hidden="true" />
+                <td style={{ padding: '10px', fontSize: 12, color: 'var(--text-secondary)' }}>
+                  {imageCacheBytes !== null
+                    ? t('settings.coverCacheStrategyDiskUsage', { size: formatBytes(imageCacheBytes) })
+                    : '—'}
+                </td>
+                <td style={{ padding: '10px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    style={{ fontSize: 12 }}
+                    onClick={() => setClearTarget({ kind: 'image' })}
+                  >
+                    <Trash2 size={14} /> {t('settings.cacheClearBtn')}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div
+          style={{
+            margin: '20px 0 10px',
+            fontSize: 13,
+            fontWeight: 500,
+            color: 'var(--text-primary)',
+          }}
+        >
+          {t('settings.coverDiskCacheSubTitle')}
+        </div>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table style={TABLE_STYLE}>
+            <CoverCacheColGroup />
+            <thead>
+              <tr>
+                <th style={TH_STYLE}>{t('settings.coverCacheStrategyServerLabel')}</th>
+                <th style={TH_STYLE}>{t('settings.coverCacheStrategyLabel')}</th>
+                <th style={TH_STYLE}>{t('settings.coverCacheStrategyProgressLabel')}</th>
+                <th style={TH_STYLE}>{t('settings.coverCacheStrategyActionsLabel')}</th>
               </tr>
             </thead>
             <tbody>
@@ -215,7 +298,7 @@ export default function CoverCacheStrategySection() {
                 const row = rowState[key];
                 const label = serverListDisplayLabel(server, servers);
                 return (
-                  <tr key={server.id} style={{ borderTop: '1px solid var(--border-subtle, rgba(255,255,255,0.06))' }}>
+                  <tr key={server.id} style={ROW_BORDER}>
                     <td style={{ padding: '10px', fontSize: 13, color: 'var(--text-primary)' }}>{label}</td>
                     <td style={{ padding: '10px' }}>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
@@ -245,7 +328,7 @@ export default function CoverCacheStrategySection() {
                         className="btn btn-ghost btn-sm"
                         style={{ fontSize: 12 }}
                         onClick={() =>
-                          setClearTarget({ serverId: server.id, indexKey: key, label })}
+                          setClearTarget({ kind: 'disk', serverId: server.id, indexKey: key, label })}
                       >
                         <Trash2 size={14} /> {t('settings.coverCacheStrategyClearAction')}
                       </button>
@@ -254,19 +337,20 @@ export default function CoverCacheStrategySection() {
                 );
               })}
               {removedServerKeys.map(key => (
-                <tr key={`removed-${key}`} style={{ borderTop: '1px solid var(--border-subtle, rgba(255,255,255,0.06))' }}>
+                <tr key={`removed-${key}`} style={ROW_BORDER}>
                   <td style={{ padding: '10px', fontSize: 13, color: 'var(--text-muted)' }}>
                     {key}
                     <span style={{ marginLeft: 6, fontSize: 11 }}>({t('settings.coverCacheStrategyServerRemoved')})</span>
                   </td>
-                  <td colSpan={2} />
+                  <td style={STRATEGY_GAP_TD} aria-hidden="true" />
+                  <td style={STRATEGY_GAP_TD} aria-hidden="true" />
                   <td style={{ padding: '10px' }}>
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm"
                       style={{ fontSize: 12 }}
                       onClick={() =>
-                        setClearTarget({ serverId: key, indexKey: key, label: key })}
+                        setClearTarget({ kind: 'disk', serverId: key, indexKey: key, label: key })}
                     >
                       <Trash2 size={14} /> {t('settings.coverCacheStrategyClearAction')}
                     </button>
@@ -291,19 +375,30 @@ export default function CoverCacheStrategySection() {
               fontSize: 13,
             }}
           >
-            <div style={{ fontWeight: 600, marginBottom: 6 }}>{t('settings.coverCacheStrategyClearTitle')}</div>
-            <div style={{ marginBottom: 10, lineHeight: 1.5 }}>
-              {t('settings.coverCacheStrategyClearDesc', { server: clearTarget.label })}
-            </div>
+            {clearTarget.kind === 'image' ? (
+              <>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>{t('settings.cacheClearBtn')}</div>
+                <div style={{ marginBottom: 10, lineHeight: 1.5 }}>{t('settings.cacheClearWarning')}</div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>{t('settings.coverCacheStrategyClearTitle')}</div>
+                <div style={{ marginBottom: 10, lineHeight: 1.5 }}>
+                  {t('settings.coverCacheStrategyClearDesc', { server: clearTarget.label })}
+                </div>
+              </>
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 type="button"
                 className="btn btn-primary"
                 style={{ background: 'var(--color-danger, #e53935)', fontSize: 13 }}
                 disabled={clearingKey !== null}
-                onClick={() => void handleClearCoverCache()}
+                onClick={() => void handleClearConfirm()}
               >
-                {t('settings.coverCacheStrategyClearConfirm')}
+                {clearTarget.kind === 'image'
+                  ? t('settings.cacheClearConfirm')
+                  : t('settings.coverCacheStrategyClearConfirm')}
               </button>
               <button
                 type="button"
@@ -312,7 +407,9 @@ export default function CoverCacheStrategySection() {
                 disabled={clearingKey !== null}
                 onClick={() => setClearTarget(null)}
               >
-                {t('settings.coverCacheStrategyClearCancel')}
+                {clearTarget.kind === 'image'
+                  ? t('settings.cacheClearCancel')
+                  : t('settings.coverCacheStrategyClearCancel')}
               </button>
             </div>
           </div>

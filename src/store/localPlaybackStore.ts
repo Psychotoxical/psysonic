@@ -11,6 +11,7 @@ import {
   legacyMigrationAlreadyDone,
   markLegacyMigrationDone,
 } from './localPlaybackMigration';
+import { reconcileEphemeralCache } from '../utils/cache/ephemeralTierReconcile';
 
 export type LocalPlaybackTier = 'ephemeral' | 'library';
 
@@ -209,6 +210,8 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
       evictEphemeralToFit: async (queue, queueIndex, maxBytes, activeServerIndexKey, mediaDir) => {
         if (maxBytes <= 0) return;
 
+        await reconcileEphemeralCache();
+
         const protectLo = Math.max(0, queueIndex);
         const protectHi = Math.min(queue.length - 1, queueIndex + LOCAL_PLAYBACK_PROTECT_AFTER_CURRENT);
         const protectedIds = new Set<string>();
@@ -281,6 +284,7 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
         }
 
         set({ entries });
+        await invoke('prune_empty_media_tier_dirs', { tier: 'ephemeral', mediaDir }).catch(() => {});
       },
 
       purgeEphemeralDisk: async (mediaDir) => {

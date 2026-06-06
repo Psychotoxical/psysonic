@@ -27,6 +27,10 @@ import {
   scheduleAnalysisQueuePruneFromPlaybackQueue,
   resetAnalysisPruneState,
 } from './hotCachePrefetch/analysisPrune';
+import { reconcileEphemeralCache } from './utils/cache/ephemeralTierReconcile';
+
+/** Periodic disk↔index sweep so orphan dirs/files do not accumulate between queue events. */
+const EPHEMERAL_MAINTENANCE_MS = 10 * 60 * 1000;
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 /** Fires `replanNow` once grace for the ex-current track ends so eviction can drop it. */
@@ -367,6 +371,12 @@ export function initHotCachePrefetch(): () => void {
   void replanNow();
   scheduleAnalysisQueuePruneFromPlaybackQueue();
 
+  const maintenanceTimer = window.setInterval(() => {
+    const auth = useAuthStore.getState();
+    if (!auth.isLoggedIn || !auth.hotCacheEnabled) return;
+    void reconcileEphemeralCache();
+  }, EPHEMERAL_MAINTENANCE_MS);
+
   return () => {
     unsubPlayer();
     unsubAuth();
@@ -374,6 +384,7 @@ export function initHotCachePrefetch(): () => void {
     debounceTimer = null;
     if (graceEvictTimer) clearTimeout(graceEvictTimer);
     graceEvictTimer = null;
+    window.clearInterval(maintenanceTimer);
     resetAnalysisPruneState();
     pendingQueue.length = 0;
     clearHotCachePreviousGrace();

@@ -2,6 +2,8 @@ import type { QueueItemRef } from './playerStoreTypes';
 import { create } from 'zustand';
 import type { HotCacheEntry } from './hotCacheStoreTypes';
 import { useLocalPlaybackStore } from './localPlaybackStore';
+import { invoke } from '@tauri-apps/api/core';
+import { getMediaDir } from '../utils/media/mediaDir';
 
 export type { HotCacheEntry } from './hotCacheStoreTypes';
 /** @deprecated Use {@link LOCAL_PLAYBACK_PROTECT_AFTER_CURRENT}. */
@@ -19,7 +21,7 @@ interface HotCacheState {
     suffix?: string,
   ) => void;
   touchPlayed: (trackId: string, serverId: string) => void;
-  removeEntry: (trackId: string, serverId: string) => void;
+  removeEntry: (trackId: string, serverId: string) => Promise<void>;
   totalBytes: () => number;
   evictToFit: (
     queue: QueueItemRef[],
@@ -68,10 +70,14 @@ export const useHotCacheStore = create<HotCacheState>()(() => ({
     useLocalPlaybackStore.getState().touchPlayed(trackId, serverId);
   },
 
-  removeEntry: (trackId, serverId) => {
-    const e = useLocalPlaybackStore.getState().getEntry(trackId, serverId);
-    if (e?.tier === 'ephemeral') {
-      useLocalPlaybackStore.getState().removeEntry(trackId, serverId, 'hot-cache-shim');
+  removeEntry: async (trackId, serverId) => {
+    const lp = useLocalPlaybackStore.getState();
+    const e = lp.getEntry(trackId, serverId);
+    if (e?.tier === 'ephemeral' && e.localPath) {
+      await invoke('delete_media_file', { localPath: e.localPath, mediaDir: getMediaDir() }).catch(
+        () => {},
+      );
+      lp.removeEntry(trackId, serverId, 'hot-cache-shim');
     }
   },
 

@@ -416,6 +416,31 @@ pub async fn probe_library_track_local(
     })
 }
 
+async fn prune_orphan_files_under_root(root: &Path, keep_paths: &[String]) -> Vec<String> {
+    if !root.is_dir() {
+        return Vec::new();
+    }
+    let keep: HashSet<String> = keep_paths
+        .iter()
+        .map(|p| normalize_path_key(Path::new(p)))
+        .collect();
+    let mut removed = Vec::new();
+    for file in super::fs_utils::collect_regular_files_under(root) {
+        if keep.contains(&normalize_path_key(&file)) {
+            continue;
+        }
+        if tokio::fs::remove_file(&file).await.is_err() {
+            continue;
+        }
+        removed.push(file.to_string_lossy().to_string());
+        if let Some(parent) = file.parent() {
+            super::fs_utils::prune_empty_dirs_up_to(parent, root);
+        }
+    }
+    super::fs_utils::prune_empty_subdirs_under(root);
+    removed
+}
+
 /// Remove library-tier files under `{server_index_key}` that are not listed in `keep_paths`.
 #[tauri::command]
 pub async fn prune_orphan_library_tier_files(
@@ -427,27 +452,28 @@ pub async fn prune_orphan_library_tier_files(
     let media_root = resolve_media_dir(media_dir.as_deref(), &app)?;
     let segment = sanitize_path_segment(&server_index_key);
     let root = media_root.join(LocalTier::Library.subdir()).join(segment);
-    if !root.is_dir() {
-        return Ok(Vec::new());
-    }
-    let keep: HashSet<String> = keep_paths
+    Ok(prune_orphan_files_under_root(&root, &keep_paths).await)
+}
+
+/// Remove ephemeral-tier files under `{media}/cache/` not listed in `keep_paths`.
+#[tauri::command]
+pub async fn prune_orphan_ephemeral_cache_files(
+    keep_paths: Vec<String>,
+    media_dir: Option<String>,
+    app: AppHandle,
+) -> Result<Vec<String>, String> {
+    let media_root = resolve_media_dir(media_dir.as_deref(), &app)?;
+    let root = media_root.join(LocalTier::Ephemeral.subdir());
+    Ok(prune_orphan_files_under_root(&root, &keep_paths).await)
+}
+
+/// Batch existence probe for reconcile (index rows without on-disk bytes).
+#[tauri::command]
+pub fn probe_media_files(local_paths: Vec<String>) -> Vec<bool> {
+    local_paths
         .iter()
-        .map(|p| normalize_path_key(Path::new(p)))
-        .collect();
-    let mut removed = Vec::new();
-    for file in super::fs_utils::collect_regular_files_under(&root) {
-        if keep.contains(&normalize_path_key(&file)) {
-            continue;
-        }
-        if tokio::fs::remove_file(&file).await.is_err() {
-            continue;
-        }
-        removed.push(file.to_string_lossy().to_string());
-        if let Some(parent) = file.parent() {
-            super::fs_utils::prune_empty_dirs_up_to(parent, &root);
-        }
-    }
-    Ok(removed)
+        .map(|p| std::path::Path::new(p).is_file())
+        .collect()
 }
 
 fn resolve_media_tier_root(
@@ -491,6 +517,26 @@ pub async fn purge_media_tier(
     Ok(())
 }
 
+fn prune_parents_after_media_file_delete(
+    file_path: &Path,
+    media_dir: Option<&str>,
+    app: &AppHandle,
+) {
+    let Some(parent) = file_path.parent() else {
+        return;
+    };
+    if let Some(boundary) = super::fs_utils::local_tier_boundary_from_path(file_path) {
+        super::fs_utils::prune_empty_dirs_up_to(parent, &boundary);
+        return;
+    }
+    if let Ok(media_root) = resolve_media_dir(media_dir, app) {
+        for tier in [LocalTier::Ephemeral, LocalTier::Library] {
+            let boundary = media_root.join(tier.subdir());
+            super::fs_utils::prune_empty_dirs_up_to(parent, &boundary);
+        }
+    }
+}
+
 /// Deletes one media file and prunes empty parents up to the tier root.
 #[tauri::command]
 pub async fn delete_media_file(
@@ -504,13 +550,21 @@ pub async fn delete_media_file(
             .await
             .map_err(|e| e.to_string())?;
     }
-    let media_root = resolve_media_dir(media_dir.as_deref(), &app)?;
-    if let Some(parent) = file_path.parent() {
-        for tier in [LocalTier::Ephemeral, LocalTier::Library] {
-            let boundary = media_root.join(tier.subdir());
-            super::fs_utils::prune_empty_dirs_up_to(parent, &boundary);
-        }
-    }
+    prune_parents_after_media_file_delete(&file_path, media_dir.as_deref(), &app);
+    Ok(())
+}
+
+/// Removes empty directories under `{media}/{cache|library}/` (post-eviction sweep).
+#[tauri::command]
+pub async fn prune_empty_media_tier_dirs(
+    tier: String,
+    media_dir: Option<String>,
+    app: AppHandle,
+) -> Result<(), String> {
+    let local_tier =
+        LocalTier::parse(&tier).ok_or_else(|| format!("unknown local tier: `{tier}`"))?;
+    let root = resolve_media_tier_root(local_tier, media_dir.as_deref(), &app)?;
+    super::fs_utils::prune_empty_subdirs_under(&root);
     Ok(())
 }
 
@@ -1017,6 +1071,50 @@ mod migrate_tests {
         assert_eq!(found[0].track_id, "abc123");
         assert_eq!(found[0].suffix, "flac");
         assert_eq!(found[0].server_segment, "my.server");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn prune_orphan_ephemeral_cache_removes_untracked_files_and_empty_dirs() {
+        let base = std::env::temp_dir().join(format!(
+            "psysonic-ephemeral-prune-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&base);
+        let keep = base
+            .join("cache")
+            .join("srv")
+            .join("Artist")
+            .join("Album")
+            .join("01 - Keep.flac");
+        let orphan = base
+            .join("cache")
+            .join("srv")
+            .join("Artist")
+            .join("Album")
+            .join("02 - Drop.flac");
+        let orphan_part = base
+            .join("cache")
+            .join("srv")
+            .join("Other")
+            .join("stale.flac.part");
+        std::fs::create_dir_all(keep.parent().unwrap()).unwrap();
+        std::fs::create_dir_all(orphan_part.parent().unwrap()).unwrap();
+        std::fs::write(&keep, b"keep").unwrap();
+        std::fs::write(&orphan, b"drop").unwrap();
+        std::fs::write(&orphan_part, b"part").unwrap();
+
+        let removed = prune_orphan_files_under_root(
+            &base.join("cache"),
+            &[keep.to_string_lossy().to_string()],
+        )
+        .await;
+
+        assert_eq!(removed.len(), 2);
+        assert!(keep.is_file());
+        assert!(!orphan.exists());
+        assert!(!orphan_part.exists());
+        assert!(!base.join("cache/srv/Other").exists());
         let _ = std::fs::remove_dir_all(&base);
     }
 
