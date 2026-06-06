@@ -30,6 +30,7 @@ export function ThemeStoreSection() {
   const uninstall = useInstalledThemesStore(s => s.uninstall);
 
   const [themes, setThemes] = useState<RegistryTheme[] | null>(null);
+  const [generatedAt, setGeneratedAt] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [query, setQuery] = useState('');
@@ -42,10 +43,17 @@ export function ThemeStoreSection() {
     setLoading(true);
     setError(false);
     fetchRegistry({ force })
-      .then(r => setThemes(r.themes))
+      .then(r => { setThemes(r.themes); setGeneratedAt(r.generatedAt); })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   };
+
+  // Thumbnails live at a stable CDN path, so the webview caches them hard
+  // (jsDelivr sends max-age 7d). Tie a cache-buster to the registry's
+  // generatedAt — it changes on every themes push — so refreshed thumbnails
+  // show up after a registry refresh instead of being stuck on the old image.
+  const thumbUrl = (rel: string) =>
+    generatedAt ? `${cdnUrl(rel)}?v=${encodeURIComponent(generatedAt)}` : cdnUrl(rel);
 
   useEffect(() => { load(false); }, []);
 
@@ -196,14 +204,14 @@ export function ThemeStoreSection() {
               >
                 <button
                   type="button"
-                  onClick={() => setLightbox({ src: cdnUrl(th.thumbnail), name: th.name })}
+                  onClick={() => setLightbox({ src: thumbUrl(th.thumbnail), name: th.name })}
                   aria-label={t('settings.themeStoreEnlarge')}
                   data-tooltip={t('settings.themeStoreEnlarge')}
                   data-tooltip-pos="right"
                   style={{ padding: 0, border: 'none', background: 'none', cursor: 'zoom-in', flexShrink: 0, alignSelf: 'flex-start', lineHeight: 0, borderRadius: 6 }}
                 >
                   <img
-                    src={cdnUrl(th.thumbnail)}
+                    src={thumbUrl(th.thumbnail)}
                     alt=""
                     loading="lazy"
                     width={200}
