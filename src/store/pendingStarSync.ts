@@ -1,6 +1,11 @@
 import { setRating, star, unstar } from '../api/subsonicStarRating';
 import { usePlayerStore } from './playerStore';
 import { patchCachedTrack } from '../utils/library/queueTrackResolver';
+import { useAuthStore } from './authStore';
+import {
+  removeFavoriteAutoForTrack,
+  scheduleFavoritesOfflineSync,
+} from '../utils/offline/favoritesOfflineSync';
 
 /**
  * F4 — pending-sync for **song** star + rating (spec §6.5 / R7-18).
@@ -98,6 +103,10 @@ function onStarSuccess(id: string, starred: boolean): void {
   // to the synced value rather than dropping it — a dropped entry would blank the
   // visible queue row to a "…" placeholder until the next window re-resolve.
   patchCachedTrack(id, { starred: starredVal });
+  const auth = useAuthStore.getState();
+  if (!auth.favoritesOfflineEnabled || !auth.activeServerId) return;
+  if (starred) scheduleFavoritesOfflineSync(auth.activeServerId);
+  else void removeFavoriteAutoForTrack(id, auth.activeServerId);
 }
 
 function onRatingSuccess(id: string): void {

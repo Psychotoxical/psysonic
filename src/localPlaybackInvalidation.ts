@@ -14,7 +14,9 @@ async function invalidateEntriesForLibraryServer(libraryServerId: string): Promi
   const store = useLocalPlaybackStore.getState();
   const mediaDir = getMediaDir();
   const targets = Object.values(store.entries).filter(
-    e => resolveServerIdForIndexKey(e.serverIndexKey) === libraryServerId,
+    e =>
+      (e.tier === 'library' || e.tier === 'favorite-auto')
+      && resolveServerIdForIndexKey(e.serverIndexKey) === libraryServerId,
   );
 
   for (const entry of targets) {

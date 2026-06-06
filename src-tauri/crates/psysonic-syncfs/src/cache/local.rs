@@ -85,6 +85,28 @@ fn resolve_library_track_path(
     app: &AppHandle,
     runtime: &LibraryRuntime,
 ) -> Result<ResolvedLibraryTrackPath, String> {
+    resolve_track_path_for_tier(
+        LocalTier::Library,
+        track_id,
+        server_index_key,
+        library_server_id,
+        suffix,
+        media_dir,
+        app,
+        runtime,
+    )
+}
+
+fn resolve_track_path_for_tier(
+    tier: LocalTier,
+    track_id: &str,
+    server_index_key: &str,
+    library_server_id: &str,
+    suffix: &str,
+    media_dir: Option<&str>,
+    app: &AppHandle,
+    runtime: &LibraryRuntime,
+) -> Result<ResolvedLibraryTrackPath, String> {
     let repo = TrackRepository::new(&runtime.store);
     let Some(row) = repo.find_one(library_server_id, track_id)? else {
         return Err("LIBRARY_TRACK_NOT_FOUND".to_string());
@@ -94,7 +116,7 @@ fn resolve_library_track_path(
     let media_root = resolve_media_dir(media_dir, app)?;
     let file_path = absolute_track_path(
         &media_root,
-        LocalTier::Library,
+        tier,
         server_index_key,
         &path_input,
         suffix,
@@ -146,8 +168,9 @@ pub async fn download_track_local(
 ) -> Result<LocalTrackDownloadResult, String> {
     let local_tier = LocalTier::parse(&tier).ok_or_else(|| format!("unknown local tier: `{tier}`"))?;
 
-    let resolved = if local_tier == LocalTier::Library {
-        resolve_library_track_path(
+    let resolved = if local_tier == LocalTier::Library || local_tier == LocalTier::Favorites {
+        resolve_track_path_for_tier(
+            local_tier,
             &track_id,
             &server_index_key,
             &library_server_id,
@@ -603,7 +626,7 @@ fn prune_parents_after_media_file_delete(
         return;
     }
     if let Ok(media_root) = resolve_media_dir(media_dir, app) {
-        for tier in [LocalTier::Ephemeral, LocalTier::Library] {
+        for tier in [LocalTier::Ephemeral, LocalTier::Library, LocalTier::Favorites] {
             let boundary = media_root.join(tier.subdir());
             super::fs_utils::prune_empty_dirs_up_to(parent, &boundary);
         }

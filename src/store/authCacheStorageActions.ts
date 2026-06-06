@@ -9,6 +9,7 @@ export function createCacheStorageActions(set: SetState): Pick<
   | 'setMaxCacheMb'
   | 'setDownloadFolder'
   | 'setOfflineDownloadDir'
+  | 'setFavoritesOfflineEnabled'
   | 'setHotCacheEnabled'
   | 'setHotCacheMaxMb'
   | 'setHotCacheDebounceSec'
@@ -19,6 +20,7 @@ export function createCacheStorageActions(set: SetState): Pick<
     setMaxCacheMb: (v) => set({ maxCacheMb: v }),
     setDownloadFolder: (v) => set({ downloadFolder: v }),
     setOfflineDownloadDir: (v) => set({ offlineDownloadDir: v }),
+    setFavoritesOfflineEnabled: (v) => set({ favoritesOfflineEnabled: v }),
     setHotCacheEnabled: (v) => set({ hotCacheEnabled: v }),
     setHotCacheMaxMb: (v) => set({ hotCacheMaxMb: v }),
     setHotCacheDebounceSec: (v) => set({ hotCacheDebounceSec: v }),

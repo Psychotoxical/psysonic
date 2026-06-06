@@ -47,6 +47,7 @@ export function getPlaybackSourceKind(
 ): PlaybackSourceKind {
   const profileId = resolvePlaybackProfileId(serverId);
   if (findLocalPlaybackUrl(trackId, profileId, 'library')) return 'offline';
+  if (findLocalPlaybackUrl(trackId, profileId, 'favorite-auto')) return 'offline';
   if (findLocalPlaybackUrl(trackId, profileId, 'ephemeral')) return 'hot';
   const resolved = resolvePlaybackUrl(trackId, serverId);
   if (
@@ -59,12 +60,14 @@ export function getPlaybackSourceKind(
   return 'stream';
 }
 
-/** Pinned library → ephemeral cache → HTTP stream. */
+/** Pinned library → favorites auto → ephemeral cache → HTTP stream. */
 export function resolvePlaybackUrl(trackId: string, serverId?: string): string {
   const cacheKey = serverId && serverId.length > 0 ? serverId : getPlaybackCacheServerKey();
   const profileId = resolvePlaybackProfileId(cacheKey);
   const pinned = findLocalPlaybackUrl(trackId, profileId, 'library');
   if (pinned) return pinned;
+  const favorites = findLocalPlaybackUrl(trackId, profileId, 'favorite-auto');
+  if (favorites) return favorites;
   const hot = findLocalPlaybackUrl(trackId, profileId, 'ephemeral');
   if (hot) return hot;
   return buildStreamUrlForServer(profileId, trackId);

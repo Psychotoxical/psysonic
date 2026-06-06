@@ -17,7 +17,7 @@ import {
   reconcileEphemeralCache,
 } from '../utils/cache/ephemeralTierReconcile';
 
-export type LocalPlaybackTier = 'ephemeral' | 'library';
+export type LocalPlaybackTier = 'ephemeral' | 'library' | 'favorite-auto';
 
 export interface PinSource {
   kind: 'album' | 'playlist' | 'artist' | 'track';
@@ -72,6 +72,7 @@ interface LocalPlaybackState {
   ) => Promise<void>;
   purgeEphemeralDisk: (mediaDir: string | null) => Promise<void>;
   purgeLibraryDisk: (mediaDir: string | null) => Promise<void>;
+  purgeFavoriteAutoDisk: (mediaDir: string | null) => Promise<void>;
 }
 
 function lruStamp(meta: LocalPlaybackEntry | undefined): number {
@@ -324,6 +325,18 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
           return { entries };
         });
         emitAnalysisStorageChanged({ trackId: null, reason: 'offline-purge' });
+      },
+
+      purgeFavoriteAutoDisk: async (mediaDir) => {
+        await invoke('purge_media_tier', { tier: 'favorite-auto', mediaDir }).catch(() => {});
+        set(s => {
+          const entries = { ...s.entries };
+          for (const [key, e] of Object.entries(entries)) {
+            if (e.tier === 'favorite-auto') delete entries[key];
+          }
+          return { entries };
+        });
+        emitAnalysisStorageChanged({ trackId: null, reason: 'favorites-offline-purge' });
       },
     }),
     {

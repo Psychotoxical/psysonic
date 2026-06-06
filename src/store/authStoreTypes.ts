@@ -195,6 +195,9 @@ export interface AuthState {
   /** Selected audio output device name. null = system default. */
   audioOutputDevice: string | null;
 
+  /** Auto-download starred favorites into `media/favorites/` (separate from offline library). */
+  favoritesOfflineEnabled: boolean;
+
   /** Alpha: ephemeral queue prefetch cache on disk */
   hotCacheEnabled: boolean;
   hotCacheMaxMb: number;
@@ -344,6 +347,7 @@ export interface AuthState {
   setQueueDisplayMode: (v: QueueDisplayMode) => void;
   setEnableHiRes: (v: boolean) => void;
   setAudioOutputDevice: (v: string | null) => void;
+  setFavoritesOfflineEnabled: (v: boolean) => void;
   setHotCacheEnabled: (v: boolean) => void;
   setHotCacheMaxMb: (v: number) => void;
   setHotCacheDebounceSec: (v: number) => void;

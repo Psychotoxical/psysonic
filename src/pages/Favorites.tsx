@@ -24,6 +24,9 @@ import { useSelectionStore } from '../store/selectionStore';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import { AddToPlaylistSubmenu } from '../components/ContextMenu';
 import GenreFilterBar from '../components/GenreFilterBar';
+import FavoritesOfflineHeader from '../components/favorites/FavoritesOfflineHeader';
+import { scheduleFavoritesOfflineSync } from '../utils/offline/favoritesOfflineSync';
+import { useAuthStore } from '../store/authStore';
 
 const FAV_COLUMNS: readonly ColDef[] = [
   { key: 'num',        i18nKey: null,              minWidth: 60,  defaultWidth: 60,  required: true  },
@@ -48,10 +51,17 @@ const SORTABLE_COLUMNS = new Set(['title', 'artist', 'album', 'rating', 'duratio
 
 export default function Favorites() {
   const { t } = useTranslation();
+  const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
   const {
     albums, artists, songs, setSongs, radioStations,
     loading, topFavoriteArtists, unfavoriteStation,
   } = useFavoritesData();
+
+  useEffect(() => {
+    if (!loading && favoritesOfflineEnabled) {
+      scheduleFavoritesOfflineSync();
+    }
+  }, [loading, favoritesOfflineEnabled, songs.length, albums.length, artists.length]);
 
   // ── Sorting (3-state: asc → desc → reset) ────────────────────────────────
   const [sortKey, setSortKey] = useState<string>('natural');
@@ -136,6 +146,7 @@ export default function Favorites() {
       <div style={{ marginBottom: '-1.5rem' }}>
         <h1 className="page-title">{t('favorites.title')}</h1>
       </div>
+      <FavoritesOfflineHeader />
 
       {!hasAnyFavorites ? (
         <div className="empty-state">{t('favorites.empty')}</div>

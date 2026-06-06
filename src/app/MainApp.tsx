@@ -14,6 +14,7 @@ import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useGlobalShortcutsStore } from '../store/globalShortcutsStore';
 import { initHotCachePrefetch } from '../hotCachePrefetch';
 import { initLocalPlaybackInvalidation } from '../localPlaybackInvalidation';
+import { initFavoritesOfflineSync } from '../utils/offline/favoritesOfflineSync';
 import { runLegacyOfflineFileMigration } from '../utils/migrations/legacyOfflineFileMigration';
 import { reconcileLibraryTierForServer } from '../utils/offline/libraryTierReconcile';
 import { initMiniPlayerBridgeOnMain } from '../utils/miniPlayerBridge';
@@ -110,7 +111,12 @@ export default function MainApp() {
         await reconcileLibraryTierForServer(server.id);
       }
     })();
-    return initLocalPlaybackInvalidation();
+    const stopInvalidation = initLocalPlaybackInvalidation();
+    const stopFavoritesSync = initFavoritesOfflineSync();
+    return () => {
+      stopInvalidation();
+      stopFavoritesSync();
+    };
   }, [migrationReady, serverIdsKey]);
 
   useEffect(() => {

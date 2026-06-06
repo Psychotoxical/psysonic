@@ -53,12 +53,14 @@ fn normalize_path_for_prefix(path: &Path) -> PathBuf {
     path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
 }
 
-/// Returns the `{…}/cache` or `{…}/library` ancestor of a media file path.
+/// Returns the `{…}/cache`, `{…}/library`, or `{…}/favorites` ancestor of a media file path.
 pub fn local_tier_boundary_from_path(path: &Path) -> Option<PathBuf> {
     let mut current = path.parent()?;
     loop {
         match current.file_name().and_then(|s| s.to_str()) {
-            Some("cache") | Some("library") => return Some(current.to_path_buf()),
+            Some("cache") | Some("library") | Some("favorites") => {
+                return Some(current.to_path_buf());
+            }
             _ => current = current.parent()?,
         }
     }

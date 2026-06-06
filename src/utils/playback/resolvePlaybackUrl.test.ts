@@ -59,7 +59,21 @@ describe('resolvePlaybackUrl — precedence', () => {
     expect(resolvePlaybackUrl('track-1', 'srv-1')).toBe('psysonic-local:///library/track-1.flac');
   });
 
-  it('falls through to ephemeral cache when library is absent (2nd priority)', () => {
+  it('returns favorite-auto URL when library is absent (2nd priority)', () => {
+    entriesMock['srv-1:track-1'] = {
+      serverIndexKey: 'srv-1',
+      trackId: 'track-1',
+      localPath: '/favorites/track-1.flac',
+      layoutFingerprint: '',
+      sizeBytes: 1,
+      tier: 'favorite-auto',
+      cachedAt: 1,
+      suffix: 'flac',
+    };
+    expect(resolvePlaybackUrl('track-1', 'srv-1')).toBe('psysonic-local:///favorites/track-1.flac');
+  });
+
+  it('falls through to ephemeral cache when library and favorites are absent (3rd priority)', () => {
     getLocalUrlMock.mockImplementation(
       (_tid: string, _sid: string, tier?: string) => (
         tier === 'ephemeral' ? 'psysonic-local://hot/track-1.flac' : null

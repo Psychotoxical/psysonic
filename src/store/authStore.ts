@@ -97,6 +97,7 @@ export const useAuthStore = create<AuthState>()(
       queueDisplayMode: 'queue',
       enableHiRes: false,
       audioOutputDevice: null,
+      favoritesOfflineEnabled: false,
       hotCacheEnabled: false,
       hotCacheMaxMb: 256,
       hotCacheDebounceSec: 30,

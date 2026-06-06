@@ -27,11 +27,13 @@ pub struct TrackPathInput {
     pub raw_json: Option<String>,
 }
 
-/// Tier subdirectory under the media root (`cache/` or `library/`).
+/// Tier subdirectory under the media root (`cache/`, `library/`, or `favorites/`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LocalTier {
     Ephemeral,
     Library,
+    /// Auto-synced starred favorites — separate from user-pinned `library/`.
+    Favorites,
 }
 
 impl LocalTier {
@@ -39,6 +41,7 @@ impl LocalTier {
         match self {
             Self::Ephemeral => "cache",
             Self::Library => "library",
+            Self::Favorites => "favorites",
         }
     }
 
@@ -46,6 +49,7 @@ impl LocalTier {
         match s.trim().to_ascii_lowercase().as_str() {
             "ephemeral" | "cache" => Some(Self::Ephemeral),
             "library" => Some(Self::Library),
+            "favorites" | "favorite-auto" | "favorite_auto" => Some(Self::Favorites),
             _ => None,
         }
     }
@@ -277,8 +281,10 @@ mod tests {
     fn tier_subdirs_are_fixed() {
         assert_eq!(LocalTier::Ephemeral.subdir(), "cache");
         assert_eq!(LocalTier::Library.subdir(), "library");
+        assert_eq!(LocalTier::Favorites.subdir(), "favorites");
         assert_eq!(LocalTier::parse("ephemeral"), Some(LocalTier::Ephemeral));
         assert_eq!(LocalTier::parse("library"), Some(LocalTier::Library));
+        assert_eq!(LocalTier::parse("favorite-auto"), Some(LocalTier::Favorites));
     }
 
     #[test]

@@ -64,7 +64,7 @@ export function findLocalPlaybackEntry(
   const lp = useLocalPlaybackStore.getState();
   for (const key of serverIndexKeysForServerId(serverId)) {
     const hit = lp.getEntry(trackId, key);
-    if (hit) return hit;
+    if (hit?.tier === 'library') return hit;
   }
   for (const entry of Object.values(lp.entries)) {
     if (entry.trackId !== trackId || entry.tier !== 'library') continue;
@@ -78,14 +78,40 @@ export function hasLocalLibraryBytes(trackId: string, serverId: string): boolean
   return !!findLocalPlaybackEntry(trackId, serverId)?.localPath;
 }
 
+/** Resolve a `favorite-auto` tier row across index-key variants. */
+export function findFavoriteAutoEntry(
+  trackId: string,
+  serverId: string,
+): LocalPlaybackEntry | null {
+  const lp = useLocalPlaybackStore.getState();
+  for (const key of serverIndexKeysForServerId(serverId)) {
+    const hit = lp.getEntry(trackId, key);
+    if (hit?.tier === 'favorite-auto') return hit;
+  }
+  for (const entry of Object.values(lp.entries)) {
+    if (entry.trackId !== trackId || entry.tier !== 'favorite-auto') continue;
+    if (entryBelongsToServer(entry, serverId)) return entry;
+  }
+  return null;
+}
+
+export function hasLocalFavoriteAutoBytes(trackId: string, serverId: string): boolean {
+  return !!findFavoriteAutoEntry(trackId, serverId)?.localPath;
+}
+
 /** Resolve `psysonic-local://` across legacy UUID / host index-key variants. */
 export function findLocalPlaybackUrl(
   trackId: string,
   serverId: string,
-  tier: 'library' | 'ephemeral',
+  tier: 'library' | 'ephemeral' | 'favorite-auto',
 ): string | null {
   if (tier === 'library') {
     const entry = findLocalPlaybackEntry(trackId, serverId);
+    if (entry?.localPath) return `psysonic-local://${entry.localPath}`;
+    return null;
+  }
+  if (tier === 'favorite-auto') {
+    const entry = findFavoriteAutoEntry(trackId, serverId);
     if (entry?.localPath) return `psysonic-local://${entry.localPath}`;
     return null;
   }
