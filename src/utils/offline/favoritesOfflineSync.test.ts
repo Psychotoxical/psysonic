@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import { useAuthStore } from '../../store/authStore';
+import { useOfflineJobStore } from '../../store/offlineJobStore';
+import { FAVORITES_OFFLINE_JOB_ID } from './favoritesOfflineConstants';
 import {
   mergeStarredSongsUnion,
   onFavoritesOfflineStarChange,
@@ -30,8 +32,10 @@ vi.mock('../../api/subsonicArtists', () => ({
   getArtistForServer: vi.fn(async () => ({ albums: [] })),
 }));
 
+const invokeMock = vi.fn(async () => ({}));
+
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(async () => ({})),
+  invoke: (...args: unknown[]) => invokeMock(...args),
 }));
 
 function song(id: string): SubsonicSong {
@@ -50,6 +54,8 @@ describe('onFavoritesOfflineStarChange', () => {
     vi.useFakeTimers();
     isActiveServerReachableMock.mockReturnValue(true);
     getStarredForServerMock.mockClear();
+    invokeMock.mockClear();
+    useOfflineJobStore.setState({ jobs: [], pinQueue: [], bulkProgress: {} });
     useAuthStore.setState({
       favoritesOfflineEnabled: true,
       activeServerId: 'srv-a',
@@ -76,6 +82,29 @@ describe('onFavoritesOfflineStarChange', () => {
     await vi.advanceTimersByTimeAsync(700);
     expect(getStarredForServerMock).toHaveBeenCalledWith('srv-b');
     expect(getStarredForServerMock).not.toHaveBeenCalledWith('srv-a');
+  });
+
+  it('aborts in-flight favorites Rust downloads when a star change reschedules sync', async () => {
+    useOfflineJobStore.setState({
+      jobs: [{
+        trackId: 't1',
+        albumId: FAVORITES_OFFLINE_JOB_ID,
+        albumName: 'Favorites',
+        trackTitle: 'T',
+        trackIndex: 0,
+        totalTracks: 1,
+        status: 'downloading',
+        downloadId: 'favorites-111',
+      }],
+      pinQueue: [],
+      bulkProgress: {},
+    });
+    onFavoritesOfflineStarChange('t2', 'song', false, 'srv-a');
+    expect(invokeMock).toHaveBeenCalledWith(
+      'cancel_offline_downloads',
+      { downloadIds: ['favorites-111'] },
+    );
+    expect(useOfflineJobStore.getState().jobs).toEqual([]);
   });
 });
 

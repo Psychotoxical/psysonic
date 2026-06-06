@@ -29,6 +29,36 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 /** Accumulates server ids across debounced calls; `'all'` means fan-out to every server. */
 let pendingSyncServerIds: Set<string> | 'all' = new Set();
 let runToken = 0;
+/** Rust cancellation key for the active favorites batch (`download_track_local`). */
+let activeFavoritesDownloadId: string | null = null;
+
+function rustDownloadIdsForFavoritesJobs(): string[] {
+  const fromJobs = useOfflineJobStore
+    .getState()
+    .jobs.filter(j => j.albumId === FAVORITES_OFFLINE_JOB_ID && j.downloadId)
+    .map(j => j.downloadId);
+  const ids = new Set(fromJobs);
+  if (activeFavoritesDownloadId) ids.add(activeFavoritesDownloadId);
+  return [...ids];
+}
+
+/** Abort in-flight favorites transfers and invalidate the current JS batch loop. */
+function cancelInFlightFavoritesDownloads(): void {
+  runToken += 1;
+  cancelledDownloads.add(FAVORITES_OFFLINE_JOB_ID);
+  const downloadIds = rustDownloadIdsForFavoritesJobs();
+  if (downloadIds.length > 0) {
+    invoke('cancel_offline_downloads', { downloadIds }).catch(() => {});
+    for (const id of downloadIds) {
+      invoke('clear_offline_cancel', { downloadId: id }).catch(() => {});
+    }
+  }
+  activeFavoritesDownloadId = null;
+  useOfflineJobStore.setState(state => ({
+    jobs: state.jobs.filter(j => j.albumId !== FAVORITES_OFFLINE_JOB_ID),
+  }));
+  useFavoritesOfflineSyncStore.getState().setRunning(false);
+}
 
 function serverIndexKeyForSync(serverId: string): string {
   const server = useAuthStore.getState().servers.find(s => s.id === serverId);
@@ -125,15 +155,10 @@ async function pruneOrphanFavoriteAuto(
 }
 
 export async function disableFavoritesOfflineSync(): Promise<void> {
-  runToken += 1;
   useAuthStore.getState().setFavoritesOfflineEnabled(false);
-  cancelledDownloads.add(FAVORITES_OFFLINE_JOB_ID);
+  cancelInFlightFavoritesDownloads();
   const mediaDir = getMediaDir();
   await useLocalPlaybackStore.getState().purgeFavoriteAutoDisk(mediaDir);
-  useOfflineJobStore.setState(state => ({
-    jobs: state.jobs.filter(j => j.albumId !== FAVORITES_OFFLINE_JOB_ID),
-  }));
-  useFavoritesOfflineSyncStore.getState().setRunning(false);
   useFavoritesOfflineSyncStore.getState().setTargetTrackIds([]);
   useFavoritesOfflineSyncStore.getState().setLastError(null);
 }
@@ -141,6 +166,7 @@ export async function disableFavoritesOfflineSync(): Promise<void> {
 export function scheduleFavoritesOfflineSync(serverId?: string): void {
   if (!useAuthStore.getState().favoritesOfflineEnabled) return;
   if (!isActiveServerReachable()) return;
+  cancelInFlightFavoritesDownloads();
   if (serverId) {
     if (pendingSyncServerIds !== 'all') {
       pendingSyncServerIds.add(serverId);
@@ -182,9 +208,6 @@ async function runFavoritesOfflineSyncBatch(serverIds: string[]): Promise<void> 
   const auth = useAuthStore.getState();
   if (!auth.favoritesOfflineEnabled || serverIds.length === 0) return;
 
-  cancelledDownloads.delete(FAVORITES_OFFLINE_JOB_ID);
-  invoke('clear_offline_cancel', { downloadId: FAVORITES_OFFLINE_JOB_ID }).catch(() => {});
-
   const token = ++runToken;
   const syncStore = useFavoritesOfflineSyncStore.getState();
   syncStore.setRunning(true);
@@ -210,7 +233,6 @@ async function runFavoritesOfflineSyncOneServer(serverId: string, token: number)
   const serverIndexKey = serverIndexKeyForSync(serverId);
   const libraryServerId = librarySqlScope(serverId);
   const mediaDir = getMediaDir();
-  const downloadId = `favorites-${Date.now()}`;
   const albumName = i18n.t('favorites.offlineJobName');
 
   try {
@@ -232,6 +254,12 @@ async function runFavoritesOfflineSyncOneServer(serverId: string, token: number)
       }));
       return;
     }
+
+    if (token !== runToken) return;
+
+    cancelledDownloads.delete(FAVORITES_OFFLINE_JOB_ID);
+    const downloadId = `favorites-${Date.now()}`;
+    activeFavoritesDownloadId = downloadId;
 
     jobStore.setState(state => ({
       jobs: [
@@ -255,7 +283,9 @@ async function runFavoritesOfflineSyncOneServer(serverId: string, token: number)
         jobStore.setState(state => ({
           jobs: state.jobs.filter(j => j.albumId !== FAVORITES_OFFLINE_JOB_ID),
         }));
+        invoke('cancel_offline_downloads', { downloadIds: [downloadId] }).catch(() => {});
         invoke('clear_offline_cancel', { downloadId }).catch(() => {});
+        activeFavoritesDownloadId = null;
         return;
       }
 
@@ -293,6 +323,14 @@ async function runFavoritesOfflineSyncOneServer(serverId: string, token: number)
                 downloadId,
               },
             );
+            if (
+              token !== runToken
+              || cancelledDownloads.has(FAVORITES_OFFLINE_JOB_ID)
+              || !targetIds.has(song.id)
+            ) {
+              await invoke('delete_media_file', { localPath: res.path, mediaDir }).catch(() => {});
+              return { song, error: 'CANCELLED' };
+            }
             useLocalPlaybackStore.getState().upsertEntry({
               serverIndexKey,
               trackId: song.id,
@@ -305,6 +343,7 @@ async function runFavoritesOfflineSyncOneServer(serverId: string, token: number)
             return { song, error: null };
           } catch (err) {
             const msg = typeof err === 'string' ? err : (err instanceof Error ? err.message : 'error');
+            if (msg === 'CANCELLED') return { song, error: 'CANCELLED' };
             return { song, error: msg };
           }
         }),
@@ -330,6 +369,10 @@ async function runFavoritesOfflineSyncOneServer(serverId: string, token: number)
           j => j.albumId !== FAVORITES_OFFLINE_JOB_ID || (j.status !== 'done' && j.status !== 'error'),
         ),
       }));
+      if (activeFavoritesDownloadId === downloadId) {
+        invoke('clear_offline_cancel', { downloadId }).catch(() => {});
+        activeFavoritesDownloadId = null;
+      }
       await invoke('prune_empty_media_tier_dirs', { tier: 'favorite-auto', mediaDir }).catch(() => {});
     }
   } catch (err) {
