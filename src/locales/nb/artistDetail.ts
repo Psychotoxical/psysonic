@@ -33,6 +33,7 @@ export const artistDetail = {
   similarArtists: 'Lignende artister',
   cacheOffline: 'Lagre diskografi som frakoblet',
   offlineCached: 'Diskografi bufret',
+  offlineQueued: 'I kø',
   offlineDownloading: 'Bufrer… ({{done}}/{{total}} album)',
   uploadImage: 'Last opp artistbilde',
   uploadImageError: 'Kunne ikke laste opp bildet',

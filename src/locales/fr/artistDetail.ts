@@ -33,6 +33,7 @@ export const artistDetail = {
   similarArtists: 'Artistes similaires',
   cacheOffline: 'Enregistrer la discographie hors ligne',
   offlineCached: 'Discographie en cache',
+  offlineQueued: 'En file d\'attente',
   offlineDownloading: 'En cache… ({{done}}/{{total}} albums)',
   uploadImage: "Téléverser l'image de l'artiste",
   uploadImageError: "Échec du téléversement de l'image",

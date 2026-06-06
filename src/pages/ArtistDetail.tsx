@@ -14,8 +14,6 @@ import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import { open } from '@tauri-apps/plugin-shell';
 import { usePlayerStore } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
-import { useOfflineStore } from '../store/offlineStore';
-import { useOfflineJobStore } from '../store/offlineJobStore';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
 import { lastfmIsConfigured } from '../api/lastfm';
@@ -87,8 +85,6 @@ export default function ArtistDetail() {
   const isPlaying = usePlayerStore(state => state.isPlaying);
   const previewingId = usePreviewStore(s => s.previewingId);
   const previewAudioStarted = usePreviewStore(s => s.audioStarted);
-  const downloadArtist = useOfflineStore(s => s.downloadArtist);
-  const bulkProgress = useOfflineJobStore(s => s.bulkProgress);
   const authActiveServerId = useAuthStore(s => s.activeServerId);
   const activeServerId = readDetailServerId(searchParams, authActiveServerId) ?? '';
   const audiomuseNavidromeEnabled = useAuthStore(

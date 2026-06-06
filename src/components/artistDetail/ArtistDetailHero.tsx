@@ -7,8 +7,8 @@ import {
 } from 'lucide-react';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicArtistInfo } from '../../api/subsonicTypes';
 import { useOfflineStore } from '../../store/offlineStore';
-import { useOfflineJobStore } from '../../store/offlineJobStore';
 import { useAuthStore } from '../../store/authStore';
+import { useArtistOfflineState } from '../../hooks/useArtistOfflineState';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { ArtistHeroCover } from '../../cover/artistHero';
 import { useCoverLightboxSrc } from '../../cover/lightbox';
@@ -55,8 +55,13 @@ export default function ArtistDetailHero({
   const isMobile = useIsMobile();
   const imageInputRef = useRef<HTMLInputElement>(null);
   const downloadArtist = useOfflineStore(s => s.downloadArtist);
-  const bulkProgress = useOfflineJobStore(s => s.bulkProgress);
   const activeServerId = useAuthStore(s => s.activeServerId) ?? '';
+  const artistAlbumIds = useMemo(() => albums.map(a => a.id), [albums]);
+  const { status: artistOfflineStatus, progress: artistOfflineProgress } = useArtistOfflineState(
+    id ?? '',
+    activeServerId,
+    artistAlbumIds,
+  );
   const entityRatingSupportByServer = useAuthStore(s => s.entityRatingSupportByServer);
   const artistEntityRatingSupport = entityRatingSupportByServer[activeServerId] ?? 'unknown';
 
@@ -217,28 +222,51 @@ export default function ArtistDetailHero({
                 <Share2 size={16} />
               </button>
             )}
-            {albums.length > 0 && (() => {
-              const progress = id ? bulkProgress[id] : undefined;
-              const isDone = progress && progress.done === progress.total;
-              const isDownloading = progress && !isDone;
-              return (
-                <button
-                  className="btn btn-surface"
-                  disabled={!!isDownloading}
-                  onClick={() => { if (id && artist) downloadArtist(id, artist.name, activeServerId); }}
-                  data-tooltip={isDownloading
-                    ? t('artistDetail.offlineDownloading', { done: progress.done, total: progress.total })
-                    : isDone ? t('artistDetail.offlineCached') : t('artistDetail.cacheOffline')}
-                >
-                  {isDownloading
-                    ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} />
-                    : isDone ? <Check size={16} /> : <HardDriveDownload size={16} />}
-                  {!isMobile && (isDownloading
-                    ? t('artistDetail.offlineDownloading', { done: progress.done, total: progress.total })
-                    : isDone ? t('artistDetail.offlineCached') : t('artistDetail.cacheOffline'))}
-                </button>
-              );
-            })()}
+            {albums.length > 0 && (
+              <button
+                className="btn btn-surface"
+                disabled={
+                  artistOfflineStatus === 'downloading'
+                  || artistOfflineStatus === 'queued'
+                  || artistOfflineStatus === 'cached'
+                }
+                onClick={() => {
+                  if (id && artist && artistOfflineStatus !== 'cached') {
+                    downloadArtist(id, artist.name, activeServerId);
+                  }
+                }}
+                data-tooltip={
+                  artistOfflineStatus === 'downloading' && artistOfflineProgress
+                    ? t('artistDetail.offlineDownloading', {
+                      done: artistOfflineProgress.done,
+                      total: artistOfflineProgress.total,
+                    })
+                    : artistOfflineStatus === 'queued'
+                      ? t('artistDetail.offlineQueued')
+                      : artistOfflineStatus === 'cached'
+                        ? t('artistDetail.offlineCached')
+                        : t('artistDetail.cacheOffline')
+                }
+              >
+                {artistOfflineStatus === 'downloading'
+                  ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} />
+                  : artistOfflineStatus === 'cached'
+                    ? <Check size={16} />
+                    : <HardDriveDownload size={16} />}
+                {!isMobile && (
+                  artistOfflineStatus === 'downloading' && artistOfflineProgress
+                    ? t('artistDetail.offlineDownloading', {
+                      done: artistOfflineProgress.done,
+                      total: artistOfflineProgress.total,
+                    })
+                    : artistOfflineStatus === 'queued'
+                      ? t('artistDetail.offlineQueued')
+                      : artistOfflineStatus === 'cached'
+                        ? t('artistDetail.offlineCached')
+                        : t('artistDetail.cacheOffline')
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>

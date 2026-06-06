@@ -13,6 +13,7 @@ import { useLocalPlaybackStore, type PinSource } from './localPlaybackStore';
 import { getMediaDir } from '../utils/media/mediaDir';
 import {
   findLocalPlaybackEntry,
+  isOfflinePinComplete,
   pendingOfflinePinSongs,
 } from '../utils/offline/offlineLibraryHelpers';
 import { librarySqlServerId } from '../api/coverCache';
@@ -357,13 +358,19 @@ export const useOfflineStore = create<OfflineState>()(
           albums = res.albums;
         } catch { return; }
         if (albums.length === 0) return;
-        jobStore.setState(state => ({
-          bulkProgress: { ...state.bulkProgress, [artistId]: { done: 0, total: albums.length } },
-        }));
+
+        const offline = get();
+        let doneCount = 0;
+        const toEnqueue: OfflinePinTask[] = [];
         for (const album of albums) {
+          if (isOfflinePinComplete(album.id, serverId)) {
+            doneCount += 1;
+            continue;
+          }
+          if (offline.isAlbumDownloading(album.id)) continue;
           try {
             const { songs } = await getAlbum(album.id);
-            enqueueOfflinePin({
+            toEnqueue.push({
               albumId: album.id,
               albumName: album.name,
               albumArtist: album.artist || artistName,
@@ -376,6 +383,26 @@ export const useOfflineStore = create<OfflineState>()(
             });
           } catch { /* skip failed album */ }
         }
+
+        if (doneCount === albums.length) return;
+
+        const existing = jobStore.getState().bulkProgress[artistId];
+        jobStore.setState(state => ({
+          bulkProgress: {
+            ...state.bulkProgress,
+            [artistId]: {
+              done: existing && existing.done > doneCount ? existing.done : doneCount,
+              total: albums.length,
+            },
+          },
+        }));
+
+        if (toEnqueue.length === 0) return;
+
+        for (const task of toEnqueue) {
+          enqueueOfflinePin(task);
+        }
+
         setTimeout(() => {
           jobStore.setState(state => {
             const progress = state.bulkProgress[artistId];
