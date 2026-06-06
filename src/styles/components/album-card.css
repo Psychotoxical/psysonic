@@ -11,14 +11,14 @@
 }
 
 .album-card:hover {
-  box-shadow: inset 0 0 0 1px var(--border), var(--shadow-md);
+  box-shadow: inset 0 0 0 1px var(--card-hover-border), var(--shadow-md);
 }
 
 .album-card-cover {
   position: relative;
   aspect-ratio: 1;
   overflow: hidden;
-  background: var(--bg-hover);
+  background: var(--card-placeholder-bg);
   contain: paint;
   isolation: isolate;
   transform: translateZ(0);

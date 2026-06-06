@@ -13,14 +13,14 @@
 
 .artist-card:hover {
   box-shadow: var(--shadow-md);
-  border-color: var(--border);
+  border-color: var(--card-hover-border);
 }
 
 .artist-card-avatar {
   position: relative;
   aspect-ratio: 1;
   overflow: hidden;
-  background: var(--bg-hover);
+  background: var(--card-placeholder-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -78,7 +78,7 @@
 .artist-card-name {
   font-weight: 600;
   font-size: 13px;
-  color: var(--text-primary);
+  color: var(--card-title);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -86,6 +86,6 @@
 
 .artist-card-meta {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--card-subtitle);
 }
 
