@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, Download, RefreshCw, Trash2 } from 'lucide-react';
+import { open as openUrl } from '@tauri-apps/plugin-shell';
 import { useThemeStore } from '../../store/themeStore';
 import { useInstalledThemesStore, type InstalledTheme } from '../../store/installedThemesStore';
 import {
@@ -11,6 +12,8 @@ import {
 } from '../../utils/themes/themeRegistry';
 
 type ModeFilter = 'all' | 'dark' | 'light';
+
+const THEMES_REPO_URL = 'https://github.com/Psysonic/psysonic-themes';
 
 /**
  * The community Theme Store: browse the jsDelivr-hosted registry, filter by name
@@ -32,6 +35,7 @@ export function ThemeStoreSection() {
   const [mode, setMode] = useState<ModeFilter>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [failedId, setFailedId] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<{ src: string; name: string } | null>(null);
 
   const load = (force = false) => {
     setLoading(true);
@@ -43,6 +47,14 @@ export function ThemeStoreSection() {
   };
 
   useEffect(() => { load(false); }, []);
+
+  // Close the preview lightbox on Escape.
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightbox(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightbox]);
 
   const installedMap = useMemo(() => {
     const m = new Map<string, InstalledTheme>();
@@ -62,7 +74,7 @@ export function ThemeStoreSection() {
         th.description.toLowerCase().includes(q) ||
         (th.tags || []).some(tag => tag.includes(q))
       );
-    });
+    }).sort((a, b) => a.name.localeCompare(b.name));
   }, [themes, query, mode]);
 
   const handleInstall = async (th: RegistryTheme) => {
@@ -104,6 +116,18 @@ export function ThemeStoreSection() {
 
   return (
     <div className="settings-card">
+      {/* Submit-your-own-theme hint */}
+      <div className="settings-hint settings-hint-info" style={{ marginBottom: '1rem' }}>
+        {t('settings.themeStoreSubmitText')}{' '}
+        <button
+          type="button"
+          onClick={() => void openUrl(THEMES_REPO_URL)}
+          style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline' }}
+        >
+          {t('settings.themeStoreSubmitLink')}
+        </button>
+      </div>
+
       {/* Toolbar: search + mode filter + refresh */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: '1rem' }}>
         <input
@@ -177,14 +201,23 @@ export function ThemeStoreSection() {
                   background: 'var(--bg-card)',
                 }}
               >
-                <img
-                  src={cdnUrl(th.thumbnail)}
-                  alt=""
-                  loading="lazy"
-                  width={120}
-                  height={75}
-                  style={{ width: 120, height: 75, objectFit: 'cover', borderRadius: 6, flexShrink: 0, background: 'var(--bg-deep)' }}
-                />
+                <button
+                  type="button"
+                  onClick={() => setLightbox({ src: cdnUrl(th.thumbnail), name: th.name })}
+                  aria-label={t('settings.themeStoreEnlarge')}
+                  data-tooltip={t('settings.themeStoreEnlarge')}
+                  data-tooltip-pos="right"
+                  style={{ padding: 0, border: 'none', background: 'none', cursor: 'zoom-in', flexShrink: 0, lineHeight: 0, borderRadius: 6 }}
+                >
+                  <img
+                    src={cdnUrl(th.thumbnail)}
+                    alt=""
+                    loading="lazy"
+                    width={120}
+                    height={75}
+                    style={{ width: 120, height: 75, objectFit: 'cover', borderRadius: 6, background: 'var(--bg-deep)' }}
+                  />
+                </button>
                 <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontWeight: 600 }}>{th.name}</span>
@@ -250,6 +283,22 @@ export function ThemeStoreSection() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {lightbox && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={lightbox.name}
+          onClick={() => setLightbox(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.82)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'zoom-out' }}
+        >
+          <img
+            src={lightbox.src}
+            alt={lightbox.name}
+            style={{ maxWidth: '90vw', maxHeight: '85vh', borderRadius: 10, boxShadow: '0 12px 48px rgba(0,0,0,0.6)' }}
+          />
         </div>
       )}
     </div>

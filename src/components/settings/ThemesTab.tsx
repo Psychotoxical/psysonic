@@ -1,40 +1,52 @@
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Clock, Palette, Store } from 'lucide-react';
 import { useThemeStore } from '../../store/themeStore';
+import { useInstalledThemesStore } from '../../store/installedThemesStore';
 import CustomSelect from '../CustomSelect';
-import SettingsSubSection from '../SettingsSubSection';
-import ThemePicker, { THEME_GROUPS } from '../ThemePicker';
+import { FIXED_THEMES } from './fixedThemes';
+import { InstalledThemes } from './InstalledThemes';
 import { ThemeStoreSection } from './ThemeStoreSection';
 
 /**
- * Dedicated Themes tab: theme selection, the day/night scheduler, and (added in
- * a later step) the community Theme Store. Theme selection + scheduler were
- * moved here out of the Appearance tab so all theme concerns live in one place.
+ * A flat, always-visible section. The Themes tab has a single purpose, so its
+ * parts are laid out one below the other with no collapsing — deliberately not
+ * the collapsible <details> SettingsSubSection used elsewhere. `data-settings-
+ * search` keeps each section reachable from the global settings search.
+ */
+function ThemesSection({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
+  return (
+    <section className="themes-section" data-settings-search={title} style={{ marginBottom: '1.75rem' }}>
+      <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 600, margin: '0 0 0.75rem' }}>
+        <span style={{ display: 'inline-flex', color: 'var(--accent)' }}>{icon}</span>
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * Dedicated Themes tab: pick a theme (fixed cores + installed community themes),
+ * the day/night scheduler, and the community Theme Store — all flat on one page.
  */
 export function ThemesTab() {
   const { t, i18n } = useTranslation();
   const theme = useThemeStore();
+  const installed = useInstalledThemesStore(s => s.themes);
 
   return (
     <>
-      <SettingsSubSection
-        title={t('settings.theme')}
-        icon={<Palette size={16} />}
-      >
-        <div className="settings-card">
-          {theme.enableThemeScheduler && (
-            <div className="settings-hint settings-hint-info" style={{ marginBottom: '0.75rem' }}>
-              {t('settings.themeSchedulerActiveHint')}
-            </div>
-          )}
-          <ThemePicker value={theme.theme} onChange={v => theme.setTheme(v as any)} />
-        </div>
-      </SettingsSubSection>
+      <ThemesSection icon={<Palette size={16} />} title={t('settings.themesYourThemesTitle')}>
+        {theme.enableThemeScheduler && (
+          <div className="settings-hint settings-hint-info" style={{ marginBottom: '0.75rem' }}>
+            {t('settings.themeSchedulerActiveHint')}
+          </div>
+        )}
+        <InstalledThemes />
+      </ThemesSection>
 
-      <SettingsSubSection
-        title={t('settings.themeSchedulerTitle')}
-        icon={<Clock size={16} />}
-      >
+      <ThemesSection icon={<Clock size={16} />} title={t('settings.themeSchedulerTitle')}>
         <div className="settings-card">
           <div className="settings-toggle-row">
             <div>
@@ -47,13 +59,14 @@ export function ThemesTab() {
             </label>
           </div>
           {theme.enableThemeScheduler && (() => {
-            const themeOptions = THEME_GROUPS.flatMap(g =>
-              g.themes.map(th => ({
-                value: th.id,
-                label: th.family ? `${th.family} ${th.label}` : th.label,
-                group: g.group,
-              }))
-            );
+            const themeOptions = [
+              ...FIXED_THEMES.map(f => ({ value: f.id, label: f.label })),
+              ...installed.map(it => ({
+                value: it.id,
+                label: it.name,
+                group: t('settings.themesYourThemesTitle'),
+              })),
+            ];
             const use12h = i18n.language === 'en';
             const hourOptions = Array.from({ length: 24 }, (_, i) => {
               const value = String(i).padStart(2, '0');
@@ -97,14 +110,11 @@ export function ThemesTab() {
             );
           })()}
         </div>
-      </SettingsSubSection>
+      </ThemesSection>
 
-      <SettingsSubSection
-        title={t('settings.themeStoreTitle')}
-        icon={<Store size={16} />}
-      >
+      <ThemesSection icon={<Store size={16} />} title={t('settings.themeStoreTitle')}>
         <ThemeStoreSection />
-      </SettingsSubSection>
+      </ThemesSection>
     </>
   );
 }
