@@ -1,9 +1,10 @@
 import { useTranslation } from 'react-i18next';
-import { Clock, Palette } from 'lucide-react';
+import { Clock, Palette, Store } from 'lucide-react';
 import { useThemeStore } from '../../store/themeStore';
 import CustomSelect from '../CustomSelect';
 import SettingsSubSection from '../SettingsSubSection';
 import ThemePicker, { THEME_GROUPS } from '../ThemePicker';
+import { ThemeStoreSection } from './ThemeStoreSection';
 
 /**
  * Dedicated Themes tab: theme selection, the day/night scheduler, and (added in
@@ -96,6 +97,13 @@ export function ThemesTab() {
             );
           })()}
         </div>
+      </SettingsSubSection>
+
+      <SettingsSubSection
+        title={t('settings.themeStoreTitle')}
+        icon={<Store size={16} />}
+      >
+        <ThemeStoreSection />
       </SettingsSubSection>
     </>
   );
