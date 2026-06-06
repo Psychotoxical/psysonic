@@ -32,9 +32,6 @@ More translations are added over time.
 
 ---
 
-> [!WARNING]
-> Psysonic is under active development. Bugs and rough edges can happen, and features may change as the project evolves.
-
 ## What is Psysonic?
 
 Psysonic is a desktop music client for self-hosted music libraries. It is designed for people who want the freedom of their own server without giving up the comfort, polish and speed of a modern music app.
