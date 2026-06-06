@@ -21,6 +21,8 @@ accepted = [
     "OpenSSL",
     "BSL-1.0",
     "CDLA-Permissive-2.0",
+    "GPL-3.0-or-later",
+    "bzip2-1.0.6",
 ]
 
 # Skip the build host's own platform-pinning; we want a list across all targets
@@ -38,5 +40,4 @@ targets = [
 ignore-build-dependencies = false
 ignore-dev-dependencies = true
 ignore-transitive-dependencies = false
-filter-noassertion = false
 workarounds = ["ring"]

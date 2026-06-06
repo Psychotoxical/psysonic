@@ -6,6 +6,7 @@ resolver = "2"
 version = "1.48.0-dev"
 edition = "2021"
 rust-version = "1.95"
+license = "GPL-3.0-or-later"
 
 [workspace.dependencies]
 tempfile = "3"
@@ -18,7 +19,7 @@ name = "psysonic"
 version.workspace = true
 description = "Psysonic Desktop Music Player"
 authors = []
-license = ""
+license.workspace = true
 repository = ""
 default-run = "psysonic"
 edition.workspace = true
