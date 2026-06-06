@@ -4,6 +4,7 @@ import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
 import { useOfflineStore } from '../../store/offlineStore';
 import { switchActiveServer } from '../server/switchActiveServer';
 import {
+  buildOfflineCacheQueueTracks,
   buildTracksForOfflineCard,
   ensureServerForOfflineCard,
   hasAnyOfflineAlbums,
@@ -300,6 +301,69 @@ describe('offlineLibraryHelpers', () => {
     expect(tracks).toHaveLength(1);
     expect(tracks[0]?.id).toBe('t1');
     expect(tracks[0]?.suffix).toBe('mp3');
+  });
+
+  it('buildOfflineCacheQueueTracks merges library pins and hot-cache tracks', async () => {
+    const t1Dto = {
+      id: 't1',
+      serverId: 'a',
+      title: 'One',
+      artist: 'Ar',
+      album: 'Al',
+      albumId: 'al1',
+      duration: 100,
+      suffix: 'mp3',
+    };
+    const hotDto = {
+      id: 'hot1',
+      serverId: 'a',
+      title: 'Hot',
+      artist: 'Ar',
+      album: 'Al',
+      albumId: 'al2',
+      duration: 120,
+      suffix: 'flac',
+    };
+    vi.mocked(libraryApi.libraryGetTracksBatch)
+      .mockResolvedValueOnce([t1Dto] as never)
+      .mockResolvedValueOnce([hotDto] as never);
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/media/library/a.test/Artist/Album/one.mp3',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1000,
+          tier: 'library',
+          cachedAt: 1,
+          suffix: 'mp3',
+          pinSource: { kind: 'album', sourceId: 'al1' },
+        },
+        'a.test:hot1': {
+          serverIndexKey: 'a.test',
+          trackId: 'hot1',
+          localPath: '/media/cache/a.test/hot1.flac',
+          layoutFingerprint: 'fp2',
+          sizeBytes: 2000,
+          tier: 'ephemeral',
+          cachedAt: 2,
+          suffix: 'flac',
+        },
+      },
+    });
+    const { tracks, queueServerIndexKey } = await buildOfflineCacheQueueTracks(
+      [{
+        serverIndexKey: 'a.test',
+        pinSource: { kind: 'album', sourceId: 'al1' },
+        trackIds: ['t1'],
+        name: 'Al',
+        artist: 'Ar',
+      }],
+      { includeHotCache: true },
+    );
+    expect(queueServerIndexKey).toBe('a.test');
+    expect(tracks.map(t => t.id)).toEqual(['t1', 'hot1']);
   });
 
   it('ensureServerForOfflineCard switches when card is on another server', async () => {

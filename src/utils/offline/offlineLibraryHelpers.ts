@@ -293,6 +293,78 @@ function fallbackTrackFromLocalEntry(
   };
 }
 
+export async function ensureServerForOfflineIndexKey(serverIndexKey: string): Promise<boolean> {
+  const { activeServerId, servers } = useAuthStore.getState();
+  const resolved = resolveServerIdForIndexKey(serverIndexKey) || serverIndexKey;
+  if (resolved === activeServerId) return true;
+  const server = servers.find(s => s.id === resolved)
+    ?? findServerByIdOrIndexKey(serverIndexKey);
+  if (!server) return false;
+  const auth = useAuthStore.getState();
+  auth.setActiveServer(server.id);
+  auth.setLoggedIn(true);
+  return true;
+}
+
+/** All playable library-tier pins plus optional hot-cache (ephemeral) tracks. */
+export async function buildOfflineCacheQueueTracks(
+  cards: OfflineLibraryCard[],
+  options?: { includeHotCache?: boolean },
+): Promise<{ tracks: Track[]; queueServerIndexKey: string | null }> {
+  const seen = new Set<string>();
+  const tracks: Track[] = [];
+  let queueServerIndexKey: string | null = null;
+
+  for (const card of cards) {
+    const cardTracks = await buildTracksForOfflineCard(card);
+    for (const track of cardTracks) {
+      const dedupeKey = `${card.serverIndexKey}:${track.id}`;
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      tracks.push(track);
+      queueServerIndexKey ??= card.serverIndexKey;
+    }
+  }
+
+  if (options?.includeHotCache) {
+    const ephemeral = Object.values(useLocalPlaybackStore.getState().entries)
+      .filter(e => e.tier === 'ephemeral' && e.localPath)
+      .sort((a, b) => (b.lastPlayedAt ?? b.cachedAt) - (a.lastPlayedAt ?? a.cachedAt));
+    if (ephemeral.length > 0) {
+      const refs = ephemeral.map(e => ({
+        serverId: resolveServerIdForIndexKey(e.serverIndexKey) || e.serverIndexKey,
+        trackId: e.trackId,
+      }));
+      const dtos = await libraryGetTracksBatch(refs).catch(() => []);
+      const dtoById = new Map(dtos.map(d => [`${d.serverId}:${d.id}`, d]));
+      for (const entry of ephemeral) {
+        const dedupeKey = `${entry.serverIndexKey}:${entry.trackId}`;
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+        const serverId = resolveServerIdForIndexKey(entry.serverIndexKey) || entry.serverIndexKey;
+        const dto = dtoById.get(`${serverId}:${entry.trackId}`);
+        if (dto) {
+          tracks.push(libraryDtoToTrack(dto));
+        } else {
+          tracks.push({
+            id: entry.trackId,
+            title: entry.trackId,
+            artist: '',
+            album: '',
+            albumId: '',
+            duration: 0,
+            suffix: entry.suffix,
+            size: entry.sizeBytes,
+          });
+        }
+        queueServerIndexKey ??= entry.serverIndexKey;
+      }
+    }
+  }
+
+  return { tracks, queueServerIndexKey };
+}
+
 export async function buildTracksForOfflineCard(card: OfflineLibraryCard): Promise<Track[]> {
   const serverId = resolveServerIdForIndexKey(card.serverIndexKey) || card.serverIndexKey;
   const localTrackIds = card.trackIds.filter(tid => hasLocalLibraryBytes(tid, serverId));
@@ -346,16 +418,7 @@ export function offlineAlbumCoverScope(card: Pick<OfflineLibraryCard, 'serverInd
 
 /** Offline play only needs the library index + on-disk bytes — no live server ping. */
 export async function ensureServerForOfflineCard(card: OfflineLibraryCard): Promise<boolean> {
-  const { activeServerId, servers } = useAuthStore.getState();
-  const resolved = resolveServerIdForIndexKey(card.serverIndexKey) || card.serverIndexKey;
-  if (resolved === activeServerId) return true;
-  const server = servers.find(s => s.id === resolved)
-    ?? findServerByIdOrIndexKey(card.serverIndexKey);
-  if (!server) return false;
-  const auth = useAuthStore.getState();
-  auth.setActiveServer(server.id);
-  auth.setLoggedIn(true);
-  return true;
+  return ensureServerForOfflineIndexKey(card.serverIndexKey);
 }
 
 export function offlineQueueServerKeyForCard(card: OfflineLibraryCard): string {

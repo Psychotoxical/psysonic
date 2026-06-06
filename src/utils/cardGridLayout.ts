@@ -31,13 +31,15 @@ export function computeCellWidthPx(containerWidthPx: number, columnCount: number
   return (containerWidthPx - (c - 1) * CARD_GRID_GAP_PX) / c;
 }
 
-export type CardGridRowHeightVariant = 'artist' | 'album' | 'playlist' | 'composer';
+export type CardGridRowHeightVariant = 'artist' | 'album' | 'playlist' | 'offline' | 'composer';
 
 const VARIANT: Record<CardGridRowHeightVariant, { extra: number; min: number; max: number }> = {
   artist: { extra: 72, min: 200, max: 520 },
   /** Cover scales with cell width; ~108px headroom matches prior ~288px row at ~180px tiles. */
   album: { extra: 108, min: 260, max: 560 },
   playlist: { extra: 108, min: 260, max: 560 },
+  /** Offline Library cards: album metadata + track-count footer + row gap in virtual rows. */
+  offline: { extra: 140, min: 290, max: 580 },
   /** Text-only composer tiles: no imagery → fixed intrinsic height, does not
    * scale with cell width like the image variants. min === max pins it. */
   composer: { extra: 0, min: 88, max: 88 },

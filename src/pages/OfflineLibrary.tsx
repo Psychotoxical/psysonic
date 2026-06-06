@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Play, HardDriveDownload, Trash2, ListPlus } from 'lucide-react';
+import { Play, HardDriveDownload, Trash2, ListPlus, Shuffle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useOfflineStore } from '../store/offlineStore';
 import { useLocalPlaybackStore } from '../store/localPlaybackStore';
@@ -11,8 +11,10 @@ import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import {
+  buildOfflineCacheQueueTracks,
   buildTracksForOfflineCard,
   ensureServerForOfflineCard,
+  ensureServerForOfflineIndexKey,
   offlineQueueServerKeyForCard,
   hydrateOfflineLibraryCards,
   offlineAlbumCoverScope,
@@ -20,9 +22,10 @@ import {
   type OfflineLibraryCard,
 } from '../utils/offline/offlineLibraryHelpers';
 import { showToast } from '../utils/ui/toast';
+import { shuffleArray } from '../utils/playback/shuffleArray';
 import { formatBytes } from '../utils/format/formatBytes';
 import { getMediaDir } from '../utils/media/mediaDir';
-import { resolveIndexKey } from '../utils/server/serverIndexKey';
+import { canonicalQueueServerKey, resolveIndexKey } from '../utils/server/serverIndexKey';
 import { reconcileAllLibraryTiersFromDisk } from '../utils/offline/libraryTierReconcile';
 import {
   inferPinSourcesFromLibraryIndex,
@@ -38,6 +41,8 @@ export default function OfflineLibrary() {
   const perfFlags = usePerfProbeFlags();
   const servers = useAuthStore(s => s.servers);
   const mediaDir = useAuthStore(s => s.mediaDir || null);
+  const hotCacheEnabled = useAuthStore(s => s.hotCacheEnabled);
+  const localPlaybackEntries = useLocalPlaybackStore(s => s.entries);
   const pinRefreshKey = useLocalPlaybackStore(s => {
     const groups = s.listPinnedGroups();
     return groups
@@ -113,6 +118,19 @@ export default function OfflineLibrary() {
     ? cards
     : cards.filter(c => (c.pinSource.kind ?? 'album') === filter);
 
+  const libraryTrackCount = useMemo(
+    () => filtered.reduce((sum, card) => sum + offlineTrackCount(card), 0),
+    [filtered],
+  );
+
+  const hotCacheTrackCount = useMemo(() => {
+    if (!hotCacheEnabled) return 0;
+    return Object.values(localPlaybackEntries).filter(e => e.tier === 'ephemeral' && e.localPath).length;
+  }, [hotCacheEnabled, localPlaybackEntries]);
+
+  const showCacheQueueCard = libraryTrackCount > 0 || hotCacheTrackCount > 0;
+  const cacheQueueTrackCount = libraryTrackCount + hotCacheTrackCount;
+
   const runWithCardServer = useCallback(async (
     card: OfflineLibraryCard,
     action: () => void | Promise<void>,
@@ -136,6 +154,29 @@ export default function OfflineLibrary() {
       playTrack(tracks[0], tracks);
     });
   };
+
+  const handlePlayOfflineCache = useCallback(async () => {
+    const sourceCards = filter === 'all' ? cards : filtered;
+    const { tracks, queueServerIndexKey } = await buildOfflineCacheQueueTracks(sourceCards, {
+      includeHotCache: hotCacheEnabled,
+    });
+    if (!tracks.length) {
+      showToast(t('connection.offlinePlaybackUnavailable'), 4500, 'error');
+      return;
+    }
+    if (queueServerIndexKey) {
+      const ok = await ensureServerForOfflineIndexKey(queueServerIndexKey);
+      if (!ok) {
+        showToast(t('connection.switchFailed'), 4500, 'error');
+        return;
+      }
+      usePlayerStore.setState({
+        queueServerId: canonicalQueueServerKey(queueServerIndexKey),
+      });
+    }
+    const queue = shuffleArray(tracks);
+    playTrack(queue[0], queue);
+  }, [cards, filtered, filter, hotCacheEnabled, playTrack, t]);
 
   const handleEnqueue = (card: OfflineLibraryCard) => {
     void runWithCardServer(card, async () => {
@@ -219,7 +260,9 @@ export default function OfflineLibrary() {
               {t('connection.offlineCachedOnServer', { server: serverLabel })}
             </p>
           )}
-          {card.year && <p className="album-card-year">{card.year}</p>}
+          <p className="album-card-year offline-library-card-year">
+            {card.year ?? '\u00A0'}
+          </p>
           <div className="offline-library-card-meta">
             <button
               className="offline-library-enqueue"
@@ -261,7 +304,7 @@ export default function OfflineLibrary() {
         <VirtualCardGrid
           items={groups[artistName]}
           itemKey={(c, _i) => `${c.serverIndexKey}:${c.pinSource.kind}:${c.pinSource.sourceId}`}
-          rowVariant="album"
+          rowVariant="offline"
           disableVirtualization={perfFlags.disableMainstageVirtualLists}
           layoutSignal={groups[artistName].length}
           warmGridCovers={albumGridWarmCovers(OFFLINE_CARD_COVER_CSS_PX)}
@@ -317,20 +360,47 @@ export default function OfflineLibrary() {
 
       {loading ? (
         <div className="empty-state">{t('common.loading', { defaultValue: 'Loading…' })}</div>
-      ) : filtered.length === 0 ? (
+      ) : filtered.length === 0 && !showCacheQueueCard ? (
         <div className="empty-state">{t('connection.offlineLibraryEmpty')}</div>
-      ) : filter === 'artist' ? (
+      ) : (
+        <>
+      {showCacheQueueCard && (
+        <button
+          type="button"
+          className="offline-cache-queue-card card"
+          onClick={() => void handlePlayOfflineCache()}
+          aria-label={t('connection.offlineCacheQueuePlayAria')}
+        >
+          <div className="offline-cache-queue-card-icon" aria-hidden>
+            <HardDriveDownload size={28} />
+          </div>
+          <div className="offline-cache-queue-card-body">
+            <div className="offline-cache-queue-card-title">{t('connection.offlineCacheQueueTitle')}</div>
+            <div className="offline-cache-queue-card-subtitle">
+              {t('connection.offlineCacheQueueSubtitle', { n: cacheQueueTrackCount })}
+            </div>
+          </div>
+          <div className="offline-cache-queue-card-action" aria-hidden>
+            <Shuffle size={16} />
+            <Play size={18} fill="currentColor" />
+          </div>
+        </button>
+      )}
+
+      {filtered.length === 0 ? null : filter === 'artist' ? (
         renderArtistGroups()
       ) : (
         <VirtualCardGrid
           items={filtered}
           itemKey={(c, _i) => `${c.serverIndexKey}:${c.pinSource.kind}:${c.pinSource.sourceId}`}
-          rowVariant="album"
+          rowVariant="offline"
           disableVirtualization={perfFlags.disableMainstageVirtualLists}
           layoutSignal={filtered.length}
           warmGridCovers={albumGridWarmCovers(OFFLINE_CARD_COVER_CSS_PX)}
           renderItem={renderCard}
         />
+      )}
+        </>
       )}
     </div>
   );
