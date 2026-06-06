@@ -306,60 +306,86 @@ export async function ensureServerForOfflineIndexKey(serverIndexKey: string): Pr
   return true;
 }
 
-/** All playable library-tier pins plus optional hot-cache (ephemeral) tracks. */
-export async function buildOfflineCacheQueueTracks(
-  cards: OfflineLibraryCard[],
-  options?: { includeHotCache?: boolean },
-): Promise<{ tracks: Track[]; queueServerIndexKey: string | null }> {
-  const seen = new Set<string>();
-  const tracks: Track[] = [];
-  let queueServerIndexKey: string | null = null;
+function listEphemeralCacheEntries(): LocalPlaybackEntry[] {
+  return Object.values(useLocalPlaybackStore.getState().entries)
+    .filter(e => e.tier === 'ephemeral' && e.localPath)
+    .sort((a, b) => (b.lastPlayedAt ?? b.cachedAt) - (a.lastPlayedAt ?? a.cachedAt));
+}
 
-  for (const card of cards) {
-    const cardTracks = await buildTracksForOfflineCard(card);
-    for (const track of cardTracks) {
-      const dedupeKey = `${card.serverIndexKey}:${track.id}`;
-      if (seen.has(dedupeKey)) continue;
-      seen.add(dedupeKey);
-      tracks.push(track);
-      queueServerIndexKey ??= card.serverIndexKey;
-    }
+/** Indexed ephemeral rows with on-disk bytes under `{media}/cache/`. */
+export function countEphemeralCacheTracks(): number {
+  return listEphemeralCacheEntries().length;
+}
+
+export function ephemeralCacheCoverScope(): CoverServerScope | null {
+  const entry = listEphemeralCacheEntries()[0];
+  if (!entry) return null;
+  const server = findServerByIdOrIndexKey(entry.serverIndexKey);
+  if (!server) return null;
+  return {
+    kind: 'server',
+    serverId: server.id,
+    url: server.url,
+    username: server.username,
+    password: server.password,
+  };
+}
+
+/** Up to four cover IDs for a playlist-style collage from hot-cache tracks. */
+export async function collectEphemeralCacheCoverQuad(): Promise<(string | null)[]> {
+  const ephemeral = listEphemeralCacheEntries();
+  if (ephemeral.length === 0) return [null, null, null, null];
+  const refs = ephemeral.slice(0, 16).map(e => ({
+    serverId: resolveServerIdForIndexKey(e.serverIndexKey) || e.serverIndexKey,
+    trackId: e.trackId,
+  }));
+  const dtos = await libraryGetTracksBatch(refs).catch(() => []);
+  const covers: string[] = [];
+  for (const dto of dtos) {
+    const cover = resolveTrackCoverArtId(dto);
+    if (cover && !covers.includes(cover)) covers.push(cover);
+    if (covers.length >= 4) break;
+  }
+  return Array.from({ length: 4 }, (_, i) => covers[i] ?? null);
+}
+
+/** Playable tracks under `{media}/cache/` only (ephemeral / hot-cache tier). */
+export async function buildOfflineCacheQueueTracks(): Promise<{
+  tracks: Track[];
+  queueServerIndexKey: string | null;
+}> {
+  const ephemeral = listEphemeralCacheEntries();
+  if (ephemeral.length === 0) {
+    return { tracks: [], queueServerIndexKey: null };
   }
 
-  if (options?.includeHotCache) {
-    const ephemeral = Object.values(useLocalPlaybackStore.getState().entries)
-      .filter(e => e.tier === 'ephemeral' && e.localPath)
-      .sort((a, b) => (b.lastPlayedAt ?? b.cachedAt) - (a.lastPlayedAt ?? a.cachedAt));
-    if (ephemeral.length > 0) {
-      const refs = ephemeral.map(e => ({
-        serverId: resolveServerIdForIndexKey(e.serverIndexKey) || e.serverIndexKey,
-        trackId: e.trackId,
-      }));
-      const dtos = await libraryGetTracksBatch(refs).catch(() => []);
-      const dtoById = new Map(dtos.map(d => [`${d.serverId}:${d.id}`, d]));
-      for (const entry of ephemeral) {
-        const dedupeKey = `${entry.serverIndexKey}:${entry.trackId}`;
-        if (seen.has(dedupeKey)) continue;
-        seen.add(dedupeKey);
-        const serverId = resolveServerIdForIndexKey(entry.serverIndexKey) || entry.serverIndexKey;
-        const dto = dtoById.get(`${serverId}:${entry.trackId}`);
-        if (dto) {
-          tracks.push(libraryDtoToTrack(dto));
-        } else {
-          tracks.push({
-            id: entry.trackId,
-            title: entry.trackId,
-            artist: '',
-            album: '',
-            albumId: '',
-            duration: 0,
-            suffix: entry.suffix,
-            size: entry.sizeBytes,
-          });
-        }
-        queueServerIndexKey ??= entry.serverIndexKey;
-      }
+  const refs = ephemeral.map(e => ({
+    serverId: resolveServerIdForIndexKey(e.serverIndexKey) || e.serverIndexKey,
+    trackId: e.trackId,
+  }));
+  const dtos = await libraryGetTracksBatch(refs).catch(() => []);
+  const dtoById = new Map(dtos.map(d => [`${d.serverId}:${d.id}`, d]));
+
+  const tracks: Track[] = [];
+  let queueServerIndexKey: string | null = null;
+  for (const entry of ephemeral) {
+    const serverId = resolveServerIdForIndexKey(entry.serverIndexKey) || entry.serverIndexKey;
+    const dto = dtoById.get(`${serverId}:${entry.trackId}`);
+    if (dto) {
+      tracks.push(libraryDtoToTrack(dto));
+    } else {
+      tracks.push({
+        id: entry.trackId,
+        title: entry.trackId,
+        artist: '',
+        album: '',
+        albumId: '',
+        duration: 0,
+        suffix: entry.suffix,
+        size: entry.sizeBytes,
+      });
     }
+    queueServerIndexKey ??= entry.serverIndexKey;
   }
 
   return { tracks, queueServerIndexKey };

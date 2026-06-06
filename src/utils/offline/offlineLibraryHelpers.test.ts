@@ -303,17 +303,7 @@ describe('offlineLibraryHelpers', () => {
     expect(tracks[0]?.suffix).toBe('mp3');
   });
 
-  it('buildOfflineCacheQueueTracks merges library pins and hot-cache tracks', async () => {
-    const t1Dto = {
-      id: 't1',
-      serverId: 'a',
-      title: 'One',
-      artist: 'Ar',
-      album: 'Al',
-      albumId: 'al1',
-      duration: 100,
-      suffix: 'mp3',
-    };
+  it('buildOfflineCacheQueueTracks includes only ephemeral cache tracks', async () => {
     const hotDto = {
       id: 'hot1',
       serverId: 'a',
@@ -324,9 +314,7 @@ describe('offlineLibraryHelpers', () => {
       duration: 120,
       suffix: 'flac',
     };
-    vi.mocked(libraryApi.libraryGetTracksBatch)
-      .mockResolvedValueOnce([t1Dto] as never)
-      .mockResolvedValueOnce([hotDto] as never);
+    vi.mocked(libraryApi.libraryGetTracksBatch).mockResolvedValueOnce([hotDto] as never);
     useLocalPlaybackStore.setState({
       entries: {
         'a.test:t1': {
@@ -352,18 +340,9 @@ describe('offlineLibraryHelpers', () => {
         },
       },
     });
-    const { tracks, queueServerIndexKey } = await buildOfflineCacheQueueTracks(
-      [{
-        serverIndexKey: 'a.test',
-        pinSource: { kind: 'album', sourceId: 'al1' },
-        trackIds: ['t1'],
-        name: 'Al',
-        artist: 'Ar',
-      }],
-      { includeHotCache: true },
-    );
+    const { tracks, queueServerIndexKey } = await buildOfflineCacheQueueTracks();
     expect(queueServerIndexKey).toBe('a.test');
-    expect(tracks.map(t => t.id)).toEqual(['t1', 'hot1']);
+    expect(tracks.map(t => t.id)).toEqual(['hot1']);
   });
 
   it('ensureServerForOfflineCard switches when card is on another server', async () => {
