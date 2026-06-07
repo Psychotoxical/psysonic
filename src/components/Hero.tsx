@@ -34,14 +34,25 @@ function HeroBg({ url }: { url: string }) {
   const [layers, setLayers] = useState<Array<{ url: string; id: number; visible: boolean }>>(() =>
     url ? [{ url, id: 0, visible: true }] : []
   );
-  const counter = useRef(1);
+  const counter = useRef(url ? 1 : 0);
+  const latestUrlRef = useRef(url);
+  latestUrlRef.current = url;
 
   useEffect(() => {
-    if (!url) return;
+    if (!url) {
+      setLayers([]);
+      return;
+    }
     const id = counter.current++;
     setLayers(prev => [...prev, { url, id, visible: false }]);
-    const t1 = setTimeout(() => setLayers(prev => prev.map(l => ({ ...l, visible: l.id === id }))), 20);
-    const t2 = setTimeout(() => setLayers(prev => prev.filter(l => l.id === id)), 900);
+    const t1 = setTimeout(() => {
+      if (latestUrlRef.current !== url) return;
+      setLayers(prev => prev.map(l => ({ ...l, visible: l.id === id })));
+    }, 20);
+    const t2 = setTimeout(() => {
+      if (latestUrlRef.current !== url) return;
+      setLayers(prev => prev.filter(l => l.id === id));
+    }, 900);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [url]);
 
@@ -280,17 +291,20 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
     ensurePriority: 'high',
   });
 
-  // Keep the last known good URL so HeroBg never receives '' during a cache-miss
-  // transition (which would cause the background to flash empty before fading in).
-  const stableBgUrl = useRef('');
+  // Per-album fallback so a cache miss on the current slide does not flash empty,
+  // but never reuse another album's art (that caused bg/foreground desync on fast nav).
+  const stableBgByAlbum = useRef<Record<string, string>>({});
   const albumId = album?.id;
+  useEffect(() => {
+    if (bgHandle.src && albumId) {
+      stableBgByAlbum.current[albumId] = bgHandle.src;
+    }
+  }, [bgHandle.src, albumId]);
+  const heroBgUrl = bgHandle.src || (albumId ? stableBgByAlbum.current[albumId] ?? '' : '');
   const { isHolding, pressBind } = useLongPressAction({
     onShortPress: () => { if (albumId) playAlbum(albumId); },
     onLongPress: () => { if (albumId) playAlbumShuffled(albumId); },
   });
-  useEffect(() => {
-    if (bgHandle.src) stableBgUrl.current = bgHandle.src;
-  }, [bgHandle.src, albumId]);
 
   if (!album) return <div className="hero-placeholder" />;
 
@@ -303,7 +317,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
       onClick={() => navigateToAlbum(album.id)}
       style={{ cursor: 'pointer' }}
     >
-      {enableCoverArtBackground && !perfFlags.disableMainstageHeroBackdrop && heroInView && <HeroBg url={stableBgUrl.current} />}
+      {enableCoverArtBackground && !perfFlags.disableMainstageHeroBackdrop && heroInView && <HeroBg url={heroBgUrl} />}
       {enableCoverArtBackground && !perfFlags.disableMainstageHeroBackdrop && heroInView && <div className="hero-overlay" aria-hidden="true" />}
 
       {/* key causes re-mount → animate-fade-in triggers on each album change */}
