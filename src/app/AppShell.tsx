@@ -57,6 +57,7 @@ import { useCoverNavigationPriority } from '../hooks/useCoverNavigationPriority'
 import { useLiveSearchRouteScope } from '../hooks/useLiveSearchRouteScope';
 import { useNowPlayingPrewarm } from '../hooks/useNowPlayingPrewarm';
 import { useOfflineAutoNav } from '../hooks/useOfflineAutoNav';
+import { useOfflineLibraryFilterSuspend } from '../hooks/useOfflineLibraryFilterSuspend';
 import { AppShellQueueResizerSeam } from '../components/AppShellQueueResizerSeam';
 import { IS_LINUX } from '../utils/platform';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
@@ -152,6 +153,7 @@ export function AppShell() {
     location.pathname,
     navigate,
   );
+  useOfflineLibraryFilterSuspend();
 
   useEffect(() => {
     initializeFromServerQueue();

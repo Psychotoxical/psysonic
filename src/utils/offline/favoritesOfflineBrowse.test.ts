@@ -6,6 +6,8 @@ import {
   favoritesOfflineBrowseEnabled,
   hasOfflineBrowsingContent,
   isOfflineSidebarLibraryNavAllowed,
+  isOfflineSidebarNavAllowed,
+  isOfflineSidebarSystemNavAllowed,
   loadStarredFromLibraryIndex,
   mergeStarredFromServers,
   resolveAlbumForServer,
@@ -97,8 +99,19 @@ describe('favoritesOfflineBrowse', () => {
     expect(isOfflineSidebarLibraryNavAllowed('favorites', false)).toBe(false);
     expect(isOfflineSidebarLibraryNavAllowed('artists', false, true)).toBe(true);
     expect(isOfflineSidebarLibraryNavAllowed('allAlbums', false, true)).toBe(true);
+    expect(isOfflineSidebarLibraryNavAllowed('tracks', false, true)).toBe(true);
+    expect(isOfflineSidebarLibraryNavAllowed('tracks', false, false)).toBe(false);
     expect(isOfflineSidebarLibraryNavAllowed('allAlbums', false, false)).toBe(false);
     expect(isOfflineSidebarLibraryNavAllowed('offline', false, false)).toBe(true);
+  });
+
+  it('isOfflineSidebarSystemNavAllowed keeps help and player stats offline', () => {
+    expect(isOfflineSidebarSystemNavAllowed('help', false)).toBe(true);
+    expect(isOfflineSidebarSystemNavAllowed('statistics', true)).toBe(true);
+    expect(isOfflineSidebarSystemNavAllowed('statistics', false)).toBe(false);
+    expect(isOfflineSidebarNavAllowed('help', false, false, false)).toBe(true);
+    expect(isOfflineSidebarNavAllowed('statistics', false, false, true)).toBe(true);
+    expect(isOfflineSidebarNavAllowed('tracks', false, true, false)).toBe(true);
   });
 
   it('loadStarredFromLibraryIndex uses starred advanced search when not offline-bytes', async () => {

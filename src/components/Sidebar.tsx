@@ -24,7 +24,8 @@ import { useSidebarNewReleasesUnread } from '../hooks/useSidebarNewReleasesUnrea
 import { useSidebarNavDnd } from '../hooks/useSidebarNavDnd';
 import { useSidebarLibraryDropdown } from '../hooks/useSidebarLibraryDropdown';
 import { useSidebarScrollVisible } from '../hooks/useSidebarScrollVisible';
-import { isOfflineSidebarLibraryNavAllowed } from '../utils/offline/favoritesOfflineBrowse';
+import { isOfflineSidebarNavAllowed } from '../utils/offline/favoritesOfflineBrowse';
+import { usePlayerStatsRecordingEnabled } from '../hooks/usePlayerStatsRecordingEnabled';
 import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
 import { offlineLocalBrowseEnabled } from '../utils/offline/offlineLocalBrowse';
 import { hasAnyOfflineAlbums } from '../utils/offline/offlineLibraryHelpers';
@@ -78,6 +79,7 @@ export default function Sidebar({
   const libraryIndexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const favoritesOfflineBrowse = favoritesOfflineEnabled && libraryIndexEnabled;
   const localLibraryBrowse = offlineLocalBrowseEnabled(serverId);
+  const playerStatsBrowse = usePlayerStatsRecordingEnabled();
   const hasOfflineContent = hasAnyOfflineAlbums(offlineAlbums);
   const offlineBrowseActive = useOfflineBrowseActive();
   const isServerOffline = offlineBrowseActive;
@@ -101,7 +103,7 @@ export default function Sidebar({
   }, [playlistsRaw]);
   const [sidebarViewportEl, setSidebarViewportEl] = useState<HTMLDivElement | null>(null);
   const isSidebarScrolling = useSidebarScrollVisible(sidebarViewportEl);
-  const showLibraryPicker = !isCollapsed && isLoggedIn && musicFolders.length > 1;
+  const showLibraryPicker = !isCollapsed && isLoggedIn && musicFolders.length > 1 && !isServerOffline;
 
   const filterId = serverId ? (musicLibraryFilterByServer[serverId] ?? 'all') : 'all';
   const selectedFolderName =
@@ -120,20 +122,32 @@ export default function Sidebar({
       libraryItemsForReorder.filter(c => {
         if (!c.visible) return false;
         if (c.id === 'luckyMix' && !luckyMixAvailable) return false;
-        if (isServerOffline && !isOfflineSidebarLibraryNavAllowed(c.id, favoritesOfflineBrowse, localLibraryBrowse)) {
+        if (isServerOffline && !isOfflineSidebarNavAllowed(
+          c.id,
+          favoritesOfflineBrowse,
+          localLibraryBrowse,
+          playerStatsBrowse,
+        )) {
           return false;
         }
         return true;
       }),
-    [libraryItemsForReorder, luckyMixAvailable, isServerOffline, favoritesOfflineBrowse, localLibraryBrowse],
+    [libraryItemsForReorder, luckyMixAvailable, isServerOffline, favoritesOfflineBrowse, localLibraryBrowse, playerStatsBrowse],
   );
   const visibleSystemConfigs = useMemo(
     () => systemItemsForReorder.filter(c => {
       if (!c.visible) return false;
-      if (isServerOffline) return false;
+      if (isServerOffline && !isOfflineSidebarNavAllowed(
+        c.id,
+        favoritesOfflineBrowse,
+        localLibraryBrowse,
+        playerStatsBrowse,
+      )) {
+        return false;
+      }
       return true;
     }),
-    [systemItemsForReorder, isServerOffline],
+    [systemItemsForReorder, isServerOffline, favoritesOfflineBrowse, localLibraryBrowse, playerStatsBrowse],
   );
 
   const sidebarItemsRef = useRef(sidebarItems);
@@ -166,9 +180,14 @@ export default function Sidebar({
 
 
   const pickLibrary = (id: 'all' | string) => {
+    if (isServerOffline) return;
     setMusicLibraryFilter(id);
     setLibraryDropdownOpen(false);
   };
+
+  useEffect(() => {
+    if (isServerOffline) setLibraryDropdownOpen(false);
+  }, [isServerOffline, setLibraryDropdownOpen]);
 
   // Fetch playlists when expanded
   useEffect(() => {

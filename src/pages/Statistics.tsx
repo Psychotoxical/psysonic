@@ -2,6 +2,7 @@ import { fetchStatisticsFormatSample, fetchStatisticsLibraryAggregates, fetchSta
 import { getAlbumList } from '../api/subsonicLibrary';
 import type { SubsonicAlbum, SubsonicGenre } from '../api/subsonicTypes';
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Share2 } from 'lucide-react';
 import { formatHumanHoursMinutes } from '../utils/format/formatHumanDuration';
 import AlbumRow from '../components/AlbumRow';
@@ -12,6 +13,8 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
 import { useLocation } from 'react-router-dom';
 import { lastfmIsConfigured, lastfmGetTopArtists, lastfmGetTopAlbums, lastfmGetTopTracks, lastfmGetRecentTracks, LastfmPeriod, LastfmTopArtist, LastfmTopAlbum, LastfmTopTrack, LastfmRecentTrack } from '../api/lastfm';
+import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { usePlayerStatsRecordingEnabled } from '../hooks/usePlayerStatsRecordingEnabled';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function relativeTime(timestamp: number, t: (key: string, opts?: any) => string): string {
@@ -34,7 +37,10 @@ const PERIODS: { key: LastfmPeriod; label: string }[] = [
 export default function Statistics() {
   const { t } = useTranslation();
   const location = useLocation();
+  const navigate = useNavigate();
   const isPlayerStats = location.pathname === '/player-stats';
+  const offlineBrowseActive = useOfflineBrowseActive();
+  const playerStatsEnabled = usePlayerStatsRecordingEnabled();
   const { lastfmSessionKey, lastfmUsername } = useAuthStore();
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const [recent, setRecent] = useState<SubsonicAlbum[]>([]);
@@ -62,6 +68,16 @@ export default function Statistics() {
   const [lfmRecentLoading, setLfmRecentLoading] = useState(false);
 
   useEffect(() => {
+    if (offlineBrowseActive && playerStatsEnabled && !isPlayerStats) {
+      navigate('/player-stats', { replace: true });
+    }
+  }, [offlineBrowseActive, playerStatsEnabled, isPlayerStats, navigate]);
+
+  useEffect(() => {
+    if (offlineBrowseActive || isPlayerStats) {
+      setLoading(false);
+      return;
+    }
     fetchStatisticsOverview()
       .then(d => {
         setRecent(d.recent);
@@ -71,10 +87,11 @@ export default function Statistics() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [musicLibraryFilterVersion]);
+  }, [musicLibraryFilterVersion, offlineBrowseActive, isPlayerStats]);
 
   // Background: playtime, album/song counts, genre insights (cached per server+library like rating prefetch)
   useEffect(() => {
+    if (offlineBrowseActive || isPlayerStats) return;
     let cancelled = false;
     setTotalPlaytime(null);
     setTotalAlbums(null);
@@ -101,10 +118,11 @@ export default function Statistics() {
       }
     })();
     return () => { cancelled = true; };
-  }, [musicLibraryFilterVersion]);
+  }, [musicLibraryFilterVersion, offlineBrowseActive, isPlayerStats]);
 
   // Background: format distribution (cached random sample, same TTL as other Statistics fetches)
   useEffect(() => {
+    if (offlineBrowseActive || isPlayerStats) return;
     let cancelled = false;
     setFormatData(null);
     setFormatSampleSize(0);
@@ -116,17 +134,19 @@ export default function Statistics() {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [musicLibraryFilterVersion]);
+  }, [musicLibraryFilterVersion, offlineBrowseActive, isPlayerStats]);
 
   useEffect(() => {
+    if (offlineBrowseActive || isPlayerStats) return;
     if (!lastfmIsConfigured() || !lastfmSessionKey || !lastfmUsername) return;
     setLfmRecentLoading(true);
     lastfmGetRecentTracks(lastfmUsername, lastfmSessionKey, 20)
       .then(tracks => { setLfmRecentTracks(tracks); setLfmRecentLoading(false); })
       .catch(() => setLfmRecentLoading(false));
-  }, [lastfmSessionKey, lastfmUsername]);
+  }, [lastfmSessionKey, lastfmUsername, offlineBrowseActive, isPlayerStats]);
 
   useEffect(() => {
+    if (offlineBrowseActive || isPlayerStats) return;
     if (!lastfmIsConfigured() || !lastfmSessionKey || !lastfmUsername) return;
     setLfmLoading(true);
     Promise.all([
@@ -139,7 +159,7 @@ export default function Statistics() {
       setLfmTopTracks(tracks);
       setLfmLoading(false);
     }).catch(() => setLfmLoading(false));
-  }, [lfmPeriod, lastfmSessionKey, lastfmUsername]);
+  }, [lfmPeriod, lastfmSessionKey, lastfmUsername, offlineBrowseActive, isPlayerStats]);
 
   const loadMore = async (
     type: 'frequent' | 'highest',

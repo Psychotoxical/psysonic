@@ -7,7 +7,8 @@ import { useAuthStore } from '../store/authStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { ALL_NAV_ITEMS } from '../config/navItems';
 import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
-import { isOfflineSidebarLibraryNavAllowed } from '../utils/offline/favoritesOfflineBrowse';
+import { isOfflineSidebarNavAllowed } from '../utils/offline/favoritesOfflineBrowse';
+import { usePlayerStatsRecordingEnabled } from '../hooks/usePlayerStatsRecordingEnabled';
 import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
 import { offlineLocalBrowseEnabled } from '../utils/offline/offlineLocalBrowse';
 import { hasAnyOfflineAlbums } from '../utils/offline/offlineLibraryHelpers';
@@ -24,6 +25,7 @@ export default function MobileMoreOverlay({ onClose }: { onClose: () => void }) 
   const libraryIndexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const favoritesOfflineBrowse = favoritesOfflineEnabled && libraryIndexEnabled;
   const localLibraryBrowse = offlineLocalBrowseEnabled(serverId);
+  const playerStatsBrowse = usePlayerStatsRecordingEnabled();
   const offlineBrowseActive = useOfflineBrowseActive();
   const isServerOffline = offlineBrowseActive;
   const offlineAlbums = useOfflineStore(s => s.albums);
@@ -40,7 +42,12 @@ export default function MobileMoreOverlay({ onClose }: { onClose: () => void }) 
       if (randomNavMode === 'hub' && (cfg.id === 'randomMix' || cfg.id === 'randomAlbums')) return false;
       if (randomNavMode === 'separate' && cfg.id === 'randomPicker') return false;
       if (cfg.id === 'luckyMix' && !luckyMixAvailable) return false;
-      if (isServerOffline && !isOfflineSidebarLibraryNavAllowed(cfg.id, favoritesOfflineBrowse, localLibraryBrowse)) {
+      if (isServerOffline && !isOfflineSidebarNavAllowed(
+        cfg.id,
+        favoritesOfflineBrowse,
+        localLibraryBrowse,
+        playerStatsBrowse,
+      )) {
         return false;
       }
       return true;

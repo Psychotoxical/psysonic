@@ -3,7 +3,6 @@ import { isActiveServerReachable } from '../network/activeServerReachability';
 import { shouldAttemptSubsonicForServer } from '../network/subsonicNetworkGuard';
 import { getAlbumForServer } from '../../api/subsonicLibrary';
 import { libraryAdvancedSearch, libraryGetTracksByAlbum } from '../../api/library';
-import { libraryScopeForServer } from '../../api/subsonicClient';
 import type {
   StarredResults,
   SubsonicAlbum,
@@ -48,9 +47,30 @@ export function isOfflineSidebarLibraryNavAllowed(
   localLibraryBrowse = false,
 ): boolean {
   if (navId === 'favorites') return favoritesOfflineBrowse;
-  if (navId === 'artists' || navId === 'allAlbums') return localLibraryBrowse;
+  if (navId === 'artists' || navId === 'allAlbums' || navId === 'tracks') return localLibraryBrowse;
   if (navId === 'offline') return true;
   return false;
+}
+
+/** System nav entries that stay available without a Subsonic connection. */
+export function isOfflineSidebarSystemNavAllowed(
+  navId: string,
+  playerStatsBrowse: boolean,
+): boolean {
+  if (navId === 'help') return true;
+  if (navId === 'statistics') return playerStatsBrowse;
+  return false;
+}
+
+/** Sidebar / mobile-more gate while offline browse is active. */
+export function isOfflineSidebarNavAllowed(
+  navId: string,
+  favoritesOfflineBrowse: boolean,
+  localLibraryBrowse: boolean,
+  playerStatsBrowse: boolean,
+): boolean {
+  if (isOfflineSidebarSystemNavAllowed(navId, playerStatsBrowse)) return true;
+  return isOfflineSidebarLibraryNavAllowed(navId, favoritesOfflineBrowse, localLibraryBrowse);
 }
 
 /** Any offline browsing surface: manual pins and/or saved favorite-auto bytes. */
@@ -103,18 +123,13 @@ async function loadStarredFromBrowsableLocalBytes(serverId: string): Promise<Sta
     return { artists: [], albums: [], songs: [] };
   }
 
-  const scope = libraryScopeForServer(serverId);
-  const tracks = scope
-    ? allLocal.filter(t => t.libraryId === scope)
-    : allLocal;
-
-  const starredTracks = tracks.filter(t => t.starredAt != null);
+  const starredTracks = allLocal.filter(t => t.starredAt != null);
   const songs = starredTracks
     .map(trackToSong)
     .map(s => ({ ...s, serverId }));
 
   const albumsById = new Map<string, SubsonicAlbum>();
-  const byStarredAlbum = new Map<string, typeof tracks>();
+  const byStarredAlbum = new Map<string, typeof allLocal>();
   for (const track of starredTracks) {
     if (!track.albumId) continue;
     const list = byStarredAlbum.get(track.albumId) ?? [];
@@ -126,12 +141,11 @@ async function loadStarredFromBrowsableLocalBytes(serverId: string): Promise<Sta
   }
 
   const localAlbumIds = [...new Set(
-    tracks.map(t => t.albumId).filter((id): id is string => !!id),
+    allLocal.map(t => t.albumId).filter((id): id is string => !!id),
   )];
   if (localAlbumIds.length > 0) {
     const albumSearch = await libraryAdvancedSearch({
       serverId,
-      libraryScope: scope ?? undefined,
       entityTypes: ['album'],
       starredOnly: true,
       restrictAlbumIds: localAlbumIds,

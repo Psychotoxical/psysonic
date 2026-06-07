@@ -21,6 +21,10 @@ import { sortSubsonicAlbums } from '../library/albumBrowseSort';
 import { isLosslessSuffix } from '../library/losslessFormats';
 import { entryBelongsToServer } from './offlineLibraryHelpers';
 
+function sortBrowsableSongs(songs: SubsonicSong[]): SubsonicSong[] {
+  return [...songs].sort((a, b) => a.title.localeCompare(b.title));
+}
+
 function listBrowsableEntries(serverId: string): LocalPlaybackEntry[] {
   return Object.values(useLocalPlaybackStore.getState().entries).filter(
     e => (e.tier === 'library' || e.tier === 'favorite-auto')
@@ -131,6 +135,41 @@ function applyAlbumBrowseQuery(
     out = filterAlbumsByCompilation(out, query.compFilter);
   }
   return sortSubsonicAlbums(out, query.sort);
+}
+
+export async function fetchOfflineLocalBrowsableSongPage(
+  serverId: string,
+  offset: number,
+  chunkSize: number,
+): Promise<{ songs: SubsonicSong[]; hasMore: boolean } | null> {
+  if (!offlineLocalBrowseEnabled(serverId)) return null;
+  const tracks = await fetchBrowsableLocalTrackDtos(serverId);
+  const songs = sortBrowsableSongs(
+    tracks.map(trackToSong).map(s => ({ ...s, serverId })),
+  );
+  const slice = songs.slice(offset, offset + chunkSize);
+  return { songs: slice, hasMore: offset + chunkSize < songs.length };
+}
+
+export async function searchOfflineLocalBrowsableSongs(
+  serverId: string,
+  query: string,
+  offset: number,
+  chunkSize: number,
+): Promise<SubsonicSong[] | null> {
+  if (!offlineLocalBrowseEnabled(serverId)) return null;
+  const q = query.trim().toLowerCase();
+  if (!q) return null;
+  const tracks = await fetchBrowsableLocalTrackDtos(serverId);
+  const matched = tracks
+    .filter(t =>
+      (t.title?.toLowerCase().includes(q))
+      || (t.artist?.toLowerCase().includes(q))
+      || (t.album?.toLowerCase().includes(q)),
+    )
+    .map(trackToSong)
+    .map(s => ({ ...s, serverId }));
+  return sortBrowsableSongs(matched).slice(offset, offset + chunkSize);
 }
 
 export async function fetchOfflineLocalStarredArtists(serverId: string): Promise<SubsonicArtist[] | null> {
