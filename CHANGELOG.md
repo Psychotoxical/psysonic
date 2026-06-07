@@ -161,6 +161,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### All Albums — Only compilations filter returns results
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on Discord, PR [#1026](https://github.com/Psychotoxical/psysonic/pull/1026)**
+
+* The **Only compilations** toggle on **All Albums** no longer returns an empty list when compilations are tagged via **Various Artists** as album artist or when genre is combined with other browse filters — local index SQL, track-grouped browse, and client-side detection now agree on the same compilation signals.
+
+
+
 ## [1.47.0]
 
 > **🙏 Thank you to our amazing Discord community.** This release would not have been possible without your tireless support, quality checks, bug reports and all-round collaboration. Every report, every repro and every bit of feedback shaped what shipped here — thank you. Come join us: [discord.gg/AMnDRErm4u](https://discord.gg/AMnDRErm4u)
