@@ -80,6 +80,30 @@ export function InstalledThemes() {
                       <Check size={8} strokeWidth={3} color="white" />
                     </div>
                   )}
+                  {animRisk && c.animated && (
+                    <span
+                      role="img"
+                      aria-label={t('settings.themeAnimationWarning')}
+                      data-tooltip={t('settings.themeAnimationWarning')}
+                      data-tooltip-pos="top"
+                      style={{
+                        position: 'absolute',
+                        bottom: '3px',
+                        right: '3px',
+                        width: '16px',
+                        height: '16px',
+                        borderRadius: '50%',
+                        background: 'var(--bg-elevated)',
+                        color: 'var(--warning)',
+                        border: '1px solid var(--warning)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <AlertTriangle size={10} />
+                    </span>
+                  )}
                 </div>
                 <span className={`theme-card-label${isActive ? ' is-active' : ''}`}>
                   {c.label}
@@ -102,17 +126,6 @@ export function InstalledThemes() {
                     }}
                   >
                     CVD-safe
-                  </span>
-                )}
-                {animRisk && c.animated && (
-                  <span
-                    role="img"
-                    aria-label={t('settings.themeAnimationWarning')}
-                    data-tooltip={t('settings.themeAnimationWarning')}
-                    data-tooltip-pos="top"
-                    style={{ display: 'inline-flex', color: 'var(--warning)', marginTop: 2 }}
-                  >
-                    <AlertTriangle size={12} />
                   </span>
                 )}
               </button>
