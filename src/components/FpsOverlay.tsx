@@ -59,7 +59,7 @@ function LiveOverlayPinnedMetric({
   );
 }
 
-/** FPS + pipeline + pinned live metrics overlay (Performance Probe). */
+/** FPS + pipeline + pinned live metrics overlay (PsyLab). */
 export default function FpsOverlay() {
   const overlayMode = usePerfOverlayMode();
   const perfFlags = usePerfProbeFlags();

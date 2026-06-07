@@ -1,15 +1,16 @@
 import { useState } from 'react';
-import { Activity, ScrollText, SlidersHorizontal, X } from 'lucide-react';
+import { Activity, ScrollText, SlidersHorizontal, Wrench, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import SidebarPerfProbeMonitorTab from './perfProbe/SidebarPerfProbeMonitorTab';
 import SidebarPerfProbeTogglesTab from './perfProbe/SidebarPerfProbeTogglesTab';
+import SidebarPerfProbeTuningTab from './perfProbe/SidebarPerfProbeTuningTab';
 import SidebarPerfProbeLogsTab from './perfProbe/SidebarPerfProbeLogsTab';
 import { resetPerfProbeFlags, type PerfProbeFlags } from '../../utils/perf/perfFlags';
 import { clearPerfLiveOverlayPins } from '../../utils/perf/perfOverlayPins';
 import { resetPerfOverlayAppearance } from '../../utils/perf/perfOverlayAppearance';
 import { resetPerfOverlayMode } from '../../utils/perf/perfOverlayMode';
 
-type TabId = 'monitor' | 'toggles' | 'logs';
+type TabId = 'monitor' | 'toggles' | 'tuning' | 'logs';
 
 interface Props {
   open: boolean;
@@ -51,7 +52,7 @@ export default function SidebarPerfProbeModal({
       onClick={() => onClose()}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="perf-probe-title"
+      aria-labelledby="psylab-title"
     >
       <div
         className="modal-content sidebar-perf-modal"
@@ -62,13 +63,13 @@ export default function SidebarPerfProbeModal({
         </button>
 
         <header className="sidebar-perf-modal__header">
-          <h3 id="perf-probe-title" className="modal-title">Performance Probe</h3>
+          <h3 id="psylab-title" className="modal-title">PsyLab</h3>
           <p className="sidebar-perf-modal__hint">
-            Live metrics with optional on-screen overlays, plus diagnostic disable toggles.
+            Live metrics with optional on-screen overlays, runtime tuning, and diagnostic disable toggles.
           </p>
         </header>
 
-        <div className="sidebar-perf-modal__tabs" role="tablist" aria-label="Performance probe sections">
+        <div className="sidebar-perf-modal__tabs" role="tablist" aria-label="PsyLab sections">
           <button
             type="button"
             role="tab"
@@ -92,6 +93,16 @@ export default function SidebarPerfProbeModal({
           <button
             type="button"
             role="tab"
+            aria-selected={tab === 'tuning'}
+            className={`sidebar-perf-modal__tab${tab === 'tuning' ? ' sidebar-perf-modal__tab--active' : ''}`}
+            onClick={() => setTab('tuning')}
+          >
+            <Wrench size={15} />
+            Tuning
+          </button>
+          <button
+            type="button"
+            role="tab"
             aria-selected={tab === 'logs'}
             className={`sidebar-perf-modal__tab${tab === 'logs' ? ' sidebar-perf-modal__tab--active' : ''}`}
             onClick={() => setTab('logs')}
@@ -103,6 +114,7 @@ export default function SidebarPerfProbeModal({
 
         <div className={`sidebar-perf-modal__body${tab === 'logs' ? ' sidebar-perf-modal__body--logs' : ''}`}>
           {tab === 'monitor' && <SidebarPerfProbeMonitorTab />}
+          {tab === 'tuning' && <SidebarPerfProbeTuningTab />}
           {tab === 'toggles' && (
             <SidebarPerfProbeTogglesTab
               perfFlags={perfFlags}

@@ -45,7 +45,7 @@ function useNeedCoverTelemetry(perfProbeOpen: boolean, livePins: ReadonlySet<str
   );
 }
 
-/** Wires Ctrl+Shift+D probe modal and shared live metric polling. */
+/** Wires Ctrl+Shift+D PsyLab modal and shared live metric polling. */
 export function useSidebarPerfProbe(): Result {
   const [perfProbeOpen, setPerfProbeOpen] = useState(false);
   const livePins = usePerfLiveOverlayPins();

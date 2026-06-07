@@ -12,7 +12,6 @@ import PerfProbeMetricCard, { PerfProbeMetricSection } from './PerfProbeMetricCa
 import PerfOverlayAppearanceControls from './PerfOverlayAppearanceControls';
 import PerfOverlayModeControls from './PerfOverlayModeControls';
 import PerfLivePollControls from './PerfLivePollControls';
-import PerfCoverThreadsControl from './PerfCoverThreadsControl';
 
 function memoryBarPct(rssKb: number, maxKb: number): number {
   if (maxKb <= 0) return 0;
@@ -61,7 +60,6 @@ export default function SidebarPerfProbeMonitorTab() {
       <PerfOverlayModeControls />
       <PerfOverlayAppearanceControls />
       <PerfLivePollControls />
-      <PerfCoverThreadsControl />
       <PerfProbeMetricSection title="Pipeline overlays" hint="Rust / UI queues">
         <PerfProbeMetricCard
           label="FPS"

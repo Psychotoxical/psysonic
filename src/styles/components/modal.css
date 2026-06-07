@@ -219,12 +219,27 @@
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 11.5px;
   line-height: 1.5;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
 }
 
 .perf-logs__line {
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--text-primary);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.perf-tuning {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.perf-tuning__hint {
+  margin: 0;
 }
 
 .perf-logs__line--marker {
@@ -263,6 +278,21 @@
 
 .perf-logs__jump:hover {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.perf-logs__context-menu {
+  position: fixed;
+  z-index: 10050;
+  min-width: 140px;
+}
+
+.perf-logs__context-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
 }
 
 .perf-monitor-empty {

@@ -10,7 +10,7 @@ const COVER_THREADS_MIN = 1;
 const COVER_THREADS_MAX = 16;
 
 /**
- * Perf-probe-only knob for cover backfill concurrency (download + encode pools
+ * PsyLab tuning knob for cover backfill concurrency (download + encode pools
  * move together). Deliberately not surfaced in app Settings — it is a live
  * diagnostics/experiment control. The value is process-local and resets to the
  * backend default on app restart.

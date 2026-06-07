@@ -1,11 +1,26 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Pause, Play, Trash2 } from 'lucide-react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
+import { Copy, Download, Pause, Play, Trash2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { save as saveDialog } from '@tauri-apps/plugin-dialog';
+import { writeFile } from '@tauri-apps/plugin-fs';
 import { getLoggingMode, tailRuntimeLogs, type RuntimeLogLine } from '../../../api/runtimeLogs';
 import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from '../../../store/authStore';
 import type { LoggingMode } from '../../../store/authStoreTypes';
 import CustomSelect from '../../CustomSelect';
 import { filterLogLines } from '../../../utils/perf/filterLogLines';
+
+function formatLogLinesText(lines: RuntimeLogLine[]): string {
+  return lines.map(line => line.text).join('\n');
+}
 
 const POLL_MS = 750;
 const BOTTOM_EPSILON = 24;
@@ -40,6 +55,10 @@ export default function SidebarPerfProbeLogsTab() {
   const [lineCap, setLineCap] = useState(1000);
   const [follow, setFollow] = useState(true);
   const [overflowed, setOverflowed] = useState(false);
+  const [copyState, setCopyState] = useState<'idle' | 'ok' | 'error'>('idle');
+  const [exporting, setExporting] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
 
   const lastSeqRef = useRef<number | null>(null);
   const pausedRef = useRef(paused);
@@ -156,6 +175,80 @@ export default function SidebarPerfProbeLogsTab() {
     setOverflowed(false);
   };
 
+  const selectedLogText = useCallback(() => {
+    const el = scrollRef.current;
+    const sel = window.getSelection();
+    if (!el || !sel || sel.isCollapsed || sel.rangeCount === 0) return '';
+    const range = sel.getRangeAt(0);
+    if (!el.contains(range.commonAncestorContainer)) return '';
+    return sel.toString();
+  }, []);
+
+  const copyText = async (text: string, feedback = true) => {
+    if (!text) return false;
+    try {
+      await navigator.clipboard.writeText(text);
+      if (feedback) setCopyState('ok');
+      return true;
+    } catch {
+      if (feedback) setCopyState('error');
+      return false;
+    } finally {
+      if (feedback) window.setTimeout(() => setCopyState('idle'), 1600);
+    }
+  };
+
+  const copyAllShown = () => copyText(formatLogLinesText(visible));
+
+  const copySelection = () => copyText(selectedLogText(), false);
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const onDown = (e: MouseEvent) => {
+      if (contextMenuRef.current?.contains(e.target as Node)) return;
+      closeContextMenu();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeContextMenu();
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [contextMenu, closeContextMenu]);
+
+  const onLogContextMenu = (e: ReactMouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const selected = selectedLogText().trim();
+    if (!selected) return;
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  const exportVisible = async () => {
+    if (visible.length === 0 || exporting) return;
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const selected = await saveDialog({
+      defaultPath: `psysonic-psylab-logs-${stamp}.log`,
+      filters: [{ name: 'Log files', extensions: ['log', 'txt'] }],
+      title: 'Export shown log lines',
+    });
+    if (!selected || Array.isArray(selected)) return;
+    setExporting(true);
+    try {
+      const bytes = new TextEncoder().encode(`${formatLogLinesText(visible)}\n`);
+      await writeFile(selected, bytes);
+    } catch {
+      /* user cancelled or write failed */
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="perf-logs">
       <div className="perf-logs__controls">
@@ -189,6 +282,26 @@ export default function SidebarPerfProbeLogsTab() {
           <Trash2 size={14} />
           Clear
         </button>
+        <button
+          type="button"
+          className="perf-logs__btn"
+          onClick={() => void copyAllShown()}
+          disabled={visible.length === 0}
+          title="Copy all lines currently shown in the log view"
+        >
+          <Copy size={14} />
+          {copyState === 'ok' ? 'Copied' : copyState === 'error' ? 'Copy failed' : 'Copy'}
+        </button>
+        <button
+          type="button"
+          className="perf-logs__btn"
+          onClick={() => void exportVisible()}
+          disabled={visible.length === 0 || exporting}
+          title="Export shown lines to a file"
+        >
+          <Download size={14} />
+          {exporting ? 'Exporting…' : 'Export'}
+        </button>
       </div>
 
       <input
@@ -204,8 +317,10 @@ export default function SidebarPerfProbeLogsTab() {
         className="perf-logs__view"
         ref={scrollRef}
         onScroll={onScroll}
+        onContextMenu={onLogContextMenu}
         role="log"
         aria-live="off"
+        data-selectable
       >
         {visible.length === 0 ? (
           <div className="perf-logs__empty">
@@ -239,6 +354,28 @@ export default function SidebarPerfProbeLogsTab() {
           </button>
         )}
       </div>
+
+      {contextMenu && createPortal(
+        <div
+          ref={contextMenuRef}
+          className="context-menu perf-logs__context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onContextMenu={e => e.preventDefault()}
+        >
+          <button
+            type="button"
+            className="context-menu-item perf-logs__context-item"
+            onClick={() => {
+              void copySelection();
+              closeContextMenu();
+            }}
+          >
+            <Copy size={14} />
+            Copy
+          </button>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
