@@ -3,6 +3,7 @@ import { isActiveServerReachable } from '../network/activeServerReachability';
 import { shouldAttemptSubsonicForServer } from '../network/subsonicNetworkGuard';
 import { getAlbumForServer } from '../../api/subsonicLibrary';
 import { libraryAdvancedSearch, libraryGetTracksByAlbum } from '../../api/library';
+import { libraryScopeForServer } from '../../api/subsonicClient';
 import type {
   StarredResults,
   SubsonicAlbum,
@@ -19,7 +20,12 @@ import {
 } from '../library/advancedSearchLocal';
 import { dedupeById } from '../dedupeById';
 import { isOfflineBrowseActive } from './offlineBrowseMode';
-import { loadAlbumFromLocalPlayback, offlineLocalBrowseEnabled } from './offlineLocalBrowse';
+import {
+  buildAlbumFromTracks,
+  fetchBrowsableLocalTrackDtos,
+  loadAlbumFromLocalPlayback,
+  offlineLocalBrowseEnabled,
+} from './offlineLocalBrowse';
 import { countFavoriteAutoTracks, hasAnyOfflineAlbums } from './offlineLibraryHelpers';
 
 /** Saved servers with a local library index (cross-server favorites scope). */
@@ -87,7 +93,71 @@ export function mergeStarredFromServers(
   };
 }
 
-export async function loadStarredFromLibraryIndex(serverId: string): Promise<StarredResults> {
+/**
+ * Offline favorites: start from on-disk bytes, then keep starred tracks/albums only.
+ * Avoids scanning the full starred catalog in SQL when only a local subset is playable.
+ */
+async function loadStarredFromBrowsableLocalBytes(serverId: string): Promise<StarredResults> {
+  const allLocal = await fetchBrowsableLocalTrackDtos(serverId);
+  if (allLocal.length === 0) {
+    return { artists: [], albums: [], songs: [] };
+  }
+
+  const scope = libraryScopeForServer(serverId);
+  const tracks = scope
+    ? allLocal.filter(t => t.libraryId === scope)
+    : allLocal;
+
+  const starredTracks = tracks.filter(t => t.starredAt != null);
+  const songs = starredTracks
+    .map(trackToSong)
+    .map(s => ({ ...s, serverId }));
+
+  const albumsById = new Map<string, SubsonicAlbum>();
+  const byStarredAlbum = new Map<string, typeof tracks>();
+  for (const track of starredTracks) {
+    if (!track.albumId) continue;
+    const list = byStarredAlbum.get(track.albumId) ?? [];
+    list.push(track);
+    byStarredAlbum.set(track.albumId, list);
+  }
+  for (const [albumId, albumTracks] of byStarredAlbum) {
+    albumsById.set(albumId, buildAlbumFromTracks(albumId, albumTracks, serverId));
+  }
+
+  const localAlbumIds = [...new Set(
+    tracks.map(t => t.albumId).filter((id): id is string => !!id),
+  )];
+  if (localAlbumIds.length > 0) {
+    const albumSearch = await libraryAdvancedSearch({
+      serverId,
+      libraryScope: scope ?? undefined,
+      entityTypes: ['album'],
+      starredOnly: true,
+      restrictAlbumIds: localAlbumIds,
+      limit: localAlbumIds.length,
+      skipTotals: true,
+    });
+    for (const dto of albumSearch.albums) {
+      albumsById.set(dto.id, { ...albumToAlbum(dto), serverId });
+    }
+  }
+
+  return {
+    artists: [],
+    albums: [...albumsById.values()],
+    songs,
+  };
+}
+
+export async function loadStarredFromLibraryIndex(
+  serverId: string,
+  preferLocalBytes = false,
+): Promise<StarredResults> {
+  if (preferLocalBytes && offlineLocalBrowseEnabled(serverId)) {
+    return loadStarredFromBrowsableLocalBytes(serverId);
+  }
+
   // Artist-level favorites are network-only today (`artist` has no `starred_at`;
   // `starredOnly` on artists would return the whole artist table). Songs/albums
   // use track/album stars in the index.
@@ -104,12 +174,14 @@ export async function loadStarredFromLibraryIndex(serverId: string): Promise<Sta
   };
 }
 
-export async function loadStarredFromAllLibraryIndexes(): Promise<StarredResults> {
+export async function loadStarredFromAllLibraryIndexes(
+  preferLocalBytes = isOfflineBrowseActive(),
+): Promise<StarredResults> {
   const serverIds = favoritesServerIds();
   const entries = await Promise.all(
     serverIds.map(async serverId => {
       try {
-        const starred = await loadStarredFromLibraryIndex(serverId);
+        const starred = await loadStarredFromLibraryIndex(serverId, preferLocalBytes);
         return { serverId, starred };
       } catch {
         return { serverId, starred: { artists: [], albums: [], songs: [] } satisfies StarredResults };

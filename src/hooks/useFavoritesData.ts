@@ -9,6 +9,7 @@ import { usePlayerStore } from '../store/playerStore';
 import type { TopFavoriteArtist } from '../components/favorites/TopFavoriteArtists';
 import { useConnectionStatus } from './useConnectionStatus';
 import { isActiveServerReachable } from '../utils/network/activeServerReachability';
+import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
 import {
   loadStarredFromAllLibraryIndexes,
   loadStarredFromAllServersOnline,
@@ -43,6 +44,7 @@ export function useFavoritesData(): FavoritesDataResult {
   const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
   const servers = useAuthStore(s => s.servers);
   const { status: connStatus } = useConnectionStatus();
+  const offlineBrowseActive = useOfflineBrowseActive();
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
 
   useEffect(() => {
@@ -76,7 +78,7 @@ export function useFavoritesData(): FavoritesDataResult {
 
       if (favoritesOfflineEnabled) {
         try {
-          applyStarred(await loadStarredFromAllLibraryIndexes());
+          applyStarred(await loadStarredFromAllLibraryIndexes(offlineBrowseActive));
         } catch { /* ignore */ }
         if (!cancelled) setLoading(false);
 
@@ -100,9 +102,8 @@ export function useFavoritesData(): FavoritesDataResult {
 
     void loadAll();
     return () => { cancelled = true; };
-  }, [musicLibraryFilterVersion, connStatus, favoritesOfflineEnabled, servers]);
+  }, [musicLibraryFilterVersion, connStatus, favoritesOfflineEnabled, offlineBrowseActive, servers]);
 
-  // ── Top Favorite Artists aggregated from favorited songs ─────────────
   const topFavoriteArtists = useMemo<TopFavoriteArtist[]>(() => {
     const counts = new Map<string, TopFavoriteArtist>();
     for (const s of songs) {

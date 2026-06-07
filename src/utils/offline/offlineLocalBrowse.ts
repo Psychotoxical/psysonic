@@ -40,14 +40,15 @@ export function offlineLocalBrowseEnabled(serverId: string | null | undefined): 
   return countLocalBrowsableTracks(serverId) > 0;
 }
 
-async function fetchLocalTrackDtos(serverId: string): Promise<LibraryTrackDto[]> {
+/** Track DTOs for every library/favorite-auto entry with on-disk bytes for this server. */
+export async function fetchBrowsableLocalTrackDtos(serverId: string): Promise<LibraryTrackDto[]> {
   const entries = listBrowsableEntries(serverId);
   if (entries.length === 0) return [];
   const refs = entries.map(e => ({ serverId, trackId: e.trackId }));
   return libraryGetTracksBatchChunked(refs);
 }
 
-function buildAlbumFromTracks(
+export function buildAlbumFromTracks(
   albumId: string,
   tracks: LibraryTrackDto[],
   serverId: string,
@@ -134,7 +135,7 @@ function applyAlbumBrowseQuery(
 
 export async function fetchOfflineLocalStarredArtists(serverId: string): Promise<SubsonicArtist[] | null> {
   if (!offlineLocalBrowseEnabled(serverId)) return null;
-  const tracks = (await fetchLocalTrackDtos(serverId)).filter(t => t.starredAt != null);
+  const tracks = (await fetchBrowsableLocalTrackDtos(serverId)).filter(t => t.starredAt != null);
   return aggregateArtistsFromTracks(tracks, serverId);
 }
 
@@ -144,7 +145,7 @@ export async function fetchOfflineLocalArtistCatalogChunk(
   chunkSize: number,
 ): Promise<{ artists: SubsonicArtist[]; hasMore: boolean } | null> {
   if (!offlineLocalBrowseEnabled(serverId)) return null;
-  const tracks = await fetchLocalTrackDtos(serverId);
+  const tracks = await fetchBrowsableLocalTrackDtos(serverId);
   const artists = aggregateArtistsFromTracks(tracks, serverId);
   const slice = artists.slice(offset, offset + chunkSize);
   return {
@@ -160,7 +161,7 @@ export async function searchOfflineLocalArtists(
   if (!offlineLocalBrowseEnabled(serverId)) return null;
   const q = query.trim().toLowerCase();
   if (!q) return [];
-  const tracks = await fetchLocalTrackDtos(serverId);
+  const tracks = await fetchBrowsableLocalTrackDtos(serverId);
   return aggregateArtistsFromTracks(tracks, serverId)
     .filter(a => a.name.toLowerCase().includes(q));
 }
@@ -173,7 +174,7 @@ export async function fetchOfflineLocalAlbumCatalogChunk(
   starredOverrides: Record<string, boolean> = {},
 ): Promise<{ albums: SubsonicAlbum[]; hasMore: boolean } | null> {
   if (!offlineLocalBrowseEnabled(serverId)) return null;
-  let tracks = await fetchLocalTrackDtos(serverId);
+  let tracks = await fetchBrowsableLocalTrackDtos(serverId);
   if (query.losslessOnly) {
     tracks = tracks.filter(t => isLosslessSuffix(t.suffix ?? undefined));
   }
@@ -194,7 +195,7 @@ export async function searchOfflineLocalAlbums(
   if (!offlineLocalBrowseEnabled(serverId)) return null;
   const q = query.trim().toLowerCase();
   if (!q) return [];
-  let tracks = await fetchLocalTrackDtos(serverId);
+  let tracks = await fetchBrowsableLocalTrackDtos(serverId);
   if (losslessOnly) {
     tracks = tracks.filter(t => isLosslessSuffix(t.suffix ?? undefined));
   }
@@ -239,7 +240,7 @@ export async function loadArtistFromLocalPlayback(
 ): Promise<{ artist: SubsonicArtist; albums: SubsonicAlbum[] } | null> {
   if (!offlineLocalBrowseEnabled(serverId)) return null;
   const localIds = new Set(listBrowsableEntries(serverId).map(e => e.trackId));
-  const tracks = (await fetchLocalTrackDtos(serverId)).filter(
+  const tracks = (await fetchBrowsableLocalTrackDtos(serverId)).filter(
     t => t.artistId === artistId && localIds.has(t.id),
   );
   if (tracks.length === 0) return null;
