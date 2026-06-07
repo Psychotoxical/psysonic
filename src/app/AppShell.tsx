@@ -258,7 +258,7 @@ export function AppShell() {
         <div className="main-content-zoom">
         <header className="content-header">
           <LiveSearch />
-          <DevNetworkModeToggle />
+          {import.meta.env.DEV && <DevNetworkModeToggle />}
           <div className="spacer" />
           <ConnectionIndicator status={connStatus} isLan={isLan} serverName={serverName} />
           <LastfmIndicator />

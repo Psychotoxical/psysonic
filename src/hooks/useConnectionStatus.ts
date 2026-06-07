@@ -10,6 +10,10 @@ import {
 } from '../utils/server/serverEndpoint';
 import { setActiveServerReachable } from '../utils/network/activeServerReachability';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
+import {
+  isDevOfflineBrowseForced,
+  useDevOfflineBrowseStore,
+} from '../store/devOfflineBrowseStore';
 
 // Backward-compatible re-export for call sites that still import from the hook.
 export { isLanUrl };
@@ -18,6 +22,7 @@ export type ConnectionStatus = 'connected' | 'disconnected' | 'checking';
 
 export function useConnectionStatus() {
   const perfFlags = usePerfProbeFlags();
+  const devForceOffline = useDevOfflineBrowseStore(s => s.forceOffline);
   const [status, setStatus] = useState<ConnectionStatus>('checking');
   const [isRetrying, setIsRetrying] = useState(false);
   // Tracks the kind of endpoint the last successful probe answered on so the
@@ -28,6 +33,12 @@ export function useConnectionStatus() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const check = useCallback(async () => {
+    if (isDevOfflineBrowseForced()) {
+      setActiveServerReachable(false);
+      setStatus('disconnected');
+      return;
+    }
+
     const server = useAuthStore.getState().getActiveServer();
     if (!server) {
       setActiveServerReachable(false);
@@ -76,13 +87,28 @@ export function useConnectionStatus() {
   }, [check]);
 
   useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    if (devForceOffline) {
+      setActiveServerReachable(false);
+      setStatus('disconnected');
+      return;
+    }
+    void check();
+  }, [devForceOffline, check]);
+
+  useEffect(() => {
     if (perfFlags.disableBackgroundPolling) {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
-      setActiveServerReachable(true);
-      setStatus('connected');
+      if (isDevOfflineBrowseForced()) {
+        setActiveServerReachable(false);
+        setStatus('disconnected');
+      } else {
+        setActiveServerReachable(true);
+        setStatus('connected');
+      }
       return;
     }
     check();
@@ -108,7 +134,7 @@ export function useConnectionStatus() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [check, perfFlags.disableBackgroundPolling]);
+  }, [check, devForceOffline, perfFlags.disableBackgroundPolling]);
 
   const server = useAuthStore(s => s.getActiveServer());
   const servers = useAuthStore(s => s.servers);

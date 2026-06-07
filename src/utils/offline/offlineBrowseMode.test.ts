@@ -1,0 +1,21 @@
+import { renderHook, act } from '@testing-library/react';
+import { describe, expect, it, beforeEach } from 'vitest';
+import { useDevOfflineBrowseStore } from '../../store/devOfflineBrowseStore';
+import { useOfflineBrowseActive } from './offlineBrowseMode';
+
+describe('useOfflineBrowseActive', () => {
+  beforeEach(() => {
+    useDevOfflineBrowseStore.setState({ forceOffline: false });
+  });
+
+  it('enables offline browse when DEV force-offline is set', () => {
+    if (!import.meta.env.DEV) return;
+
+    act(() => {
+      useDevOfflineBrowseStore.getState().setForceOffline(true);
+    });
+
+    const { result } = renderHook(() => useOfflineBrowseActive());
+    expect(result.current).toBe(true);
+  });
+});

@@ -31,7 +31,7 @@ import {
   ALBUM_YEAR_FILTER_DEBOUNCE_MS,
   resolveAlbumYearBounds,
 } from '../utils/library/albumYearFilter';
-import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { isOfflineBrowseActive, useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
 import {
   fetchOfflineLocalAlbumCatalogChunk,
   offlineLocalBrowseEnabled,
@@ -96,6 +96,7 @@ export function useAlbumBrowseData({
   scrollRootEl,
   restoreDisplayCount,
 }: UseAlbumBrowseDataArgs) {
+  const offlineBrowseActive = useOfflineBrowseActive();
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -279,7 +280,7 @@ export function useAlbumBrowseData({
         setCatalogLoadingMore(false);
       }
     }
-  }, [serverId, starredOverrides]);
+  }, [offlineBrowseActive, serverId, starredOverrides]);
 
   const loadBrowse = useCallback(async (
     query: AlbumBrowseQuery,
@@ -409,7 +410,7 @@ export function useAlbumBrowseData({
     return () => {
       cancelled = true;
     };
-  }, [browseQuery, indexEnabled, serverId, loadBrowse, musicLibraryFilterVersion]);
+  }, [browseQuery, indexEnabled, offlineBrowseActive, serverId, loadBrowse, musicLibraryFilterVersion]);
 
   useEffect(() => {
     if (!genreCatalogActive) {

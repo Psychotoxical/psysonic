@@ -1,3 +1,5 @@
+import { isDevOfflineBrowseForced } from '../../store/devOfflineBrowseStore';
+
 /**
  * Active-server reachability snapshot maintained by `useConnectionStatus`.
  * Non-hook code (queue sync, favorites refresh) uses this to avoid noisy
@@ -27,6 +29,7 @@ export function getActiveServerReachable(): boolean | null {
 
 /** True only when the browser is online and the last active-server probe succeeded. */
 export function isActiveServerReachable(): boolean {
+  if (isDevOfflineBrowseForced()) return false;
   if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
   return activeServerReachable === true;
 }

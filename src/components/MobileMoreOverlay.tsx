@@ -8,10 +8,9 @@ import { useOfflineStore } from '../store/offlineStore';
 import { ALL_NAV_ITEMS } from '../config/navItems';
 import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 import { isOfflineSidebarLibraryNavAllowed } from '../utils/offline/favoritesOfflineBrowse';
-import { isDevOfflineBrowseForced } from '../utils/offline/offlineBrowseMode';
+import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
 import { offlineLocalBrowseEnabled } from '../utils/offline/offlineLocalBrowse';
 import { hasAnyOfflineAlbums } from '../utils/offline/offlineLibraryHelpers';
-import { useConnectionStatus } from '../hooks/useConnectionStatus';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 
 const BOTTOM_NAV_ROUTES = new Set(['/', '/albums', '/now-playing']);
@@ -25,8 +24,8 @@ export default function MobileMoreOverlay({ onClose }: { onClose: () => void }) 
   const libraryIndexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const favoritesOfflineBrowse = favoritesOfflineEnabled && libraryIndexEnabled;
   const localLibraryBrowse = offlineLocalBrowseEnabled(serverId);
-  const { status: connStatus } = useConnectionStatus();
-  const isServerOffline = connStatus === 'disconnected' || isDevOfflineBrowseForced();
+  const offlineBrowseActive = useOfflineBrowseActive();
+  const isServerOffline = offlineBrowseActive;
   const offlineAlbums = useOfflineStore(s => s.albums);
   const hasOfflineContent = hasAnyOfflineAlbums(offlineAlbums);
   const luckyMixBase = useLuckyMixAvailable();

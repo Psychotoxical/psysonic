@@ -4,13 +4,12 @@ import { getAlbum, getAlbumForServer } from '../api/subsonicLibrary';
 import { getArtist, getArtistForServer } from '../api/subsonicArtists';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { useAuthStore } from '../store/authStore';
-import { useConnectionStatus } from './useConnectionStatus';
 import {
   loadAlbumFromLibraryIndex,
   loadArtistFromLibraryIndex,
   resolveAlbumForServer,
 } from '../utils/offline/favoritesOfflineBrowse';
-import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
 import {
   loadAlbumFromLocalPlayback,
   loadArtistFromLocalPlayback,
@@ -50,7 +49,7 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
   const activeServerId = useAuthStore(s => s.activeServerId);
   const [searchParams] = useSearchParams();
   const detailServerId = readDetailServerId(searchParams, activeServerId);
-  const { status: connStatus } = useConnectionStatus();
+  const offlineBrowseActive = useOfflineBrowseActive() && !!detailServerId;
 
   useEffect(() => {
     if (!id) return;
@@ -95,7 +94,6 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
     };
 
     const libraryFirst = favoritesOfflineEnabled && !!detailServerId;
-    const offlineBrowseActive = isOfflineBrowseActive() && !!detailServerId;
 
     void (async () => {
       if (offlineBrowseActive && detailServerId) {
@@ -163,7 +161,7 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
         setLoading(false);
       }
     })();
-  }, [id, connStatus, favoritesOfflineEnabled, detailServerId, searchParams]);
+  }, [activeServerId, detailServerId, favoritesOfflineEnabled, id, offlineBrowseActive, searchParams]);
 
   return { album, setAlbum, relatedAlbums, loading, isStarred, setIsStarred, starredSongs, setStarredSongs };
 }

@@ -6,7 +6,7 @@ import {
   fetchLocalArtistCatalogChunk,
   fetchNetworkStarredArtists,
 } from '../utils/library/browseTextSearch';
-import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { isOfflineBrowseActive, useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
 import {
   fetchOfflineLocalArtistCatalogChunk,
   fetchOfflineLocalStarredArtists,
@@ -31,6 +31,7 @@ export function useArtistsBrowseCatalog({
   starredOnly,
   musicLibraryFilterVersion,
 }: UseArtistsBrowseCatalogArgs) {
+  const offlineBrowseActive = useOfflineBrowseActive();
   const [catalogArtists, setCatalogArtists] = useState<SubsonicArtist[]>([]);
   const [loading, setLoading] = useState(true);
   const [catalogHasMore, setCatalogHasMore] = useState(false);
@@ -92,7 +93,7 @@ export function useArtistsBrowseCatalog({
         setCatalogLoadingMore(false);
       }
     }
-  }, [serverId]);
+  }, [offlineBrowseActive, serverId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -164,7 +165,7 @@ export function useArtistsBrowseCatalog({
     return () => {
       cancelled = true;
     };
-  }, [musicLibraryFilterVersion, indexEnabled, serverId, starredOnly]);
+  }, [musicLibraryFilterVersion, indexEnabled, offlineBrowseActive, serverId, starredOnly]);
 
   return {
     catalogArtists,
