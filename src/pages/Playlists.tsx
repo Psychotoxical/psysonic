@@ -1,4 +1,4 @@
-import { getPlaylist } from '../api/subsonicPlaylists';
+import { resolveMediaServerId, resolvePlaylist } from '../utils/offline/offlineMediaResolve';
 import { getGenres } from '../api/subsonicGenres';
 import { filterSongsToActiveLibrary } from '../api/subsonicLibrary';
 import type { SubsonicPlaylist, SubsonicGenre } from '../api/subsonicTypes';
@@ -29,8 +29,8 @@ import PlaylistsHeader from '../components/playlists/PlaylistsHeader';
 import PlaylistCard from '../components/playlists/PlaylistCard';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
-import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
-import { loadOfflineBrowsablePlaylist } from '../utils/offline/offlinePlaylistBrowse';
+import { useOfflineBrowseContext } from '../hooks/useOfflineBrowseContext';
+import { offlineActionPolicy } from '../utils/offline/offlineActionPolicy';
 
 function formatDuration(seconds: number): string {
   return formatHumanHoursMinutes(seconds);
@@ -51,7 +51,9 @@ export default function Playlists() {
   const activeServerId = useAuthStore(s => s.activeServerId);
   const subsonicIdentityByServer = useAuthStore(s => s.subsonicServerIdentityByServer);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
-  const offlineBrowseActive = useOfflineBrowseActive();
+  const offlineCtx = useOfflineBrowseContext();
+  const offlineBrowseActive = offlineCtx.active;
+  const playlistsActionPolicy = offlineActionPolicy('playlistsHeader', offlineCtx.active);
 
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -143,18 +145,14 @@ export default function Playlists() {
     if (playingId === pl.id) return;
     setPlayingId(pl.id);
     try {
-      if (offlineBrowseActive && activeServerId) {
-        const loaded = await loadOfflineBrowsablePlaylist(pl.id, activeServerId);
-        const tracks = (loaded?.songs ?? []).map(songToTrack);
-        if (tracks.length > 0) {
-          touchPlaylist(pl.id);
-          playTrack(tracks[0], tracks);
-        }
-        return;
-      }
-      const data = await getPlaylist(pl.id);
-      const filteredSongs = await filterSongsToActiveLibrary(data.songs);
-      const tracks = filteredSongs.map(songToTrack);
+      const serverId = resolveMediaServerId(activeServerId);
+      if (!serverId) return;
+      const data = await resolvePlaylist(serverId, pl.id);
+      if (!data) return;
+      const songs = offlineBrowseActive
+        ? data.songs
+        : await filterSongsToActiveLibrary(data.songs);
+      const tracks = songs.map(songToTrack);
       if (tracks.length > 0) {
         touchPlaylist(pl.id);
         playTrack(tracks[0], tracks);
@@ -247,7 +245,7 @@ export default function Playlists() {
         setEditingSmartId={setEditingSmartId}
         setSmartFilters={setSmartFilters}
         setGenreQuery={setGenreQuery}
-        readOnly={offlineBrowseActive}
+        actionPolicy={playlistsActionPolicy}
       />
 
       {creatingSmart && (

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { Play, ListPlus, Radio, Heart, ChevronRight, ChevronsRight, User, Disc3, ListMusic, Info, Sparkles, Star, Trash2, HeartCrack, Share2, Orbit as OrbitIcon } from 'lucide-react';
 import { useNavigateToAlbum } from '../../hooks/useNavigateToAlbum';
 import { useNavigateToArtist } from '../../hooks/useNavigateToArtist';
-import { getAlbum } from '../../api/subsonicLibrary';
+import { resolveAlbum, resolveMediaServerId, resolvePlaylist } from '../../utils/offline/offlineMediaResolve';
 import { queueSongStar } from '../../store/pendingStarSync';
 import { lastfmLoveTrack, lastfmUnloveTrack } from '../../api/lastfm';
 import type { Track } from '../../store/playerStoreTypes';
@@ -94,7 +94,10 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
               </div>
              {type === 'album-song' && (
                  <div className="context-menu-item" onClick={() => handleAction(async () => {
-                   const albumData = await getAlbum(song.albumId);
+                   const serverId = resolveMediaServerId(song.serverId);
+                   if (!serverId || !song.albumId) return;
+                   const albumData = await resolveAlbum(serverId, song.albumId);
+                   if (!albumData) return;
                    const tracks = albumData.songs.map(songToTrack);
                    enqueue(tracks);
                  })}>
@@ -166,11 +169,15 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
               </div>
               {playlistId && playlistSongIndex !== undefined && (
                 <div className="context-menu-item" style={{ color: 'var(--danger)' }} onClick={() => handleAction(async () => {
-                  const { getPlaylist, updatePlaylist } = await import('../../api/subsonicPlaylists');
+                  const { updatePlaylist } = await import('../../api/subsonicPlaylists');
                   const { showToast } = await import('../../utils/ui/toast');
                   const touchPlaylist = usePlaylistStore.getState().touchPlaylist;
                   try {
-                    const { songs } = await getPlaylist(playlistId);
+                    const serverId = resolveMediaServerId();
+                    if (!serverId) return;
+                    const resolved = await resolvePlaylist(serverId, playlistId);
+                    if (!resolved) return;
+                    const { songs } = resolved;
                     const prevCount = songs.length;
                     const updatedIds = songs.filter((_, i) => i !== playlistSongIndex).map(s => s.id);
                     await updatePlaylist(playlistId, updatedIds, prevCount);

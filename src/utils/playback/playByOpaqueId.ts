@@ -1,4 +1,5 @@
-import { getAlbum, getSong } from '../../api/subsonicLibrary';
+import { getSong } from '../../api/subsonicLibrary';
+import { resolveAlbumForActiveServer } from '../offline/offlineMediaResolve';
 import { songToTrack } from './songToTrack';
 import { playAlbum } from './playAlbum';
 import { playArtistShuffled } from './playArtistShuffled';
@@ -17,14 +18,10 @@ export async function playByOpaqueId(id: string): Promise<void> {
     return;
   }
 
-  try {
-    const { songs } = await getAlbum(trimmed);
-    if (songs.length > 0) {
-      await playAlbum(trimmed);
-      return;
-    }
-  } catch {
-    /* not an album */
+  const albumData = await resolveAlbumForActiveServer(trimmed);
+  if (albumData && albumData.songs.length > 0) {
+    await playAlbum(trimmed);
+    return;
   }
 
   try {

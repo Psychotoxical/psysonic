@@ -1,6 +1,7 @@
 import { buildDownloadUrl } from '../api/subsonicStreamUrl';
 import { getAlbumsByGenre } from '../api/subsonicGenres';
-import { getAlbumList, getAlbum } from '../api/subsonicLibrary';
+import { getAlbumList } from '../api/subsonicLibrary';
+import { resolveAlbum } from '../utils/offline/offlineMediaResolve';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { dedupeById } from '../utils/dedupeById';
 import { shuffleArray } from '../utils/playback/shuffleArray';
@@ -199,7 +200,8 @@ export default function RandomAlbums() {
     let queued = 0;
     for (const album of selectedAlbums) {
       try {
-        const detail = await getAlbum(album.id);
+        const detail = await resolveAlbum(serverId, album.id);
+        if (!detail) throw new Error('album unavailable');
         downloadAlbum(album.id, album.name, album.artist, album.coverArt, album.year, detail.songs, serverId);
         queued++;
       } catch {

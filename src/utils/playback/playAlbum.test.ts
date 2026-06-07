@@ -4,19 +4,36 @@ import { onInvoke } from '@/test/mocks/tauri';
 import { resetOrbitStore, resetPlayerStore } from '@/test/helpers/storeReset';
 import type { Track } from '../../store/playerStoreTypes';
 
-vi.mock('../../api/subsonicLibrary', () => ({
-  getAlbum: vi.fn(),
+vi.mock('../offline/offlineMediaResolve', () => ({
+  resolveAlbumForActiveServer: vi.fn(),
 }));
 
 vi.mock('./fadeOut', () => ({
   fadeOut: vi.fn(async () => undefined),
 }));
 
-import { getAlbum } from '../../api/subsonicLibrary';
+import { resolveAlbumForActiveServer } from '../offline/offlineMediaResolve';
 import { useOrbitStore } from '../../store/orbitStore';
 import { usePlayerStore } from '../../store/playerStore';
 import { playAlbum, playAlbumShuffled } from './playAlbum';
 import * as shuffleModule from './shuffleArray';
+
+const albumPayload = {
+  album: {
+    id: 'al-1',
+    name: 'Test Album',
+    artist: 'Test Artist',
+    artistId: 'artist-1',
+    songCount: 3,
+    duration: 540,
+    genre: 'Rock',
+  },
+  songs: [
+    makeSubsonicSong({ id: 't1', title: 'One' }),
+    makeSubsonicSong({ id: 't2', title: 'Two' }),
+    makeSubsonicSong({ id: 't3', title: 'Three' }),
+  ],
+};
 
 function stubPlaybackActions() {
   onInvoke('audio_play', () => undefined);
@@ -40,22 +57,7 @@ describe('playAlbum', () => {
     resetPlayerStore();
     resetOrbitStore();
     stubPlaybackActions();
-    vi.mocked(getAlbum).mockResolvedValue({
-      album: {
-        id: 'al-1',
-        name: 'Test Album',
-        artist: 'Test Artist',
-        artistId: 'artist-1',
-        songCount: 3,
-        duration: 540,
-        genre: 'Rock',
-      },
-      songs: [
-        makeSubsonicSong({ id: 't1', title: 'One' }),
-        makeSubsonicSong({ id: 't2', title: 'Two' }),
-        makeSubsonicSong({ id: 't3', title: 'Three' }),
-      ],
-    });
+    vi.mocked(resolveAlbumForActiveServer).mockResolvedValue(albumPayload);
   });
 
   afterEach(() => {
@@ -90,22 +92,7 @@ describe('playAlbumShuffled', () => {
     resetPlayerStore();
     resetOrbitStore();
     stubPlaybackActions();
-    vi.mocked(getAlbum).mockResolvedValue({
-      album: {
-        id: 'al-1',
-        name: 'Test Album',
-        artist: 'Test Artist',
-        artistId: 'artist-1',
-        songCount: 3,
-        duration: 540,
-        genre: 'Rock',
-      },
-      songs: [
-        makeSubsonicSong({ id: 't1', title: 'One' }),
-        makeSubsonicSong({ id: 't2', title: 'Two' }),
-        makeSubsonicSong({ id: 't3', title: 'Three' }),
-      ],
-    });
+    vi.mocked(resolveAlbumForActiveServer).mockResolvedValue(albumPayload);
   });
 
   afterEach(() => {
@@ -143,7 +130,7 @@ describe('playAlbumShuffled', () => {
   });
 
   it('does not start playback for an empty album', async () => {
-    vi.mocked(getAlbum).mockResolvedValue({
+    vi.mocked(resolveAlbumForActiveServer).mockResolvedValue({
       album: {
         id: 'al-empty',
         name: 'Empty',

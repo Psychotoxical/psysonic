@@ -1,8 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListMusic, Plus } from 'lucide-react';
-import { getAlbum } from '../../api/subsonicLibrary';
-import { getArtist } from '../../api/subsonicArtists';
+import { resolveAlbum, resolveArtist, resolveMediaServerId, resolvePlaylist } from '../../utils/offline/offlineMediaResolve';
 import { getPlaylists } from '../../api/subsonicPlaylists';
 import type { SubsonicPlaylist } from '../../api/subsonicTypes';
 import { usePlaylistStore } from '../../store/playlistStore';
@@ -29,10 +28,18 @@ export function MultiArtistToPlaylistSubmenu({ artistIds, onDone, triggerId: _tr
     const loadingTimeout = setTimeout(() => setShowLoading(true), 300);
     (async () => {
       const allSongs: string[] = [];
+      const serverId = resolveMediaServerId();
+      if (!serverId) {
+        setResolvedIds([]);
+        return;
+      }
       for (const artistId of artistIds) {
         try {
-          const { albums } = await getArtist(artistId);
-          const albumSongs = await Promise.all(albums.map(a => getAlbum(a.id).then(r => r.songs).catch(() => [])));
+          const artistData = await resolveArtist(serverId, artistId);
+          if (!artistData) continue;
+          const albumSongs = await Promise.all(
+            artistData.albums.map(a => resolveAlbum(serverId, a.id).then(r => r?.songs ?? []).catch(() => [])),
+          );
           allSongs.push(...albumSongs.flat().map(s => s.id));
         } catch {
           // Skip failed artists
@@ -44,11 +51,15 @@ export function MultiArtistToPlaylistSubmenu({ artistIds, onDone, triggerId: _tr
   }, [artistIds]);
 
   const handleAddWithToast = async (pl: SubsonicPlaylist, songIds: string[]) => {
-    const { getPlaylist, updatePlaylist } = await import('../../api/subsonicPlaylists');
+    const { updatePlaylist } = await import('../../api/subsonicPlaylists');
     const touchPlaylist = usePlaylistStore.getState().touchPlaylist;
 
     try {
-      const { songs: existingSongs } = await getPlaylist(pl.id);
+      const serverId = resolveMediaServerId();
+      if (!serverId) return;
+      const resolved = await resolvePlaylist(serverId, pl.id);
+      if (!resolved) return;
+      const { songs: existingSongs } = resolved;
       const existingIds = new Set(existingSongs.map((s) => s.id));
 
       const newIds: string[] = [];

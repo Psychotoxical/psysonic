@@ -1,20 +1,19 @@
 import type { TFunction } from 'i18next';
-import { getAlbum } from '../../api/subsonicLibrary';
 import { getSimilarSongs2, getTopSongs } from '../../api/subsonicArtists';
 import type { SubsonicAlbum, SubsonicArtist } from '../../api/subsonicTypes';
 import type { Track } from '../../store/playerStoreTypes';
 import { songToTrack } from '../playback/songToTrack';
 import { runBulkPlayAll, runBulkShuffle } from '../playback/runBulkPlay';
-import { isOfflineBrowseActive } from '../offline/offlineBrowseMode';
-import { loadAlbumFromLocalPlayback } from '../offline/offlineLocalBrowse';
+import { resolveAlbum, resolveMediaServerId } from '../offline/offlineMediaResolve';
 
 /** Ordered artist discography tracks for play-all / shuffle (network or local bytes). */
 export async function fetchArtistDetailTracks(
   albums: SubsonicAlbum[],
   serverId?: string | null,
 ): Promise<Track[]> {
-  if (isOfflineBrowseActive() && serverId) {
-    const loaded = await Promise.all(albums.map(a => loadAlbumFromLocalPlayback(serverId, a.id)));
+  const sid = resolveMediaServerId(serverId ?? albums[0]?.serverId);
+  if (sid) {
+    const loaded = await Promise.all(albums.map(a => resolveAlbum(sid, a.id)));
     const sorted = loaded
       .filter((r): r is NonNullable<typeof r> => r != null)
       .sort((a, b) => (a.album.year ?? 0) - (b.album.year ?? 0));
@@ -23,6 +22,7 @@ export async function fetchArtistDetailTracks(
     );
   }
 
+  const { getAlbum } = await import('../../api/subsonicLibrary');
   const results = await Promise.all(albums.map(a => getAlbum(a.id)));
   const sorted = [...results].sort((a, b) => (a.album.year ?? 0) - (b.album.year ?? 0));
   return sorted.flatMap(r => [...r.songs].sort((a, b) => (a.track ?? 0) - (b.track ?? 0))).map(songToTrack);

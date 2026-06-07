@@ -1,5 +1,5 @@
 import { buildDownloadUrl } from '../api/subsonicStreamUrl';
-import { getAlbum } from '../api/subsonicLibrary';
+import { resolveAlbum } from '../utils/offline/offlineMediaResolve';
 import { songToTrack } from '../utils/playback/songToTrack';
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import AlbumCard from '../components/AlbumCard';
@@ -233,8 +233,10 @@ export default function Albums() {
   const handleEnqueueSelected = async () => {
     if (selectedAlbums.length === 0) return;
     try {
-      // Parallel — Navidrome handles concurrent getAlbum requests fine.
-      const results = await Promise.all(selectedAlbums.map(a => getAlbum(a.id).catch(() => null)));
+      // Parallel album resolves — Navidrome handles concurrent requests fine.
+      const results = await Promise.all(
+        selectedAlbums.map(a => resolveAlbum(serverId, a.id).catch(() => null)),
+      );
       const tracks = results.flatMap(r => r ? r.songs.map(songToTrack) : []);
       if (tracks.length > 0) {
         enqueue(tracks);
@@ -277,7 +279,8 @@ export default function Albums() {
     let queued = 0;
     for (const album of selectedAlbums) {
       try {
-        const detail = await getAlbum(album.id);
+        const detail = await resolveAlbum(serverId, album.id);
+        if (!detail) throw new Error('album unavailable');
         downloadAlbum(album.id, album.name, album.artist, album.coverArt, album.year, detail.songs, serverId);
         queued++;
       } catch {

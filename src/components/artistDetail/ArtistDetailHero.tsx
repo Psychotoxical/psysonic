@@ -16,6 +16,7 @@ import type { CoverArtRef } from '../../cover/types';
 import LastfmIcon from '../LastfmIcon';
 import StarRating from '../StarRating';
 import { tooltipAttrs } from '../tooltipAttrs';
+import { offlineActionPolicy, type OfflineActionPolicy } from '../../utils/offline/offlineActionPolicy';
 
 interface Props {
   artist: SubsonicArtist;
@@ -41,7 +42,7 @@ interface Props {
   coverRevision: number;
   headerCoverFailed: boolean;
   setHeaderCoverFailed: React.Dispatch<React.SetStateAction<boolean>>;
-  readOnly?: boolean;
+  actionPolicy?: OfflineActionPolicy;
 }
 
 export default function ArtistDetailHero({
@@ -50,8 +51,9 @@ export default function ArtistDetailHero({
   handleImageUpload, playAllLoading, radioLoading, uploading,
   openedLink, openLink,
   coverId, coverRef, coverRevision, headerCoverFailed, setHeaderCoverFailed,
-  readOnly = false,
+  actionPolicy,
 }: Props) {
+  const policy = actionPolicy ?? offlineActionPolicy('artistDetail', false);
   const { t } = useTranslation();
   const goBack = useAlbumDetailBack();
   const isMobile = useIsMobile();
@@ -141,7 +143,7 @@ export default function ArtistDetailHero({
             <StarRating
               value={artistEntityRating}
               onChange={handleArtistEntityRating}
-              disabled={readOnly || artistEntityRatingSupport === 'track_only'}
+              disabled={!policy.canRate || artistEntityRatingSupport === 'track_only'}
               labelKey="entityRating.artistAriaLabel"
             />
           </div>
@@ -170,7 +172,7 @@ export default function ArtistDetailHero({
               </div>
             )}
 
-            {!readOnly && (
+            {policy.canFavorite && (
               <button
                 className="artist-ext-link"
                 onClick={toggleStar}
@@ -226,7 +228,7 @@ export default function ArtistDetailHero({
                 <Share2 size={16} />
               </button>
             )}
-            {!readOnly && albums.length > 0 && (
+            {policy.canCacheDiscography && albums.length > 0 && (
               <button
                 className="btn btn-surface"
                 disabled={

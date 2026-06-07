@@ -19,6 +19,7 @@ import { formatMb } from '../utils/format/formatBytes';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { OpenArtistRefInline } from './OpenArtistRefInline';
 import { tooltipAttrs } from './tooltipAttrs';
+import { offlineActionPolicy, type OfflineActionPolicy } from '../utils/offline/offlineActionPolicy';
 
 /** True when the album artist label means "no single artist" — `getArtistInfo`
  *  has nothing meaningful to return for these, so the Artist Bio entry is hidden.
@@ -91,8 +92,8 @@ interface AlbumHeaderProps {
   onEntityRatingChange: (rating: number) => void;
   /** `unknown` = probe pending or not run; from `entityRatingSupportByServer`. */
   entityRatingSupport: EntityRatingSupportLevel | 'unknown';
-  /** Offline browse: hide server-backed actions (favorites, download, cache). */
-  readOnly?: boolean;
+  /** Offline browse action gates (favorites, download, cache, bio, ratings). */
+  actionPolicy?: OfflineActionPolicy;
 }
 
 export default function AlbumHeader({
@@ -119,8 +120,9 @@ export default function AlbumHeader({
   entityRatingValue,
   onEntityRatingChange,
   entityRatingSupport,
-  readOnly = false,
+  actionPolicy,
 }: AlbumHeaderProps) {
+  const policy = actionPolicy ?? offlineActionPolicy('albumDetail', false);
   const { t } = useTranslation();
   const navigate = useNavigate();
   const goBack = useAlbumDetailBack();
@@ -225,7 +227,7 @@ export default function AlbumHeader({
                 <StarRating
                   value={entityRatingValue}
                   onChange={onEntityRatingChange}
-                  disabled={readOnly || entityRatingSupport === 'track_only'}
+                  disabled={!policy.canRate || entityRatingSupport === 'track_only'}
                   labelKey="entityRating.albumAriaLabel"
                 />
               </div>
@@ -253,7 +255,7 @@ export default function AlbumHeader({
 
                   {/* Row 2 — Secondary actions */}
                   <div className="album-actions-row album-actions-row--secondary">
-                    {!readOnly && (
+                    {policy.canFavorite && (
                       <button
                         className={`album-icon-btn album-icon-btn--sm${isStarred ? ' is-starred' : ''}`}
                         onClick={onToggleStar}
@@ -274,7 +276,7 @@ export default function AlbumHeader({
                       <Share2 size={16} />
                     </button>
 
-                    {showBioButton && !readOnly && (
+                    {showBioButton && policy.canShowBio && (
                       <button
                         className="album-icon-btn album-icon-btn--sm"
                         onClick={onBio}
@@ -285,7 +287,7 @@ export default function AlbumHeader({
                       </button>
                     )}
 
-                    {!readOnly && (
+                    {policy.canDownload && (
                       downloadProgress !== null ? (
                         <div className="album-icon-btn album-icon-btn--sm album-icon-btn--progress">
                           <Download size={14} />
@@ -303,7 +305,7 @@ export default function AlbumHeader({
                       )
                     )}
 
-                    {!readOnly && (
+                    {policy.canPinOffline && (
                       offlineStatus === 'downloading' ? (
                         <div className="album-icon-btn album-icon-btn--sm album-icon-btn--progress">
                           <Loader2 size={14} className="spin" />
@@ -366,7 +368,7 @@ export default function AlbumHeader({
                     >
                       <ListPlus size={16} />
                     </button>
-                    {!readOnly && (
+                    {policy.canFavorite && (
                       <button
                         className={`btn btn-surface${isStarred ? ' is-starred' : ''}`}
                         onClick={onToggleStar}
@@ -386,7 +388,7 @@ export default function AlbumHeader({
                     </button>
                   </div>
 
-                  {showBioButton && !readOnly && (
+                  {showBioButton && policy.canShowBio && (
                     <button
                       className="btn btn-surface"
                       id="album-bio-btn"
@@ -397,7 +399,7 @@ export default function AlbumHeader({
                     </button>
                   )}
 
-                  {!readOnly && (
+                  {policy.canDownload && (
                     downloadProgress !== null ? (
                       <div className="download-progress-wrap">
                         <Download size={14} />
@@ -417,7 +419,7 @@ export default function AlbumHeader({
                       </button>
                     )
                   )}
-                  {!readOnly && (
+                  {policy.canPinOffline && (
                     offlineStatus === 'downloading' && offlineProgress ? (
                       <div className="offline-cache-btn offline-cache-btn--progress">
                         <Loader2 size={14} className="spin" />

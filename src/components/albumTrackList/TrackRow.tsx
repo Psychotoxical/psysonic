@@ -14,6 +14,7 @@ import { codecLabel, type ColKey } from '../../utils/componentHelpers/albumTrack
 import { formatLongDuration } from '../../utils/format/formatDuration';
 import { formatLastSeen } from '../../utils/componentHelpers/userMgmtHelpers';
 import i18n from '../../i18n';
+import { offlineActionPolicy, type OfflineActionPolicy } from '../../utils/offline/offlineActionPolicy';
 
 type ContextMenuFn = (
   x: number,
@@ -41,7 +42,7 @@ interface TrackRowProps {
   onToggleSelect: (id: string, globalIdx: number, shift: boolean) => void;
   onDragStart: (song: SubsonicSong, me: MouseEvent) => void;
   setContextMenuSongId: (id: string | null) => void;
-  readOnly?: boolean;
+  actionPolicy?: OfflineActionPolicy;
 }
 
 /**
@@ -68,8 +69,9 @@ export const TrackRow = React.memo(function TrackRow({
   onToggleSelect,
   onDragStart,
   setContextMenuSongId,
-  readOnly = false,
+  actionPolicy,
 }: TrackRowProps) {
+  const policy = actionPolicy ?? offlineActionPolicy('trackRow', false);
   const { t } = useTranslation();
   const navigate = useNavigate();
   const showBitrate = useThemeStore(s => s.showBitrate);
@@ -173,7 +175,7 @@ export const TrackRow = React.memo(function TrackRow({
             key="rating"
             value={ratingValue}
             onChange={r => onRate(song.id, r)}
-            disabled={readOnly}
+            disabled={!policy.canRate}
           />
         );
       case 'duration':

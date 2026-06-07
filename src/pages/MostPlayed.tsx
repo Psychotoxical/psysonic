@@ -1,4 +1,5 @@
-import { getAlbumList, getAlbum } from '../api/subsonicLibrary';
+import { getAlbumList } from '../api/subsonicLibrary';
+import { resolveAlbum } from '../utils/offline/offlineMediaResolve';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -87,17 +88,20 @@ export default function MostPlayed() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const activeServerId = useAuthStore(s => s.activeServerId);
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const enqueue = usePlayerStore(s => s.enqueue);
 
   const handleEnqueueAlbum = useCallback(async (albumId: string) => {
+    if (!activeServerId) return;
     try {
-      const data = await getAlbum(albumId);
+      const data = await resolveAlbum(activeServerId, albumId);
+      if (!data) return;
       enqueue(data.songs.map(songToTrack));
     } catch {
       // Network failure — silent (toast would be too noisy for a hover action).
     }
-  }, [enqueue]);
+  }, [activeServerId, enqueue]);
 
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [loading, setLoading] = useState(true);

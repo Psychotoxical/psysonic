@@ -46,7 +46,8 @@ import LosslessModeBanner from '../components/LosslessModeBanner';
 import { isLosslessSuffix } from '../utils/library/losslessFormats';
 import { isLosslessMode } from '../utils/library/losslessMode';
 import { readDetailServerId } from '../utils/navigation/detailServerScope';
-import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { useOfflineBrowseContext } from '../hooks/useOfflineBrowseContext';
+import { offlineActionPolicy } from '../utils/offline/offlineActionPolicy';
 
 export default function AlbumDetail() {
   const { t } = useTranslation();
@@ -77,7 +78,8 @@ export default function AlbumDetail() {
   const entityRatingSupportByServer = useAuthStore(s => s.entityRatingSupportByServer);
   const setEntityRatingSupport = useAuthStore(s => s.setEntityRatingSupport);
   const albumEntityRatingSupport = entityRatingSupportByServer[serverId] ?? 'unknown';
-  const offlineBrowseActive = useOfflineBrowseActive();
+  const offlineCtx = useOfflineBrowseContext();
+  const albumActionPolicy = offlineActionPolicy('albumDetail', offlineCtx.active);
 
   const [albumEntityRating, setAlbumEntityRating] = useState(0);
   const [filterText, setFilterText] = useState('');
@@ -371,7 +373,7 @@ const handleShuffleAll = () => {
         entityRatingValue={albumEntityRating}
         onEntityRatingChange={handleAlbumEntityRating}
         entityRatingSupport={albumEntityRatingSupport}
-        readOnly={offlineBrowseActive}
+        actionPolicy={albumActionPolicy}
       />
       {losslessOnly && <LosslessModeBanner />}
 
@@ -384,7 +386,7 @@ const handleShuffleAll = () => {
           showPlPicker={showPlPicker}
           setShowPlPicker={setShowPlPicker}
           t={t}
-          readOnly={offlineBrowseActive}
+          actionPolicy={albumActionPolicy}
         />
       )}
 
@@ -406,7 +408,7 @@ const handleShuffleAll = () => {
         sortKey={sortKey}
         sortDir={sortDir}
         onSort={handleSort}
-        readOnly={offlineBrowseActive}
+        actionPolicy={albumActionPolicy}
       />
 
       {relatedAlbums.length > 0 && (

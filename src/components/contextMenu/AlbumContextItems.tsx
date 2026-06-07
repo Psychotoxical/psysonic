@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Play, ListPlus, Heart, Download, ChevronRight, ChevronsRight, User, ListMusic, Star, Share2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getAlbum } from '../../api/subsonicLibrary';
+import { resolveAlbum, resolveMediaServerId } from '../../utils/offline/offlineMediaResolve';
 import { star, unstar } from '../../api/subsonicStarRating';
 import type { SubsonicAlbum } from '../../api/subsonicTypes';
 import { useAuthStore } from '../../store/authStore';
@@ -40,7 +40,10 @@ export default function AlbumContextItems(props: ContextMenuItemsProps) {
                 <Play size={14} /> {t('contextMenu.openAlbum')}
               </div>
               <div className="context-menu-item" onClick={() => handleAction(async () => {
-                const albumData = await getAlbum(album.id);
+                const serverId = resolveMediaServerId(album.serverId);
+                if (!serverId) return;
+                const albumData = await resolveAlbum(serverId, album.id);
+                if (!albumData) return;
                 const tracks = albumData.songs.map(songToTrack);
                 if (tracks.length === 0) return;
                 playNext(tracks);
@@ -48,7 +51,10 @@ export default function AlbumContextItems(props: ContextMenuItemsProps) {
                 <ChevronsRight size={14} /> {t('contextMenu.playNext')}
               </div>
               <div className="context-menu-item" onClick={() => handleAction(async () => {
-                const albumData = await getAlbum(album.id);
+                const serverId = resolveMediaServerId(album.serverId);
+                if (!serverId) return;
+                const albumData = await resolveAlbum(serverId, album.id);
+                if (!albumData) return;
                 enqueue(albumData.songs.map(songToTrack));
               })}>
                 <ListPlus size={14} /> {t('contextMenu.enqueueAlbum')}
@@ -131,9 +137,14 @@ export default function AlbumContextItems(props: ContextMenuItemsProps) {
               </div>
               <div className="context-menu-divider" />
               <div className="context-menu-item" onClick={() => handleAction(async () => {
-                // Parallel — Navidrome handles concurrent getAlbum requests fine.
-                const results = await Promise.all(albums.map(a => getAlbum(a.id)));
-                const allTracks = results.flatMap(r => r.songs.map(songToTrack));
+                const results = await Promise.all(albums.map(async a => {
+                  const serverId = resolveMediaServerId(a.serverId);
+                  if (!serverId) return null;
+                  return resolveAlbum(serverId, a.id);
+                }));
+                const allTracks = results
+                  .filter((r): r is NonNullable<typeof r> => r != null)
+                  .flatMap(r => r.songs.map(songToTrack));
                 enqueue(allTracks);
               })}>
                 <ListPlus size={14} /> {t('contextMenu.enqueueAlbums', { count: albums.length })}

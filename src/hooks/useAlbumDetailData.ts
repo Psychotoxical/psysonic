@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { getAlbum, getAlbumForServer } from '../api/subsonicLibrary';
-import { getArtist, getArtistForServer } from '../api/subsonicArtists';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { useAuthStore } from '../store/authStore';
 import {
   loadAlbumFromLibraryIndex,
   loadArtistFromLibraryIndex,
-  resolveAlbumForServer,
 } from '../utils/offline/favoritesOfflineBrowse';
+import {
+  resolveAlbum,
+  resolveArtist,
+  type ResolvedAlbum,
+} from '../utils/offline/offlineMediaResolve';
 import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
 import {
   loadAlbumFromLocalPlayback,
@@ -21,7 +23,7 @@ import {
   shouldAttemptSubsonicForServer,
 } from '../utils/network/subsonicNetworkGuard';
 
-type AlbumPayload = Awaited<ReturnType<typeof getAlbum>>;
+type AlbumPayload = ResolvedAlbum;
 
 interface UseAlbumDetailDataResult {
   album: AlbumPayload | null;
@@ -83,11 +85,11 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
           }
         }
         const relatedServerId = serverId ?? detailServerId ?? activeServerId;
-        if (!relatedServerId || !shouldAttemptSubsonicForServer(relatedServerId)) return;
-        const artistData = detailServerId
-          ? await getArtistForServer(detailServerId, artistId)
-          : await getArtist(artistId);
-        setRelatedAlbums(artistData.albums.filter(a => a.id !== id));
+        if (!relatedServerId) return;
+        const artistData = await resolveArtist(relatedServerId, artistId);
+        if (artistData) {
+          setRelatedAlbums(artistData.albums.filter(a => a.id !== id));
+        }
       } catch (e) {
         console.error('Failed to fetch related albums', e);
       }
@@ -113,7 +115,7 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
 
       if (libraryFirst && detailServerId) {
         try {
-          const local = await resolveAlbumForServer(detailServerId, id);
+          const local = await resolveAlbum(detailServerId, id);
           if (local) {
             applyAlbumPayload(local);
             await loadRelatedAlbums(detailServerId, local.album.artistId, true, false);
@@ -129,7 +131,7 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
       if (!detailNetworkAllowed) {
         if (favoritesOfflineEnabled && detailServerId) {
           try {
-            const local = await loadAlbumFromLibraryIndex(detailServerId, id);
+            const local = await resolveAlbum(detailServerId, id);
             if (local) {
               applyAlbumPayload(local);
               await loadRelatedAlbums(detailServerId, local.album.artistId, true, false);
@@ -142,9 +144,16 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
       }
 
       try {
-        const data = detailServerId
-          ? await getAlbumForServer(detailServerId, id)
-          : await getAlbum(id);
+        const sid = detailServerId ?? activeServerId;
+        if (!sid) {
+          setLoading(false);
+          return;
+        }
+        const data = await resolveAlbum(sid, id);
+        if (!data) {
+          setLoading(false);
+          return;
+        }
         applyAlbumPayload(data);
         await loadRelatedAlbums(detailServerId, data.album.artistId, false, false);
       } catch {

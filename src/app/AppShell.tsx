@@ -40,11 +40,8 @@ import { useOrbitHost } from '../hooks/useOrbitHost';
 import { useOrbitGuest } from '../hooks/useOrbitGuest';
 import { useOrbitBodyAttrs } from '../hooks/useOrbitBodyAttrs';
 import { usePlatformShellSetup } from '../hooks/usePlatformShellSetup';
-import {
-  hasOfflineBrowsingContent,
-} from '../utils/offline/favoritesOfflineBrowse';
-import { hasAnyOfflineAlbums } from '../utils/offline/offlineLibraryHelpers';
-import { useLibraryIndexStore } from '../store/libraryIndexStore';
+import { useOfflineBrowseContext } from '../hooks/useOfflineBrowseContext';
+import { offlineBrowseNavFlags } from '../utils/offline/offlineBrowseContext';
 import { useWindowFullscreenState } from '../hooks/useWindowFullscreenState';
 import { useNowPlayingTrayTitle } from '../hooks/useNowPlayingTrayTitle';
 import { useTrayMenuI18n } from '../hooks/useTrayMenuI18n';
@@ -57,16 +54,11 @@ import { useCoverNavigationPriority } from '../hooks/useCoverNavigationPriority'
 import { useLiveSearchRouteScope } from '../hooks/useLiveSearchRouteScope';
 import { useNowPlayingPrewarm } from '../hooks/useNowPlayingPrewarm';
 import { useOfflineAutoNav } from '../hooks/useOfflineAutoNav';
-import { usePlayerStatsRecordingEnabled } from '../hooks/usePlayerStatsRecordingEnabled';
-import { hasOfflineBrowseCapability } from '../utils/offline/offlineBrowseRouting';
-import { offlineLocalBrowseEnabled } from '../utils/offline/offlineLocalBrowse';
-import { playlistsOfflineBrowseEnabled } from '../utils/offline/offlinePlaylistBrowse';
 import { useOfflineLibraryFilterSuspend } from '../hooks/useOfflineLibraryFilterSuspend';
 import { AppShellQueueResizerSeam } from '../components/AppShellQueueResizerSeam';
 import { IS_LINUX } from '../utils/platform';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
 import { useAuthStore } from '../store/authStore';
-import { useOfflineStore } from '../store/offlineStore';
 import { usePlayerStore } from '../store/playerStore';
 import '../store/previewPlayerVolumeSync';
 import '../store/queueResolverBridge';
@@ -116,21 +108,10 @@ export function AppShell() {
   useLiveSearchRouteScope();
   useNowPlayingPrewarm();
   const useCustomTitlebar = useAuthStore(s => s.useCustomTitlebar);
-  const offlineAlbums = useOfflineStore(s => s.albums);
-  const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
-  const activeServerId = useAuthStore(s => s.activeServerId);
-  const libraryIndexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(activeServerId));
-  const favoritesOfflineBrowse = favoritesOfflineEnabled && libraryIndexEnabled;
-  const localLibraryBrowse = offlineLocalBrowseEnabled(activeServerId);
-  const playlistsOfflineBrowse = playlistsOfflineBrowseEnabled(activeServerId);
-  const playerStatsBrowse = usePlayerStatsRecordingEnabled();
-  const hasManualOfflineContent = hasAnyOfflineAlbums(offlineAlbums);
-  const hasOfflineContent = hasOfflineBrowsingContent(offlineAlbums);
-  const hasOfflineBrowse = hasOfflineBrowseCapability(
-    localLibraryBrowse,
-    favoritesOfflineBrowse,
-    hasManualOfflineContent,
-  );
+  const offlineCtx = useOfflineBrowseContext();
+  const offlineNav = offlineBrowseNavFlags(offlineCtx.capabilities);
+  const hasOfflineContent = offlineCtx.hasBrowsingContent;
+  const hasOfflineBrowse = offlineCtx.hasBrowseCapability;
   const floatingPlayerBar = useThemeStore(s => s.floatingPlayerBar);
   const perfFlags = usePerfProbeFlags();
 
@@ -158,18 +139,7 @@ export function AppShell() {
     document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID)?.scrollTo({ top: 0 });
   }, [location.pathname, location.state]);
 
-  useOfflineAutoNav(
-    connStatus,
-    {
-      favoritesOfflineBrowse,
-      localLibraryBrowse,
-      playerStatsBrowse,
-      playlistsOfflineBrowse,
-      hasManualOfflineContent,
-    },
-    location,
-    navigate,
-  );
+  useOfflineAutoNav(connStatus, offlineNav, location, navigate);
   useOfflineLibraryFilterSuspend();
 
   useEffect(() => {

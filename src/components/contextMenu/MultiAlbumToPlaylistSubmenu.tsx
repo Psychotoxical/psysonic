@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListMusic, Plus } from 'lucide-react';
-import { getAlbum } from '../../api/subsonicLibrary';
+import { resolveAlbum, resolveMediaServerId, resolvePlaylist } from '../../utils/offline/offlineMediaResolve';
 import type { SubsonicPlaylist } from '../../api/subsonicTypes';
 import { usePlaylistStore } from '../../store/playlistStore';
 import { showToast } from '../../utils/ui/toast';
@@ -26,7 +26,10 @@ export function MultiAlbumToPlaylistSubmenu({ albumIds, onDone, triggerId: _trig
     setTotalAlbums(albumIds.length);
     const loadingTimeout = setTimeout(() => setShowLoading(true), 300);
     (async () => {
-      const albumSongs = await Promise.all(albumIds.map(id => getAlbum(id).then(r => r.songs).catch(() => [])));
+      const serverId = resolveMediaServerId();
+      const albumSongs = serverId
+        ? await Promise.all(albumIds.map(id => resolveAlbum(serverId, id).then(r => r?.songs ?? []).catch(() => [])))
+        : [];
       const allSongs = albumSongs.flat();
       setResolvedIds(allSongs.map(s => s.id));
     })().catch(() => setResolvedIds([]));
@@ -34,11 +37,15 @@ export function MultiAlbumToPlaylistSubmenu({ albumIds, onDone, triggerId: _trig
   }, [albumIds]);
 
   const handleAddWithToast = async (pl: SubsonicPlaylist, songIds: string[]) => {
-    const { getPlaylist, updatePlaylist } = await import('../../api/subsonicPlaylists');
+    const { updatePlaylist } = await import('../../api/subsonicPlaylists');
     const touchPlaylist = usePlaylistStore.getState().touchPlaylist;
 
     try {
-      const { songs: existingSongs } = await getPlaylist(pl.id);
+      const serverId = resolveMediaServerId();
+      if (!serverId) return;
+      const resolved = await resolvePlaylist(serverId, pl.id);
+      if (!resolved) return;
+      const { songs: existingSongs } = resolved;
       const existingIds = new Set(existingSongs.map((s) => s.id));
 
       const newIds: string[] = [];

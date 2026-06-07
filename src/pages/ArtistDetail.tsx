@@ -33,7 +33,8 @@ import {
   fetchArtistDetailTracks,
   runArtistDetailPlayAll, runArtistDetailShuffle, runArtistDetailStartRadio,
 } from '../utils/componentHelpers/runArtistDetailPlay';
-import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { useOfflineBrowseContext } from '../hooks/useOfflineBrowseContext';
+import { offlineActionPolicy } from '../utils/offline/offlineActionPolicy';
 import {
   runArtistEntityRating, runArtistToggleStar, runArtistShare, runArtistImageUpload,
 } from '../utils/componentHelpers/runArtistDetailActions';
@@ -102,7 +103,8 @@ export default function ArtistDetail() {
   const entityRatingSupportByServer = useAuthStore(s => s.entityRatingSupportByServer);
   const setEntityRatingSupport = useAuthStore(s => s.setEntityRatingSupport);
   const artistEntityRatingSupport = entityRatingSupportByServer[activeServerId] ?? 'unknown';
-  const offlineBrowseActive = useOfflineBrowseActive();
+  const offlineCtx = useOfflineBrowseContext();
+  const artistActionPolicy = offlineActionPolicy('artistDetail', offlineCtx.active);
 
   const [artistEntityRating, setArtistEntityRating] = useState(0);
 
@@ -318,7 +320,7 @@ export default function ArtistDetail() {
         coverRevision={coverRevision}
         headerCoverFailed={headerCoverFailed}
         setHeaderCoverFailed={setHeaderCoverFailed}
-        readOnly={offlineBrowseActive}
+        actionPolicy={artistActionPolicy}
       />
 
       {losslessOnly && <LosslessModeBanner />}

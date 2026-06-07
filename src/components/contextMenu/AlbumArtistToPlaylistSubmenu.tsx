@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getAlbum } from '../../api/subsonicLibrary';
-import { getArtist } from '../../api/subsonicArtists';
+import { resolveAlbum, resolveArtist, resolveMediaServerId } from '../../utils/offline/offlineMediaResolve';
 import { AddToPlaylistSubmenu } from './AddToPlaylistSubmenu';
 
 interface AlbumProps {
@@ -13,8 +12,13 @@ export function AlbumToPlaylistSubmenu({ albumId, onDone, triggerId }: AlbumProp
   const [resolvedIds, setResolvedIds] = useState<string[] | null>(null);
 
   useEffect(() => {
-    getAlbum(albumId).then((data) => {
-      setResolvedIds(data.songs.map((s) => s.id));
+    const serverId = resolveMediaServerId();
+    if (!serverId) {
+      setResolvedIds([]);
+      return;
+    }
+    resolveAlbum(serverId, albumId).then((data) => {
+      setResolvedIds(data ? data.songs.map((s) => s.id) : []);
     }).catch(() => setResolvedIds([]));
   }, [albumId]);
 
@@ -40,8 +44,19 @@ export function ArtistToPlaylistSubmenu({ artistId, onDone, triggerId }: ArtistP
 
   useEffect(() => {
     (async () => {
-      const { albums } = await getArtist(artistId);
-      const albumSongs = await Promise.all(albums.map(a => getAlbum(a.id).then(r => r.songs)));
+      const serverId = resolveMediaServerId();
+      if (!serverId) {
+        setResolvedIds([]);
+        return;
+      }
+      const artistData = await resolveArtist(serverId, artistId);
+      if (!artistData) {
+        setResolvedIds([]);
+        return;
+      }
+      const albumSongs = await Promise.all(
+        artistData.albums.map(a => resolveAlbum(serverId, a.id).then(r => r?.songs ?? [])),
+      );
       setResolvedIds(albumSongs.flat().map(s => s.id));
     })().catch(() => setResolvedIds([]));
   }, [artistId]);

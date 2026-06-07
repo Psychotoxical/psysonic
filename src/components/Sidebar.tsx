@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { usePlayerStore } from '../store/playerStore';
-import { useOfflineStore } from '../store/offlineStore';
 import { useOfflineJobStore } from '../store/offlineJobStore';
 import { clearOfflinePinTasks } from '../utils/offline/offlinePinQueue';
 import { useDeviceSyncJobStore } from '../store/deviceSyncJobStore';
@@ -25,12 +24,8 @@ import { useSidebarNavDnd } from '../hooks/useSidebarNavDnd';
 import { useSidebarLibraryDropdown } from '../hooks/useSidebarLibraryDropdown';
 import { useSidebarScrollVisible } from '../hooks/useSidebarScrollVisible';
 import { isOfflineSidebarNavAllowed } from '../utils/offline/favoritesOfflineBrowse';
-import { usePlayerStatsRecordingEnabled } from '../hooks/usePlayerStatsRecordingEnabled';
-import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
-import { offlineLocalBrowseEnabled } from '../utils/offline/offlineLocalBrowse';
-import { playlistsOfflineBrowseEnabled } from '../utils/offline/offlinePlaylistBrowse';
-import { hasAnyOfflineAlbums } from '../utils/offline/offlineLibraryHelpers';
-import { useLibraryIndexStore } from '../store/libraryIndexStore';
+import { useOfflineBrowseContext } from '../hooks/useOfflineBrowseContext';
+import { offlineBrowseNavFlags } from '../utils/offline/offlineBrowseContext';
 import { useSidebarPerfProbe } from '../hooks/useSidebarPerfProbe';
 import SidebarPerfProbeModal from './sidebar/SidebarPerfProbeModal';
 import SidebarNavBody from './sidebar/SidebarNavBody';
@@ -64,7 +59,8 @@ export default function Sidebar({
   const syncJobFail   = useDeviceSyncJobStore(s => s.failed);
   const syncJobTotal  = useDeviceSyncJobStore(s => s.total);
   const isSyncing     = syncJobStatus === 'running';
-  const offlineAlbums = useOfflineStore(s => s.albums);
+  const offlineCtx = useOfflineBrowseContext();
+  const offlineNav = offlineBrowseNavFlags(offlineCtx.capabilities);
   const serverId = useAuthStore(s => s.activeServerId ?? '');
   const isLoggedIn = useAuthStore(s => s.isLoggedIn);
   const musicFolders = useAuthStore(s => s.musicFolders);
@@ -76,15 +72,8 @@ export default function Sidebar({
   const setNormalizationEngine = useAuthStore(s => s.setNormalizationEngine);
   const loggingMode = useAuthStore(s => s.loggingMode);
   const setLoggingMode = useAuthStore(s => s.setLoggingMode);
-  const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
-  const libraryIndexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
-  const favoritesOfflineBrowse = favoritesOfflineEnabled && libraryIndexEnabled;
-  const localLibraryBrowse = offlineLocalBrowseEnabled(serverId);
-  const playlistsOfflineBrowse = playlistsOfflineBrowseEnabled(serverId);
-  const playerStatsBrowse = usePlayerStatsRecordingEnabled();
-  const hasOfflineContent = hasAnyOfflineAlbums(offlineAlbums);
-  const offlineBrowseActive = useOfflineBrowseActive();
-  const isServerOffline = offlineBrowseActive;
+  const hasOfflineContent = offlineCtx.capabilities.manualPins;
+  const isServerOffline = offlineCtx.active;
   const sidebarItems = useSidebarStore(s => s.items);
   const setSidebarItems = useSidebarStore(s => s.setItems);
   const randomNavMode = useAuthStore(s => s.randomNavMode);
@@ -126,32 +115,32 @@ export default function Sidebar({
         if (c.id === 'luckyMix' && !luckyMixAvailable) return false;
         if (isServerOffline && !isOfflineSidebarNavAllowed(
           c.id,
-          favoritesOfflineBrowse,
-          localLibraryBrowse,
-          playerStatsBrowse,
-          playlistsOfflineBrowse,
+          offlineNav.favoritesOfflineBrowse,
+          offlineNav.localLibraryBrowse,
+          offlineNav.playerStatsBrowse,
+          offlineNav.playlistsOfflineBrowse,
         )) {
           return false;
         }
         return true;
       }),
-    [libraryItemsForReorder, luckyMixAvailable, isServerOffline, favoritesOfflineBrowse, localLibraryBrowse, playerStatsBrowse, playlistsOfflineBrowse],
+    [libraryItemsForReorder, luckyMixAvailable, isServerOffline, offlineNav],
   );
   const visibleSystemConfigs = useMemo(
     () => systemItemsForReorder.filter(c => {
       if (!c.visible) return false;
       if (isServerOffline && !isOfflineSidebarNavAllowed(
         c.id,
-        favoritesOfflineBrowse,
-        localLibraryBrowse,
-        playerStatsBrowse,
-        playlistsOfflineBrowse,
+        offlineNav.favoritesOfflineBrowse,
+        offlineNav.localLibraryBrowse,
+        offlineNav.playerStatsBrowse,
+        offlineNav.playlistsOfflineBrowse,
       )) {
         return false;
       }
       return true;
     }),
-    [systemItemsForReorder, isServerOffline, favoritesOfflineBrowse, localLibraryBrowse, playerStatsBrowse, playlistsOfflineBrowse],
+    [systemItemsForReorder, isServerOffline, offlineNav],
   );
 
   const sidebarItemsRef = useRef(sidebarItems);

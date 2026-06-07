@@ -1,5 +1,6 @@
 import { getTopSongs } from '../../api/subsonicArtists';
-import { filterSongsToActiveLibrary, getAlbum, getAlbumList, getRandomSongs } from '../../api/subsonicLibrary';
+import { filterSongsToActiveLibrary, getAlbumList, getRandomSongs } from '../../api/subsonicLibrary';
+import { resolveAlbumForActiveServer } from '../offline/offlineMediaResolve';
 import type { SubsonicAlbum, SubsonicSong } from '../../api/subsonicTypes';
 import {
   filterSongsForLuckyMixRatings,
@@ -98,7 +99,7 @@ export async function pickSongsForAlbum(
   need: number,
   mixRatings: MixMinRatingsConfig,
 ): Promise<SubsonicSong[]> {
-  const full = await getAlbum(albumId).catch(() => null);
+  const full = await resolveAlbumForActiveServer(albumId).catch(() => null);
   if (!full?.songs?.length) return [];
   const scopedSongs = await filterSongsToActiveLibrary(full.songs);
   const unique = uniqueBySongId(scopedSongs);

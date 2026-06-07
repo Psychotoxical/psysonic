@@ -1,5 +1,6 @@
 import { getArtist, getArtistInfo } from '../api/subsonicArtists';
-import { filterAlbumsToActiveLibrary, getAlbum } from '../api/subsonicLibrary';
+import { filterAlbumsToActiveLibrary } from '../api/subsonicLibrary';
+import { resolveAlbum, resolveMediaServerId } from '../utils/offline/offlineMediaResolve';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import { shuffleArray } from '../utils/playback/shuffleArray';
@@ -596,7 +597,10 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork, e
   const handleEnqueue = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      const data = await getAlbum(album.id);
+      const serverId = resolveMediaServerId(album.serverId);
+      if (!serverId) return;
+      const data = await resolveAlbum(serverId, album.id);
+      if (!data) return;
       enqueue(data.songs.map(songToTrack));
     } catch {
       /* silent — toast would be too noisy for a hover action */

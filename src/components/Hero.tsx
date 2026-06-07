@@ -1,4 +1,5 @@
-import { getRandomAlbums, getAlbum } from '../api/subsonicLibrary';
+import { getRandomAlbums } from '../api/subsonicLibrary';
+import { resolveAlbum, resolveMediaServerId } from '../utils/offline/offlineMediaResolve';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
@@ -259,7 +260,13 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   const [albumFormats, setAlbumFormats] = useState<Record<string, string>>({});
   useEffect(() => {
     if (!album || albumFormats[album.id] !== undefined) return;
-    getAlbum(album.id).then(data => {
+    const serverId = resolveMediaServerId(album.serverId);
+    if (!serverId) return;
+    resolveAlbum(serverId, album.id).then(data => {
+      if (!data) {
+        setAlbumFormats(prev => ({ ...prev, [album.id]: '' }));
+        return;
+      }
       const fmts = [...new Set(data.songs.map(s => s.suffix).filter((f): f is string => !!f))];
       setAlbumFormats(prev => ({ ...prev, [album.id]: fmts.map(f => f.toUpperCase()).join(' / ') }));
     }).catch(() => {
@@ -339,7 +346,10 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
                 onClick={async e => {
                   e.stopPropagation();
                   try {
-                    const albumData = await getAlbum(album.id);
+                    const serverId = resolveMediaServerId(album.serverId);
+                    if (!serverId) return;
+                    const albumData = await resolveAlbum(serverId, album.id);
+                    if (!albumData) return;
                     usePlayerStore.getState().enqueue(albumData.songs.map(songToTrack));
                   } catch (_) {}
                 }}
@@ -369,7 +379,10 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
                 onClick={async (e) => {
                   e.stopPropagation();
                   try {
-                    const albumData = await getAlbum(album.id);
+                    const serverId = resolveMediaServerId(album.serverId);
+                    if (!serverId) return;
+                    const albumData = await resolveAlbum(serverId, album.id);
+                    if (!albumData) return;
                     const tracks = albumData.songs.map(songToTrack);
                     usePlayerStore.getState().enqueue(tracks);
                   } catch (_) {}

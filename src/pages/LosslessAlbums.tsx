@@ -1,5 +1,5 @@
 import { buildDownloadUrl } from '../api/subsonicStreamUrl';
-import { getAlbum } from '../api/subsonicLibrary';
+import { resolveAlbum } from '../utils/offline/offlineMediaResolve';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -232,7 +232,9 @@ export default function LosslessAlbums() {
   const handleEnqueueSelected = async () => {
     if (selectedAlbums.length === 0) return;
     try {
-      const results = await Promise.all(selectedAlbums.map(a => getAlbum(a.id).catch(() => null)));
+      const results = await Promise.all(
+        selectedAlbums.map(a => resolveAlbum(serverId, a.id).catch(() => null)),
+      );
       const tracks = results.flatMap(r => r ? r.songs.map(songToTrack) : []);
       if (tracks.length > 0) {
         enqueue(tracks);
@@ -248,7 +250,8 @@ export default function LosslessAlbums() {
     let queued = 0;
     for (const album of selectedAlbums) {
       try {
-        const detail = await getAlbum(album.id);
+        const detail = await resolveAlbum(serverId, album.id);
+        if (!detail) throw new Error('album unavailable');
         downloadAlbum(album.id, album.name, album.artist, album.coverArt, album.year, detail.songs, serverId);
         queued++;
       } catch {

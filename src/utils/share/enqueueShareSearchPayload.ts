@@ -4,8 +4,8 @@ import {
   getArtistWithCredentials,
   getSongWithCredentials,
 } from '../../api/subsonicEntityWithCredentials';
-import { getAlbum, getSong } from '../../api/subsonicLibrary';
-import { getArtist } from '../../api/subsonicArtists';
+import { getSong } from '../../api/subsonicLibrary';
+import { resolveAlbum, resolveArtist } from '../offline/offlineMediaResolve';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '../../api/subsonicTypes';
 import { useAuthStore } from '../../store/authStore';
 import type { ServerProfile } from '../../store/authStoreTypes';
@@ -118,7 +118,9 @@ async function getAlbumAfterActivation(
   serverId: string,
 ): Promise<{ album: SubsonicAlbum; songs: SubsonicSong[] }> {
   activateShareServer(serverId);
-  return getAlbum(id);
+  const result = await resolveAlbum(serverId, id);
+  if (!result) throw new Error('album unavailable');
+  return result;
 }
 
 async function getArtistAfterActivation(
@@ -126,7 +128,9 @@ async function getArtistAfterActivation(
   serverId: string,
 ): Promise<{ artist: SubsonicArtist; albums: SubsonicAlbum[] }> {
   activateShareServer(serverId);
-  return getArtist(id);
+  const result = await resolveArtist(serverId, id);
+  if (!result) throw new Error('artist unavailable');
+  return result;
 }
 
 export async function resolveShareSearchPayload(

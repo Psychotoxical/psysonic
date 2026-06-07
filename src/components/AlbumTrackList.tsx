@@ -15,6 +15,7 @@ import { TrackRow } from './albumTrackList/TrackRow';
 import { AlbumTrackListMobile } from './albumTrackList/AlbumTrackListMobile';
 import { TracklistColumnPicker } from './albumTrackList/TracklistColumnPicker';
 import { TracklistHeaderRow } from './albumTrackList/TracklistHeaderRow';
+import { offlineActionPolicy, type OfflineActionPolicy } from '../utils/offline/offlineActionPolicy';
 
 export type { SortKey } from '../utils/componentHelpers/albumTrackListHelpers';
 
@@ -38,7 +39,7 @@ interface AlbumTrackListProps {
   sortKey?: SortKey;
   sortDir?: 'asc' | 'desc';
   onSort?: (key: SortKey) => void;
-  readOnly?: boolean;
+  actionPolicy?: OfflineActionPolicy;
 }
 
 // ── AlbumTrackList ────────────────────────────────────────────────────────────
@@ -61,8 +62,9 @@ export default function AlbumTrackList({
   sortKey,
   sortDir,
   onSort,
-  readOnly = false,
+  actionPolicy,
 }: AlbumTrackListProps) {
+  const policy = actionPolicy ?? offlineActionPolicy('trackRow', false);
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const [contextMenuSongId, setContextMenuSongId] = useState<string | null>(null);
@@ -101,8 +103,8 @@ export default function AlbumTrackList({
 
   const currentTrackId = currentTrack?.id ?? null;
   const displayCols = useMemo(
-    () => (readOnly ? visibleCols.filter(c => c.key !== 'favorite') : visibleCols),
-    [readOnly, visibleCols],
+    () => (policy.canFavorite ? visibleCols : visibleCols.filter(c => c.key !== 'favorite')),
+    [policy.canFavorite, visibleCols],
   );
 
   if (isMobile) {
@@ -192,7 +194,7 @@ export default function AlbumTrackList({
                 onToggleSelect={onToggleSelect}
                 onDragStart={onDragStart}
                 setContextMenuSongId={setContextMenuSongId}
-                readOnly={readOnly}
+                actionPolicy={policy}
               />
             );
           })}

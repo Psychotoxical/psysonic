@@ -1,5 +1,5 @@
-import { getArtist } from '../../api/subsonicArtists';
-import { getAlbum, getSong } from '../../api/subsonicLibrary';
+import { getSong } from '../../api/subsonicLibrary';
+import { resolveAlbum, resolveArtist } from '../offline/offlineMediaResolve';
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import { songToTrack } from '../playback/songToTrack';
 import type { Location, NavigateFunction } from 'react-router-dom';
@@ -130,9 +130,8 @@ export async function applySharePastePayload(
     }
 
     if (payload.k === 'album') {
-      try {
-        await getAlbum(payload.id);
-      } catch {
+      const albumResult = await resolveAlbum(serverId, payload.id);
+      if (!albumResult) {
         showToast(t('sharePaste.albumUnavailable'), 5000, 'error');
         return;
       }
@@ -146,9 +145,8 @@ export async function applySharePastePayload(
     }
 
     if (payload.k === 'artist') {
-      try {
-        await getArtist(payload.id);
-      } catch {
+      const artistResult = await resolveArtist(serverId, payload.id);
+      if (!artistResult) {
         showToast(t('sharePaste.artistUnavailable'), 5000, 'error');
         return;
       }
@@ -159,11 +157,10 @@ export async function applySharePastePayload(
 
     if (payload.k === 'composer') {
       // Same id space as artists (Subsonic / Navidrome use one id pool for
-      // every participant role), so getArtist still validates the entity —
+      // every participant role), so resolveArtist still validates the entity —
       // the difference is which view we navigate to.
-      try {
-        await getArtist(payload.id);
-      } catch {
+      const composerResult = await resolveArtist(serverId, payload.id);
+      if (!composerResult) {
         showToast(t('sharePaste.composerUnavailable'), 5000, 'error');
         return;
       }

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { getAlbum } from '../api/subsonicLibrary';
+import { resolveAlbum, resolveMediaServerId } from '../utils/offline/offlineMediaResolve';
+import { songToTrack } from '../utils/playback/songToTrack';
 import { useDragDrop, registerQueueDragHitTest } from '../contexts/DragDropContext';
 import { usePlayerStore } from '../store/playerStore';
 import type { Track } from '../store/playerStoreTypes';
@@ -77,13 +78,11 @@ export function useQueuePanelDrag({
       } else if (parsedData.type === 'songs') {
         enqueueAt(parsedData.tracks as Track[], insertIdx);
       } else if (parsedData.type === 'album') {
-        const albumData = await getAlbum(parsedData.id);
-        const tracks: Track[] = albumData.songs.map((s: any) => ({
-          id: s.id, title: s.title, artist: s.artist, album: s.album,
-          albumId: s.albumId, artistId: s.artistId, duration: s.duration, coverArt: s.coverArt, track: s.track,
-          year: s.year, bitRate: s.bitRate, suffix: s.suffix, userRating: s.userRating, genre: s.genre,
-        }));
-        enqueueAt(tracks, insertIdx);
+        const serverId = resolveMediaServerId(parsedData.serverId);
+        if (!serverId) return;
+        const albumData = await resolveAlbum(serverId, parsedData.id);
+        if (!albumData) return;
+        enqueueAt(albumData.songs.map(songToTrack), insertIdx);
       }
     };
 

@@ -1,5 +1,6 @@
 import { Play } from 'lucide-react';
-import { getPlaylist, updatePlaylist } from '../api/subsonicPlaylists';
+import { updatePlaylist } from '../api/subsonicPlaylists';
+import { resolvePlaylist, resolveMediaServerId } from '../utils/offline/offlineMediaResolve';
 import { songToTrack } from '../utils/playback/songToTrack';
 import type { Track } from '../store/playerStoreTypes';
 import { useState, useRef, useMemo } from 'react';
@@ -398,7 +399,10 @@ function QueuePanelHostOrSolo() {
           onClose={() => setLoadModalOpen(false)}
           onLoad={async (id, name, mode) => {
             try {
-              const data = await getPlaylist(id);
+              const serverId = resolveMediaServerId();
+              if (!serverId) return;
+              const data = await resolvePlaylist(serverId, id);
+              if (!data) return;
               const tracks: Track[] = data.songs.map(songToTrack);
               if (tracks.length > 0) {
                 if (mode === 'append') {

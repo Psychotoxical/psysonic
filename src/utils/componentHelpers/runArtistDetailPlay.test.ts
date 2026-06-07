@@ -1,25 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SubsonicAlbum } from '../../api/subsonicTypes';
 import * as subsonicLibrary from '../../api/subsonicLibrary';
-import * as offlineBrowseMode from '../offline/offlineBrowseMode';
-import * as offlineLocalBrowse from '../offline/offlineLocalBrowse';
+import * as offlineMediaResolve from '../offline/offlineMediaResolve';
 import { fetchArtistDetailTracks } from './runArtistDetailPlay';
 
 vi.mock('../../api/subsonicLibrary', () => ({
   getAlbum: vi.fn(),
 }));
 
-vi.mock('../offline/offlineBrowseMode', () => ({
-  isOfflineBrowseActive: vi.fn(),
-}));
-
-vi.mock('../offline/offlineLocalBrowse', () => ({
-  loadAlbumFromLocalPlayback: vi.fn(),
+vi.mock('../offline/offlineMediaResolve', () => ({
+  resolveAlbum: vi.fn(),
+  resolveMediaServerId: vi.fn((id?: string | null) => id ?? 'srv-1'),
 }));
 
 const getAlbumMock = vi.mocked(subsonicLibrary.getAlbum);
-const isOfflineBrowseActiveMock = vi.mocked(offlineBrowseMode.isOfflineBrowseActive);
-const loadAlbumFromLocalPlaybackMock = vi.mocked(offlineLocalBrowse.loadAlbumFromLocalPlayback);
+const resolveAlbumMock = vi.mocked(offlineMediaResolve.resolveAlbum);
 
 const albums: SubsonicAlbum[] = [
   { id: 'al-2', name: 'B', artist: 'A', artistId: 'ar-1', songCount: 1, duration: 100, year: 2001 },
@@ -29,10 +24,26 @@ const albums: SubsonicAlbum[] = [
 describe('fetchArtistDetailTracks', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    isOfflineBrowseActiveMock.mockReturnValue(false);
   });
 
-  it('loads albums from the network when online', async () => {
+  it('loads albums via resolveAlbum when serverId is set', async () => {
+    resolveAlbumMock
+      .mockResolvedValueOnce({
+        album: albums[1],
+        songs: [{ id: 't1', title: 'One', artist: 'A', album: 'A', albumId: 'al-1', duration: 100, track: 2 }],
+      })
+      .mockResolvedValueOnce({
+        album: albums[0],
+        songs: [{ id: 't2', title: 'Two', artist: 'A', album: 'B', albumId: 'al-2', duration: 100, track: 1 }],
+      });
+
+    const tracks = await fetchArtistDetailTracks(albums, 'srv-1');
+    expect(tracks.map(t => t.id)).toEqual(['t1', 't2']);
+    expect(resolveAlbumMock).toHaveBeenCalledTimes(2);
+    expect(getAlbumMock).not.toHaveBeenCalled();
+  });
+
+  it('falls back to getAlbum when no server scope', async () => {
     getAlbumMock
       .mockResolvedValueOnce({
         album: albums[1],
@@ -43,25 +54,10 @@ describe('fetchArtistDetailTracks', () => {
         songs: [{ id: 't2', title: 'Two', artist: 'A', album: 'B', albumId: 'al-2', duration: 100, track: 1 }],
       });
 
-    const tracks = await fetchArtistDetailTracks(albums, 'srv-1');
-    expect(tracks.map(t => t.id)).toEqual(['t1', 't2']);
-    expect(loadAlbumFromLocalPlaybackMock).not.toHaveBeenCalled();
-  });
+    vi.mocked(offlineMediaResolve.resolveMediaServerId).mockReturnValueOnce(null);
 
-  it('loads albums from local bytes when offline browse is active', async () => {
-    isOfflineBrowseActiveMock.mockReturnValue(true);
-    loadAlbumFromLocalPlaybackMock
-      .mockResolvedValueOnce({
-        album: albums[1],
-        songs: [{ id: 't1', title: 'One', artist: 'A', album: 'A', albumId: 'al-1', duration: 100, track: 2 }],
-      })
-      .mockResolvedValueOnce({
-        album: albums[0],
-        songs: [{ id: 't2', title: 'Two', artist: 'A', album: 'B', albumId: 'al-2', duration: 100, track: 1 }],
-      });
-
-    const tracks = await fetchArtistDetailTracks(albums, 'srv-1');
+    const tracks = await fetchArtistDetailTracks(albums, null);
     expect(tracks.map(t => t.id)).toEqual(['t1', 't2']);
-    expect(getAlbumMock).not.toHaveBeenCalled();
+    expect(resolveAlbumMock).not.toHaveBeenCalled();
   });
 });
