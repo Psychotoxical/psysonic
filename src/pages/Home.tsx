@@ -29,8 +29,9 @@ import {
   type HomeFeedSnapshot,
 } from '../store/homeFeedCache';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
+import { useOfflineBrowseContext } from '../hooks/useOfflineBrowseContext';
+import { useOfflineBrowseReloadToken } from '../hooks/useOfflineBrowseReloadToken';
 import { useDevOfflineBrowseStore } from '../store/devOfflineBrowseStore';
-import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
 
 /** Match Random Albums overshoot when mix filter uses album/artist axes so hero + discover row can still fill. */
 const HOME_RANDOM_FETCH = 100;
@@ -71,6 +72,8 @@ export default function Home() {
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const connStatus = useConnectionStatus().status;
   const devForceOffline = useDevOfflineBrowseStore(s => s.forceOffline);
+  const offlineBrowseActive = useOfflineBrowseContext().active;
+  const offlineBrowseReloadTs = useOfflineBrowseReloadToken();
   // Mix-rating deps intentionally NOT subscribed here — they change during Zustand
   // rehydration and would trigger a second useEffect fire right after the first,
   // showing the cached home feed briefly and then replacing it (~500 ms later)
@@ -127,8 +130,6 @@ export default function Home() {
   useEffect(() => {
     if (!activeServerId) return;
     let cancelled = false;
-    const offlineBrowseActive = isOfflineBrowseActive();
-
     const fetchFreshHomeFeed = async (): Promise<HomeFeedSnapshot | null> => {
       const mixCfg = getMixMinRatingsConfigFromAuth();
       const albumMix =
@@ -228,17 +229,19 @@ export default function Home() {
     activeServerId,
     musicLibraryFilterVersion,
     homeSections,
+    offlineBrowseActive,
+    offlineBrowseReloadTs,
   ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** When offline toggles without a library-filter bump, re-apply stale cache if the feed was cleared. */
   useEffect(() => {
-    if (!activeServerId || !isOfflineBrowseActive()) return;
+    if (!activeServerId || !offlineBrowseActive) return;
     const stale = readHomeFeedCacheStale(activeServerId);
     if (!stale || isHomeFeedSnapshotEmpty(stale)) return;
     if (recent.length > 0 || random.length > 0 || heroAlbums.length > 0) return;
     applyFeedSnapshot(stale);
     setLoading(false);
-  }, [activeServerId, connStatus, devForceOffline]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeServerId, connStatus, devForceOffline, offlineBrowseActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadMore = async (
     type: 'starred' | 'newest' | 'random' | 'frequent' | 'recent',

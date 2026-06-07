@@ -18,6 +18,10 @@ vi.mock('../utils/library/advancedSearchLocal', () => ({
   runLocalSongBrowse: vi.fn(async () => []),
 }));
 
+vi.mock('./useOfflineBrowseReloadToken', () => ({
+  useOfflineBrowseReloadToken: () => undefined,
+}));
+
 vi.mock('../utils/library/browseTextSearch', () => ({
   BROWSE_TEXT_DEBOUNCE_NETWORK_MS: 10,
   BROWSE_TEXT_DEBOUNCE_RACE_MS: 10,

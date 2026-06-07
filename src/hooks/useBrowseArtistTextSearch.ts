@@ -9,7 +9,6 @@ import {
   runNetworkBrowseArtists,
   type LibrarySearchSurface,
 } from '../utils/library/browseTextSearch';
-import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
 import { useOfflineBrowseContext } from './useOfflineBrowseContext';
 import { offlineLocalBrowseEnabled, searchOfflineLocalArtists } from '../utils/offline/offlineLocalBrowse';
 
@@ -50,7 +49,7 @@ export function useBrowseArtistTextSearch(
     setTextSearchLoading(true);
 
     void (async () => {
-      if (isOfflineBrowseActive()) {
+      if (offlineBrowseActive) {
         const artists = offlineLocalBrowseEnabled(serverId)
           ? await searchOfflineLocalArtists(serverId, q)
           : [];

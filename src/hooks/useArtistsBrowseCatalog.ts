@@ -6,8 +6,8 @@ import {
   fetchLocalArtistCatalogChunk,
   fetchNetworkStarredArtists,
 } from '../utils/library/browseTextSearch';
-import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
 import { useOfflineBrowseContext } from './useOfflineBrowseContext';
+import { useOfflineBrowseReloadToken } from './useOfflineBrowseReloadToken';
 import {
   fetchOfflineLocalArtistCatalogChunk,
   fetchOfflineLocalStarredArtists,
@@ -33,6 +33,7 @@ export function useArtistsBrowseCatalog({
   musicLibraryFilterVersion,
 }: UseArtistsBrowseCatalogArgs) {
   const offlineBrowseActive = useOfflineBrowseContext().active;
+  const offlineBrowseReloadTs = useOfflineBrowseReloadToken();
   const [catalogArtists, setCatalogArtists] = useState<SubsonicArtist[]>([]);
   const [loading, setLoading] = useState(true);
   const [catalogHasMore, setCatalogHasMore] = useState(false);
@@ -49,7 +50,7 @@ export function useArtistsBrowseCatalog({
     catalogLoadingRef.current = true;
     setCatalogLoadingMore(true);
     try {
-      if (isOfflineBrowseActive()) {
+      if (offlineBrowseActive) {
         if (!offlineLocalBrowseEnabled(serverId)) return;
         const chunk = await fetchOfflineLocalArtistCatalogChunk(
           serverId,
@@ -109,7 +110,7 @@ export function useArtistsBrowseCatalog({
 
     void (async () => {
       try {
-        if (isOfflineBrowseActive()) {
+        if (offlineBrowseActive) {
           if (!cancelled && generation === loadGenerationRef.current) {
             if (serverId && starredOnly && offlineLocalBrowseEnabled(serverId)) {
               setCatalogArtists((await fetchOfflineLocalStarredArtists(serverId)) ?? []);
@@ -166,7 +167,7 @@ export function useArtistsBrowseCatalog({
     return () => {
       cancelled = true;
     };
-  }, [musicLibraryFilterVersion, indexEnabled, offlineBrowseActive, serverId, starredOnly]);
+  }, [musicLibraryFilterVersion, indexEnabled, offlineBrowseActive, offlineBrowseReloadTs, serverId, starredOnly]);
 
   return {
     catalogArtists,

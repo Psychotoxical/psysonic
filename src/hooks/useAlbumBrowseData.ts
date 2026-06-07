@@ -31,8 +31,8 @@ import {
   ALBUM_YEAR_FILTER_DEBOUNCE_MS,
   resolveAlbumYearBounds,
 } from '../utils/library/albumYearFilter';
-import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
 import { loadOfflineAlbumBrowseInitial } from '../utils/offline/offlineAlbumBrowseCatalog';
+import { useOfflineBrowseReloadToken } from './useOfflineBrowseReloadToken';
 import {
   fetchAlbumBrowseCatalogChunk,
   mergeAlbumCatalogChunk,
@@ -99,6 +99,7 @@ export function useAlbumBrowseData({
   restoreDisplayCount,
 }: UseAlbumBrowseDataArgs) {
   const offlineBrowseActive = useOfflineBrowseContext().active;
+  const offlineBrowseReloadTs = useOfflineBrowseReloadToken();
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -330,7 +331,7 @@ export function useAlbumBrowseData({
     setLoading(true);
 
     void (async () => {
-      if (isOfflineBrowseActive()) {
+      if (offlineBrowseActive) {
         const generation = ++loadGenerationRef.current;
         if (cancelled || generation !== loadGenerationRef.current) return;
         setBrowseMode('slice');
@@ -384,7 +385,7 @@ export function useAlbumBrowseData({
     return () => {
       cancelled = true;
     };
-  }, [browseQuery, indexEnabled, offlineBrowseActive, serverId, loadBrowse, musicLibraryFilterVersion]);
+  }, [browseQuery, indexEnabled, offlineBrowseActive, offlineBrowseReloadTs, serverId, loadBrowse, musicLibraryFilterVersion]);
 
   useEffect(() => {
     if (!genreCatalogActive) {

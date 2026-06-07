@@ -15,7 +15,6 @@ import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import WaveformSeek from './WaveformSeek';
 import Equalizer from './Equalizer';
-import StarRating from './StarRating';
 import { useTranslation } from 'react-i18next';
 import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
 import { useLyricsStore } from '../store/lyricsStore';

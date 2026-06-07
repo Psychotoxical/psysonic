@@ -8,7 +8,6 @@ import {
   runLocalBrowseAlbums,
   runNetworkBrowseAlbums,
 } from '../utils/library/browseTextSearch';
-import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
 import { useOfflineBrowseContext } from './useOfflineBrowseContext';
 import { offlineLocalBrowseEnabled, searchOfflineLocalAlbums } from '../utils/offline/offlineLocalBrowse';
 
@@ -47,7 +46,7 @@ export function useBrowseAlbumTextSearch(
     setTextSearchLoading(true);
 
     void (async () => {
-      if (isOfflineBrowseActive()) {
+      if (offlineBrowseActive) {
         const albums = offlineLocalBrowseEnabled(serverId)
           ? await searchOfflineLocalAlbums(serverId, q, losslessOnly)
           : [];

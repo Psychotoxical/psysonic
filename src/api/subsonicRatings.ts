@@ -1,5 +1,6 @@
 import { getArtist } from './subsonicArtists';
 import { getAlbum } from './subsonicLibrary';
+import { shouldAttemptSubsonicForActiveServer } from '../utils/network/subsonicNetworkGuard';
 
 const MIX_RATING_PREFETCH_CONCURRENCY = 8;
 const RATING_CACHE_TTL = 7 * 60 * 1000; // 7 minutes
@@ -55,6 +56,7 @@ export async function prefetchArtistUserRatings(
     else uncached.push(id);
   }
   if (!uncached.length) return out;
+  if (!shouldAttemptSubsonicForActiveServer()) return out;
   let next = 0;
   async function worker() {
     for (;;) {
@@ -93,6 +95,7 @@ export async function prefetchAlbumUserRatings(
     else uncached.push(id);
   }
   if (!uncached.length) return out;
+  if (!shouldAttemptSubsonicForActiveServer()) return out;
   let next = 0;
   async function worker() {
     for (;;) {

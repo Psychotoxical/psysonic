@@ -10,7 +10,8 @@ export type OfflineSurface =
   | 'contextMenuArtist'
   | 'contextMenuPlaylist'
   | 'hero'
-  | 'statistics';
+  | 'statistics'
+  | 'playerBar';
 
 export type OfflineActionPolicy = {
   canFavorite: boolean;
@@ -64,17 +65,11 @@ export function offlineActionPolicy(surface: OfflineSurface, active: boolean): O
     case 'contextMenuArtist':
     case 'contextMenuPlaylist':
     case 'hero':
+    case 'playerBar':
       return READ_ONLY_MUTATIONS;
     case 'statistics':
       return { ...READ_ONLY_MUTATIONS, canScrobble: false };
     default:
       return READ_ONLY_MUTATIONS;
   }
-}
-
-/** Convenience for components that previously used `readOnly={offlineBrowseActive}`. */
-export function isOfflineReadOnlySurface(surface: OfflineSurface, active: boolean): boolean {
-  if (!active) return false;
-  const p = offlineActionPolicy(surface, active);
-  return !p.canFavorite && !p.canDownload && !p.canPinOffline;
 }

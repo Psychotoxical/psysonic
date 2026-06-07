@@ -15,8 +15,6 @@ export type OfflineBrowseCapabilities = {
 
 import type { ConnectionStatus } from '../../hooks/useConnectionStatus';
 
-export type { ConnectionStatus };
-
 export type OfflineBrowseContext = {
   active: boolean;
   serverId: string | null;
@@ -28,7 +26,7 @@ export type OfflineBrowseContext = {
   connStatus: ConnectionStatus;
 };
 
-export type ComputeOfflineBrowseCapabilitiesInput = {
+type ComputeOfflineBrowseCapabilitiesInput = {
   activeServerId: string | null;
   favoritesOfflineEnabled: boolean;
   offlineAlbums: Record<string, OfflineAlbumMeta>;
@@ -88,7 +86,7 @@ export function offlineBrowseNavFlags(capabilities: OfflineBrowseCapabilities): 
 }
 
 /** Cross-server favorites scope (setting + any indexed server). */
-export function favoritesBrowseCapabilityAnyServer(favoritesOfflineEnabled: boolean): boolean {
+function favoritesBrowseCapabilityAnyServer(favoritesOfflineEnabled: boolean): boolean {
   if (!favoritesOfflineEnabled) return false;
   return favoritesOfflineBrowseEnabled();
 }

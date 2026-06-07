@@ -24,4 +24,10 @@ describe('offlineActionPolicy', () => {
     expect(offlineActionPolicy('contextMenuAlbum', true).canFavorite).toBe(false);
     expect(offlineActionPolicy('contextMenuSong', true).canAddToPlaylist).toBe(false);
   });
+
+  it('blocks rating and favorite in player bar when offline browse is active', () => {
+    const p = offlineActionPolicy('playerBar', true);
+    expect(p.canRate).toBe(false);
+    expect(p.canFavorite).toBe(false);
+  });
 });

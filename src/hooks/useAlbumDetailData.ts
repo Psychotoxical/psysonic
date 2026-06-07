@@ -13,7 +13,6 @@ import {
 } from '../utils/offline/offlineMediaResolve';
 import { useOfflineBrowseContext } from './useOfflineBrowseContext';
 import {
-  loadAlbumFromLocalPlayback,
   loadArtistFromLocalPlayback,
   offlineLocalBrowseEnabled,
 } from '../utils/offline/offlineLocalBrowse';
@@ -99,15 +98,16 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
 
     void (async () => {
       if (offlineBrowseActive && detailServerId) {
-        if (offlineLocalBrowseEnabled(detailServerId)) {
-          try {
-            const local = await loadAlbumFromLocalPlayback(detailServerId, id);
-            if (local) {
-              applyAlbumPayload(local);
-              await loadRelatedAlbums(detailServerId, local.album.artistId, true, true);
-              return;
-            }
-          } catch { /* ignore */ }
+        const local = await resolveAlbum(detailServerId, id);
+        if (local) {
+          applyAlbumPayload(local);
+          await loadRelatedAlbums(
+            detailServerId,
+            local.album.artistId,
+            true,
+            offlineLocalBrowseEnabled(detailServerId),
+          );
+          return;
         }
         setLoading(false);
         return;

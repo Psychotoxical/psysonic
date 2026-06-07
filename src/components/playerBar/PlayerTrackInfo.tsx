@@ -19,6 +19,8 @@ import {
   usePlayerBarLayoutStore,
   type PlayerBarLayoutItemId,
 } from '../../store/playerBarLayoutStore';
+import { useOfflineBrowseContext } from '../../hooks/useOfflineBrowseContext';
+import { offlineActionPolicy } from '../../utils/offline/offlineActionPolicy';
 
 interface Props {
   currentTrack: Track | null;
@@ -67,6 +69,8 @@ export function PlayerTrackInfo({
   const layoutItems = usePlayerBarLayoutStore(s => s.items);
   const isLayoutVisible = (id: PlayerBarLayoutItemId) =>
     layoutItems.find(i => i.id === id)?.visible !== false;
+  const offlineBrowseActive = useOfflineBrowseContext().active;
+  const playerPolicy = offlineActionPolicy('playerBar', offlineBrowseActive);
 
   return (
     <div className="player-track-info">
@@ -168,7 +172,7 @@ export function PlayerTrackInfo({
             onClick={() => !isRadio && !showPreviewMeta && currentTrack?.artistId && navigate(`/artist/${currentTrack.artistId}`)}
           />
         )}
-        {currentTrack && !isRadio && !showPreviewMeta && isLayoutVisible('starRating') && (
+        {currentTrack && !isRadio && !showPreviewMeta && isLayoutVisible('starRating') && playerPolicy.canRate && (
           <StarRating
             value={userRatingOverrides[currentTrack.id] ?? currentTrack.userRating ?? 0}
             onChange={r => queueSongRating(currentTrack.id, r)}
@@ -182,7 +186,7 @@ export function PlayerTrackInfo({
           </span>
         )}
       </div>
-      {currentTrack && !isRadio && isLayoutVisible('favorite') && (
+      {currentTrack && !isRadio && isLayoutVisible('favorite') && playerPolicy.canFavorite && (
         <button
           className={`player-btn player-btn-sm player-star-btn${isStarred ? ' is-starred' : ''}`}
           onClick={toggleStar}

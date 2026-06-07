@@ -14,8 +14,8 @@ import {
 } from '../utils/library/browseTextSearch';
 import { useAuthStore } from '../store/authStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
-import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
 import { useOfflineBrowseContext } from './useOfflineBrowseContext';
+import { useOfflineBrowseReloadToken } from './useOfflineBrowseReloadToken';
 import {
   fetchOfflineLocalBrowsableSongPage,
   offlineLocalBrowseEnabled,
@@ -60,6 +60,7 @@ export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseS
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const offlineBrowseActive = useOfflineBrowseContext().active;
+  const offlineBrowseReloadTs = useOfflineBrowseReloadToken();
 
   const [debouncedQuery, setDebouncedQuery] = useState(
     () => initialRestore?.query.trim() ?? searchQuery.trim(),
@@ -96,7 +97,7 @@ export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseS
 
   const fetchSongPage = useCallback(
     async (q: string, pageOffset: number, isStale: () => boolean): Promise<SubsonicSong[]> => {
-      if (isOfflineBrowseActive() && serverId && offlineLocalBrowseEnabled(serverId)) {
+      if (offlineBrowseActive && serverId && offlineLocalBrowseEnabled(serverId)) {
         localSearchModeRef.current = true;
         if (q === '') {
           const page = await fetchOfflineLocalBrowsableSongPage(serverId, pageOffset, PAGE_SIZE);
@@ -188,7 +189,7 @@ export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseS
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, searchQuery, fetchSongPage, enabled, musicLibraryFilterVersion]);
+  }, [debouncedQuery, searchQuery, fetchSongPage, enabled, musicLibraryFilterVersion, offlineBrowseReloadTs]);
 
   const loadMore = useCallback(async () => {
     if (!enabled || loading || !hasMore) return;

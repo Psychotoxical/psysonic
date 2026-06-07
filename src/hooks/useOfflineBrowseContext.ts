@@ -10,8 +10,6 @@ import {
   type OfflineBrowseContext,
 } from '../utils/offline/offlineBrowseContext';
 
-export type { OfflineBrowseCapabilities, OfflineBrowseContext } from '../utils/offline/offlineBrowseContext';
-
 /** Single subscription for shell and pages: offline browse mode + capabilities. */
 export function useOfflineBrowseContext(): OfflineBrowseContext {
   const active = useOfflineBrowseActive();

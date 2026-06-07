@@ -10,7 +10,7 @@ export function hasOfflineBrowseCapability(
 }
 
 /** Map a route to a sidebar nav id for offline-allow checks (detail pages included). */
-export function offlineNavIdForPathname(pathname: string): string | null {
+function offlineNavIdForPathname(pathname: string): string | null {
   if (pathname === '/albums') return 'allAlbums';
   if (pathname === '/artists' || pathname.startsWith('/artist/')) return 'artists';
   if (pathname === '/playlists' || pathname.startsWith('/playlists/')) return 'playlists';
@@ -47,7 +47,7 @@ export function isPathOfflineBrowsable(
   );
 }
 
-export type OfflineDisconnectNavAction =
+type OfflineDisconnectNavAction =
   | { kind: 'stay' }
   | { kind: 'stay-reload' }
   | { kind: 'redirect'; to: '/albums' };

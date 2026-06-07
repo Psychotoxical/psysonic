@@ -6,7 +6,7 @@ import {
   offlineLocalBrowseEnabled,
 } from './offlineLocalBrowse';
 
-export type OfflineAlbumCatalogChunk = {
+type OfflineAlbumCatalogChunk = {
   albums: SubsonicAlbum[];
   hasMore: boolean;
 };

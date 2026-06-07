@@ -5,8 +5,6 @@ import {
 import { useConnectionStatus } from '../../hooks/useConnectionStatus';
 import { isActiveServerReachable } from '../network/activeServerReachability';
 
-export { isDevOfflineBrowseForced };
-
 /** True when browse/detail pages should use local-bytes-only data sources. */
 export function isOfflineBrowseActive(): boolean {
   if (isDevOfflineBrowseForced()) return true;

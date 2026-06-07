@@ -5,7 +5,7 @@ import type { SubsonicPlaylist, SubsonicSong } from '../../api/subsonicTypes';
 import { useAuthStore } from '../../store/authStore';
 import { usePlaylistStore } from '../../store/playlistStore';
 import { isOfflineBrowseActive } from '../offline/offlineBrowseMode';
-import { loadOfflineBrowsablePlaylist } from '../offline/offlinePlaylistBrowse';
+import { resolvePlaylist } from '../offline/offlineMediaResolve';
 
 export interface RunPlaylistLoadDeps {
   id: string;
@@ -42,7 +42,7 @@ export async function runPlaylistLoad(deps: RunPlaylistLoadDeps): Promise<void> 
   try {
     const serverId = useAuthStore.getState().activeServerId ?? '';
     if (isOfflineBrowseActive() && serverId) {
-      const loaded = await loadOfflineBrowsablePlaylist(id, serverId);
+      const loaded = await resolvePlaylist(serverId, id);
       if (loaded) {
         applyLoadedPlaylist(deps, loaded.playlist, loaded.songs);
         return;

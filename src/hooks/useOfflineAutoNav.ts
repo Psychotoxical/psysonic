@@ -4,7 +4,7 @@ import { resolveOfflineDisconnectNavAction } from '../utils/offline/offlineBrows
 
 type ConnStatus = 'connected' | 'disconnected' | 'connecting' | 'unknown';
 
-export type OfflineAutoNavContext = {
+type OfflineAutoNavContext = {
   favoritesOfflineBrowse: boolean;
   localLibraryBrowse: boolean;
   playerStatsBrowse: boolean;
