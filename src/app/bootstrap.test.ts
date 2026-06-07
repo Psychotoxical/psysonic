@@ -24,10 +24,14 @@ vi.mock('./windowKind', () => ({
 import { invoke } from '@tauri-apps/api/core';
 import { getWindowKind } from './windowKind';
 import {
+  applyThemeAtStartup,
+  installCrossWindowThemeSync,
   pushLoggingModeToBackend,
   pushUserAgentToBackend,
   runPreReactBootstrap,
 } from './bootstrap';
+import { useThemeStore } from '../store/themeStore';
+import { useInstalledThemesStore } from '../store/installedThemesStore';
 
 const ORIGINAL_USER_AGENT = window.navigator.userAgent;
 
@@ -48,6 +52,8 @@ beforeEach(() => {
 
 afterEach(() => {
   setUserAgent(ORIGINAL_USER_AGENT);
+  document.documentElement.removeAttribute('data-theme');
+  document.head.querySelectorAll('style[data-installed-theme]').forEach((el) => el.remove());
 });
 
 describe('pushUserAgentToBackend', () => {
@@ -141,5 +147,58 @@ describe('runPreReactBootstrap', () => {
     expect(installQueueUndoHotkey).toHaveBeenCalledTimes(1);
     // installQueueUndoHotkey itself early-returns inside playerStore on mini —
     // the bootstrap doesn't second-guess that decision.
+  });
+});
+
+describe('applyThemeAtStartup', () => {
+  const setPersistedTheme = (state: Record<string, unknown>) =>
+    localStorage.setItem('psysonic_theme', JSON.stringify({ state, version: 1 }));
+
+  it('does nothing when there is no persisted theme', () => {
+    applyThemeAtStartup();
+    expect(document.documentElement.getAttribute('data-theme')).toBeNull();
+  });
+
+  it('sets data-theme to the active theme (scheduler off)', () => {
+    setPersistedTheme({ theme: 'kanagawa-wave', enableThemeScheduler: false });
+    applyThemeAtStartup();
+    expect(document.documentElement.getAttribute('data-theme')).toBe('kanagawa-wave');
+  });
+
+  it('injects installed community themes up front', () => {
+    setPersistedTheme({ theme: 'dracula', enableThemeScheduler: false });
+    localStorage.setItem('psysonic_installed_themes', JSON.stringify({
+      state: { themes: [{ id: 'dracula', name: 'Dracula', author: 'a', version: '1.0.0', description: '', mode: 'dark', css: "[data-theme='dracula']{--accent:#bd93f9;}", installedAt: 0 }] },
+      version: 1,
+    }));
+    applyThemeAtStartup();
+    expect(document.head.querySelector('style[data-installed-theme="dracula"]')).not.toBeNull();
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dracula');
+  });
+
+  it('does not throw on malformed storage', () => {
+    localStorage.setItem('psysonic_theme', '{not json');
+    expect(() => applyThemeAtStartup()).not.toThrow();
+    expect(document.documentElement.getAttribute('data-theme')).toBeNull();
+  });
+});
+
+describe('installCrossWindowThemeSync', () => {
+  it('rehydrates the matching store on a cross-window storage event', () => {
+    const themeRehydrate = vi.spyOn(useThemeStore.persist, 'rehydrate').mockResolvedValue(undefined);
+    const installedRehydrate = vi.spyOn(useInstalledThemesStore.persist, 'rehydrate').mockResolvedValue(undefined);
+    installCrossWindowThemeSync();
+
+    window.dispatchEvent(new StorageEvent('storage', { key: 'psysonic_theme' }));
+    expect(themeRehydrate).toHaveBeenCalled();
+
+    window.dispatchEvent(new StorageEvent('storage', { key: 'psysonic_installed_themes' }));
+    expect(installedRehydrate).toHaveBeenCalled();
+
+    themeRehydrate.mockClear();
+    installedRehydrate.mockClear();
+    window.dispatchEvent(new StorageEvent('storage', { key: 'unrelated-key' }));
+    expect(themeRehydrate).not.toHaveBeenCalled();
+    expect(installedRehydrate).not.toHaveBeenCalled();
   });
 });
