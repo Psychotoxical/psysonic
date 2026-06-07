@@ -13,6 +13,7 @@ export function hasOfflineBrowseCapability(
 export function offlineNavIdForPathname(pathname: string): string | null {
   if (pathname === '/albums') return 'allAlbums';
   if (pathname === '/artists' || pathname.startsWith('/artist/')) return 'artists';
+  if (pathname === '/playlists' || pathname.startsWith('/playlists/')) return 'playlists';
   if (pathname === '/tracks') return 'tracks';
   if (pathname === '/favorites') return 'favorites';
   if (pathname === '/offline') return 'offline';
@@ -32,6 +33,7 @@ export function isPathOfflineBrowsable(
   favoritesOfflineBrowse: boolean,
   localLibraryBrowse: boolean,
   playerStatsBrowse: boolean,
+  playlistsOfflineBrowse: boolean,
 ): boolean {
   if (OFFLINE_ALWAYS_STAY_PATHS.has(pathname)) return true;
   const navId = offlineNavIdForPathname(pathname);
@@ -41,6 +43,7 @@ export function isPathOfflineBrowsable(
     favoritesOfflineBrowse,
     localLibraryBrowse,
     playerStatsBrowse,
+    playlistsOfflineBrowse,
   );
 }
 
@@ -55,12 +58,19 @@ export function resolveOfflineDisconnectNavAction(
   favoritesOfflineBrowse: boolean,
   localLibraryBrowse: boolean,
   playerStatsBrowse: boolean,
+  playlistsOfflineBrowse: boolean,
   hasManualOfflineContent: boolean,
 ): OfflineDisconnectNavAction {
   if (!hasOfflineBrowseCapability(localLibraryBrowse, favoritesOfflineBrowse, hasManualOfflineContent)) {
     return { kind: 'stay' };
   }
-  if (isPathOfflineBrowsable(pathname, favoritesOfflineBrowse, localLibraryBrowse, playerStatsBrowse)) {
+  if (isPathOfflineBrowsable(
+    pathname,
+    favoritesOfflineBrowse,
+    localLibraryBrowse,
+    playerStatsBrowse,
+    playlistsOfflineBrowse,
+  )) {
     return { kind: 'stay-reload' };
   }
   return { kind: 'redirect', to: '/albums' };

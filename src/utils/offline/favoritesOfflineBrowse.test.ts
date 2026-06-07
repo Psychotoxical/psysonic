@@ -103,6 +103,8 @@ describe('favoritesOfflineBrowse', () => {
     expect(isOfflineSidebarLibraryNavAllowed('tracks', false, false)).toBe(false);
     expect(isOfflineSidebarLibraryNavAllowed('allAlbums', false, false)).toBe(false);
     expect(isOfflineSidebarLibraryNavAllowed('offline', false, false)).toBe(true);
+    expect(isOfflineSidebarLibraryNavAllowed('playlists', false, false, true)).toBe(true);
+    expect(isOfflineSidebarLibraryNavAllowed('playlists', false, false, false)).toBe(false);
   });
 
   it('isOfflineSidebarSystemNavAllowed keeps help and player stats offline', () => {
@@ -112,6 +114,7 @@ describe('favoritesOfflineBrowse', () => {
     expect(isOfflineSidebarNavAllowed('help', false, false, false)).toBe(true);
     expect(isOfflineSidebarNavAllowed('statistics', false, false, true)).toBe(true);
     expect(isOfflineSidebarNavAllowed('tracks', false, true, false)).toBe(true);
+    expect(isOfflineSidebarNavAllowed('playlists', false, false, false, true)).toBe(true);
   });
 
   it('loadStarredFromLibraryIndex uses starred advanced search when not offline-bytes', async () => {

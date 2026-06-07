@@ -3,6 +3,9 @@ import type { SubsonicPlaylist } from '../api/subsonicTypes';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createPlaylist as apiCreatePlaylist } from '../api/subsonicPlaylists';
+import { useAuthStore } from './authStore';
+import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { fetchOfflineBrowsablePlaylists } from '../utils/offline/offlinePlaylistBrowse';
 interface PlaylistStore {
   recentIds: string[];
   playlists: SubsonicPlaylist[];
@@ -32,6 +35,12 @@ export const usePlaylistStore = create<PlaylistStore>()(
       fetchPlaylists: async () => {
         set({ playlistsLoading: true });
         try {
+          const serverId = useAuthStore.getState().activeServerId;
+          if (isOfflineBrowseActive() && serverId) {
+            const playlists = await fetchOfflineBrowsablePlaylists(serverId);
+            set({ playlists, playlistsLoading: false });
+            return;
+          }
           const playlists = await getPlaylists();
           set({ playlists, playlistsLoading: false });
         } catch {

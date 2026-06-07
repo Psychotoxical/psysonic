@@ -28,6 +28,7 @@ import { isOfflineSidebarNavAllowed } from '../utils/offline/favoritesOfflineBro
 import { usePlayerStatsRecordingEnabled } from '../hooks/usePlayerStatsRecordingEnabled';
 import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
 import { offlineLocalBrowseEnabled } from '../utils/offline/offlineLocalBrowse';
+import { playlistsOfflineBrowseEnabled } from '../utils/offline/offlinePlaylistBrowse';
 import { hasAnyOfflineAlbums } from '../utils/offline/offlineLibraryHelpers';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useSidebarPerfProbe } from '../hooks/useSidebarPerfProbe';
@@ -79,6 +80,7 @@ export default function Sidebar({
   const libraryIndexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const favoritesOfflineBrowse = favoritesOfflineEnabled && libraryIndexEnabled;
   const localLibraryBrowse = offlineLocalBrowseEnabled(serverId);
+  const playlistsOfflineBrowse = playlistsOfflineBrowseEnabled(serverId);
   const playerStatsBrowse = usePlayerStatsRecordingEnabled();
   const hasOfflineContent = hasAnyOfflineAlbums(offlineAlbums);
   const offlineBrowseActive = useOfflineBrowseActive();
@@ -127,12 +129,13 @@ export default function Sidebar({
           favoritesOfflineBrowse,
           localLibraryBrowse,
           playerStatsBrowse,
+          playlistsOfflineBrowse,
         )) {
           return false;
         }
         return true;
       }),
-    [libraryItemsForReorder, luckyMixAvailable, isServerOffline, favoritesOfflineBrowse, localLibraryBrowse, playerStatsBrowse],
+    [libraryItemsForReorder, luckyMixAvailable, isServerOffline, favoritesOfflineBrowse, localLibraryBrowse, playerStatsBrowse, playlistsOfflineBrowse],
   );
   const visibleSystemConfigs = useMemo(
     () => systemItemsForReorder.filter(c => {
@@ -142,12 +145,13 @@ export default function Sidebar({
         favoritesOfflineBrowse,
         localLibraryBrowse,
         playerStatsBrowse,
+        playlistsOfflineBrowse,
       )) {
         return false;
       }
       return true;
     }),
-    [systemItemsForReorder, isServerOffline, favoritesOfflineBrowse, localLibraryBrowse, playerStatsBrowse],
+    [systemItemsForReorder, isServerOffline, favoritesOfflineBrowse, localLibraryBrowse, playerStatsBrowse, playlistsOfflineBrowse],
   );
 
   const sidebarItemsRef = useRef(sidebarItems);

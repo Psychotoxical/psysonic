@@ -24,6 +24,7 @@ interface Props {
   setEditingSmartId: React.Dispatch<React.SetStateAction<string | null>>;
   setSmartFilters: React.Dispatch<React.SetStateAction<SmartFilters>>;
   setGenreQuery: React.Dispatch<React.SetStateAction<string>>;
+  readOnly?: boolean;
 }
 
 export default function PlaylistsHeader({
@@ -32,6 +33,7 @@ export default function PlaylistsHeader({
   creating, setCreating, setCreatingSmart,
   newName, setNewName, nameInputRef, handleCreate,
   isNavidromeServer, setEditingSmartId, setSmartFilters, setGenreQuery,
+  readOnly = false,
 }: Props) {
   const { t } = useTranslation();
 
@@ -43,7 +45,7 @@ export default function PlaylistsHeader({
           : t('playlists.title')}
       </h1>
       <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-        {!(selectionMode && selectedIds.size > 0) && (<>
+        {!readOnly && !(selectionMode && selectedIds.size > 0) && (<>
             {creating ? (
               <>
                 <input

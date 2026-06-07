@@ -29,6 +29,8 @@ import PlaylistsHeader from '../components/playlists/PlaylistsHeader';
 import PlaylistCard from '../components/playlists/PlaylistCard';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
+import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { loadOfflineBrowsablePlaylist } from '../utils/offline/offlinePlaylistBrowse';
 
 function formatDuration(seconds: number): string {
   return formatHumanHoursMinutes(seconds);
@@ -49,6 +51,7 @@ export default function Playlists() {
   const activeServerId = useAuthStore(s => s.activeServerId);
   const subsonicIdentityByServer = useAuthStore(s => s.subsonicServerIdentityByServer);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const offlineBrowseActive = useOfflineBrowseActive();
 
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -94,8 +97,10 @@ export default function Playlists() {
 
   useEffect(() => {
     fetchPlaylists().finally(() => setLoading(false));
-    getGenres().then(setGenres).catch(() => {});
-  }, [fetchPlaylists]);
+    if (!offlineBrowseActive) {
+      getGenres().then(setGenres).catch(() => {});
+    }
+  }, [fetchPlaylists, offlineBrowseActive]);
 
   useEffect(() => {
     if (creating) nameInputRef.current?.focus();
@@ -138,6 +143,15 @@ export default function Playlists() {
     if (playingId === pl.id) return;
     setPlayingId(pl.id);
     try {
+      if (offlineBrowseActive && activeServerId) {
+        const loaded = await loadOfflineBrowsablePlaylist(pl.id, activeServerId);
+        const tracks = (loaded?.songs ?? []).map(songToTrack);
+        if (tracks.length > 0) {
+          touchPlaylist(pl.id);
+          playTrack(tracks[0], tracks);
+        }
+        return;
+      }
       const data = await getPlaylist(pl.id);
       const filteredSongs = await filterSongsToActiveLibrary(data.songs);
       const tracks = filteredSongs.map(songToTrack);
@@ -233,6 +247,7 @@ export default function Playlists() {
         setEditingSmartId={setEditingSmartId}
         setSmartFilters={setSmartFilters}
         setGenreQuery={setGenreQuery}
+        readOnly={offlineBrowseActive}
       />
 
       {creatingSmart && (

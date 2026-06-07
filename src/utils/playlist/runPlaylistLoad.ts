@@ -2,7 +2,10 @@ import type React from 'react';
 import { getPlaylist } from '../../api/subsonicPlaylists';
 import { filterSongsToActiveLibrary } from '../../api/subsonicLibrary';
 import type { SubsonicPlaylist, SubsonicSong } from '../../api/subsonicTypes';
+import { useAuthStore } from '../../store/authStore';
 import { usePlaylistStore } from '../../store/playlistStore';
+import { isOfflineBrowseActive } from '../offline/offlineBrowseMode';
+import { loadOfflineBrowsablePlaylist } from '../offline/offlinePlaylistBrowse';
 
 export interface RunPlaylistLoadDeps {
   id: string;
@@ -14,23 +17,41 @@ export interface RunPlaylistLoadDeps {
   setStarredSongs: React.Dispatch<React.SetStateAction<Set<string>>>;
 }
 
+function applyLoadedPlaylist(
+  deps: RunPlaylistLoadDeps,
+  playlist: SubsonicPlaylist,
+  songs: SubsonicSong[],
+): void {
+  const { setPlaylist, setSongs, setCustomCoverId, setRatings, setStarredSongs } = deps;
+  setPlaylist(playlist);
+  setSongs(songs);
+  if (playlist.coverArt) setCustomCoverId(playlist.coverArt);
+  const init: Record<string, number> = {};
+  const starred = new Set<string>();
+  songs.forEach(s => {
+    if (s.userRating) init[s.id] = s.userRating;
+    if (s.starred) starred.add(s.id);
+  });
+  setRatings(init);
+  setStarredSongs(starred);
+}
+
 export async function runPlaylistLoad(deps: RunPlaylistLoadDeps): Promise<void> {
   const { id, setLoading, setPlaylist, setSongs, setCustomCoverId, setRatings, setStarredSongs } = deps;
   setLoading(true);
   try {
+    const serverId = useAuthStore.getState().activeServerId ?? '';
+    if (isOfflineBrowseActive() && serverId) {
+      const loaded = await loadOfflineBrowsablePlaylist(id, serverId);
+      if (loaded) {
+        applyLoadedPlaylist(deps, loaded.playlist, loaded.songs);
+        return;
+      }
+    }
+
     const { playlist, songs } = await getPlaylist(id);
     const filteredSongs = await filterSongsToActiveLibrary(songs);
-    setPlaylist(playlist);
-    setSongs(filteredSongs);
-    if (playlist.coverArt) setCustomCoverId(playlist.coverArt);
-    const init: Record<string, number> = {};
-    const starred = new Set<string>();
-    filteredSongs.forEach(s => {
-      if (s.userRating) init[s.id] = s.userRating;
-      if (s.starred) starred.add(s.id);
-    });
-    setRatings(init);
-    setStarredSongs(starred);
+    applyLoadedPlaylist(deps, playlist, filteredSongs);
   } catch {
     const stub = usePlaylistStore.getState().playlists.find(p => p.id === id);
     if (stub) {

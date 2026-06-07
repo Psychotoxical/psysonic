@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { filterSongsToActiveLibrary } from '../api/subsonicLibrary';
 import { getPlaylist } from '../api/subsonicPlaylists';
 import type { SubsonicPlaylist } from '../api/subsonicTypes';
+import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
 
 export interface PlaylistsLibraryScopeCountsResult {
   filteredSongCountByPlaylist: Record<string, number>;
@@ -28,6 +29,19 @@ export function usePlaylistsLibraryScopeCounts(
         if (!cancelled) {
           setFilteredSongCountByPlaylist({});
           setFilteredDurationByPlaylist({});
+        }
+        return;
+      }
+      if (isOfflineBrowseActive()) {
+        const next: Record<string, number> = {};
+        const nextDuration: Record<string, number> = {};
+        for (const pl of playlists) {
+          next[pl.id] = pl.songCount;
+          nextDuration[pl.id] = pl.duration;
+        }
+        if (!cancelled) {
+          setFilteredSongCountByPlaylist(next);
+          setFilteredDurationByPlaylist(nextDuration);
         }
         return;
       }

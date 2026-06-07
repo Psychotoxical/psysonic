@@ -54,6 +54,7 @@ import { usePlaylistDerived } from '../hooks/usePlaylistDerived';
 import { usePlaylistRouteEffects } from '../hooks/usePlaylistRouteEffects';
 import { useBulkPlPickerOutsideClick } from '../hooks/useBulkPlPickerOutsideClick';
 import { usePlaylistDnDReorder } from '../hooks/usePlaylistDnDReorder';
+import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
 
 // ── Column configuration ──────────────────────────────────────────────────────
 const PL_COLUMNS: readonly ColDef[] = [
@@ -179,13 +180,14 @@ export default function PlaylistDetail() {
 
   // ── Load ─────────────────────────────────────────────────────
   const lastModified = usePlaylistStore(s => (id ? s.lastModified[id] : undefined));
+  const offlineBrowseActive = useOfflineBrowseActive();
 
   useEffect(() => {
     if (!id) return;
     runPlaylistLoad({
       id, setLoading, setPlaylist, setSongs, setCustomCoverId, setRatings, setStarredSongs,
     });
-  }, [id, lastModified]);
+  }, [id, lastModified, offlineBrowseActive]);
 
   // ── Meta edit ─────────────────────────────────────────────────
   const handleSaveMeta = async (opts: {

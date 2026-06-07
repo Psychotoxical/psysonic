@@ -11,6 +11,7 @@ import { isOfflineSidebarNavAllowed } from '../utils/offline/favoritesOfflineBro
 import { usePlayerStatsRecordingEnabled } from '../hooks/usePlayerStatsRecordingEnabled';
 import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
 import { offlineLocalBrowseEnabled } from '../utils/offline/offlineLocalBrowse';
+import { playlistsOfflineBrowseEnabled } from '../utils/offline/offlinePlaylistBrowse';
 import { hasAnyOfflineAlbums } from '../utils/offline/offlineLibraryHelpers';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 
@@ -25,6 +26,7 @@ export default function MobileMoreOverlay({ onClose }: { onClose: () => void }) 
   const libraryIndexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const favoritesOfflineBrowse = favoritesOfflineEnabled && libraryIndexEnabled;
   const localLibraryBrowse = offlineLocalBrowseEnabled(serverId);
+  const playlistsOfflineBrowse = playlistsOfflineBrowseEnabled(serverId);
   const playerStatsBrowse = usePlayerStatsRecordingEnabled();
   const offlineBrowseActive = useOfflineBrowseActive();
   const isServerOffline = offlineBrowseActive;
@@ -47,6 +49,7 @@ export default function MobileMoreOverlay({ onClose }: { onClose: () => void }) 
         favoritesOfflineBrowse,
         localLibraryBrowse,
         playerStatsBrowse,
+        playlistsOfflineBrowse,
       )) {
         return false;
       }

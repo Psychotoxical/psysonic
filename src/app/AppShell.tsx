@@ -60,6 +60,7 @@ import { useOfflineAutoNav } from '../hooks/useOfflineAutoNav';
 import { usePlayerStatsRecordingEnabled } from '../hooks/usePlayerStatsRecordingEnabled';
 import { hasOfflineBrowseCapability } from '../utils/offline/offlineBrowseRouting';
 import { offlineLocalBrowseEnabled } from '../utils/offline/offlineLocalBrowse';
+import { playlistsOfflineBrowseEnabled } from '../utils/offline/offlinePlaylistBrowse';
 import { useOfflineLibraryFilterSuspend } from '../hooks/useOfflineLibraryFilterSuspend';
 import { AppShellQueueResizerSeam } from '../components/AppShellQueueResizerSeam';
 import { IS_LINUX } from '../utils/platform';
@@ -121,6 +122,7 @@ export function AppShell() {
   const libraryIndexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(activeServerId));
   const favoritesOfflineBrowse = favoritesOfflineEnabled && libraryIndexEnabled;
   const localLibraryBrowse = offlineLocalBrowseEnabled(activeServerId);
+  const playlistsOfflineBrowse = playlistsOfflineBrowseEnabled(activeServerId);
   const playerStatsBrowse = usePlayerStatsRecordingEnabled();
   const hasManualOfflineContent = hasAnyOfflineAlbums(offlineAlbums);
   const hasOfflineContent = hasOfflineBrowsingContent(offlineAlbums);
@@ -162,6 +164,7 @@ export function AppShell() {
       favoritesOfflineBrowse,
       localLibraryBrowse,
       playerStatsBrowse,
+      playlistsOfflineBrowse,
       hasManualOfflineContent,
     },
     location,

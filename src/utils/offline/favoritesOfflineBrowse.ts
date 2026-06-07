@@ -45,9 +45,11 @@ export function isOfflineSidebarLibraryNavAllowed(
   navId: string,
   favoritesOfflineBrowse: boolean,
   localLibraryBrowse = false,
+  playlistsOfflineBrowse = false,
 ): boolean {
   if (navId === 'favorites') return favoritesOfflineBrowse;
   if (navId === 'artists' || navId === 'allAlbums' || navId === 'tracks') return localLibraryBrowse;
+  if (navId === 'playlists') return playlistsOfflineBrowse;
   if (navId === 'offline') return true;
   return false;
 }
@@ -68,9 +70,15 @@ export function isOfflineSidebarNavAllowed(
   favoritesOfflineBrowse: boolean,
   localLibraryBrowse: boolean,
   playerStatsBrowse: boolean,
+  playlistsOfflineBrowse = false,
 ): boolean {
   if (isOfflineSidebarSystemNavAllowed(navId, playerStatsBrowse)) return true;
-  return isOfflineSidebarLibraryNavAllowed(navId, favoritesOfflineBrowse, localLibraryBrowse);
+  return isOfflineSidebarLibraryNavAllowed(
+    navId,
+    favoritesOfflineBrowse,
+    localLibraryBrowse,
+    playlistsOfflineBrowse,
+  );
 }
 
 /** Any offline browsing surface: manual pins and/or saved favorite-auto bytes. */

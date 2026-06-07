@@ -8,6 +8,7 @@ export type OfflineAutoNavContext = {
   favoritesOfflineBrowse: boolean;
   localLibraryBrowse: boolean;
   playerStatsBrowse: boolean;
+  playlistsOfflineBrowse: boolean;
   hasManualOfflineContent: boolean;
 };
 
@@ -37,6 +38,7 @@ export function useOfflineAutoNav(
       ctx.favoritesOfflineBrowse,
       ctx.localLibraryBrowse,
       ctx.playerStatsBrowse,
+      ctx.playlistsOfflineBrowse,
       ctx.hasManualOfflineContent,
     );
 
@@ -64,6 +66,7 @@ export function useOfflineAutoNav(
     ctx.favoritesOfflineBrowse,
     ctx.localLibraryBrowse,
     ctx.playerStatsBrowse,
+    ctx.playlistsOfflineBrowse,
     ctx.hasManualOfflineContent,
     location.pathname,
     location.search,
