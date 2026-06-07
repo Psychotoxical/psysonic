@@ -1,3 +1,4 @@
+import type { ConnectionStatus } from '../../hooks/useConnectionStatus';
 import type { OfflineAlbumMeta } from '../../store/offlineStore';
 import { favoritesOfflineBrowseEnabled } from './favoritesOfflineBrowse';
 import { hasOfflineBrowseCapability } from './offlineBrowseRouting';
@@ -12,8 +13,6 @@ export type OfflineBrowseCapabilities = {
   manualPins: boolean;
   playerStats: boolean;
 };
-
-import type { ConnectionStatus } from '../../hooks/useConnectionStatus';
 
 export type OfflineBrowseContext = {
   active: boolean;

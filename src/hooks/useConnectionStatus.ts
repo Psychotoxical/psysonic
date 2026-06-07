@@ -31,6 +31,7 @@ export function useConnectionStatus() {
   // public alternate must read as 'public', not 'local'.
   const [activeEndpointKind, setActiveEndpointKind] = useState<ServerEndpointKind | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prevDevForceOfflineRef = useRef<boolean | null>(null);
 
   const check = useCallback(async () => {
     if (isDevOfflineBrowseForced()) {
@@ -86,15 +87,33 @@ export function useConnectionStatus() {
     setIsRetrying(false);
   }, [check]);
 
+  // DEV offline toggle: react to transitions only — the polling effect already
+  // probes on mount; an unconditional check() here doubled probes and ignored
+  // disableBackgroundPolling (PlayerBar tests, perf-flagged runs).
   useEffect(() => {
     if (!import.meta.env.DEV) return;
+
+    if (prevDevForceOfflineRef.current === null) {
+      prevDevForceOfflineRef.current = devForceOffline;
+      if (devForceOffline) {
+        setActiveServerReachable(false);
+        setStatus('disconnected');
+      }
+      return;
+    }
+
+    if (prevDevForceOfflineRef.current === devForceOffline) return;
+    prevDevForceOfflineRef.current = devForceOffline;
+
     if (devForceOffline) {
       setActiveServerReachable(false);
       setStatus('disconnected');
       return;
     }
-    void check();
-  }, [devForceOffline, check]);
+    if (!perfFlags.disableBackgroundPolling) {
+      void check();
+    }
+  }, [devForceOffline, check, perfFlags.disableBackgroundPolling]);
 
   useEffect(() => {
     if (perfFlags.disableBackgroundPolling) {

@@ -10,6 +10,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/api/subsonic', () => ({
   savePlayQueue: vi.fn(async () => undefined),
   getPlayQueue: vi.fn(async () => ({ songs: [], current: undefined, position: 0 })),
+  pingWithCredentials: vi.fn(async () => ({
+    ok: true,
+    type: 'navidrome',
+    serverVersion: '0.55.0',
+    openSubsonic: true,
+  })),
+  scheduleInstantMixProbeForServer: vi.fn(),
   buildStreamUrl: vi.fn((id: string) => `https://mock/stream/${id}`),
   buildCoverArtUrl: vi.fn((id: string) => `https://mock/cover/${id}`),
   buildDownloadUrl: vi.fn((id: string) => `https://mock/download/${id}`),

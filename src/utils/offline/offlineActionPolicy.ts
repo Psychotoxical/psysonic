@@ -49,27 +49,11 @@ const READ_ONLY_MUTATIONS: OfflineActionPolicy = {
   canScrobble: false,
 };
 
-/** What server-mutating actions are allowed on a UI surface while offline browse is active. */
-export function offlineActionPolicy(surface: OfflineSurface, active: boolean): OfflineActionPolicy {
+/**
+ * What server-mutating actions are allowed on a UI surface while offline browse is active.
+ * `surface` is reserved for per-surface divergence; today all surfaces share read-only policy.
+ */
+export function offlineActionPolicy(_surface: OfflineSurface, active: boolean): OfflineActionPolicy {
   if (!active) return ALLOW_ALL;
-
-  switch (surface) {
-    case 'albumDetail':
-    case 'artistDetail':
-    case 'trackRow':
-    case 'albumCard':
-    case 'playlistDetail':
-    case 'playlistsHeader':
-    case 'contextMenuAlbum':
-    case 'contextMenuSong':
-    case 'contextMenuArtist':
-    case 'contextMenuPlaylist':
-    case 'hero':
-    case 'playerBar':
-      return READ_ONLY_MUTATIONS;
-    case 'statistics':
-      return { ...READ_ONLY_MUTATIONS, canScrobble: false };
-    default:
-      return READ_ONLY_MUTATIONS;
-  }
+  return READ_ONLY_MUTATIONS;
 }

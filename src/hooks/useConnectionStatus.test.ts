@@ -17,11 +17,13 @@ vi.mock('@/utils/perf/perfFlags', () => ({
 }));
 
 import { pingWithCredentials } from '@/api/subsonic';
+import { useDevOfflineBrowseStore } from '@/store/devOfflineBrowseStore';
 import { useConnectionStatus } from './useConnectionStatus';
 
 beforeEach(() => {
   resetAuthStore();
   invalidateReachableEndpointCache();
+  useDevOfflineBrowseStore.getState().setForceOffline(false);
   vi.mocked(pingWithCredentials).mockReset();
 });
 
@@ -131,5 +133,41 @@ describe('useConnectionStatus online event', () => {
     await waitFor(() => expect(result.current.isLan).toBe(false));
     // Both endpoints were probed (LAN refused, public answered).
     expect(vi.mocked(pingWithCredentials).mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('useConnectionStatus DEV offline toggle', () => {
+  it('does not probe again on mount beyond the polling effect', async () => {
+    seedDualAddressServer();
+    vi.mocked(pingWithCredentials).mockResolvedValue({
+      ok: true,
+      type: 'navidrome',
+      serverVersion: '0.55.0',
+      openSubsonic: true,
+    });
+
+    renderHook(() => useConnectionStatus());
+    await waitFor(() => expect(vi.mocked(pingWithCredentials).mock.calls.length).toBeGreaterThanOrEqual(1));
+    const callsAfterMount = vi.mocked(pingWithCredentials).mock.calls.length;
+    await new Promise(r => setTimeout(r, 20));
+    expect(vi.mocked(pingWithCredentials).mock.calls.length).toBe(callsAfterMount);
+  });
+
+  it('disconnects on force-offline toggle without an extra probe', async () => {
+    seedDualAddressServer();
+    vi.mocked(pingWithCredentials).mockResolvedValue({
+      ok: true,
+      type: 'navidrome',
+      serverVersion: '0.55.0',
+      openSubsonic: true,
+    });
+
+    const { result } = renderHook(() => useConnectionStatus());
+    await waitFor(() => expect(result.current.status).toBe('connected'));
+    const callsBeforeToggle = vi.mocked(pingWithCredentials).mock.calls.length;
+
+    act(() => useDevOfflineBrowseStore.getState().setForceOffline(true));
+    await waitFor(() => expect(result.current.status).toBe('disconnected'));
+    expect(vi.mocked(pingWithCredentials).mock.calls.length).toBe(callsBeforeToggle);
   });
 });
