@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronLeft, ChevronRight, Download, RefreshCw, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Download, RefreshCw, Trash2, WifiOff } from 'lucide-react';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
 import CoverLightbox from '../CoverLightbox';
 import { useThemeStore } from '../../store/themeStore';
@@ -159,7 +159,9 @@ export function ThemeStoreSection() {
         </button>
       </div>
 
-      {/* Toolbar: search + mode filter + refresh */}
+      {/* Toolbar: search + mode filter + refresh. Hidden when offline with no
+          catalogue to browse — the offline banner below stands in for it. */}
+      {!error && (
       <div ref={topRef} style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: '1rem', scrollMarginTop: 8 }}>
         <input
           type="search"
@@ -195,6 +197,7 @@ export function ThemeStoreSection() {
           <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
         </button>
       </div>
+      )}
 
       {!loading && stale && (
         <div className="settings-hint settings-hint-info" role="status" style={{ marginBottom: '0.75rem' }}>
@@ -207,9 +210,28 @@ export function ThemeStoreSection() {
       )}
 
       {!loading && error && (
-        <div role="alert" style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-          <p style={{ marginBottom: 8 }}>{t('settings.themeStoreError')}</p>
-          <button className="btn btn-ghost" onClick={() => load(true)}>{t('settings.themeStoreRetry')}</button>
+        <div
+          role="alert"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center',
+            gap: 12,
+            padding: '28px 16px',
+            border: '1px dashed var(--border)',
+            borderRadius: 'var(--radius-md, 10px)',
+            background: 'var(--bg-elevated)',
+          }}
+        >
+          <WifiOff size={28} style={{ color: 'var(--text-muted)' }} aria-hidden="true" />
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{t('settings.themeStoreOfflineTitle')}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('settings.themeStoreError')}</div>
+          </div>
+          <button className="btn btn-ghost" onClick={() => load(true)} disabled={refreshing}>
+            {t('settings.themeStoreRetry')}
+          </button>
         </div>
       )}
 

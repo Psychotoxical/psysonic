@@ -331,6 +331,7 @@ export const settings = {
   themeStoreLoading: '正在加载主题…',
   themeStoreError: '无法加载主题商店。请检查网络连接。',
   themeStoreRetry: '重试',
+  themeStoreOfflineTitle: '主题商店已离线',
   themeStoreEmpty: '没有符合筛选条件的主题。',
   themeStoreActive: '使用中',
   themeStoreEnlarge: '放大预览',

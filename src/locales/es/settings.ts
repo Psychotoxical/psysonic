@@ -334,6 +334,7 @@ export const settings = {
   themeStoreLoading: 'Cargando temas…',
   themeStoreError: 'No se pudo cargar la tienda de temas. Comprueba tu conexión.',
   themeStoreRetry: 'Reintentar',
+  themeStoreOfflineTitle: 'La tienda de temas está sin conexión',
   themeStoreEmpty: 'Ningún tema coincide con tus filtros.',
   themeStoreActive: 'Activo',
   themeStoreEnlarge: 'Ampliar vista previa',

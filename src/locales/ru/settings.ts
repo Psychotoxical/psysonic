@@ -414,6 +414,7 @@ export const settings = {
   themeStoreLoading: 'Загрузка тем…',
   themeStoreError: 'Не удалось загрузить магазин тем. Проверьте подключение.',
   themeStoreRetry: 'Повторить',
+  themeStoreOfflineTitle: 'Магазин тем недоступен',
   themeStoreEmpty: 'Нет тем, соответствующих фильтрам.',
   themeStoreActive: 'Активна',
   themeStoreEnlarge: 'Увеличить превью',

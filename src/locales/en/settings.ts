@@ -403,6 +403,7 @@ export const settings = {
   themeStoreLoading: 'Loading themes…',
   themeStoreError: 'Could not load the theme store. Check your connection.',
   themeStoreRetry: 'Retry',
+  themeStoreOfflineTitle: 'The Theme Store is offline',
   themeStoreEmpty: 'No themes match your filters.',
   themeStoreActive: 'Active',
   themeStoreEnlarge: 'Enlarge preview',

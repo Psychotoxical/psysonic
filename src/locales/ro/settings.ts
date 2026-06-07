@@ -338,6 +338,7 @@ export const settings = {
   themeStoreLoading: 'Se încarcă temele…',
   themeStoreError: 'Magazinul de teme nu a putut fi încărcat. Verifică conexiunea.',
   themeStoreRetry: 'Reîncearcă',
+  themeStoreOfflineTitle: 'Theme Store este offline',
   themeStoreEmpty: 'Nicio temă nu corespunde filtrelor tale.',
   themeStoreActive: 'Activă',
   themeStoreEnlarge: 'Mărește previzualizarea',

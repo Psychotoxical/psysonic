@@ -336,6 +336,7 @@ export const settings = {
   themeStoreLoading: 'Themes werden geladen…',
   themeStoreError: 'Theme-Store konnte nicht geladen werden. Prüfe deine Verbindung.',
   themeStoreRetry: 'Erneut versuchen',
+  themeStoreOfflineTitle: 'Der Theme-Store ist offline',
   themeStoreEmpty: 'Keine Themes passen zu deinen Filtern.',
   themeStoreActive: 'Aktiv',
   themeStoreEnlarge: 'Vorschau vergrößern',

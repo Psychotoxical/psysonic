@@ -143,4 +143,14 @@ describe('ThemeStoreSection — pagination & refresh', () => {
     await waitFor(() => expect(container.querySelector('.animate-spin')).toBeNull());
     expect(rows(container)).toHaveLength(12);
   });
+
+  it('shows an offline banner and hides the toolbar when the registry is unavailable', async () => {
+    fetchRegistryMock.mockRejectedValue(new Error('offline'));
+    renderWithProviders(<ThemeStoreSection />);
+
+    expect(await screen.findByText('The Theme Store is offline')).toBeInTheDocument();
+    // No catalogue to browse → the search/filter toolbar is not rendered.
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
 });

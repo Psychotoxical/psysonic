@@ -332,6 +332,7 @@ export const settings = {
   themeStoreLoading: "Thema's laden…",
   themeStoreError: 'Kan de themawinkel niet laden. Controleer je verbinding.',
   themeStoreRetry: 'Opnieuw proberen',
+  themeStoreOfflineTitle: 'De Theme Store is offline',
   themeStoreEmpty: "Geen thema's komen overeen met je filters.",
   themeStoreActive: 'Actief',
   themeStoreEnlarge: 'Voorbeeld vergroten',

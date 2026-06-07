@@ -335,6 +335,7 @@ export const settings = {
   themeStoreLoading: 'Laster temaer…',
   themeStoreError: 'Kunne ikke laste temabutikken. Sjekk tilkoblingen din.',
   themeStoreRetry: 'Prøv igjen',
+  themeStoreOfflineTitle: 'Theme Store er frakoblet',
   themeStoreEmpty: 'Ingen temaer samsvarer med filtrene dine.',
   themeStoreActive: 'Aktiv',
   themeStoreEnlarge: 'Forstørr forhåndsvisning',
