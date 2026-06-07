@@ -153,6 +153,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Cover backfill: follow the smart local/public endpoint switch so off-LAN clients stop fetching covers from the unreachable local address (PR #952)',
       'Audio: Symphonia 0.6 migration with libopus adapter 0.3; ranged-stream start latency fix (probe seek-gate) and a probe timeout so a stalled stream no longer hangs playback start (PR #999)',
       'Offline experience — unified media layout (cache/library/favorites), localPlaybackStore, library-index Offline Library, favorites auto-sync, cached album/playlist/artist pin reconcile, mixed-server offline queue, and single mediaDir setting (PR #1008)',
+      'Offline browse — local-bytes catalog when server is down, integration contract (context/policy/resolvers), disconnect nav fork, Home stale-cache feed, read-only context menus, PlayerBar rating/favorite guard (PR #1017)',
     ],
   },
   {

@@ -64,6 +64,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Offline — local-bytes browse when the server is down
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1017](https://github.com/Psychotoxical/psysonic/pull/1017)**
+
+* When the active server is unreachable, browse and detail pages read from **local playback bytes** and the **library index** instead of Subsonic — albums, artists, tracks, cached playlists, and cross-server favorites.
+* Single integration contract: `offlineBrowseContext`, `offlineActionPolicy`, and `resolveAlbum` / `resolveArtist` / `resolvePlaylist` resolvers; context menus and detail toolbars block server mutations offline.
+* Disconnect navigation forks by offline capability (stay on page, stay-reload, or redirect); Home reuses the last cached feed snapshot; DEV offline toggle simulates full disconnect for testing.
+* PlayerBar hides star rating and favorite controls while offline browse is active.
+
+
+
 ## Changed
 
 ### Dependencies — npm and Rust refresh
