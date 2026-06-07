@@ -31,6 +31,11 @@ import {
   ALBUM_YEAR_FILTER_DEBOUNCE_MS,
   resolveAlbumYearBounds,
 } from '../utils/library/albumYearFilter';
+import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import {
+  fetchOfflineLocalAlbumCatalogChunk,
+  offlineLocalBrowseEnabled,
+} from '../utils/offline/offlineLocalBrowse';
 import { useClientSliceInfiniteScroll } from './useClientSliceInfiniteScroll';
 import { useDebouncedValue } from './useDebouncedValue';
 import { useInpageScrollSentinel } from './useInpageScrollSentinel';
@@ -232,6 +237,29 @@ export function useAlbumBrowseData({
     catalogLoadingRef.current = true;
     setCatalogLoadingMore(true);
     try {
+      if (isOfflineBrowseActive()) {
+        if (!offlineLocalBrowseEnabled(serverId)) return;
+        const chunk = await fetchOfflineLocalAlbumCatalogChunk(
+          serverId,
+          query,
+          offset,
+          CATALOG_CHUNK_SIZE,
+          starredOverrides,
+        );
+        if (generation !== loadGenerationRef.current || chunk == null) return;
+        if (append) {
+          setAlbums(prev => {
+            const merged = dedupeById([...prev, ...chunk.albums]);
+            catalogOffsetRef.current = merged.length;
+            return merged;
+          });
+        } else {
+          setAlbums(chunk.albums);
+          catalogOffsetRef.current = chunk.albums.length;
+        }
+        setCatalogHasMore(chunk.hasMore);
+        return;
+      }
       const chunk = await fetchLocalAlbumCatalogChunk(serverId, query, offset, CATALOG_CHUNK_SIZE);
       if (generation !== loadGenerationRef.current || chunk == null) return;
       if (append) {
@@ -251,7 +279,7 @@ export function useAlbumBrowseData({
         setCatalogLoadingMore(false);
       }
     }
-  }, [serverId]);
+  }, [serverId, starredOverrides]);
 
   const loadBrowse = useCallback(async (
     query: AlbumBrowseQuery,
@@ -321,6 +349,34 @@ export function useAlbumBrowseData({
     setLoading(true);
 
     void (async () => {
+      if (isOfflineBrowseActive()) {
+        const generation = ++loadGenerationRef.current;
+        if (cancelled || generation !== loadGenerationRef.current) return;
+        setBrowseMode('slice');
+        if (offlineLocalBrowseEnabled(serverId)) {
+          try {
+            const first = await fetchOfflineLocalAlbumCatalogChunk(
+              serverId,
+              browseQuery,
+              0,
+              CATALOG_CHUNK_SIZE,
+              starredOverrides,
+            );
+            if (cancelled || generation !== loadGenerationRef.current) return;
+            setAlbums(first?.albums ?? []);
+            catalogOffsetRef.current = first?.albums.length ?? 0;
+            setCatalogHasMore(first?.hasMore ?? false);
+          } catch {
+            setAlbums([]);
+            setCatalogHasMore(false);
+          }
+        } else {
+          setAlbums([]);
+          setCatalogHasMore(false);
+        }
+        setLoading(false);
+        return;
+      }
       if (indexEnabled && serverId) {
         const generation = ++loadGenerationRef.current;
         coverTrafficBeginGridPagination();

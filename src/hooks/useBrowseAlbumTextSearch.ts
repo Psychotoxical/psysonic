@@ -8,6 +8,8 @@ import {
   runLocalBrowseAlbums,
   runNetworkBrowseAlbums,
 } from '../utils/library/browseTextSearch';
+import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { offlineLocalBrowseEnabled, searchOfflineLocalAlbums } from '../utils/offline/offlineLocalBrowse';
 
 /**
  * Debounced album title search with local-vs-network race when the
@@ -43,6 +45,15 @@ export function useBrowseAlbumTextSearch(
     setTextSearchLoading(true);
 
     void (async () => {
+      if (isOfflineBrowseActive()) {
+        const albums = offlineLocalBrowseEnabled(serverId)
+          ? await searchOfflineLocalAlbums(serverId, q, losslessOnly)
+          : [];
+        if (isStale()) return;
+        setTextSearchAlbums(albums);
+        setTextSearchLoading(false);
+        return;
+      }
       if (!indexEnabled) {
         const albums = await runNetworkBrowseAlbums(q);
         if (isStale()) return;

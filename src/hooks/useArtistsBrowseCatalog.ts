@@ -6,6 +6,12 @@ import {
   fetchLocalArtistCatalogChunk,
   fetchNetworkStarredArtists,
 } from '../utils/library/browseTextSearch';
+import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import {
+  fetchOfflineLocalArtistCatalogChunk,
+  fetchOfflineLocalStarredArtists,
+  offlineLocalBrowseEnabled,
+} from '../utils/offline/offlineLocalBrowse';
 
 /** Local-index artist catalog buffer grows by this many rows per background SQL chunk. */
 export const ARTIST_CATALOG_CHUNK_SIZE = 200;
@@ -41,6 +47,27 @@ export function useArtistsBrowseCatalog({
     catalogLoadingRef.current = true;
     setCatalogLoadingMore(true);
     try {
+      if (isOfflineBrowseActive()) {
+        if (!offlineLocalBrowseEnabled(serverId)) return;
+        const chunk = await fetchOfflineLocalArtistCatalogChunk(
+          serverId,
+          catalogOffsetRef.current,
+          ARTIST_CATALOG_CHUNK_SIZE,
+        );
+        if (generation !== loadGenerationRef.current || chunk == null) return;
+        if (append) {
+          setCatalogArtists(prev => {
+            const merged = dedupeById([...prev, ...chunk.artists]);
+            catalogOffsetRef.current = merged.length;
+            return merged;
+          });
+        } else {
+          setCatalogArtists(chunk.artists);
+          catalogOffsetRef.current = chunk.artists.length;
+        }
+        setCatalogHasMore(chunk.hasMore);
+        return;
+      }
       const chunk = await fetchLocalArtistCatalogChunk(
         serverId,
         catalogOffsetRef.current,
@@ -80,6 +107,27 @@ export function useArtistsBrowseCatalog({
 
     void (async () => {
       try {
+        if (isOfflineBrowseActive()) {
+          if (!cancelled && generation === loadGenerationRef.current) {
+            if (serverId && starredOnly && offlineLocalBrowseEnabled(serverId)) {
+              setCatalogArtists((await fetchOfflineLocalStarredArtists(serverId)) ?? []);
+            } else if (serverId && !starredOnly && offlineLocalBrowseEnabled(serverId)) {
+              const first = await fetchOfflineLocalArtistCatalogChunk(
+                serverId,
+                0,
+                ARTIST_CATALOG_CHUNK_SIZE,
+              );
+              setCatalogArtists(first?.artists ?? []);
+              catalogOffsetRef.current = first?.artists.length ?? 0;
+              setCatalogHasMore(first?.hasMore ?? false);
+            } else {
+              setCatalogArtists([]);
+              setCatalogHasMore(false);
+            }
+            setBrowseMode('slice');
+          }
+          return;
+        }
         if (starredOnly) {
           if (!cancelled && generation === loadGenerationRef.current) {
             setCatalogArtists(await fetchNetworkStarredArtists());

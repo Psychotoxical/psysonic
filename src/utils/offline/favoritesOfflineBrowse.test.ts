@@ -87,10 +87,13 @@ describe('favoritesOfflineBrowse', () => {
     expect(merged.songs.map(s => s.serverId)).toEqual(['srv-1', 'srv-2']);
   });
 
-  it('isOfflineSidebarLibraryNavAllowed keeps only favorites when offline', () => {
+  it('isOfflineSidebarLibraryNavAllowed gates offline sidebar entries', () => {
     expect(isOfflineSidebarLibraryNavAllowed('favorites', true)).toBe(true);
     expect(isOfflineSidebarLibraryNavAllowed('favorites', false)).toBe(false);
-    expect(isOfflineSidebarLibraryNavAllowed('albums', true)).toBe(false);
+    expect(isOfflineSidebarLibraryNavAllowed('artists', false, true)).toBe(true);
+    expect(isOfflineSidebarLibraryNavAllowed('allAlbums', false, true)).toBe(true);
+    expect(isOfflineSidebarLibraryNavAllowed('allAlbums', false, false)).toBe(false);
+    expect(isOfflineSidebarLibraryNavAllowed('offline', false, false)).toBe(true);
   });
 
   it('loadStarredFromLibraryIndex omits artist entity (no artist.starred_at in index)', async () => {

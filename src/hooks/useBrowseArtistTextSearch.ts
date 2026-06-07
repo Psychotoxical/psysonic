@@ -9,6 +9,8 @@ import {
   runNetworkBrowseArtists,
   type LibrarySearchSurface,
 } from '../utils/library/browseTextSearch';
+import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { offlineLocalBrowseEnabled, searchOfflineLocalArtists } from '../utils/offline/offlineLocalBrowse';
 
 /**
  * Debounced artist/composer name search with local-vs-network race when the
@@ -46,6 +48,15 @@ export function useBrowseArtistTextSearch(
     setTextSearchLoading(true);
 
     void (async () => {
+      if (isOfflineBrowseActive()) {
+        const artists = offlineLocalBrowseEnabled(serverId)
+          ? await searchOfflineLocalArtists(serverId, q)
+          : [];
+        if (isStale()) return;
+        setTextSearchArtists(artists);
+        setTextSearchLoading(false);
+        return;
+      }
       const outcome = await raceBrowseWithLocalFallback(
         isStale,
         () => runLocalBrowseArtists(serverId, q),

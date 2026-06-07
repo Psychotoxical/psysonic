@@ -61,3 +61,24 @@ html[data-dev-build] .app-shell[data-mobile] .dev-build-badge {
 html[data-dev-build] .app-shell[data-mobile][data-titlebar] .dev-build-badge {
   top: var(--titlebar-height);
 }
+
+html[data-dev-build] .dev-network-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+html[data-dev-build] .dev-network-mode-toggle--offline {
+  color: var(--warning, #e6a700);
+  border-color: color-mix(in srgb, var(--warning, #e6a700) 45%, var(--border));
+}

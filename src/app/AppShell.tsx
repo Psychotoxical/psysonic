@@ -11,6 +11,7 @@ import PlayerBar from '../components/PlayerBar';
 import BottomNav from '../components/BottomNav';
 import { useIsMobile } from '../hooks/useIsMobile';
 import LiveSearch from '../components/LiveSearch';
+import DevNetworkModeToggle from '../components/DevNetworkModeToggle';
 import NowPlayingDropdown from '../components/NowPlayingDropdown';
 import QueuePanel from '../components/QueuePanel';
 import AppRoutes from './AppRoutes';
@@ -257,6 +258,7 @@ export function AppShell() {
         <div className="main-content-zoom">
         <header className="content-header">
           <LiveSearch />
+          <DevNetworkModeToggle />
           <div className="spacer" />
           <ConnectionIndicator status={connStatus} isLan={isLan} serverName={serverName} />
           <LastfmIndicator />

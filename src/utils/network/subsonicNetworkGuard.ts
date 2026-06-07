@@ -1,5 +1,6 @@
 import { useAuthStore } from '../../store/authStore';
 import { resolvePlaybackUrl } from '../playback/resolvePlaybackUrl';
+import { isDevOfflineBrowseForced } from '../offline/offlineBrowseMode';
 import { isActiveServerReachable } from './activeServerReachability';
 
 /**
@@ -9,6 +10,7 @@ import { isActiveServerReachable } from './activeServerReachability';
  */
 export function shouldAttemptSubsonicForServer(serverId: string, trackId?: string): boolean {
   if (!serverId) return false;
+  if (isDevOfflineBrowseForced()) return false;
   if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
   if (trackId) {
     const url = resolvePlaybackUrl(trackId, serverId);

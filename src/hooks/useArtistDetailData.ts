@@ -8,6 +8,8 @@ import type {
 import { useAuthStore } from '../store/authStore';
 import { useConnectionStatus } from './useConnectionStatus';
 import { loadArtistFromLibraryIndex } from '../utils/offline/favoritesOfflineBrowse';
+import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { loadArtistFromLocalPlayback, offlineLocalBrowseEnabled } from '../utils/offline/offlineLocalBrowse';
 import { readDetailServerId } from '../utils/navigation/detailServerScope';
 import { runLocalArtistLosslessBrowse } from '../utils/library/browseTextSearch';
 import { isLosslessSuffix } from '../utils/library/losslessFormats';
@@ -58,9 +60,10 @@ export function useArtistDetailData(
     s => !!(serverId && s.audiomuseNavidromeByServer[serverId]),
   );
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
-  const preferLocalArtist = connStatus === 'disconnected'
-    && favoritesOfflineEnabled
-    && !!serverId;
+  const offlineBrowseActive = !!serverId && isOfflineBrowseActive();
+  const preferLocalBytesOnly = offlineBrowseActive && offlineLocalBrowseEnabled(serverId);
+  const preferLocalArtist = preferLocalBytesOnly
+    || (connStatus === 'disconnected' && favoritesOfflineEnabled && !!serverId);
 
   const [artist, setArtist] = useState<SubsonicArtist | null>(null);
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
@@ -82,14 +85,24 @@ export function useArtistDetailData(
 
     (async () => {
       try {
+        if (offlineBrowseActive && !preferLocalBytesOnly) {
+          setLoading(false);
+          return;
+        }
         if (preferLocalArtist && serverId && id) {
-          const local = await loadArtistFromLibraryIndex(serverId, id);
+          const local = preferLocalBytesOnly
+            ? await loadArtistFromLocalPlayback(serverId, id)
+            : await loadArtistFromLibraryIndex(serverId, id);
           if (cancelled) return;
           if (local) {
             setArtist(local.artist);
             setIsStarred(!!local.artist.starred);
             setAlbums(local.albums);
             setTopSongs([]);
+            setLoading(false);
+            return;
+          }
+          if (preferLocalBytesOnly) {
             setLoading(false);
             return;
           }
@@ -135,7 +148,9 @@ export function useArtistDetailData(
         if (!cancelled) {
           if (preferLocalArtist && serverId && id) {
             try {
-              const local = await loadArtistFromLibraryIndex(serverId, id);
+              const local = preferLocalBytesOnly
+                ? await loadArtistFromLocalPlayback(serverId, id)
+                : await loadArtistFromLibraryIndex(serverId, id);
               if (cancelled) return;
               if (local) {
                 setArtist(local.artist);
@@ -154,7 +169,7 @@ export function useArtistDetailData(
     })();
 
     return () => { cancelled = true; };
-  }, [id, losslessOnly, serverId, preferLocalArtist, searchParams]);
+  }, [id, losslessOnly, serverId, offlineBrowseActive, preferLocalArtist, preferLocalBytesOnly, searchParams]);
 
   useEffect(() => {
     if (!id || preferLocalArtist) return;

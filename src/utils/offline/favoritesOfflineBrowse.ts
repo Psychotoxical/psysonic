@@ -18,6 +18,8 @@ import {
   trackToSong,
 } from '../library/advancedSearchLocal';
 import { dedupeById } from '../dedupeById';
+import { isOfflineBrowseActive } from './offlineBrowseMode';
+import { loadAlbumFromLocalPlayback, offlineLocalBrowseEnabled } from './offlineLocalBrowse';
 import { countFavoriteAutoTracks, hasAnyOfflineAlbums } from './offlineLibraryHelpers';
 
 /** Saved servers with a local library index (cross-server favorites scope). */
@@ -37,8 +39,11 @@ export function favoritesOfflineBrowseEnabled(): boolean {
 export function isOfflineSidebarLibraryNavAllowed(
   navId: string,
   favoritesOfflineBrowse: boolean,
+  localLibraryBrowse = false,
 ): boolean {
   if (navId === 'favorites') return favoritesOfflineBrowse;
+  if (navId === 'artists' || navId === 'allAlbums') return localLibraryBrowse;
+  if (navId === 'offline') return true;
   return false;
 }
 
@@ -149,6 +154,9 @@ export async function resolveAlbumForServer(
   serverId: string,
   albumId: string,
 ): Promise<{ album: SubsonicAlbum; songs: SubsonicSong[] } | null> {
+  if (isOfflineBrowseActive() && offlineLocalBrowseEnabled(serverId)) {
+    return loadAlbumFromLocalPlayback(serverId, albumId);
+  }
   const favoritesOffline = useAuthStore.getState().favoritesOfflineEnabled;
   const networkAllowed = shouldAttemptSubsonicForServer(serverId);
 

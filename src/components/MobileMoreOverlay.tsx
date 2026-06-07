@@ -8,6 +8,8 @@ import { useOfflineStore } from '../store/offlineStore';
 import { ALL_NAV_ITEMS } from '../config/navItems';
 import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
 import { isOfflineSidebarLibraryNavAllowed } from '../utils/offline/favoritesOfflineBrowse';
+import { isDevOfflineBrowseForced } from '../utils/offline/offlineBrowseMode';
+import { offlineLocalBrowseEnabled } from '../utils/offline/offlineLocalBrowse';
 import { hasAnyOfflineAlbums } from '../utils/offline/offlineLibraryHelpers';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
@@ -22,8 +24,9 @@ export default function MobileMoreOverlay({ onClose }: { onClose: () => void }) 
   const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
   const libraryIndexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const favoritesOfflineBrowse = favoritesOfflineEnabled && libraryIndexEnabled;
+  const localLibraryBrowse = offlineLocalBrowseEnabled(serverId);
   const { status: connStatus } = useConnectionStatus();
-  const isServerOffline = connStatus === 'disconnected';
+  const isServerOffline = connStatus === 'disconnected' || isDevOfflineBrowseForced();
   const offlineAlbums = useOfflineStore(s => s.albums);
   const hasOfflineContent = hasAnyOfflineAlbums(offlineAlbums);
   const luckyMixBase = useLuckyMixAvailable();
@@ -38,7 +41,7 @@ export default function MobileMoreOverlay({ onClose }: { onClose: () => void }) 
       if (randomNavMode === 'hub' && (cfg.id === 'randomMix' || cfg.id === 'randomAlbums')) return false;
       if (randomNavMode === 'separate' && cfg.id === 'randomPicker') return false;
       if (cfg.id === 'luckyMix' && !luckyMixAvailable) return false;
-      if (isServerOffline && !isOfflineSidebarLibraryNavAllowed(cfg.id, favoritesOfflineBrowse)) {
+      if (isServerOffline && !isOfflineSidebarLibraryNavAllowed(cfg.id, favoritesOfflineBrowse, localLibraryBrowse)) {
         return false;
       }
       return true;
