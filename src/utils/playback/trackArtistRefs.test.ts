@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Track } from '../../store/playerStoreTypes';
 import { primaryTrackArtistRef, resolveTrackArtistRefs } from './trackArtistRefs';
 
 describe('resolveTrackArtistRefs', () => {
@@ -20,6 +21,14 @@ describe('resolveTrackArtistRefs', () => {
 
   it('returns name-only ref when no id', () => {
     expect(resolveTrackArtistRefs({ artist: 'Unknown' })).toEqual([{ name: 'Unknown' }]);
+  });
+
+  it('coerces a single-object OpenSubsonic artists payload', () => {
+    expect(resolveTrackArtistRefs({
+      artist: 'Joined',
+      artistId: 'legacy',
+      artists: { id: 'a1', name: 'Solo' } as unknown as Track['artists'],
+    })).toEqual([{ id: 'a1', name: 'Solo' }]);
   });
 });
 

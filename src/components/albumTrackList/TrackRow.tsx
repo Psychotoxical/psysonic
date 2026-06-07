@@ -15,6 +15,7 @@ import { formatLongDuration } from '../../utils/format/formatDuration';
 import { formatLastSeen } from '../../utils/componentHelpers/userMgmtHelpers';
 import i18n from '../../i18n';
 import { offlineActionPolicy, type OfflineActionPolicy } from '../../utils/offline/offlineActionPolicy';
+import { resolveTrackArtistRefs } from '../../utils/playback/trackArtistRefs';
 
 type ContextMenuFn = (
   x: number,
@@ -137,9 +138,7 @@ export const TrackRow = React.memo(function TrackRow({
           </div>
         );
       case 'artist': {
-        const artistRefs = song.artists && song.artists.length > 0
-          ? song.artists
-          : [{ id: song.artistId, name: song.artist }];
+        const artistRefs = resolveTrackArtistRefs(song);
         return (
           <div key="artist" className="track-artist-cell">
             {artistRefs.map((a, i) => (

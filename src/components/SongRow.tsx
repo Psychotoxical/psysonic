@@ -10,6 +10,7 @@ import { enqueueAndPlay } from '../utils/playback/playSong';
 import { useDragDrop } from '../contexts/DragDropContext';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import { formatTrackTime } from '../utils/format/formatDuration';
+import { resolveTrackArtistRefs } from '../utils/playback/trackArtistRefs';
 import { tooltipAttrs } from './tooltipAttrs';
 
 interface Props {
@@ -39,12 +40,7 @@ function SongRow({ song, showBpm }: Props) {
     enqueue([songToTrack(song)]);
   };
 
-  // Split multi-artist tracks into individually clickable links (OpenSubsonic
-  // `artists[]`), falling back to the single flat artist when absent — mirrors
-  // the album tracklist so a "A · B" credit isn't one link to a single artist.
-  const artistRefs = song.artists && song.artists.length > 0
-    ? song.artists
-    : [{ id: song.artistId, name: song.artist }];
+  const artistRefs = resolveTrackArtistRefs(song);
 
   const bpmTooltip =
     song.localBpmSource === 'analysis'

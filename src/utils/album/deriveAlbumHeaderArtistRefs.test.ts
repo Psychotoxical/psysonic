@@ -29,6 +29,14 @@ describe('deriveAlbumArtistRefs', () => {
     expect(deriveAlbumArtistRefs({ ...baseAlbum(), artistId: '   ', artist: 'Solo' }))
       .toEqual([{ name: 'Solo' }]);
   });
+
+  it('coerces a single-object OpenSubsonic artists payload', () => {
+    const album: SubsonicAlbum = {
+      ...baseAlbum(),
+      artists: { id: 'a1', name: 'Solo' } as unknown as SubsonicAlbum['artists'],
+    };
+    expect(deriveAlbumArtistRefs(album)).toEqual([{ id: 'a1', name: 'Solo' }]);
+  });
 });
 
 describe('deriveAlbumHeaderArtistRefs', () => {

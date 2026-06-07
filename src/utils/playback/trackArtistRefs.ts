@@ -1,12 +1,14 @@
 import type { SubsonicOpenArtistRef } from '../../api/subsonicTypes';
 import type { Track } from '../../store/playerStoreTypes';
+import { coerceOpenArtistRefs } from '../openArtistRefs';
 
 type TrackArtistFields = Pick<Track, 'artist' | 'artistId' | 'artists'>;
 
 /** OpenSubsonic `artists` when present; else legacy `artistId` + `artist` (album track rows). */
 export function resolveTrackArtistRefs(track: TrackArtistFields): SubsonicOpenArtistRef[] {
-  if (track.artists && track.artists.length > 0) {
-    return track.artists;
+  const structured = coerceOpenArtistRefs(track.artists);
+  if (structured.length > 0) {
+    return structured;
   }
   const id = track.artistId?.trim();
   if (id) {

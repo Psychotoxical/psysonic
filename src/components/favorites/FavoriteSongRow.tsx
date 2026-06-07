@@ -8,6 +8,8 @@ import { formatLastSeen } from '../../utils/componentHelpers/userMgmtHelpers';
 import i18n from '../../i18n';
 import { formatTrackTime } from '../../utils/format/formatDuration';
 import StarRating from '../StarRating';
+import { OpenArtistRefInline } from '../OpenArtistRefInline';
+import { resolveTrackArtistRefs } from '../../utils/playback/trackArtistRefs';
 
 export interface FavoriteSongRowCallbacks {
   activate: (song: SubsonicSong, index: number, e: React.MouseEvent) => void;
@@ -100,7 +102,15 @@ function FavoriteSongRow({
           );
           case 'artist': return (
             <div key="artist" className="track-artist-cell">
-              <span className={`track-artist${song.artistId ? ' track-artist-link' : ''}`} style={{ cursor: song.artistId ? 'pointer' : 'default' }} onClick={e => { if (song.artistId) { e.stopPropagation(); cb.navArtist(song.artistId, song.serverId); } }}>{song.artist}</span>
+              <OpenArtistRefInline
+                refs={resolveTrackArtistRefs(song)}
+                fallbackName={song.artist}
+                onGoArtist={id => cb.navArtist(id, song.serverId)}
+                as="none"
+                linkTag="span"
+                linkClassName="track-artist track-artist-link"
+                separatorClassName="track-artist-sep"
+              />
             </div>
           );
           case 'album': return (

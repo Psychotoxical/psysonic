@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { SubsonicSong } from '../../api/subsonicTypes';
+import { resolveTrackArtistRefs } from '../../utils/playback/trackArtistRefs';
 
 /**
  * Multi-artist credit for playlist track rows (main list + suggestions).
@@ -11,9 +12,7 @@ import type { SubsonicSong } from '../../api/subsonicTypes';
  */
 export function PlaylistArtistCell({ song }: { song: SubsonicSong }) {
   const navigate = useNavigate();
-  const artistRefs = song.artists && song.artists.length > 0
-    ? song.artists
-    : [{ id: song.artistId, name: song.artist }];
+  const artistRefs = useMemo(() => resolveTrackArtistRefs(song), [song]);
   return (
     <div className="track-artist-cell">
       {artistRefs.map((a, i) => (

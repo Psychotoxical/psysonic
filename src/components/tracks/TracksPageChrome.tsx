@@ -13,6 +13,8 @@ import { ndListSongs, ndInvalidateSongsCache } from '../../api/navidromeBrowse';
 import { usePerfProbeFlags } from '../../utils/perf/perfFlags';
 import { useNavigateToAlbum } from '../../hooks/useNavigateToAlbum';
 import { useNavigateToArtist } from '../../hooks/useNavigateToArtist';
+import { OpenArtistRefInline } from '../OpenArtistRefInline';
+import { resolveTrackArtistRefs } from '../../utils/playback/trackArtistRefs';
 
 const RANDOM_RAIL_SIZE = 18;
 const RATED_RAIL_FETCH = 60;
@@ -105,13 +107,7 @@ export default function TracksPageChrome({
     [random, hero],
   );
 
-  // Split a multi-artist feature into individually clickable links
-  // (OpenSubsonic `artists[]`), falling back to the single flat artist.
-  const heroArtistRefs = hero
-    ? (hero.artists && hero.artists.length > 0
-        ? hero.artists
-        : [{ id: hero.artistId, name: hero.artist }])
-    : [];
+  const heroArtistRefs = hero ? resolveTrackArtistRefs(hero) : [];
 
   return (
     <>
@@ -148,16 +144,15 @@ export default function TracksPageChrome({
             </span>
             <h2 className="tracks-hero-title" title={hero.title}>{hero.title}</h2>
             <p className="tracks-hero-meta">
-              {heroArtistRefs.map((a, i) => (
-                <React.Fragment key={a.id ?? a.name ?? i}>
-                  {i > 0 && <span className="track-artist-sep">&nbsp;·&nbsp;</span>}
-                  <span
-                    className={a.id ? 'track-artist-link' : ''}
-                    style={{ cursor: a.id ? 'pointer' : 'default' }}
-                    onClick={() => a.id && navigateToArtist(a.id)}
-                  >{a.name ?? hero.artist}</span>
-                </React.Fragment>
-              ))}
+              <OpenArtistRefInline
+                refs={heroArtistRefs}
+                fallbackName={hero.artist}
+                onGoArtist={id => navigateToArtist(id)}
+                as="none"
+                linkTag="span"
+                linkClassName="track-artist-link"
+                separatorClassName="track-artist-sep"
+              />
               {hero.album && (
                 <>
                   <span className="tracks-hero-meta-dot">·</span>

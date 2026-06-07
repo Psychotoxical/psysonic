@@ -1,7 +1,6 @@
 import type { SubsonicSong } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
-import React, { memo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { memo, useMemo } from 'react';
 import { Play, ListPlus, Star, Disc3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../store/playerStore';
@@ -13,6 +12,9 @@ import { enqueueAndPlay } from '../utils/playback/playSong';
 import { useDragDrop } from '../contexts/DragDropContext';
 import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import { useNavigateToAlbum } from '../hooks/useNavigateToAlbum';
+import { useNavigateToArtist } from '../hooks/useNavigateToArtist';
+import { OpenArtistRefInline } from './OpenArtistRefInline';
+import { resolveTrackArtistRefs } from '../utils/playback/trackArtistRefs';
 
 interface SongCardProps {
   song: SubsonicSong;
@@ -31,7 +33,7 @@ function SongCard({
 }: SongCardProps) {
   const layoutPx = artworkSize ?? displayCssPx;
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const navigateToArtist = useNavigateToArtist();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const enqueue = usePlayerStore(s => s.enqueue);
   const coverRef = useTrackCoverRef(song, undefined, { libraryResolve: false });
@@ -55,12 +57,7 @@ function SongCard({
   };
 
   const handleClick = handlePlay;
-
-  const handleArtistClick = (e: React.MouseEvent) => {
-    if (!song.artistId) return;
-    e.stopPropagation();
-    navigate(`/artist/${song.artistId}`);
-  };
+  const artistRefs = useMemo(() => resolveTrackArtistRefs(song), [song]);
 
   const handleAlbumClick = (e: React.MouseEvent) => {
     if (!song.albumId) return;
@@ -142,12 +139,16 @@ function SongCard({
       </div>
       <div className="song-card-info">
         <p className="song-card-title truncate" title={song.title}>{song.title}</p>
-        <p
-          className={`song-card-artist truncate${song.artistId ? ' track-artist-link' : ''}`}
-          style={{ cursor: song.artistId ? 'pointer' : 'default' }}
-          onClick={handleArtistClick}
-          title={song.artist}
-        >{song.artist}</p>
+        <p className="song-card-artist truncate" title={song.artist}>
+          <OpenArtistRefInline
+            refs={artistRefs}
+            fallbackName={song.artist}
+            onGoArtist={id => navigateToArtist(id)}
+            as="none"
+            linkTag="span"
+            linkClassName="track-artist-link"
+          />
+        </p>
         {song.albumId && (
           <button
             type="button"

@@ -1,5 +1,6 @@
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import type { Track } from '../../store/playerStoreTypes';
+import { coerceOpenArtistRefs } from '../openArtistRefs';
 import { activeServerProfileId } from './trackServerScope';
 
 export function songToTrack(song: SubsonicSong): Track {
@@ -10,7 +11,10 @@ export function songToTrack(song: SubsonicSong): Track {
     album: song.album,
     albumId: song.albumId,
     artistId: song.artistId,
-    artists: song.artists && song.artists.length > 0 ? song.artists : undefined,
+    artists: (() => {
+      const artists = coerceOpenArtistRefs(song.artists);
+      return artists.length > 0 ? artists : undefined;
+    })(),
     duration: song.duration,
     coverArt: song.coverArt,
     discNumber: song.discNumber,

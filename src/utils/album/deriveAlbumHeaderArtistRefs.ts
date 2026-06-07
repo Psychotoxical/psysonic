@@ -1,7 +1,8 @@
 import type { SubsonicAlbum, SubsonicOpenArtistRef, SubsonicSong } from '../../api/subsonicTypes';
+import { coerceOpenArtistRefs } from '../openArtistRefs';
 
-function nonEmpty(refs: SubsonicOpenArtistRef[] | undefined): refs is SubsonicOpenArtistRef[] {
-  return !!refs && refs.length > 0;
+function nonEmpty(refs: SubsonicOpenArtistRef[]): refs is SubsonicOpenArtistRef[] {
+  return refs.length > 0;
 }
 
 /**
@@ -10,7 +11,8 @@ function nonEmpty(refs: SubsonicOpenArtistRef[] | undefined): refs is SubsonicOp
  * OpenSubsonic `artists` array; falls back to legacy `artist` + `artistId`.
  */
 export function deriveAlbumArtistRefs(album: SubsonicAlbum): SubsonicOpenArtistRef[] {
-  if (nonEmpty(album.artists)) return album.artists;
+  const albumArtists = coerceOpenArtistRefs(album.artists);
+  if (nonEmpty(albumArtists)) return albumArtists;
   const name = album.artist?.trim() || '—';
   const id = album.artistId?.trim();
   return id ? [{ id, name }] : [{ name }];
@@ -26,9 +28,11 @@ export function deriveAlbumHeaderArtistRefs(
   album: SubsonicAlbum,
   songs: SubsonicSong[],
 ): SubsonicOpenArtistRef[] {
-  if (nonEmpty(album.artists)) return album.artists;
+  const albumArtists = coerceOpenArtistRefs(album.artists);
+  if (nonEmpty(albumArtists)) return albumArtists;
   for (const s of songs) {
-    if (nonEmpty(s.albumArtists)) return s.albumArtists;
+    const songAlbumArtists = coerceOpenArtistRefs(s.albumArtists);
+    if (nonEmpty(songAlbumArtists)) return songAlbumArtists;
   }
   return deriveAlbumArtistRefs(album);
 }

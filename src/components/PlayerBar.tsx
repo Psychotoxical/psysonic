@@ -28,6 +28,8 @@ import PlaybackScheduleBadge from './PlaybackScheduleBadge';
 import { usePlaybackScheduleRemaining } from '../utils/format/playbackScheduleFormat';
 import { usePreviewStore } from '../store/previewStore';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
+import { coerceOpenArtistRefs } from '../utils/openArtistRefs';
+import { resolveTrackArtistRefs } from '../utils/playback/trackArtistRefs';
 import { formatTrackTime } from '../utils/format/formatDuration';
 import { PlayerTrackInfo } from './playerBar/PlayerTrackInfo';
 import { PlayerTransportControls } from './playerBar/PlayerTransportControls';
@@ -146,8 +148,8 @@ export default function PlayerBar() {
   const showPreviewMeta = isPreviewing && !isRadio && previewingTrack !== null;
   const displayTitle = showPreviewMeta ? previewingTrack!.title : (currentTrack?.title ?? t('player.noTitle'));
   const displayArtist = showPreviewMeta ? previewingTrack!.artist : (currentTrack?.artist ?? '—');
-  const displayArtistRefs = !showPreviewMeta && currentTrack?.artists && currentTrack.artists.length > 0
-    ? currentTrack.artists
+  const displayArtistRefs = !showPreviewMeta && currentTrack && coerceOpenArtistRefs(currentTrack.artists).length > 0
+    ? resolveTrackArtistRefs(currentTrack)
     : undefined;
 
   const coverArtId = showPreviewMeta
