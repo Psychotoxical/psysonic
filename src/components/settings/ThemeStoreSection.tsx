@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, Download, RefreshCw, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Download, RefreshCw, Trash2 } from 'lucide-react';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
 import CoverLightbox from '../CoverLightbox';
 import { useThemeStore } from '../../store/themeStore';
@@ -19,6 +19,9 @@ type ModeFilter = 'all' | 'dark' | 'light';
 
 const THEMES_REPO_URL = 'https://github.com/Psysonic/psysonic-themes';
 
+/** Themes shown per page — the catalogue is large enough to paginate. */
+const PAGE_SIZE = 12;
+
 /**
  * The community Theme Store: browse the jsDelivr-hosted registry, filter by name
  * and light/dark, install (fetch + persist + runtime inject), apply, update and
@@ -34,21 +37,30 @@ export function ThemeStoreSection() {
   const [themes, setThemes] = useState<RegistryTheme[] | null>(null);
   const [generatedAt, setGeneratedAt] = useState('');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [stale, setStale] = useState(false);
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<ModeFilter>('all');
+  const [page, setPage] = useState(1);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [failedId, setFailedId] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ src: string; name: string } | null>(null);
+  const topRef = useRef<HTMLDivElement>(null);
 
+  // A manual refresh must not unmount the list: blanking it collapses the
+  // scroll viewport's content height, which clamps scrollTop to 0 — i.e. the
+  // page jumps to the top. So keep the existing list mounted (`refreshing`,
+  // shown only via the spinning icon) and reserve the full-page loading/error
+  // placeholders for the initial load, when there is nothing to show anyway.
   const load = (force = false) => {
-    setLoading(true);
+    if (force) setRefreshing(true);
+    else setLoading(true);
     setError(false);
     fetchRegistry({ force })
       .then(r => { setThemes(r.registry.themes); setGeneratedAt(r.registry.generatedAt); setStale(r.stale); })
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
+      .catch(() => { if (force) setStale(true); else setError(true); })
+      .finally(() => { setLoading(false); setRefreshing(false); });
   };
 
   // Thumbnails live at a stable CDN path, so the webview caches them hard
@@ -80,6 +92,22 @@ export function ThemeStoreSection() {
       );
     }).sort((a, b) => a.name.localeCompare(b.name));
   }, [themes, query, mode]);
+
+  // A changed filter can shrink the result set below the current page; reset to
+  // the first page whenever the query or mode filter changes.
+  useEffect(() => { setPage(1); }, [query, mode]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  // Clamp defensively so a stale `page` (e.g. after the registry shrank) never
+  // points past the end and shows a blank list.
+  const safePage = Math.min(page, pageCount);
+  const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const goToPage = (n: number) => {
+    setPage(Math.min(Math.max(1, n), pageCount));
+    // Start the new page from the top of the store instead of mid-scroll.
+    topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const handleInstall = async (th: RegistryTheme) => {
     setBusyId(th.id);
@@ -132,7 +160,7 @@ export function ThemeStoreSection() {
       </div>
 
       {/* Toolbar: search + mode filter + refresh */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: '1rem' }}>
+      <div ref={topRef} style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: '1rem', scrollMarginTop: 8 }}>
         <input
           type="search"
           className="input"
@@ -159,12 +187,12 @@ export function ThemeStoreSection() {
           className="btn btn-ghost"
           style={{ padding: '4px 10px' }}
           onClick={() => load(true)}
-          disabled={loading}
+          disabled={loading || refreshing}
           aria-label={t('settings.themeStoreRefresh')}
           data-tooltip={t('settings.themeStoreRefresh')}
           data-tooltip-pos="left"
         >
-          <RefreshCw size={15} />
+          <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
         </button>
       </div>
 
@@ -191,7 +219,7 @@ export function ThemeStoreSection() {
 
       {!loading && !error && filtered.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {filtered.map(th => {
+          {pageItems.map(th => {
             const inst = installedMap.get(th.id);
             const isInstalled = !!inst;
             const updateAvailable = isInstalled && isNewer(th.version, inst!.version);
@@ -295,6 +323,36 @@ export function ThemeStoreSection() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {!loading && !error && pageCount > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 16 }}>
+          <button
+            className="btn btn-ghost"
+            style={{ padding: '4px 10px' }}
+            onClick={() => goToPage(safePage - 1)}
+            disabled={safePage <= 1}
+            aria-label={t('settings.themeStorePagePrev')}
+            data-tooltip={t('settings.themeStorePagePrev')}
+            data-tooltip-pos="top"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <span role="status" style={{ fontSize: 12.5, color: 'var(--text-muted)', minWidth: 96, textAlign: 'center' }}>
+            {t('settings.themeStorePageStatus', { page: safePage, total: pageCount })}
+          </span>
+          <button
+            className="btn btn-ghost"
+            style={{ padding: '4px 10px' }}
+            onClick={() => goToPage(safePage + 1)}
+            disabled={safePage >= pageCount}
+            aria-label={t('settings.themeStorePageNext')}
+            data-tooltip={t('settings.themeStorePageNext')}
+            data-tooltip-pos="top"
+          >
+            <ChevronRight size={16} />
+          </button>
         </div>
       )}
 
