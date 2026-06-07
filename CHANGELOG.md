@@ -107,6 +107,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### PsyLab — Performance Probe rename, Tuning tab, and log tools
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1027](https://github.com/Psychotoxical/psysonic/pull/1027)**
+
+* **Ctrl+Shift+D** opens **PsyLab** (formerly Performance Probe). Cover backfill thread tuning moved to a new **Tuning** tab.
+* **Logs** tab: selectable text, toolbar copy/export, and a context-menu **Copy** for the current selection.
+* Runtime log lines are sanitized before they enter the buffer — Subsonic/auth tokens and remote hostnames are redacted or partially masked; LAN and localhost addresses stay readable.
+
+
+
 ## Fixed
 
 ### Servers — complete border on the active server card
