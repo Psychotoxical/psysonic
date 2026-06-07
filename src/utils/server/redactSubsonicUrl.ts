@@ -3,7 +3,7 @@
  * (`t` salt, `s` token hash, `p` password when present.)
  */
 export function redactSubsonicUrlForLog(url: string): string {
-  if (!url || !url.includes('stream.view')) return url;
+  if (!url) return url;
   try {
     const u = new URL(url);
     // Placeholder must stay URL-safe (no `<>` — URLSearchParams percent-encodes them).

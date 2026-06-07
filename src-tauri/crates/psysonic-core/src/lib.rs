@@ -5,6 +5,7 @@
 //! between `psysonic-audio`, `psysonic-analysis`, and other domain crates.
 
 pub mod cover_cache_layout;
+pub mod log_sanitize;
 pub mod media_layout;
 pub mod logging;
 pub mod ports;

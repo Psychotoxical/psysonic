@@ -17,6 +17,7 @@ import { useAuthStore } from '../../../store/authStore';
 import type { LoggingMode } from '../../../store/authStoreTypes';
 import CustomSelect from '../../CustomSelect';
 import { filterLogLines } from '../../../utils/perf/filterLogLines';
+import { sanitizeLogLine } from '../../../utils/perf/sanitizeLogLine';
 
 function formatLogLinesText(lines: RuntimeLogLine[]): string {
   return lines.map(line => line.text).join('\n');
@@ -95,7 +96,13 @@ export default function SidebarPerfProbeLogsTab() {
           if (!cancelled && tail.lines.length > 0) {
             lastSeqRef.current = tail.lastSeq;
             setLines(prev => {
-              const next = [...prev, ...tail.lines];
+              const next = [
+                ...prev,
+                ...tail.lines.map(line => ({
+                  ...line,
+                  text: sanitizeLogLine(line.text),
+                })),
+              ];
               // Only trim from the top while following; otherwise keep history
               // under the reader's viewport up to the hard ceiling.
               const cap = followRef.current ? lineCapRef.current : MAX_BUFFER;

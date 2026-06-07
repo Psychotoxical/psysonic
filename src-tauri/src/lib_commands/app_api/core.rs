@@ -49,8 +49,8 @@ pub(crate) struct LogTailDto {
     pub dropped: bool,
 }
 
-/// Incremental tail of the in-memory runtime log buffer for the Performance
-/// Probe Logs tab. `after_seq` is the highest seq the UI already has (omit for
+/// Incremental tail of the in-memory runtime log buffer for the PsyLab Logs tab.
+/// `after_seq` is the highest seq the UI already has (omit for
 /// the initial fetch of the most recent `max` lines).
 #[tauri::command]
 pub(crate) fn tail_runtime_logs(after_seq: Option<u64>, max: Option<usize>) -> LogTailDto {
