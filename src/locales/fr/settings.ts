@@ -323,6 +323,7 @@ export const settings = {
   themeStoreTitle: 'Boutique de thèmes',
   themeStoreSubmitText: "Vous avez créé votre propre thème ? Partagez-le avec la communauté — plus d'infos dans le dépôt de thèmes.",
   themeStoreSubmitLink: 'Ouvrir le dépôt de thèmes',
+  themeStoreNetworkNotice: 'Le Theme Store charge son catalogue et ses aperçus depuis des services externes (le CDN jsDelivr et GitHub). Aucune donnée personnelle n’est envoyée.',
   themeStoreSearchPlaceholder: 'Rechercher des thèmes…',
   themeStoreFilterMode: 'Filtrer par mode',
   themeStoreModeAll: 'Tous',

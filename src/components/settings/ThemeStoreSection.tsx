@@ -159,6 +159,11 @@ export function ThemeStoreSection() {
         </button>
       </div>
 
+      {/* Network disclosure — the store reaches external services. */}
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 1rem', lineHeight: 1.5 }}>
+        {t('settings.themeStoreNetworkNotice')}
+      </p>
+
       {/* Toolbar: search + mode filter + refresh. Hidden when offline with no
           catalogue to browse — the offline banner below stands in for it. */}
       {!error && (

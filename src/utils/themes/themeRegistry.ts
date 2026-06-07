@@ -7,6 +7,10 @@
 
 const CDN_BASE = 'https://cdn.jsdelivr.net/gh/Psysonic/psysonic-themes@main';
 const REGISTRY_URL = `${CDN_BASE}/registry.json`;
+// GitHub raw serves with a ~5-minute cache (vs jsDelivr's up-to-12h @main edge)
+// and permissive CORS. Used only on a manual refresh so freshly merged themes
+// appear without waiting on — or purging — the shared CDN edge.
+const RAW_REGISTRY_URL = 'https://raw.githubusercontent.com/Psysonic/psysonic-themes/main/registry.json';
 const CACHE_KEY = 'psysonic_theme_registry_cache';
 const TTL_MS = 12 * 60 * 60 * 1000; // 12h — matches jsDelivr's @main edge cache
 
@@ -81,17 +85,23 @@ export async function fetchRegistry(opts?: { force?: boolean }): Promise<FetchRe
     const cached = readCache();
     if (cached && Date.now() - cached.ts < TTL_MS) return { registry: cached.registry, stale: false };
   }
-  try {
-    const res = await fetch(REGISTRY_URL, { cache: 'no-cache' });
-    if (!res.ok) throw new Error(`registry fetch failed: ${res.status}`);
-    const registry = (await res.json()) as Registry;
-    writeCache(registry);
-    return { registry, stale: false };
-  } catch (err) {
-    const cached = readCache();
-    if (cached) return { registry: cached.registry, stale: true };
-    throw err;
+  // On a manual refresh, try GitHub raw first (fresher) then fall back to the
+  // jsDelivr CDN; normal loads use the CDN only.
+  const sources = opts?.force ? [RAW_REGISTRY_URL, REGISTRY_URL] : [REGISTRY_URL];
+  for (const url of sources) {
+    try {
+      const res = await fetch(url, { cache: 'no-cache' });
+      if (!res.ok) continue;
+      const registry = (await res.json()) as Registry;
+      writeCache(registry);
+      return { registry, stale: false };
+    } catch {
+      // try the next source
+    }
   }
+  const cached = readCache();
+  if (cached) return { registry: cached.registry, stale: true };
+  throw new Error('registry fetch failed');
 }
 
 /** Fetch a single theme's CSS text from the CDN (repo-relative path). */

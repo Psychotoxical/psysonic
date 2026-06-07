@@ -405,6 +405,7 @@ export const settings = {
   themeStoreTitle: 'Магазин тем',
   themeStoreSubmitText: 'Создали свою тему? Поделитесь с сообществом — подробности в репозитории тем.',
   themeStoreSubmitLink: 'Открыть репозиторий тем',
+  themeStoreNetworkNotice: 'Магазин тем загружает каталог и превью с внешних сервисов (CDN jsDelivr и GitHub). Личные данные не отправляются.',
   themeStoreSearchPlaceholder: 'Поиск тем…',
   themeStoreFilterMode: 'Фильтр по режиму',
   themeStoreModeAll: 'Все',

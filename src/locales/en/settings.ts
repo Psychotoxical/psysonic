@@ -394,6 +394,7 @@ export const settings = {
   themeStoreTitle: 'Theme Store',
   themeStoreSubmitText: 'Made your own theme? Share it with the community — more info in the themes repository.',
   themeStoreSubmitLink: 'Open the themes repository',
+  themeStoreNetworkNotice: 'The Theme Store loads its catalogue and previews from external services (the jsDelivr CDN and GitHub). No personal data is sent.',
   themeStoreSearchPlaceholder: 'Search themes…',
   themeStoreFilterMode: 'Filter by mode',
   themeStoreModeAll: 'All',

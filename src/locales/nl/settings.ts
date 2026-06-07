@@ -323,6 +323,7 @@ export const settings = {
   themeStoreTitle: 'Themawinkel',
   themeStoreSubmitText: 'Eigen thema gemaakt? Deel het met de community — meer info in de themarepository.',
   themeStoreSubmitLink: 'Themarepository openen',
+  themeStoreNetworkNotice: 'De Theme Store laadt de catalogus en previews van externe diensten (de jsDelivr-CDN en GitHub). Er worden geen persoonlijke gegevens verzonden.',
   themeStoreSearchPlaceholder: "Thema's zoeken…",
   themeStoreFilterMode: 'Filteren op modus',
   themeStoreModeAll: 'Alle',

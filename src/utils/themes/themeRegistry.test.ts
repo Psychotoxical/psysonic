@@ -84,4 +84,31 @@ describe('fetchRegistry', () => {
     expect(r.registry.generatedAt).toBe('fresh2');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('force-refresh tries GitHub raw first', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => { calls.push(url); return okRes(reg('forced')); }));
+
+    await fetchRegistry({ force: true });
+    expect(calls[0]).toContain('raw.githubusercontent.com');
+  });
+
+  it('force-refresh falls back to jsDelivr when raw fails', async () => {
+    const fetchMock = vi.fn(async (url: string) =>
+      url.includes('raw.githubusercontent.com') ? failRes() : okRes(reg('cdn')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const r = await fetchRegistry({ force: true });
+    expect(r.registry.generatedAt).toBe('cdn');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('non-force load uses the CDN only (not raw)', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => { calls.push(url); return okRes(reg('cdn')); }));
+
+    await fetchRegistry();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).not.toContain('raw.githubusercontent.com');
+  });
 });

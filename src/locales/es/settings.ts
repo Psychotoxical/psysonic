@@ -325,6 +325,7 @@ export const settings = {
   themeStoreTitle: 'Tienda de temas',
   themeStoreSubmitText: '¿Has creado tu propio tema? Compártelo con la comunidad — más información en el repositorio de temas.',
   themeStoreSubmitLink: 'Abrir el repositorio de temas',
+  themeStoreNetworkNotice: 'La tienda de temas carga el catálogo y las vistas previas desde servicios externos (la CDN de jsDelivr y GitHub). No se envían datos personales.',
   themeStoreSearchPlaceholder: 'Buscar temas…',
   themeStoreFilterMode: 'Filtrar por modo',
   themeStoreModeAll: 'Todos',
