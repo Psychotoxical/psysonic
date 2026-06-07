@@ -32,6 +32,28 @@ export default function App() {
     syncInjectedThemes(installedThemes);
   }, [installedThemes]);
 
+  // Dev only: `--theme-watch <theme.css>` (debug builds) pushes a local theme's
+  // CSS in on every save. Install it under the id in its `[data-theme='<id>']`
+  // selector and apply it — the syncInjectedThemes effect above re-injects, so
+  // authoring is live without re-importing a zip. Never wired in production.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    let unlisten: (() => void) | undefined;
+    void import('@tauri-apps/api/event').then(({ listen }) => {
+      const sub = listen<string>('theme-watch:css', ({ payload }) => {
+        const id = payload.match(/\[data-theme=['"]([^'"]+)['"]\]/)?.[1];
+        if (!id) return;
+        useInstalledThemesStore.getState().install({
+          id, name: id, author: 'dev', version: '0.0.0', description: '', mode: 'dark', css: payload, installedAt: Date.now(),
+        });
+        useThemeStore.getState().setTheme(id);
+      });
+      // Guard the mocked-in-tests case where listen() isn't a promise.
+      if (sub && typeof sub.then === 'function') sub.then(u => { unlisten = u; });
+    }).catch(() => {});
+    return () => unlisten?.();
+  }, []);
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', effectiveTheme);
   }, [effectiveTheme]);

@@ -115,6 +115,38 @@ pub fn run() {
                 let _ = window.set_title("Psysonic (Dev)");
             }
 
+            // ── Dev: `--theme-watch <theme.css>` live theme reload ─────────
+            // Poll a local theme.css and push it into the running app on save,
+            // so theme authors get a live loop without re-importing a zip. The
+            // frontend (dev only) installs it under the id in its
+            // `[data-theme='<id>']` selector and applies it. Dev-builds only.
+            #[cfg(debug_assertions)]
+            {
+                let args: Vec<String> = std::env::args().collect();
+                if let Some(i) = args.iter().position(|a| a == "--theme-watch") {
+                    match args.get(i + 1).cloned() {
+                        Some(path) => {
+                            eprintln!("[theme-watch] watching {path}");
+                            let handle = app.handle().clone();
+                            std::thread::spawn(move || {
+                                let p = std::path::PathBuf::from(&path);
+                                let mut last_css = String::new();
+                                loop {
+                                    if let Ok(css) = std::fs::read_to_string(&p) {
+                                        if css != last_css {
+                                            last_css = css.clone();
+                                            let _ = handle.emit("theme-watch:css", css);
+                                        }
+                                    }
+                                    std::thread::sleep(std::time::Duration::from_millis(300));
+                                }
+                            });
+                        }
+                        None => eprintln!("[theme-watch] usage: --theme-watch <path/to/theme.css>"),
+                    }
+                }
+            }
+
             // ── Analysis cache (SQLite) ───────────────────────────────────
             {
                 let cache = analysis_cache::AnalysisCache::init(app.handle())
