@@ -1,5 +1,4 @@
 import type { SubsonicAlbum } from '../api/subsonicTypes';
-import { songToTrack } from '../utils/playback/songToTrack';
 import React, { memo, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNavigateToAlbum } from '../hooks/useNavigateToAlbum';
@@ -17,7 +16,7 @@ import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../cover/layoutSizes';
 import { resolveCoverDisplayTier } from '../cover/tiers';
 import { acquireUrl } from '../utils/imageCache/urlPool';
 import { OpenArtistRefInline } from './OpenArtistRefInline';
-import { playAlbum, playAlbumShuffled } from '../utils/playback/playAlbum';
+import { fetchAlbumTracks, playAlbum, playAlbumShuffled } from '../utils/playback/playAlbum';
 import { useLongPressAction } from '../hooks/useLongPressAction';
 import { LongPressWaveOverlay } from './LongPressWaveOverlay';
 import { useDragDrop } from '../contexts/DragDropContext';
@@ -191,10 +190,13 @@ function AlbumCard({
               onClick={async e => {
                 e.stopPropagation();
                 try {
-                  const data = await getAlbum(album.id);
-                  enqueue(data.songs.map(songToTrack));
+                  const tracks = await fetchAlbumTracks(
+                    album.id,
+                    offlineServerId || undefined,
+                  );
+                  if (tracks.length > 0) enqueue(tracks);
                 } catch {
-                  // Network failure — silent (toast would be too noisy for a hover action)
+                  // Unavailable offline or network failure — silent on hover action
                 }
               }}
               aria-label={t('contextMenu.enqueueAlbum')}
