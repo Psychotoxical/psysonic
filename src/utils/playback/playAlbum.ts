@@ -7,7 +7,7 @@ import { fadeOut } from './fadeOut';
 import type { Track } from '../../store/playerStoreTypes';
 import { shuffleArray } from './shuffleArray';
 
-async function fetchAlbumTracks(albumId: string, serverId?: string): Promise<Track[]> {
+export async function fetchAlbumTracks(albumId: string, serverId?: string): Promise<Track[]> {
   const albumData = serverId
     ? await resolveAlbumForServer(serverId, albumId)
     : await getAlbum(albumId).then(d => ({ album: d.album, songs: d.songs }));

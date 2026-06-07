@@ -41,6 +41,7 @@ interface TrackRowProps {
   onToggleSelect: (id: string, globalIdx: number, shift: boolean) => void;
   onDragStart: (song: SubsonicSong, me: MouseEvent) => void;
   setContextMenuSongId: (id: string | null) => void;
+  readOnly?: boolean;
 }
 
 /**
@@ -67,6 +68,7 @@ export const TrackRow = React.memo(function TrackRow({
   onToggleSelect,
   onDragStart,
   setContextMenuSongId,
+  readOnly = false,
 }: TrackRowProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -171,6 +173,7 @@ export const TrackRow = React.memo(function TrackRow({
             key="rating"
             value={ratingValue}
             onChange={r => onRate(song.id, r)}
+            disabled={readOnly}
           />
         );
       case 'duration':

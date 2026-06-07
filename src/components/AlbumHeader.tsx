@@ -91,6 +91,8 @@ interface AlbumHeaderProps {
   onEntityRatingChange: (rating: number) => void;
   /** `unknown` = probe pending or not run; from `entityRatingSupportByServer`. */
   entityRatingSupport: EntityRatingSupportLevel | 'unknown';
+  /** Offline browse: hide server-backed actions (favorites, download, cache). */
+  readOnly?: boolean;
 }
 
 export default function AlbumHeader({
@@ -117,6 +119,7 @@ export default function AlbumHeader({
   entityRatingValue,
   onEntityRatingChange,
   entityRatingSupport,
+  readOnly = false,
 }: AlbumHeaderProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -222,7 +225,7 @@ export default function AlbumHeader({
                 <StarRating
                   value={entityRatingValue}
                   onChange={onEntityRatingChange}
-                  disabled={entityRatingSupport === 'track_only'}
+                  disabled={readOnly || entityRatingSupport === 'track_only'}
                   labelKey="entityRating.albumAriaLabel"
                 />
               </div>
@@ -250,14 +253,16 @@ export default function AlbumHeader({
 
                   {/* Row 2 — Secondary actions */}
                   <div className="album-actions-row album-actions-row--secondary">
-                    <button
-                      className={`album-icon-btn album-icon-btn--sm${isStarred ? ' is-starred' : ''}`}
-                      onClick={onToggleStar}
-                      aria-label={isStarred ? t('albumDetail.favoriteRemove') : t('albumDetail.favoriteAdd')}
-                      data-tooltip={isStarred ? t('albumDetail.favoriteRemove') : t('albumDetail.favoriteAdd')}
-                    >
-                      <Heart size={16} fill={isStarred ? 'currentColor' : 'none'} />
-                    </button>
+                    {!readOnly && (
+                      <button
+                        className={`album-icon-btn album-icon-btn--sm${isStarred ? ' is-starred' : ''}`}
+                        onClick={onToggleStar}
+                        aria-label={isStarred ? t('albumDetail.favoriteRemove') : t('albumDetail.favoriteAdd')}
+                        data-tooltip={isStarred ? t('albumDetail.favoriteRemove') : t('albumDetail.favoriteAdd')}
+                      >
+                        <Heart size={16} fill={isStarred ? 'currentColor' : 'none'} />
+                      </button>
+                    )}
 
                     <button
                       className="album-icon-btn album-icon-btn--sm"
@@ -269,7 +274,7 @@ export default function AlbumHeader({
                       <Share2 size={16} />
                     </button>
 
-                    {showBioButton && (
+                    {showBioButton && !readOnly && (
                       <button
                         className="album-icon-btn album-icon-btn--sm"
                         onClick={onBio}
@@ -280,53 +285,57 @@ export default function AlbumHeader({
                       </button>
                     )}
 
-                    {downloadProgress !== null ? (
-                      <div className="album-icon-btn album-icon-btn--sm album-icon-btn--progress">
-                        <Download size={14} />
-                        <span className="album-icon-btn-pct">{downloadProgress}%</span>
-                      </div>
-                    ) : (
-                      <button
-                        className="album-icon-btn album-icon-btn--sm"
-                        onClick={onDownload}
-                        aria-label={t('albumDetail.download')}
-                        data-tooltip={t('albumDetail.download')}
-                      >
-                        <Download size={16} />
-                      </button>
+                    {!readOnly && (
+                      downloadProgress !== null ? (
+                        <div className="album-icon-btn album-icon-btn--sm album-icon-btn--progress">
+                          <Download size={14} />
+                          <span className="album-icon-btn-pct">{downloadProgress}%</span>
+                        </div>
+                      ) : (
+                        <button
+                          className="album-icon-btn album-icon-btn--sm"
+                          onClick={onDownload}
+                          aria-label={t('albumDetail.download')}
+                          data-tooltip={t('albumDetail.download')}
+                        >
+                          <Download size={16} />
+                        </button>
+                      )
                     )}
 
-                    {offlineStatus === 'downloading' ? (
-                      <div className="album-icon-btn album-icon-btn--sm album-icon-btn--progress">
-                        <Loader2 size={14} className="spin" />
-                      </div>
-                    ) : offlineStatus === 'queued' ? (
-                      <button
-                        className="album-icon-btn album-icon-btn--sm album-icon-btn--active"
-                        onClick={onCacheOffline}
-                        aria-label={t('albumDetail.offlineQueued')}
-                        data-tooltip={t('albumDetail.removeFromOfflineQueue')}
-                      >
-                        <HardDriveDownload size={16} />
-                      </button>
-                    ) : offlineStatus === 'cached' ? (
-                      <button
-                        className="album-icon-btn album-icon-btn--sm album-icon-btn--active"
-                        onClick={onRemoveOffline}
-                        aria-label={t('albumDetail.offlineCached')}
-                        data-tooltip={t('albumDetail.removeOffline')}
-                      >
-                        <HardDriveDownload size={16} />
-                      </button>
-                    ) : (
-                      <button
-                        className="album-icon-btn album-icon-btn--sm"
-                        onClick={onCacheOffline}
-                        aria-label={t('albumDetail.cacheOffline')}
-                        data-tooltip={t('albumDetail.cacheOffline')}
-                      >
-                        <HardDriveDownload size={16} />
-                      </button>
+                    {!readOnly && (
+                      offlineStatus === 'downloading' ? (
+                        <div className="album-icon-btn album-icon-btn--sm album-icon-btn--progress">
+                          <Loader2 size={14} className="spin" />
+                        </div>
+                      ) : offlineStatus === 'queued' ? (
+                        <button
+                          className="album-icon-btn album-icon-btn--sm album-icon-btn--active"
+                          onClick={onCacheOffline}
+                          aria-label={t('albumDetail.offlineQueued')}
+                          data-tooltip={t('albumDetail.removeFromOfflineQueue')}
+                        >
+                          <HardDriveDownload size={16} />
+                        </button>
+                      ) : offlineStatus === 'cached' ? (
+                        <button
+                          className="album-icon-btn album-icon-btn--sm album-icon-btn--active"
+                          onClick={onRemoveOffline}
+                          aria-label={t('albumDetail.offlineCached')}
+                          data-tooltip={t('albumDetail.removeOffline')}
+                        >
+                          <HardDriveDownload size={16} />
+                        </button>
+                      ) : (
+                        <button
+                          className="album-icon-btn album-icon-btn--sm"
+                          onClick={onCacheOffline}
+                          aria-label={t('albumDetail.cacheOffline')}
+                          data-tooltip={t('albumDetail.cacheOffline')}
+                        >
+                          <HardDriveDownload size={16} />
+                        </button>
+                      )
                     )}
                   </div>
                 </div>
@@ -357,13 +366,15 @@ export default function AlbumHeader({
                     >
                       <ListPlus size={16} />
                     </button>
-                    <button
-                      className={`btn btn-surface${isStarred ? ' is-starred' : ''}`}
-                      onClick={onToggleStar}
-                      data-tooltip={isStarred ? t('albumDetail.favoriteRemove') : t('albumDetail.favoriteAdd')}
-                    >
-                      <Heart size={16} fill={isStarred ? 'currentColor' : 'none'} />
-                    </button>
+                    {!readOnly && (
+                      <button
+                        className={`btn btn-surface${isStarred ? ' is-starred' : ''}`}
+                        onClick={onToggleStar}
+                        data-tooltip={isStarred ? t('albumDetail.favoriteRemove') : t('albumDetail.favoriteAdd')}
+                      >
+                        <Heart size={16} fill={isStarred ? 'currentColor' : 'none'} />
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="btn btn-surface"
@@ -375,7 +386,7 @@ export default function AlbumHeader({
                     </button>
                   </div>
 
-                  {showBioButton && (
+                  {showBioButton && !readOnly && (
                     <button
                       className="btn btn-surface"
                       id="album-bio-btn"
@@ -386,56 +397,60 @@ export default function AlbumHeader({
                     </button>
                   )}
 
-                  {downloadProgress !== null ? (
-                    <div className="download-progress-wrap">
-                      <Download size={14} />
-                      <div className="download-progress-bar">
-                        <div className="download-progress-fill" style={{ width: `${downloadProgress}%` }} />
+                  {!readOnly && (
+                    downloadProgress !== null ? (
+                      <div className="download-progress-wrap">
+                        <Download size={14} />
+                        <div className="download-progress-bar">
+                          <div className="download-progress-fill" style={{ width: `${downloadProgress}%` }} />
+                        </div>
+                        <span className="download-progress-pct">{downloadProgress}%</span>
                       </div>
-                      <span className="download-progress-pct">{downloadProgress}%</span>
-                    </div>
-                  ) : (
-                    <button
-                      className="btn btn-surface"
-                      id="album-download-btn"
-                      onClick={onDownload}
-                      {...tooltipAttrs(t('albumDetail.downloadTooltip'))}
-                    >
-                      <Download size={16} /> {t('albumDetail.download')}{totalSize > 0 ? ` · ${formatMb(totalSize)}` : ''}
-                    </button>
+                    ) : (
+                      <button
+                        className="btn btn-surface"
+                        id="album-download-btn"
+                        onClick={onDownload}
+                        {...tooltipAttrs(t('albumDetail.downloadTooltip'))}
+                      >
+                        <Download size={16} /> {t('albumDetail.download')}{totalSize > 0 ? ` · ${formatMb(totalSize)}` : ''}
+                      </button>
+                    )
                   )}
-                  {offlineStatus === 'downloading' && offlineProgress ? (
-                    <div className="offline-cache-btn offline-cache-btn--progress">
-                      <Loader2 size={14} className="spin" />
-                      {t('albumDetail.offlineDownloading', { n: offlineProgress.done, total: offlineProgress.total })}
-                    </div>
-                  ) : offlineStatus === 'queued' ? (
-                    <button
-                      className="btn btn-surface offline-cache-btn offline-cache-btn--queued"
-                      onClick={onCacheOffline}
-                      data-tooltip={t('albumDetail.removeFromOfflineQueue')}
-                    >
-                      <HardDriveDownload size={16} />
-                      {t('albumDetail.offlineQueued')}
-                    </button>
-                  ) : offlineStatus === 'cached' ? (
-                    <button
-                      className="btn btn-surface offline-cache-btn offline-cache-btn--cached"
-                      onClick={onRemoveOffline}
-                      data-tooltip={t('albumDetail.removeOffline')}
-                    >
-                      <HardDriveDownload size={16} />
-                      {t('albumDetail.offlineCached')}
-                    </button>
-                  ) : (
-                    <button
-                      className="btn btn-surface offline-cache-btn"
-                      onClick={onCacheOffline}
-                      data-tooltip={t('albumDetail.cacheOffline')}
-                    >
-                      <HardDriveDownload size={16} />
-                      {t('albumDetail.cacheOffline')}
-                    </button>
+                  {!readOnly && (
+                    offlineStatus === 'downloading' && offlineProgress ? (
+                      <div className="offline-cache-btn offline-cache-btn--progress">
+                        <Loader2 size={14} className="spin" />
+                        {t('albumDetail.offlineDownloading', { n: offlineProgress.done, total: offlineProgress.total })}
+                      </div>
+                    ) : offlineStatus === 'queued' ? (
+                      <button
+                        className="btn btn-surface offline-cache-btn offline-cache-btn--queued"
+                        onClick={onCacheOffline}
+                        data-tooltip={t('albumDetail.removeFromOfflineQueue')}
+                      >
+                        <HardDriveDownload size={16} />
+                        {t('albumDetail.offlineQueued')}
+                      </button>
+                    ) : offlineStatus === 'cached' ? (
+                      <button
+                        className="btn btn-surface offline-cache-btn offline-cache-btn--cached"
+                        onClick={onRemoveOffline}
+                        data-tooltip={t('albumDetail.removeOffline')}
+                      >
+                        <HardDriveDownload size={16} />
+                        {t('albumDetail.offlineCached')}
+                      </button>
+                    ) : (
+                      <button
+                        className="btn btn-surface offline-cache-btn"
+                        onClick={onCacheOffline}
+                        data-tooltip={t('albumDetail.cacheOffline')}
+                      >
+                        <HardDriveDownload size={16} />
+                        {t('albumDetail.cacheOffline')}
+                      </button>
+                    )
                   )}
                 </div>
               )}

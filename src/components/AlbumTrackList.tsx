@@ -1,6 +1,6 @@
 import type { SubsonicSong } from '../api/subsonicTypes';
 import type { Track } from '../store/playerStoreTypes';
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useTracklistColumns } from '../utils/useTracklistColumns';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
@@ -38,6 +38,7 @@ interface AlbumTrackListProps {
   sortKey?: SortKey;
   sortDir?: 'asc' | 'desc';
   onSort?: (key: SortKey) => void;
+  readOnly?: boolean;
 }
 
 // ── AlbumTrackList ────────────────────────────────────────────────────────────
@@ -60,6 +61,7 @@ export default function AlbumTrackList({
   sortKey,
   sortDir,
   onSort,
+  readOnly = false,
 }: AlbumTrackListProps) {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
@@ -98,6 +100,10 @@ export default function AlbumTrackList({
   );
 
   const currentTrackId = currentTrack?.id ?? null;
+  const displayCols = useMemo(
+    () => (readOnly ? visibleCols.filter(c => c.key !== 'favorite') : visibleCols),
+    [readOnly, visibleCols],
+  );
 
   if (isMobile) {
     return (
@@ -139,7 +145,7 @@ export default function AlbumTrackList({
       >
 
       <TracklistHeaderRow
-        visibleCols={visibleCols}
+        visibleCols={displayCols}
         gridStyle={gridStyle}
         sortKey={sortKey}
         sortDir={sortDir}
@@ -170,7 +176,7 @@ export default function AlbumTrackList({
                 key={song.id}
                 song={song}
                 globalIdx={globalIdx}
-                visibleCols={visibleCols}
+                visibleCols={displayCols}
                 gridStyle={gridStyle}
                 currentTrackId={currentTrackId}
                 isPlaying={isPlaying}
@@ -186,6 +192,7 @@ export default function AlbumTrackList({
                 onToggleSelect={onToggleSelect}
                 onDragStart={onDragStart}
                 setContextMenuSongId={setContextMenuSongId}
+                readOnly={readOnly}
               />
             );
           })}

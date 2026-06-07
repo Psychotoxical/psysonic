@@ -12,6 +12,7 @@ interface Props {
   showPlPicker: boolean;
   setShowPlPicker: React.Dispatch<React.SetStateAction<boolean>>;
   t: TFunction;
+  readOnly?: boolean;
 }
 
 /**
@@ -31,6 +32,7 @@ export function AlbumDetailToolbar({
   showPlPicker,
   setShowPlPicker,
   t,
+  readOnly = false,
 }: Props) {
   return (
     <div className="album-track-toolbar">
@@ -59,22 +61,24 @@ export function AlbumDetailToolbar({
             <span className="bulk-action-count">
               {t('common.bulkSelected', { count: selectedCount })}
             </span>
-            <div className="bulk-pl-picker-wrap">
-              <button
-                className="btn btn-surface btn-sm"
-                onClick={() => setShowPlPicker(v => !v)}
-              >
-                <ListPlus size={14} />
-                {t('common.bulkAddToPlaylist')}
-              </button>
-              {showPlPicker && (
-                <AddToPlaylistSubmenu
-                  songIds={[...useSelectionStore.getState().selectedIds]}
-                  onDone={() => { setShowPlPicker(false); useSelectionStore.getState().clearAll(); }}
-                  dropDown
-                />
-              )}
-            </div>
+            {!readOnly && (
+              <div className="bulk-pl-picker-wrap">
+                <button
+                  className="btn btn-surface btn-sm"
+                  onClick={() => setShowPlPicker(v => !v)}
+                >
+                  <ListPlus size={14} />
+                  {t('common.bulkAddToPlaylist')}
+                </button>
+                {showPlPicker && (
+                  <AddToPlaylistSubmenu
+                    songIds={[...useSelectionStore.getState().selectedIds]}
+                    onDone={() => { setShowPlPicker(false); useSelectionStore.getState().clearAll(); }}
+                    dropDown
+                  />
+                )}
+              </div>
+            )}
             <button
               className="btn btn-ghost btn-sm"
               onClick={() => useSelectionStore.getState().clearAll()}
