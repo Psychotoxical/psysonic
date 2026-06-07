@@ -14,7 +14,8 @@ import {
 } from '../utils/library/browseTextSearch';
 import { useAuthStore } from '../store/authStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
-import { isOfflineBrowseActive, useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { useOfflineBrowseContext } from './useOfflineBrowseContext';
 import {
   fetchOfflineLocalBrowsableSongPage,
   offlineLocalBrowseEnabled,
@@ -58,7 +59,7 @@ export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseS
   const serverId = useAuthStore(s => s.activeServerId);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
-  const offlineBrowseActive = useOfflineBrowseActive();
+  const offlineBrowseActive = useOfflineBrowseContext().active;
 
   const [debouncedQuery, setDebouncedQuery] = useState(
     () => initialRestore?.query.trim() ?? searchQuery.trim(),

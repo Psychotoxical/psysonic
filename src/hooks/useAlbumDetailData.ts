@@ -5,13 +5,13 @@ import { useAuthStore } from '../store/authStore';
 import {
   loadAlbumFromLibraryIndex,
   loadArtistFromLibraryIndex,
-} from '../utils/offline/favoritesOfflineBrowse';
+} from '../utils/offline/offlineLibraryIndexLoad';
 import {
   resolveAlbum,
   resolveArtist,
   type ResolvedAlbum,
 } from '../utils/offline/offlineMediaResolve';
-import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { useOfflineBrowseContext } from './useOfflineBrowseContext';
 import {
   loadAlbumFromLocalPlayback,
   loadArtistFromLocalPlayback,
@@ -51,7 +51,7 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
   const activeServerId = useAuthStore(s => s.activeServerId);
   const [searchParams] = useSearchParams();
   const detailServerId = readDetailServerId(searchParams, activeServerId);
-  const offlineBrowseActive = useOfflineBrowseActive() && !!detailServerId;
+  const offlineBrowseActive = useOfflineBrowseContext().active && !!detailServerId;
 
   useEffect(() => {
     if (!id) return;

@@ -7,6 +7,8 @@ export type OfflineSurface =
   | 'playlistsHeader'
   | 'contextMenuAlbum'
   | 'contextMenuSong'
+  | 'contextMenuArtist'
+  | 'contextMenuPlaylist'
   | 'hero'
   | 'statistics';
 
@@ -59,6 +61,8 @@ export function offlineActionPolicy(surface: OfflineSurface, active: boolean): O
     case 'playlistsHeader':
     case 'contextMenuAlbum':
     case 'contextMenuSong':
+    case 'contextMenuArtist':
+    case 'contextMenuPlaylist':
     case 'hero':
       return READ_ONLY_MUTATIONS;
     case 'statistics':

@@ -6,7 +6,7 @@ import { useSidebarStore } from '../store/sidebarStore';
 import { useAuthStore } from '../store/authStore';
 import { ALL_NAV_ITEMS } from '../config/navItems';
 import { useLuckyMixAvailable } from '../hooks/useLuckyMixAvailable';
-import { isOfflineSidebarNavAllowed } from '../utils/offline/favoritesOfflineBrowse';
+import { isOfflineSidebarNavAllowed } from '../utils/offline/offlineNavPolicy';
 import { useOfflineBrowseContext } from '../hooks/useOfflineBrowseContext';
 import { offlineBrowseNavFlags } from '../utils/offline/offlineBrowseContext';
 

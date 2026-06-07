@@ -2,6 +2,7 @@ import type React from 'react';
 import type { SubsonicAlbum, SubsonicArtist } from '../../api/subsonicTypes';
 import type { QueueItemRef, Track } from '../../store/playerStoreTypes';
 import type { EntityShareKind } from '../../utils/share/shareLink';
+import type { OfflineActionPolicy } from '../../utils/offline/offlineActionPolicy';
 
 export type RatingKind = 'song' | 'album' | 'artist';
 
@@ -56,4 +57,5 @@ export interface ContextMenuItemsProps {
   /** When true, album/artist links switch to the queue server before routing. */
   pinToPlaybackServer: boolean;
   navigateLibrary: (path: string) => void | Promise<void>;
+  offlinePolicy: OfflineActionPolicy;
 }

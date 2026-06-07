@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
 import { useLocation } from 'react-router-dom';
 import { lastfmIsConfigured, lastfmGetTopArtists, lastfmGetTopAlbums, lastfmGetTopTracks, lastfmGetRecentTracks, LastfmPeriod, LastfmTopArtist, LastfmTopAlbum, LastfmTopTrack, LastfmRecentTrack } from '../api/lastfm';
-import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { useOfflineBrowseContext } from '../hooks/useOfflineBrowseContext';
 import { usePlayerStatsRecordingEnabled } from '../hooks/usePlayerStatsRecordingEnabled';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -39,7 +39,7 @@ export default function Statistics() {
   const location = useLocation();
   const navigate = useNavigate();
   const isPlayerStats = location.pathname === '/player-stats';
-  const offlineBrowseActive = useOfflineBrowseActive();
+  const offlineBrowseActive = useOfflineBrowseContext().active;
   const playerStatsEnabled = usePlayerStatsRecordingEnabled();
   const { lastfmSessionKey, lastfmUsername } = useAuthStore();
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);

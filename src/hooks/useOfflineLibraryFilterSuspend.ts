@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { useOfflineBrowseContext } from './useOfflineBrowseContext';
 import {
   restoreMusicLibraryFiltersAfterOffline,
   suspendMusicLibraryFiltersForOffline,
@@ -7,7 +7,7 @@ import {
 
 /** Disable scoped library browse offline; restore the picker value when back online. */
 export function useOfflineLibraryFilterSuspend(): void {
-  const offlineBrowseActive = useOfflineBrowseActive();
+  const offlineBrowseActive = useOfflineBrowseContext().active;
   const prevOfflineRef = useRef<boolean | null>(null);
 
   useEffect(() => {

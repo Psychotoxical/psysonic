@@ -17,7 +17,28 @@ import { useContextMenuKeyboardNav } from '../hooks/useContextMenuKeyboardNav';
 import { useContextMenuRating } from '../hooks/useContextMenuRating';
 import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
 import { useNavigate } from 'react-router-dom';
+import { useOfflineBrowseContext } from '../hooks/useOfflineBrowseContext';
+import {
+  offlineActionPolicy,
+  type OfflineSurface,
+} from '../utils/offline/offlineActionPolicy';
 import ContextMenuItems from './contextMenu/ContextMenuItems';
+
+function contextMenuSurfaceForType(type: string | null): OfflineSurface {
+  switch (type) {
+    case 'album':
+    case 'multi-album':
+      return 'contextMenuAlbum';
+    case 'artist':
+    case 'multi-artist':
+      return 'contextMenuArtist';
+    case 'playlist':
+    case 'multi-playlist':
+      return 'contextMenuPlaylist';
+    default:
+      return 'contextMenuSong';
+  }
+}
 
 export { AddToPlaylistSubmenu };
 
@@ -180,6 +201,12 @@ export default function ContextMenu() {
 
   const downloadAlbum = downloadAlbumAction;
 
+  const { active: offlineBrowseActive } = useOfflineBrowseContext();
+  const offlinePolicy = offlineActionPolicy(
+    contextMenuSurfaceForType(type),
+    offlineBrowseActive,
+  );
+
   if (!contextMenu.isOpen || !contextMenu.item) return null;
 
   return (
@@ -233,6 +260,7 @@ export default function ContextMenu() {
           isStarred={isStarred}
           pinToPlaybackServer={pinToPlaybackServer}
           navigateLibrary={navigateLibrary}
+          offlinePolicy={offlinePolicy}
         />
       </div>
     </>

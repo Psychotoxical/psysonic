@@ -1,4 +1,4 @@
-import { isOfflineSidebarNavAllowed } from './favoritesOfflineBrowse';
+import { isOfflineSidebarNavAllowed } from './offlineNavPolicy';
 
 /** Any offline browse surface the disconnect fork may use. */
 export function hasOfflineBrowseCapability(

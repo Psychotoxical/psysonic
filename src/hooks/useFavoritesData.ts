@@ -9,11 +9,11 @@ import { usePlayerStore } from '../store/playerStore';
 import type { TopFavoriteArtist } from '../components/favorites/TopFavoriteArtists';
 import { useConnectionStatus } from './useConnectionStatus';
 import { isActiveServerReachable } from '../utils/network/activeServerReachability';
-import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { useOfflineBrowseContext } from './useOfflineBrowseContext';
 import {
   loadStarredFromAllLibraryIndexes,
   loadStarredFromAllServersOnline,
-} from '../utils/offline/favoritesOfflineBrowse';
+} from '../utils/offline/offlineStarredLoad';
 
 export interface FavoritesDataResult {
   albums: SubsonicAlbum[];
@@ -44,7 +44,7 @@ export function useFavoritesData(): FavoritesDataResult {
   const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
   const servers = useAuthStore(s => s.servers);
   const { status: connStatus } = useConnectionStatus();
-  const offlineBrowseActive = useOfflineBrowseActive();
+  const offlineBrowseActive = useOfflineBrowseContext().active;
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
 
   useEffect(() => {

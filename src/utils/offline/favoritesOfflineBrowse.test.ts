@@ -5,13 +5,17 @@ import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
 import {
   favoritesOfflineBrowseEnabled,
   hasOfflineBrowsingContent,
+} from './favoritesOfflineBrowse';
+import {
   isOfflineSidebarLibraryNavAllowed,
   isOfflineSidebarNavAllowed,
   isOfflineSidebarSystemNavAllowed,
+} from './offlineNavPolicy';
+import {
   loadStarredFromLibraryIndex,
   mergeStarredFromServers,
-  resolveAlbumForServer,
-} from './favoritesOfflineBrowse';
+} from './offlineStarredLoad';
+import { resolveAlbumForServer } from './offlineMediaResolve';
 
 const isActiveServerReachableMock = vi.fn(() => true);
 const shouldAttemptSubsonicForServerMock = vi.fn((_serverId: string, _trackId?: string) => true);

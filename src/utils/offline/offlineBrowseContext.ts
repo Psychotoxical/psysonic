@@ -1,5 +1,4 @@
 import type { OfflineAlbumMeta } from '../../store/offlineStore';
-import { useLibraryIndexStore } from '../../store/libraryIndexStore';
 import { favoritesOfflineBrowseEnabled } from './favoritesOfflineBrowse';
 import { hasOfflineBrowseCapability } from './offlineBrowseRouting';
 import { offlineLocalBrowseEnabled } from './offlineLocalBrowse';
@@ -41,12 +40,10 @@ export function computeOfflineBrowseCapabilities(
   input: ComputeOfflineBrowseCapabilitiesInput,
 ): OfflineBrowseCapabilities {
   const { activeServerId, favoritesOfflineEnabled, offlineAlbums, playerStats } = input;
-  const indexStore = useLibraryIndexStore.getState();
-  const activeIndexEnabled = activeServerId ? indexStore.isIndexEnabled(activeServerId) : false;
 
   return {
     localLibrary: offlineLocalBrowseEnabled(activeServerId),
-    favorites: favoritesOfflineEnabled && activeIndexEnabled,
+    favorites: favoritesBrowseCapabilityAnyServer(favoritesOfflineEnabled),
     playlists: playlistsOfflineBrowseEnabled(activeServerId),
     manualPins: hasAnyOfflineAlbums(offlineAlbums),
     playerStats,
@@ -73,7 +70,7 @@ export function buildOfflineBrowseContext(input: {
   };
 }
 
-/** Sidebar / disconnect helpers — matches legacy `favoritesOfflineBrowse` flag on active server. */
+/** Sidebar / disconnect helpers — maps capability snapshot to nav gate flags. */
 export function offlineBrowseNavFlags(capabilities: OfflineBrowseCapabilities): {
   favoritesOfflineBrowse: boolean;
   localLibraryBrowse: boolean;

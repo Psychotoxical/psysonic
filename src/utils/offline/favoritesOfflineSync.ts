@@ -15,7 +15,8 @@ import { getMediaDir } from '../media/mediaDir';
 import { resolveIndexKey, serverIndexKeyForProfile } from '../server/serverIndexKey';
 import { FAVORITES_OFFLINE_JOB_ID } from './favoritesOfflineConstants';
 import { isActiveServerReachable } from '../network/activeServerReachability';
-import { favoritesServerIds, loadAlbumFromLibraryIndex } from './favoritesOfflineBrowse';
+import { favoritesServerIds } from './favoritesOfflineBrowse';
+import { loadAlbumFromLibraryIndex } from './offlineLibraryIndexLoad';
 import {
   entryBelongsToServer,
   hasLocalLibraryBytes,

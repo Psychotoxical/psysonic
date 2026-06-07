@@ -9,7 +9,8 @@ import {
   runNetworkBrowseArtists,
   type LibrarySearchSurface,
 } from '../utils/library/browseTextSearch';
-import { isOfflineBrowseActive, useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { useOfflineBrowseContext } from './useOfflineBrowseContext';
 import { offlineLocalBrowseEnabled, searchOfflineLocalArtists } from '../utils/offline/offlineLocalBrowse';
 
 /**
@@ -24,7 +25,7 @@ export function useBrowseArtistTextSearch(
   serverId: string | null | undefined,
   surface: LibrarySearchSurface = 'artists_browse',
 ) {
-  const offlineBrowseActive = useOfflineBrowseActive();
+  const offlineBrowseActive = useOfflineBrowseContext().active;
   const [debouncedFilter, setDebouncedFilter] = useState('');
   const [textSearchArtists, setTextSearchArtists] = useState<SubsonicArtist[] | null>(null);
   const [textSearchLoading, setTextSearchLoading] = useState(false);

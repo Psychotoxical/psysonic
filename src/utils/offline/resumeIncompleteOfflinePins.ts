@@ -9,7 +9,7 @@ import { isActiveServerReachable, onActiveServerBecameReachable } from '../netwo
 import { shouldAttemptSubsonicForServer } from '../network/subsonicNetworkGuard';
 import { resolveServerIdForIndexKey } from '../server/serverLookup';
 import { isOfflinePinComplete } from './offlineLibraryHelpers';
-import { resolveAlbumForServer } from './favoritesOfflineBrowse';
+import { resolveAlbumForServer } from './offlineMediaResolve';
 
 const DEBOUNCE_MS = 800;
 

@@ -8,7 +8,8 @@ import {
   runLocalBrowseAlbums,
   runNetworkBrowseAlbums,
 } from '../utils/library/browseTextSearch';
-import { isOfflineBrowseActive, useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { useOfflineBrowseContext } from './useOfflineBrowseContext';
 import { offlineLocalBrowseEnabled, searchOfflineLocalAlbums } from '../utils/offline/offlineLocalBrowse';
 
 /**
@@ -21,7 +22,7 @@ export function useBrowseAlbumTextSearch(
   serverId: string | null | undefined,
   losslessOnly = false,
 ) {
-  const offlineBrowseActive = useOfflineBrowseActive();
+  const offlineBrowseActive = useOfflineBrowseContext().active;
   const [debouncedFilter, setDebouncedFilter] = useState('');
   const [textSearchAlbums, setTextSearchAlbums] = useState<SubsonicAlbum[] | null>(null);
   const [textSearchLoading, setTextSearchLoading] = useState(false);

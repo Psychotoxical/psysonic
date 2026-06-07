@@ -18,7 +18,7 @@ vi.mock('./offlineLibraryHelpers', () => ({
     isOfflinePinCompleteMock(albumId, serverId),
 }));
 
-vi.mock('./favoritesOfflineBrowse', () => ({
+vi.mock('./offlineMediaResolve', () => ({
   resolveAlbumForServer: (serverId: string, albumId: string) =>
     resolveAlbumForServerMock(serverId, albumId),
 }));

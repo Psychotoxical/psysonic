@@ -7,8 +7,8 @@ import type {
 } from '../api/subsonicTypes';
 import { useAuthStore } from '../store/authStore';
 import { useConnectionStatus } from './useConnectionStatus';
-import { loadArtistFromLibraryIndex } from '../utils/offline/favoritesOfflineBrowse';
-import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { loadArtistFromLibraryIndex } from '../utils/offline/offlineLibraryIndexLoad';
+import { useOfflineBrowseContext } from './useOfflineBrowseContext';
 import { loadArtistFromLocalPlayback, offlineLocalBrowseEnabled } from '../utils/offline/offlineLocalBrowse';
 import { readDetailServerId } from '../utils/navigation/detailServerScope';
 import { runLocalArtistLosslessBrowse } from '../utils/library/browseTextSearch';
@@ -60,7 +60,7 @@ export function useArtistDetailData(
     s => !!(serverId && s.audiomuseNavidromeByServer[serverId]),
   );
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
-  const offlineBrowseActive = useOfflineBrowseActive() && !!serverId;
+  const offlineBrowseActive = useOfflineBrowseContext().active && !!serverId;
   const preferLocalBytesOnly = offlineBrowseActive && offlineLocalBrowseEnabled(serverId);
   const preferLocalArtist = preferLocalBytesOnly
     || (connStatus === 'disconnected' && favoritesOfflineEnabled && !!serverId);

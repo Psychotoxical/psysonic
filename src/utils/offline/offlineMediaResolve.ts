@@ -13,7 +13,7 @@ import { isOfflineBrowseActive } from './offlineBrowseMode';
 import {
   loadAlbumFromLibraryIndex,
   loadArtistFromLibraryIndex,
-} from './favoritesOfflineBrowse';
+} from './offlineLibraryIndexLoad';
 import {
   loadAlbumFromLocalPlayback,
   loadArtistFromLocalPlayback,

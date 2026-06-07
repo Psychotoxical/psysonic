@@ -19,6 +19,7 @@ import { CoverArtImage } from '../../cover/CoverArtImage';
 import { AlbumCoverArtImage } from '../../cover/AlbumCoverArtImage';
 import { PLAYLIST_MAIN_COVER_CSS_PX } from '../../hooks/usePlaylistCovers';
 import { PlaylistSmartCoverCell } from '../playlists/PlaylistCoverImages';
+import type { OfflineActionPolicy } from '../../utils/offline/offlineActionPolicy';
 
 interface Props {
   playlist: SubsonicPlaylist;
@@ -34,6 +35,7 @@ interface Props {
   offlineStatus: AlbumOfflineStatus;
   offlineProgress: { done: number; total: number } | null;
   activeServerId: string;
+  actionPolicy: OfflineActionPolicy;
   setEditingMeta: React.Dispatch<React.SetStateAction<boolean>>;
   setSearchOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
@@ -53,7 +55,7 @@ export default function PlaylistHero({
   playlist, songs, id,
   customCoverId, coverQuadIds,
   resolvedBgUrl, saving, searchOpen, csvImporting, activeZip,
-  offlineStatus, offlineProgress, activeServerId,
+  offlineStatus, offlineProgress, activeServerId, actionPolicy,
   setEditingMeta, setSearchOpen, setSearchQuery, setSearchResults,
   setSelectedSearchIds, setSearchPlPickerOpen,
   handlePlayAll, handleShuffleAll, handleEnqueueAll, handleImportCsv, handleDownload,
@@ -86,7 +88,7 @@ export default function PlaylistHero({
           {enablePlaylistCoverPhoto && (
             <div
               className="playlist-hero-cover"
-              onClick={() => setEditingMeta(true)}
+              onClick={() => { if (actionPolicy.canEditPlaylist) setEditingMeta(true); }}
             >
               {customCoverId ? (
                 <AlbumCoverArtImage
@@ -120,14 +122,16 @@ export default function PlaylistHero({
                   {isSmartPlaylistName(playlist.name) && <Sparkles size={16} style={{ color: 'var(--text-muted)' }} />}
                   <span>{displayPlaylistName(playlist.name)}</span>
                 </h1>
-                <button
-                  className="btn btn-ghost"
-                  onClick={() => setEditingMeta(true)}
-                  data-tooltip={t('playlists.editMeta')}
-                  style={{ padding: '4px 6px', opacity: 0.7, flexShrink: 0 }}
-                >
-                  <Pencil size={14} />
-                </button>
+                {actionPolicy.canEditPlaylist && (
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => setEditingMeta(true)}
+                    data-tooltip={t('playlists.editMeta')}
+                    style={{ padding: '4px 6px', opacity: 0.7, flexShrink: 0 }}
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
               </div>
               {playlist.comment && (
                 <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{playlist.comment}</div>
@@ -172,7 +176,7 @@ export default function PlaylistHero({
                   <ListPlus size={16} />
                 </button>
               </div>
-              {isLayoutVisible('addSongs') && (
+              {actionPolicy.canEditPlaylist && isLayoutVisible('addSongs') && (
                 <button
                   className={`btn btn-ghost ${searchOpen ? 'active' : ''}`}
                   onClick={() => { setSearchOpen(v => !v); setSearchQuery(''); setSearchResults([]); setSelectedSearchIds(new Set()); setSearchPlPickerOpen(false); }}
@@ -181,7 +185,7 @@ export default function PlaylistHero({
                   <Search size={16} /> {t('playlists.addSongs')}
                 </button>
               )}
-              {isLayoutVisible('importCsv') && (
+              {actionPolicy.canEditPlaylist && isLayoutVisible('importCsv') && (
                 <button
                   className="btn btn-ghost"
                   onClick={handleImportCsv}
@@ -192,7 +196,7 @@ export default function PlaylistHero({
                   {t('playlists.importCSV')}
                 </button>
               )}
-              {isLayoutVisible('downloadZip') && songs.length > 0 && (
+              {actionPolicy.canDownload && isLayoutVisible('downloadZip') && songs.length > 0 && (
                 activeZip && !activeZip.done && !activeZip.error ? (
                   <div className="download-progress-wrap">
                     <Download size={14} />
@@ -207,7 +211,7 @@ export default function PlaylistHero({
                   </button>
                 )
               )}
-              {isLayoutVisible('offlineCache') && songs.length > 0 && id
+              {actionPolicy.canPinOffline && isLayoutVisible('offlineCache') && songs.length > 0 && id
                 && (!isSmartPlaylistName(playlist.name) || offlineStatus !== 'none') && (
                 <button
                   className={`btn btn-ghost${offlineStatus === 'cached' ? ' btn-danger' : ''}${offlineStatus === 'queued' ? ' offline-cache-btn--queued' : ''}`}

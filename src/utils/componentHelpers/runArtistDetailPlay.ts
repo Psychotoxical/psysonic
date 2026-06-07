@@ -12,20 +12,15 @@ export async function fetchArtistDetailTracks(
   serverId?: string | null,
 ): Promise<Track[]> {
   const sid = resolveMediaServerId(serverId ?? albums[0]?.serverId);
-  if (sid) {
-    const loaded = await Promise.all(albums.map(a => resolveAlbum(sid, a.id)));
-    const sorted = loaded
-      .filter((r): r is NonNullable<typeof r> => r != null)
-      .sort((a, b) => (a.album.year ?? 0) - (b.album.year ?? 0));
-    return sorted.flatMap(r =>
-      [...r.songs].sort((a, b) => (a.track ?? 0) - (b.track ?? 0)).map(songToTrack),
-    );
-  }
+  if (!sid) return [];
 
-  const { getAlbum } = await import('../../api/subsonicLibrary');
-  const results = await Promise.all(albums.map(a => getAlbum(a.id)));
-  const sorted = [...results].sort((a, b) => (a.album.year ?? 0) - (b.album.year ?? 0));
-  return sorted.flatMap(r => [...r.songs].sort((a, b) => (a.track ?? 0) - (b.track ?? 0))).map(songToTrack);
+  const loaded = await Promise.all(albums.map(a => resolveAlbum(sid, a.id)));
+  const sorted = loaded
+    .filter((r): r is NonNullable<typeof r> => r != null)
+    .sort((a, b) => (a.album.year ?? 0) - (b.album.year ?? 0));
+  return sorted.flatMap(r =>
+    [...r.songs].sort((a, b) => (a.track ?? 0) - (b.track ?? 0)).map(songToTrack),
+  );
 }
 
 export interface RunArtistDetailPlayDeps {

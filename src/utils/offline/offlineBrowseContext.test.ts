@@ -48,10 +48,14 @@ describe('offlineBrowseContext', () => {
     });
   });
 
-  it('favorites capability requires setting and active-server index', () => {
-    useAuthStore.setState({ favoritesOfflineEnabled: true });
+  it('favorites capability uses cross-server index when setting is on', () => {
+    useAuthStore.setState({
+      favoritesOfflineEnabled: true,
+      servers: [{ id: 'srv-2', name: 'B', url: 'https://b.test', username: 'u', password: 'p' }],
+      activeServerId: null,
+    });
     const caps = computeOfflineBrowseCapabilities({
-      activeServerId: 'srv-1',
+      activeServerId: null,
       favoritesOfflineEnabled: true,
       offlineAlbums: {},
       playerStats: false,

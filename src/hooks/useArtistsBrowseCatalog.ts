@@ -6,7 +6,8 @@ import {
   fetchLocalArtistCatalogChunk,
   fetchNetworkStarredArtists,
 } from '../utils/library/browseTextSearch';
-import { isOfflineBrowseActive, useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { useOfflineBrowseContext } from './useOfflineBrowseContext';
 import {
   fetchOfflineLocalArtistCatalogChunk,
   fetchOfflineLocalStarredArtists,
@@ -31,7 +32,7 @@ export function useArtistsBrowseCatalog({
   starredOnly,
   musicLibraryFilterVersion,
 }: UseArtistsBrowseCatalogArgs) {
-  const offlineBrowseActive = useOfflineBrowseActive();
+  const offlineBrowseActive = useOfflineBrowseContext().active;
   const [catalogArtists, setCatalogArtists] = useState<SubsonicArtist[]>([]);
   const [loading, setLoading] = useState(true);
   const [catalogHasMore, setCatalogHasMore] = useState(false);

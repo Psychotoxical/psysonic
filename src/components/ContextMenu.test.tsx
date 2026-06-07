@@ -43,6 +43,23 @@ vi.mock('@/utils/orbitBulkGuard', () => ({
   orbitBulkGuard: vi.fn(async () => true),
 }));
 
+vi.mock('@/hooks/useOfflineBrowseContext', () => ({
+  useOfflineBrowseContext: () => ({
+    active: false,
+    serverId: 'srv-1',
+    capabilities: {
+      localLibrary: false,
+      favorites: false,
+      playlists: false,
+      manualPins: false,
+      playerStats: false,
+    },
+    hasBrowseCapability: false,
+    hasBrowsingContent: false,
+    connStatus: 'connected' as const,
+  }),
+}));
+
 import ContextMenu from './ContextMenu';
 import { renderWithProviders } from '@/test/helpers/renderWithProviders';
 import { usePlayerStore } from '@/store/playerStore';

@@ -23,7 +23,7 @@ import { useSidebarNewReleasesUnread } from '../hooks/useSidebarNewReleasesUnrea
 import { useSidebarNavDnd } from '../hooks/useSidebarNavDnd';
 import { useSidebarLibraryDropdown } from '../hooks/useSidebarLibraryDropdown';
 import { useSidebarScrollVisible } from '../hooks/useSidebarScrollVisible';
-import { isOfflineSidebarNavAllowed } from '../utils/offline/favoritesOfflineBrowse';
+import { isOfflineSidebarNavAllowed } from '../utils/offline/offlineNavPolicy';
 import { useOfflineBrowseContext } from '../hooks/useOfflineBrowseContext';
 import { offlineBrowseNavFlags } from '../utils/offline/offlineBrowseContext';
 import { useSidebarPerfProbe } from '../hooks/useSidebarPerfProbe';

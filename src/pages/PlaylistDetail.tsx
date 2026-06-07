@@ -54,7 +54,8 @@ import { usePlaylistDerived } from '../hooks/usePlaylistDerived';
 import { usePlaylistRouteEffects } from '../hooks/usePlaylistRouteEffects';
 import { useBulkPlPickerOutsideClick } from '../hooks/useBulkPlPickerOutsideClick';
 import { usePlaylistDnDReorder } from '../hooks/usePlaylistDnDReorder';
-import { useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { useOfflineBrowseContext } from '../hooks/useOfflineBrowseContext';
+import { offlineActionPolicy } from '../utils/offline/offlineActionPolicy';
 
 // ── Column configuration ──────────────────────────────────────────────────────
 const PL_COLUMNS: readonly ColDef[] = [
@@ -180,7 +181,8 @@ export default function PlaylistDetail() {
 
   // ── Load ─────────────────────────────────────────────────────
   const lastModified = usePlaylistStore(s => (id ? s.lastModified[id] : undefined));
-  const offlineBrowseActive = useOfflineBrowseActive();
+  const { active: offlineBrowseActive } = useOfflineBrowseContext();
+  const actionPolicy = offlineActionPolicy('playlistDetail', offlineBrowseActive);
 
   useEffect(() => {
     if (!id) return;
@@ -282,6 +284,7 @@ export default function PlaylistDetail() {
         offlineStatus={resolvedOfflineStatus}
         offlineProgress={offlineProgress}
         activeServerId={activeServerId}
+        actionPolicy={actionPolicy}
         setEditingMeta={setEditingMeta}
         setSearchOpen={setSearchOpen}
         setSearchQuery={setSearchQuery}

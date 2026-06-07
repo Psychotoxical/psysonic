@@ -19,7 +19,7 @@ vi.mock('./offlineLocalBrowse', () => ({
     loadAlbumFromLocalPlaybackMock(serverId, albumId),
 }));
 
-vi.mock('./favoritesOfflineBrowse', () => ({
+vi.mock('./offlineLibraryIndexLoad', () => ({
   loadAlbumFromLibraryIndex: (...args: unknown[]) => loadAlbumFromLibraryIndexMock(...args),
 }));
 

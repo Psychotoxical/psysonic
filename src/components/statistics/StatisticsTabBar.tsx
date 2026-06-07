@@ -1,13 +1,13 @@
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useOfflineBrowseActive } from '../../utils/offline/offlineBrowseMode';
+import { useOfflineBrowseContext } from '../../hooks/useOfflineBrowseContext';
 import { usePlayerStatsRecordingEnabled } from '../../hooks/usePlayerStatsRecordingEnabled';
 
 export default function StatisticsTabBar() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const offlineBrowseActive = useOfflineBrowseActive();
+  const offlineBrowseActive = useOfflineBrowseContext().active;
   const playerStatsEnabled = usePlayerStatsRecordingEnabled();
 
   const isPlayer = location.pathname === '/player-stats';

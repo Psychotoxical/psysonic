@@ -31,11 +31,13 @@ import {
   ALBUM_YEAR_FILTER_DEBOUNCE_MS,
   resolveAlbumYearBounds,
 } from '../utils/library/albumYearFilter';
-import { isOfflineBrowseActive, useOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { isOfflineBrowseActive } from '../utils/offline/offlineBrowseMode';
+import { loadOfflineAlbumBrowseInitial } from '../utils/offline/offlineAlbumBrowseCatalog';
 import {
-  fetchOfflineLocalAlbumCatalogChunk,
-  offlineLocalBrowseEnabled,
-} from '../utils/offline/offlineLocalBrowse';
+  fetchAlbumBrowseCatalogChunk,
+  mergeAlbumCatalogChunk,
+} from '../utils/library/albumBrowseCatalogChunk';
+import { useOfflineBrowseContext } from './useOfflineBrowseContext';
 import { useClientSliceInfiniteScroll } from './useClientSliceInfiniteScroll';
 import { useDebouncedValue } from './useDebouncedValue';
 import { useInpageScrollSentinel } from './useInpageScrollSentinel';
@@ -96,7 +98,7 @@ export function useAlbumBrowseData({
   scrollRootEl,
   restoreDisplayCount,
 }: UseAlbumBrowseDataArgs) {
-  const offlineBrowseActive = useOfflineBrowseActive();
+  const offlineBrowseActive = useOfflineBrowseContext().active;
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -238,41 +240,19 @@ export function useAlbumBrowseData({
     catalogLoadingRef.current = true;
     setCatalogLoadingMore(true);
     try {
-      if (isOfflineBrowseActive()) {
-        if (!offlineLocalBrowseEnabled(serverId)) return;
-        const chunk = await fetchOfflineLocalAlbumCatalogChunk(
-          serverId,
-          query,
-          offset,
-          CATALOG_CHUNK_SIZE,
-          starredOverrides,
-        );
-        if (generation !== loadGenerationRef.current || chunk == null) return;
-        if (append) {
-          setAlbums(prev => {
-            const merged = dedupeById([...prev, ...chunk.albums]);
-            catalogOffsetRef.current = merged.length;
-            return merged;
-          });
-        } else {
-          setAlbums(chunk.albums);
-          catalogOffsetRef.current = chunk.albums.length;
-        }
-        setCatalogHasMore(chunk.hasMore);
-        return;
-      }
-      const chunk = await fetchLocalAlbumCatalogChunk(serverId, query, offset, CATALOG_CHUNK_SIZE);
+      const chunk = await fetchAlbumBrowseCatalogChunk(
+        serverId,
+        query,
+        offset,
+        CATALOG_CHUNK_SIZE,
+        starredOverrides,
+      );
       if (generation !== loadGenerationRef.current || chunk == null) return;
-      if (append) {
-        setAlbums(prev => {
-          const merged = dedupeById([...prev, ...chunk.albums]);
-          catalogOffsetRef.current = merged.length;
-          return merged;
-        });
-      } else {
-        setAlbums(chunk.albums);
-        catalogOffsetRef.current = chunk.albums.length;
-      }
+      setAlbums(prev => {
+        const { albums: next, offset: nextOffset } = mergeAlbumCatalogChunk(prev, chunk, append);
+        catalogOffsetRef.current = nextOffset;
+        return next;
+      });
       setCatalogHasMore(chunk.hasMore);
     } finally {
       catalogLoadingRef.current = false;
@@ -354,24 +334,18 @@ export function useAlbumBrowseData({
         const generation = ++loadGenerationRef.current;
         if (cancelled || generation !== loadGenerationRef.current) return;
         setBrowseMode('slice');
-        if (offlineLocalBrowseEnabled(serverId)) {
-          try {
-            const first = await fetchOfflineLocalAlbumCatalogChunk(
-              serverId,
-              browseQuery,
-              0,
-              CATALOG_CHUNK_SIZE,
-              starredOverrides,
-            );
-            if (cancelled || generation !== loadGenerationRef.current) return;
-            setAlbums(first?.albums ?? []);
-            catalogOffsetRef.current = first?.albums.length ?? 0;
-            setCatalogHasMore(first?.hasMore ?? false);
-          } catch {
-            setAlbums([]);
-            setCatalogHasMore(false);
-          }
-        } else {
+        try {
+          const first = await loadOfflineAlbumBrowseInitial(
+            serverId,
+            browseQuery,
+            CATALOG_CHUNK_SIZE,
+            starredOverrides,
+          );
+          if (cancelled || generation !== loadGenerationRef.current) return;
+          setAlbums(first.albums);
+          catalogOffsetRef.current = first.albums.length;
+          setCatalogHasMore(first.hasMore);
+        } catch {
           setAlbums([]);
           setCatalogHasMore(false);
         }
