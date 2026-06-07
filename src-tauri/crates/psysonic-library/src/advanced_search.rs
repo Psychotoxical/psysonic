@@ -460,8 +460,8 @@ fn build_album_from_tracks(
     );
 
     let select = "t.server_id, t.album_id, MAX(t.album), MAX(t.artist), MAX(t.artist_id), \
-        COUNT(*), SUM(t.duration_sec), MAX(t.year), MAX(t.genre), MAX(t.cover_art_id), \
-        MAX(t.starred_at), MAX(t.synced_at)";
+        MAX(t.album_artist), COUNT(*), SUM(t.duration_sec), MAX(t.year), MAX(t.genre), \
+        MAX(t.cover_art_id), MAX(t.starred_at), MAX(t.synced_at)";
     let order = album_order_from_track_groups(&req.sort).unwrap_or_else(|| {
         "ORDER BY MAX(t.album) COLLATE NOCASE ASC, t.album_id ASC".to_string()
     });
@@ -868,10 +868,10 @@ fn resolve_clause(
             }));
         }
         ("compilation", EntityKind::Album) => {
-            return compilation_filter_fragment(&c.field, c.op, c.value.as_ref(), "a");
+            return compilation_filter_fragment(&c.field, c.op, c.value.as_ref(), EntityKind::Album);
         }
         ("compilation", EntityKind::Track) => {
-            return compilation_filter_fragment(&c.field, c.op, c.value.as_ref(), "t");
+            return compilation_filter_fragment(&c.field, c.op, c.value.as_ref(), EntityKind::Track);
         }
         ("compilation", _) => return Ok(None),
         // `text` is handled by the entity builder (FTS / LIKE), never here.
@@ -1156,19 +1156,21 @@ fn map_artist(r: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryArtistDto> {
 }
 
 fn map_album_from_tracks(r: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryAlbumDto> {
+    let track_artist: Option<String> = r.get(3)?;
+    let album_artist: Option<String> = r.get(5)?;
     Ok(LibraryAlbumDto {
         server_id: r.get(0)?,
         id: r.get(1)?,
         name: r.get(2)?,
-        artist: r.get(3)?,
+        artist: crate::album_compilation_filter::pick_album_group_artist(track_artist, album_artist),
         artist_id: r.get(4)?,
-        song_count: Some(r.get(5)?),
-        duration_sec: Some(r.get(6)?),
-        year: r.get(7)?,
-        genre: r.get(8)?,
-        cover_art_id: r.get(9)?,
-        starred_at: r.get(10)?,
-        synced_at: r.get(11)?,
+        song_count: Some(r.get(6)?),
+        duration_sec: Some(r.get(7)?),
+        year: r.get(8)?,
+        genre: r.get(9)?,
+        cover_art_id: r.get(10)?,
+        starred_at: r.get(11)?,
+        synced_at: r.get(12)?,
         raw_json: Value::Null,
     })
 }
@@ -1264,9 +1266,21 @@ fn compilation_filter_fragment(
     field: &str,
     op: FilterOp,
     value: Option<&Value>,
-    table_alias: &str,
+    kind: EntityKind,
 ) -> Result<Option<SqlFragment>, String> {
-    let comp_sql = crate::album_compilation_filter::compilation_raw_json_sql(table_alias);
+    let comp_sql = match kind {
+        EntityKind::Album => crate::album_compilation_filter::compilation_predicate_sql(
+            "a",
+            Some("a.artist"),
+            None,
+        ),
+        EntityKind::Track => crate::album_compilation_filter::compilation_predicate_sql(
+            "t",
+            Some("t.artist"),
+            Some("t.album_artist"),
+        ),
+        _ => crate::album_compilation_filter::compilation_raw_json_sql("t"),
+    };
     match op {
         FilterOp::IsTrue => Ok(Some(SqlFragment {
             sql: comp_sql,
@@ -2030,6 +2044,27 @@ mod tests {
         let resp = run_advanced_search(&store, &r).unwrap();
         assert_eq!(resp.albums.len(), 1);
         assert_eq!(resp.albums[0].id, "al_comp");
+    }
+
+    #[test]
+    fn compilation_filter_matches_va_album_artist_on_track_groups() {
+        let store = LibraryStore::open_in_memory();
+        let mut comp = track("s1", "t_comp", "Hit", "Alice", "Comp Album");
+        comp.album_id = Some("al_comp".into());
+        comp.album_artist = Some("Various Artists".into());
+        comp.raw_json = "{}".into();
+        let mut reg = track("s1", "t_reg", "Song", "Band", "Studio");
+        reg.album_id = Some("al_reg".into());
+        reg.raw_json = "{}".into();
+        TrackRepository::new(&store)
+            .upsert_batch(&[comp, reg])
+            .unwrap();
+        let mut r = req("s1", &[EntityKind::Album]);
+        r.filters = vec![clause("compilation", FilterOp::IsTrue, None, None)];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.albums.len(), 1);
+        assert_eq!(resp.albums[0].id, "al_comp");
+        assert_eq!(resp.albums[0].artist.as_deref(), Some("Various Artists"));
     }
 
     #[test]

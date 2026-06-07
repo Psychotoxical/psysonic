@@ -8,7 +8,7 @@ import {
 import { filterAlbumsByCompilation } from './albumBrowseFilters';
 
 const album = (
-  overrides: Partial<SubsonicAlbum> & { compilation?: boolean } = {},
+  overrides: Partial<SubsonicAlbum> & { compilation?: boolean; albumArtist?: string } = {},
 ): SubsonicAlbum => ({
   id: '1',
   name: 'A',
@@ -25,6 +25,7 @@ describe('albumIsCompilation', () => {
     expect(albumIsCompilation(album({ compilation: true }))).toBe(true);
     expect(albumIsCompilation(album({ releaseTypes: ['Live', 'Compilation'] }))).toBe(true);
     expect(albumIsCompilation(album({ artist: 'Various Artists' }))).toBe(true);
+    expect(albumIsCompilation(album({ albumArtist: 'Various Artists' }))).toBe(true);
     expect(albumIsCompilation(album())).toBe(false);
   });
 });

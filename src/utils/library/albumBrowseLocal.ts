@@ -30,19 +30,42 @@ export async function runLocalAlbumBrowse(
 
   if (query.genres.length > 0) {
     if (query.genres.length === 1) {
+      // Genre-only fast path; combined filters (year / lossless / compilation) need advanced search.
+      if (shared.length === 0) {
+        try {
+          const resp = await libraryListAlbumsByGenre({
+            serverId,
+            genre: query.genres[0],
+            libraryScope: scope,
+            sort: albumSortClauses(query.sort),
+            limit: pageSize,
+            offset,
+          });
+          if (resp.source !== 'local') return null;
+          let albums = resp.albums.map(albumToAlbum);
+          if (useServerStarredIds) albums = markServerStarredAlbums(albums);
+          return { albums, hasMore: resp.hasMore };
+        } catch {
+          return null;
+        }
+      }
       try {
-        const resp = await libraryListAlbumsByGenre({
+        const resp = await libraryAdvancedSearch({
           serverId,
-          genre: query.genres[0],
           libraryScope: scope,
+          entityTypes: ['album'],
+          filters: [{ field: 'genre', op: 'eq', value: query.genres[0] }, ...shared],
+          starredOnly,
+          restrictAlbumIds: useServerStarredIds ? restrictAlbumIds : undefined,
           sort: albumSortClauses(query.sort),
           limit: pageSize,
           offset,
+          skipTotals: true,
         });
         if (resp.source !== 'local') return null;
         let albums = resp.albums.map(albumToAlbum);
         if (useServerStarredIds) albums = markServerStarredAlbums(albums);
-        return { albums, hasMore: resp.hasMore };
+        return { albums, hasMore: albums.length === pageSize };
       } catch {
         return null;
       }
