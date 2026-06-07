@@ -19,6 +19,11 @@ pub fn sanitize_log_line(line: &str) -> String {
     out
 }
 
+/// Never panic on the logging hot path — fall back to the raw line if needed.
+pub fn sanitize_log_line_infallible(line: &str) -> String {
+    std::panic::catch_unwind(|| sanitize_log_line(line)).unwrap_or_else(|_| line.to_string())
+}
+
 fn redact_bearer_tokens(line: &str) -> String {
     let marker = "Bearer ";
     let mut s = line.to_string();
@@ -68,36 +73,47 @@ fn redact_sensitive_key_values(line: &str) -> String {
     out
 }
 
+fn url_char_ends_url(ch: char, s: &str, byte_off: usize) -> bool {
+    if ch.is_whitespace() || ch == '"' || ch == '\'' || ch == '>' {
+        return true;
+    }
+    if ch == ')' || ch == ']' || ch == ',' {
+        if let Some(next) = s[byte_off..].chars().nth(1) {
+            return next.is_whitespace() || next == '"' || next == '\'';
+        }
+    }
+    false
+}
+
 fn redact_urls_in_text(line: &str) -> String {
     let mut out = String::with_capacity(line.len());
-    let mut i = 0;
-    let bytes = line.as_bytes();
-    while i < bytes.len() {
-        let http = line[i..].strip_prefix("http://");
-        let https = line[i..].strip_prefix("https://");
-        if let Some(scheme_len) = http.map(|_| 7).or_else(|| https.map(|_| 8)) {
-            let start = i;
-            i += scheme_len;
-            while i < bytes.len() {
-                let c = bytes[i] as char;
-                if c.is_whitespace() || c == '"' || c == '\'' || c == '>' {
-                    break;
-                }
-                // Stop before trailing punctuation unlikely to be part of the URL.
-                if (c == ')' || c == ']' || c == ',') && i + 1 < bytes.len() {
-                    let next = bytes[i + 1] as char;
-                    if next.is_whitespace() || next == '"' || next == '\'' {
-                        break;
-                    }
-                }
-                i += 1;
+    let mut cursor = 0;
+    while cursor < line.len() {
+        let slice = &line[cursor..];
+        let rel = match (slice.find("http://"), slice.find("https://")) {
+            (Some(h), Some(s)) => Some(h.min(s)),
+            (Some(h), None) => Some(h),
+            (None, Some(s)) => Some(s),
+            (None, None) => None,
+        };
+        let Some(rel) = rel else {
+            out.push_str(slice);
+            break;
+        };
+        out.push_str(&slice[..rel]);
+        let url_start = cursor + rel;
+        let url_slice = &line[url_start..];
+        let scheme_len = if url_slice.starts_with("https://") { 8 } else { 7 };
+        let mut url_end = scheme_len;
+        for (off, ch) in url_slice[scheme_len..].char_indices() {
+            let abs = scheme_len + off;
+            if url_char_ends_url(ch, url_slice, abs) {
+                break;
             }
-            let raw = &line[start..i];
-            out.push_str(&redact_url(raw));
-        } else {
-            out.push(bytes[i] as char);
-            i += 1;
+            url_end = abs + ch.len_utf8();
         }
+        out.push_str(&redact_url(&line[url_start..url_start + url_end]));
+        cursor = url_start + url_end;
     }
     out
 }
@@ -259,6 +275,21 @@ fn is_lan_host(host: &str) -> bool {
     false
 }
 
+fn mask_label_prefix(label: &str) -> String {
+    let mut chars = label.chars();
+    let c1 = chars.next();
+    let c2 = chars.next();
+    match (c1, c2) {
+        (None, _) => "*".to_string(),
+        (Some(a), None) => a.to_string(),
+        (Some(a), Some(b)) => {
+            let rest = label.chars().count().saturating_sub(2);
+            let stars = rest.clamp(1, 4);
+            format!("{a}{b}{}", "*".repeat(stars))
+        }
+    }
+}
+
 fn mask_public_ipv4(ip: &str) -> String {
     let parts: Vec<&str> = ip.split('.').collect();
     if parts.len() != 4 {
@@ -286,13 +317,7 @@ fn mask_hostname(host: &str) -> String {
         return "***".to_string();
     }
 
-    let first = parts[0];
-    let masked_first = if first.len() <= 2 {
-        "*".repeat(first.len().max(1))
-    } else {
-        let stars = (first.len() - 2).clamp(1, 4);
-        format!("{}{}", &first[..2], "*".repeat(stars))
-    };
+    let masked_first = mask_label_prefix(parts[0]);
 
     if parts.len() == 1 {
         masked_first
@@ -341,5 +366,13 @@ mod tests {
         let out = sanitize_log_line(line);
         assert!(out.contains("***@10.0.0.5"));
         assert!(!out.contains("user:pass"));
+    }
+
+    #[test]
+    fn stream_log_with_em_dash_does_not_panic() {
+        let line = "[stream] RangedHttpSource selected — total=15666KB, hint=Some(\"mp3\")";
+        let out = sanitize_log_line(line);
+        assert!(out.contains('—'));
+        assert!(out.contains("RangedHttpSource"));
     }
 }

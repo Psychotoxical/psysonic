@@ -20,6 +20,12 @@ describe('sanitizeLogLine', () => {
     expect(lan).toContain('192.168.1.42');
   });
 
+  it('handles stream logs with em dashes (UTF-8 safe)', () => {
+    const line = '[stream] RangedHttpSource selected — total=15666KB, hint=Some("mp3")';
+    expect(() => sanitizeLogLine(line)).not.toThrow();
+    expect(sanitizeLogLine(line)).toContain('—');
+  });
+
   it('redacts bearer tokens and password key/value pairs', () => {
     const line = 'auth header Bearer eyJhbGciOiJIUzI1NiJ9.xyz password=sekrit';
     const out = sanitizeLogLine(line);

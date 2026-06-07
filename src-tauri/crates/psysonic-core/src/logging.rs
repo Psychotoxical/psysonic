@@ -101,7 +101,7 @@ pub fn should_log_debug() -> bool {
 }
 
 pub fn append_log_line(line: String) {
-    let line = crate::log_sanitize::sanitize_log_line(&line);
+    let line = crate::log_sanitize::sanitize_log_line_infallible(&line);
     let seq = LOG_SEQ.fetch_add(1, Ordering::Relaxed) + 1;
     {
         let mut buf = log_buffer().lock().unwrap();
