@@ -144,6 +144,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Song rails — multi-artist credits link to each artist
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on Discord, PR [#1023](https://github.com/Psychotoxical/psysonic/pull/1023)**
+
+* **Random Picks**, **Discover Songs**, and other song cards now split OpenSubsonic `artists[]` into individually clickable names — the same behaviour as album track rows and the player bar, instead of one link for the whole joined credit string.
+* Album cards and the rest of the app share the same artist-ref helper, including when Subsonic returns a single ref object instead of a one-element array.
+
+
+
 ## [1.47.0]
 
 > **🙏 Thank you to our amazing Discord community.** This release would not have been possible without your tireless support, quality checks, bug reports and all-round collaboration. Every report, every repro and every bit of feedback shaped what shipped here — thank you. Come join us: [discord.gg/AMnDRErm4u](https://discord.gg/AMnDRErm4u)
