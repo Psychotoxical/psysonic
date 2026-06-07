@@ -1,5 +1,7 @@
 /**
- * Tests for the runtime theme-CSS trust boundary and <head> injection sync.
+ * Tests for the runtime theme-CSS security floor and <head> injection sync.
+ * Community themes are free-form; the floor only blocks the hard safety
+ * invariants (network, scripts, breakout, unscoped @keyframes, size).
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -21,39 +23,50 @@ afterEach(() => {
   document.head.querySelectorAll(`style[${ATTR}]`).forEach((el) => el.remove());
 });
 
-describe('validateThemeCss', () => {
-  it('accepts a valid single scoped rule', () => {
+describe('validateThemeCss (security floor)', () => {
+  it('accepts a simple scoped rule', () => {
     expect(validateThemeCss(block('dracula'), 'dracula')).not.toBeNull();
   });
 
-  it('accepts a data: url on the contract (e.g. --select-arrow)', () => {
+  it('accepts free-form selectors and structure', () => {
+    const css = `html { color: red; } .sidebar { background: #000; } [data-theme='x'] .player-bar { opacity: 0.9; }`;
+    expect(validateThemeCss(css, 'x')).not.toBeNull();
+  });
+
+  it('accepts @media and multiple rules', () => {
+    const css = `${block('x')} @media (min-width: 600px) { .sidebar { width: 200px; } }`;
+    expect(validateThemeCss(css, 'x')).not.toBeNull();
+  });
+
+  it('accepts @keyframes namespaced with the theme id, and its animation use', () => {
+    const css = `@keyframes x-pulse { from { opacity: 1 } to { opacity: 0.5 } } .sidebar { animation: x-pulse 2s infinite; }`;
+    expect(validateThemeCss(css, 'x')).not.toBeNull();
+  });
+
+  it('accepts a data: url()', () => {
     const css = block('x', `--select-arrow: url("data:image/svg+xml,%3Csvg%3E%3C/svg%3E");`);
     expect(validateThemeCss(css, 'x')).not.toBeNull();
+  });
+
+  it('rejects @keyframes not namespaced with the theme id', () => {
+    expect(validateThemeCss(`@keyframes pulse { from {} to {} } ${block('x')}`, 'x')).toBeNull();
   });
 
   it('rejects @import', () => {
     expect(validateThemeCss(`@import 'evil.css'; ${block('x')}`, 'x')).toBeNull();
   });
 
+  it('rejects @property (global custom-prop registration)', () => {
+    const css = `@property --x { syntax: '<color>'; inherits: false; initial-value: red; } ${block('x')}`;
+    expect(validateThemeCss(css, 'x')).toBeNull();
+  });
+
   it('rejects a non-data url()', () => {
     expect(validateThemeCss(block('x', `--accent: url(https://evil.test/x.png);`), 'x')).toBeNull();
   });
 
-  it('rejects </style> breakout', () => {
+  it('rejects </style> / <script> breakout', () => {
     expect(validateThemeCss(`${block('x')}</style><script>`, 'x')).toBeNull();
-  });
-
-  it('rejects an unscoped/global selector', () => {
-    expect(validateThemeCss(':root{ --accent:red; }', 'x')).toBeNull();
-    expect(validateThemeCss('*{ color:red; }', 'x')).toBeNull();
-  });
-
-  it('rejects a foreign theme id selector', () => {
-    expect(validateThemeCss(block('other'), 'dracula')).toBeNull();
-  });
-
-  it('rejects more than one rule', () => {
-    expect(validateThemeCss(`${block('x')} ${block('x', '--bg-app:#000;')}`, 'x')).toBeNull();
   });
 
   it('rejects expression() / javascript:', () => {
@@ -62,15 +75,15 @@ describe('validateThemeCss', () => {
   });
 
   it('rejects an oversized css blob', () => {
-    const huge = `[data-theme='x']{ ${'--accent:#ffffff;'.repeat(6000)} }`;
-    expect(huge.length).toBeGreaterThan(64 * 1024);
+    const huge = `[data-theme='x']{ ${'--accent:#ffffff;'.repeat(20000)} }`;
+    expect(huge.length).toBeGreaterThan(256 * 1024);
     expect(validateThemeCss(huge, 'x')).toBeNull();
   });
 
   it('ignores comments when validating', () => {
     expect(validateThemeCss(`/* hi */ ${block('x')}`, 'x')).not.toBeNull();
-    // comment cannot smuggle a second rule past the single-rule shape
-    expect(validateThemeCss(`${block('x')} /* */ ${block('x')}`, 'x')).toBeNull();
+    // A comment cannot smuggle an @import past the floor.
+    expect(validateThemeCss(`${block('x')} /* */ @import 'x';`, 'x')).toBeNull();
   });
 });
 
@@ -102,8 +115,8 @@ describe('syncInjectedThemes', () => {
     expect(el?.textContent).toContain('#222');
   });
 
-  it('does not inject invalid css', () => {
-    syncInjectedThemes([mk('a', ':root{ --accent:red; }')]);
+  it('does not inject css that fails the floor', () => {
+    syncInjectedThemes([mk('a', `@import 'evil.css'; ${block('a')}`)]);
     expect(injected()).toHaveLength(0);
   });
 });

@@ -367,6 +367,7 @@ export const settings = {
   themeImportErrorDetails: 'Detalii tehnice',
   themeImportConfirmTitle: 'Instalezi tema?',
   themeImportConfirmBody: 'Instalezi „{{name}}” de {{author}}?',
+  themeImportConfirmRisk: 'Temele importate nu sunt verificate — instalează doar teme în care ai încredere.',
   tabLibrary: 'Librărie',
   tabServers: 'Servere',
   tabLyrics: 'Versuri',

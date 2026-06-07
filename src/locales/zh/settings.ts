@@ -360,6 +360,7 @@ export const settings = {
   themeImportErrorDetails: '技术细节',
   themeImportConfirmTitle: '安装主题？',
   themeImportConfirmBody: '安装来自 {{author}} 的“{{name}}”？',
+  themeImportConfirmRisk: '导入的主题未经审核——请仅安装你信任的主题。',
   tabLibrary: '媒体库',
   tabServers: '服务器',
   tabLyrics: '歌词',

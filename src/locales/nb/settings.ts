@@ -364,6 +364,7 @@ export const settings = {
   themeImportErrorDetails: 'Tekniske detaljer',
   themeImportConfirmTitle: 'Installere tema?',
   themeImportConfirmBody: 'Installere «{{name}}» av {{author}}?',
+  themeImportConfirmRisk: 'Importerte temaer blir ikke gjennomgått — installer bare temaer du stoler på.',
   tabStorage: 'Frakoblet & Cache',
   inputKeybindingsTitle: 'Tastatursnarveier',
   aboutContributorsCount_one: '{{count}} bidrag',

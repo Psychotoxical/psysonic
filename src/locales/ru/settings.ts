@@ -443,6 +443,7 @@ export const settings = {
   themeImportErrorDetails: 'Технические подробности',
   themeImportConfirmTitle: 'Установить тему?',
   themeImportConfirmBody: 'Установить «{{name}}» от {{author}}?',
+  themeImportConfirmRisk: 'Импортированные темы не проверяются — устанавливайте только темы, которым доверяете.',
   tabLibrary: 'Библиотека',
   tabServers: 'Серверы',
   tabLyrics: 'Тексты песен',

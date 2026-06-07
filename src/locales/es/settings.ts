@@ -363,6 +363,7 @@ export const settings = {
   themeImportErrorDetails: 'Detalles técnicos',
   themeImportConfirmTitle: '¿Instalar tema?',
   themeImportConfirmBody: '¿Instalar «{{name}}» de {{author}}?',
+  themeImportConfirmRisk: 'Los temas importados no se revisan: instala solo temas en los que confíes.',
   tabLibrary: 'Biblioteca',
   tabServers: 'Servidores',
   tabLyrics: 'Letras',

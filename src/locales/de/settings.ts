@@ -365,6 +365,7 @@ export const settings = {
   themeImportErrorDetails: 'Technische Details',
   themeImportConfirmTitle: 'Theme installieren?',
   themeImportConfirmBody: '„{{name}}“ von {{author}} installieren?',
+  themeImportConfirmRisk: 'Importierte Themes werden nicht geprüft — installiere nur Themes, denen du vertraust.',
   tabLibrary: 'Bibliothek',
   tabServers: 'Server',
   tabLyrics: 'Songtexte',
