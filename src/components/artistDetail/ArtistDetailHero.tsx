@@ -41,6 +41,7 @@ interface Props {
   coverRevision: number;
   headerCoverFailed: boolean;
   setHeaderCoverFailed: React.Dispatch<React.SetStateAction<boolean>>;
+  readOnly?: boolean;
 }
 
 export default function ArtistDetailHero({
@@ -49,6 +50,7 @@ export default function ArtistDetailHero({
   handleImageUpload, playAllLoading, radioLoading, uploading,
   openedLink, openLink,
   coverId, coverRef, coverRevision, headerCoverFailed, setHeaderCoverFailed,
+  readOnly = false,
 }: Props) {
   const { t } = useTranslation();
   const goBack = useAlbumDetailBack();
@@ -139,7 +141,7 @@ export default function ArtistDetailHero({
             <StarRating
               value={artistEntityRating}
               onChange={handleArtistEntityRating}
-              disabled={artistEntityRatingSupport === 'track_only'}
+              disabled={readOnly || artistEntityRatingSupport === 'track_only'}
               labelKey="entityRating.artistAriaLabel"
             />
           </div>
@@ -168,15 +170,17 @@ export default function ArtistDetailHero({
               </div>
             )}
 
-            <button
-              className="artist-ext-link"
-              onClick={toggleStar}
-              data-tooltip={isStarred ? t('artistDetail.favoriteRemove') : t('artistDetail.favoriteAdd')}
-              style={{ color: isStarred ? 'var(--accent)' : 'inherit', border: isStarred ? '1px solid var(--accent)' : undefined }}
-            >
-              <Heart size={14} fill={isStarred ? "currentColor" : "none"} />
-              {t('artistDetail.favorite')}
-            </button>
+            {!readOnly && (
+              <button
+                className="artist-ext-link"
+                onClick={toggleStar}
+                data-tooltip={isStarred ? t('artistDetail.favoriteRemove') : t('artistDetail.favoriteAdd')}
+                style={{ color: isStarred ? 'var(--accent)' : 'inherit', border: isStarred ? '1px solid var(--accent)' : undefined }}
+              >
+                <Heart size={14} fill={isStarred ? "currentColor" : "none"} />
+                {t('artistDetail.favorite')}
+              </button>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: '8px', marginTop: '1.5rem', flexWrap: 'wrap' }}>
@@ -222,7 +226,7 @@ export default function ArtistDetailHero({
                 <Share2 size={16} />
               </button>
             )}
-            {albums.length > 0 && (
+            {!readOnly && albums.length > 0 && (
               <button
                 className="btn btn-surface"
                 disabled={
