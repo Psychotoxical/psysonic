@@ -357,7 +357,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Performance Probe: Monitor/Toggles redesign, live CPU/RSS/thread metrics, overlay pins and sparklines, macOS snapshots (PR #890)',
       'Performance Probe: opt-in thread-group CPU poll toggle and includeThreadGroups IPC fix (PR #891)',
       'Queue: switchable display mode — Queue (upcoming only) vs Playlist (full list), with header toggle and settings entry (PR #922)',
-      'Community Theme Store: semantic-token refactor, dedicated Themes tab with day/night scheduler, install/update/uninstall, local .zip import, and free-form community themes (safety floor + state-reactive styling); 80+ palettes moved to an on-demand CDN repo (PR #1009, #1011, #1012, #1013, #1014, #1015, #1016, #1018)',
+      'Community Theme Store: semantic-token refactor, dedicated Themes tab with day/night scheduler, install/update/uninstall, local .zip import, and free-form community themes (safety floor + state-reactive styling); 80+ palettes moved to an on-demand CDN repo (PR #1009, #1011, #1012, #1013, #1014, #1015, #1016, #1018, #1020)',
     ],
   },
   {
