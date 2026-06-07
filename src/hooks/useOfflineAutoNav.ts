@@ -1,24 +1,28 @@
 import { useEffect, useRef } from 'react';
-import type { NavigateFunction } from 'react-router-dom';
+import type { Location, NavigateFunction } from 'react-router-dom';
+import { resolveOfflineDisconnectNavAction } from '../utils/offline/offlineBrowseRouting';
 
 type ConnStatus = 'connected' | 'disconnected' | 'connecting' | 'unknown';
 
+export type OfflineAutoNavContext = {
+  favoritesOfflineBrowse: boolean;
+  localLibraryBrowse: boolean;
+  playerStatsBrowse: boolean;
+  hasManualOfflineContent: boolean;
+};
+
 /**
- * Auto-route the user between offline-capable pages and main pages based on
- * connection status:
- *  - Disconnect with manual offline pins → push `/offline`.
- *  - Disconnect with favorites offline browse enabled → push `/favorites`.
- *  - Reconnect while sitting on `/offline` or `/favorites` → push back to `/`.
+ * On disconnect:
+ *  - No offline browse content → stay on the current page (banner only).
+ *  - Offline-capable route → stay and bump location state so data hooks reload.
+ *  - Otherwise → redirect to All Albums.
  *
- * Only fires on transitions (not on every render). Reconnect-bounce is
- * gated on `prev === 'disconnected'` so a user who navigates to `/offline`
- * manually while online stays there.
+ * Only runs on connection transitions, not every render.
  */
 export function useOfflineAutoNav(
   connStatus: ConnStatus | string,
-  hasManualOfflineContent: boolean,
-  favoritesOfflineBrowse: boolean,
-  pathname: string,
+  ctx: OfflineAutoNavContext,
+  location: Pick<Location, 'pathname' | 'search' | 'state'>,
   navigate: NavigateFunction,
 ): void {
   const prevConnStatus = useRef(connStatus);
@@ -26,25 +30,44 @@ export function useOfflineAutoNav(
     const prev = prevConnStatus.current;
     prevConnStatus.current = connStatus;
 
-    if (connStatus === 'disconnected' && prev !== 'disconnected') {
-      if (hasManualOfflineContent) {
-        navigate('/offline', { replace: true });
-      } else if (favoritesOfflineBrowse) {
-        navigate('/favorites', { replace: true });
-      }
+    if (connStatus !== 'disconnected' || prev === 'disconnected') return;
+
+    const action = resolveOfflineDisconnectNavAction(
+      location.pathname,
+      ctx.favoritesOfflineBrowse,
+      ctx.localLibraryBrowse,
+      ctx.playerStatsBrowse,
+      ctx.hasManualOfflineContent,
+    );
+
+    if (action.kind === 'stay') return;
+
+    if (action.kind === 'stay-reload') {
+      navigate(
+        { pathname: location.pathname, search: location.search },
+        {
+          replace: true,
+          state: {
+            ...(typeof location.state === 'object' && location.state != null
+              ? location.state as Record<string, unknown>
+              : {}),
+            offlineBrowseReloadTs: Date.now(),
+          },
+        },
+      );
+      return;
     }
-    if (
-      connStatus === 'connected'
-      && prev === 'disconnected'
-      && (pathname === '/offline' || pathname === '/favorites')
-    ) {
-      navigate('/', { replace: true });
-    }
+
+    navigate(action.to, { replace: true });
   }, [
     connStatus,
-    hasManualOfflineContent,
-    favoritesOfflineBrowse,
-    pathname,
+    ctx.favoritesOfflineBrowse,
+    ctx.localLibraryBrowse,
+    ctx.playerStatsBrowse,
+    ctx.hasManualOfflineContent,
+    location.pathname,
+    location.search,
+    location.state,
     navigate,
   ]);
 }

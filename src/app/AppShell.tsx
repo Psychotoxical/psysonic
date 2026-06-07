@@ -57,6 +57,9 @@ import { useCoverNavigationPriority } from '../hooks/useCoverNavigationPriority'
 import { useLiveSearchRouteScope } from '../hooks/useLiveSearchRouteScope';
 import { useNowPlayingPrewarm } from '../hooks/useNowPlayingPrewarm';
 import { useOfflineAutoNav } from '../hooks/useOfflineAutoNav';
+import { usePlayerStatsRecordingEnabled } from '../hooks/usePlayerStatsRecordingEnabled';
+import { hasOfflineBrowseCapability } from '../utils/offline/offlineBrowseRouting';
+import { offlineLocalBrowseEnabled } from '../utils/offline/offlineLocalBrowse';
 import { useOfflineLibraryFilterSuspend } from '../hooks/useOfflineLibraryFilterSuspend';
 import { AppShellQueueResizerSeam } from '../components/AppShellQueueResizerSeam';
 import { IS_LINUX } from '../utils/platform';
@@ -117,8 +120,15 @@ export function AppShell() {
   const activeServerId = useAuthStore(s => s.activeServerId);
   const libraryIndexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(activeServerId));
   const favoritesOfflineBrowse = favoritesOfflineEnabled && libraryIndexEnabled;
+  const localLibraryBrowse = offlineLocalBrowseEnabled(activeServerId);
+  const playerStatsBrowse = usePlayerStatsRecordingEnabled();
   const hasManualOfflineContent = hasAnyOfflineAlbums(offlineAlbums);
   const hasOfflineContent = hasOfflineBrowsingContent(offlineAlbums);
+  const hasOfflineBrowse = hasOfflineBrowseCapability(
+    localLibraryBrowse,
+    favoritesOfflineBrowse,
+    hasManualOfflineContent,
+  );
   const floatingPlayerBar = useThemeStore(s => s.floatingPlayerBar);
   const perfFlags = usePerfProbeFlags();
 
@@ -148,9 +158,13 @@ export function AppShell() {
 
   useOfflineAutoNav(
     connStatus,
-    hasManualOfflineContent,
-    favoritesOfflineBrowse,
-    location.pathname,
+    {
+      favoritesOfflineBrowse,
+      localLibraryBrowse,
+      playerStatsBrowse,
+      hasManualOfflineContent,
+    },
+    location,
     navigate,
   );
   useOfflineLibraryFilterSuspend();
@@ -279,7 +293,7 @@ export function AppShell() {
         </header>
         <OrbitSessionBar />
         {connStatus === 'disconnected' && (
-          <OfflineBanner onRetry={connRetry} isChecking={connRetrying} showSettingsLink={!hasOfflineContent} serverName={serverName} />
+          <OfflineBanner onRetry={connRetry} isChecking={connRetrying} showSettingsLink={!hasOfflineBrowse} serverName={serverName} />
         )}
         <div className="content-body app-shell-route-host">
           <OverlayScrollArea
