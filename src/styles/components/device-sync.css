@@ -423,7 +423,7 @@
   gap: 8px;
   height: 52px;
   padding: 0 14px;
-  background: var(--bg-secondary);
+  background: var(--bg-card);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -792,7 +792,7 @@
 
 .device-sync-browser-row:hover { background: var(--bg-hover); }
 .device-sync-browser-row.selected { background: var(--accent-dim); }
-.device-sync-browser-row.indent { padding-left: 36px; background: var(--bg-secondary); }
+.device-sync-browser-row.indent { padding-left: 36px; background: var(--bg-card); }
 .device-sync-browser-row.indent:hover { background: var(--bg-hover); }
 .device-sync-browser-row.indent.selected { background: var(--accent-dim); }
 

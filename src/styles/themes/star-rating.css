@@ -2,23 +2,23 @@
 .star-rating {
   display: flex;
   gap: 2px;
-  color: var(--ctp-overlay1);
+  color: var(--text-muted);
   justify-content: center;
   width: 100%;
 }
 
 .star-rating .star.filled {
-  color: var(--ctp-yellow);
+  color: var(--highlight);
 }
 
 .star-rating .star:hover {
-  color: var(--ctp-yellow);
+  color: var(--highlight);
   cursor: pointer;
 }
 
-/* While clearing: no yellow hover until pointer leaves or next click */
+/* While clearing: no highlight hover until pointer leaves or next click */
 .star-rating--suppress-hover .star:hover {
-  color: var(--ctp-overlay1);
+  color: var(--text-muted);
 }
 
 .star-rating--disabled {
@@ -40,7 +40,7 @@
 }
 
 .star-rating .star.star--locked:hover {
-  color: var(--ctp-overlay1);
+  color: var(--text-muted);
   cursor: default;
 }
 

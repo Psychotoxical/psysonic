@@ -3,8 +3,8 @@
   width: 100%;
   padding: var(--space-2) var(--space-3);
   padding-left: 36px;
-  background: var(--ctp-base);
-  border: 1px solid var(--ctp-overlay0);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: var(--radius-md);
   color: var(--text-primary);
   font-family: var(--font-sans);

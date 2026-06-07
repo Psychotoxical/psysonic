@@ -10,6 +10,6 @@
   /* Opaque fill — `--accent-dim` is too transparent and disappears against
      light-toned hero backdrops when the cover art is white-dominant. */
   background: var(--accent);
-  color: var(--ctp-crust);
+  color: var(--text-on-accent);
 }
 

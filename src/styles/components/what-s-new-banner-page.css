@@ -1,7 +1,6 @@
 /* ─ What's New — banner + page ────────────────────────────────────────────
-   Fixed neutral palette so it reads identically on every theme (light and
-   dark). The banner sits in the sidebar just above Now Playing; the page
-   opens in the main content area. */
+   The banner sits in the sidebar just above Now Playing; the page opens in
+   the main content area. Both follow the active theme. */
 
 .sidebar-bottom-spacer {
   margin-top: auto;
@@ -15,9 +14,9 @@
   width: 100%;
   padding: 8px 10px;
   margin: 0 0 6px 0;
-  background: #1f2233;
-  color: #dfe3f6;
-  border: 1px solid #3a3f5a;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
   border-radius: 8px;
   font: inherit;
   font-size: 12px;
@@ -28,13 +27,13 @@
 }
 
 .whats-new-banner:hover {
-  background: #272b40;
-  border-color: #4a5072;
+  background: var(--bg-hover);
+  border-color: var(--border);
 }
 
 .whats-new-banner__icon {
   flex-shrink: 0;
-  color: #8ec8ff;
+  color: var(--accent);
 }
 
 .whats-new-banner__text {
@@ -47,12 +46,12 @@
 
 .whats-new-banner__title {
   font-weight: 600;
-  color: #f1f3fb;
+  color: var(--text-primary);
 }
 
 .whats-new-banner__version {
   font-size: 10.5px;
-  color: #9aa0bd;
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -64,12 +63,12 @@
   width: 18px;
   height: 18px;
   border-radius: 4px;
-  color: #9aa0bd;
+  color: var(--text-muted);
   cursor: pointer;
 }
 .whats-new-banner__dismiss:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #e4e7f5;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .whats-new-banner--collapsed {
@@ -81,4 +80,3 @@
   justify-content: center;
   margin: 0 auto 6px;
 }
-

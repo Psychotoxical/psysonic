@@ -71,7 +71,7 @@ function ComposerRowAvatar({ artist }: { artist: SubsonicArtist }) {
       className="artist-avatar artist-avatar-initial"
       style={{ background: color, border: 0 }}
     >
-      <span style={{ color: 'var(--ctp-crust)', fontWeight: 800 }}>{nameInitial(artist.name)}</span>
+      <span style={{ color: 'var(--text-on-accent)', fontWeight: 800 }}>{nameInitial(artist.name)}</span>
     </div>
   );
 }
@@ -351,7 +351,7 @@ export default function Composers() {
               <button
                 className={`btn btn-surface ${viewMode === 'grid' ? 'btn-sort-active' : ''}`}
                 onClick={() => setViewMode('grid')}
-                style={viewMode === 'grid' ? { background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '0.5rem' } : { padding: '0.5rem' }}
+                style={viewMode === 'grid' ? { background: 'var(--accent)', color: 'var(--text-on-accent)', padding: '0.5rem' } : { padding: '0.5rem' }}
                 data-tooltip={t('artists.gridView')}
               >
                 <LayoutGrid size={20} />
@@ -359,7 +359,7 @@ export default function Composers() {
               <button
                 className={`btn btn-surface ${viewMode === 'list' ? 'btn-sort-active' : ''}`}
                 onClick={() => setViewMode('list')}
-                style={viewMode === 'list' ? { background: 'var(--accent)', color: 'var(--ctp-crust)', padding: '0.5rem' } : { padding: '0.5rem' }}
+                style={viewMode === 'list' ? { background: 'var(--accent)', color: 'var(--text-on-accent)', padding: '0.5rem' } : { padding: '0.5rem' }}
                 data-tooltip={t('artists.listView')}
               >
                 <List size={20} />
