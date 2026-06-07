@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { useAuthStore } from './store/authStore';
+import { usePlayerStore } from './store/playerStore';
+import { useLyricsStore } from './store/lyricsStore';
 import { useThemeStore } from './store/themeStore';
 import { useInstalledThemesStore } from './store/installedThemesStore';
 import { syncInjectedThemes } from './utils/themes/themeInjection';
@@ -33,6 +35,25 @@ export default function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', effectiveTheme);
   }, [effectiveTheme]);
+
+  // Expose app state on the theme root so themes can react to it with a
+  // same-element compound selector, e.g. `[data-theme='x'][data-playing='true']`.
+  // The set of allowed state attributes is the contract's `stateSelectors`.
+  // (Sidebar-collapsed is set in AppShell, where that state lives.)
+  const isPlaying = usePlayerStore(s => s.isPlaying);
+  useEffect(() => {
+    document.documentElement.setAttribute('data-playing', isPlaying ? 'true' : 'false');
+  }, [isPlaying]);
+
+  const isFullscreenOpen = usePlayerStore(s => s.isFullscreenOpen);
+  useEffect(() => {
+    document.documentElement.setAttribute('data-fullscreen', isFullscreenOpen ? 'true' : 'false');
+  }, [isFullscreenOpen]);
+
+  const lyricsOpen = useLyricsStore(s => s.activeTab === 'lyrics');
+  useEffect(() => {
+    document.documentElement.setAttribute('data-lyrics-open', lyricsOpen ? 'true' : 'false');
+  }, [lyricsOpen]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-font', font);

@@ -132,7 +132,7 @@ export function ThemeImportSection() {
       <ConfirmModal
         open={pending !== null}
         title={t('settings.themeImportConfirmTitle')}
-        message={pending ? t('settings.themeImportConfirmBody', { name: pending.name, author: pending.author }) : ''}
+        message={pending ? `${t('settings.themeImportConfirmBody', { name: pending.name, author: pending.author })} ${t('settings.themeImportConfirmRisk')}` : ''}
         confirmLabel={t('settings.themeStoreInstall')}
         cancelLabel={t('common.cancel')}
         onConfirm={confirmInstall}

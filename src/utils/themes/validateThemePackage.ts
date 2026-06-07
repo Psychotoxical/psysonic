@@ -1,37 +1,21 @@
-import allowedTokens from './contract/allowed-tokens.json';
 import { validateThemeCss } from './themeInjection';
 import { FIXED_THEMES } from '../../components/settings/fixedThemes';
 
 /**
- * Full theme-package validation for locally imported themes (a .zip holding
- * manifest.json + theme.css). This is the in-app mirror of the repo CI
- * contract check (`scripts/validate-theme.mjs`): it enforces the exact same
- * manifest schema and CSS token whitelist, using a byte-identical copy of
- * `schema/allowed-tokens.json` and the schema's own field patterns.
+ * Validation for a locally imported theme package (a .zip holding manifest.json
+ * + theme.css). Community themes are free-form, so this enforces two things:
  *
- * Layering: `validateThemeCss` (themeInjection) is the security/containment
- * guard — it guarantees the CSS is a single, scoped, at-rule-free rule with
- * data-URI-only `url()`. Once that holds, the declaration list is a flat
- * `prop: value;` sequence we can extract safely (no nesting) and check against
- * the contract here. The same `validateThemeCss` runs again at injection time,
- * so a theme that slips past this is still contained at the boundary.
+ *  1. the **manifest** is well-formed (the same field rules as the repo schema),
+ *     and its id doesn't collide with a built-in theme, and
+ *  2. the CSS passes the in-app **security floor** (`validateThemeCss`) — no
+ *     network/scripts/breakout, data:-only `url()`, id-namespaced `@keyframes`.
+ *
+ * Quality, structure, animations and taste are deliberately NOT checked here:
+ * store themes are vetted by maintainers, and sideloaded themes are installed
+ * at the user's own risk (the import UI says so). The floor is the safety line.
  */
 
-const noMeta = (o: Record<string, unknown>): string[] =>
-  Object.keys(o || {}).filter((k) => !k.startsWith('$'));
-
-const CORE = noMeta(allowedTokens.core as Record<string, unknown>);
-const ALLOWED = new Set([
-  ...CORE,
-  ...noMeta(allowedTokens.optional as Record<string, unknown>),
-  ...noMeta(allowedTokens.granular as Record<string, unknown>),
-]);
-const DATA_URI_TOKENS = new Set(allowedTokens.dataUriTokens as string[]);
-const SCHEME_VALUES = new Set(allowedTokens.colorScheme.values as string[]);
-const BUILTIN_IDS = new Set(FIXED_THEMES.map((f) => f.id));
-
-// Field patterns copied verbatim from schema/manifest.schema.json so the
-// in-app check stays identical to CI without bundling a JSON-schema engine.
+// Field patterns copied verbatim from the repo's schema/manifest.schema.json.
 const ID_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const AUTHOR_RE = /^[A-Za-z0-9](-?[A-Za-z0-9]){0,38}$/;
 const SEMVER_RE =
@@ -41,6 +25,7 @@ const TAG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const MANIFEST_KEYS = new Set([
   'id', 'name', 'author', 'version', 'description', 'mode', 'tags', 'minAppVersion',
 ]);
+const BUILTIN_IDS = new Set(FIXED_THEMES.map((f) => f.id));
 
 export interface ValidatedTheme {
   id: string;
@@ -56,44 +41,6 @@ export interface ValidatedTheme {
 export type ValidateResult =
   | { ok: true; theme: ValidatedTheme }
   | { ok: false; errors: string[] };
-
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/** The declarations inside the single `[data-theme='<id>']` rule, or null. */
-function ruleBody(css: string, id: string): string | null {
-  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '').trim();
-  const sel = `\\[data-theme=(['"])${escapeRegExp(id)}\\1\\]`;
-  const m = stripped.match(new RegExp(`^${sel}\\s*\\{([^{}]*)\\}$`));
-  return m ? m[2] : null;
-}
-
-/**
- * Split a flat declaration body on top-level `;` only — never inside `()` or a
- * quoted string, so a `url("data:image/svg+xml;...")` value (the `;` in the
- * MIME type / SVG) stays intact.
- */
-function splitDeclarations(body: string): string[] {
-  const out: string[] = [];
-  let cur = '';
-  let depth = 0;
-  let quote: string | null = null;
-  for (const ch of body) {
-    if (quote) {
-      cur += ch;
-      if (ch === quote) quote = null;
-      continue;
-    }
-    if (ch === '"' || ch === "'") { quote = ch; cur += ch; continue; }
-    if (ch === '(') { depth++; cur += ch; continue; }
-    if (ch === ')') { if (depth > 0) depth--; cur += ch; continue; }
-    if (ch === ';' && depth === 0) { out.push(cur); cur = ''; continue; }
-    cur += ch;
-  }
-  if (cur.trim()) out.push(cur);
-  return out.map((s) => s.trim()).filter(Boolean);
-}
 
 export function validateThemePackage(manifestText: string, css: string): ValidateResult {
   const errors: string[] = [];
@@ -165,59 +112,18 @@ export function validateThemePackage(manifestText: string, css: string): Validat
     }
   }
 
-  // ---- css ----
-  // The selector check needs a valid id; if the id is bad, skip the CSS rule
-  // checks (they would all fail for the wrong reason) but keep the manifest
-  // errors above.
+  // ---- css security floor ----
+  // Needs a valid id (the @keyframes namespace check is keyed on it).
   const idForCss = id && ID_RE.test(id) ? id : null;
   if (idForCss === null) {
     errors.push('theme.css cannot be validated until manifest.id is valid');
     return { ok: false, errors };
   }
-
   if (validateThemeCss(css, idForCss) == null) {
     errors.push(
-      `theme.css must be exactly one safe [data-theme='${idForCss}'] rule (no @-rules, no foreign/global selectors, url() may only be a data: URI)`,
+      "theme.css failed the safety check — it may exceed the size limit, reach the network (only data: url() is allowed), use @import / @property / scripts, break out of its <style>, or define @keyframes not namespaced as \"" + idForCss + "-…\"",
     );
     return { ok: false, errors };
-  }
-
-  const body = ruleBody(css, idForCss);
-  if (body === null) {
-    // Should not happen once validateThemeCss passed, but stay defensive.
-    errors.push('theme.css declarations could not be read');
-    return { ok: false, errors };
-  }
-
-  const seen = new Set<string>();
-  let scheme: string | null = null;
-  for (const decl of splitDeclarations(body)) {
-    const idx = decl.indexOf(':');
-    if (idx < 0) { errors.push(`malformed declaration: "${decl}"`); continue; }
-    const prop = decl.slice(0, idx).trim();
-    const value = decl.slice(idx + 1).trim();
-
-    if (prop === 'color-scheme') {
-      scheme = value;
-      if (!SCHEME_VALUES.has(value)) errors.push(`color-scheme must be one of ${[...SCHEME_VALUES].join(' | ')} (got: ${value})`);
-      continue;
-    }
-    if (!prop.startsWith('--')) { errors.push(`only custom properties and color-scheme are allowed (found: ${prop})`); continue; }
-    if (!ALLOWED.has(prop)) { errors.push(`token ${prop} is not in the contract whitelist`); continue; }
-    if (seen.has(prop)) errors.push(`token ${prop} is declared more than once`);
-    seen.add(prop);
-
-    const urls = value.toLowerCase().match(/url\(([^)]*)\)/g) || [];
-    for (const u of urls) {
-      if (!/url\(\s*["']?\s*data:/.test(u)) errors.push(`${prop}: only url(data:...) is allowed`);
-      else if (!DATA_URI_TOKENS.has(prop)) errors.push(`${prop}: data-URI values are only allowed on ${[...DATA_URI_TOKENS].join(', ')}`);
-    }
-  }
-
-  if (scheme === null) errors.push('color-scheme is required in theme.css');
-  if (mode && scheme && mode !== scheme) errors.push(`manifest.mode "${mode}" must match theme.css color-scheme "${scheme}"`);
-  for (const t of CORE) {
-    if (!seen.has(t)) errors.push(`missing required core token ${t}`);
   }
 
   if (errors.length) return { ok: false, errors };

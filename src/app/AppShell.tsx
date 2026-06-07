@@ -189,6 +189,13 @@ export function AppShell() {
     return () => window.removeEventListener('psy:toggle-sidebar', onToggleSidebar);
   }, [isSidebarCollapsed, setSidebarCollapsed]);
 
+  // Expose sidebar state on the theme root so themes can react with a
+  // `[data-theme='x'][data-sidebar-collapsed='true']` compound (contract
+  // `stateSelectors`). Other state attributes are set in App.tsx.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-sidebar-collapsed', isSidebarCollapsed ? 'true' : 'false');
+  }, [isSidebarCollapsed]);
+
   // Workaround for WebKitGTK 2.50.x text-input repaint hang on
   // Linux Mint / Ubuntu 24.04 (issues #342, #782). When opted in,
   // nudge WebKit awake on every input/textarea focus via a sync
