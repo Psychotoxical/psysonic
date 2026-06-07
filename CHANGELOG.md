@@ -136,6 +136,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Mainstage — hero backdrop stays in sync when skipping albums quickly
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by Asra on the Psysonic Discord, PR [#1021](https://github.com/Psychotoxical/psysonic/pull/1021)**
+
+* Rapid prev/next clicks on the Mainstage hero no longer leave the blurred cover-art background on the previous album while the foreground cover and metadata already show the next one.
+
+
+
 ## [1.47.0]
 
 > **🙏 Thank you to our amazing Discord community.** This release would not have been possible without your tireless support, quality checks, bug reports and all-round collaboration. Every report, every repro and every bit of feedback shaped what shipped here — thank you. Come join us: [discord.gg/AMnDRErm4u](https://discord.gg/AMnDRErm4u)
