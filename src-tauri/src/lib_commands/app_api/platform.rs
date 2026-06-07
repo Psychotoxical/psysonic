@@ -137,6 +137,29 @@ pub(crate) fn linux_webkit_apply_wayland_gpu_font_tuning(win: &tauri::WebviewWin
 }
 
 /// Toggle native window decorations at runtime (Linux custom title bar opt-out).
+/// Tauri command: true when theme animations may be costly on this setup —
+/// Linux with the Nvidia WebKit quirk active (recorded once at startup) or
+/// compositing forced off. The frontend warns on animated themes when true.
+/// Always false off Linux.
+#[tauri::command]
+pub(crate) fn theme_animation_risk() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        // Compositing forced off → GPU-accelerated effects/animation are costly.
+        if std::env::var("WEBKIT_DISABLE_COMPOSITING_MODE")
+            .map(|v| v == "1")
+            .unwrap_or(false)
+        {
+            return true;
+        }
+        crate::theme_animation::nvidia_quirk_active()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        false
+    }
+}
+
 #[tauri::command]
 pub(crate) fn set_window_decorations(enabled: bool, app_handle: tauri::AppHandle) {
     if let Some(win) = app_handle.get_webview_window("main") {

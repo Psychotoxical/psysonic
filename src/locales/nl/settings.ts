@@ -320,6 +320,7 @@ export const settings = {
   tabThemes: "Thema's",
   themesYourThemesTitle: "Jouw thema's",
   themesCvdTooltip: 'Kleurenblind-veilig – deuteranopie, protanopie, tritanopie',
+  themeAnimationWarning: 'Dit thema gebruikt animaties die het CPU-gebruik op jouw systeem kunnen verhogen (Nvidia/Linux of compositing uit).',
   themeStoreTitle: 'Themawinkel',
   themeStoreSubmitText: 'Eigen thema gemaakt? Deel het met de community — meer info in de themarepository.',
   themeStoreSubmitLink: 'Themarepository openen',

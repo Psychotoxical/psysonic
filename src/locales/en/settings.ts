@@ -391,6 +391,7 @@ export const settings = {
   tabThemes: 'Themes',
   themesYourThemesTitle: 'Your Themes',
   themesCvdTooltip: 'Colour-blind safe — deuteranopia, protanopia, tritanopia',
+  themeAnimationWarning: 'This theme uses animations that may raise CPU usage on your setup (Nvidia/Linux or compositing off).',
   themeStoreTitle: 'Theme Store',
   themeStoreSubmitText: 'Made your own theme? Share it with the community — more info in the themes repository.',
   themeStoreSubmitLink: 'Open the themes repository',

@@ -17,11 +17,16 @@ fn apply_linux_webkit_nvidia_quirk() {
     // may still be `XDG_SESSION_TYPE=wayland`. The quirk maps that to `__NV_DISABLE_EXPLICIT_SYNC`,
     // which mismatches a real X11 EGL stack and can leave the webview gray — mirror the native-X11
     // branch (`WEBKIT_DISABLE_DMABUF_RENDERER` only) whenever GDK is pinned to x11 first in the list.
+    // Detect once and record it for the UI's animated-theme CPU-load warning,
+    // so the theme_animation_risk command never has to re-probe the GPU.
+    let kind = needs_workaround();
+    psysonic_lib::theme_animation::set_nvidia_quirk_active(!matches!(kind, WorkaroundKind::None));
+
     let forced_x11_gdk = std::env::var("GDK_BACKEND").ok().is_some_and(|s| {
         matches!(s.split(',').next().map(str::trim), Some("x11"))
     });
     if forced_x11_gdk {
-        match needs_workaround() {
+        match kind {
             WorkaroundKind::None => {}
             WorkaroundKind::DisableWebkitDmabufRenderer | WorkaroundKind::DisableNvExplicitSync => {
                 set_webkit_disable_dmabuf_renderer();

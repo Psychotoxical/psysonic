@@ -323,6 +323,7 @@ export const settings = {
   tabThemes: 'Temaer',
   themesYourThemesTitle: 'Dine temaer',
   themesCvdTooltip: 'Fargeblind-sikker – deuteranopi, protanopi, tritanopi',
+  themeAnimationWarning: 'Dette temaet bruker animasjoner som kan øke CPU-bruken på oppsettet ditt (Nvidia/Linux eller compositing av).',
   themeStoreTitle: 'Temabutikk',
   themeStoreSubmitText: 'Laget ditt eget tema? Del det med fellesskapet — mer info i tema-repoet.',
   themeStoreSubmitLink: 'Åpne tema-repoet',

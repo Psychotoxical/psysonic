@@ -322,6 +322,7 @@ export const settings = {
   tabThemes: 'Temas',
   themesYourThemesTitle: 'Tus temas',
   themesCvdTooltip: 'Apto para daltonismo: deuteranopía, protanopía, tritanopía',
+  themeAnimationWarning: 'Este tema usa animaciones que pueden aumentar el uso de CPU en tu sistema (Nvidia/Linux o compositing desactivado).',
   themeStoreTitle: 'Tienda de temas',
   themeStoreSubmitText: '¿Has creado tu propio tema? Compártelo con la comunidad — más información en el repositorio de temas.',
   themeStoreSubmitLink: 'Abrir el repositorio de temas',

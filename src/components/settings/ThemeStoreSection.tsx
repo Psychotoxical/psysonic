@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronLeft, ChevronRight, Download, RefreshCw, Trash2, WifiOff } from 'lucide-react';
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, Download, RefreshCw, Trash2, WifiOff } from 'lucide-react';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
 import CoverLightbox from '../CoverLightbox';
+import { useThemeAnimationRisk } from '../../hooks/useThemeAnimationRisk';
 import { useThemeStore } from '../../store/themeStore';
 import { useInstalledThemesStore, type InstalledTheme } from '../../store/installedThemesStore';
 import {
@@ -33,6 +34,7 @@ export function ThemeStoreSection() {
   const setTheme = useThemeStore(s => s.setTheme);
   const installed = useInstalledThemesStore(s => s.themes);
   const install = useInstalledThemesStore(s => s.install);
+  const animRisk = useThemeAnimationRisk();
 
   const [themes, setThemes] = useState<RegistryTheme[] | null>(null);
   const [generatedAt, setGeneratedAt] = useState('');
@@ -291,6 +293,17 @@ export function ThemeStoreSection() {
                     {isActive && (
                       <span style={{ fontSize: 11, color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                         <Check size={12} /> {t('settings.themeStoreActive')}
+                      </span>
+                    )}
+                    {animRisk && th.animated && (
+                      <span
+                        role="img"
+                        aria-label={t('settings.themeAnimationWarning')}
+                        data-tooltip={t('settings.themeAnimationWarning')}
+                        data-tooltip-pos="top"
+                        style={{ display: 'inline-flex', color: 'var(--warning)' }}
+                      >
+                        <AlertTriangle size={14} />
                       </span>
                     )}
                   </div>

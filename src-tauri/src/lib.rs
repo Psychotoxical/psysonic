@@ -6,6 +6,7 @@ mod cover_cache;
 mod library_analysis_backfill;
 mod lib_commands;
 mod theme_import;
+pub mod theme_animation;
 
 pub use psysonic_integration::discord;
 
@@ -653,6 +654,7 @@ pub fn run() {
             performance_cpu_snapshot,
             set_subsonic_wire_user_agent,
             no_compositing_mode,
+            theme_animation_risk,
             linux_xdg_session_type,
             is_tiling_wm_cmd,
             open_mini_player,

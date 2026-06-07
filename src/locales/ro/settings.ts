@@ -326,6 +326,7 @@ export const settings = {
   tabThemes: 'Teme',
   themesYourThemesTitle: 'Temele tale',
   themesCvdTooltip: 'Sigur pentru daltonism – deuteranopie, protanopie, tritanopie',
+  themeAnimationWarning: 'Această temă folosește animații care pot crește utilizarea procesorului pe configurația ta (Nvidia/Linux sau compositing dezactivat).',
   themeStoreTitle: 'Magazin de teme',
   themeStoreSubmitText: 'Ți-ai creat propria temă? Împărtășește-o cu comunitatea — mai multe informații în depozitul de teme.',
   themeStoreSubmitLink: 'Deschide depozitul de teme',

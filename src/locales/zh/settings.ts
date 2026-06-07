@@ -319,6 +319,7 @@ export const settings = {
   tabThemes: '主题',
   themesYourThemesTitle: '你的主题',
   themesCvdTooltip: '色觉障碍友好 — 绿色盲、红色盲、蓝色盲',
+  themeAnimationWarning: '此主题使用动画，在你的环境（Nvidia/Linux 或关闭合成）下可能会增加 CPU 占用。',
   themeStoreTitle: '主题商店',
   themeStoreSubmitText: '做了自己的主题？与社区分享——更多信息见主题仓库。',
   themeStoreSubmitLink: '打开主题仓库',

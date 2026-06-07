@@ -320,6 +320,7 @@ export const settings = {
   tabThemes: 'Thèmes',
   themesYourThemesTitle: 'Vos thèmes',
   themesCvdTooltip: 'Adapté au daltonisme — deutéranopie, protanopie, tritanopie',
+  themeAnimationWarning: 'Ce thème utilise des animations qui peuvent augmenter l’utilisation du processeur sur votre configuration (Nvidia/Linux ou compositing désactivé).',
   themeStoreTitle: 'Boutique de thèmes',
   themeStoreSubmitText: "Vous avez créé votre propre thème ? Partagez-le avec la communauté — plus d'infos dans le dépôt de thèmes.",
   themeStoreSubmitLink: 'Ouvrir le dépôt de thèmes',

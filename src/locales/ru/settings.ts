@@ -402,6 +402,7 @@ export const settings = {
   tabThemes: 'Темы',
   themesYourThemesTitle: 'Ваши темы',
   themesCvdTooltip: 'Безопасно при дальтонизме — дейтеранопия, протанопия, тританопия',
+  themeAnimationWarning: 'Эта тема использует анимации, которые могут повысить нагрузку на процессор в вашей конфигурации (Nvidia/Linux или композитинг выключен).',
   themeStoreTitle: 'Магазин тем',
   themeStoreSubmitText: 'Создали свою тему? Поделитесь с сообществом — подробности в репозитории тем.',
   themeStoreSubmitLink: 'Открыть репозиторий тем',

@@ -1,8 +1,9 @@
-import { Check, X } from 'lucide-react';
+import { AlertTriangle, Check, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../store/themeStore';
 import { useInstalledThemesStore } from '../../store/installedThemesStore';
 import { uninstallTheme } from '../../utils/themes/uninstallTheme';
+import { useThemeAnimationRisk } from '../../hooks/useThemeAnimationRisk';
 import { FIXED_THEMES } from './fixedThemes';
 
 /** Pull a 3-band swatch (bg / card / accent) out of an installed theme's CSS. */
@@ -26,6 +27,7 @@ interface Card {
   accent: string;
   fixed: boolean;
   accessibility: boolean;
+  animated: boolean;
 }
 
 /**
@@ -39,12 +41,13 @@ export function InstalledThemes() {
   const active = useThemeStore(s => s.theme);
   const setTheme = useThemeStore(s => s.setTheme);
   const installed = useInstalledThemesStore(s => s.themes);
+  const animRisk = useThemeAnimationRisk();
 
   const cards: Card[] = [
-    ...FIXED_THEMES.map(f => ({ id: f.id, label: f.label, bg: f.bg, card: f.card, accent: f.accent, fixed: true, accessibility: !!f.accessibility })),
+    ...FIXED_THEMES.map(f => ({ id: f.id, label: f.label, bg: f.bg, card: f.card, accent: f.accent, fixed: true, accessibility: !!f.accessibility, animated: false })),
     ...installed.map(it => {
       const s = swatch(it.css);
-      return { id: it.id, label: it.name, bg: s.bg, card: s.card, accent: s.accent, fixed: false, accessibility: (it.tags || []).includes('accessibility') };
+      return { id: it.id, label: it.name, bg: s.bg, card: s.card, accent: s.accent, fixed: false, accessibility: (it.tags || []).includes('accessibility'), animated: /@(?:-[a-z]+-)?keyframes\b/i.test(it.css) };
     }),
   ];
 
@@ -99,6 +102,17 @@ export function InstalledThemes() {
                     }}
                   >
                     CVD-safe
+                  </span>
+                )}
+                {animRisk && c.animated && (
+                  <span
+                    role="img"
+                    aria-label={t('settings.themeAnimationWarning')}
+                    data-tooltip={t('settings.themeAnimationWarning')}
+                    data-tooltip-pos="top"
+                    style={{ display: 'inline-flex', color: 'var(--warning)', marginTop: 2 }}
+                  >
+                    <AlertTriangle size={12} />
                   </span>
                 )}
               </button>

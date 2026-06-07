@@ -324,6 +324,7 @@ export const settings = {
   tabThemes: 'Themes',
   themesYourThemesTitle: 'Deine Themes',
   themesCvdTooltip: 'Farbfehlsichtigkeits-sicher – Deuteranopie, Protanopie, Tritanopie',
+  themeAnimationWarning: 'Dieses Theme nutzt Animationen, die auf deinem Setup (Nvidia/Linux oder Compositing aus) die CPU-Last erhöhen können.',
   themeStoreTitle: 'Theme-Store',
   themeStoreSubmitText: 'Eigenes Theme gebaut? Teil es mit der Community — mehr Infos im Themes-Repository.',
   themeStoreSubmitLink: 'Themes-Repository öffnen',

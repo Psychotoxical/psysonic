@@ -22,6 +22,8 @@ export interface RegistryTheme {
   description: string;
   mode: 'dark' | 'light';
   tags?: string[];
+  /** True when the theme defines @keyframes (used for the CPU-load warning). */
+  animated?: boolean;
   /** Repo-relative path to the theme's CSS. */
   css: string;
   /** Repo-relative path to the thumbnail. */
