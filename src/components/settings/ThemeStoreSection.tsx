@@ -278,11 +278,11 @@ export function ThemeStoreSection() {
                     alt=""
                     loading="lazy"
                     width={200}
-                    height={125}
+                    height={112}
                     // Offline / missing thumbnail: hide the broken-image glyph; the
                     // image's own neutral background stands in as a placeholder.
                     onError={e => { e.currentTarget.style.opacity = '0'; }}
-                    style={{ width: 200, height: 125, objectFit: 'cover', borderRadius: 6, background: 'var(--bg-deep)' }}
+                    style={{ width: 200, height: 112, objectFit: 'cover', borderRadius: 6, background: 'var(--bg-deep)' }}
                   />
                 </button>
                 <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
