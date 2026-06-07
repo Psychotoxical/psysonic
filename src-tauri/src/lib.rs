@@ -5,6 +5,7 @@ pub mod cli;
 mod cover_cache;
 mod library_analysis_backfill;
 mod lib_commands;
+mod theme_import;
 
 pub use psysonic_integration::discord;
 
@@ -593,6 +594,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             greet,
+            theme_import::import_theme_zip,
             backup_export_library_db,
             backup_import_library_db,
             backup_export_full,
