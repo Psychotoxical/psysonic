@@ -21,6 +21,8 @@ import { FIXED_THEMES } from '../../components/settings/fixedThemes';
 
 const THEME_KEY = 'psysonic_theme';
 const INSTALLED_KEY = 'psysonic_installed_themes';
+/** Set when the migration reset a theme, so the app can show a one-time notice. */
+const NOTICE_KEY = 'psysonic_theme_migration_notice';
 const FALLBACK_DARK = 'mocha';
 const FALLBACK_LIGHT = 'latte';
 
@@ -61,17 +63,45 @@ export function migrateThemeSelection(): void {
       typeof id === 'string' && (FIXED_IDS.has(id) || installed.has(id));
 
     let changed = false;
+    const resetIds: string[] = [];
     for (const slot of ['theme', 'themeDay', 'themeNight'] as const) {
       const current = state[slot];
       if (typeof current === 'string' && current.length > 0 && !isResolved(current)) {
+        resetIds.push(current);
         state[slot] = SLOT_FALLBACK[slot];
         changed = true;
       }
     }
 
-    if (changed) localStorage.setItem(THEME_KEY, JSON.stringify(parsed));
+    if (changed) {
+      localStorage.setItem(THEME_KEY, JSON.stringify(parsed));
+      // Record what was reset so the app can show a one-time, dismissible notice.
+      const unique = [...new Set(resetIds)];
+      if (unique.length) localStorage.setItem(NOTICE_KEY, JSON.stringify(unique));
+    }
   } catch {
     // Malformed storage or non-browser runtime — non-fatal; the store falls back
     // to its own bundled defaults on hydrate.
+  }
+}
+
+/** Ids of themes the migration reset (for the one-time notice); [] if none. */
+export function readThemeMigrationNotice(): string[] {
+  try {
+    const raw = localStorage.getItem(NOTICE_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Dismiss the one-time migration notice. */
+export function clearThemeMigrationNotice(): void {
+  try {
+    localStorage.removeItem(NOTICE_KEY);
+  } catch {
+    // ignore
   }
 }

@@ -161,7 +161,7 @@ export default function NowPlayingDropdown() {
                   onClick={() => { if (stream.albumId) { setIsOpen(false); navigate(`/album/${stream.albumId}`); } }}
                   style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', background: 'var(--bg-hover)', padding: '0.5rem', borderRadius: '8px', cursor: stream.albumId ? 'pointer' : 'default' }}
                 >
-                  <div style={{ width: '48px', height: '48px', flexShrink: 0, borderRadius: '6px', overflow: 'hidden', background: 'var(--bg-surface)' }}>
+                  <div style={{ width: '48px', height: '48px', flexShrink: 0, borderRadius: '6px', overflow: 'hidden', background: 'var(--card-placeholder-bg)' }}>
                     {stream.albumId && stream.coverArt ? (
                       <TrackCoverArtImage
                         song={{

@@ -1,6 +1,6 @@
 /* ─ Playlist Search Panel ─ */
 .playlist-search-panel {
-  background: var(--surface-2);
+  background: var(--bg-elevated, var(--bg-card));
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: var(--space-3) var(--space-3) var(--space-2);

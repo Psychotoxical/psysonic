@@ -81,7 +81,7 @@ export function UserMgmtRow({
       )}
       {u.isAdmin && (
         <span
-          style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 10, fontWeight: 600, background: 'color-mix(in srgb, var(--color-warning, #f59e0b) 22%, transparent)', color: 'var(--text-primary)', flexShrink: 0 }}
+          style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 10, fontWeight: 600, background: 'color-mix(in srgb, var(--warning, #f59e0b) 22%, transparent)', color: 'var(--text-primary)', flexShrink: 0 }}
           data-tooltip={t('settings.userMgmtRoleAdmin')}
         >
           <Shield size={10} />

@@ -2,6 +2,7 @@ import { Check, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../store/themeStore';
 import { useInstalledThemesStore } from '../../store/installedThemesStore';
+import { uninstallTheme } from '../../utils/themes/uninstallTheme';
 import { FIXED_THEMES } from './fixedThemes';
 
 /** Pull a 3-band swatch (bg / card / accent) out of an installed theme's CSS. */
@@ -24,7 +25,6 @@ interface Card {
   card: string;
   accent: string;
   fixed: boolean;
-  mode: 'dark' | 'light';
   accessibility: boolean;
 }
 
@@ -39,18 +39,12 @@ export function InstalledThemes() {
   const active = useThemeStore(s => s.theme);
   const setTheme = useThemeStore(s => s.setTheme);
   const installed = useInstalledThemesStore(s => s.themes);
-  const uninstall = useInstalledThemesStore(s => s.uninstall);
-
-  const handleUninstall = (id: string, mode: 'dark' | 'light') => {
-    uninstall(id);
-    if (active === id) setTheme(mode === 'light' ? 'latte' : 'mocha');
-  };
 
   const cards: Card[] = [
-    ...FIXED_THEMES.map(f => ({ id: f.id, label: f.label, bg: f.bg, card: f.card, accent: f.accent, fixed: true, mode: 'dark' as const, accessibility: !!f.accessibility })),
+    ...FIXED_THEMES.map(f => ({ id: f.id, label: f.label, bg: f.bg, card: f.card, accent: f.accent, fixed: true, accessibility: !!f.accessibility })),
     ...installed.map(it => {
       const s = swatch(it.css);
-      return { id: it.id, label: it.name, bg: s.bg, card: s.card, accent: s.accent, fixed: false, mode: it.mode, accessibility: (it.tags || []).includes('accessibility') };
+      return { id: it.id, label: it.name, bg: s.bg, card: s.card, accent: s.accent, fixed: false, accessibility: (it.tags || []).includes('accessibility') };
     }),
   ];
 
@@ -110,7 +104,7 @@ export function InstalledThemes() {
               </button>
               {!c.fixed && (
                 <button
-                  onClick={() => handleUninstall(c.id, c.mode)}
+                  onClick={() => uninstallTheme(c.id)}
                   aria-label={t('settings.themeStoreUninstall')}
                   data-tooltip={t('settings.themeStoreUninstall')}
                   data-tooltip-pos="top"

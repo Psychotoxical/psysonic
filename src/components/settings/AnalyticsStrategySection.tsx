@@ -427,7 +427,7 @@ export default function AnalyticsStrategySection() {
           role="note"
           style={{ marginTop: '0.85rem', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}
         >
-          <AlertTriangle size={16} aria-hidden style={{ flexShrink: 0, marginTop: 2, color: 'var(--color-warning, #f59e0b)' }} />
+          <AlertTriangle size={16} aria-hidden style={{ flexShrink: 0, marginTop: 2, color: 'var(--warning, #f59e0b)' }} />
           <span style={{ fontSize: 12, lineHeight: 1.5 }}>
             {t('settings.analyticsStrategyAdvancedWarning')}
           </span>

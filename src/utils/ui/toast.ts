@@ -42,7 +42,7 @@ export function showToast(text: string, durationMs = 4000, variant: ToastVariant
     display: flex;
     align-items: center;
     justify-content: center;
-    background: ${isError ? 'var(--danger)' : isWarning ? 'var(--warning, #f59e0b)' : isSuccess ? 'var(--success, #10b981)' : 'var(--accent)'};
+    background: ${isError ? 'var(--danger)' : isWarning ? 'var(--warning, #f59e0b)' : isSuccess ? 'var(--positive, #10b981)' : 'var(--accent)'};
     color: var(--bg-app);
     line-height: 1;
   `;
@@ -54,7 +54,7 @@ export function showToast(text: string, durationMs = 4000, variant: ToastVariant
   const getBorderColor = () => {
     if (isError) return 'var(--danger)';
     if (isWarning) return 'var(--warning, #f59e0b)';
-    if (isSuccess) return 'var(--success, #10b981)';
+    if (isSuccess) return 'var(--positive, #10b981)';
     return 'var(--accent)';
   };
 

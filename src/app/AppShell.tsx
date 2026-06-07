@@ -19,6 +19,7 @@ import ContextMenu from '../components/ContextMenu';
 import SongInfoModal from '../components/SongInfoModal';
 import DownloadFolderModal from '../components/DownloadFolderModal';
 import GlobalConfirmModal from '../components/GlobalConfirmModal';
+import ThemeMigrationNotice from '../components/ThemeMigrationNotice';
 import OrbitAccountPicker from '../components/OrbitAccountPicker';
 import OrbitHelpModal from '../components/OrbitHelpModal';
 import TooltipPortal from '../components/TooltipPortal';
@@ -320,6 +321,7 @@ export function AppShell() {
       <SongInfoModal />
       <DownloadFolderModal />
       <GlobalConfirmModal />
+      <ThemeMigrationNotice />
       <OrbitAccountPicker />
       <OrbitHelpModal />
       {!perfFlags.disableTooltipPortal && <TooltipPortal />}

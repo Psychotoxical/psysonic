@@ -11,6 +11,9 @@ import {
   fetchThemeCss,
   type RegistryTheme,
 } from '../../utils/themes/themeRegistry';
+import { validateThemeCss } from '../../utils/themes/themeInjection';
+import { uninstallTheme } from '../../utils/themes/uninstallTheme';
+import { isNewer } from '../../utils/componentHelpers/appUpdaterHelpers';
 
 type ModeFilter = 'all' | 'dark' | 'light';
 
@@ -27,12 +30,12 @@ export function ThemeStoreSection() {
   const setTheme = useThemeStore(s => s.setTheme);
   const installed = useInstalledThemesStore(s => s.themes);
   const install = useInstalledThemesStore(s => s.install);
-  const uninstall = useInstalledThemesStore(s => s.uninstall);
 
   const [themes, setThemes] = useState<RegistryTheme[] | null>(null);
   const [generatedAt, setGeneratedAt] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [stale, setStale] = useState(false);
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<ModeFilter>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -43,7 +46,7 @@ export function ThemeStoreSection() {
     setLoading(true);
     setError(false);
     fetchRegistry({ force })
-      .then(r => { setThemes(r.themes); setGeneratedAt(r.generatedAt); })
+      .then(r => { setThemes(r.registry.themes); setGeneratedAt(r.registry.generatedAt); setStale(r.stale); })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   };
@@ -83,6 +86,12 @@ export function ThemeStoreSection() {
     setFailedId(null);
     try {
       const css = await fetchThemeCss(th.css);
+      // Don't persist CSS that won't inject — otherwise the theme would show as
+      // installed/active but render nothing. Validate before storing.
+      if (validateThemeCss(css, th.id) == null) {
+        setFailedId(th.id);
+        return;
+      }
       install({
         id: th.id,
         name: th.name,
@@ -101,13 +110,6 @@ export function ThemeStoreSection() {
     }
   };
 
-  const handleUninstall = (id: string) => {
-    const wasLight = installedMap.get(id)?.mode === 'light';
-    uninstall(id);
-    // Falling out from under the active theme would leave data-theme pointing at
-    // a now-missing style — drop to the matching built-in core.
-    if (activeTheme === id) setTheme(wasLight ? 'latte' : 'mocha');
-  };
 
   const modeBtns: { key: ModeFilter; label: string }[] = [
     { key: 'all', label: t('settings.themeStoreModeAll') },
@@ -166,6 +168,12 @@ export function ThemeStoreSection() {
         </button>
       </div>
 
+      {!loading && stale && (
+        <div className="settings-hint settings-hint-info" role="status" style={{ marginBottom: '0.75rem' }}>
+          {t('settings.themeStoreOffline')}
+        </div>
+      )}
+
       {loading && (
         <p role="status" style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('settings.themeStoreLoading')}</p>
       )}
@@ -186,7 +194,7 @@ export function ThemeStoreSection() {
           {filtered.map(th => {
             const inst = installedMap.get(th.id);
             const isInstalled = !!inst;
-            const updateAvailable = isInstalled && inst!.version !== th.version;
+            const updateAvailable = isInstalled && isNewer(th.version, inst!.version);
             const isActive = activeTheme === th.id;
             const busy = busyId === th.id;
             return (
@@ -272,7 +280,7 @@ export function ThemeStoreSection() {
                       <button
                         className="btn btn-ghost"
                         style={{ fontSize: 12, padding: '4px 12px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
-                        onClick={() => handleUninstall(th.id)}
+                        onClick={() => uninstallTheme(th.id)}
                       >
                         <Trash2 size={14} /> {t('settings.themeStoreUninstall')}
                       </button>

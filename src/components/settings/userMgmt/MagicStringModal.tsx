@@ -126,8 +126,8 @@ export function MagicStringModal({
             marginBottom: '1rem',
             padding: '8px 10px',
             borderRadius: 6,
-            border: '1px solid color-mix(in srgb, var(--color-warning, #f59e0b) 35%, transparent)',
-            background: 'color-mix(in srgb, var(--color-warning, #f59e0b) 10%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--warning, #f59e0b) 35%, transparent)',
+            background: 'color-mix(in srgb, var(--warning, #f59e0b) 10%, transparent)',
             color: 'var(--text-primary)',
           }}
         >

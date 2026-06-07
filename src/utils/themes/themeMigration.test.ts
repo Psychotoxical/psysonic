@@ -8,7 +8,11 @@
  * must never throw on malformed/missing storage.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { migrateThemeSelection } from './themeMigration';
+import {
+  migrateThemeSelection,
+  readThemeMigrationNotice,
+  clearThemeMigrationNotice,
+} from './themeMigration';
 import { FIXED_THEMES } from '../../components/settings/fixedThemes';
 
 const THEME_KEY = 'psysonic_theme';
@@ -138,5 +142,38 @@ describe('migrateThemeSelection', () => {
     migrateThemeSelection();
     // empty string is not a real selection — left as-is, store applies its default
     expect(readPersistedTheme().state.theme).toBe('');
+  });
+});
+
+describe('theme migration notice', () => {
+  it('records the original id(s) that were reset', () => {
+    setPersistedTheme({ theme: 'dracula', themeDay: 'latte', themeNight: 'nord' });
+    migrateThemeSelection();
+    expect(readThemeMigrationNotice().sort()).toEqual(['dracula', 'nord']);
+  });
+
+  it('deduplicates ids used in multiple slots', () => {
+    setPersistedTheme({ theme: 'dracula', themeDay: 'latte', themeNight: 'dracula' });
+    migrateThemeSelection();
+    expect(readThemeMigrationNotice()).toEqual(['dracula']);
+  });
+
+  it('writes no notice when nothing was reset', () => {
+    setPersistedTheme({ theme: 'mocha', themeDay: 'latte', themeNight: 'mocha' });
+    migrateThemeSelection();
+    expect(readThemeMigrationNotice()).toEqual([]);
+  });
+
+  it('clear removes the notice', () => {
+    setPersistedTheme({ theme: 'dracula', themeDay: 'latte', themeNight: 'mocha' });
+    migrateThemeSelection();
+    expect(readThemeMigrationNotice()).toEqual(['dracula']);
+    clearThemeMigrationNotice();
+    expect(readThemeMigrationNotice()).toEqual([]);
+  });
+
+  it('returns [] on malformed notice storage', () => {
+    localStorage.setItem('psysonic_theme_migration_notice', '{not json');
+    expect(readThemeMigrationNotice()).toEqual([]);
   });
 });

@@ -281,7 +281,7 @@
 .download-progress-bar {
   flex: 1;
   height: 4px;
-  background: var(--surface-2);
+  background: var(--bg-elevated, var(--bg-card));
   border-radius: 2px;
   overflow: hidden;
 }

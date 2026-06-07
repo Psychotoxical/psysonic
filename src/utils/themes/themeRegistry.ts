@@ -65,25 +65,31 @@ export function getCachedRegistry(): Registry | null {
   return readCache()?.registry ?? null;
 }
 
+export interface FetchRegistryResult {
+  registry: Registry;
+  /** True when the network fetch failed and we served a cached copy instead. */
+  stale: boolean;
+}
+
 /**
  * Fetch the registry. Returns the cached copy if it is still fresh, unless
- * `force` is set (manual refresh). Falls back to a stale cache if the network
- * fetch fails, so the store keeps working offline.
+ * `force` is set (manual refresh). Falls back to a cached copy if the network
+ * fetch fails (flagged `stale: true`) so the store keeps working offline.
  */
-export async function fetchRegistry(opts?: { force?: boolean }): Promise<Registry> {
+export async function fetchRegistry(opts?: { force?: boolean }): Promise<FetchRegistryResult> {
   if (!opts?.force) {
     const cached = readCache();
-    if (cached && Date.now() - cached.ts < TTL_MS) return cached.registry;
+    if (cached && Date.now() - cached.ts < TTL_MS) return { registry: cached.registry, stale: false };
   }
   try {
     const res = await fetch(REGISTRY_URL, { cache: 'no-cache' });
     if (!res.ok) throw new Error(`registry fetch failed: ${res.status}`);
     const registry = (await res.json()) as Registry;
     writeCache(registry);
-    return registry;
+    return { registry, stale: false };
   } catch (err) {
-    const stale = readCache();
-    if (stale) return stale.registry;
+    const cached = readCache();
+    if (cached) return { registry: cached.registry, stale: true };
     throw err;
   }
 }
