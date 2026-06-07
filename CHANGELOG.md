@@ -56,10 +56,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Themes — community Theme Store
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1009](https://github.com/Psychotoxical/psysonic/pull/1009)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1009](https://github.com/Psychotoxical/psysonic/pull/1009), [#1011](https://github.com/Psychotoxical/psysonic/pull/1011), [#1012](https://github.com/Psychotoxical/psysonic/pull/1012)**
 
 * New **Settings → Themes** tab: pick a theme, set the day/night scheduler, and browse a built-in **Theme Store** to install, update and uninstall community themes — with search, a dark/light filter, and full-size thumbnail previews.
 * The app now bundles six core themes (Catppuccin Mocha & Latte, Kanagawa Wave, Stark HUD, and the colour-blind-safe Vision Dark / Vision Navy); every other palette installs on demand from the [psysonic-themes](https://github.com/Psysonic/psysonic-themes) repo. Installed themes are saved locally and apply instantly at startup, even offline.
+* **Import a theme from a local `.zip`** (manifest.json + theme.css): the package is fully validated against the theme contract, you confirm its name and author, then it installs like any other community theme.
+* The store paginates large catalogues, and refreshing the list no longer jumps back to the top.
 * Upgrading from an older build: an active or scheduled theme that has moved to the store and isn't installed falls back to Mocha (dark) / Latte (light).
 
 
