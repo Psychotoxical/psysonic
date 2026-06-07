@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Clock, Palette, Store } from 'lucide-react';
+import { Clock, Palette, Store, Upload } from 'lucide-react';
 import { useThemeStore } from '../../store/themeStore';
 import { useInstalledThemesStore } from '../../store/installedThemesStore';
 import CustomSelect from '../CustomSelect';
 import BackToTopButton from '../BackToTopButton';
 import { FIXED_THEMES } from './fixedThemes';
 import { InstalledThemes } from './InstalledThemes';
+import { ThemeImportSection } from './ThemeImportSection';
 import { ThemeStoreSection } from './ThemeStoreSection';
 
 /**
@@ -111,6 +112,10 @@ export function ThemesTab() {
             );
           })()}
         </div>
+      </ThemesSection>
+
+      <ThemesSection icon={<Upload size={16} />} title={t('settings.themeImportTitle')}>
+        <ThemeImportSection />
       </ThemesSection>
 
       <ThemesSection icon={<Store size={16} />} title={t('settings.themeStoreTitle')}>
