@@ -1,5 +1,6 @@
 import type { EntityRatingSupportLevel } from '../api/subsonicTypes';
 import type {
+  AudiomusePluginProbeResult,
   InstantMixProbeResult,
   SubsonicServerIdentity,
 } from '../utils/server/subsonicServerIdentity';
@@ -265,10 +266,16 @@ export interface AuthState {
   setAudiomuseNavidromeIssue: (serverId: string, hasIssue: boolean) => void;
 
   /**
-   * `getSimilarSongs` probe per server (after ping). `empty` hides the AudioMuse row; re-run by testing connection.
+   * `getSimilarSongs` probe per server (after ping). `empty` hides the AudioMuse row on pre-0.62 Navidrome.
    */
   instantMixProbeByServer: Record<string, InstantMixProbeResult>;
   setInstantMixProbe: (serverId: string, result: InstantMixProbeResult) => void;
+
+  /**
+   * Navidrome ≥ 0.62: `sonicSimilarity` extension probe (`present` = AudioMuse-style plugin active).
+   */
+  audiomusePluginProbeByServer: Record<string, AudiomusePluginProbeResult>;
+  setAudiomusePluginProbe: (serverId: string, result: AudiomusePluginProbeResult) => void;
 
   // Status
   isLoggedIn: boolean;

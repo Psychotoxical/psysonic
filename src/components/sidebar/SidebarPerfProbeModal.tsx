@@ -1,16 +1,17 @@
 import { useState } from 'react';
-import { Activity, ScrollText, SlidersHorizontal, Wrench, X } from 'lucide-react';
+import { Activity, Network, ScrollText, SlidersHorizontal, Wrench, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import SidebarPerfProbeMonitorTab from './perfProbe/SidebarPerfProbeMonitorTab';
 import SidebarPerfProbeTogglesTab from './perfProbe/SidebarPerfProbeTogglesTab';
 import SidebarPerfProbeTuningTab from './perfProbe/SidebarPerfProbeTuningTab';
 import SidebarPerfProbeLogsTab from './perfProbe/SidebarPerfProbeLogsTab';
+import SidebarPerfProbeConnectionsTab from './perfProbe/SidebarPerfProbeConnectionsTab';
 import { resetPerfProbeFlags, type PerfProbeFlags } from '../../utils/perf/perfFlags';
 import { clearPerfLiveOverlayPins } from '../../utils/perf/perfOverlayPins';
 import { resetPerfOverlayAppearance } from '../../utils/perf/perfOverlayAppearance';
 import { resetPerfOverlayMode } from '../../utils/perf/perfOverlayMode';
 
-type TabId = 'monitor' | 'toggles' | 'tuning' | 'logs';
+type TabId = 'monitor' | 'connections' | 'toggles' | 'tuning' | 'logs';
 
 interface Props {
   open: boolean;
@@ -65,7 +66,7 @@ export default function SidebarPerfProbeModal({
         <header className="sidebar-perf-modal__header">
           <h3 id="psylab-title" className="modal-title">PsyLab</h3>
           <p className="sidebar-perf-modal__hint">
-            Live metrics with optional on-screen overlays, runtime tuning, and diagnostic disable toggles.
+            Live metrics, server connections, runtime tuning, and diagnostic disable toggles.
           </p>
         </header>
 
@@ -79,6 +80,16 @@ export default function SidebarPerfProbeModal({
           >
             <Activity size={15} />
             Monitor
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'connections'}
+            className={`sidebar-perf-modal__tab${tab === 'connections' ? ' sidebar-perf-modal__tab--active' : ''}`}
+            onClick={() => setTab('connections')}
+          >
+            <Network size={15} />
+            Connections
           </button>
           <button
             type="button"
@@ -114,6 +125,7 @@ export default function SidebarPerfProbeModal({
 
         <div className={`sidebar-perf-modal__body${tab === 'logs' ? ' sidebar-perf-modal__body--logs' : ''}`}>
           {tab === 'monitor' && <SidebarPerfProbeMonitorTab />}
+          {tab === 'connections' && <SidebarPerfProbeConnectionsTab />}
           {tab === 'tuning' && <SidebarPerfProbeTuningTab />}
           {tab === 'toggles' && (
             <SidebarPerfProbeTogglesTab

@@ -95,16 +95,18 @@
 
 .sidebar-perf-modal__tabs {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   margin: 12px 0 10px;
   padding: 4px;
   border-radius: 12px;
   background: color-mix(in srgb, var(--bg-card, var(--bg-app)) 88%, transparent);
   border: 1px solid color-mix(in srgb, var(--text-muted) 18%, transparent);
+  overflow-x: auto;
 }
 
 .sidebar-perf-modal__tab {
-  flex: 1;
+  flex: 1 0 auto;
+  min-width: 4.5rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -310,6 +312,34 @@
 .perf-monitor-empty--inline {
   padding: 0.75rem 0.5rem;
   font-size: 11px;
+}
+
+.perf-server-dl {
+  margin: 0;
+  padding: 0 4px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.perf-server-dl__row {
+  display: grid;
+  grid-template-columns: minmax(110px, 38%) 1fr;
+  gap: 8px 12px;
+  align-items: baseline;
+}
+
+.perf-server-dl__row dt {
+  margin: 0;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.perf-server-dl__row dd {
+  margin: 0;
+  color: var(--text-primary, var(--text));
+  word-break: break-word;
 }
 
 .perf-live-poll {

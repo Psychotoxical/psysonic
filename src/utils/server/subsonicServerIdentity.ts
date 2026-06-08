@@ -8,9 +8,21 @@ export type SubsonicServerIdentity = {
 /** Result of `getRandomSongs` + `getSimilarSongs` probe (Instant Mix / agent chain). */
 export type InstantMixProbeResult = 'ok' | 'empty' | 'error' | 'skipped';
 
-const NAVIDROME_MIN_FOR_PLUGINS: [number, number, number] = [0, 60, 0];
+/**
+ * Navidrome ≥ 0.62 exposes the OpenSubsonic `sonicSimilarity` extension when an audio-similarity
+ * plugin (e.g. AudioMuse-AI) is active — the first reliable plugin signal.
+ */
+export type AudiomusePluginProbeResult =
+  | 'probing'
+  | 'present'
+  | 'absent'
+  | 'unsupported'
+  | 'error';
 
-function parseLeadingSemver(version: string | undefined): [number, number, number] | null {
+const NAVIDROME_MIN_FOR_PLUGINS: [number, number, number] = [0, 60, 0];
+const NAVIDROME_MIN_FOR_SONIC_SIMILARITY: [number, number, number] = [0, 62, 0];
+
+export function parseLeadingSemver(version: string | undefined): [number, number, number] | null {
   if (!version) return null;
   const m = /^v?(\d+)\.(\d+)\.(\d+)/.exec(String(version).trim());
   if (!m) return null;
@@ -25,29 +37,44 @@ function semverGte(a: [number, number, number], b: [number, number, number]): bo
   return true;
 }
 
+export function isNavidromeServer(identity: SubsonicServerIdentity | undefined): boolean {
+  if (!identity?.type?.trim()) return false;
+  return identity.type.trim().toLowerCase() === 'navidrome';
+}
+
 /**
  * Navidrome version from ping supports the plugin system (≥ 0.60). Unknown `type` stays permissive
  * until the first successful ping with metadata.
  */
 export function isNavidromeAudiomuseSoftwareEligible(identity: SubsonicServerIdentity | undefined): boolean {
   if (!identity?.type?.trim()) return true;
-  const t = identity.type.trim().toLowerCase();
-  if (t !== 'navidrome') return false;
+  if (!isNavidromeServer(identity)) return false;
   const parsed = parseLeadingSemver(identity.serverVersion);
   if (!parsed) return true;
   return semverGte(parsed, NAVIDROME_MIN_FOR_PLUGINS);
 }
 
+/** Navidrome ≥ 0.62 — `getOpenSubsonicExtensions` can list `sonicSimilarity`. */
+export function isNavidromeSonicSimilarityEligible(identity: SubsonicServerIdentity | undefined): boolean {
+  if (!isNavidromeServer(identity)) return false;
+  const parsed = parseLeadingSemver(identity?.serverVersion);
+  if (!parsed) return false;
+  return semverGte(parsed, NAVIDROME_MIN_FOR_SONIC_SIMILARITY);
+}
+
 /**
  * Whether to show the per-server AudioMuse (Navidrome plugin) toggle in Settings.
- * Uses software eligibility from ping plus an optional Instant Mix probe: if the server returns no
- * similar tracks for several random songs, the row stays hidden (typical when no plugin / no agents).
+ * Navidrome ≥ 0.62: `sonicSimilarity` extension probe. Older Navidrome: legacy Instant Mix probe.
  */
 export function showAudiomuseNavidromeServerSetting(
   identity: SubsonicServerIdentity | undefined,
   instantMixProbe: InstantMixProbeResult | undefined,
+  pluginProbe: AudiomusePluginProbeResult | undefined,
 ): boolean {
   if (!isNavidromeAudiomuseSoftwareEligible(identity)) return false;
+  if (isNavidromeSonicSimilarityEligible(identity)) {
+    return pluginProbe === 'present';
+  }
   if (instantMixProbe === 'empty') return false;
   return true;
 }

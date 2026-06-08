@@ -486,6 +486,7 @@ export function ServersTab({
                   {showAudiomuseNavidromeServerSetting(
                     auth.subsonicServerIdentityByServer[srv.id],
                     auth.instantMixProbeByServer[srv.id],
+                    auth.audiomusePluginProbeByServer[srv.id],
                   ) && (
                     <div
                       className="settings-toggle-row"

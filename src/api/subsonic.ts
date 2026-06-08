@@ -3,9 +3,11 @@ import md5 from 'md5';
 import { useAuthStore } from '../store/authStore';
 import {
   isNavidromeAudiomuseSoftwareEligible,
+  isNavidromeSonicSimilarityEligible,
   type InstantMixProbeResult,
   type SubsonicServerIdentity,
 } from '../utils/server/subsonicServerIdentity';
+import { probeAudiomusePluginWithCredentials } from './subsonicOpenSubsonic';
 import {
   SUBSONIC_CLIENT,
   api,
@@ -104,7 +106,11 @@ export async function probeInstantMixWithCredentials(
   }
 }
 
-/** After a successful ping, probe Instant Mix in the background (Navidrome ≥ 0.60 only). */
+/**
+ * After a successful ping, probe AudioMuse / Instant Mix in the background (Navidrome ≥ 0.60).
+ * Navidrome ≥ 0.62 uses the `sonicSimilarity` OpenSubsonic extension; older builds fall back to
+ * `getSimilarSongs` (may match Last.fm agents, not only AudioMuse).
+ */
 export function scheduleInstantMixProbeForServer(
   serverId: string,
   serverUrl: string,
@@ -113,6 +119,16 @@ export function scheduleInstantMixProbeForServer(
   identity: SubsonicServerIdentity,
 ): void {
   if (!isNavidromeAudiomuseSoftwareEligible(identity)) return;
+
+  if (isNavidromeSonicSimilarityEligible(identity)) {
+    const store = useAuthStore.getState();
+    store.setAudiomusePluginProbe(serverId, 'probing');
+    void probeAudiomusePluginWithCredentials(serverUrl, username, password).then(result =>
+      store.setAudiomusePluginProbe(serverId, result),
+    );
+    return;
+  }
+
   void probeInstantMixWithCredentials(serverUrl, username, password).then(result =>
     useAuthStore.getState().setInstantMixProbe(serverId, result),
   );

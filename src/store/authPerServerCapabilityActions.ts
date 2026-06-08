@@ -17,10 +17,9 @@ type SetState = (
  *   ping reveals the server isn't AudioMuse-eligible (wrong type or
  *   too old), wipe the related caps for that id so the UI doesn't
  *   keep a stale toggle.
- * - `setInstantMixProbe` — probe result for getSimilarSongs. If
- *   `empty`, wipe the related AudioMuse caps so the row hides.
- * - `setAudiomuseNavidromeIssue` — set/clear the "current session
- *   saw a failure" flag.
+ * - `setInstantMixProbe` — legacy probe (pre-0.62). If `empty`, wipe AudioMuse caps.
+ * - `setAudiomusePluginProbe` — Navidrome ≥ 0.62 `sonicSimilarity` extension probe.
+ * - `setAudiomuseNavidromeIssue` — set/clear the "current session saw a failure" flag.
  */
 export function createPerServerCapabilityActions(set: SetState): Pick<
   AuthState,
@@ -28,6 +27,7 @@ export function createPerServerCapabilityActions(set: SetState): Pick<
   | 'setAudiomuseNavidromeEnabled'
   | 'setSubsonicServerIdentity'
   | 'setInstantMixProbe'
+  | 'setAudiomusePluginProbe'
   | 'setAudiomuseNavidromeIssue'
 > {
   return {
@@ -55,11 +55,13 @@ export function createPerServerCapabilityActions(set: SetState): Pick<
           const { [serverId]: _a, ...audiomuseRest } = s.audiomuseNavidromeByServer;
           const { [serverId]: _i, ...issueRest } = s.audiomuseNavidromeIssueByServer;
           const { [serverId]: _p, ...probeRest } = s.instantMixProbeByServer;
+          const { [serverId]: _pp, ...pluginProbeRest } = s.audiomusePluginProbeByServer;
           return {
             subsonicServerIdentityByServer,
             audiomuseNavidromeByServer: audiomuseRest,
             audiomuseNavidromeIssueByServer: issueRest,
             instantMixProbeByServer: probeRest,
+            audiomusePluginProbeByServer: pluginProbeRest,
           };
         }
         return { subsonicServerIdentityByServer };
@@ -78,6 +80,21 @@ export function createPerServerCapabilityActions(set: SetState): Pick<
           };
         }
         return { instantMixProbeByServer };
+      }),
+
+    setAudiomusePluginProbe: (serverId, result) =>
+      set(s => {
+        const audiomusePluginProbeByServer = { ...s.audiomusePluginProbeByServer, [serverId]: result };
+        if (result === 'absent' || result === 'error') {
+          const { [serverId]: _a, ...audiomuseRest } = s.audiomuseNavidromeByServer;
+          const { [serverId]: _i, ...issueRest } = s.audiomuseNavidromeIssueByServer;
+          return {
+            audiomusePluginProbeByServer,
+            audiomuseNavidromeByServer: audiomuseRest,
+            audiomuseNavidromeIssueByServer: issueRest,
+          };
+        }
+        return { audiomusePluginProbeByServer };
       }),
 
     setAudiomuseNavidromeIssue: (serverId, hasIssue) =>
