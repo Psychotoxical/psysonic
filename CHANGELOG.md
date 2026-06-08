@@ -129,19 +129,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### PsyLab — Connections tab and Navidrome admin role
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1032](https://github.com/Psychotoxical/psysonic/pull/1032)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1033](https://github.com/Psychotoxical/psysonic/pull/1033)**
 
-* New **Connections** tab: session/endpoint status, active-server capability readout (OpenSubsonic, AudioMuse plugin probe, legacy similar probe, AudioMuse mode), and queue-playback server when it differs from the active profile.
+* New **Connections** tab: session/endpoint status, active-server capability readout (OpenSubsonic, AudioMuse detection, provider/strategy, detection trust, resolved call route, and AudioMuse mode), and queue-playback server when it differs from the active profile.
 * Navidrome **admin vs standard user** badge via native login probe — useful when diagnosing plugin/settings visibility.
 
 
 
-### Servers — AudioMuse plugin probe via OpenSubsonic (Navidrome ≥ 0.62)
+### Servers — capability framework with AudioMuse sonic routing (Navidrome ≥ 0.62)
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1032](https://github.com/Psychotoxical/psysonic/pull/1032)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1033](https://github.com/Psychotoxical/psysonic/pull/1033)**
 
-* Navidrome **0.62+**: detect the AudioMuse-AI plugin from `getOpenSubsonicExtensions` when `sonicSimilarity` is advertised — the first reliable signal; the per-server AudioMuse toggle in Settings appears only when the extension is present.
-* Older Navidrome keeps the legacy `getSimilarSongs` Instant Mix probe path.
+* New declarative **server-capability framework** (`src/serverCapabilities/`): a catalog picks a feature strategy per server generation, runs only the needed probes, and routes API calls — replacing scattered version checks in the UI and call sites.
+* Navidrome **0.62+**: detect the AudioMuse-AI plugin from `getOpenSubsonicExtensions` when `sonicSimilarity` is advertised — the first reliable signal. Settings shows an **auto-managed status indicator** (no manual toggle); older Navidrome keeps the manual toggle and the legacy `getSimilarSongs` Instant Mix probe.
+* **Path routing**: Instant Mix and Lucky Mix prefer the OpenSubsonic `getSonicSimilarTracks` endpoint when the plugin is present, falling back to legacy `getSimilarSongs`.
 
 
 
@@ -217,7 +218,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### PsyLab — tab bar no longer collapses on the Logs tab
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1032](https://github.com/Psychotoxical/psysonic/pull/1032)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1033](https://github.com/Psychotoxical/psysonic/pull/1033)**
 
 * The PsyLab tab row keeps its height when the Logs flex layout fills the modal — tabs were previously squashed to a thin strip.
 
