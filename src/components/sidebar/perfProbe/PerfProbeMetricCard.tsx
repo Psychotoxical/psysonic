@@ -71,6 +71,7 @@ interface SectionProps {
   hint?: string;
   children: ReactNode;
   defaultOpen?: boolean;
+  layout?: 'grid' | 'stack';
   onOpenChange?: (open: boolean) => void;
 }
 
@@ -79,6 +80,7 @@ export function PerfProbeMetricSection({
   hint,
   children,
   defaultOpen = true,
+  layout = 'grid',
   onOpenChange,
 }: SectionProps) {
   return (
@@ -92,7 +94,9 @@ export function PerfProbeMetricSection({
         <span>{title}</span>
         {hint && <span className="perf-metric-section__hint">{hint}</span>}
       </summary>
-      <div className="perf-metric-section__grid">{children}</div>
+      <div className={layout === 'stack' ? 'perf-metric-section__body' : 'perf-metric-section__grid'}>
+        {children}
+      </div>
     </details>
   );
 }

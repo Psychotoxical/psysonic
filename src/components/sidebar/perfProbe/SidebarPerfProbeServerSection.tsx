@@ -1,10 +1,13 @@
 import { useAuthStore } from '../../../store/authStore';
+import type { NavidromeAdminRole } from '../../../hooks/useNavidromeAdminRole';
 import {
   isNavidromeAudiomuseSoftwareEligible,
   isNavidromeSonicSimilarityEligible,
   isNavidromeServer,
 } from '../../../utils/server/subsonicServerIdentity';
 import { PerfProbeMetricSection } from './PerfProbeMetricCard';
+import PerfProbeDetailList, { type PerfProbeDetailRow } from './PerfProbeDetailList';
+import PerfProbeStatusBadge, { type PerfProbeBadgeTone } from './PerfProbeStatusBadge';
 
 function formatServerType(identity: { type?: string; serverVersion?: string; openSubsonic?: boolean } | undefined): string {
   if (!identity?.type?.trim()) return 'Unknown';
@@ -12,30 +15,48 @@ function formatServerType(identity: { type?: string; serverVersion?: string; ope
   return version ? `${identity.type} ${version}` : identity.type;
 }
 
-function formatPluginProbe(
+function pluginProbeBadge(
   sonicEligible: boolean,
   pluginProbe: string | undefined,
-): string {
-  if (!sonicEligible) return 'N/A (Navidrome < 0.62)';
+): { tone: PerfProbeBadgeTone; label: string } {
+  if (!sonicEligible) return { tone: 'muted', label: 'N/A (Navidrome < 0.62)' };
   switch (pluginProbe) {
-    case 'present': return 'Detected (sonicSimilarity)';
-    case 'absent': return 'Not detected';
-    case 'probing': return 'Checking…';
-    case 'error': return 'Probe failed';
-    default: return 'Not probed yet';
+    case 'present': return { tone: 'ok', label: 'Detected (sonicSimilarity)' };
+    case 'absent': return { tone: 'muted', label: 'Not detected' };
+    case 'probing': return { tone: 'warn', label: 'Checking…' };
+    case 'error': return { tone: 'error', label: 'Probe failed' };
+    default: return { tone: 'muted', label: 'Not probed yet' };
   }
 }
 
-function formatLegacyProbe(
+function legacyProbeBadge(
   sonicEligible: boolean,
   legacyProbe: string | undefined,
-): string | null {
+): { tone: PerfProbeBadgeTone; label: string } | null {
   if (sonicEligible) return null;
-  if (!legacyProbe) return 'Not probed yet';
-  return legacyProbe;
+  if (!legacyProbe) return { tone: 'muted', label: 'Not probed yet' };
+  if (legacyProbe === 'ok') return { tone: 'ok', label: legacyProbe };
+  if (legacyProbe === 'empty' || legacyProbe === 'skipped') return { tone: 'muted', label: legacyProbe };
+  return { tone: 'error', label: legacyProbe };
 }
 
-export default function SidebarPerfProbeServerSection() {
+function adminRoleBadge(role: NavidromeAdminRole): { tone: PerfProbeBadgeTone; label: string } {
+  switch (role) {
+    case 'admin': return { tone: 'ok', label: 'Admin' };
+    case 'user': return { tone: 'neutral', label: 'Standard user' };
+    case 'checking':
+    case 'idle': return { tone: 'warn', label: 'Checking…' };
+    case 'error': return { tone: 'error', label: 'Could not verify' };
+    case 'na':
+    default: return { tone: 'muted', label: 'N/A' };
+  }
+}
+
+interface Props {
+  adminRole?: NavidromeAdminRole;
+}
+
+export default function SidebarPerfProbeServerSection({ adminRole = 'na' }: Props) {
   const activeServerId = useAuthStore(s => s.activeServerId);
   const server = useAuthStore(s => s.servers.find(srv => srv.id === s.activeServerId));
   const identity = useAuthStore(s =>
@@ -53,7 +74,7 @@ export default function SidebarPerfProbeServerSection() {
 
   if (!server) {
     return (
-      <PerfProbeMetricSection title="Active server" defaultOpen>
+      <PerfProbeMetricSection title="Active server" defaultOpen layout="stack">
         <div className="perf-monitor-empty perf-monitor-empty--inline">
           No server configured.
         </div>
@@ -62,46 +83,54 @@ export default function SidebarPerfProbeServerSection() {
   }
 
   const sonicEligible = isNavidromeSonicSimilarityEligible(identity);
-  const legacyLabel = formatLegacyProbe(sonicEligible, legacyProbe);
+  const plugin = pluginProbeBadge(sonicEligible, pluginProbe);
+  const legacy = legacyProbeBadge(sonicEligible, legacyProbe);
+  const navidrome = isNavidromeServer(identity);
+  const role = adminRoleBadge(adminRole);
+
+  const rows: PerfProbeDetailRow[] = [
+    { label: 'Name', value: server.name || server.url },
+    { label: 'Profile URL', value: <code className="perf-server-dl__code">{server.url}</code> },
+    { label: 'Subsonic server', value: formatServerType(identity) },
+    {
+      label: 'OpenSubsonic',
+      value: identity?.openSubsonic
+        ? <PerfProbeStatusBadge tone="ok">yes</PerfProbeStatusBadge>
+        : identity
+          ? <PerfProbeStatusBadge tone="muted">no</PerfProbeStatusBadge>
+          : '—',
+    },
+  ];
+
+  if (navidrome) {
+    rows.push({
+      label: 'Navidrome role',
+      value: <PerfProbeStatusBadge tone={role.tone}>{role.label}</PerfProbeStatusBadge>,
+    });
+  }
+
+  if (navidrome && isNavidromeAudiomuseSoftwareEligible(identity)) {
+    rows.push({
+      label: 'AudioMuse plugin',
+      value: <PerfProbeStatusBadge tone={plugin.tone}>{plugin.label}</PerfProbeStatusBadge>,
+    });
+    if (legacy) {
+      rows.push({
+        label: 'Legacy similar probe',
+        value: <PerfProbeStatusBadge tone={legacy.tone}>{legacy.label}</PerfProbeStatusBadge>,
+      });
+    }
+    rows.push({
+      label: 'AudioMuse mode',
+      value: audiomuseEnabled
+        ? <PerfProbeStatusBadge tone="ok">enabled in Settings</PerfProbeStatusBadge>
+        : <PerfProbeStatusBadge tone="muted">off</PerfProbeStatusBadge>,
+    });
+  }
 
   return (
-    <PerfProbeMetricSection title="Active server" defaultOpen>
-      <dl className="perf-server-dl">
-        <div className="perf-server-dl__row">
-          <dt>Name</dt>
-          <dd>{server.name || server.url}</dd>
-        </div>
-        <div className="perf-server-dl__row">
-          <dt>Profile URL</dt>
-          <dd>{server.url}</dd>
-        </div>
-        <div className="perf-server-dl__row">
-          <dt>Subsonic server</dt>
-          <dd>{formatServerType(identity)}</dd>
-        </div>
-        <div className="perf-server-dl__row">
-          <dt>OpenSubsonic</dt>
-          <dd>{identity?.openSubsonic ? 'yes' : identity ? 'no' : '—'}</dd>
-        </div>
-        {isNavidromeServer(identity) && isNavidromeAudiomuseSoftwareEligible(identity) && (
-          <>
-            <div className="perf-server-dl__row">
-              <dt>AudioMuse plugin</dt>
-              <dd>{formatPluginProbe(sonicEligible, pluginProbe)}</dd>
-            </div>
-            {legacyLabel != null && (
-              <div className="perf-server-dl__row">
-                <dt>Legacy similar probe</dt>
-                <dd>{legacyLabel}</dd>
-              </div>
-            )}
-            <div className="perf-server-dl__row">
-              <dt>AudioMuse mode</dt>
-              <dd>{audiomuseEnabled ? 'enabled in Settings' : 'off'}</dd>
-            </div>
-          </>
-        )}
-      </dl>
+    <PerfProbeMetricSection title="Active server" defaultOpen layout="stack">
+      <PerfProbeDetailList rows={rows} />
     </PerfProbeMetricSection>
   );
 }
