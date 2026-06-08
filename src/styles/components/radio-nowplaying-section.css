@@ -27,14 +27,14 @@
 
 .np-radio-time {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   min-width: 32px;
 }
 
 .np-radio-progress-bar {
   flex: 1;
   height: 4px;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--bg-hover);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -94,7 +94,7 @@
 .radio-progress-bar {
   width: 100%;
   height: 4px;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--bg-hover);
   border-radius: 2px;
   overflow: hidden;
 }

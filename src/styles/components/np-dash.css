@@ -12,11 +12,11 @@
   grid-template-columns: auto 1fr;
   gap: 28px;
   padding: 28px;
-  background: rgba(0, 0, 0, 0.30);
+  background: var(--bg-glass);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-radius: var(--radius-lg);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
   align-items: center;
 }
 
@@ -56,7 +56,7 @@
 
 .np-dash-hero-sub {
   font-size: 15px;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--text-secondary);
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -94,13 +94,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--text-secondary);
   border-radius: var(--radius-sm);
   transition: color 0.15s, background 0.15s;
 }
 .np-dash-icon-btn:hover {
   color: var(--accent);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-hover);
 }
 .np-dash-lfm-btn.is-loved {
   color: var(--accent);
@@ -129,7 +129,7 @@
   gap: 5px;
   margin-top: 8px;
   padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-hover);
   border-radius: var(--radius-md);
   border-left: 3px solid var(--accent);
 }
@@ -152,19 +152,19 @@
   align-items: baseline;
   gap: 6px;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 .np-dash-hero-lfm-scope {
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--text-primary);
 }
 .np-dash-hero-lfm-sep {
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-muted);
   padding: 0 2px;
 }
 .np-dash-hero-lfm-dot {
-  color: rgba(255, 255, 255, 0.30);
+  color: var(--text-muted);
   padding: 0 3px;
 }
 .np-dash-hero-lfm-you {
@@ -185,9 +185,9 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 6px 10px;
   font-size: 12px;
@@ -195,12 +195,12 @@
   transition: background 0.15s, color 0.15s;
 }
 .np-dash-toolbar-btn:hover {
-  background: rgba(255, 255, 255, 0.10);
+  background: var(--bg-hover);
   color: var(--accent);
 }
 .np-dash-toolbar-badge {
   background: var(--accent);
-  color: var(--bg-app, #1e1e2e);
+  color: var(--text-on-accent);
   font-size: 10px;
   font-weight: 700;
   padding: 1px 6px;
@@ -214,8 +214,8 @@
   top: calc(100% + 4px);
   right: 0;
   min-width: 220px;
-  background: var(--bg-app, #1e1e2e);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: var(--menu-bg);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 6px;
   z-index: 50;
@@ -226,13 +226,13 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-muted);
   padding: 6px 8px 4px;
 }
 .np-dash-toolbar-empty {
   padding: 8px 10px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.50);
+  color: var(--text-muted);
   font-style: italic;
 }
 .np-dash-toolbar-item {
@@ -243,7 +243,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-primary);
   font-size: 12.5px;
   padding: 7px 10px;
   border-radius: var(--radius-sm);
@@ -251,13 +251,13 @@
   transition: background 0.1s;
 }
 .np-dash-toolbar-item:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-hover);
   color: var(--accent);
 }
 .np-dash-toolbar-divider {
   height: 1px;
   margin: 4px 0;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--border-subtle);
 }
 
 /* Widget wrapper — makes each card a psyDnD drag source */
@@ -269,9 +269,9 @@
   transition: transform 0.15s;
 }
 .np-dash-col.is-drop-target {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-hover);
   border-radius: var(--radius-lg);
-  outline: 1px dashed rgba(255, 255, 255, 0.10);
+  outline: 1px dashed var(--border);
   outline-offset: 4px;
 }
 
@@ -292,8 +292,8 @@
   padding: 28px 18px;
   text-align: center;
   font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.40);
-  border: 1px dashed rgba(255, 255, 255, 0.10);
+  color: var(--text-muted);
+  border: 1px dashed var(--border);
   border-radius: var(--radius-lg);
   font-style: italic;
 }
@@ -340,9 +340,9 @@
   font-weight: 600;
   padding: 5px 11px;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--border);
+  background: var(--bg-hover);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
   white-space: nowrap;
@@ -352,14 +352,14 @@
 }
 
 .np-artist-tab:hover {
-  background: rgba(255, 255, 255, 0.10);
-  color: rgba(255, 255, 255, 0.92);
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .np-artist-tab.is-active {
   background: color-mix(in srgb, var(--accent) 28%, transparent);
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  color: white;
+  color: var(--text-primary);
 }
 
 .np-dash-artist-body {
@@ -388,7 +388,7 @@
 .np-dash-artist-name {
   font-size: 16px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--text-primary);
 }
 
 .np-dash-similar {
@@ -406,15 +406,15 @@
   font-weight: 500;
   padding: 4px 10px;
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.75);
+  background: var(--bg-hover);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
   white-space: nowrap;
 }
 .np-chip:hover {
   background: color-mix(in srgb, var(--accent) 30%, transparent);
-  color: white;
+  color: var(--text-primary);
 }
 
 /* Album card meta line */
@@ -424,11 +424,11 @@
   align-items: baseline;
   gap: 8px;
   font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.70);
+  color: var(--text-secondary);
 }
 .np-dash-album-name {
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--text-primary);
 }
 .np-dash-album-stats {
   display: inline-flex;
@@ -454,15 +454,15 @@
   transition: background 0.12s;
 }
 .np-dash-top-row:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--bg-hover);
 }
 .np-dash-top-row.active {
-  background: rgba(255, 255, 255, 0.10);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 .np-dash-top-rank {
   font-size: 12px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -477,7 +477,7 @@
 }
 .np-dash-top-title {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--text-primary);
 }
 .np-dash-top-row.active .np-dash-top-title {
   color: var(--accent);
@@ -485,15 +485,15 @@
 }
 .np-dash-top-sub {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.50);
+  color: var(--text-muted);
 }
 .np-dash-top-dur {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, 0.60);
+  color: var(--text-muted);
 }
 .np-dash-top-play {
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-muted);
   transition: color 0.15s;
 }
 .np-dash-top-row:hover .np-dash-top-play {
@@ -501,7 +501,7 @@
 }
 .np-dash-top-credit {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.40);
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
@@ -545,7 +545,7 @@
   aspect-ratio: 1 / 1;
   border-radius: var(--radius-sm);
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-hover);
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
   position: relative;
 }
@@ -564,7 +564,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.30);
+  color: var(--text-muted);
 }
 
 /* Last.fm stats */
@@ -576,14 +576,14 @@
 .np-dash-stats-row + .np-dash-stats-row {
   margin-top: 4px;
   padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--border-subtle);
 }
 .np-dash-stats-label {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-muted);
 }
 .np-dash-stats-values {
   display: flex;
@@ -599,7 +599,7 @@
 .np-dash-stat-value {
   font-size: 20px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--text-primary);
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
@@ -608,7 +608,7 @@
 }
 .np-dash-stat-sub {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.50);
+  color: var(--text-muted);
   text-transform: lowercase;
 }
 .np-dash-stats-links {
