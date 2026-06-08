@@ -1,9 +1,10 @@
-import { AlertTriangle, Check, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../store/themeStore';
 import { useInstalledThemesStore } from '../../store/installedThemesStore';
 import { uninstallTheme } from '../../utils/themes/uninstallTheme';
 import { useThemeAnimationRisk } from '../../hooks/useThemeAnimationRisk';
+import { AnimatedThemeBadge } from './AnimatedThemeBadge';
 import { FIXED_THEMES } from './fixedThemes';
 
 /** Pull a 3-band swatch (bg / card / accent) out of an installed theme's CSS. */
@@ -80,30 +81,7 @@ export function InstalledThemes() {
                       <Check size={8} strokeWidth={3} color="white" />
                     </div>
                   )}
-                  {animRisk && c.animated && (
-                    <span
-                      role="img"
-                      aria-label={t('settings.themeAnimationWarning')}
-                      data-tooltip={t('settings.themeAnimationWarning')}
-                      data-tooltip-pos="top"
-                      style={{
-                        position: 'absolute',
-                        bottom: '3px',
-                        right: '3px',
-                        width: '16px',
-                        height: '16px',
-                        borderRadius: '50%',
-                        background: 'var(--bg-elevated)',
-                        color: 'var(--warning)',
-                        border: '1px solid var(--warning)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <AlertTriangle size={10} />
-                    </span>
-                  )}
+                  {animRisk && c.animated && <AnimatedThemeBadge variant="overlay" />}
                 </div>
                 <span className={`theme-card-label${isActive ? ' is-active' : ''}`}>
                   {c.label}

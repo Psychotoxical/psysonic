@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Check, ChevronLeft, ChevronRight, Download, RefreshCw, Trash2, WifiOff } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Download, RefreshCw, Trash2, WifiOff } from 'lucide-react';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
 import CoverLightbox from '../CoverLightbox';
 import { useThemeAnimationRisk } from '../../hooks/useThemeAnimationRisk';
+import { AnimatedThemeBadge } from './AnimatedThemeBadge';
 import { useThemeStore } from '../../store/themeStore';
 import { useInstalledThemesStore, type InstalledTheme } from '../../store/installedThemesStore';
 import {
@@ -295,17 +296,7 @@ export function ThemeStoreSection() {
                         <Check size={12} /> {t('settings.themeStoreActive')}
                       </span>
                     )}
-                    {animRisk && th.animated && (
-                      <span
-                        role="img"
-                        aria-label={t('settings.themeAnimationWarning')}
-                        data-tooltip={t('settings.themeAnimationWarning')}
-                        data-tooltip-pos="top"
-                        style={{ display: 'inline-flex', color: 'var(--warning)' }}
-                      >
-                        <AlertTriangle size={14} />
-                      </span>
-                    )}
+                    {animRisk && th.animated && <AnimatedThemeBadge variant="inline" />}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                     {t('settings.themeStoreByAuthor', { author: th.author })}
