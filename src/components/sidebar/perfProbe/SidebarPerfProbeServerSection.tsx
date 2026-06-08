@@ -1,11 +1,13 @@
 import { useAuthStore } from '../../../store/authStore';
 import type { NavidromeAdminRole } from '../../../hooks/useNavidromeAdminRole';
+import { isNavidromeServer } from '../../../utils/server/subsonicServerIdentity';
+import { FEATURE_AUDIOMUSE_SIMILAR_TRACKS, OP_SIMILAR_TRACKS } from '../../../serverCapabilities/catalog';
 import {
-  isAudiomusePluginAutoManaged,
-  isNavidromeAudiomuseSoftwareEligible,
-  isNavidromeSonicSimilarityEligible,
-  isNavidromeServer,
-} from '../../../utils/server/subsonicServerIdentity';
+  isFeatureActiveForServer,
+  resolveCallRoutesForServer,
+  resolveFeatureForServer,
+} from '../../../serverCapabilities/storeView';
+import type { CapabilityStatus, FeatureTrust, ResolvedCapability } from '../../../serverCapabilities/types';
 import { PerfProbeMetricSection } from './PerfProbeMetricCard';
 import PerfProbeDetailList, { type PerfProbeDetailRow } from './PerfProbeDetailList';
 import PerfProbeStatusBadge, { type PerfProbeBadgeTone } from './PerfProbeStatusBadge';
@@ -16,29 +18,31 @@ function formatServerType(identity: { type?: string; serverVersion?: string; ope
   return version ? `${identity.type} ${version}` : identity.type;
 }
 
-function pluginProbeBadge(
-  sonicEligible: boolean,
-  pluginProbe: string | undefined,
-): { tone: PerfProbeBadgeTone; label: string } {
-  if (!sonicEligible) return { tone: 'muted', label: 'N/A (Navidrome < 0.62)' };
-  switch (pluginProbe) {
-    case 'present': return { tone: 'ok', label: 'Detected (sonicSimilarity)' };
+function detectionBadge(status: CapabilityStatus): { tone: PerfProbeBadgeTone; label: string } {
+  switch (status) {
+    case 'present': return { tone: 'ok', label: 'Detected' };
     case 'absent': return { tone: 'muted', label: 'Not detected' };
     case 'probing': return { tone: 'warn', label: 'Checking…' };
     case 'error': return { tone: 'error', label: 'Probe failed' };
-    default: return { tone: 'muted', label: 'Not probed yet' };
+    case 'unknown': return { tone: 'muted', label: 'Not probed yet' };
+    default: return { tone: 'muted', label: 'N/A' };
   }
 }
 
-function legacyProbeBadge(
-  sonicEligible: boolean,
-  legacyProbe: string | undefined,
-): { tone: PerfProbeBadgeTone; label: string } | null {
-  if (sonicEligible) return null;
-  if (!legacyProbe) return { tone: 'muted', label: 'Not probed yet' };
-  if (legacyProbe === 'ok') return { tone: 'ok', label: legacyProbe };
-  if (legacyProbe === 'empty' || legacyProbe === 'skipped') return { tone: 'muted', label: legacyProbe };
-  return { tone: 'error', label: legacyProbe };
+function strategyLabel(strategyId: string | null): string {
+  switch (strategyId) {
+    case 'opensubsonic.sonicSimilarity': return 'sonicSimilarity (OpenSubsonic)';
+    case 'subsonic.getSimilarSongs': return 'getSimilarSongs (legacy)';
+    default: return '—';
+  }
+}
+
+function trustBadge(trust: FeatureTrust | null): { tone: PerfProbeBadgeTone; label: string } {
+  switch (trust) {
+    case 'high': return { tone: 'ok', label: 'high' };
+    case 'low': return { tone: 'warn', label: 'heuristic' };
+    default: return { tone: 'muted', label: '—' };
+  }
 }
 
 function adminRoleBadge(role: NavidromeAdminRole): { tone: PerfProbeBadgeTone; label: string } {
@@ -63,15 +67,10 @@ export default function SidebarPerfProbeServerSection({ adminRole = 'na' }: Prop
   const identity = useAuthStore(s =>
     activeServerId ? s.subsonicServerIdentityByServer[activeServerId] : undefined,
   );
-  const pluginProbe = useAuthStore(s =>
-    activeServerId ? s.audiomusePluginProbeByServer[activeServerId] : undefined,
-  );
-  const legacyProbe = useAuthStore(s =>
-    activeServerId ? s.instantMixProbeByServer[activeServerId] : undefined,
-  );
-  const audiomuseEnabled = useAuthStore(s =>
-    activeServerId ? Boolean(s.audiomuseNavidromeByServer[activeServerId]) : false,
-  );
+  // Subscribe to the probe maps so the resolver-derived rows re-render on probe updates.
+  useAuthStore(s => (activeServerId ? s.audiomusePluginProbeByServer[activeServerId] : undefined));
+  useAuthStore(s => (activeServerId ? s.instantMixProbeByServer[activeServerId] : undefined));
+  useAuthStore(s => (activeServerId ? s.audiomuseNavidromeByServer[activeServerId] : undefined));
 
   if (!server) {
     return (
@@ -83,11 +82,17 @@ export default function SidebarPerfProbeServerSection({ adminRole = 'na' }: Prop
     );
   }
 
-  const sonicEligible = isNavidromeSonicSimilarityEligible(identity);
-  const plugin = pluginProbeBadge(sonicEligible, pluginProbe);
-  const legacy = legacyProbeBadge(sonicEligible, legacyProbe);
   const navidrome = isNavidromeServer(identity);
   const role = adminRoleBadge(adminRole);
+  const resolved: ResolvedCapability | null = activeServerId
+    ? resolveFeatureForServer(activeServerId, FEATURE_AUDIOMUSE_SIMILAR_TRACKS)
+    : null;
+  const audiomuseActive = activeServerId
+    ? isFeatureActiveForServer(activeServerId, FEATURE_AUDIOMUSE_SIMILAR_TRACKS)
+    : false;
+  const routes = activeServerId
+    ? resolveCallRoutesForServer(activeServerId, FEATURE_AUDIOMUSE_SIMILAR_TRACKS, OP_SIMILAR_TRACKS)
+    : [];
 
   const rows: PerfProbeDetailRow[] = [
     { label: 'Name', value: server.name || server.url },
@@ -110,28 +115,36 @@ export default function SidebarPerfProbeServerSection({ adminRole = 'na' }: Prop
     });
   }
 
-  if (navidrome && isNavidromeAudiomuseSoftwareEligible(identity)) {
-    rows.push({
-      label: 'AudioMuse plugin',
-      value: <PerfProbeStatusBadge tone={plugin.tone}>{plugin.label}</PerfProbeStatusBadge>,
-    });
-    if (legacy) {
+  if (resolved && resolved.strategyId !== null && resolved.status !== 'ineligible') {
+    const detect = detectionBadge(resolved.status);
+    const trust = trustBadge(resolved.trust);
+    rows.push(
+      {
+        label: 'AudioMuse Instant Mix',
+        value: <PerfProbeStatusBadge tone={detect.tone}>{detect.label}</PerfProbeStatusBadge>,
+      },
+      { label: 'Provider', value: <code className="perf-server-dl__code">{strategyLabel(resolved.strategyId)}</code> },
+      {
+        label: 'Detection trust',
+        value: <PerfProbeStatusBadge tone={trust.tone}>{trust.label}</PerfProbeStatusBadge>,
+      },
+      {
+        label: 'Mode',
+        value: audiomuseActive
+          ? (
+            <PerfProbeStatusBadge tone="ok">
+              {resolved.activation === 'auto' ? 'active (auto)' : 'enabled in Settings'}
+            </PerfProbeStatusBadge>
+          )
+          : <PerfProbeStatusBadge tone="muted">off</PerfProbeStatusBadge>,
+      },
+    );
+    if (routes.length > 0) {
       rows.push({
-        label: 'Legacy similar probe',
-        value: <PerfProbeStatusBadge tone={legacy.tone}>{legacy.label}</PerfProbeStatusBadge>,
+        label: 'Call route',
+        value: <code className="perf-server-dl__code">{routes.map(r => r.endpoint).join(' → ')}</code>,
       });
     }
-    const autoManaged = isAudiomusePluginAutoManaged(identity);
-    rows.push({
-      label: 'AudioMuse mode',
-      value: audiomuseEnabled
-        ? (
-          <PerfProbeStatusBadge tone="ok">
-            {autoManaged ? 'active (auto)' : 'enabled in Settings'}
-          </PerfProbeStatusBadge>
-        )
-        : <PerfProbeStatusBadge tone="muted">off</PerfProbeStatusBadge>,
-    });
   }
 
   return (

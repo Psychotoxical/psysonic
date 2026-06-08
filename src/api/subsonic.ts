@@ -2,12 +2,18 @@ import axios from 'axios';
 import md5 from 'md5';
 import { useAuthStore } from '../store/authStore';
 import {
-  isNavidromeAudiomuseSoftwareEligible,
-  isNavidromeSonicSimilarityEligible,
   type InstantMixProbeResult,
   type SubsonicServerIdentity,
 } from '../utils/server/subsonicServerIdentity';
-import { probeAudiomusePluginWithCredentials } from './subsonicOpenSubsonic';
+import { fetchOpenSubsonicExtensionsWithCredentials } from './subsonicOpenSubsonic';
+import { buildCapabilityContext } from '../serverCapabilities/context';
+import {
+  PROBE_LEGACY_INSTANT_MIX,
+  PROBE_OPENSUBSONIC_EXTENSIONS,
+  SERVER_CAPABILITY_CATALOG,
+  SONIC_SIMILARITY_EXTENSION,
+} from '../serverCapabilities/catalog';
+import { neededProbeIds } from '../serverCapabilities/resolve';
 import {
   SUBSONIC_CLIENT,
   api,
@@ -107,9 +113,12 @@ export async function probeInstantMixWithCredentials(
 }
 
 /**
- * After a successful ping, probe AudioMuse / Instant Mix in the background (Navidrome ≥ 0.60).
- * Navidrome ≥ 0.62 uses the `sonicSimilarity` OpenSubsonic extension; older builds fall back to
- * `getSimilarSongs` (may match Last.fm agents, not only AudioMuse).
+ * After a successful ping, run the server-capability probes needed by the catalog
+ * (`serverCapabilities/`). Which probes run is decided by the strategies eligible
+ * for this server generation — not by inline version checks here.
+ *
+ * Currently: Navidrome ≥ 0.62 → `getOpenSubsonicExtensions` (sonicSimilarity);
+ * Navidrome 0.60–0.61 → legacy `getSimilarSongs` Instant Mix probe.
  */
 export function scheduleInstantMixProbeForServer(
   serverId: string,
@@ -118,18 +127,23 @@ export function scheduleInstantMixProbeForServer(
   password: string,
   identity: SubsonicServerIdentity,
 ): void {
-  if (!isNavidromeAudiomuseSoftwareEligible(identity)) return;
+  const ctx = buildCapabilityContext(identity);
+  const probeIds = neededProbeIds(SERVER_CAPABILITY_CATALOG, ctx);
 
-  if (isNavidromeSonicSimilarityEligible(identity)) {
+  if (probeIds.has(PROBE_OPENSUBSONIC_EXTENSIONS)) {
     const store = useAuthStore.getState();
     store.setAudiomusePluginProbe(serverId, 'probing');
-    void probeAudiomusePluginWithCredentials(serverUrl, username, password).then(result =>
-      store.setAudiomusePluginProbe(serverId, result),
-    );
-    return;
+    void fetchOpenSubsonicExtensionsWithCredentials(serverUrl, username, password).then(extensions => {
+      const result = extensions === null
+        ? 'error'
+        : extensions.includes(SONIC_SIMILARITY_EXTENSION) ? 'present' : 'absent';
+      useAuthStore.getState().setAudiomusePluginProbe(serverId, result);
+    });
   }
 
-  void probeInstantMixWithCredentials(serverUrl, username, password).then(result =>
-    useAuthStore.getState().setInstantMixProbe(serverId, result),
-  );
+  if (probeIds.has(PROBE_LEGACY_INSTANT_MIX)) {
+    void probeInstantMixWithCredentials(serverUrl, username, password).then(result =>
+      useAuthStore.getState().setInstantMixProbe(serverId, result),
+    );
+  }
 }

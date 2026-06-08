@@ -24,6 +24,30 @@ export function hasOpenSubsonicExtension(extensions: readonly OpenSubsonicExtens
 }
 
 /**
+ * Fetch the list of OpenSubsonic extension names advertised by the server, or
+ * `null` when the request fails. Shared probe for any extension-gated feature.
+ */
+export async function fetchOpenSubsonicExtensionsWithCredentials(
+  serverUrl: string,
+  username: string,
+  password: string,
+): Promise<string[] | null> {
+  try {
+    const data = await apiWithCredentials<{ openSubsonicExtensions?: unknown }>(
+      serverUrl,
+      username,
+      password,
+      'getOpenSubsonicExtensions.view',
+      {},
+      12000,
+    );
+    return parseOpenSubsonicExtensions(data.openSubsonicExtensions).map(ext => ext.name);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Navidrome ≥ 0.62: `sonicSimilarity` in `getOpenSubsonicExtensions` means an audio-similarity
  * plugin (typically AudioMuse-AI) is active on the server.
  */

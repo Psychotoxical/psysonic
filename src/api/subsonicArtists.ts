@@ -2,6 +2,11 @@ import { useAuthStore } from '../store/authStore';
 import { api, apiForServer, libraryFilterParams, libraryFilterParamsForServer } from './subsonicClient';
 import { filterSongsToServerLibrary } from './subsonicLibrary';
 import { filterSongsToActiveLibrary, similarSongsRequestCount } from './subsonicLibrary';
+import {
+  FEATURE_AUDIOMUSE_SIMILAR_TRACKS,
+  OP_SIMILAR_TRACKS,
+} from '../serverCapabilities/catalog';
+import { resolveCallRoutesForServer } from '../serverCapabilities/storeView';
 import type {
   SubsonicAlbum,
   SubsonicArtist,
@@ -108,4 +113,46 @@ export async function getSimilarSongs(id: string, count = 50): Promise<SubsonicS
   } catch {
     return [];
   }
+}
+
+/**
+ * Sonic (audio-analysis) similar tracks via the OpenSubsonic `sonicSimilarity`
+ * extension (Navidrome ≥ 0.62 + AudioMuse plugin). Returns `[]` when the server
+ * has no provider (HTTP 404) so callers can fall back.
+ */
+export async function getSonicSimilarTracks(id: string, count = 50): Promise<SubsonicSong[]> {
+  try {
+    const requestCount = similarSongsRequestCount(count);
+    const data = await api<{ sonicMatch: Array<{ entry?: SubsonicSong }> | { entry?: SubsonicSong } }>(
+      'getSonicSimilarTracks.view',
+      { id, count: requestCount, ...libraryFilterParams() },
+    );
+    const raw = data.sonicMatch;
+    const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+    const songs = list.map(m => m.entry).filter((e): e is SubsonicSong => !!e);
+    if (songs.length === 0) return [];
+    const filtered = await filterSongsToActiveLibrary(songs);
+    return filtered.slice(0, count);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Capability-routed similar tracks for the active server. Prefers the sonic
+ * similarity endpoint when the AudioMuse plugin is detected (Navidrome ≥ 0.62),
+ * falling back to legacy `getSimilarSongs` on empty/unavailable.
+ */
+export async function fetchSimilarTracksRouted(songId: string, count = 50): Promise<SubsonicSong[]> {
+  const { activeServerId } = useAuthStore.getState();
+  if (!activeServerId) return getSimilarSongs(songId, count);
+  const routes = resolveCallRoutesForServer(activeServerId, FEATURE_AUDIOMUSE_SIMILAR_TRACKS, OP_SIMILAR_TRACKS);
+  if (routes.length === 0) return getSimilarSongs(songId, count);
+  for (const route of routes) {
+    const songs = route.transport === 'opensubsonic'
+      ? await getSonicSimilarTracks(songId, count)
+      : await getSimilarSongs(songId, count);
+    if (songs.length > 0) return songs;
+  }
+  return [];
 }

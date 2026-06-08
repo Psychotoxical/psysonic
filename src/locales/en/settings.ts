@@ -108,8 +108,6 @@ export const settings = {
   audiomuseTitle: 'AudioMuse-AI (Navidrome)',
   audiomuseDesc:
     'Turn on if this server has the <pluginLink>AudioMuse-AI Navidrome plugin</pluginLink> configured. Enables Instant Mix from tracks and uses server-side similar artists instead of Last.fm on artist pages.',
-  audiomuseDescAuto:
-    'On Navidrome 0.62+, Psysonic detects the <pluginLink>AudioMuse-AI plugin</pluginLink> via the OpenSubsonic sonicSimilarity extension and enables Instant Mix automatically when it is present.',
   audiomuseStatusActive: 'Active',
   audiomuseStatusChecking: 'Checking…',
   audiomuseStatusNotDetected: 'Not detected',

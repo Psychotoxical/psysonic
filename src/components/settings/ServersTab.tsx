@@ -25,11 +25,9 @@ import {
 import { useConfirmModalStore } from '../../store/confirmModalStore';
 import { showToast } from '../../utils/ui/toast';
 import PerfProbeStatusBadge, { type PerfProbeBadgeTone } from '../sidebar/perfProbe/PerfProbeStatusBadge';
-import {
-  isAudiomusePluginAutoManaged,
-  resolveAudiomusePluginProbeUiStatus,
-  showAudiomuseNavidromeServerSetting,
-} from '../../utils/server/subsonicServerIdentity';
+import { FEATURE_AUDIOMUSE_SIMILAR_TRACKS } from '../../serverCapabilities/catalog';
+import { resolveFeatureForServer } from '../../serverCapabilities/storeView';
+import type { CapabilityStatus, ResolvedCapability } from '../../serverCapabilities/types';
 import { serverListDisplayLabel } from '../../utils/server/serverDisplayName';
 import { serverIndexKeyForProfile } from '../../utils/server/serverIndexKey';
 import { switchActiveServer } from '../../utils/server/switchActiveServer';
@@ -39,16 +37,21 @@ import { ServerGripHandle } from './ServerGripHandle';
 const AUDIOMUSE_NV_PLUGIN_URL = 'https://github.com/NeptuneHub/AudioMuse-AI-NV-plugin';
 
 function audiomuseProbeBadge(
-  status: ReturnType<typeof resolveAudiomusePluginProbeUiStatus>,
+  status: CapabilityStatus,
   t: (key: string) => string,
 ): { tone: PerfProbeBadgeTone; label: string } {
   switch (status) {
-    case 'active': return { tone: 'ok', label: t('settings.audiomuseStatusActive') };
-    case 'checking': return { tone: 'warn', label: t('settings.audiomuseStatusChecking') };
-    case 'not_detected': return { tone: 'muted', label: t('settings.audiomuseStatusNotDetected') };
-    case 'failed': return { tone: 'error', label: t('settings.audiomuseStatusProbeFailed') };
+    case 'present': return { tone: 'ok', label: t('settings.audiomuseStatusActive') };
+    case 'absent': return { tone: 'muted', label: t('settings.audiomuseStatusNotDetected') };
+    case 'error': return { tone: 'error', label: t('settings.audiomuseStatusProbeFailed') };
     default: return { tone: 'warn', label: t('settings.audiomuseStatusChecking') };
   }
+}
+
+/** Row visibility: hide only when a manual (legacy) strategy proves the feature absent. */
+function showAudiomuseRow(resolved: ResolvedCapability | null): boolean {
+  if (!resolved || resolved.strategyId === null || resolved.status === 'ineligible') return false;
+  return !(resolved.activation === 'manual' && resolved.status === 'absent');
 }
 
 type ServerDropTarget = { idx: number; before: boolean } | null;
@@ -501,17 +504,11 @@ export function ServersTab({
                     onVerify={() => void librarySync.runServerAction(serverIndexKeyForProfile(srv), 'verify')}
                     onCancel={() => void librarySync.handleCancel()}
                   />
-                  {showAudiomuseNavidromeServerSetting(
-                    auth.subsonicServerIdentityByServer[srv.id],
-                    auth.instantMixProbeByServer[srv.id],
-                    auth.audiomusePluginProbeByServer[srv.id],
-                  ) && (() => {
-                    const serverIdentity = auth.subsonicServerIdentityByServer[srv.id];
-                    const autoManaged = isAudiomusePluginAutoManaged(serverIdentity);
-                    const probeStatus = resolveAudiomusePluginProbeUiStatus(
-                      auth.audiomusePluginProbeByServer[srv.id],
-                    );
-                    const probeBadge = audiomuseProbeBadge(probeStatus, t);
+                  {(() => {
+                    const resolved = resolveFeatureForServer(srv.id, FEATURE_AUDIOMUSE_SIMILAR_TRACKS);
+                    if (!showAudiomuseRow(resolved) || !resolved) return null;
+                    const autoManaged = resolved.activation === 'auto';
+                    const probeBadge = audiomuseProbeBadge(resolved.status, t);
                     const audiomuseActive = !!auth.audiomuseNavidromeByServer[srv.id];
                     return (
                     <div
@@ -533,23 +530,25 @@ export function ServersTab({
                               />
                             )}
                           </div>
-                          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.45 }}>
-                            <Trans
-                              i18nKey={autoManaged ? 'settings.audiomuseDescAuto' : 'settings.audiomuseDesc'}
-                              components={{
-                                pluginLink: (
-                                  <a
-                                    href={AUDIOMUSE_NV_PLUGIN_URL}
-                                    onClick={e => {
-                                      e.preventDefault();
-                                      void openUrl(AUDIOMUSE_NV_PLUGIN_URL);
-                                    }}
-                                    style={{ color: 'var(--accent)', textDecoration: 'underline' }}
-                                  />
-                                ),
-                              }}
-                            />
-                          </div>
+                          {!autoManaged && (
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.45 }}>
+                              <Trans
+                                i18nKey="settings.audiomuseDesc"
+                                components={{
+                                  pluginLink: (
+                                    <a
+                                      href={AUDIOMUSE_NV_PLUGIN_URL}
+                                      onClick={e => {
+                                        e.preventDefault();
+                                        void openUrl(AUDIOMUSE_NV_PLUGIN_URL);
+                                      }}
+                                      style={{ color: 'var(--accent)', textDecoration: 'underline' }}
+                                    />
+                                  ),
+                                }}
+                              />
+                            </div>
+                          )}
                         </div>
                       </div>
                       {autoManaged ? (
