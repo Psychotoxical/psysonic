@@ -167,6 +167,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Playback — macOS stutter from background device checks
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1039](https://github.com/Psychotoxical/psysonic/pull/1039)**
+
+* On some macOS setups playback stuttered at a steady ~3-second cadence: a background check that scans every audio output device ran on each poll and briefly contended with playback. It now runs only when a specific output device is pinned; with the system default (the common case) a single lightweight check runs instead.
+
+
+
 ### Track preview — Symphonia 0.6 format hints and fast stream start
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1006](https://github.com/Psychotoxical/psysonic/pull/1006)**
