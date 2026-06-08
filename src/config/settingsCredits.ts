@@ -155,6 +155,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Offline experience — unified media layout (cache/library/favorites), localPlaybackStore, library-index Offline Library, favorites auto-sync, cached album/playlist/artist pin reconcile, mixed-server offline queue, and single mediaDir setting (PR #1008)',
       'Offline browse — local-bytes catalog when server is down, integration contract (context/policy/resolvers), disconnect nav fork, Home stale-cache feed, read-only context menus, PlayerBar rating/favorite guard (PR #1017)',
       'Themed startup splash before Vite loads — deferred window show, per-theme logo gradient (PR #1030)',
+      'Artist page: Top Tracks play when album list is empty on the page (PR #1031)',
     ],
   },
   {

@@ -189,6 +189,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Artist page — Top Tracks play button
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1031](https://github.com/Psychotoxical/psysonic/pull/1031)**
+
+* Play on **Top Tracks** rows no longer silently does nothing when the artist page has top songs but no albums loaded (e.g. lossless artist view); playback starts from the clicked track and continues into the catalog when albums are available.
+
+
+
 ## [1.47.0]
 
 > **🙏 Thank you to our amazing Discord community.** This release would not have been possible without your tireless support, quality checks, bug reports and all-round collaboration. Every report, every repro and every bit of feedback shaped what shipped here — thank you. Come join us: [discord.gg/AMnDRErm4u](https://discord.gg/AMnDRErm4u)
