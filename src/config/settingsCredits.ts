@@ -156,6 +156,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Offline browse — local-bytes catalog when server is down, integration contract (context/policy/resolvers), disconnect nav fork, Home stale-cache feed, read-only context menus, PlayerBar rating/favorite guard (PR #1017)',
       'Themed startup splash before Vite loads — deferred window show, per-theme logo gradient (PR #1030)',
       'Artist page: Top Tracks play when album list is empty on the page (PR #1031)',
+      'PsyLab Connections tab with server capability readout, Navidrome admin-role probe, and tab-bar layout fix; AudioMuse plugin detection via OpenSubsonic sonicSimilarity on Navidrome ≥0.62 (PR #1032)',
     ],
   },
   {

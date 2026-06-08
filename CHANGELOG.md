@@ -127,6 +127,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### PsyLab — Connections tab and Navidrome admin role
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1032](https://github.com/Psychotoxical/psysonic/pull/1032)**
+
+* New **Connections** tab: session/endpoint status, active-server capability readout (OpenSubsonic, AudioMuse plugin probe, legacy similar probe, AudioMuse mode), and queue-playback server when it differs from the active profile.
+* Navidrome **admin vs standard user** badge via native login probe — useful when diagnosing plugin/settings visibility.
+
+
+
+### Servers — AudioMuse plugin probe via OpenSubsonic (Navidrome ≥ 0.62)
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1032](https://github.com/Psychotoxical/psysonic/pull/1032)**
+
+* Navidrome **0.62+**: detect the AudioMuse-AI plugin from `getOpenSubsonicExtensions` when `sonicSimilarity` is advertised — the first reliable signal; the per-server AudioMuse toggle in Settings appears only when the extension is present.
+* Older Navidrome keeps the legacy `getSimilarSongs` Instant Mix probe path.
+
+
+
 ## Fixed
 
 ### Servers — complete border on the active server card
@@ -194,6 +212,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1031](https://github.com/Psychotoxical/psysonic/pull/1031)**
 
 * Play on **Top Tracks** rows no longer silently does nothing when the artist page has top songs but no albums loaded (e.g. lossless artist view); playback starts from the clicked track and continues into the catalog when albums are available.
+
+
+
+### PsyLab — tab bar no longer collapses on the Logs tab
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1032](https://github.com/Psychotoxical/psysonic/pull/1032)**
+
+* The PsyLab tab row keeps its height when the Logs flex layout fills the modal — tabs were previously squashed to a thin strip.
 
 
 
