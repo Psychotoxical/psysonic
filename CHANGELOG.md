@@ -151,6 +151,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Now Playing — cards no longer blank out on track change
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1042](https://github.com/Psychotoxical/psysonic/pull/1042)**
+
+* The "from this album", "discography" and "most played" sections on the Now Playing page disappeared after a track change once the next track started playing from the local cache, and didn't come back. The page now keeps loading that info whenever the server is reachable, regardless of whether the audio plays from cached or offline bytes.
+
 ### Servers — complete border on the active server card
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#998](https://github.com/Psychotoxical/psysonic/pull/998)**
