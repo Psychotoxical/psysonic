@@ -38,4 +38,8 @@ export const sidebar = {
   collapsePlaylists: 'Collapse playlists',
   more: 'More',
   feelingLucky: 'Lucky Mix',
+
+  themeUpdatesTitle: 'Theme updates',
+  themeUpdatesTooltip: 'Theme updates available',
+  themeUpdatesDismiss: 'Dismiss',
 };

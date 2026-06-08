@@ -34,4 +34,8 @@ export const sidebar = {
   collapsePlaylists: '收起播放列表',
   more: '更多',
   feelingLucky: '好运混音',
+
+  themeUpdatesTitle: '主题更新',
+  themeUpdatesTooltip: '有可用的主题更新',
+  themeUpdatesDismiss: '忽略',
 };

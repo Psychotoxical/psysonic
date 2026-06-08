@@ -80,3 +80,32 @@
   justify-content: center;
   margin: 0 auto 6px;
 }
+
+/* Theme-update sidebar notice — reuses the What's New banner styling, plus a
+   count chip on the right (expanded) or a corner dot (collapsed). */
+.theme-update-banner__count {
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--text-on-accent, #fff);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.theme-update-banner__count--dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  border: 2px solid var(--bg-sidebar, var(--bg-app));
+}

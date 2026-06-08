@@ -30,6 +30,7 @@ export function createUiAppearanceActions(set: SetState): Pick<
   | 'setSidebarLyricsStyle'
   | 'setShowChangelogOnUpdate'
   | 'setLastSeenChangelogVersion'
+  | 'setLastDismissedThemeUpdateSig'
   | 'setAdvancedSettingsEnabled'
 > {
   return {
@@ -51,6 +52,7 @@ export function createUiAppearanceActions(set: SetState): Pick<
     setSidebarLyricsStyle: (v) => set({ sidebarLyricsStyle: v }),
     setShowChangelogOnUpdate: (v) => set({ showChangelogOnUpdate: v }),
     setLastSeenChangelogVersion: (v) => set({ lastSeenChangelogVersion: v }),
+    setLastDismissedThemeUpdateSig: (v) => set({ lastDismissedThemeUpdateSig: v }),
     setAdvancedSettingsEnabled: (v) => set({ advancedSettingsEnabled: v }),
   };
 }

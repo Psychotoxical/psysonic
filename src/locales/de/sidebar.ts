@@ -34,4 +34,8 @@ export const sidebar = {
   collapsePlaylists: 'Playlists einklappen',
   more: 'Mehr',
   feelingLucky: 'Glücks-Mix',
+
+  themeUpdatesTitle: 'Theme-Updates',
+  themeUpdatesTooltip: 'Theme-Updates verfügbar',
+  themeUpdatesDismiss: 'Ausblenden',
 };

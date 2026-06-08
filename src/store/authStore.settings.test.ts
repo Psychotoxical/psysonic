@@ -93,6 +93,7 @@ describe('trivial pass-through setters', () => {
     ['setOfflineDownloadDir', 'offlineDownloadDir', '/tmp/offline'],
     ['setHotCacheDownloadDir', 'hotCacheDownloadDir', '/tmp/hot'],
     ['setLastSeenChangelogVersion', 'lastSeenChangelogVersion', '1.46.0'],
+    ['setLastDismissedThemeUpdateSig', 'lastDismissedThemeUpdateSig', 'theme-a@1.1.0'],
     ['setDiscordTemplateDetails', 'discordTemplateDetails', '{artist} — {title}'],
     ['setDiscordTemplateState', 'discordTemplateState', '{album}'],
     ['setDiscordTemplateLargeText', 'discordTemplateLargeText', 'Hi'],

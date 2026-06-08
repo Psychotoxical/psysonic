@@ -90,6 +90,7 @@ export const useAuthStore = create<AuthState>()(
       sidebarLyricsStyle: 'classic',
       showChangelogOnUpdate: true,
       lastSeenChangelogVersion: '',
+      lastDismissedThemeUpdateSig: '',
       advancedSettingsEnabled: false,
       seekbarStyle: 'truewave',
       queueNowPlayingCollapsed: false,

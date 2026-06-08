@@ -37,4 +37,8 @@ export const sidebar = {
   collapsePlaylists: 'Свернуть плейлисты',
   more: 'Ещё',
   feelingLucky: 'Мне повезёт',
+
+  themeUpdatesTitle: 'Обновления тем',
+  themeUpdatesTooltip: 'Доступны обновления тем',
+  themeUpdatesDismiss: 'Скрыть',
 };

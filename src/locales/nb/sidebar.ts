@@ -34,4 +34,8 @@ export const sidebar = {
   collapsePlaylists: 'Skjul spillelister',
   more: 'Mer',
   feelingLucky: 'Lykkemiks',
+
+  themeUpdatesTitle: 'Temaoppdateringer',
+  themeUpdatesTooltip: 'Temaoppdateringer tilgjengelig',
+  themeUpdatesDismiss: 'Lukk',
 };

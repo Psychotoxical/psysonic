@@ -36,4 +36,8 @@ export const sidebar = {
   collapsePlaylists: 'Restrânge playlisturi',
   more: 'Mai mult',
   feelingLucky: 'Mix Norocos',
+
+  themeUpdatesTitle: 'Actualizări de teme',
+  themeUpdatesTooltip: 'Actualizări de teme disponibile',
+  themeUpdatesDismiss: 'Închide',
 };

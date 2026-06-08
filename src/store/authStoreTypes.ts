@@ -178,6 +178,9 @@ export interface AuthState {
   sidebarLyricsStyle: 'classic' | 'apple';
   showChangelogOnUpdate: boolean;
   lastSeenChangelogVersion: string;
+  /** Signature of the installed-theme updates last dismissed in the sidebar
+   *  notice; the notice reappears once a new update changes the signature. */
+  lastDismissedThemeUpdateSig: string;
   /** Reveals sub-sections marked `advanced` across all Settings tabs. */
   advancedSettingsEnabled: boolean;
 
@@ -348,6 +351,7 @@ export interface AuthState {
   setSidebarLyricsStyle: (v: 'classic' | 'apple') => void;
   setShowChangelogOnUpdate: (v: boolean) => void;
   setLastSeenChangelogVersion: (v: string) => void;
+  setLastDismissedThemeUpdateSig: (v: string) => void;
   setAdvancedSettingsEnabled: (v: boolean) => void;
   setSeekbarStyle: (v: SeekbarStyle) => void;
   setQueueNowPlayingCollapsed: (v: boolean) => void;

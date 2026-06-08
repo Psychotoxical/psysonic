@@ -35,4 +35,8 @@ export const sidebar = {
   collapsePlaylists: 'Colapsar listas',
   more: 'Más',
   feelingLucky: 'Mezcla Suerte',
+
+  themeUpdatesTitle: 'Actualizaciones de temas',
+  themeUpdatesTooltip: 'Hay actualizaciones de temas',
+  themeUpdatesDismiss: 'Descartar',
 };

@@ -5,6 +5,7 @@ import { AudioLines, ChevronRight, HardDriveDownload, PlayCircle, Settings, Spar
 import type { SidebarItemConfig } from '../../store/sidebarStore';
 import { ALL_NAV_ITEMS } from '../../config/navItems';
 import WhatsNewBanner from '../WhatsNewBanner';
+import ThemeUpdateBanner from '../ThemeUpdateBanner';
 import { displayPlaylistName, isSmartPlaylistName } from '../../utils/componentHelpers/sidebarHelpers';
 import SidebarLibraryPicker from './SidebarLibraryPicker';
 import SidebarActiveJobs from './SidebarActiveJobs';
@@ -215,6 +216,9 @@ export default function SidebarNavBody(props: Props) {
 
         {/* What's New banner — only visible while the current release hasn't been seen. */}
         <WhatsNewBanner collapsed={isCollapsed} />
+
+        {/* Theme-update notice — only visible while an installed theme has an update. */}
+        <ThemeUpdateBanner collapsed={isCollapsed} />
 
         {/* Now Playing — pinned at the bottom unless the user moved it to the top. */}
         {!nowPlayingAtTop && nowPlayingLink}
