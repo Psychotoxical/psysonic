@@ -39,7 +39,8 @@ describe('useThemeUpdates', () => {
 
     const { result } = renderHook(() => useThemeUpdates());
     await waitFor(() => expect(result.current).toHaveLength(1));
-    expect(result.current[0]).toEqual({ id: 'a', version: '1.1.0' });
+    expect(result.current[0].id).toBe('a');
+    expect(result.current[0].version).toBe('1.1.0');
   });
 
   it('returns nothing when nothing is outdated', async () => {

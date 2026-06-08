@@ -65,7 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The store paginates large catalogues, and refreshing the list no longer jumps back to the top.
 * Each store theme shows its **total downloads** and a **last-changed** date, and can be sorted by most popular, newest or name; the catalogue now has numbered page navigation. These stats refresh once a day.
 * The **Now Playing** page now follows the active theme end to end — light themes render it legibly instead of washed-out, with no per-theme tweaks needed.
-* The sidebar now shows a small notice when one of your installed themes has an update available — click it to jump straight to the Theme Store, or dismiss it until the next update. The store also refreshes once on startup, so new themes and updates show up without hitting refresh.
+* The sidebar now shows a small notice when one of your installed themes has an update available — click it to jump straight to the Theme Store, or dismiss it until the next update. Themes with an update also show an update control right on their card under **Settings → Themes** to update them in place with one click, and the store refreshes once on startup so new themes and updates show up without hitting refresh.
 * Upgrading from an older build: an active or scheduled theme that has moved to the store and isn't installed falls back to Mocha (dark) / Latte (light).
 
 

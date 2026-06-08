@@ -1,9 +1,13 @@
-import { Check, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Check, RefreshCw, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../store/themeStore';
 import { useInstalledThemesStore } from '../../store/installedThemesStore';
 import { uninstallTheme } from '../../utils/themes/uninstallTheme';
+import { installThemeFromRegistry } from '../../utils/themes/installThemeFromRegistry';
+import { useThemeUpdates } from '../../hooks/useThemeUpdates';
 import { useThemeAnimationRisk } from '../../hooks/useThemeAnimationRisk';
+import { showToast } from '../../utils/ui/toast';
 import { AnimatedThemeBadge } from './AnimatedThemeBadge';
 import { FIXED_THEMES } from './fixedThemes';
 
@@ -43,6 +47,18 @@ export function InstalledThemes() {
   const setTheme = useThemeStore(s => s.setTheme);
   const installed = useInstalledThemesStore(s => s.themes);
   const animRisk = useThemeAnimationRisk();
+  const updates = useThemeUpdates();
+  const updateById = useMemo(() => new Map(updates.map(u => [u.id, u])), [updates]);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const handleUpdate = async (id: string) => {
+    const th = updateById.get(id);
+    if (!th) return;
+    setUpdatingId(id);
+    const result = await installThemeFromRegistry(th);
+    setUpdatingId(null);
+    if (result !== 'ok') showToast(t('settings.themeStoreInstallFailed'), 4000, 'error');
+  };
 
   const cards: Card[] = [
     ...FIXED_THEMES.map(f => ({ id: f.id, label: f.label, bg: f.bg, card: f.card, accent: f.accent, fixed: true, accessibility: !!f.accessibility, animated: false })),
@@ -131,6 +147,38 @@ export function InstalledThemes() {
                   }}
                 >
                   <X size={11} />
+                </button>
+              )}
+              {updateById.has(c.id) && (
+                <button
+                  type="button"
+                  onClick={() => handleUpdate(c.id)}
+                  disabled={updatingId === c.id}
+                  data-tooltip={updatingId === c.id ? t('settings.themeStoreUpdating') : t('settings.themeStoreUpdate')}
+                  data-tooltip-pos="top"
+                  aria-label={t('settings.themeStoreUpdate')}
+                  // Big centered icon overlay across the whole 46px preview so an
+                  // available update is impossible to miss; click updates in place.
+                  // Icon (not text) so it fits the small card in any language.
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 46,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: 8,
+                    border: 'none',
+                    overflow: 'hidden',
+                    background: 'var(--accent)',
+                    color: 'var(--text-on-accent, #fff)',
+                    cursor: updatingId === c.id ? 'default' : 'pointer',
+                    opacity: updatingId === c.id ? 0.7 : 1,
+                  }}
+                >
+                  <RefreshCw size={20} strokeWidth={2.5} className={updatingId === c.id ? 'spin' : undefined} />
                 </button>
               )}
             </div>

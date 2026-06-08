@@ -13,10 +13,9 @@ import { useInstalledThemesStore, type InstalledTheme } from '../../store/instal
 import {
   cdnUrl,
   fetchRegistry,
-  fetchThemeCss,
   type RegistryTheme,
 } from '../../utils/themes/themeRegistry';
-import { validateThemeCss } from '../../utils/themes/themeInjection';
+import { installThemeFromRegistry } from '../../utils/themes/installThemeFromRegistry';
 import { uninstallTheme } from '../../utils/themes/uninstallTheme';
 import { isNewer } from '../../utils/componentHelpers/appUpdaterHelpers';
 
@@ -52,7 +51,6 @@ export function ThemeStoreSection() {
   const activeTheme = useThemeStore(s => s.theme);
   const setTheme = useThemeStore(s => s.setTheme);
   const installed = useInstalledThemesStore(s => s.themes);
-  const install = useInstalledThemesStore(s => s.install);
   const animRisk = useThemeAnimationRisk();
 
   const [themes, setThemes] = useState<RegistryTheme[] | null>(null);
@@ -150,30 +148,9 @@ export function ThemeStoreSection() {
   const handleInstall = async (th: RegistryTheme) => {
     setBusyId(th.id);
     setFailedId(null);
-    try {
-      const css = await fetchThemeCss(th.css);
-      // Don't persist CSS that won't inject — otherwise the theme would show as
-      // installed/active but render nothing. Validate before storing.
-      if (validateThemeCss(css, th.id) == null) {
-        setFailedId(th.id);
-        return;
-      }
-      install({
-        id: th.id,
-        name: th.name,
-        author: th.author,
-        version: th.version,
-        description: th.description,
-        mode: th.mode,
-        tags: th.tags,
-        css,
-        installedAt: Date.now(),
-      });
-    } catch {
-      setFailedId(th.id);
-    } finally {
-      setBusyId(null);
-    }
+    const result = await installThemeFromRegistry(th);
+    if (result !== 'ok') setFailedId(th.id);
+    setBusyId(null);
   };
 
 

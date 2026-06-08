@@ -1,13 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { isNewer } from '../utils/componentHelpers/appUpdaterHelpers';
-import { fetchRegistry, getCachedRegistry, type Registry } from '../utils/themes/themeRegistry';
+import { fetchRegistry, getCachedRegistry, type Registry, type RegistryTheme } from '../utils/themes/themeRegistry';
 import { useInstalledThemesStore } from '../store/installedThemesStore';
-
-export interface ThemeUpdate {
-  id: string;
-  /** The newer version advertised by the registry. */
-  version: string;
-}
 
 // Refresh the registry from source once per app launch (not just from the
 // cache). This surfaces newly published themes and updates without the user
@@ -16,12 +10,13 @@ export interface ThemeUpdate {
 let sessionRefreshStarted = false;
 
 /**
- * Installed community themes that have a newer version in the registry.
- * Seeds from the last-cached registry synchronously, then revalidates (forced
- * on the first call this session). Recomputes when the installed set changes,
- * so the list shrinks as the user updates themes.
+ * Registry entries for installed community themes that have a newer version
+ * available. Returns the full registry theme (css path, version, metadata) so a
+ * caller can update in place. Seeds from the last-cached registry synchronously,
+ * then revalidates (forced on the first call this session). Recomputes when the
+ * installed set changes, so the list shrinks as the user updates themes.
  */
-export function useThemeUpdates(): ThemeUpdate[] {
+export function useThemeUpdates(): RegistryTheme[] {
   const installed = useInstalledThemesStore(s => s.themes);
   const [registry, setRegistry] = useState<Registry | null>(() => getCachedRegistry());
 
@@ -37,13 +32,11 @@ export function useThemeUpdates(): ThemeUpdate[] {
 
   return useMemo(() => {
     if (!registry) return [];
-    const latestById = new Map(registry.themes.map(t => [t.id, t.version]));
-    const out: ThemeUpdate[] = [];
-    for (const inst of installed) {
-      const latest = latestById.get(inst.id);
-      if (latest && isNewer(latest, inst.version)) out.push({ id: inst.id, version: latest });
-    }
-    return out;
+    const installedVersionById = new Map(installed.map(t => [t.id, t.version]));
+    return registry.themes.filter(rt => {
+      const current = installedVersionById.get(rt.id);
+      return current != null && isNewer(rt.version, current);
+    });
   }, [registry, installed]);
 }
 
@@ -51,6 +44,6 @@ export function useThemeUpdates(): ThemeUpdate[] {
  * Stable signature of an update set, used to remember a dismissal: the sidebar
  * notice stays hidden until a new or bumped update changes this string.
  */
-export function themeUpdateSignature(updates: ThemeUpdate[]): string {
+export function themeUpdateSignature(updates: Array<{ id: string; version: string }>): string {
   return updates.map(u => `${u.id}@${u.version}`).sort().join(',');
 }
