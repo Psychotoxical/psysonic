@@ -78,6 +78,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Startup — themed loading splash before the app bundle loads
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1030](https://github.com/Psychotoxical/psysonic/pull/1030)**
+
+* Inline splash in `index.html` (progress bar + P logo) shows while the Vite bundle loads in dev and production — no empty or black window on launch.
+* Splash colours follow the persisted theme (built-in palettes, day/night scheduler, and installed community themes); the logo uses each theme's accent gradient instead of a hardcoded white asset.
+* The native window stays hidden until the splash has painted (`visible: false` + deferred `show` from Rust/JS); window-state restore no longer overrides startup visibility.
+
+
+
 ## Changed
 
 ### Dependencies — npm and Rust refresh
