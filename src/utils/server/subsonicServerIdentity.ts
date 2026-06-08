@@ -16,11 +16,9 @@ export type AudiomusePluginProbeResult =
   | 'probing'
   | 'present'
   | 'absent'
-  | 'unsupported'
   | 'error';
 
 const NAVIDROME_MIN_FOR_PLUGINS: [number, number, number] = [0, 60, 0];
-const NAVIDROME_MIN_FOR_SONIC_SIMILARITY: [number, number, number] = [0, 62, 0];
 
 export function parseLeadingSemver(version: string | undefined): [number, number, number] | null {
   if (!version) return null;
@@ -52,46 +50,4 @@ export function isNavidromeAudiomuseSoftwareEligible(identity: SubsonicServerIde
   const parsed = parseLeadingSemver(identity.serverVersion);
   if (!parsed) return true;
   return semverGte(parsed, NAVIDROME_MIN_FOR_PLUGINS);
-}
-
-/** Navidrome ≥ 0.62 — `getOpenSubsonicExtensions` can list `sonicSimilarity`. */
-export function isNavidromeSonicSimilarityEligible(identity: SubsonicServerIdentity | undefined): boolean {
-  if (!isNavidromeServer(identity)) return false;
-  const parsed = parseLeadingSemver(identity?.serverVersion);
-  if (!parsed) return false;
-  return semverGte(parsed, NAVIDROME_MIN_FOR_SONIC_SIMILARITY);
-}
-
-/** Navidrome ≥ 0.62 — AudioMuse is auto-enabled from the `sonicSimilarity` probe (no manual toggle). */
-export function isAudiomusePluginAutoManaged(identity: SubsonicServerIdentity | undefined): boolean {
-  return isNavidromeSonicSimilarityEligible(identity);
-}
-
-export type AudiomusePluginProbeUiStatus = 'checking' | 'active' | 'not_detected' | 'failed' | 'unknown';
-
-export function resolveAudiomusePluginProbeUiStatus(
-  probe: AudiomusePluginProbeResult | undefined,
-): AudiomusePluginProbeUiStatus {
-  switch (probe) {
-    case 'present': return 'active';
-    case 'probing': return 'checking';
-    case 'absent': return 'not_detected';
-    case 'error': return 'failed';
-    default: return 'unknown';
-  }
-}
-
-/**
- * Whether to show the per-server AudioMuse row in Settings.
- * Navidrome ≥ 0.62: always (status indicator). Older Navidrome: legacy Instant Mix probe gate.
- */
-export function showAudiomuseNavidromeServerSetting(
-  identity: SubsonicServerIdentity | undefined,
-  instantMixProbe: InstantMixProbeResult | undefined,
-  _pluginProbe: AudiomusePluginProbeResult | undefined,
-): boolean {
-  if (!isNavidromeAudiomuseSoftwareEligible(identity)) return false;
-  if (isNavidromeSonicSimilarityEligible(identity)) return true;
-  if (instantMixProbe === 'empty') return false;
-  return true;
 }

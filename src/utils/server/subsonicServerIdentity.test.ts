@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  isAudiomusePluginAutoManaged,
-  isNavidromeSonicSimilarityEligible,
+  isNavidromeAudiomuseSoftwareEligible,
+  isNavidromeServer,
   parseLeadingSemver,
-  resolveAudiomusePluginProbeUiStatus,
-  showAudiomuseNavidromeServerSetting,
 } from './subsonicServerIdentity';
 
 describe('parseLeadingSemver', () => {
@@ -12,50 +10,31 @@ describe('parseLeadingSemver', () => {
     expect(parseLeadingSemver('0.62.0 (2026-06-08)')).toEqual([0, 62, 0]);
     expect(parseLeadingSemver('v0.61.2')).toEqual([0, 61, 2]);
   });
-});
 
-describe('isNavidromeSonicSimilarityEligible', () => {
-  it('is true for Navidrome ≥ 0.62', () => {
-    expect(isNavidromeSonicSimilarityEligible({ type: 'navidrome', serverVersion: '0.62.0' })).toBe(true);
-  });
-
-  it('is false for Navidrome 0.61', () => {
-    expect(isNavidromeSonicSimilarityEligible({ type: 'navidrome', serverVersion: '0.61.2' })).toBe(false);
-  });
-
-  it('is false for non-Navidrome servers', () => {
-    expect(isNavidromeSonicSimilarityEligible({ type: 'gonic', serverVersion: '0.62.0' })).toBe(false);
+  it('returns null for unparseable input', () => {
+    expect(parseLeadingSemver(undefined)).toBeNull();
+    expect(parseLeadingSemver('unknown')).toBeNull();
   });
 });
 
-describe('showAudiomuseNavidromeServerSetting', () => {
-  const nav062 = { type: 'navidrome', serverVersion: '0.62.0' };
-  const nav061 = { type: 'navidrome', serverVersion: '0.61.2' };
-
-  it('shows the status row on all Navidrome 0.62+ servers', () => {
-    expect(showAudiomuseNavidromeServerSetting(nav062, undefined, 'present')).toBe(true);
-    expect(showAudiomuseNavidromeServerSetting(nav062, 'ok', 'absent')).toBe(true);
-    expect(showAudiomuseNavidromeServerSetting(nav062, undefined, 'probing')).toBe(true);
-  });
-
-  it('keeps legacy instant-mix probe gating on pre-0.62 Navidrome', () => {
-    expect(showAudiomuseNavidromeServerSetting(nav061, 'ok', undefined)).toBe(true);
-    expect(showAudiomuseNavidromeServerSetting(nav061, 'empty', undefined)).toBe(false);
+describe('isNavidromeServer', () => {
+  it('matches the navidrome type case-insensitively', () => {
+    expect(isNavidromeServer({ type: 'navidrome' })).toBe(true);
+    expect(isNavidromeServer({ type: 'Navidrome' })).toBe(true);
+    expect(isNavidromeServer({ type: 'gonic' })).toBe(false);
+    expect(isNavidromeServer(undefined)).toBe(false);
   });
 });
 
-describe('isAudiomusePluginAutoManaged', () => {
-  it('is true only for Navidrome ≥ 0.62', () => {
-    expect(isAudiomusePluginAutoManaged({ type: 'navidrome', serverVersion: '0.62.0' })).toBe(true);
-    expect(isAudiomusePluginAutoManaged({ type: 'navidrome', serverVersion: '0.61.2' })).toBe(false);
+describe('isNavidromeAudiomuseSoftwareEligible', () => {
+  it('is permissive until a typed ping arrives', () => {
+    expect(isNavidromeAudiomuseSoftwareEligible(undefined)).toBe(true);
+    expect(isNavidromeAudiomuseSoftwareEligible({})).toBe(true);
   });
-});
 
-describe('resolveAudiomusePluginProbeUiStatus', () => {
-  it('maps probe results to UI status', () => {
-    expect(resolveAudiomusePluginProbeUiStatus('present')).toBe('active');
-    expect(resolveAudiomusePluginProbeUiStatus('probing')).toBe('checking');
-    expect(resolveAudiomusePluginProbeUiStatus('absent')).toBe('not_detected');
-    expect(resolveAudiomusePluginProbeUiStatus('error')).toBe('failed');
+  it('requires Navidrome ≥ 0.60 once metadata is known', () => {
+    expect(isNavidromeAudiomuseSoftwareEligible({ type: 'navidrome', serverVersion: '0.60.0' })).toBe(true);
+    expect(isNavidromeAudiomuseSoftwareEligible({ type: 'navidrome', serverVersion: '0.59.9' })).toBe(false);
+    expect(isNavidromeAudiomuseSoftwareEligible({ type: 'gonic', serverVersion: '1.0.0' })).toBe(false);
   });
 });

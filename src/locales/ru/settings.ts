@@ -105,6 +105,10 @@ export const settings = {
   userMgmtMagicStringModalDesc: 'Введите пароль Subsonic для «{{username}}» — он попадёт в копируемую magic string.',
   userMgmtMagicStringModalConfirm: 'Скопировать строку',
   audiomuseTitle: 'AudioMuse-AI (Navidrome)',
+  audiomuseStatusActive: 'Активно',
+  audiomuseStatusChecking: 'Проверка…',
+  audiomuseStatusNotDetected: 'Не обнаружено',
+  audiomuseStatusProbeFailed: 'Ошибка проверки',
   audiomuseDesc:
     'Включите, если на этом сервере настроен <pluginLink>плагин AudioMuse-AI для Navidrome</pluginLink>. Появится Instant Mix для треков, а на странице исполнителя похожие будут браться с сервера вместо Last.fm.',
   audiomuseIssueHint:

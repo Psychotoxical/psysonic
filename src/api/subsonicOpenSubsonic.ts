@@ -1,4 +1,3 @@
-import type { AudiomusePluginProbeResult } from '../utils/server/subsonicServerIdentity';
 import { apiWithCredentials } from './subsonicClient';
 
 export interface OpenSubsonicExtension {
@@ -44,30 +43,5 @@ export async function fetchOpenSubsonicExtensionsWithCredentials(
     return parseOpenSubsonicExtensions(data.openSubsonicExtensions).map(ext => ext.name);
   } catch {
     return null;
-  }
-}
-
-/**
- * Navidrome ≥ 0.62: `sonicSimilarity` in `getOpenSubsonicExtensions` means an audio-similarity
- * plugin (typically AudioMuse-AI) is active on the server.
- */
-export async function probeAudiomusePluginWithCredentials(
-  serverUrl: string,
-  username: string,
-  password: string,
-): Promise<Exclude<AudiomusePluginProbeResult, 'probing' | 'unsupported'>> {
-  try {
-    const data = await apiWithCredentials<{ openSubsonicExtensions?: unknown }>(
-      serverUrl,
-      username,
-      password,
-      'getOpenSubsonicExtensions.view',
-      {},
-      12000,
-    );
-    const extensions = parseOpenSubsonicExtensions(data.openSubsonicExtensions);
-    return hasOpenSubsonicExtension(extensions, 'sonicSimilarity') ? 'present' : 'absent';
-  } catch {
-    return 'error';
   }
 }

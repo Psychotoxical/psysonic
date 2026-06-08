@@ -105,6 +105,10 @@ export const settings = {
   userMgmtMagicStringModalDesc: 'Introduce la contraseña Subsonic de «{{username}}». Se incluirá en la cadena mágica copiada.',
   userMgmtMagicStringModalConfirm: 'Copiar cadena',
   audiomuseTitle: 'AudioMuse-AI (Navidrome)',
+  audiomuseStatusActive: 'Activo',
+  audiomuseStatusChecking: 'Comprobando…',
+  audiomuseStatusNotDetected: 'No detectado',
+  audiomuseStatusProbeFailed: 'Error de comprobación',
   audiomuseDesc:
     'Activa si este servidor tiene el plugin <pluginLink>AudioMuse-AI Navidrome</pluginLink> configurado. Habilita Mezcla Instantánea desde pistas y usa artistas similares del servidor en lugar de Last.fm en páginas de artistas.',
   audiomuseIssueHint:

@@ -156,7 +156,7 @@ export function ServersTab({
           openSubsonic: probe.ping.openSubsonic,
         };
         auth.setSubsonicServerIdentity(server.id, identity);
-        scheduleInstantMixProbeForServer(server.id, probe.baseUrl, server.username, server.password, identity);
+        scheduleInstantMixProbeForServer(server.id, probe.baseUrl, server.username, server.password, identity, true);
       }
       setConnStatus(s => ({ ...s, [server.id]: probe.ok ? 'ok' : 'error' }));
     } catch {
@@ -253,7 +253,7 @@ export function ServersTab({
           openSubsonic: ping.openSubsonic,
         };
         auth.setSubsonicServerIdentity(id, identity);
-        scheduleInstantMixProbeForServer(id, data.url, data.username, data.password, identity);
+        scheduleInstantMixProbeForServer(id, data.url, data.username, data.password, identity, true);
         setConnStatus(s => ({ ...s, [id]: 'ok' }));
         const added = useAuthStore.getState().servers.find(s => s.id === id);
         if (added) void bootstrapIndexedServer(added);
@@ -345,7 +345,7 @@ export function ServersTab({
           openSubsonic: ping.openSubsonic,
         };
         auth.setSubsonicServerIdentity(id, identity);
-        scheduleInstantMixProbeForServer(id, data.url, data.username, data.password, identity);
+        scheduleInstantMixProbeForServer(id, data.url, data.username, data.password, identity, true);
       }
       setConnStatus(s => ({ ...s, [id]: ping.ok ? 'ok' : 'error' }));
     } catch {

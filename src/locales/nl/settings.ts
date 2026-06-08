@@ -105,6 +105,10 @@ export const settings = {
   userMgmtMagicStringModalDesc: 'Voer het Subsonic-wachtwoord voor „{{username}}" in. Het wordt opgenomen in de gekopieerde magic string.',
   userMgmtMagicStringModalConfirm: 'String kopiëren',
   audiomuseTitle: 'AudioMuse-AI (Navidrome)',
+  audiomuseStatusActive: 'Actief',
+  audiomuseStatusChecking: 'Controleren…',
+  audiomuseStatusNotDetected: 'Niet gedetecteerd',
+  audiomuseStatusProbeFailed: 'Detectie mislukt',
   audiomuseDesc:
     'Zet aan als deze server de <pluginLink>AudioMuse-AI Navidrome-plugin</pluginLink> gebruikt. Schakelt Instant Mix per nummer in en toont vergelijkbare artiesten van de server i.p.v. Last.fm op artiestpagina’s.',
   audiomuseIssueHint:

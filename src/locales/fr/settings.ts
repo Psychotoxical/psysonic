@@ -105,6 +105,10 @@ export const settings = {
   userMgmtMagicStringModalDesc: 'Saisissez le mot de passe Subsonic de « {{username}} ». Il est inclus dans la chaîne magique copiée.',
   userMgmtMagicStringModalConfirm: 'Copier la chaîne',
   audiomuseTitle: 'AudioMuse-AI (Navidrome)',
+  audiomuseStatusActive: 'Actif',
+  audiomuseStatusChecking: 'Vérification…',
+  audiomuseStatusNotDetected: 'Non détecté',
+  audiomuseStatusProbeFailed: 'Échec de la détection',
   audiomuseDesc:
     'Activez si ce serveur utilise le <pluginLink>plugin Navidrome AudioMuse-AI</pluginLink>. Active le mix instantané depuis un morceau et affiche les artistes similaires côté serveur au lieu de Last.fm sur les pages artiste.',
   audiomuseIssueHint:

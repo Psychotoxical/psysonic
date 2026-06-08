@@ -106,6 +106,10 @@ export const settings = {
   userMgmtMagicStringModalDesc: 'Subsonic-Passwort für „{{username}}" eingeben — es wird in den kopierten Magic-String übernommen.',
   userMgmtMagicStringModalConfirm: 'String kopieren',
   audiomuseTitle: 'AudioMuse-AI (Navidrome)',
+  audiomuseStatusActive: 'Aktiv',
+  audiomuseStatusChecking: 'Wird geprüft…',
+  audiomuseStatusNotDetected: 'Nicht erkannt',
+  audiomuseStatusProbeFailed: 'Prüfung fehlgeschlagen',
   audiomuseDesc:
     'Aktivieren, wenn dieser Server das <pluginLink>AudioMuse-AI-Navidrome-Plugin</pluginLink> nutzt. Schaltet Instant Mix pro Titel frei und nutzt ähnliche Künstler vom Server statt Last.fm auf Künstlerseiten.',
   audiomuseIssueHint:

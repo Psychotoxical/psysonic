@@ -105,6 +105,10 @@ export const settings = {
   userMgmtMagicStringModalDesc: '请输入用户「{{username}}」的 Subsonic 密码，它会包含在复制的魔法字符串中。',
   userMgmtMagicStringModalConfirm: '复制字符串',
   audiomuseTitle: 'AudioMuse-AI（Navidrome）',
+  audiomuseStatusActive: '已启用',
+  audiomuseStatusChecking: '检测中…',
+  audiomuseStatusNotDetected: '未检测到',
+  audiomuseStatusProbeFailed: '检测失败',
   audiomuseDesc:
     '若此服务器已配置 <pluginLink>AudioMuse-AI Navidrome 插件</pluginLink>请开启。可从曲目启动即时混音，并在艺人页使用服务器返回的相似艺人，而非 Last.fm。',
   audiomuseIssueHint:

@@ -105,6 +105,10 @@ export const settings = {
   userMgmtMagicStringModalDesc: 'Skriv inn Subsonic-passordet for «{{username}}». Det tas med i den kopierte magic string-en.',
   userMgmtMagicStringModalConfirm: 'Kopier streng',
   audiomuseTitle: 'AudioMuse-AI (Navidrome)',
+  audiomuseStatusActive: 'Aktiv',
+  audiomuseStatusChecking: 'Sjekker…',
+  audiomuseStatusNotDetected: 'Ikke oppdaget',
+  audiomuseStatusProbeFailed: 'Sjekk mislyktes',
   audiomuseDesc:
     'Slå på hvis denne serveren bruker <pluginLink>AudioMuse-AI Navidrome-plugin</pluginLink>. Aktiverer Instant Mix fra spor og henter lignende artister fra serveren i stedet for Last.fm på artistsider.',
   audiomuseIssueHint:

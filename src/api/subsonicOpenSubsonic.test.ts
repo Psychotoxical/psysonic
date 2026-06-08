@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import axios from 'axios';
 import {
+  fetchOpenSubsonicExtensionsWithCredentials,
   hasOpenSubsonicExtension,
   parseOpenSubsonicExtensions,
-  probeAudiomusePluginWithCredentials,
 } from './subsonicOpenSubsonic';
 
 vi.mock('axios');
@@ -42,33 +42,31 @@ describe('hasOpenSubsonicExtension', () => {
   });
 });
 
-describe('probeAudiomusePluginWithCredentials', () => {
+describe('fetchOpenSubsonicExtensionsWithCredentials', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('returns present when sonicSimilarity is advertised', async () => {
+  it('returns the advertised extension names', async () => {
     vi.mocked(axios.get).mockResolvedValue(
-      okExtensions([{ name: 'sonicSimilarity', versions: [1] }]),
+      okExtensions([{ name: 'sonicSimilarity', versions: [1] }, { name: 'playbackReport', versions: [1] }]),
     );
     await expect(
-      probeAudiomusePluginWithCredentials('https://music.test', 'u', 'p'),
-    ).resolves.toBe('present');
+      fetchOpenSubsonicExtensionsWithCredentials('https://music.test', 'u', 'p'),
+    ).resolves.toEqual(['sonicSimilarity', 'playbackReport']);
   });
 
-  it('returns absent when sonicSimilarity is missing', async () => {
-    vi.mocked(axios.get).mockResolvedValue(
-      okExtensions([{ name: 'playbackReport', versions: [1] }]),
-    );
+  it('returns an empty list when none are advertised', async () => {
+    vi.mocked(axios.get).mockResolvedValue(okExtensions([]));
     await expect(
-      probeAudiomusePluginWithCredentials('https://music.test', 'u', 'p'),
-    ).resolves.toBe('absent');
+      fetchOpenSubsonicExtensionsWithCredentials('https://music.test', 'u', 'p'),
+    ).resolves.toEqual([]);
   });
 
-  it('returns error on request failure', async () => {
+  it('returns null on request failure', async () => {
     vi.mocked(axios.get).mockRejectedValue(new Error('boom'));
     await expect(
-      probeAudiomusePluginWithCredentials('https://music.test', 'u', 'p'),
-    ).resolves.toBe('error');
+      fetchOpenSubsonicExtensionsWithCredentials('https://music.test', 'u', 'p'),
+    ).resolves.toBeNull();
   });
 });

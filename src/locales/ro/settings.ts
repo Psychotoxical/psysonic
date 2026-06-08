@@ -105,6 +105,10 @@ export const settings = {
   userMgmtMagicStringModalDesc: 'Introdu parola Subsonic pentru "{{username}}". Este inclusă în string-ul magic copiat.',
   userMgmtMagicStringModalConfirm: 'Copiază string-ul',
   audiomuseTitle: 'AudioMuse-AI (Navidrome)',
+  audiomuseStatusActive: 'Activ',
+  audiomuseStatusChecking: 'Se verifică…',
+  audiomuseStatusNotDetected: 'Nedetectat',
+  audiomuseStatusProbeFailed: 'Verificare eșuată',
   audiomuseDesc:
     'Pornește dacă acest server are <pluginLink>AudioMuse-AI Navidrome plugin</pluginLink> configurat. Activează Mixul Instant din piese si folosește artiști similari de pe partea de server în loc de Last.fm pe paginile de artiști.',
   audiomuseIssueHint:

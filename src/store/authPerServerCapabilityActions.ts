@@ -50,6 +50,7 @@ export function createPerServerCapabilityActions(set: SetState): Pick<
 
     setSubsonicServerIdentity: (serverId, identity) =>
       set(s => {
+        const prev = s.subsonicServerIdentityByServer[serverId];
         const subsonicServerIdentityByServer = { ...s.subsonicServerIdentityByServer, [serverId]: { ...identity } };
         if (!isNavidromeAudiomuseSoftwareEligible(identity)) {
           const { [serverId]: _a, ...audiomuseRest } = s.audiomuseNavidromeByServer;
@@ -60,6 +61,18 @@ export function createPerServerCapabilityActions(set: SetState): Pick<
             subsonicServerIdentityByServer,
             audiomuseNavidromeByServer: audiomuseRest,
             audiomuseNavidromeIssueByServer: issueRest,
+            instantMixProbeByServer: probeRest,
+            audiomusePluginProbeByServer: pluginProbeRest,
+          };
+        }
+        // Server generation changed (version/type) → drop cached capability probes
+        // so the next probe re-runs against the new generation. The user opt-in
+        // (`audiomuseNavidromeByServer`) is preserved.
+        if (prev && (prev.serverVersion !== identity.serverVersion || prev.type !== identity.type)) {
+          const { [serverId]: _p, ...probeRest } = s.instantMixProbeByServer;
+          const { [serverId]: _pp, ...pluginProbeRest } = s.audiomusePluginProbeByServer;
+          return {
+            subsonicServerIdentityByServer,
             instantMixProbeByServer: probeRest,
             audiomusePluginProbeByServer: pluginProbeRest,
           };
