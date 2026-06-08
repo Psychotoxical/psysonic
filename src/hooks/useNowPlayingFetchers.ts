@@ -81,7 +81,10 @@ export async function prewarmNowPlayingFetchers(
   } = deps;
 
   if (!fetchEnabled || !subsonicServerId) return;
-  if (!shouldAttemptSubsonicForServer(subsonicServerId, songId)) return;
+  // No trackId: metadata must be fetched even when the track's audio is local
+  // (hot-cache / offline). Offline is still covered by the online/reachability
+  // checks inside the guard.
+  if (!shouldAttemptSubsonicForServer(subsonicServerId)) return;
 
   const jobs: Array<Promise<unknown>> = [];
 
@@ -200,9 +203,11 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
     seedKeySlot(lfmArtistKey, k => lfmArtistCache.get(k)));
 
   const { status: connStatus } = useConnectionStatus();
+  // No trackId: see prewarm note — metadata is fetched whenever the server is
+  // reachable, regardless of whether the track's audio plays from local cache.
   const subsonicFetchAllowed = fetchEnabled
     && !!subsonicServerId
-    && shouldAttemptSubsonicForServer(subsonicServerId, songId);
+    && shouldAttemptSubsonicForServer(subsonicServerId);
 
   // Fetch batch per entity change (not per song switch — same-artist songs share artist/top/tour fetches)
   useEffect(() => {

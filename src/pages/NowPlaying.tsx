@@ -94,8 +94,14 @@ export default function NowPlaying() {
     enableBandsintown, audiomuseNavidromeEnabled,
     lastfmUsername, currentTrack,
     subsonicServerId: playbackServerId,
+    // No trackId here: Now Playing metadata (album / artist / discography / top
+    // songs) must still be fetched when the server is reachable, even if the
+    // track's audio plays from local cache (`psysonic-local://`). Passing the
+    // trackId would skip the call for any hot-cached / offline-pinned track and
+    // blank those cards on track change. True-offline is still covered by the
+    // online / reachability checks inside the guard.
     fetchEnabled: Boolean(playbackServerId)
-      && shouldAttemptSubsonicForServer(playbackServerId, currentTrack?.id),
+      && shouldAttemptSubsonicForServer(playbackServerId),
   });
 
   // Star + Last.fm love + their toggle callbacks

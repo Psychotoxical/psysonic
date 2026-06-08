@@ -65,7 +65,8 @@ export function useNowPlayingPrewarm(): void {
       lastfmUsername,
       currentTrack,
       subsonicServerId: playbackServerId,
-      fetchEnabled: shouldAttemptSubsonicForServer(playbackServerId, currentTrack.id),
+      // No trackId: warm metadata even when the track's audio is local cache.
+      fetchEnabled: shouldAttemptSubsonicForServer(playbackServerId),
     });
 
     if (currentTrack.albumId && currentTrack.id) {
