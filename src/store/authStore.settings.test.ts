@@ -255,6 +255,18 @@ describe('per-server bookkeeping setters', () => {
       'srv-1': true,
     });
   });
+
+  it('setAudiomusePluginProbe auto-enables AudioMuse when sonicSimilarity is present', () => {
+    useAuthStore.getState().setAudiomusePluginProbe('srv-1', 'present');
+    expect(useAuthStore.getState().audiomusePluginProbeByServer).toEqual({ 'srv-1': 'present' });
+    expect(useAuthStore.getState().audiomuseNavidromeByServer).toEqual({ 'srv-1': true });
+  });
+
+  it('setAudiomusePluginProbe clears AudioMuse when the extension is absent', () => {
+    useAuthStore.getState().setAudiomuseNavidromeEnabled('srv-1', true);
+    useAuthStore.getState().setAudiomusePluginProbe('srv-1', 'absent');
+    expect(useAuthStore.getState().audiomuseNavidromeByServer).toEqual({});
+  });
 });
 
 describe('genre blacklist + audio output device', () => {

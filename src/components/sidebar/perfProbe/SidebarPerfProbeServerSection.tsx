@@ -1,6 +1,7 @@
 import { useAuthStore } from '../../../store/authStore';
 import type { NavidromeAdminRole } from '../../../hooks/useNavidromeAdminRole';
 import {
+  isAudiomusePluginAutoManaged,
   isNavidromeAudiomuseSoftwareEligible,
   isNavidromeSonicSimilarityEligible,
   isNavidromeServer,
@@ -120,10 +121,15 @@ export default function SidebarPerfProbeServerSection({ adminRole = 'na' }: Prop
         value: <PerfProbeStatusBadge tone={legacy.tone}>{legacy.label}</PerfProbeStatusBadge>,
       });
     }
+    const autoManaged = isAudiomusePluginAutoManaged(identity);
     rows.push({
       label: 'AudioMuse mode',
       value: audiomuseEnabled
-        ? <PerfProbeStatusBadge tone="ok">enabled in Settings</PerfProbeStatusBadge>
+        ? (
+          <PerfProbeStatusBadge tone="ok">
+            {autoManaged ? 'active (auto)' : 'enabled in Settings'}
+          </PerfProbeStatusBadge>
+        )
         : <PerfProbeStatusBadge tone="muted">off</PerfProbeStatusBadge>,
     });
   }

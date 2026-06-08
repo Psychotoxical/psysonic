@@ -62,19 +62,36 @@ export function isNavidromeSonicSimilarityEligible(identity: SubsonicServerIdent
   return semverGte(parsed, NAVIDROME_MIN_FOR_SONIC_SIMILARITY);
 }
 
+/** Navidrome ≥ 0.62 — AudioMuse is auto-enabled from the `sonicSimilarity` probe (no manual toggle). */
+export function isAudiomusePluginAutoManaged(identity: SubsonicServerIdentity | undefined): boolean {
+  return isNavidromeSonicSimilarityEligible(identity);
+}
+
+export type AudiomusePluginProbeUiStatus = 'checking' | 'active' | 'not_detected' | 'failed' | 'unknown';
+
+export function resolveAudiomusePluginProbeUiStatus(
+  probe: AudiomusePluginProbeResult | undefined,
+): AudiomusePluginProbeUiStatus {
+  switch (probe) {
+    case 'present': return 'active';
+    case 'probing': return 'checking';
+    case 'absent': return 'not_detected';
+    case 'error': return 'failed';
+    default: return 'unknown';
+  }
+}
+
 /**
- * Whether to show the per-server AudioMuse (Navidrome plugin) toggle in Settings.
- * Navidrome ≥ 0.62: `sonicSimilarity` extension probe. Older Navidrome: legacy Instant Mix probe.
+ * Whether to show the per-server AudioMuse row in Settings.
+ * Navidrome ≥ 0.62: always (status indicator). Older Navidrome: legacy Instant Mix probe gate.
  */
 export function showAudiomuseNavidromeServerSetting(
   identity: SubsonicServerIdentity | undefined,
   instantMixProbe: InstantMixProbeResult | undefined,
-  pluginProbe: AudiomusePluginProbeResult | undefined,
+  _pluginProbe: AudiomusePluginProbeResult | undefined,
 ): boolean {
   if (!isNavidromeAudiomuseSoftwareEligible(identity)) return false;
-  if (isNavidromeSonicSimilarityEligible(identity)) {
-    return pluginProbe === 'present';
-  }
+  if (isNavidromeSonicSimilarityEligible(identity)) return true;
   if (instantMixProbe === 'empty') return false;
   return true;
 }

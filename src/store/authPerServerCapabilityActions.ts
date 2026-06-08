@@ -85,6 +85,12 @@ export function createPerServerCapabilityActions(set: SetState): Pick<
     setAudiomusePluginProbe: (serverId, result) =>
       set(s => {
         const audiomusePluginProbeByServer = { ...s.audiomusePluginProbeByServer, [serverId]: result };
+        if (result === 'present') {
+          return {
+            audiomusePluginProbeByServer,
+            audiomuseNavidromeByServer: { ...s.audiomuseNavidromeByServer, [serverId]: true },
+          };
+        }
         if (result === 'absent' || result === 'error') {
           const { [serverId]: _a, ...audiomuseRest } = s.audiomuseNavidromeByServer;
           const { [serverId]: _i, ...issueRest } = s.audiomuseNavidromeIssueByServer;
