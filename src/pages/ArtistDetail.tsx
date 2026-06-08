@@ -3,7 +3,6 @@ import { useCoverArt } from '../cover/useCoverArt';
 import { useArtistCoverRef } from '../cover/useLibraryCoverRef';
 import { setRating, star, unstar } from '../api/subsonicStarRating';
 import type { SubsonicArtist, SubsonicAlbum, SubsonicSong, SubsonicArtistInfo } from '../api/subsonicTypes';
-import { songToTrack } from '../utils/playback/songToTrack';
 import { useEffect, useState, useRef, Fragment, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import AlbumCard from '../components/AlbumCard';
@@ -30,8 +29,7 @@ import {
 import { useArtistDetailData } from '../hooks/useArtistDetailData';
 import { useArtistSimilarArtists } from '../hooks/useArtistSimilarArtists';
 import {
-  fetchArtistDetailTracks,
-  runArtistDetailPlayAll, runArtistDetailShuffle, runArtistDetailStartRadio,
+  runArtistDetailPlayAll, runArtistDetailPlayTopSong, runArtistDetailShuffle, runArtistDetailStartRadio,
 } from '../utils/componentHelpers/runArtistDetailPlay';
 import { useOfflineBrowseContext } from '../hooks/useOfflineBrowseContext';
 import { offlineActionPolicy } from '../utils/offline/offlineActionPolicy';
@@ -142,32 +140,14 @@ export default function ArtistDetail() {
     return runArtistShare({ artist, t });
   };
 
-  const playTopSongWithContinuation = async (startIndex: number) => {
-    if (!artist || albums.length === 0) return;
-    setPlayAllLoading(true);
-    try {
-      // Get all artist tracks ordered by album and track number
-      const allTracks = await fetchArtistDetailTracks(albums, activeServerId);
-
-      // Top songs from clicked index onward
-      const topTracksFromIndex = topSongs.slice(startIndex).map(songToTrack);
-
-      // Track IDs for deduplication
-      const topSongIds = new Set(topSongs.map(s => s.id));
-
-      // Filter remaining tracks to exclude top songs (prevent duplicates)
-      const remainingTracks = allTracks.filter(tr => !topSongIds.has(tr.id));
-
-      // Build queue: remaining top songs + rest of artist catalog
-      const queue = [...topTracksFromIndex, ...remainingTracks];
-      
-      if (queue.length > 0) {
-        playTrack(queue[0], queue);
-      }
-    } finally {
-      setPlayAllLoading(false);
-    }
-  };
+  const playTopSongWithContinuation = (startIndex: number) => runArtistDetailPlayTopSong({
+    topSongs,
+    albums,
+    serverId: activeServerId,
+    startIndex,
+    setPlayAllLoading,
+    playTrack,
+  });
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => runArtistImageUpload({
     e, artist, t, setUploading, setCoverRevision,

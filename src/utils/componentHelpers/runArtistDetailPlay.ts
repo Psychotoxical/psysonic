@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next';
 import { getSimilarSongs2, getTopSongs } from '../../api/subsonicArtists';
-import type { SubsonicAlbum, SubsonicArtist } from '../../api/subsonicTypes';
+import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '../../api/subsonicTypes';
 import type { Track } from '../../store/playerStoreTypes';
 import { songToTrack } from '../playback/songToTrack';
 import { runBulkPlayAll, runBulkShuffle } from '../playback/runBulkPlay';
@@ -38,6 +38,38 @@ export async function runArtistDetailPlayAll(deps: RunArtistDetailPlayDeps): Pro
     setLoading: setPlayAllLoading,
     playTrack,
   });
+}
+
+export interface RunArtistDetailPlayTopSongDeps {
+  topSongs: SubsonicSong[];
+  albums: SubsonicAlbum[];
+  serverId?: string | null;
+  startIndex: number;
+  setPlayAllLoading: (v: boolean) => void;
+  playTrack: (track: Track, queue: Track[]) => void;
+}
+
+/** Play from a top-track row, then continue with the rest of the artist catalog when available. */
+export async function runArtistDetailPlayTopSong(deps: RunArtistDetailPlayTopSongDeps): Promise<void> {
+  const { topSongs, albums, serverId, startIndex, setPlayAllLoading, playTrack } = deps;
+  if (topSongs.length === 0 || startIndex < 0 || startIndex >= topSongs.length) return;
+
+  setPlayAllLoading(true);
+  try {
+    const topTracksFromIndex = topSongs.slice(startIndex).map(songToTrack);
+    const topSongIds = new Set(topSongs.map(s => s.id));
+
+    let remainingTracks: Track[] = [];
+    if (albums.length > 0) {
+      const allTracks = await fetchArtistDetailTracks(albums, serverId);
+      remainingTracks = allTracks.filter(tr => !topSongIds.has(tr.id));
+    }
+
+    const queue = [...topTracksFromIndex, ...remainingTracks];
+    if (queue.length > 0) playTrack(queue[0], queue);
+  } finally {
+    setPlayAllLoading(false);
+  }
 }
 
 export async function runArtistDetailShuffle(deps: RunArtistDetailPlayDeps): Promise<void> {
