@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '@/test/helpers/renderWithProviders';
 import { ThemeStoreSection } from './ThemeStoreSection';
-import type { FetchRegistryResult, Registry } from '@/utils/themes/themeRegistry';
+import type { FetchRegistryResult, Registry, RegistryTheme } from '@/utils/themes/themeRegistry';
 
 // Control the registry the store browses so pagination/refresh are deterministic.
 vi.mock('@/utils/themes/themeRegistry', () => ({
@@ -38,6 +38,40 @@ function makeRegistry(n: number): Registry {
 
 const rows = (container: HTMLElement) => container.querySelectorAll('.theme-store-row');
 
+/** Visible theme names in row order (the first span in each row is the name). */
+const rowNames = (container: HTMLElement) =>
+  [...container.querySelectorAll('.theme-store-row')].map(r => r.querySelector('span')?.textContent);
+
+function mkTheme(id: string, name: string, extra: Partial<RegistryTheme> = {}): RegistryTheme {
+  return {
+    id,
+    name,
+    author: 'Tester',
+    version: '1.0.0',
+    description: `Description ${id}`,
+    mode: 'dark',
+    css: `themes/${id}/theme.css`,
+    thumbnail: `themes/${id}/thumb.webp`,
+    tags: [],
+    ...extra,
+  };
+}
+
+function registryOf(themes: RegistryTheme[]): Registry {
+  return { schemaVersion: 1, generatedAt: '2026-06-08T00:00:00Z', themes };
+}
+
+/** Open the sort dropdown and pick an option by its visible label. */
+async function selectSort(
+  user: ReturnType<typeof userEvent.setup>,
+  container: HTMLElement,
+  optionLabel: string,
+) {
+  await user.click(container.querySelector('.custom-select-trigger') as HTMLElement);
+  // The option closes the list on mousedown, so fire it directly.
+  fireEvent.mouseDown(await screen.findByRole('option', { name: optionLabel }));
+}
+
 describe('ThemeStoreSection — pagination & refresh', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -52,7 +86,8 @@ describe('ThemeStoreSection — pagination & refresh', () => {
     await screen.findByText('Theme 01');
     // PAGE_SIZE is 12 → 30 themes span 3 pages.
     expect(rows(container)).toHaveLength(12);
-    expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '1', current: 'page' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '3' })).toBeInTheDocument();
     // Page-2 themes are not rendered yet.
     expect(screen.queryByText('Theme 13')).not.toBeInTheDocument();
   });
@@ -76,13 +111,13 @@ describe('ThemeStoreSection — pagination & refresh', () => {
     expect(screen.getByLabelText('Previous page')).toBeDisabled();
 
     await user.click(screen.getByLabelText('Next page'));
-    expect(screen.getByText('Page 2 of 3')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2', current: 'page' })).toBeInTheDocument();
     expect(screen.getByText('Theme 13')).toBeInTheDocument();
     expect(screen.queryByText('Theme 01')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Previous page')).toBeEnabled();
 
     await user.click(screen.getByLabelText('Next page'));
-    expect(screen.getByText('Page 3 of 3')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '3', current: 'page' })).toBeInTheDocument();
     expect(rows(container)).toHaveLength(6); // 30 - 24
     expect(screen.getByLabelText('Next page')).toBeDisabled();
   });
@@ -107,12 +142,12 @@ describe('ThemeStoreSection — pagination & refresh', () => {
 
     await screen.findByText('Theme 01');
     await user.click(screen.getByLabelText('Next page'));
-    expect(screen.getByText('Page 2 of 3')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2', current: 'page' })).toBeInTheDocument();
 
     // 'theme' matches all 30 names, so the catalogue is unchanged in size — but
     // the page must snap back to 1 so the user isn't stranded past the end.
     await user.type(screen.getByRole('searchbox'), 'theme');
-    await waitFor(() => expect(screen.getByText('Page 1 of 3')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: '1', current: 'page' })).toBeInTheDocument());
     expect(screen.getByText('Theme 01')).toBeInTheDocument();
   });
 
@@ -152,5 +187,44 @@ describe('ThemeStoreSection — pagination & refresh', () => {
     // No catalogue to browse → the search/filter toolbar is not rendered.
     expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('sorts by most popular, newest and name, and shows the download count', async () => {
+    const themes = [
+      mkTheme('a', 'Alpha', { installs: 10, updatedAt: '2026-06-01T00:00:00Z' }),
+      mkTheme('b', 'Bravo', { installs: 500, updatedAt: '2026-06-05T00:00:00Z' }),
+      mkTheme('c', 'Charlie', { installs: 0, updatedAt: '2026-06-03T00:00:00Z' }),
+    ];
+    fetchRegistryMock.mockResolvedValue({ registry: registryOf(themes), stale: false });
+    const { container } = renderWithProviders(<ThemeStoreSection />);
+    const user = userEvent.setup();
+
+    await screen.findByText('Bravo');
+    // Default sort is most-downloaded first: Bravo (500) > Alpha (10) > Charlie (0).
+    expect(rowNames(container)).toEqual(['Bravo', 'Alpha', 'Charlie']);
+    // The download count renders in the meta panel.
+    expect(screen.getByText('500')).toBeInTheDocument();
+
+    // Newest first: Bravo (06-05) > Charlie (06-03) > Alpha (06-01).
+    await selectSort(user, container, 'Newest');
+    await waitFor(() => expect(rowNames(container)).toEqual(['Bravo', 'Charlie', 'Alpha']));
+
+    // Alphabetical.
+    await selectSort(user, container, 'Alphabetical');
+    await waitFor(() => expect(rowNames(container)).toEqual(['Alpha', 'Bravo', 'Charlie']));
+  });
+
+  it('jumps directly to a page via the numbered pager', async () => {
+    fetchRegistryMock.mockResolvedValue({ registry: makeRegistry(30), stale: false });
+    renderWithProviders(<ThemeStoreSection />);
+    const user = userEvent.setup();
+
+    await screen.findByText('Theme 01');
+    await user.click(screen.getByRole('button', { name: '3' }));
+
+    // Page 3 holds items 25–30; page 1 is gone and page 3 is marked current.
+    expect(screen.getByText('Theme 25')).toBeInTheDocument();
+    expect(screen.queryByText('Theme 01')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '3', current: 'page' })).toBeInTheDocument();
   });
 });
