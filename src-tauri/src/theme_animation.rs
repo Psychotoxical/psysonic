@@ -15,8 +15,11 @@ pub fn set_nvidia_quirk_active(active: bool) {
     let _ = NVIDIA_QUIRK_ACTIVE.set(active);
 }
 
-/// Whether the Nvidia WebKit quirk was needed at startup. False when unrecorded
-/// (non-Linux, or GPU acceleration opted in via `PSYSONIC_WEBKIT_GPU_ACCEL`).
+/// Whether the Nvidia WebKit quirk was needed at startup. Linux-only: read
+/// solely by the Linux branch of `theme_animation_risk`. False when unrecorded
+/// (GPU acceleration opted in via `PSYSONIC_WEBKIT_GPU_ACCEL`). Gated so it is
+/// not dead code on Windows/macOS, where the quirk never applies.
+#[cfg(target_os = "linux")]
 pub(crate) fn nvidia_quirk_active() -> bool {
     NVIDIA_QUIRK_ACTIVE.get().copied().unwrap_or(false)
 }
