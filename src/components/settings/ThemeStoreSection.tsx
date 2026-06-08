@@ -5,6 +5,9 @@ import { open as openUrl } from '@tauri-apps/plugin-shell';
 import CoverLightbox from '../CoverLightbox';
 import { useThemeAnimationRisk } from '../../hooks/useThemeAnimationRisk';
 import { AnimatedThemeBadge } from './AnimatedThemeBadge';
+import { PopularityBar } from './PopularityBar';
+import CustomSelect from '../CustomSelect';
+import { formatRelativeTime } from '../../utils/format/relativeTime';
 import { useThemeStore } from '../../store/themeStore';
 import { useInstalledThemesStore, type InstalledTheme } from '../../store/installedThemesStore';
 import {
@@ -18,11 +21,26 @@ import { uninstallTheme } from '../../utils/themes/uninstallTheme';
 import { isNewer } from '../../utils/componentHelpers/appUpdaterHelpers';
 
 type ModeFilter = 'all' | 'dark' | 'light';
+type SortMode = 'popular' | 'newest' | 'name';
 
 const THEMES_REPO_URL = 'https://github.com/Psysonic/psysonic-themes';
 
 /** Themes shown per page — the catalogue is large enough to paginate. */
 const PAGE_SIZE = 12;
+
+/** Page numbers for the pager: all of them when there are few, otherwise the
+ *  first and last page plus a window around the current one, with gaps. */
+function pageItemsList(current: number, total: number): (number | 'gap')[] {
+  if (total <= 10) return Array.from({ length: total }, (_, i) => i + 1);
+  const out: (number | 'gap')[] = [1];
+  const lo = Math.max(2, current - 2);
+  const hi = Math.min(total - 1, current + 2);
+  if (lo > 2) out.push('gap');
+  for (let p = lo; p <= hi; p++) out.push(p);
+  if (hi < total - 1) out.push('gap');
+  out.push(total);
+  return out;
+}
 
 /**
  * The community Theme Store: browse the jsDelivr-hosted registry, filter by name
@@ -30,7 +48,7 @@ const PAGE_SIZE = 12;
  * uninstall. Built-in themes are not in the registry, so they never appear here.
  */
 export function ThemeStoreSection() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const activeTheme = useThemeStore(s => s.theme);
   const setTheme = useThemeStore(s => s.setTheme);
   const installed = useInstalledThemesStore(s => s.themes);
@@ -45,6 +63,7 @@ export function ThemeStoreSection() {
   const [stale, setStale] = useState(false);
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<ModeFilter>('all');
+  const [sortMode, setSortMode] = useState<SortMode>('popular');
   const [page, setPage] = useState(1);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [failedId, setFailedId] = useState<string | null>(null);
@@ -81,10 +100,18 @@ export function ThemeStoreSection() {
     return m;
   }, [installed]);
 
+  // Scale the popularity bar against the most-downloaded theme across the whole
+  // catalogue (not the filtered view) so the bar means the same thing regardless
+  // of search/filter.
+  const maxInstalls = useMemo(
+    () => Math.max(1, ...(themes || []).map(th => th.installs ?? 0)),
+    [themes],
+  );
+
   const filtered = useMemo(() => {
     if (!themes) return [];
     const q = query.trim().toLowerCase();
-    return themes.filter(th => {
+    const matched = themes.filter(th => {
       if (mode !== 'all' && th.mode !== mode) return false;
       if (!q) return true;
       return (
@@ -93,12 +120,20 @@ export function ThemeStoreSection() {
         th.description.toLowerCase().includes(q) ||
         (th.tags || []).some(tag => tag.includes(q))
       );
-    }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [themes, query, mode]);
+    });
+    // Name is the stable tie-breaker — keeps ordering deterministic when many
+    // themes share the same (often 0) download count.
+    const byName = (a: RegistryTheme, b: RegistryTheme) => a.name.localeCompare(b.name);
+    if (sortMode === 'name') return matched.sort(byName);
+    if (sortMode === 'newest') {
+      return matched.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || '') || byName(a, b));
+    }
+    return matched.sort((a, b) => (b.installs ?? 0) - (a.installs ?? 0) || byName(a, b));
+  }, [themes, query, mode, sortMode]);
 
   // A changed filter can shrink the result set below the current page; reset to
   // the first page whenever the query or mode filter changes.
-  useEffect(() => { setPage(1); }, [query, mode]);
+  useEffect(() => { setPage(1); }, [query, mode, sortMode]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   // Clamp defensively so a stale `page` (e.g. after the registry shrank) never
@@ -148,6 +183,12 @@ export function ThemeStoreSection() {
     { key: 'light', label: t('settings.themeStoreModeLight') },
   ];
 
+  const sortOptions = [
+    { value: 'popular', label: t('settings.themeStoreSortPopular') },
+    { value: 'newest', label: t('settings.themeStoreSortNewest') },
+    { value: 'name', label: t('settings.themeStoreSortName') },
+  ];
+
   return (
     <div className="settings-card">
       {/* Submit-your-own-theme hint */}
@@ -164,7 +205,7 @@ export function ThemeStoreSection() {
 
       {/* Network disclosure — the store reaches external services. */}
       <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 1rem', lineHeight: 1.5 }}>
-        {t('settings.themeStoreNetworkNotice')}
+        {t('settings.themeStoreNetworkNotice')}{' '}{t('settings.themeStoreStatsNotice')}
       </p>
 
       {/* Toolbar: search + mode filter + refresh. Hidden when offline with no
@@ -179,6 +220,23 @@ export function ThemeStoreSection() {
           placeholder={t('settings.themeStoreSearchPlaceholder')}
           aria-label={t('settings.themeStoreSearchPlaceholder')}
           style={{ flex: '1 1 180px', minWidth: 140 }}
+        />
+        <CustomSelect
+          value={sortMode}
+          options={sortOptions}
+          onChange={v => setSortMode(v as SortMode)}
+          style={{
+            width: 170,
+            flexShrink: 0,
+            alignSelf: 'stretch',
+            boxSizing: 'border-box',
+            padding: '0 var(--space-4)',
+            background: 'var(--input-bg)',
+            border: '1px solid var(--input-border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 14,
+            lineHeight: 1,
+          }}
         />
         <div style={{ display: 'flex', gap: 4 }} role="group" aria-label={t('settings.themeStoreFilterMode')}>
           {modeBtns.map(b => (
@@ -249,7 +307,7 @@ export function ThemeStoreSection() {
 
       {!loading && !error && filtered.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {pageItems.map(th => {
+          {pageItems.map((th, idx) => {
             const inst = installedMap.get(th.id);
             const isInstalled = !!inst;
             const updateAvailable = isInstalled && isNewer(th.version, inst!.version);
@@ -261,11 +319,13 @@ export function ThemeStoreSection() {
                 className="theme-store-row"
                 style={{
                   display: 'flex',
+                  flexWrap: 'wrap',
                   gap: 14,
                   padding: 12,
-                  border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                  border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`,
                   borderRadius: 'var(--radius-md, 10px)',
-                  background: 'var(--bg-card)',
+                  // Subtle zebra striping so adjacent rows read as distinct boxes.
+                  background: idx % 2 === 1 ? 'var(--bg-hover)' : 'var(--bg-card)',
                 }}
               >
                 <button
@@ -298,14 +358,11 @@ export function ThemeStoreSection() {
                     )}
                     {animRisk && th.animated && <AnimatedThemeBadge variant="inline" />}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    {t('settings.themeStoreByAuthor', { author: th.author })}
-                  </div>
-                  <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                  <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.4, marginTop: 10 }}>
                     {th.description}
                   </div>
                   {/* Rating slot reserved — see Theme Store roadmap (deferred). */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 18 }}>
                     {!isInstalled && (
                       <button
                         className="btn btn-primary"
@@ -351,6 +408,31 @@ export function ThemeStoreSection() {
                     )}
                   </div>
                 </div>
+                <div
+                  className="theme-store-meta"
+                  style={{ flexShrink: 0, width: 190, display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 12px', background: 'var(--bg-deep, var(--bg-elevated))', border: '1px solid var(--border)', borderRadius: 'var(--radius-md, 10px)' }}
+                >
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('settings.themeStoreAuthor')}</div>
+                    <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{th.author}</div>
+                  </div>
+                  <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{t('settings.themeStorePopularity')}</div>
+                      <PopularityBar value={th.installs ?? 0} max={maxInstalls} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('settings.themeStoreDownloads')}</div>
+                      <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>{(th.installs ?? 0).toLocaleString(i18n.language)}</div>
+                    </div>
+                    {th.updatedAt && (
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('settings.themeStoreLastChanged')}</div>
+                        <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{formatRelativeTime(th.updatedAt, i18n.language)}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             );
           })}
@@ -358,7 +440,11 @@ export function ThemeStoreSection() {
       )}
 
       {!loading && !error && pageCount > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 16 }}>
+        <div
+          role="navigation"
+          aria-label={t('settings.themeStorePageStatus', { page: safePage, total: pageCount })}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 6, marginTop: 16 }}
+        >
           <button
             className="btn btn-ghost"
             style={{ padding: '4px 10px' }}
@@ -370,9 +456,21 @@ export function ThemeStoreSection() {
           >
             <ChevronLeft size={16} />
           </button>
-          <span role="status" style={{ fontSize: 12.5, color: 'var(--text-muted)', minWidth: 96, textAlign: 'center' }}>
-            {t('settings.themeStorePageStatus', { page: safePage, total: pageCount })}
-          </span>
+          {pageItemsList(safePage, pageCount).map((it, i) =>
+            it === 'gap' ? (
+              <span key={`gap-${i}`} style={{ color: 'var(--text-muted)', padding: '0 2px' }}>…</span>
+            ) : (
+              <button
+                key={it}
+                className={`btn ${it === safePage ? 'btn-primary' : 'btn-ghost'}`}
+                style={{ fontSize: 12.5, padding: '4px 10px', minWidth: 34 }}
+                aria-current={it === safePage ? 'page' : undefined}
+                onClick={() => goToPage(it)}
+              >
+                {it}
+              </button>
+            )
+          )}
           <button
             className="btn btn-ghost"
             style={{ padding: '4px 10px' }}
