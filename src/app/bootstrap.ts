@@ -1,4 +1,5 @@
 import { installQueueUndoHotkey } from '../store/queueUndoHotkey';
+import { configureStartupSplash } from './startupSplash';
 import { invoke } from '@tauri-apps/api/core';
 import { getWindowKind } from './windowKind';
 import { migrateThemeSelection } from '../utils/themes/themeMigration';
@@ -112,6 +113,7 @@ export function runPreReactBootstrap(): void {
   migrateThemeSelection();
   // Paint the correct theme on the very first frame (no Mocha flash).
   applyThemeAtStartup();
+  configureStartupSplash();
   installCrossWindowThemeSync();
   markDevBuildDocument();
   pushUserAgentToBackend();

@@ -22,7 +22,8 @@
         "fullscreen": false,
         "decorations": true,
         "transparent": false,
-        "visible": true,
+        "visible": false,
+        "backgroundColor": "#1e1e2e",
         "dragDropEnabled": false
       }
     ],

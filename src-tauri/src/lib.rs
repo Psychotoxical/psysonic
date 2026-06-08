@@ -97,6 +97,10 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_window_state::Builder::default()
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::all()
+                        & !tauri_plugin_window_state::StateFlags::VISIBLE,
+                )
                 .with_denylist(&["mini"])
                 .build()
         )
@@ -622,6 +626,24 @@ pub fn run() {
                         let _ = main.show();
                         let _ = main.set_focus();
                     }
+                }
+            }
+        })
+        .on_page_load(|webview, payload| {
+            if webview.label() != "main" {
+                return;
+            }
+
+            match payload.event() {
+                tauri::webview::PageLoadEvent::Started => {
+                    let window = webview.window().clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(48));
+                        let _ = window.show();
+                    });
+                }
+                tauri::webview::PageLoadEvent::Finished => {
+                    let _ = webview.window().show();
                 }
             }
         })

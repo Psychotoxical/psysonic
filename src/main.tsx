@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { runPreReactBootstrap } from './app/bootstrap';
+import { scheduleStartupSplashDismiss } from './app/startupSplash';
 import './i18n';
 import './styles/themes/index.css';
 import './styles/layout/index.css';
@@ -15,3 +16,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>
 );
+
+scheduleStartupSplashDismiss();
