@@ -265,6 +265,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Themes — consistent focus borders on inputs and dropdowns
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1052](https://github.com/Psychotoxical/psysonic/pull/1052)**
+
+* Text fields no longer draw a double border when focused — they now show a single clean ring across every theme. The colour-blind-safe themes keep their stronger high-contrast focus ring on every field, including the header search.
+* Dropdown and popover borders now follow the active theme in all themes (a couple of themes previously rendered them with an unthemed colour).
+
+
+
 ## [1.47.0]
 
 > **🙏 Thank you to our amazing Discord community.** This release would not have been possible without your tireless support, quality checks, bug reports and all-round collaboration. Every report, every repro and every bit of feedback shaped what shipped here — thank you. Come join us: [discord.gg/AMnDRErm4u](https://discord.gg/AMnDRErm4u)
