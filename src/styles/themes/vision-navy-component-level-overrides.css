@@ -32,6 +32,18 @@
   outline-offset: 2px;
 }
 
+/* The header search wraps its input in a cluster <div>, so the global outline
+   lands on the inner field, not the visible field box. Mirror the AAA outline
+   onto the cluster (and drop the inner one) so the search carries the same
+   strong ring as every other input in this colour-blind-safe theme. */
+[data-theme='vision-navy'] .live-search-field-cluster:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+[data-theme='vision-navy'] .live-search-field:focus-visible {
+  outline: none;
+}
+
 /* Scrollbar thumb — explicit contrast (auto-hide still applies) */
 [data-theme='vision-navy'] ::-webkit-scrollbar-thumb {
   background: var(--ctp-overlay0);
