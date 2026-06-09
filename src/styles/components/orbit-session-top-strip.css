@@ -817,9 +817,11 @@
   font-size: 14px;
   box-sizing: border-box;
   outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 .orbit-start-modal__input:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
 }
 
 .orbit-start-modal__reshuffle {

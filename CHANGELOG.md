@@ -167,6 +167,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Now Playing — metadata reads from the local library index first
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1049](https://github.com/Psychotoxical/psysonic/pull/1049)**
+
+* The "from this album", "discography", "most played" and song details on the Now Playing page now come from the local library index when it has them, only falling back to the server when the index can't serve a row. Cards and fields (genre, play count, contributors) stay populated during cached and offline playback, with fewer server requests.
+
+
+
 ### Library DB — named slow-write ops for stall diagnosis
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1043](https://github.com/Psychotoxical/psysonic/pull/1043)**
@@ -254,6 +262,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1033](https://github.com/Psychotoxical/psysonic/pull/1033)**
 
 * The PsyLab tab row keeps its height when the Logs flex layout fills the modal — tabs were previously squashed to a thin strip.
+
+
+
+### Themes — consistent focus borders on inputs and dropdowns
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1052](https://github.com/Psychotoxical/psysonic/pull/1052)**
+
+* Text fields no longer draw a double border when focused — they now show a single clean ring across every theme. The colour-blind-safe themes keep their stronger high-contrast focus ring on every field, including the header search.
+* Dropdown and popover borders now follow the active theme in all themes (a couple of themes previously rendered them with an unthemed colour).
+
+
+
+### Home — Most Played no longer jumps the page when loading more
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#1053](https://github.com/Psychotoxical/psysonic/pull/1053)**
+
+* Clicking the arrow to load more albums in the **Most Played** rail sometimes snapped the page up to an earlier section. Loading more now keeps the viewport in place.
 
 
 

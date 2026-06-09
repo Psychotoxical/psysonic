@@ -519,7 +519,13 @@ export default function BecauseYouLikeRail({
     })();
 
     return () => { cancelled = true; };
-  }, [pool, activeServerId, musicLibraryFilterVersion, disableArtwork, poolKey]);
+    // Gate on poolKey (the stable top-anchor identity), not the `pool` array ref.
+    // `pool` is rebuilt whenever Home's mostPlayed changes, so loading more Most
+    // Played albums (which feeds this pool) would otherwise re-run this effect and
+    // swap the cards — a height blip above the row that scroll anchoring turns into
+    // an upward viewport jump. The sibling reserve effect already keys on poolKey.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [poolKey, activeServerId, musicLibraryFilterVersion, disableArtwork]);
 
   useLibraryCoverPrefetch(
     disableArtwork || recs.length === 0 ? [] : [{ albums: recs, priority: 'high' }],

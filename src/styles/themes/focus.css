@@ -15,3 +15,26 @@
   outline-offset: var(--focus-ring-offset);
 }
 
+/* Text inputs draw their OWN focus ring (border + box-shadow), so the global
+   outline above stacks a second ring outside it — the "double border". Drop it
+   for them. Specificity is deliberate: `input…:focus-visible` is (0,1,1), which
+   beats the global :focus-visible (0,1,0) but LOSES to the colour-blind-safe
+   themes' `[data-theme] *:focus-visible` (0,2,0) — so those themes keep their
+   stronger AAA ring on every field (incl. inputs) by design. The `:where()`
+   type-exclusion stays weightless so non-text controls (range/checkbox/…) keep
+   the outline everywhere. */
+input:not(:where([type='button'], [type='submit'], [type='reset'], [type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'], [type='image'])):focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
+/* Under forced-colors the OS drops the box-shadow ring, so restore an outline
+   as the focus indicator for those same text inputs. */
+@media (forced-colors: active) {
+  input:not(:where([type='button'], [type='submit'], [type='reset'], [type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'], [type='image'])):focus-visible,
+  textarea:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+

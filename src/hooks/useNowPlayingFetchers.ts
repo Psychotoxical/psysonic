@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { getArtistForServer, getArtistInfoForServer, getTopSongsForServer } from '../api/subsonicArtists';
-import { getAlbumForServer, getSongForServer } from '../api/subsonicLibrary';
+import { getArtistInfoForServer } from '../api/subsonicArtists';
 import type { SubsonicAlbum, SubsonicArtistInfo, SubsonicSong } from '../api/subsonicTypes';
+import { resolveNpAlbum, resolveNpDiscography, resolveNpSongMeta, resolveNpTopSongs } from '../utils/library/nowPlayingMetadataResolve';
 import { fetchBandsintownEvents, type BandsintownEvent } from '../api/bandsintown';
 import {
   lastfmGetArtistStats, lastfmGetTrackInfo, lastfmIsConfigured,
@@ -86,10 +86,9 @@ export async function prewarmNowPlayingFetchers(
   } = deps;
 
   if (!fetchEnabled || !subsonicServerId) return;
-  // The only network gate in this function. No trackId: metadata must be fetched
-  // even when the track's audio is local (hot-cache / offline). Offline is still
-  // covered by the online/reachability checks inside the guard.
-  if (!shouldAttemptSubsonicForServer(subsonicServerId)) return;
+  // Index-first resolvers run whenever there's a server id (offline included) —
+  // each guards its own network fallback. artistInfo below is the one
+  // network-only job, so it keeps the reachability gate.
 
   const jobs: Array<Promise<unknown>> = [];
 
@@ -97,7 +96,7 @@ export async function prewarmNowPlayingFetchers(
     const cacheKey = subsonicCacheKey(subsonicServerId, songId);
     if (songMetaCache.get(cacheKey) === undefined) {
       jobs.push(
-        getSongForServer(subsonicServerId, songId)
+        resolveNpSongMeta(subsonicServerId, songId)
           .then(v => songMetaCache.set(cacheKey, v ?? null))
           .catch(() => songMetaCache.set(cacheKey, null)),
       );
@@ -106,7 +105,8 @@ export async function prewarmNowPlayingFetchers(
 
   if (artistId) {
     const artistKey = subsonicCacheKey(subsonicServerId, artistId);
-    if (artistInfoCache.get(artistKey) === undefined) {
+    // artistInfo (bio/similar) is network-only — keep the reachability gate.
+    if (shouldAttemptSubsonicForServer(subsonicServerId) && artistInfoCache.get(artistKey) === undefined) {
       jobs.push(
         getArtistInfoForServer(subsonicServerId, artistId, {
           similarArtistCount: audiomuseNavidromeEnabled ? 24 : undefined,
@@ -117,8 +117,8 @@ export async function prewarmNowPlayingFetchers(
     }
     if (discographyCache.get(artistKey) === undefined) {
       jobs.push(
-        getArtistForServer(subsonicServerId, artistId)
-          .then(v => discographyCache.set(artistKey, v.albums))
+        resolveNpDiscography(subsonicServerId, artistId)
+          .then(albums => discographyCache.set(artistKey, albums))
           .catch(() => discographyCache.set(artistKey, [])),
       );
     }
@@ -128,7 +128,7 @@ export async function prewarmNowPlayingFetchers(
     const cacheKey = subsonicCacheKey(subsonicServerId, albumId);
     if (albumCache.get(cacheKey) === undefined) {
       jobs.push(
-        getAlbumForServer(subsonicServerId, albumId)
+        resolveNpAlbum(subsonicServerId, albumId)
           .then(v => albumCache.set(cacheKey, v))
           .catch(() => albumCache.set(cacheKey, null)),
       );
@@ -139,7 +139,7 @@ export async function prewarmNowPlayingFetchers(
     const cacheKey = subsonicCacheKey(subsonicServerId, artistName);
     if (topSongsCache.get(cacheKey) === undefined) {
       jobs.push(
-        getTopSongsForServer(subsonicServerId, artistName)
+        resolveNpTopSongs(subsonicServerId, artistId, artistName)
           .then(v => topSongsCache.set(cacheKey, v))
           .catch(() => topSongsCache.set(cacheKey, [])),
       );
@@ -208,28 +208,29 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
     seedKeySlot(lfmArtistKey, k => lfmArtistCache.get(k)));
 
   const { status: connStatus } = useConnectionStatus();
-  // No trackId: see prewarm note — metadata is fetched whenever the server is
-  // reachable, regardless of whether the track's audio plays from local cache.
-  const subsonicFetchAllowed = fetchEnabled
-    && !!subsonicServerId
-    && shouldAttemptSubsonicForServer(subsonicServerId);
+  // Gate split (PR #1049): index-first resolvers run whenever there's a server id
+  // — they read SQLite even when the server is unreachable (the offline win) and
+  // guard their own network fallback. Only artistInfo (bio/similar, no index) is
+  // network-only, so it keeps the reachability gate.
+  const indexFetchAllowed = fetchEnabled && !!subsonicServerId;
+  const networkOnlyAllowed = indexFetchAllowed && shouldAttemptSubsonicForServer(subsonicServerId);
 
   // Fetch batch per entity change (not per song switch — same-artist songs share artist/top/tour fetches)
   useEffect(() => {
-    if (!subsonicFetchAllowed || !songId) { setSongMetaEntry(null); return; }
+    if (!indexFetchAllowed || !songId) { setSongMetaEntry(null); return; }
     const cacheKey = subsonicCacheKey(subsonicServerId, songId);
     const cached = songMetaCache.get(cacheKey);
     if (cached !== undefined) { setSongMetaEntry({ id: songId, value: cached }); return; }
     setSongMetaEntry(null);
     let cancelled = false;
-    getSongForServer(subsonicServerId, songId)
+    resolveNpSongMeta(subsonicServerId, songId)
       .then(v => { if (!cancelled) { songMetaCache.set(cacheKey, v ?? null); setSongMetaEntry({ id: songId, value: v ?? null }); } })
       .catch(() => { if (!cancelled) { songMetaCache.set(cacheKey, null); setSongMetaEntry({ id: songId, value: null }); } });
     return () => { cancelled = true; };
-  }, [subsonicFetchAllowed, subsonicServerId, songId, connStatus]);
+  }, [indexFetchAllowed, subsonicServerId, songId, connStatus]);
 
   useEffect(() => {
-    if (!subsonicFetchAllowed || !artistId) { setArtistInfoEntry(null); return; }
+    if (!networkOnlyAllowed || !artistId) { setArtistInfoEntry(null); return; }
     const cacheKey = subsonicCacheKey(subsonicServerId, artistId);
     const cached = artistInfoCache.get(cacheKey);
     if (cached !== undefined) { setArtistInfoEntry({ id: artistId, value: cached }); return; }
@@ -239,32 +240,32 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
       .then(v => { if (!cancelled) { artistInfoCache.set(cacheKey, v ?? null); setArtistInfoEntry({ id: artistId, value: v ?? null }); } })
       .catch(() => { if (!cancelled) { artistInfoCache.set(cacheKey, null); setArtistInfoEntry({ id: artistId, value: null }); } });
     return () => { cancelled = true; };
-  }, [subsonicFetchAllowed, subsonicServerId, artistId, audiomuseNavidromeEnabled, connStatus]);
+  }, [networkOnlyAllowed, subsonicServerId, artistId, audiomuseNavidromeEnabled, connStatus]);
 
   useEffect(() => {
-    if (!subsonicFetchAllowed || !albumId) { setAlbumDataEntry(null); return; }
+    if (!indexFetchAllowed || !albumId) { setAlbumDataEntry(null); return; }
     const cacheKey = subsonicCacheKey(subsonicServerId, albumId);
     const cached = albumCache.get(cacheKey);
     if (cached !== undefined) { setAlbumDataEntry({ id: albumId, value: cached }); return; }
     setAlbumDataEntry(null);
     let cancelled = false;
-    getAlbumForServer(subsonicServerId, albumId)
+    resolveNpAlbum(subsonicServerId, albumId)
       .then(v => { if (!cancelled) { albumCache.set(cacheKey, v); setAlbumDataEntry({ id: albumId, value: v }); } })
       .catch(() => { if (!cancelled) { albumCache.set(cacheKey, null); setAlbumDataEntry({ id: albumId, value: null }); } });
     return () => { cancelled = true; };
-  }, [subsonicFetchAllowed, subsonicServerId, albumId, connStatus]);
+  }, [indexFetchAllowed, subsonicServerId, albumId, connStatus]);
 
   useEffect(() => {
-    if (!subsonicFetchAllowed || !topSongsKey) { setTopSongsEntry(null); return; }
+    if (!indexFetchAllowed || !topSongsKey) { setTopSongsEntry(null); return; }
     const cached = topSongsCache.get(topSongsKey);
     if (cached !== undefined) { setTopSongsEntry({ key: topSongsKey, value: cached }); return; }
     setTopSongsEntry(null);
     let cancelled = false;
-    getTopSongsForServer(subsonicServerId, artistName)
+    resolveNpTopSongs(subsonicServerId, artistId, artistName)
       .then(v => { if (!cancelled) { topSongsCache.set(topSongsKey, v); setTopSongsEntry({ key: topSongsKey, value: v }); } })
       .catch(() => { if (!cancelled) { topSongsCache.set(topSongsKey, []); setTopSongsEntry({ key: topSongsKey, value: [] }); } });
     return () => { cancelled = true; };
-  }, [subsonicFetchAllowed, topSongsKey, subsonicServerId, artistName, connStatus]);
+  }, [indexFetchAllowed, topSongsKey, subsonicServerId, artistId, artistName, connStatus]);
 
   useEffect(() => {
     if (!tourKey) { setTourEventsEntry(null); setTourLoading(false); return; }
@@ -281,17 +282,17 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
 
   // Discography via getArtist
   useEffect(() => {
-    if (!subsonicFetchAllowed || !artistId) { setDiscographyEntry(null); return; }
+    if (!indexFetchAllowed || !artistId) { setDiscographyEntry(null); return; }
     const cacheKey = subsonicCacheKey(subsonicServerId, artistId);
     const cached = discographyCache.get(cacheKey);
     if (cached !== undefined) { setDiscographyEntry({ id: artistId, value: cached }); return; }
     setDiscographyEntry(null);
     let cancelled = false;
-    getArtistForServer(subsonicServerId, artistId)
-      .then(v => { if (!cancelled) { discographyCache.set(cacheKey, v.albums); setDiscographyEntry({ id: artistId, value: v.albums }); } })
+    resolveNpDiscography(subsonicServerId, artistId)
+      .then(albums => { if (!cancelled) { discographyCache.set(cacheKey, albums); setDiscographyEntry({ id: artistId, value: albums }); } })
       .catch(() => { if (!cancelled) { discographyCache.set(cacheKey, []); setDiscographyEntry({ id: artistId, value: [] }); } });
     return () => { cancelled = true; };
-  }, [subsonicFetchAllowed, subsonicServerId, artistId, connStatus]);
+  }, [indexFetchAllowed, subsonicServerId, artistId, connStatus]);
 
   // Last.fm track info (per-track)
   useEffect(() => {

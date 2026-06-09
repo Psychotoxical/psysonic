@@ -55,6 +55,8 @@
   --menu-item-hover: var(--bg-hover);
   --menu-item-active-text: var(--accent);
   --menu-divider: var(--border-subtle);
+  --border-dropdown: var(--border);
+  --shadow-dropdown: rgba(0, 0, 0, 0.5);
   --modal-bg: var(--bg-card);
   --modal-scrim: rgba(17, 17, 27, 0.85);
 

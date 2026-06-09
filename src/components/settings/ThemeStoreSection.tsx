@@ -5,13 +5,12 @@ import { open as openUrl } from '@tauri-apps/plugin-shell';
 import CoverLightbox from '../CoverLightbox';
 import { useThemeAnimationRisk } from '../../hooks/useThemeAnimationRisk';
 import { AnimatedThemeBadge } from './AnimatedThemeBadge';
-import { PopularityBar } from './PopularityBar';
 import CustomSelect from '../CustomSelect';
 import { formatRelativeTime } from '../../utils/format/relativeTime';
 import { useThemeStore } from '../../store/themeStore';
 import { useInstalledThemesStore, type InstalledTheme } from '../../store/installedThemesStore';
 import {
-  cdnUrl,
+  assetUrl,
   fetchRegistry,
   type RegistryTheme,
 } from '../../utils/themes/themeRegistry';
@@ -20,7 +19,7 @@ import { uninstallTheme } from '../../utils/themes/uninstallTheme';
 import { isNewer } from '../../utils/componentHelpers/appUpdaterHelpers';
 
 type ModeFilter = 'all' | 'dark' | 'light';
-type SortMode = 'popular' | 'newest' | 'name';
+type SortMode = 'newest' | 'name';
 
 const THEMES_REPO_URL = 'https://github.com/Psysonic/psysonic-themes';
 
@@ -42,7 +41,7 @@ function pageItemsList(current: number, total: number): (number | 'gap')[] {
 }
 
 /**
- * The community Theme Store: browse the jsDelivr-hosted registry, filter by name
+ * The community Theme Store: browse the GitHub-hosted registry, filter by name
  * and light/dark, install (fetch + persist + runtime inject), apply, update and
  * uninstall. Built-in themes are not in the registry, so they never appear here.
  */
@@ -61,7 +60,7 @@ export function ThemeStoreSection() {
   const [stale, setStale] = useState(false);
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<ModeFilter>('all');
-  const [sortMode, setSortMode] = useState<SortMode>('popular');
+  const [sortMode, setSortMode] = useState<SortMode>('newest');
   const [page, setPage] = useState(1);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [failedId, setFailedId] = useState<string | null>(null);
@@ -83,12 +82,12 @@ export function ThemeStoreSection() {
       .finally(() => { setLoading(false); setRefreshing(false); });
   };
 
-  // Thumbnails live at a stable CDN path, so the webview caches them hard
-  // (jsDelivr sends max-age 7d). Tie a cache-buster to the registry's
-  // generatedAt — it changes on every themes push — so refreshed thumbnails
-  // show up after a registry refresh instead of being stuck on the old image.
+  // GitHub raw caches thumbnails only briefly, but the webview can still hold an
+  // old copy; tie a cache-buster to the registry's generatedAt — it changes on
+  // every themes push — so refreshed thumbnails show up after a registry refresh
+  // instead of being stuck on the old image.
   const thumbUrl = (rel: string) =>
-    generatedAt ? `${cdnUrl(rel)}?v=${encodeURIComponent(generatedAt)}` : cdnUrl(rel);
+    generatedAt ? `${assetUrl(rel)}?v=${encodeURIComponent(generatedAt)}` : assetUrl(rel);
 
   useEffect(() => { load(false); }, []);
 
@@ -97,14 +96,6 @@ export function ThemeStoreSection() {
     for (const it of installed) m.set(it.id, it);
     return m;
   }, [installed]);
-
-  // Scale the popularity bar against the most-downloaded theme across the whole
-  // catalogue (not the filtered view) so the bar means the same thing regardless
-  // of search/filter.
-  const maxInstalls = useMemo(
-    () => Math.max(1, ...(themes || []).map(th => th.installs ?? 0)),
-    [themes],
-  );
 
   const filtered = useMemo(() => {
     if (!themes) return [];
@@ -120,13 +111,10 @@ export function ThemeStoreSection() {
       );
     });
     // Name is the stable tie-breaker — keeps ordering deterministic when many
-    // themes share the same (often 0) download count.
+    // themes share the same last-modified date.
     const byName = (a: RegistryTheme, b: RegistryTheme) => a.name.localeCompare(b.name);
     if (sortMode === 'name') return matched.sort(byName);
-    if (sortMode === 'newest') {
-      return matched.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || '') || byName(a, b));
-    }
-    return matched.sort((a, b) => (b.installs ?? 0) - (a.installs ?? 0) || byName(a, b));
+    return matched.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || '') || byName(a, b));
   }, [themes, query, mode, sortMode]);
 
   // A changed filter can shrink the result set below the current page; reset to
@@ -161,7 +149,6 @@ export function ThemeStoreSection() {
   ];
 
   const sortOptions = [
-    { value: 'popular', label: t('settings.themeStoreSortPopular') },
     { value: 'newest', label: t('settings.themeStoreSortNewest') },
     { value: 'name', label: t('settings.themeStoreSortName') },
   ];
@@ -335,11 +322,18 @@ export function ThemeStoreSection() {
                     )}
                     {animRisk && th.animated && <AnimatedThemeBadge variant="inline" />}
                   </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    {t('settings.themeStoreByAuthor', { author: th.author })}
+                  </div>
                   <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.4, marginTop: 10 }}>
                     {th.description}
                   </div>
-                  {/* Rating slot reserved — see Theme Store roadmap (deferred). */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 18 }}>
+                  {th.updatedAt && (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+                      {t('settings.themeStoreLastChanged')}: {formatRelativeTime(th.updatedAt, i18n.language)}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
                     {!isInstalled && (
                       <button
                         className="btn btn-primary"
@@ -382,31 +376,6 @@ export function ThemeStoreSection() {
                       <span role="status" style={{ fontSize: 12, color: 'var(--danger)', alignSelf: 'center' }}>
                         {t('settings.themeStoreInstallFailed')}
                       </span>
-                    )}
-                  </div>
-                </div>
-                <div
-                  className="theme-store-meta"
-                  style={{ flexShrink: 0, width: 190, display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 12px', background: 'var(--bg-deep, var(--bg-elevated))', border: '1px solid var(--border)', borderRadius: 'var(--radius-md, 10px)' }}
-                >
-                  <div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('settings.themeStoreAuthor')}</div>
-                    <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{th.author}</div>
-                  </div>
-                  <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{t('settings.themeStorePopularity')}</div>
-                      <PopularityBar value={th.installs ?? 0} max={maxInstalls} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('settings.themeStoreDownloads')}</div>
-                      <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>{(th.installs ?? 0).toLocaleString(i18n.language)}</div>
-                    </div>
-                    {th.updatedAt && (
-                      <div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('settings.themeStoreLastChanged')}</div>
-                        <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{formatRelativeTime(th.updatedAt, i18n.language)}</div>
-                      </div>
                     )}
                   </div>
                 </div>
