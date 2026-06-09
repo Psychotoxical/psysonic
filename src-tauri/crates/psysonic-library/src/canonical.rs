@@ -81,7 +81,7 @@ pub fn link_all_tracks_for_server(
     server_id: &str,
     now: i64,
 ) -> Result<u32, String> {
-    store.with_conn_mut("misc", |conn| {
+    store.with_conn_mut("canonical.link_all_tracks", |conn| {
         let tx = conn.transaction()?;
         let mut stmt = tx.prepare(
             "SELECT id, isrc, mbid_recording FROM track \

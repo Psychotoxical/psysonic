@@ -191,7 +191,7 @@ impl<'a> TrackRepository<'a> {
 
     /// Next generation stamp for a full-resync orphan sweep on this server.
     pub fn next_resync_gen(&self, server_id: &str) -> Result<i64, String> {
-        self.store.with_conn("misc", |c| {
+        self.store.with_conn("track.next_resync_gen", |c| {
             c.query_row(
                 "SELECT COALESCE(MAX(resync_gen), 0) + 1 FROM track WHERE server_id = ?1",
                 params![server_id],
@@ -203,7 +203,7 @@ impl<'a> TrackRepository<'a> {
     /// IS-7 — soft-delete live rows not re-stamped during the active resync.
     pub fn sweep_resync_orphans(&self, server_id: &str, resync_gen: i64) -> Result<u32, String> {
         let now = now_unix_ms();
-        let changed = self.store.with_conn_mut("misc", |c| {
+        let changed = self.store.with_conn_mut("track.sweep_resync_orphans", |c| {
             c.execute(
                 "UPDATE track SET deleted = 1, synced_at = ?3 \
                  WHERE server_id = ?1 AND deleted = 0 AND resync_gen != ?2",
@@ -418,7 +418,7 @@ impl<'a> TrackRepository<'a> {
         if rows.is_empty() {
             return Ok(RemapStats::default());
         }
-        self.store.with_conn_mut("misc", |conn| {
+        self.store.with_conn_mut("track.upsert_batch_remap", |conn| {
             let tx = conn.transaction()?;
             let mut remapped: Vec<RemapEntry> = Vec::new();
             let mut upsert = tx.prepare_cached(UPSERT_SQL)?;

@@ -91,6 +91,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Servers — software and version on each server card
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1045](https://github.com/Psychotoxical/psysonic/pull/1045)**
+
+* Each server card under **Settings → Servers** now shows the server software and version (e.g. `Navidrome 0.62.0`) under the server name. The value comes from the existing connection ping, so no extra request is made; it is hidden for servers that don't report it (plain Subsonic without OpenSubsonic).
+
+
+
 ## Changed
 
 ### Dependencies — npm and Rust refresh
@@ -156,6 +164,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1042](https://github.com/Psychotoxical/psysonic/pull/1042)**
 
 * The "from this album", "discography" and "most played" sections on the Now Playing page disappeared after a track change once the next track started playing from the local cache, and didn't come back. The page now keeps loading that info whenever the server is reachable, regardless of whether the audio plays from cached or offline bytes.
+
+
+
+### Library DB — named slow-write ops for stall diagnosis
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1043](https://github.com/Psychotoxical/psysonic/pull/1043)**
+
+* Production `library-db` write paths now log stable `module.action` op names instead of the generic `misc`, so the next `[library-db] SLOW write` line on macOS (or elsewhere) identifies the call site — diagnostic step for playback stalls under long write-lock holds ([#1040](https://github.com/Psychotoxical/psysonic/issues/1040)).
 
 ### Servers — complete border on the active server card
 

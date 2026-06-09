@@ -29,7 +29,7 @@ impl<'a> SyncStateRepository<'a> {
     /// if none exists. All non-PK columns fall back to their schema DEFAULTs
     /// (`sync_phase='idle'`, `initial_sync_cursor_json='{}'`, …).
     pub fn ensure(&self, server_id: &str, library_scope: &str) -> Result<(), String> {
-        self.store.with_conn("misc", |conn| {
+        self.store.with_conn("sync_state.ensure", |conn| {
             conn.execute(
                 "INSERT OR IGNORE INTO sync_state (server_id, library_scope) VALUES (?1, ?2)",
                 params![server_id, library_scope],
@@ -73,7 +73,7 @@ impl<'a> SyncStateRepository<'a> {
         cursor: &Value,
     ) -> Result<(), String> {
         let json = serde_json::to_string(cursor).map_err(|e| e.to_string())?;
-        self.store.with_conn("misc", |conn| {
+        self.store.with_conn("sync_state.set_initial_sync_cursor", |conn| {
             conn.execute(
                 "INSERT INTO sync_state (server_id, library_scope, initial_sync_cursor_json) \
                  VALUES (?1, ?2, ?3) \
@@ -134,7 +134,7 @@ impl<'a> SyncStateRepository<'a> {
         library_scope: &str,
         flags: u32,
     ) -> Result<(), String> {
-        self.store.with_conn("misc", |conn| {
+        self.store.with_conn("sync_state.set_capability_flags", |conn| {
             conn.execute(
                 "INSERT INTO sync_state (server_id, library_scope, capability_flags) \
                  VALUES (?1, ?2, ?3) \
@@ -192,7 +192,7 @@ impl<'a> SyncStateRepository<'a> {
         library_scope: &str,
         phase: &str,
     ) -> Result<(), String> {
-        self.store.with_conn("misc", |conn| {
+        self.store.with_conn("sync_state.set_sync_phase", |conn| {
             conn.execute(
                 "INSERT INTO sync_state (server_id, library_scope, sync_phase) \
                  VALUES (?1, ?2, ?3) \
@@ -212,7 +212,7 @@ impl<'a> SyncStateRepository<'a> {
         library_scope: &str,
         last_scan_iso: Option<&str>,
     ) -> Result<(), String> {
-        self.store.with_conn("misc", |conn| {
+        self.store.with_conn("sync_state.set_server_last_scan_iso", |conn| {
             conn.execute(
                 "INSERT INTO sync_state (server_id, library_scope, server_last_scan_iso) \
                  VALUES (?1, ?2, ?3) \
@@ -232,7 +232,7 @@ impl<'a> SyncStateRepository<'a> {
         library_scope: &str,
         last_modified_ms: i64,
     ) -> Result<(), String> {
-        self.store.with_conn("misc", |conn| {
+        self.store.with_conn("sync_state.set_indexes_last_modified_ms", |conn| {
             conn.execute(
                 "INSERT INTO sync_state (server_id, library_scope, indexes_last_modified_ms) \
                  VALUES (?1, ?2, ?3) \
@@ -330,7 +330,7 @@ impl<'a> SyncStateRepository<'a> {
         library_scope: &str,
         epoch_ms: i64,
     ) -> Result<(), String> {
-        self.store.with_conn("misc", |conn| {
+        self.store.with_conn("sync_state.set_next_poll_at", |conn| {
             conn.execute(
                 "INSERT INTO sync_state (server_id, library_scope, next_poll_at) \
                  VALUES (?1, ?2, ?3) \
@@ -375,7 +375,7 @@ impl<'a> SyncStateRepository<'a> {
         stats: &Value,
     ) -> Result<(), String> {
         let json = serde_json::to_string(stats).map_err(|e| e.to_string())?;
-        self.store.with_conn("misc", |conn| {
+        self.store.with_conn("sync_state.set_poll_stats_json", |conn| {
             conn.execute(
                 "INSERT INTO sync_state (server_id, library_scope, poll_stats_json) \
                  VALUES (?1, ?2, ?3) \
@@ -412,7 +412,7 @@ impl<'a> SyncStateRepository<'a> {
         library_scope: &str,
         count: i64,
     ) -> Result<(), String> {
-        self.store.with_conn("misc", |conn| {
+        self.store.with_conn("sync_state.set_local_track_count", |conn| {
             conn.execute(
                 "INSERT INTO sync_state (server_id, library_scope, local_track_count) \
                  VALUES (?1, ?2, ?3) \
@@ -447,7 +447,7 @@ impl<'a> SyncStateRepository<'a> {
         library_scope: &str,
         count: i64,
     ) -> Result<(), String> {
-        self.store.with_conn("misc", |conn| {
+        self.store.with_conn("sync_state.set_server_track_count", |conn| {
             conn.execute(
                 "INSERT INTO sync_state (server_id, library_scope, server_track_count) \
                  VALUES (?1, ?2, ?3) \
@@ -488,7 +488,7 @@ impl<'a> SyncStateRepository<'a> {
         library_scope: &str,
         unreliable: bool,
     ) -> Result<(), String> {
-        self.store.with_conn("misc", |conn| {
+        self.store.with_conn("sync_state.set_n1_bulk_unreliable", |conn| {
             conn.execute(
                 "INSERT INTO sync_state (server_id, library_scope, n1_bulk_unreliable) \
                  VALUES (?1, ?2, ?3) \
@@ -508,7 +508,7 @@ impl<'a> SyncStateRepository<'a> {
         library_scope: &str,
         epoch_ms: i64,
     ) -> Result<(), String> {
-        self.store.with_conn("misc", |conn| {
+        self.store.with_conn("sync_state.set_last_full_sync_at", |conn| {
             conn.execute(
                 "INSERT INTO sync_state (server_id, library_scope, last_full_sync_at) \
                  VALUES (?1, ?2, ?3) \
@@ -528,7 +528,7 @@ impl<'a> SyncStateRepository<'a> {
         library_scope: &str,
         epoch_ms: i64,
     ) -> Result<(), String> {
-        self.store.with_conn("misc", |conn| {
+        self.store.with_conn("sync_state.set_last_delta_sync_at", |conn| {
             conn.execute(
                 "INSERT INTO sync_state (server_id, library_scope, last_delta_sync_at) \
                  VALUES (?1, ?2, ?3) \
@@ -549,7 +549,7 @@ impl<'a> SyncStateRepository<'a> {
         library_scope: &str,
         last_modified_ms: i64,
     ) -> Result<(), String> {
-        self.store.with_conn("misc", |conn| {
+        self.store.with_conn("sync_state.set_artists_last_modified_ms", |conn| {
             conn.execute(
                 "INSERT INTO sync_state (server_id, library_scope, artists_last_modified_ms) \
                  VALUES (?1, ?2, ?3) \
@@ -570,7 +570,7 @@ impl<'a> SyncStateRepository<'a> {
         library_scope: &str,
         tier: &str,
     ) -> Result<(), String> {
-        self.store.with_conn("misc", |conn| {
+        self.store.with_conn("sync_state.set_library_tier", |conn| {
             conn.execute(
                 "INSERT INTO sync_state (server_id, library_scope, library_tier) \
                  VALUES (?1, ?2, ?3) \

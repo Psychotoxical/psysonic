@@ -1,6 +1,6 @@
 import { useAuthStore } from '../../../store/authStore';
 import type { NavidromeAdminRole } from '../../../hooks/useNavidromeAdminRole';
-import { isNavidromeServer } from '../../../utils/server/subsonicServerIdentity';
+import { isNavidromeServer, formatServerSoftware } from '../../../utils/server/subsonicServerIdentity';
 import { FEATURE_AUDIOMUSE_SIMILAR_TRACKS, OP_SIMILAR_TRACKS } from '../../../serverCapabilities/catalog';
 import {
   isFeatureActiveForServer,
@@ -11,12 +11,6 @@ import type { CapabilityStatus, FeatureTrust, ResolvedCapability } from '../../.
 import { PerfProbeMetricSection } from './PerfProbeMetricCard';
 import PerfProbeDetailList, { type PerfProbeDetailRow } from './PerfProbeDetailList';
 import PerfProbeStatusBadge, { type PerfProbeBadgeTone } from './PerfProbeStatusBadge';
-
-function formatServerType(identity: { type?: string; serverVersion?: string; openSubsonic?: boolean } | undefined): string {
-  if (!identity?.type?.trim()) return 'Unknown';
-  const version = identity.serverVersion?.trim();
-  return version ? `${identity.type} ${version}` : identity.type;
-}
 
 function detectionBadge(status: CapabilityStatus): { tone: PerfProbeBadgeTone; label: string } {
   switch (status) {
@@ -97,7 +91,7 @@ export default function SidebarPerfProbeServerSection({ adminRole = 'na' }: Prop
   const rows: PerfProbeDetailRow[] = [
     { label: 'Name', value: server.name || server.url },
     { label: 'Profile URL', value: <code className="perf-server-dl__code">{server.url}</code> },
-    { label: 'Subsonic server', value: formatServerType(identity) },
+    { label: 'Subsonic server', value: formatServerSoftware(identity) ?? 'Unknown' },
     {
       label: 'OpenSubsonic',
       value: identity?.openSubsonic

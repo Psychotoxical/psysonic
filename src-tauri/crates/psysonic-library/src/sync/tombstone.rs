@@ -115,7 +115,7 @@ impl<'a> TombstoneReconciler<'a> {
 
     fn next_candidates(&self, budget: u32) -> Result<Vec<String>, SyncError> {
         self.store
-            .with_conn("misc", |c| {
+            .with_conn("tombstone.next_candidates", |c| {
                 let mut stmt = c.prepare(
                     "SELECT id FROM track \
                      WHERE server_id = ?1 AND deleted = 0 \
@@ -133,7 +133,7 @@ impl<'a> TombstoneReconciler<'a> {
 
     fn mark_deleted(&self, id: &str) -> Result<(), SyncError> {
         self.store
-            .with_conn("misc", |c| {
+            .with_conn("tombstone.mark_deleted", |c| {
                 c.execute(
                     "UPDATE track SET deleted = 1, synced_at = ?3 \
                      WHERE server_id = ?1 AND id = ?2",
@@ -146,7 +146,7 @@ impl<'a> TombstoneReconciler<'a> {
 
     fn mark_synced(&self, id: &str) -> Result<(), SyncError> {
         self.store
-            .with_conn("misc", |c| {
+            .with_conn("tombstone.mark_synced", |c| {
                 c.execute(
                     "UPDATE track SET synced_at = ?3 \
                      WHERE server_id = ?1 AND id = ?2",
