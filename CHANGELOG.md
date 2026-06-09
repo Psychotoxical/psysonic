@@ -167,6 +167,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Now Playing — metadata reads from the local library index first
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1049](https://github.com/Psychotoxical/psysonic/pull/1049)**
+
+* The "from this album", "discography", "most played" and song details on the Now Playing page now come from the local library index when it has them, only falling back to the server when the index can't serve a row. Cards and fields (genre, play count, contributors) stay populated during cached and offline playback, with fewer server requests.
+
+
+
 ### Library DB — named slow-write ops for stall diagnosis
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1043](https://github.com/Psychotoxical/psysonic/pull/1043)**
