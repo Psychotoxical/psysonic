@@ -91,6 +91,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Servers — software and version on each server card
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1045](https://github.com/Psychotoxical/psysonic/pull/1045)**
+
+* Each server card under **Settings → Servers** now shows the server software and version (e.g. `Navidrome 0.62.0`) under the server name. The value comes from the existing connection ping, so no extra request is made; it is hidden for servers that don't report it (plain Subsonic without OpenSubsonic).
+
+
+
 ## Changed
 
 ### Dependencies — npm and Rust refresh
