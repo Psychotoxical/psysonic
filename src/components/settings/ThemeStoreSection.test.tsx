@@ -189,25 +189,19 @@ describe('ThemeStoreSection — pagination & refresh', () => {
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 
-  it('sorts by most popular, newest and name, and shows the download count', async () => {
+  it('defaults to newest and sorts alphabetically', async () => {
     const themes = [
-      mkTheme('a', 'Alpha', { installs: 10, updatedAt: '2026-06-01T00:00:00Z' }),
-      mkTheme('b', 'Bravo', { installs: 500, updatedAt: '2026-06-05T00:00:00Z' }),
-      mkTheme('c', 'Charlie', { installs: 0, updatedAt: '2026-06-03T00:00:00Z' }),
+      mkTheme('a', 'Alpha', { updatedAt: '2026-06-01T00:00:00Z' }),
+      mkTheme('b', 'Bravo', { updatedAt: '2026-06-05T00:00:00Z' }),
+      mkTheme('c', 'Charlie', { updatedAt: '2026-06-03T00:00:00Z' }),
     ];
     fetchRegistryMock.mockResolvedValue({ registry: registryOf(themes), stale: false });
     const { container } = renderWithProviders(<ThemeStoreSection />);
     const user = userEvent.setup();
 
     await screen.findByText('Bravo');
-    // Default sort is most-downloaded first: Bravo (500) > Alpha (10) > Charlie (0).
-    expect(rowNames(container)).toEqual(['Bravo', 'Alpha', 'Charlie']);
-    // The download count renders in the meta panel.
-    expect(screen.getByText('500')).toBeInTheDocument();
-
-    // Newest first: Bravo (06-05) > Charlie (06-03) > Alpha (06-01).
-    await selectSort(user, container, 'Newest');
-    await waitFor(() => expect(rowNames(container)).toEqual(['Bravo', 'Charlie', 'Alpha']));
+    // Default sort is newest first: Bravo (06-05) > Charlie (06-03) > Alpha (06-01).
+    expect(rowNames(container)).toEqual(['Bravo', 'Charlie', 'Alpha']);
 
     // Alphabetical.
     await selectSort(user, container, 'Alphabetical');
