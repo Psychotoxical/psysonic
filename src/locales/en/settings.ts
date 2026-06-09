@@ -399,7 +399,7 @@ export const settings = {
   themeStoreTitle: 'Theme Store',
   themeStoreSubmitText: 'Made your own theme? Share it with the community — more info in the themes repository.',
   themeStoreSubmitLink: 'Open the themes repository',
-  themeStoreNetworkNotice: 'The Theme Store loads its catalogue and previews from external services (the jsDelivr CDN and GitHub). No personal data is sent.',
+  themeStoreNetworkNotice: 'The Theme Store loads its catalogue and previews from GitHub. No personal data is sent.',
   themeStoreStatsNotice: 'Last-changed dates refresh once a day (around 04:17 UTC).',
   themeStoreSearchPlaceholder: 'Search themes…',
   themeStoreFilterMode: 'Filter by mode',

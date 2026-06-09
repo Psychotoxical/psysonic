@@ -354,7 +354,7 @@ export const settings = {
   themeStoreTitle: 'Temabutikk',
   themeStoreSubmitText: 'Laget ditt eget tema? Del det med fellesskapet — mer info i tema-repoet.',
   themeStoreSubmitLink: 'Åpne tema-repoet',
-  themeStoreNetworkNotice: 'Theme Store laster katalogen og forhåndsvisninger fra eksterne tjenester (jsDelivr-CDN og GitHub). Ingen personopplysninger sendes.',
+  themeStoreNetworkNotice: 'Theme Store laster katalogen og forhåndsvisninger fra GitHub. Ingen personopplysninger sendes.',
   themeStoreStatsNotice: 'Sist endret-datoene oppdateres én gang om dagen (rundt 04:17 UTC).',
   themeStoreSearchPlaceholder: 'Søk i temaer…',
   themeStoreFilterMode: 'Filtrer etter modus',

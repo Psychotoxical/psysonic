@@ -1,18 +1,18 @@
 /**
- * Theme Store registry client. Reads the auto-generated `registry.json` from the
- * public `Psysonic/psysonic-themes` repo via the jsDelivr CDN (CORS-enabled,
- * globally cached). The registry is cached in localStorage with a TTL so the
- * store opens instantly and works offline against the last-seen catalogue.
+ * Theme Store registry client. Reads the auto-generated `registry.json` and each
+ * theme's CSS/thumbnail straight from the public `Psysonic/psysonic-themes` repo
+ * over GitHub raw (permissive CORS, ~5-minute server cache). The registry is
+ * cached in localStorage with a TTL so the store opens instantly and works
+ * offline against the last-seen catalogue.
  */
 
-const CDN_BASE = 'https://cdn.jsdelivr.net/gh/Psysonic/psysonic-themes@main';
-const REGISTRY_URL = `${CDN_BASE}/registry.json`;
-// GitHub raw serves with a ~5-minute cache (vs jsDelivr's up-to-12h @main edge)
-// and permissive CORS. Used only on a manual refresh so freshly merged themes
-// appear without waiting on — or purging — the shared CDN edge.
-const RAW_REGISTRY_URL = 'https://raw.githubusercontent.com/Psysonic/psysonic-themes/main/registry.json';
+const RAW_BASE = 'https://raw.githubusercontent.com/Psysonic/psysonic-themes/main';
+const REGISTRY_URL = `${RAW_BASE}/registry.json`;
 const CACHE_KEY = 'psysonic_theme_registry_cache';
-const TTL_MS = 12 * 60 * 60 * 1000; // 12h — matches jsDelivr's @main edge cache
+// Client-side cache lifetime: the store opens from this copy without a network
+// round-trip and falls back to it when offline. The manual refresh button
+// bypasses it, and GitHub raw is itself fresh (~5-min server cache).
+const TTL_MS = 12 * 60 * 60 * 1000; // 12h
 
 export interface RegistryTheme {
   id: string;
@@ -45,9 +45,9 @@ interface CacheEnvelope {
   registry: Registry;
 }
 
-/** Absolute CDN URL for a repo-relative path (css / thumbnail). */
-export function cdnUrl(relPath: string): string {
-  return `${CDN_BASE}/${relPath}`;
+/** Absolute GitHub-raw URL for a repo-relative asset path (css / thumbnail). */
+export function assetUrl(relPath: string): string {
+  return `${RAW_BASE}/${relPath}`;
 }
 
 function readCache(): CacheEnvelope | null {
@@ -91,28 +91,29 @@ export async function fetchRegistry(opts?: { force?: boolean }): Promise<FetchRe
     const cached = readCache();
     if (cached && Date.now() - cached.ts < TTL_MS) return { registry: cached.registry, stale: false };
   }
-  // On a manual refresh, try GitHub raw first (fresher) then fall back to the
-  // jsDelivr CDN; normal loads use the CDN only.
-  const sources = opts?.force ? [RAW_REGISTRY_URL, REGISTRY_URL] : [REGISTRY_URL];
-  for (const url of sources) {
-    try {
-      const res = await fetch(url, { cache: 'no-cache' });
-      if (!res.ok) continue;
+  try {
+    const res = await fetch(REGISTRY_URL, { cache: 'no-cache' });
+    if (res.ok) {
       const registry = (await res.json()) as Registry;
       writeCache(registry);
       return { registry, stale: false };
-    } catch {
-      // try the next source
     }
+  } catch {
+    // fall through to the cached copy below
   }
   const cached = readCache();
   if (cached) return { registry: cached.registry, stale: true };
   throw new Error('registry fetch failed');
 }
 
-/** Fetch a single theme's CSS text from the CDN (repo-relative path). */
+/**
+ * Fetch a single theme's CSS text from GitHub raw (repo-relative path). Raw is
+ * used rather than a mutable CDN edge so an install or update always gets the
+ * current bytes: a stale edge would otherwise store pre-update CSS under the new
+ * version label, leaving the theme wrong with no further update to correct it.
+ */
 export async function fetchThemeCss(relPath: string): Promise<string> {
-  const res = await fetch(cdnUrl(relPath), { cache: 'no-cache' });
+  const res = await fetch(assetUrl(relPath), { cache: 'no-cache' });
   if (!res.ok) throw new Error(`theme css fetch failed: ${res.status}`);
   return res.text();
 }

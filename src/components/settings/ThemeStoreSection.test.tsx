@@ -9,7 +9,7 @@ import type { FetchRegistryResult, Registry, RegistryTheme } from '@/utils/theme
 vi.mock('@/utils/themes/themeRegistry', () => ({
   fetchRegistry: vi.fn(),
   fetchThemeCss: vi.fn(async () => 'css'),
-  cdnUrl: (p: string) => `https://cdn.example/${p}`,
+  assetUrl: (p: string) => `https://raw.example/${p}`,
 }));
 
 import { fetchRegistry } from '@/utils/themes/themeRegistry';

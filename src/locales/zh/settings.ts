@@ -350,7 +350,7 @@ export const settings = {
   themeStoreTitle: '主题商店',
   themeStoreSubmitText: '做了自己的主题？与社区分享——更多信息见主题仓库。',
   themeStoreSubmitLink: '打开主题仓库',
-  themeStoreNetworkNotice: '主题商店从外部服务（jsDelivr CDN 和 GitHub）加载目录和预览。不会发送任何个人数据。',
+  themeStoreNetworkNotice: '主题商店从 GitHub 加载目录和预览。不会发送任何个人数据。',
   themeStoreStatsNotice: '最后更新时间每天更新一次（约 04:17 UTC）。',
   themeStoreSearchPlaceholder: '搜索主题…',
   themeStoreFilterMode: '按模式筛选',

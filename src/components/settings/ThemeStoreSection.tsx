@@ -10,7 +10,7 @@ import { formatRelativeTime } from '../../utils/format/relativeTime';
 import { useThemeStore } from '../../store/themeStore';
 import { useInstalledThemesStore, type InstalledTheme } from '../../store/installedThemesStore';
 import {
-  cdnUrl,
+  assetUrl,
   fetchRegistry,
   type RegistryTheme,
 } from '../../utils/themes/themeRegistry';
@@ -41,7 +41,7 @@ function pageItemsList(current: number, total: number): (number | 'gap')[] {
 }
 
 /**
- * The community Theme Store: browse the jsDelivr-hosted registry, filter by name
+ * The community Theme Store: browse the GitHub-hosted registry, filter by name
  * and light/dark, install (fetch + persist + runtime inject), apply, update and
  * uninstall. Built-in themes are not in the registry, so they never appear here.
  */
@@ -82,12 +82,12 @@ export function ThemeStoreSection() {
       .finally(() => { setLoading(false); setRefreshing(false); });
   };
 
-  // Thumbnails live at a stable CDN path, so the webview caches them hard
-  // (jsDelivr sends max-age 7d). Tie a cache-buster to the registry's
-  // generatedAt — it changes on every themes push — so refreshed thumbnails
-  // show up after a registry refresh instead of being stuck on the old image.
+  // GitHub raw caches thumbnails only briefly, but the webview can still hold an
+  // old copy; tie a cache-buster to the registry's generatedAt — it changes on
+  // every themes push — so refreshed thumbnails show up after a registry refresh
+  // instead of being stuck on the old image.
   const thumbUrl = (rel: string) =>
-    generatedAt ? `${cdnUrl(rel)}?v=${encodeURIComponent(generatedAt)}` : cdnUrl(rel);
+    generatedAt ? `${assetUrl(rel)}?v=${encodeURIComponent(generatedAt)}` : assetUrl(rel);
 
   useEffect(() => { load(false); }, []);
 

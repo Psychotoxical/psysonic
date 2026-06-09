@@ -355,7 +355,7 @@ export const settings = {
   themeStoreTitle: 'Theme-Store',
   themeStoreSubmitText: 'Eigenes Theme gebaut? Teil es mit der Community — mehr Infos im Themes-Repository.',
   themeStoreSubmitLink: 'Themes-Repository öffnen',
-  themeStoreNetworkNotice: 'Der Theme-Store lädt Katalog und Vorschauen von externen Diensten (jsDelivr-CDN und GitHub). Es werden keine persönlichen Daten gesendet.',
+  themeStoreNetworkNotice: 'Der Theme-Store lädt Katalog und Vorschauen von GitHub. Es werden keine persönlichen Daten gesendet.',
   themeStoreStatsNotice: 'Die „Zuletzt geändert“-Daten werden einmal täglich aktualisiert (gegen 04:17 UTC).',
   themeStoreSearchPlaceholder: 'Themes suchen…',
   themeStoreFilterMode: 'Nach Modus filtern',

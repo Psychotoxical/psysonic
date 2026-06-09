@@ -357,7 +357,7 @@ export const settings = {
   themeStoreTitle: 'Magazin de teme',
   themeStoreSubmitText: 'Ți-ai creat propria temă? Împărtășește-o cu comunitatea — mai multe informații în depozitul de teme.',
   themeStoreSubmitLink: 'Deschide depozitul de teme',
-  themeStoreNetworkNotice: 'Theme Store încarcă catalogul și previzualizările de la servicii externe (CDN-ul jsDelivr și GitHub). Nu se trimit date personale.',
+  themeStoreNetworkNotice: 'Theme Store încarcă catalogul și previzualizările de la GitHub. Nu se trimit date personale.',
   themeStoreStatsNotice: 'Datele privind ultima modificare se actualizează o dată pe zi (în jurul orei 04:17 UTC).',
   themeStoreSearchPlaceholder: 'Caută teme…',
   themeStoreFilterMode: 'Filtrează după mod',

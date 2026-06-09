@@ -353,7 +353,7 @@ export const settings = {
   themeStoreTitle: 'Tienda de temas',
   themeStoreSubmitText: '¿Has creado tu propio tema? Compártelo con la comunidad — más información en el repositorio de temas.',
   themeStoreSubmitLink: 'Abrir el repositorio de temas',
-  themeStoreNetworkNotice: 'La tienda de temas carga el catálogo y las vistas previas desde servicios externos (la CDN de jsDelivr y GitHub). No se envían datos personales.',
+  themeStoreNetworkNotice: 'La tienda de temas carga el catálogo y las vistas previas desde GitHub. No se envían datos personales.',
   themeStoreStatsNotice: 'Las fechas de última modificación se actualizan una vez al día (sobre las 04:17 UTC).',
   themeStoreSearchPlaceholder: 'Buscar temas…',
   themeStoreFilterMode: 'Filtrar por modo',
