@@ -157,6 +157,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Themed startup splash before Vite loads — deferred window show, per-theme logo gradient (PR #1030)',
       'Artist page: Top Tracks play when album list is empty on the page (PR #1031)',
       'PsyLab Connections tab with server capability readout, Navidrome admin-role probe, and tab-bar layout fix; server-capability framework with AudioMuse detection via OpenSubsonic sonicSimilarity and sonic Instant Mix routing on Navidrome ≥0.62 (PR #1033)',
+      'Library DB: named slow-write op labels for macOS playback-stall diagnosis (PR #1043)',
     ],
   },
   {

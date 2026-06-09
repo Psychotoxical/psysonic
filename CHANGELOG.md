@@ -151,6 +151,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Library DB — named slow-write ops for stall diagnosis
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1043](https://github.com/Psychotoxical/psysonic/pull/1043)**
+
+* Production `library-db` write paths now log stable `module.action` op names instead of the generic `misc`, so the next `[library-db] SLOW write` line on macOS (or elsewhere) identifies the call site — diagnostic step for playback stalls under long write-lock holds ([#1040](https://github.com/Psychotoxical/psysonic/issues/1040)).
+
+
+
 ### Servers — complete border on the active server card
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#998](https://github.com/Psychotoxical/psysonic/pull/998)**
