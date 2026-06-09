@@ -158,6 +158,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Artist page: Top Tracks play when album list is empty on the page (PR #1031)',
       'PsyLab Connections tab with server capability readout, Navidrome admin-role probe, and tab-bar layout fix; server-capability framework with AudioMuse detection via OpenSubsonic sonicSimilarity and sonic Instant Mix routing on Navidrome ≥0.62 (PR #1033)',
       'Library DB: named slow-write op labels for macOS playback-stall diagnosis (PR #1043)',
+      'Settings → Servers: compact two-line cards, capability header badges, unified use/active action, delete in edit form, click-pinned version tooltip (PR #1054)',
     ],
   },
   {
@@ -362,7 +363,6 @@ const CONTRIBUTOR_ENTRIES = [
       'Performance Probe: opt-in thread-group CPU poll toggle and includeThreadGroups IPC fix (PR #891)',
       'Queue: switchable display mode — Queue (upcoming only) vs Playlist (full list), with header toggle and settings entry (PR #922)',
       'Community Theme Store: semantic-token refactor, dedicated Themes tab with day/night scheduler, install/update/uninstall, local .zip import, free-form community themes (safety floor + state-reactive styling), and per-theme download counts with popularity/newest/name sorting; 80+ palettes moved to an on-demand CDN repo (PR #1009, #1011, #1012, #1013, #1014, #1015, #1016, #1018, #1020, #1036)',
-      'Settings → Servers: compact two-line cards, capability header badges, unified use/active action, delete in edit form, click-pinned version tooltip (PR #1054)',
     ],
   },
   {
