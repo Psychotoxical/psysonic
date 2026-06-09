@@ -65,7 +65,7 @@ export async function resolveNpDiscography(
  */
 export async function resolveNpTopSongs(
   serverId: string,
-  artistId: string,
+  artistId: string | undefined,
   artistName: string,
 ): Promise<SubsonicSong[]> {
   if (artistId && artistName && await libraryIsReady(serverId)) {
