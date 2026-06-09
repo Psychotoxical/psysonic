@@ -32,7 +32,12 @@ export interface NowPlayingFetchersDeps {
   currentTrack: { artist: string; title: string } | null;
   /** Subsonic server for API calls — must match the playing queue server. */
   subsonicServerId: string;
-  /** When false, skip network fetches (e.g. no server id). */
+  /**
+   * Caller intent / prerequisites only (e.g. "we have a playback server id").
+   * The network reachability decision — online, server reachable, and no
+   * trackId so local-cache playback still loads metadata — is made here via
+   * `shouldAttemptSubsonicForServer`; callers must not pre-apply that guard.
+   */
   fetchEnabled?: boolean;
 }
 
@@ -81,9 +86,9 @@ export async function prewarmNowPlayingFetchers(
   } = deps;
 
   if (!fetchEnabled || !subsonicServerId) return;
-  // No trackId: metadata must be fetched even when the track's audio is local
-  // (hot-cache / offline). Offline is still covered by the online/reachability
-  // checks inside the guard.
+  // The only network gate in this function. No trackId: metadata must be fetched
+  // even when the track's audio is local (hot-cache / offline). Offline is still
+  // covered by the online/reachability checks inside the guard.
   if (!shouldAttemptSubsonicForServer(subsonicServerId)) return;
 
   const jobs: Array<Promise<unknown>> = [];

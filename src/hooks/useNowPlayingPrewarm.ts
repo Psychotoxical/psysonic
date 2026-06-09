@@ -13,7 +13,6 @@ import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import { usePlaybackServerId } from './usePlaybackServerId';
 import { primaryTrackArtistRef } from '../utils/playback/trackArtistRefs';
-import { shouldAttemptSubsonicForServer } from '../utils/network/subsonicNetworkGuard';
 
 const NOW_PLAYING_COVER_CSS_PX = 800;
 
@@ -65,8 +64,9 @@ export function useNowPlayingPrewarm(): void {
       lastfmUsername,
       currentTrack,
       subsonicServerId: playbackServerId,
-      // No trackId: warm metadata even when the track's audio is local cache.
-      fetchEnabled: shouldAttemptSubsonicForServer(playbackServerId),
+      // No `fetchEnabled` / no trackId: prewarmNowPlayingFetchers owns the single
+      // reachability gate, and metadata must warm even when the track's audio
+      // plays from local cache.
     });
 
     if (currentTrack.albumId && currentTrack.id) {

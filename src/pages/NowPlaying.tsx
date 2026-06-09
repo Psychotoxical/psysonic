@@ -6,7 +6,6 @@ import type { SubsonicArtistInfo, SubsonicSong } from '../api/subsonicTypes';
 import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
 import { usePlaybackServerId } from '../hooks/usePlaybackServerId';
-import { shouldAttemptSubsonicForServer } from '../utils/network/subsonicNetworkGuard';
 import { useTranslation } from 'react-i18next';
 import { Music, ExternalLink, Cast, Users, Radio, Clock, SkipForward, Info, Calendar, Disc3, Play, EyeOff, LayoutGrid, RotateCcw, Eye } from 'lucide-react';
 import { open as shellOpen } from '@tauri-apps/plugin-shell';
@@ -94,14 +93,10 @@ export default function NowPlaying() {
     enableBandsintown, audiomuseNavidromeEnabled,
     lastfmUsername, currentTrack,
     subsonicServerId: playbackServerId,
-    // No trackId here: Now Playing metadata (album / artist / discography / top
-    // songs) must still be fetched when the server is reachable, even if the
-    // track's audio plays from local cache (`psysonic-local://`). Passing the
-    // trackId would skip the call for any hot-cached / offline-pinned track and
-    // blank those cards on track change. True-offline is still covered by the
-    // online / reachability checks inside the guard.
-    fetchEnabled: Boolean(playbackServerId)
-      && shouldAttemptSubsonicForServer(playbackServerId),
+    // `fetchEnabled` = "we have a playback server id". The reachability decision
+    // (online / server reachable, no trackId so local-cache playback still loads
+    // metadata) lives in one place inside the hook — see its JSDoc.
+    fetchEnabled: Boolean(playbackServerId),
   });
 
   // Star + Last.fm love + their toggle callbacks
