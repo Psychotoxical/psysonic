@@ -37,4 +37,14 @@ describe('shouldAttemptSubsonicForServer', () => {
     setActiveServerReachable(true);
     expect(shouldAttemptSubsonicForServer('srv-1', 't1')).toBe(true);
   });
+
+  it('bypasses the local-url skip when called without a trackId (metadata gate)', () => {
+    setActiveServerReachable(true);
+    resolvePlaybackUrlMock.mockReturnValue('psysonic-local:///favorites/t1.flac');
+    // Byte-style call (with the track id) is blocked because the bytes are local…
+    expect(shouldAttemptSubsonicForServer('srv-1', 't1')).toBe(false);
+    // …but the metadata gate omits the track id, so it never consults
+    // resolvePlaybackUrl and stays allowed while the server is reachable.
+    expect(shouldAttemptSubsonicForServer('srv-1')).toBe(true);
+  });
 });
