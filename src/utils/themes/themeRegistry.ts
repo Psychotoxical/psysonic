@@ -28,8 +28,6 @@ export interface RegistryTheme {
   css: string;
   /** Repo-relative path to the thumbnail. */
   thumbnail: string;
-  /** All-time CDN downloads of the theme's CSS (≈ installs); 0 until any land. */
-  installs?: number;
   /** ISO date of the last commit touching the theme in the registry repo. */
   updatedAt?: string;
 }
