@@ -101,6 +101,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Changed
 
+### Settings → Servers — compact server cards
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1054](https://github.com/Psychotoxical/psysonic/pull/1054)**
+
+* Two-line header: custom entry name plus `user@host`, HTTPS lock, and a clickable version info tooltip (hover or tap).
+* Navidrome **0.62+**: green **AudioMuse-AI** inline badge when the plugin is detected; older Navidrome keeps the manual toggle row below the card.
+* **Use** and **Active** share one rightmost slot (green badge vs primary button); card actions are edit → test → use/active. Delete lives in the edit form footer.
+* **TooltipPortal**: `data-tooltip-click` for click-pinned tooltips (touch and explicit open without the 1s hover delay).
+
+
+
 ### Dependencies — npm and Rust refresh
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#997](https://github.com/Psychotoxical/psysonic/pull/997)**
