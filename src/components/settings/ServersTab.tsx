@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
-import { AlertTriangle, CheckCircle2, Info, Lock, LogOut, Pencil, Plus, Power, Server, Sparkles, Trash2, Wifi, WifiOff } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Info, Lock, LogOut, Pencil, Plus, Power, Server, Sparkles, Wifi, WifiOff } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { formatServerSoftware, isNavidromeAudiomuseSoftwareEligible, type InstantMixProbeResult, type SubsonicServerIdentity } from '../../utils/server/subsonicServerIdentity';
 import { buildCapabilityContext } from '../../serverCapabilities/context';
@@ -390,6 +390,10 @@ export function ServersTab({
                     editingServer={srv}
                     onSave={(data) => handleEditServer(srv.id, data)}
                     onCancel={() => setEditingServerId(null)}
+                    onDelete={async () => {
+                      await deleteServer(srv);
+                      setEditingServerId(null);
+                    }}
                   />
                 );
               }
@@ -433,11 +437,6 @@ export function ServersTab({
                     <div style={{ minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2px', flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 600 }}>{serverSettingsEntryTitle(srv)}</span>
-                        {isActive && (
-                          <span className="settings-server-inline-badge">
-                            {t('settings.serverActive')}
-                          </span>
-                        )}
                         <ServerCapabilityHeaderBadge
                           serverId={srv.id}
                           feature={FEATURE_AUDIOMUSE_SIMILAR_TRACKS}
@@ -472,31 +471,6 @@ export function ServersTab({
                       {status === 'error' && <WifiOff size={16} style={{ color: 'var(--danger)' }} />}
                       {status === 'testing' && <div className="spinner" style={{ width: 16, height: 16 }} />}
                       <button
-                        className="btn btn-surface"
-                        style={{ fontSize: 12, padding: '4px 10px' }}
-                        onClick={() => testConnection(srv)}
-                        disabled={status === 'testing'}
-                        data-tooltip={t('settings.testBtn')}
-                        aria-label={t('settings.testBtn')}
-                      >
-                        <Wifi size={13} />
-                        <span className="server-card-btn-label">{t('settings.testBtn')}</span>
-                      </button>
-                      {!isActive && (
-                        <button
-                          className="btn btn-primary"
-                          style={{ fontSize: 12, padding: '4px 10px' }}
-                          onClick={() => switchToServer(srv)}
-                          disabled={status === 'testing'}
-                          id={`settings-use-server-${srv.id}`}
-                          data-tooltip={t('settings.useServer')}
-                          aria-label={t('settings.useServer')}
-                        >
-                          <Power size={13} />
-                          <span className="server-card-btn-label">{t('settings.useServer')}</span>
-                        </button>
-                      )}
-                      <button
                         className="btn btn-ghost"
                         style={{ padding: '4px 8px' }}
                         onClick={() => {
@@ -510,14 +484,34 @@ export function ServersTab({
                         <Pencil size={14} />
                       </button>
                       <button
-                        className="btn btn-ghost"
-                        style={{ color: 'var(--danger)', padding: '4px 8px' }}
-                        onClick={() => void deleteServer(srv)}
-                        data-tooltip={t('settings.deleteServer')}
-                        id={`settings-delete-server-${srv.id}`}
+                        className="btn btn-surface"
+                        style={{ fontSize: 12, padding: '4px 10px' }}
+                        onClick={() => testConnection(srv)}
+                        disabled={status === 'testing'}
+                        data-tooltip={t('settings.testBtn')}
+                        aria-label={t('settings.testBtn')}
                       >
-                        <Trash2 size={14} />
+                        <Wifi size={13} />
+                        <span className="server-card-btn-label">{t('settings.testBtn')}</span>
                       </button>
+                      {isActive ? (
+                        <span className="settings-server-inline-badge settings-server-inline-badge--positive settings-server-use-active-slot">
+                          {t('settings.serverActive')}
+                        </span>
+                      ) : (
+                        <button
+                          className="btn btn-primary settings-server-use-active-slot"
+                          style={{ fontSize: 12, padding: '4px 10px' }}
+                          onClick={() => switchToServer(srv)}
+                          disabled={status === 'testing'}
+                          id={`settings-use-server-${srv.id}`}
+                          data-tooltip={t('settings.useServer')}
+                          aria-label={t('settings.useServer')}
+                        >
+                          <Power size={13} />
+                          <span className="server-card-btn-label">{t('settings.useServer')}</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                   </div>

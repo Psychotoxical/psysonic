@@ -41,11 +41,13 @@ function hostnameForDnsHint(rawUrl: string): string | null {
 export function AddServerForm({
   onSave,
   onCancel,
+  onDelete,
   initialInvite = null,
   editingServer = null,
 }: {
   onSave: (data: Omit<ServerProfile, 'id'>) => void | Promise<void>;
   onCancel: () => void;
+  onDelete?: () => void | Promise<void>;
   initialInvite?: ServerMagicPayload | null;
   editingServer?: ServerProfile | null;
 }) {
@@ -349,11 +351,20 @@ export function AddServerForm({
           />
         </div>
       )}
-      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>{t('common.cancel')}</button>
-        <button type="submit" className="btn btn-primary">
-          {isEdit ? t('common.save') : t('common.add')}
-        </button>
+      <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', alignItems: 'center' }}>
+        {isEdit && onDelete ? (
+          <button type="button" className="btn btn-danger" onClick={() => void onDelete()}>
+            {t('settings.deleteServer')}
+          </button>
+        ) : (
+          <span />
+        )}
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button type="button" className="btn btn-ghost" onClick={onCancel}>{t('common.cancel')}</button>
+          <button type="submit" className="btn btn-primary">
+            {isEdit ? t('common.save') : t('common.add')}
+          </button>
+        </div>
       </div>
     </form>
   );

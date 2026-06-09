@@ -221,6 +221,24 @@
   justify-content: center;
 }
 
+.settings-server-use-active-slot {
+  font-size: 12px;
+  padding: 4px 10px;
+  min-height: 28px;
+  box-sizing: border-box;
+}
+
+button.settings-server-use-active-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+span.settings-server-use-active-slot {
+  display: inline-flex;
+  align-items: center;
+}
+
 /* ── In-Page-Suche fuer Settings ─────────────────────────────────────────── */
 .settings-header {
   display: flex;
