@@ -1,6 +1,6 @@
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { describe, expect, it } from 'vitest';
-import { serverListDisplayLabel, shortHostFromServerUrl } from './serverDisplayName';
+import { serverIdentityLabel, serverListDisplayLabel, serverSettingsEntryTitle, shortHostFromServerUrl } from './serverDisplayName';
 
 function srv(p: Partial<ServerProfile> & Pick<ServerProfile, 'id'>): ServerProfile {
   return {
@@ -18,6 +18,28 @@ describe('shortHostFromServerUrl', () => {
   });
   it('keeps port', () => {
     expect(shortHostFromServerUrl('http://127.0.0.1:4533')).toBe('127.0.0.1:4533');
+  });
+});
+
+describe('serverIdentityLabel', () => {
+  it('formats username@host', () => {
+    const a = srv({ id: '1', url: 'https://music.shstk.ru', username: 'cucadmuh', password: 'p', name: 'Home' });
+    expect(serverIdentityLabel(a)).toBe('cucadmuh@music.shstk.ru');
+  });
+  it('keeps port in host', () => {
+    const a = srv({ id: '1', url: 'http://127.0.0.1:4533', username: 'admin', password: 'p' });
+    expect(serverIdentityLabel(a)).toBe('admin@127.0.0.1:4533');
+  });
+});
+
+describe('serverSettingsEntryTitle', () => {
+  it('prefers custom entry name', () => {
+    const a = srv({ id: '1', url: 'https://music.shstk.ru', username: 'u', password: 'p', name: 'Home NAS' });
+    expect(serverSettingsEntryTitle(a)).toBe('Home NAS');
+  });
+  it('falls back to short host when name empty', () => {
+    const a = srv({ id: '1', url: 'https://music.shstk.ru', username: 'u', password: 'p', name: '' });
+    expect(serverSettingsEntryTitle(a)).toBe('music.shstk.ru');
   });
 });
 

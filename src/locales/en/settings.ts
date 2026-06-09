@@ -47,6 +47,7 @@ export const settings = {
   deleteServer: 'Delete',
   noServers: 'No servers saved.',
   serverActive: 'Active',
+  serverVersionUnknown: 'Server version unknown',
   confirmDeleteServer: 'Delete server "{{name}}"?',
   confirmDeleteServerLibrary: 'Also delete this server\'s local library index? Click Cancel to keep the cached copy for offline use.',
   serverConnecting: 'Connecting…',
@@ -106,6 +107,7 @@ export const settings = {
   userMgmtMagicStringModalDesc: 'Enter the Subsonic password for "{{username}}". It is included in the copied magic string.',
   userMgmtMagicStringModalConfirm: 'Copy string',
   audiomuseTitle: 'AudioMuse-AI (Navidrome)',
+  audiomuseBadge: 'AudioMuse-AI',
   audiomuseDesc:
     'Turn on if this server has the <pluginLink>AudioMuse-AI Navidrome plugin</pluginLink> configured. Enables Instant Mix from tracks and uses server-side similar artists instead of Last.fm on artist pages.',
   audiomuseStatusActive: 'Active',

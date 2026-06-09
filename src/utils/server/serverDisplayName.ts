@@ -15,6 +15,20 @@ export function shortHostFromServerUrl(urlRaw?: string | null): string {
   }
 }
 
+/** Settings server card primary line: `username@host`. */
+export function serverIdentityLabel(server: ServerProfile): string {
+  const shortHost = shortHostFromServerUrl(server.url);
+  const host = shortHost || (typeof server.url === 'string' ? server.url.trim() : '');
+  return `${server.username}@${host}`;
+}
+
+/** Settings server card title: custom entry name, or short host when unset. */
+export function serverSettingsEntryTitle(server: ServerProfile): string {
+  const nameTrim = (server.name || '').trim();
+  if (nameTrim) return nameTrim;
+  return shortHostFromServerUrl(server.url) || (typeof server.url === 'string' ? server.url.trim() : '');
+}
+
 /**
  * Label for server lists and chrome: if several servers share the same effective name,
  * show `username@host` so entries stay distinguishable.

@@ -26,6 +26,7 @@ export const SERVER_CAPABILITY_CATALOG: CapabilityDefinition[] = [
   {
     feature: FEATURE_AUDIOMUSE_SIMILAR_TRACKS,
     labelKey: 'settings.audiomuseTitle',
+    badgeLabelKey: 'settings.audiomuseBadge',
     strategies: [
       {
         // Navidrome ≥ 0.62: AudioMuse plugin advertised via OpenSubsonic.

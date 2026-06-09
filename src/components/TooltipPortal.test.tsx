@@ -66,4 +66,65 @@ describe('TooltipPortal open delay', () => {
     fireEvent.mouseDown(btn);
     expect(screen.queryByText('Play this album')).toBeNull();
   });
+
+  it('shows immediately on click when data-tooltip-click is set', () => {
+    renderWithProviders(
+      <>
+        <TooltipPortal />
+        <button data-tooltip="Server version" data-tooltip-click="">info</button>
+      </>,
+    );
+    const btn = screen.getByText('info');
+
+    fireEvent.click(btn);
+    expect(screen.getByText('Server version')).toBeInTheDocument();
+  });
+
+  it('does not hide click-mode tooltips on mousedown', () => {
+    renderWithProviders(
+      <>
+        <TooltipPortal />
+        <button data-tooltip="Server version" data-tooltip-click="">info</button>
+      </>,
+    );
+    const btn = screen.getByText('info');
+
+    fireEvent.click(btn);
+    expect(screen.getByText('Server version')).toBeInTheDocument();
+
+    fireEvent.mouseDown(btn);
+    expect(screen.getByText('Server version')).toBeInTheDocument();
+  });
+
+  it('toggles off when the click anchor is clicked again', () => {
+    renderWithProviders(
+      <>
+        <TooltipPortal />
+        <button data-tooltip="Server version" data-tooltip-click="">info</button>
+      </>,
+    );
+    const btn = screen.getByText('info');
+
+    fireEvent.click(btn);
+    expect(screen.getByText('Server version')).toBeInTheDocument();
+
+    fireEvent.click(btn);
+    expect(screen.queryByText('Server version')).toBeNull();
+  });
+
+  it('keeps click-opened tooltips visible after mouseout', () => {
+    renderWithProviders(
+      <>
+        <TooltipPortal />
+        <button data-tooltip="Server version" data-tooltip-click="">info</button>
+      </>,
+    );
+    const btn = screen.getByText('info');
+
+    fireEvent.click(btn);
+    expect(screen.getByText('Server version')).toBeInTheDocument();
+
+    fireEvent.mouseOut(btn, { relatedTarget: document.body });
+    expect(screen.getByText('Server version')).toBeInTheDocument();
+  });
 });

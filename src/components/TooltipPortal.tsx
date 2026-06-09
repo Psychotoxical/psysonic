@@ -21,6 +21,8 @@ export default function TooltipPortal() {
   const pendingTimerRef = useRef<number | null>(null);
   // Anchor whose tooltip is currently visible.
   const shownAnchorRef = useRef<HTMLElement | null>(null);
+  /** Click-opened tooltips stay until outside click / second click, not pointer leave. */
+  const clickPinnedRef = useRef(false);
 
   useEffect(() => {
     const clearPending = () => {
@@ -34,13 +36,15 @@ export default function TooltipPortal() {
     const hide = () => {
       clearPending();
       shownAnchorRef.current = null;
+      clickPinnedRef.current = false;
       setTooltip(null);
     };
 
-    const showAnchor = (anchor: HTMLElement) => {
+    const showAnchor = (anchor: HTMLElement, opts?: { clickPinned?: boolean }) => {
       const text = anchor.getAttribute('data-tooltip');
       if (!text) return;
       shownAnchorRef.current = anchor;
+      clickPinnedRef.current = !!opts?.clickPinned;
       // Fresh rect: layout may have shifted during the open delay.
       setTooltip({
         text,
@@ -75,16 +79,40 @@ export default function TooltipPortal() {
       // Moving within the same anchor (e.g. onto a child icon) must not cancel the delay.
       const to = e.relatedTarget as Node | null;
       if (to && anchor.contains(to)) return;
+      if (clickPinnedRef.current) return;
       hide();
     };
     const onMove = (e: MouseEvent) => {
       if (!pendingAnchorRef.current && !shownAnchorRef.current) return;
+      if (clickPinnedRef.current) return;
       const anchor = (e.target as HTMLElement).closest('[data-tooltip]');
       if (!anchor) hide();
     };
     /** Clicking a tooltip anchor (e.g. opening a dropdown) keeps the cursor inside the element, so mouseout never runs — hide immediately. */
     const onDown = (e: MouseEvent) => {
-      if ((e.target as HTMLElement).closest('[data-tooltip]')) hide();
+      const anchor = (e.target as HTMLElement).closest('[data-tooltip]') as HTMLElement | null;
+      if (anchor?.hasAttribute('data-tooltip-click')) return;
+      if (anchor) hide();
+    };
+    const onClick = (e: MouseEvent) => {
+      const anchor = (e.target as HTMLElement).closest('[data-tooltip-click]') as HTMLElement | null;
+      if (!anchor?.getAttribute('data-tooltip')) return;
+      e.preventDefault();
+      clearPending();
+      if (shownAnchorRef.current === anchor && clickPinnedRef.current) {
+        hide();
+        return;
+      }
+      showAnchor(anchor, { clickPinned: true });
+    };
+    const onDocumentClick = (e: MouseEvent) => {
+      window.setTimeout(() => {
+        const shown = shownAnchorRef.current;
+        if (!shown?.hasAttribute('data-tooltip-click') || !clickPinnedRef.current) return;
+        const target = e.target as Node;
+        if (shown.contains(target)) return;
+        hide();
+      }, 0);
     };
     /** Wheel interactions (e.g. volume on overflow button) should suppress tooltip immediately. */
     const onWheel = (e: WheelEvent) => {
@@ -94,6 +122,8 @@ export default function TooltipPortal() {
     document.addEventListener('mouseout', onOut);
     document.addEventListener('mousemove', onMove, { passive: true });
     document.addEventListener('mousedown', onDown, true);
+    document.addEventListener('click', onClick, true);
+    document.addEventListener('click', onDocumentClick);
     document.addEventListener('wheel', onWheel, { capture: true, passive: true });
     return () => {
       clearPending();
@@ -101,6 +131,8 @@ export default function TooltipPortal() {
       document.removeEventListener('mouseout', onOut);
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mousedown', onDown, true);
+      document.removeEventListener('click', onClick, true);
+      document.removeEventListener('click', onDocumentClick);
       document.removeEventListener('wheel', onWheel, true);
     };
   }, []);

@@ -64,6 +64,8 @@ export interface CapabilityStrategy {
 export interface CapabilityDefinition {
   feature: string;
   labelKey: string;
+  /** Shorter label for inline header badges in Settings → Servers. */
+  badgeLabelKey?: string;
   strategies: CapabilityStrategy[];
 }
 

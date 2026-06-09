@@ -190,6 +190,37 @@
   margin-right: var(--space-2);
 }
 
+.settings-server-inline-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--text-on-accent);
+  flex-shrink: 0;
+}
+
+.settings-server-inline-badge--positive {
+  background: var(--positive);
+  color: var(--text-on-accent, #111);
+}
+
+.settings-server-version-info-btn {
+  padding: 2px;
+  min-width: 20px;
+  min-height: 20px;
+  height: auto;
+  line-height: 1;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  cursor: help;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* ── In-Page-Suche fuer Settings ─────────────────────────────────────────── */
 .settings-header {
   display: flex;

@@ -18,4 +18,9 @@ describe('tooltipAttrs', () => {
     expect('data-tooltip-wrap' in tooltipAttrs('x', { wrap: true })).toBe(true);
     expect('data-tooltip-wrap' in tooltipAttrs('x')).toBe(false);
   });
+
+  it('adds the click marker only when requested', () => {
+    expect('data-tooltip-click' in tooltipAttrs('x', { click: true })).toBe(true);
+    expect('data-tooltip-click' in tooltipAttrs('x')).toBe(false);
+  });
 });
