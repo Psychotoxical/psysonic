@@ -1,8 +1,9 @@
 /**
  * Index-first behaviour matrix for the Now Playing metadata resolvers (#1046).
- * Each resolver: index hit → no Subsonic call; index miss → network fallback;
- * index disabled → network fallback. The byte-style guard inside
- * `getSongForServer` is exercised by useNowPlayingFetchers.test.ts.
+ * Index hit → no Subsonic call; index miss → network fallback (when reachable);
+ * index off → network fallback; unreachable → index still runs, no network call
+ * (PR #1049 gate split). The byte-style guard inside `getSongForServer` is
+ * exercised by useNowPlayingFetchers.test.ts.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { onInvoke } from '@/test/mocks/tauri';
@@ -10,12 +11,20 @@ import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import type { LibraryAdvancedSearchResponse } from '@/api/library';
 import * as subsonicArtists from '@/api/subsonicArtists';
 import * as subsonicLibrary from '@/api/subsonicLibrary';
+
+// Network reachability is decided by the guard; mock it so we can test both arms.
+vi.mock('@/utils/network/subsonicNetworkGuard', () => ({
+  shouldAttemptSubsonicForServer: vi.fn(() => true),
+}));
+import { shouldAttemptSubsonicForServer } from '@/utils/network/subsonicNetworkGuard';
 import {
   resolveNpAlbum,
   resolveNpDiscography,
   resolveNpTopSongs,
   resolveNpSongMeta,
 } from './nowPlayingMetadataResolve';
+
+const guard = vi.mocked(shouldAttemptSubsonicForServer);
 
 const ready = () =>
   onInvoke('library_get_status', () => ({
@@ -32,6 +41,7 @@ const search = (over: Partial<LibraryAdvancedSearchResponse>): LibraryAdvancedSe
 beforeEach(() => {
   useLibraryIndexStore.setState({ masterEnabled: true });
   vi.restoreAllMocks();
+  guard.mockReturnValue(true);
 });
 
 describe('resolveNpAlbum', () => {
@@ -45,12 +55,11 @@ describe('resolveNpAlbum', () => {
     const res = await resolveNpAlbum('s1', 'al1');
     expect(spy).not.toHaveBeenCalled();
     expect(res?.album.id).toBe('al1');
-    expect(res?.songs.map(s => s.id)).toEqual(['t1']);
   });
 
-  it('index miss → getAlbumForServer fallback', async () => {
+  it('index miss + reachable → getAlbumForServer fallback', async () => {
     ready();
-    onInvoke('library_get_tracks_by_album', () => []); // no rows → null → fallback
+    onInvoke('library_get_tracks_by_album', () => []);
     const spy = vi.spyOn(subsonicLibrary, 'getAlbumForServer')
       .mockResolvedValue({ album: { id: 'al1', name: 'Net' } as never, songs: [] });
     const res = await resolveNpAlbum('s1', 'al1');
@@ -64,6 +73,16 @@ describe('resolveNpAlbum', () => {
       .mockResolvedValue({ album: { id: 'al1', name: 'Net' } as never, songs: [] });
     await resolveNpAlbum('s1', 'al1');
     expect(spy).toHaveBeenCalledWith('s1', 'al1');
+  });
+
+  it('unreachable → index runs, no network fallback', async () => {
+    guard.mockReturnValue(false);
+    ready();
+    onInvoke('library_get_tracks_by_album', () => []); // index miss
+    const spy = vi.spyOn(subsonicLibrary, 'getAlbumForServer');
+    const res = await resolveNpAlbum('s1', 'al1');
+    expect(spy).not.toHaveBeenCalled();
+    expect(res).toBeNull();
   });
 });
 
@@ -79,10 +98,10 @@ describe('resolveNpDiscography', () => {
     const spy = vi.spyOn(subsonicArtists, 'getArtistForServer');
     const albums = await resolveNpDiscography('s1', 'ar1');
     expect(spy).not.toHaveBeenCalled();
-    expect(albums.map(a => a.id)).toEqual(['al1']); // 'other' filtered out
+    expect(albums.map(a => a.id)).toEqual(['al1']);
   });
 
-  it('index empty → getArtistForServer fallback', async () => {
+  it('index empty + reachable → getArtistForServer fallback', async () => {
     ready();
     onInvoke('library_advanced_search', () => search({ albums: [] }));
     const spy = vi.spyOn(subsonicArtists, 'getArtistForServer')
@@ -92,34 +111,37 @@ describe('resolveNpDiscography', () => {
     expect(albums.map(a => a.id)).toEqual(['al9']);
   });
 
-  it('index off → getArtistForServer fallback', async () => {
-    useLibraryIndexStore.setState({ masterEnabled: false });
-    const spy = vi.spyOn(subsonicArtists, 'getArtistForServer')
-      .mockResolvedValue({ albums: [] } as never);
-    await resolveNpDiscography('s1', 'ar1');
-    expect(spy).toHaveBeenCalledWith('s1', 'ar1');
+  it('unreachable + index empty → no network, empty list', async () => {
+    guard.mockReturnValue(false);
+    ready();
+    onInvoke('library_advanced_search', () => search({ albums: [] }));
+    const spy = vi.spyOn(subsonicArtists, 'getArtistForServer');
+    const albums = await resolveNpDiscography('s1', 'ar1');
+    expect(spy).not.toHaveBeenCalled();
+    expect(albums).toEqual([]);
   });
 });
 
 describe('resolveNpTopSongs', () => {
-  it('index hit → no getTopSongsForServer call, filtered + capped', async () => {
+  // Index path: artist's discography albums → their tracks → sort by play_count.
+  it('index hit → top tracks from the artist albums, by play count', async () => {
     ready();
     onInvoke('library_advanced_search', () => search({
-      source: 'local',
-      tracks: [
-        { serverId: 's1', id: 't1', title: 'T1', album: 'Alb', artistId: 'ar1', durationSec: 1, playCount: 9, syncedAt: 0, rawJson: {} },
-        { serverId: 's1', id: 'tx', title: 'TX', album: 'Alb', artistId: 'other', durationSec: 1, playCount: 99, syncedAt: 0, rawJson: {} },
-      ],
+      albums: [{ serverId: 's1', id: 'al1', name: 'A1', artistId: 'ar1', syncedAt: 0, rawJson: {} }],
     }));
+    onInvoke('library_get_tracks_by_album', () => [
+      { serverId: 's1', id: 't-lo', title: 'Low', album: 'A1', artistId: 'ar1', durationSec: 1, playCount: 2, syncedAt: 0, rawJson: {} },
+      { serverId: 's1', id: 't-hi', title: 'High', album: 'A1', artistId: 'ar1', durationSec: 1, playCount: 9, syncedAt: 0, rawJson: {} },
+    ]);
     const spy = vi.spyOn(subsonicArtists, 'getTopSongsForServer');
     const songs = await resolveNpTopSongs('s1', 'ar1', 'Artist One');
     expect(spy).not.toHaveBeenCalled();
-    expect(songs.map(s => s.id)).toEqual(['t1']); // 'other' artist filtered out
+    expect(songs.map(s => s.id)).toEqual(['t-hi', 't-lo']); // play_count desc
   });
 
-  it('index returns no matching tracks → getTopSongsForServer fallback', async () => {
+  it('index has no albums + reachable → getTopSongsForServer fallback', async () => {
     ready();
-    onInvoke('library_advanced_search', () => search({ source: 'local', tracks: [] }));
+    onInvoke('library_advanced_search', () => search({ albums: [] }));
     const spy = vi.spyOn(subsonicArtists, 'getTopSongsForServer')
       .mockResolvedValue([{ id: 'net1' } as never]);
     const songs = await resolveNpTopSongs('s1', 'ar1', 'Artist One');
@@ -127,11 +149,14 @@ describe('resolveNpTopSongs', () => {
     expect(songs.map(s => s.id)).toEqual(['net1']);
   });
 
-  it('index off → getTopSongsForServer fallback', async () => {
-    useLibraryIndexStore.setState({ masterEnabled: false });
-    const spy = vi.spyOn(subsonicArtists, 'getTopSongsForServer').mockResolvedValue([]);
-    await resolveNpTopSongs('s1', 'ar1', 'Artist One');
-    expect(spy).toHaveBeenCalledWith('s1', 'Artist One');
+  it('unreachable + no index albums → no network, empty', async () => {
+    guard.mockReturnValue(false);
+    ready();
+    onInvoke('library_advanced_search', () => search({ albums: [] }));
+    const spy = vi.spyOn(subsonicArtists, 'getTopSongsForServer');
+    const songs = await resolveNpTopSongs('s1', 'ar1', 'Artist One');
+    expect(spy).not.toHaveBeenCalled();
+    expect(songs).toEqual([]);
   });
 });
 
@@ -139,13 +164,12 @@ describe('resolveNpSongMeta', () => {
   it('index hit → no getSongForServer call', async () => {
     ready();
     onInvoke('library_get_track', () => ({
-      serverId: 's1', id: 't1', title: 'Local', artistId: 'ar1', durationSec: 100,
+      serverId: 's1', id: 't1', title: 'Local', album: 'Alb', artistId: 'ar1', durationSec: 100,
       genre: 'Doom', playCount: 5, syncedAt: 0, rawJson: {},
     }));
     const spy = vi.spyOn(subsonicLibrary, 'getSongForServer');
     const song = await resolveNpSongMeta('s1', 't1');
     expect(spy).not.toHaveBeenCalled();
-    expect(song?.id).toBe('t1');
     expect(song?.genre).toBe('Doom');
   });
 

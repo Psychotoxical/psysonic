@@ -7,18 +7,20 @@
  * `offlineLibraryIndexLoad`, `useQueueTrackEnrichment`) rather than adding a
  * fourth always-network path.
  *
- * Each resolver returns the exact shape the corresponding Now Playing TTL cache
- * already stores, so `useNowPlayingFetchers` / `prewarmNowPlayingFetchers` swap
- * the single fetch expression in place — caches, id-gating, and the network
- * guard stay unchanged.
+ * Gate split (PR #1049 review): the index arm runs whenever there is a playback
+ * server id — including when the server is unreachable, the whole point of
+ * index-first for offline-pinned playback. The reachability guard
+ * (`shouldAttemptSubsonicForServer`, no trackId) lives only in each resolver's
+ * **network fallback arm**, so offline reads still succeed from SQLite.
  *
  * `artistInfo` (bio / similar) has no index source and stays network-only — it
  * is intentionally absent here.
  */
-import { libraryAdvancedSearch, libraryGetTrack } from '../../api/library';
+import { libraryGetTrack, libraryGetTracksByAlbum } from '../../api/library';
 import { getArtistForServer, getTopSongsForServer } from '../../api/subsonicArtists';
 import { getAlbumForServer, getSongForServer } from '../../api/subsonicLibrary';
 import type { SubsonicAlbum, SubsonicSong } from '../../api/subsonicTypes';
+import { shouldAttemptSubsonicForServer } from '../network/subsonicNetworkGuard';
 import { loadAlbumFromLibraryIndex, loadArtistFromLibraryIndex } from '../offline/offlineLibraryIndexLoad';
 import { trackToSong } from './advancedSearchLocal';
 import { libraryIsReady } from './libraryReady';
@@ -36,6 +38,7 @@ export async function resolveNpAlbum(
       if (hit) return hit;
     } catch { /* index error → network fallback */ }
   }
+  if (!shouldAttemptSubsonicForServer(serverId)) return null;
   return getAlbumForServer(serverId, albumId);
 }
 
@@ -52,41 +55,39 @@ export async function resolveNpDiscography(
       if (hit && hit.albums.length > 0) return hit.albums;
     } catch { /* index error → network fallback */ }
   }
+  if (!shouldAttemptSubsonicForServer(serverId)) return [];
   const artist = await getArtistForServer(serverId, artistId);
   return artist.albums;
 }
 
 /**
- * Most played — there is no ready index loader (`loadArtistFromLibraryIndex`
- * leaves top songs empty). Query the index for this artist's tracks by
- * `play_count` desc; the filter registry has no artist field, so an FTS query
- * on the name plus a client-side `artistId` match is the in-tree precedent
- * (see `useArtistDetailData`).
+ * Most played — derive from the artist's own discography albums (same bucket the
+ * discography card uses), sorted by play_count. This is deterministic: it can't
+ * pull the wrong artist's tracks the way an FTS-on-name query could. Network
+ * `getTopSongsForServer` is the fallback on index miss / off / unreachable.
  */
 export async function resolveNpTopSongs(
   serverId: string,
   artistId: string | undefined,
   artistName: string,
 ): Promise<SubsonicSong[]> {
-  if (artistId && artistName && await libraryIsReady(serverId)) {
+  if (artistId && await libraryIsReady(serverId)) {
     try {
-      const resp = await libraryAdvancedSearch({
-        serverId,
-        entityTypes: ['track'],
-        query: artistName,
-        sort: [{ field: 'play_count', dir: 'desc' }],
-        limit: 50,
-        skipTotals: true,
-      });
-      if (resp.source === 'local') {
-        const songs = resp.tracks
+      const hit = await loadArtistFromLibraryIndex(serverId, artistId);
+      if (hit && hit.albums.length > 0) {
+        const perAlbum = await Promise.all(
+          hit.albums.map(a => libraryGetTracksByAlbum(serverId, a.id).catch(() => [])),
+        );
+        const songs = perAlbum
+          .flat()
           .map(trackToSong)
-          .filter(s => s.artistId === artistId)
+          .sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0))
           .slice(0, TOP_SONGS_LIMIT);
         if (songs.length > 0) return songs;
       }
     } catch { /* index error → network fallback */ }
   }
+  if (!shouldAttemptSubsonicForServer(serverId)) return [];
   return getTopSongsForServer(serverId, artistName);
 }
 
