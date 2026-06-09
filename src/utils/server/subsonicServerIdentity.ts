@@ -41,6 +41,23 @@ export function isNavidromeServer(identity: SubsonicServerIdentity | undefined):
 }
 
 /**
+ * Human-facing server software label from a ping identity — e.g. `Navidrome 0.62.0`.
+ * Capitalises the leading word of `type` (OpenSubsonic reports it lower-case) and
+ * appends the leading version token. Navidrome reports `serverVersion` with a build
+ * hash (`0.62.0 (1b46b977)`); only the version up to the first space/paren is kept.
+ * Returns `null` when the server reported no `type` (e.g. plain Subsonic without
+ * OpenSubsonic), so callers can omit the line.
+ */
+export function formatServerSoftware(identity: SubsonicServerIdentity | undefined): string | null {
+  const type = identity?.type?.trim();
+  if (!type) return null;
+  const label = type.charAt(0).toUpperCase() + type.slice(1);
+  const rawVersion = identity?.serverVersion?.trim();
+  const version = rawVersion ? rawVersion.split(/[\s(]/)[0] : undefined;
+  return version ? `${label} ${version}` : label;
+}
+
+/**
  * Navidrome version from ping supports the plugin system (≥ 0.60). Unknown `type` stays permissive
  * until the first successful ping with metadata.
  */

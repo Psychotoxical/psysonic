@@ -2,8 +2,9 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
-import { AlertTriangle, CheckCircle2, Lock, LogOut, Pencil, Plus, Power, Server, Sparkles, Trash2, User, Wifi, WifiOff } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Globe, Lock, LogOut, Pencil, Plus, Power, Server, Sparkles, Trash2, User, Wifi, WifiOff } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { formatServerSoftware } from '../../utils/server/subsonicServerIdentity';
 import { useLibraryIndexStore } from '../../store/libraryIndexStore';
 import { libraryDeleteServerData, librarySyncClearSession } from '../../api/library';
 import { bootstrapIndexedServer } from '../../utils/library/librarySession';
@@ -394,6 +395,7 @@ export function ServersTab({
               const status = connStatus[srv.id];
               const isBefore = psyDragState.isDragging && serverDropTarget?.idx === srvIdx && serverDropTarget.before;
               const isAfter  = psyDragState.isDragging && serverDropTarget?.idx === srvIdx && !serverDropTarget.before;
+              const serverSoftware = formatServerSoftware(auth.subsonicServerIdentityByServer[srv.id]);
               return (
                 <div
                   key={srv.id}
@@ -426,16 +428,24 @@ export function ServersTab({
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
-                        {srv.url.startsWith('https://') && (
-                          <Lock size={11} style={{ color: 'var(--positive)', flexShrink: 0 }} />
+                      {serverSoftware && (
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, marginBottom: '2px', overflow: 'hidden' }}>
+                          <Server size={10} style={{ flexShrink: 0 }} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{serverSoftware}</span>
+                        </div>
+                      )}
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
+                        {srv.url.startsWith('https://') ? (
+                          <Lock size={10} style={{ color: 'var(--positive)', flexShrink: 0 }} />
+                        ) : (
+                          <Globe size={10} style={{ flexShrink: 0 }} />
                         )}
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {srv.url.replace(/^https?:\/\//, '')}
                         </span>
                       </div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
-                        <User size={11} />
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                        <User size={10} />
                         {srv.username}
                       </div>
                     </div>

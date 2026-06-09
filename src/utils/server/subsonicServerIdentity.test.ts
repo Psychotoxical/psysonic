@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  formatServerSoftware,
   isNavidromeAudiomuseSoftwareEligible,
   isNavidromeServer,
   parseLeadingSemver,
@@ -23,6 +24,27 @@ describe('isNavidromeServer', () => {
     expect(isNavidromeServer({ type: 'Navidrome' })).toBe(true);
     expect(isNavidromeServer({ type: 'gonic' })).toBe(false);
     expect(isNavidromeServer(undefined)).toBe(false);
+  });
+});
+
+describe('formatServerSoftware', () => {
+  it('capitalises the type and appends the version', () => {
+    expect(formatServerSoftware({ type: 'navidrome', serverVersion: '0.62.0' })).toBe('Navidrome 0.62.0');
+    expect(formatServerSoftware({ type: 'gonic', serverVersion: '0.16.4' })).toBe('Gonic 0.16.4');
+  });
+
+  it('keeps only the leading version token, dropping a build hash', () => {
+    expect(formatServerSoftware({ type: 'navidrome', serverVersion: '0.62.0 (1b46b977)' })).toBe('Navidrome 0.62.0');
+  });
+
+  it('shows the type alone when no version is reported', () => {
+    expect(formatServerSoftware({ type: 'subsonic' })).toBe('Subsonic');
+  });
+
+  it('returns null when the server reports no type', () => {
+    expect(formatServerSoftware(undefined)).toBeNull();
+    expect(formatServerSoftware({})).toBeNull();
+    expect(formatServerSoftware({ type: '  ' })).toBeNull();
   });
 });
 
