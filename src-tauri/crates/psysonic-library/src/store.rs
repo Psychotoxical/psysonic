@@ -103,6 +103,11 @@ impl LibraryStore {
     }
 
     /// Writer connection — sync ingest, migrations, mutations.
+    ///
+    /// `op` is logged on slow writes (`[library-db] SLOW write op=…`) — use a
+    /// stable `module.action` label (e.g. `sync_state.set_sync_phase`,
+    /// `track.upsert_batch_remap`), not the generic `"misc"`, so production
+    /// stalls can be attributed to a specific call site.
     pub(crate) fn with_conn<R>(
         &self,
         op: &'static str,

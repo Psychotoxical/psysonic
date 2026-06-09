@@ -476,7 +476,7 @@ pub async fn library_get_offline_path(
 ) -> Result<OfflinePathDto, String> {
     let path = runtime
         .store
-        .with_conn("misc", |conn| {
+        .with_conn("cmd.get_offline_path", |conn| {
             conn.query_row(
                 "SELECT local_path FROM track_offline \
                  WHERE server_id = ?1 AND track_id = ?2",
@@ -1028,7 +1028,7 @@ pub fn patch_content_hash(
     }
     runtime
         .store
-        .with_conn("misc", |conn| {
+        .with_conn("cmd.patch_content_hash", |conn| {
             conn.execute(
                 "UPDATE track SET content_hash = ?3 \
                  WHERE server_id = ?1 AND id = ?2",
@@ -1075,7 +1075,7 @@ pub(crate) fn apply_track_patch(
 
     runtime
         .store
-        .with_conn("misc", |conn| {
+        .with_conn("cmd.patch_track", |conn| {
             // One UPDATE per field present — keeps SQL simple and
             // matches the spec's per-field patch semantics.
             if let Some(v) = starred_at {
@@ -1211,7 +1211,7 @@ pub fn library_purge_server(
     let mut report = PurgeReportDto::default();
     runtime
         .store
-        .with_conn_mut("misc", |conn| {
+        .with_conn_mut("cmd.purge_server", |conn| {
             let tx = conn.transaction()?;
             let track_count: i64 =
                 tx.query_row("SELECT COUNT(*) FROM track WHERE server_id = ?1", params![server_id], |r| r.get(0))?;

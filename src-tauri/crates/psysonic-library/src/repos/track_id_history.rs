@@ -26,7 +26,7 @@ impl<'a> TrackIdHistoryRepository<'a> {
         server_id: &str,
         old_id: &str,
     ) -> Result<Option<String>, String> {
-        self.store.with_conn("misc", |conn| {
+        self.store.with_conn("track_id_history.lookup", |conn| {
             conn.query_row(
                 "SELECT new_id FROM track_id_history \
                  WHERE server_id = ?1 AND old_id = ?2",
@@ -40,7 +40,7 @@ impl<'a> TrackIdHistoryRepository<'a> {
     /// Count the rows recorded for this server — used by tests and by
     /// post-sync diagnostics (Settings „Library index" panel later).
     pub fn count_for_server(&self, server_id: &str) -> Result<i64, String> {
-        self.store.with_conn("misc", |conn| {
+        self.store.with_conn("track_id_history.count", |conn| {
             conn.query_row(
                 "SELECT COUNT(*) FROM track_id_history WHERE server_id = ?1",
                 params![server_id],

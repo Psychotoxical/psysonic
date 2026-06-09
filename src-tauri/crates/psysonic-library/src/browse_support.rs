@@ -34,7 +34,7 @@ pub(crate) fn reconcile_album_stars(
 ) -> Result<(), String> {
     runtime
         .store
-        .with_conn("misc", |conn| {
+        .with_conn("browse.reconcile_album_stars", |conn| {
             if starred.is_empty() {
                 conn.execute(
                     "UPDATE album SET starred_at = NULL \

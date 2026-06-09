@@ -284,7 +284,7 @@ impl<'a> DeltaSyncRunner<'a> {
 
     fn local_track_updated_watermark(&self) -> Result<Option<i64>, SyncError> {
         self.store
-            .with_conn("misc", |c| {
+            .with_conn("delta.local_track_watermark", |c| {
                 c.query_row(
                     "SELECT MAX(server_updated_at) FROM track \
                      WHERE server_id = ?1 AND deleted = 0",
@@ -297,7 +297,7 @@ impl<'a> DeltaSyncRunner<'a> {
 
     fn local_album_ids(&self) -> Result<HashSet<String>, SyncError> {
         self.store
-            .with_conn("misc", |c| {
+            .with_conn("delta.local_album_ids", |c| {
                 let mut stmt = c.prepare(
                     "SELECT DISTINCT album_id FROM track \
                      WHERE server_id = ?1 AND deleted = 0 AND album_id IS NOT NULL",
