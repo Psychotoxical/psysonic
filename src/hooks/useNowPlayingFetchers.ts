@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { getArtistForServer, getArtistInfoForServer, getTopSongsForServer } from '../api/subsonicArtists';
-import { getAlbumForServer, getSongForServer } from '../api/subsonicLibrary';
+import { getArtistInfoForServer } from '../api/subsonicArtists';
 import type { SubsonicAlbum, SubsonicArtistInfo, SubsonicSong } from '../api/subsonicTypes';
+import { resolveNpAlbum, resolveNpDiscography, resolveNpSongMeta, resolveNpTopSongs } from '../utils/library/nowPlayingMetadataResolve';
 import { fetchBandsintownEvents, type BandsintownEvent } from '../api/bandsintown';
 import {
   lastfmGetArtistStats, lastfmGetTrackInfo, lastfmIsConfigured,
@@ -97,7 +97,7 @@ export async function prewarmNowPlayingFetchers(
     const cacheKey = subsonicCacheKey(subsonicServerId, songId);
     if (songMetaCache.get(cacheKey) === undefined) {
       jobs.push(
-        getSongForServer(subsonicServerId, songId)
+        resolveNpSongMeta(subsonicServerId, songId)
           .then(v => songMetaCache.set(cacheKey, v ?? null))
           .catch(() => songMetaCache.set(cacheKey, null)),
       );
@@ -117,8 +117,8 @@ export async function prewarmNowPlayingFetchers(
     }
     if (discographyCache.get(artistKey) === undefined) {
       jobs.push(
-        getArtistForServer(subsonicServerId, artistId)
-          .then(v => discographyCache.set(artistKey, v.albums))
+        resolveNpDiscography(subsonicServerId, artistId)
+          .then(albums => discographyCache.set(artistKey, albums))
           .catch(() => discographyCache.set(artistKey, [])),
       );
     }
@@ -128,7 +128,7 @@ export async function prewarmNowPlayingFetchers(
     const cacheKey = subsonicCacheKey(subsonicServerId, albumId);
     if (albumCache.get(cacheKey) === undefined) {
       jobs.push(
-        getAlbumForServer(subsonicServerId, albumId)
+        resolveNpAlbum(subsonicServerId, albumId)
           .then(v => albumCache.set(cacheKey, v))
           .catch(() => albumCache.set(cacheKey, null)),
       );
@@ -139,7 +139,7 @@ export async function prewarmNowPlayingFetchers(
     const cacheKey = subsonicCacheKey(subsonicServerId, artistName);
     if (topSongsCache.get(cacheKey) === undefined) {
       jobs.push(
-        getTopSongsForServer(subsonicServerId, artistName)
+        resolveNpTopSongs(subsonicServerId, artistId, artistName)
           .then(v => topSongsCache.set(cacheKey, v))
           .catch(() => topSongsCache.set(cacheKey, [])),
       );
@@ -222,7 +222,7 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
     if (cached !== undefined) { setSongMetaEntry({ id: songId, value: cached }); return; }
     setSongMetaEntry(null);
     let cancelled = false;
-    getSongForServer(subsonicServerId, songId)
+    resolveNpSongMeta(subsonicServerId, songId)
       .then(v => { if (!cancelled) { songMetaCache.set(cacheKey, v ?? null); setSongMetaEntry({ id: songId, value: v ?? null }); } })
       .catch(() => { if (!cancelled) { songMetaCache.set(cacheKey, null); setSongMetaEntry({ id: songId, value: null }); } });
     return () => { cancelled = true; };
@@ -248,7 +248,7 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
     if (cached !== undefined) { setAlbumDataEntry({ id: albumId, value: cached }); return; }
     setAlbumDataEntry(null);
     let cancelled = false;
-    getAlbumForServer(subsonicServerId, albumId)
+    resolveNpAlbum(subsonicServerId, albumId)
       .then(v => { if (!cancelled) { albumCache.set(cacheKey, v); setAlbumDataEntry({ id: albumId, value: v }); } })
       .catch(() => { if (!cancelled) { albumCache.set(cacheKey, null); setAlbumDataEntry({ id: albumId, value: null }); } });
     return () => { cancelled = true; };
@@ -260,11 +260,11 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
     if (cached !== undefined) { setTopSongsEntry({ key: topSongsKey, value: cached }); return; }
     setTopSongsEntry(null);
     let cancelled = false;
-    getTopSongsForServer(subsonicServerId, artistName)
+    resolveNpTopSongs(subsonicServerId, artistId, artistName)
       .then(v => { if (!cancelled) { topSongsCache.set(topSongsKey, v); setTopSongsEntry({ key: topSongsKey, value: v }); } })
       .catch(() => { if (!cancelled) { topSongsCache.set(topSongsKey, []); setTopSongsEntry({ key: topSongsKey, value: [] }); } });
     return () => { cancelled = true; };
-  }, [subsonicFetchAllowed, topSongsKey, subsonicServerId, artistName, connStatus]);
+  }, [subsonicFetchAllowed, topSongsKey, subsonicServerId, artistId, artistName, connStatus]);
 
   useEffect(() => {
     if (!tourKey) { setTourEventsEntry(null); setTourLoading(false); return; }
@@ -287,8 +287,8 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
     if (cached !== undefined) { setDiscographyEntry({ id: artistId, value: cached }); return; }
     setDiscographyEntry(null);
     let cancelled = false;
-    getArtistForServer(subsonicServerId, artistId)
-      .then(v => { if (!cancelled) { discographyCache.set(cacheKey, v.albums); setDiscographyEntry({ id: artistId, value: v.albums }); } })
+    resolveNpDiscography(subsonicServerId, artistId)
+      .then(albums => { if (!cancelled) { discographyCache.set(cacheKey, albums); setDiscographyEntry({ id: artistId, value: albums }); } })
       .catch(() => { if (!cancelled) { discographyCache.set(cacheKey, []); setDiscographyEntry({ id: artistId, value: [] }); } });
     return () => { cancelled = true; };
   }, [subsonicFetchAllowed, subsonicServerId, artistId, connStatus]);
