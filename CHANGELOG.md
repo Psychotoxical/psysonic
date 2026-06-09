@@ -274,6 +274,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Home — Most Played no longer jumps the page when loading more
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by zunoz on Discord, PR [#1053](https://github.com/Psychotoxical/psysonic/pull/1053)**
+
+* Clicking the arrow to load more albums in the **Most Played** rail sometimes snapped the page up to an earlier section. Loading more now keeps the viewport in place.
+
+
+
 ## [1.47.0]
 
 > **🙏 Thank you to our amazing Discord community.** This release would not have been possible without your tireless support, quality checks, bug reports and all-round collaboration. Every report, every repro and every bit of feedback shaped what shipped here — thank you. Come join us: [discord.gg/AMnDRErm4u](https://discord.gg/AMnDRErm4u)
