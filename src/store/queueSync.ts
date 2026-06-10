@@ -1,6 +1,6 @@
 import { savePlayQueue } from '../api/subsonicPlayQueue';
 import type { QueueItemRef, Track } from './playerStoreTypes';
-import { isActiveServerReachable } from '../utils/network/activeServerReachability';
+import { isSubsonicServerReachable } from '../utils/network/subsonicNetworkGuard';
 import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { getPlaybackProgressSnapshot } from './playbackProgress';
 import { usePlayerStore } from './playerStore';
@@ -27,12 +27,17 @@ const QUEUE_ID_LIMIT = 1000;
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
 let lastQueueHeartbeatAt = 0;
 
+function isPlaybackServerReachable(): boolean {
+  const serverId = getPlaybackServerId();
+  return serverId ? isSubsonicServerReachable(serverId) : false;
+}
+
 export function syncQueueToServer(queue: QueueItemRef[], currentTrack: Track | null, currentTime: number): void {
-  if (!isActiveServerReachable()) return;
+  if (!isPlaybackServerReachable()) return;
   if (syncTimeout) clearTimeout(syncTimeout);
   syncTimeout = setTimeout(() => {
     syncTimeout = null;
-    if (!isActiveServerReachable()) return;
+    if (!isPlaybackServerReachable()) return;
     const ids = queue.slice(0, QUEUE_ID_LIMIT).map(r => r.trackId);
     const pos = Math.floor(currentTime * 1000);
     const serverId = getPlaybackServerId();
@@ -47,7 +52,7 @@ export function flushQueueSyncToServer(queue: QueueItemRef[], currentTrack: Trac
     clearTimeout(syncTimeout);
     syncTimeout = null;
   }
-  if (!isActiveServerReachable()) return Promise.resolve();
+  if (!isPlaybackServerReachable()) return Promise.resolve();
   if (!currentTrack || queue.length === 0) return Promise.resolve();
   lastQueueHeartbeatAt = Date.now();
   const ids = queue.slice(0, QUEUE_ID_LIMIT).map(r => r.trackId);

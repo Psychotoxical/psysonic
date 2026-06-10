@@ -9,7 +9,9 @@ async function scrobbleOnServer(
   submission: boolean,
   time?: number,
 ): Promise<void> {
-  if (!shouldAttemptSubsonicForServer(serverId, id)) return;
+  // Presence / play-count updates are not playback-byte fetches — omit trackId so
+  // hot cache, offline library, and favorites-auto do not suppress Navidrome calls.
+  if (!shouldAttemptSubsonicForServer(serverId)) return;
   const params: Record<string, unknown> = { id, submission };
   if (time !== undefined) params.time = time;
   await apiForServer(serverId, 'scrobble.view', params);
