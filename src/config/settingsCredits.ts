@@ -161,6 +161,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Settings → Servers: compact two-line cards, capability header badges, unified use/active action, delete in edit form, click-pinned version tooltip (PR #1054)',
       'Navidrome Now Playing and scrobble with hot cache, offline pins, and mixed-server playback reachability (PR #1055)',
       'What\'s New: remote WHATS_NEW.md from release assets, dev workspace mode, Highlights vs changelog tabs (PR #1058)',
+      'Local library index: multi-genre browse, filters, and counts via track_genre table and blocking backfill (PR #1059)',
     ],
   },
   {

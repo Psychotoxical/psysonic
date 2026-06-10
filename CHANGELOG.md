@@ -182,6 +182,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Local index — multi-genre browse, filters, and counts
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1059](https://github.com/Psychotoxical/psysonic/pull/1059)**
+
+* Tracks tagged with several genres in one metadata field (e.g. `Noise Metal/Dark Ambient/Experimental Black Metal`) again match **each atomic genre** in Genres browse, All Albums filters, genre detail, and Advanced Search — not only the first segment.
+* New `track_genre` index (OpenSubsonic `genres[]` when present, Navidrome-default split fallback), maintained on sync; one-time blocking startup backfill for existing libraries with progress.
+* Migration v12 repairs databases that recorded legacy schema versions 2–11; TS network fallback uses robust `genreTagsFor` parsing.
+
+
+
 ### Navidrome Now Playing and scrobble with local playback
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1055](https://github.com/Psychotoxical/psysonic/pull/1055)**
