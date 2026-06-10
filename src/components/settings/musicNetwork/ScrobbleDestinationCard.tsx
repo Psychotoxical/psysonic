@@ -3,8 +3,10 @@ import { getPreset, type Account, type UserProfile } from '../../../music-networ
 import { renderPresetIcon } from './presetIcon';
 
 /**
- * One connected account: icon, label, status, optional profile stats (for the
- * enrichment primary), the per-account scrobble toggle, and disconnect.
+ * One connected account as a single self-contained block: header (icon, label,
+ * status, optional profile stats for the enrichment primary) on top, and a
+ * footer row holding the per-account scrobble toggle + disconnect — so it is
+ * unambiguous which account the toggle belongs to.
  */
 export function ScrobbleDestinationCard({
   account,
@@ -22,8 +24,16 @@ export function ScrobbleDestinationCard({
   const icon = preset?.manifest.icon ?? 'custom';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: '10px', background: 'color-mix(in srgb, var(--accent) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)' }}>
+    <div
+      style={{
+        borderRadius: '10px',
+        background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
+        border: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Header: identity + status + profile stats */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem' }}>
         <div style={{ flexShrink: 0 }} aria-hidden="true">{renderPresetIcon(icon, 20)}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: 14 }}>
@@ -45,6 +55,31 @@ export function ScrobbleDestinationCard({
             </div>
           )}
         </div>
+      </div>
+
+      {/* Footer: the scrobble toggle (clearly inside this account's block) + disconnect */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '0.75rem',
+          padding: '0.6rem 1rem',
+          borderTop: '1px solid color-mix(in srgb, var(--accent) 15%, transparent)',
+        }}
+      >
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+          <span className="toggle-switch" style={{ flexShrink: 0 }}>
+            <input
+              type="checkbox"
+              checked={account.scrobbleEnabled}
+              onChange={e => onToggleScrobble(e.target.checked)}
+              aria-label={t('musicNetwork.scrobbleHere')}
+            />
+            <span className="toggle-track" />
+          </span>
+          {t('musicNetwork.scrobbleHere')}
+        </label>
         <button
           className="btn btn-ghost"
           style={{ fontSize: 12, padding: '4px 10px', flexShrink: 0 }}
@@ -52,17 +87,6 @@ export function ScrobbleDestinationCard({
         >
           {t('musicNetwork.disconnect')}
         </button>
-      </div>
-      <div className="settings-toggle-row">
-        <div style={{ fontWeight: 500 }}>{t('musicNetwork.scrobbleHere')}</div>
-        <label className="toggle-switch" aria-label={t('musicNetwork.scrobbleHere')}>
-          <input
-            type="checkbox"
-            checked={account.scrobbleEnabled}
-            onChange={e => onToggleScrobble(e.target.checked)}
-          />
-          <span className="toggle-track" />
-        </label>
       </div>
     </div>
   );

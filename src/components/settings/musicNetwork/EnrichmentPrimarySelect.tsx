@@ -26,8 +26,19 @@ export function EnrichmentPrimarySelect({
   ];
 
   return (
-    <div className="settings-toggle-row">
-      <div>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '1rem',
+        flexWrap: 'wrap',
+        padding: '0.75rem 1rem',
+        borderRadius: '10px',
+        border: '1px solid var(--border)',
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
         <div style={{ fontWeight: 500 }}>{t('musicNetwork.primaryLabel')}</div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('musicNetwork.primaryDesc')}</div>
       </div>
@@ -35,7 +46,7 @@ export function EnrichmentPrimarySelect({
         value={primaryId ?? ''}
         options={options}
         onChange={v => onChange(v || null)}
-        style={{ minWidth: 160 }}
+        style={{ minWidth: 180 }}
       />
     </div>
   );

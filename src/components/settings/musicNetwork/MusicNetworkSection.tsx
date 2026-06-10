@@ -65,32 +65,28 @@ export function MusicNetworkSection() {
           {t('musicNetwork.desc')}
         </p>
 
-        <div className="settings-toggle-row">
-          <div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            padding: '0.75rem 1rem',
+            borderRadius: '10px',
+            border: '1px solid var(--border)',
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 500 }}>{t('musicNetwork.masterToggle')}</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('musicNetwork.masterToggleDesc')}</div>
           </div>
-          <label className="toggle-switch" aria-label={t('musicNetwork.masterToggle')}>
+          <label className="toggle-switch" style={{ flexShrink: 0 }} aria-label={t('musicNetwork.masterToggle')}>
             <input type="checkbox" checked={scrobblingMasterEnabled} onChange={e => setMaster(e.target.checked)} />
             <span className="toggle-track" />
           </label>
         </div>
 
-        {accounts.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
-            {accounts.map(account => (
-              <ScrobbleDestinationCard
-                key={account.id}
-                account={account}
-                profile={account.id === enrichmentPrimaryId ? primaryProfile : null}
-                onToggleScrobble={v => toggleScrobble(account.id, v)}
-                onDisconnect={() => disconnect(account.id)}
-              />
-            ))}
-          </div>
-        )}
-
-        <div style={{ marginTop: '1rem' }}>
+        <div style={{ marginTop: '0.75rem' }}>
           <EnrichmentPrimarySelect
             accounts={accounts}
             primaryId={enrichmentPrimaryId}
@@ -98,12 +94,27 @@ export function MusicNetworkSection() {
           />
         </div>
 
-        <MalojaProxyWarning accounts={accounts} />
+        {accounts.length > 0 && (
+          <>
+            <div className="settings-section-divider" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {accounts.map(account => (
+                <ScrobbleDestinationCard
+                  key={account.id}
+                  account={account}
+                  profile={account.id === enrichmentPrimaryId ? primaryProfile : null}
+                  onToggleScrobble={v => toggleScrobble(account.id, v)}
+                  onDisconnect={() => disconnect(account.id)}
+                />
+              ))}
+            </div>
+
+            <MalojaProxyWarning accounts={accounts} />
+          </>
+        )}
 
         <div className="settings-section-divider" />
-        <div style={{ paddingTop: '0.75rem' }}>
-          <ConnectProviderForm connectedPresetIds={connectedPresetIds} onConnect={connect} />
-        </div>
+        <ConnectProviderForm connectedPresetIds={connectedPresetIds} onConnect={connect} />
       </div>
     </SettingsSubSection>
   );
