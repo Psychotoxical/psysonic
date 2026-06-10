@@ -10,6 +10,11 @@ export {
 } from './runtime/getMusicNetworkRuntime';
 export type { MusicNetworkStore, RuntimeHost } from './runtime/store';
 export { listPresets, getPreset } from './registry/presetRegistry';
+export {
+  migrateLegacyLastfm,
+  sanitizeAccounts,
+  type LegacyLastfmState,
+} from './runtime/accountPersistence';
 
 export type {
   Account,

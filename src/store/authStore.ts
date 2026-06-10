@@ -7,6 +7,7 @@ import { createDiscordSettingsActions } from './authDiscordSettingsActions';
 import { createDiscoveryActions } from './authDiscoveryActions';
 import { createLyricsSettingsActions } from './authLyricsSettingsActions';
 import { createMusicLibraryActions } from './authMusicLibraryActions';
+import { createMusicNetworkActions } from './authMusicNetworkActions';
 import { createPerServerCapabilityActions } from './authPerServerCapabilityActions';
 import { createPlumbingSettingsActions } from './authPlumbingActions';
 import { createServerProfileActions } from './authServerProfileActions';
@@ -35,6 +36,9 @@ export const useAuthStore = create<AuthState>()(
       lastfmApiSecret: '',
       lastfmSessionKey: '',
       lastfmUsername: '',
+      musicNetworkAccounts: [],
+      enrichmentPrimaryId: null,
+      scrobblingMasterEnabled: true,
       scrobblingEnabled: true,
       maxCacheMb: 0,
       coverRevalidateCycleDays: 30,
@@ -130,6 +134,7 @@ export const useAuthStore = create<AuthState>()(
 
       ...createServerProfileActions(set),
       ...createAuthLastfmActions(set),
+      ...createMusicNetworkActions(set),
       ...createAudioSettingsActions(set),
       ...createCacheStorageActions(set),
       ...createDiscordSettingsActions(set),
