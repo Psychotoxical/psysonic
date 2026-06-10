@@ -105,7 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The **What's New** page shows user-friendly highlights from `WHATS_NEW.md` instead of embedding the full technical changelog in the app bundle.
 * RC and stable builds prefetch `whats-new.md` from the GitHub release on startup and cache it locally; offline users see a thin embedded fallback.
-* **`-dev`** / **`tauri:dev`** read the full markdown from the repo for easy editing; a **Full changelog** tab on the page shows the technical list for the same version.
+* **`tauri:dev`** reads markdown straight from the repo for easy editing; shipped bundles embed only the current release-line slice. A **Full changelog** tab on the page shows the technical list for the same version.
 * CI uploads `whats-new.md` on each `next` / `release` tag alongside platform artifacts.
 
 

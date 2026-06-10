@@ -37,8 +37,8 @@ src-tauri/lcov.info
 # Frontend test coverage
 coverage/
 
-# Generated release-notes bundle (scripts/generate-release-notes-bundle.mjs)
-src/generated/releaseNotesBundle.ts
+# Generated at build/test time (scripts/generate-release-notes-bundle.mjs)
+src/generated/
 
 # Documentation
 CLAUDE.md

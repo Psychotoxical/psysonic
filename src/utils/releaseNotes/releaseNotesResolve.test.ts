@@ -27,7 +27,6 @@ vi.mock('../../generated/releaseNotesBundle', () => ({
 
 ## Added
 - Embedded changelog fallback`,
-  IS_DEV_CHANNEL_BUNDLE: false,
 }));
 
 const { resolveReleaseNotes } = await import('./releaseNotesResolve');
