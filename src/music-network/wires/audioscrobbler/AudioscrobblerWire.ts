@@ -29,6 +29,7 @@ import type {
 } from '../../contracts/ScrobbleWire';
 import { audioscrobblerCall } from './client';
 import { tokenPollStrategy } from './auth/tokenPoll';
+import { apiKeyOnlyStrategy } from '../shared/apiKeyOnly';
 
 function toArray<T>(v: T | T[] | undefined | null): T[] {
   if (v == null) return [];
@@ -44,7 +45,9 @@ class AudioscrobblerWireImpl implements EnrichmentWire {
   readonly supportsEnrichment = true as const;
 
   connect(ctx: ConnectContext): Promise<ConnectResult> {
-    // v1: every Audioscrobbler preset uses the token-poll flow.
+    // Last.fm / Libre.fm use the browser token-poll flow; Rocksky has no
+    // auth.getToken and the user pastes a session key from `rocksky login`.
+    if (ctx.authStrategy === 'api_key_only') return apiKeyOnlyStrategy.connect(ctx);
     return tokenPollStrategy.connect(ctx);
   }
 

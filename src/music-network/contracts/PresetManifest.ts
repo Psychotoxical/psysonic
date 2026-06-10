@@ -52,6 +52,13 @@ export interface PresetManifest {
     profileBase?: string;
   };
 
+  /**
+   * For self-hosted presets: path appended to the user-supplied origin to form
+   * the API base (e.g. '/apis/listenbrainz', '/apis/audioscrobbler'). The wire
+   * then appends its own method path. Absent for fixed-host presets.
+   */
+  selfHostedApiSuffix?: string;
+
   credentials: CredentialMode;
 
   defaultRoles: {

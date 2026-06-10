@@ -30,6 +30,8 @@ export interface WireContext {
 export interface ConnectContext {
   presetId: PersistedAccount['presetId'];
   wireId: WireId;
+  /** Which connect flow the preset declares — lets one wire serve multiple. */
+  authStrategy: 'token_poll' | 'callback' | 'api_key_only';
   /** Resolved API base URL. */
   baseUrl: string;
   /** Resolved browser-auth base URL (token-poll/callback flows). '' when none. */
