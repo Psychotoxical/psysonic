@@ -244,8 +244,9 @@ fn query_albums(
            ORDER BY rank \
            LIMIT ?\
          ) \
-         SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.year, \
-                t.genre, t.cover_art_id, t.starred_at, t.synced_at, MIN(h.rank) AS best_rank \
+         SELECT t.server_id, t.album_id, MAX(t.album), MAX(t.artist), MAX(t.album_artist), \
+                MAX(t.artist_id), MAX(t.year), MAX(t.genre), MAX(t.cover_art_id), \
+                MAX(t.starred_at), MAX(t.synced_at), MIN(h.rank) AS best_rank \
          FROM fts_hits h \
          JOIN track t ON t.rowid = h.rowid \
          WHERE t.server_id = ? \
@@ -261,24 +262,29 @@ fn query_albums(
     params.push(rusqlite::types::Value::Integer(LIVE_SEARCH_FTS_CANDIDATE_CAP));
     params.push(rusqlite::types::Value::Text(server_id.to_string()));
     append_library_scope(&mut sql, &mut params, library_scope);
-    sql.push_str(" GROUP BY t.album_id ORDER BY best_rank LIMIT ?");
+    sql.push_str(" GROUP BY t.server_id, t.album_id ORDER BY best_rank LIMIT ?");
     params.push(rusqlite::types::Value::Integer(i64::from(limit)));
     let mut stmt = conn.prepare(&sql)?;
     let mut out = Vec::new();
     for row in stmt.query_map(rusqlite::params_from_iter(params.iter()), |r| {
+        let track_artist: Option<String> = r.get(3)?;
+        let album_artist: Option<String> = r.get(4)?;
         Ok(LibraryAlbumDto {
             server_id: r.get(0)?,
             id: r.get(1)?,
             name: r.get(2)?,
-            artist: r.get(3)?,
-            artist_id: r.get(4)?,
+            artist: crate::album_compilation_filter::pick_album_group_artist(
+                track_artist,
+                album_artist,
+            ),
+            artist_id: r.get(5)?,
             song_count: None,
             duration_sec: None,
-            year: r.get(5)?,
-            genre: r.get(6)?,
-            cover_art_id: r.get(7)?,
-            starred_at: r.get(8)?,
-            synced_at: r.get(9)?,
+            year: r.get(6)?,
+            genre: r.get(7)?,
+            cover_art_id: r.get(8)?,
+            starred_at: r.get(9)?,
+            synced_at: r.get(10)?,
             raw_json: serde_json::Value::Null,
         })
     })? {

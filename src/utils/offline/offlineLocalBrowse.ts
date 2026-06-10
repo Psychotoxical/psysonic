@@ -63,7 +63,7 @@ export function buildAlbumFromTracks(
   return {
     id: albumId,
     name: first.album ?? albumId,
-    artist: first.artist ?? first.albumArtist ?? '',
+    artist: first.albumArtist ?? first.artist ?? '',
     artistId: first.artistId ?? '',
     coverArt: resolveTrackCoverArtId(first) ?? albumId,
     year: first.year ?? undefined,

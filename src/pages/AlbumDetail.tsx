@@ -38,7 +38,7 @@ import { useTranslation } from 'react-i18next';
 import { showToast } from '../utils/ui/toast';
 import { useSelectionStore } from '../store/selectionStore';
 import { sanitizeFilename } from '../utils/componentHelpers/albumDetailHelpers';
-import { deriveAlbumHeaderArtistRefs } from '../utils/album/deriveAlbumHeaderArtistRefs';
+import { albumArtistDisplayName, deriveAlbumHeaderArtistRefs } from '../utils/album/deriveAlbumHeaderArtistRefs';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
@@ -295,7 +295,7 @@ const handleShuffleAll = () => {
       }
     }
     if (isOfflinePinComplete(album.album.id, serverId, songs.map(s => s.id))) return;
-    downloadAlbum(album.album.id, album.album.name, album.album.artist, album.album.coverArt, album.album.year, songs, serverId);
+    downloadAlbum(album.album.id, album.album.name, albumArtistDisplayName(album.album), album.album.coverArt, album.album.year, songs, serverId);
   }, [album, downloadAlbum, serverId, effectiveSongs, losslessOnly, resolvedOfflineStatus]);
 
   const handleRemoveOffline = () => {

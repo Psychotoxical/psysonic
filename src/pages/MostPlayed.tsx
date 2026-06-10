@@ -13,6 +13,7 @@ import { playAlbum, playAlbumShuffled } from '../utils/playback/playAlbum';
 import { useLongPressAction } from '../hooks/useLongPressAction';
 import { LongPressWaveOverlay } from '../components/LongPressWaveOverlay';
 import { useTranslation } from 'react-i18next';
+import { albumArtistDisplayName } from '../utils/album/deriveAlbumHeaderArtistRefs';
 
 const PAGE_SIZE = 50;
 
@@ -256,7 +257,7 @@ export default function MostPlayed() {
                       className="mp-album-artist truncate track-artist-link"
                       onClick={e => { e.stopPropagation(); navigate(`/artist/${album.artistId}`); }}
                     >
-                      {album.artist}
+                      {albumArtistDisplayName(album)}
                     </span>
                   </div>
                   <div className="mp-album-actions">

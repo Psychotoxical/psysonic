@@ -49,6 +49,7 @@ type AlbumBrowseTrackRow = (
     String,
     Option<String>,
     Option<String>,
+    Option<String>,
     Option<i64>,
     Option<String>,
     Option<String>,
@@ -648,8 +649,8 @@ fn build_album_from_fts(
     let where_sql = w.where_sql();
     store.with_read_conn(|conn| {
         let sql = format!(
-            "SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.year, \
-                    t.genre, t.cover_art_id, t.starred_at, t.synced_at \
+            "SELECT t.server_id, t.album_id, t.album, t.artist, t.album_artist, t.artist_id, \
+                    t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at \
              FROM track t \
              WHERE {where_sql}"
         );
@@ -668,13 +669,27 @@ fn build_album_from_fts(
                     r.get(7)?,
                     r.get(8)?,
                     r.get(9)?,
+                    r.get(10)?,
                 ))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
 
         let mut seen = HashSet::new();
         let mut deduped: Vec<LibraryAlbumDto> = Vec::new();
-        for (server_id, album_id, album, artist, artist_id, year, genre, cover_art_id, starred_at, synced_at) in rows {
+        for (
+            server_id,
+            album_id,
+            album,
+            track_artist,
+            album_artist,
+            artist_id,
+            year,
+            genre,
+            cover_art_id,
+            starred_at,
+            synced_at,
+        ) in rows
+        {
             if !seen.insert(album_id.clone()) {
                 continue;
             }
@@ -682,7 +697,10 @@ fn build_album_from_fts(
                 server_id,
                 id: album_id,
                 name: album,
-                artist,
+                artist: crate::album_compilation_filter::pick_album_group_artist(
+                    track_artist,
+                    album_artist,
+                ),
                 artist_id,
                 song_count: None,
                 duration_sec: None,

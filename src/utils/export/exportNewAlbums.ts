@@ -2,6 +2,7 @@ import { getAlbumList } from '../../api/subsonicLibrary';
 import { coverArtRef } from '../../cover/ref';
 import { loadCoverBlobForExport } from '../../cover/integrations/export';
 import type { SubsonicAlbum } from '../../api/subsonicTypes';
+import { albumArtistDisplayName } from '../album/deriveAlbumHeaderArtistRefs';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { downloadDir, join } from '@tauri-apps/api/path';
 import { useAuthStore } from '../../store/authStore';
@@ -190,7 +191,7 @@ async function renderPage(
     const lineY = coverY + COVER_SIZE / 2 + 6;
     const sep = '  —  ';
 
-    const artistClamp = clampText(ctx, album.artist, TEXT_W * 0.42);
+    const artistClamp = clampText(ctx, albumArtistDisplayName(album), TEXT_W * 0.42);
     const artistW = ctx.measureText(artistClamp).width;
     const sepW = ctx.measureText(sep).width;
     const remaining = TEXT_W - artistW - sepW;

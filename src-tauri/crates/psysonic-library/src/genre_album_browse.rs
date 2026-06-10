@@ -19,19 +19,20 @@ fn trimmed_nonempty(s: Option<&str>) -> Option<String> {
 }
 
 fn genre_album_order_sql(sort: &[LibrarySortClause]) -> String {
+    let la_artist = crate::album_compilation_filter::sql_track_group_display_artist("la");
     let mut keys: Vec<String> = Vec::new();
     for s in sort {
         let col = match s.field.as_str() {
-            "name" => "COALESCE(a.name, la.album_name) COLLATE NOCASE",
-            "artist" => "COALESCE(a.artist, la.artist) COLLATE NOCASE",
-            "year" => "COALESCE(a.year, la.year)",
+            "name" => "COALESCE(a.name, la.album_name) COLLATE NOCASE".to_string(),
+            "artist" => format!("COALESCE(a.artist, {la_artist}) COLLATE NOCASE"),
+            "year" => "COALESCE(a.year, la.year)".to_string(),
             _ => continue,
         };
         let dir = match s.dir {
             SortDir::Asc => "ASC",
             SortDir::Desc => "DESC",
         };
-        keys.push(format!("{col} {dir}"));
+        keys.push(format!("{col} {dir}", col = col));
     }
     if keys.is_empty() {
         keys.push("COALESCE(a.name, la.album_name) COLLATE NOCASE ASC".to_string());

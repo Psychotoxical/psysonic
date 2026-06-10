@@ -276,7 +276,10 @@ export async function hydrateOfflineLibraryCards(
       ? (group.pinSource.displayName ?? first?.artist ?? '')
       : pinKind === 'playlist'
         ? ''
-        : (first?.artist ?? first?.albumArtist ?? '');
+        : (pinnedMeta?.artist?.trim()
+          || first?.albumArtist?.trim()
+          || first?.artist?.trim()
+          || '');
 
     let coverArt: string | undefined;
     let coverQuadIds: (string | null)[] | undefined;

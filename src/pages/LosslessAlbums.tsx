@@ -28,6 +28,7 @@ import { useInpageScrollViewport } from '../hooks/useInpageScrollViewport';
 import InpageScrollSentinel from '../components/InpageScrollSentinel';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import SortDropdown from '../components/SortDropdown';
+import { albumArtistDisplayName } from '../utils/album/deriveAlbumHeaderArtistRefs';
 import {
   albumBrowseSortForServer,
   useAlbumBrowseSessionStore,
@@ -252,7 +253,7 @@ export default function LosslessAlbums() {
       try {
         const detail = await resolveAlbum(serverId, album.id);
         if (!detail) throw new Error('album unavailable');
-        downloadAlbum(album.id, album.name, album.artist, album.coverArt, album.year, detail.songs, serverId);
+        downloadAlbum(album.id, album.name, albumArtistDisplayName(album), album.coverArt, album.year, detail.songs, serverId);
         queued++;
       } catch {
         showToast(t('albums.offlineFailed', { name: album.name }), 3000, 'error');

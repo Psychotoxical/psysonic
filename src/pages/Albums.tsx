@@ -40,6 +40,7 @@ import { useAlbumBrowseScrollReset } from '../hooks/useAlbumBrowseScrollReset';
 import { useBrowseAlbumTextSearch } from '../hooks/useBrowseAlbumTextSearch';
 import { peekAlbumBrowseScrollRestore } from '../store/albumBrowseSessionStore';
 import { readAlbumBrowseRestore } from '../utils/navigation/albumDetailNavigation';
+import { albumArtistDisplayName } from '../utils/album/deriveAlbumHeaderArtistRefs';
 import { useAlbumCatalogYearBounds } from '../hooks/useAlbumCatalogYearBounds';
 import type { AlbumBrowseSort } from '../utils/library/albumBrowseSort';
 import { LOSSLESS_MODE_QUERY } from '../utils/library/losslessMode';
@@ -281,7 +282,7 @@ export default function Albums() {
       try {
         const detail = await resolveAlbum(serverId, album.id);
         if (!detail) throw new Error('album unavailable');
-        downloadAlbum(album.id, album.name, album.artist, album.coverArt, album.year, detail.songs, serverId);
+        downloadAlbum(album.id, album.name, albumArtistDisplayName(album), album.coverArt, album.year, detail.songs, serverId);
         queued++;
       } catch {
         showToast(t('albums.offlineFailed', { name: album.name }), 3000, 'error');
