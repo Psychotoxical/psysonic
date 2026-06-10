@@ -61,6 +61,38 @@
   font-variant-numeric: tabular-nums;
 }
 
+.whats-new__view-tabs {
+  display: inline-flex;
+  gap: 4px;
+  margin-top: 14px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-subtle);
+}
+
+.whats-new__view-tab {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.whats-new__view-tab:hover {
+  color: var(--text-primary);
+}
+
+.whats-new__view-tab--active {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
 .whats-new__body {
   font-size: 14px;
   line-height: 1.65;
@@ -68,6 +100,18 @@
 .whats-new__empty {
   color: var(--text-muted);
   font-style: italic;
+}
+
+.whats-new-h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 24px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.whats-new-h2:first-child {
+  margin-top: 0;
 }
 
 .whats-new-h3 {

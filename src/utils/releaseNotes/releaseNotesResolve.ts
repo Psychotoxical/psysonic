@@ -106,3 +106,18 @@ export async function resolveReleaseNotes(version: string): Promise<ResolvedRele
   }
   return resolveShipped(version);
 }
+
+/** Technical changelog for the same version (embedded or workspace; never remote). */
+export async function resolveChangelogEntry(version: string): Promise<ResolvedReleaseNotes> {
+  const changelogRaw = isWorkspaceReleaseNotesMode(version)
+    ? await loadWorkspaceChangelogRaw()
+    : await loadEmbeddedChangelogRaw();
+  const entry = findReleaseNotesEntry(changelogRaw, version);
+  if (entry?.body) {
+    return {
+      source: isWorkspaceReleaseNotesMode(version) ? 'workspace-changelog' : 'embedded-changelog',
+      entry,
+    };
+  }
+  return { source: 'empty', entry: null };
+}

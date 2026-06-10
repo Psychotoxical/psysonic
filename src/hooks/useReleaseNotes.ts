@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { version as appVersion } from '../../package.json';
 import {
+  resolveChangelogEntry,
   resolveReleaseNotes,
   type ReleaseNotesSource,
 } from '../utils/releaseNotes/releaseNotesResolve';
@@ -8,29 +9,33 @@ import type { ReleaseNotesEntry } from '../utils/releaseNotes/releaseNotesMatch'
 
 export interface UseReleaseNotesResult {
   loading: boolean;
-  entry: ReleaseNotesEntry | null;
-  source: ReleaseNotesSource;
+  whatsNewEntry: ReleaseNotesEntry | null;
+  changelogEntry: ReleaseNotesEntry | null;
+  whatsNewSource: ReleaseNotesSource;
 }
 
 export function useReleaseNotes(version: string = appVersion): UseReleaseNotesResult {
   const [loading, setLoading] = useState(true);
-  const [entry, setEntry] = useState<ReleaseNotesEntry | null>(null);
-  const [source, setSource] = useState<ReleaseNotesSource>('empty');
+  const [whatsNewEntry, setWhatsNewEntry] = useState<ReleaseNotesEntry | null>(null);
+  const [changelogEntry, setChangelogEntry] = useState<ReleaseNotesEntry | null>(null);
+  const [whatsNewSource, setWhatsNewSource] = useState<ReleaseNotesSource>('empty');
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
 
-    resolveReleaseNotes(version)
-      .then((resolved) => {
+    Promise.all([resolveReleaseNotes(version), resolveChangelogEntry(version)])
+      .then(([whatsNew, changelog]) => {
         if (cancelled) return;
-        setEntry(resolved.entry);
-        setSource(resolved.source);
+        setWhatsNewEntry(whatsNew.entry);
+        setWhatsNewSource(whatsNew.source);
+        setChangelogEntry(changelog.entry);
       })
       .catch(() => {
         if (cancelled) return;
-        setEntry(null);
-        setSource('empty');
+        setWhatsNewEntry(null);
+        setChangelogEntry(null);
+        setWhatsNewSource('empty');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -41,5 +46,5 @@ export function useReleaseNotes(version: string = appVersion): UseReleaseNotesRe
     };
   }, [version]);
 
-  return { loading, entry, source };
+  return { loading, whatsNewEntry, changelogEntry, whatsNewSource };
 }
