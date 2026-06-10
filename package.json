@@ -13,7 +13,7 @@
     "tauri:build": "npm run prebuild:release-notes && tauri build",
     "test": "npm run prebuild:release-notes && vitest run && node --test scripts/extract-release-section.test.mjs && npm run check:css-imports",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage && npm run check:css-imports"
+    "test:coverage": "npm run prebuild:release-notes && vitest run --coverage && npm run check:css-imports"
   },
   "dependencies": {
     "@fontsource-variable/dm-sans": "^5.2.8",
