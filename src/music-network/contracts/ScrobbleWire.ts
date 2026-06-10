@@ -16,8 +16,10 @@ import type { ScrobbleEvent, WireId } from '../core/types';
  */
 export interface WireContext {
   account: PersistedAccount;
-  /** Resolved base URL (preset endpoint or user-supplied origin). */
+  /** Resolved API base URL (preset endpoint or user-supplied origin). */
   baseUrl: string;
+  /** Resolved profile base URL, for synchronous URL builders. '' when none. */
+  profileBase: string;
   apiKey: string;
   apiSecret: string;
   sessionKey: string;
@@ -28,7 +30,10 @@ export interface WireContext {
 export interface ConnectContext {
   presetId: PersistedAccount['presetId'];
   wireId: WireId;
+  /** Resolved API base URL. */
   baseUrl: string;
+  /** Resolved browser-auth base URL (token-poll/callback flows). '' when none. */
+  authBase: string;
   apiKey: string;
   apiSecret: string;
   /** User-pasted token (ListenBrainz) or extra fields, by field name. */
