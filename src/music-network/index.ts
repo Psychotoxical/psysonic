@@ -6,6 +6,7 @@
 export { MusicNetworkRuntime, type ConnectOptions } from './runtime/MusicNetworkRuntime';
 export {
   getMusicNetworkRuntime,
+  getMusicNetworkRuntimeOrNull,
   initMusicNetworkRuntime,
 } from './runtime/getMusicNetworkRuntime';
 export type { MusicNetworkStore, RuntimeHost } from './runtime/store';

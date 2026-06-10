@@ -100,8 +100,8 @@ export interface PlayerState {
   currentTime: number;
   volume: number;
   scrobbled: boolean;
-  lastfmLoved: boolean;
-  lastfmLovedCache: Record<string, boolean>;
+  networkLoved: boolean;
+  networkLovedCache: Record<string, boolean>;
   starredOverrides: Record<string, boolean>;
   setStarredOverride: (id: string, starred: boolean) => void;
   /** Optimistic track ratings (e.g. skip→1★ while UI lists still have stale `song.userRating`). */
@@ -190,10 +190,10 @@ export interface PlayerState {
   /** Ctrl+Shift+Z / Cmd+Shift+Z — opposite of `undoLastQueueEdit` while redo stack is non-empty. */
   redoLastQueueEdit: () => boolean;
 
-  toggleLastfmLove: () => void;
-  setLastfmLoved: (v: boolean) => void;
-  setLastfmLovedForSong: (title: string, artist: string, v: boolean) => void;
-  syncLastfmLovedTracks: () => Promise<void>;
+  toggleNetworkLove: () => void;
+  setNetworkLoved: (v: boolean) => void;
+  setNetworkLovedForSong: (title: string, artist: string, v: boolean) => void;
+  syncNetworkLovedTracks: () => Promise<void>;
 
   resetAudioPause: () => void;
   initializeFromServerQueue: () => Promise<void>;

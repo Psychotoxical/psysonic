@@ -3,10 +3,8 @@ import { getArtistInfoForServer } from '../api/subsonicArtists';
 import type { SubsonicAlbum, SubsonicArtistInfo, SubsonicSong } from '../api/subsonicTypes';
 import { resolveNpAlbum, resolveNpDiscography, resolveNpSongMeta, resolveNpTopSongs } from '../utils/library/nowPlayingMetadataResolve';
 import { fetchBandsintownEvents, type BandsintownEvent } from '../api/bandsintown';
-import {
-  lastfmGetArtistStats, lastfmGetTrackInfo, lastfmIsConfigured,
-  type LastfmArtistStats, type LastfmTrackInfo,
-} from '../api/lastfm';
+import type { LastfmArtistStats, LastfmTrackInfo } from '../api/lastfm';
+import { getMusicNetworkRuntimeOrNull } from '../music-network';
 import { makeCache } from '../utils/cache/nowPlayingCache';
 import { shouldAttemptSubsonicForServer } from '../utils/network/subsonicNetworkGuard';
 import { useConnectionStatus } from './useConnectionStatus';
@@ -153,11 +151,12 @@ export async function prewarmNowPlayingFetchers(
     }
   }
 
-  if (lastfmIsConfigured() && currentTrack) {
+  const prewarmRuntime = getMusicNetworkRuntimeOrNull();
+  if (prewarmRuntime?.getEnrichmentPrimaryId() && currentTrack) {
     const trackKey = `${currentTrack.artist} ${currentTrack.title} ${lastfmUsername}`;
     if (lfmTrackCache.get(trackKey) === undefined) {
       jobs.push(
-        lastfmGetTrackInfo(currentTrack.artist, currentTrack.title, lastfmUsername || undefined)
+        prewarmRuntime.getTrackStats({ title: currentTrack.title, artist: currentTrack.artist })
           .then(v => lfmTrackCache.set(trackKey, v))
           .catch(() => lfmTrackCache.set(trackKey, null)),
       );
@@ -165,7 +164,7 @@ export async function prewarmNowPlayingFetchers(
     const artistKey = `${currentTrack.artist} ${lastfmUsername}`;
     if (lfmArtistCache.get(artistKey) === undefined) {
       jobs.push(
-        lastfmGetArtistStats(currentTrack.artist, lastfmUsername || undefined)
+        prewarmRuntime.getArtistStats(currentTrack.artist)
           .then(v => lfmArtistCache.set(artistKey, v))
           .catch(() => lfmArtistCache.set(artistKey, null)),
       );
@@ -296,12 +295,13 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
 
   // Last.fm track info (per-track)
   useEffect(() => {
-    if (!lastfmIsConfigured() || !currentTrack || !lfmTrackKey) { setLfmTrackEntry(null); return; }
+    const runtime = getMusicNetworkRuntimeOrNull();
+    if (!runtime?.getEnrichmentPrimaryId() || !currentTrack || !lfmTrackKey) { setLfmTrackEntry(null); return; }
     const cached = lfmTrackCache.get(lfmTrackKey);
     if (cached !== undefined) { setLfmTrackEntry({ key: lfmTrackKey, value: cached }); return; }
     setLfmTrackEntry(null);
     let cancelled = false;
-    lastfmGetTrackInfo(currentTrack.artist, currentTrack.title, lastfmUsername || undefined)
+    runtime.getTrackStats({ title: currentTrack.title, artist: currentTrack.artist })
       .then(v => { if (!cancelled) { lfmTrackCache.set(lfmTrackKey, v); setLfmTrackEntry({ key: lfmTrackKey, value: v }); } })
       .catch(() => { if (!cancelled) { lfmTrackCache.set(lfmTrackKey, null); setLfmTrackEntry({ key: lfmTrackKey, value: null }); } });
     return () => { cancelled = true; };
@@ -309,12 +309,13 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
 
   // Last.fm artist stats (per-artist — shared across same-artist tracks)
   useEffect(() => {
-    if (!lastfmIsConfigured() || !artistName || !lfmArtistKey) { setLfmArtistEntry(null); return; }
+    const runtime = getMusicNetworkRuntimeOrNull();
+    if (!runtime?.getEnrichmentPrimaryId() || !artistName || !lfmArtistKey) { setLfmArtistEntry(null); return; }
     const cached = lfmArtistCache.get(lfmArtistKey);
     if (cached !== undefined) { setLfmArtistEntry({ key: lfmArtistKey, value: cached }); return; }
     setLfmArtistEntry(null);
     let cancelled = false;
-    lastfmGetArtistStats(artistName, lastfmUsername || undefined)
+    runtime.getArtistStats(artistName)
       .then(v => { if (!cancelled) { lfmArtistCache.set(lfmArtistKey, v); setLfmArtistEntry({ key: lfmArtistKey, value: v }); } })
       .catch(() => { if (!cancelled) { lfmArtistCache.set(lfmArtistKey, null); setLfmArtistEntry({ key: lfmArtistKey, value: null }); } });
     return () => { cancelled = true; };

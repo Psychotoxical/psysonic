@@ -12,8 +12,8 @@ import { refreshWaveformForTrack } from '../waveformRefresh';
  * and primes waveform / loudness caches for the boot track. No cleanup needed.
  */
 export function runInitialAudioSync(): void {
-  // Sync Last.fm loved tracks cache on startup.
-  usePlayerStore.getState().syncLastfmLovedTracks();
+  // Sync loved tracks cache on startup.
+  usePlayerStore.getState().syncNetworkLovedTracks();
 
   // Initial sync of audio settings to Rust engine on startup.
   const { crossfadeEnabled, crossfadeSecs, gaplessEnabled, audioOutputDevice } = useAuthStore.getState();

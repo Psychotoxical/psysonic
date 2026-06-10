@@ -48,7 +48,7 @@ export default function ContextMenu() {
   const navigate = useNavigate();
   const navigatePlaybackLibrary = usePlaybackLibraryNavigate();
   const orbitRole = useOrbitStore(s => s.role);
-  const { contextMenu, closeContextMenu, playTrack, enqueue, playNext, queueItems, currentTrack, removeTrack, lastfmLovedCache, setLastfmLovedForSong, starredOverrides, setStarredOverride, openSongInfo, userRatingOverrides, setUserRatingOverride } = usePlayerStore(
+  const { contextMenu, closeContextMenu, playTrack, enqueue, playNext, queueItems, currentTrack, removeTrack, networkLovedCache, setNetworkLovedForSong, starredOverrides, setStarredOverride, openSongInfo, userRatingOverrides, setUserRatingOverride } = usePlayerStore(
     useShallow(s => ({
       contextMenu: s.contextMenu,
       closeContextMenu: s.closeContextMenu,
@@ -58,8 +58,8 @@ export default function ContextMenu() {
       queueItems: s.queueItems,
       currentTrack: s.currentTrack,
       removeTrack: s.removeTrack,
-      lastfmLovedCache: s.lastfmLovedCache,
-      setLastfmLovedForSong: s.setLastfmLovedForSong,
+      networkLovedCache: s.networkLovedCache,
+      setNetworkLovedForSong: s.setNetworkLovedForSong,
       starredOverrides: s.starredOverrides,
       setStarredOverride: s.setStarredOverride,
       openSongInfo: s.openSongInfo,
@@ -234,8 +234,8 @@ export default function ContextMenu() {
           closeContextMenu={closeContextMenu}
           starredOverrides={starredOverrides}
           setStarredOverride={setStarredOverride}
-          lastfmLovedCache={lastfmLovedCache}
-          setLastfmLovedForSong={setLastfmLovedForSong}
+          networkLovedCache={networkLovedCache}
+          setNetworkLovedForSong={setNetworkLovedForSong}
           openSongInfo={openSongInfo}
           userRatingOverrides={userRatingOverrides}
           setKeyboardRating={setKeyboardRating}

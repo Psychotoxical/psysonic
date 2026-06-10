@@ -37,9 +37,9 @@ interface Props {
   previewingTrack: PreviewingTrack | null;
   isStarred: boolean;
   toggleStar: () => void;
-  lastfmSessionKey: string | null;
-  lastfmLoved: boolean;
-  toggleLastfmLove: () => void;
+  enrichmentPrimaryId: string | null;
+  networkLoved: boolean;
+  toggleNetworkLove: () => void;
   userRatingOverrides: Record<string, number>;
   toggleFullscreen: () => void;
   navigate: (to: string) => void | Promise<void>;
@@ -51,7 +51,7 @@ export function PlayerTrackInfo({
   currentTrack, currentRadio, isRadio, radioMeta, radioCoverArtId,
   coverArtId, displayTitle, displayArtist, displayArtistRefs,
   showPreviewMeta, previewingTrack, isStarred, toggleStar,
-  lastfmSessionKey, lastfmLoved, toggleLastfmLove,
+  enrichmentPrimaryId, networkLoved, toggleNetworkLove,
   userRatingOverrides, toggleFullscreen,
   navigate, openContextMenu, t,
 }: Props) {
@@ -197,13 +197,13 @@ export function PlayerTrackInfo({
           <Heart size={15} fill={isStarred ? 'currentColor' : 'none'} />
         </button>
       )}
-      {currentTrack && !isRadio && lastfmSessionKey && isLayoutVisible('lastfmLove') && (
+      {currentTrack && !isRadio && enrichmentPrimaryId !== null && isLayoutVisible('lastfmLove') && (
         <button
           className="player-btn player-btn-sm player-love-btn"
-          onClick={toggleLastfmLove}
-          aria-label={lastfmLoved ? t('contextMenu.lfmUnlove') : t('contextMenu.lfmLove')}
-          data-tooltip={lastfmLoved ? t('contextMenu.lfmUnlove') : t('contextMenu.lfmLove')}
-          style={{ color: lastfmLoved ? '#e31c23' : 'var(--text-muted)', flexShrink: 0 }}
+          onClick={toggleNetworkLove}
+          aria-label={networkLoved ? t('contextMenu.lfmUnlove') : t('contextMenu.lfmLove')}
+          data-tooltip={networkLoved ? t('contextMenu.lfmUnlove') : t('contextMenu.lfmLove')}
+          style={{ color: networkLoved ? '#e31c23' : 'var(--text-muted)', flexShrink: 0 }}
         >
           <LastfmIcon size={15} />
         </button>

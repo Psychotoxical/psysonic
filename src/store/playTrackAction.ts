@@ -1,6 +1,6 @@
 import { reportNowPlaying } from '../api/subsonicScrobble';
 import { invoke } from '@tauri-apps/api/core';
-import { lastfmGetTrackLoved, lastfmUpdateNowPlaying } from '../api/lastfm';
+import { getMusicNetworkRuntimeOrNull } from '../music-network';
 import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
 import { orbitBulkGuard } from '../utils/orbitBulkGuard';
 import { sameQueueTrackId } from '../utils/playback/queueIdentity';
@@ -330,7 +330,7 @@ export function runPlayTrack(
       buffered: 0,
       currentTime: initialTime,
       scrobbled: false,
-      lastfmLoved: false,
+      networkLoved: false,
       // HTTP stream: wait for Rust `audio:playing` so the seekbar does not
       // extrapolate while RangedHttpSource / legacy reader is still buffering.
       isPlaying: playbackSourceHint !== 'stream',
@@ -412,18 +412,28 @@ export function runPlayTrack(
         }, 500);
       });
 
-    // Report Now Playing to Navidrome (for Live/getNowPlaying) + Last.fm
-    const { nowPlayingEnabled: npEnabled, scrobblingEnabled: lfmEnabled, lastfmSessionKey: lfmKey } = useAuthStore.getState();
+    // Navidrome now-playing follows nowPlayingEnabled; Music Network now-playing
+    // follows scrobbling, as Last.fm now-playing did (runtime gates internally).
+    const { nowPlayingEnabled: npEnabled } = useAuthStore.getState();
     if (npEnabled) reportNowPlaying(scopedTrack.id, playbackSid);
-    if (lfmKey) {
-      if (lfmEnabled) lastfmUpdateNowPlaying(scopedTrack, lfmKey);
-      lastfmGetTrackLoved(scopedTrack.title, scopedTrack.artist, lfmKey).then(loved => {
-        const cacheKey = `${scopedTrack.title}::${scopedTrack.artist}`;
-        set(s => ({
-          lastfmLoved: loved,
-          lastfmLovedCache: { ...s.lastfmLovedCache, [cacheKey]: loved },
-        }));
-      });
+    const runtime = getMusicNetworkRuntimeOrNull();
+    void runtime?.dispatchNowPlaying({
+      title: scopedTrack.title,
+      artist: scopedTrack.artist,
+      album: scopedTrack.album,
+      duration: scopedTrack.duration,
+      timestamp: Date.now(),
+    });
+    if (runtime?.getEnrichmentPrimaryId()) {
+      void runtime
+        .isTrackLoved({ title: scopedTrack.title, artist: scopedTrack.artist })
+        .then(loved => {
+          const cacheKey = `${scopedTrack.title}::${scopedTrack.artist}`;
+          set(s => ({
+            networkLoved: loved,
+            networkLovedCache: { ...s.networkLovedCache, [cacheKey]: loved },
+          }));
+        });
     }
     syncQueueToServer(get().queueItems, scopedTrack, initialTime);
     touchHotCacheOnPlayback(scopedTrack.id, playbackCacheSid);

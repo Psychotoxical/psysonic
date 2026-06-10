@@ -24,6 +24,15 @@ export function getMusicNetworkRuntime(): MusicNetworkRuntime {
   return instance;
 }
 
+/**
+ * Non-throwing accessor for best-effort callers (fire-and-forget scrobble,
+ * now-playing, loved sync). Returns null before init (e.g. in unit tests that
+ * don't bootstrap) so those paths no-op instead of throwing.
+ */
+export function getMusicNetworkRuntimeOrNull(): MusicNetworkRuntime | null {
+  return instance;
+}
+
 /** Test seam. */
 export function __setMusicNetworkRuntime(rt: MusicNetworkRuntime | null): void {
   instance = rt;

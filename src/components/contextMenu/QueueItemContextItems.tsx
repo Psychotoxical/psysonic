@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Play, Radio, Heart, ChevronRight, User, Disc3, ListMusic, Info, Sparkles, Star, Trash2, Share2 } from 'lucide-react';
 import { queueSongStar } from '../../store/pendingStarSync';
-import { lastfmLoveTrack, lastfmUnloveTrack } from '../../api/lastfm';
+import { getMusicNetworkRuntime } from '../../music-network';
 import type { Track } from '../../store/playerStoreTypes';
 import { useAuthStore } from '../../store/authStore';
 import LastfmIcon from '../LastfmIcon';
@@ -13,7 +13,7 @@ export default function QueueItemContextItems(props: ContextMenuItemsProps) {
   const {
     type, item, queueIndex, playlistId, playlistSongIndex, shareKindOverride,
     playTrack, playNext, enqueue, removeTrack, queue, currentTrack, closeContextMenu,
-    starredOverrides, lastfmLovedCache, setLastfmLovedForSong,
+    starredOverrides, networkLovedCache, setNetworkLovedForSong,
     openSongInfo, userRatingOverrides, setKeyboardRating, keyboardRating,
     playlistSubmenuOpen, setPlaylistSubmenuOpen, cancelPlaylistSubmenuCloseTimer, onPlaylistSubmenuTriggerMouseLeave,
     playlistSongIds, setPlaylistSongIds,
@@ -76,15 +76,14 @@ export default function QueueItemContextItems(props: ContextMenuItemsProps) {
                 <Heart size={14} fill={isStarred(song.id, song.starred) ? 'currentColor' : 'none'} />
                 {isStarred(song.id, song.starred) ? t('contextMenu.unfavorite') : t('contextMenu.favorite')}
               </div>
-              {auth.lastfmSessionKey && (() => {
+              {auth.enrichmentPrimaryId !== null && (() => {
                 const loveKey = `${song.title}::${song.artist}`;
-                const loved = lastfmLovedCache[loveKey] ?? false;
+                const loved = networkLovedCache[loveKey] ?? false;
                 return (
                   <div className="context-menu-item" onClick={() => handleAction(() => {
                     const newLoved = !loved;
-                    setLastfmLovedForSong(song.title, song.artist, newLoved);
-                    if (newLoved) lastfmLoveTrack(song, auth.lastfmSessionKey);
-                    else lastfmUnloveTrack(song, auth.lastfmSessionKey);
+                    setNetworkLovedForSong(song.title, song.artist, newLoved);
+                    void getMusicNetworkRuntime().setTrackLoved({ title: song.title, artist: song.artist }, newLoved);
                   })}>
                     <LastfmIcon size={14} />
                     {loved ? t('contextMenu.lfmUnlove') : t('contextMenu.lfmLove')}

@@ -14,7 +14,6 @@ import { usePlayerStore } from '../store/playerStore';
 import { usePreviewStore } from '../store/previewStore';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
-import { lastfmIsConfigured } from '../api/lastfm';
 import LastfmIcon from '../components/LastfmIcon';
 import { invalidateCoverArt } from '../utils/imageCache';
 import { showToast } from '../utils/ui/toast';
@@ -91,6 +90,7 @@ export default function ArtistDetail() {
     s => !!(activeServerId && s.audiomuseNavidromeByServer[activeServerId]),
   );
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const enrichmentConfigured = useAuthStore(s => s.enrichmentPrimaryId !== null);
   const albumYearOrder = useArtistAlbumYearSortStore(
     s => s.orderByServer[activeServerId] ?? DEFAULT_ARTIST_ALBUM_YEAR_ORDER,
   );
@@ -249,7 +249,7 @@ export default function ArtistDetail() {
   }));
   const showAudiomuseSimilar = audiomuseNavidromeEnabled && serverSimilarArtists.length > 0;
   const showLastfmSimilar =
-    lastfmIsConfigured() &&
+    enrichmentConfigured &&
     (!audiomuseNavidromeEnabled || serverSimilarArtists.length === 0) &&
     (similarLoading || similarArtists.length > 0);
   const showSimilarSection = showAudiomuseSimilar || showLastfmSimilar;
