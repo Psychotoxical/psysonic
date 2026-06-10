@@ -1,5 +1,10 @@
 import type { SubsonicServerIdentity } from '../utils/server/subsonicServerIdentity';
 
+/** OpenSubsonic `ItemGenre` on songs/albums (atomic genres from the server). */
+export interface SubsonicItemGenre {
+  name: string;
+}
+
 export interface SubsonicAlbum {
   id: string;
   name: string;
@@ -11,6 +16,8 @@ export interface SubsonicAlbum {
   playCount?: number;
   year?: number;
   genre?: string;
+  /** OpenSubsonic atomic genres — preferred over splitting `genre`. */
+  genres?: SubsonicItemGenre[];
   starred?: string;
   recordLabel?: string;
   created?: string;
@@ -72,6 +79,8 @@ export interface SubsonicSong {
   channelCount?: number;
   starred?: string;
   genre?: string;
+  /** OpenSubsonic atomic genres — preferred over splitting `genre`. */
+  genres?: SubsonicItemGenre[];
   path?: string;
   albumArtist?: string;
   /** OpenSubsonic: single-string album-artist for display (mirrors `albumArtists` joined). */

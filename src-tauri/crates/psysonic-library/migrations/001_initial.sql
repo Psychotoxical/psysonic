@@ -248,6 +248,23 @@ CREATE TABLE play_session (
   CHECK (completion IN ('partial', 'full'))
 );
 
+CREATE TABLE track_genre (
+  server_id  TEXT NOT NULL,
+  track_id   TEXT NOT NULL,
+  genre      TEXT NOT NULL,
+  album_id   TEXT,
+  library_id TEXT,
+  PRIMARY KEY (server_id, track_id, genre COLLATE NOCASE),
+  FOREIGN KEY (server_id, track_id) REFERENCES track(server_id, id) ON DELETE CASCADE
+);
+
+CREATE TABLE library_data_migration (
+  id            TEXT PRIMARY KEY,
+  cursor_rowid  INTEGER NOT NULL DEFAULT 0,
+  completed_at  INTEGER,
+  started_at    INTEGER
+);
+
 CREATE INDEX idx_track_album   ON track(server_id, album_id)               WHERE deleted = 0;
 CREATE INDEX idx_track_artist  ON track(server_id, artist_id)              WHERE deleted = 0;
 CREATE INDEX idx_track_updated ON track(server_id, server_updated_at DESC) WHERE deleted = 0;
@@ -293,3 +310,7 @@ CREATE INDEX idx_play_session_started
 CREATE INDEX idx_track_fact_mood_tag
   ON track_fact(server_id, fact_kind, value_text, track_id)
   WHERE fact_kind = 'mood_tag';
+
+CREATE INDEX idx_track_genre_browse
+  ON track_genre(server_id, genre COLLATE NOCASE, album_id, track_id)
+  WHERE album_id IS NOT NULL AND album_id != '';

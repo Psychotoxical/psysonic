@@ -1,12 +1,17 @@
 import type { ReactNode } from 'react';
-import { retryServerIndexMigration } from '../hooks/useMigrationOrchestrator';
+import { useTranslation } from 'react-i18next';
+import { retryBlockingMigration } from '../hooks/useMigrationOrchestrator';
 import { useMigrationStore } from '../store/migrationStore';
 
 function MigrationModal() {
+  const { t } = useTranslation();
   const phase = useMigrationStore(s => s.phase);
+  const step = useMigrationStore(s => s.step);
   const progress = useMigrationStore(s => s.progress);
+  const genreTagsProgress = useMigrationStore(s => s.genreTagsProgress);
   const inspect = useMigrationStore(s => s.inspect);
   const error = useMigrationStore(s => s.lastError);
+  const isGenreTags = step === 'genreTags';
 
   const migratedRows = (inspect?.library.totalLegacyRows ?? 0) + (inspect?.analysis.totalLegacyRows ?? 0);
   return (
@@ -30,42 +35,50 @@ function MigrationModal() {
       >
         {phase === 'inspecting' && (
           <>
-            <h3>Preparing data update…</h3>
-            <p style={{ color: 'var(--text-muted)' }}>Looking at your library and analysis cache…</p>
+            <h3>{isGenreTags ? t('migration.genreTagsTitle') : t('migration.preparing')}</h3>
+            <p style={{ color: 'var(--text-muted)' }}>
+              {isGenreTags ? t('migration.genreTagsBody') : t('migration.preparingBody')}
+            </p>
           </>
         )}
         {phase === 'running' && (
           <>
-            <h3>Migrating data</h3>
+            <h3>{isGenreTags ? t('migration.genreTagsTitle') : t('migration.migrating')}</h3>
             <p style={{ color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-              {progress ? `${progress.stage} - ${progress.table}` : 'running'}
+              {isGenreTags
+                ? t('migration.genreTagsBody')
+                : (progress ? `${progress.stage} - ${progress.table}` : t('migration.working'))}
             </p>
             <p style={{ color: 'var(--text-muted)' }}>
-              {progress ? `${progress.done} / ${progress.total}` : 'working…'}
+              {isGenreTags
+                ? (genreTagsProgress
+                  ? `${genreTagsProgress.done} / ${genreTagsProgress.total}`
+                  : t('migration.working'))
+                : (progress ? `${progress.done} / ${progress.total}` : t('migration.working'))}
             </p>
-            {inspect?.hasSkippedUnknownServerRows ? (
+            {!isGenreTags && inspect?.hasSkippedUnknownServerRows ? (
               <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                Rows for removed servers were skipped and old backup DB will be removed after successful switch.
+                {t('migration.skippedRows')}
               </p>
             ) : null}
           </>
         )}
         {phase === 'error' && (
           <>
-            <h3>Migration failed</h3>
+            <h3>{isGenreTags ? t('migration.genreTagsFailed') : t('migration.failed')}</h3>
             <p style={{ color: 'var(--text-muted)' }}>{String(error ?? '').slice(0, 200)}</p>
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button className="btn-primary" onClick={() => retryServerIndexMigration()}>Retry</button>
+              <button className="btn-primary" onClick={() => retryBlockingMigration()}>{t('migration.retry')}</button>
               <button className="btn-surface" onClick={() => navigator.clipboard.writeText(String(error ?? ''))}>
-                Copy details
+                {t('migration.copyDetails')}
               </button>
             </div>
           </>
         )}
         {phase === 'completed' && (
           <>
-            <h3>Update complete</h3>
-            <p style={{ color: 'var(--text-muted)' }}>{migratedRows} rows migrated</p>
+            <h3>{t('migration.complete')}</h3>
+            <p style={{ color: 'var(--text-muted)' }}>{t('migration.completeRows', { count: migratedRows })}</p>
           </>
         )}
       </div>

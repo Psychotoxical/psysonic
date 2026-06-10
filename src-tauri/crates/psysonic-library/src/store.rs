@@ -9,7 +9,7 @@ use tauri::Manager;
 
 /// Current head of the embedded migrations. Bump each time a new
 /// `migrations/NNN_*.sql` is added.
-pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 1;
+pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 12;
 
 /// Lowest applied schema version the current code can advance from purely
 /// additively. If a DB carries a version below this, the breaking-bump hook
@@ -22,10 +22,20 @@ pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 1;
 pub const LIBRARY_DB_MIN_COMPATIBLE_VERSION: i64 = 1;
 
 pub(crate) const INITIAL_SQL: &str = include_str!("../migrations/001_initial.sql");
+/// Version 12 is above the removed legacy migrations 002–011 so existing DBs
+/// still pick up `track_genre` + `library_data_migration`.
+pub(crate) const MIGRATION_012_TRACK_GENRE_LEGACY: &str =
+    include_str!("../migrations/012_track_genre_legacy_repair.sql");
 
 /// Embedded migrations. Ordered ascending by `version`; the runner sorts
 /// defensively before applying so the source order can stay readable.
-const MIGRATIONS: &[(i64, &str)] = &[(1, INITIAL_SQL)];
+const MIGRATIONS: &[(i64, &str)] = &[(1, INITIAL_SQL), (12, MIGRATION_012_TRACK_GENRE_LEGACY)];
+
+/// Idempotent repair — also runs after the migration runner on every open so
+/// DBs that recorded the wrong version numbers still get the tables.
+pub(crate) fn ensure_genre_tags_schema(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute_batch(MIGRATION_012_TRACK_GENRE_LEGACY)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MigrationOutcome {
@@ -67,6 +77,7 @@ impl LibraryStore {
         let write_conn = Connection::open(db_path).map_err(|e| e.to_string())?;
         configure_write_connection(&write_conn).map_err(|e| e.to_string())?;
         run_migrations(&write_conn).map_err(|e| e.to_string())?;
+        ensure_genre_tags_schema(&write_conn).map_err(|e| e.to_string())?;
         checkpoint_wal_conn(&write_conn, "open").map_err(|e| e.to_string())?;
         let read_conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
             .map_err(|e| e.to_string())?;
@@ -84,6 +95,7 @@ impl LibraryStore {
         let write_conn = Connection::open(&uri).expect("in-memory write connection");
         configure_write_connection(&write_conn).expect("write pragmas");
         run_migrations(&write_conn).expect("schema migration");
+        ensure_genre_tags_schema(&write_conn).expect("genre tags schema");
         let read_conn = Connection::open(&uri).expect("in-memory read connection");
         configure_read_connection(&read_conn).expect("read pragmas");
         Self {
@@ -556,8 +568,7 @@ mod tests {
                 rows
             })
             .unwrap();
-        // Embedded migrations are numbered 1..=head, all applied on a fresh DB.
-        let expected: Vec<i64> = (1..=LIBRARY_DB_SCHEMA_VERSION).collect();
+        let expected: Vec<i64> = MIGRATIONS.iter().map(|(version, _)| *version).collect();
         assert_eq!(versions, expected);
     }
 
@@ -574,9 +585,51 @@ mod tests {
             })
             .unwrap();
         assert_eq!(
-            count, LIBRARY_DB_SCHEMA_VERSION,
+            count,
+            MIGRATIONS.len() as i64,
             "one schema_migrations row per embedded migration, no duplicates"
         );
+    }
+
+    #[test]
+    fn migration_012_repairs_db_that_recorded_legacy_versions_without_genre_tables() {
+        let uri = in_memory_uri();
+        let conn = Connection::open(&uri).expect("connection");
+        configure_write_connection(&conn).expect("pragmas");
+        conn.execute_batch(INITIAL_SQL).expect("initial");
+        conn.execute("DROP TABLE IF EXISTS track_genre", [])
+            .expect("drop track_genre");
+        conn.execute("DROP TABLE IF EXISTS library_data_migration", [])
+            .expect("drop cursor table");
+        for version in 1..=11_i64 {
+            conn.execute(
+                "INSERT INTO schema_migrations (version, applied_at) VALUES (?1, ?1)",
+                params![version],
+            )
+            .expect("seed legacy versions");
+        }
+
+        let outcome = run_migrations_with(
+            &conn,
+            MIGRATIONS,
+            LIBRARY_DB_MIN_COMPATIBLE_VERSION,
+            no_op_hook,
+        )
+        .expect("apply v12 repair");
+        assert_eq!(outcome, MigrationOutcome::Applied);
+        ensure_genre_tags_schema(&conn).expect("ensure");
+
+        for table in ["track_genre", "library_data_migration"] {
+            let exists: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master \
+                     WHERE type = 'table' AND name = ?1",
+                    params![table],
+                    |r| r.get(0),
+                )
+                .expect("table probe");
+            assert_eq!(exists, 1, "missing table {table}");
+        }
     }
 
     #[test]
@@ -656,8 +709,7 @@ mod tests {
                 rows
             })
             .unwrap();
-        // Real embedded migrations (1..=head) plus the additive fixture.
-        let mut expected: Vec<i64> = (1..=LIBRARY_DB_SCHEMA_VERSION).collect();
+        let mut expected: Vec<i64> = MIGRATIONS.iter().map(|(version, _)| *version).collect();
         expected.push(FIXTURE_ADD_BIO_VERSION);
         assert_eq!(versions, expected);
     }

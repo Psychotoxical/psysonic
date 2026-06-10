@@ -892,3 +892,24 @@ export function subscribeLibrarySyncIdle(
     handler(payload),
   );
 }
+
+// ── Genre tags startup backfill (multi-genre local index) ───────────────
+
+export interface GenreTagsInspectDto {
+  needed: boolean;
+  totalTracks: number;
+  doneTracks: number;
+}
+
+export interface GenreTagsProgressEvent {
+  done: number;
+  total: number;
+}
+
+export function libraryGenreTagsInspect(): Promise<GenreTagsInspectDto> {
+  return invoke<GenreTagsInspectDto>('library_genre_tags_inspect');
+}
+
+export function libraryGenreTagsRun(): Promise<void> {
+  return invoke<void>('library_genre_tags_run');
+}

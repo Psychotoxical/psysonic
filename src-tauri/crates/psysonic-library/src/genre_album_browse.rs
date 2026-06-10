@@ -7,7 +7,7 @@ use crate::dto::{
     LibraryAlbumDto, LibraryGenreAlbumsRequest, LibraryGenreAlbumsResponse, LibrarySortClause,
     SortDir,
 };
-use crate::search::library_scope_equals_sql;
+use crate::search::library_scope_equals_sql_denormalized;
 use crate::store::LibraryStore;
 use rusqlite::types::Value as SqlValue;
 use serde_json::Value;
@@ -47,7 +47,7 @@ fn count_genre_albums(
     params: &[SqlValue],
 ) -> Result<u32, rusqlite::Error> {
     let count_sql = format!(
-        "SELECT COUNT(DISTINCT t.album_id) FROM track t WHERE {where_sql}"
+        "SELECT COUNT(DISTINCT tg.album_id) FROM track_genre tg WHERE {where_sql}"
     );
     let n: i64 = conn.query_row(
         &count_sql,
@@ -108,10 +108,9 @@ pub fn list_albums_by_genre(
     let order_sql = genre_album_order_sql(&req.sort);
 
     let mut where_clauses = vec![
-        "t.deleted = 0".to_string(),
-        "t.server_id = ?1".to_string(),
-        "t.album_id IS NOT NULL AND t.album_id != ''".to_string(),
-        "t.genre = ?2 COLLATE NOCASE".to_string(),
+        "tg.server_id = ?1".to_string(),
+        "tg.album_id IS NOT NULL AND tg.album_id != ''".to_string(),
+        "tg.genre = ?2 COLLATE NOCASE".to_string(),
     ];
     let mut params: Vec<SqlValue> = vec![
         SqlValue::Text(req.server_id.clone()),
@@ -119,7 +118,7 @@ pub fn list_albums_by_genre(
     ];
 
     if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
-        where_clauses.push(library_scope_equals_sql("t"));
+        where_clauses.push(library_scope_equals_sql_denormalized("tg"));
         params.push(SqlValue::Text(scope));
     }
 
@@ -142,8 +141,8 @@ pub fn list_albums_by_genre(
            a.raw_json \
          FROM ( \
            SELECT \
-             t.server_id, \
-             t.album_id, \
+             tg.server_id, \
+             tg.album_id, \
              MAX(t.album) AS album_name, \
              MAX(t.artist) AS artist, \
              MAX(t.album_artist) AS album_artist, \
@@ -155,9 +154,11 @@ pub fn list_albums_by_genre(
              MAX(t.synced_at) AS synced_at, \
              COUNT(*) AS track_count, \
              COALESCE(SUM(t.duration_sec), 0) AS duration_sec \
-           FROM track t \
+           FROM track_genre tg \
+           INNER JOIN track t \
+             ON t.server_id = tg.server_id AND t.id = tg.track_id AND t.deleted = 0 \
            WHERE {where_sql} \
-           GROUP BY t.server_id, t.album_id \
+           GROUP BY tg.server_id, tg.album_id \
          ) la \
          LEFT JOIN album a ON a.server_id = la.server_id AND a.id = la.album_id \
          {order_sql} \
@@ -284,5 +285,50 @@ mod tests {
         .unwrap();
         assert_eq!(all.total, Some(3));
         assert!(all.has_more);
+    }
+
+    #[test]
+    fn list_albums_by_atomic_genre_from_compound_tag() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[track(
+                "s1",
+                "t1",
+                "al_a",
+                "Noise Metal/Dark Ambient/Experimental Black Metal",
+            )])
+            .unwrap();
+
+        let dark = list_albums_by_genre(
+            &store,
+            &LibraryGenreAlbumsRequest {
+                server_id: "s1".into(),
+                genre: "Dark Ambient".into(),
+                library_scope: None,
+                sort: vec![],
+                limit: 10,
+                offset: 0,
+                include_total: true,
+            },
+        )
+        .unwrap();
+        assert_eq!(dark.total, Some(1));
+        assert_eq!(dark.albums.len(), 1);
+        assert_eq!(dark.albums[0].id, "al_a");
+
+        let noise = list_albums_by_genre(
+            &store,
+            &LibraryGenreAlbumsRequest {
+                server_id: "s1".into(),
+                genre: "Noise Metal".into(),
+                library_scope: None,
+                sort: vec![],
+                limit: 10,
+                offset: 0,
+                include_total: true,
+            },
+        )
+        .unwrap();
+        assert_eq!(noise.total, Some(1));
     }
 }

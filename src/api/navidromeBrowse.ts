@@ -1,4 +1,5 @@
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from './subsonicTypes';
+import { parseItemGenres } from '../utils/library/genreTags';
 import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from '../store/authStore';
 import { ndLogin } from './navidromeAdmin';
@@ -54,6 +55,7 @@ function mapNdSong(o: Record<string, unknown>): SubsonicSong {
     userRating: asNumber(o.rating),
     starred: o.starred ? asString(o.starredAt) || 'true' : undefined,
     genre: typeof o.genre === 'string' ? o.genre : undefined,
+    genres: parseItemGenres(o.genres),
     bitRate: asNumber(o.bitRate),
     suffix: typeof o.suffix === 'string' ? o.suffix : undefined,
     contentType: typeof o.contentType === 'string' ? o.contentType : undefined,
@@ -166,6 +168,7 @@ function mapNdAlbum(o: Record<string, unknown>): SubsonicAlbum {
     duration: asNumber(o.duration) ?? 0,
     year: asNumber(o.maxYear) ?? asNumber(o.year),
     genre: typeof o.genre === 'string' ? o.genre : undefined,
+    genres: parseItemGenres(o.genres),
     starred: starredFlag ? (starredAt ?? 'true') : undefined,
     userRating: asNumber(o.rating),
     isCompilation: o.compilation === true,
@@ -383,6 +386,7 @@ export async function ndListLosslessAlbumsPage(req: NdLosslessPageRequest): Prom
         duration: 0,
         year: asNumber(o.year),
         genre: typeof o.genre === 'string' ? o.genre : undefined,
+        genres: parseItemGenres(o.genres),
       };
       pageEntries.push({ album, bitDepth, sampleRate: asNumber(o.sampleRate) ?? 0 });
     }

@@ -1,6 +1,22 @@
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, OptionalExtension, Transaction};
 
+use crate::genre_tags::{self, genres_for_track_raw_json};
 use crate::store::{LibraryStore, WriteOpTiming};
+
+fn sync_track_genre_row(tx: &Transaction<'_>, row: &TrackRow) -> rusqlite::Result<()> {
+    if row.deleted {
+        return genre_tags::delete_track_genre_for_track(tx, &row.server_id, &row.id);
+    }
+    let genres = genres_for_track_raw_json(&row.raw_json, row.genre.as_deref());
+    genre_tags::replace_track_genre_rows(
+        tx,
+        &row.server_id,
+        &row.id,
+        row.album_id.as_deref(),
+        row.library_id.as_deref(),
+        &genres,
+    )
+}
 
 /// One row of the `track` table — every hot column from spec §5.1 plus
 /// `raw_json` (the full normalized SubsonicSong). Sync code (PR-2/PR-3) is
@@ -181,6 +197,7 @@ impl<'a> TrackRepository<'a> {
                         r.raw_json,
                     ])?;
                 }
+                sync_track_genre_row(&tx, r)?;
             }
             drop(upsert);
             tx.commit()?;
@@ -204,6 +221,14 @@ impl<'a> TrackRepository<'a> {
     pub fn sweep_resync_orphans(&self, server_id: &str, resync_gen: i64) -> Result<u32, String> {
         let now = now_unix_ms();
         let changed = self.store.with_conn_mut("track.sweep_resync_orphans", |c| {
+            c.execute(
+                "DELETE FROM track_genre \
+                 WHERE server_id = ?1 AND track_id IN ( \
+                   SELECT id FROM track \
+                   WHERE server_id = ?1 AND deleted = 0 AND resync_gen != ?2 \
+                 )",
+                params![server_id, resync_gen],
+            )?;
             c.execute(
                 "UPDATE track SET deleted = 1, synced_at = ?3 \
                  WHERE server_id = ?1 AND deleted = 0 AND resync_gen != ?2",
@@ -477,6 +502,7 @@ impl<'a> TrackRepository<'a> {
                     r.synced_at,
                     r.raw_json,
                 ])?;
+                sync_track_genre_row(&tx, r)?;
 
                 if let Some(old_id) = detected_old {
                     remap_existing_to_new(
@@ -1043,8 +1069,9 @@ mod tests {
         repo.upsert_batch_initial_ingest(&rows).unwrap();
         let elapsed = start.elapsed();
         assert!(
-            elapsed < std::time::Duration::from_millis(500),
-            "initial ingest batch(500) took {elapsed:?}"
+            elapsed < std::time::Duration::from_millis(1000),
+            "initial ingest batch(500) took {elapsed:?}; includes per-row track_genre \
+             maintenance and large raw_json payloads"
         );
     }
 

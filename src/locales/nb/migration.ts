@@ -1,0 +1,15 @@
+export const migration = {
+  preparing: 'Forbereder dataoppdatering…',
+  preparingBody: 'Ser på biblioteket og analysebufferen…',
+  migrating: 'Migrerer data',
+  working: 'arbeider…',
+  skippedRows: 'Rader for fjernede servere ble hoppet over; gammel sikkerhetskopi fjernes etter vellykket bytte.',
+  failed: 'Migrering mislyktes',
+  retry: 'Prøv igjen',
+  copyDetails: 'Kopier detaljer',
+  complete: 'Oppdatering fullført',
+  completeRows: '{{count}} rader migrert',
+  genreTagsTitle: 'Oppdaterer sjangerindeks…',
+  genreTagsBody: 'Indekserer sjangre for blaing og filtre. Kjøres én gang etter oppgradering.',
+  genreTagsFailed: 'Oppdatering av sjangerindeks mislyktes',
+};

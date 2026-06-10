@@ -6,7 +6,6 @@ use tauri::State;
 use crate::dto::CatalogYearBoundsDto;
 use crate::dto::GenreAlbumCountDto;
 use crate::runtime::LibraryRuntime;
-use crate::search::library_scope_equals_sql;
 use crate::store::LibraryStore;
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -114,21 +113,24 @@ pub(crate) fn genre_album_counts_for_server(
     store
         .with_read_conn(|conn| {
             let mut sql = String::from(
-                "SELECT t.genre, COUNT(DISTINCT t.album_id) AS album_count, COUNT(*) AS song_count \
-                 FROM track t \
-                 WHERE t.server_id = ?1 AND t.deleted = 0 \
-                   AND t.genre IS NOT NULL AND TRIM(t.genre) != '' \
-                   AND t.album_id IS NOT NULL AND t.album_id != ''",
+                "SELECT tg.genre, COUNT(DISTINCT tg.album_id) AS album_count, \
+                        COUNT(DISTINCT tg.track_id) AS song_count \
+                 FROM track_genre tg \
+                 WHERE tg.server_id = ?1 \
+                   AND tg.album_id IS NOT NULL AND tg.album_id != ''",
             );
             let mut params: Vec<rusqlite::types::Value> =
                 vec![rusqlite::types::Value::Text(server_id.to_string())];
             if let Some(scope) = library_scope.filter(|s| !s.trim().is_empty()) {
-                sql.push_str(&format!(" AND {}", library_scope_equals_sql("t")));
+                sql.push_str(&format!(
+                    " AND {}",
+                    crate::search::library_scope_equals_sql_denormalized("tg")
+                ));
                 params.push(rusqlite::types::Value::Text(scope.to_string()));
             }
             sql.push_str(
-                " GROUP BY t.genre COLLATE NOCASE \
-                 ORDER BY album_count DESC, t.genre COLLATE NOCASE ASC",
+                " GROUP BY tg.genre COLLATE NOCASE \
+                 ORDER BY album_count DESC, tg.genre COLLATE NOCASE ASC",
             );
             let mut stmt = conn.prepare(&sql)?;
             let rows = stmt

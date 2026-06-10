@@ -139,6 +139,10 @@ impl<'a> TombstoneReconciler<'a> {
                      WHERE server_id = ?1 AND id = ?2",
                     rusqlite::params![self.server_id, id, now_unix_ms()],
                 )?;
+                c.execute(
+                    "DELETE FROM track_genre WHERE server_id = ?1 AND track_id = ?2",
+                    rusqlite::params![self.server_id, id],
+                )?;
                 Ok(())
             })
             .map_err(SyncError::Storage)

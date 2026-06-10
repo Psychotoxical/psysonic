@@ -5,6 +5,8 @@ import { useMigrationStore } from '../store/migrationStore';
 
 const migrationInspectMock = vi.fn();
 const migrationRunMock = vi.fn();
+const libraryGenreTagsInspectMock = vi.fn();
+const libraryGenreTagsRunMock = vi.fn();
 const rewriteFrontendStoreKeysMock = vi.fn(async (_servers: unknown) => undefined);
 
 vi.mock('@tauri-apps/api/event', () => ({
@@ -14,6 +16,11 @@ vi.mock('@tauri-apps/api/event', () => ({
 vi.mock('../api/migration', () => ({
   migrationInspect: (mappings: unknown) => migrationInspectMock(mappings),
   migrationRun: (mappings: unknown) => migrationRunMock(mappings),
+}));
+
+vi.mock('../api/library', () => ({
+  libraryGenreTagsInspect: () => libraryGenreTagsInspectMock(),
+  libraryGenreTagsRun: () => libraryGenreTagsRunMock(),
 }));
 
 vi.mock('../utils/server/rewriteFrontendStoreKeys', () => ({
@@ -29,6 +36,10 @@ describe('useMigrationOrchestrator', () => {
   beforeEach(() => {
     migrationInspectMock.mockReset();
     migrationRunMock.mockReset();
+    libraryGenreTagsInspectMock.mockReset();
+    libraryGenreTagsRunMock.mockReset();
+    libraryGenreTagsInspectMock.mockResolvedValue({ needed: false, totalTracks: 0, doneTracks: 0 });
+    libraryGenreTagsRunMock.mockResolvedValue(undefined);
     rewriteFrontendStoreKeysMock.mockClear();
     localStorage.clear();
     useAuthStore.setState({
@@ -40,9 +51,12 @@ describe('useMigrationOrchestrator', () => {
     });
     useMigrationStore.setState({
       phase: 'inspecting',
+      step: null,
       needsMigration: false,
       inspect: null,
       progress: null,
+      genreTagsInspect: null,
+      genreTagsProgress: null,
       lastError: null,
     });
     (globalThis as Record<string, unknown>)[REAL_MIGRATION_TEST_OVERRIDE] = true;

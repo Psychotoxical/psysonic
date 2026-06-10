@@ -3,6 +3,7 @@ import type { LibraryFilterClause } from '../../api/library';
 import { albumIsCompilation, type AlbumCompFilter } from './albumCompilation';
 import { albumYearFilterClauses, type AlbumYearBounds } from './albumYearFilter';
 import type { AlbumBrowseQuery, GenreFilterOption } from './albumBrowseTypes';
+import { genreTagsFor } from './genreTags';
 
 export function albumBrowseHasGenreFilter(query: AlbumBrowseQuery): boolean {
   return query.genres.length > 0;
@@ -89,8 +90,8 @@ export function filterAlbumsByGenres(
   if (genres.length === 0) return albums;
   const wanted = new Set(genres.map(g => g.toLowerCase()));
   return albums.filter(a => {
-    const g = (a.genre ?? '').trim().toLowerCase();
-    return g !== '' && wanted.has(g);
+    const tags = genreTagsFor(a);
+    return tags.some(tag => wanted.has(tag.toLowerCase()));
   });
 }
 
@@ -107,9 +108,9 @@ export function filterAlbumsByNameTextQuery(
 export function countGenresFromAlbums(albums: SubsonicAlbum[]): GenreFilterOption[] {
   const counts = new Map<string, number>();
   for (const a of albums) {
-    const g = (a.genre ?? '').trim();
-    if (!g) continue;
-    counts.set(g, (counts.get(g) ?? 0) + 1);
+    for (const g of genreTagsFor(a)) {
+      counts.set(g, (counts.get(g) ?? 0) + 1);
+    }
   }
   return [...counts.entries()]
     .map(([genre, count]) => ({ genre, count }))

@@ -1,0 +1,15 @@
+export const migration = {
+  preparing: 'Preparing data update…',
+  preparingBody: 'Looking at your library and analysis cache…',
+  migrating: 'Migrating data',
+  working: 'working…',
+  skippedRows: 'Rows for removed servers were skipped and old backup DB will be removed after successful switch.',
+  failed: 'Migration failed',
+  retry: 'Retry',
+  copyDetails: 'Copy details',
+  complete: 'Update complete',
+  completeRows: '{{count}} rows migrated',
+  genreTagsTitle: 'Updating genre index…',
+  genreTagsBody: 'Indexing genres for browse and filters. This runs once after upgrade.',
+  genreTagsFailed: 'Genre index update failed',
+};

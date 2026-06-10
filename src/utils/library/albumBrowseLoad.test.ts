@@ -117,6 +117,16 @@ describe('countGenresFromAlbums', () => {
       { genre: 'Jazz', count: 1 },
     ]);
   });
+
+  it('counts atomic genres from compound genre strings', () => {
+    expect(countGenresFromAlbums([
+      album('1', 'Rock/Jazz'),
+      album('2', 'Rock'),
+    ])).toEqual([
+      { genre: 'Rock', count: 2 },
+      { genre: 'Jazz', count: 1 },
+    ]);
+  });
 });
 
 describe('filterAlbumsByNameTextQuery', () => {
