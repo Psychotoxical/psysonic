@@ -1,22 +1,20 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Sparkles, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { version } from '../../package.json';
-import changelogRaw from '../../CHANGELOG.md?raw';
-import { findChangelogReleaseEntry } from '../utils/changelog/changelogReleaseMatch';
+import { useReleaseNotes } from '../hooks/useReleaseNotes';
 import { renderChangelogBody } from '../utils/changelog/changelogMarkdown';
 
 export default function WhatsNew() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { loading, entry } = useReleaseNotes(version);
 
   const close = () => {
     if (window.history.length > 1) navigate(-1);
     else navigate('/');
   };
-
-  const entry = useMemo(() => findChangelogReleaseEntry(changelogRaw, version), []);
 
   return (
     <div className="whats-new">
@@ -44,7 +42,9 @@ export default function WhatsNew() {
       </header>
 
       <div className="whats-new__body">
-        {entry ? (
+        {loading ? (
+          <p className="whats-new__empty">{t('common.loading')}</p>
+        ) : entry ? (
           renderChangelogBody(entry.body)
         ) : (
           <p className="whats-new__empty">{t('whatsNew.empty')}</p>

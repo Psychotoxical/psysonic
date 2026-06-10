@@ -176,18 +176,32 @@ jobs:
       - name: extract changelog
         id: changelog
         run: |
+          set -euo pipefail
           VERSION="${{ steps.get-version.outputs.version }}"
-          BODY=$(awk "/^## \[$VERSION\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
-          if [ -z "$BODY" ]; then
-            BASE_VERSION="$(node -e 'const v=process.argv[1]; const m=v.match(/^(\d+\.\d+\.\d+)/); if(m){process.stdout.write(m[1]);}' "$VERSION")"
-            if [ -n "$BASE_VERSION" ] && [ "$BASE_VERSION" != "$VERSION" ]; then
-              BODY=$(awk "/^## \[$BASE_VERSION\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
-            fi
+          BODY=""
+          if node scripts/extract-release-section.mjs CHANGELOG.md "$VERSION" --allow-empty > /tmp/changelog-body.md; then
+            BODY="$(cat /tmp/changelog-body.md)"
           fi
           EOF_MARKER=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
           echo "body<<$EOF_MARKER" >> "$GITHUB_OUTPUT"
           echo "$BODY" >> "$GITHUB_OUTPUT"
           echo "$EOF_MARKER" >> "$GITHUB_OUTPUT"
+      - name: extract what's new for release asset
+        id: whats-new
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.get-version.outputs.version }}"
+          CHANNEL="${{ inputs.channel }}"
+          if ! node scripts/extract-release-section.mjs WHATS_NEW.md "$VERSION" > /tmp/whats-new.md; then
+            if [ "$CHANNEL" = "release" ]; then
+              echo "::error::WHATS_NEW.md has no section for version $VERSION (required for stable release)"
+              exit 1
+            fi
+            echo "::warning::WHATS_NEW.md has no section for $VERSION — skipping whats-new.md asset"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
       - name: create or update release
         id: create-release
         uses: actions/github-script@v9
@@ -237,6 +251,14 @@ jobs:
               prerelease,
             });
             return data.id;
+      - name: upload whats-new.md release asset
+        if: steps.whats-new.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="${{ steps.tag.outputs.value }}"
+          gh release upload "$RELEASE_TAG" /tmp/whats-new.md --clobber
 
   build-macos-windows:
     if: ${{ inputs.build_platform_artifacts }}
