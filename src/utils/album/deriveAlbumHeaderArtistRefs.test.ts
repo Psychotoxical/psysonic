@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { deriveAlbumArtistRefs, deriveAlbumHeaderArtistRefs } from './deriveAlbumHeaderArtistRefs';
+import {
+  albumArtistDisplayName,
+  deriveAlbumArtistRefs,
+  deriveAlbumHeaderArtistRefs,
+} from './deriveAlbumHeaderArtistRefs';
 import type { SubsonicAlbum } from '../../api/subsonicTypes';
 import { makeSubsonicSong } from '@/test/helpers/factories';
 
@@ -36,6 +40,16 @@ describe('deriveAlbumArtistRefs', () => {
       artists: { id: 'a1', name: 'Solo' } as unknown as SubsonicAlbum['artists'],
     };
     expect(deriveAlbumArtistRefs(album)).toEqual([{ id: 'a1', name: 'Solo' }]);
+  });
+
+  it('prefers OpenSubsonic displayArtist over legacy artist', () => {
+    const album: SubsonicAlbum = {
+      ...baseAlbum(),
+      artist: 'Groove Armada',
+      displayArtist: 'Underworld',
+    };
+    expect(deriveAlbumArtistRefs(album)).toEqual([{ id: 'ar-first', name: 'Underworld' }]);
+    expect(albumArtistDisplayName(album)).toBe('Underworld');
   });
 });
 

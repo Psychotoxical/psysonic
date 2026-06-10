@@ -2068,6 +2068,24 @@ mod tests {
     }
 
     #[test]
+    fn track_grouped_album_browse_prefers_album_artist_over_track_artist() {
+        let store = LibraryStore::open_in_memory();
+        let mut t1 = track("s1", "t1", "Anthem", "Groove Armada", "Back to Mine");
+        t1.album_id = Some("al_mix".into());
+        t1.album_artist = Some("Underworld".into());
+        let mut t2 = track("s1", "t2", "Zebra", "UNKLE", "Back to Mine");
+        t2.album_id = Some("al_mix".into());
+        t2.album_artist = Some("Underworld".into());
+        TrackRepository::new(&store)
+            .upsert_batch(&[t1, t2])
+            .unwrap();
+        let r = req("s1", &[EntityKind::Album]);
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.albums.len(), 1);
+        assert_eq!(resp.albums[0].artist.as_deref(), Some("Underworld"));
+    }
+
+    #[test]
     fn compilation_filter_on_track_grouped_album_browse() {
         let store = LibraryStore::open_in_memory();
         let mut comp = track("s1", "t_comp", "Hit", "VA", "Comp Album");

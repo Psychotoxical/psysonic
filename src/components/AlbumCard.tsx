@@ -21,7 +21,7 @@ import { useLongPressAction } from '../hooks/useLongPressAction';
 import { LongPressWaveOverlay } from './LongPressWaveOverlay';
 import { useDragDrop } from '../contexts/DragDropContext';
 import { isAlbumRecentlyAdded } from '../utils/albumRecency';
-import { deriveAlbumArtistRefs } from '../utils/album/deriveAlbumHeaderArtistRefs';
+import { albumArtistDisplayName, deriveAlbumArtistRefs } from '../utils/album/deriveAlbumHeaderArtistRefs';
 import { coverServerScopeForServerId } from '../cover/serverScope';
 import { appendServerQuery } from '../utils/navigation/detailServerScope';
 
@@ -93,6 +93,7 @@ function AlbumCard({
   }, [coverRef, displayCssPx]);
   const isNewAlbum = isAlbumRecentlyAdded(album.created);
   const artistRefs = useMemo(() => deriveAlbumArtistRefs(album), [album]);
+  const artistLabel = useMemo(() => albumArtistDisplayName(album), [album]);
 
   const handleClick = (opts?: { shiftKey?: boolean }) => {
     if (selectionMode) { onToggleSelect?.(album.id, opts); return; }
@@ -105,7 +106,7 @@ function AlbumCard({
       onClick={e => handleClick({ shiftKey: e.shiftKey })}
       role="button"
       tabIndex={0}
-      aria-label={`${album.name} von ${album.artist}`}
+      aria-label={`${album.name} von ${artistLabel}`}
       onKeyDown={e => e.key === 'Enter' && handleClick()}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -213,7 +214,7 @@ function AlbumCard({
         <p className="album-card-artist truncate">
           <OpenArtistRefInline
             refs={artistRefs}
-            fallbackName={album.artist}
+            fallbackName={artistLabel}
             onGoArtist={id => navigate(`/artist/${id}`)}
             as="none"
             linkTag="span"

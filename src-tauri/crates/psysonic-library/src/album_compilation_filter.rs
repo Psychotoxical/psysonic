@@ -49,16 +49,26 @@ pub fn various_artists_label(s: &str) -> bool {
     s.trim().to_ascii_lowercase().contains("various artists")
 }
 
-/// Track-grouped album rows: prefer album artist when it marks a VA compilation.
+/// SQL for track-grouped album browse: prefer `album_artist` on the `la` row.
+pub fn sql_track_group_display_artist(alias: &str) -> String {
+    format!(
+        "CASE WHEN trim(coalesce({a}.album_artist, '')) != '' \
+         THEN trim({a}.album_artist) ELSE {a}.artist END",
+        a = alias
+    )
+}
+
+/// Track-grouped album rows: prefer a non-empty album-artist tag; fall back to
+/// track artist only when album artist is absent (solo albums without TALB).
 pub fn pick_album_group_artist(
     track_artist: Option<String>,
     album_artist: Option<String>,
 ) -> Option<String> {
     let aa = album_artist.as_deref().unwrap_or("").trim();
-    if various_artists_label(aa) {
+    if !aa.is_empty() {
         return Some(aa.to_string());
     }
-    track_artist
+    track_artist.filter(|s| !s.trim().is_empty())
 }
 
 #[cfg(test)]
@@ -81,14 +91,31 @@ mod tests {
     }
 
     #[test]
-    fn pick_album_group_artist_prefers_va_album_artist() {
+    fn pick_album_group_artist_prefers_nonempty_album_artist() {
         assert_eq!(
             pick_album_group_artist(Some("Alice".into()), Some("Various Artists".into())),
             Some("Various Artists".to_string())
         );
         assert_eq!(
+            pick_album_group_artist(Some("Groove Armada".into()), Some("Underworld".into())),
+            Some("Underworld".to_string())
+        );
+        assert_eq!(
             pick_album_group_artist(Some("Alice".into()), Some("Bob".into())),
+            Some("Bob".to_string())
+        );
+    }
+
+    #[test]
+    fn pick_album_group_artist_falls_back_to_track_artist() {
+        assert_eq!(
+            pick_album_group_artist(Some("Alice".into()), None),
             Some("Alice".to_string())
         );
+        assert_eq!(
+            pick_album_group_artist(Some("Alice".into()), Some("".into())),
+            Some("Alice".to_string())
+        );
+        assert_eq!(pick_album_group_artist(None, None), None);
     }
 }

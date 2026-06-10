@@ -13,9 +13,19 @@ function nonEmpty(refs: SubsonicOpenArtistRef[]): refs is SubsonicOpenArtistRef[
 export function deriveAlbumArtistRefs(album: SubsonicAlbum): SubsonicOpenArtistRef[] {
   const albumArtists = coerceOpenArtistRefs(album.artists);
   if (nonEmpty(albumArtists)) return albumArtists;
-  const name = album.artist?.trim() || '—';
+  const display = album.displayArtist?.trim();
+  const legacy = album.artist?.trim();
+  const name = display || legacy || '—';
   const id = album.artistId?.trim();
   return id ? [{ id, name }] : [{ name }];
+}
+
+/** Single-line album-artist label for cards and rails (matches `deriveAlbumArtistRefs`). */
+export function albumArtistDisplayName(album: SubsonicAlbum): string {
+  const parts = deriveAlbumArtistRefs(album)
+    .map(r => r.name?.trim() ?? '')
+    .filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : '—';
 }
 
 /**

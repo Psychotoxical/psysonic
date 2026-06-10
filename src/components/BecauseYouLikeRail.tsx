@@ -25,6 +25,7 @@ import { useLongPressAction } from '../hooks/useLongPressAction';
 import { LongPressWaveOverlay } from './LongPressWaveOverlay';
 import { formatHumanHoursMinutes } from '../utils/format/formatHumanDuration';
 import AlbumRow from './AlbumRow';
+import { albumArtistDisplayName } from '../utils/album/deriveAlbumHeaderArtistRefs';
 
 const ANCHOR_HISTORY_KEY_PREFIX = 'psysonic_because_anchor_history:';
 const PICKS_HISTORY_KEY_PREFIX = 'psysonic_because_picks:';
@@ -599,6 +600,7 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork, e
   });
   const imgSrc = coverImgSrc(coverHandle.src);
   const bgResolved = coverHandle.src;
+  const artistLabel = useMemo(() => albumArtistDisplayName(album), [album]);
   const handleOpen = () => navigate(`/album/${album.id}`);
   const handleEnqueue = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -620,7 +622,7 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork, e
       className={`because-card${enter ? ' because-card--slot-enter' : ''}`}
       onClick={handleOpen}
       onKeyDown={e => { if (e.key === 'Enter') handleOpen(); }}
-      aria-label={`${album.name} – ${album.artist}`}
+      aria-label={`${album.name} – ${artistLabel}`}
     >
       {!disableArtwork && bgResolved && (
         <div
@@ -683,7 +685,7 @@ const BecauseCard = memo(function BecauseCard({ album, anchor, disableArtwork, e
             {t('home.similarTo', { artist: anchor })}
           </div>
           <div className="because-card-title">{album.name}</div>
-          <div className="because-card-artist">{album.artist}</div>
+          <div className="because-card-artist">{artistLabel}</div>
         </div>
         {album.releaseTypes && album.releaseTypes[0] ? (
           <div className="because-card-pills">

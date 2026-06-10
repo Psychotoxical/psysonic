@@ -44,12 +44,13 @@ pub fn list_lossless_albums(
     }
 
     let where_sql = where_clauses.join(" AND ");
+    let la_artist = crate::album_compilation_filter::sql_track_group_display_artist("la");
     let sql = format!(
         "SELECT \
            la.server_id, \
            la.album_id, \
            COALESCE(a.name, la.album_name), \
-           COALESCE(a.artist, la.artist), \
+           COALESCE(a.artist, {la_artist}), \
            COALESCE(a.artist_id, la.artist_id), \
            COALESCE(a.song_count, la.track_count), \
            COALESCE(a.duration_sec, la.duration_sec), \
@@ -65,6 +66,7 @@ pub fn list_lossless_albums(
              t.album_id, \
              MAX(t.album) AS album_name, \
              MAX(t.artist) AS artist, \
+             MAX(t.album_artist) AS album_artist, \
              MAX(t.artist_id) AS artist_id, \
              MAX(t.year) AS year, \
              MAX(t.genre) AS genre, \

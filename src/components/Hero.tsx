@@ -19,6 +19,7 @@ import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { playAlbum, playAlbumShuffled } from '../utils/playback/playAlbum';
 import { useLongPressAction } from '../hooks/useLongPressAction';
 import { LongPressWaveOverlay } from './LongPressWaveOverlay';
+import { albumArtistDisplayName } from '../utils/album/deriveAlbumHeaderArtistRefs';
 
 const INTERVAL_MS = 10000;
 const HERO_ALBUM_COUNT = 8;
@@ -266,6 +267,10 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   }, [albums.length, startTimer]);
 
   const album = albums[activeIdx] ?? null;
+  const heroArtistLabel = useMemo(
+    () => (album ? albumArtistDisplayName(album) : ''),
+    [album],
+  );
 
   // Lazily fetch format label for the currently-visible album (cached by id)
   const [albumFormats, setAlbumFormats] = useState<Record<string, string>>({});
@@ -335,7 +340,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
         <div className="hero-text">
           <span className="hero-eyebrow">{t('hero.eyebrow')}</span>
           <h2 className="hero-title">{album.name}</h2>
-          <p className="hero-artist">{album.artist}</p>
+          <p className="hero-artist">{heroArtistLabel}</p>
           <div className="hero-meta">
             {album.year && <span className="badge">{album.year}</span>}
             {album.genre && <span className="badge">{album.genre}</span>}
