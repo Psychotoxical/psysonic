@@ -30,14 +30,6 @@ vi.mock('@/api/subsonic', () => ({
   unstar: vi.fn(async () => undefined),
 }));
 
-vi.mock('@/api/lastfm', () => ({
-  lastfmScrobble: vi.fn(async () => undefined),
-  lastfmUpdateNowPlaying: vi.fn(async () => undefined),
-  lastfmLoveTrack: vi.fn(async () => undefined),
-  lastfmUnloveTrack: vi.fn(async () => undefined),
-  lastfmGetTrackLoved: vi.fn(async () => false),
-  lastfmGetAllLovedTracks: vi.fn(async () => []),
-}));
 
 vi.mock('@/utils/orbitBulkGuard', () => ({
   orbitBulkGuard: vi.fn(async () => true),

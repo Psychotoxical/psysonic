@@ -77,20 +77,12 @@ export interface AuthState {
   servers: ServerProfile[];
   activeServerId: string | null;
 
-  // Last.fm (global) — legacy fields, migrated into musicNetworkAccounts on
-  // rehydrate; kept until the call-sites move onto the Music Network runtime.
-  lastfmApiKey: string;
-  lastfmApiSecret: string;
-  lastfmSessionKey: string;
-  lastfmUsername: string;
-
   // Music Network — multi-provider scrobble/enrichment framework state.
   musicNetworkAccounts: PersistedAccount[];
   enrichmentPrimaryId: string | null;
   scrobblingMasterEnabled: boolean;
 
   // Settings (global)
-  scrobblingEnabled: boolean;
   maxCacheMb: number;
   coverRevalidateCycleDays: number;
   coverRevalidateMaxProbesPerSession: number;
@@ -292,7 +284,6 @@ export interface AuthState {
   isLoggedIn: boolean;
   isConnecting: boolean;
   connectionError: string | null;
-  lastfmSessionError: boolean;
 
   // Actions
   addServer: (profile: Omit<ServerProfile, 'id'>) => string;
@@ -303,11 +294,6 @@ export interface AuthState {
   setLoggedIn: (v: boolean) => void;
   setConnecting: (v: boolean) => void;
   setConnectionError: (e: string | null) => void;
-  setLastfm: (apiKey: string, apiSecret: string, sessionKey: string, username: string) => void;
-  connectLastfm: (sessionKey: string, username: string) => void;
-  disconnectLastfm: () => void;
-  setLastfmSessionError: (v: boolean) => void;
-  setScrobblingEnabled: (v: boolean) => void;
 
   // Music Network actions (backing the runtime's MusicNetworkStore port).
   setMusicNetworkAccounts: (accounts: PersistedAccount[]) => void;

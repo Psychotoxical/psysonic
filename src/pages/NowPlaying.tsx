@@ -64,8 +64,7 @@ export default function NowPlaying() {
   const toggleQueue             = usePlayerStore(s => s.toggleQueue);
   const enableBandsintown    = useAuthStore(s => s.enableBandsintown);
   const setEnableBandsintown = useAuthStore(s => s.setEnableBandsintown);
-  const lastfmUsername       = useAuthStore(s => s.lastfmUsername);
-  const lastfmSessionKey     = useAuthStore(s => s.lastfmSessionKey);
+  const enrichmentPrimaryId  = useAuthStore(s => s.enrichmentPrimaryId);
   const playTrackFn          = usePlayerStore(s => s.playTrack);
 
   const radioMeta = useRadioMetadata(currentRadio ?? null);
@@ -91,7 +90,7 @@ export default function NowPlaying() {
   } = useNowPlayingFetchers({
     songId, artistId, albumId, artistName,
     enableBandsintown, audiomuseNavidromeEnabled,
-    lastfmUsername, currentTrack,
+    enrichmentKey: enrichmentPrimaryId ?? '', currentTrack,
     subsonicServerId: playbackServerId,
     // `fetchEnabled` = "we have a playback server id". The reachability decision
     // (online / server reachable, no trackId so local-cache playback still loads
@@ -100,9 +99,9 @@ export default function NowPlaying() {
   });
 
   // Star + Last.fm love + their toggle callbacks
-  const lfmLoveEnabled = Boolean(lastfmUsername && lastfmSessionKey);
+  const lfmLoveEnabled = enrichmentPrimaryId !== null;
   const { starred, lfmLoved, toggleStar, toggleLfmLove } = useNowPlayingStarLove({
-    currentTrack, songMeta, lfmTrack, lfmLoveEnabled, lastfmSessionKey,
+    currentTrack, songMeta, lfmTrack, lfmLoveEnabled,
   });
 
   const openLyrics = useCallback(() => {

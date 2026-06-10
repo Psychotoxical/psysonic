@@ -2,15 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { queueSongStar } from '../store/pendingStarSync';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import type { Track } from '../store/playerStoreTypes';
-import type { LastfmTrackInfo } from '../api/lastfm';
+import type { TrackStats } from '../music-network';
 import { getMusicNetworkRuntime } from '../music-network';
 
 export interface NowPlayingStarLoveDeps {
   currentTrack: Pick<Track, 'id' | 'title' | 'artist' | 'serverId'> | null;
   songMeta: SubsonicSong | null;
-  lfmTrack: LastfmTrackInfo | null;
+  lfmTrack: TrackStats | null;
   lfmLoveEnabled: boolean;
-  lastfmSessionKey: string;
 }
 
 export interface NowPlayingStarLoveResult {
@@ -21,7 +20,7 @@ export interface NowPlayingStarLoveResult {
 }
 
 export function useNowPlayingStarLove(deps: NowPlayingStarLoveDeps): NowPlayingStarLoveResult {
-  const { currentTrack, songMeta, lfmTrack, lfmLoveEnabled, lastfmSessionKey } = deps;
+  const { currentTrack, songMeta, lfmTrack, lfmLoveEnabled } = deps;
 
   // Star
   const [starred, setStarred] = useState(false);
@@ -41,7 +40,7 @@ export function useNowPlayingStarLove(deps: NowPlayingStarLoveDeps): NowPlayingS
     const track = { title: currentTrack.title, artist: currentTrack.artist };
     if (lfmLoved) { await getMusicNetworkRuntime().setTrackLoved(track, false); setLfmLoved(false); }
     else          { await getMusicNetworkRuntime().setTrackLoved(track, true);  setLfmLoved(true);  }
-  }, [currentTrack, lfmLoved, lfmLoveEnabled, lastfmSessionKey]);
+  }, [currentTrack, lfmLoved, lfmLoveEnabled]);
 
   return { starred, lfmLoved, toggleStar, toggleLfmLove };
 }

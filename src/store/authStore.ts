@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { createAudioSettingsActions } from './authAudioSettingsActions';
-import { createAuthLastfmActions } from './authLastfmActions';
 import { createCacheStorageActions } from './authCacheStorageActions';
 import { createDiscordSettingsActions } from './authDiscordSettingsActions';
 import { createDiscoveryActions } from './authDiscoveryActions';
@@ -32,14 +31,9 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       servers: [],
       activeServerId: null,
-      lastfmApiKey: '',
-      lastfmApiSecret: '',
-      lastfmSessionKey: '',
-      lastfmUsername: '',
       musicNetworkAccounts: [],
       enrichmentPrimaryId: null,
       scrobblingMasterEnabled: true,
-      scrobblingEnabled: true,
       maxCacheMb: 0,
       coverRevalidateCycleDays: 30,
       coverRevalidateMaxProbesPerSession: 500,
@@ -130,10 +124,8 @@ export const useAuthStore = create<AuthState>()(
       isLoggedIn: false,
       isConnecting: false,
       connectionError: null,
-      lastfmSessionError: false,
 
       ...createServerProfileActions(set),
-      ...createAuthLastfmActions(set),
       ...createMusicNetworkActions(set),
       ...createAudioSettingsActions(set),
       ...createCacheStorageActions(set),

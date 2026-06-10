@@ -3,7 +3,7 @@ import { getArtistInfoForServer } from '../api/subsonicArtists';
 import type { SubsonicAlbum, SubsonicArtistInfo, SubsonicSong } from '../api/subsonicTypes';
 import { resolveNpAlbum, resolveNpDiscography, resolveNpSongMeta, resolveNpTopSongs } from '../utils/library/nowPlayingMetadataResolve';
 import { fetchBandsintownEvents, type BandsintownEvent } from '../api/bandsintown';
-import type { LastfmArtistStats, LastfmTrackInfo } from '../api/lastfm';
+import type { ArtistStats, TrackStats } from '../music-network';
 import { getMusicNetworkRuntimeOrNull } from '../music-network';
 import { makeCache } from '../utils/cache/nowPlayingCache';
 import { shouldAttemptSubsonicForServer } from '../utils/network/subsonicNetworkGuard';
@@ -16,8 +16,8 @@ const albumCache       = makeCache<{ album: SubsonicAlbum; songs: SubsonicSong[]
 const topSongsCache    = makeCache<SubsonicSong[]>();
 const tourCache        = makeCache<BandsintownEvent[]>();
 const discographyCache = makeCache<SubsonicAlbum[]>();
-const lfmTrackCache    = makeCache<LastfmTrackInfo | null>();
-const lfmArtistCache   = makeCache<LastfmArtistStats | null>();
+const lfmTrackCache    = makeCache<TrackStats | null>();
+const lfmArtistCache   = makeCache<ArtistStats | null>();
 
 export interface NowPlayingFetchersDeps {
   songId: string | undefined;
@@ -26,7 +26,7 @@ export interface NowPlayingFetchersDeps {
   artistName: string;
   enableBandsintown: boolean;
   audiomuseNavidromeEnabled: boolean;
-  lastfmUsername: string;
+  enrichmentKey: string;
   currentTrack: { artist: string; title: string } | null;
   /** Subsonic server for API calls — must match the playing queue server. */
   subsonicServerId: string;
@@ -47,8 +47,8 @@ export interface NowPlayingFetchersResult {
   tourEvents: BandsintownEvent[];
   tourLoading: boolean;
   discography: SubsonicAlbum[];
-  lfmTrack: LastfmTrackInfo | null;
-  lfmArtist: LastfmArtistStats | null;
+  lfmTrack: TrackStats | null;
+  lfmArtist: ArtistStats | null;
 }
 
 function subsonicCacheKey(serverId: string, id: string): string {
@@ -80,7 +80,7 @@ export async function prewarmNowPlayingFetchers(
 ): Promise<void> {
   const {
     songId, artistId, albumId, artistName, enableBandsintown, audiomuseNavidromeEnabled,
-    lastfmUsername, currentTrack, subsonicServerId, fetchEnabled = true,
+    enrichmentKey, currentTrack, subsonicServerId, fetchEnabled = true,
   } = deps;
 
   if (!fetchEnabled || !subsonicServerId) return;
@@ -153,7 +153,7 @@ export async function prewarmNowPlayingFetchers(
 
   const prewarmRuntime = getMusicNetworkRuntimeOrNull();
   if (prewarmRuntime?.getEnrichmentPrimaryId() && currentTrack) {
-    const trackKey = `${currentTrack.artist} ${currentTrack.title} ${lastfmUsername}`;
+    const trackKey = `${currentTrack.artist} ${currentTrack.title} ${enrichmentKey}`;
     if (lfmTrackCache.get(trackKey) === undefined) {
       jobs.push(
         prewarmRuntime.getTrackStats({ title: currentTrack.title, artist: currentTrack.artist })
@@ -161,7 +161,7 @@ export async function prewarmNowPlayingFetchers(
           .catch(() => lfmTrackCache.set(trackKey, null)),
       );
     }
-    const artistKey = `${currentTrack.artist} ${lastfmUsername}`;
+    const artistKey = `${currentTrack.artist} ${enrichmentKey}`;
     if (lfmArtistCache.get(artistKey) === undefined) {
       jobs.push(
         prewarmRuntime.getArtistStats(currentTrack.artist)
@@ -177,7 +177,7 @@ export async function prewarmNowPlayingFetchers(
 export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingFetchersResult {
   const {
     songId, artistId, albumId, artistName, enableBandsintown, audiomuseNavidromeEnabled,
-    lastfmUsername, currentTrack, subsonicServerId, fetchEnabled = true,
+    enrichmentKey, currentTrack, subsonicServerId, fetchEnabled = true,
   } = deps;
 
   // id-keyed entity state — seeded from TTL cache so same-artist song switches
@@ -199,11 +199,11 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
   const [tourEventsEntry, setTourEventsEntry] = useState<KeySlot<BandsintownEvent[]>>(() =>
     seedKeySlot(tourKey, k => tourCache.get(k)));
   const [tourLoading, setTourLoading] = useState(false);
-  const lfmTrackKey = currentTrack ? `${currentTrack.artist} ${currentTrack.title} ${lastfmUsername}` : '';
-  const lfmArtistKey = artistName ? `${artistName} ${lastfmUsername}` : '';
-  const [lfmTrackEntry, setLfmTrackEntry] = useState<KeySlot<LastfmTrackInfo | null>>(() =>
+  const lfmTrackKey = currentTrack ? `${currentTrack.artist} ${currentTrack.title} ${enrichmentKey}` : '';
+  const lfmArtistKey = artistName ? `${artistName} ${enrichmentKey}` : '';
+  const [lfmTrackEntry, setLfmTrackEntry] = useState<KeySlot<TrackStats | null>>(() =>
     seedKeySlot(lfmTrackKey, k => lfmTrackCache.get(k)));
-  const [lfmArtistEntry, setLfmArtistEntry] = useState<KeySlot<LastfmArtistStats | null>>(() =>
+  const [lfmArtistEntry, setLfmArtistEntry] = useState<KeySlot<ArtistStats | null>>(() =>
     seedKeySlot(lfmArtistKey, k => lfmArtistCache.get(k)));
 
   const { status: connStatus } = useConnectionStatus();
@@ -305,7 +305,7 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
       .then(v => { if (!cancelled) { lfmTrackCache.set(lfmTrackKey, v); setLfmTrackEntry({ key: lfmTrackKey, value: v }); } })
       .catch(() => { if (!cancelled) { lfmTrackCache.set(lfmTrackKey, null); setLfmTrackEntry({ key: lfmTrackKey, value: null }); } });
     return () => { cancelled = true; };
-  }, [lfmTrackKey, currentTrack, lastfmUsername]);
+  }, [lfmTrackKey, currentTrack, enrichmentKey]);
 
   // Last.fm artist stats (per-artist — shared across same-artist tracks)
   useEffect(() => {
@@ -319,7 +319,7 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
       .then(v => { if (!cancelled) { lfmArtistCache.set(lfmArtistKey, v); setLfmArtistEntry({ key: lfmArtistKey, value: v }); } })
       .catch(() => { if (!cancelled) { lfmArtistCache.set(lfmArtistKey, null); setLfmArtistEntry({ key: lfmArtistKey, value: null }); } });
     return () => { cancelled = true; };
-  }, [lfmArtistKey, artistName, lastfmUsername]);
+  }, [lfmArtistKey, artistName, enrichmentKey]);
 
   // Gate id-keyed slots on id-match so consumers never see a value paired
   // with the wrong id, even on the single render between an id change and

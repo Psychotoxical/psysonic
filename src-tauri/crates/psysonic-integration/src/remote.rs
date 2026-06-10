@@ -354,19 +354,6 @@ pub async fn audioscrobbler_request(
     Ok(json)
 }
 
-/// Deprecated transition alias for [`audioscrobbler_request`] against the fixed
-/// Last.fm host. Removed once the Music Network framework owns all call sites.
-#[tauri::command]
-pub async fn lastfm_request(
-    params: Vec<[String; 2]>,
-    sign: bool,
-    get: bool,
-    api_key: String,
-    api_secret: String,
-) -> Result<serde_json::Value, String> {
-    audioscrobbler_request(LASTFM_API_BASE.to_string(), params, sign, get, api_key, api_secret).await
-}
-
 /// Generic ListenBrainz transport. Used by both the direct
 /// `api.listenbrainz.org` preset and the Maloja `/apis/listenbrainz` compat
 /// surface — they differ only by `base_url`. Auth is a `Token` header.

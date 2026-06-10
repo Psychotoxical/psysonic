@@ -173,11 +173,18 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
   };
   try {
     if (!localStorage.getItem(musicNetworkMigrationKey)) {
+      // The legacy lastfm* fields no longer exist on AuthState; read them off the
+      // persisted blob (present on upgrade) via a cast.
+      const legacy = state as unknown as {
+        lastfmSessionKey?: string;
+        lastfmUsername?: string;
+        scrobblingEnabled?: boolean;
+      };
       const migrated = migrateLegacyLastfm(
         {
-          lastfmSessionKey: state.lastfmSessionKey,
-          lastfmUsername: state.lastfmUsername,
-          scrobblingEnabled: state.scrobblingEnabled,
+          lastfmSessionKey: legacy.lastfmSessionKey,
+          lastfmUsername: legacy.lastfmUsername,
+          scrobblingEnabled: legacy.scrobblingEnabled,
         },
         () => crypto.randomUUID(),
       );

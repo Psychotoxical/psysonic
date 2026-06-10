@@ -718,7 +718,6 @@ pub fn run() {
             audio::commands::audio_chain_preload,
             psysonic_integration::discord::discord_update_presence,
             psysonic_integration::discord::discord_clear_presence,
-            psysonic_integration::remote::lastfm_request,
             psysonic_integration::remote::audioscrobbler_request,
             psysonic_integration::remote::listenbrainz_request,
             psysonic_integration::remote::maloja_request,

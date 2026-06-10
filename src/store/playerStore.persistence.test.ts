@@ -67,12 +67,6 @@ vi.mock('@/api/subsonicStarRating', () => ({
   probeEntityRatingSupport: vi.fn(async () => 'track_only'),
 }));
 
-vi.mock('@/api/lastfm', () => ({
-  lastfmScrobble: vi.fn(async () => undefined),
-  lastfmUpdateNowPlaying: vi.fn(async () => undefined),
-  lastfmGetTrackLoved: vi.fn(async () => false),
-  lastfmGetAllLovedTracks: vi.fn(async () => []),
-}));
 
 import { usePlayerStore } from './playerStore';
 import { emitTauriEvent, onInvoke } from '@/test/mocks/tauri';

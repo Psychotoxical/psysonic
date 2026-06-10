@@ -41,13 +41,13 @@ describe('hydration — loads existing localStorage shape', () => {
   });
 
   it('defaults missing fields to their initial values', async () => {
-    // Minimal payload — no scrobblingEnabled, no replayGain settings, etc.
+    // Minimal payload — no trackPreviewsEnabled, no replayGain settings, etc.
     writePersistedState({ servers: [], activeServerId: null });
 
     await useAuthStore.persist.rehydrate();
 
     const s = useAuthStore.getState();
-    expect(s.scrobblingEnabled).toBe(true);
+    expect(s.trackPreviewsEnabled).toBe(true);
     expect(s.crossfadeEnabled).toBe(false);
     expect(s.gaplessEnabled).toBe(false);
     expect(s.replayGainEnabled).toBe(false);
@@ -58,7 +58,7 @@ describe('hydration — loads existing localStorage shape', () => {
     writePersistedState({
       servers: [],
       activeServerId: null,
-      scrobblingEnabled: false,
+      trackPreviewsEnabled: false,
       crossfadeEnabled: true,
       gaplessEnabled: false,
       crossfadeSecs: 7,
@@ -67,7 +67,7 @@ describe('hydration — loads existing localStorage shape', () => {
     await useAuthStore.persist.rehydrate();
 
     const s = useAuthStore.getState();
-    expect(s.scrobblingEnabled).toBe(false);
+    expect(s.trackPreviewsEnabled).toBe(false);
     expect(s.crossfadeEnabled).toBe(true);
     expect(s.crossfadeSecs).toBe(7);
   });
@@ -81,7 +81,7 @@ describe('hydration — corrupt / unexpected input', () => {
     const s = useAuthStore.getState();
     // No servers loaded; defaults remain.
     expect(s.servers).toEqual([]);
-    expect(s.scrobblingEnabled).toBe(true);
+    expect(s.trackPreviewsEnabled).toBe(true);
   });
 
   it('is robust to a missing top-level `state` field', async () => {
@@ -150,7 +150,7 @@ describe('partialize — what gets persisted', () => {
   it('strips `musicFolders` from the persisted payload', () => {
     useAuthStore.setState({ musicFolders: [{ id: 'mf-1', name: 'Music' }] });
     // Trigger persist (Zustand persist writes on every state change).
-    useAuthStore.setState({ scrobblingEnabled: false });
+    useAuthStore.setState({ trackPreviewsEnabled: false });
 
     const raw = localStorage.getItem(PERSIST_KEY);
     expect(raw).not.toBeNull();
