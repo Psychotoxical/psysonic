@@ -18,9 +18,11 @@ function dedupeGenres(genres: string[]): string[] {
 
 /** Parse OpenSubsonic `genres` from a raw API payload fragment. */
 export function parseItemGenres(raw: unknown): SubsonicItemGenre[] | undefined {
-  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  if (raw == null) return undefined;
+  const items = Array.isArray(raw) ? raw : [raw];
+  if (items.length === 0) return undefined;
   const names: string[] = [];
-  for (const item of raw) {
+  for (const item of items) {
     if (item && typeof item === 'object' && !Array.isArray(item)) {
       const name = (item as { name?: unknown }).name;
       if (typeof name === 'string' && name.trim()) names.push(name.trim());
@@ -47,14 +49,17 @@ export function splitGenreTags(raw: string): string[] {
   return dedupeGenres(parts);
 }
 
-type GenreTagSource = Pick<SubsonicSong | SubsonicAlbum, 'genre' | 'genres'>;
+type GenreTagSource = Pick<SubsonicSong | SubsonicAlbum, 'genre'> & {
+  /** Runtime shape may be ItemGenre[], a single object, or bare strings (Subsonic JSON). */
+  genres?: unknown;
+};
 
 /** Server-authoritative genres when present; otherwise split the legacy `genre` string. */
 export function genreTagsFor(item: GenreTagSource): string[] {
-  const fromArray = item.genres
-    ?.map(g => g.name.trim())
-    .filter(Boolean);
-  if (fromArray && fromArray.length > 0) return dedupeGenres(fromArray);
+  const parsed = parseItemGenres(item.genres);
+  if (parsed && parsed.length > 0) {
+    return dedupeGenres(parsed.map(g => g.name));
+  }
   const g = item.genre?.trim();
   return g ? splitGenreTags(g) : [];
 }

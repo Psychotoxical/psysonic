@@ -6,6 +6,7 @@ use tauri::State;
 use crate::dto::CatalogYearBoundsDto;
 use crate::dto::GenreAlbumCountDto;
 use crate::runtime::LibraryRuntime;
+use crate::search::library_scope_equals_sql;
 use crate::store::LibraryStore;
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -112,20 +113,30 @@ pub(crate) fn genre_album_counts_for_server(
 ) -> Result<Vec<GenreAlbumCountDto>, String> {
     store
         .with_read_conn(|conn| {
-            let mut sql = String::from(
-                "SELECT tg.genre, COUNT(DISTINCT tg.album_id) AS album_count, \
-                        COUNT(DISTINCT tg.track_id) AS song_count \
-                 FROM track_genre tg \
-                 WHERE tg.server_id = ?1 \
-                   AND tg.album_id IS NOT NULL AND tg.album_id != ''",
-            );
+            let scoped = library_scope.is_some_and(|s| !s.trim().is_empty());
+            let mut sql = if scoped {
+                String::from(
+                    "SELECT tg.genre, COUNT(DISTINCT tg.album_id) AS album_count, \
+                            COUNT(DISTINCT tg.track_id) AS song_count \
+                     FROM track_genre tg \
+                     INNER JOIN track t \
+                       ON t.server_id = tg.server_id AND t.id = tg.track_id AND t.deleted = 0 \
+                     WHERE tg.server_id = ?1 \
+                       AND tg.album_id IS NOT NULL AND tg.album_id != ''",
+                )
+            } else {
+                String::from(
+                    "SELECT tg.genre, COUNT(DISTINCT tg.album_id) AS album_count, \
+                            COUNT(DISTINCT tg.track_id) AS song_count \
+                     FROM track_genre tg \
+                     WHERE tg.server_id = ?1 \
+                       AND tg.album_id IS NOT NULL AND tg.album_id != ''",
+                )
+            };
             let mut params: Vec<rusqlite::types::Value> =
                 vec![rusqlite::types::Value::Text(server_id.to_string())];
             if let Some(scope) = library_scope.filter(|s| !s.trim().is_empty()) {
-                sql.push_str(&format!(
-                    " AND {}",
-                    crate::search::library_scope_equals_sql_denormalized("tg")
-                ));
+                sql.push_str(&format!(" AND {}", library_scope_equals_sql("t")));
                 params.push(rusqlite::types::Value::Text(scope.to_string()));
             }
             sql.push_str(
@@ -337,6 +348,26 @@ mod tests {
         assert_eq!(counts[0].value, "Rock");
         assert_eq!(counts[0].album_count, 1);
         assert_eq!(counts[0].song_count, 1);
+    }
+
+    #[test]
+    fn genre_album_counts_scope_reads_library_id_from_track_raw_json() {
+        let store = Arc::new(LibraryStore::open_in_memory());
+        let mut scoped = make_row("s1", "r1", "al_a", 1);
+        scoped.genre = Some("Rock".into());
+        scoped.library_id = None;
+        scoped.raw_json = r#"{"libraryId":"lib1"}"#.into();
+        let mut other = make_row("s1", "r2", "al_b", 1);
+        other.genre = Some("Rock".into());
+        other.library_id = None;
+        other.raw_json = r#"{"libraryId":"lib2"}"#.into();
+        TrackRepository::new(&store)
+            .upsert_batch(&[scoped, other])
+            .unwrap();
+
+        let counts = genre_album_counts_for_server(&store, "s1", Some("lib1")).unwrap();
+        assert_eq!(counts.len(), 1);
+        assert_eq!(counts[0].album_count, 1);
     }
 
     #[test]

@@ -7,7 +7,7 @@ use crate::dto::{
     LibraryAlbumDto, LibraryGenreAlbumsRequest, LibraryGenreAlbumsResponse, LibrarySortClause,
     SortDir,
 };
-use crate::search::library_scope_equals_sql_denormalized;
+use crate::search::library_scope_equals_sql;
 use crate::store::LibraryStore;
 use rusqlite::types::Value as SqlValue;
 use serde_json::Value;
@@ -45,10 +45,16 @@ fn count_genre_albums(
     conn: &rusqlite::Connection,
     where_sql: &str,
     params: &[SqlValue],
+    library_scoped: bool,
 ) -> Result<u32, rusqlite::Error> {
-    let count_sql = format!(
-        "SELECT COUNT(DISTINCT tg.album_id) FROM track_genre tg WHERE {where_sql}"
-    );
+    let from = if library_scoped {
+        "FROM track_genre tg \
+         INNER JOIN track t \
+           ON t.server_id = tg.server_id AND t.id = tg.track_id AND t.deleted = 0"
+    } else {
+        "FROM track_genre tg"
+    };
+    let count_sql = format!("SELECT COUNT(DISTINCT tg.album_id) {from} WHERE {where_sql}");
     let n: i64 = conn.query_row(
         &count_sql,
         rusqlite::params_from_iter(params.iter()),
@@ -117,8 +123,9 @@ pub fn list_albums_by_genre(
         SqlValue::Text(genre.to_string()),
     ];
 
+    let library_scoped = trimmed_nonempty(req.library_scope.as_deref()).is_some();
     if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
-        where_clauses.push(library_scope_equals_sql_denormalized("tg"));
+        where_clauses.push(library_scope_equals_sql("t"));
         params.push(SqlValue::Text(scope));
     }
 
@@ -171,7 +178,7 @@ pub fn list_albums_by_genre(
 
     store.with_read_conn(|conn| {
         let total = if req.include_total {
-            Some(count_genre_albums(conn, &where_sql, &count_params)?)
+            Some(count_genre_albums(conn, &where_sql, &count_params, library_scoped)?)
         } else {
             None
         };

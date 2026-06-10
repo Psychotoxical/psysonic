@@ -226,11 +226,6 @@ pub(crate) fn library_scope_equals_sql(table_alias: &str) -> String {
     format!("{} = ?", library_scope_match_sql(table_alias))
 }
 
-/// Library scope on denormalized tables (`track_genre`) that store `library_id` only.
-pub(crate) fn library_scope_equals_sql_denormalized(table_alias: &str) -> String {
-    format!("NULLIF({table_alias}.library_id, '') = ?")
-}
-
 pub(crate) fn aliased_track_columns(alias: &str) -> String {
     crate::repos::track_columns()
         .split(',')

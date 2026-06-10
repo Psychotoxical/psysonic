@@ -16,6 +16,10 @@ describe('parseItemGenres', () => {
     expect(parseItemGenres(['A', 'B'])).toEqual([{ name: 'A' }, { name: 'B' }]);
     expect(parseItemGenres([])).toBeUndefined();
   });
+
+  it('accepts a single genre object (Subsonic one-element quirk)', () => {
+    expect(parseItemGenres({ name: 'Jazz' })).toEqual([{ name: 'Jazz' }]);
+  });
 });
 
 describe('genreTagsFor', () => {
@@ -24,6 +28,17 @@ describe('genreTagsFor', () => {
       genre: 'Noise Metal/Dark Ambient/Experimental Black Metal',
       genres: [{ name: 'Dark Ambient' }, { name: 'Noise Metal' }],
     })).toEqual(['Dark Ambient', 'Noise Metal']);
+  });
+
+  it('tolerates raw genres shapes from getAlbumList2 passthrough', () => {
+    expect(genreTagsFor({
+      genre: 'Ignored/Compound',
+      genres: { name: 'Rock' },
+    })).toEqual(['Rock']);
+    expect(genreTagsFor({
+      genre: 'Ignored',
+      genres: ['Jazz', 'Blues'],
+    })).toEqual(['Jazz', 'Blues']);
   });
 
   it('falls back to splitGenreTags when genres[] is absent', () => {

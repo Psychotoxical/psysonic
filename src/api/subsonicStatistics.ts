@@ -56,8 +56,8 @@ export async function fetchStatisticsLibraryAggregates(): Promise<StatisticsLibr
         const sc = a.songCount ?? 0;
         songsCounted += sc;
         const tags = genreTagsFor(a);
-        if (tags.length === 0) continue;
-        for (const label of tags) {
+        const labels = tags.length > 0 ? tags : [''];
+        for (const label of labels) {
           let g = genreAgg.get(label);
           if (!g) {
             g = { songCount: 0, albumCount: 0 };
