@@ -325,7 +325,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Dev startup — missing generated release-notes bundle
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#TBD](https://github.com/Psychotoxical/psysonic/pull/TBD)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1060](https://github.com/Psychotoxical/psysonic/pull/1060)**
 
 * Fresh clones no longer crash Vite on `tauri:dev` when `src/generated/releaseNotesBundle.ts` was gitignored — the slice is committed as a fallback and `dev` / `tauri:dev` regenerate it before launch.
 
