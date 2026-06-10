@@ -56,13 +56,17 @@ class AudioscrobblerWireImpl implements EnrichmentWire {
   }
 
   async scrobble(ctx: WireContext, event: { title: string; artist: string; album: string; duration: number; timestamp: number }): Promise<void> {
+    // Batch/array form (`artist[0]`, `track[0]`, …) is the documented
+    // Audioscrobbler track.scrobble shape. Last.fm/Libre.fm also accept the bare
+    // single form, but Rocksky requires the indexed array form — so we use the
+    // standard everywhere.
     await audioscrobblerCall(ctx, {
       method: 'track.scrobble',
-      track: event.title,
-      artist: event.artist,
-      album: event.album,
-      duration: String(Math.round(event.duration)),
-      timestamp: String(Math.floor(event.timestamp / 1000)),
+      'track[0]': event.title,
+      'artist[0]': event.artist,
+      'album[0]': event.album,
+      'duration[0]': String(Math.round(event.duration)),
+      'timestamp[0]': String(Math.floor(event.timestamp / 1000)),
       sk: ctx.sessionKey,
     }, true, false);
   }

@@ -28,6 +28,8 @@ export interface PresetField {
   name: 'baseUrl' | 'apiKey' | 'apiSecret' | 'token' | 'malojaWireMode' | (string & {});
   /** i18n key for the label. */
   labelKey: string;
+  /** Optional i18n key for a help/instructions hint shown below the field. */
+  helpKey?: string;
   type: 'text' | 'password' | 'url' | 'select';
   required: boolean;
   placeholder?: string;

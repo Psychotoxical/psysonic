@@ -38,6 +38,7 @@ const manifest: PresetManifest = {
     {
       name: 'token',
       labelKey: 'musicNetwork.fields.rockskySessionKey',
+      helpKey: 'musicNetwork.fields.rockskySessionKeyHelp',
       type: 'password',
       required: true,
     },

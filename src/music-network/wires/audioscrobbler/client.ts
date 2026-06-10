@@ -20,8 +20,13 @@ function errMsg(e: unknown): string {
   return String(e);
 }
 
-// Last.fm / GNU FM error codes 4, 9, 14 = auth/session invalid.
-const SESSION_INVALID = /^Last\.fm (4|9|14)\b/;
+// Auth/session detection. Real auth failures are matched by MESSAGE, not by
+// numeric code: the codes collide across providers (Last.fm code 4 = "Authentication
+// Failed", but Rocksky code 4 = a server-side "Failed to parse scrobbles" / 500
+// that must NOT flip the account to a reconnect state). Codes 9/14 are Last.fm/GNU
+// FM session-key/token failures with no ambiguous message.
+const SESSION_INVALID_CODE = /^Last\.fm (9|14)\b/;
+const SESSION_INVALID_MESSAGE = /authentication failed|invalid (session|token)/i;
 
 /**
  * Calls the Audioscrobbler endpoint. `sign` adds an api_sig; `get` uses GET
@@ -45,7 +50,7 @@ export async function audioscrobblerCall(
     });
   } catch (e) {
     const msg = errMsg(e);
-    if (sign && SESSION_INVALID.test(msg)) {
+    if (sign && (SESSION_INVALID_CODE.test(msg) || SESSION_INVALID_MESSAGE.test(msg))) {
       throw new MusicNetworkError('AUTH_SESSION_INVALID', msg, { cause: e });
     }
     throw new MusicNetworkError('NETWORK', msg, { cause: e });
