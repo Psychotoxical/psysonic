@@ -49,17 +49,21 @@ pub fn various_artists_label(s: &str) -> bool {
     s.trim().to_ascii_lowercase().contains("various artists")
 }
 
-/// SQL for track-grouped album browse: prefer `album_artist` on the `la` row.
+/// SQL mirror of [`pick_album_group_artist`] for track-grouped browse subqueries
+/// (`la`). Used where `ORDER BY` / `COALESCE(a.artist, …)` must stay in SQL;
+/// keep both implementations in sync.
 pub fn sql_track_group_display_artist(alias: &str) -> String {
     format!(
         "CASE WHEN trim(coalesce({a}.album_artist, '')) != '' \
-         THEN trim({a}.album_artist) ELSE {a}.artist END",
+         THEN trim({a}.album_artist) \
+         ELSE NULLIF(trim(coalesce({a}.artist, '')), '') END",
         a = alias
     )
 }
 
-/// Track-grouped album rows: prefer a non-empty album-artist tag; fall back to
-/// track artist only when album artist is absent (solo albums without TALB).
+/// Row-mapper form of the album-artist display rule — mirror of
+/// [`sql_track_group_display_artist`]. Prefer a non-empty album-artist tag;
+/// fall back to track artist only when album artist is absent (solo albums without TALB).
 pub fn pick_album_group_artist(
     track_artist: Option<String>,
     album_artist: Option<String>,
@@ -117,5 +121,44 @@ mod tests {
             Some("Alice".to_string())
         );
         assert_eq!(pick_album_group_artist(None, None), None);
+    }
+
+    #[test]
+    fn sql_track_group_display_artist_matches_pick_album_group_artist() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute(
+            "CREATE TABLE la (artist TEXT, album_artist TEXT)",
+            [],
+        )
+        .unwrap();
+        let sql = format!("SELECT {} FROM la", sql_track_group_display_artist("la"));
+
+        let cases: [(&str, &str); 7] = [
+            ("Groove Armada", "Underworld"),
+            ("Alice", ""),
+            ("", "Various Artists"),
+            ("Alice", "Bob"),
+            ("  ", "Bob"),
+            ("Alice", "   "),
+            ("", ""),
+        ];
+
+        for (track, album) in cases {
+            conn.execute("DELETE FROM la", []).unwrap();
+            conn.execute(
+                "INSERT INTO la (artist, album_artist) VALUES (?1, ?2)",
+                rusqlite::params![track, album],
+            )
+            .unwrap();
+            let sql_out: Option<String> = conn.query_row(&sql, [], |r| r.get(0)).ok();
+            let rust_out = pick_album_group_artist(
+                (!track.is_empty()).then(|| track.to_string()),
+                (!album.is_empty()).then(|| album.to_string()),
+            );
+            assert_eq!(
+                sql_out, rust_out,
+                "track={track:?} album={album:?}"
+            );
+        }
     }
 }

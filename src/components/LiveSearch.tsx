@@ -28,6 +28,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useTranslation } from 'react-i18next';
+import { albumArtistDisplayName } from '../utils/album/deriveAlbumHeaderArtistRefs';
 import { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from './CachedImage';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import { AlbumCoverArtImage } from '../cover/AlbumCoverArtImage';
@@ -775,7 +776,7 @@ export default function LiveSearch() {
                         )}
                         <div>
                           <div className="search-result-name">{a.name}</div>
-                          <div className="search-result-sub">{a.artist}</div>
+                          <div className="search-result-sub">{albumArtistDisplayName(a)}</div>
                         </div>
                       </button>
                     );

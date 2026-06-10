@@ -16,6 +16,7 @@ import { ArtistCoverArtImage } from '../cover/ArtistCoverArtImage';
 import { CoverArtImage } from '../cover/CoverArtImage';
 import { albumCoverRefForSong } from '../cover/ref';
 import { showToast } from '../utils/ui/toast';
+import { albumArtistDisplayName } from '../utils/album/deriveAlbumHeaderArtistRefs';
 import { useShareSearch } from '../hooks/useShareSearch';
 import ShareSearchResults from './search/ShareSearchResults';
 import {
@@ -383,7 +384,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
                     )}
                     <div className="mobile-search-item-info">
                       <span className="mobile-search-item-title">{a.name}</span>
-                      <span className="mobile-search-item-sub">{a.artist}</span>
+                      <span className="mobile-search-item-sub">{albumArtistDisplayName(a)}</span>
                     </div>
                     <ChevronRight size={16} className="mobile-search-item-chevron" />
                   </button>
