@@ -160,6 +160,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Library DB: named slow-write op labels for macOS playback-stall diagnosis (PR #1043)',
       'Settings → Servers: compact two-line cards, capability header badges, unified use/active action, delete in edit form, click-pinned version tooltip (PR #1054)',
       'Navidrome Now Playing and scrobble with hot cache, offline pins, and mixed-server playback reachability (PR #1055)',
+      'What\'s New: remote WHATS_NEW.md from release assets, dev workspace mode, Highlights vs changelog tabs (PR #1058)',
     ],
   },
   {
