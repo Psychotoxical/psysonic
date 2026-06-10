@@ -170,6 +170,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Navidrome Now Playing and scrobble with local playback
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1055](https://github.com/Psychotoxical/psysonic/pull/1055)**
+
+* **Show in Now Playing** and Navidrome play-count scrobbles no longer silently skip when audio plays from hot cache, offline library pins, or favorites-auto bytes.
+* Presence and queue sync target the **playback server** reachability gate, so a queue on server A still reports to Navidrome while browsing server B.
+
+
+
 ### Now Playing — cards no longer blank out on track change
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1042](https://github.com/Psychotoxical/psysonic/pull/1042)**
