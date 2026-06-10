@@ -1,6 +1,7 @@
+import { invoke, isTauri } from '@tauri-apps/api/core';
+
 export const RELEASE_NOTES_REPO = 'Psychotoxical/psysonic';
 
-const FETCH_TIMEOUT_MS = 8_000;
 const MAX_BODY_BYTES = 64 * 1024;
 
 /** Asset name for remote what's new (i18n: add locale suffix later). */
@@ -13,29 +14,29 @@ export function whatsNewDownloadUrl(version: string): string {
   return `https://github.com/${RELEASE_NOTES_REPO}/releases/download/app-v${version}/${asset}`;
 }
 
-async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
-  const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { signal: controller.signal });
-  } finally {
-    window.clearTimeout(timer);
-  }
+/**
+ * GitHub release download URLs are served without CORS — use the Rust proxy
+ * (same as radio favicons and other non-CORS endpoints).
+ */
+async function fetchBytesViaRust(url: string): Promise<Uint8Array> {
+  const [bytes] = await invoke<[number[], string]>('fetch_url_bytes', { url });
+  return new Uint8Array(bytes);
 }
 
 export async function fetchWhatsNewAsset(version: string): Promise<string | null> {
+  if (!isTauri()) return null;
+
   const url = whatsNewDownloadUrl(version);
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const res = await fetchWithTimeout(url, FETCH_TIMEOUT_MS);
-      if (!res.ok) continue;
-      const buf = await res.arrayBuffer();
-      if (buf.byteLength > MAX_BODY_BYTES) continue;
+      const buf = await fetchBytesViaRust(url);
+      if (buf.byteLength > MAX_BODY_BYTES) return null;
       const text = new TextDecoder().decode(buf).trim();
       return text || null;
     } catch {
-      // retry once on network/timeout
+      // Retry once on network/timeout only (404/4xx throw from Rust — same on retry).
+      if (attempt === 1) return null;
     }
   }
   return null;

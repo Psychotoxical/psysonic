@@ -107,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * RC and stable builds prefetch `whats-new.md` from the GitHub release on startup and cache it locally; offline users see a thin embedded fallback.
 * **`tauri:dev`** reads markdown straight from the repo for easy editing; shipped bundles embed only the current release-line slice. A **Full changelog** tab on the page shows the technical list for the same version.
 * CI uploads `whats-new.md` on each `next` / `release` tag alongside platform artifacts.
+* Remote download uses the existing Rust `fetch_url_bytes` proxy so GitHub release assets work without browser CORS.
 
 
 

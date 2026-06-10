@@ -3,7 +3,7 @@ export const whatsNew = {
   changelogTitle: '更新日志',
   viewTabsLabel: '版本说明视图',
   viewHighlights: '亮点',
-  viewChangelog: '完整更新日志',
+  viewChangelog: '更新日志',
   empty: '此版本暂无更新日志。',
   bannerTitle: '更新日志',
   bannerCollapsed: 'v{{version}} 新功能',

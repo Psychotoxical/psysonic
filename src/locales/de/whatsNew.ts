@@ -3,7 +3,7 @@ export const whatsNew = {
   changelogTitle: 'Changelog',
   viewTabsLabel: 'Ansicht der Versionshinweise',
   viewHighlights: 'Highlights',
-  viewChangelog: 'Vollständiger Changelog',
+  viewChangelog: 'Changelog',
   empty: 'Für diese Version liegt noch kein Changelog-Eintrag vor.',
   bannerTitle: 'Changelog',
   bannerCollapsed: 'Neu in v{{version}}',
