@@ -302,6 +302,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Album grids — album artist on compilation cards
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1057](https://github.com/Psychotoxical/psysonic/pull/1057), reported in [#1056](https://github.com/Psychotoxical/psysonic/issues/1056)**
+
+* Random Albums, New Releases, All Albums, and other album grids no longer show a track artist on compilation albums when the tags set a single album artist (e.g. **Underworld** on a various-artists mix); the card matches the album page.
+* Local index browse, live search, and FTS album dedupe prefer `album_artist` over per-track `artist`; Hero, Most Played, and offline pin labels use the same display helper.
+
+
+
 ## [1.47.0]
 
 > **🙏 Thank you to our amazing Discord community.** This release would not have been possible without your tireless support, quality checks, bug reports and all-round collaboration. Every report, every repro and every bit of feedback shaped what shipped here — thank you. Come join us: [discord.gg/AMnDRErm4u](https://discord.gg/AMnDRErm4u)
