@@ -5,11 +5,11 @@
   "scripts": {
     "check:css-imports": "node scripts/check-css-import-graph.mjs",
     "prebuild:release-notes": "node scripts/generate-release-notes-bundle.mjs",
-    "dev": "vite",
+    "dev": "npm run prebuild:release-notes && vite",
     "build": "npm run prebuild:release-notes && tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
+    "tauri:dev": "npm run prebuild:release-notes && tauri dev",
     "tauri:build": "npm run prebuild:release-notes && tauri build",
     "test": "npm run prebuild:release-notes && vitest run && node --test scripts/extract-release-section.test.mjs && npm run check:css-imports",
     "test:watch": "vitest",
