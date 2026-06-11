@@ -191,6 +191,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Internet radio — no more duplicate now-playing on Linux
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by agriffit79, PR [#1069](https://github.com/Psychotoxical/psysonic/pull/1069)**
+
+* On Linux, playing an internet radio station showed the track twice in the desktop "now playing" overlay — once from the app's own media controls and once from a second player the web engine registered for the stream. The extra player is now suppressed, so radio shows a single entry like regular tracks.
+
 ### Fullscreen player — title cleanup
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1068](https://github.com/Psychotoxical/psysonic/pull/1068)**
