@@ -40,7 +40,7 @@ export const SETTINGS_INDEX: SearchIndexEntry[] = [
   { tab: 'audio',          titleKey: 'settings.playbackTitle',            keywords: 'playback crossfade gapless replaygain replay gain volume' },
   { tab: 'lyrics',         titleKey: 'settings.lyricsSourcesTitle',       keywords: 'lyrics sources providers lrclib netease server youlyplus karaoke standard static' },
   { tab: 'lyrics',         titleKey: 'settings.sidebarLyricsStyle',       keywords: 'lyrics scroll style classic apple music' },
-  { tab: 'integrations',   titleKey: 'settings.lfmTitle',                 keywords: 'last.fm lastfm scrobble' },
+  { tab: 'integrations',   titleKey: 'musicNetwork.title',                keywords: 'last.fm lastfm libre.fm rocksky listenbrainz maloja scrobble scrobbling music network' },
   { tab: 'integrations',   titleKey: 'settings.discordRichPresence',      keywords: 'discord rich presence rpc' },
   { tab: 'integrations',   titleKey: 'settings.enableBandsintown',        keywords: 'bandsintown concerts tours events' },
   { tab: 'integrations',   titleKey: 'settings.nowPlayingEnabled',        keywords: 'now playing share dropdown presence' },

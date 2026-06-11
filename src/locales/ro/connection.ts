@@ -34,6 +34,4 @@ export const connection = {
   switchServerHint: 'Apasă pentru a alege alt server salvat.',
   manageServers: 'Gestionează serverele…',
   switchFailed: 'Nu s-a putut schimba — nu s-a putut ajunge la server.',
-  lastfmConnected: 'Last.fm conectat ca @{{user}}',
-  lastfmSessionInvalid: 'Sesiune invalidă — apasă pentru a te reconecta',
 };

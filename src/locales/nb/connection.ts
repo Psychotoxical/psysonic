@@ -34,6 +34,4 @@ export const connection = {
   switchServerHint: 'Klikk for å velge en annen lagret server.',
   manageServers: 'Administrer servere…',
   switchFailed: 'Klarte ikke å bytte — serveren er utilgjengelig.',
-  lastfmConnected: 'Last.fm tilkoblet som bruker @{{user}}',
-  lastfmSessionInvalid: 'Sesjonen er ugyldig - klikk her for å koble til på nytt',
 };

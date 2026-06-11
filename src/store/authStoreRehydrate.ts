@@ -20,6 +20,7 @@ import type {
   QueueDisplayMode,
   SeekbarStyle,
 } from './authStoreTypes';
+import { migrateLegacyLastfm, sanitizeAccounts } from '../music-network';
 
 /**
  * Computes the post-rehydration patch for the auth store. Runs all
@@ -160,6 +161,49 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     }
   } catch { /* ignore */ }
 
+  // Music Network: one-time migration of the legacy flat lastfm* fields into the
+  // accounts[] model. Runs exactly once (guarded by a sentinel) so a later
+  // disconnect can't resurrect the account from the still-present legacy fields.
+  // Subsequent rehydrates only sanitize the persisted account list.
+  const musicNetworkMigrationKey = 'psysonic-music-network-migrated-v1';
+  let musicNetworkMigrated: Partial<AuthState> = {
+    musicNetworkAccounts: sanitizeAccounts(
+      (state as { musicNetworkAccounts?: unknown }).musicNetworkAccounts,
+    ),
+  };
+  try {
+    if (!localStorage.getItem(musicNetworkMigrationKey)) {
+      // The legacy lastfm* fields no longer exist on AuthState; read them off the
+      // persisted blob (present on upgrade) via a cast.
+      const legacy = state as unknown as {
+        lastfmSessionKey?: string;
+        lastfmUsername?: string;
+        scrobblingEnabled?: boolean;
+      };
+      const migrated = migrateLegacyLastfm(
+        {
+          lastfmSessionKey: legacy.lastfmSessionKey,
+          lastfmUsername: legacy.lastfmUsername,
+          scrobblingEnabled: legacy.scrobblingEnabled,
+        },
+        () => crypto.randomUUID(),
+      );
+      musicNetworkMigrated = {
+        musicNetworkAccounts: migrated.accounts,
+        enrichmentPrimaryId: migrated.enrichmentPrimaryId,
+        scrobblingMasterEnabled: migrated.scrobblingMasterEnabled,
+      };
+      localStorage.setItem(musicNetworkMigrationKey, '1');
+    }
+  } catch { /* ignore */ }
+
+  // Strip the legacy flat lastfm* fields from the persisted blob (spec §6.1.3).
+  // The migration above maps them into accounts[]; the sentinel guards
+  // re-migration, so these now sit as pure cruft. Drop them on every rehydrate.
+  for (const k of ['lastfmApiKey', 'lastfmApiSecret', 'lastfmSessionKey', 'lastfmUsername', 'lastfmSessionError', 'scrobblingEnabled']) {
+    delete (state as unknown as Record<string, unknown>)[k];
+  }
+
   let mediaDirMigrated: { mediaDir?: string } = {};
   const stMedia = state as { mediaDir?: unknown; offlineDownloadDir?: string; hotCacheDownloadDir?: string };
   if (!stMedia.mediaDir || (typeof stMedia.mediaDir === 'string' && stMedia.mediaDir.trim() === '')) {
@@ -174,6 +218,7 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
 
   return {
     ...mediaDirMigrated,
+    ...musicNetworkMigrated,
     mixMinRatingSong: clampMixFilterMinStars(state.mixMinRatingSong as number),
     mixMinRatingAlbum: clampMixFilterMinStars(state.mixMinRatingAlbum as number),
     mixMinRatingArtist: clampMixFilterMinStars(state.mixMinRatingArtist as number),

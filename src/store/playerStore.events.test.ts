@@ -28,14 +28,20 @@ vi.mock('@/api/subsonic', async () => {
   };
 });
 
-vi.mock('@/api/lastfm', () => ({
-  lastfmScrobble: vi.fn(async () => undefined),
-  lastfmUpdateNowPlaying: vi.fn(async () => undefined),
-  lastfmLoveTrack: vi.fn(async () => undefined),
-  lastfmUnloveTrack: vi.fn(async () => undefined),
-  lastfmGetTrackLoved: vi.fn(async () => false),
-  lastfmGetAllLovedTracks: vi.fn(async () => []),
-}));
+vi.mock('@/music-network', () => {
+  const runtime = {
+    getEnrichmentPrimaryId: vi.fn(() => null),
+    dispatchScrobble: vi.fn(async () => undefined),
+    dispatchNowPlaying: vi.fn(async () => undefined),
+    isTrackLoved: vi.fn(async () => false),
+    setTrackLoved: vi.fn(async () => undefined),
+    syncLovedTracks: vi.fn(async () => ({})),
+  };
+  return {
+    getMusicNetworkRuntime: () => runtime,
+    getMusicNetworkRuntimeOrNull: () => runtime,
+  };
+});
 
 vi.mock('@/utils/orbitBulkGuard', () => ({
   orbitBulkGuard: vi.fn(async () => true),
@@ -160,13 +166,13 @@ describe('audio:track_switched', () => {
     expect(s.queueIndex).toBe(1);
   });
 
-  it('resets scrobbled + lastfmLoved flags so the new track can be rescored', () => {
+  it('resets scrobbled + networkLoved flags so the new track can be rescored', () => {
     const queue = makeTracks(2);
     seedQueue(queue, { index: 0, currentTrack: queue[0] });
-    usePlayerStore.setState({ scrobbled: true, lastfmLoved: true });
+    usePlayerStore.setState({ scrobbled: true, networkLoved: true });
     emitTauriEvent('audio:track_switched', queue[1].duration);
     expect(usePlayerStore.getState().scrobbled).toBe(false);
-    expect(usePlayerStore.getState().lastfmLoved).toBe(false);
+    expect(usePlayerStore.getState().networkLoved).toBe(false);
   });
 });
 

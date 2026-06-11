@@ -3,11 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { Headphones, Heart, MicVocal, Music, Star } from 'lucide-react';
 import { CoverArtImage } from '../../cover/CoverArtImage';
 import type { CoverArtRef } from '../../cover/types';
-import type { LastfmArtistStats, LastfmTrackInfo } from '../../api/lastfm';
+import type { ArtistStats, TrackStats } from '../../music-network';
 import type { SubsonicOpenArtistRef } from '../../api/subsonicTypes';
-import LastfmIcon from '../LastfmIcon';
 import { OpenArtistRefInline } from '../OpenArtistRefInline';
 import { formatTrackTime } from '../../utils/format/formatDuration';
+import { useEnrichmentPrimaryLabel } from '../../hooks/useEnrichmentPrimaryLabel';
+import { useEnrichmentPrimaryIcon } from '../../hooks/useEnrichmentPrimaryIcon';
+import { renderPresetIcon } from '../settings/musicNetwork/presetIcon';
 
 interface HeroProps {
   track: { title: string; artist: string; album: string; year?: number;
@@ -19,16 +21,16 @@ interface HeroProps {
   genre?: string;
   playCount?: number;
   userRatingOverride?: number;
-  lfmTrack: LastfmTrackInfo | null;
-  lfmArtist: LastfmArtistStats | null;
+  networkTrack: TrackStats | null;
+  networkArtist: ArtistStats | null;
   starred: boolean;
-  lfmLoved: boolean;
-  lfmLoveEnabled: boolean;
+  networkLoved: boolean;
+  networkLoveEnabled: boolean;
   activeLyricsTab: boolean;
   coverRef?: CoverArtRef;
   onNavigate: (path: string) => void;
   onToggleStar: () => void;
-  onToggleLfmLove: () => void;
+  onToggleNetworkLove: () => void;
   onOpenLyrics: () => void;
 }
 
@@ -46,8 +48,10 @@ function renderStars(rating?: number) {
   );
 }
 
-const Hero = memo(function Hero({ track, artistRefs, genre, playCount, userRatingOverride, lfmTrack, lfmArtist, starred, lfmLoved, lfmLoveEnabled, activeLyricsTab, coverRef, onNavigate, onToggleStar, onToggleLfmLove, onOpenLyrics }: HeroProps) {
+const Hero = memo(function Hero({ track, artistRefs, genre, playCount, userRatingOverride, networkTrack, networkArtist, starred, networkLoved, networkLoveEnabled, activeLyricsTab, coverRef, onNavigate, onToggleStar, onToggleNetworkLove, onOpenLyrics }: HeroProps) {
   const { t } = useTranslation();
+  const networkLabel = useEnrichmentPrimaryLabel() ?? '';
+  const networkIcon = useEnrichmentPrimaryIcon();
   const rating = userRatingOverride ?? track.userRating;
   const hiRes  = (track.bitDepth ?? 0) > 16 || (track.samplingRate ?? 0) > 48000;
   const releaseAge = track.year ? new Date().getFullYear() - track.year : 0;
@@ -117,11 +121,11 @@ const Hero = memo(function Hero({ track, artistRefs, genre, playCount, userRatin
             data-tooltip={starred ? t('contextMenu.unfavorite') : t('contextMenu.favorite')}>
             <Heart size={18} fill={starred ? 'var(--highlight)' : 'none'} color={starred ? 'var(--highlight)' : 'currentColor'} />
           </button>
-          {lfmLoveEnabled && (
-            <button onClick={onToggleLfmLove}
-              className={`np-dash-icon-btn np-dash-lfm-btn${lfmLoved ? ' is-loved' : ''}`}
-              data-tooltip={lfmLoved ? t('contextMenu.lfmUnlove') : t('contextMenu.lfmLove')}>
-              <LastfmIcon size={18} />
+          {networkLoveEnabled && (
+            <button onClick={onToggleNetworkLove}
+              className={`np-dash-icon-btn np-dash-network-btn${networkLoved ? ' is-loved' : ''}`}
+              data-tooltip={networkLoved ? t('contextMenu.networkUnlove', { provider: networkLabel }) : t('contextMenu.networkLove', { provider: networkLabel })}>
+              {renderPresetIcon(networkIcon ?? 'lastfm', 18)}
             </button>
           )}
           <button className="np-dash-icon-btn"
@@ -140,40 +144,40 @@ const Hero = memo(function Hero({ track, artistRefs, genre, playCount, userRatin
           </div>
         )}
 
-        {(lfmTrack || lfmArtist) && (
-          <div className="np-dash-hero-lfm">
-            <div className="np-dash-hero-lfm-heading">
-              <span className="np-dash-hero-lfm-badge">Last.fm</span>
+        {(networkTrack || networkArtist) && (
+          <div className="np-dash-hero-network">
+            <div className="np-dash-hero-network-heading">
+              <span className="np-dash-hero-network-badge">{networkLabel}</span>
             </div>
-            {lfmTrack && (
-              <div className="np-dash-hero-lfm-row">
-                <span className="np-dash-hero-lfm-scope">{t('nowPlaying.thisTrack', 'This track')}</span>
-                <span className="np-dash-hero-lfm-sep">—</span>
-                <span>{t('nowPlaying.listenersN', { n: lfmTrack.listeners.toLocaleString(), defaultValue: '{{n}} listeners' })}</span>
-                <span className="np-dash-hero-lfm-dot">·</span>
-                <span>{t('nowPlaying.scrobblesN', { n: lfmTrack.playcount.toLocaleString(), defaultValue: '{{n}} scrobbles' })}</span>
-                {lfmTrack.userPlaycount != null && (
+            {networkTrack && (
+              <div className="np-dash-hero-network-row">
+                <span className="np-dash-hero-network-scope">{t('nowPlaying.thisTrack', 'This track')}</span>
+                <span className="np-dash-hero-network-sep">—</span>
+                <span>{t('nowPlaying.listenersN', { n: networkTrack.listeners.toLocaleString(), defaultValue: '{{n}} listeners' })}</span>
+                <span className="np-dash-hero-network-dot">·</span>
+                <span>{t('nowPlaying.scrobblesN', { n: networkTrack.playcount.toLocaleString(), defaultValue: '{{n}} scrobbles' })}</span>
+                {networkTrack.userPlaycount != null && (
                   <>
-                    <span className="np-dash-hero-lfm-dot">·</span>
-                    <span className="np-dash-hero-lfm-you">
-                      {t('nowPlaying.playsByYouN', { n: lfmTrack.userPlaycount.toLocaleString(), defaultValue: 'played {{n}}× by you' })}
+                    <span className="np-dash-hero-network-dot">·</span>
+                    <span className="np-dash-hero-network-you">
+                      {t('nowPlaying.playsByYouN', { n: networkTrack.userPlaycount.toLocaleString(), defaultValue: 'played {{n}}× by you' })}
                     </span>
                   </>
                 )}
               </div>
             )}
-            {lfmArtist && (
-              <div className="np-dash-hero-lfm-row">
-                <span className="np-dash-hero-lfm-scope">{t('nowPlaying.thisArtist', 'This artist')}</span>
-                <span className="np-dash-hero-lfm-sep">—</span>
-                <span>{t('nowPlaying.listenersN', { n: lfmArtist.listeners.toLocaleString(), defaultValue: '{{n}} listeners' })}</span>
-                <span className="np-dash-hero-lfm-dot">·</span>
-                <span>{t('nowPlaying.scrobblesN', { n: lfmArtist.playcount.toLocaleString(), defaultValue: '{{n}} scrobbles' })}</span>
-                {lfmArtist.userPlaycount != null && (
+            {networkArtist && (
+              <div className="np-dash-hero-network-row">
+                <span className="np-dash-hero-network-scope">{t('nowPlaying.thisArtist', 'This artist')}</span>
+                <span className="np-dash-hero-network-sep">—</span>
+                <span>{t('nowPlaying.listenersN', { n: networkArtist.listeners.toLocaleString(), defaultValue: '{{n}} listeners' })}</span>
+                <span className="np-dash-hero-network-dot">·</span>
+                <span>{t('nowPlaying.scrobblesN', { n: networkArtist.playcount.toLocaleString(), defaultValue: '{{n}} scrobbles' })}</span>
+                {networkArtist.userPlaycount != null && (
                   <>
-                    <span className="np-dash-hero-lfm-dot">·</span>
-                    <span className="np-dash-hero-lfm-you">
-                      {t('nowPlaying.playsByYouN', { n: lfmArtist.userPlaycount.toLocaleString(), defaultValue: 'played {{n}}× by you' })}
+                    <span className="np-dash-hero-network-dot">·</span>
+                    <span className="np-dash-hero-network-you">
+                      {t('nowPlaying.playsByYouN', { n: networkArtist.userPlaycount.toLocaleString(), defaultValue: 'played {{n}}× by you' })}
                     </span>
                   </>
                 )}

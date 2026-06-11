@@ -48,7 +48,7 @@ export function useNowPlayingPrewarm(): void {
   const audiomuseNavidromeEnabled = useAuthStore(
     s => (playbackServerId ? Boolean(s.audiomuseNavidromeByServer[playbackServerId]) : false),
   );
-  const lastfmUsername = useAuthStore(s => s.lastfmUsername);
+  const enrichmentKey = useAuthStore(s => s.enrichmentPrimaryId ?? '');
 
   useEffect(() => {
     if (!currentTrack || !playbackServerId) return;
@@ -61,7 +61,7 @@ export function useNowPlayingPrewarm(): void {
       artistName: primary.name ?? currentTrack.artist,
       enableBandsintown,
       audiomuseNavidromeEnabled,
-      lastfmUsername,
+      enrichmentKey,
       currentTrack,
       subsonicServerId: playbackServerId,
       // No `fetchEnabled` / no trackId: prewarmNowPlayingFetchers owns the single
@@ -92,7 +92,7 @@ export function useNowPlayingPrewarm(): void {
     playbackServerId,
     enableBandsintown,
     audiomuseNavidromeEnabled,
-    lastfmUsername,
+    enrichmentKey,
   ]);
 
   useEffect(() => {

@@ -30,14 +30,6 @@ vi.mock('@/api/subsonic', () => ({
   scrobbleSong: vi.fn(async () => undefined),
 }));
 
-vi.mock('@/api/lastfm', () => ({
-  lastfmScrobble: vi.fn(async () => undefined),
-  lastfmUpdateNowPlaying: vi.fn(async () => undefined),
-  lastfmLoveTrack: vi.fn(async () => undefined),
-  lastfmUnloveTrack: vi.fn(async () => undefined),
-  lastfmGetTrackLoved: vi.fn(async () => false),
-  lastfmGetAllLovedTracks: vi.fn(async () => []),
-}));
 
 import PlayerBar from './PlayerBar';
 import { renderWithProviders } from '@/test/helpers/renderWithProviders';

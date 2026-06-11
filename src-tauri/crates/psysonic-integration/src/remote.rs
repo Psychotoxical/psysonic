@@ -287,11 +287,31 @@ pub async fn resolve_stream_url(url: String) -> String {
     resolve_playlist_url(&client, &url).await.unwrap_or(url)
 }
 
-/// Proxy Last.fm API calls through Rust/reqwest to avoid WebView networking restrictions.
-/// `params` is a list of [key, value] pairs (method must be included).
-/// If `sign` is true an api_sig is computed. If `get` is true, a GET request is made.
+/// Default Audioscrobbler v2 endpoint (Last.fm). Other presets (Libre.fm,
+/// Rocksky, GNU FM, Maloja compat) pass their own `base_url`.
+const LASTFM_API_BASE: &str = "https://ws.audioscrobbler.com/2.0/";
+
+/// Generic Audioscrobbler v2 transport. Provider-agnostic: the caller supplies
+/// the endpoint `base_url`, so Last.fm, Libre.fm, Rocksky, custom GNU FM and the
+/// Shared HTTP client for the Music Network provider transports
+/// (audioscrobbler / listenbrainz / maloja). A bounded timeout keeps a hung
+/// provider from leaving scrobble/probe/loved-sync promises unresolved — the
+/// sibling `fetch_*` commands in this module set the same kind of bound.
+fn provider_http_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())
+}
+
+/// Maloja Audioscrobbler-compat surface all share this one command.
+///
+/// `params` is a list of [key, value] pairs (method must be included). If `sign`
+/// is true an `api_sig` is computed (MD5 of sorted params + secret). If `get` is
+/// true a GET request is made, otherwise a form POST.
 #[tauri::command]
-pub async fn lastfm_request(
+pub async fn audioscrobbler_request(
+    base_url: String,
     params: Vec<[String; 2]>,
     sign: bool,
     get: bool,
@@ -299,6 +319,8 @@ pub async fn lastfm_request(
     api_secret: String,
 ) -> Result<serde_json::Value, String> {
     use std::collections::HashMap;
+
+    let base = if base_url.trim().is_empty() { LASTFM_API_BASE.to_string() } else { base_url };
 
     let mut map: HashMap<String, String> = params.into_iter().map(|[k, v]| (k, v)).collect();
     map.insert("api_key".into(), api_key.clone());
@@ -317,17 +339,17 @@ pub async fn lastfm_request(
 
     map.insert("format".into(), "json".into());
 
-    let client = reqwest::Client::new();
+    let client = provider_http_client()?;
     let resp = if get {
         client
-            .get("https://ws.audioscrobbler.com/2.0/")
+            .get(&base)
             .query(&map)
             .header("User-Agent", subsonic_wire_user_agent())
             .send()
             .await
     } else {
         client
-            .post("https://ws.audioscrobbler.com/2.0/")
+            .post(&base)
             .form(&map)
             .header("User-Agent", subsonic_wire_user_agent())
             .send()
@@ -337,7 +359,88 @@ pub async fn lastfm_request(
     let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
 
     if let Some(err) = json.get("error") {
-        return Err(format!("Last.fm {} {}", err, json.get("message").and_then(|m| m.as_str()).unwrap_or("")));
+        return Err(format!("Audioscrobbler {} {}", err, json.get("message").and_then(|m| m.as_str()).unwrap_or("")));
+    }
+
+    Ok(json)
+}
+
+/// Generic ListenBrainz transport. Used by both the direct
+/// `api.listenbrainz.org` preset and the Maloja `/apis/listenbrainz` compat
+/// surface — they differ only by `base_url`. Auth is a `Token` header.
+///
+/// `path` is appended to `base_url` (e.g. `/1/submit-listens`). When `json_body`
+/// is present the request is a POST with that body; otherwise a GET.
+#[tauri::command]
+pub async fn listenbrainz_request(
+    base_url: String,
+    path: String,
+    auth_token: String,
+    json_body: Option<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    let url = format!("{}{}", base_url.trim_end_matches('/'), path);
+    let client = provider_http_client()?;
+
+    let mut req = if json_body.is_some() {
+        client.post(&url)
+    } else {
+        client.get(&url)
+    };
+    req = req
+        .header("Authorization", format!("Token {}", auth_token))
+        .header("User-Agent", subsonic_wire_user_agent());
+    if let Some(body) = json_body {
+        req = req.json(&body);
+    }
+
+    let resp = req.send().await.map_err(|e| e.to_string())?;
+    let status = resp.status();
+    let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+
+    if !status.is_success() {
+        let msg = json.get("error").and_then(|m| m.as_str()).unwrap_or("");
+        return Err(format!("ListenBrainz {} {}", status.as_u16(), msg));
+    }
+
+    Ok(json)
+}
+
+/// Generic Maloja native (`/apis/mlj_1`) transport. Protocol-agnostic JSON:
+/// the caller builds the body (including the Maloja key) and chooses the path.
+///
+/// `path` is appended to `base_url`. When `json_body` is present the request is a
+/// POST with that body; otherwise a GET with `query` pairs.
+#[tauri::command]
+pub async fn maloja_request(
+    base_url: String,
+    path: String,
+    query: Vec<[String; 2]>,
+    json_body: Option<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    let url = format!("{}{}", base_url.trim_end_matches('/'), path);
+    let client = provider_http_client()?;
+
+    let resp = if let Some(body) = json_body {
+        client.post(&url).json(&body)
+    } else {
+        let q: Vec<(String, String)> = query.into_iter().map(|[k, v]| (k, v)).collect();
+        client.get(&url).query(&q)
+    }
+    .header("User-Agent", subsonic_wire_user_agent())
+    .send()
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let status = resp.status();
+    let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+
+    if !status.is_success() {
+        let msg = json
+            .get("error")
+            .and_then(|e| e.get("desc").or_else(|| e.get("type")))
+            .and_then(|m| m.as_str())
+            .unwrap_or("");
+        return Err(format!("Maloja {} {}", status.as_u16(), msg));
     }
 
     Ok(json)
@@ -494,5 +597,67 @@ mod tests {
             resolve_playlist_url(&client, &url).await,
             Some("https://pls.example/audio".to_string())
         );
+    }
+
+    // ── audioscrobbler_request ────────────────────────────────────────────────
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn audioscrobbler_request_uses_custom_base_url() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(wm_path("/2.0/"))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(
+                r#"{"similarartists":{"artist":[{"name":"Boards of Canada"}]}}"#,
+                "application/json",
+            ))
+            .mount(&server)
+            .await;
+
+        let base = format!("{}/2.0/", server.uri());
+        let json = audioscrobbler_request(
+            base,
+            vec![
+                ["method".into(), "artist.getSimilar".into()],
+                ["artist".into(), "Aphex Twin".into()],
+            ],
+            false,
+            true,
+            "key".into(),
+            "secret".into(),
+        )
+        .await
+        .expect("request should succeed");
+
+        assert_eq!(
+            json["similarartists"]["artist"][0]["name"].as_str(),
+            Some("Boards of Canada")
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn audioscrobbler_request_surfaces_api_error() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(wm_path("/2.0/"))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(
+                r#"{"error":9,"message":"Invalid session key"}"#,
+                "application/json",
+            ))
+            .mount(&server)
+            .await;
+
+        let base = format!("{}/2.0/", server.uri());
+        let err = audioscrobbler_request(
+            base,
+            vec![["method".into(), "track.scrobble".into()]],
+            true,
+            false,
+            "key".into(),
+            "secret".into(),
+        )
+        .await
+        .expect_err("api error should map to Err");
+
+        assert!(err.contains("Audioscrobbler 9"), "unexpected error: {err}");
     }
 }

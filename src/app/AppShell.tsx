@@ -30,7 +30,7 @@ import {
   mainRouteInpageScrollViewportId,
 } from '../constants/appScroll';
 import ConnectionIndicator from '../components/ConnectionIndicator';
-import LastfmIndicator from '../components/LastfmIndicator';
+import MusicNetworkIndicator from '../components/MusicNetworkIndicator';
 import OfflineBanner from '../components/OfflineBanner';
 import AppUpdater from '../components/AppUpdater';
 import TitleBar from '../components/TitleBar';
@@ -259,7 +259,7 @@ export function AppShell() {
           {import.meta.env.DEV && <DevNetworkModeToggle />}
           <div className="spacer" />
           <ConnectionIndicator status={connStatus} isLan={isLan} serverName={serverName} />
-          <LastfmIndicator />
+          <MusicNetworkIndicator />
           <NowPlayingDropdown />
           <OrbitStartTrigger />
           {!isMobile && !isQueueVisible && (

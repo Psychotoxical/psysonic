@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { lastfmGetSimilarArtists, lastfmIsConfigured } from '../api/lastfm';
+import { getMusicNetworkRuntime } from '../music-network';
 import { search } from '../api/subsonicSearch';
 import type { SubsonicArtist, SubsonicArtistInfo } from '../api/subsonicTypes';
 import { useAuthStore } from '../store/authStore';
@@ -24,15 +24,16 @@ export function useArtistSimilarArtists(
     s => !!(s.activeServerId && s.audiomuseNavidromeByServer[s.activeServerId]),
   );
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const enrichmentConfigured = useAuthStore(s => s.enrichmentPrimaryId !== null);
 
   const [similarArtists, setSimilarArtists] = useState<SubsonicArtist[]>([]);
   const [similarLoading, setSimilarLoading] = useState(false);
 
   useEffect(() => {
-    if (!artist || audiomuseNavidromeEnabled || !lastfmIsConfigured()) return;
+    if (!artist || audiomuseNavidromeEnabled || !enrichmentConfigured) return;
     setSimilarArtists([]);
     setSimilarLoading(true);
-    lastfmGetSimilarArtists(artist.name).then(async names => {
+    getMusicNetworkRuntime().getSimilarArtists(artist.name).then(async names => {
       if (names.length === 0) { setSimilarLoading(false); return; }
       const results = await Promise.all(
         names.slice(0, 30).map(name =>
@@ -53,17 +54,17 @@ export function useArtistSimilarArtists(
       setSimilarLoading(false);
     }).catch(() => setSimilarLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artist?.id, musicLibraryFilterVersion, audiomuseNavidromeEnabled]);
+  }, [artist?.id, musicLibraryFilterVersion, audiomuseNavidromeEnabled, enrichmentConfigured]);
 
   /** When AudioMuse is on but the server returns no similar artists, fall back to Last.fm (if configured). */
   useEffect(() => {
-    if (!artist || !audiomuseNavidromeEnabled || !lastfmIsConfigured()) return;
+    if (!artist || !audiomuseNavidromeEnabled || !enrichmentConfigured) return;
     if (artistInfoLoading) return;
     if ((info?.similarArtist?.length ?? 0) > 0) return;
 
     setSimilarArtists([]);
     setSimilarLoading(true);
-    lastfmGetSimilarArtists(artist.name).then(async names => {
+    getMusicNetworkRuntime().getSimilarArtists(artist.name).then(async names => {
       if (names.length === 0) { setSimilarLoading(false); return; }
       const results = await Promise.all(
         names.slice(0, 30).map(name =>
@@ -90,6 +91,7 @@ export function useArtistSimilarArtists(
     audiomuseNavidromeEnabled,
     artistInfoLoading,
     info?.similarArtist?.length,
+    enrichmentConfigured,
   ]);
 
   useEffect(() => {

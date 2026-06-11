@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 
+### Music Network — scrobble to more than just Last.fm
+
+**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1066](https://github.com/Psychotoxical/psysonic/pull/1066)**
+
+* **Settings → Integrations** now hosts a **Music Network** that scrobbles your plays to one or more services at once: **Last.fm**, **Libre.fm**, **Rocksky**, **ListenBrainz** (the public service or any compatible server), **Maloja** (native, Audioscrobbler or ListenBrainz API), **Koito**, and any **custom GNU FM** instance.
+* Choose a **primary** service — your loved tracks, similar artists and listening stats come from it — while scrobbles fan out to every connected service. A master switch turns the whole thing on or off.
+* **Last.fm works exactly as before**, including love, similar artists and the Statistics page; your existing connection is migrated automatically on first launch.
+* *Known limitation:* Rocksky currently rejects scrobbles whose title or artist contains non-standard (non-ASCII) characters — a Rocksky-side issue, not a Psysonic bug.
+
 ### Sidebar — pin Now Playing to the top
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1000](https://github.com/Psychotoxical/psysonic/pull/1000), suggested by [@PHLAK](https://github.com/PHLAK)**

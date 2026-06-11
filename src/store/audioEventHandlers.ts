@@ -2,7 +2,7 @@ import { reportNowPlaying, scrobbleSong } from '../api/subsonicScrobble';
 import type { Track } from './playerStoreTypes';
 import { resolveQueueTrack } from '../utils/library/queueTrackView';
 import { invoke } from '@tauri-apps/api/core';
-import { lastfmGetTrackLoved, lastfmScrobble, lastfmUpdateNowPlaying } from '../api/lastfm';
+import { getMusicNetworkRuntimeOrNull } from '../music-network';
 import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
 import { notifyLibraryPlaybackHint } from './libraryPlaybackHint';
 import {
@@ -187,7 +187,7 @@ export function handleAudioProgress(
     }
   }
 
-  // Scrobble at 50%: Last.fm + Navidrome (updates play_date / recently played)
+  // Scrobble at 50%: Music Network + Navidrome (updates play_date / recently played)
   if (progress >= 0.5 && !store.scrobbled) {
     usePlayerStore.setState({ scrobbled: true });
     scrobbleSong(
@@ -195,10 +195,13 @@ export function handleAudioProgress(
       Date.now(),
       playbackProfileIdForTrack(track, store.queueItems[store.queueIndex]),
     );
-    const { scrobblingEnabled, lastfmSessionKey } = useAuthStore.getState();
-    if (scrobblingEnabled && lastfmSessionKey) {
-      lastfmScrobble(track, Date.now(), lastfmSessionKey);
-    }
+    void getMusicNetworkRuntimeOrNull()?.dispatchScrobble({
+      title: track.title,
+      artist: track.artist,
+      album: track.album,
+      duration: track.duration,
+      timestamp: Date.now(),
+    });
   }
   if (progressUiDisabled) return;
   // Critical architectural guard: avoid high-frequency writes to the persisted
@@ -445,7 +448,7 @@ export function handleAudioTrackSwitched(_duration: number): void {
     currentTime: 0,
     buffered: 0,
     scrobbled: false,
-    lastfmLoved: false,
+    networkLoved: false,
     currentPlaybackSource: switchPlaybackSource,
   });
   emitNormalizationDebug('track-switched', {
@@ -457,20 +460,27 @@ export function handleAudioTrackSwitched(_duration: number): void {
   void refreshLoudnessForTrack(nextTrack.id);
   usePlayerStore.getState().updateReplayGainForCurrentTrack();
 
-  // Report Now Playing to Navidrome + Last.fm
-  const { nowPlayingEnabled, scrobblingEnabled, lastfmSessionKey } = useAuthStore.getState();
+  // Navidrome now-playing follows nowPlayingEnabled; Music Network now-playing
+  // follows scrobbling, as Last.fm now-playing did (the runtime gates on the
+  // master toggle, per-account enable and the nowPlaying capability internally).
+  const { nowPlayingEnabled } = useAuthStore.getState();
   if (nowPlayingEnabled) {
     reportNowPlaying(nextTrack.id, playbackProfileIdForTrack(nextTrack, switchRef));
   }
-  if (lastfmSessionKey) {
-    if (scrobblingEnabled) lastfmUpdateNowPlaying(nextTrack, lastfmSessionKey);
-    lastfmGetTrackLoved(nextTrack.title, nextTrack.artist, lastfmSessionKey).then(loved => {
-      const cacheKey = `${nextTrack!.title}::${nextTrack!.artist}`;
-      usePlayerStore.setState(s => ({
-        lastfmLoved: loved,
-        lastfmLovedCache: { ...s.lastfmLovedCache, [cacheKey]: loved },
-      }));
-    });
+  const runtime = getMusicNetworkRuntimeOrNull();
+  void runtime?.dispatchNowPlaying({
+    title: nextTrack.title,
+    artist: nextTrack.artist,
+    album: nextTrack.album,
+    duration: nextTrack.duration,
+    timestamp: Date.now(),
+  });
+  if (runtime?.getEnrichmentPrimaryId()) {
+    void runtime
+      .isTrackLoved({ title: nextTrack.title, artist: nextTrack.artist })
+      .then(loved => {
+        usePlayerStore.getState().setNetworkLoved(loved);
+      });
   }
   syncQueueToServer(queueItems, nextTrack, 0);
   touchHotCacheOnPlayback(nextTrack.id, switchServerId);

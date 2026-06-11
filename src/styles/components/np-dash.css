@@ -102,7 +102,7 @@
   color: var(--accent);
   background: var(--bg-hover);
 }
-.np-dash-lfm-btn.is-loved {
+.np-dash-network-btn.is-loved {
   color: var(--accent);
 }
 
@@ -123,7 +123,7 @@
 }
 
 /* Last.fm stats pulled up into the hero */
-.np-dash-hero-lfm {
+.np-dash-hero-network {
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -133,20 +133,20 @@
   border-radius: var(--radius-md);
   border-left: 3px solid var(--accent);
 }
-.np-dash-hero-lfm-heading {
+.np-dash-hero-network-heading {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 2px;
 }
-.np-dash-hero-lfm-badge {
+.np-dash-hero-network-badge {
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--accent);
 }
-.np-dash-hero-lfm-row {
+.np-dash-hero-network-row {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -155,19 +155,19 @@
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
-.np-dash-hero-lfm-scope {
+.np-dash-hero-network-scope {
   font-weight: 600;
   color: var(--text-primary);
 }
-.np-dash-hero-lfm-sep {
+.np-dash-hero-network-sep {
   color: var(--text-muted);
   padding: 0 2px;
 }
-.np-dash-hero-lfm-dot {
+.np-dash-hero-network-dot {
   color: var(--text-muted);
   padding: 0 3px;
 }
-.np-dash-hero-lfm-you {
+.np-dash-hero-network-you {
   color: var(--accent);
   font-weight: 600;
 }
@@ -676,7 +676,7 @@
   }
 
   .np-dash-hero-sub,
-  .np-dash-hero-lfm-row {
+  .np-dash-hero-network-row {
     font-size: 13px;
   }
 
@@ -714,7 +714,7 @@
     gap: 5px;
   }
 
-  .np-dash-hero-lfm {
+  .np-dash-hero-network {
     padding: 10px 11px;
   }
 

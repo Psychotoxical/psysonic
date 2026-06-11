@@ -6,8 +6,8 @@
  * produces controlled error state, not partial mutation. Audio event
  * handlers live in `playerStore.events.test.ts`.
  *
- * Heavy module-level mocking: `subsonic.ts` (server APIs) and `lastfm.ts`
- * (scrobble + loved lookups) are mocked to no-ops so navigation-style
+ * Heavy module-level mocking: `subsonic.ts` (server APIs) and the music-network
+ * runtime (scrobble + loved lookups) are mocked to no-ops so navigation-style
  * `playTrack` calls (from `next` / `previous`) don't try to hit a real
  * server. The store's own action bodies still run for real.
  */
@@ -32,14 +32,20 @@ vi.mock('@/api/subsonic', async () => {
   };
 });
 
-vi.mock('@/api/lastfm', () => ({
-  lastfmScrobble: vi.fn(async () => undefined),
-  lastfmUpdateNowPlaying: vi.fn(async () => undefined),
-  lastfmLoveTrack: vi.fn(async () => undefined),
-  lastfmUnloveTrack: vi.fn(async () => undefined),
-  lastfmGetTrackLoved: vi.fn(async () => false),
-  lastfmGetAllLovedTracks: vi.fn(async () => []),
-}));
+vi.mock('@/music-network', () => {
+  const runtime = {
+    getEnrichmentPrimaryId: vi.fn(() => null),
+    dispatchScrobble: vi.fn(async () => undefined),
+    dispatchNowPlaying: vi.fn(async () => undefined),
+    isTrackLoved: vi.fn(async () => false),
+    setTrackLoved: vi.fn(async () => undefined),
+    syncLovedTracks: vi.fn(async () => ({})),
+  };
+  return {
+    getMusicNetworkRuntime: () => runtime,
+    getMusicNetworkRuntimeOrNull: () => runtime,
+  };
+});
 
 vi.mock('@/utils/orbitBulkGuard', () => ({
   orbitBulkGuard: vi.fn(async () => true),

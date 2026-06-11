@@ -12,9 +12,10 @@ import StatisticsTabBar from '../components/statistics/StatisticsTabBar';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore';
 import { useLocation } from 'react-router-dom';
-import { lastfmIsConfigured, lastfmGetTopArtists, lastfmGetTopAlbums, lastfmGetTopTracks, lastfmGetRecentTracks, LastfmPeriod, LastfmTopArtist, LastfmTopAlbum, LastfmTopTrack, LastfmRecentTrack } from '../api/lastfm';
+import { getMusicNetworkRuntime, type RecentTrack, type StatsPeriod, type TopItem } from '../music-network';
 import { useOfflineBrowseContext } from '../hooks/useOfflineBrowseContext';
 import { usePlayerStatsRecordingEnabled } from '../hooks/usePlayerStatsRecordingEnabled';
+import { useEnrichmentPrimaryLabel } from '../hooks/useEnrichmentPrimaryLabel';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function relativeTime(timestamp: number, t: (key: string, opts?: any) => string): string {
@@ -25,7 +26,7 @@ function relativeTime(timestamp: number, t: (key: string, opts?: any) => string)
   return t('statistics.lfmDaysAgo', { n: Math.floor(diff / 86400) });
 }
 
-const PERIODS: { key: LastfmPeriod; label: string }[] = [
+const PERIODS: { key: StatsPeriod; label: string }[] = [
   { key: '7day', label: 'lfmPeriod7day' },
   { key: '1month', label: 'lfmPeriod1month' },
   { key: '3month', label: 'lfmPeriod3month' },
@@ -41,7 +42,8 @@ export default function Statistics() {
   const isPlayerStats = location.pathname === '/player-stats';
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const playerStatsEnabled = usePlayerStatsRecordingEnabled();
-  const { lastfmSessionKey, lastfmUsername } = useAuthStore();
+  const enrichmentPrimaryId = useAuthStore(s => s.enrichmentPrimaryId);
+  const enrichmentLabel = useEnrichmentPrimaryLabel() ?? '';
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const [recent, setRecent] = useState<SubsonicAlbum[]>([]);
   const [frequent, setFrequent] = useState<SubsonicAlbum[]>([]);
@@ -59,12 +61,17 @@ export default function Statistics() {
 
   const [exportOpen, setExportOpen] = useState(false);
 
-  const [lfmPeriod, setLfmPeriod] = useState<LastfmPeriod>('1month');
-  const [lfmTopArtists, setLfmTopArtists] = useState<LastfmTopArtist[]>([]);
-  const [lfmTopAlbums, setLfmTopAlbums] = useState<LastfmTopAlbum[]>([]);
-  const [lfmTopTracks, setLfmTopTracks] = useState<LastfmTopTrack[]>([]);
+  // Enrichment-primary listening stats. The `lfm*` local names and the
+  // `statistics.lfm*` i18n keys are the original (pre-framework) identifiers,
+  // kept as-is: the user-facing copy is provider-neutral ({{provider}}), and the
+  // keys share the `lfmPeriod`/`lfmPeriod7day` prefix so a blanket rename is
+  // unsafe. Internal-only; not a framework-boundary concern.
+  const [lfmPeriod, setLfmPeriod] = useState<StatsPeriod>('1month');
+  const [lfmTopArtists, setLfmTopArtists] = useState<TopItem[]>([]);
+  const [lfmTopAlbums, setLfmTopAlbums] = useState<TopItem[]>([]);
+  const [lfmTopTracks, setLfmTopTracks] = useState<TopItem[]>([]);
   const [lfmLoading, setLfmLoading] = useState(false);
-  const [lfmRecentTracks, setLfmRecentTracks] = useState<LastfmRecentTrack[]>([]);
+  const [lfmRecentTracks, setLfmRecentTracks] = useState<RecentTrack[]>([]);
   const [lfmRecentLoading, setLfmRecentLoading] = useState(false);
 
   useEffect(() => {
@@ -138,28 +145,28 @@ export default function Statistics() {
 
   useEffect(() => {
     if (offlineBrowseActive || isPlayerStats) return;
-    if (!lastfmIsConfigured() || !lastfmSessionKey || !lastfmUsername) return;
+    if (enrichmentPrimaryId === null) return;
     setLfmRecentLoading(true);
-    lastfmGetRecentTracks(lastfmUsername, lastfmSessionKey, 20)
+    getMusicNetworkRuntime().getRecentTracks(20)
       .then(tracks => { setLfmRecentTracks(tracks); setLfmRecentLoading(false); })
       .catch(() => setLfmRecentLoading(false));
-  }, [lastfmSessionKey, lastfmUsername, offlineBrowseActive, isPlayerStats]);
+  }, [enrichmentPrimaryId, offlineBrowseActive, isPlayerStats]);
 
   useEffect(() => {
     if (offlineBrowseActive || isPlayerStats) return;
-    if (!lastfmIsConfigured() || !lastfmSessionKey || !lastfmUsername) return;
+    if (enrichmentPrimaryId === null) return;
     setLfmLoading(true);
     Promise.all([
-      lastfmGetTopArtists(lastfmUsername, lastfmSessionKey, lfmPeriod, 10),
-      lastfmGetTopAlbums(lastfmUsername, lastfmSessionKey, lfmPeriod, 10),
-      lastfmGetTopTracks(lastfmUsername, lastfmSessionKey, lfmPeriod, 10),
+      getMusicNetworkRuntime().getTopItems(lfmPeriod, 'artists', 10),
+      getMusicNetworkRuntime().getTopItems(lfmPeriod, 'albums', 10),
+      getMusicNetworkRuntime().getTopItems(lfmPeriod, 'tracks', 10),
     ]).then(([artists, albums, tracks]) => {
       setLfmTopArtists(artists);
       setLfmTopAlbums(albums);
       setLfmTopTracks(tracks);
       setLfmLoading(false);
     }).catch(() => setLfmLoading(false));
-  }, [lfmPeriod, lastfmSessionKey, lastfmUsername, offlineBrowseActive, isPlayerStats]);
+  }, [lfmPeriod, enrichmentPrimaryId, offlineBrowseActive, isPlayerStats]);
 
   const loadMore = async (
     type: 'frequent' | 'highest',
@@ -316,30 +323,26 @@ export default function Statistics() {
             showRating
           />
 
-          {/* Last.fm Stats */}
-          {lastfmIsConfigured() && (
+          {/* Music Network Stats */}
+          {enrichmentPrimaryId !== null && (
             <section style={{ marginTop: '2rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
-                <h2 className="section-title" style={{ margin: 0 }}>{t('statistics.lfmTitle')}</h2>
-                {lastfmSessionKey && (
-                  <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
-                    {PERIODS.map(p => (
-                      <button
-                        key={p.key}
-                        className={`btn btn-sm ${lfmPeriod === p.key ? 'btn-primary' : 'btn-surface'}`}
-                        onClick={() => setLfmPeriod(p.key)}
-                        style={{ padding: '0.25rem 0.625rem', fontSize: '0.75rem' }}
-                      >
-                        {t(`statistics.${p.label}`)}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <h2 className="section-title" style={{ margin: 0 }}>{t('statistics.lfmTitle', { provider: enrichmentLabel })}</h2>
+                <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
+                  {PERIODS.map(p => (
+                    <button
+                      key={p.key}
+                      className={`btn btn-sm ${lfmPeriod === p.key ? 'btn-primary' : 'btn-surface'}`}
+                      onClick={() => setLfmPeriod(p.key)}
+                      style={{ padding: '0.25rem 0.625rem', fontSize: '0.75rem' }}
+                    >
+                      {t(`statistics.${p.label}`)}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {!lastfmSessionKey ? (
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{t('statistics.lfmNotConnected')}</p>
-              ) : lfmLoading ? (
+              {lfmLoading ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)', fontSize: '0.875rem', padding: '1rem 0' }}>
                   <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} />
                 </div>
@@ -347,8 +350,8 @@ export default function Statistics() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
                   {([
                     { label: t('statistics.lfmTopArtists'), items: lfmTopArtists.map(a => ({ primary: a.name, secondary: null, playcount: a.playcount })) },
-                    { label: t('statistics.lfmTopAlbums'),  items: lfmTopAlbums.map(a =>  ({ primary: a.name, secondary: a.artist, playcount: a.playcount })) },
-                    { label: t('statistics.lfmTopTracks'),  items: lfmTopTracks.map(tr => ({ primary: tr.name, secondary: tr.artist, playcount: tr.playcount })) },
+                    { label: t('statistics.lfmTopAlbums'),  items: lfmTopAlbums.map(a =>  ({ primary: a.name, secondary: a.artist ?? null, playcount: a.playcount })) },
+                    { label: t('statistics.lfmTopTracks'),  items: lfmTopTracks.map(tr => ({ primary: tr.name, secondary: tr.artist ?? null, playcount: tr.playcount })) },
                   ] as { label: string; items: { primary: string; secondary: string | null; playcount: string }[] }[]).map(col => {
                     const max = Math.max(...col.items.map(it => Number(it.playcount)), 1);
                     return (
@@ -386,7 +389,7 @@ export default function Statistics() {
           )}
 
           {/* Recent Scrobbles */}
-          {lastfmIsConfigured() && lastfmSessionKey && (
+          {enrichmentPrimaryId !== null && (
             <section style={{ marginTop: '2rem' }}>
               <h2 className="section-title" style={{ marginBottom: '1rem' }}>{t('statistics.lfmRecentTracks')}</h2>
               {lfmRecentLoading ? (

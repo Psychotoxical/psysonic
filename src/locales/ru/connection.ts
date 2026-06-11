@@ -38,6 +38,4 @@ export const connection = {
   switchServerHint: 'Нажмите, чтобы выбрать другой сохранённый сервер.',
   manageServers: 'Управление серверами…',
   switchFailed: 'Не удалось переключиться — сервер недоступен.',
-  lastfmConnected: 'Last.fm: @{{user}}',
-  lastfmSessionInvalid: 'Сессия недействительна — подключите снова',
 };

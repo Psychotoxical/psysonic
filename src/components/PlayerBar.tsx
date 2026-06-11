@@ -19,7 +19,6 @@ import { useTranslation } from 'react-i18next';
 import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
 import { useLyricsStore } from '../store/lyricsStore';
 import MarqueeText from './MarqueeText';
-import LastfmIcon from './LastfmIcon';
 import { useRadioMetadata } from '../hooks/useRadioMetadata';
 import { useRadioMprisSync } from '../hooks/useRadioMprisSync';
 import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';
@@ -61,7 +60,7 @@ export default function PlayerBar() {
     currentTrack, currentRadio, isPlaying, volume,
     togglePlay, next, previous, setVolume,
     stop, toggleRepeat, repeatMode, toggleFullscreen,
-    lastfmLoved, toggleLastfmLove,
+    networkLoved, toggleNetworkLove,
     isQueueVisible, toggleQueue,
     starredOverrides,
     userRatingOverrides,
@@ -79,15 +78,15 @@ export default function PlayerBar() {
     toggleRepeat: s.toggleRepeat,
     repeatMode: s.repeatMode,
     toggleFullscreen: s.toggleFullscreen,
-    lastfmLoved: s.lastfmLoved,
-    toggleLastfmLove: s.toggleLastfmLove,
+    networkLoved: s.networkLoved,
+    toggleNetworkLove: s.toggleNetworkLove,
     isQueueVisible: s.isQueueVisible,
     toggleQueue: s.toggleQueue,
     starredOverrides: s.starredOverrides,
     userRatingOverrides: s.userRatingOverrides,
     openContextMenu: s.openContextMenu,
   })));
-  const { lastfmSessionKey } = useAuthStore();
+  const enrichmentPrimaryId = useAuthStore(s => s.enrichmentPrimaryId);
   const floatingPlayerBar = useThemeStore(s => s.floatingPlayerBar);
   const playerBarRef = useRef<HTMLElement>(null);
   const perfFlags = usePerfProbeFlags();
@@ -208,9 +207,9 @@ export default function PlayerBar() {
         previewingTrack={previewingTrack}
         isStarred={isStarred}
         toggleStar={toggleStar}
-        lastfmSessionKey={lastfmSessionKey}
-        lastfmLoved={lastfmLoved}
-        toggleLastfmLove={toggleLastfmLove}
+        enrichmentPrimaryId={enrichmentPrimaryId}
+        networkLoved={networkLoved}
+        toggleNetworkLove={toggleNetworkLove}
         userRatingOverrides={userRatingOverrides}
         toggleFullscreen={toggleFullscreen}
         navigate={navigatePlaybackLibrary}

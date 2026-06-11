@@ -9,12 +9,14 @@ import { CoverArtImage } from '../../cover/CoverArtImage';
 import { albumCoverRef } from '../../cover/ref';
 import { useAlbumCoverRef } from '../../cover/useLibraryCoverRef';
 import { usePlaybackTrackCoverRef } from '../../cover/useLibraryCoverRef';
-import LastfmIcon from '../LastfmIcon';
 import MarqueeText from '../MarqueeText';
 import { OpenArtistRefInline } from '../OpenArtistRefInline';
 import StarRating from '../StarRating';
 import { PlaybackBufferingOverlay } from '../playback/PlaybackBufferingOverlay';
 import { usePlayerStore } from '../../store/playerStore';
+import { useEnrichmentPrimaryLabel } from '../../hooks/useEnrichmentPrimaryLabel';
+import { useEnrichmentPrimaryIcon } from '../../hooks/useEnrichmentPrimaryIcon';
+import { renderPresetIcon } from '../settings/musicNetwork/presetIcon';
 import {
   usePlayerBarLayoutStore,
   type PlayerBarLayoutItemId,
@@ -37,9 +39,9 @@ interface Props {
   previewingTrack: PreviewingTrack | null;
   isStarred: boolean;
   toggleStar: () => void;
-  lastfmSessionKey: string | null;
-  lastfmLoved: boolean;
-  toggleLastfmLove: () => void;
+  enrichmentPrimaryId: string | null;
+  networkLoved: boolean;
+  toggleNetworkLove: () => void;
   userRatingOverrides: Record<string, number>;
   toggleFullscreen: () => void;
   navigate: (to: string) => void | Promise<void>;
@@ -51,11 +53,13 @@ export function PlayerTrackInfo({
   currentTrack, currentRadio, isRadio, radioMeta, radioCoverArtId,
   coverArtId, displayTitle, displayArtist, displayArtistRefs,
   showPreviewMeta, previewingTrack, isStarred, toggleStar,
-  lastfmSessionKey, lastfmLoved, toggleLastfmLove,
+  enrichmentPrimaryId, networkLoved, toggleNetworkLove,
   userRatingOverrides, toggleFullscreen,
   navigate, openContextMenu, t,
 }: Props) {
   const showBufferingOverlay = usePlayerStore(s => s.isPlaybackBuffering);
+  const networkLabel = useEnrichmentPrimaryLabel() ?? '';
+  const networkIcon = useEnrichmentPrimaryIcon();
   const playbackCoverRef = usePlaybackTrackCoverRef(
     showPreviewMeta ? null : currentTrack ?? undefined,
   );
@@ -197,15 +201,15 @@ export function PlayerTrackInfo({
           <Heart size={15} fill={isStarred ? 'currentColor' : 'none'} />
         </button>
       )}
-      {currentTrack && !isRadio && lastfmSessionKey && isLayoutVisible('lastfmLove') && (
+      {currentTrack && !isRadio && enrichmentPrimaryId !== null && isLayoutVisible('lastfmLove') && (
         <button
           className="player-btn player-btn-sm player-love-btn"
-          onClick={toggleLastfmLove}
-          aria-label={lastfmLoved ? t('contextMenu.lfmUnlove') : t('contextMenu.lfmLove')}
-          data-tooltip={lastfmLoved ? t('contextMenu.lfmUnlove') : t('contextMenu.lfmLove')}
-          style={{ color: lastfmLoved ? '#e31c23' : 'var(--text-muted)', flexShrink: 0 }}
+          onClick={toggleNetworkLove}
+          aria-label={networkLoved ? t('contextMenu.networkUnlove', { provider: networkLabel }) : t('contextMenu.networkLove', { provider: networkLabel })}
+          data-tooltip={networkLoved ? t('contextMenu.networkUnlove', { provider: networkLabel }) : t('contextMenu.networkLove', { provider: networkLabel })}
+          style={{ color: networkLoved ? '#e31c23' : 'var(--text-muted)', flexShrink: 0 }}
         >
-          <LastfmIcon size={15} />
+          {renderPresetIcon(networkIcon ?? 'lastfm', 15)}
         </button>
       )}
     </div>

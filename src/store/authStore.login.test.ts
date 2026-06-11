@@ -102,38 +102,3 @@ describe('logout', () => {
     expect(s.activeServerId).toBe(id);
   });
 });
-
-describe('Last.fm session', () => {
-  it('setLastfm stores api key + secret + session key + username together', () => {
-    useAuthStore.getState().setLastfm('api', 'sec', 'session', 'frank');
-    const s = useAuthStore.getState();
-    expect(s.lastfmApiKey).toBe('api');
-    expect(s.lastfmApiSecret).toBe('sec');
-    expect(s.lastfmSessionKey).toBe('session');
-    expect(s.lastfmUsername).toBe('frank');
-  });
-
-  it('connectLastfm sets only sessionKey + username (preserves api key / secret)', () => {
-    useAuthStore.getState().setLastfm('app-key', 'app-sec', '', '');
-    useAuthStore.getState().connectLastfm('user-session', 'frank');
-    const s = useAuthStore.getState();
-    expect(s.lastfmApiKey).toBe('app-key');
-    expect(s.lastfmApiSecret).toBe('app-sec');
-    expect(s.lastfmSessionKey).toBe('user-session');
-    expect(s.lastfmUsername).toBe('frank');
-  });
-
-  it('disconnectLastfm clears session key + username + session error, keeps app credentials', () => {
-    useAuthStore.getState().setLastfm('app-key', 'app-sec', 'session', 'frank');
-    useAuthStore.getState().setLastfmSessionError(true);
-
-    useAuthStore.getState().disconnectLastfm();
-
-    const s = useAuthStore.getState();
-    expect(s.lastfmSessionKey).toBe('');
-    expect(s.lastfmUsername).toBe('');
-    expect(s.lastfmSessionError).toBe(false);
-    expect(s.lastfmApiKey).toBe('app-key');
-    expect(s.lastfmApiSecret).toBe('app-sec');
-  });
-});

@@ -34,6 +34,4 @@ export const connection = {
   switchServerHint: 'Klicken, um einen anderen gespeicherten Server zu wählen.',
   manageServers: 'Server verwalten…',
   switchFailed: 'Wechsel fehlgeschlagen — Server nicht erreichbar.',
-  lastfmConnected: 'Last.fm verbunden als @{{user}}',
-  lastfmSessionInvalid: 'Session ungültig — klicken zum Neu-Verbinden',
 };

@@ -98,8 +98,8 @@ export const help = {
   a38: 'Device Sync (sidebar) copies albums, playlists or whole artists to an external drive for offline listening on other devices. Pick a target folder, choose sources from the browser tabs, click "Transfer to Device". Psysonic writes a manifest (psysonic-sync.json) so it knows which files are already there even if you reopen Device Sync on a different OS with a different filename template. Templates support {artist} / {album} / {title} / {track_number} / {disc_number} / {year} tokens with / for folder separators.',
   // ── Section 10: Integrations & Troubleshooting ─────────────────────────
   s10: 'Integrations & Troubleshooting',
-  q39: 'Last.fm scrobbling?',
-  a39: 'Settings → Integrations → Last.fm. Connect your account once and Psysonic scrobbles directly to Last.fm — no Navidrome configuration needed. A scrobble is sent after you have heard 50 % of a track. Now-playing pings are sent at the start.',
+  q39: 'Scrobbling — Last.fm, ListenBrainz, Maloja…?',
+  a39: 'Settings → Integrations → Music Network. Connect one or more scrobble services (Last.fm, Libre.fm, Rocksky, ListenBrainz, Maloja, or any GNU FM-compatible server) — no Navidrome configuration needed. Every connected service with scrobbling enabled receives the play; the master "Enable scrobbling" switch turns the whole fan-out on or off. A scrobble is sent after you have heard 50 % of a track; now-playing pings go out at the start, on services that support it. One service is your primary — your loved tracks, similar artists and listening stats are read from it. Tip: if your Navidrome server already scrobbles to a service (e.g. Maloja), don\'t also connect that same service here, or you\'ll get duplicate scrobbles.',
   q40: 'Discord Rich Presence?',
   a40: 'Settings → Integrations → Discord shows your current track on your Discord profile. Choose between the app icon, your server\'s cover art (via getAlbumInfo2 — needs a publicly reachable server), or Apple Music covers. Customize the display strings (details, state, tooltip) with token templates.',
   q41: 'Bandsintown tour dates?',

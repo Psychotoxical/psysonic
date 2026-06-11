@@ -3,10 +3,8 @@ import { getArtistInfoForServer } from '../api/subsonicArtists';
 import type { SubsonicAlbum, SubsonicArtistInfo, SubsonicSong } from '../api/subsonicTypes';
 import { resolveNpAlbum, resolveNpDiscography, resolveNpSongMeta, resolveNpTopSongs } from '../utils/library/nowPlayingMetadataResolve';
 import { fetchBandsintownEvents, type BandsintownEvent } from '../api/bandsintown';
-import {
-  lastfmGetArtistStats, lastfmGetTrackInfo, lastfmIsConfigured,
-  type LastfmArtistStats, type LastfmTrackInfo,
-} from '../api/lastfm';
+import type { ArtistStats, TrackStats } from '../music-network';
+import { getMusicNetworkRuntimeOrNull } from '../music-network';
 import { makeCache } from '../utils/cache/nowPlayingCache';
 import { shouldAttemptSubsonicForServer } from '../utils/network/subsonicNetworkGuard';
 import { useConnectionStatus } from './useConnectionStatus';
@@ -18,8 +16,8 @@ const albumCache       = makeCache<{ album: SubsonicAlbum; songs: SubsonicSong[]
 const topSongsCache    = makeCache<SubsonicSong[]>();
 const tourCache        = makeCache<BandsintownEvent[]>();
 const discographyCache = makeCache<SubsonicAlbum[]>();
-const lfmTrackCache    = makeCache<LastfmTrackInfo | null>();
-const lfmArtistCache   = makeCache<LastfmArtistStats | null>();
+const networkTrackCache    = makeCache<TrackStats | null>();
+const networkArtistCache   = makeCache<ArtistStats | null>();
 
 export interface NowPlayingFetchersDeps {
   songId: string | undefined;
@@ -28,7 +26,7 @@ export interface NowPlayingFetchersDeps {
   artistName: string;
   enableBandsintown: boolean;
   audiomuseNavidromeEnabled: boolean;
-  lastfmUsername: string;
+  enrichmentKey: string;
   currentTrack: { artist: string; title: string } | null;
   /** Subsonic server for API calls — must match the playing queue server. */
   subsonicServerId: string;
@@ -49,8 +47,8 @@ export interface NowPlayingFetchersResult {
   tourEvents: BandsintownEvent[];
   tourLoading: boolean;
   discography: SubsonicAlbum[];
-  lfmTrack: LastfmTrackInfo | null;
-  lfmArtist: LastfmArtistStats | null;
+  networkTrack: TrackStats | null;
+  networkArtist: ArtistStats | null;
 }
 
 function subsonicCacheKey(serverId: string, id: string): string {
@@ -82,7 +80,7 @@ export async function prewarmNowPlayingFetchers(
 ): Promise<void> {
   const {
     songId, artistId, albumId, artistName, enableBandsintown, audiomuseNavidromeEnabled,
-    lastfmUsername, currentTrack, subsonicServerId, fetchEnabled = true,
+    enrichmentKey, currentTrack, subsonicServerId, fetchEnabled = true,
   } = deps;
 
   if (!fetchEnabled || !subsonicServerId) return;
@@ -153,21 +151,22 @@ export async function prewarmNowPlayingFetchers(
     }
   }
 
-  if (lastfmIsConfigured() && currentTrack) {
-    const trackKey = `${currentTrack.artist} ${currentTrack.title} ${lastfmUsername}`;
-    if (lfmTrackCache.get(trackKey) === undefined) {
+  const prewarmRuntime = getMusicNetworkRuntimeOrNull();
+  if (prewarmRuntime?.getEnrichmentPrimaryId() && currentTrack) {
+    const trackKey = `${currentTrack.artist} ${currentTrack.title} ${enrichmentKey}`;
+    if (networkTrackCache.get(trackKey) === undefined) {
       jobs.push(
-        lastfmGetTrackInfo(currentTrack.artist, currentTrack.title, lastfmUsername || undefined)
-          .then(v => lfmTrackCache.set(trackKey, v))
-          .catch(() => lfmTrackCache.set(trackKey, null)),
+        prewarmRuntime.getTrackStats({ title: currentTrack.title, artist: currentTrack.artist })
+          .then(v => networkTrackCache.set(trackKey, v))
+          .catch(() => networkTrackCache.set(trackKey, null)),
       );
     }
-    const artistKey = `${currentTrack.artist} ${lastfmUsername}`;
-    if (lfmArtistCache.get(artistKey) === undefined) {
+    const artistKey = `${currentTrack.artist} ${enrichmentKey}`;
+    if (networkArtistCache.get(artistKey) === undefined) {
       jobs.push(
-        lastfmGetArtistStats(currentTrack.artist, lastfmUsername || undefined)
-          .then(v => lfmArtistCache.set(artistKey, v))
-          .catch(() => lfmArtistCache.set(artistKey, null)),
+        prewarmRuntime.getArtistStats(currentTrack.artist)
+          .then(v => networkArtistCache.set(artistKey, v))
+          .catch(() => networkArtistCache.set(artistKey, null)),
       );
     }
   }
@@ -178,7 +177,7 @@ export async function prewarmNowPlayingFetchers(
 export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingFetchersResult {
   const {
     songId, artistId, albumId, artistName, enableBandsintown, audiomuseNavidromeEnabled,
-    lastfmUsername, currentTrack, subsonicServerId, fetchEnabled = true,
+    enrichmentKey, currentTrack, subsonicServerId, fetchEnabled = true,
   } = deps;
 
   // id-keyed entity state — seeded from TTL cache so same-artist song switches
@@ -200,12 +199,12 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
   const [tourEventsEntry, setTourEventsEntry] = useState<KeySlot<BandsintownEvent[]>>(() =>
     seedKeySlot(tourKey, k => tourCache.get(k)));
   const [tourLoading, setTourLoading] = useState(false);
-  const lfmTrackKey = currentTrack ? `${currentTrack.artist} ${currentTrack.title} ${lastfmUsername}` : '';
-  const lfmArtistKey = artistName ? `${artistName} ${lastfmUsername}` : '';
-  const [lfmTrackEntry, setLfmTrackEntry] = useState<KeySlot<LastfmTrackInfo | null>>(() =>
-    seedKeySlot(lfmTrackKey, k => lfmTrackCache.get(k)));
-  const [lfmArtistEntry, setLfmArtistEntry] = useState<KeySlot<LastfmArtistStats | null>>(() =>
-    seedKeySlot(lfmArtistKey, k => lfmArtistCache.get(k)));
+  const networkTrackKey = currentTrack ? `${currentTrack.artist} ${currentTrack.title} ${enrichmentKey}` : '';
+  const networkArtistKey = artistName ? `${artistName} ${enrichmentKey}` : '';
+  const [networkTrackEntry, setNetworkTrackEntry] = useState<KeySlot<TrackStats | null>>(() =>
+    seedKeySlot(networkTrackKey, k => networkTrackCache.get(k)));
+  const [networkArtistEntry, setNetworkArtistEntry] = useState<KeySlot<ArtistStats | null>>(() =>
+    seedKeySlot(networkArtistKey, k => networkArtistCache.get(k)));
 
   const { status: connStatus } = useConnectionStatus();
   // Gate split (PR #1049): index-first resolvers run whenever there's a server id
@@ -294,31 +293,33 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
     return () => { cancelled = true; };
   }, [indexFetchAllowed, subsonicServerId, artistId, connStatus]);
 
-  // Last.fm track info (per-track)
+  // Enrichment track stats (per-track, from the enrichment primary)
   useEffect(() => {
-    if (!lastfmIsConfigured() || !currentTrack || !lfmTrackKey) { setLfmTrackEntry(null); return; }
-    const cached = lfmTrackCache.get(lfmTrackKey);
-    if (cached !== undefined) { setLfmTrackEntry({ key: lfmTrackKey, value: cached }); return; }
-    setLfmTrackEntry(null);
+    const runtime = getMusicNetworkRuntimeOrNull();
+    if (!runtime?.getEnrichmentPrimaryId() || !currentTrack || !networkTrackKey) { setNetworkTrackEntry(null); return; }
+    const cached = networkTrackCache.get(networkTrackKey);
+    if (cached !== undefined) { setNetworkTrackEntry({ key: networkTrackKey, value: cached }); return; }
+    setNetworkTrackEntry(null);
     let cancelled = false;
-    lastfmGetTrackInfo(currentTrack.artist, currentTrack.title, lastfmUsername || undefined)
-      .then(v => { if (!cancelled) { lfmTrackCache.set(lfmTrackKey, v); setLfmTrackEntry({ key: lfmTrackKey, value: v }); } })
-      .catch(() => { if (!cancelled) { lfmTrackCache.set(lfmTrackKey, null); setLfmTrackEntry({ key: lfmTrackKey, value: null }); } });
+    runtime.getTrackStats({ title: currentTrack.title, artist: currentTrack.artist })
+      .then(v => { if (!cancelled) { networkTrackCache.set(networkTrackKey, v); setNetworkTrackEntry({ key: networkTrackKey, value: v }); } })
+      .catch(() => { if (!cancelled) { networkTrackCache.set(networkTrackKey, null); setNetworkTrackEntry({ key: networkTrackKey, value: null }); } });
     return () => { cancelled = true; };
-  }, [lfmTrackKey, currentTrack, lastfmUsername]);
+  }, [networkTrackKey, currentTrack, enrichmentKey]);
 
-  // Last.fm artist stats (per-artist — shared across same-artist tracks)
+  // Enrichment artist stats (per-artist — shared across same-artist tracks)
   useEffect(() => {
-    if (!lastfmIsConfigured() || !artistName || !lfmArtistKey) { setLfmArtistEntry(null); return; }
-    const cached = lfmArtistCache.get(lfmArtistKey);
-    if (cached !== undefined) { setLfmArtistEntry({ key: lfmArtistKey, value: cached }); return; }
-    setLfmArtistEntry(null);
+    const runtime = getMusicNetworkRuntimeOrNull();
+    if (!runtime?.getEnrichmentPrimaryId() || !artistName || !networkArtistKey) { setNetworkArtistEntry(null); return; }
+    const cached = networkArtistCache.get(networkArtistKey);
+    if (cached !== undefined) { setNetworkArtistEntry({ key: networkArtistKey, value: cached }); return; }
+    setNetworkArtistEntry(null);
     let cancelled = false;
-    lastfmGetArtistStats(artistName, lastfmUsername || undefined)
-      .then(v => { if (!cancelled) { lfmArtistCache.set(lfmArtistKey, v); setLfmArtistEntry({ key: lfmArtistKey, value: v }); } })
-      .catch(() => { if (!cancelled) { lfmArtistCache.set(lfmArtistKey, null); setLfmArtistEntry({ key: lfmArtistKey, value: null }); } });
+    runtime.getArtistStats(artistName)
+      .then(v => { if (!cancelled) { networkArtistCache.set(networkArtistKey, v); setNetworkArtistEntry({ key: networkArtistKey, value: v }); } })
+      .catch(() => { if (!cancelled) { networkArtistCache.set(networkArtistKey, null); setNetworkArtistEntry({ key: networkArtistKey, value: null }); } });
     return () => { cancelled = true; };
-  }, [lfmArtistKey, artistName, lastfmUsername]);
+  }, [networkArtistKey, artistName, enrichmentKey]);
 
   // Gate id-keyed slots on id-match so consumers never see a value paired
   // with the wrong id, even on the single render between an id change and
@@ -329,8 +330,8 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
   const discography = discographyEntry && discographyEntry.id === artistId ? discographyEntry.value : [];
   const topSongs = topSongsEntry && topSongsEntry.key === topSongsKey ? topSongsEntry.value : [];
   const tourEvents = tourEventsEntry && tourEventsEntry.key === tourKey ? tourEventsEntry.value : [];
-  const lfmTrack = lfmTrackEntry && lfmTrackEntry.key === lfmTrackKey ? lfmTrackEntry.value : null;
-  const lfmArtist = lfmArtistEntry && lfmArtistEntry.key === lfmArtistKey ? lfmArtistEntry.value : null;
+  const networkTrack = networkTrackEntry && networkTrackEntry.key === networkTrackKey ? networkTrackEntry.value : null;
+  const networkArtist = networkArtistEntry && networkArtistEntry.key === networkArtistKey ? networkArtistEntry.value : null;
 
-  return { songMeta, artistInfo, albumData, topSongs, tourEvents, tourLoading, discography, lfmTrack, lfmArtist };
+  return { songMeta, artistInfo, albumData, topSongs, tourEvents, tourLoading, discography, networkTrack, networkArtist };
 }

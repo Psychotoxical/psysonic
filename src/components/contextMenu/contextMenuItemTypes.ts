@@ -30,8 +30,8 @@ export interface ContextMenuItemsProps {
   closeContextMenu: () => void;
   starredOverrides: Record<string, boolean>;
   setStarredOverride: (id: string, starred: boolean) => void;
-  lastfmLovedCache: Record<string, boolean>;
-  setLastfmLovedForSong: (title: string, artist: string, loved: boolean) => void;
+  networkLovedCache: Record<string, boolean>;
+  setNetworkLovedForSong: (title: string, artist: string, loved: boolean) => void;
   openSongInfo: (id: string) => void;
   userRatingOverrides: Record<string, number>;
   setKeyboardRating: React.Dispatch<React.SetStateAction<KeyboardRating | null>>;

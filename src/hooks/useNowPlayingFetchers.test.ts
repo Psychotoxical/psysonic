@@ -16,7 +16,6 @@ import type { SubsonicArtistInfo, SubsonicSong, SubsonicAlbum } from '../api/sub
 vi.mock('../api/subsonicArtists');
 vi.mock('../api/subsonicLibrary');
 vi.mock('../api/bandsintown');
-vi.mock('../api/lastfm');
 vi.mock('../utils/network/subsonicNetworkGuard', () => ({
   shouldAttemptSubsonicForServer: vi.fn(() => true),
 }));
@@ -25,7 +24,6 @@ import { shouldAttemptSubsonicForServer } from '../utils/network/subsonicNetwork
 import { getArtistForServer, getArtistInfoForServer, getTopSongsForServer } from '../api/subsonicArtists';
 import { getAlbumForServer, getSongForServer } from '../api/subsonicLibrary';
 import { fetchBandsintownEvents } from '../api/bandsintown';
-import { lastfmGetArtistStats, lastfmGetTrackInfo, lastfmIsConfigured } from '../api/lastfm';
 import { useNowPlayingFetchers, type NowPlayingFetchersDeps } from './useNowPlayingFetchers';
 
 // The real getArtistInfo signature returns `Promise<SubsonicArtistInfo>`, but
@@ -44,7 +42,7 @@ const baseDeps: NowPlayingFetchersDeps = {
   artistName: '',
   enableBandsintown: false,
   audiomuseNavidromeEnabled: false,
-  lastfmUsername: '',
+  enrichmentKey: '',
   currentTrack: null,
   subsonicServerId: 'srv1',
   fetchEnabled: true,
@@ -54,9 +52,6 @@ beforeEach(() => {
   vi.mocked(getTopSongsForServer).mockResolvedValue([]);
   vi.mocked(getArtistForServer).mockResolvedValue({ albums: [] } as any);
   vi.mocked(fetchBandsintownEvents).mockResolvedValue([]);
-  vi.mocked(lastfmIsConfigured).mockReturnValue(false);
-  vi.mocked(lastfmGetTrackInfo).mockResolvedValue(null);
-  vi.mocked(lastfmGetArtistStats).mockResolvedValue(null);
 });
 
 afterEach(() => {

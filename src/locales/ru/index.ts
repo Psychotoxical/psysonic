@@ -25,6 +25,7 @@ import { common } from './common';
 import { settings } from './settings';
 import { changelog } from './changelog';
 import { whatsNew } from './whatsNew';
+import { musicNetwork } from './musicNetwork';
 import { help } from './help';
 import { queue } from './queue';
 import { miniPlayer } from './miniPlayer';
@@ -72,6 +73,7 @@ export const ruTranslation = {
   settings,
   changelog,
   whatsNew,
+  musicNetwork,
   help,
   queue,
   miniPlayer,

@@ -1,5 +1,6 @@
 import { installQueueUndoHotkey } from '../store/queueUndoHotkey';
 import { configureStartupSplash } from './startupSplash';
+import { setupMusicNetworkRuntime } from './musicNetworkBridge';
 import { invoke } from '@tauri-apps/api/core';
 import { getWindowKind } from './windowKind';
 import { migrateThemeSelection } from '../utils/themes/themeMigration';
@@ -119,4 +120,5 @@ export function runPreReactBootstrap(): void {
   pushUserAgentToBackend();
   pushLoggingModeToBackend();
   installQueueUndoHotkey();
+  setupMusicNetworkRuntime();
 }

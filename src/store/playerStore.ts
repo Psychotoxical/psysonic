@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { readInitialLastfmLovedCache, persistLastfmLovedCache } from './lastfmLovedCacheStorage';
+import { readInitialNetworkLovedCache, persistNetworkLovedCache } from './networkLovedCacheStorage';
 import { readInitialPlayerPrefs, persistPlayerPrefs } from './playerPrefsStorage';
 import { createHydrationGatedStorage, createSafeJSONStorage } from './safeStorage';
 import { emitPlaybackProgress } from './playbackProgress';
@@ -8,7 +8,7 @@ import type { PlayerState, QueueItemRef, Track } from './playerStoreTypes';
 import { toQueueItemRefs } from '../utils/library/queueItemRef';
 import { canonicalQueueServerKey } from '../utils/server/serverIndexKey';
 import { readInitialQueueVisibility } from './queueVisibilityStorage';
-import { createLastfmActions } from './lastfmActions';
+import { createNetworkLoveActions } from './networkLoveActions';
 import { createMiscActions } from './miscActions';
 import { runNext } from './nextAction';
 import { runPlayTrack } from './playTrackAction';
@@ -22,7 +22,7 @@ import { createUiStateActions } from './uiStateActions';
 import { createUndoRedoActions } from './undoRedoActions';
 
 const initialPlayerPrefs = readInitialPlayerPrefs();
-const initialLastfmLovedCache = readInitialLastfmLovedCache();
+const initialNetworkLovedCache = readInitialNetworkLovedCache();
 let playerPersistWritesEnabled = false;
 
 export const usePlayerStore = create<PlayerState>()(
@@ -56,8 +56,8 @@ export const usePlayerStore = create<PlayerState>()(
       currentTime: 0,
       volume: initialPlayerPrefs.volume,
       scrobbled: false,
-      lastfmLoved: false,
-      lastfmLovedCache: initialLastfmLovedCache,
+      networkLoved: false,
+      networkLovedCache: initialNetworkLovedCache,
       starredOverrides: {},
       userRatingOverrides: {},
       isQueueVisible: readInitialQueueVisibility(),
@@ -71,7 +71,7 @@ export const usePlayerStore = create<PlayerState>()(
       songInfoModal: { isOpen: false, songId: null },
 
       ...createUiStateActions(set),
-      ...createLastfmActions(set, get),
+      ...createNetworkLoveActions(set, get),
       ...createQueueMutationActions(set, get),
       ...createTransportLightActions(set, get),
       ...createUndoRedoActions(set, get),
@@ -97,7 +97,7 @@ export const usePlayerStore = create<PlayerState>()(
       ),
       partialize: (state) => ({
         // volume/repeatMode → psysonic_player_prefs; isQueueVisible →
-        // psysonic_queue_visible; lastfmLovedCache → psysonic_lastfm_loved_cache.
+        // psysonic_queue_visible; networkLovedCache → psysonic_network_loved_cache.
         // Kept out of this blob so a huge queue cannot block their writes.
         currentTrack: state.currentTrack,
         queueServerId: state.queueServerId,
@@ -159,6 +159,7 @@ export const usePlayerStore = create<PlayerState>()(
         delete blob.repeatMode;
         delete blob.isQueueVisible;
         delete blob.lastfmLovedCache;
+        delete blob.networkLovedCache;
         // Persist the canonical form back onto the merged blob so subsequent
         // reads of state.queueServerId always see the index key.
         if (canonicalSid !== null) {
@@ -187,8 +188,8 @@ usePlayerStore.subscribe((state, prev) => {
   if (state.volume !== prev.volume || state.repeatMode !== prev.repeatMode) {
     persistPlayerPrefs({ volume: state.volume, repeatMode: state.repeatMode });
   }
-  if (state.lastfmLovedCache !== prev.lastfmLovedCache) {
-    persistLastfmLovedCache(state.lastfmLovedCache);
+  if (state.networkLovedCache !== prev.networkLovedCache) {
+    persistNetworkLovedCache(state.networkLovedCache);
   }
 });
 

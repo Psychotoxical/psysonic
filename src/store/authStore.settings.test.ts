@@ -47,7 +47,6 @@ describe('trivial pass-through setters', () => {
   // a refactor that renames a key without renaming the setter (or vice
   // versa) breaks these.
   it.each([
-    ['setScrobblingEnabled', 'scrobblingEnabled', false],
     ['setExcludeAudiobooks', 'excludeAudiobooks', true],
     ['setInfiniteQueueEnabled', 'infiniteQueueEnabled', true],
     ['setPreservePlayNextOrder', 'preservePlayNextOrder', true],

@@ -6,10 +6,17 @@
  * Covers the smaller surfaces 2a / 2b / 2c skipped: shuffleQueue,
  * shuffleUpcomingQueue, stop, setStarredOverride / setUserRatingOverride,
  * toggleQueue / setQueueVisible, toggleFullscreen, openContextMenu /
- * closeContextMenu, openSongInfo / closeSongInfo, setLastfmLoved /
- * setLastfmLovedForSong, pruneUpcomingToCurrent, setProgress.
+ * closeContextMenu, openSongInfo / closeSongInfo, setNetworkLoved /
+ * setNetworkLovedForSong, pruneUpcomingToCurrent, setProgress.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const runtimeMock = {
+  getEnrichmentPrimaryId: vi.fn<() => string | null>(() => null),
+  setTrackLoved: vi.fn(async () => undefined),
+  isTrackLoved: vi.fn(async () => false),
+  syncLovedTracks: vi.fn(async () => ({})),
+};
 
 vi.mock('@/api/subsonic', () => ({
   savePlayQueue: vi.fn(async () => undefined),
@@ -30,13 +37,9 @@ vi.mock('@/api/subsonic', () => ({
   unstar: vi.fn(async () => undefined),
 }));
 
-vi.mock('@/api/lastfm', () => ({
-  lastfmScrobble: vi.fn(async () => undefined),
-  lastfmUpdateNowPlaying: vi.fn(async () => undefined),
-  lastfmLoveTrack: vi.fn(async () => undefined),
-  lastfmUnloveTrack: vi.fn(async () => undefined),
-  lastfmGetTrackLoved: vi.fn(async () => false),
-  lastfmGetAllLovedTracks: vi.fn(async () => []),
+vi.mock('@/music-network', () => ({
+  getMusicNetworkRuntime: () => runtimeMock,
+  getMusicNetworkRuntimeOrNull: () => runtimeMock,
 }));
 
 vi.mock('@/utils/orbitBulkGuard', () => ({
@@ -44,7 +47,6 @@ vi.mock('@/utils/orbitBulkGuard', () => ({
 }));
 
 import { usePlayerStore } from './playerStore';
-import { useAuthStore } from './authStore';
 import { onInvoke, invokeMock } from '@/test/mocks/tauri';
 import { resetPlayerStore, resetAuthStore } from '@/test/helpers/storeReset';
 import { makeTrack, makeTracks, seedQueue } from '@/test/helpers/factories';
@@ -52,6 +54,10 @@ import { makeTrack, makeTracks, seedQueue } from '@/test/helpers/factories';
 beforeEach(() => {
   resetPlayerStore();
   resetAuthStore();
+  runtimeMock.getEnrichmentPrimaryId.mockReturnValue(null);
+  runtimeMock.setTrackLoved.mockClear();
+  runtimeMock.isTrackLoved.mockResolvedValue(false);
+  runtimeMock.syncLovedTracks.mockResolvedValue({});
   onInvoke('audio_play', () => undefined);
   onInvoke('audio_pause', () => undefined);
   onInvoke('audio_stop', () => undefined);
@@ -147,53 +153,55 @@ describe('toggleFullscreen', () => {
   });
 });
 
-describe('setLastfmLoved / toggleLastfmLove', () => {
-  it('setLastfmLoved writes the flag verbatim (no session-key gate inside the setter)', () => {
-    usePlayerStore.setState({ currentTrack: makeTrack(), lastfmLoved: false });
-    usePlayerStore.getState().setLastfmLoved(true);
-    expect(usePlayerStore.getState().lastfmLoved).toBe(true);
+describe('setNetworkLoved / toggleNetworkLove', () => {
+  it('setNetworkLoved writes the flag verbatim (no primary gate inside the setter)', () => {
+    usePlayerStore.setState({ currentTrack: makeTrack(), networkLoved: false });
+    usePlayerStore.getState().setNetworkLoved(true);
+    expect(usePlayerStore.getState().networkLoved).toBe(true);
   });
 
-  it('setLastfmLoved also caches the value under "title::artist" when there is a current track', () => {
+  it('setNetworkLoved also caches the value under "title::artist" when there is a current track', () => {
     usePlayerStore.setState({
       currentTrack: makeTrack({ title: 'Hello', artist: 'Adele' }),
-      lastfmLoved: false,
+      networkLoved: false,
     });
-    usePlayerStore.getState().setLastfmLoved(true);
-    expect(usePlayerStore.getState().lastfmLovedCache['Hello::Adele']).toBe(true);
+    usePlayerStore.getState().setNetworkLoved(true);
+    expect(usePlayerStore.getState().networkLovedCache['Hello::Adele']).toBe(true);
   });
 
-  it('setLastfmLoved without a current track only updates the flag, not the cache', () => {
-    usePlayerStore.setState({ currentTrack: null, lastfmLoved: false, lastfmLovedCache: {} });
-    usePlayerStore.getState().setLastfmLoved(true);
-    expect(usePlayerStore.getState().lastfmLoved).toBe(true);
-    expect(usePlayerStore.getState().lastfmLovedCache).toEqual({});
+  it('setNetworkLoved without a current track only updates the flag, not the cache', () => {
+    usePlayerStore.setState({ currentTrack: null, networkLoved: false, networkLovedCache: {} });
+    usePlayerStore.getState().setNetworkLoved(true);
+    expect(usePlayerStore.getState().networkLoved).toBe(true);
+    expect(usePlayerStore.getState().networkLovedCache).toEqual({});
   });
 
-  it('toggleLastfmLove is a no-op without a current track', () => {
-    useAuthStore.setState({ lastfmSessionKey: 'session-key' });
-    usePlayerStore.setState({ currentTrack: null, lastfmLoved: false });
-    usePlayerStore.getState().toggleLastfmLove();
-    expect(usePlayerStore.getState().lastfmLoved).toBe(false);
+  it('toggleNetworkLove is a no-op without a current track', () => {
+    runtimeMock.getEnrichmentPrimaryId.mockReturnValue('primary');
+    usePlayerStore.setState({ currentTrack: null, networkLoved: false });
+    usePlayerStore.getState().toggleNetworkLove();
+    expect(usePlayerStore.getState().networkLoved).toBe(false);
+    expect(runtimeMock.setTrackLoved).not.toHaveBeenCalled();
   });
 
-  it('toggleLastfmLove flips state when a track + session are present', () => {
-    useAuthStore.setState({ lastfmSessionKey: 'session-key' });
-    usePlayerStore.setState({ currentTrack: makeTrack({ title: 'T', artist: 'A' }), lastfmLoved: false });
+  it('toggleNetworkLove flips state and writes through the runtime when a track + primary are present', () => {
+    runtimeMock.getEnrichmentPrimaryId.mockReturnValue('primary');
+    usePlayerStore.setState({ currentTrack: makeTrack({ title: 'T', artist: 'A' }), networkLoved: false });
 
-    usePlayerStore.getState().toggleLastfmLove();
-    expect(usePlayerStore.getState().lastfmLoved).toBe(true);
-    expect(usePlayerStore.getState().lastfmLovedCache['T::A']).toBe(true);
+    usePlayerStore.getState().toggleNetworkLove();
+    expect(usePlayerStore.getState().networkLoved).toBe(true);
+    expect(usePlayerStore.getState().networkLovedCache['T::A']).toBe(true);
+    expect(runtimeMock.setTrackLoved).toHaveBeenCalledWith({ title: 'T', artist: 'A' }, true);
   });
 });
 
-describe('setLastfmLovedForSong', () => {
+describe('setNetworkLovedForSong', () => {
   it('caches loved state under the "title::artist" key', () => {
-    usePlayerStore.getState().setLastfmLovedForSong('Hello', 'Adele', true);
-    expect(usePlayerStore.getState().lastfmLovedCache['Hello::Adele']).toBe(true);
+    usePlayerStore.getState().setNetworkLovedForSong('Hello', 'Adele', true);
+    expect(usePlayerStore.getState().networkLovedCache['Hello::Adele']).toBe(true);
 
-    usePlayerStore.getState().setLastfmLovedForSong('Hello', 'Adele', false);
-    expect(usePlayerStore.getState().lastfmLovedCache['Hello::Adele']).toBe(false);
+    usePlayerStore.getState().setNetworkLovedForSong('Hello', 'Adele', false);
+    expect(usePlayerStore.getState().networkLovedCache['Hello::Adele']).toBe(false);
   });
 });
 

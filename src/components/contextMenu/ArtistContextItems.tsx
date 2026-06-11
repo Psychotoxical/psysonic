@@ -13,7 +13,7 @@ export default function ArtistContextItems(props: ContextMenuItemsProps) {
   const {
     type, item, queueIndex, playlistId, playlistSongIndex, shareKindOverride,
     playTrack, playNext, enqueue, removeTrack, queue, currentTrack, closeContextMenu,
-    starredOverrides, setStarredOverride, lastfmLovedCache, setLastfmLovedForSong,
+    starredOverrides, setStarredOverride, networkLovedCache, setNetworkLovedForSong,
     openSongInfo, userRatingOverrides, setKeyboardRating, keyboardRating,
     playlistSubmenuOpen, setPlaylistSubmenuOpen, cancelPlaylistSubmenuCloseTimer, onPlaylistSubmenuTriggerMouseLeave,
     playlistSongIds, setPlaylistSongIds,
