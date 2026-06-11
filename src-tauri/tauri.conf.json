@@ -28,7 +28,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' ipc: http://ipc.localhost tauri:; connect-src 'self' ipc: http://ipc.localhost tauri: https: http: ws: wss:; img-src 'self' asset: http://asset.localhost https: http: data: blob:; media-src 'self' asset: http://asset.localhost https: http: data: blob:;",
+      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' ipc: http://ipc.localhost tauri:; style-src 'self' 'unsafe-inline' asset: http://asset.localhost https://asset.localhost tauri: blob:; style-src-elem 'self' 'unsafe-inline' asset: http://asset.localhost https://asset.localhost tauri: blob:; font-src 'self' data: asset: http://asset.localhost https://asset.localhost; connect-src 'self' ipc: http://ipc.localhost tauri: https: http: ws: wss:; img-src 'self' asset: http://asset.localhost https: http: data: blob:; media-src 'self' asset: http://asset.localhost https: http: data: blob:;",
       "assetProtocol": {
         "enable": true,
         "scope": [
