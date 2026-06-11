@@ -244,6 +244,7 @@ export const settings = {
   discordRichPresence: 'Статус в Discord',
   discordRichPresenceDesc:
     'Показывать текущий трек в профиле и статусе Discord. Нужен запущенный клиент Discord.',
+  discordRichPresenceNotice: 'Внимание: это встроенная Discord Rich Presence в Psysonic. Если вы хотите использовать официальный плагин Discord Rich Presence для Navidrome, оставьте эту функцию выключенной и вместо этого включите «Показывать в „Сейчас играет"» ниже на этой странице.',
   discordCoverSource: 'Источник обложки',
   discordCoverSourceDesc: 'Откуда загружать обложку альбома для профиля Discord.',
   discordCoverNone: 'Нет (только иконка приложения)',
@@ -259,6 +260,7 @@ export const settings = {
   nowPlayingEnabled: 'Показывать в «Сейчас играет»',
   nowPlayingEnabledDesc:
     'Отправлять на сервер, что вы сейчас слушаете. Отключите, чтобы не делиться этим.',
+  nowPlayingPluginNote: 'Необходимо при использовании официального плагина Discord Rich Presence для Navidrome.',
   enableBandsintown: 'Даты туров Bandsintown',
   enableBandsintownDesc: 'Показывает предстоящие концерты текущего исполнителя на вкладке «Инфо». Данные берутся из публичного API Bandsintown.',
   lyricsServerFirst: 'Предпочитать тексты с сервера',
