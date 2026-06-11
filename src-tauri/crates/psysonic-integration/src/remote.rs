@@ -293,6 +293,17 @@ const LASTFM_API_BASE: &str = "https://ws.audioscrobbler.com/2.0/";
 
 /// Generic Audioscrobbler v2 transport. Provider-agnostic: the caller supplies
 /// the endpoint `base_url`, so Last.fm, Libre.fm, Rocksky, custom GNU FM and the
+/// Shared HTTP client for the Music Network provider transports
+/// (audioscrobbler / listenbrainz / maloja). A bounded timeout keeps a hung
+/// provider from leaving scrobble/probe/loved-sync promises unresolved — the
+/// sibling `fetch_*` commands in this module set the same kind of bound.
+fn provider_http_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())
+}
+
 /// Maloja Audioscrobbler-compat surface all share this one command.
 ///
 /// `params` is a list of [key, value] pairs (method must be included). If `sign`
@@ -328,7 +339,7 @@ pub async fn audioscrobbler_request(
 
     map.insert("format".into(), "json".into());
 
-    let client = reqwest::Client::new();
+    let client = provider_http_client()?;
     let resp = if get {
         client
             .get(&base)
@@ -368,7 +379,7 @@ pub async fn listenbrainz_request(
     json_body: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
     let url = format!("{}{}", base_url.trim_end_matches('/'), path);
-    let client = reqwest::Client::new();
+    let client = provider_http_client()?;
 
     let mut req = if json_body.is_some() {
         client.post(&url)
@@ -407,7 +418,7 @@ pub async fn maloja_request(
     json_body: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
     let url = format!("{}{}", base_url.trim_end_matches('/'), path);
-    let client = reqwest::Client::new();
+    let client = provider_http_client()?;
 
     let resp = if let Some(body) = json_body {
         client.post(&url).json(&body)
