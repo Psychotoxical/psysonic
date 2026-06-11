@@ -33,11 +33,11 @@ function buildMappings(): ServerIndexMapping[] {
 
 async function runGenreTagsPhase(): Promise<void> {
   const state = useMigrationStore.getState();
-  state.setStep('genreTags');
   state.setGenreTagsProgress(null);
-  state.setError(null);
-  state.setPhase('inspecting');
 
+  // Inspect first WITHOUT entering a blocking phase. An already-migrated launch
+  // must not flash the gate while this inspect IPC round-trips (regression: the
+  // modal briefly appeared on every startup once the backfill was complete).
   const inspect = await libraryGenreTagsInspect();
   state.setGenreTagsInspect(inspect);
   if (!inspect.needed) {
@@ -45,6 +45,8 @@ async function runGenreTagsPhase(): Promise<void> {
     return;
   }
 
+  state.setStep('genreTags');
+  state.setError(null);
   state.setPhase('running');
   const maxAttempts = 3;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
