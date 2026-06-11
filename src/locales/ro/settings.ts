@@ -428,7 +428,7 @@ export const settings = {
   playerBarReset: 'Resetare la implicit',
   playerBarStarRating: 'Evaluare cu stele',
   playerBarFavorite: 'Favorit (inimă)',
-  playerBarLastfmLove: 'Last.fm love',
+  playerBarLastfmLove: 'Buton de apreciere',
   playerBarPlaybackRate: 'Viteză redare',
   playerBarEqualizer: 'Egalizator',
   playerBarMiniPlayer: 'Mini player',

@@ -42,6 +42,7 @@ export default function Statistics() {
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const playerStatsEnabled = usePlayerStatsRecordingEnabled();
   const enrichmentPrimaryId = useAuthStore(s => s.enrichmentPrimaryId);
+  const enrichmentLabel = useAuthStore(s => s.musicNetworkAccounts.find(a => a.id === s.enrichmentPrimaryId)?.label ?? '');
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const [recent, setRecent] = useState<SubsonicAlbum[]>([]);
   const [frequent, setFrequent] = useState<SubsonicAlbum[]>([]);
@@ -320,7 +321,7 @@ export default function Statistics() {
           {enrichmentPrimaryId !== null && (
             <section style={{ marginTop: '2rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
-                <h2 className="section-title" style={{ margin: 0 }}>{t('statistics.lfmTitle')}</h2>
+                <h2 className="section-title" style={{ margin: 0 }}>{t('statistics.lfmTitle', { provider: enrichmentLabel })}</h2>
                 {enrichmentPrimaryId !== null && (
                   <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
                     {PERIODS.map(p => (

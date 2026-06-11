@@ -422,7 +422,7 @@ export const settings = {
   playerBarReset: 'Tilbakestill til standard',
   playerBarStarRating: 'Stjernevurdering',
   playerBarFavorite: 'Favoritt (hjerte)',
-  playerBarLastfmLove: 'Last.fm love',
+  playerBarLastfmLove: 'Lik-knapp',
   playerBarPlaybackRate: 'Avspillingshastighet',
   playerBarEqualizer: 'Equalizer',
   playerBarMiniPlayer: 'Miniavspiller',

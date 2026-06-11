@@ -42,8 +42,8 @@ describe('audioscrobblerCall — success path', () => {
 
 describe('audioscrobblerCall — session-invalid classification (signed calls)', () => {
   it.each([
-    ['Last.fm 9 — Invalid session key', 'numeric code 9'],
-    ['Last.fm 14 — token has not been authorized', 'numeric code 14'],
+    ['Audioscrobbler 9 — Invalid session key', 'numeric code 9'],
+    ['Audioscrobbler 14 — token has not been authorized', 'numeric code 14'],
     ['Authentication Failed: nope', 'auth-shaped message'],
     ['invalid session supplied', 'invalid-session message'],
     ['invalid token', 'invalid-token message'],
@@ -56,10 +56,10 @@ describe('audioscrobblerCall — session-invalid classification (signed calls)',
 });
 
 describe('audioscrobblerCall — NETWORK classification (collision guards)', () => {
-  it('treats a Last.fm code-4 (Rocksky 500 collision) as NETWORK, not session-invalid', async () => {
+  it('treats a code-4 (Rocksky 500 collision) as NETWORK, not session-invalid', async () => {
     // Rocksky returns code 4 ("Failed to parse scrobbles") as a 500 — must NOT
     // bounce the account to reconnect.
-    invokeMock.mockRejectedValue('Last.fm 4 — Failed to parse scrobbles');
+    invokeMock.mockRejectedValue('Audioscrobbler 4 — Failed to parse scrobbles');
     await expect(audioscrobblerCall(EP, { method: 'track.scrobble', sk: 'x' }, true)).rejects.toMatchObject({
       code: 'NETWORK',
     });

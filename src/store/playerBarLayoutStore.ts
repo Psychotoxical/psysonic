@@ -4,6 +4,9 @@ import { persist } from 'zustand/middleware';
 export type PlayerBarLayoutItemId =
   | 'starRating'
   | 'favorite'
+  // 'lastfmLove' is the enrichment-primary love button. The id is kept (not
+  // renamed to 'networkLove') because it is persisted in user layouts — renaming
+  // would silently drop the button from existing configs. Label is provider-neutral.
   | 'lastfmLove'
   | 'playbackRate'
   | 'equalizer'

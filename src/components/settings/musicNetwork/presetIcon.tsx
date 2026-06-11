@@ -1,4 +1,4 @@
-import { Globe, Radio, Server, Music2 } from 'lucide-react';
+import { Globe, Radio, Server, Music2, Headphones } from 'lucide-react';
 import LastfmIcon from '../../LastfmIcon';
 import type { PresetIcon } from '../../../music-network';
 
@@ -16,6 +16,8 @@ export function renderPresetIcon(icon: PresetIcon, size = 16): React.ReactNode {
       return <Music2 size={size} />;
     case 'listenbrainz':
       return <Radio size={size} />;
+    case 'koito':
+      return <Headphones size={size} />;
     case 'maloja':
       return <Server size={size} />;
     case 'custom':

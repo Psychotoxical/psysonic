@@ -86,7 +86,7 @@ export default function NowPlaying() {
   const {
     songMeta, artistInfo, albumData, topSongs,
     tourEvents, tourLoading, discography,
-    lfmTrack, lfmArtist,
+    networkTrack, networkArtist,
   } = useNowPlayingFetchers({
     songId, artistId, albumId, artistName,
     enableBandsintown, audiomuseNavidromeEnabled,
@@ -98,10 +98,10 @@ export default function NowPlaying() {
     fetchEnabled: Boolean(playbackServerId),
   });
 
-  // Star + Last.fm love + their toggle callbacks
-  const lfmLoveEnabled = enrichmentPrimaryId !== null;
-  const { starred, lfmLoved, toggleStar, toggleLfmLove } = useNowPlayingStarLove({
-    currentTrack, songMeta, lfmTrack, lfmLoveEnabled,
+  // Star + enrichment love + their toggle callbacks
+  const networkLoveEnabled = enrichmentPrimaryId !== null;
+  const { starred, networkLoved, toggleStar, toggleNetworkLove } = useNowPlayingStarLove({
+    currentTrack, songMeta, networkTrack, networkLoveEnabled,
   });
 
   const openLyrics = useCallback(() => {
@@ -124,17 +124,17 @@ export default function NowPlaying() {
     [songMeta, currentTrack?.artist],
   );
 
-  // Merge Subsonic artistInfo with Last.fm fallback: if Subsonic has no bio,
-  // use Last.fm's artist bio so the card doesn't show up empty.
+  // Merge Subsonic artistInfo with the enrichment fallback: if Subsonic has no
+  // bio, use the enrichment primary's artist bio so the card isn't empty.
   const effectiveArtistInfo = useMemo<SubsonicArtistInfo | null>(() => {
-    if (!artistInfo && !lfmArtist?.bio) return null;
+    if (!artistInfo && !networkArtist?.bio) return null;
     if (artistInfo?.biography) return artistInfo;
-    if (!lfmArtist?.bio) return artistInfo;
+    if (!networkArtist?.bio) return artistInfo;
     return {
       ...(artistInfo ?? {}),
-      biography: lfmArtist.bio,
+      biography: networkArtist.bio,
     };
-  }, [artistInfo, lfmArtist]);
+  }, [artistInfo, networkArtist]);
 
   const artistInfoById = useArtistInfoBatch(
     playbackServerId,
@@ -276,16 +276,16 @@ export default function NowPlaying() {
               genre={songMeta?.genre ?? undefined}
               playCount={(songMeta as (SubsonicSong & { playCount?: number }) | null)?.playCount}
               userRatingOverride={userRatingOverrides[currentTrack.id]}
-              lfmTrack={lfmTrack}
-              lfmArtist={lfmArtist}
+              networkTrack={networkTrack}
+              networkArtist={networkArtist}
               starred={starred}
-              lfmLoved={lfmLoved}
-              lfmLoveEnabled={lfmLoveEnabled}
+              networkLoved={networkLoved}
+              networkLoveEnabled={networkLoveEnabled}
               activeLyricsTab={activeTab === 'lyrics' && isQueueVisible}
               coverRef={playbackCoverRef}
               onNavigate={stableNavigate}
               onToggleStar={toggleStar}
-              onToggleLfmLove={toggleLfmLove}
+              onToggleNetworkLove={toggleNetworkLove}
               onOpenLyrics={openLyrics}
             />
 

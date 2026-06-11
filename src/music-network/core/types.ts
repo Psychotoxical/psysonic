@@ -17,6 +17,7 @@ export type PresetId =
   | 'maloja_compat'
   | 'maloja_native'
   | 'maloja_listenbrainz'
+  | 'koito'
   | 'custom_gnufm';
 
 /**

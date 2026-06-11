@@ -46,8 +46,8 @@ function deriveAuthBase(origin: string): string {
 
 function malojaWireModeFor(presetId: PresetId): MalojaWireMode | undefined {
   if (presetId === 'maloja_native') return 'native';
-  if (presetId === 'maloja_listenbrainz') return 'listenbrainz';
   if (presetId === 'maloja_compat') return 'audioscrobbler';
+  if (presetId === 'maloja_listenbrainz') return 'listenbrainz';
   return undefined;
 }
 

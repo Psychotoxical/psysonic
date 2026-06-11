@@ -11,9 +11,11 @@ import { lastfmPreset } from '../wires/audioscrobbler/presets/lastfm';
 import { librefmPreset } from '../wires/audioscrobbler/presets/librefm';
 import { rockskyPreset } from '../wires/audioscrobbler/presets/rocksky';
 import { customGnufmPreset } from '../wires/audioscrobbler/presets/customGnufm';
+import { malojaCompatPreset } from '../wires/audioscrobbler/presets/malojaCompat';
 import { listenbrainzPreset } from '../wires/listenbrainz/presets/listenbrainz';
 import { malojaListenbrainzPreset } from '../wires/listenbrainz/presets/malojaListenbrainz';
 import { malojaNativePreset } from '../wires/maloja/presets/malojaNative';
+import { koitoPreset } from '../wires/listenbrainz/presets/koito';
 
 const PRESETS: readonly BuiltinPreset[] = [
   lastfmPreset,
@@ -21,8 +23,10 @@ const PRESETS: readonly BuiltinPreset[] = [
   rockskyPreset,
   customGnufmPreset,
   listenbrainzPreset,
-  malojaListenbrainzPreset,
   malojaNativePreset,
+  malojaCompatPreset,
+  malojaListenbrainzPreset,
+  koitoPreset,
 ];
 
 const byId = new Map<PresetId, BuiltinPreset>(

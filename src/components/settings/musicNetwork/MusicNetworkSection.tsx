@@ -53,8 +53,20 @@ export function MusicNetworkSection() {
     }
   };
 
-  const connect = (presetId: PresetId, fields: Record<string, string>) =>
-    getMusicNetworkRuntime().connect(presetId, { fields }).then(() => undefined);
+  const connect = async (presetId: PresetId, fields: Record<string, string>) => {
+    const account = await getMusicNetworkRuntime().connect(presetId, { fields });
+    // The wire's connect only checks the credential is present; for paste-auth
+    // providers the real validation is the capability probe. Surface a probe
+    // error (e.g. an invalid token) so the connect does not look silently OK.
+    const scrobble = account.capabilities?.scrobble;
+    if (scrobble?.status === 'error') {
+      showToast(
+        t('musicNetwork.connectProbeFailed', { provider: account.label, message: scrobble.message ?? '' }),
+        6000,
+        'error',
+      );
+    }
+  };
 
   const connectedPresetIds = accounts.map(a => a.presetId);
 

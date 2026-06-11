@@ -20,12 +20,14 @@ function errMsg(e: unknown): string {
   return String(e);
 }
 
-// Auth/session detection. Real auth failures are matched by MESSAGE, not by
-// numeric code: the codes collide across providers (Last.fm code 4 = "Authentication
-// Failed", but Rocksky code 4 = a server-side "Failed to parse scrobbles" / 500
-// that must NOT flip the account to a reconnect state). Codes 9/14 are Last.fm/GNU
-// FM session-key/token failures with no ambiguous message.
-const SESSION_INVALID_CODE = /^Last\.fm (9|14)\b/;
+// Auth/session detection. The generic transport prefixes Audioscrobbler errors
+// with "Audioscrobbler <code> <message>". Real auth failures are matched by
+// MESSAGE, not by numeric code: the codes collide across providers (Last.fm
+// code 4 = "Authentication Failed", but Rocksky code 4 = a server-side "Failed
+// to parse scrobbles" / 500 that must NOT flip the account to a reconnect
+// state). Codes 9/14 are Last.fm/GNU FM session-key/token failures with no
+// ambiguous message.
+const SESSION_INVALID_CODE = /^Audioscrobbler (9|14)\b/;
 const SESSION_INVALID_MESSAGE = /authentication failed|invalid (session|token)/i;
 
 /**

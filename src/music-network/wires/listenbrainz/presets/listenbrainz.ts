@@ -12,7 +12,7 @@ const manifest: PresetManifest = {
   displayName: 'ListenBrainz',
   descriptionKey: 'musicNetwork.presets.listenbrainz.desc',
   icon: 'listenbrainz',
-  category: 'public_audioscrobbler',
+  category: 'public_listenbrainz',
   endpoints: {
     apiBase: 'https://api.listenbrainz.org',
     profileBase: 'https://listenbrainz.org',

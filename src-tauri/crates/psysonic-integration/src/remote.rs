@@ -348,7 +348,7 @@ pub async fn audioscrobbler_request(
     let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
 
     if let Some(err) = json.get("error") {
-        return Err(format!("Last.fm {} {}", err, json.get("message").and_then(|m| m.as_str()).unwrap_or("")));
+        return Err(format!("Audioscrobbler {} {}", err, json.get("message").and_then(|m| m.as_str()).unwrap_or("")));
     }
 
     Ok(json)
@@ -647,6 +647,6 @@ mod tests {
         .await
         .expect_err("api error should map to Err");
 
-        assert!(err.contains("Last.fm 9"), "unexpected error: {err}");
+        assert!(err.contains("Audioscrobbler 9"), "unexpected error: {err}");
     }
 }

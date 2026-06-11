@@ -31,6 +31,7 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
   } = props;
   const { t } = useTranslation();
   const auth = useAuthStore();
+  const networkLabel = auth.musicNetworkAccounts.find(a => a.id === auth.enrichmentPrimaryId)?.label ?? '';
   const navigateToAlbum = useNavigateToAlbum();
   const navigateToArtist = useNavigateToArtist();
 
@@ -144,7 +145,7 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
                     void getMusicNetworkRuntime().setTrackLoved({ title: song.title, artist: song.artist }, newLoved);
                   })}>
                     <LastfmIcon size={14} />
-                    {loved ? t('contextMenu.lfmUnlove') : t('contextMenu.lfmLove')}
+                    {loved ? t('contextMenu.networkUnlove', { provider: networkLabel }) : t('contextMenu.networkLove', { provider: networkLabel })}
                   </div>
                 );
               })()}
@@ -288,7 +289,7 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
                     void getMusicNetworkRuntime().setTrackLoved({ title: song.title, artist: song.artist }, newLoved);
                   })}>
                     <LastfmIcon size={14} />
-                    {loved ? t('contextMenu.lfmUnlove') : t('contextMenu.lfmLove')}
+                    {loved ? t('contextMenu.networkUnlove', { provider: networkLabel }) : t('contextMenu.networkLove', { provider: networkLabel })}
                   </div>
                 );
               })()}

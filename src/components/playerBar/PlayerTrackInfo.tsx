@@ -15,6 +15,7 @@ import { OpenArtistRefInline } from '../OpenArtistRefInline';
 import StarRating from '../StarRating';
 import { PlaybackBufferingOverlay } from '../playback/PlaybackBufferingOverlay';
 import { usePlayerStore } from '../../store/playerStore';
+import { useEnrichmentPrimaryLabel } from '../../hooks/useEnrichmentPrimaryLabel';
 import {
   usePlayerBarLayoutStore,
   type PlayerBarLayoutItemId,
@@ -56,6 +57,7 @@ export function PlayerTrackInfo({
   navigate, openContextMenu, t,
 }: Props) {
   const showBufferingOverlay = usePlayerStore(s => s.isPlaybackBuffering);
+  const networkLabel = useEnrichmentPrimaryLabel() ?? '';
   const playbackCoverRef = usePlaybackTrackCoverRef(
     showPreviewMeta ? null : currentTrack ?? undefined,
   );
@@ -201,8 +203,8 @@ export function PlayerTrackInfo({
         <button
           className="player-btn player-btn-sm player-love-btn"
           onClick={toggleNetworkLove}
-          aria-label={networkLoved ? t('contextMenu.lfmUnlove') : t('contextMenu.lfmLove')}
-          data-tooltip={networkLoved ? t('contextMenu.lfmUnlove') : t('contextMenu.lfmLove')}
+          aria-label={networkLoved ? t('contextMenu.networkUnlove', { provider: networkLabel }) : t('contextMenu.networkLove', { provider: networkLabel })}
+          data-tooltip={networkLoved ? t('contextMenu.networkUnlove', { provider: networkLabel }) : t('contextMenu.networkLove', { provider: networkLabel })}
           style={{ color: networkLoved ? '#e31c23' : 'var(--text-muted)', flexShrink: 0 }}
         >
           <LastfmIcon size={15} />

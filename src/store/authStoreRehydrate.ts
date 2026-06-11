@@ -197,6 +197,13 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     }
   } catch { /* ignore */ }
 
+  // Strip the legacy flat lastfm* fields from the persisted blob (spec §6.1.3).
+  // The migration above maps them into accounts[]; the sentinel guards
+  // re-migration, so these now sit as pure cruft. Drop them on every rehydrate.
+  for (const k of ['lastfmApiKey', 'lastfmApiSecret', 'lastfmSessionKey', 'lastfmUsername', 'lastfmSessionError', 'scrobblingEnabled']) {
+    delete (state as unknown as Record<string, unknown>)[k];
+  }
+
   let mediaDirMigrated: { mediaDir?: string } = {};
   const stMedia = state as { mediaDir?: unknown; offlineDownloadDir?: string; hotCacheDownloadDir?: string };
   if (!stMedia.mediaDir || (typeof stMedia.mediaDir === 'string' && stMedia.mediaDir.trim() === '')) {

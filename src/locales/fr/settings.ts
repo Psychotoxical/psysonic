@@ -423,7 +423,7 @@ export const settings = {
   playerBarReset: 'Réinitialiser',
   playerBarStarRating: 'Note par étoiles',
   playerBarFavorite: 'Favori (cœur)',
-  playerBarLastfmLove: 'Last.fm love',
+  playerBarLastfmLove: 'Bouton J’aime',
   playerBarPlaybackRate: 'Vitesse de lecture',
   playerBarEqualizer: 'Égaliseur',
   playerBarMiniPlayer: 'Mini-lecteur',

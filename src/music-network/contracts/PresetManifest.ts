@@ -10,9 +10,9 @@
 import type { CapabilityId } from '../core/capabilities';
 import type { PresetId, WireId } from '../core/types';
 
-export type PresetIcon = 'lastfm' | 'librefm' | 'rocksky' | 'maloja' | 'listenbrainz' | 'custom';
+export type PresetIcon = 'lastfm' | 'librefm' | 'rocksky' | 'maloja' | 'listenbrainz' | 'koito' | 'custom';
 
-export type PresetCategory = 'public_audioscrobbler' | 'self_hosted' | 'custom';
+export type PresetCategory = 'public_audioscrobbler' | 'public_listenbrainz' | 'self_hosted' | 'custom';
 
 /** Where credentials come from. */
 export type CredentialMode =

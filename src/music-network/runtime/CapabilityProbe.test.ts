@@ -11,9 +11,9 @@ import type { ScrobbleWire } from '../contracts/ScrobbleWire';
 import type { CapabilitySet } from '../core/capabilities';
 import type { PersistedAccount } from '../core/accounts';
 
-function makeWire(probed: CapabilitySet): ScrobbleWire {
+function makeWire(probed: CapabilitySet, wireId: ScrobbleWire['wireId'] = 'audioscrobbler_v2'): ScrobbleWire {
   return {
-    wireId: 'audioscrobbler_v2',
+    wireId,
     supportsEnrichment: false,
     connect: vi.fn(),
     disconnect: vi.fn(),
@@ -42,6 +42,17 @@ describe('probeAccount — manifest overrides probe', () => {
     const caps = await probeAccount(account());
     expect(caps.nowPlaying?.status).toBe('no');
     expect(caps.scrobble?.status).toBe('yes');
+  });
+
+  it('lets a runtime probe error survive a static "true" (invalid pasted token)', async () => {
+    // listenbrainz declares scrobble:true statically, but a bad token makes the
+    // probe report scrobble:error — the static flag must not mask it back to yes.
+    registerWire(makeWire({
+      scrobble: { status: 'error', message: 'Token invalid' },
+      nowPlaying: { status: 'error', message: 'Token invalid' },
+    }, 'listenbrainz'));
+    const caps = await probeAccount(account({ presetId: 'listenbrainz', wireId: 'listenbrainz' }));
+    expect(caps.scrobble).toEqual({ status: 'error', message: 'Token invalid' });
   });
 
   it('keeps probed keys the manifest does not declare', async () => {

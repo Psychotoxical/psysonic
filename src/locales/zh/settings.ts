@@ -422,7 +422,7 @@ export const settings = {
   playerBarReset: '重置为默认',
   playerBarStarRating: '星级评分',
   playerBarFavorite: '收藏（心形）',
-  playerBarLastfmLove: 'Last.fm 喜欢',
+  playerBarLastfmLove: '喜欢按钮',
   playerBarPlaybackRate: '播放速度',
   playerBarEqualizer: '均衡器',
   playerBarMiniPlayer: '迷你播放器',

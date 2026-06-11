@@ -8,19 +8,19 @@ import { getMusicNetworkRuntime } from '../music-network';
 export interface NowPlayingStarLoveDeps {
   currentTrack: Pick<Track, 'id' | 'title' | 'artist' | 'serverId'> | null;
   songMeta: SubsonicSong | null;
-  lfmTrack: TrackStats | null;
-  lfmLoveEnabled: boolean;
+  networkTrack: TrackStats | null;
+  networkLoveEnabled: boolean;
 }
 
 export interface NowPlayingStarLoveResult {
   starred: boolean;
-  lfmLoved: boolean;
+  networkLoved: boolean;
   toggleStar: () => Promise<void>;
-  toggleLfmLove: () => Promise<void>;
+  toggleNetworkLove: () => Promise<void>;
 }
 
 export function useNowPlayingStarLove(deps: NowPlayingStarLoveDeps): NowPlayingStarLoveResult {
-  const { currentTrack, songMeta, lfmTrack, lfmLoveEnabled } = deps;
+  const { currentTrack, songMeta, networkTrack, networkLoveEnabled } = deps;
 
   // Star
   const [starred, setStarred] = useState(false);
@@ -32,15 +32,15 @@ export function useNowPlayingStarLove(deps: NowPlayingStarLoveDeps): NowPlayingS
     queueSongStar(currentTrack.id, next, currentTrack.serverId);
   }, [currentTrack, starred]);
 
-  // Last.fm love (seeded from track.getInfo, toggle via love/unlove)
-  const [lfmLoved, setLfmLoved] = useState(false);
-  useEffect(() => { setLfmLoved(!!lfmTrack?.userLoved); }, [lfmTrack]);
-  const toggleLfmLove = useCallback(async () => {
-    if (!currentTrack || !lfmLoveEnabled) return;
+  // Love (enrichment primary; seeded from track.getInfo, toggle via love/unlove)
+  const [networkLoved, setNetworkLoved] = useState(false);
+  useEffect(() => { setNetworkLoved(!!networkTrack?.userLoved); }, [networkTrack]);
+  const toggleNetworkLove = useCallback(async () => {
+    if (!currentTrack || !networkLoveEnabled) return;
     const track = { title: currentTrack.title, artist: currentTrack.artist };
-    if (lfmLoved) { await getMusicNetworkRuntime().setTrackLoved(track, false); setLfmLoved(false); }
-    else          { await getMusicNetworkRuntime().setTrackLoved(track, true);  setLfmLoved(true);  }
-  }, [currentTrack, lfmLoved, lfmLoveEnabled]);
+    if (networkLoved) { await getMusicNetworkRuntime().setTrackLoved(track, false); setNetworkLoved(false); }
+    else              { await getMusicNetworkRuntime().setTrackLoved(track, true);  setNetworkLoved(true);  }
+  }, [currentTrack, networkLoved, networkLoveEnabled]);
 
-  return { starred, lfmLoved, toggleStar, toggleLfmLove };
+  return { starred, networkLoved, toggleStar, toggleNetworkLove };
 }

@@ -37,6 +37,14 @@ export function ConnectProviderForm({
     isMusicNetworkError(e) ? t(errorI18nKey(e.code)) : t('musicNetwork.connectFailed');
 
   const run = async (presetId: PresetId, payload: Record<string, string>) => {
+    // Enforce the manifest's `required` fields client-side so an empty URL/token
+    // gives a clear message instead of falling through to a confusing NETWORK error.
+    const preset = available.find(p => p.manifest.presetId === presetId);
+    const missing = preset?.manifest.fields.find(f => f.required && !(payload[f.name] ?? '').trim());
+    if (missing) {
+      setError(t('musicNetwork.fieldRequired', { field: t(missing.labelKey) }));
+      return;
+    }
     setBusy(presetId);
     setError(null);
     try {

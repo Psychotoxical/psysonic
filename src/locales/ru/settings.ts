@@ -483,7 +483,7 @@ export const settings = {
   playerBarReset: 'Сбросить',
   playerBarStarRating: 'Оценка звёздами',
   playerBarFavorite: 'Избранное (сердечко)',
-  playerBarLastfmLove: 'Last.fm love',
+  playerBarLastfmLove: 'Кнопка «Нравится»',
   playerBarPlaybackRate: 'Скорость',
   playerBarEqualizer: 'Эквалайзер',
   playerBarMiniPlayer: 'Мини-плеер',

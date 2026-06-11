@@ -470,7 +470,7 @@ export const settings = {
   playerBarReset: 'Reset to default',
   playerBarStarRating: 'Star rating',
   playerBarFavorite: 'Favorite (heart)',
-  playerBarLastfmLove: 'Last.fm love',
+  playerBarLastfmLove: 'Love button',
   playerBarPlaybackRate: 'Playback speed',
   playerBarEqualizer: 'Equalizer',
   playerBarMiniPlayer: 'Mini player',
