@@ -4,14 +4,14 @@ import { useNavigateToAlbum } from '../../hooks/useNavigateToAlbum';
 import { useNavigateToArtist } from '../../hooks/useNavigateToArtist';
 import { resolveAlbum, resolveMediaServerId, resolvePlaylist } from '../../utils/offline/offlineMediaResolve';
 import { queueSongStar } from '../../store/pendingStarSync';
-import { getMusicNetworkRuntime } from '../../music-network';
+import { getMusicNetworkRuntime, getPreset } from '../../music-network';
 import type { Track } from '../../store/playerStoreTypes';
 import { useAuthStore } from '../../store/authStore';
 import { usePlaylistStore } from '../../store/playlistStore';
 import { songToTrack } from '../../utils/playback/songToTrack';
 import { showToast } from '../../utils/ui/toast';
 import { suggestOrbitTrack, hostEnqueueToOrbit, evaluateOrbitSuggestGate, OrbitSuggestBlockedError } from '../../utils/orbit';
-import LastfmIcon from '../LastfmIcon';
+import { renderPresetIcon } from '../settings/musicNetwork/presetIcon';
 import StarRating from '../StarRating';
 import { AddToPlaylistSubmenu } from './AddToPlaylistSubmenu';
 import type { ContextMenuItemsProps } from './contextMenuItemTypes';
@@ -31,7 +31,9 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
   } = props;
   const { t } = useTranslation();
   const auth = useAuthStore();
-  const networkLabel = auth.musicNetworkAccounts.find(a => a.id === auth.enrichmentPrimaryId)?.label ?? '';
+  const networkPrimary = auth.musicNetworkAccounts.find(a => a.id === auth.enrichmentPrimaryId);
+  const networkLabel = networkPrimary?.label ?? '';
+  const networkIcon = getPreset(networkPrimary?.presetId ?? 'lastfm')?.manifest.icon ?? 'lastfm';
   const navigateToAlbum = useNavigateToAlbum();
   const navigateToArtist = useNavigateToArtist();
 
@@ -144,7 +146,7 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
                     setNetworkLovedForSong(song.title, song.artist, newLoved);
                     void getMusicNetworkRuntime().setTrackLoved({ title: song.title, artist: song.artist }, newLoved);
                   })}>
-                    <LastfmIcon size={14} />
+                    {renderPresetIcon(networkIcon, 14)}
                     {loved ? t('contextMenu.networkUnlove', { provider: networkLabel }) : t('contextMenu.networkLove', { provider: networkLabel })}
                   </div>
                 );
@@ -288,7 +290,7 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
                     setNetworkLovedForSong(song.title, song.artist, newLoved);
                     void getMusicNetworkRuntime().setTrackLoved({ title: song.title, artist: song.artist }, newLoved);
                   })}>
-                    <LastfmIcon size={14} />
+                    {renderPresetIcon(networkIcon, 14)}
                     {loved ? t('contextMenu.networkUnlove', { provider: networkLabel }) : t('contextMenu.networkLove', { provider: networkLabel })}
                   </div>
                 );

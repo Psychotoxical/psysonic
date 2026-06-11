@@ -33,7 +33,6 @@ export const statistics = {
   lfmPeriod3month: '3 Luni',
   lfmPeriod6month: '6 Luni',
   lfmPeriod12month: '12 Luni',
-  lfmNotConnected: 'Conectează un serviciu de scrobbling în Setări pentru a îți vedea statisticile.',
   lfmRecentTracks: 'Scrobble-uri Recente',
   lfmNowPlaying: 'Now Playing',
   lfmJustNow: 'tocmai acum',

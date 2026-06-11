@@ -30,6 +30,7 @@ import type {
 import { audioscrobblerCall } from './client';
 import { tokenPollStrategy } from './auth/tokenPoll';
 import { apiKeyOnlyStrategy } from '../shared/apiKeyOnly';
+import { MusicNetworkError } from '../../core/errors';
 
 function toArray<T>(v: T | T[] | undefined | null): T[] {
   if (v == null) return [];
@@ -93,6 +94,29 @@ class AudioscrobblerWireImpl implements EnrichmentWire {
       scrobble: { status: 'yes' },
       nowPlaying: { status: 'yes' },
     };
+
+    // Paste-auth presets (Rocksky, Maloja Audioscrobbler) only had the credential
+    // checked for non-emptiness at connect, and they don't do enrichment — so
+    // validate the pasted session key here with a SIGNED call. We flip scrobble to
+    // 'error' ONLY on a genuine auth failure: a scrobble-only service that rejects
+    // user.getInfo ("Unsupported method" → NETWORK) or a transient blip is NOT
+    // proof of a bad key, so it leaves scrobble optimistic (no false reconnect).
+    if (ctx.authStrategy === 'api_key_only') {
+      try {
+        await audioscrobblerCall(ctx, { method: 'user.getInfo', user: ctx.username, sk: ctx.sessionKey }, true, false);
+      } catch (e) {
+        if (e instanceof MusicNetworkError && e.code === 'AUTH_SESSION_INVALID') {
+          caps.scrobble = { status: 'error', message: e.message };
+          caps.nowPlaying = { status: 'error', message: e.message };
+        }
+      }
+      for (const id of ENRICHMENT_CAPABILITIES) caps[id] = { status: 'no' };
+      return caps;
+    }
+
+    // Token-poll presets: the session was already validated by the browser flow.
+    // One unsigned user.getInfo derives the whole enrichment set; a self-hosted
+    // GNU FM lacking it degrades gracefully (enrichment-only error).
     try {
       const data = await audioscrobblerCall(ctx, { method: 'user.getInfo', user: ctx.username, sk: ctx.sessionKey }, false, true);
       const ok = Boolean(data?.user);

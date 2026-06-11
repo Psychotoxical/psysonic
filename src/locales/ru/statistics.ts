@@ -44,7 +44,6 @@ export const statistics = {
   lfmPeriod3month: '3 месяца',
   lfmPeriod6month: '6 месяцев',
   lfmPeriod12month: 'Год',
-  lfmNotConnected: 'Подключите сервис скробблинга в настройках.',
   lfmRecentTracks: 'Последние скробблы',
   lfmNowPlaying: 'Сейчас играет',
   lfmJustNow: 'только что',

@@ -33,7 +33,6 @@ export const statistics = {
   lfmPeriod3month: '3 mois',
   lfmPeriod6month: '6 mois',
   lfmPeriod12month: '12 mois',
-  lfmNotConnected: 'Connectez un service de scrobbling dans les Paramètres pour voir vos stats.',
   lfmRecentTracks: 'Scrobbles récents',
   lfmNowPlaying: 'En cours de lecture',
   lfmJustNow: 'à l\'instant',

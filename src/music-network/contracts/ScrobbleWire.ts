@@ -24,6 +24,12 @@ export interface WireContext {
   apiSecret: string;
   sessionKey: string;
   username: string;
+  /**
+   * The preset's connect strategy. Lets a wire validate a pasted credential
+   * (`api_key_only`) at probe time, vs a session already validated by the browser
+   * flow (`token_poll`). Optional so hand-built contexts (tests) may omit it.
+   */
+  authStrategy?: 'token_poll' | 'callback' | 'api_key_only';
 }
 
 /** Context for an initial connect attempt (before a session exists). */

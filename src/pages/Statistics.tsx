@@ -15,6 +15,7 @@ import { useLocation } from 'react-router-dom';
 import { getMusicNetworkRuntime, type RecentTrack, type StatsPeriod, type TopItem } from '../music-network';
 import { useOfflineBrowseContext } from '../hooks/useOfflineBrowseContext';
 import { usePlayerStatsRecordingEnabled } from '../hooks/usePlayerStatsRecordingEnabled';
+import { useEnrichmentPrimaryLabel } from '../hooks/useEnrichmentPrimaryLabel';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function relativeTime(timestamp: number, t: (key: string, opts?: any) => string): string {
@@ -42,7 +43,7 @@ export default function Statistics() {
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const playerStatsEnabled = usePlayerStatsRecordingEnabled();
   const enrichmentPrimaryId = useAuthStore(s => s.enrichmentPrimaryId);
-  const enrichmentLabel = useAuthStore(s => s.musicNetworkAccounts.find(a => a.id === s.enrichmentPrimaryId)?.label ?? '');
+  const enrichmentLabel = useEnrichmentPrimaryLabel() ?? '';
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const [recent, setRecent] = useState<SubsonicAlbum[]>([]);
   const [frequent, setFrequent] = useState<SubsonicAlbum[]>([]);
@@ -60,6 +61,11 @@ export default function Statistics() {
 
   const [exportOpen, setExportOpen] = useState(false);
 
+  // Enrichment-primary listening stats. The `lfm*` local names and the
+  // `statistics.lfm*` i18n keys are the original (pre-framework) identifiers,
+  // kept as-is: the user-facing copy is provider-neutral ({{provider}}), and the
+  // keys share the `lfmPeriod`/`lfmPeriod7day` prefix so a blanket rename is
+  // unsafe. Internal-only; not a framework-boundary concern.
   const [lfmPeriod, setLfmPeriod] = useState<StatsPeriod>('1month');
   const [lfmTopArtists, setLfmTopArtists] = useState<TopItem[]>([]);
   const [lfmTopAlbums, setLfmTopAlbums] = useState<TopItem[]>([]);
@@ -322,25 +328,21 @@ export default function Statistics() {
             <section style={{ marginTop: '2rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
                 <h2 className="section-title" style={{ margin: 0 }}>{t('statistics.lfmTitle', { provider: enrichmentLabel })}</h2>
-                {enrichmentPrimaryId !== null && (
-                  <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
-                    {PERIODS.map(p => (
-                      <button
-                        key={p.key}
-                        className={`btn btn-sm ${lfmPeriod === p.key ? 'btn-primary' : 'btn-surface'}`}
-                        onClick={() => setLfmPeriod(p.key)}
-                        style={{ padding: '0.25rem 0.625rem', fontSize: '0.75rem' }}
-                      >
-                        {t(`statistics.${p.label}`)}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
+                  {PERIODS.map(p => (
+                    <button
+                      key={p.key}
+                      className={`btn btn-sm ${lfmPeriod === p.key ? 'btn-primary' : 'btn-surface'}`}
+                      onClick={() => setLfmPeriod(p.key)}
+                      style={{ padding: '0.25rem 0.625rem', fontSize: '0.75rem' }}
+                    >
+                      {t(`statistics.${p.label}`)}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {enrichmentPrimaryId === null ? (
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{t('statistics.lfmNotConnected')}</p>
-              ) : lfmLoading ? (
+              {lfmLoading ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)', fontSize: '0.875rem', padding: '1rem 0' }}>
                   <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} />
                 </div>

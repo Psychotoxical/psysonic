@@ -5,10 +5,11 @@ import { CoverArtImage } from '../../cover/CoverArtImage';
 import type { CoverArtRef } from '../../cover/types';
 import type { ArtistStats, TrackStats } from '../../music-network';
 import type { SubsonicOpenArtistRef } from '../../api/subsonicTypes';
-import LastfmIcon from '../LastfmIcon';
 import { OpenArtistRefInline } from '../OpenArtistRefInline';
 import { formatTrackTime } from '../../utils/format/formatDuration';
 import { useEnrichmentPrimaryLabel } from '../../hooks/useEnrichmentPrimaryLabel';
+import { useEnrichmentPrimaryIcon } from '../../hooks/useEnrichmentPrimaryIcon';
+import { renderPresetIcon } from '../settings/musicNetwork/presetIcon';
 
 interface HeroProps {
   track: { title: string; artist: string; album: string; year?: number;
@@ -50,6 +51,7 @@ function renderStars(rating?: number) {
 const Hero = memo(function Hero({ track, artistRefs, genre, playCount, userRatingOverride, networkTrack, networkArtist, starred, networkLoved, networkLoveEnabled, activeLyricsTab, coverRef, onNavigate, onToggleStar, onToggleNetworkLove, onOpenLyrics }: HeroProps) {
   const { t } = useTranslation();
   const networkLabel = useEnrichmentPrimaryLabel() ?? '';
+  const networkIcon = useEnrichmentPrimaryIcon();
   const rating = userRatingOverride ?? track.userRating;
   const hiRes  = (track.bitDepth ?? 0) > 16 || (track.samplingRate ?? 0) > 48000;
   const releaseAge = track.year ? new Date().getFullYear() - track.year : 0;
@@ -123,7 +125,7 @@ const Hero = memo(function Hero({ track, artistRefs, genre, playCount, userRatin
             <button onClick={onToggleNetworkLove}
               className={`np-dash-icon-btn np-dash-network-btn${networkLoved ? ' is-loved' : ''}`}
               data-tooltip={networkLoved ? t('contextMenu.networkUnlove', { provider: networkLabel }) : t('contextMenu.networkLove', { provider: networkLabel })}>
-              <LastfmIcon size={18} />
+              {renderPresetIcon(networkIcon ?? 'lastfm', 18)}
             </button>
           )}
           <button className="np-dash-icon-btn"

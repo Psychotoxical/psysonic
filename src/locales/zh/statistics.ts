@@ -33,7 +33,6 @@ export const statistics = {
   lfmPeriod3month: '3 个月',
   lfmPeriod6month: '6 个月',
   lfmPeriod12month: '12 个月',
-  lfmNotConnected: '在设置中连接一个 scrobble 服务以查看您的统计。',
   lfmRecentTracks: '最近记录',
   lfmNowPlaying: '正在播放',
   lfmJustNow: '刚刚',

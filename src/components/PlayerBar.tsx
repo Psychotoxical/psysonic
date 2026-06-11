@@ -19,7 +19,6 @@ import { useTranslation } from 'react-i18next';
 import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
 import { useLyricsStore } from '../store/lyricsStore';
 import MarqueeText from './MarqueeText';
-import LastfmIcon from './LastfmIcon';
 import { useRadioMetadata } from '../hooks/useRadioMetadata';
 import { useRadioMprisSync } from '../hooks/useRadioMprisSync';
 import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';

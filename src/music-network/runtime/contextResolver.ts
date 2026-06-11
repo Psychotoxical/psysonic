@@ -7,7 +7,8 @@ import type { WireContext } from '../contracts/ScrobbleWire';
 import { getPreset } from '../registry/presetRegistry';
 
 export function resolveWireContext(account: PersistedAccount): WireContext {
-  const endpoints = getPreset(account.presetId)?.manifest.endpoints;
+  const manifest = getPreset(account.presetId)?.manifest;
+  const endpoints = manifest?.endpoints;
   return {
     account,
     baseUrl: account.baseUrl || endpoints?.apiBase || '',
@@ -16,5 +17,6 @@ export function resolveWireContext(account: PersistedAccount): WireContext {
     apiSecret: account.apiSecret,
     sessionKey: account.sessionKey,
     username: account.username,
+    authStrategy: manifest?.authStrategy,
   };
 }

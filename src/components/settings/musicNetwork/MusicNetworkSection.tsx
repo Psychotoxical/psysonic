@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import LastfmIcon from '../../LastfmIcon';
+import { Share2 } from 'lucide-react';
 import SettingsSubSection from '../../SettingsSubSection';
 import { showToast } from '../../../utils/ui/toast';
 import { useAuthStore } from '../../../store/authStore';
@@ -71,7 +71,7 @@ export function MusicNetworkSection() {
   const connectedPresetIds = accounts.map(a => a.presetId);
 
   return (
-    <SettingsSubSection title={t('musicNetwork.title')} icon={<LastfmIcon size={16} />}>
+    <SettingsSubSection title={t('musicNetwork.title')} icon={<Share2 size={16} />}>
       <div className="settings-card">
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '0.75rem' }}>
           {t('musicNetwork.desc')}
