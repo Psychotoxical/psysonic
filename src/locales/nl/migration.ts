@@ -1,0 +1,15 @@
+export const migration = {
+  preparing: 'Gegevensupdate voorbereiden…',
+  preparingBody: 'Bibliotheek en analysecache controleren…',
+  migrating: 'Gegevens migreren',
+  working: 'bezig…',
+  skippedRows: 'Rijen van verwijderde servers zijn overgeslagen; oude back-up wordt na succesvolle switch verwijderd.',
+  failed: 'Migratie mislukt',
+  retry: 'Opnieuw',
+  copyDetails: 'Details kopiëren',
+  complete: 'Update voltooid',
+  completeRows: '{{count}} rijen gemigreerd',
+  genreTagsTitle: 'Genre-index bijwerken…',
+  genreTagsBody: 'Genres indexeren voor bladeren en filters. Eenmalig na de update.',
+  genreTagsFailed: 'Genre-index bijwerken mislukt',
+};

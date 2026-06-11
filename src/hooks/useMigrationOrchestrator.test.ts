@@ -5,6 +5,8 @@ import { useMigrationStore } from '../store/migrationStore';
 
 const migrationInspectMock = vi.fn();
 const migrationRunMock = vi.fn();
+const libraryGenreTagsInspectMock = vi.fn();
+const libraryGenreTagsRunMock = vi.fn();
 const rewriteFrontendStoreKeysMock = vi.fn(async (_servers: unknown) => undefined);
 
 vi.mock('@tauri-apps/api/event', () => ({
@@ -14,6 +16,11 @@ vi.mock('@tauri-apps/api/event', () => ({
 vi.mock('../api/migration', () => ({
   migrationInspect: (mappings: unknown) => migrationInspectMock(mappings),
   migrationRun: (mappings: unknown) => migrationRunMock(mappings),
+}));
+
+vi.mock('../api/library', () => ({
+  libraryGenreTagsInspect: () => libraryGenreTagsInspectMock(),
+  libraryGenreTagsRun: () => libraryGenreTagsRunMock(),
 }));
 
 vi.mock('../utils/server/rewriteFrontendStoreKeys', () => ({
@@ -29,6 +36,10 @@ describe('useMigrationOrchestrator', () => {
   beforeEach(() => {
     migrationInspectMock.mockReset();
     migrationRunMock.mockReset();
+    libraryGenreTagsInspectMock.mockReset();
+    libraryGenreTagsRunMock.mockReset();
+    libraryGenreTagsInspectMock.mockResolvedValue({ needed: false, totalTracks: 0, doneTracks: 0 });
+    libraryGenreTagsRunMock.mockResolvedValue(undefined);
     rewriteFrontendStoreKeysMock.mockClear();
     localStorage.clear();
     useAuthStore.setState({
@@ -40,9 +51,12 @@ describe('useMigrationOrchestrator', () => {
     });
     useMigrationStore.setState({
       phase: 'inspecting',
+      step: null,
       needsMigration: false,
       inspect: null,
       progress: null,
+      genreTagsInspect: null,
+      genreTagsProgress: null,
       lastError: null,
     });
     (globalThis as Record<string, unknown>)[REAL_MIGRATION_TEST_OVERRIDE] = true;
@@ -113,6 +127,40 @@ describe('useMigrationOrchestrator', () => {
     });
     expect(migrationRunMock).not.toHaveBeenCalled();
     expect(rewriteFrontendStoreKeysMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps startup non-blocking while genre-tags inspect is pending (no gate flash)', async () => {
+    localStorage.setItem(DONE_FLAG, '1');
+    migrationInspectMock.mockResolvedValue({
+      needsMigration: false,
+      hasSkippedUnknownServerRows: false,
+      canRun: true,
+      warnings: [],
+      unmappedEmptyBucket: false,
+      library: { totalLegacyRows: 0, skippedUnknownServerRows: 0, tables: {} },
+      analysis: { totalLegacyRows: 0, skippedUnknownServerRows: 0, tables: {} },
+      mappings: [{ legacyId: 'legacy-a', indexKey: 'a.test' }],
+    });
+    let resolveGenre: ((value: any) => void) | undefined;
+    libraryGenreTagsInspectMock.mockImplementation(
+      () => new Promise(resolve => { resolveGenre = resolve; }),
+    );
+
+    renderHook(() => useMigrationOrchestrator());
+
+    // Server-index precheck resolved; genre inspect still pending. The gate must
+    // not be blocking (phase stays 'idle', never 'inspecting'/'running').
+    await waitFor(() => {
+      expect(libraryGenreTagsInspectMock).toHaveBeenCalled();
+    });
+    expect(useMigrationStore.getState().phase).toBe('idle');
+
+    if (!resolveGenre) throw new Error('genre inspect resolver not captured');
+    resolveGenre({ needed: false, totalTracks: 100, doneTracks: 100 });
+
+    await waitFor(() => {
+      expect(useMigrationStore.getState().phase).toBe('completed');
+    });
   });
 
   it('keeps startup non-blocking while done-flag precheck is pending', async () => {

@@ -56,6 +56,7 @@ jobs:
           node-version: 'lts/*'
           cache: 'npm'
       - run: npm ci
+      - run: npm run prebuild:release-notes
       - name: tsc
         run: npx tsc --noEmit
 
@@ -71,6 +72,7 @@ jobs:
       - name: install jq
         run: sudo apt-get update && sudo apt-get install -y jq
       - run: npm ci
+      - run: npm run prebuild:release-notes
       - name: vitest run --coverage
         run: npx vitest run --coverage
       - name: hot-path file coverage gate

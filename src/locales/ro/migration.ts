@@ -1,0 +1,15 @@
+export const migration = {
+  preparing: 'Se pregătește actualizarea datelor…',
+  preparingBody: 'Se verifică biblioteca locală și cache-ul de analiză…',
+  migrating: 'Migrare date',
+  working: 'în curs…',
+  skippedRows: 'Rândurile pentru serverele eliminate au fost omise; backup-ul vechi va fi șters după comutare.',
+  failed: 'Migrarea a eșuat',
+  retry: 'Reîncearcă',
+  copyDetails: 'Copiază detaliile',
+  complete: 'Actualizare finalizată',
+  completeRows: '{{count}} rânduri migrate',
+  genreTagsTitle: 'Se actualizează indexul de genuri…',
+  genreTagsBody: 'Se indexează genurile pentru navigare și filtre. Rulează o dată după actualizare.',
+  genreTagsFailed: 'Actualizarea indexului de genuri a eșuat',
+};

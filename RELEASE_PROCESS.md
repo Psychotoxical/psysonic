@@ -49,6 +49,7 @@ Rules:
 
 ### Step B: Promote to RC (`next`)
 
+0. Confirm `WHATS_NEW.md` has a `## [X.Y.Z]` section for the release line about to ship (user-facing copy for the in-app What's New screen; CI uploads it as `whats-new.md` on the release tag).
 1. Run workflow: **Promote main to next**.
 2. Workflow behavior:
    - validates required `main` checks before promotion (default: `ci-ok`, or UI-style `ci-main / ci-ok`; either satisfies the gate)

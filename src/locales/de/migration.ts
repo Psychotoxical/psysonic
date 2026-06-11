@@ -1,0 +1,15 @@
+export const migration = {
+  preparing: 'Datenaktualisierung wird vorbereitet…',
+  preparingBody: 'Bibliothek und Analyse-Cache werden geprüft…',
+  migrating: 'Daten werden migriert',
+  working: 'wird ausgeführt…',
+  skippedRows: 'Einträge entfernter Server wurden übersprungen; die alte Sicherungs-DB wird nach erfolgreichem Wechsel entfernt.',
+  failed: 'Migration fehlgeschlagen',
+  retry: 'Erneut versuchen',
+  copyDetails: 'Details kopieren',
+  complete: 'Aktualisierung abgeschlossen',
+  completeRows: '{{count}} Zeilen migriert',
+  genreTagsTitle: 'Genre-Index wird aktualisiert…',
+  genreTagsBody: 'Genres werden für Durchsuchen und Filter indexiert. Läuft einmal nach dem Update.',
+  genreTagsFailed: 'Genre-Index-Aktualisierung fehlgeschlagen',
+};

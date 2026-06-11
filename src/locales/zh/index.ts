@@ -43,6 +43,7 @@ import { deviceSync } from './deviceSync';
 import { orbit } from './orbit';
 import { tray } from './tray';
 import { licenses } from './licenses';
+import { migration } from './migration';
 
 export const zhTranslation = {
   sidebar,
@@ -90,4 +91,5 @@ export const zhTranslation = {
   orbit,
   tray,
   licenses,
+  migration,
 };

@@ -1,0 +1,15 @@
+export const migration = {
+  preparing: '正在准备数据更新…',
+  preparingBody: '正在检查本地曲库和分析缓存…',
+  migrating: '正在迁移数据',
+  working: '处理中…',
+  skippedRows: '已跳过已移除服务器的记录；切换成功后将删除旧备份数据库。',
+  failed: '迁移失败',
+  retry: '重试',
+  copyDetails: '复制详情',
+  complete: '更新完成',
+  completeRows: '已迁移 {{count}} 行',
+  genreTagsTitle: '正在更新流派索引…',
+  genreTagsBody: '正在为浏览和筛选建立流派索引。升级后仅运行一次。',
+  genreTagsFailed: '流派索引更新失败',
+};

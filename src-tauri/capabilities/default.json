@@ -22,6 +22,7 @@
     "fs:allow-write-file",
     "fs:allow-read-file",
     "fs:allow-mkdir",
+    "fs:allow-app-write-recursive",
     "fs:scope-download-recursive",
     "fs:scope-home-recursive",
     "window-state:allow-save-window-state",

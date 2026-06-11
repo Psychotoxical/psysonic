@@ -44,6 +44,7 @@ import { useOfflineBrowseContext } from '../hooks/useOfflineBrowseContext';
 import { offlineBrowseNavFlags } from '../utils/offline/offlineBrowseContext';
 import { useWindowFullscreenState } from '../hooks/useWindowFullscreenState';
 import { useNowPlayingTrayTitle } from '../hooks/useNowPlayingTrayTitle';
+import { usePrefetchReleaseNotes } from '../hooks/usePrefetchReleaseNotes';
 import { useTrayMenuI18n } from '../hooks/useTrayMenuI18n';
 import { useServerCapabilitiesProbe } from '../hooks/useServerCapabilitiesProbe';
 import { useQueueResizer } from '../hooks/useQueueResizer';
@@ -164,6 +165,7 @@ export function AppShell() {
   // Post-update changelog is now surfaced via a dismissible banner in the
   // sidebar (WhatsNewBanner) that links to the /whats-new page — no auto
   // modal takeover on startup.
+  usePrefetchReleaseNotes();
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(readInitialSidebarCollapsed);
   const isMainScrolling = useMainScrollingIndicator(location.pathname);

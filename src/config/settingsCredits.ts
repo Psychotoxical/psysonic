@@ -160,6 +160,8 @@ const CONTRIBUTOR_ENTRIES = [
       'Library DB: named slow-write op labels for macOS playback-stall diagnosis (PR #1043)',
       'Settings → Servers: compact two-line cards, capability header badges, unified use/active action, delete in edit form, click-pinned version tooltip (PR #1054)',
       'Navidrome Now Playing and scrobble with hot cache, offline pins, and mixed-server playback reachability (PR #1055)',
+      'What\'s New: remote WHATS_NEW.md from release assets, dev workspace mode, Highlights vs changelog tabs (PR #1058)',
+      'Local library index: multi-genre browse, filters, and counts via track_genre table and blocking backfill (PR #1059)',
     ],
   },
   {
@@ -257,6 +259,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Player: cap persisted queue to ±250-track window — fixes QuotaExceededError on large playlists (PR #756)',
       'Playlists: virtualized tracklist for large playlists — no UI freeze on 10k+ tracks (PR #755)',
       'Favorites: virtualized songs tracklist for large starred collections (PR #805)',
+      'Favorites: player-bar star toggle stays synced with album, playlist, and favorites tracklists (PR #1063)',
     ],
   },
   {

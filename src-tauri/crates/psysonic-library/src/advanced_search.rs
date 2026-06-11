@@ -900,8 +900,25 @@ fn resolve_clause(
 
     if c.field == "genre" {
         let v = json_to_text(&c.field, c.value.as_ref())?;
+        let sql = match entity {
+            EntityKind::Track => {
+                "EXISTS (SELECT 1 FROM track_genre tg \
+                 WHERE tg.server_id = t.server_id AND tg.track_id = t.id \
+                   AND tg.genre = ? COLLATE NOCASE)"
+                    .to_string()
+            }
+            EntityKind::Album => {
+                "EXISTS (SELECT 1 FROM track_genre tg \
+                 WHERE tg.server_id = a.server_id AND tg.album_id = a.id \
+                   AND tg.genre = ? COLLATE NOCASE)"
+                    .to_string()
+            }
+            _ => {
+                return Err(filter::FilterError::NotQueryable(c.field.clone()).to_string());
+            }
+        };
         return Ok(Some(SqlFragment {
-            sql: format!("{col} = ? COLLATE NOCASE"),
+            sql,
             params: vec![v],
         }));
     }

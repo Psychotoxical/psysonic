@@ -99,6 +99,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### What's New — remote release notes
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1058](https://github.com/Psychotoxical/psysonic/pull/1058)**
+
+* The **What's New** page shows user-friendly highlights from `WHATS_NEW.md` instead of embedding the full technical changelog in the app bundle.
+* RC and stable builds prefetch `whats-new.md` from the GitHub release on startup and cache it locally; offline users see a thin embedded fallback.
+* **`tauri:dev`** reads markdown straight from the repo for easy editing; shipped bundles embed only the current release-line slice. A **Full changelog** tab on the page shows the technical list for the same version.
+* CI uploads `whats-new.md` on each `next` / `release` tag alongside platform artifacts.
+* Remote download uses the existing Rust `fetch_url_bytes` proxy so GitHub release assets work without browser CORS.
+
+
+
 ## Changed
 
 ### Settings → Servers — compact server cards
@@ -169,6 +181,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ## Fixed
+
+### Local index — multi-genre browse, filters, and counts
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by HiveMind on the Psysonic Discord, PR [#1059](https://github.com/Psychotoxical/psysonic/pull/1059)**
+
+* Tracks tagged with several genres in one metadata field (e.g. `Noise Metal/Dark Ambient/Experimental Black Metal`) again match **each atomic genre** in Genres browse, All Albums filters, genre detail, and Advanced Search — not only the first segment.
+* New `track_genre` index (OpenSubsonic `genres[]` when present, Navidrome-default split fallback), maintained on sync; one-time blocking startup backfill for existing libraries with progress.
+* Migration v12 repairs databases that recorded legacy schema versions 2–11; TS network fallback uses robust `genreTagsFor` parsing.
+
+
 
 ### Navidrome Now Playing and scrobble with local playback
 
@@ -308,6 +330,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Random Albums, New Releases, All Albums, and other album grids no longer show a track artist on compilation albums when the tags set a single album artist (e.g. **Underworld** on a various-artists mix); the card matches the album page.
 * Local index browse, live search, and FTS album dedupe prefer `album_artist` over per-track `artist`; Hero, Most Played, and offline pin labels use the same display helper.
+
+
+
+### Dev startup — missing generated release-notes bundle
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1060](https://github.com/Psychotoxical/psysonic/pull/1060)**
+
+* Fresh clones no longer crash Vite on `tauri:dev` when `src/generated/releaseNotesBundle.ts` is missing — `dev` and `tauri:dev` now run `prebuild:release-notes` before launch (file stays gitignored).
+
+
+
+### What's New — release-notes cache file on disk (RC/stable)
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1062](https://github.com/Psychotoxical/psysonic/pull/1062)**
+
+* RC and stable builds now persist the downloaded `whats-new.md` slice under AppData — `plugin-fs` had mkdir but lacked recursive write scope, so the `release-notes/` folder appeared empty and every launch re-fetched from GitHub.
+
+
+
+### Favorites — player-bar star stays synced in track lists
+
+**By [@artplan1](https://github.com/artplan1), PR [#1063](https://github.com/Psychotoxical/psysonic/pull/1063)**
+
+* Liking a song from the **player bar**, fullscreen player, or global shortcuts now updates the star in album tracklists, playlists, Random Mix, and Favorites — the row no longer reverts the instant the server sync completes.
+* List views seed starred state from a one-shot fetch and merge session `starredOverrides`; clearing those overrides on sync success had only patched `currentTrack` and the queue cache, so rows fell back to stale fetched values.
 
 
 

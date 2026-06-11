@@ -1,0 +1,15 @@
+export const migration = {
+  preparing: 'Préparation de la mise à jour des données…',
+  preparingBody: 'Analyse de la bibliothèque locale et du cache d\'analyse…',
+  migrating: 'Migration des données',
+  working: 'en cours…',
+  skippedRows: 'Les entrées des serveurs supprimés ont été ignorées ; l\'ancienne sauvegarde sera supprimée après le basculement.',
+  failed: 'Échec de la migration',
+  retry: 'Réessayer',
+  copyDetails: 'Copier les détails',
+  complete: 'Mise à jour terminée',
+  completeRows: '{{count}} lignes migrées',
+  genreTagsTitle: 'Mise à jour de l\'index des genres…',
+  genreTagsBody: 'Indexation des genres pour la navigation et les filtres. Exécuté une fois après la mise à jour.',
+  genreTagsFailed: 'Échec de la mise à jour de l\'index des genres',
+};

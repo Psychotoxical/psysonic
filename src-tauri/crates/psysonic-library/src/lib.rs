@@ -25,6 +25,8 @@ pub mod dto;
 pub mod enrichment;
 pub mod filter;
 pub mod genre_album_browse;
+pub mod genre_tags;
+pub mod genre_tags_backfill;
 pub mod mood_groups;
 pub mod live_search;
 pub mod lossless_albums;

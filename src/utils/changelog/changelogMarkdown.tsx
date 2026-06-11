@@ -51,7 +51,7 @@ export function renderInlineMarkdown(text: string, keyPrefix = 'i'): React.React
 
 /**
  * Render a subset of GitHub-flavored Markdown used by our CHANGELOG: headings
- * (### / ####), bullets (- / *), blockquotes, horizontal rules, and inline
+ * (## / ### / ####), bullets (- / *), blockquotes, horizontal rules, and inline
  * formatting (bold/italic/code/links).
  */
 export function renderChangelogBody(body: string): React.ReactNode[] {
@@ -87,6 +87,11 @@ export function renderChangelogBody(body: string): React.ReactNode[] {
       continue;
     }
 
+    if (line.startsWith('## ') && !line.startsWith('### ')) {
+      flushBullets(); flushQuote();
+      out.push(<h2 key={`h2-${out.length}`} className="whats-new-h2">{renderInlineMarkdown(line.slice(3), `h2-${i}`)}</h2>);
+      continue;
+    }
     if (line.startsWith('### ')) {
       flushBullets(); flushQuote();
       out.push(<h3 key={`h3-${out.length}`} className="whats-new-h3">{renderInlineMarkdown(line.slice(4), `h3-${i}`)}</h3>);

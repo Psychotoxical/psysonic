@@ -1,4 +1,5 @@
 import { useAuthStore } from '../store/authStore';
+import { genreTagsFor } from '../utils/library/genreTags';
 import { getArtists } from './subsonicArtists';
 import { getAlbumList, getRandomSongs } from './subsonicLibrary';
 import type {
@@ -54,14 +55,17 @@ export async function fetchStatisticsLibraryAggregates(): Promise<StatisticsLibr
         albumsCounted += 1;
         const sc = a.songCount ?? 0;
         songsCounted += sc;
-        const label = (a.genre?.trim()) ? a.genre.trim() : '';
-        let g = genreAgg.get(label);
-        if (!g) {
-          g = { songCount: 0, albumCount: 0 };
-          genreAgg.set(label, g);
+        const tags = genreTagsFor(a);
+        const labels = tags.length > 0 ? tags : [''];
+        for (const label of labels) {
+          let g = genreAgg.get(label);
+          if (!g) {
+            g = { songCount: 0, albumCount: 0 };
+            genreAgg.set(label, g);
+          }
+          g.songCount += sc;
+          g.albumCount += 1;
         }
-        g.songCount += sc;
-        g.albumCount += 1;
       }
       if (albums.length < pageSize) break;
       offset += pageSize;

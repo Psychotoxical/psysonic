@@ -527,6 +527,23 @@ pub async fn library_list_albums_by_genre(
 }
 
 #[tauri::command]
+pub fn library_genre_tags_inspect(
+    runtime: State<'_, LibraryRuntime>,
+) -> Result<crate::genre_tags_backfill::GenreTagsInspectDto, String> {
+    crate::genre_tags_backfill::inspect_genre_tags_backfill(&runtime.store)
+}
+
+#[tauri::command]
+pub async fn library_genre_tags_run(
+    app: tauri::AppHandle,
+    runtime: State<'_, LibraryRuntime>,
+) -> Result<(), String> {
+    let store = Arc::clone(&runtime.store);
+    library_spawn_blocking(move || crate::genre_tags_backfill::run_genre_tags_backfill(&store, &app))
+        .await
+}
+
+#[tauri::command]
 pub async fn library_get_artist_lossless_browse(
     runtime: State<'_, LibraryRuntime>,
     request: crate::dto::LibraryArtistLosslessBrowseRequest,

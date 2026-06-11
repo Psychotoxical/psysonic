@@ -1,0 +1,15 @@
+export const migration = {
+  preparing: 'Preparando actualización de datos…',
+  preparingBody: 'Revisando la biblioteca local y la caché de análisis…',
+  migrating: 'Migrando datos',
+  working: 'en curso…',
+  skippedRows: 'Se omitieron filas de servidores eliminados; la copia de seguridad antigua se eliminará tras el cambio exitoso.',
+  failed: 'Error en la migración',
+  retry: 'Reintentar',
+  copyDetails: 'Copiar detalles',
+  complete: 'Actualización completada',
+  completeRows: '{{count}} filas migradas',
+  genreTagsTitle: 'Actualizando índice de géneros…',
+  genreTagsBody: 'Indexando géneros para exploración y filtros. Se ejecuta una vez tras la actualización.',
+  genreTagsFailed: 'Error al actualizar el índice de géneros',
+};
