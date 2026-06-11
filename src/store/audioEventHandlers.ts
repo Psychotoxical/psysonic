@@ -187,7 +187,7 @@ export function handleAudioProgress(
     }
   }
 
-  // Scrobble at 50%: Last.fm + Navidrome (updates play_date / recently played)
+  // Scrobble at 50%: Music Network + Navidrome (updates play_date / recently played)
   if (progress >= 0.5 && !store.scrobbled) {
     usePlayerStore.setState({ scrobbled: true });
     scrobbleSong(

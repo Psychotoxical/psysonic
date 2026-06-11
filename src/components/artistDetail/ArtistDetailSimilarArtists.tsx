@@ -8,7 +8,7 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 interface Props {
   marginTop: string;
   showAudiomuseSimilar: boolean;
-  showLastfmSimilar: boolean;
+  showNetworkSimilar: boolean;
   similarLoading: boolean;
   similarArtists: SubsonicArtist[];
   serverSimilarArtists: SubsonicArtist[];
@@ -17,7 +17,7 @@ interface Props {
 }
 
 export default function ArtistDetailSimilarArtists({
-  marginTop, showAudiomuseSimilar, showLastfmSimilar,
+  marginTop, showAudiomuseSimilar, showNetworkSimilar,
   similarLoading, similarArtists, serverSimilarArtists,
   similarCollapsed, setSimilarCollapsed,
 }: Props) {
@@ -41,7 +41,7 @@ export default function ArtistDetailSimilarArtists({
           ) : null;
         })()}
       </div>
-      {showLastfmSimilar && similarLoading ? (
+      {showNetworkSimilar && similarLoading ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
           <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} />
           {t('artistDetail.loading')}

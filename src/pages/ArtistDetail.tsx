@@ -248,11 +248,11 @@ export default function ArtistDetail() {
     albumCount: sa.albumCount,
   }));
   const showAudiomuseSimilar = audiomuseNavidromeEnabled && serverSimilarArtists.length > 0;
-  const showLastfmSimilar =
+  const showNetworkSimilar =
     enrichmentConfigured &&
     (!audiomuseNavidromeEnabled || serverSimilarArtists.length === 0) &&
     (similarLoading || similarArtists.length > 0);
-  const showSimilarSection = showAudiomuseSimilar || showLastfmSimilar;
+  const showSimilarSection = showAudiomuseSimilar || showNetworkSimilar;
 
   // ── User-customisable section order + visibility ────────────────────────────
   // (`sectionConfig` is read at the top of the component — see comment there)
@@ -339,7 +339,7 @@ export default function ArtistDetail() {
               key="similar"
               marginTop={sectionMt('similar')}
               showAudiomuseSimilar={showAudiomuseSimilar}
-              showLastfmSimilar={showLastfmSimilar}
+              showNetworkSimilar={showNetworkSimilar}
               similarLoading={similarLoading}
               similarArtists={similarArtists}
               serverSimilarArtists={serverSimilarArtists}

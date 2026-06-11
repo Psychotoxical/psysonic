@@ -43,7 +43,7 @@ export interface ScrobbleEvent {
   timestamp: number;
 }
 
-/** Per-track stats (Now Playing cards). Mirrors today's `LastfmTrackInfo`. */
+/** Per-track stats (Now Playing cards). */
 export interface TrackStats {
   listeners: number;
   playcount: number;
@@ -53,7 +53,7 @@ export interface TrackStats {
   url: string | null;
 }
 
-/** Per-artist stats incl. bio (Now Playing). Mirrors today's `LastfmArtistStats`. */
+/** Per-artist stats incl. bio (Now Playing). */
 export interface ArtistStats {
   listeners: number;
   playcount: number;
@@ -63,7 +63,7 @@ export interface ArtistStats {
   bio: string | null;
 }
 
-/** Connected-user profile (Integrations card). Mirrors today's `LastfmUserInfo`. */
+/** Connected-user profile (Integrations card). */
 export interface UserProfile {
   username: string;
   playcount: number;
@@ -71,7 +71,7 @@ export interface UserProfile {
   registeredAt: number;
 }
 
-/** Statistics-page period selector. Mirrors today's `LastfmPeriod`. */
+/** Statistics-page period selector. */
 export type StatsPeriod = 'overall' | '7day' | '1month' | '3month' | '6month' | '12month';
 
 /** Which top-list to fetch. */
@@ -84,7 +84,7 @@ export interface TopItem {
   artist?: string;
 }
 
-/** A recent-scrobble row (Statistics page). Mirrors today's `LastfmRecentTrack`. */
+/** A recent-scrobble row (Statistics page). */
 export interface RecentTrack {
   name: string;
   artist: string;
