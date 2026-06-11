@@ -191,6 +191,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Fullscreen player — title cleanup
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1068](https://github.com/Psychotoxical/psysonic/pull/1068)**
+
+* The song title no longer shows a leading track number, and letters with descenders (g, j, p, q, y) are no longer clipped along the bottom edge.
+
+### Discord Rich Presence — album art and clearer settings
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1068](https://github.com/Psychotoxical/psysonic/pull/1068)**
+
+* Album art shows again when the cover source is "Server (via album info)" — Discord was handed a local file path it cannot fetch and fell back to the app icon; it now receives a reachable image URL.
+* **Settings → Integrations:** added notices clarifying that this is the built-in Discord Rich Presence, and that the official Navidrome Discord RP plugin needs "Show in Now Playing" enabled instead.
+
 ### Local index — multi-genre browse, filters, and counts
 
 **By [@cucadmuh](https://github.com/cucadmuh), reported by HiveMind on the Psysonic Discord, PR [#1059](https://github.com/Psychotoxical/psysonic/pull/1059)**
