@@ -25,7 +25,7 @@ export type AuthStrategyId = 'token_poll' | 'callback' | 'api_key_only';
 /** A connect-form field rendered by the Integrations sub-UI. */
 export interface PresetField {
   /** Key written into ConnectContext.fields / account.customFields. */
-  name: 'baseUrl' | 'apiKey' | 'apiSecret' | 'token' | 'malojaWireMode' | (string & {});
+  name: 'baseUrl' | 'apiKey' | 'apiSecret' | 'token' | (string & {});
   /** i18n key for the label. */
   labelKey: string;
   /** Optional i18n key for a help/instructions hint shown below the field. */

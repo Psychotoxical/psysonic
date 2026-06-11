@@ -8,7 +8,6 @@
 import type {
   Account,
   AccountPatch,
-  MalojaWireMode,
   PersistedAccount,
 } from '../core/accounts';
 import type { CapabilitySet } from '../core/capabilities';
@@ -42,13 +41,6 @@ export interface ConnectOptions {
 
 function deriveAuthBase(origin: string): string {
   return origin ? `${origin.replace(/\/$/, '')}/api/auth/` : '';
-}
-
-function malojaWireModeFor(presetId: PresetId): MalojaWireMode | undefined {
-  if (presetId === 'maloja_native') return 'native';
-  if (presetId === 'maloja_compat') return 'audioscrobbler';
-  if (presetId === 'maloja_listenbrainz') return 'listenbrainz';
-  return undefined;
 }
 
 export class MusicNetworkRuntime {
@@ -121,7 +113,6 @@ export class MusicNetworkRuntime {
       apiSecret,
       sessionError: false,
       capabilities: result.capabilities ?? {},
-      malojaWireMode: malojaWireModeFor(presetId),
     };
 
     account.capabilities = await probeAccount(account).catch(() => account.capabilities);

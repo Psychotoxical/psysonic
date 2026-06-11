@@ -21,7 +21,6 @@ export type {
   Account,
   AccountPatch,
   AccountRoles,
-  MalojaWireMode,
   MusicNetworkState,
   PersistedAccount,
 } from './core/accounts';

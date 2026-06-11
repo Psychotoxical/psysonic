@@ -7,9 +7,6 @@
 import type { CapabilitySet } from './capabilities';
 import type { PresetId, WireId } from './types';
 
-/** How a Maloja origin is being addressed (which compat surface). */
-export type MalojaWireMode = 'native' | 'audioscrobbler' | 'listenbrainz';
-
 export interface AccountRoles {
   /** Account participates in scrobble fan-out when enabled + master on. */
   scrobble: boolean;
@@ -36,7 +33,6 @@ export interface PersistedAccount {
   apiSecret: string;
   sessionError: boolean;
   capabilities: CapabilitySet;
-  malojaWireMode?: MalojaWireMode;
   customFields?: Record<string, string>;
 }
 
@@ -58,7 +54,6 @@ export type AccountPatch = Partial<
     | 'apiSecret'
     | 'sessionError'
     | 'capabilities'
-    | 'malojaWireMode'
     | 'customFields'
   >
 >;
