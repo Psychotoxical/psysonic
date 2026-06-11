@@ -6,15 +6,15 @@ import { patchCachedTrack } from '../utils/library/queueTrackResolver';
  * F4 — pending-sync for **song** star + rating (spec §6.5 / R7-18).
  *
  * The player-store override maps (`starredOverrides` / `userRatingOverrides`)
- * are *session-only outbound sync state*, not a permanent second source of
- * truth:
+ * are *session-only* client truth that every list view merges over its
+ * one-shot-fetched state:
  *
  * 1. Set the override optimistically (instant UI).
  * 2. Retry the Subsonic API (`star` / `unstar` / `setRating`) with exponential
  *    backoff; flush immediately on `online` / window focus.
- * 3. On success: clear the override and patch the in-memory `Track`
- *    (`currentTrack` + `queue`) so the UI stays correct without the override.
- *    The F3 index patch-on-use runs inside the API layer, unchanged.
+ * 3. On **star** success: KEEP the override — list views read it — and patch
+ *    the in-memory `Track`. F3 index patch-on-use runs in the API layer.
+ *    (Ratings clear on success; see `onRatingSuccess`.)
  * 4. On app restart before success: the pending change is lost — acceptable,
  *    overrides are not persisted.
  *
@@ -86,16 +86,11 @@ async function run(k: string): Promise<void> {
 
 function onStarSuccess(id: string, starred: boolean): void {
   const starredVal = starred ? new Date().toISOString() : undefined;
-  usePlayerStore.setState(s => {
-    if (!(id in s.starredOverrides)) return {};
-    const next = { ...s.starredOverrides };
-    delete next[id];
-    return {
-      starredOverrides: next,
-      currentTrack:
-        s.currentTrack?.id === id ? { ...s.currentTrack, starred: starredVal } : s.currentTrack,
-    };
-  });
+  // Keep the override — list views merge it (step 3 atop this file).
+  usePlayerStore.setState(s => ({
+    currentTrack:
+      s.currentTrack?.id === id ? { ...s.currentTrack, starred: starredVal } : s.currentTrack,
+  }));
   // Thin-state: the queue's copy lives in the resolver cache. Patch it in place
   // to the synced value rather than dropping it — a dropped entry would blank the
   // visible queue row to a "…" placeholder until the next window re-resolve.

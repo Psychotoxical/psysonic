@@ -47,7 +47,7 @@ describe('pendingStarSync', () => {
     vi.useRealTimers();
   });
 
-  it('stars optimistically, then clears the override + patches the track on success', async () => {
+  it('stars optimistically, then keeps the override + patches the track on success', async () => {
     queueSongStar('t1', true);
     expect(usePlayerStore.getState().starredOverrides.t1).toBe(true); // optimistic, instant
 
@@ -55,7 +55,7 @@ describe('pendingStarSync', () => {
 
     expect(starMock).toHaveBeenCalledWith('t1', 'song', undefined);
     const s = usePlayerStore.getState();
-    expect('t1' in s.starredOverrides).toBe(false); // cleared on success
+    expect(s.starredOverrides.t1).toBe(true); // kept on success so list views stay in sync
     expect(s.currentTrack?.starred).toBeTruthy(); // in-memory track patched
     // Thin-state: the resolver cache entry is patched in place (not dropped) so
     // the visible queue row keeps its title and reflects the synced star —
@@ -86,7 +86,7 @@ describe('pendingStarSync', () => {
     queueSongStar('t1', false); // user toggled back off
     await vi.runAllTimersAsync();
     expect(unstarMock).toHaveBeenCalledWith('t1', 'song', undefined);
-    expect('t1' in usePlayerStore.getState().starredOverrides).toBe(false);
+    expect(usePlayerStore.getState().starredOverrides.t1).toBe(false); // kept as durable false
     expect(usePlayerStore.getState().currentTrack?.starred).toBeFalsy();
   });
 
