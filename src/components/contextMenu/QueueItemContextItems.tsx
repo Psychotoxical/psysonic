@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Play, Radio, Heart, ChevronRight, User, Disc3, ListMusic, Info, Sparkles, Star, Trash2, Share2 } from 'lucide-react';
 import { queueSongStar } from '../../store/pendingStarSync';
-import { getMusicNetworkRuntime, getPreset } from '../../music-network';
+import { getMusicNetworkRuntime, useEnrichmentPrimary } from '../../music-network';
 import type { Track } from '../../store/playerStoreTypes';
 import { useAuthStore } from '../../store/authStore';
 import { renderPresetIcon } from '../settings/musicNetwork/presetIcon';
@@ -24,9 +24,9 @@ export default function QueueItemContextItems(props: ContextMenuItemsProps) {
   } = props;
   const { t } = useTranslation();
   const auth = useAuthStore();
-  const networkPrimary = auth.musicNetworkAccounts.find(a => a.id === auth.enrichmentPrimaryId);
+  const networkPrimary = useEnrichmentPrimary();
   const networkLabel = networkPrimary?.label ?? '';
-  const networkIcon = getPreset(networkPrimary?.presetId ?? 'lastfm')?.manifest.icon ?? 'lastfm';
+  const networkIcon = networkPrimary?.icon ?? 'custom';
 
   return (
     <>

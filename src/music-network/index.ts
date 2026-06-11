@@ -11,6 +11,7 @@ export {
 } from './runtime/getMusicNetworkRuntime';
 export type { MusicNetworkStore, RuntimeHost } from './runtime/store';
 export { listPresets, getPreset } from './registry/presetRegistry';
+export { useEnrichmentPrimary, type EnrichmentPrimary } from './ui/useEnrichmentPrimary';
 export {
   migrateLegacyLastfm,
   sanitizeAccounts,

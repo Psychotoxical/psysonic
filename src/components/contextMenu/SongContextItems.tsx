@@ -4,7 +4,7 @@ import { useNavigateToAlbum } from '../../hooks/useNavigateToAlbum';
 import { useNavigateToArtist } from '../../hooks/useNavigateToArtist';
 import { resolveAlbum, resolveMediaServerId, resolvePlaylist } from '../../utils/offline/offlineMediaResolve';
 import { queueSongStar } from '../../store/pendingStarSync';
-import { getMusicNetworkRuntime, getPreset } from '../../music-network';
+import { getMusicNetworkRuntime, useEnrichmentPrimary } from '../../music-network';
 import type { Track } from '../../store/playerStoreTypes';
 import { useAuthStore } from '../../store/authStore';
 import { usePlaylistStore } from '../../store/playlistStore';
@@ -31,9 +31,9 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
   } = props;
   const { t } = useTranslation();
   const auth = useAuthStore();
-  const networkPrimary = auth.musicNetworkAccounts.find(a => a.id === auth.enrichmentPrimaryId);
+  const networkPrimary = useEnrichmentPrimary();
   const networkLabel = networkPrimary?.label ?? '';
-  const networkIcon = getPreset(networkPrimary?.presetId ?? 'lastfm')?.manifest.icon ?? 'lastfm';
+  const networkIcon = networkPrimary?.icon ?? 'custom';
   const navigateToAlbum = useNavigateToAlbum();
   const navigateToArtist = useNavigateToArtist();
 

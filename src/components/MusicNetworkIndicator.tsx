@@ -1,8 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useShallow } from 'zustand/react/shallow';
-import { useAuthStore } from '../store/authStore';
-import { getPreset } from '../music-network';
+import { useEnrichmentPrimary } from '../music-network';
 import { renderPresetIcon } from './settings/musicNetwork/presetIcon';
 
 /**
@@ -13,14 +11,10 @@ import { renderPresetIcon } from './settings/musicNetwork/presetIcon';
 export default function MusicNetworkIndicator() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { primaryId, accounts } = useAuthStore(
-    useShallow(s => ({ primaryId: s.enrichmentPrimaryId, accounts: s.musicNetworkAccounts })),
-  );
+  const ep = useEnrichmentPrimary();
+  if (!ep) return null;
+  const { account: primary, icon } = ep;
 
-  const primary = accounts.find(a => a.id === primaryId);
-  if (!primary) return null;
-
-  const icon = getPreset(primary.presetId)?.manifest.icon ?? 'custom';
   const subtitle = primary.sessionError
     ? t('musicNetwork.statusError')
     : primary.username

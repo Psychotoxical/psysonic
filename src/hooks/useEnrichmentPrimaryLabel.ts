@@ -1,4 +1,4 @@
-import { useAuthStore } from '../store/authStore';
+import { useEnrichmentPrimary } from '../music-network';
 
 /**
  * Display label of the current enrichment-primary account (e.g. "Last.fm",
@@ -7,7 +7,5 @@ import { useAuthStore } from '../store/authStore';
  * provider name — the primary can be any enrichment-eligible service.
  */
 export function useEnrichmentPrimaryLabel(): string | null {
-  return useAuthStore(
-    s => s.musicNetworkAccounts.find(a => a.id === s.enrichmentPrimaryId)?.label ?? null,
-  );
+  return useEnrichmentPrimary()?.label ?? null;
 }
