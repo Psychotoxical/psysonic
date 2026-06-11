@@ -5,7 +5,7 @@
 // baseUrl. Auth is a pasted user token (api_key_only). Read/stats APIs are out
 // of scope for v1 (spec §2.3), so this is a plain ScrobbleWire.
 
-import { type CapabilitySet, ENRICHMENT_CAPABILITIES } from '../../core/capabilities';
+import { type CapabilitySet, markNoEnrichment } from '../../core/capabilities';
 import type { ScrobbleEvent, WireId } from '../../core/types';
 import type {
   ConnectContext,
@@ -73,8 +73,7 @@ class ListenBrainzWireImpl implements ScrobbleWire {
       caps.scrobble = { status: 'error', message };
       caps.nowPlaying = { status: 'error', message };
     }
-    for (const id of ENRICHMENT_CAPABILITIES) caps[id] = { status: 'no' };
-    return caps;
+    return markNoEnrichment(caps);
   }
 }
 

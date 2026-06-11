@@ -51,6 +51,16 @@ export interface CapabilityState {
 
 export type CapabilitySet = Partial<Record<CapabilityId, CapabilityState>>;
 
+/**
+ * Marks every enrichment capability as unsupported (`no`) on the given set and
+ * returns it. Scrobble-only wires (Maloja native, ListenBrainz, paste-auth
+ * Audioscrobbler presets) call this after settling scrobble/now-playing.
+ */
+export function markNoEnrichment(caps: CapabilitySet): CapabilitySet {
+  for (const id of ENRICHMENT_CAPABILITIES) caps[id] = { status: 'no' };
+  return caps;
+}
+
 /** True when the set reports at least one enrichment capability as `yes`. */
 export function hasAnyEnrichment(caps: CapabilitySet): boolean {
   return ENRICHMENT_CAPABILITIES.some(id => caps[id]?.status === 'yes');

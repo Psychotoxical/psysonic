@@ -9,6 +9,7 @@
 import {
   type CapabilitySet,
   ENRICHMENT_CAPABILITIES,
+  markNoEnrichment,
 } from '../../core/capabilities';
 import type {
   ArtistStats,
@@ -110,8 +111,7 @@ class AudioscrobblerWireImpl implements EnrichmentWire {
           caps.nowPlaying = { status: 'error', message: e.message };
         }
       }
-      for (const id of ENRICHMENT_CAPABILITIES) caps[id] = { status: 'no' };
-      return caps;
+      return markNoEnrichment(caps);
     }
 
     // Token-poll presets: the session was already validated by the browser flow.

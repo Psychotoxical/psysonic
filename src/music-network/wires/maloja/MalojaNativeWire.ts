@@ -5,7 +5,7 @@
 // no now-playing endpoint, so updateNowPlaying is a safe no-op and the nowPlaying
 // capability is reported as `no`. Auth is the pasted Maloja API key.
 
-import { type CapabilitySet, ENRICHMENT_CAPABILITIES } from '../../core/capabilities';
+import { type CapabilitySet, markNoEnrichment } from '../../core/capabilities';
 import type { ScrobbleEvent, WireId } from '../../core/types';
 import type {
   ConnectContext,
@@ -51,8 +51,7 @@ class MalojaNativeWireImpl implements ScrobbleWire {
       scrobble: { status: 'yes' },
       nowPlaying: { status: 'no' },
     };
-    for (const id of ENRICHMENT_CAPABILITIES) caps[id] = { status: 'no' };
-    return caps;
+    return markNoEnrichment(caps);
   }
 }
 

@@ -5,8 +5,7 @@
 // compat surface — only baseUrl differs. Classifies failures into
 // MusicNetworkError; no store access (runtime owns session-error state).
 
-import { invoke } from '@tauri-apps/api/core';
-import { MusicNetworkError } from '../../core/errors';
+import { invokeTransport } from '../shared/invokeTransport';
 
 export interface ListenBrainzEndpoint {
   baseUrl: string;
@@ -21,18 +20,14 @@ export async function listenBrainzCall(
   path: string,
   jsonBody?: unknown,
 ): Promise<any> {
-  try {
-    return await invoke('listenbrainz_request', {
+  return invokeTransport(
+    'listenbrainz_request',
+    {
       baseUrl: ep.baseUrl,
       path,
       authToken: ep.authToken,
       jsonBody: jsonBody ?? null,
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (INVALID_TOKEN.test(msg)) {
-      throw new MusicNetworkError('AUTH_SESSION_INVALID', msg, { cause: e });
-    }
-    throw new MusicNetworkError('NETWORK', msg, { cause: e });
-  }
+    },
+    { match: msg => INVALID_TOKEN.test(msg), code: 'AUTH_SESSION_INVALID' },
+  );
 }

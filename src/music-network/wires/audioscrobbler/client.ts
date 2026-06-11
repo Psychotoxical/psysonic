@@ -5,19 +5,12 @@
 // touch any store — session-error state is owned by the runtime, which clears it
 // on a successful signed call and sets it on AUTH_SESSION_INVALID.
 
-import { invoke } from '@tauri-apps/api/core';
-import { MusicNetworkError } from '../../core/errors';
+import { invokeTransport } from '../shared/invokeTransport';
 
 export interface AudioscrobblerEndpoint {
   baseUrl: string;
   apiKey: string;
   apiSecret: string;
-}
-
-function errMsg(e: unknown): string {
-  if (typeof e === 'string') return e;
-  if (e instanceof Error) return e.message;
-  return String(e);
 }
 
 // Auth/session detection. The generic transport prefixes Audioscrobbler errors
@@ -41,20 +34,21 @@ export async function audioscrobblerCall(
   get = false,
 ): Promise<any> {
   const entries = Object.entries(params) as [string, string][];
-  try {
-    return await invoke('audioscrobbler_request', {
+  return invokeTransport(
+    'audioscrobbler_request',
+    {
       baseUrl: ep.baseUrl,
       params: entries,
       sign,
       get,
       apiKey: ep.apiKey,
       apiSecret: ep.apiSecret,
-    });
-  } catch (e) {
-    const msg = errMsg(e);
-    if (sign && (SESSION_INVALID_CODE.test(msg) || SESSION_INVALID_MESSAGE.test(msg))) {
-      throw new MusicNetworkError('AUTH_SESSION_INVALID', msg, { cause: e });
-    }
-    throw new MusicNetworkError('NETWORK', msg, { cause: e });
-  }
+    },
+    {
+      // Only signed calls carry a session key, so an unsigned failure is never
+      // an auth-session problem.
+      match: msg => sign && (SESSION_INVALID_CODE.test(msg) || SESSION_INVALID_MESSAGE.test(msg)),
+      code: 'AUTH_SESSION_INVALID',
+    },
+  );
 }
