@@ -349,6 +349,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Favorites — player-bar star stays synced in track lists
+
+**By [@artplan1](https://github.com/artplan1), PR [#1063](https://github.com/Psychotoxical/psysonic/pull/1063)**
+
+* Liking a song from the **player bar**, fullscreen player, or global shortcuts now updates the star in album tracklists, playlists, Random Mix, and Favorites — the row no longer reverts the instant the server sync completes.
+* List views seed starred state from a one-shot fetch and merge session `starredOverrides`; clearing those overrides on sync success had only patched `currentTrack` and the queue cache, so rows fell back to stale fetched values.
+
+
+
 ## [1.47.0]
 
 > **🙏 Thank you to our amazing Discord community.** This release would not have been possible without your tireless support, quality checks, bug reports and all-round collaboration. Every report, every repro and every bit of feedback shaped what shipped here — thank you. Come join us: [discord.gg/AMnDRErm4u](https://discord.gg/AMnDRErm4u)
