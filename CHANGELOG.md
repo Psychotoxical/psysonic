@@ -343,7 +343,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### What's New — release-notes cache file on disk (RC/stable)
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#TBD](https://github.com/Psychotoxical/psysonic/pull/TBD)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1062](https://github.com/Psychotoxical/psysonic/pull/1062)**
 
 * RC and stable builds now persist the downloaded `whats-new.md` slice under AppData — `plugin-fs` had mkdir but lacked recursive write scope, so the `release-notes/` folder appeared empty and every launch re-fetched from GitHub.
 
