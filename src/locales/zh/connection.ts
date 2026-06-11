@@ -30,6 +30,4 @@ export const connection = {
   switchServerHint: '点击选择其他已保存的服务器。',
   manageServers: '管理服务器…',
   switchFailed: '无法切换 — 无法连接服务器。',
-  lastfmConnected: 'Last.fm 已连接为 @{{user}}',
-  lastfmSessionInvalid: '会话无效 — 点击重新连接',
 };
