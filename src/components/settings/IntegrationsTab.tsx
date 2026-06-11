@@ -153,6 +153,11 @@ export function IntegrationsTab() {
         icon={<Sparkles size={16} />}
       >
         <div className="settings-card">
+          <div
+            style={{ fontWeight: 700, fontSize: 13, lineHeight: 1.5, marginBottom: 'var(--space-3)', color: 'var(--text-secondary)' }}
+          >
+            {t('settings.discordRichPresenceNotice')}
+          </div>
           <div className="settings-toggle-row">
             <div>
               <div style={{ fontWeight: 500 }}>{t('settings.discordRichPresence')}</div>
@@ -277,6 +282,7 @@ export function IntegrationsTab() {
             <div>
               <div style={{ fontWeight: 500 }}>{t('settings.nowPlayingEnabled')}</div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.nowPlayingEnabledDesc')}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginTop: 4 }}>{t('settings.nowPlayingPluginNote')}</div>
             </div>
             <label className="toggle-switch" aria-label={t('settings.nowPlayingEnabled')}>
               <input type="checkbox" checked={auth.nowPlayingEnabled} onChange={e => auth.setNowPlayingEnabled(e.target.checked)} />
