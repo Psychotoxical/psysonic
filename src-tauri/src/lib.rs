@@ -434,6 +434,9 @@ pub fn run() {
                     let _ = win.set_decorations(false);
                     let _ = linux_webkit_apply_wayland_gpu_font_tuning(&win);
                     let _ = linux_webkit_reapply_cached_wayland_text_render_profile(&win);
+                    // Suppress WebKit's own MPRIS player so radio (HTML <audio>)
+                    // doesn't duplicate the souvlaki one (issue #1048).
+                    let _ = linux_webkit_disable_media_session(&win);
                 }
             }
 

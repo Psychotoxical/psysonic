@@ -27,7 +27,8 @@ pub(crate) use platform::{
 };
 #[cfg(target_os = "linux")]
 pub(crate) use platform::{
-    linux_webkit_apply_wayland_gpu_font_tuning, linux_webkit_reapply_cached_wayland_text_render_profile,
+    linux_webkit_apply_wayland_gpu_font_tuning, linux_webkit_disable_media_session,
+    linux_webkit_reapply_cached_wayland_text_render_profile,
     sync_wayland_text_profile_cache_from_disk,
 };
 pub(crate) use integration::{

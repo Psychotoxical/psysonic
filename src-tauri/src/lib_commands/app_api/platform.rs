@@ -136,6 +136,30 @@ pub(crate) fn linux_webkit_apply_wayland_gpu_font_tuning(win: &tauri::WebviewWin
         .map_err(|e| e.to_string())
 }
 
+/// WebKitGTK auto-registers its **own** MPRIS player whenever an HTML
+/// `<audio>`/`<video>` element plays — internet radio uses one (`radioPlayer.ts`).
+/// That duplicates the app's souvlaki MPRIS player on Linux desktops that list
+/// every player (issue #1048: one feed as "psysonic", one as "Psysonic").
+/// Disabling the WebKit media session stops that registration, leaving souvlaki
+/// as the single now-playing source; radio metadata still reaches it through
+/// `mpris_set_metadata`.
+#[cfg(target_os = "linux")]
+pub(crate) fn linux_webkit_disable_media_session(win: &tauri::WebviewWindow) -> Result<(), String> {
+    win.with_webview(|platform| {
+        use webkit2gtk::glib::prelude::ObjectExt;
+        use webkit2gtk::WebViewExt;
+        if let Some(settings) = platform.inner().settings() {
+            // `enable-media-session` (WebKitGTK 2.40+) has no typed setter in the
+            // pinned binding; set it by GObject property name. The find_property
+            // guard keeps older runtimes from panicking on an unknown property.
+            if settings.find_property("enable-media-session").is_some() {
+                settings.set_property("enable-media-session", false);
+            }
+        }
+    })
+    .map_err(|e| e.to_string())
+}
+
 /// Toggle native window decorations at runtime (Linux custom title bar opt-out).
 /// Tauri command: true when theme animations may be costly on this setup —
 /// Linux with the Nvidia WebKit quirk active (recorded once at startup) or
