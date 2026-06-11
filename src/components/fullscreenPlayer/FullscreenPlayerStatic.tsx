@@ -75,10 +75,6 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
   const [queueOpen, setQueueOpen] = useState(false);
   const [lyricsOpen, setLyricsOpen] = useState(false);
 
-  // Prefix the title with the queue position so it matches "Track x / N".
-  const titlePrefix = queueLen > 0
-    ? `${String(queueIndex + 1).padStart(2, '0')}. `
-    : '';
   const metaParts = useMemo(
     () => [currentTrack?.year?.toString(), currentTrack?.genre].filter(Boolean) as string[],
     [currentTrack?.year, currentTrack?.genre],
@@ -139,7 +135,7 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
               : <div className="fsp-cover-img fsp-cover-img--empty" />}
           </div>
           <div className="fsp-info-text">
-            <p className="fsp-title">{titlePrefix}{currentTrack?.title ?? '—'}</p>
+            <p className="fsp-title">{currentTrack?.title ?? '—'}</p>
             <p className="fsp-artist">{currentTrack?.artist ?? '—'}</p>
             {currentTrack && (
               <div className="fsp-meta">
