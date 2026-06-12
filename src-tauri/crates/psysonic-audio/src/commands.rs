@@ -17,7 +17,7 @@ use super::ipc::{maybe_emit_normalization_state, NormalizationStatePayload};
 use super::play_input::{
     build_playback_source_with_probe_fallback, select_play_input,
     spawn_legacy_stream_start_when_armed, swap_in_new_sink, url_format_hint, BuildSourceArgs,
-    PlayInputContext, SinkSwapInputs,
+    LegacyStreamStartWhenArmed, PlayInputContext, SinkSwapInputs,
 };
 use super::playback_rate::preserve_pitch_will_run;
 use super::preview::preview_clear_for_new_main_playback;
@@ -428,16 +428,16 @@ pub async fn audio_play(
             cur.play_started = None;
             cur.paused_at = Some(0.0);
         }
-        spawn_legacy_stream_start_when_armed(
+        spawn_legacy_stream_start_when_armed(LegacyStreamStartWhenArmed {
             gen,
-            state.generation.clone(),
-            state.stream_playback_armed.clone(),
-            state.samples_played.clone(),
-            state.current.clone(),
-            app.clone(),
+            gen_arc: state.generation.clone(),
+            playback_armed: state.stream_playback_armed.clone(),
+            samples_played: state.samples_played.clone(),
+            current: state.current.clone(),
+            app: app.clone(),
             duration_secs,
-            start_paused,
-        );
+            hold_paused: start_paused,
+        });
     } else if !start_paused {
         app.emit("audio:playing", duration_secs).ok();
     }

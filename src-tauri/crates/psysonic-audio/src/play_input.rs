@@ -401,19 +401,32 @@ async fn open_ranged_or_streaming_input(
     }))
 }
 
+/// Args for [`spawn_legacy_stream_start_when_armed`].
+pub(super) struct LegacyStreamStartWhenArmed {
+    pub gen: u64,
+    pub gen_arc: Arc<AtomicU64>,
+    pub playback_armed: Arc<AtomicBool>,
+    pub samples_played: Arc<AtomicU64>,
+    pub current: Arc<Mutex<super::engine::AudioCurrent>>,
+    pub app: AppHandle,
+    pub duration_secs: f64,
+    pub hold_paused: bool,
+}
+
 /// Legacy `AudioStreamReader`: keep the sink paused until the download task arms
 /// playback, then reset counters and emit `audio:playing` so the UI does not
 /// extrapolate ahead of audible output.
-pub(super) fn spawn_legacy_stream_start_when_armed(
-    gen: u64,
-    gen_arc: Arc<AtomicU64>,
-    playback_armed: Arc<AtomicBool>,
-    samples_played: Arc<AtomicU64>,
-    current: Arc<Mutex<super::engine::AudioCurrent>>,
-    app: AppHandle,
-    duration_secs: f64,
-    hold_paused: bool,
-) {
+pub(super) fn spawn_legacy_stream_start_when_armed(args: LegacyStreamStartWhenArmed) {
+    let LegacyStreamStartWhenArmed {
+        gen,
+        gen_arc,
+        playback_armed,
+        samples_played,
+        current,
+        app,
+        duration_secs,
+        hold_paused,
+    } = args;
     tokio::spawn(async move {
         loop {
             if gen_arc.load(Ordering::SeqCst) != gen {
