@@ -23,9 +23,9 @@ use tauri::Emitter;
 use tauri::Manager;
 
 use super::engine::AudioEngine;
-use super::play_input::{
-    build_playback_source_with_probe_fallback, url_format_hint, BuildSourceArgs, PlayInput,
-    PlaybackSource,
+use super::play_input::{url_format_hint, PlayInput};
+use super::source_build::{
+    build_playback_source_with_probe_fallback, BuildSourceArgs, PlaybackSource,
 };
 use super::sink_swap::{swap_in_new_sink, SinkSwapInputs};
 use super::progress_task::spawn_progress_task;

@@ -14,10 +14,8 @@ use super::decode::build_source;
 use super::engine::{audio_http_client, AudioEngine};
 use super::helpers::*;
 use super::ipc::{maybe_emit_normalization_state, NormalizationStatePayload};
-use super::play_input::{
-    build_playback_source_with_probe_fallback, select_play_input, url_format_hint, BuildSourceArgs,
-    PlayInputContext,
-};
+use super::play_input::{select_play_input, url_format_hint, PlayInputContext};
+use super::source_build::{build_playback_source_with_probe_fallback, BuildSourceArgs};
 use super::sink_swap::{
     spawn_legacy_stream_start_when_armed, swap_in_new_sink, LegacyStreamStartWhenArmed,
     SinkSwapInputs,
