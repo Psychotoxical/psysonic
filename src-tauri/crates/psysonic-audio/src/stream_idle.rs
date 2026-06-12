@@ -56,6 +56,14 @@ pub(crate) fn teardown_playback_sinks_for_idle_release(engine: &AudioEngine) {
     cur.play_started = None;
 }
 
+fn close_output_device_handle(engine: &AudioEngine, app: &AppHandle) -> Result<(), String> {
+    super::engine::request_stream_release(engine)?;
+    *engine.stream_handle.lock().unwrap() = None;
+    let _ = app.emit("audio:output-released", ());
+    Ok(())
+}
+
+/// Release the output device after the idle timer (pause with no other active audio).
 pub(crate) fn release_output_stream(
     engine: &AudioEngine,
     app: &AppHandle,
@@ -64,13 +72,31 @@ pub(crate) fn release_output_stream(
         return Ok(());
     }
     teardown_playback_sinks_for_idle_release(engine);
-    super::engine::request_stream_release(engine)?;
-    *engine.stream_handle.lock().unwrap() = None;
-    let _ = app.emit("audio:output-released", ());
+    close_output_device_handle(engine, app)?;
     crate::app_eprintln!(
         "[psysonic] audio output stream released after {}s idle",
         OUTPUT_STREAM_IDLE_RELEASE_SECS
     );
+    Ok(())
+}
+
+/// Release immediately on explicit stop / queue end — do not wait for the idle timer.
+pub(crate) fn release_output_stream_on_stop(
+    engine: &AudioEngine,
+    app: &AppHandle,
+) -> Result<(), String> {
+    if engine.stream_handle.lock().unwrap().is_none() {
+        return Ok(());
+    }
+    // `audio_stop` already tore down the main sink; clear any crossfade/preview tail
+    // still tied to the open device before closing the handle.
+    if engine.preview_sink.lock().unwrap().is_some()
+        || engine.fading_out_sink.lock().unwrap().is_some()
+    {
+        teardown_playback_sinks_for_idle_release(engine);
+    }
+    close_output_device_handle(engine, app)?;
+    crate::app_eprintln!("[psysonic] audio output stream released on stop");
     Ok(())
 }
 

@@ -130,6 +130,8 @@ pub fn audio_stop(state: State<'_, AudioEngine>, app: AppHandle) {
     cur.seek_offset   = 0.0;
     cur.play_started  = None;
     cur.paused_at     = None;
+    drop(cur);
+    let _ = super::stream_idle::release_output_stream_on_stop(state.inner(), &app);
 }
 
 #[tauri::command]
