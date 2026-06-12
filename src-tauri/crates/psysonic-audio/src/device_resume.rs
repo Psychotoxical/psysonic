@@ -24,9 +24,10 @@ use tauri::Manager;
 
 use super::engine::AudioEngine;
 use super::play_input::{
-    build_playback_source_with_probe_fallback, swap_in_new_sink, url_format_hint,
-    BuildSourceArgs, PlayInput, PlaybackSource, SinkSwapInputs,
+    build_playback_source_with_probe_fallback, url_format_hint, BuildSourceArgs, PlayInput,
+    PlaybackSource,
 };
+use super::sink_swap::{swap_in_new_sink, SinkSwapInputs};
 use super::progress_task::spawn_progress_task;
 use super::stream::LocalFileSource;
 

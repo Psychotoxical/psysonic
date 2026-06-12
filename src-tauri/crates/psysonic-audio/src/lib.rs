@@ -16,6 +16,7 @@ pub mod device_commands;
 pub mod mix_commands;
 mod play_input;
 pub mod playback_rate;
+mod sink_swap;
 mod preserve_worker;
 pub mod preload_commands;
 pub(crate) mod progress_task;

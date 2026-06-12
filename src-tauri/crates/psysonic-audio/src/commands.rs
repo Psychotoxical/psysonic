@@ -15,9 +15,12 @@ use super::engine::{audio_http_client, AudioEngine};
 use super::helpers::*;
 use super::ipc::{maybe_emit_normalization_state, NormalizationStatePayload};
 use super::play_input::{
-    build_playback_source_with_probe_fallback, select_play_input,
-    spawn_legacy_stream_start_when_armed, swap_in_new_sink, url_format_hint, BuildSourceArgs,
-    LegacyStreamStartWhenArmed, PlayInputContext, SinkSwapInputs,
+    build_playback_source_with_probe_fallback, select_play_input, url_format_hint, BuildSourceArgs,
+    PlayInputContext,
+};
+use super::sink_swap::{
+    spawn_legacy_stream_start_when_armed, swap_in_new_sink, LegacyStreamStartWhenArmed,
+    SinkSwapInputs,
 };
 use super::playback_rate::preserve_pitch_will_run;
 use super::preview::preview_clear_for_new_main_playback;
