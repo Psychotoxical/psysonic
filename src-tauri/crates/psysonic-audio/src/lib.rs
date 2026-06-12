@@ -24,6 +24,7 @@ pub mod transport_commands;
 mod device_resume;
 mod device_watcher;
 mod engine;
+mod stream_idle;
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 mod power_resume;
 #[cfg(target_os = "windows")]
@@ -39,6 +40,7 @@ mod stream;
 
 pub use device_commands::{audio_default_output_device_name, audio_list_devices_for_engine};
 pub use device_watcher::start_device_watcher;
+pub use stream_idle::start_stream_idle_watcher;
 pub use engine::{create_engine, refresh_http_user_agent, AudioEngine};
 pub use helpers::{
     cleanup_orphan_stream_spill_dir, take_stream_completed_for_url,

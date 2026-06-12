@@ -1,6 +1,5 @@
 //! Poll default output device and pinned-device presence; reopen stream when needed.
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tauri::Emitter;
@@ -41,8 +40,11 @@ pub(crate) async fn reopen_output_stream(
     };
 
     let rate = engine.stream_sample_rate.load(Ordering::Relaxed);
-    let reopen_tx = engine.stream_reopen_tx.clone();
-    let stream_handle = engine.stream_handle.clone();
+    let open_rate = if rate > 0 {
+        rate
+    } else {
+        engine.device_default_rate
+    };
     let current = engine.current.clone();
     let fading_out = engine.fading_out_sink.clone();
 
@@ -62,25 +64,24 @@ pub(crate) async fn reopen_output_stream(
         }
     };
 
-    let new_handle = tauri::async_runtime::spawn_blocking(move || {
-        let (reply_tx, reply_rx) =
-            std::sync::mpsc::sync_channel::<Arc<rodio::MixerDeviceSink>>(0);
-        if reopen_tx
-            .send((rate, false, device_name, reply_tx))
-            .is_err()
-        {
-            return None;
-        }
-        reply_rx.recv_timeout(Duration::from_secs(5)).ok()
+    let app_for_open = app.clone();
+    let device_name_for_open = device_name.clone();
+    let opened = tauri::async_runtime::spawn_blocking(move || {
+        let engine = app_for_open.state::<AudioEngine>();
+        super::engine::open_output_stream_blocking(
+            &engine,
+            open_rate,
+            false,
+            device_name_for_open,
+        )
+        .is_ok()
     })
     .await
-    .unwrap_or(None);
+    .unwrap_or(false);
 
-    let Some(handle) = new_handle else {
+    if !opened {
         return false;
-    };
-
-    *stream_handle.lock().unwrap() = handle;
+    }
     if let Some(s) = current.lock().unwrap().sink.take() {
         s.stop();
     }

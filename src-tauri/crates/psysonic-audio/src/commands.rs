@@ -311,22 +311,24 @@ pub async fn audio_play(
         };
         let needs_switch = target_rate > 0 && target_rate != current_stream_rate;
         if needs_switch {
-            let (reply_tx, reply_rx) = std::sync::mpsc::sync_channel::<Arc<rodio::MixerDeviceSink>>(0);
             let dev = state.selected_device.lock().unwrap().clone();
-            if state.stream_reopen_tx.send((target_rate, hi_res_enabled, dev, reply_tx)).is_ok() {
-                match reply_rx.recv_timeout(std::time::Duration::from_secs(5)) {
-                    Ok(new_handle) => {
-                        *state.stream_handle.lock().unwrap() = new_handle;
-                        state.stream_sample_rate.store(target_rate, Ordering::Relaxed);
-                        // Give PipeWire time to reconfigure at the new rate before
-                        // we open a Sink — only needed for large hi-res quanta.
-                        if hi_res_enabled && target_rate > 48_000 {
-                            tokio::time::sleep(Duration::from_millis(150)).await;
-                        }
+            match super::engine::open_output_stream_blocking(
+                &state,
+                target_rate,
+                hi_res_enabled,
+                dev,
+            ) {
+                Ok(_) => {
+                    // Give PipeWire time to reconfigure at the new rate before
+                    // we open a Sink — only needed for large hi-res quanta.
+                    if hi_res_enabled && target_rate > 48_000 {
+                        tokio::time::sleep(Duration::from_millis(150)).await;
                     }
-                    Err(_) => {
-                        crate::app_eprintln!("[psysonic] stream rate switch timed out, keeping {current_stream_rate} Hz");
-                    }
+                }
+                Err(_) => {
+                    crate::app_eprintln!(
+                        "[psysonic] stream rate switch timed out, keeping {current_stream_rate} Hz"
+                    );
                 }
             }
         }
@@ -337,7 +339,8 @@ pub async fn audio_play(
         }
     }
 
-    let sink = Arc::new(Player::connect_new(state.stream_handle.lock().unwrap().mixer()));
+    let stream = super::engine::ensure_output_stream_open(&state)?;
+    let sink = Arc::new(Player::connect_new(stream.mixer()));
     sink.set_volume(effective_volume);
 
     // ── Sink pre-fill for hi-res tracks ──────────────────────────────────────

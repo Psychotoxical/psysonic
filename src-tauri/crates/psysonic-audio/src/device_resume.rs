@@ -187,9 +187,14 @@ pub(crate) async fn try_resume_after_device_change(
         .current_channels
         .store(ps.built.output_channels as u32, Ordering::Relaxed);
 
-    let sink = Arc::new(Player::connect_new(
-        engine.stream_handle.lock().unwrap().mixer(),
-    ));
+    let stream = match super::engine::ensure_output_stream_open(&engine) {
+        Ok(s) => s,
+        Err(e) => {
+            crate::app_eprintln!("[device-resume] output stream open failed: {e}");
+            return false;
+        }
+    };
+    let sink = Arc::new(Player::connect_new(stream.mixer()));
     let effective_volume = (snap.base_volume * snap.gain_linear).clamp(0.0, 1.0);
     sink.set_volume(effective_volume);
     sink.append(ps.built.source);

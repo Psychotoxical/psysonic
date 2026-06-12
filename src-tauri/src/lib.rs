@@ -562,6 +562,7 @@ pub fn run() {
                 use tauri::Manager;
                 let engine = app.state::<audio::AudioEngine>();
                 audio::start_device_watcher(&engine, app.handle().clone());
+                audio::start_stream_idle_watcher(&engine, app.handle().clone());
             }
 
             // ── Reopen output after system sleep/resume (WASAPI / PipeWire etc.)

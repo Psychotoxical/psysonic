@@ -96,6 +96,20 @@ describe('audio:device-changed', () => {
 
 // ─── audio:device-reset ─────────────────────────────────────────────────────
 
+describe('audio:output-released', () => {
+  it('calls resetAudioPause so the next resume uses the cold path', () => {
+    const resetAudioPause = vi.fn();
+    usePlayerStore.setState({ resetAudioPause } as never);
+    mountBridge();
+
+    emitTauriEvent('audio:output-released', null);
+
+    expect(resetAudioPause).toHaveBeenCalled();
+  });
+});
+
+// ─── audio:device-reset ─────────────────────────────────────────────────────
+
 describe('audio:device-reset', () => {
   it('always clears the stored output device', () => {
     useAuthStore.setState({ audioOutputDevice: 'My DAC' } as never);

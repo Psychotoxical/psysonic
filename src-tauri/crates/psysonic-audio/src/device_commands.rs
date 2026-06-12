@@ -2,9 +2,7 @@
 //! `commands.rs` so playback / radio / EQ aren't entangled with the device
 //! enumeration + reopen path.
 
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
-use std::time::Duration;
 
 use tauri::{Emitter, State};
 
@@ -78,16 +76,13 @@ pub async fn audio_set_device(
     *state.selected_device.lock().unwrap() = device_name.clone();
 
     let rate = state.stream_sample_rate.load(Ordering::Relaxed);
-    let (reply_tx, reply_rx) = std::sync::mpsc::sync_channel::<Arc<rodio::MixerDeviceSink>>(0);
-    state.stream_reopen_tx
-        .send((rate, false, device_name, reply_tx))
-        .map_err(|e| e.to_string())?;
-
-    let new_handle = tauri::async_runtime::spawn_blocking(move || {
-        reply_rx.recv_timeout(Duration::from_secs(5)).ok()
-    }).await.unwrap_or(None).ok_or("device open timed out")?;
-
-    *state.stream_handle.lock().unwrap() = new_handle;
+    let open_rate = if rate > 0 {
+        rate
+    } else {
+        state.device_default_rate
+    };
+    super::engine::open_output_stream_blocking(&state, open_rate, false, device_name.clone())
+        .map_err(|_| "device open timed out".to_string())?;
 
     // Capture position and drop the active sink atomically so the position
     // reading is still valid (play_started / paused_at intact before take).

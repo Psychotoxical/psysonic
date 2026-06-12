@@ -70,4 +70,13 @@ export function useAudioDeviceBridge() {
     }).then(u => { unlisten = u; });
     return () => { unlisten?.(); };
   }, []);
+
+  // Output stream was released after idle — next resume must use the cold path.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen('audio:output-released', () => {
+      usePlayerStore.getState().resetAudioPause();
+    }).then(u => { unlisten = u; });
+    return () => { unlisten?.(); };
+  }, []);
 }

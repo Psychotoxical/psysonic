@@ -150,7 +150,8 @@ pub async fn audio_play_radio(
 
     if state.generation.load(Ordering::SeqCst) != gen { return Ok(()); }
 
-    let sink = Arc::new(Player::connect_new(state.stream_handle.lock().unwrap().mixer()));
+    let stream = super::engine::ensure_output_stream_open(&state)?;
+    let sink = Arc::new(Player::connect_new(stream.mixer()));
     sink.set_volume((volume.clamp(0.0, 1.0) * MASTER_HEADROOM).clamp(0.0, 1.0));
     sink.append(boosted);
 

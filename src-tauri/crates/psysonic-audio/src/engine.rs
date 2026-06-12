@@ -7,21 +7,32 @@ use rodio::Player;
 
 use super::state::{ChainedInfo, PreloadedTrack, StreamCompletedSpill};
 
-/// Reply channel handed back to the audio-stream thread once a re-open finishes.
-pub type StreamReopenReply = std::sync::mpsc::SyncSender<Arc<rodio::MixerDeviceSink>>;
-/// Stream-thread re-open request: `(desired_rate, is_hi_res, device_name, reply_tx)`.
-pub type StreamReopenRequest = (u32, bool, Option<String>, StreamReopenReply);
+/// Reply channel handed back to the audio-stream thread once an open finishes.
+pub type StreamOpenReply =
+    std::sync::mpsc::SyncSender<(Arc<rodio::MixerDeviceSink>, u32)>;
+
+/// Requests handled on the dedicated audio-stream thread (open / idle release).
+pub enum StreamThreadMsg {
+    Open {
+        desired_rate: u32,
+        is_hi_res: bool,
+        device_name: Option<String>,
+        reply: StreamOpenReply,
+    },
+    Release {
+        reply: std::sync::mpsc::SyncSender<()>,
+    },
+}
 
 pub struct AudioEngine {
-    pub stream_handle: Arc<std::sync::Mutex<Arc<rodio::MixerDeviceSink>>>,
+    pub stream_handle: Arc<std::sync::Mutex<Option<Arc<rodio::MixerDeviceSink>>>>,
     /// Sample rate the output stream was last opened at (updated on every re-open).
     pub stream_sample_rate: Arc<AtomicU32>,
     /// The rate the device was opened at on cold start — used to restore the
     /// stream when Hi-Res is toggled off while a hi-res rate is active.
     pub device_default_rate: u32,
-    /// Sends `(desired_rate, is_hi_res, device_name, reply_tx)` to the audio-stream
-    /// thread to re-open the output device. `device_name = None` → system default.
-    pub stream_reopen_tx: std::sync::mpsc::SyncSender<StreamReopenRequest>,
+    /// Open or release the CPAL output stream on the audio-stream thread.
+    pub stream_thread_tx: std::sync::mpsc::SyncSender<StreamThreadMsg>,
     /// User-selected output device name (None = follow system default).
     pub selected_device: Arc<Mutex<Option<String>>>,
     pub current: Arc<Mutex<AudioCurrent>>,
@@ -260,6 +271,77 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
     (Arc::new(handle), rate)
 }
 
+fn probe_device_default_rate() -> u32 {
+    use rodio::cpal::traits::{DeviceTrait, HostTrait};
+
+    rodio::cpal::default_host()
+        .default_output_device()
+        .and_then(|d| d.default_output_config().ok())
+        .map(|c| c.sample_rate())
+        .unwrap_or(44_100)
+}
+
+/// Open the output stream (blocking). Updates `stream_handle` and `stream_sample_rate`.
+pub(crate) fn open_output_stream_blocking(
+    engine: &AudioEngine,
+    desired_rate: u32,
+    is_hi_res: bool,
+    device_name: Option<String>,
+) -> Result<Arc<rodio::MixerDeviceSink>, String> {
+    let rate = if desired_rate > 0 {
+        desired_rate
+    } else {
+        engine.device_default_rate
+    };
+    let (reply_tx, reply_rx) = std::sync::mpsc::sync_channel(0);
+    engine
+        .stream_thread_tx
+        .send(StreamThreadMsg::Open {
+            desired_rate: rate,
+            is_hi_res,
+            device_name,
+            reply: reply_tx,
+        })
+        .map_err(|e| e.to_string())?;
+    let (handle, actual_rate) = reply_rx
+        .recv_timeout(Duration::from_secs(5))
+        .map_err(|_| "audio stream open timed out".to_string())?;
+    engine
+        .stream_sample_rate
+        .store(actual_rate, std::sync::atomic::Ordering::Relaxed);
+    *engine.stream_handle.lock().unwrap() = Some(handle.clone());
+    Ok(handle)
+}
+
+/// Ensure a live output stream exists; lazy-opens on first playback.
+pub(crate) fn ensure_output_stream_open(
+    engine: &AudioEngine,
+) -> Result<Arc<rodio::MixerDeviceSink>, String> {
+    if let Some(handle) = engine.stream_handle.lock().unwrap().clone() {
+        return Ok(handle);
+    }
+    let rate = engine.stream_sample_rate.load(std::sync::atomic::Ordering::Relaxed);
+    let open_rate = if rate > 0 {
+        rate
+    } else {
+        engine.device_default_rate
+    };
+    let device = engine.selected_device.lock().unwrap().clone();
+    open_output_stream_blocking(engine, open_rate, false, device)
+}
+
+pub(crate) fn request_stream_release(engine: &AudioEngine) -> Result<(), String> {
+    let (reply_tx, reply_rx) = std::sync::mpsc::sync_channel(0);
+    engine
+        .stream_thread_tx
+        .send(StreamThreadMsg::Release { reply: reply_tx })
+        .map_err(|e| e.to_string())?;
+    reply_rx
+        .recv_timeout(Duration::from_secs(5))
+        .map_err(|_| "audio stream release timed out".to_string())?;
+    Ok(())
+}
+
 pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
     // macOS: request a smaller CoreAudio buffer to reduce output latency.
     #[cfg(target_os = "macos")]
@@ -269,13 +351,12 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
         }
     }
 
-    // Channels: main thread ←→ audio-stream thread.
-    //   init_tx/rx : (Arc<rodio::MixerDeviceSink>, actual_rate) sent once at startup.
-    //   reopen_tx/rx: (desired_rate, reply_tx) — triggers a stream re-open.
-    let (init_tx, init_rx) =
-        std::sync::mpsc::sync_channel::<(Arc<rodio::MixerDeviceSink>, u32)>(0);
-    let (reopen_tx, reopen_rx) =
-        std::sync::mpsc::sync_channel::<(u32, bool, Option<String>, std::sync::mpsc::SyncSender<Arc<rodio::MixerDeviceSink>>)>(4);
+    // Channel: main thread ←→ audio-stream thread (lazy open + idle release).
+    let (ready_tx, ready_rx) = std::sync::mpsc::sync_channel::<()>(0);
+    let (stream_thread_tx, stream_thread_rx) =
+        std::sync::mpsc::sync_channel::<StreamThreadMsg>(4);
+
+    let device_default_rate = probe_device_default_rate();
 
     let thread = std::thread::Builder::new()
         .name("psysonic-audio-stream".into())
@@ -296,52 +377,63 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
             // Thread priority is kept at default during standard-mode playback.
             // It is escalated to Max only when a Hi-Res stream reopen is requested,
             // to prevent PipeWire underruns at high quantum sizes (8192 frames).
-            let (mut _stream, rate) = open_stream_for_device_and_rate(None, 0);
-            let handle = _stream.clone();
-            init_tx.send((handle, rate)).ok();
+            let mut _stream: Option<Arc<rodio::MixerDeviceSink>> = None;
+            ready_tx.send(()).ok();
 
-            // Keep the stream alive and handle sample-rate / device-switch requests.
-            while let Ok((desired_rate, is_hi_res, device_name, reply_tx)) = reopen_rx.recv() {
-                // Escalate to Max for Hi-Res reopens (large PipeWire quanta need
-                // real-time scheduling to avoid underruns). No escalation for
-                // standard mode — the thread blocks on recv() between reopens so
-                // elevated priority would only waste scheduler budget.
-                if is_hi_res {
-                    thread_priority::set_current_thread_priority(
-                        thread_priority::ThreadPriority::Max
-                    ).ok();
+            while let Ok(msg) = stream_thread_rx.recv() {
+                match msg {
+                    StreamThreadMsg::Release { reply } => {
+                        _stream = None;
+                        let _ = reply.send(());
+                    }
+                    StreamThreadMsg::Open {
+                        desired_rate,
+                        is_hi_res,
+                        device_name,
+                        reply,
+                    } => {
+                        // Escalate to Max for Hi-Res reopens (large PipeWire quanta need
+                        // real-time scheduling to avoid underruns). No escalation for
+                        // standard mode — the thread blocks on recv() between reopens so
+                        // elevated priority would only waste scheduler budget.
+                        if is_hi_res {
+                            thread_priority::set_current_thread_priority(
+                                thread_priority::ThreadPriority::Max,
+                            )
+                            .ok();
+                        }
+
+                        _stream = None;
+
+                        // Scale the PipeWire quantum with the sample rate so wall-clock
+                        // latency stays roughly constant (≈93 ms) at all rates.
+                        #[cfg(target_os = "linux")]
+                        if desired_rate > 0 {
+                            let frames: u32 = if desired_rate > 48_000 { 8192 } else { 4096 };
+                            std::env::set_var("PIPEWIRE_LATENCY", format!("{frames}/{desired_rate}"));
+                            let latency_ms =
+                                (frames as f64 / desired_rate as f64 * 1000.0).round() as u64;
+                            std::env::set_var("PULSE_LATENCY_MSEC", latency_ms.to_string());
+                        }
+
+                        let (new_stream, actual_rate) =
+                            open_stream_for_device_and_rate(device_name.as_deref(), desired_rate);
+                        let new_handle = new_stream.clone();
+                        _stream = Some(new_stream);
+                        let _ = reply.send((new_handle, actual_rate));
+                    }
                 }
-
-                drop(_stream); // close old stream before opening new one
-
-                // Scale the PipeWire quantum with the sample rate so wall-clock
-                // latency stays roughly constant (≈93 ms) at all rates.
-                // 8192 frames at 88200 Hz ≈ 92.9 ms (same as 4096 at 48000 Hz).
-                #[cfg(target_os = "linux")]
-                {
-                    let frames: u32 = if desired_rate > 48_000 { 8192 } else { 4096 };
-                    std::env::set_var("PIPEWIRE_LATENCY", format!("{frames}/{desired_rate}"));
-                    // Keep PULSE_LATENCY_MSEC in sync so PulseAudio-based setups
-                    // get the same wall-clock quantum as PipeWire.
-                    let latency_ms = (frames as f64 / desired_rate as f64 * 1000.0).round() as u64;
-                    std::env::set_var("PULSE_LATENCY_MSEC", latency_ms.to_string());
-                }
-
-                let (new_stream, _actual) = open_stream_for_device_and_rate(device_name.as_deref(), desired_rate);
-                let new_handle = new_stream.clone();
-                _stream = new_stream;
-                reply_tx.send(new_handle).ok();
             }
         })
         .expect("spawn audio stream thread");
 
-    let (initial_handle, initial_rate) = init_rx.recv().expect("audio stream handle");
+    ready_rx.recv().expect("audio stream thread ready");
 
     let engine = AudioEngine {
-        stream_handle: Arc::new(std::sync::Mutex::new(initial_handle)),
-        stream_sample_rate: Arc::new(AtomicU32::new(initial_rate)),
-        device_default_rate: initial_rate,
-        stream_reopen_tx: reopen_tx,
+        stream_handle: Arc::new(std::sync::Mutex::new(None)),
+        stream_sample_rate: Arc::new(AtomicU32::new(0)),
+        device_default_rate,
+        stream_thread_tx,
         selected_device: Arc::new(Mutex::new(None)),
         current: Arc::new(Mutex::new(AudioCurrent {
             sink: None,

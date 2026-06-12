@@ -4,11 +4,11 @@
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use tauri::AppHandle;
-use tauri::Manager;
+use tauri::{AppHandle, Emitter, Manager};
 
 use super::device_watcher::{reopen_output_stream, ReopenNotify};
-use super::engine::AudioEngine;
+use super::engine::{request_stream_release, AudioEngine};
+use super::stream_idle::{output_stream_is_needed, teardown_playback_sinks_for_idle_release};
 
 static RESUME_REOPEN_DEBOUNCE: Mutex<Option<Instant>> = Mutex::new(None);
 const DEBOUNCE: Duration = Duration::from_millis(900);
@@ -30,10 +30,22 @@ pub(crate) fn debounce_allow_resume_reopen() -> bool {
 pub(crate) async fn reopen_audio_after_system_resume(app: &AppHandle) {
     tokio::time::sleep(Duration::from_millis(400)).await;
 
-    let device_name = match app.try_state::<AudioEngine>() {
-        Some(e) => e.selected_device.lock().unwrap().clone(),
-        None => return,
+    let Some(state) = app.try_state::<AudioEngine>() else {
+        return;
     };
+    let engine = state.inner();
+
+    if !output_stream_is_needed(engine) {
+        if engine.stream_handle.lock().unwrap().is_some() {
+            teardown_playback_sinks_for_idle_release(engine);
+            let _ = request_stream_release(engine);
+            *engine.stream_handle.lock().unwrap() = None;
+            let _ = app.emit("audio:output-released", ());
+        }
+        return;
+    }
+
+    let device_name = engine.selected_device.lock().unwrap().clone();
 
     if reopen_output_stream(app, device_name, ReopenNotify::DeviceChanged).await {
         crate::app_eprintln!("[psysonic] audio output reopened after system resume");
