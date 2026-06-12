@@ -158,6 +158,15 @@ impl AudioCurrent {
 ///   3. Device default.
 ///   4. System default (last resort).
 ///
+/// Rodio prints a stderr line on every intentional stream drop. Keep that only
+/// when runtime logging is in **debug** mode; normal/off silence the noise.
+fn finalize_mixer_device_sink(mut handle: rodio::MixerDeviceSink) -> Arc<rodio::MixerDeviceSink> {
+    if !crate::logging::should_log_debug() {
+        handle.log_on_drop(false);
+    }
+    Arc::new(handle)
+}
+
 /// Returns `(stream_handle, actual_sample_rate)`.
 fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32) -> (Arc<rodio::MixerDeviceSink>, u32) {
     use rodio::cpal::traits::{DeviceTrait, HostTrait};
@@ -225,7 +234,7 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
                         .and_then(|b| b.with_sample_rate(std::num::NonZeroU32::new(desired_rate).unwrap_or(std::num::NonZeroU32::MIN)).open_stream())
                     {
                         crate::app_eprintln!("[psysonic] audio stream opened at {} Hz (exact)", desired_rate);
-                        return (Arc::new(handle), desired_rate);
+                        return (finalize_mixer_device_sink(handle), desired_rate);
                     }
                 }
 
@@ -242,7 +251,7 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
                             "[psysonic] audio stream opened at {} Hz (highest, wanted {})",
                             rate, desired_rate
                         );
-                        return (Arc::new(handle), rate);
+                        return (finalize_mixer_device_sink(handle), rate);
                     }
                 }
             }
@@ -255,7 +264,7 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
                 .map(|c| c.sample_rate())
                 .unwrap_or(44100);
             crate::app_eprintln!("[psysonic] audio stream opened at {} Hz (device default)", rate);
-            return (Arc::new(handle), rate);
+            return (finalize_mixer_device_sink(handle), rate);
         }
     }
 
@@ -268,7 +277,7 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
         .and_then(|d| d.default_output_config().ok())
         .map(|c| c.sample_rate())
         .unwrap_or(44100);
-    (Arc::new(handle), rate)
+    (finalize_mixer_device_sink(handle), rate)
 }
 
 fn probe_device_default_rate() -> u32 {
