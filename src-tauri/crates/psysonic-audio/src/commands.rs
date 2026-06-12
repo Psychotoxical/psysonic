@@ -53,6 +53,7 @@ pub async fn audio_play(
     analysis_track_id: Option<String>,
     server_id: Option<String>,
     stream_format_suffix: Option<String>,
+    start_paused: bool, // silent load: no `audio:playing`, sink stays paused
     app: AppHandle,
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
@@ -404,7 +405,7 @@ pub async fn audio_play(
         if state.generation.load(Ordering::SeqCst) != gen {
             return Ok(()); // skipped during pre-fill — abort silently
         }
-        if !defer_playback_start {
+        if !defer_playback_start && !start_paused {
             sink.play();
         }
     }
@@ -418,10 +419,11 @@ pub async fn audio_play(
         fadeout_samples: built.fadeout_samples,
         crossfade_enabled,
         actual_fade_secs,
+        start_paused,
     });
 
     if defer_playback_start {
-        {
+        if !start_paused {
             let mut cur = state.current.lock().unwrap();
             cur.play_started = None;
             cur.paused_at = Some(0.0);
@@ -434,8 +436,9 @@ pub async fn audio_play(
             state.current.clone(),
             app.clone(),
             duration_secs,
+            start_paused,
         );
-    } else {
+    } else if !start_paused {
         app.emit("audio:playing", duration_secs).ok();
     }
 

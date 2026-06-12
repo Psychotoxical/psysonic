@@ -55,6 +55,16 @@ function scheduleEvictAfterPreviousGrace(): void {
   }, ms);
 }
 
+/** Prefetch the current (paused) track so cold resume can hit disk instead of HTTP. */
+export function scheduleHotCachePrefetchForTrack(track: { id: string; suffix?: string }, serverId: string | null): void {
+  const auth = useAuthStore.getState();
+  if (!auth.isLoggedIn || !auth.hotCacheEnabled || !serverId) return;
+  if (hasLocalPersistentPlaybackBytes(track.id, serverId)) return;
+  const hotIndex = selectHotCacheEntries(useLocalPlaybackStore.getState().entries);
+  if (hotIndex[entryKey(serverId, track.id)]) return;
+  enqueueJobs([{ trackId: track.id, serverId, suffix: track.suffix || 'mp3' }]);
+}
+
 function enqueueJobs(jobs: PrefetchJob[]) {
   const seen = new Set(pendingQueue.map(j => `${j.serverId}:${j.trackId}`));
   let merged = 0;

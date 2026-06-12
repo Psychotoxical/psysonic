@@ -162,7 +162,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Navidrome Now Playing and scrobble with hot cache, offline pins, and mixed-server playback reachability (PR #1055)',
       'What\'s New: remote WHATS_NEW.md from release assets, dev workspace mode, Highlights vs changelog tabs (PR #1058)',
       'Local library index: multi-genre browse, filters, and counts via track_genre table and blocking backfill (PR #1059)',
-      'Audio: lazy-open output stream and 60s idle release so Windows can sleep when not playing (PR #1073)',
+      'Audio: lazy-open output stream, 60s idle release (#1071), cold-start paused restore with silent engine prepare (PR #1073)',
     ],
   },
   {

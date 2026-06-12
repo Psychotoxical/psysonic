@@ -130,7 +130,7 @@ describe('queueUndoRestoreAudioEngine', () => {
     expect(seekCall).toBeUndefined();
   });
 
-  it('issues audio_pause when wantPlaying=false', async () => {
+  it('loads with startPaused and skips audio_pause when wantPlaying=false', async () => {
     queueUndoRestoreAudioEngine({
       generation: 1,
       track: track('t1'),
@@ -141,7 +141,11 @@ describe('queueUndoRestoreAudioEngine', () => {
     });
     await Promise.resolve();
     await Promise.resolve();
-    expect(hoisted.invokeMock).toHaveBeenCalledWith('audio_pause');
+    expect(hoisted.invokeMock).toHaveBeenCalledWith('audio_play', expect.objectContaining({
+      startPaused: true,
+    }));
+    const pauseCall = hoisted.invokeMock.mock.calls.find(c => c[0] === 'audio_pause');
+    expect(pauseCall).toBeUndefined();
     expect(hoisted.setIsAudioPausedMock).toHaveBeenCalledWith(true);
   });
 

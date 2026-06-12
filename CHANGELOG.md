@@ -196,7 +196,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), reported by [@Thraka](https://github.com/Thraka), PR [#1073](https://github.com/Psychotoxical/psysonic/pull/1073)**
 
 * Psysonic no longer keeps the audio output device open while the app is idle — the CPAL stream opens on first playback and closes after **60 seconds** without active audio, so Windows `powercfg` no longer reports an in-use audio stream when music is paused or nothing has been played ([#1071](https://github.com/Psychotoxical/psysonic/issues/1071)).
-* Resume after a long pause uses the existing cold path; post-sleep recovery skips reopening the stream when nothing is playing.
+* Resume after a long pause uses the existing cold path (`audio:output-released` resets the warm-pause flag); post-sleep recovery skips reopening the stream when nothing is playing.
+* **Cold start while paused:** after `getPlayQueue` restores position, the seekbar shows the saved time immediately; the current track is hot-cache prefetched and the engine loads silently (`audio_play` with `startPaused`) at that position so the next Play is a warm `audio_resume` without an audible blip at the start of the track.
+* Rodio `Dropping DeviceSink` warnings on stream release are suppressed unless logging is in debug mode.
 
 ### Internet radio — no more duplicate now-playing on Linux
 

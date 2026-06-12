@@ -375,6 +375,7 @@ export function runPlayTrack(
       analysisTrackId: scopedTrack.id,
       serverId: getPlaybackIndexKey() || null,
       streamFormatSuffix: scopedTrack.suffix ?? null,
+      startPaused: false,
     })
       .then(() => {
         if (getPlayGeneration() !== gen) return;

@@ -30,6 +30,7 @@ import {
   setSeekFallbackVisualTarget,
 } from './seekFallbackState';
 import { clearSeekTarget } from './seekTargetState';
+import { preparePausedRestoreOnStartup } from './pausedRestorePrepare';
 import { refreshWaveformForTrack } from './waveformRefresh';
 
 type SetState = (
@@ -167,13 +168,16 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
           // Seed the resolver with the restored tracks so the queue UI / hot
           // paths resolve them without a network round-trip.
           if (sid) seedQueueResolver(sid, mappedTracks);
+          const atSeconds = serverTime > 0 ? serverTime : localTime;
+          const queueItems = toQueueItemRefs(sid, mappedTracks);
           set({
-            queueItems: toQueueItemRefs(sid, mappedTracks),
+            queueItems,
             queueIndex,
             currentTrack,
-            currentTime: serverTime > 0 ? serverTime : localTime,
+            currentTime: atSeconds,
           });
           void refreshWaveformForTrack(currentTrack.id);
+          preparePausedRestoreOnStartup(currentTrack, queueItems, queueIndex, atSeconds);
         }
       } catch (e) {
         console.error('Failed to initialize queue from server', e);

@@ -180,6 +180,7 @@ export function runResume(set: SetState, get: GetState): void {
           analysisTrackId: trackToPlay.id,
           serverId: coldServerId || null,
           streamFormatSuffix: trackToPlay.suffix ?? null,
+          startPaused: false,
         }).then(() => {
           if (getPlayGeneration() === gen && currentTime > 1) {
             invoke('audio_seek', { seconds: currentTime }).catch(console.error);
@@ -220,6 +221,7 @@ export function runResume(set: SetState, get: GetState): void {
           analysisTrackId: currentTrack.id,
           serverId: coldServerId || null,
           streamFormatSuffix: currentTrack.suffix ?? null,
+          startPaused: false,
         }).catch((err: unknown) => {
           if (getPlayGeneration() !== gen) return;
           setDeferHotCachePrefetch(false);

@@ -412,6 +412,7 @@ pub(super) fn spawn_legacy_stream_start_when_armed(
     current: Arc<Mutex<super::engine::AudioCurrent>>,
     app: AppHandle,
     duration_secs: f64,
+    hold_paused: bool,
 ) {
     tokio::spawn(async move {
         loop {
@@ -429,15 +430,28 @@ pub(super) fn spawn_legacy_stream_start_when_armed(
         samples_played.store(0, Ordering::Relaxed);
         let sink = current.lock().unwrap().sink.clone();
         if let Some(sink) = sink {
-            {
+            if hold_paused {
+                sink.pause();
                 let mut cur = current.lock().unwrap();
-                cur.play_started = Some(std::time::Instant::now());
-                cur.paused_at = None;
+                cur.play_started = None;
+                if cur.paused_at.is_none() {
+                    cur.paused_at = Some(0.0);
+                }
                 cur.seek_offset = 0.0;
+                crate::app_deprintln!(
+                    "[stream] legacy track-stream: buffer ready, holding paused (silent prepare)"
+                );
+            } else {
+                {
+                    let mut cur = current.lock().unwrap();
+                    cur.play_started = Some(std::time::Instant::now());
+                    cur.paused_at = None;
+                    cur.seek_offset = 0.0;
+                }
+                sink.play();
+                app.emit("audio:playing", duration_secs).ok();
+                crate::app_deprintln!("[stream] legacy track-stream: playback started after buffer ready");
             }
-            sink.play();
-            app.emit("audio:playing", duration_secs).ok();
-            crate::app_deprintln!("[stream] legacy track-stream: playback started after buffer ready");
         }
     });
 }
@@ -496,6 +510,7 @@ pub(crate) struct SinkSwapInputs {
     pub(crate) fadeout_samples: Arc<std::sync::atomic::AtomicU64>,
     pub(crate) crossfade_enabled: bool,
     pub(crate) actual_fade_secs: f32,
+    pub(crate) start_paused: bool,
 }
 
 /// Atomically swap the new sink into `state.current`, then handle the old
@@ -514,6 +529,7 @@ pub(crate) fn swap_in_new_sink(state: &State<'_, AudioEngine>, inputs: SinkSwapI
         fadeout_samples: new_fadeout_samples,
         crossfade_enabled,
         actual_fade_secs,
+        start_paused,
     } = inputs;
 
     let (old_sink, old_fadeout_trigger, old_fadeout_samples) = {
@@ -521,11 +537,17 @@ pub(crate) fn swap_in_new_sink(state: &State<'_, AudioEngine>, inputs: SinkSwapI
         let old = cur.sink.take();
         let old_fo_trigger = cur.fadeout_trigger.take();
         let old_fo_samples = cur.fadeout_samples.take();
-        cur.sink = Some(sink);
+        cur.sink = Some(sink.clone());
         cur.duration_secs = duration_secs;
         cur.seek_offset = 0.0;
-        cur.play_started = Some(Instant::now());
-        cur.paused_at = None;
+        if start_paused {
+            sink.pause();
+            cur.play_started = None;
+            cur.paused_at = Some(0.0);
+        } else {
+            cur.play_started = Some(Instant::now());
+            cur.paused_at = None;
+        }
         cur.replay_gain_linear = gain_linear;
         cur.base_volume = volume.clamp(0.0, 1.0);
         cur.fadeout_trigger = Some(new_fadeout_trigger);
