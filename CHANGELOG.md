@@ -191,6 +191,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Windows — idle app no longer blocks system sleep
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by [@Thraka](https://github.com/Thraka), PR [#1073](https://github.com/Psychotoxical/psysonic/pull/1073)**
+
+* Psysonic no longer keeps the audio output device open while the app is idle — the CPAL stream opens on first playback and closes after **60 seconds** without active audio, so Windows `powercfg` no longer reports an in-use audio stream when music is paused or nothing has been played ([#1071](https://github.com/Psychotoxical/psysonic/issues/1071)).
+* Resume after a long pause uses the existing cold path; post-sleep recovery skips reopening the stream when nothing is playing.
+
 ### Internet radio — no more duplicate now-playing on Linux
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), reported by agriffit79, PR [#1069](https://github.com/Psychotoxical/psysonic/pull/1069)**
