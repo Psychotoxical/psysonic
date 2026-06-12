@@ -97,11 +97,8 @@ pub fn start_stream_idle_watcher(_engine: &AudioEngine, app: AppHandle) {
             if since.elapsed() < Duration::from_secs(OUTPUT_STREAM_IDLE_RELEASE_SECS) {
                 continue;
             }
-            if release_output_stream(engine, &app).is_err() {
-                idle_since = None;
-            } else {
-                idle_since = None;
-            }
+            let _ = release_output_stream(engine, &app);
+            idle_since = None;
         }
     });
 }
