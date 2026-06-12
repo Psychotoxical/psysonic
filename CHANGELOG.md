@@ -199,6 +199,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Resume after a long pause uses the existing cold path (`audio:output-released` resets the warm-pause flag); post-sleep recovery skips reopening the stream when nothing is playing.
 * **Cold start while paused:** after `getPlayQueue` restores position, the seekbar shows the saved time immediately; the current track is hot-cache prefetched and the engine loads silently (`audio_play` with `startPaused`) at that position so the next Play is a warm `audio_resume` without an audible blip at the start of the track.
 * Rodio `Dropping DeviceSink` warnings on stream release are suppressed unless logging is in debug mode.
+* **Stop keeps the waveform:** stopping no longer wipes the seekbar waveform for the still-shown track — the cached analysis bins are kept and re-hydrated from the database, so the real waveform stays mounted instead of falling back to flat bars.
 
 ### Internet radio — no more duplicate now-playing on Linux
 

@@ -230,6 +230,20 @@ describe('stop', () => {
     expect(s.progress).toBe(0);
     expect(s.currentTime).toBe(0);
   });
+
+  it('keeps the waveform of the still-shown track and re-hydrates it from the DB', () => {
+    const track = makeTrack({ id: 'wf-keep' });
+    seedQueue([track], { index: 0, currentTrack: track });
+    usePlayerStore.setState({ isPlaying: true, waveformBins: [10, 20, 30] });
+    onInvoke('analysis_get_waveform_for_track', () => null);
+    usePlayerStore.getState().stop();
+    // currentTrack survives a stop, so its waveform bins must not be wiped.
+    expect(usePlayerStore.getState().waveformBins).toEqual([10, 20, 30]);
+    expect(invokeMock).toHaveBeenCalledWith(
+      'analysis_get_waveform_for_track',
+      expect.objectContaining({ trackId: 'wf-keep' }),
+    );
+  });
 });
 
 describe('shuffleQueue', () => {
