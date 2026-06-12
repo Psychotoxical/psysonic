@@ -53,10 +53,13 @@ pub async fn audio_play(
     analysis_track_id: Option<String>,
     server_id: Option<String>,
     stream_format_suffix: Option<String>,
-    start_paused: bool, // silent load: no `audio:playing`, sink stays paused
+    // Silent load: no `audio:playing`, sink stays paused. Optional + defaults to
+    // `false` so older/external `audio_play` callers that omit it still work.
+    start_paused: Option<bool>,
     app: AppHandle,
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
+    let start_paused = start_paused.unwrap_or(false);
     let gapless = state.gapless_enabled.load(Ordering::Relaxed);
 
     // ── Ghost-command guard ───────────────────────────────────────────────────

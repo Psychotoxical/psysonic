@@ -100,7 +100,9 @@ pub(crate) fn release_output_stream_on_stop(
     Ok(())
 }
 
-pub fn start_stream_idle_watcher(_engine: &AudioEngine, app: AppHandle) {
+/// Resolves the engine from `app` each poll (the engine is managed Tauri state),
+/// so it takes only the `AppHandle` — no engine reference is needed here.
+pub fn start_stream_idle_watcher(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let mut idle_since: Option<Instant> = None;
         loop {
@@ -135,8 +137,40 @@ mod tests {
     use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64};
     use std::sync::{Arc, Mutex, RwLock};
 
+    use ringbuf::HeapCons;
+    use rodio::source::Zero;
+    use rodio::{ChannelCount, Player, SampleRate};
+
     use super::super::engine::AudioCurrent;
     use super::super::playback_rate::PlaybackRateAtomics;
+    use super::super::stream::{RadioLiveState, RadioSharedFlags};
+
+    /// A device-less rodio `Player` with one infinite source appended, so
+    /// `empty()` reports `false` without ever opening an output device.
+    /// Returns the queue output too — keep it alive for the test's duration.
+    fn nonempty_player() -> (Arc<Player>, rodio::queue::SourcesQueueOutput) {
+        let (player, out) = Player::new();
+        player.append(Zero::new(
+            ChannelCount::new(2).unwrap(),
+            SampleRate::new(44_100).unwrap(),
+        ));
+        (Arc::new(player), out)
+    }
+
+    fn radio_session(is_paused: bool) -> RadioLiveState {
+        let (tx, _rx) = std::sync::mpsc::channel::<HeapCons<u8>>();
+        RadioLiveState {
+            url: "http://example.test/stream".to_string(),
+            gen: 0,
+            // Detached no-op task; never polled. Drop just aborts it.
+            task: tokio::spawn(async {}),
+            flags: Arc::new(RadioSharedFlags {
+                is_paused: AtomicBool::new(is_paused),
+                is_hard_paused: AtomicBool::new(false),
+                new_cons_tx: Mutex::new(tx),
+            }),
+        }
+    }
 
     fn minimal_engine() -> AudioEngine {
         let (stream_thread_tx, _) = std::sync::mpsc::sync_channel(0);
@@ -199,12 +233,74 @@ mod tests {
     }
 
     #[test]
-    fn needed_when_paused_at_set() {
+    fn idle_when_sink_empty() {
+        // A live but drained main sink (track finished) must not pin the device.
+        let (player, _out) = Player::new(); // no source appended → empty()
+        let player = Arc::new(player);
         let engine = minimal_engine();
         {
             let mut cur = engine.current.lock().unwrap();
+            cur.sink = Some(player);
+            cur.play_started = Some(Instant::now());
+            cur.paused_at = None;
+        }
+        assert!(!output_stream_is_needed(&engine));
+    }
+
+    #[test]
+    fn needed_when_sink_playing() {
+        let (sink, _out) = nonempty_player();
+        let engine = minimal_engine();
+        {
+            let mut cur = engine.current.lock().unwrap();
+            cur.sink = Some(sink);
+            cur.play_started = Some(Instant::now());
+            cur.paused_at = None; // actively playing
+        }
+        assert!(output_stream_is_needed(&engine));
+    }
+
+    #[test]
+    fn idle_when_sink_paused() {
+        // Non-empty sink but paused (paused_at set) — the idle watcher may release.
+        let (sink, _out) = nonempty_player();
+        let engine = minimal_engine();
+        {
+            let mut cur = engine.current.lock().unwrap();
+            cur.sink = Some(sink);
+            cur.play_started = Some(Instant::now());
             cur.paused_at = Some(12.0);
         }
+        assert!(!output_stream_is_needed(&engine));
+    }
+
+    #[test]
+    fn needed_when_preview_sink_present() {
+        let (sink, _out) = nonempty_player();
+        let engine = minimal_engine();
+        *engine.preview_sink.lock().unwrap() = Some(sink);
+        assert!(output_stream_is_needed(&engine));
+    }
+
+    #[test]
+    fn needed_when_fading_out_sink_present() {
+        let (sink, _out) = nonempty_player();
+        let engine = minimal_engine();
+        *engine.fading_out_sink.lock().unwrap() = Some(sink);
+        assert!(output_stream_is_needed(&engine));
+    }
+
+    #[tokio::test]
+    async fn needed_when_radio_playing() {
+        let engine = minimal_engine();
+        *engine.radio_state.lock().unwrap() = Some(radio_session(false));
+        assert!(output_stream_is_needed(&engine));
+    }
+
+    #[tokio::test]
+    async fn idle_when_radio_paused() {
+        let engine = minimal_engine();
+        *engine.radio_state.lock().unwrap() = Some(radio_session(true));
         assert!(!output_stream_is_needed(&engine));
     }
 }
