@@ -3,7 +3,11 @@ export const nowPlaying = {
   title: 'Cine ascultă?',
   loading: 'Se încarcă…',
   nobody: 'Nimeni nu ascultă momentan.',
-  minutesAgo: 'acum {{n}}m',
+  presence: {
+    playing: 'Redă',
+    paused: 'Pe pauză',
+    idle: 'Inactiv',
+  },
   nothingPlaying: 'Nu se redă nimic încă. Începe o piesă!',
   aboutArtist: 'Despre Artist',
   fromAlbum: 'Din acest Album',

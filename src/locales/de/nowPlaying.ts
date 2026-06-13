@@ -3,7 +3,11 @@ export const nowPlaying = {
   title: 'Wer hört was?',
   loading: 'Lädt…',
   nobody: 'Gerade hört niemand Musik.',
-  minutesAgo: 'vor {{n}}m',
+  presence: {
+    playing: 'Spielt',
+    paused: 'Pausiert',
+    idle: 'Inaktiv',
+  },
   nothingPlaying: 'Noch nichts am Laufen. Leg einen Track auf!',
   aboutArtist: 'Über den Künstler',
   fromAlbum: 'Aus diesem Album',

@@ -3,7 +3,11 @@ export const nowPlaying = {
   title: 'Hvem lytter?',
   loading: 'Laster…',
   nobody: 'Ingen lyttere for øyeblikket.',
-  minutesAgo: '{{n}}m siden',
+  presence: {
+    playing: 'Spiller',
+    paused: 'Pauset',
+    idle: 'Inaktiv',
+  },
   nothingPlaying: 'Ingenting spiller akkurat å. Start et spor!',
   aboutArtist: 'Om artisten',
   fromAlbum: 'Fra dette albumet',

@@ -3,7 +3,11 @@ export const nowPlaying = {
   title: '谁正在收听？',
   loading: '加载中…',
   nobody: '当前无人收听。',
-  minutesAgo: '{{n}} 分钟前',
+  presence: {
+    playing: '播放中',
+    paused: '已暂停',
+    idle: '空闲',
+  },
   nothingPlaying: '尚未开始播放。开始播放一首歌曲吧！',
   aboutArtist: '关于艺术家',
   fromAlbum: '来自此专辑',

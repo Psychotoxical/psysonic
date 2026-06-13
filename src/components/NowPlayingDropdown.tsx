@@ -4,7 +4,8 @@ import { getNowPlaying } from '../api/subsonicScrobble';
 import type { SubsonicNowPlaying } from '../api/subsonicTypes';
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { PlayCircle, Pause, User, Clock, Radio, RefreshCw } from 'lucide-react';
+import { PlayCircle, Pause, User, Radio, RefreshCw } from 'lucide-react';
+import { nowPlayingPresence } from '../api/nowPlayingPresence';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
@@ -192,7 +193,10 @@ export default function NowPlayingDropdown() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {visible.map((stream, idx) => (
+              {visible.map((stream, idx) => {
+                const presence = nowPlayingPresence(stream);
+                const presenceLabel = t(`nowPlaying.presence.${presence}`);
+                return (
                 <div
                   key={`${stream.id}-${idx}`}
                   onClick={() => { if (stream.albumId) { setIsOpen(false); navigate(`/album/${stream.albumId}`); } }}
@@ -217,19 +221,22 @@ export default function NowPlayingDropdown() {
                     )}
                   </div>
                   <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <div className="truncate" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{stream.title}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                      <span
+                        className={`now-playing-led now-playing-led--${presence}`}
+                        role="img"
+                        aria-label={presenceLabel}
+                        data-tooltip={presenceLabel}
+                        data-tooltip-pos="bottom"
+                      />
+                      <span className="truncate" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{stream.title}</span>
+                    </div>
                     <div className="truncate" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{stream.artist}</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px', fontSize: '11px', color: 'var(--text-secondary)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
                         <User size={10} style={{ flexShrink: 0 }} />
                         <span className="truncate">{stream.username} ({stream.playerName || 'Web'})</span>
                       </div>
-                      {stream.minutesAgo > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
-                          <Clock size={10} style={{ flexShrink: 0 }} />
-                          <span className="truncate">{t('nowPlaying.minutesAgo', { n: stream.minutesAgo })}</span>
-                        </div>
-                      )}
                       {(() => {
                         const posSec = livePositionSec(stream);
                         if (posSec === undefined || stream.duration <= 0) return null;
@@ -261,7 +268,8 @@ export default function NowPlayingDropdown() {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>,

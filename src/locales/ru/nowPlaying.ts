@@ -3,7 +3,11 @@ export const nowPlaying = {
   title: 'Кто сейчас слушает?',
   loading: 'Загрузка…',
   nobody: 'Сейчас никто не слушает.',
-  minutesAgo: '{{n}} мин назад',
+  presence: {
+    playing: 'Играет',
+    paused: 'Пауза',
+    idle: 'Неактивен',
+  },
   nothingPlaying: 'Пока ничего не играет — включите трек.',
   aboutArtist: 'Об исполнителе',
   fromAlbum: 'Из этого альбома',
