@@ -131,9 +131,16 @@ check_installed() {
     if command -v $APP_NAME &> /dev/null || command -v ${APP_NAME^} &> /dev/null; then
         warn "${APP_NAME} appears to be already installed."
         # Under `curl ... | bash`, stdin is the script stream itself, so
-        # read the answer from the controlling terminal instead.
-        read -p "Do you want to reinstall? (y/N): " -n 1 -r < /dev/tty
-        echo
+        # read the answer from the controlling terminal instead. Probe by
+        # opening: `[ -r /dev/tty ]` passes on the 0666 device node even
+        # without a controlling terminal; only open() reports the failure.
+        if { : < /dev/tty; } 2>/dev/null; then
+            read -p "Do you want to reinstall? (y/N): " -n 1 -r < /dev/tty
+            echo
+        else
+            warn "No terminal available for prompt; skipping reinstall."
+            exit 0
+        fi
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             info "Installation cancelled."
             exit 0
