@@ -13,15 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 
-### Music Network — scrobble to more than just Last.fm
-
-**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1066](https://github.com/Psychotoxical/psysonic/pull/1066)**
-
-* **Settings → Integrations** now hosts a **Music Network** that scrobbles your plays to one or more services at once: **Last.fm**, **Libre.fm**, **Rocksky**, **ListenBrainz** (the public service or any compatible server), **Maloja** (native, Audioscrobbler or ListenBrainz API), **Koito**, and any **custom GNU FM** instance.
-* Choose a **primary** service — your loved tracks, similar artists and listening stats come from it — while scrobbles fan out to every connected service. A master switch turns the whole thing on or off.
-* **Last.fm works exactly as before**, including love, similar artists and the Statistics page; your existing connection is migrated automatically on first launch.
-* *Known limitation:* Rocksky currently rejects scrobbles whose title or artist contains non-standard (non-ASCII) characters — a Rocksky-side issue, not a Psysonic bug.
-
 ### Sidebar — pin Now Playing to the top
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1000](https://github.com/Psychotoxical/psysonic/pull/1000), suggested by [@PHLAK](https://github.com/PHLAK)**
@@ -120,6 +111,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Music Network — scrobble to more than just Last.fm
+
+**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1066](https://github.com/Psychotoxical/psysonic/pull/1066)**
+
+* **Settings → Integrations** now hosts a **Music Network** that scrobbles your plays to one or more services at once: **Last.fm**, **Libre.fm**, **Rocksky**, **ListenBrainz** (the public service or any compatible server), **Maloja** (native, Audioscrobbler or ListenBrainz API), **Koito**, and any **custom GNU FM** instance.
+* Choose a **primary** service — your loved tracks, similar artists and listening stats come from it — while scrobbles fan out to every connected service. A master switch turns the whole thing on or off.
+* **Last.fm works exactly as before**, including love, similar artists and the Statistics page; your existing connection is migrated automatically on first launch.
+* *Known limitation:* Rocksky currently rejects scrobbles whose title or artist contains non-standard (non-ASCII) characters — a Rocksky-side issue, not a Psysonic bug.
+
+
+
 ### Live — rich now-playing on Navidrome 0.62+
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1080](https://github.com/Psychotoxical/psysonic/pull/1080)**
@@ -129,19 +131,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Play counts are unchanged — still driven by the existing scrobble path. Servers without the extension keep the previous now-playing behaviour.
 
 
-
 ## Changed
-
-### Settings → Servers — compact server cards
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1054](https://github.com/Psychotoxical/psysonic/pull/1054)**
-
-* Two-line header: custom entry name plus `user@host`, HTTPS lock, and a clickable version info tooltip (hover or tap).
-* Navidrome **0.62+**: green **AudioMuse-AI** inline badge when the plugin is detected; older Navidrome keeps the manual toggle row below the card.
-* **Use** and **Active** share one rightmost slot (green badge vs primary button); card actions are edit → test → use/active. Delete lives in the edit form footer.
-* **TooltipPortal**: `data-tooltip-click` for click-pinned tooltips (touch and explicit open without the 1s hover delay).
-
-
 
 ### Dependencies — npm and Rust refresh
 
@@ -199,77 +189,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Settings → Servers — compact server cards
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1054](https://github.com/Psychotoxical/psysonic/pull/1054)**
+
+* Two-line header: custom entry name plus `user@host`, HTTPS lock, and a clickable version info tooltip (hover or tap).
+* Navidrome **0.62+**: green **AudioMuse-AI** inline badge when the plugin is detected; older Navidrome keeps the manual toggle row below the card.
+* **Use** and **Active** share one rightmost slot (green badge vs primary button); card actions are edit → test → use/active. Delete lives in the edit form footer.
+* **TooltipPortal**: `data-tooltip-click` for click-pinned tooltips (touch and explicit open without the 1s hover delay).
+
+
 ## Fixed
-
-### Windows — idle app no longer blocks system sleep
-
-**By [@cucadmuh](https://github.com/cucadmuh), reported by [@Thraka](https://github.com/Thraka), PR [#1073](https://github.com/Psychotoxical/psysonic/pull/1073)**
-
-* Psysonic no longer keeps the audio output device open while the app is idle — the CPAL stream opens on first playback and closes after **60 seconds** without active audio (pause), or **immediately** on Stop / natural queue end, so Windows `powercfg` no longer reports an in-use audio stream when music is not playing ([#1071](https://github.com/Psychotoxical/psysonic/issues/1071)).
-* Resume after a long pause uses the existing cold path (`audio:output-released` resets the warm-pause flag); post-sleep recovery skips reopening the stream when nothing is playing.
-* **Cold start while paused:** after `getPlayQueue` restores position, the seekbar shows the saved time immediately; the current track is hot-cache prefetched and the engine loads silently (`audio_play` with `startPaused`) at that position so the next Play is a warm `audio_resume` without an audible blip at the start of the track.
-* Rodio `Dropping DeviceSink` warnings on stream release are suppressed unless logging is in debug mode.
-* **Stop keeps the waveform:** stopping no longer wipes the seekbar waveform for the still-shown track — the cached analysis bins are kept and re-hydrated from the database, so the real waveform stays mounted instead of falling back to flat bars.
-
-### Internet radio — no more duplicate now-playing on Linux
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), reported by agriffit79, PR [#1069](https://github.com/Psychotoxical/psysonic/pull/1069)**
-
-* On Linux, playing an internet radio station showed the track twice in the desktop "now playing" overlay — once from the app's own media controls and once from a second player the web engine registered for the stream. The extra player is now suppressed, so radio shows a single entry like regular tracks.
-
-### Fullscreen player — title cleanup
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1068](https://github.com/Psychotoxical/psysonic/pull/1068)**
-
-* The song title no longer shows a leading track number, and letters with descenders (g, j, p, q, y) are no longer clipped along the bottom edge.
-
-### Discord Rich Presence — album art and clearer settings
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1068](https://github.com/Psychotoxical/psysonic/pull/1068)**
-
-* Album art shows again when the cover source is "Server (via album info)" — Discord was handed a local file path it cannot fetch and fell back to the app icon; it now receives a reachable image URL.
-* **Settings → Integrations:** added notices clarifying that this is the built-in Discord Rich Presence, and that the official Navidrome Discord RP plugin needs "Show in Now Playing" enabled instead.
-
-### Local index — multi-genre browse, filters, and counts
-
-**By [@cucadmuh](https://github.com/cucadmuh), reported by HiveMind on the Psysonic Discord, PR [#1059](https://github.com/Psychotoxical/psysonic/pull/1059)**
-
-* Tracks tagged with several genres in one metadata field (e.g. `Noise Metal/Dark Ambient/Experimental Black Metal`) again match **each atomic genre** in Genres browse, All Albums filters, genre detail, and Advanced Search — not only the first segment.
-* New `track_genre` index (OpenSubsonic `genres[]` when present, Navidrome-default split fallback), maintained on sync; one-time blocking startup backfill for existing libraries with progress.
-* Migration v12 repairs databases that recorded legacy schema versions 2–11; TS network fallback uses robust `genreTagsFor` parsing.
-
-
-
-### Navidrome Now Playing and scrobble with local playback
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1055](https://github.com/Psychotoxical/psysonic/pull/1055)**
-
-* **Show in Now Playing** and Navidrome play-count scrobbles no longer silently skip when audio plays from hot cache, offline library pins, or favorites-auto bytes.
-* Presence and queue sync target the **playback server** reachability gate, so a queue on server A still reports to Navidrome while browsing server B.
-
-
-
-### Now Playing — cards no longer blank out on track change
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1042](https://github.com/Psychotoxical/psysonic/pull/1042)**
-
-* The "from this album", "discography" and "most played" sections on the Now Playing page disappeared after a track change once the next track started playing from the local cache, and didn't come back. The page now keeps loading that info whenever the server is reachable, regardless of whether the audio plays from cached or offline bytes.
-
-
-
-### Now Playing — metadata reads from the local library index first
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1049](https://github.com/Psychotoxical/psysonic/pull/1049)**
-
-* The "from this album", "discography", "most played" and song details on the Now Playing page now come from the local library index when it has them, only falling back to the server when the index can't serve a row. Cards and fields (genre, play count, contributors) stay populated during cached and offline playback, with fewer server requests.
-
-
-
-### Library DB — named slow-write ops for stall diagnosis
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1043](https://github.com/Psychotoxical/psysonic/pull/1043)**
-
-* Production `library-db` write paths now log stable `module.action` op names instead of the generic `misc`, so the next `[library-db] SLOW write` line on macOS (or elsewhere) identifies the call site — diagnostic step for playback stalls under long write-lock holds ([#1040](https://github.com/Psychotoxical/psysonic/issues/1040)).
 
 ### Servers — complete border on the active server card
 
@@ -285,14 +215,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Ranged-HTTP FLAC/MP3/OGG streams start playing as soon as enough data is buffered again, instead of waiting for the whole file to download (Symphonia 0.6's trailing-metadata probe scan is skipped for progressive non-MP4 streams).
 * The streaming format probe now runs under a 20s timeout on a worker thread, so a stalled stream (e.g. right after a server switch) no longer blocks playback start until a manual player restart.
-
-
-
-### Playback — macOS stutter from background device checks
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1039](https://github.com/Psychotoxical/psysonic/pull/1039)**
-
-* On some macOS setups playback stuttered at a steady ~3-second cadence: a background check that scans every audio output device ran on each poll and briefly contended with playback. It now runs only when a specific output device is pinned; with the system default (the common case) a single lightweight check runs instead.
 
 
 
@@ -355,6 +277,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Playback — macOS stutter from background device checks
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1039](https://github.com/Psychotoxical/psysonic/pull/1039)**
+
+* On some macOS setups playback stuttered at a steady ~3-second cadence: a background check that scans every audio output device ran on each poll and briefly contended with playback. It now runs only when a specific output device is pinned; with the system default (the common case) a single lightweight check runs instead.
+
+
+
+### Now Playing — cards no longer blank out on track change
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1042](https://github.com/Psychotoxical/psysonic/pull/1042)**
+
+* The "from this album", "discography" and "most played" sections on the Now Playing page disappeared after a track change once the next track started playing from the local cache, and didn't come back. The page now keeps loading that info whenever the server is reachable, regardless of whether the audio plays from cached or offline bytes.
+
+
+
+### Library DB — named slow-write ops for stall diagnosis
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1043](https://github.com/Psychotoxical/psysonic/pull/1043)**
+
+* Production `library-db` write paths now log stable `module.action` op names instead of the generic `misc`, so the next `[library-db] SLOW write` line on macOS (or elsewhere) identifies the call site — diagnostic step for playback stalls under long write-lock holds ([#1040](https://github.com/Psychotoxical/psysonic/issues/1040)).
+
+
+
+### Now Playing — metadata reads from the local library index first
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1049](https://github.com/Psychotoxical/psysonic/pull/1049)**
+
+* The "from this album", "discography", "most played" and song details on the Now Playing page now come from the local library index when it has them, only falling back to the server when the index can't serve a row. Cards and fields (genre, play count, contributors) stay populated during cached and offline playback, with fewer server requests.
+
+
+
 ### Themes — consistent focus borders on inputs and dropdowns
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1052](https://github.com/Psychotoxical/psysonic/pull/1052)**
@@ -372,12 +326,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Navidrome Now Playing and scrobble with local playback
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1055](https://github.com/Psychotoxical/psysonic/pull/1055)**
+
+* **Show in Now Playing** and Navidrome play-count scrobbles no longer silently skip when audio plays from hot cache, offline library pins, or favorites-auto bytes.
+* Presence and queue sync target the **playback server** reachability gate, so a queue on server A still reports to Navidrome while browsing server B.
+
+
+
 ### Album grids — album artist on compilation cards
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1057](https://github.com/Psychotoxical/psysonic/pull/1057), reported in [#1056](https://github.com/Psychotoxical/psysonic/issues/1056)**
 
 * Random Albums, New Releases, All Albums, and other album grids no longer show a track artist on compilation albums when the tags set a single album artist (e.g. **Underworld** on a various-artists mix); the card matches the album page.
 * Local index browse, live search, and FTS album dedupe prefer `album_artist` over per-track `artist`; Hero, Most Played, and offline pin labels use the same display helper.
+
+
+
+### Local index — multi-genre browse, filters, and counts
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by HiveMind on the Psysonic Discord, PR [#1059](https://github.com/Psychotoxical/psysonic/pull/1059)**
+
+* Tracks tagged with several genres in one metadata field (e.g. `Noise Metal/Dark Ambient/Experimental Black Metal`) again match **each atomic genre** in Genres browse, All Albums filters, genre detail, and Advanced Search — not only the first segment.
+* New `track_genre` index (OpenSubsonic `genres[]` when present, Navidrome-default split fallback), maintained on sync; one-time blocking startup backfill for existing libraries with progress.
+* Migration v12 repairs databases that recorded legacy schema versions 2–11; TS network fallback uses robust `genreTagsFor` parsing.
 
 
 
@@ -406,13 +379,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Fullscreen player — title cleanup
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1068](https://github.com/Psychotoxical/psysonic/pull/1068)**
+
+* The song title no longer shows a leading track number, and letters with descenders (g, j, p, q, y) are no longer clipped along the bottom edge.
+
+
+
+### Discord Rich Presence — album art and clearer settings
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1068](https://github.com/Psychotoxical/psysonic/pull/1068)**
+
+* Album art shows again when the cover source is "Server (via album info)" — Discord was handed a local file path it cannot fetch and fell back to the app icon; it now receives a reachable image URL.
+* **Settings → Integrations:** added notices clarifying that this is the built-in Discord Rich Presence, and that the official Navidrome Discord RP plugin needs "Show in Now Playing" enabled instead.
+
+
+
+### Internet radio — no more duplicate now-playing on Linux
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by agriffit79, PR [#1069](https://github.com/Psychotoxical/psysonic/pull/1069)**
+
+* On Linux, playing an internet radio station showed the track twice in the desktop "now playing" overlay — once from the app's own media controls and once from a second player the web engine registered for the stream. The extra player is now suppressed, so radio shows a single entry like regular tracks.
+
+
+
+### Windows — idle app no longer blocks system sleep
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by [@Thraka](https://github.com/Thraka), PR [#1073](https://github.com/Psychotoxical/psysonic/pull/1073)**
+
+* Psysonic no longer keeps the audio output device open while the app is idle — the CPAL stream opens on first playback and closes after **60 seconds** without active audio (pause), or **immediately** on Stop / natural queue end, so Windows `powercfg` no longer reports an in-use audio stream when music is not playing ([#1071](https://github.com/Psychotoxical/psysonic/issues/1071)).
+* Resume after a long pause uses the existing cold path (`audio:output-released` resets the warm-pause flag); post-sleep recovery skips reopening the stream when nothing is playing.
+* **Cold start while paused:** after `getPlayQueue` restores position, the seekbar shows the saved time immediately; the current track is hot-cache prefetched and the engine loads silently (`audio_play` with `startPaused`) at that position so the next Play is a warm `audio_resume` without an audible blip at the start of the track.
+* Rodio `Dropping DeviceSink` warnings on stream release are suppressed unless logging is in debug mode.
+* **Stop keeps the waveform:** stopping no longer wipes the seekbar waveform for the still-shown track — the cached analysis bins are kept and re-hydrated from the database, so the real waveform stays mounted instead of falling back to flat bars.
+
+
+
 ### Auto-install script — `curl | sudo bash` works again
 
 **By [@kbennett2000](https://github.com/kbennett2000), PR [#1079](https://github.com/Psychotoxical/psysonic/pull/1079)**
 
 * The Linux auto-installer (`install.sh`) failed before any download because `[INFO]` log lines were captured into the package URL and curl rejected the mangled string; logging now goes to stderr, the reinstall prompt reads from the terminal, and package downloads use `--fail --globoff`.
-
-
 
 ## [1.47.0]
 

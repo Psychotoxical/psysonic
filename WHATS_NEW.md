@@ -4,6 +4,9 @@ User-facing release highlights for the in-app **What's New** screen. Maintainers
 current line before promoting to `next` / `release`. Technical details and PR credits stay in
 `CHANGELOG.md`.
 
+Within each section, order by **user impact** (most noticeable first) — not PR merge order.
+`CHANGELOG.md` keeps strict PR order inside Added / Changed / Fixed.
+
 ## [1.48.0]
 
 ## Highlights
