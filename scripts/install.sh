@@ -107,7 +107,7 @@ install_package() {
     
     if [ "$OS_TYPE" = "debian" ]; then
         package_file="${package_file}.deb"
-        curl -L -o "$package_file" "$download_url"
+        curl --fail --globoff -L -o "$package_file" "$download_url"
         
         info "Installing package..."
         $PACKAGE_MANAGER install -y "$package_file" || {
@@ -116,7 +116,7 @@ install_package() {
         }
     elif [ "$OS_TYPE" = "rhel" ]; then
         package_file="${package_file}.rpm"
-        curl -L -o "$package_file" "$download_url"
+        curl --fail --globoff -L -o "$package_file" "$download_url"
         
         info "Installing package..."
         $PACKAGE_MANAGER install -y "$package_file"
