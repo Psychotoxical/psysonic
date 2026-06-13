@@ -120,6 +120,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Live — rich now-playing on Navidrome 0.62+
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1080](https://github.com/Psychotoxical/psysonic/pull/1080)**
+
+* On servers that advertise the OpenSubsonic `playbackReport` extension (Navidrome ≥ 0.62), Psysonic reports live transport state and position so **Live** shows who is playing or paused and where in the track — including playback speed when the other client sends it.
+* The position bar glides between refreshes; pause and resume update the server immediately instead of waiting for the audio engine.
+* Play counts are unchanged — still driven by the existing scrobble path. Servers without the extension keep the previous now-playing behaviour.
+
+
+
 ## Changed
 
 ### Settings → Servers — compact server cards
