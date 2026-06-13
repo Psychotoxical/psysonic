@@ -31,11 +31,17 @@ describe('apiKeyOnlyStrategy', () => {
     await expect(apiKeyOnlyStrategy.connect(ctx({}))).rejects.toBeInstanceOf(MusicNetworkError);
   });
 
-  it('prefers a field baseUrl over the context baseUrl', async () => {
+  it('returns the resolved API base (with suffix), not the raw field origin', async () => {
+    // The runtime passes ctx.baseUrl already resolved to origin + selfHostedApiSuffix
+    // (e.g. /apis/listenbrainz for Koito). The strategy must persist that, not the
+    // bare fields.baseUrl — otherwise scrobbles miss the /apis/listenbrainz path.
     const res = await apiKeyOnlyStrategy.connect(
-      ctx({ token: 't', baseUrl: 'https://maloja.example' }, 'https://fallback'),
+      ctx(
+        { token: 't', baseUrl: 'https://koito.example' },
+        'https://koito.example/apis/listenbrainz',
+      ),
     );
-    expect(res.baseUrl).toBe('https://maloja.example');
+    expect(res.baseUrl).toBe('https://koito.example/apis/listenbrainz');
   });
 
   it('falls back to the context baseUrl when no field given', async () => {

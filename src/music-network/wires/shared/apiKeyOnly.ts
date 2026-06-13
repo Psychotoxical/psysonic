@@ -24,7 +24,12 @@ export const apiKeyOnlyStrategy: AuthStrategy = {
         providerId: ctx.presetId,
       });
     }
-    const baseUrl = (ctx.fields.baseUrl ?? '').trim() || ctx.baseUrl;
+    // ctx.baseUrl is the resolved API base (origin + selfHostedApiSuffix, e.g.
+    // `/apis/listenbrainz` for Koito) built by the runtime. Prefer it over the
+    // raw `fields.baseUrl`, which is the bare origin without the suffix — using
+    // the latter sends scrobbles to `<origin>/1/submit-listens` (404/405) instead
+    // of `<origin>/apis/listenbrainz/1/submit-listens`.
+    const baseUrl = ctx.baseUrl || (ctx.fields.baseUrl ?? '').trim();
     return {
       sessionKey: token,
       username: (ctx.fields.username ?? '').trim(),
