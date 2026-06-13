@@ -3,6 +3,7 @@ import { setIsAudioPaused } from './engineState';
 import type { PlayerState } from './playerStoreTypes';
 import { flushQueueSyncToServer } from './queueSync';
 import { playListenSessionFinalize, playListenSessionOnPause } from './playListenSession';
+import { playbackReportPaused, playbackReportStopped } from './playbackReportSession';
 import { pauseRadio, stopRadio } from './radioPlayer';
 import { clearAllPlaybackScheduleTimers } from './scheduleTimers';
 import { clearSeekDebounce } from './seekDebounce';
@@ -31,6 +32,9 @@ export function createTransportLightActions(set: SetState, get: GetState): Pick<
   return {
     stop: () => {
       void playListenSessionFinalize('stop');
+      // Report stopped before the position is reset below so the server drops the
+      // now-playing entry at the right point (playbackReport extension).
+      void playbackReportStopped();
       clearAllPlaybackScheduleTimers();
       const wasRadio = !!get().currentRadio;
       if (wasRadio) {
@@ -74,6 +78,7 @@ export function createTransportLightActions(set: SetState, get: GetState): Pick<
       } else {
         invoke('audio_pause').catch(console.error);
         setIsAudioPaused(true);
+        playbackReportPaused(get().currentTime);
         // Flush position so a quick close after pause still leaves the
         // server with the right resume point for other devices.
         const s = get();

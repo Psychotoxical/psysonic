@@ -5,6 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { NavigateFunction } from 'react-router-dom';
 import { flushPlayQueuePosition } from '../../store/queueSync';
 import { playListenSessionFinalize } from '../../store/playListenSession';
+import { playbackReportStopped } from '../../store/playbackReportSession';
 import { getPlaybackProgressSnapshot } from '../../store/playbackProgress';
 import { usePlayerStore } from '../../store/playerStore';
 import { useAuthStore } from '../../store/authStore';
@@ -110,6 +111,11 @@ export function useMediaAndWindowBridge(navigate: NavigateFunction) {
       const performExit = async () => {
         await Promise.race([
           playListenSessionFinalize('close'),
+          new Promise(r => setTimeout(r, 1500)),
+        ]);
+        // Drop our live now-playing entry on quit (playbackReport extension).
+        await Promise.race([
+          playbackReportStopped(),
           new Promise(r => setTimeout(r, 1500)),
         ]);
         await Promise.race([

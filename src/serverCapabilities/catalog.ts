@@ -13,14 +13,17 @@ import type { CapabilityDefinition } from './types';
  */
 
 export const SONIC_SIMILARITY_EXTENSION = 'sonicSimilarity';
+export const PLAYBACK_REPORT_EXTENSION = 'playbackReport';
 
 export const FEATURE_AUDIOMUSE_SIMILAR_TRACKS = 'audiomuse.similarTracks';
+export const FEATURE_PLAYBACK_REPORT = 'opensubsonic.playbackReport';
 
 export const PROBE_OPENSUBSONIC_EXTENSIONS = 'opensubsonic.extensions';
 export const PROBE_LEGACY_INSTANT_MIX = 'navidrome.instantMix.legacy';
 
 /** Operation names used by the call router. */
 export const OP_SIMILAR_TRACKS = 'similarTracks';
+export const OP_REPORT_PLAYBACK = 'reportPlayback';
 
 export const SERVER_CAPABILITY_CATALOG: CapabilityDefinition[] = [
   {
@@ -62,6 +65,32 @@ export const SERVER_CAPABILITY_CATALOG: CapabilityDefinition[] = [
           [OP_SIMILAR_TRACKS]: { endpoint: 'getSimilarSongs.view', transport: 'subsonic' },
         },
         labelKey: 'settings.audiomuseStrategyLegacy',
+      },
+    ],
+  },
+  {
+    // OpenSubsonic `playbackReport` (Navidrome ≥ 0.62): rich live now-playing via
+    // a small playback FSM. Auto-on wherever the server advertises the extension;
+    // call sites fall back to legacy `scrobble.view?submission=false` presence when
+    // it is absent. Detection is server-agnostic (any OpenSubsonic server may add it).
+    feature: FEATURE_PLAYBACK_REPORT,
+    labelKey: 'nowPlaying.title',
+    strategies: [
+      {
+        id: 'opensubsonic.playbackReport',
+        priority: 100,
+        when: (ctx) => ctx.openSubsonic,
+        detection: {
+          kind: 'extension',
+          probeId: PROBE_OPENSUBSONIC_EXTENSIONS,
+          extension: PLAYBACK_REPORT_EXTENSION,
+        },
+        trust: 'high',
+        activation: 'auto',
+        calls: {
+          [OP_REPORT_PLAYBACK]: { endpoint: 'reportPlayback.view', transport: 'opensubsonic' },
+        },
+        labelKey: 'nowPlaying.title',
       },
     ],
   },

@@ -140,16 +140,29 @@ export function scheduleInstantMixProbeForServer(
   const store = useAuthStore.getState();
 
   if (probeIds.has(PROBE_OPENSUBSONIC_EXTENSIONS)) {
+    // One `getOpenSubsonicExtensions` fetch answers every extension-gated feature.
+    // The AudioMuse `sonicSimilarity` lifecycle (with its opt-in side effects) is
+    // only driven on Navidrome ≥ 0.62, so broadening the probe to all OpenSubsonic
+    // servers for `playbackReport` does not disturb the legacy Instant Mix opt-in.
+    const audiomuseEligible = ctx.isNavidrome && ctx.semverGte([0, 62, 0]);
     const cached = store.audiomusePluginProbeByServer[serverId];
-    // Re-probe only without a definitive cached result (or on force / prior error).
-    // `probing` means an in-flight fetch — skip to avoid a duplicate request.
-    if (force || cached === undefined || cached === 'error') {
-      store.setAudiomusePluginProbe(serverId, 'probing');
+    const listMissing = store.openSubsonicExtensionsByServer[serverId] === undefined;
+    // Re-probe without a definitive cached result, on force / prior error, or when
+    // the extension list is missing (self-heal for state persisted before it was
+    // captured). `probing` means an in-flight fetch — skip to avoid a duplicate.
+    const audiomuseStale = audiomuseEligible && (cached === undefined || cached === 'error');
+    if (force || listMissing || audiomuseStale) {
+      if (audiomuseEligible) store.setAudiomusePluginProbe(serverId, 'probing');
       void fetchOpenSubsonicExtensionsWithCredentials(serverUrl, username, password).then(extensions => {
-        const result = extensions === null
-          ? 'error'
-          : extensions.includes(SONIC_SIMILARITY_EXTENSION) ? 'present' : 'absent';
-        useAuthStore.getState().setAudiomusePluginProbe(serverId, result);
+        const st = useAuthStore.getState();
+        if (extensions === null) {
+          if (audiomuseEligible) st.setAudiomusePluginProbe(serverId, 'error');
+          return;
+        }
+        st.setOpenSubsonicExtensions(serverId, extensions);
+        if (audiomuseEligible) {
+          st.setAudiomusePluginProbe(serverId, extensions.includes(SONIC_SIMILARITY_EXTENSION) ? 'present' : 'absent');
+        }
       });
     }
   }

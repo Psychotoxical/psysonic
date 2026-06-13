@@ -121,6 +121,7 @@ export const useAuthStore = create<AuthState>()(
       audiomuseNavidromeIssueByServer: {},
       instantMixProbeByServer: {},
       audiomusePluginProbeByServer: {},
+      openSubsonicExtensionsByServer: {},
       isLoggedIn: false,
       isConnecting: false,
       connectionError: null,

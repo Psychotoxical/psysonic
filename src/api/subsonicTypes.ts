@@ -142,11 +142,20 @@ export interface SubsonicPlaylist {
   coverArt?: string;
 }
 
+/** OpenSubsonic `playbackReport` lifecycle state, per the extension spec. */
+export type PlaybackReportState = 'starting' | 'playing' | 'paused' | 'stopped';
+
 export interface SubsonicNowPlaying extends SubsonicSong {
   username: string;
   minutesAgo: number;
   playerId: number;
   playerName: string;
+  /** OpenSubsonic `playbackReport`: live transport state for this stream. */
+  state?: PlaybackReportState;
+  /** OpenSubsonic `playbackReport`: server-extrapolated position in milliseconds. */
+  positionMs?: number;
+  /** OpenSubsonic `playbackReport`: effective playback speed (1.0 = normal). */
+  playbackRate?: number;
 }
 
 export interface SubsonicArtist {

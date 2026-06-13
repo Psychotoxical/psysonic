@@ -1,5 +1,10 @@
-import { reportNowPlaying, scrobbleSong } from '../api/subsonicScrobble';
+import { scrobbleSong } from '../api/subsonicScrobble';
 import type { Track } from './playerStoreTypes';
+import {
+  playbackReportPlaying,
+  playbackReportStart,
+  playbackReportStopped,
+} from './playbackReportSession';
 import { resolveQueueTrack } from '../utils/library/queueTrackView';
 import { invoke } from '@tauri-apps/api/core';
 import { getMusicNetworkRuntimeOrNull } from '../music-network';
@@ -97,6 +102,9 @@ export function handleAudioPlaying(duration: number): void {
   if (track) {
     const ref = queueItems[queueIndex];
     void playListenSessionOpen(track, playbackProfileIdForTrack(track, ref), duration);
+    // Engine-confirmed play (initial start + resume) — keep live now-playing in
+    // the `playing` state for servers with the playbackReport extension.
+    playbackReportPlaying();
   }
 }
 
@@ -184,6 +192,9 @@ export function handleAudioProgress(
     const now = Date.now();
     if (now - getLastQueueHeartbeatAt() >= 15_000) {
       void flushQueueSyncToServer(store.queueItems, track, displayTime);
+      // Same 15 s cadence keeps the server's now-playing position fresh so it
+      // can extrapolate accurately between reports (playbackReport extension).
+      playbackReportPlaying(displayTime);
     }
   }
 
@@ -342,6 +353,9 @@ export function handleAudioEnded(): void {
   }
 
   void playListenSessionFinalize('ended');
+  // Track finished — clear live now-playing. A follow-on track (next / repeat)
+  // opens a fresh session via playbackReportStart.
+  void playbackReportStopped();
 
   // Radio stream disconnected — just stop; don't advance queue.
   if (usePlayerStore.getState().currentRadio) {
@@ -460,13 +474,12 @@ export function handleAudioTrackSwitched(_duration: number): void {
   void refreshLoudnessForTrack(nextTrack.id);
   usePlayerStore.getState().updateReplayGainForCurrentTrack();
 
-  // Navidrome now-playing follows nowPlayingEnabled; Music Network now-playing
-  // follows scrobbling, as Last.fm now-playing did (the runtime gates on the
-  // master toggle, per-account enable and the nowPlaying capability internally).
-  const { nowPlayingEnabled } = useAuthStore.getState();
-  if (nowPlayingEnabled) {
-    reportNowPlaying(nextTrack.id, playbackProfileIdForTrack(nextTrack, switchRef));
-  }
+  // Subsonic-server now-playing follows nowPlayingEnabled; Music Network
+  // now-playing follows scrobbling, as Last.fm now-playing did (the runtime gates
+  // on the master toggle, per-account enable and the nowPlaying capability
+  // internally). playbackReportStart opens the FSM on extension-capable servers
+  // and falls back to the legacy presence call otherwise (gating is internal).
+  playbackReportStart(nextTrack.id, playbackProfileIdForTrack(nextTrack, switchRef));
   const runtime = getMusicNetworkRuntimeOrNull();
   void runtime?.dispatchNowPlaying({
     title: nextTrack.title,
@@ -489,6 +502,7 @@ export function handleAudioTrackSwitched(_duration: number): void {
 export function handleAudioError(message: string): void {
   console.error('[psysonic] Audio error from backend:', message);
   setIsAudioPaused(false);
+  void playbackReportStopped();
 
   const detail = message.length > 80 ? message.slice(0, 80) + '…' : message;
   showToast(`Couldn't play track — skipping. ${detail}`, 8000, 'error');

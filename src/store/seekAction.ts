@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { playbackReportSeek } from './playbackReportSession';
 import { isRecoverableSeekError } from '../utils/audio/seekErrors';
 import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { useAuthStore } from './authStore';
@@ -48,6 +49,9 @@ export function runSeek(set: SetState, get: GetState, progress: number): void {
   armSeekDebounce(100, () => {
     const s0 = get();
     if (!s0.currentTrack) return;
+    // Report the new position once the drag settles so live now-playing jumps to
+    // the seeked point instead of waiting for the next heartbeat.
+    playbackReportSeek(time, s0.isPlaying);
     const sidSeek = getPlaybackServerId();
     if (shouldRebindPlaybackToHotCache(s0.currentTrack.id, sidSeek)) {
       setSeekFallbackVisualTarget({

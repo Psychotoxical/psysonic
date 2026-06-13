@@ -57,6 +57,7 @@ export function createServerProfileActions(set: SetState): Pick<
         const { [id]: _iss, ...issueRest } = s.audiomuseNavidromeIssueByServer;
         const { [id]: _pr, ...probeRest } = s.instantMixProbeByServer;
         const { [id]: _ppl, ...pluginProbeRest } = s.audiomusePluginProbeByServer;
+        const { [id]: _ex, ...extRest } = s.openSubsonicExtensionsByServer;
         return {
           servers: newServers,
           activeServerId: switchedAway ? (newServers[0]?.id ?? null) : s.activeServerId,
@@ -67,6 +68,7 @@ export function createServerProfileActions(set: SetState): Pick<
           audiomuseNavidromeIssueByServer: issueRest,
           instantMixProbeByServer: probeRest,
           audiomusePluginProbeByServer: pluginProbeRest,
+          openSubsonicExtensionsByServer: extRest,
         };
       });
     },

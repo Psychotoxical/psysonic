@@ -28,6 +28,7 @@ export function createPerServerCapabilityActions(set: SetState): Pick<
   | 'setSubsonicServerIdentity'
   | 'setInstantMixProbe'
   | 'setAudiomusePluginProbe'
+  | 'setOpenSubsonicExtensions'
   | 'setAudiomuseNavidromeIssue'
 > {
   return {
@@ -71,10 +72,12 @@ export function createPerServerCapabilityActions(set: SetState): Pick<
         if (prev && (prev.serverVersion !== identity.serverVersion || prev.type !== identity.type)) {
           const { [serverId]: _p, ...probeRest } = s.instantMixProbeByServer;
           const { [serverId]: _pp, ...pluginProbeRest } = s.audiomusePluginProbeByServer;
+          const { [serverId]: _ex, ...extRest } = s.openSubsonicExtensionsByServer;
           return {
             subsonicServerIdentityByServer,
             instantMixProbeByServer: probeRest,
             audiomusePluginProbeByServer: pluginProbeRest,
+            openSubsonicExtensionsByServer: extRest,
           };
         }
         return { subsonicServerIdentityByServer };
@@ -115,6 +118,11 @@ export function createPerServerCapabilityActions(set: SetState): Pick<
         }
         return { audiomusePluginProbeByServer };
       }),
+
+    setOpenSubsonicExtensions: (serverId, extensions) =>
+      set(s => ({
+        openSubsonicExtensionsByServer: { ...s.openSubsonicExtensionsByServer, [serverId]: extensions },
+      })),
 
     setAudiomuseNavidromeIssue: (serverId, hasIssue) =>
       set(s =>

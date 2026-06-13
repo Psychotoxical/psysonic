@@ -280,6 +280,15 @@ export interface AuthState {
   audiomusePluginProbeByServer: Record<string, AudiomusePluginProbeResult>;
   setAudiomusePluginProbe: (serverId: string, result: AudiomusePluginProbeResult) => void;
 
+  /**
+   * Full OpenSubsonic extension list per server (from `getOpenSubsonicExtensions`).
+   * One probe answers every extension-gated feature (AudioMuse `sonicSimilarity`,
+   * `playbackReport`, …) instead of re-fetching per feature. Cleared on a server
+   * generation change so the next probe repopulates it.
+   */
+  openSubsonicExtensionsByServer: Record<string, string[]>;
+  setOpenSubsonicExtensions: (serverId: string, extensions: string[]) => void;
+
   // Status
   isLoggedIn: boolean;
   isConnecting: boolean;

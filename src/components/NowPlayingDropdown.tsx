@@ -4,7 +4,7 @@ import { getNowPlaying } from '../api/subsonicScrobble';
 import type { SubsonicNowPlaying } from '../api/subsonicTypes';
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { PlayCircle, User, Clock, Radio, RefreshCw } from 'lucide-react';
+import { PlayCircle, Pause, User, Clock, Radio, RefreshCw } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +23,12 @@ export default function NowPlayingDropdown() {
   const panelRef = useRef<HTMLDivElement>(null);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const PANEL_WIDTH = 340;
+
+  const formatClock = (totalSec: number) => {
+    const s = Math.max(0, Math.floor(totalSec));
+    const m = Math.floor(s / 60);
+    return `${m}:${String(s % 60).padStart(2, '0')}`;
+  };
 
   const updatePanelPos = useCallback(() => {
     const el = triggerWrapRef.current;
@@ -191,6 +197,21 @@ export default function NowPlayingDropdown() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
                           <Clock size={10} style={{ flexShrink: 0 }} />
                           <span className="truncate">{t('nowPlaying.minutesAgo', { n: stream.minutesAgo })}</span>
+                        </div>
+                      )}
+                      {typeof stream.positionMs === 'number' && stream.duration > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, marginTop: '1px' }}>
+                          {stream.state === 'paused' && <Pause size={10} style={{ flexShrink: 0 }} />}
+                          <div style={{ flex: 1, height: '3px', borderRadius: '2px', background: 'var(--border-subtle)', overflow: 'hidden' }}>
+                            <div style={{
+                              width: `${Math.min(100, Math.max(0, (stream.positionMs / 1000 / stream.duration) * 100))}%`,
+                              height: '100%',
+                              background: stream.state === 'paused' ? 'var(--text-muted)' : 'var(--accent)',
+                            }} />
+                          </div>
+                          <span style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+                            {formatClock(stream.positionMs / 1000)} / {formatClock(stream.duration)}
+                          </span>
                         </div>
                       )}
                     </div>

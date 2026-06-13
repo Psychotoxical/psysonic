@@ -1,6 +1,5 @@
 import { useAuthStore } from '../store/authStore';
 import type {
-  AudiomusePluginProbeResult,
   InstantMixProbeResult,
 } from '../utils/server/subsonicServerIdentity';
 import { buildCapabilityContext } from './context';
@@ -25,8 +24,18 @@ import type {
  * Probe results currently live in dedicated per-server store maps. This facade
  * maps them into the generic `ProbeOutcome` shape the resolver consumes, so the
  * catalog/resolver/router stay storage-agnostic.
+ *
+ * The OpenSubsonic extensions outcome is built from the full advertised list
+ * (`openSubsonicExtensionsByServer`) so every extension-gated feature reads from
+ * one source. The AudioMuse `sonicSimilarity` probe lifecycle still supplies the
+ * probing/error transitions (it drives the fetch on Navidrome ≥ 0.62), and acts
+ * as a back-compat fallback for state persisted before the list was captured.
  */
-function pluginProbeToOutcome(probe: AudiomusePluginProbeResult | undefined): ProbeOutcome | undefined {
+function openSubsonicExtensionsOutcome(serverId: string): ProbeOutcome | undefined {
+  const s = useAuthStore.getState();
+  const list = s.openSubsonicExtensionsByServer[serverId];
+  if (list) return { status: 'present', extensions: list };
+  const probe = s.audiomusePluginProbeByServer[serverId];
   switch (probe) {
     case 'present': return { status: 'present', extensions: [SONIC_SIMILARITY_EXTENSION] };
     case 'absent': return { status: 'present', extensions: [] };
@@ -49,7 +58,7 @@ function legacyProbeToOutcome(probe: InstantMixProbeResult | undefined): ProbeOu
 export function buildProbeOutcomesForServer(serverId: string): Record<string, ProbeOutcome | undefined> {
   const s = useAuthStore.getState();
   return {
-    [PROBE_OPENSUBSONIC_EXTENSIONS]: pluginProbeToOutcome(s.audiomusePluginProbeByServer[serverId]),
+    [PROBE_OPENSUBSONIC_EXTENSIONS]: openSubsonicExtensionsOutcome(serverId),
     [PROBE_LEGACY_INSTANT_MIX]: legacyProbeToOutcome(s.instantMixProbeByServer[serverId]),
   };
 }

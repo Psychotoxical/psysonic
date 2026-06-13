@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { buildCapabilityContext } from './context';
 import {
   FEATURE_AUDIOMUSE_SIMILAR_TRACKS,
+  FEATURE_PLAYBACK_REPORT,
   OP_SIMILAR_TRACKS,
+  PLAYBACK_REPORT_EXTENSION,
   PROBE_LEGACY_INSTANT_MIX,
   PROBE_OPENSUBSONIC_EXTENSIONS,
   SERVER_CAPABILITY_CATALOG,
@@ -50,10 +52,40 @@ describe('neededProbeIds', () => {
     expect(ids.has(PROBE_OPENSUBSONIC_EXTENSIONS)).toBe(true);
     expect(ids.has(PROBE_LEGACY_INSTANT_MIX)).toBe(false);
   });
-  it('asks for the legacy probe on 0.61', () => {
+  it('asks for the legacy probe on 0.61, plus the extensions probe for playbackReport', () => {
     const ids = neededProbeIds(SERVER_CAPABILITY_CATALOG, ctxFor('0.61.0'));
     expect(ids.has(PROBE_LEGACY_INSTANT_MIX)).toBe(true);
-    expect(ids.has(PROBE_OPENSUBSONIC_EXTENSIONS)).toBe(false);
+    // playbackReport detection is OpenSubsonic-generic, so the extensions probe
+    // is now needed on any OpenSubsonic server (the fetch is shared).
+    expect(ids.has(PROBE_OPENSUBSONIC_EXTENSIONS)).toBe(true);
+  });
+});
+
+describe('playbackReport capability', () => {
+  const pbDef = getCapabilityDefinition(FEATURE_PLAYBACK_REPORT)!;
+  const withExt: ProbeOutcome = { status: 'present', extensions: [PLAYBACK_REPORT_EXTENSION] };
+  const withoutExt: ProbeOutcome = { status: 'present', extensions: [SONIC_SIMILARITY_EXTENSION] };
+
+  it('is auto-active on any OpenSubsonic server that advertises the extension', () => {
+    const r = resolveCapability(pbDef, ctxFor('0.62.0'), { [PROBE_OPENSUBSONIC_EXTENSIONS]: withExt });
+    expect(r).toMatchObject({ status: 'present', activation: 'auto', trust: 'high' });
+    expect(isCapabilityActive(r, false)).toBe(true);
+  });
+
+  it('detects on non-Navidrome OpenSubsonic servers too', () => {
+    const r = resolveCapability(pbDef, ctxFor('1.16.1', 'gonic'), { [PROBE_OPENSUBSONIC_EXTENSIONS]: withExt });
+    expect(r.status).toBe('present');
+  });
+
+  it('is absent when the extension is not advertised', () => {
+    const r = resolveCapability(pbDef, ctxFor('0.62.0'), { [PROBE_OPENSUBSONIC_EXTENSIONS]: withoutExt });
+    expect(r.status).toBe('absent');
+    expect(isCapabilityActive(r, true)).toBe(false);
+  });
+
+  it('is ineligible on non-OpenSubsonic servers', () => {
+    const r = resolveCapability(pbDef, buildCapabilityContext({ type: 'subsonic', serverVersion: '1.16.1', openSubsonic: false }), {});
+    expect(r.status).toBe('ineligible');
   });
 });
 

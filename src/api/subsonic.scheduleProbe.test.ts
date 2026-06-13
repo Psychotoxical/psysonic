@@ -22,6 +22,7 @@ function reset() {
     instantMixProbeByServer: {},
     audiomuseNavidromeByServer: {},
     audiomuseNavidromeIssueByServer: {},
+    openSubsonicExtensionsByServer: {},
   } as never);
 }
 
@@ -56,6 +57,26 @@ describe('scheduleInstantMixProbeForServer (idempotency)', () => {
     expect(useAuthStore.getState().audiomusePluginProbeByServer[SID]).toBe('error');
     scheduleInstantMixProbeForServer(SID, 'url', 'u', 'p', id062);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('stores the full extension list and caches both sonicSimilarity and playbackReport', async () => {
+    fetchMock.mockResolvedValue(['sonicSimilarity', 'playbackReport']);
+    scheduleInstantMixProbeForServer(SID, 'url', 'u', 'p', id062);
+    await flush();
+    const s = useAuthStore.getState();
+    expect(s.openSubsonicExtensionsByServer[SID]).toEqual(['sonicSimilarity', 'playbackReport']);
+    expect(s.audiomusePluginProbeByServer[SID]).toBe('present');
+  });
+
+  it('stores the list on a non-Navidrome OpenSubsonic server without driving the AudioMuse probe', async () => {
+    fetchMock.mockResolvedValue(['playbackReport']);
+    const idGonic: SubsonicServerIdentity = { type: 'gonic', serverVersion: '0.16.0', openSubsonic: true };
+    scheduleInstantMixProbeForServer(SID, 'url', 'u', 'p', idGonic);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await flush();
+    const s = useAuthStore.getState();
+    expect(s.openSubsonicExtensionsByServer[SID]).toEqual(['playbackReport']);
+    expect(s.audiomusePluginProbeByServer[SID]).toBeUndefined();
   });
 });
 

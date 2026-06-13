@@ -1,4 +1,4 @@
-import { reportNowPlaying } from '../api/subsonicScrobble';
+import { playbackReportStart } from './playbackReportSession';
 import { invoke } from '@tauri-apps/api/core';
 import { getMusicNetworkRuntimeOrNull } from '../music-network';
 import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
@@ -413,10 +413,11 @@ export function runPlayTrack(
         }, 500);
       });
 
-    // Navidrome now-playing follows nowPlayingEnabled; Music Network now-playing
-    // follows scrobbling, as Last.fm now-playing did (runtime gates internally).
-    const { nowPlayingEnabled: npEnabled } = useAuthStore.getState();
-    if (npEnabled) reportNowPlaying(scopedTrack.id, playbackSid);
+    // Subsonic-server now-playing follows nowPlayingEnabled; Music Network
+    // now-playing follows scrobbling, as Last.fm now-playing did (runtime gates
+    // internally). playbackReportStart opens the live FSM on extension-capable
+    // servers and falls back to the legacy presence call otherwise.
+    playbackReportStart(scopedTrack.id, playbackSid);
     const runtime = getMusicNetworkRuntimeOrNull();
     void runtime?.dispatchNowPlaying({
       title: scopedTrack.title,

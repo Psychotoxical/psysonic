@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useAuthStore } from '../store/authStore';
-import { FEATURE_AUDIOMUSE_SIMILAR_TRACKS, OP_SIMILAR_TRACKS } from './catalog';
+import {
+  FEATURE_AUDIOMUSE_SIMILAR_TRACKS,
+  FEATURE_PLAYBACK_REPORT,
+  OP_SIMILAR_TRACKS,
+} from './catalog';
 import {
   isFeatureActiveForServer,
   resolveCallRoutesForServer,
@@ -15,6 +19,7 @@ function seed(identity: Record<string, unknown>, extra: Record<string, unknown> 
     audiomusePluginProbeByServer: {},
     instantMixProbeByServer: {},
     audiomuseNavidromeByServer: {},
+    openSubsonicExtensionsByServer: {},
     ...extra,
   } as never);
 }
@@ -26,6 +31,7 @@ describe('storeView (capability read facade)', () => {
       audiomusePluginProbeByServer: {},
       instantMixProbeByServer: {},
       audiomuseNavidromeByServer: {},
+      openSubsonicExtensionsByServer: {},
     } as never);
   });
 
@@ -63,5 +69,21 @@ describe('storeView (capability read facade)', () => {
     seed({ type: 'gonic', serverVersion: '0.16.0', openSubsonic: true });
     expect(resolveFeatureForServer(SID, FEATURE_AUDIOMUSE_SIMILAR_TRACKS)?.status).toBe('ineligible');
     expect(resolveCallRoutesForServer(SID, FEATURE_AUDIOMUSE_SIMILAR_TRACKS, OP_SIMILAR_TRACKS)).toEqual([]);
+  });
+
+  it('playbackReport is active from the stored extension list', () => {
+    seed({ type: 'navidrome', serverVersion: '0.62.1', openSubsonic: true }, {
+      openSubsonicExtensionsByServer: { [SID]: ['sonicSimilarity', 'playbackReport'] },
+    });
+    expect(isFeatureActiveForServer(SID, FEATURE_PLAYBACK_REPORT)).toBe(true);
+    // The same stored list still satisfies AudioMuse detection.
+    expect(isFeatureActiveForServer(SID, FEATURE_AUDIOMUSE_SIMILAR_TRACKS)).toBe(true);
+  });
+
+  it('playbackReport is inactive when the extension is absent from the list', () => {
+    seed({ type: 'navidrome', serverVersion: '0.62.1', openSubsonic: true }, {
+      openSubsonicExtensionsByServer: { [SID]: ['sonicSimilarity'] },
+    });
+    expect(isFeatureActiveForServer(SID, FEATURE_PLAYBACK_REPORT)).toBe(false);
   });
 });
