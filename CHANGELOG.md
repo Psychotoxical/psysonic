@@ -396,6 +396,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+### Auto-install script — `curl | sudo bash` works again
+
+**By [@kbennett2000](https://github.com/kbennett2000), PR [#1079](https://github.com/Psychotoxical/psysonic/pull/1079)**
+
+* The Linux auto-installer (`install.sh`) failed before any download because `[INFO]` log lines were captured into the package URL and curl rejected the mangled string; logging now goes to stderr, the reinstall prompt reads from the terminal, and package downloads use `--fail --globoff`.
+
+
+
 ## [1.47.0]
 
 > **🙏 Thank you to our amazing Discord community.** This release would not have been possible without your tireless support, quality checks, bug reports and all-round collaboration. Every report, every repro and every bit of feedback shaped what shipped here — thank you. Come join us: [discord.gg/AMnDRErm4u](https://discord.gg/AMnDRErm4u)

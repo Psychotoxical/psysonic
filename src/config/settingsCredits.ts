@@ -377,6 +377,13 @@ const CONTRIBUTOR_ENTRIES = [
       'Long-press album Play to shuffle with hold progress animation (PR #888)',
     ],
   },
+  {
+    github: 'kbennett2000',
+    since: '1.48.0',
+    contributions: [
+      'Linux auto-install script — fix curl | sudo bash URL capture bug (PR #1079)',
+    ],
+  },
 ] as const;
 
 // PR number of a contributor's first listed contribution, used as the
