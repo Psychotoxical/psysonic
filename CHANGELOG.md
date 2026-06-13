@@ -131,6 +131,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Play counts are unchanged — still driven by the existing scrobble path. Servers without the extension keep the previous now-playing behaviour.
 
 
+
+### Title bar — selectable window button styles
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1083](https://github.com/Psychotoxical/psysonic/pull/1083), suggested by [@PHLAK](https://github.com/PHLAK)**
+
+* The Linux custom title bar gets a **window button style** picker in **Settings → Appearance → Custom title bar** — choose between dots, dots with icons, flat, pill, outline, and minimal looks.
+* All styles now carry minimize/maximize/close icons for clear, colour-blind-friendly buttons, and an optional toggle hides the minimize button (maximize and close only).
+
+
 ## Changed
 
 ### Dependencies — npm and Rust refresh
