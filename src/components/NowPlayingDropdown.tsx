@@ -237,17 +237,23 @@ export default function NowPlayingDropdown() {
                         return (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, marginTop: '1px' }}>
                             {stream.state === 'paused' && <Pause size={10} style={{ flexShrink: 0 }} />}
-                            <div style={{ flex: 1, height: '3px', borderRadius: '2px', background: 'var(--border-subtle)', overflow: 'hidden' }}>
-                              <div style={{
-                                width: `${Math.min(100, Math.max(0, (posSec / stream.duration) * 100))}%`,
-                                height: '100%',
-                                background: playing ? 'var(--accent)' : 'var(--text-muted)',
-                                // Linear easing matched to the 1 s tick keeps the fill gliding.
-                                transition: playing ? 'width 1s linear' : 'none',
-                              }} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ height: '3px', borderRadius: '2px', background: 'var(--border-subtle)', overflow: 'hidden' }}>
+                                <div style={{
+                                  width: `${Math.min(100, Math.max(0, (posSec / stream.duration) * 100))}%`,
+                                  height: '100%',
+                                  background: playing ? 'var(--accent)' : 'var(--text-muted)',
+                                  transition: playing ? 'width 1s linear' : 'none',
+                                }} />
+                              </div>
                             </div>
-                            <span style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
-                              {formatClock(posSec)} / {formatClock(stream.duration)}
+                            <span style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                              {/* ~2ch reserve inside the current-time box (9:59→10:00), not empty gap before the bar. */}
+                              <span style={{ display: 'inline-block', minWidth: '6ch', textAlign: 'right' }}>
+                                {formatClock(posSec)}
+                              </span>
+                              {' / '}
+                              {formatClock(stream.duration)}
                             </span>
                           </div>
                         );

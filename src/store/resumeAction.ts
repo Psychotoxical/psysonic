@@ -31,6 +31,7 @@ import type { PlayerState } from './playerStoreTypes';
 import { resolveQueueTrack } from '../utils/library/queueTrackView';
 import { promoteCompletedStreamToHotCache } from './promoteStreamCache';
 import { syncQueueToServer } from './queueSync';
+import { playbackReportPlaying } from './playbackReportSession';
 import { resumeRadio } from './radioPlayer';
 import { clearAllPlaybackScheduleTimers } from './scheduleTimers';
 
@@ -91,8 +92,10 @@ export function runResume(set: SetState, get: GetState): void {
             invoke('audio_resume').catch(console.error);
             setIsAudioPaused(false);
             set({ isPlaying: true });
+            playbackReportPlaying(targetSec);
           } else {
             set({ isPlaying: true });
+            playbackReportPlaying(targetSec);
           }
         } else {
           // Host has a different track — load it (`_orbitConfirmed=true`
@@ -127,6 +130,8 @@ export function runResume(set: SetState, get: GetState): void {
     invoke('audio_resume').catch(console.error);
     setIsAudioPaused(false);
     set({ isPlaying: true });
+    // Mirror pause(): tell the server immediately, don't wait for `audio:playing`.
+    playbackReportPlaying(currentTime);
     touchHotCacheOnPlayback(currentTrack.id, getPlaybackCacheServerKey());
   } else {
     // Engine has no loaded paused stream (app relaunch, or track ended and user
@@ -135,6 +140,7 @@ export function runResume(set: SetState, get: GetState): void {
     const gen = bumpPlayGeneration();
     const vol = get().volume;
     set({ isPlaying: true });
+    playbackReportPlaying(currentTime);
 
     void (async () => {
       const authHot = useAuthStore.getState();
