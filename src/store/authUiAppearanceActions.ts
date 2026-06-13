@@ -19,6 +19,8 @@ export function createUiAppearanceActions(set: SetState): Pick<
   | 'setClockFormat'
   | 'setShowOrbitTrigger'
   | 'setUseCustomTitlebar'
+  | 'setWindowButtonStyle'
+  | 'setShowMinimizeButton'
   | 'setPreloadMiniPlayer'
   | 'setLinuxWebkitKineticScroll'
   | 'setLinuxWaylandTextRenderProfile'
@@ -41,6 +43,8 @@ export function createUiAppearanceActions(set: SetState): Pick<
     setClockFormat: (v) => set({ clockFormat: v }),
     setShowOrbitTrigger: (v) => set({ showOrbitTrigger: v }),
     setUseCustomTitlebar: (v) => set({ useCustomTitlebar: v }),
+    setWindowButtonStyle: (v) => set({ windowButtonStyle: v }),
+    setShowMinimizeButton: (v) => set({ showMinimizeButton: v }),
     setPreloadMiniPlayer: (v) => set({ preloadMiniPlayer: v }),
     setLinuxWebkitKineticScroll: (v) => set({ linuxWebkitKineticScroll: v }),
     setLinuxWaylandTextRenderProfile: (v) => set({ linuxWaylandTextRenderProfile: v }),

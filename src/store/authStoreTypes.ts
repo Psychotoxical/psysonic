@@ -33,6 +33,17 @@ export interface ServerProfile {
 }
 
 export type SeekbarStyle = 'truewave' | 'pseudowave' | 'linedot' | 'bar' | 'thick' | 'segmented' | 'neon' | 'pulsewave' | 'particletrail' | 'liquidfill' | 'retrotape';
+/**
+ * Look of the custom-title-bar window buttons (minimize/maximize/close).
+ * Form-descriptive names, not OS brands:
+ * - `dots`: coloured traffic-light circles, glyphs appear on hover (default).
+ * - `dotsGlyph`: traffic-light circles with always-visible glyphs (colour + shape).
+ * - `flat`: full-height rectangular buttons with line glyphs, red close hover.
+ * - `pill`: soft circular monochrome buttons with glyphs.
+ * - `outline`: square bordered buttons with thin glyphs, accent hover.
+ * - `glyph`: themed monochrome glyphs only, no background — blends with the app.
+ */
+export type WindowButtonStyle = 'dots' | 'dotsGlyph' | 'flat' | 'pill' | 'outline' | 'glyph';
 /** Queue header duration chip: total duration / time left / ETA finish clock. */
 export type DurationMode = 'total' | 'remaining' | 'eta';
 
@@ -143,6 +154,10 @@ export interface AuthState {
    *  Empty string falls back to "Psysonic". */
   discordTemplateName: string;
   useCustomTitlebar: boolean;
+  /** Look of the custom-title-bar window buttons (Linux custom title bar only). */
+  windowButtonStyle: WindowButtonStyle;
+  /** Show the minimize button in the custom title bar. Off = only maximize + close. */
+  showMinimizeButton: boolean;
   /** Pre-build the mini-player webview at app start on Linux/macOS so content is available instantly
    *  on first open. Ignored on Windows — that platform always pre-creates as a hang workaround. */
   preloadMiniPlayer: boolean;
@@ -344,6 +359,8 @@ export interface AuthState {
   setDiscordTemplateLargeText: (v: string) => void;
   setDiscordTemplateName: (v: string) => void;
   setUseCustomTitlebar: (v: boolean) => void;
+  setWindowButtonStyle: (v: WindowButtonStyle) => void;
+  setShowMinimizeButton: (v: boolean) => void;
   setPreloadMiniPlayer: (v: boolean) => void;
   setLinuxWebkitKineticScroll: (v: boolean) => void;
   setLinuxWaylandTextRenderProfile: (v: LinuxWaylandTextRenderProfile) => void;

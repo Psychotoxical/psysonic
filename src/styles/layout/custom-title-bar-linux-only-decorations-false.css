@@ -89,39 +89,26 @@
   flex: 0 0 auto;
 }
 
+/* Shared base — each style below overrides shape, fill and glyph colour. */
 .titlebar-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
   padding: 0;
   border: none;
-  border-radius: 50%;
+  background: transparent;
+  color: var(--text-primary);
   cursor: pointer;
-  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18);
-  transition: filter var(--transition-fast), box-shadow var(--transition-fast);
+  transition: filter var(--transition-fast), box-shadow var(--transition-fast),
+    background var(--transition-fast), color var(--transition-fast),
+    border-color var(--transition-fast), opacity var(--transition-fast);
 }
 
-.titlebar-btn-close {
-  background: #ff5f57;
+.titlebar-btn svg {
+  width: 10px;
+  height: 10px;
+  display: block;
 }
-
-.titlebar-btn-minimize {
-  background: #febc2e;
-}
-
-.titlebar-btn-maximize {
-  background: #28c840;
-}
-
-.titlebar-btn:hover {
-  filter: brightness(1.1);
-}
-
-.titlebar-btn-close:hover    { box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 0 6px rgba(255, 95, 87, 0.75); }
-.titlebar-btn-minimize:hover { box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 0 6px rgba(254, 188, 46, 0.75); }
-.titlebar-btn-maximize:hover { box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 0 6px rgba(40, 200, 64, 0.75); }
 
 .titlebar-btn:active {
   filter: brightness(0.92);
@@ -129,8 +116,89 @@
 
 .titlebar-btn:focus-visible {
   outline: none;
-  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 0 0 2px rgba(255, 255, 255, 0.5);
+  box-shadow: 0 0 0 2px var(--accent);
 }
+
+/* ── dots / dotsGlyph — colour-circle window buttons ── */
+[data-btnstyle="dots"] .titlebar-btn,
+[data-btnstyle="dotsGlyph"] .titlebar-btn {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  color: rgba(0, 0, 0, 0.55);
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18);
+}
+[data-btnstyle="dots"] .titlebar-btn svg,
+[data-btnstyle="dotsGlyph"] .titlebar-btn svg {
+  width: 8px;
+  height: 8px;
+}
+[data-btnstyle="dots"] .titlebar-btn-close,
+[data-btnstyle="dotsGlyph"] .titlebar-btn-close    { background: #ff5f57; }
+[data-btnstyle="dots"] .titlebar-btn-minimize,
+[data-btnstyle="dotsGlyph"] .titlebar-btn-minimize { background: #febc2e; }
+[data-btnstyle="dots"] .titlebar-btn-maximize,
+[data-btnstyle="dotsGlyph"] .titlebar-btn-maximize { background: #28c840; }
+[data-btnstyle="dots"] .titlebar-btn:hover,
+[data-btnstyle="dotsGlyph"] .titlebar-btn:hover    { filter: brightness(1.1); }
+[data-btnstyle="dots"] .titlebar-btn-close:hover,
+[data-btnstyle="dotsGlyph"] .titlebar-btn-close:hover    { box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 0 6px rgba(255, 95, 87, 0.75); }
+[data-btnstyle="dots"] .titlebar-btn-minimize:hover,
+[data-btnstyle="dotsGlyph"] .titlebar-btn-minimize:hover { box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 0 6px rgba(254, 188, 46, 0.75); }
+[data-btnstyle="dots"] .titlebar-btn-maximize:hover,
+[data-btnstyle="dotsGlyph"] .titlebar-btn-maximize:hover { box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 0 6px rgba(40, 200, 64, 0.75); }
+/* dots: glyphs reveal on hover (authentic); dotsGlyph: always shown */
+[data-btnstyle="dots"] .titlebar-btn svg { opacity: 0; }
+[data-btnstyle="dots"] .titlebar-controls:hover .titlebar-btn svg,
+[data-btnstyle="dots"]:hover .titlebar-btn svg { opacity: 1; }
+[data-btnstyle="dotsGlyph"] .titlebar-btn svg { opacity: 0.85; }
+
+/* ── flat — full-height rectangular buttons, red close hover ── */
+.titlebar-controls[data-btnstyle="flat"] { gap: 0; padding: 0; margin-right: -6px; }
+[data-btnstyle="flat"] .titlebar-btn {
+  width: 30px;
+  height: var(--titlebar-height);
+  border-radius: 0;
+}
+[data-btnstyle="flat"] .titlebar-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+[data-btnstyle="flat"] .titlebar-btn-close:hover { background: #e81123; color: #fff; }
+
+/* ── pill — soft circular monochrome buttons ── */
+[data-btnstyle="pill"] .titlebar-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--bg-hover);
+}
+[data-btnstyle="pill"] .titlebar-btn:hover { filter: brightness(1.18); color: var(--text-primary); }
+[data-btnstyle="pill"] .titlebar-btn-close:hover { background: #e01b24; color: #fff; filter: none; }
+
+/* ── outline — square bordered buttons, accent hover ── */
+[data-btnstyle="outline"] .titlebar-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+[data-btnstyle="outline"] .titlebar-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+[data-btnstyle="outline"] .titlebar-btn-close:hover {
+  border-color: #e01b24;
+  color: #e01b24;
+  background: color-mix(in srgb, #e01b24 12%, transparent);
+}
+
+/* ── glyph — themed monochrome, no fill, blends with the app ── */
+[data-btnstyle="glyph"] .titlebar-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+}
+[data-btnstyle="glyph"] .titlebar-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+[data-btnstyle="glyph"] .titlebar-btn-close:hover { background: var(--bg-hover); color: #ff5f57; }
 
 /* Resizer handles must start below the titlebar */
 .app-shell[data-titlebar] .resizer {

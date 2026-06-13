@@ -19,6 +19,7 @@ import type {
   LyricsSourceConfig,
   QueueDisplayMode,
   SeekbarStyle,
+  WindowButtonStyle,
 } from './authStoreTypes';
 import { migrateLegacyLastfm, sanitizeAccounts } from '../music-network';
 
@@ -92,6 +93,17 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
   const seekbarStyleMigrated = VALID_SEEKBAR_STYLES.has(state.seekbarStyle as string)
     ? {}
     : { seekbarStyle: 'truewave' as SeekbarStyle };
+
+  // Unknown / missing / tampered window-button style falls back to the
+  // default 'dots' so the title bar never renders an unstyled data-attr.
+  const VALID_WINDOW_BUTTON_STYLES = new Set<string>([
+    'dots', 'dotsGlyph', 'flat', 'pill', 'outline', 'glyph',
+  ]);
+  const windowButtonStyleMigrated = VALID_WINDOW_BUTTON_STYLES.has(
+    (state as { windowButtonStyle?: unknown }).windowButtonStyle as string,
+  )
+    ? {}
+    : { windowButtonStyle: 'dots' as WindowButtonStyle };
 
   // Garbage / null / undefined / missing key from a legacy or tampered persist
   // payload maps back to 'total' so the duration chip never receives an
@@ -236,6 +248,7 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     ...youLyPlusMigrated,
     ...wheelSmoothOneTime,
     ...seekbarStyleMigrated,
+    ...windowButtonStyleMigrated,
     ...queueDurationDisplayModeMigrated,
     ...queueDisplayModeMigrated,
     ...linuxWaylandTextRenderProfileMigrated,

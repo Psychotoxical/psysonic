@@ -58,6 +58,8 @@ describe('trivial pass-through setters', () => {
     ['setDiscordRichPresence', 'discordRichPresence', true],
     ['setEnableBandsintown', 'enableBandsintown', true],
     ['setUseCustomTitlebar', 'useCustomTitlebar', true],
+    ['setWindowButtonStyle', 'windowButtonStyle', 'flat'],
+    ['setShowMinimizeButton', 'showMinimizeButton', false],
     ['setPreloadMiniPlayer', 'preloadMiniPlayer', true],
     ['setLinuxWebkitKineticScroll', 'linuxWebkitKineticScroll', false],
     ['setLinuxWaylandTextRenderProfile', 'linuxWaylandTextRenderProfile', 'gpu'],
