@@ -130,7 +130,9 @@ install_package() {
 check_installed() {
     if command -v $APP_NAME &> /dev/null || command -v ${APP_NAME^} &> /dev/null; then
         warn "${APP_NAME} appears to be already installed."
-        read -p "Do you want to reinstall? (y/N): " -n 1 -r
+        # Under `curl ... | bash`, stdin is the script stream itself, so
+        # read the answer from the controlling terminal instead.
+        read -p "Do you want to reinstall? (y/N): " -n 1 -r < /dev/tty
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             info "Installation cancelled."
