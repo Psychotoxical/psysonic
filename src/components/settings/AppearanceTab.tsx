@@ -7,12 +7,13 @@ import {
   LIBRARY_GRID_MAX_COLUMNS_MAX,
   LIBRARY_GRID_MAX_COLUMNS_MIN,
 } from '../../store/authStoreDefaults';
-import type { SeekbarStyle } from '../../store/authStoreTypes';
+import type { SeekbarStyle, WindowButtonStyle } from '../../store/authStoreTypes';
 import { useFontStore, FontId } from '../../store/fontStore';
 import { useThemeStore } from '../../store/themeStore';
 import { IS_LINUX, IS_WINDOWS } from '../../utils/platform';
 import SettingsSubSection from '../SettingsSubSection';
 import { SeekbarPreview } from '../WaveformSeekPreview';
+import WindowButtonPreview from '../WindowButtonPreview';
 
 export function AppearanceTab() {
   const { t } = useTranslation();
@@ -170,6 +171,39 @@ export function AppearanceTab() {
                   <span className="toggle-track" />
                 </label>
               </div>
+              {auth.useCustomTitlebar && (
+                <>
+                  <div className="settings-section-divider" />
+                  <div>
+                    <div style={{ fontWeight: 500 }}>{t('settings.windowButtonStyle')}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                      {t('settings.windowButtonStyleDesc')}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                      {(['dots', 'dotsGlyph', 'flat', 'pill', 'outline', 'glyph'] as WindowButtonStyle[]).map(style => (
+                        <WindowButtonPreview
+                          key={style}
+                          style={style}
+                          label={t(`settings.windowButtons${style.charAt(0).toUpperCase() + style.slice(1)}` as any)}
+                          selected={auth.windowButtonStyle === style}
+                          onClick={() => auth.setWindowButtonStyle(style)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="settings-section-divider" />
+                  <div className="settings-toggle-row">
+                    <div>
+                      <div style={{ fontWeight: 500 }}>{t('settings.showMinimizeButton')}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showMinimizeButtonDesc')}</div>
+                    </div>
+                    <label className="toggle-switch" aria-label={t('settings.showMinimizeButton')}>
+                      <input type="checkbox" checked={auth.showMinimizeButton} onChange={e => auth.setShowMinimizeButton(e.target.checked)} />
+                      <span className="toggle-track" />
+                    </label>
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>

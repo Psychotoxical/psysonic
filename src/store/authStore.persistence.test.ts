@@ -131,6 +131,28 @@ describe('onRehydrate migrations', () => {
     expect(useAuthStore.getState().seekbarStyle).toBe('neon');
   });
 
+  it('falls back an invalid windowButtonStyle to `dots`', async () => {
+    writePersistedState({
+      servers: [],
+      activeServerId: null,
+      windowButtonStyle: 'bogus', // not in VALID_WINDOW_BUTTON_STYLES
+    });
+
+    await useAuthStore.persist.rehydrate();
+    expect(useAuthStore.getState().windowButtonStyle).toBe('dots');
+  });
+
+  it('keeps a valid windowButtonStyle unchanged', async () => {
+    writePersistedState({
+      servers: [],
+      activeServerId: null,
+      windowButtonStyle: 'glyph',
+    });
+
+    await useAuthStore.persist.rehydrate();
+    expect(useAuthStore.getState().windowButtonStyle).toBe('glyph');
+  });
+
   it('strips the removed `animationMode` and `reducedAnimations` legacy fields', async () => {
     writePersistedState({
       servers: [],

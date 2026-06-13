@@ -74,6 +74,8 @@ export const useAuthStore = create<AuthState>()(
       discordTemplateLargeText: '{album}',
       discordTemplateName: '{title}',
       useCustomTitlebar: false,
+      windowButtonStyle: 'dots',
+      showMinimizeButton: true,
       preloadMiniPlayer: false,
       linuxWebkitKineticScroll: true,
       linuxWaylandTextRenderProfile: 'sharp',
