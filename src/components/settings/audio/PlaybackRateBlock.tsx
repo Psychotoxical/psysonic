@@ -61,6 +61,19 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
     }
   };
 
+  const strategyTip = (s: PlaybackStrategy) => {
+    switch (s) {
+      case 'speed_corrected':
+        return t('settings.playbackRateStrategySpeedTip');
+      case 'varispeed':
+        return t('settings.playbackRateStrategyVarispeedTip');
+      case 'varispeed_semitones':
+        return t('settings.playbackRateStrategyVarispeedSemitonesTip');
+      case 'preserve_pitch':
+        return t('settings.playbackRateStrategyPreserveTip');
+    }
+  };
+
   const handleWheelSpeed = useCallback((e: React.WheelEvent<HTMLElement>) => {
     if (!compact || !enabled) return;
     e.preventDefault();
@@ -122,6 +135,8 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
                   type="button"
                   className={`btn btn-sm ${strategy === s ? 'btn-primary' : 'btn-surface'}`}
                   onClick={() => setStrategy(s)}
+                  data-tooltip={strategyTip(s)}
+                  data-tooltip-wrap=""
                 >
                   {strategyLabel(s)}
                 </button>

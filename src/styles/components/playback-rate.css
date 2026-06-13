@@ -16,6 +16,13 @@
   gap: 0.5rem;
 }
 
+/* Let all four strategies share the row width evenly in Settings; they still
+ * wrap gracefully in the narrow player popover. */
+.playback-rate-strategy-btns > .btn {
+  flex: 1 1 auto;
+  white-space: nowrap;
+}
+
 .playback-rate-slider-row {
   display: flex;
   align-items: center;
