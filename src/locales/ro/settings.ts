@@ -450,6 +450,8 @@ export const settings = {
   playbackRatePitch: 'Ton',
   playbackRateDerivedPitch: 'Deplasare ton din viteză: {{value}}',
   playbackRateDerivedSpeed: 'Viteză din semitonuri: {{value}}',
+  playbackRateFineStep: 'Reglaj fin',
+  playbackRateFineStepDesc: 'Pași mai mici ai glisorului: 0,01× pentru viteză și 0,01 st pentru ton.',
   playbackRateAutoPitch: 'Tonul este corectat automat.',
   playbackRateHint: '« Viteză » păstrează tonul natural. « Cu ton » schimbă tonul odată cu viteza. « Cu ton (semitonuri) » setează această schimbare direct în semitonuri. « Ton » adaugă o deplasare manuală. Consumă mai mult CPU decât « Cu ton ». Nu pentru radio, previzualizări sau Orbit.',
   playbackRateNeutral: 'La 1,0× și fără deplasare de ton, redarea este normală.',

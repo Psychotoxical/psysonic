@@ -447,6 +447,8 @@ export const settings = {
   playbackRatePitch: 'Tono',
   playbackRateDerivedPitch: 'Cambio de tono por velocidad: {{value}}',
   playbackRateDerivedSpeed: 'Velocidad según semitonos: {{value}}',
+  playbackRateFineStep: 'Ajuste fino',
+  playbackRateFineStepDesc: 'Pasos de control más pequeños: 0,01× para la velocidad y 0,01 st para el tono.',
   playbackRateAutoPitch: 'El tono se corrige automáticamente.',
   playbackRateHint: '« Velocidad » mantiene el tono natural. « Con tono » cambia el tono con la velocidad. « Con tono (semitonos) » ajusta ese cambio directamente en semitonos. « Tono » añade un desplazamiento manual. Usa más CPU que « Con tono ». No para radio, vistas previas u Orbit.',
   playbackRateNeutral: 'A 1,0× y sin desplazamiento de tono, la reproducción es normal.',

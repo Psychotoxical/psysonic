@@ -444,6 +444,8 @@ export const settings = {
   playbackRatePitch: '音高',
   playbackRateDerivedPitch: '速度引起的音高偏移：{{value}}',
   playbackRateDerivedSpeed: '由半音得出的速度：{{value}}',
+  playbackRateFineStep: '精细调节',
+  playbackRateFineStepDesc: '更小的滑块步长：速度 0.01×，音高 0.01 半音。',
   playbackRateAutoPitch: '音高会自动校正。',
   playbackRateHint: '「速度」保持音高不变。「随速变调」会随速度改变音高。「随速变调（半音）」可直接以半音设置该音高变化。「音高」可手动偏移。比「随速变调」占用更多 CPU。不适用于电台、预览或 Orbit。',
   playbackRateNeutral: '在 1.0× 且无音高偏移时，播放为正常速度。',

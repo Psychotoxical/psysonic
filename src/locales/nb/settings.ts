@@ -444,6 +444,8 @@ export const settings = {
   playbackRatePitch: 'Tonehøyde',
   playbackRateDerivedPitch: 'Tonehøydeforskyvning fra hastighet: {{value}}',
   playbackRateDerivedSpeed: 'Hastighet fra halvtoner: {{value}}',
+  playbackRateFineStep: 'Finjustering',
+  playbackRateFineStepDesc: 'Mindre glidebryter-steg: 0,01× for hastighet og 0,01 ht for tonehøyde.',
   playbackRateAutoPitch: 'Tonehøyden korrigeres automatisk.',
   playbackRateHint: '« Hastighet » beholder naturlig tonehøyde. « Med tone » endrer tonehøyden med hastigheten. « Med tone (halvtoner) » stiller denne endringen direkte i halvtoner. « Tonehøyde » legger til manuell forskyvning. Mer CPU enn « Med tone ». Ikke for radio, forhåndsvisninger eller Orbit.',
   playbackRateNeutral: 'Ved 1,0× og uten toneforskyvning er avspilling normal.',

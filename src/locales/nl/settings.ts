@@ -445,6 +445,8 @@ export const settings = {
   playbackRatePitch: 'Toonhoogte',
   playbackRateDerivedPitch: 'Toonhoogteverschuiving door snelheid: {{value}}',
   playbackRateDerivedSpeed: 'Snelheid uit halve tonen: {{value}}',
+  playbackRateFineStep: 'Fijnafstelling',
+  playbackRateFineStepDesc: 'Kleinere schuifregelaarstappen: 0,01× voor snelheid en 0,01 ht voor toonhoogte.',
   playbackRateAutoPitch: 'De toonhoogte wordt automatisch gecorrigeerd.',
   playbackRateHint: '« Snelheid » behoudt de natuurlijke toonhoogte. « Met toon » verandert de toonhoogte met de snelheid. « Met toon (halve tonen) » stelt die verandering rechtstreeks in halve tonen in. « Toonhoogte » voegt een handmatige verschuiving toe. Meer CPU dan « Met toon ». Niet voor radio, previews of Orbit.',
   playbackRateNeutral: 'Bij 1,0× en zonder toonverschuiving is afspelen normaal.',

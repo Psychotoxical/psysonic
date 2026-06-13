@@ -448,6 +448,8 @@ export const settings = {
   playbackRatePitch: 'Tonhöhe',
   playbackRateDerivedPitch: 'Tonhöhenverschiebung durch Geschwindigkeit: {{value}}',
   playbackRateDerivedSpeed: 'Geschwindigkeit aus Halbtönen: {{value}}',
+  playbackRateFineStep: 'Feinabstimmung',
+  playbackRateFineStepDesc: 'Kleinere Schieberegler-Schritte: 0,01× für Geschwindigkeit und 0,01 Ht für Tonhöhe.',
   playbackRateAutoPitch: 'Die Tonhöhe wird automatisch korrigiert.',
   playbackRateHint: '„Geschwindigkeit“ behält die Tonhöhe bei. „Tonhöhe folgt dem Tempo“ verschiebt die Tonhöhe mit der Geschwindigkeit. „Tonhöhe folgt dem Tempo (Halbtöne)“ stellt diese Tonhöhenänderung direkt in Halbtönen ein. „Tonhöhe“ fügt eine manuelle Verschiebung hinzu. Höhere CPU-Last als bei „Tonhöhe folgt dem Tempo“. Nicht für Radio, Vorschau oder Orbit.',
   playbackRateNeutral: 'Bei 1,0× und ohne Tonverschiebung ist die Wiedergabe normal.',

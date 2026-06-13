@@ -30,6 +30,18 @@ export const PLAYBACK_PITCH_MAX = 12;
 export const PLAYBACK_PITCH_STEP = 0.1;
 export const PLAYBACK_SPEED_PRESETS = [0.75, 1.0, 1.25, 1.5, 2.0] as const;
 
+/** Fine-precision slider steps (opt-in via Advanced settings). */
+export const PLAYBACK_SPEED_STEP_FINE = 0.01;
+export const PLAYBACK_PITCH_STEP_FINE = 0.01;
+
+export function playbackSpeedStep(fine: boolean): number {
+  return fine ? PLAYBACK_SPEED_STEP_FINE : PLAYBACK_SPEED_STEP;
+}
+
+export function playbackPitchStep(fine: boolean): number {
+  return fine ? PLAYBACK_PITCH_STEP_FINE : PLAYBACK_PITCH_STEP;
+}
+
 export function clampPlaybackSpeed(speed: number): number {
   return Math.max(PLAYBACK_SPEED_MIN, Math.min(PLAYBACK_SPEED_MAX, speed));
 }
@@ -86,7 +98,9 @@ export function formatSpeedLabel(speed: number): string {
   return `${speed.toFixed(2)}×`;
 }
 
-export function formatPitchLabel(semitones: number): string {
-  const rounded = Math.round(semitones * 10) / 10;
-  return rounded > 0 ? `+${rounded.toFixed(1)} st` : `${rounded.toFixed(1)} st`;
+export function formatPitchLabel(semitones: number, decimals = 1): string {
+  const factor = Math.pow(10, decimals);
+  const rounded = Math.round(semitones * factor) / factor;
+  const sign = rounded > 0 ? '+' : '';
+  return `${sign}${rounded.toFixed(decimals)} st`;
 }

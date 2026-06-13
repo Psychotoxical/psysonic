@@ -445,6 +445,8 @@ export const settings = {
   playbackRatePitch: 'Hauteur',
   playbackRateDerivedPitch: 'Décalage de hauteur lié à la vitesse : {{value}}',
   playbackRateDerivedSpeed: 'Vitesse selon les demi-tons : {{value}}',
+  playbackRateFineStep: 'Réglage fin',
+  playbackRateFineStepDesc: 'Pas de curseur plus petits : 0,01× pour la vitesse et 0,01 dt pour la hauteur.',
   playbackRateAutoPitch: 'La hauteur est corrigée automatiquement.',
   playbackRateHint: '« Vitesse » conserve la hauteur naturelle. « Avec hauteur » change la hauteur avec la vitesse. « Avec hauteur (demi-tons) » règle ce changement directement en demi-tons. « Hauteur » ajoute un décalage manuel. Plus gourmand en CPU que « Avec hauteur ». Non pour la radio, les aperçus ou Orbit.',
   playbackRateNeutral: 'À 1,0× sans décalage de hauteur, la lecture est normale.',

@@ -5,13 +5,13 @@ import { PlaybackRateControls } from '../settings/audio/PlaybackRateBlock';
 import { usePlaybackRateStore } from '../../store/playbackRateStore';
 import { useOrbitStore } from '../../store/orbitStore';
 import {
-  PLAYBACK_PITCH_STEP,
-  PLAYBACK_SPEED_STEP,
   clampPlaybackPitch,
   clampPlaybackSpeed,
   derivedVarispeedSemitones,
   formatSpeedLabel,
   isPlaybackRateApplied,
+  playbackPitchStep,
+  playbackSpeedStep,
   varispeedSpeedFromSemitones,
 } from '../../utils/audio/playbackRateHelpers';
 import { isOrbitPlaybackSyncActive } from '../../utils/orbit';
@@ -38,6 +38,7 @@ export function PlayerPlaybackRate({ t }: Props) {
   const strategy = usePlaybackRateStore(s => s.strategy);
   const speed = usePlaybackRateStore(s => s.speed);
   const pitchSemitones = usePlaybackRateStore(s => s.pitchSemitones);
+  const fineStep = usePlaybackRateStore(s => s.fineStep);
   const setSpeed = usePlaybackRateStore(s => s.setSpeed);
   const orbitRole = useOrbitStore(s => s.role);
   const orbitPhase = useOrbitStore(s => s.phase);
@@ -50,14 +51,16 @@ export function PlayerPlaybackRate({ t }: Props) {
     if (!enabled) return;
     e.preventDefault();
     if (strategy === 'varispeed_semitones') {
-      const step = e.deltaY > 0 ? -PLAYBACK_PITCH_STEP : PLAYBACK_PITCH_STEP;
+      const pitchStep = playbackPitchStep(fineStep);
+      const step = e.deltaY > 0 ? -pitchStep : pitchStep;
       const st = clampPlaybackPitch(derivedVarispeedSemitones(speed) + step);
       setSpeed(clampPlaybackSpeed(varispeedSpeedFromSemitones(st)));
       return;
     }
-    const delta = e.deltaY > 0 ? -PLAYBACK_SPEED_STEP : PLAYBACK_SPEED_STEP;
+    const speedStep = playbackSpeedStep(fineStep);
+    const delta = e.deltaY > 0 ? -speedStep : speedStep;
     setSpeed(clampPlaybackSpeed(speed + delta));
-  }, [enabled, strategy, speed, setSpeed]);
+  }, [enabled, strategy, speed, fineStep, setSpeed]);
 
   if (!enabled) return null;
 

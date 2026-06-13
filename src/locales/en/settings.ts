@@ -492,6 +492,8 @@ export const settings = {
   playbackRatePitch: 'Pitch',
   playbackRateDerivedPitch: 'Pitch shift from speed: {{value}}',
   playbackRateDerivedSpeed: 'Speed from semitones: {{value}}',
+  playbackRateFineStep: 'Fine adjustment',
+  playbackRateFineStepDesc: 'Smaller slider steps: 0.01× for speed and 0.01 st for pitch.',
   playbackRateAutoPitch: 'Pitch is corrected automatically.',
   playbackRateHint: 'Speed keeps pitch natural. Varispeed changes pitch with speed. Varispeed (semitones) sets that pitch change directly in semitones. Pitch shift adds a manual offset. Uses more CPU than varispeed. Not for radio, previews, or Orbit.',
   playbackRateNeutral: 'At 1.0× with no pitch offset, playback is normal.',

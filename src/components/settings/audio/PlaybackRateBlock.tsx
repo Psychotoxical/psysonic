@@ -3,11 +3,9 @@ import type { TFunction } from 'i18next';
 import {
   PLAYBACK_PITCH_MAX,
   PLAYBACK_PITCH_MIN,
-  PLAYBACK_PITCH_STEP,
   PLAYBACK_SPEED_MAX,
   PLAYBACK_SPEED_MIN,
   PLAYBACK_SPEED_PRESETS,
-  PLAYBACK_SPEED_STEP,
   PLAYBACK_STRATEGIES,
   clampPlaybackPitch,
   clampPlaybackSpeed,
@@ -15,11 +13,14 @@ import {
   formatPitchLabel,
   formatSpeedLabel,
   isPlaybackRateApplied,
+  playbackPitchStep,
+  playbackSpeedStep,
   varispeedSpeedFromSemitones,
   type PlaybackStrategy,
 } from '../../../utils/audio/playbackRateHelpers';
 import { usePlaybackRateStore } from '../../../store/playbackRateStore';
 import { useOrbitStore } from '../../../store/orbitStore';
+import { useAuthStore } from '../../../store/authStore';
 import { isOrbitPlaybackSyncActive } from '../../../utils/orbit';
 
 interface Props {
@@ -34,19 +35,25 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
   const strategy = usePlaybackRateStore(s => s.strategy);
   const speed = usePlaybackRateStore(s => s.speed);
   const pitchSemitones = usePlaybackRateStore(s => s.pitchSemitones);
+  const fineStep = usePlaybackRateStore(s => s.fineStep);
   const {
     setEnabled,
     setStrategy,
     setSpeed,
     setPitchSemitones,
     applyPresetSpeed,
+    setFineStep,
   } = usePlaybackRateStore();
   const orbitRole = useOrbitStore(s => s.role);
   const orbitPhase = useOrbitStore(s => s.phase);
+  const advancedSettingsEnabled = useAuthStore(s => s.advancedSettingsEnabled);
 
   const orbitActive = isOrbitPlaybackSyncActive(orbitRole, orbitPhase);
   const effectActive = isPlaybackRateApplied(enabled, strategy, speed, pitchSemitones, orbitActive);
   const derivedPitch = derivedVarispeedSemitones(speed);
+  const speedStep = playbackSpeedStep(fineStep);
+  const pitchStep = playbackPitchStep(fineStep);
+  const pitchDecimals = fineStep ? 2 : 1;
 
   const strategyLabel = (s: PlaybackStrategy) => {
     switch (s) {
@@ -79,22 +86,22 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
     e.preventDefault();
     e.stopPropagation();
     if (strategy === 'varispeed_semitones') {
-      const step = e.deltaY > 0 ? -PLAYBACK_PITCH_STEP : PLAYBACK_PITCH_STEP;
+      const step = e.deltaY > 0 ? -pitchStep : pitchStep;
       const st = clampPlaybackPitch(derivedVarispeedSemitones(speed) + step);
       setSpeed(clampPlaybackSpeed(varispeedSpeedFromSemitones(st)));
       return;
     }
-    const delta = e.deltaY > 0 ? -PLAYBACK_SPEED_STEP : PLAYBACK_SPEED_STEP;
+    const delta = e.deltaY > 0 ? -speedStep : speedStep;
     setSpeed(clampPlaybackSpeed(speed + delta));
-  }, [compact, enabled, strategy, speed, setSpeed]);
+  }, [compact, enabled, strategy, speed, speedStep, pitchStep, setSpeed]);
 
   const handleWheelPitch = useCallback((e: React.WheelEvent<HTMLElement>) => {
     if (!compact || !enabled || strategy !== 'preserve_pitch') return;
     e.preventDefault();
     e.stopPropagation();
-    const delta = e.deltaY > 0 ? -PLAYBACK_PITCH_STEP : PLAYBACK_PITCH_STEP;
+    const delta = e.deltaY > 0 ? -pitchStep : pitchStep;
     setPitchSemitones(clampPlaybackPitch(pitchSemitones + delta));
-  }, [compact, enabled, strategy, pitchSemitones, setPitchSemitones]);
+  }, [compact, enabled, strategy, pitchSemitones, pitchStep, setPitchSemitones]);
 
   return (
     <div
@@ -153,7 +160,7 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
                 type="range"
                 min={PLAYBACK_SPEED_MIN}
                 max={PLAYBACK_SPEED_MAX}
-                step={PLAYBACK_SPEED_STEP}
+                step={speedStep}
                 value={speed}
                 onChange={e => setSpeed(parseFloat(e.target.value))}
                 className="playback-rate-slider"
@@ -172,7 +179,7 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
                 type="range"
                 min={PLAYBACK_PITCH_MIN}
                 max={PLAYBACK_PITCH_MAX}
-                step={PLAYBACK_PITCH_STEP}
+                step={pitchStep}
                 value={clampPlaybackPitch(derivedPitch)}
                 onChange={e =>
                   setSpeed(clampPlaybackSpeed(varispeedSpeedFromSemitones(parseFloat(e.target.value))))
@@ -180,7 +187,7 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
                 className="playback-rate-slider"
                 aria-label={t('settings.playbackRatePitch')}
               />
-              <span className="playback-rate-value">{formatPitchLabel(derivedPitch)}</span>
+              <span className="playback-rate-value">{formatPitchLabel(derivedPitch, pitchDecimals)}</span>
             </div>
           )}
 
@@ -200,7 +207,7 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
           {strategy === 'varispeed' && !compact && (
             <div className="playback-rate-derived" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               {t('settings.playbackRateDerivedPitch', {
-                value: formatPitchLabel(derivedPitch),
+                value: formatPitchLabel(derivedPitch, pitchDecimals),
               })}
             </div>
           )}
@@ -228,13 +235,41 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
                 type="range"
                 min={PLAYBACK_PITCH_MIN}
                 max={PLAYBACK_PITCH_MAX}
-                step={PLAYBACK_PITCH_STEP}
+                step={pitchStep}
                 value={pitchSemitones}
                 onChange={e => setPitchSemitones(parseFloat(e.target.value))}
                 className="playback-rate-slider"
                 aria-label={t('settings.playbackRatePitch')}
               />
-              <span className="playback-rate-value">{formatPitchLabel(pitchSemitones)}</span>
+              <span className="playback-rate-value">{formatPitchLabel(pitchSemitones, pitchDecimals)}</span>
+            </div>
+          )}
+
+          {!compact && advancedSettingsEnabled && (
+            <div className="settings-toggle-row">
+              <div>
+                <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {t('settings.playbackRateFineStep')}
+                  <span
+                    className="settings-sub-section-advanced-badge"
+                    style={{ marginRight: 0 }}
+                    aria-hidden="true"
+                  >
+                    {t('settings.advancedBadge')}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  {t('settings.playbackRateFineStepDesc')}
+                </div>
+              </div>
+              <label className="toggle-switch" aria-label={t('settings.playbackRateFineStep')}>
+                <input
+                  type="checkbox"
+                  checked={fineStep}
+                  onChange={e => setFineStep(e.target.checked)}
+                />
+                <span className="toggle-track" />
+              </label>
             </div>
           )}
 

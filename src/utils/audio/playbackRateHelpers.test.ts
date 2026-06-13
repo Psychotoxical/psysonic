@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   clampPlaybackSpeed,
   engineStrategy,
+  formatPitchLabel,
   formatSpeedLabel,
   isPlaybackEffectActive,
   isPlaybackRateApplied,
   derivedVarispeedSemitones,
+  playbackPitchStep,
+  playbackSpeedStep,
   varispeedSpeedFromSemitones,
 } from './playbackRateHelpers';
 
@@ -69,5 +72,20 @@ describe('playbackRateHelpers', () => {
   it('varispeed_semitones is active when speed differs from 1', () => {
     expect(isPlaybackEffectActive(true, 'varispeed_semitones', 1.0, 0)).toBe(false);
     expect(isPlaybackEffectActive(true, 'varispeed_semitones', 1.25, 0)).toBe(true);
+  });
+
+  it('returns fine slider steps only when opted in', () => {
+    expect(playbackSpeedStep(false)).toBe(0.05);
+    expect(playbackSpeedStep(true)).toBe(0.01);
+    expect(playbackPitchStep(false)).toBe(0.1);
+    expect(playbackPitchStep(true)).toBe(0.01);
+  });
+
+  it('formats pitch with configurable precision', () => {
+    expect(formatPitchLabel(3)).toBe('+3.0 st');
+    expect(formatPitchLabel(-2.5)).toBe('-2.5 st');
+    expect(formatPitchLabel(0)).toBe('0.0 st');
+    expect(formatPitchLabel(1.23, 2)).toBe('+1.23 st');
+    expect(formatPitchLabel(-1.23, 2)).toBe('-1.23 st');
   });
 });
