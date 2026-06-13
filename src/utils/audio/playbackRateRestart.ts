@@ -1,6 +1,10 @@
 import { usePlayerStore } from '../../store/playerStore';
 import { setSeekFallbackVisualTarget } from '../../store/seekFallbackState';
-import { isPlaybackEffectActive, type PlaybackStrategy } from './playbackRateHelpers';
+import {
+  engineStrategy,
+  isPlaybackEffectActive,
+  type PlaybackStrategy,
+} from './playbackRateHelpers';
 
 /** Preserve-pitch DSP (worker) vs direct varispeed sample-rate scaling. */
 export function usesPreservePlaybackPath(strategy: PlaybackStrategy): boolean {
@@ -23,7 +27,9 @@ export function shouldRestartPlaybackForRateChange(
   prev: PlaybackRateSnapshot,
   next: PlaybackRateSnapshot,
 ): boolean {
-  if (prev.strategy !== next.strategy) return true;
+  // varispeed ↔ varispeed_semitones share one engine path at the same speed;
+  // only restart when the underlying engine strategy actually changes.
+  if (engineStrategy(prev.strategy) !== engineStrategy(next.strategy)) return true;
   if (prev.enabled !== next.enabled && isPlaybackEffectActive(
     next.enabled,
     next.strategy,

@@ -5,10 +5,14 @@ import { PlaybackRateControls } from '../settings/audio/PlaybackRateBlock';
 import { usePlaybackRateStore } from '../../store/playbackRateStore';
 import { useOrbitStore } from '../../store/orbitStore';
 import {
+  PLAYBACK_PITCH_STEP,
   PLAYBACK_SPEED_STEP,
+  clampPlaybackPitch,
   clampPlaybackSpeed,
+  derivedVarispeedSemitones,
   formatSpeedLabel,
   isPlaybackRateApplied,
+  varispeedSpeedFromSemitones,
 } from '../../utils/audio/playbackRateHelpers';
 import { isOrbitPlaybackSyncActive } from '../../utils/orbit';
 import { usePlayerBarAnchoredPopover } from '../../hooks/usePlayerBarAnchoredPopover';
@@ -45,9 +49,15 @@ export function PlayerPlaybackRate({ t }: Props) {
   const handleWheel = useCallback((e: React.WheelEvent<HTMLElement>) => {
     if (!enabled) return;
     e.preventDefault();
+    if (strategy === 'varispeed_semitones') {
+      const step = e.deltaY > 0 ? -PLAYBACK_PITCH_STEP : PLAYBACK_PITCH_STEP;
+      const st = clampPlaybackPitch(derivedVarispeedSemitones(speed) + step);
+      setSpeed(clampPlaybackSpeed(varispeedSpeedFromSemitones(st)));
+      return;
+    }
     const delta = e.deltaY > 0 ? -PLAYBACK_SPEED_STEP : PLAYBACK_SPEED_STEP;
     setSpeed(clampPlaybackSpeed(speed + delta));
-  }, [enabled, speed, setSpeed]);
+  }, [enabled, strategy, speed, setSpeed]);
 
   if (!enabled) return null;
 

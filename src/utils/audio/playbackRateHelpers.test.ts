@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   clampPlaybackSpeed,
+  engineStrategy,
+  formatSpeedLabel,
   isPlaybackEffectActive,
   isPlaybackRateApplied,
   derivedVarispeedSemitones,
+  varispeedSpeedFromSemitones,
 } from './playbackRateHelpers';
 
 describe('playbackRateHelpers', () => {
@@ -39,5 +42,32 @@ describe('playbackRateHelpers', () => {
   it('is not applied during orbit', () => {
     expect(isPlaybackRateApplied(true, 'speed_corrected', 1.5, 0, true)).toBe(false);
     expect(isPlaybackRateApplied(true, 'speed_corrected', 1.5, 0, false)).toBe(true);
+  });
+
+  it('formats speed with two decimals', () => {
+    expect(formatSpeedLabel(1.0)).toBe('1.00×');
+    expect(formatSpeedLabel(1.05)).toBe('1.05×');
+    expect(formatSpeedLabel(1.1)).toBe('1.10×');
+    expect(formatSpeedLabel(1.15)).toBe('1.15×');
+  });
+
+  it('maps semitones to a speed multiplier and back', () => {
+    expect(varispeedSpeedFromSemitones(0)).toBeCloseTo(1, 6);
+    expect(varispeedSpeedFromSemitones(12)).toBeCloseTo(2, 6);
+    expect(varispeedSpeedFromSemitones(-12)).toBeCloseTo(0.5, 6);
+    const speed = varispeedSpeedFromSemitones(3);
+    expect(derivedVarispeedSemitones(speed)).toBeCloseTo(3, 6);
+  });
+
+  it('routes varispeed_semitones to the varispeed engine', () => {
+    expect(engineStrategy('varispeed_semitones')).toBe('varispeed');
+    expect(engineStrategy('varispeed')).toBe('varispeed');
+    expect(engineStrategy('preserve_pitch')).toBe('preserve_pitch');
+    expect(engineStrategy('speed_corrected')).toBe('speed_corrected');
+  });
+
+  it('varispeed_semitones is active when speed differs from 1', () => {
+    expect(isPlaybackEffectActive(true, 'varispeed_semitones', 1.0, 0)).toBe(false);
+    expect(isPlaybackEffectActive(true, 'varispeed_semitones', 1.25, 0)).toBe(true);
   });
 });

@@ -15,6 +15,7 @@ import {
   formatPitchLabel,
   formatSpeedLabel,
   isPlaybackRateApplied,
+  varispeedSpeedFromSemitones,
   type PlaybackStrategy,
 } from '../../../utils/audio/playbackRateHelpers';
 import { usePlaybackRateStore } from '../../../store/playbackRateStore';
@@ -53,6 +54,8 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
         return t('settings.playbackRateStrategySpeed');
       case 'varispeed':
         return t('settings.playbackRateStrategyVarispeed');
+      case 'varispeed_semitones':
+        return t('settings.playbackRateStrategyVarispeedSemitones');
       case 'preserve_pitch':
         return t('settings.playbackRateStrategyPreserve');
     }
@@ -62,9 +65,15 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
     if (!compact || !enabled) return;
     e.preventDefault();
     e.stopPropagation();
+    if (strategy === 'varispeed_semitones') {
+      const step = e.deltaY > 0 ? -PLAYBACK_PITCH_STEP : PLAYBACK_PITCH_STEP;
+      const st = clampPlaybackPitch(derivedVarispeedSemitones(speed) + step);
+      setSpeed(clampPlaybackSpeed(varispeedSpeedFromSemitones(st)));
+      return;
+    }
     const delta = e.deltaY > 0 ? -PLAYBACK_SPEED_STEP : PLAYBACK_SPEED_STEP;
     setSpeed(clampPlaybackSpeed(speed + delta));
-  }, [compact, enabled, speed, setSpeed]);
+  }, [compact, enabled, strategy, speed, setSpeed]);
 
   const handleWheelPitch = useCallback((e: React.WheelEvent<HTMLElement>) => {
     if (!compact || !enabled || strategy !== 'preserve_pitch') return;
@@ -120,22 +129,45 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
             </div>
           </div>
 
-          <div className="playback-rate-slider-row">
-            {!compact && (
-              <span className="playback-rate-label">{t('settings.playbackRateSpeed')}</span>
-            )}
-            <input
-              type="range"
-              min={PLAYBACK_SPEED_MIN}
-              max={PLAYBACK_SPEED_MAX}
-              step={PLAYBACK_SPEED_STEP}
-              value={speed}
-              onChange={e => setSpeed(parseFloat(e.target.value))}
-              className="playback-rate-slider"
-              aria-label={t('settings.playbackRateSpeed')}
-            />
-            <span className="playback-rate-value">{formatSpeedLabel(speed)}</span>
-          </div>
+          {strategy !== 'varispeed_semitones' && (
+            <div className="playback-rate-slider-row">
+              {!compact && (
+                <span className="playback-rate-label">{t('settings.playbackRateSpeed')}</span>
+              )}
+              <input
+                type="range"
+                min={PLAYBACK_SPEED_MIN}
+                max={PLAYBACK_SPEED_MAX}
+                step={PLAYBACK_SPEED_STEP}
+                value={speed}
+                onChange={e => setSpeed(parseFloat(e.target.value))}
+                className="playback-rate-slider"
+                aria-label={t('settings.playbackRateSpeed')}
+              />
+              <span className="playback-rate-value">{formatSpeedLabel(speed)}</span>
+            </div>
+          )}
+
+          {strategy === 'varispeed_semitones' && (
+            <div className="playback-rate-slider-row">
+              {!compact && (
+                <span className="playback-rate-label">{t('settings.playbackRatePitch')}</span>
+              )}
+              <input
+                type="range"
+                min={PLAYBACK_PITCH_MIN}
+                max={PLAYBACK_PITCH_MAX}
+                step={PLAYBACK_PITCH_STEP}
+                value={clampPlaybackPitch(derivedPitch)}
+                onChange={e =>
+                  setSpeed(clampPlaybackSpeed(varispeedSpeedFromSemitones(parseFloat(e.target.value))))
+                }
+                className="playback-rate-slider"
+                aria-label={t('settings.playbackRatePitch')}
+              />
+              <span className="playback-rate-value">{formatPitchLabel(derivedPitch)}</span>
+            </div>
+          )}
 
           <div className="playback-rate-presets">
             {PLAYBACK_SPEED_PRESETS.map(preset => (
@@ -154,6 +186,14 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
             <div className="playback-rate-derived" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               {t('settings.playbackRateDerivedPitch', {
                 value: formatPitchLabel(derivedPitch),
+              })}
+            </div>
+          )}
+
+          {strategy === 'varispeed_semitones' && !compact && (
+            <div className="playback-rate-derived" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              {t('settings.playbackRateDerivedSpeed', {
+                value: formatSpeedLabel(speed),
               })}
             </div>
           )}

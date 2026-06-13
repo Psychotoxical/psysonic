@@ -6,6 +6,7 @@ import {
   clampPlaybackSpeed,
   DEFAULT_PLAYBACK_STRATEGY,
   effectivePlaybackPitch,
+  engineStrategy,
   type PlaybackStrategy,
 } from '../utils/audio/playbackRateHelpers';
 import {
@@ -30,7 +31,7 @@ function syncPlaybackRate(state: PlaybackRateSnapshot, prev?: PlaybackRateSnapsh
   const effectiveEnabled = state.enabled && !isOrbitPlaybackSyncActive();
   invoke('audio_set_playback_rate', {
     enabled: effectiveEnabled,
-    strategy: state.strategy,
+    strategy: engineStrategy(state.strategy),
     speed: state.speed,
     pitchSemitones: effectivePlaybackPitch(state.strategy, state.pitchSemitones),
   }).catch(() => {});

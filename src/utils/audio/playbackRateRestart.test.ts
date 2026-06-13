@@ -51,4 +51,13 @@ describe('playbackRateRestart', () => {
       { ...base, strategy: 'preserve_pitch', pitchSemitones: 2 },
     )).toBe(false);
   });
+
+  it('does not restart switching between the two varispeed lenses at the same speed', () => {
+    expect(usesPreservePlaybackPath('varispeed_semitones')).toBe(false);
+    expect(playbackPathChanged('varispeed', 'varispeed_semitones')).toBe(false);
+    expect(shouldRestartPlaybackForRateChange(
+      { ...base, strategy: 'varispeed', speed: 1.5 },
+      { ...base, strategy: 'varispeed_semitones', speed: 1.5 },
+    )).toBe(false);
+  });
 });

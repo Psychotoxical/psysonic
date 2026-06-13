@@ -1,4 +1,8 @@
-export type PlaybackStrategy = 'speed_corrected' | 'varispeed' | 'preserve_pitch';
+export type PlaybackStrategy =
+  | 'speed_corrected'
+  | 'varispeed'
+  | 'varispeed_semitones'
+  | 'preserve_pitch';
 
 /** Default strategy: speed only, pitch corrected automatically. */
 export const DEFAULT_PLAYBACK_STRATEGY: PlaybackStrategy = 'speed_corrected';
@@ -6,8 +10,17 @@ export const DEFAULT_PLAYBACK_STRATEGY: PlaybackStrategy = 'speed_corrected';
 export const PLAYBACK_STRATEGIES: PlaybackStrategy[] = [
   'speed_corrected',
   'varispeed',
+  'varispeed_semitones',
   'preserve_pitch',
 ];
+
+/**
+ * Frontend-only strategies map onto a Rust engine strategy. `varispeed_semitones`
+ * is a UI lens over varispeed: the user dials semitones, speed = 2^(st/12).
+ */
+export function engineStrategy(strategy: PlaybackStrategy): PlaybackStrategy {
+  return strategy === 'varispeed_semitones' ? 'varispeed' : strategy;
+}
 
 export const PLAYBACK_SPEED_MIN = 0.5;
 export const PLAYBACK_SPEED_MAX = 2.0;
@@ -64,8 +77,13 @@ export function derivedVarispeedSemitones(speed: number): number {
   return 12 * Math.log2(speed);
 }
 
+/** Inverse of {@link derivedVarispeedSemitones}: speed multiplier for a semitone offset. */
+export function varispeedSpeedFromSemitones(semitones: number): number {
+  return Math.pow(2, semitones / 12);
+}
+
 export function formatSpeedLabel(speed: number): string {
-  return `${speed.toFixed(1)}×`;
+  return `${speed.toFixed(2)}×`;
 }
 
 export function formatPitchLabel(semitones: number): string {
