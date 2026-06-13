@@ -149,6 +149,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Each strategy button has a short tooltip; **Advanced** mode adds an optional **Fine adjustment** toggle (0.01× / 0.01 st steps) in **Settings → Audio**.
 
 
+
+### Now Playing — live status dot in "Who is listening?"
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1086](https://github.com/Psychotoxical/psysonic/pull/1086)**
+
+* Each listener in the **Who is listening?** popover now shows a small status dot — playing, paused, or idle — derived from the live playback report, replacing the previous "minutes ago" line. The status is also read out for screen readers and on hover, so it is never conveyed by colour alone.
+
+
 ## Changed
 
 ### Dependencies — npm and Rust refresh
@@ -218,6 +226,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ## Fixed
+
+### Internet Radio — station management limited to server admins
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1086](https://github.com/Psychotoxical/psysonic/pull/1086)**
+
+* Navidrome 0.62 made creating, editing and deleting radio stations admin-only, so those actions failed for standard accounts. Add, edit and delete controls are now hidden for non-admin Navidrome users; playback and favourites stay available to everyone. Other server types are unaffected.
+
 
 ### Music Network — self-hosted scrobbling reaches the server
 
