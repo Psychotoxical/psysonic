@@ -16,6 +16,8 @@ interface RadioCardProps {
   deleteConfirmId: string | null;
   isFavorite: boolean;
   isManual: boolean;
+  /** Navidrome ≥ 0.62 only lets admins manage stations — hides edit/delete. */
+  canManage: boolean;
   dropIndicator: 'before' | 'after' | null;
   onPlay: (e: React.MouseEvent) => void;
   onDelete: (e: React.MouseEvent) => void;
@@ -28,7 +30,7 @@ interface RadioCardProps {
 }
 
 export default function RadioCard({
-  s, isActive, isPlaying, deleteConfirmId, isFavorite, isManual, dropIndicator,
+  s, isActive, isPlaying, deleteConfirmId, isFavorite, isManual, canManage, dropIndicator,
   onPlay, onDelete, onEdit, onFavoriteToggle, onDragEnter, onDragLeave,
   onDropOnto, onCardMouseLeave,
 }: RadioCardProps) {
@@ -117,25 +119,29 @@ export default function RadioCard({
           </button>
         </div>
 
-        <div className="playlist-card-actions">
-          <button
-            className={`playlist-card-action playlist-card-action--delete ${deleteConfirmId === s.id ? 'playlist-card-action--delete-confirm' : ''}`}
-            onClick={onDelete}
-            data-tooltip={deleteConfirmId === s.id ? t('radio.confirmDelete') : t('radio.deleteStation')}
-            data-tooltip-pos="bottom"
-          >
-            {deleteConfirmId === s.id ? <Trash2 size={12} /> : <X size={12} />}
-          </button>
-        </div>
+        {canManage && (
+          <div className="playlist-card-actions">
+            <button
+              className={`playlist-card-action playlist-card-action--delete ${deleteConfirmId === s.id ? 'playlist-card-action--delete-confirm' : ''}`}
+              onClick={onDelete}
+              data-tooltip={deleteConfirmId === s.id ? t('radio.confirmDelete') : t('radio.deleteStation')}
+              data-tooltip-pos="bottom"
+            >
+              {deleteConfirmId === s.id ? <Trash2 size={12} /> : <X size={12} />}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Info */}
       <div className="album-card-info">
         <div className="album-card-title">{s.name}</div>
         <div className="album-card-artist" style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-          <button className="radio-card-chip" onClick={onEdit}>
-            {t('radio.editStation')}
-          </button>
+          {canManage && (
+            <button className="radio-card-chip" onClick={onEdit}>
+              {t('radio.editStation')}
+            </button>
+          )}
           <button
             className={`player-btn player-btn-sm radio-favorite-btn${isFavorite ? ' active' : ''}`}
             onClick={e => { e.stopPropagation(); onFavoriteToggle(); }}

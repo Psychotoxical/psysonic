@@ -5,6 +5,17 @@ import { isNavidromeServer } from '../utils/server/subsonicServerIdentity';
 
 export type NavidromeAdminRole = 'idle' | 'checking' | 'admin' | 'user' | 'na' | 'error';
 
+/**
+ * Navidrome ≥ 0.62 restricts internet-radio management (create/update/delete) to
+ * admins (GHSA-jw24-qqrj-633c). Block those actions only for a *confirmed*
+ * standard Navidrome user; everything else — admin, non-Navidrome servers
+ * (`'na'`), and transient/unknown states — stays allowed, with the server as the
+ * final authority. Non-Navidrome servers never carried this restriction.
+ */
+export function canManageNavidromeRadio(role: NavidromeAdminRole): boolean {
+  return role !== 'user';
+}
+
 function normalizeServerUrl(url: string): string {
   const withScheme = url.startsWith('http') ? url : `http://${url}`;
   return withScheme.replace(/\/$/, '');

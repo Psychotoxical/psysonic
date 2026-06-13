@@ -20,10 +20,13 @@ import RadioEditModal from '../components/internetRadio/RadioEditModal';
 import RadioDirectoryModal from '../components/internetRadio/RadioDirectoryModal';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
+import { useNavidromeAdminRole, canManageNavidromeRadio } from '../hooks/useNavidromeAdminRole';
 
 export default function InternetRadio() {
   const { t } = useTranslation();
   const perfFlags = usePerfProbeFlags();
+  // Navidrome ≥ 0.62: only admins may create/edit/delete radio stations.
+  const canManage = canManageNavidromeRadio(useNavidromeAdminRole());
   const playRadio = usePlayerStore(s => s.playRadio);
   const stop = usePlayerStore(s => s.stop);
   const currentRadio = usePlayerStore(s => s.currentRadio);
@@ -229,14 +232,16 @@ export default function InternetRadio() {
       {/* ── Header ── */}
       <div className="playlists-header">
         <h1 className="page-title" style={{ marginBottom: 0 }}>{t('radio.title')}</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-primary" onClick={() => setBrowseOpen(true)}>
-            <Search size={14} /> {t('radio.browseDirectory')}
-          </button>
-          <button className="btn btn-primary" onClick={() => setModalStation('new')}>
-            <Plus size={15} /> {t('radio.addStation')}
-          </button>
-        </div>
+        {canManage && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-primary" onClick={() => setBrowseOpen(true)}>
+              <Search size={14} /> {t('radio.browseDirectory')}
+            </button>
+            <button className="btn btn-primary" onClick={() => setModalStation('new')}>
+              <Plus size={15} /> {t('radio.addStation')}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── Toolbar + Grid ── */}
@@ -272,6 +277,7 @@ export default function InternetRadio() {
                   deleteConfirmId={deleteConfirmId}
                   isFavorite={favorites.has(s.id)}
                   isManual={sortBy === 'manual'}
+                  canManage={canManage}
                   dropIndicator={dragOver?.id === s.id ? dragOver.side : null}
                   onPlay={e => handlePlay(e, s)}
                   onDelete={e => handleDelete(e, s)}
@@ -289,7 +295,7 @@ export default function InternetRadio() {
       )}
 
       {/* ── Edit/Create Modal ── */}
-      {modalStation !== null && (
+      {canManage && modalStation !== null && (
         <RadioEditModal
           station={modalStation === 'new' ? null : modalStation}
           onClose={() => setModalStation(null)}
@@ -298,7 +304,7 @@ export default function InternetRadio() {
       )}
 
       {/* ── Directory Modal ── */}
-      {browseOpen && (
+      {canManage && browseOpen && (
         <RadioDirectoryModal
           onClose={() => setBrowseOpen(false)}
           onAdded={reload}

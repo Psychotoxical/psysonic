@@ -8,7 +8,7 @@ vi.mock('@/api/navidromeAdmin', () => ({
 }));
 
 import { ndLogin } from '@/api/navidromeAdmin';
-import { useNavidromeAdminRole } from './useNavidromeAdminRole';
+import { useNavidromeAdminRole, canManageNavidromeRadio } from './useNavidromeAdminRole';
 
 beforeEach(() => {
   resetAuthStore();
@@ -110,5 +110,17 @@ describe('useNavidromeAdminRole', () => {
 
     const { result } = renderHook(() => useNavidromeAdminRole());
     await waitFor(() => expect(result.current).toBe('error'));
+  });
+});
+
+describe('canManageNavidromeRadio', () => {
+  it('blocks only a confirmed standard Navidrome user', () => {
+    expect(canManageNavidromeRadio('user')).toBe(false);
+  });
+
+  it('allows admins, non-Navidrome servers, and transient/unknown states', () => {
+    for (const role of ['admin', 'na', 'idle', 'checking', 'error'] as const) {
+      expect(canManageNavidromeRadio(role)).toBe(true);
+    }
   });
 });
