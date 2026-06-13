@@ -210,6 +210,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Music Network — self-hosted scrobbling reaches the server
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1085](https://github.com/Psychotoxical/psysonic/pull/1085)**
+
+* Self-hosted scrobble targets that use a pasted token (Koito, Maloja's ListenBrainz and Audioscrobbler compatibility surfaces) silently recorded nothing: the saved server address dropped the API path, so listens were sent to a route that does not exist while the account still showed as connected.
+* The correct API path is now kept when connecting. Reconnect an affected account once so it picks up the corrected address.
+
+
+
 ### Servers — complete border on the active server card
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#998](https://github.com/Psychotoxical/psysonic/pull/998)**
