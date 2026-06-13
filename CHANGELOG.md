@@ -131,6 +131,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Play counts are unchanged — still driven by the existing scrobble path. Servers without the extension keep the previous now-playing behaviour.
 
 
+
+### Playback speed — Semitones strategy, finer labels, and advanced fine steps
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1084](https://github.com/Psychotoxical/psysonic/pull/1084)**
+
+* New **Semitones** strategy sets varispeed directly in semitones (±12 st, 0.1 step) instead of coarse speed steps; the speed readout now shows two decimals so every slider notch is visible.
+* Each strategy button has a short tooltip; **Advanced** mode adds an optional **Fine adjustment** toggle (0.01× / 0.01 st steps) in **Settings → Audio**.
+
+
 ## Changed
 
 ### Dependencies — npm and Rust refresh

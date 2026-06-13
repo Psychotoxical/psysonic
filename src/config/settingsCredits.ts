@@ -164,6 +164,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Local library index: multi-genre browse, filters, and counts via track_genre table and blocking backfill (PR #1059)',
       'Audio: lazy-open output stream, 60s idle release (#1071), cold-start paused restore with silent engine prepare (PR #1073)',
       'OpenSubsonic playbackReport — live now-playing state, gliding position bar, and immediate pause/resume on Navidrome ≥0.62 (PR #1080)',
+      'Playback speed follow-up — Semitones varispeed strategy, two-decimal speed label, per-strategy tooltips, and Advanced fine-step toggle (PR #1084)',
     ],
   },
   {
