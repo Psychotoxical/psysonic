@@ -227,22 +227,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
-### Internet Radio — station management limited to server admins
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1086](https://github.com/Psychotoxical/psysonic/pull/1086)**
-
-* Navidrome 0.62 made creating, editing and deleting radio stations admin-only, so those actions failed for standard accounts. Add, edit and delete controls are now hidden for non-admin Navidrome users; playback and favourites stay available to everyone. Other server types are unaffected.
-
-
-### Music Network — self-hosted scrobbling reaches the server
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1085](https://github.com/Psychotoxical/psysonic/pull/1085)**
-
-* Self-hosted scrobble targets that use a pasted token (Koito, Maloja's ListenBrainz and Audioscrobbler compatibility surfaces) silently recorded nothing: the saved server address dropped the API path, so listens were sent to a route that does not exist while the account still showed as connected.
-* The correct API path is now kept when connecting. Reconnect an affected account once so it picks up the corrected address.
-
-
-
 ### Servers — complete border on the active server card
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#998](https://github.com/Psychotoxical/psysonic/pull/998)**
@@ -463,6 +447,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@kbennett2000](https://github.com/kbennett2000), PR [#1079](https://github.com/Psychotoxical/psysonic/pull/1079)**
 
 * The Linux auto-installer (`install.sh`) failed before any download because `[INFO]` log lines were captured into the package URL and curl rejected the mangled string; logging now goes to stderr, the reinstall prompt reads from the terminal, and package downloads use `--fail --globoff`.
+
+
+
+### Music Network — self-hosted scrobbling reaches the server
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1085](https://github.com/Psychotoxical/psysonic/pull/1085)**
+
+* Self-hosted scrobble targets that use a pasted token (Koito, Maloja's ListenBrainz and Audioscrobbler compatibility surfaces) silently recorded nothing: the saved server address dropped the API path, so listens were sent to a route that does not exist while the account still showed as connected.
+* The correct API path is now kept when connecting. Reconnect an affected account once so it picks up the corrected address.
+
+
+
+### Internet Radio — station management limited to server admins
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1086](https://github.com/Psychotoxical/psysonic/pull/1086)**
+
+* Navidrome 0.62 made creating, editing and deleting radio stations admin-only, so those actions failed for standard accounts. Add, edit and delete controls are now hidden for non-admin Navidrome users; playback and favourites stay available to everyone. Other server types are unaffected.
 
 ## [1.47.0]
 

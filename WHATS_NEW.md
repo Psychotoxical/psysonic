@@ -39,6 +39,7 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 ### Live — richer now playing on Navidrome 0.62+
 
 - On servers with OpenSubsonic **playbackReport** (Navidrome ≥ 0.62), **Live** shows who is playing or paused, how far into the track they are, and playback speed when another client sends it — with smooth position updates between refreshes.
+- In **Who is listening?**, each listener shows a small status dot (playing, paused, or idle) instead of a vague “minutes ago” line.
 
 ### Queue — Timeline mode
 
@@ -57,14 +58,11 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 
 - A themed loading splash appears while the app starts — colours follow your active theme, including community palettes.
 
-### What's New page
-
-- Highlights like this list load from the release on startup (and cache for offline). A **Full changelog** tab on the same page holds the technical detail.
-
 ## Improved
 
 - Audio decoding runs on **Symphonia 0.6**; streams start sooner and recover from stalls without restarting the player.
 - The **Preload Next Track** toggle under **Settings → Storage → Buffering** is gone — playback no longer waits on that extra RAM prefetch. Gapless, crossfade, and Hot Cache behave as before.
+- New **Semitones** playback-speed strategy (±12 st, 0.1 step) with two-decimal speed readout; optional fine steps in **Settings → Audio → Advanced**.
 
 ## Fixed
 
@@ -83,6 +81,7 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 
 ### Themes and integrations
 
+- Self-hosted Music Network targets (Koito, Maloja, custom GNU FM with a pasted token) scrobble again — reconnect once if you connected before this fix.
 - Favoriting from the player bar, fullscreen player, or shortcuts updates the star in track lists and playlists immediately.
 - Discord Rich Presence shows album art again when covers come from the server.
 - Focus rings and dropdown borders follow the active theme consistently.
@@ -101,9 +100,10 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 
 - **Linux:** the `curl | bash` auto-installer works again.
 - **Linux:** internet radio no longer appears twice in the desktop now-playing overlay.
+- On Navidrome **0.62+**, add/edit/delete radio stations is shown only to admin accounts; everyone can still play and favourite stations.
+- **Linux custom title bar:** pick window button styles (dots, flat, pill, and more) and optionally hide minimize in **Settings → Appearance**.
 - The active server card under **Settings → Servers** draws a complete border on all sides.
 
 ## Under the hood
 
 - Navidrome **0.62+** auto-detects **AudioMuse-AI** and routes Instant Mix / Lucky Mix through the smarter API when the plugin is present — older Navidrome keeps the manual toggle you already know.
-- Future release highlights can refresh on the **What's New** page without waiting for a full app update download.
