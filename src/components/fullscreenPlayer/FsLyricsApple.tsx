@@ -8,13 +8,15 @@ import type { LrcLine } from '../../api/lrclib';
 import type { Track } from '../../store/playerStoreTypes';
 import { EaseScroller, targetForFraction } from '../../utils/ui/easeScroll';
 
-// Apple Music-style fullscreen lyrics.
-// Full-screen scrollable list. Active line auto-scrolls to ~35% from top.
-// Word-sync runs imperatively (no React re-renders on every time tick).
+// Fullscreen synced lyrics.
+// Full-screen scrollable list. The active line auto-scrolls following the
+// "Lyrics scroll style" setting: 'apple' anchors it ~35% from the top, 'classic'
+// centres it. Word-sync runs imperatively (no React re-renders on every time tick).
 // User scroll pauses auto-scroll for 4 s then resumes.
 export const FsLyricsApple = memo(function FsLyricsApple({ currentTrack }: { currentTrack: Track | null }) {
   const { syncedLines, wordLines, plainLyrics, loading } = useLyrics(currentTrack);
   const staticOnly = useAuthStore(s => s.lyricsStaticOnly);
+  const sidebarLyricsStyle = useAuthStore(s => s.sidebarLyricsStyle);
 
   const useWords = !staticOnly && wordLines !== null && wordLines.length > 0;
   const lineSrc: LrcLine[] | null = useWords
@@ -68,14 +70,21 @@ export const FsLyricsApple = memo(function FsLyricsApple({ currentTrack }: { cur
     return subscribePlaybackProgress(s => apply(s.currentTime));
   }, [hasSynced, currentTrack?.id]);
 
-  // Ease-scroll active line to ~35% from the top of the container.
+  // Scroll the active line into view, honouring the "Lyrics scroll style" setting
+  // (same as the sidebar LyricsPane): 'apple' ease-scrolls to ~35% from the top,
+  // 'classic' centres the active line via native smooth scrollIntoView.
   useEffect(() => {
     if (activeIdx < 0 || isUserScroll.current) return;
     const el  = lineRefs.current[activeIdx];
     const box = containerRef.current;
     if (!el || !box || !scrollerRef.current) return;
-    scrollerRef.current.scrollTo(targetForFraction(box, el, 0.35));
-  }, [activeIdx]);
+    if (sidebarLyricsStyle === 'apple') {
+      scrollerRef.current.scrollTo(targetForFraction(box, el, 0.35));
+    } else {
+      scrollerRef.current.stop();
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [activeIdx, sidebarLyricsStyle]);
 
   const { setWordRef } = useWordLyricsSync({
     enabled: useWords,
