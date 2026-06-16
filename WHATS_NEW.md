@@ -7,6 +7,12 @@ current line before promoting to `next` / `release`. Technical details and PR cr
 Within each section, order by **user impact** (most noticeable first) — not PR merge order.
 `CHANGELOG.md` keeps strict PR order inside Added / Changed / Fixed.
 
+## [1.48.1]
+
+## Fixed
+
+- Fixed an issue with Opus playback where seeking the seekbar could crash the app.
+
 ## [1.48.0]
 
 ## Highlights

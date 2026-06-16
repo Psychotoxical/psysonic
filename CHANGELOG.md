@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * On macOS, pausing and then disconnecting headphones (or otherwise switching the audio output device) could restart playback on the newly selected device. The system's pause command on a route change was being treated as a play/pause toggle, which un-paused playback; play and pause from the OS media controls are now handled distinctly, so paused playback stays paused across a device change.
 
+### Crash when seeking Opus/Ogg files
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1100](https://github.com/Psychotoxical/psysonic/pull/1100)**
+
+* Scrubbing the seekbar on an Opus/Ogg file — and then pressing Stop — crashed the whole app (a 1.48 regression from the Symphonia 0.6 migration). The Ogg demuxer recorded its seek bounds only when the source was seekable during the format probe, but probing hid seekability, so the first seek panicked on the audio thread (`Option::unwrap()` on `None`) and took the process down at the audio backend boundary.
+* Local and in-memory Opus/Ogg sources now stay seekable through the probe, so seeking works correctly. As a safety net, any decoder panic during a seek is contained instead of crashing the app; for Opus/Ogg streamed over HTTP, seeking is a no-op for now rather than a crash.
+
 
 
 ## [1.48.0]
