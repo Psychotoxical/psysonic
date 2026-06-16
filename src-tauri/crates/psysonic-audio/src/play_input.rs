@@ -40,6 +40,9 @@ pub(crate) enum PlayInput {
         reader: Box<dyn MediaSource>,
         format_hint: Option<String>,
         tag: &'static str,
+        /// Source can cheaply seek to EOF (local file). Drives whether Ogg keeps
+        /// seekability through the probe so its seek path does not panic.
+        random_access: bool,
         /// When set, Symphonia probe waits for moov (tail or fast-start prefix).
         mp4_probe_gate: Option<super::stream::RangedMp4ProbeGate>,
     },
@@ -201,6 +204,7 @@ fn open_local_file_input(
         reader: Box::new(reader),
         format_hint: local_hint,
         tag: "local-file",
+        random_access: true,
         mp4_probe_gate: None,
     })
 }
@@ -345,6 +349,7 @@ async fn open_ranged_or_streaming_input(
             reader: Box::new(reader),
             format_hint: stream_hint,
             tag: "ranged-stream",
+            random_access: false,
             mp4_probe_gate,
         }));
     }

@@ -282,7 +282,7 @@ async fn open_preview_decoder(
         };
         let hint = stream_hint.clone();
         let decoder = tokio::task::spawn_blocking(move || {
-            SizedDecoder::new_streaming(Box::new(reader), hint.as_deref(), "preview-stream")
+            SizedDecoder::new_streaming(Box::new(reader), hint.as_deref(), "preview-stream", false)
         })
         .await
         .map_err(|e| format!("preview: decoder thread: {e}"))??;

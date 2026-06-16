@@ -21,6 +21,23 @@ pub(crate) use mp4::{
     container_hint_is_mp4, isobmff_buffer_looks_complete, log_isobmff_buffer_diagnostic,
     mp4_needs_tail_prefetch, mp4_suspect_zero_holes,
 };
+
+/// True when the container hint denotes an Ogg-encapsulated stream (Vorbis,
+/// Opus, Speex, FLAC-in-Ogg).
+///
+/// symphonia 0.6's Ogg demuxer records the physical stream's byte range at
+/// construction time, but only when the source reports `is_seekable()` *during
+/// the probe*. If seekability is hidden then (see `ProbeSeekGate`),
+/// `phys_byte_range_end` stays `None` and the first real seek panics with
+/// `Option::unwrap()` on `None` (`demuxer.rs:180`). Sources that can cheaply
+/// seek to EOF must therefore stay seekable through the probe for Ogg.
+pub(crate) fn container_hint_is_ogg(hint: Option<&str>) -> bool {
+    let Some(h) = hint else { return false };
+    matches!(
+        h.to_ascii_lowercase().as_str(),
+        "ogg" | "oga" | "ogx" | "opus" | "spx"
+    )
+}
 pub(crate) use local_file::LocalFileSource;
 pub(crate) use radio::{RadioLiveState, RadioSharedFlags, radio_download_task};
 pub(crate) use ranged_http::{RangedHttpSource, ranged_download_task};

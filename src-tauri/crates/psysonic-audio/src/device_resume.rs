@@ -87,6 +87,7 @@ pub(crate) async fn try_resume_after_device_change(
                     reader: Box::new(LocalFileSource { file, len }),
                     format_hint: url_format_hint(url),
                     tag: "LocalFile[device-resume]",
+                    random_access: true,
                     mp4_probe_gate: None,
                 }
             }

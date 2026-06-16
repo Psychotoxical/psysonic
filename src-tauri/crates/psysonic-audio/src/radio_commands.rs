@@ -124,7 +124,7 @@ pub async fn audio_play_radio(
 
     let hint_clone = fmt_hint.clone();
     let decoder = tokio::task::spawn_blocking(move || {
-        SizedDecoder::new_streaming(Box::new(reader), hint_clone.as_deref(), "radio")
+        SizedDecoder::new_streaming(Box::new(reader), hint_clone.as_deref(), "radio", false)
     })
     .await
     .map_err(|e| e.to_string())??;

@@ -169,8 +169,14 @@ impl SizedDecoder {
         // Symphonia 0.6 scans trailing metadata on seekable sources — hide
         // seekability during probe (same as `new_streaming`) so preview does not
         // read the entire in-memory file before the first sample.
-        let probe_seek_gate = (!crate::stream::container_hint_is_mp4(format_hint))
-            .then(|| Arc::new(AtomicBool::new(false)));
+        //
+        // Exception: Ogg (Vorbis/Opus/…) must stay seekable through the probe,
+        // otherwise its demuxer never records `phys_byte_range_end` and the first
+        // seek panics (see `container_hint_is_ogg`). This source is fully
+        // in-memory, so the trailing-metadata scan it re-enables is free.
+        let gate_needed = !crate::stream::container_hint_is_mp4(format_hint)
+            && !crate::stream::container_hint_is_ogg(format_hint);
+        let probe_seek_gate = gate_needed.then(|| Arc::new(AtomicBool::new(false)));
         let media: Box<dyn MediaSource> = match &probe_seek_gate {
             Some(gate) => Box::new(ProbeSeekGate {
                 inner: Box::new(source),
@@ -315,19 +321,33 @@ impl SizedDecoder {
     /// Build a decoder from any `MediaSource` (e.g. track-stream or radio).
     /// Uses `enable_gapless: false` — live streams are not seekable; gapless
     /// trimming requires seeking to read the LAME/iTunSMPB end-padding info.
+    /// `source_random_access`: the underlying source can cheaply seek to EOF
+    /// (e.g. a local file), so the probe-time trailing-metadata / stream-end scan
+    /// is not a full download. Progressive sources (ranged HTTP) pass `false`.
     pub(crate) fn new_streaming(
         media: Box<dyn MediaSource>,
         format_hint: Option<&str>,
         source_tag: &str,
+        source_random_access: bool,
     ) -> Result<Self, String> {
         // For non-MP4 progressive streams, hide seekability during the probe so
         // Symphonia 0.6 skips its trailing-metadata scan (which would seek to EOF
         // and block until the whole file is downloaded). Re-enabled right after.
         // MP4 keeps seekability (its demuxer needs it to find `moov`; tail is
         // prefetched separately).
+        //
+        // Ogg also keeps seekability through the probe, but only on random-access
+        // sources: its demuxer records `phys_byte_range_end` during the probe and
+        // panics on the first seek otherwise (see `container_hint_is_ogg`). On a
+        // local file the stream-end scan is cheap; on a progressive ranged stream
+        // it would force a full download, so there we keep the gate and accept
+        // that seeking is a no-op (the panic itself is contained in `try_seek`).
         let stream_len = media.byte_len();
-        let probe_seek_gate = (!crate::stream::container_hint_is_mp4(format_hint))
-            .then(|| Arc::new(AtomicBool::new(false)));
+        let ogg_needs_seekable_probe =
+            source_random_access && crate::stream::container_hint_is_ogg(format_hint);
+        let gate_needed = !crate::stream::container_hint_is_mp4(format_hint)
+            && !ogg_needs_seekable_probe;
+        let probe_seek_gate = gate_needed.then(|| Arc::new(AtomicBool::new(false)));
         let media: Box<dyn MediaSource> = match &probe_seek_gate {
             Some(gate) => Box::new(ProbeSeekGate { inner: media, seekable: gate.clone() }),
             None => media,
@@ -588,20 +608,36 @@ impl Source for SizedDecoder {
 
         let to_skip = self.current_frame_offset % self.channels().get() as usize;
 
-        let seek_res = self
-            .format
-            .seek(SeekMode::Accurate, SeekTo::Time { time, track_id: None })
-            .map_err(|e| rodio::source::SeekError::Other(
-                std::sync::Arc::new(std::io::Error::other(e.to_string()))
-            ))?;
+        // symphonia 0.6's OGG demuxer can `panic!` (e.g. `Option::unwrap()` on
+        // `None` in `OggReader::do_seek`) on some streams instead of returning
+        // an `Err`. `try_seek` runs on rodio's cpal output thread, so an escaping
+        // panic poisons the engine mutexes and then aborts the whole process at
+        // the non-unwinding cpal FFI boundary (the "crash on Stop" is a downstream
+        // symptom of that poison). Contain the unwind here — including the packet
+        // reads in `refine_position`, which can hit the same broken demuxer state —
+        // and surface it as a recoverable `SeekError` so the engine stays alive
+        // (the seek becomes a no-op rather than killing playback).
+        let seek_outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let seek_res = self
+                .format
+                .seek(SeekMode::Accurate, SeekTo::Time { time, track_id: None })
+                .map_err(|e| e.to_string())?;
+            self.refine_position(seek_res)?;
+            Ok::<(), String>(())
+        }));
 
-        self.refine_position(seek_res)
-            .map_err(|e| rodio::source::SeekError::Other(
-                std::sync::Arc::new(std::io::Error::other(e))
-            ))?;
-
-        self.current_frame_offset += to_skip;
-        Ok(())
+        match seek_outcome {
+            Ok(Ok(())) => {
+                self.current_frame_offset += to_skip;
+                Ok(())
+            }
+            Ok(Err(e)) => Err(rodio::source::SeekError::Other(std::sync::Arc::new(
+                std::io::Error::other(e),
+            ))),
+            Err(_panic) => Err(rodio::source::SeekError::Other(std::sync::Arc::new(
+                std::io::Error::other("seek panicked inside the demuxer (contained)"),
+            ))),
+        }
     }
 }
 
@@ -1019,8 +1055,9 @@ mod tests {
     #[test]
     fn new_streaming_constructs_from_synthetic_wav() {
         let wav = synthetic_wav_bytes(0.5);
-        let decoder = SizedDecoder::new_streaming(seekable_source(wav), Some("wav"), "test-stream")
-            .expect("streaming WAV decode setup");
+        let decoder =
+            SizedDecoder::new_streaming(seekable_source(wav), Some("wav"), "test-stream", true)
+                .expect("streaming WAV decode setup");
         assert_eq!(decoder.spec.rate(), 44_100);
         assert_eq!(decoder.spec.channels().count(), 1);
         // Live streams report no total duration.
@@ -1033,6 +1070,7 @@ mod tests {
             seekable_source(vec![0x00u8; 64]),
             None,
             "test-stream",
+            true,
         );
         assert!(result.is_err());
     }
