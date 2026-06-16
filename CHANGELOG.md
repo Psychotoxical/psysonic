@@ -36,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * On macOS, closing the window with the red close button always quit the app, even with "Minimize to Tray" enabled. The close button now respects the setting — with it on, the window hides to the tray instead of quitting, the same as the tray icon's "Hide".
 
+### Library sync stalling for many seconds on large Navidrome collections
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1105](https://github.com/Psychotoxical/psysonic/pull/1105)**
+
+* On large libraries (reported with ~200,000 tracks on Navidrome), background library sync could lock up database writes for minutes at a time — playback history, ratings and other saves piled up waiting behind it.
+* Root cause: the track id-remap step ran a database lookup that couldn't use its indexes and scanned the entire track table once per incoming track, so the cost grew with the square of the library size. The lookup now uses the proper indexes, bringing it back to a fast, near-instant operation.
+
 
 
 ## [1.48.0]
