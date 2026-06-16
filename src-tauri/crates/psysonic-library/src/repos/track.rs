@@ -448,7 +448,10 @@ impl<'a> TrackRepository<'a> {
             let mut remapped: Vec<RemapEntry> = Vec::new();
             let mut upsert = tx.prepare_cached(UPSERT_SQL)?;
             let mut remap_lookup = if unstable_track_ids {
-                Some(tx.prepare_cached(REMAP_LOOKUP_SQL)?)
+                Some((
+                    tx.prepare_cached(REMAP_LOOKUP_BY_HASH_SQL)?,
+                    tx.prepare_cached(REMAP_LOOKUP_BY_PATH_SQL)?,
+                ))
             } else {
                 None
             };
@@ -459,11 +462,12 @@ impl<'a> TrackRepository<'a> {
                 // then do we retarget children to the new id, since
                 // child tables FK→track(server_id, id) and would refuse
                 // an UPDATE pointing at an id that doesn't exist yet.
-                let detected_old: Option<String> = if let Some(ref mut lookup) = remap_lookup {
-                    detect_remap_target_cached(lookup, r)?
-                } else {
-                    None
-                };
+                let detected_old: Option<String> =
+                    if let Some((ref mut by_hash, ref mut by_path)) = remap_lookup {
+                        detect_remap_target_cached(by_hash, by_path, r)?
+                    } else {
+                        None
+                    };
 
                 upsert.execute(params![
                     r.server_id,
@@ -543,38 +547,76 @@ impl<'a> TrackRepository<'a> {
     }
 }
 
-const REMAP_LOOKUP_SQL: &str = r#"
+// Two single-column lookups instead of one `OR` across `content_hash`
+// and `server_path`. The combined `OR` form could not use the partial
+// `idx_track_remap_hash` / `idx_track_remap_path` indexes — SQLite only
+// applies a partial index when the query's WHERE provably implies the
+// index predicate (`… != ''`), and an `OR` spanning two columns blocks
+// the per-branch index plan. The result was a full `track` scan per
+// incoming row → O(rows × catalog) on large libraries (observed:
+// `upsert_batch_remap exec_ms=162001` on a ~200k-track Navidrome sync).
+// Each statement below repeats the index predicate so the planner picks
+// the matching partial index (SEARCH, not SCAN); hash wins over path,
+// matching §6.9's strong-key priority.
+const REMAP_LOOKUP_BY_HASH_SQL: &str = r#"
 SELECT id FROM track
  WHERE server_id = ?1
    AND deleted = 0
-   AND id != ?2
-   AND (
-     (?3 IS NOT NULL AND content_hash = ?3)
-     OR (?4 IS NOT NULL AND server_path = ?4)
-   )
+   AND content_hash IS NOT NULL
+   AND content_hash != ''
+   AND content_hash = ?2
+   AND id != ?3
+ LIMIT 1
+"#;
+
+const REMAP_LOOKUP_BY_PATH_SQL: &str = r#"
+SELECT id FROM track
+ WHERE server_id = ?1
+   AND deleted = 0
+   AND server_path IS NOT NULL
+   AND server_path != ''
+   AND server_path = ?2
+   AND id != ?3
  LIMIT 1
 "#;
 
 /// Run the `SELECT old.id` half of §6.9 — returns `Some(old_id)` if a
 /// non-deleted row with a different id on this server matches the
-/// incoming row's `content_hash` or `server_path`.
+/// incoming row's `content_hash` or `server_path`. Hash is the stronger
+/// key, so it is checked first.
 fn detect_remap_target_cached(
-    lookup: &mut rusqlite::Statement<'_>,
+    by_hash: &mut rusqlite::Statement<'_>,
+    by_path: &mut rusqlite::Statement<'_>,
     incoming: &TrackRow,
 ) -> rusqlite::Result<Option<String>> {
     // Empty-string sentinels are *not* eligible — spec §6.9 explicitly
     // excludes them so the file-tree default never collides.
     let hash = incoming.content_hash.as_deref().filter(|s| !s.is_empty());
     let path = incoming.server_path.as_deref().filter(|s| !s.is_empty());
-    if hash.is_none() && path.is_none() {
-        return Ok(None);
+
+    if let Some(hash) = hash {
+        let old = by_hash
+            .query_row(params![incoming.server_id, hash, incoming.id], |row| {
+                row.get::<_, String>(0)
+            })
+            .optional()?;
+        if old.is_some() {
+            return Ok(old);
+        }
     }
-    lookup
-        .query_row(
-            params![incoming.server_id, incoming.id, hash, path],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()
+
+    if let Some(path) = path {
+        let old = by_path
+            .query_row(params![incoming.server_id, path, incoming.id], |row| {
+                row.get::<_, String>(0)
+            })
+            .optional()?;
+        if old.is_some() {
+            return Ok(old);
+        }
+    }
+
+    Ok(None)
 }
 
 /// Run the §6.9 retarget half — UPDATE every FK-bound child to the
@@ -1245,6 +1287,48 @@ mod tests {
             .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(count, 2, "both rows kept; identity-less rows can't shadow");
+    }
+
+    #[test]
+    fn remap_lookup_uses_partial_indexes_not_full_scan() {
+        // Regression: the §6.9 remap lookup must hit
+        // idx_track_remap_hash / idx_track_remap_path. The prior
+        // `OR`-based query fell back to a full `track` scan on every
+        // incoming row → O(rows × catalog) stalls on large libraries
+        // (`upsert_batch_remap exec_ms=162001` on a ~200k Navidrome sync).
+        let store = LibraryStore::open_in_memory();
+        let plan = |sql: &str| -> String {
+            store
+                .with_conn("misc", |c| {
+                    let mut stmt = c.prepare(&format!("EXPLAIN QUERY PLAN {sql}"))?;
+                    let rows: rusqlite::Result<Vec<String>> = stmt
+                        .query_map(params!["s1", "v", "id"], |r| r.get::<_, String>(3))?
+                        .collect();
+                    rows
+                })
+                .unwrap()
+                .join("\n")
+        };
+
+        let hash_plan = plan(REMAP_LOOKUP_BY_HASH_SQL);
+        assert!(
+            hash_plan.contains("idx_track_remap_hash"),
+            "hash lookup must use idx_track_remap_hash, got: {hash_plan}"
+        );
+        assert!(
+            !hash_plan.contains("SCAN"),
+            "hash lookup must not full-scan track, got: {hash_plan}"
+        );
+
+        let path_plan = plan(REMAP_LOOKUP_BY_PATH_SQL);
+        assert!(
+            path_plan.contains("idx_track_remap_path"),
+            "path lookup must use idx_track_remap_path, got: {path_plan}"
+        );
+        assert!(
+            !path_plan.contains("SCAN"),
+            "path lookup must not full-scan track, got: {path_plan}"
+        );
     }
 
     #[test]
