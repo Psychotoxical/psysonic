@@ -20,6 +20,7 @@ import { isNewer } from '../../utils/componentHelpers/appUpdaterHelpers';
 
 type ModeFilter = 'all' | 'dark' | 'light';
 type SortMode = 'newest' | 'name';
+type AnimFilter = 'all' | 'animated' | 'static';
 
 const THEMES_REPO_URL = 'https://github.com/Psysonic/psysonic-themes';
 
@@ -61,6 +62,7 @@ export function ThemeStoreSection() {
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<ModeFilter>('all');
   const [sortMode, setSortMode] = useState<SortMode>('newest');
+  const [animFilter, setAnimFilter] = useState<AnimFilter>('all');
   const [page, setPage] = useState(1);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [failedId, setFailedId] = useState<string | null>(null);
@@ -102,6 +104,8 @@ export function ThemeStoreSection() {
     const q = query.trim().toLowerCase();
     const matched = themes.filter(th => {
       if (mode !== 'all' && th.mode !== mode) return false;
+      if (animFilter === 'animated' && !th.animated) return false;
+      if (animFilter === 'static' && th.animated) return false;
       if (!q) return true;
       return (
         th.name.toLowerCase().includes(q) ||
@@ -115,11 +119,11 @@ export function ThemeStoreSection() {
     const byName = (a: RegistryTheme, b: RegistryTheme) => a.name.localeCompare(b.name);
     if (sortMode === 'name') return matched.sort(byName);
     return matched.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || '') || byName(a, b));
-  }, [themes, query, mode, sortMode]);
+  }, [themes, query, mode, sortMode, animFilter]);
 
   // A changed filter can shrink the result set below the current page; reset to
   // the first page whenever the query or mode filter changes.
-  useEffect(() => { setPage(1); }, [query, mode, sortMode]);
+  useEffect(() => { setPage(1); }, [query, mode, sortMode, animFilter]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   // Clamp defensively so a stale `page` (e.g. after the registry shrank) never
@@ -151,6 +155,12 @@ export function ThemeStoreSection() {
   const sortOptions = [
     { value: 'newest', label: t('settings.themeStoreSortNewest') },
     { value: 'name', label: t('settings.themeStoreSortName') },
+  ];
+
+  const animFilterOptions = [
+    { value: 'all', label: t('settings.themeStoreAnimAll') },
+    { value: 'animated', label: t('settings.themeStoreAnimAnimated') },
+    { value: 'static', label: t('settings.themeStoreAnimStatic') },
   ];
 
   return (
@@ -191,6 +201,23 @@ export function ThemeStoreSection() {
           onChange={v => setSortMode(v as SortMode)}
           style={{
             width: 170,
+            flexShrink: 0,
+            alignSelf: 'stretch',
+            boxSizing: 'border-box',
+            padding: '0 var(--space-4)',
+            background: 'var(--input-bg)',
+            border: '1px solid var(--input-border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 14,
+            lineHeight: 1,
+          }}
+        />
+        <CustomSelect
+          value={animFilter}
+          options={animFilterOptions}
+          onChange={v => setAnimFilter(v as AnimFilter)}
+          style={{
+            width: 150,
             flexShrink: 0,
             alignSelf: 'stretch',
             boxSizing: 'border-box',
