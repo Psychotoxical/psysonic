@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 >
 
 
+## [1.49.0]
+
+## Added
+
+### Theme store — version numbers and an animated/static filter
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1104](https://github.com/Psychotoxical/psysonic/pull/1104)**
+
+* Theme versions now show in the store (next to the author) and under each installed community theme; when an update is available, the store shows the installed → available version.
+* New store filter to show only animated themes or only static ones, next to the existing mode and sort controls.
+
+
+
 ## [1.48.0]
 
 ## Added
