@@ -324,6 +324,12 @@ export function ThemeStoreSection() {
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                     {t('settings.themeStoreByAuthor', { author: th.author })}
+                    {' · '}
+                    {updateAvailable ? (
+                      <>v{inst!.version} <span style={{ color: 'var(--accent)' }}>→ v{th.version}</span></>
+                    ) : (
+                      <>v{th.version}</>
+                    )}
                   </div>
                   <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.4, marginTop: 10 }}>
                     {th.description}

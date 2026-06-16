@@ -33,6 +33,8 @@ interface Card {
   fixed: boolean;
   accessibility: boolean;
   animated: boolean;
+  /** Community themes carry a manifest version; fixed cores do not. */
+  version?: string;
 }
 
 /**
@@ -64,7 +66,7 @@ export function InstalledThemes() {
     ...FIXED_THEMES.map(f => ({ id: f.id, label: f.label, bg: f.bg, card: f.card, accent: f.accent, fixed: true, accessibility: !!f.accessibility, animated: false })),
     ...installed.map(it => {
       const s = swatch(it.css);
-      return { id: it.id, label: it.name, bg: s.bg, card: s.card, accent: s.accent, fixed: false, accessibility: (it.tags || []).includes('accessibility'), animated: /@(?:-[a-z]+-)?keyframes\b/i.test(it.css) };
+      return { id: it.id, label: it.name, bg: s.bg, card: s.card, accent: s.accent, fixed: false, accessibility: (it.tags || []).includes('accessibility'), animated: /@(?:-[a-z]+-)?keyframes\b/i.test(it.css), version: it.version };
     }),
   ];
 
@@ -102,6 +104,11 @@ export function InstalledThemes() {
                 <span className={`theme-card-label${isActive ? ' is-active' : ''}`}>
                   {c.label}
                 </span>
+                {c.version && (
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', textAlign: 'center', lineHeight: 1.2 }}>
+                    v{c.version}
+                  </span>
+                )}
                 {c.accessibility && (
                   <span
                     aria-label={t('settings.themesCvdTooltip')}
