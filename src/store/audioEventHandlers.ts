@@ -85,8 +85,9 @@ import {
   getSeekTargetSetAt,
 } from './seekTargetState';
 import { refreshWaveformForTrack } from './waveformRefresh';
-import { computeWaveformSilence } from '../utils/waveform/waveformSilence';
+import { analyzeBoundary, computeWaveformSilence } from '../utils/waveform/waveformSilence';
 import { maybeCrossfadeBytePreload } from './crossfadePreload';
+import { armCrossfadeDynamicOverlap, getCrossfadeTransition } from './crossfadeTrimCache';
 
 // Silence-aware crossfade (A-tail): guards the early advance to once per play
 // generation so a single playback instance triggers at most one trim-advance
@@ -255,22 +256,37 @@ export function handleAudioProgress(
     ? computeWaveformSilence(store.waveformBins, dur).trailSilenceSec
     : 0;
 
-  // A-tail: when the current track ends in dead air, start the next track early
-  // (by the trailing-silence amount) so the fade overlaps real music instead of
-  // silence. The engine still fades the outgoing sink on the swap; we only move
-  // the trigger earlier. Scoped to the trim case (real trailing silence present)
-  // so the regular Rust-driven crossfade end trigger is untouched otherwise.
-  if (trimActive && store.isPlaying && store.repeatMode !== 'one' && curTrailSilenceSec > 0.3) {
-    const hasNext = store.queueIndex + 1 < store.queueItems.length
-      || (store.repeatMode === 'all' && store.queueItems.length > 0);
-    if (hasNext) {
+  // A-tail: start the next track early so the fade overlaps *audible* tail/head.
+  // The overlap is content-driven ("by fact"): the planned value (A fade-out vs
+  // B buildup) when ready, else A's own fade-out measured synchronously from its
+  // already-loaded waveform. We only pre-empt the engine's own crossfade trigger
+  // (which fires `crossfadeSecs` before the end) when we'd actually start
+  // earlier — i.e. there's dead air to skip OR the content overlap is longer than
+  // crossfadeSecs (a real fade/buildup). Plain loud→loud endings fall through to
+  // the normal engine crossfade.
+  if (trimActive && store.isPlaying && store.repeatMode !== 'one') {
+    const nextIdx = store.queueIndex + 1;
+    const nextRef = nextIdx < store.queueItems.length
+      ? store.queueItems[nextIdx]
+      : (store.repeatMode === 'all' && store.queueItems.length > 0 ? store.queueItems[0] : null);
+    const nextTrackId = nextRef ? resolveQueueTrack(nextRef)?.id : undefined;
+    if (nextTrackId) {
       const cf = Math.max(0.1, Math.min(12, crossfadeSecs));
-      const triggerAt = Math.max(0, dur - curTrailSilenceSec - cf);
-      const gen = getPlayGeneration();
-      if (current_time >= triggerAt && crossfadeTrimAdvanceGen !== gen) {
-        crossfadeTrimAdvanceGen = gen;
-        store.next(false);
-        return;
+      const plan = getCrossfadeTransition(nextTrackId);
+      const contentOverlap = plan && plan.overlapSec > 0
+        ? plan.overlapSec
+        : analyzeBoundary(store.waveformBins, dur).outroFadeSec;
+      const wantEarly = curTrailSilenceSec > 0.3 || contentOverlap > cf + 0.3;
+      if (wantEarly) {
+        const overlap = Math.max(0.5, Math.min(12, contentOverlap || 0.5));
+        const triggerAt = Math.max(0, dur - curTrailSilenceSec - overlap);
+        const gen = getPlayGeneration();
+        if (current_time >= triggerAt && crossfadeTrimAdvanceGen !== gen) {
+          crossfadeTrimAdvanceGen = gen;
+          armCrossfadeDynamicOverlap(nextTrackId, overlap);
+          store.next(false);
+          return;
+        }
       }
     }
   }

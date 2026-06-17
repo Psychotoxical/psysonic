@@ -34,6 +34,25 @@ const DEFAULT_SILENCE_CUT = 12;
 const DEFAULT_MAX_TRIM_SEC = 5;
 
 /**
+ * Dual-curve payload is peak ++ mean; use the peak half. Legacy single curve
+ * (length === peak length) is used as-is.
+ */
+function peakHalf(bins: number[]): number[] {
+  return bins.length >= 1000 ? bins.slice(0, Math.floor(bins.length / 2)) : bins;
+}
+
+/** High-percentile ("plateau") level of `peak[startBin..endBin)` above the cut. */
+function plateauLevel(peak: number[], startBin: number, endBin: number, cut: number): number {
+  const loud: number[] = [];
+  for (let i = Math.max(0, startBin); i < Math.min(peak.length, endBin); i++) {
+    if (peak[i] > cut) loud.push(peak[i]);
+  }
+  if (loud.length === 0) return 0;
+  loud.sort((a, b) => a - b);
+  return loud[Math.min(loud.length - 1, Math.floor(loud.length * 0.75))];
+}
+
+/**
  * Compute silence bounds for `bins` over a track of `durationSec`.
  * Returns a no-trim result (`lead/trail = 0`, content = full track) whenever the
  * input is missing, the duration is invalid, or the track is effectively silent.
@@ -52,9 +71,7 @@ export function computeWaveformSilence(
   };
   if (!bins || dur <= 0) return none;
 
-  // Dual-curve payload is peak ++ mean; use the peak half. Legacy single curve
-  // (length === peak length) is used as-is.
-  const peak = bins.length >= 1000 ? bins.slice(0, Math.floor(bins.length / 2)) : bins;
+  const peak = peakHalf(bins);
   const n = peak.length;
   if (n === 0) return none;
 
@@ -88,4 +105,116 @@ export function computeWaveformSilence(
     contentStartSec: leadSilenceSec,
     contentEndSec: dur - trailSilenceSec,
   };
+}
+
+/** Boundary shape: silence bounds + the length of the gentle fade/rise regions. */
+export interface BoundaryShape extends WaveformSilenceBounds {
+  /** Seconds of trailing decay (plateau → floor) just before `contentEndSec`. */
+  outroFadeSec: number;
+  /** Seconds of leading rise (floor → plateau) just after `contentStartSec`. */
+  introRiseSec: number;
+}
+
+/**
+ * Extend {@link computeWaveformSilence} with the *shape* of the track's edges:
+ * how long the music takes to rise to full level at the start (`introRiseSec`)
+ * and how long it decays at the end (`outroFadeSec`). A long musical fade-out or
+ * a quiet count-in produces a large value; a hard cut/abrupt start → ~0. These
+ * drive the dynamic crossfade overlap (phase 2).
+ */
+export function analyzeBoundary(
+  bins: number[] | null | undefined,
+  durationSec: number,
+  opts: WaveformSilenceOptions = {},
+): BoundaryShape {
+  const base = computeWaveformSilence(bins, durationSec, opts);
+  const dur = base.contentEndSec + base.trailSilenceSec; // == sanitised duration
+  if (!bins || !(dur > 0)) return { ...base, outroFadeSec: 0, introRiseSec: 0 };
+
+  const peak = peakHalf(bins);
+  const n = peak.length;
+  if (n === 0) return { ...base, outroFadeSec: 0, introRiseSec: 0 };
+
+  const cut = opts.cut ?? DEFAULT_SILENCE_CUT;
+  const secPerBin = dur / n;
+  const startBin = Math.min(n - 1, Math.max(0, Math.round(base.contentStartSec / secPerBin)));
+  const endBin = Math.min(n, Math.max(startBin + 1, Math.round(base.contentEndSec / secPerBin)));
+
+  const plateau = plateauLevel(peak, startBin, endBin, cut);
+  // "Full level" target for the rise/decay edges: halfway between cut and plateau.
+  const riseTarget = Math.max(cut + 1, plateau * 0.5);
+
+  let i = startBin;
+  while (i < endBin && peak[i] < riseTarget) i++;
+  const introRiseSec = (i - startBin) * secPerBin;
+
+  let j = endBin - 1;
+  while (j >= startBin && peak[j] < riseTarget) j--;
+  const outroFadeSec = Math.max(0, (endBin - 1 - j) * secPerBin);
+
+  return { ...base, outroFadeSec, introRiseSec };
+}
+
+/** Engine fade min/max — the override is clamped to the same range on the Rust side. */
+const DYNAMIC_OVERLAP_MIN_SEC = 0.5;
+const DYNAMIC_OVERLAP_HARD_CAP_SEC = 12;
+
+/** A per-transition crossfade plan derived from both tracks' envelopes. */
+export interface CrossfadeTransitionPlan {
+  /** Where the incoming track should begin playing (leading silence skipped). */
+  bStartSec: number;
+  /** Fade length both sides use, derived purely from the audio's fade/rise shape. */
+  overlapSec: number;
+}
+
+export interface CrossfadePlanOptions extends WaveformSilenceOptions {
+  /** Floor on the overlap (anti-click). Default 0.5 s (matches the engine clamp). */
+  minOverlapSec?: number;
+  /** Hard cap on the overlap. Default 12 s (engine max). */
+  maxOverlapSec?: number;
+}
+
+/**
+ * Pick a crossfade overlap + incoming start offset purely from what the two
+ * tracks *actually sound like* at the boundary — the user's `crossfadeSecs` is
+ * **not** involved in this mode ("work by fact"):
+ *
+ *   `overlap = clamp( max(outroFadeA, introRiseB), min, cap )`
+ *
+ * The overlap spans exactly the outgoing track's natural fade-out and/or the
+ * incoming track's quiet buildup, positioned to **end** at A's content end
+ * (`audioEventHandlers` advances at `contentEndA − overlap`) with B starting past
+ * its own leading silence. So:
+ *   • a real fade-out / buildup → a long blend that overlaps the *audible* tail
+ *     and head (B rises under A instead of blaring in after A went quiet);
+ *   • two hard edges (no fade, no buildup) → collapses to the `min` floor — a
+ *     quick blend, because there is simply nothing gradual to mix.
+ *
+ * Equal-power fades keep the summed loudness flat. Returns `overlapSec = min`
+ * (and `bStartSec = 0`) when an envelope is missing — the caller then leaves the
+ * normal engine-driven crossfade in charge.
+ */
+export function planCrossfadeTransition(
+  aBins: number[] | null | undefined,
+  aDurationSec: number,
+  bBins: number[] | null | undefined,
+  bDurationSec: number,
+  opts: CrossfadePlanOptions = {},
+): CrossfadeTransitionPlan {
+  const min = Math.max(0.1, opts.minOverlapSec ?? DYNAMIC_OVERLAP_MIN_SEC);
+  const cap = Math.min(DYNAMIC_OVERLAP_HARD_CAP_SEC, Math.max(min, opts.maxOverlapSec ?? DYNAMIC_OVERLAP_HARD_CAP_SEC));
+
+  const aShape = analyzeBoundary(aBins, aDurationSec, opts);
+  const bShape = analyzeBoundary(bBins, bDurationSec, opts);
+  const bStartSec = bShape.contentStartSec;
+
+  // Don't overlap more than ~90 % of the shorter content window (very short tracks).
+  const aContentLen = Math.max(0, aShape.contentEndSec - aShape.contentStartSec);
+  const bContentLen = Math.max(0, bShape.contentEndSec - bShape.contentStartSec);
+  const sustainable = Math.min(aContentLen || cap, bContentLen || cap) * 0.9;
+
+  const wanted = Math.max(aShape.outroFadeSec, bShape.introRiseSec);
+  const overlapSec = Math.max(min, Math.min(cap, sustainable, wanted || min));
+
+  return { overlapSec, bStartSec };
 }

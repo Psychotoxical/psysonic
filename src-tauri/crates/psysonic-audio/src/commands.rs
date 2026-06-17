@@ -61,6 +61,11 @@ pub async fn audio_play(
     // leading silence. Optional + defaults to `0` so existing callers are
     // unaffected; only applied when the freshly built source is seekable.
     start_secs: Option<f64>,
+    // Dynamic crossfade (phase 2): per-transition overlap length, computed by the
+    // frontend from both tracks' waveform envelopes. Caps the fade for *this*
+    // transition instead of the global `crossfade_secs`. `None` → use the global
+    // setting (today's behaviour); always still clamped to the measured remaining.
+    crossfade_secs_override: Option<f32>,
     app: AppHandle,
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
@@ -227,7 +232,11 @@ pub async fn audio_play(
 
     // Manual skips (user-initiated) bypass crossfade — the track should start immediately.
     let crossfade_enabled = state.crossfade_enabled.load(Ordering::Relaxed) && !manual;
-    let crossfade_secs_val = f32::from_bits(state.crossfade_secs.load(Ordering::Relaxed)).clamp(0.5, 12.0);
+    // Per-transition override (dynamic crossfade) caps the fade for this swap;
+    // otherwise fall back to the global crossfade length. Both clamped the same.
+    let crossfade_secs_val = crossfade_secs_override
+        .unwrap_or_else(|| f32::from_bits(state.crossfade_secs.load(Ordering::Relaxed)))
+        .clamp(0.5, 12.0);
 
     // Measure how much audio Track A actually has left right now.
     // By the time audio_play is called, near_end_ticks (2×500ms) + IPC latency

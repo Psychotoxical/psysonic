@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeWaveformSilence } from './waveformSilence';
+import { analyzeBoundary, computeWaveformSilence, planCrossfadeTransition } from './waveformSilence';
 
 /** Build a 500-bin peak curve: `lead` silent bins, a loud middle, `trail` silent bins. */
 function curve(lead: number, mid: number, trail: number, loud = 200, quiet = 4): number[] {
@@ -8,6 +8,11 @@ function curve(lead: number, mid: number, trail: number, loud = 200, quiet = 4):
     ...Array(mid).fill(loud),
     ...Array(trail).fill(quiet),
   ];
+}
+
+/** Linear ramp of `n` values from `from`→`to` (inclusive), rounded to ints. */
+function ramp(n: number, from: number, to: number): number[] {
+  return Array.from({ length: n }, (_, i) => Math.round(from + ((to - from) * i) / Math.max(1, n - 1)));
 }
 
 describe('computeWaveformSilence', () => {
@@ -79,5 +84,68 @@ describe('computeWaveformSilence', () => {
     const bins = [...Array(4).fill(30), ...Array(96).fill(200)];
     expect(computeWaveformSilence(bins, 100).leadSilenceSec).toBe(0);
     expect(computeWaveformSilence(bins, 100, { cut: 40 }).leadSilenceSec).toBeCloseTo(4, 5);
+  });
+});
+
+describe('analyzeBoundary', () => {
+  it('reports ~0 rise/fade for a hard-cut, loud-throughout track', () => {
+    const r = analyzeBoundary(Array(100).fill(200), 100); // 1 s/bin
+    expect(r.introRiseSec).toBeCloseTo(0, 5);
+    expect(r.outroFadeSec).toBeCloseTo(0, 5);
+  });
+
+  it('measures a long trailing fade-out', () => {
+    // 80 loud bins + 20-bin decay to near-silence over 100 s (1 s/bin).
+    const bins = [...Array(80).fill(200), ...ramp(20, 200, 20)];
+    const r = analyzeBoundary(bins, 100);
+    expect(r.outroFadeSec).toBeGreaterThan(2);
+    expect(r.introRiseSec).toBeCloseTo(0, 5); // loud from the very start
+  });
+
+  it('measures a long quiet buildup intro', () => {
+    const bins = [...ramp(20, 20, 200), ...Array(80).fill(200)];
+    const r = analyzeBoundary(bins, 100);
+    expect(r.introRiseSec).toBeGreaterThan(2);
+    expect(r.outroFadeSec).toBeCloseTo(0, 5);
+  });
+});
+
+describe('planCrossfadeTransition', () => {
+  it('collapses to the minimum overlap for two hard-edged (loud) tracks', () => {
+    // No fade-out, no buildup → nothing gradual to mix → minimum (anti-click).
+    const a = Array(100).fill(200);
+    const b = Array(100).fill(200);
+    const plan = planCrossfadeTransition(a, 100, b, 100);
+    expect(plan.overlapSec).toBeCloseTo(0.5, 5);
+    expect(plan.bStartSec).toBeCloseTo(0, 5);
+  });
+
+  it('uses a long, content-driven overlap when a fade-out meets a buildup', () => {
+    const a = [...Array(80).fill(200), ...ramp(20, 200, 20)]; // fade-out tail
+    const b = [...ramp(20, 20, 200), ...Array(80).fill(200)]; // quiet buildup head
+    const plan = planCrossfadeTransition(a, 100, b, 100);
+    // Spans the gentle regions — far longer than the hard-cut case, ≤ engine cap.
+    expect(plan.overlapSec).toBeGreaterThan(3);
+    expect(plan.overlapSec).toBeLessThanOrEqual(12);
+  });
+
+  it('extends the overlap to cover a long fade-out even against a hard start', () => {
+    const a = [...Array(80).fill(200), ...ramp(20, 200, 20)]; // long fade-out
+    const b = Array(100).fill(200); // hard, loud start
+    const plan = planCrossfadeTransition(a, 100, b, 100);
+    expect(plan.overlapSec).toBeGreaterThan(3);
+  });
+
+  it('starts the incoming track past its leading silence', () => {
+    const a = Array(100).fill(200);
+    const b = [...Array(5).fill(4), ...Array(95).fill(200)]; // 5 s true silence, then loud
+    const plan = planCrossfadeTransition(a, 100, b, 100);
+    expect(plan.bStartSec).toBeGreaterThanOrEqual(5);
+  });
+
+  it('falls back to the minimum overlap when an envelope is missing', () => {
+    const plan = planCrossfadeTransition(null, 100, Array(100).fill(200), 100);
+    expect(plan.overlapSec).toBeCloseTo(0.5, 5);
+    expect(plan.bStartSec).toBeCloseTo(0, 5);
   });
 });

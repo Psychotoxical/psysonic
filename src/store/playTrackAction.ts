@@ -20,7 +20,7 @@ import {
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 import { useAuthStore } from './authStore';
-import { getCrossfadeLeadSilence } from './crossfadeTrimCache';
+import { consumeCrossfadeDynamicOverlap, getCrossfadeTransition } from './crossfadeTrimCache';
 import {
   bumpPlayGeneration,
   getPlayGeneration,
@@ -362,17 +362,22 @@ export function runPlayTrack(
       isReplayGainActive(), authStateNow.replayGainMode,
     );
     const replayGainPeak = isReplayGainActive() ? (scopedTrack.replayGainPeak ?? null) : null;
-    // Silence-aware crossfade (B-head): on a fresh auto-advance under crossfade,
-    // start past this track's leading silence (derived during pre-buffer). Manual
-    // skips hard-cut and resumes keep their saved offset, so both opt out.
-    const crossfadeStartSecs =
+    // Silence-aware crossfade (B-head + dynamic overlap): on a fresh auto-advance
+    // under crossfade, start past this track's leading silence (always, from the
+    // plan) and — only when the JS A-tail advance positioned this transition —
+    // fade over the content-driven overlap it armed. Engine-driven advances
+    // (plain loud→loud) leave the overlap unset and keep the normal crossfade
+    // length. Manual skips hard-cut and resumes keep their saved offset.
+    const useTrim =
       !manual
       && authStateNow.crossfadeEnabled
       && authStateNow.crossfadeTrimSilence
       && !authStateNow.gaplessEnabled
-      && initialTime <= 0.05
-        ? getCrossfadeLeadSilence(scopedTrack.id)
-        : 0;
+      && initialTime <= 0.05;
+    const crossfadePlan = useTrim ? getCrossfadeTransition(scopedTrack.id) : null;
+    const armedOverlap = useTrim ? consumeCrossfadeDynamicOverlap(scopedTrack.id) : null;
+    const crossfadeStartSecs = crossfadePlan?.bStartSec ?? 0;
+    const crossfadeSecsOverride = armedOverlap && armedOverlap > 0 ? armedOverlap : null;
     invoke('audio_play', {
       url,
       volume: state.volume,
@@ -389,6 +394,7 @@ export function runPlayTrack(
       streamFormatSuffix: scopedTrack.suffix ?? null,
       startPaused: false,
       startSecs: crossfadeStartSecs > 0.05 ? crossfadeStartSecs : null,
+      crossfadeSecsOverride,
     })
       .then(() => {
         if (getPlayGeneration() !== gen) return;

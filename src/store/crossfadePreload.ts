@@ -1,13 +1,13 @@
 import { invoke } from '@tauri-apps/api/core';
-import { computeWaveformSilence } from '../utils/waveform/waveformSilence';
+import { computeWaveformSilence, planCrossfadeTransition } from '../utils/waveform/waveformSilence';
 import { playbackCacheKeyForRef } from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveQueueTrack } from '../utils/library/queueTrackView';
 import { useAuthStore } from './authStore';
 import {
-  hasFetchedCrossfadeLead,
-  markFetchedCrossfadeLead,
-  setCrossfadeLeadSilence,
+  hasPlannedCrossfade,
+  markPlannedCrossfade,
+  setCrossfadeTransition,
 } from './crossfadeTrimCache';
 import { getBytePreloadingId, setBytePreloadingId } from './gaplessPreloadState';
 import { refreshLoudnessForTrack } from './loudnessRefresh';
@@ -79,18 +79,24 @@ export function maybeCrossfadeBytePreload(currentTime: number, dur: number): voi
     }).catch(() => {});
   }
 
-  // B-head: probe the next track's leading silence once (no store write) so
-  // playTrack can start it past the dead head. Cheap analysis-cache read, so it
-  // runs regardless of hot cache (which otherwise skips the byte pre-download).
-  // Cold/un-analysed tracks cache 0 → degrade to today's behaviour.
-  if (crossfadeTrimSilence && !hasFetchedCrossfadeLead(nextTrack.id)) {
-    markFetchedCrossfadeLead(nextTrack.id);
-    const leadTrackId = nextTrack.id;
-    const leadDuration = nextTrack.duration;
-    void fetchWaveformBins(leadTrackId, serverId || null)
-      .then(bins => {
-        const { contentStartSec } = computeWaveformSilence(bins, leadDuration);
-        setCrossfadeLeadSilence(leadTrackId, contentStartSec);
+  // B-head + dynamic overlap: plan the whole transition once (no store write) so
+  // playTrack can start the incoming track past its dead head AND fade over a
+  // content-adaptive overlap. Pairs the current track's envelope (already in the
+  // store) with the next track's cached waveform; the alignment maths is cheap,
+  // so it runs regardless of hot cache (which otherwise skips the byte
+  // pre-download). Cold/un-analysed tracks fall back to a fixed overlap + no
+  // head trim → today's behaviour.
+  if (crossfadeTrimSilence && !hasPlannedCrossfade(nextTrack.id)) {
+    markPlannedCrossfade(nextTrack.id);
+    const planTrackId = nextTrack.id;
+    const planDuration = nextTrack.duration;
+    const curBins = store.waveformBins;
+    void fetchWaveformBins(planTrackId, serverId || null)
+      .then(nextBins => {
+        // Overlap is derived purely from the audio (fade-out / buildup); the
+        // user's crossfadeSecs is intentionally not a factor in this mode.
+        const plan = planCrossfadeTransition(curBins, dur, nextBins, planDuration);
+        setCrossfadeTransition(planTrackId, plan);
       })
       .catch(() => {});
   }
