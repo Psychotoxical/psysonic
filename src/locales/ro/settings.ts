@@ -568,6 +568,8 @@ export const settings = {
   crossfade: 'Crossfade',
   crossfadeDesc: 'Estompează între piese',
   crossfadeSecs: '{{n}} s',
+  crossfadeTrimSilence: 'Elimină liniștea dintre piese',
+  crossfadeTrimSilenceDesc: 'Sare peste liniștea de la finalul piesei curente și de la începutul celei următoare, astfel încât estomparea să se suprapună peste muzică, nu peste gol',
   notWithGapless: 'Nu este valabil cât Gapless este activ',
   notWithCrossfade: 'Nu este valabil cât Crossfade este activ',
   gapless: 'Playback Gapless',

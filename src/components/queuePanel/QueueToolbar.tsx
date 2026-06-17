@@ -25,6 +25,8 @@ interface Props {
   setCrossfadeEnabled: (v: boolean) => void;
   crossfadeSecs: number;
   setCrossfadeSecs: (v: number) => void;
+  crossfadeTrimSilence: boolean;
+  setCrossfadeTrimSilence: (v: boolean) => void;
   infiniteQueueEnabled: boolean;
   setInfiniteQueueEnabled: (v: boolean) => void;
   t: TFunction;
@@ -34,7 +36,8 @@ export function QueueToolbar({
   queue, activePlaylist, saveState, toolbarButtons, shuffleQueue,
   handleSave, handleLoad, handleCopyQueueShare, handleClear,
   gaplessEnabled, setGaplessEnabled, crossfadeEnabled, setCrossfadeEnabled,
-  crossfadeSecs, setCrossfadeSecs, infiniteQueueEnabled, setInfiniteQueueEnabled,
+  crossfadeSecs, setCrossfadeSecs, crossfadeTrimSilence, setCrossfadeTrimSilence,
+  infiniteQueueEnabled, setInfiniteQueueEnabled,
   t,
 }: Props) {
   const [showCrossfadePopover, setShowCrossfadePopover] = useState(false);
@@ -124,14 +127,13 @@ export function QueueToolbar({
                   ref={crossfadeBtnRef}
                   className={`queue-round-btn${crossfadeEnabled || showCrossfadePopover ? ' active' : ''}`}
                   onClick={() => {
-                    if (crossfadeEnabled) {
-                      setCrossfadeEnabled(false);
-                      setShowCrossfadePopover(false);
-                    } else {
-                      setGaplessEnabled(false);
-                      setCrossfadeEnabled(true);
-                      setShowCrossfadePopover(true);
-                    }
+                    // Left click: toggle on/off only. Right click opens the popover.
+                    if (!crossfadeEnabled) setGaplessEnabled(false);
+                    setCrossfadeEnabled(!crossfadeEnabled);
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setShowCrossfadePopover(v => !v);
                   }}
                   data-tooltip={showCrossfadePopover ? undefined : t('queue.crossfade')}
                   aria-label={t('queue.crossfade')}
@@ -160,6 +162,15 @@ export function QueueToolbar({
                     <div className="crossfade-popover-range">
                       <span>0.1s</span><span>10s</span>
                     </div>
+                    <label className="crossfade-popover-toggle">
+                      <span>{t('settings.crossfadeTrimSilence')}</span>
+                      <input
+                        type="checkbox"
+                        checked={crossfadeTrimSilence}
+                        onChange={e => setCrossfadeTrimSilence(e.target.checked)}
+                        aria-label={t('settings.crossfadeTrimSilence')}
+                      />
+                    </label>
                   </div>
                 )}
               </div>

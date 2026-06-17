@@ -119,6 +119,12 @@ export interface AuthState {
   replayGainFallbackDb: number;  // gain for untagged files / radio (-6…0 dB)
   crossfadeEnabled: boolean;
   crossfadeSecs: number;
+  /**
+   * When crossfading, trim trailing silence of the outgoing track and leading
+   * silence of the incoming one so the fade overlaps music, not dead air.
+   * Default off — existing installs without this field keep today's behaviour.
+   */
+  crossfadeTrimSilence: boolean;
   gaplessEnabled: boolean;
   /** Show inline Play+Preview buttons in tracklists. Default on per Q3. Master kill switch — when off, all locations are off. */
   trackPreviewsEnabled: boolean;
@@ -338,6 +344,7 @@ export interface AuthState {
   setReplayGainFallbackDb: (v: number) => void;
   setCrossfadeEnabled: (v: boolean) => void;
   setCrossfadeSecs: (v: number) => void;
+  setCrossfadeTrimSilence: (v: boolean) => void;
   setGaplessEnabled: (v: boolean) => void;
   setTrackPreviewsEnabled: (v: boolean) => void;
   setTrackPreviewLocation: (location: TrackPreviewLocation, enabled: boolean) => void;

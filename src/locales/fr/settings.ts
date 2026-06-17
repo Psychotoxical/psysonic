@@ -553,6 +553,8 @@ export const settings = {
   crossfade: 'Fondu enchaîné',
   crossfadeDesc: 'Fondu entre les pistes',
   crossfadeSecs: '{{n}} s',
+  crossfadeTrimSilence: 'Couper le silence entre les pistes',
+  crossfadeTrimSilenceDesc: 'Ignorer le silence en fin de piste actuelle et en début de la suivante pour que le fondu se superpose à la musique, pas au vide',
   notWithGapless: 'Non disponible quand la lecture sans blanc est active',
   notWithCrossfade: 'Non disponible quand le fondu enchaîné est actif',
   gapless: 'Lecture sans blanc',

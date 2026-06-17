@@ -53,6 +53,23 @@ export function PlaybackBehaviorBlock({ t }: Props) {
           </span>
         </div>
       )}
+      {auth.crossfadeEnabled && !auth.gaplessEnabled && (
+        <div className="settings-toggle-row" style={{ paddingLeft: '1rem', marginTop: '0.5rem' }}>
+          <div>
+            <div style={{ fontWeight: 500 }}>
+              {t('settings.crossfadeTrimSilence')}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              {t('settings.crossfadeTrimSilenceDesc')}
+            </div>
+          </div>
+          <label className="toggle-switch" aria-label={t('settings.crossfadeTrimSilence')}>
+            <input type="checkbox" checked={auth.crossfadeTrimSilence}
+              onChange={e => auth.setCrossfadeTrimSilence(e.target.checked)} id="crossfade-trim-silence-toggle" />
+            <span className="toggle-track" />
+          </label>
+        </div>
+      )}
 
       <div className="divider" />
 

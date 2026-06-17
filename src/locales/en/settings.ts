@@ -633,6 +633,8 @@ export const settings = {
   crossfade: 'Crossfade',
   crossfadeDesc: 'Fade between tracks',
   crossfadeSecs: '{{n}} s',
+  crossfadeTrimSilence: 'Trim silence between tracks',
+  crossfadeTrimSilenceDesc: 'Skip trailing silence of the current track and leading silence of the next so the fade overlaps music, not dead air',
   notWithGapless: 'Not available while Gapless is active',
   notWithCrossfade: 'Not available while Crossfade is active',
   gapless: 'Gapless Playback',

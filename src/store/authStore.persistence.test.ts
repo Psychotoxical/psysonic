@@ -49,6 +49,9 @@ describe('hydration — loads existing localStorage shape', () => {
     const s = useAuthStore.getState();
     expect(s.trackPreviewsEnabled).toBe(true);
     expect(s.crossfadeEnabled).toBe(false);
+    // Existing installs that predate the toggle have no persisted field — it
+    // must default OFF so behaviour is unchanged until the user opts in.
+    expect(s.crossfadeTrimSilence).toBe(false);
     expect(s.gaplessEnabled).toBe(false);
     expect(s.replayGainEnabled).toBe(false);
     expect(s.normalizationEngine).toBe('off');

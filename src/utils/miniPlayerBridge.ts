@@ -31,6 +31,8 @@ export interface MiniSyncPayload {
   volume: number;
   gaplessEnabled: boolean;
   crossfadeEnabled: boolean;
+  crossfadeSecs: number;
+  crossfadeTrimSilence: boolean;
   infiniteQueueEnabled: boolean;
   isMobile: false;
 }
@@ -83,6 +85,8 @@ function snapshot(): MiniSyncPayload {
     volume: s.volume,
     gaplessEnabled: !!a.gaplessEnabled,
     crossfadeEnabled: !!a.crossfadeEnabled,
+    crossfadeSecs: a.crossfadeSecs,
+    crossfadeTrimSilence: !!a.crossfadeTrimSilence,
     infiniteQueueEnabled: !!a.infiniteQueueEnabled,
     isMobile: false,
   };
@@ -114,6 +118,8 @@ export function initMiniPlayerBridgeOnMain(): () => void {
       payload.volume,
       payload.gaplessEnabled,
       payload.crossfadeEnabled,
+      payload.crossfadeSecs,
+      payload.crossfadeTrimSilence,
       payload.infiniteQueueEnabled,
       queueIds,
     ].join('|');
@@ -139,6 +145,8 @@ export function initMiniPlayerBridgeOnMain(): () => void {
   const unsubAuth = useAuthStore.subscribe((state, prev) => {
     if (state.gaplessEnabled !== prev.gaplessEnabled
       || state.crossfadeEnabled !== prev.crossfadeEnabled
+      || state.crossfadeSecs !== prev.crossfadeSecs
+      || state.crossfadeTrimSilence !== prev.crossfadeTrimSilence
       || state.infiniteQueueEnabled !== prev.infiniteQueueEnabled) {
       push();
     }
@@ -253,6 +261,16 @@ export function initMiniPlayerBridgeOnMain(): () => void {
     a.setCrossfadeEnabled(v);
   });
 
+  const crossfadeSecsUnlisten = listen<{ value: number }>('mini:set-crossfade-secs', (e) => {
+    const v = e.payload?.value;
+    if (typeof v !== 'number' || !Number.isFinite(v)) return;
+    useAuthStore.getState().setCrossfadeSecs(Math.max(0.1, Math.min(10, v)));
+  });
+
+  const crossfadeTrimSilenceUnlisten = listen<{ value: boolean }>('mini:set-crossfade-trim-silence', (e) => {
+    useAuthStore.getState().setCrossfadeTrimSilence(!!e.payload?.value);
+  });
+
   const infiniteQueueUnlisten = listen<{ value: boolean }>('mini:set-infinite-queue', (e) => {
     const v = !!e.payload?.value;
     useAuthStore.getState().setInfiniteQueueEnabled(v);
@@ -284,6 +302,8 @@ export function initMiniPlayerBridgeOnMain(): () => void {
     redoQueueUnlisten.then(fn => fn()).catch(() => {});
     gaplessUnlisten.then(fn => fn()).catch(() => {});
     crossfadeUnlisten.then(fn => fn()).catch(() => {});
+    crossfadeSecsUnlisten.then(fn => fn()).catch(() => {});
+    crossfadeTrimSilenceUnlisten.then(fn => fn()).catch(() => {});
     infiniteQueueUnlisten.then(fn => fn()).catch(() => {});
     songInfoUnlisten.then(fn => fn()).catch(() => {});
   };

@@ -653,6 +653,8 @@ export const settings = {
   crossfade: 'Кроссфейд',
   crossfadeDesc: 'Плавный переход между треками',
   crossfadeSecs: '{{n}} с',
+  crossfadeTrimSilence: 'Обрезать тишину между треками',
+  crossfadeTrimSilenceDesc: 'Пропускать тишину в конце текущего трека и в начале следующего, чтобы переход накладывался на музыку, а не на пустоту',
   notWithGapless: 'Недоступно при включённом режиме без пауз',
   notWithCrossfade: 'Недоступно при включённом кроссфейде',
   gapless: 'Без пауз между треками',

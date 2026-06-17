@@ -15,6 +15,11 @@ interface Props {
   volumePopStyle: React.CSSProperties;
   handleVolumeChange: (v: number) => void;
   toggleMute: () => void;
+  crossfadeOpen: boolean;
+  setCrossfadeOpen: (updater: boolean | ((v: boolean) => boolean)) => void;
+  crossfadeBtnRef: React.RefObject<HTMLButtonElement | null>;
+  crossfadePopRef: React.RefObject<HTMLDivElement | null>;
+  crossfadePopStyle: React.CSSProperties;
   queueOpen: boolean;
   toggleQueue: () => void;
   t: TFunction;
@@ -22,7 +27,9 @@ interface Props {
 
 export function MiniToolbar({
   state, volume, volumeOpen, setVolumeOpen, volumeBtnRef, volumePopRef, volumePopStyle,
-  handleVolumeChange, toggleMute, queueOpen, toggleQueue, t,
+  handleVolumeChange, toggleMute,
+  crossfadeOpen, setCrossfadeOpen, crossfadeBtnRef, crossfadePopRef, crossfadePopStyle,
+  queueOpen, toggleQueue, t,
 }: Props) {
   return (
     <div className="mini-player__toolbar" data-tauri-drag-region="false">
@@ -111,15 +118,51 @@ export function MiniToolbar({
       </button>
 
       <button
+        ref={crossfadeBtnRef}
         type="button"
-        className={`mini-player__tool${state.crossfadeEnabled ? ' mini-player__tool--active' : ''}`}
+        className={`mini-player__tool${state.crossfadeEnabled || crossfadeOpen ? ' mini-player__tool--active' : ''}`}
         onClick={() => emit('mini:set-crossfade', { value: !state.crossfadeEnabled }).catch(() => {})}
+        onContextMenu={(e) => { e.preventDefault(); setCrossfadeOpen(v => !v); }}
         data-tauri-drag-region="false"
         data-tooltip={t('queue.crossfade')}
         aria-label={t('queue.crossfade')}
       >
         <Waves size={13} />
       </button>
+      {crossfadeOpen && createPortal(
+        <div
+          ref={crossfadePopRef}
+          className="mini-player__crossfade-popover"
+          style={crossfadePopStyle}
+          data-tauri-drag-region="false"
+        >
+          <div className="mini-player__crossfade-label">
+            <Waves size={11} />
+            {t('queue.crossfade')}
+            <span className="mini-player__crossfade-value">{(state.crossfadeSecs ?? 3).toFixed(1)} s</span>
+          </div>
+          <input
+            type="range"
+            min={0.1}
+            max={10}
+            step={0.1}
+            value={state.crossfadeSecs ?? 3}
+            onChange={e => emit('mini:set-crossfade-secs', { value: parseFloat(e.target.value) }).catch(() => {})}
+            className="mini-player__crossfade-slider"
+            aria-label={t('queue.crossfade')}
+          />
+          <label className="mini-player__crossfade-toggle">
+            <span>{t('settings.crossfadeTrimSilence')}</span>
+            <input
+              type="checkbox"
+              checked={!!state.crossfadeTrimSilence}
+              onChange={e => emit('mini:set-crossfade-trim-silence', { value: e.target.checked }).catch(() => {})}
+              aria-label={t('settings.crossfadeTrimSilence')}
+            />
+          </label>
+        </div>,
+        document.body,
+      )}
 
       <button
         type="button"

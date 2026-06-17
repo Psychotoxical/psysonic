@@ -37,7 +37,7 @@ export const SETTINGS_INDEX: SearchIndexEntry[] = [
   { tab: 'audio',          titleKey: 'settings.hiResTitle',               keywords: 'hi-res hires resampling bit depth sample rate dsd 24bit' },
   { tab: 'audio',          titleKey: 'settings.eqTitle',                  keywords: 'equalizer eq bass treble autoeq filter pre-gain' },
   { tab: 'audio',          titleKey: 'settings.playbackRateTitle',        keywords: 'speed playback rate tempo pitch varispeed preserve corrected time stretch' },
-  { tab: 'audio',          titleKey: 'settings.playbackTitle',            keywords: 'playback crossfade gapless replaygain replay gain volume' },
+  { tab: 'audio',          titleKey: 'settings.playbackTitle',            keywords: 'playback crossfade gapless replaygain replay gain volume trim silence' },
   { tab: 'lyrics',         titleKey: 'settings.lyricsSourcesTitle',       keywords: 'lyrics sources providers lrclib netease server youlyplus karaoke standard static' },
   { tab: 'lyrics',         titleKey: 'settings.sidebarLyricsStyle',       keywords: 'lyrics scroll style classic apple music' },
   { tab: 'integrations',   titleKey: 'musicNetwork.title',                keywords: 'last.fm lastfm libre.fm rocksky listenbrainz maloja scrobble scrobbling music network' },

@@ -27,6 +27,7 @@ export function createAudioSettingsActions(set: SetState): Pick<
   | 'setReplayGainFallbackDb'
   | 'setCrossfadeEnabled'
   | 'setCrossfadeSecs'
+  | 'setCrossfadeTrimSilence'
   | 'setGaplessEnabled'
   | 'setEnableHiRes'
   | 'setAudioOutputDevice'
@@ -67,6 +68,7 @@ export function createAudioSettingsActions(set: SetState): Pick<
     },
     setCrossfadeEnabled: (v) => set({ crossfadeEnabled: v }),
     setCrossfadeSecs: (v) => set({ crossfadeSecs: v }),
+    setCrossfadeTrimSilence: (v) => set({ crossfadeTrimSilence: v }),
     setGaplessEnabled: (v) => set({ gaplessEnabled: v }),
     setEnableHiRes: (v) => set({ enableHiRes: v }),
     setAudioOutputDevice: (v) => set({ audioOutputDevice: v }),

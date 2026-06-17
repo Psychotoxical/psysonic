@@ -19,6 +19,7 @@ import { MiniControls } from './miniPlayer/MiniControls';
 import { MiniToolbar } from './miniPlayer/MiniToolbar';
 import { MiniQueue } from './miniPlayer/MiniQueue';
 import { useMiniVolumePopover } from '../hooks/useMiniVolumePopover';
+import { useMiniCrossfadePopover } from '../hooks/useMiniCrossfadePopover';
 import { useMiniQueueDrag } from '../hooks/useMiniQueueDrag';
 import { useMiniSync } from '../hooks/useMiniSync';
 import { useMiniWindowSetup } from '../hooks/useMiniWindowSetup';
@@ -49,6 +50,7 @@ export default function MiniPlayer() {
     return registerQueueDragHitTest(hitTest);
   }, [queueOpen]);
   const { volumeOpen, setVolumeOpen, volumePopStyle, volumeBtnRef, volumePopRef } = useMiniVolumePopover();
+  const { crossfadeOpen, setCrossfadeOpen, crossfadePopStyle, crossfadeBtnRef, crossfadePopRef } = useMiniCrossfadePopover();
 
   const {
     isReorderDrag, psyDragFromIdxRef, dropTarget, setDropTarget, dropTargetRef, startDrag,
@@ -169,6 +171,11 @@ export default function MiniPlayer() {
           volumePopStyle={volumePopStyle}
           handleVolumeChange={handleVolumeChange}
           toggleMute={toggleMute}
+          crossfadeOpen={crossfadeOpen}
+          setCrossfadeOpen={setCrossfadeOpen}
+          crossfadeBtnRef={crossfadeBtnRef}
+          crossfadePopRef={crossfadePopRef}
+          crossfadePopStyle={crossfadePopStyle}
           queueOpen={queueOpen}
           toggleQueue={toggleQueue}
           t={t}

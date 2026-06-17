@@ -74,6 +74,8 @@ export function initialSnapshot(): MiniSyncPayload {
       volume: s.volume ?? 1,
       gaplessEnabled: false,
       crossfadeEnabled: false,
+      crossfadeSecs: 3,
+      crossfadeTrimSilence: false,
       infiniteQueueEnabled: false,
       isMobile: false,
     };
@@ -81,6 +83,7 @@ export function initialSnapshot(): MiniSyncPayload {
     return {
       track: null, queue: [], queueIndex: 0, queueServerId: null, isPlaying: false,
       volume: 1, gaplessEnabled: false, crossfadeEnabled: false,
+      crossfadeSecs: 3, crossfadeTrimSilence: false,
       infiniteQueueEnabled: false, isMobile: false,
     };
   }

@@ -566,6 +566,8 @@ export const settings = {
   crossfade: 'Crossfade',
   crossfadeDesc: 'Überblendung zwischen Tracks',
   crossfadeSecs: '{{n}} s',
+  crossfadeTrimSilence: 'Stille zwischen Tracks kürzen',
+  crossfadeTrimSilenceDesc: 'Stille am Ende des aktuellen und am Anfang des nächsten Tracks überspringen, damit die Überblendung Musik statt Leere überlappt',
   notWithGapless: 'Nicht verfügbar wenn Nahtlose Wiedergabe aktiv ist',
   notWithCrossfade: 'Nicht verfügbar wenn Crossfade aktiv ist',
   gapless: 'Nahtlose Wiedergabe',

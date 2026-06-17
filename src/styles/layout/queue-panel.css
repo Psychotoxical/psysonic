@@ -129,6 +129,25 @@
   color: var(--text-muted);
 }
 
+.crossfade-popover-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.crossfade-popover-toggle input {
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 .queue-toolbar-sep {
   width: 1px;
   height: 18px;

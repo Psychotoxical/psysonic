@@ -53,6 +53,7 @@ export const useAuthStore = create<AuthState>()(
       replayGainFallbackDb: 0,
       crossfadeEnabled: false,
       crossfadeSecs: 3,
+      crossfadeTrimSilence: false,
       gaplessEnabled: false,
       trackPreviewsEnabled: true,
       trackPreviewLocations: { ...DEFAULT_TRACK_PREVIEW_LOCATIONS },
