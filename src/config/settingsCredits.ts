@@ -166,6 +166,7 @@ const CONTRIBUTOR_ENTRIES = [
       'OpenSubsonic playbackReport — live now-playing state, gliding position bar, and immediate pause/resume on Navidrome ≥0.62 (PR #1080)',
       'Playback speed follow-up — Semitones varispeed strategy, two-decimal speed label, per-strategy tooltips, and Advanced fine-step toggle (PR #1084)',
       'Streamed Opus/Ogg seeking via on-demand HTTP Range fetches — seek mid-stream without a full pre-download (PR #1110)',
+      'npm: bump transitive form-data to 4.0.6 — CRLF injection advisory (PR #1118)',
     ],
   },
   {

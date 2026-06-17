@@ -47,6 +47,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Right-clicking the current track in the player bar opened an album menu, so "Add to playlist" added the entire album instead of the playing song. The player bar menu now acts on the current song.
 
+### Security — transitive form-data CRLF injection (GHSA-hmw2-7cc7-3qxx)
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1118](https://github.com/Psychotoxical/psysonic/pull/1118)**
+
+* Bumped transitive `form-data` 4.0.5 → 4.0.6 (via axios) to close Dependabot alert [#18](https://github.com/Psychotoxical/psysonic/security/dependabot/18) for CRLF injection in multipart field names (CVE-2026-12143). Psysonic only uses axios for GET requests, so exploitability was low; the lockfile bump clears the advisory.
+
 
 ## [1.48.1] - 2026-06-15
 
