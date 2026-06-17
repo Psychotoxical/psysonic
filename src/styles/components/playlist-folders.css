@@ -1,0 +1,215 @@
+/* Playlist folders — Playlists page notice + folder sections, and sidebar groups. */
+
+/* ── Local-only notice ──────────────────────────────────────────────────── */
+.playlist-folder-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.playlist-folder-notice svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--accent);
+}
+.playlist-folder-notice--page {
+  margin-bottom: var(--space-4);
+}
+
+/* ── Folder sections on the page ────────────────────────────────────────── */
+.playlist-folder-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.playlist-folder-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.playlist-folder-header:hover {
+  border-color: var(--border);
+}
+.playlist-folder-header--static {
+  background: none;
+  border-color: transparent;
+  border-bottom: 1px solid var(--border-subtle);
+  border-radius: 0;
+  opacity: 0.85;
+}
+.playlist-folder-header--static:hover {
+  border-color: transparent;
+  border-bottom-color: var(--border-subtle);
+}
+.playlist-folder-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  transition: transform var(--transition-fast), color var(--transition-fast);
+}
+.playlist-folder-toggle.expanded {
+  transform: rotate(90deg);
+}
+.playlist-folder-toggle:hover {
+  color: var(--text-primary);
+}
+.playlist-folder-icon {
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+.playlist-folder-name {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  max-width: 40ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.playlist-folder-name--static {
+  cursor: default;
+}
+.playlist-folder-rename-input {
+  background: var(--input-bg);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 2px 8px;
+}
+.playlist-folder-rename-input:focus {
+  outline: none;
+}
+.playlist-folder-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  padding: 2px 8px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+.playlist-folder-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.playlist-folder-header:hover .playlist-folder-actions,
+.playlist-folder-actions:focus-within {
+  opacity: 1;
+}
+.playlist-folder-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+.playlist-folder-action:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+.playlist-folder-action--delete:hover,
+.playlist-folder-action--delete.is-confirm {
+  color: var(--danger);
+}
+.playlist-folder-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: var(--space-2) 0 var(--space-3);
+}
+.playlist-folder-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Drag-and-drop: dropping a playlist card anywhere in a folder files it there. */
+.playlist-folder.drag-over {
+  outline: 2px dashed var(--accent);
+  outline-offset: 6px;
+  border-radius: var(--radius-md);
+}
+.album-card--draggable {
+  cursor: grab;
+}
+.album-card--draggable:active {
+  cursor: grabbing;
+}
+
+/* ── Sidebar folder groups ──────────────────────────────────────────────── */
+.sidebar-playlist-folder-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--sidebar-text, var(--text-muted));
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  text-align: left;
+  transition: background var(--transition-fast);
+}
+.sidebar-playlist-folder-header:hover {
+  background: var(--sidebar-item-hover);
+}
+.sidebar-playlist-folder-chevron {
+  flex: 0 0 auto;
+  transition: transform var(--transition-fast);
+}
+.sidebar-playlist-folder-header.expanded .sidebar-playlist-folder-chevron {
+  transform: rotate(90deg);
+}
+.sidebar-playlist-folder-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-playlist-folder-count {
+  flex: 0 0 auto;
+  font-size: 11px;
+  opacity: 0.7;
+}
+.sidebar-playlist-folder-items {
+  padding-left: 12px;
+}

@@ -5,7 +5,7 @@ const get = () => usePlaylistFolderStore.getState();
 const server = (id: string) => get().byServer[id] ?? { folders: [], assignments: {} };
 
 beforeEach(() => {
-  usePlaylistFolderStore.setState({ byServer: {} });
+  usePlaylistFolderStore.setState({ byServer: {}, groupView: true });
 });
 
 describe('playlistFolderStore', () => {
@@ -41,6 +41,14 @@ describe('playlistFolderStore', () => {
     get().renameFolder('s1', f1, '  Jazz ');
     get().toggleFolderCollapsed('s1', f1);
     expect(server('s1').folders[0]).toMatchObject({ name: 'Jazz', collapsed: true });
+  });
+
+  it('toggles the grouped view (default on, global)', () => {
+    expect(get().groupView).toBe(true);
+    get().toggleGroupView();
+    expect(get().groupView).toBe(false);
+    get().toggleGroupView();
+    expect(get().groupView).toBe(true);
   });
 
   it('scopes folders per server', () => {

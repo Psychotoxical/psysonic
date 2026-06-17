@@ -31,6 +31,9 @@ import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import { useOfflineBrowseContext } from '../hooks/useOfflineBrowseContext';
 import { offlineActionPolicy } from '../utils/offline/offlineActionPolicy';
+import { Info } from 'lucide-react';
+import PlaylistsFolderView from '../components/playlists/PlaylistsFolderView';
+import { usePlaylistFolderStore } from '../store/playlistFolderStore';
 
 function formatDuration(seconds: number): string {
   return formatHumanHoursMinutes(seconds);
@@ -49,6 +52,11 @@ export default function Playlists() {
   const playlistsLoading = usePlaylistStore((s) => s.playlistsLoading);
   const activeUsername = useAuthStore(s => s.getActiveServer()?.username ?? '');
   const activeServerId = useAuthStore(s => s.activeServerId);
+  const folderCount = usePlaylistFolderStore(
+    s => (activeServerId ? s.byServer[activeServerId]?.folders.length ?? 0 : 0),
+  );
+  const folderGroupView = usePlaylistFolderStore(s => s.groupView);
+  const showFolderView = Boolean(activeServerId) && folderCount > 0 && folderGroupView;
   const subsonicIdentityByServer = useAuthStore(s => s.subsonicServerIdentityByServer);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const offlineCtx = useOfflineBrowseContext();
@@ -173,6 +181,28 @@ export default function Playlists() {
     targetPlaylist, selectedPlaylists, touchPlaylist, clearSelection, t,
   });
 
+  const renderCard = (pl: SubsonicPlaylist) => (
+    <PlaylistCard
+      pl={pl}
+      selectionMode={selectionMode}
+      draggable={showFolderView}
+      selectedIds={selectedIds}
+      selectedPlaylists={selectedPlaylists}
+      toggleSelect={toggleSelect}
+      isPlaylistDeletable={isPlaylistDeletable}
+      deleteConfirmId={deleteConfirmId}
+      setDeleteConfirmId={setDeleteConfirmId}
+      handleOpenSmartEditor={handleOpenSmartEditor}
+      handleDelete={handleDelete}
+      handlePlay={handlePlay}
+      playingId={playingId}
+      smartCoverIdsByPlaylist={smartCoverIdsByPlaylist}
+      pendingSmart={pendingSmart}
+      filteredSongCountByPlaylist={filteredSongCountByPlaylist}
+      filteredDurationByPlaylist={filteredDurationByPlaylist}
+    />
+  );
+
   if (loading) {
     return (
       <div className="content-body" style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
@@ -267,33 +297,30 @@ export default function Playlists() {
       {playlists.length === 0 ? (
         <div className="empty-state">{t('playlists.empty')}</div>
       ) : (
-        <VirtualCardGrid
-          items={playlists}
-          itemKey={(pl, _i) => pl.id}
-          rowVariant="playlist"
-          disableVirtualization={perfFlags.disableMainstageVirtualLists}
-          layoutSignal={playlists.length}
-          renderItem={pl => (
-            <PlaylistCard
-              pl={pl}
-              selectionMode={selectionMode}
-              selectedIds={selectedIds}
-              selectedPlaylists={selectedPlaylists}
-              toggleSelect={toggleSelect}
-              isPlaylistDeletable={isPlaylistDeletable}
-              deleteConfirmId={deleteConfirmId}
-              setDeleteConfirmId={setDeleteConfirmId}
-              handleOpenSmartEditor={handleOpenSmartEditor}
-              handleDelete={handleDelete}
-              handlePlay={handlePlay}
-              playingId={playingId}
-              smartCoverIdsByPlaylist={smartCoverIdsByPlaylist}
-              pendingSmart={pendingSmart}
-              filteredSongCountByPlaylist={filteredSongCountByPlaylist}
-              filteredDurationByPlaylist={filteredDurationByPlaylist}
+        <>
+          {showFolderView && (
+            <p className="playlist-folder-notice playlist-folder-notice--page">
+              <Info size={13} /> {t('playlists.folders.localOnlyNotice')}
+            </p>
+          )}
+          {showFolderView && activeServerId ? (
+            <PlaylistsFolderView
+              serverId={activeServerId}
+              playlists={playlists}
+              renderCard={renderCard}
+              disableVirtualization={perfFlags.disableMainstageVirtualLists}
+            />
+          ) : (
+            <VirtualCardGrid
+              items={playlists}
+              itemKey={(pl, _i) => pl.id}
+              rowVariant="playlist"
+              disableVirtualization={perfFlags.disableMainstageVirtualLists}
+              layoutSignal={playlists.length}
+              renderItem={renderCard}
             />
           )}
-        />
+        </>
       )}
 
 

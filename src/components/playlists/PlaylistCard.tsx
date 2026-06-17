@@ -8,11 +8,14 @@ import {
   displayPlaylistName, isSmartPlaylistName, type PendingSmartPlaylist,
 } from '../../utils/playlist/playlistsSmart';
 import { formatHumanHoursMinutes } from '../../utils/format/formatHumanDuration';
+import { useDragSource } from '../../contexts/DragDropContext';
 import { PlaylistCardMainCover, PlaylistSmartCoverCell } from './PlaylistCoverImages';
 
 interface Props {
   pl: SubsonicPlaylist;
   selectionMode: boolean;
+  /** Enables dragging the card onto a folder drop target (folder view only). */
+  draggable?: boolean;
   selectedIds: Set<string>;
   selectedPlaylists: SubsonicPlaylist[];
   toggleSelect: (id: string, opts?: { shiftKey?: boolean }) => void;
@@ -30,7 +33,7 @@ interface Props {
 }
 
 export default function PlaylistCard({
-  pl, selectionMode, selectedIds, selectedPlaylists,
+  pl, selectionMode, draggable, selectedIds, selectedPlaylists,
   toggleSelect, isPlaylistDeletable,
   deleteConfirmId, setDeleteConfirmId,
   handleOpenSmartEditor, handleDelete, handlePlay, playingId,
@@ -40,10 +43,16 @@ export default function PlaylistCard({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
+  const dragHandlers = useDragSource(() => ({
+    data: JSON.stringify({ type: 'playlist', id: pl.id }),
+    label: displayPlaylistName(pl.name),
+  }));
+  const dragEnabled = Boolean(draggable) && !selectionMode;
 
   return (
     <div
-      className={`album-card${selectionMode && selectedIds.has(pl.id) ? ' album-card--selected' : ''}`}
+      className={`album-card${selectionMode && selectedIds.has(pl.id) ? ' album-card--selected' : ''}${dragEnabled ? ' album-card--draggable' : ''}`}
+      {...(dragEnabled ? dragHandlers : {})}
       onClick={(e) => {
         if (selectionMode) {
           toggleSelect(pl.id, { shiftKey: e.shiftKey });

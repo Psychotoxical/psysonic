@@ -11,6 +11,9 @@ export interface ServerPlaylistFolders {
 
 interface PlaylistFolderState {
   byServer: Record<string, ServerPlaylistFolders>;
+  /** Whether the Playlists page / sidebar group playlists into folders. */
+  groupView: boolean;
+  toggleGroupView: () => void;
   createFolder: (serverId: string, name: string) => string;
   renameFolder: (serverId: string, folderId: string, name: string) => void;
   /** Removes the folder; its playlists fall back to ungrouped. */
@@ -34,6 +37,9 @@ export const usePlaylistFolderStore = create<PlaylistFolderState>()(
   persist(
     set => ({
       byServer: {},
+      groupView: true,
+
+      toggleGroupView: () => set(state => ({ groupView: !state.groupView })),
 
       createFolder: (serverId, name) => {
         const id = crypto.randomUUID();
