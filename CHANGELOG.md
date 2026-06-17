@@ -41,6 +41,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * When browsing albums sorted by artist, each artist's albums appeared in an arbitrary order. They are now ordered A–Z by album title within each artist.
 
+### "Add to playlist" from the player bar added the whole album
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1117](https://github.com/Psychotoxical/psysonic/pull/1117)**
+
+* Right-clicking the current track in the player bar opened an album menu, so "Add to playlist" added the entire album instead of the playing song. The player bar menu now acts on the current song.
+
 
 ## [1.48.1] - 2026-06-15
 
