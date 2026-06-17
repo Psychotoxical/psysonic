@@ -1,7 +1,7 @@
 import { Cast, Heart, Maximize2, Music } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { queueSongRating } from '../../store/pendingStarSync';
-import type { InternetRadioStation, SubsonicAlbum, SubsonicOpenArtistRef } from '../../api/subsonicTypes';
+import type { InternetRadioStation, SubsonicOpenArtistRef } from '../../api/subsonicTypes';
 import type { PlayerState, Track } from '../../store/playerStoreTypes';
 import type { RadioMetadata } from '../../hooks/useRadioMetadata';
 import type { PreviewingTrack } from '../../store/previewStore';
@@ -137,19 +137,14 @@ export function PlayerTrackInfo({
           className="player-track-name"
           style={{ cursor: !isRadio && !showPreviewMeta && currentTrack?.albumId ? 'pointer' : 'default' }}
           onClick={() => !isRadio && !showPreviewMeta && currentTrack?.albumId && navigate(`/album/${currentTrack.albumId}`)}
-          onContextMenu={!isRadio && !showPreviewMeta && currentTrack?.albumId
+          onContextMenu={!isRadio && !showPreviewMeta && currentTrack
             ? (e) => {
                 e.preventDefault();
-                const album: SubsonicAlbum = {
-                  id: currentTrack.albumId!,
-                  name: currentTrack.album,
-                  artist: currentTrack.artist,
-                  artistId: currentTrack.artistId ?? '',
-                  coverArt: currentTrack.coverArt,
-                  songCount: 0,
-                  duration: 0,
-                };
-                openContextMenu(e.clientX, e.clientY, album, 'album', undefined, undefined, undefined, undefined, true);
+                // The player bar represents the current song, so its menu is
+                // song-scoped (e.g. "Add to playlist" adds this track, not the
+                // whole album). pinToPlaybackServer: the track plays from the
+                // playback server, which may differ from the active one.
+                openContextMenu(e.clientX, e.clientY, currentTrack, 'song', undefined, undefined, undefined, undefined, true);
               }
             : undefined}
         />

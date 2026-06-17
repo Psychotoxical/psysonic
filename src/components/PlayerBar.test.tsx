@@ -144,6 +144,25 @@ describe('PlayerBar — control wiring', () => {
   });
 });
 
+describe('PlayerBar — current track context menu', () => {
+  it('right-clicking the track name opens a song-scoped menu for the current track (#1116)', () => {
+    const track = makeTrack({ id: 'cur', albumId: 'alb-1' });
+    usePlayerStore.setState({ currentTrack: track, isPlaying: true });
+    const spy = vi.spyOn(usePlayerStore.getState(), 'openContextMenu');
+
+    const { container } = renderWithProviders(<PlayerBar />);
+    const trackName = container.querySelector('.player-track-name');
+    expect(trackName).not.toBeNull();
+    fireEvent.contextMenu(trackName!);
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    const [, , item, type, , , , , pin] = spy.mock.calls[0];
+    expect(item).toBe(track);
+    expect(type).toBe('song');
+    expect(pin).toBe(true);
+  });
+});
+
 describe('PlayerBar — empty state (no current track)', () => {
   it('still renders the region landmark when no track is loaded', () => {
     usePlayerStore.setState({ currentTrack: null, isPlaying: false });
