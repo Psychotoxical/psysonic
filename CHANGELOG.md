@@ -29,6 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Scrubbing an Opus/Ogg track that was still streaming did nothing — the seekbar snapped back, and seeking only worked once the track had fully downloaded. Seeking now works mid-stream: the player fetches just the part of the file it needs over HTTP instead of waiting for the whole track to download. Cached and local files are unchanged. (Follow-up to the 1.48.1 Opus/Ogg seek-crash fix, #1100, which made streamed seeking a safe no-op rather than a crash.)
 
+### Media buttons missing from the Windows taskbar preview
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1112](https://github.com/Psychotoxical/psysonic/pull/1112)**
+
+* The Previous / Play-Pause / Next buttons in the Windows taskbar thumbnail preview (the popup shown when hovering the taskbar icon) had stopped appearing. They are back, and the middle button's icon again reflects the current playback state.
+
 
 ## [1.48.1] - 2026-06-15
 
