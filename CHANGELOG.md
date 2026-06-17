@@ -26,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Organise your playlists into folders on the Playlists page and in the sidebar — create folders, drag playlists into them (or use the right-click "Move to folder" menu), rename, collapse and switch between the folder view and a single flat list. Folders are saved locally on this device only, since the Subsonic API has no folder support.
 
+### AutoDJ — content-aware crossfade
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1122](https://github.com/Psychotoxical/psysonic/pull/1122)**
+
+* New **AutoDJ** crossfade mode (next to classic Crossfade in the audio settings and the crossfade popover). Instead of a fixed crossfade time, it blends what you actually hear: it trims the dead silence at the end of one track and the start of the next, and picks the overlap from the music itself — a track that fades out rides its own fade while the next one rises underneath, and two tracks that both start/end loud get a short musical blend instead of an abrupt cut. Off by default; classic Crossfade is unchanged. Works most reliably with the Hot playback cache enabled, since the next track's audio needs to be ready for the blend.
+
 
 ## Fixed
 
