@@ -60,6 +60,12 @@ pub struct AudioEngine {
     pub(crate) stream_playback_armed: Arc<AtomicBool>,
     pub crossfade_enabled: Arc<AtomicBool>,
     pub crossfade_secs: Arc<AtomicU32>,
+    /// AutoDJ: when true, the progress task does NOT fire its autonomous
+    /// `crossfade_secs`-before-end `audio:ended` timer — the JS A-tail logic
+    /// drives every advance (gated on the next track being playable). Prevents
+    /// the engine from starting a still-buffering next track and fading over it
+    /// (an audible "jump"); cold next-track degrades to a clean sequential start.
+    pub(crate) autodj_suppress_autocrossfade: Arc<AtomicBool>,
     pub fading_out_sink: Arc<Mutex<Option<Arc<Player>>>>,
     /// When true, audio_play chains sources to the existing Sink instead of
     /// creating a new one, achieving sample-accurate gapless transitions.
@@ -475,6 +481,7 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
         stream_playback_armed: Arc::new(AtomicBool::new(true)),
         crossfade_enabled: Arc::new(AtomicBool::new(false)),
         crossfade_secs: Arc::new(AtomicU32::new(3.0f32.to_bits())),
+        autodj_suppress_autocrossfade: Arc::new(AtomicBool::new(false)),
         fading_out_sink: Arc::new(Mutex::new(None)),
         gapless_enabled: Arc::new(AtomicBool::new(false)),
         normalization_engine: Arc::new(AtomicU32::new(0)),

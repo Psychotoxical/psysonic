@@ -106,6 +106,10 @@ export function maybeCrossfadeBytePreload(currentTime: number, dur: number): voi
       durationHint: nextTrack.duration,
       analysisTrackId: nextTrack.id,
       serverId: serverId || null,
+      // Crossfade/AutoDJ pre-buffer: skip the 8 s throttle so the RAM slot
+      // fills before the fade — without the hot cache this is the only source
+      // of B's bytes, and a late slot means no fade (or an audible jump).
+      eager: true,
     }).catch(() => {});
   }
 

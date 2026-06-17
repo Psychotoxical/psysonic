@@ -520,6 +520,7 @@ pub async fn audio_play(
         state.chained_info.clone(),
         state.crossfade_enabled.clone(),
         state.crossfade_secs.clone(),
+        state.autodj_suppress_autocrossfade.clone(),
         done_flag,
         app,
         Some(analysis_app),

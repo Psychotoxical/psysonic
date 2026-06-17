@@ -61,6 +61,7 @@ pub(crate) fn spawn_progress_task<E: ProgressEmitter>(
     chained_arc: Arc<Mutex<Option<ChainedInfo>>>,
     crossfade_enabled_arc: Arc<AtomicBool>,
     crossfade_secs_arc: Arc<AtomicU32>,
+    autodj_suppress_arc: Arc<AtomicBool>,
     initial_done: Arc<AtomicBool>,
     emitter: E,
     analysis_app: Option<AppHandle>,
@@ -245,7 +246,12 @@ pub(crate) fn spawn_progress_task<E: ProgressEmitter>(
                 continue;
             }
 
-            let cf_enabled = crossfade_enabled_arc.load(Ordering::Relaxed);
+            // AutoDJ may suppress the autonomous crossfade trigger so JS drives
+            // every advance (gated on the next track being playable). Treat it
+            // like crossfade-off here: only emit `audio:ended` on real source
+            // exhaustion (above) or the watchdog — never the early timer.
+            let cf_enabled = crossfade_enabled_arc.load(Ordering::Relaxed)
+                && !autodj_suppress_arc.load(Ordering::Relaxed);
             let cf_secs = f32::from_bits(crossfade_secs_arc.load(Ordering::Relaxed)).clamp(0.5, 12.0) as f64;
             let end_threshold = if cf_enabled { cf_secs.max(1.0) } else { 1.0 };
 
@@ -335,6 +341,7 @@ mod tests {
         chained: Arc<Mutex<Option<ChainedInfo>>>,
         crossfade_enabled: Arc<AtomicBool>,
         crossfade_secs: Arc<AtomicU32>,
+        autodj_suppress: Arc<AtomicBool>,
         done: Arc<AtomicBool>,
         samples_played: Arc<AtomicU64>,
         sample_rate: Arc<AtomicU32>,
@@ -365,6 +372,7 @@ mod tests {
                 chained: Arc::new(Mutex::new(None)),
                 crossfade_enabled: Arc::new(AtomicBool::new(false)),
                 crossfade_secs: Arc::new(AtomicU32::new(0f32.to_bits())),
+                autodj_suppress: Arc::new(AtomicBool::new(false)),
                 done: Arc::new(AtomicBool::new(false)),
                 samples_played: Arc::new(AtomicU64::new(0)),
                 sample_rate: Arc::new(AtomicU32::new(44_100)),
@@ -384,6 +392,7 @@ mod tests {
                 self.chained.clone(),
                 self.crossfade_enabled.clone(),
                 self.crossfade_secs.clone(),
+                self.autodj_suppress.clone(),
                 self.done.clone(),
                 emitter,
                 None,
@@ -638,5 +647,35 @@ mod tests {
             "crossfade still relies on the timer to fire audio:ended early"
         );
         assert!(h.gen_counter.load(Ordering::SeqCst) > h.gen);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn autodj_suppress_does_not_fire_crossfade_timer() {
+        // AutoDJ suppression on: even with crossfade enabled and the position
+        // inside the crossfade window, the autonomous timer must NOT emit
+        // audio:ended (JS drives the advance, gated on the next track being
+        // ready). The real end is still reached via source exhaustion.
+        let h = TaskHarness::new(120.0);
+        h.crossfade_enabled.store(true, Ordering::SeqCst);
+        h.crossfade_secs.store(5.0f32.to_bits(), Ordering::SeqCst);
+        h.autodj_suppress.store(true, Ordering::SeqCst);
+        // Position inside the crossfade window (>= dur - 5 s), source not done.
+        let played = (117.0 * 44_100.0 * 2.0) as u64;
+        h.samples_played.store(played, Ordering::SeqCst);
+
+        let emitter = Arc::new(MockEmitter::default());
+        h.spawn_with(emitter.clone());
+
+        tokio::time::sleep(Duration::from_millis(1300)).await;
+        assert_eq!(
+            emitter.ended_count(),
+            0,
+            "suppressed AutoDJ must not fire the autonomous crossfade timer"
+        );
+
+        // Source exhausts → audio:ended fires (clean sequential end).
+        h.done.store(true, Ordering::SeqCst);
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert_eq!(emitter.ended_count(), 1, "audio:ended fires on exhaustion");
     }
 }

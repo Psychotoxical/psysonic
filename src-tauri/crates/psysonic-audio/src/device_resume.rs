@@ -262,6 +262,7 @@ pub(crate) async fn try_resume_after_device_change(
         engine.chained_info.clone(),
         engine.crossfade_enabled.clone(),
         engine.crossfade_secs.clone(),
+        engine.autodj_suppress_autocrossfade.clone(),
         done_flag,
         app.clone(),
         Some(analysis_app),

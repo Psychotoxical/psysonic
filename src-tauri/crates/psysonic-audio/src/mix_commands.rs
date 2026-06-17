@@ -143,6 +143,17 @@ pub fn audio_set_gapless(enabled: bool, state: State<'_, AudioEngine>) {
     state.gapless_enabled.store(enabled, Ordering::Relaxed);
 }
 
+/// AutoDJ: when `true`, the progress task stops firing its autonomous
+/// crossfade `audio:ended` timer so the JS A-tail logic drives every advance
+/// (only when the next track is actually playable). When `false`, the engine's
+/// normal early crossfade trigger is restored (plain crossfade / loud→loud).
+#[tauri::command]
+pub fn audio_set_autodj_suppress(enabled: bool, state: State<'_, AudioEngine>) {
+    state
+        .autodj_suppress_autocrossfade
+        .store(enabled, Ordering::Relaxed);
+}
+
 #[tauri::command]
 pub fn audio_set_playback_rate(
     enabled: bool,

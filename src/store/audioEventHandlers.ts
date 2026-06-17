@@ -95,6 +95,18 @@ import { armCrossfadeDynamicOverlap, getCrossfadeTransition } from './crossfadeT
 // backward seek within the same playback).
 let crossfadeTrimAdvanceGen = -1;
 
+// AutoDJ: mirror of the engine's `autodj_suppress_autocrossfade` flag so we only
+// invoke the setter on change. When a content fade is pending for the upcoming
+// transition we suppress the engine's autonomous crossfade timer and let the JS
+// A-tail advance drive it (gated on the next track being playable) — otherwise
+// the engine would start a still-buffering next track and fade over it (a jump).
+let autodjSuppressSent: boolean | null = null;
+function syncAutodjSuppress(want: boolean): void {
+  if (autodjSuppressSent === want) return;
+  autodjSuppressSent = want;
+  invoke('audio_set_autodj_suppress', { enabled: want }).catch(() => {});
+}
+
 /** Rust-side `audio:normalization-state` event payload. */
 export type NormalizationStatePayload = {
   engine: 'off' | 'replaygain' | 'loudness' | string;
@@ -264,6 +276,10 @@ export function handleAudioProgress(
   // earlier — i.e. there's dead air to skip OR the content overlap is longer than
   // crossfadeSecs (a real fade/buildup). Plain loud→loud endings fall through to
   // the normal engine crossfade.
+  // When a content fade is pending we suppress the engine's autonomous
+  // crossfade timer (set below) so JS solely drives this transition; cleared
+  // for plain loud→loud (engine keeps its normal crossfade) and non-AutoDJ.
+  let autodjSuppressWant = false;
   if (trimActive && store.isPlaying && store.repeatMode !== 'one') {
     const nextIdx = store.queueIndex + 1;
     const nextRef = nextIdx < store.queueItems.length
@@ -288,6 +304,10 @@ export function handleAudioProgress(
       }
       const wantEarly = curTrailSilenceSec > 0.3 || contentOverlap > cf + 0.3;
       if (wantEarly) {
+        // This transition is ours to drive: stop the engine from firing its own
+        // crossfade into a possibly-cold next track. If B never readies, A plays
+        // out to its natural end and we degrade to a clean sequential start.
+        autodjSuppressWant = true;
         let overlap = Math.max(0.5, Math.min(12, contentOverlap || 0.5));
         // Hard, loud→loud meeting reached by trimming protective silence (no
         // natural fade to ride): use a standard ~2 s blend instead of a near-cut.
@@ -295,10 +315,11 @@ export function handleAudioProgress(
         const outgoingFade = aRidesOwnFade ? 0 : overlap;
         const triggerAt = Math.max(0, dur - curTrailSilenceSec - overlap);
         const gen = getPlayGeneration();
-        // Readiness gate: only pre-empt the engine when B's audio is actually
-        // available (RAM preload slot or local on disk). A cold stream can't
-        // sustain a stable fade, so we leave the gen guard unset and re-check on
-        // later ticks — if B never readies, the plain engine crossfade fires.
+        // Readiness gate: only advance when B's audio is actually available (RAM
+        // preload slot or local on disk). A cold stream can't sustain a stable
+        // fade, so we leave the gen guard unset and re-check on later ticks — if
+        // B readies before A ends we fade then; if never, A plays out (engine
+        // timer suppressed) and the source-exhaustion end gives a clean cut.
         if (
           current_time >= triggerAt
           && crossfadeTrimAdvanceGen !== gen
@@ -316,6 +337,7 @@ export function handleAudioProgress(
       }
     }
   }
+  syncAutodjSuppress(autodjSuppressWant);
 
   // Crossfade pre-buffer (next-track byte download + leading-silence probe).
   // Self-gating; also invoked right after a seek into the window (see seekAction).
