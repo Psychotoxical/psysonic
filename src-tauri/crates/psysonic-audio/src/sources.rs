@@ -221,13 +221,18 @@ impl<S: Source<Item = f32>> Source for EqualPowerFadeIn<S> {
     fn sample_rate(&self) -> rodio::SampleRate { self.inner.sample_rate() }
     fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
     fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
-        // For mid-track seeks: skip straight to unity gain so the new position
-        // plays at full volume immediately — no audible fade-in glitch.
-        // For seeks to the very start (< 100 ms): keep the micro-fade to
-        // suppress any DC-offset click from the fresh decode.
-        if pos.as_millis() < 100 {
+        if self.sample_count == 0 {
+            // Seek before any audio has played → this is the initial start-offset
+            // seek (B-head: skip the incoming track's leading silence). Keep the
+            // fade-in (`sample_count` stays 0) so a crossfaded track still rises
+            // in from its trimmed start instead of popping in at full gain.
+        } else if pos.as_millis() < 100 {
+            // Mid-playback seek to the very start: keep the micro-fade to
+            // suppress any DC-offset click from the fresh decode.
             self.sample_count = 0;
         } else {
+            // Mid-playback seek elsewhere (user dragging the seekbar): skip
+            // straight to unity gain so the new position is at full volume.
             self.sample_count = self.fade_samples;
         }
         self.inner.try_seek(pos)
