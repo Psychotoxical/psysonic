@@ -279,6 +279,9 @@ async fn open_preview_decoder(
             done,
             gen_arc: state.preview_gen.clone(),
             gen,
+            // Preview plays a fixed short segment; no user seeking → no need for
+            // the on-demand random-access fetcher.
+            on_demand: None,
         };
         let hint = stream_hint.clone();
         let decoder = tokio::task::spawn_blocking(move || {

@@ -334,6 +334,20 @@ async fn open_ranged_or_streaming_input(
             tail_ready.clone(),
             tail_filled_from.clone(),
         ));
+        // On-demand random-access fetcher: lets seeks (Ogg bisection, end-of-
+        // stream probe, forward scrubs) pull arbitrary byte ranges over HTTP
+        // Range instead of blocking until the linear filler reaches the target.
+        // This is what makes seeking work on a still-downloading Opus/Ogg stream
+        // (previously a contained no-op) without forcing a full pre-download.
+        let on_demand = Some(Arc::new(super::stream::OnDemand::new(
+            audio_http_client(state),
+            tokio::runtime::Handle::current(),
+            ctx.url.to_string(),
+            buf.clone(),
+            total,
+            state.generation.clone(),
+            ctx.gen,
+        )));
         let reader = RangedHttpSource {
             buf,
             downloaded_to,
@@ -344,12 +358,16 @@ async fn open_ranged_or_streaming_input(
             done,
             gen_arc: state.generation.clone(),
             gen: ctx.gen,
+            on_demand,
         };
         return Ok(Some(PlayInput::SeekableMedia {
             reader: Box::new(reader),
             format_hint: stream_hint,
             tag: "ranged-stream",
-            random_access: false,
+            // The on-demand fetcher makes a seek-to-EOF during the probe cheap,
+            // so Ogg can stay seekable through the probe (records its byte range
+            // → real seeking) without forcing a full download.
+            random_access: true,
             mp4_probe_gate,
         }));
     }

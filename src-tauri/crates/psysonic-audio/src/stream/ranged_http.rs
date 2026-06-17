@@ -50,6 +50,127 @@ impl Drop for RangedLoudnessSeedHoldClear {
     }
 }
 
+/// Minimum bytes fetched per on-demand Range request. A seek often triggers a
+/// short read; fetching a window amortizes the HTTP round-trip and lets the few
+/// pages a bisection lands on (and the playback that follows a forward seek) be
+/// served without a fresh request each time.
+const OD_FETCH_WINDOW: u64 = 1024 * 1024;
+/// Forward gap (cursor ahead of the contiguous linear download) above which a
+/// read is treated as a *seek* and served by an on-demand HTTP Range fetch
+/// instead of waiting for the linear filler to catch up. Below it we assume
+/// ordinary read-ahead that the linear download will satisfy shortly, so we do
+/// not issue redundant range requests during normal (slightly starved) play.
+const OD_SEEK_GAP: u64 = 512 * 1024;
+
+/// Random-access companion for [`RangedHttpSource`]: fetches arbitrary byte
+/// ranges over HTTP `Range` on demand so seeks (which jump the read cursor far
+/// ahead of the linear download) resolve quickly instead of blocking until the
+/// linear filler reaches the target.
+///
+/// symphonia 0.6's Ogg demuxer seeks by *bisection* — it reads pages at
+/// midpoints across the whole byte range, and its probe scans the last pages to
+/// find the stream-end timestamp. On a purely linear-fill source every such read
+/// would block until the download caught up (effectively forcing a full
+/// download before any seek). On-demand range fetches make those reads cheap.
+pub(crate) struct OnDemand {
+    http: reqwest::Client,
+    handle: tokio::runtime::Handle,
+    url: String,
+    buf: Arc<Mutex<Vec<u8>>>,
+    total_size: u64,
+    gen_arc: Arc<AtomicU64>,
+    gen: u64,
+    /// Byte ranges already fetched on demand (sorted/merged not required — N is
+    /// the handful of seek targets per track).
+    filled: Mutex<Vec<(u64, u64)>>,
+    /// Ranges with an in-flight fetch, so a polling read does not respawn them.
+    inflight: Mutex<Vec<(u64, u64)>>,
+    /// Bumped after every completed (success or failure) fetch so the read loop
+    /// can reset its stall deadline while on-demand fetches make progress.
+    progress: AtomicU64,
+}
+
+impl OnDemand {
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new(
+        http: reqwest::Client,
+        handle: tokio::runtime::Handle,
+        url: String,
+        buf: Arc<Mutex<Vec<u8>>>,
+        total_size: u64,
+        gen_arc: Arc<AtomicU64>,
+        gen: u64,
+    ) -> Self {
+        OnDemand {
+            http,
+            handle,
+            url,
+            buf,
+            total_size,
+            gen_arc,
+            gen,
+            filled: Mutex::new(Vec::new()),
+            inflight: Mutex::new(Vec::new()),
+            progress: AtomicU64::new(0),
+        }
+    }
+
+    fn covers(&self, start: u64, end: u64) -> bool {
+        self.filled
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|&(s, e)| s <= start && end <= e)
+    }
+
+    fn inflight_covers(&self, start: u64, end: u64) -> bool {
+        self.inflight
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|&(s, e)| s <= start && end <= e)
+    }
+
+    /// Spawn a Range fetch covering at least `[start, end)` (rounded up to
+    /// [`OD_FETCH_WINDOW`]) unless it is already filled or in flight. Returns
+    /// immediately; the caller polls [`OnDemand::covers`] / `progress`.
+    fn request(self: &Arc<Self>, start: u64, end: u64) {
+        if start >= self.total_size {
+            return;
+        }
+        let want_end = end.max(start + OD_FETCH_WINDOW).min(self.total_size);
+        if self.covers(start, want_end) || self.inflight_covers(start, want_end) {
+            return;
+        }
+        self.inflight.lock().unwrap().push((start, want_end));
+        let me = Arc::clone(self);
+        self.handle.spawn(async move {
+            let end_inclusive = want_end.saturating_sub(1);
+            let res = ranged_write_http_range(
+                &me.http,
+                &me.url,
+                &me.buf,
+                start,
+                end_inclusive,
+                me.gen,
+                &me.gen_arc,
+            )
+            .await;
+            if let Ok(written) = res {
+                if written > 0 {
+                    me.filled.lock().unwrap().push((start, start + written as u64));
+                }
+            }
+            // Drop the reservation either way so a failed fetch can be retried.
+            me.inflight
+                .lock()
+                .unwrap()
+                .retain(|&(s, e)| !(s == start && e == want_end));
+            me.progress.fetch_add(1, Ordering::SeqCst);
+        });
+    }
+}
+
 pub(crate) struct RangedHttpSource {
     /// Pre-allocated buffer of total size. Filled linearly from offset 0.
     pub(crate) buf: Arc<Mutex<Vec<u8>>>,
@@ -64,6 +185,10 @@ pub(crate) struct RangedHttpSource {
     pub(crate) done: Arc<AtomicBool>,
     pub(crate) gen_arc: Arc<AtomicU64>,
     pub(crate) gen: u64,
+    /// On-demand random-access fetcher. `None` keeps the legacy linear-only
+    /// behaviour (used by unit tests); production ranged playback sets it so
+    /// seeks resolve via HTTP `Range` instead of blocking on the linear filler.
+    pub(crate) on_demand: Option<Arc<OnDemand>>,
 }
 
 impl RangedHttpSource {
@@ -75,6 +200,11 @@ impl RangedHttpSource {
         if self.tail_ready.load(Ordering::Relaxed) {
             let tail_from = self.tail_filled_from.load(Ordering::Relaxed);
             if start >= tail_from && end <= self.total_size {
+                return true;
+            }
+        }
+        if let Some(od) = &self.on_demand {
+            if od.covers(start, end) {
                 return true;
             }
         }
@@ -103,6 +233,11 @@ impl Read for RangedHttpSource {
         let stall_timeout = Duration::from_secs(TRACK_READ_TIMEOUT_SECS);
         let mut deadline = Instant::now() + stall_timeout;
         let mut last_dl_seen = self.downloaded_to.load(Ordering::Relaxed) as u64;
+        let mut last_od_seen = self
+            .on_demand
+            .as_ref()
+            .map(|od| od.progress.load(Ordering::Relaxed))
+            .unwrap_or(0);
         loop {
             if self.gen_arc.load(Ordering::SeqCst) != self.gen {
                 crate::app_deprintln!(
@@ -119,6 +254,24 @@ impl Read for RangedHttpSource {
             if dl > last_dl_seen {
                 last_dl_seen = dl;
                 deadline = Instant::now() + stall_timeout;
+            }
+            // A read whose cursor is far ahead of the contiguous linear download
+            // is a seek (Ogg bisection midpoint, end-of-stream probe, or a
+            // forward scrub). Serve it from an on-demand HTTP Range fetch rather
+            // than blocking until the linear filler crawls there. While the
+            // download is still running; an aborted download keeps the legacy
+            // partial/EOF behaviour below.
+            if let Some(od) = &self.on_demand {
+                let od_progress = od.progress.load(Ordering::SeqCst);
+                if od_progress != last_od_seen {
+                    last_od_seen = od_progress;
+                    deadline = Instant::now() + stall_timeout;
+                }
+                if !self.done.load(Ordering::SeqCst)
+                    && self.pos > dl.saturating_add(OD_SEEK_GAP)
+                {
+                    od.request(self.pos, target_end);
+                }
             }
             // Download finished but our cursor is past downloaded_to (e.g. seek
             // beyond a partial download that aborted). Return what we have.
@@ -736,6 +889,7 @@ mod tests {
             done,
             gen_arc,
             gen: 7,
+            on_demand: None,
         }
     }
 
@@ -805,6 +959,7 @@ mod tests {
             done,
             gen_arc,
             gen: 1,
+            on_demand: None,
         };
         let mut out = [0u8; 8];
         let n = src.read(&mut out).unwrap();
@@ -835,6 +990,7 @@ mod tests {
             done,
             gen_arc,
             gen: 1,
+            on_demand: None,
         };
         let mut out = [0u8; 2];
         let n = src.read(&mut out).unwrap();
@@ -859,6 +1015,7 @@ mod tests {
             done,
             gen_arc,
             gen: 1,
+            on_demand: None,
         };
         let mut out = [0u8; 8];
         assert_eq!(src.read(&mut out).unwrap(), 0);
@@ -1134,6 +1291,91 @@ mod tests {
             // is short — fall back to asserting at least the first half landed.
             assert!(downloaded >= split);
         }
+    }
+
+    /// Serves whatever inclusive byte range the request asks for out of `body`,
+    /// as a 206 — models a server that honours arbitrary `Range` requests.
+    struct RangeResponder {
+        body: Vec<u8>,
+    }
+
+    impl Respond for RangeResponder {
+        fn respond(&self, req: &Request) -> ResponseTemplate {
+            let range = req
+                .headers
+                .get(reqwest::header::RANGE.as_str())
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.strip_prefix("bytes="))
+                .map(|s| s.to_string());
+            let Some(range) = range else {
+                return ResponseTemplate::new(200).set_body_bytes(self.body.clone());
+            };
+            let mut parts = range.splitn(2, '-');
+            let start: usize = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+            let end_inclusive: usize = parts
+                .next()
+                .filter(|s| !s.is_empty())
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(self.body.len().saturating_sub(1));
+            let end = (end_inclusive + 1).min(self.body.len());
+            ResponseTemplate::new(206).set_body_bytes(self.body[start..end].to_vec())
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn read_far_ahead_is_served_by_on_demand_range_fetch() {
+        // 4 MiB track; nothing downloaded linearly yet and the download is still
+        // "in progress" (done = false). A read whose cursor sits well past the
+        // linear front must be satisfied by an on-demand Range fetch.
+        let total: usize = 4 * 1024 * 1024;
+        let body: Vec<u8> = (0..total).map(|i| (i % 256) as u8).collect();
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/track"))
+            .respond_with(RangeResponder { body: body.clone() })
+            .mount(&server)
+            .await;
+        let url = format!("{}/track", server.uri());
+
+        let buf = Arc::new(Mutex::new(vec![0u8; total]));
+        let downloaded_to = Arc::new(AtomicUsize::new(0));
+        let gen_arc = Arc::new(AtomicU64::new(1));
+        let on_demand = Some(Arc::new(OnDemand::new(
+            reqwest::Client::new(),
+            tokio::runtime::Handle::current(),
+            url,
+            buf.clone(),
+            total as u64,
+            gen_arc.clone(),
+            1,
+        )));
+        let mut src = RangedHttpSource {
+            buf,
+            downloaded_to,
+            tail_ready: Arc::new(AtomicBool::new(false)),
+            tail_filled_from: Arc::new(AtomicU64::new(0)),
+            total_size: total as u64,
+            pos: 2 * 1024 * 1024, // 2 MiB — far past the (empty) linear front
+            done: Arc::new(AtomicBool::new(false)),
+            gen_arc,
+            gen: 1,
+            on_demand,
+        };
+
+        // The blocking read polls until the on-demand fetch fills the region.
+        let out = tokio::task::spawn_blocking(move || {
+            let mut out = [0u8; 16];
+            let n = src.read(&mut out).unwrap();
+            (n, out)
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(out.0, 16, "read returns the requested bytes via on-demand fetch");
+        let base = 2 * 1024 * 1024usize;
+        let expected: Vec<u8> = (base..base + 16).map(|i| (i % 256) as u8).collect();
+        assert_eq!(&out.1[..], &expected[..]);
     }
 
     #[tokio::test(flavor = "multi_thread")]

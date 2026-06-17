@@ -40,7 +40,7 @@ pub(crate) fn container_hint_is_ogg(hint: Option<&str>) -> bool {
 }
 pub(crate) use local_file::LocalFileSource;
 pub(crate) use radio::{RadioLiveState, RadioSharedFlags, radio_download_task};
-pub(crate) use ranged_http::{RangedHttpSource, ranged_download_task};
+pub(crate) use ranged_http::{OnDemand, RangedHttpSource, ranged_download_task};
 pub(crate) use reader::AudioStreamReader;
 pub(crate) use track_stream::track_download_task;
 
