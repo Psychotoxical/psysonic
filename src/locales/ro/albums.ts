@@ -2,6 +2,7 @@ export const albums = {
   title: 'Toate albumele',
   sortByName: 'A–Z (Album)',
   sortByArtist: 'A–Z (Artist)',
+  sortByArtistYear: 'Artist → An',
   sortNewest: 'Cele mai noi primele',
   sortRandom: 'Aleatoriu',
   yearFrom: 'De la',

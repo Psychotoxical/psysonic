@@ -101,4 +101,22 @@ export const playlists = {
   csvImportToast: '{{added}} hinzugefügt, {{notFound}} nicht gefunden, {{duplicates}} Duplikate',
   csvImportDownloadSuccess: 'Bericht erfolgreich heruntergeladen',
   csvImportDownloadError: 'Bericht konnte nicht heruntergeladen werden',
+  // Playlist folders (local, per-server organisation layer)
+  folders: {
+    newFolder: 'Neuer Ordner',
+    namePlaceholder: 'Ordnername…',
+    create: 'Erstellen',
+    rename: 'Umbenennen',
+    delete: 'Ordner löschen',
+    ungrouped: 'Ohne Ordner',
+    moveToFolder: 'In Ordner verschieben',
+    removeFromFolder: 'Aus Ordner entfernen',
+    expandFolder: 'Ordner aufklappen',
+    collapseFolder: 'Ordner einklappen',
+    groupByFolders: 'Nach Ordnern gruppieren',
+    count_one: '{{count}} Playlist',
+    count_other: '{{count}} Playlists',
+    localOnlyNotice:
+      'Ordner werden nur in Psysonic auf diesem Gerät gespeichert. Navidrome und die Subsonic-API unterstützen keine Playlist-Ordner, daher wird die Ordnerstruktur nicht auf deinem Server gespeichert und nicht mit deinen anderen Geräten und Apps synchronisiert.',
+  },
 };

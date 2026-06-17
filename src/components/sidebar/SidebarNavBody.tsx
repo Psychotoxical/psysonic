@@ -1,13 +1,13 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { AudioLines, ChevronRight, HardDriveDownload, PlayCircle, Settings, Sparkles } from 'lucide-react';
+import { AudioLines, ChevronRight, HardDriveDownload, Settings } from 'lucide-react';
 import type { SidebarItemConfig } from '../../store/sidebarStore';
 import { ALL_NAV_ITEMS } from '../../config/navItems';
 import WhatsNewBanner from '../WhatsNewBanner';
 import ThemeUpdateBanner from '../ThemeUpdateBanner';
-import { displayPlaylistName, isSmartPlaylistName } from '../../utils/componentHelpers/sidebarHelpers';
 import SidebarLibraryPicker from './SidebarLibraryPicker';
+import SidebarPlaylistsSection from './SidebarPlaylistsSection';
 import SidebarActiveJobs from './SidebarActiveJobs';
 
 interface NavDndState {
@@ -146,26 +146,7 @@ export default function SidebarNavBody(props: Props) {
                 </button>
               </div>
               {playlistsExpanded && (
-                <div className="sidebar-playlists-list">
-                  {playlistsLoading ? (
-                    <div className="sidebar-playlists-loading">
-                      <div className="spinner" style={{ width: 14, height: 14 }} />
-                    </div>
-                  ) : playlists.length === 0 ? (
-                    <div className="sidebar-playlists-empty">{t('playlists.empty')}</div>
-                  ) : (
-                    playlists.map((pl: { id: string; name: string }) => (
-                      <NavLink
-                        key={pl.id}
-                        to={`/playlists/${pl.id}`}
-                        className={({ isActive }) => `nav-link sidebar-playlist-item ${isActive ? 'active' : ''}`}
-                      >
-                        {isSmartPlaylistName(pl.name) ? <Sparkles size={12} /> : <PlayCircle size={12} />}
-                        <span>{displayPlaylistName(pl.name)}</span>
-                      </NavLink>
-                    ))
-                  )}
-                </div>
+                <SidebarPlaylistsSection playlists={playlists} playlistsLoading={playlistsLoading} />
               )}
             </div>
           ) : isCollapsed ? (

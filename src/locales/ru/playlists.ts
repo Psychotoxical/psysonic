@@ -101,4 +101,22 @@ export const playlists = {
   csvImportToast: '{{added}} добавлено, {{notFound}} не найдено, {{duplicates}} дубликатов',
   csvImportDownloadSuccess: 'Отчёт успешно скачан',
   csvImportDownloadError: 'Не удалось скачать отчёт',
+  // Playlist folders (local, per-server organisation layer)
+  folders: {
+    newFolder: 'Новая папка',
+    namePlaceholder: 'Название папки…',
+    create: 'Создать',
+    rename: 'Переименовать',
+    delete: 'Удалить папку',
+    ungrouped: 'Без папки',
+    moveToFolder: 'Переместить в папку',
+    removeFromFolder: 'Убрать из папки',
+    expandFolder: 'Развернуть папку',
+    collapseFolder: 'Свернуть папку',
+    groupByFolders: 'Группировать по папкам',
+    count_one: '{{count}} плейлист',
+    count_other: '{{count}} плейлистов',
+    localOnlyNotice:
+      'Папки сохраняются только в Psysonic на этом устройстве. Navidrome и API Subsonic не поддерживают папки плейлистов, поэтому структура не хранится на твоём сервере и не синхронизируется с другими твоими устройствами и приложениями.',
+  },
 };

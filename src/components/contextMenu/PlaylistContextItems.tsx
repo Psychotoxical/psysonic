@@ -1,10 +1,11 @@
 import { useTranslation } from 'react-i18next';
-import { Play, ChevronRight, ListMusic, Trash2 } from 'lucide-react';
+import { Play, ChevronRight, FolderTree, ListMusic, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { SubsonicPlaylist } from '../../api/subsonicTypes';
 import { useAuthStore } from '../../store/authStore';
 import { usePlaylistStore } from '../../store/playlistStore';
 import { MultiPlaylistToPlaylistSubmenu, SinglePlaylistToPlaylistSubmenu } from './PlaylistToPlaylistSubmenus';
+import MoveToFolderSubmenu from './MoveToFolderSubmenu';
 import type { ContextMenuItemsProps } from './contextMenuItemTypes';
 
 export default function PlaylistContextItems(props: ContextMenuItemsProps) {
@@ -48,6 +49,19 @@ export default function PlaylistContextItems(props: ContextMenuItemsProps) {
                   )}
                 </div>
               )}
+              {/* Folder assignment is local-only state, so it stays available offline. */}
+              <div
+                className={`context-menu-item context-menu-item--submenu ${playlistSubmenuOpen && playlistSongIds[0] === `folder:${playlist.id}` ? 'active' : ''}`}
+                data-playlist-trigger-id={`folder:${playlist.id}`}
+                onMouseEnter={() => { cancelPlaylistSubmenuCloseTimer(); setPlaylistSongIds([`folder:${playlist.id}`]); setPlaylistSubmenuOpen(true); }}
+                onMouseLeave={onPlaylistSubmenuTriggerMouseLeave}
+              >
+                <FolderTree size={14} /> {t('playlists.folders.moveToFolder')}
+                <ChevronRight size={13} style={{ marginLeft: 'auto' }} />
+                {playlistSubmenuOpen && playlistSongIds[0] === `folder:${playlist.id}` && (
+                  <MoveToFolderSubmenu playlistId={playlist.id} triggerId={`folder:${playlist.id}`} onDone={() => { setPlaylistSubmenuOpen(false); closeContextMenu(); }} />
+                )}
+              </div>
               {offlinePolicy.canEditPlaylist && (
                 <>
               <div className="context-menu-divider" />

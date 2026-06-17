@@ -99,4 +99,22 @@ export const playlists = {
   csvImportToast: '{{added}} 已添加，{{notFound}} 未找到，{{duplicates}} 重复项',
   csvImportDownloadSuccess: '报告下载成功',
   csvImportDownloadError: '报告下载失败',
+  // Playlist folders (local, per-server organisation layer)
+  folders: {
+    newFolder: '新建文件夹',
+    namePlaceholder: '文件夹名称…',
+    create: '创建',
+    rename: '重命名',
+    delete: '删除文件夹',
+    ungrouped: '未分组',
+    moveToFolder: '移动到文件夹',
+    removeFromFolder: '从文件夹中移除',
+    expandFolder: '展开文件夹',
+    collapseFolder: '折叠文件夹',
+    groupByFolders: '按文件夹分组',
+    count_one: '{{count}} 个播放列表',
+    count_other: '{{count}} 个播放列表',
+    localOnlyNotice:
+      '文件夹仅保存在此设备上的 Psysonic 中。Navidrome 和 Subsonic API 不支持播放列表文件夹，因此该结构不会存储在你的服务器上，也不会同步到你的其他设备和应用。',
+  },
 };

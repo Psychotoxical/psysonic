@@ -101,4 +101,22 @@ export const playlists = {
   csvImportToast: '{{added}} added, {{notFound}} not found, {{duplicates}} duplicates',
   csvImportDownloadSuccess: 'Report downloaded successfully',
   csvImportDownloadError: 'Failed to download report',
+  // Playlist folders (local, per-server organisation layer)
+  folders: {
+    newFolder: 'New folder',
+    namePlaceholder: 'Folder name…',
+    create: 'Create',
+    rename: 'Rename',
+    delete: 'Delete folder',
+    ungrouped: 'Ungrouped',
+    moveToFolder: 'Move to folder',
+    removeFromFolder: 'Remove from folder',
+    expandFolder: 'Expand folder',
+    collapseFolder: 'Collapse folder',
+    groupByFolders: 'Group by folders',
+    count_one: '{{count}} playlist',
+    count_other: '{{count}} playlists',
+    localOnlyNotice:
+      'Folders are saved only in Psysonic on this device. Navidrome and the Subsonic API have no native playlist-folder support, so the structure is not stored on your server or synced to your other devices and apps.',
+  },
 };

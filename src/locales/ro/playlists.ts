@@ -101,4 +101,22 @@ export const playlists = {
   csvImportToast: '{{added}} adăugate, {{notFound}} negăsite, {{duplicates}} duplicate',
   csvImportDownloadSuccess: 'Pagina de raport descărcată cu succes',
   csvImportDownloadError: 'Nu s-a putut descărca raportul',
+  // Playlist folders (local, per-server organisation layer)
+  folders: {
+    newFolder: 'Folder nou',
+    namePlaceholder: 'Nume folder…',
+    create: 'Crează',
+    rename: 'Redenumește',
+    delete: 'Șterge folderul',
+    ungrouped: 'Fără folder',
+    moveToFolder: 'Mută în folder',
+    removeFromFolder: 'Scoate din folder',
+    expandFolder: 'Extinde folderul',
+    collapseFolder: 'Restrânge folderul',
+    groupByFolders: 'Grupează pe foldere',
+    count_one: '{{count}} playlist',
+    count_other: '{{count}} playlisturi',
+    localOnlyNotice:
+      'Folderele sunt salvate doar în Psysonic pe acest dispozitiv. Navidrome și API-ul Subsonic nu acceptă foldere de playlisturi, așa că structura nu este stocată pe serverul tău și nu se sincronizează cu celelalte dispozitive și aplicații ale tale.',
+  },
 };
