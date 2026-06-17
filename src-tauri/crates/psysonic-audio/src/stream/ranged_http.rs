@@ -508,9 +508,14 @@ async fn ranged_write_http_range(
     if gen_arc.load(Ordering::SeqCst) != gen {
         return Err(());
     }
-    if !(response.status() == reqwest::StatusCode::PARTIAL_CONTENT
-        || response.status() == reqwest::StatusCode::OK)
-    {
+    // Require 206 for any non-zero offset. A server that ignored the `Range`
+    // header and replied 200 returns the *whole* body from byte 0; writing that
+    // at `start` would corrupt the buffer. A 200 is only safe when we asked from
+    // offset 0 (the body genuinely starts there).
+    let status = response.status();
+    let ok = status == reqwest::StatusCode::PARTIAL_CONTENT
+        || (status == reqwest::StatusCode::OK && start == 0);
+    if !ok {
         return Err(());
     }
     let mut written = 0usize;
@@ -1376,6 +1381,39 @@ mod tests {
         let base = 2 * 1024 * 1024usize;
         let expected: Vec<u8> = (base..base + 16).map(|i| (i % 256) as u8).collect();
         assert_eq!(&out.1[..], &expected[..]);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn ranged_write_http_range_rejects_200_at_nonzero_offset() {
+        // A server that ignores Range and answers 200 with the whole body must
+        // NOT be written at a non-zero offset (would corrupt the buffer).
+        let server = MockServer::start().await;
+        let body = vec![0xCDu8; 4096];
+        Mock::given(method("GET"))
+            .and(path("/track"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(body))
+            .mount(&server)
+            .await;
+        let url = format!("{}/track", server.uri());
+
+        let buf = Arc::new(Mutex::new(vec![0u8; 4096]));
+        let gen_arc = Arc::new(AtomicU64::new(1));
+        let res = ranged_write_http_range(
+            &reqwest::Client::new(),
+            &url,
+            &buf,
+            1024, // non-zero offset
+            2047,
+            1,
+            &gen_arc,
+        )
+        .await;
+
+        assert!(res.is_err(), "200 at a non-zero offset must be rejected");
+        assert!(
+            buf.lock().unwrap().iter().all(|&b| b == 0),
+            "buffer must be left untouched on a rejected 200"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
