@@ -36,7 +36,7 @@ export function maybeCrossfadeBytePreload(currentTime: number, dur: number): voi
   const {
     gaplessEnabled, hotCacheEnabled, crossfadeEnabled, crossfadeSecs, crossfadeTrimSilence,
   } = useAuthStore.getState();
-  if (!crossfadeEnabled || gaplessEnabled || hotCacheEnabled) return;
+  if (!crossfadeEnabled || gaplessEnabled) return;
 
   const store = usePlayerStore.getState();
   const track = store.currentTrack;
@@ -63,7 +63,10 @@ export function maybeCrossfadeBytePreload(currentTime: number, dur: number): voi
   const serverId = playbackCacheKeyForRef(nextRef);
   const nextUrl = resolvePlaybackUrl(nextTrack.id, serverId);
 
-  if (nextTrack.id !== getBytePreloadingId()) {
+  // Byte pre-download — skipped when the hot cache is on (it already keeps the
+  // upcoming queue on disk, which is also why hot cache makes the trim reliable:
+  // the next track is local → seekable → starts instantly past its lead silence).
+  if (!hotCacheEnabled && nextTrack.id !== getBytePreloadingId()) {
     setBytePreloadingId(nextTrack.id);
     // Loudness cache only — never refreshWaveformForTrack(next): it writes the
     // global waveformBins and would replace the current track's seekbar.
@@ -77,7 +80,9 @@ export function maybeCrossfadeBytePreload(currentTime: number, dur: number): voi
   }
 
   // B-head: probe the next track's leading silence once (no store write) so
-  // playTrack can start it past the dead head. Cold tracks cache 0 → degrade.
+  // playTrack can start it past the dead head. Cheap analysis-cache read, so it
+  // runs regardless of hot cache (which otherwise skips the byte pre-download).
+  // Cold/un-analysed tracks cache 0 → degrade to today's behaviour.
   if (crossfadeTrimSilence && !hasFetchedCrossfadeLead(nextTrack.id)) {
     markFetchedCrossfadeLead(nextTrack.id);
     const leadTrackId = nextTrack.id;

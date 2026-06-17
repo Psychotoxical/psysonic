@@ -553,7 +553,7 @@ export const settings = {
   crossfadeDesc: 'Tone mellom spor',
   crossfadeSecs: '{{n}}s',
   crossfadeTrimSilence: 'Trim stillhet mellom spor',
-  crossfadeTrimSilenceDesc: 'Hopp over stillhet på slutten av gjeldende spor og starten på neste, slik at toningen overlapper musikk, ikke stillhet',
+  crossfadeTrimSilenceDesc: 'Hopp over stillhet på slutten av gjeldende spor og starten på neste, slik at toningen overlapper musikk, ikke stillhet. For pålitelige resultater bør du aktivere Varm avspillingsbuffer slik at neste spor er klart i tide',
   notWithGapless: 'Ikke tilgjengelig mens Gapless er aktiv',
   notWithCrossfade: 'Ikke tilgjengelig mens Crossfade er aktiv',
   gapless: 'Gapless avspilling',

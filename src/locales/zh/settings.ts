@@ -553,7 +553,7 @@ export const settings = {
   crossfadeDesc: '曲目间淡入淡出',
   crossfadeSecs: '{{n}} 秒',
   crossfadeTrimSilence: '修剪曲目间的静音',
-  crossfadeTrimSilenceDesc: '跳过当前曲目结尾和下一曲目开头的静音，让淡变叠加在音乐而非空白上',
+  crossfadeTrimSilenceDesc: '跳过当前曲目结尾和下一曲目开头的静音，让淡变叠加在音乐而非空白上。为获得稳定效果，强烈建议启用「热播放缓存」，以便下一曲目及时就绪',
   notWithGapless: '无缝播放开启时不可用',
   notWithCrossfade: '交叉淡入淡出开启时不可用',
   gapless: '无缝播放',

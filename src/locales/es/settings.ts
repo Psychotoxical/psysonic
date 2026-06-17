@@ -566,7 +566,7 @@ export const settings = {
   crossfadeDesc: 'Transición entre pistas',
   crossfadeSecs: '{{n}} s',
   crossfadeTrimSilence: 'Recortar el silencio entre pistas',
-  crossfadeTrimSilenceDesc: 'Omite el silencio al final de la pista actual y al inicio de la siguiente para que la transición se solape con la música, no con el vacío',
+  crossfadeTrimSilenceDesc: 'Omite el silencio al final de la pista actual y al inicio de la siguiente para que la transición se solape con la música, no con el vacío. Para resultados fiables, activa la Caché de reproducción activa para que la siguiente pista esté lista a tiempo',
   notWithGapless: 'No disponible mientras Gapless está activo',
   notWithCrossfade: 'No disponible mientras Crossfade está activo',
   gapless: 'Reproducción Gapless',
