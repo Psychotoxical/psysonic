@@ -85,7 +85,7 @@ import {
   getSeekTargetSetAt,
 } from './seekTargetState';
 import { refreshWaveformForTrack } from './waveformRefresh';
-import { analyzeBoundary, computeWaveformSilence } from '../utils/waveform/waveformSilence';
+import { analyzeBoundary, computeWaveformSilence, STANDARD_BLEND_SEC } from '../utils/waveform/waveformSilence';
 import { maybeCrossfadeBytePreload } from './crossfadePreload';
 import { armCrossfadeDynamicOverlap, getCrossfadeTransition } from './crossfadeTrimCache';
 
@@ -288,7 +288,10 @@ export function handleAudioProgress(
       }
       const wantEarly = curTrailSilenceSec > 0.3 || contentOverlap > cf + 0.3;
       if (wantEarly) {
-        const overlap = Math.max(0.5, Math.min(12, contentOverlap || 0.5));
+        let overlap = Math.max(0.5, Math.min(12, contentOverlap || 0.5));
+        // Hard, loud→loud meeting reached by trimming protective silence (no
+        // natural fade to ride): use a standard ~2 s blend instead of a near-cut.
+        if (!aRidesOwnFade && overlap < STANDARD_BLEND_SEC) overlap = STANDARD_BLEND_SEC;
         const outgoingFade = aRidesOwnFade ? 0 : overlap;
         const triggerAt = Math.max(0, dur - curTrailSilenceSec - overlap);
         const gen = getPlayGeneration();

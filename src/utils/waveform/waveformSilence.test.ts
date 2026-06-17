@@ -111,15 +111,15 @@ describe('analyzeBoundary', () => {
 });
 
 describe('planCrossfadeTransition', () => {
-  it('collapses to the minimum overlap for two hard-edged (loud) tracks', () => {
-    // No fade-out, no buildup → nothing gradual to mix → minimum (anti-click).
+  it('uses a standard ~2s blend for two hard-edged (loud) tracks', () => {
+    // No fade-out, no buildup, but both edges known → standard blend (not a cut).
     const a = Array(100).fill(200);
     const b = Array(100).fill(200);
     const plan = planCrossfadeTransition(a, 100, b, 100);
-    expect(plan.overlapSec).toBeCloseTo(0.5, 5);
+    expect(plan.overlapSec).toBeCloseTo(2, 5);
     expect(plan.bStartSec).toBeCloseTo(0, 5);
     // A has no natural fade → engine supplies one (== the overlap).
-    expect(plan.outgoingFadeSec).toBeCloseTo(0.5, 5);
+    expect(plan.outgoingFadeSec).toBeCloseTo(2, 5);
   });
 
   it('uses a long, content-driven overlap when a fade-out meets a buildup', () => {

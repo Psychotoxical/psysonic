@@ -160,6 +160,15 @@ const DYNAMIC_OVERLAP_MIN_SEC = 0.5;
 const DYNAMIC_OVERLAP_HARD_CAP_SEC = 12;
 
 /**
+ * Standard pleasant blend used when *both* edges are known but neither fades —
+ * a hard, loud→loud meeting (e.g. a track that ends loud but had protective
+ * trailing silence we trim away, butting up against a loud intro). A bare
+ * anti-click floor (~0.5 s) would sound like an abrupt cut, so we equal-power
+ * crossfade over this many seconds instead.
+ */
+export const STANDARD_BLEND_SEC = 2.0;
+
+/**
  * A's own outro fade must be at least this long (≥2 waveform bins of decay at
  * 500 bins / 4-min track) before we trust it enough to suppress the engine
  * fade-out and let the *recording* carry A down to silence (scenario A).
@@ -230,7 +239,13 @@ export function planCrossfadeTransition(
   const sustainable = Math.min(aContentLen || cap, bContentLen || cap) * 0.9;
 
   const wanted = Math.max(aShape.outroFadeSec, bShape.introRiseSec);
-  const overlapSec = Math.max(min, Math.min(cap, sustainable, wanted || min));
+  // When we've analysed both edges and nothing fades (a hard, loud→loud meeting
+  // — typically a loud ending whose protective trailing silence we trim, into a
+  // loud intro), don't butt them together with a near-cut: blend over a standard
+  // ~2 s instead. A real fade-out/buildup keeps its (longer) content-driven span.
+  const haveBothEdges = !!aBins && !!bBins;
+  const target = haveBothEdges ? Math.max(wanted, STANDARD_BLEND_SEC) : (wanted || min);
+  const overlapSec = Math.max(min, Math.min(cap, sustainable, target));
 
   // Scenario A: when A's own outro fade is the reason for the overlap (a real,
   // trustworthy fade that's at least as long as B's intro rise), let the
