@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { SubsonicAlbum } from '../../api/subsonicTypes';
 import { albumSortClauses, sortSubsonicAlbums } from './albumBrowseSort';
 
-const album = (artist: string, name: string): SubsonicAlbum =>
-  ({ id: `${artist}-${name}`, artist, name }) as SubsonicAlbum;
+const album = (artist: string, name: string, year?: number): SubsonicAlbum =>
+  ({ id: `${artist}-${name}`, artist, name, year }) as SubsonicAlbum;
 
 describe('albumSortClauses', () => {
   it('sorts by artist then album name', () => {
@@ -19,33 +19,59 @@ describe('albumSortClauses', () => {
       { field: 'artist', dir: 'asc' },
     ]);
   });
+
+  it('sorts by artist, then year, then album name', () => {
+    expect(albumSortClauses('byArtistThenYear')).toEqual([
+      { field: 'artist', dir: 'asc' },
+      { field: 'year', dir: 'asc' },
+      { field: 'name', dir: 'asc' },
+    ]);
+  });
 });
 
 describe('sortSubsonicAlbums', () => {
   it('orders each artist group by album name when sorting by artist', () => {
     const input = [
-      album('Rammstein', 'Sehnsucht'),
-      album('Duran Duran', 'Rio'),
-      album('Rammstein', 'Mutter'),
-      album('Duran Duran', 'DD'),
-      album('Duran Duran', 'The Wedding Album'),
+      album('Artist B', 'Solitude'),
+      album('Artist A', 'Mirage'),
+      album('Artist B', 'Cascade'),
+      album('Artist A', 'Ember'),
+      album('Artist A', 'Vertex'),
     ];
     const ordered = sortSubsonicAlbums(input, 'alphabeticalByArtist').map(a => `${a.artist} - ${a.name}`);
     expect(ordered).toEqual([
-      'Duran Duran - DD',
-      'Duran Duran - Rio',
-      'Duran Duran - The Wedding Album',
-      'Rammstein - Mutter',
-      'Rammstein - Sehnsucht',
+      'Artist A - Ember',
+      'Artist A - Mirage',
+      'Artist A - Vertex',
+      'Artist B - Cascade',
+      'Artist B - Solitude',
     ]);
   });
 
   it('breaks album-name ties by artist when sorting by name', () => {
     const input = [
-      album('Zebra', 'Greatest Hits'),
-      album('Alpha', 'Greatest Hits'),
+      album('Artist Z', 'Greatest Hits'),
+      album('Artist A', 'Greatest Hits'),
     ];
     const ordered = sortSubsonicAlbums(input, 'alphabeticalByName').map(a => a.artist);
-    expect(ordered).toEqual(['Alpha', 'Zebra']);
+    expect(ordered).toEqual(['Artist A', 'Artist Z']);
+  });
+
+  it('orders each artist chronologically (then by title) when sorting by artist+year', () => {
+    const input = [
+      album('Artist A', 'Mirage', 1982),
+      album('Artist B', 'Nocturne', 1997),
+      album('Artist A', 'Debut', 1981),
+      album('Artist B', 'Aftermath', 2001),
+      album('Artist A', 'Reprise', 1982), // same year as Mirage → title tiebreak
+    ];
+    const ordered = sortSubsonicAlbums(input, 'byArtistThenYear').map(a => `${a.artist} - ${a.name}`);
+    expect(ordered).toEqual([
+      'Artist A - Debut',
+      'Artist A - Mirage',
+      'Artist A - Reprise',
+      'Artist B - Nocturne',
+      'Artist B - Aftermath',
+    ]);
   });
 });

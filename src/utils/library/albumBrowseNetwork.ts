@@ -7,7 +7,7 @@ import {
   filterAlbumsByYearBounds,
 } from './albumBrowseFilters';
 import { albumYearSubsonicParams } from './albumYearFilter';
-import { sortSubsonicAlbums } from './albumBrowseSort';
+import { albumListFetchType, sortSubsonicAlbums } from './albumBrowseSort';
 import type { AlbumBrowsePageResult, AlbumBrowseQuery } from './albumBrowseTypes';
 import { GENRE_ALBUM_FETCH_LIMIT } from './albumBrowseTypes';
 
@@ -65,7 +65,7 @@ export async function fetchAlbumBrowseNetwork(
   }
 
   const data = applyNetworkPostFilters(
-    await getAlbumList(query.sort, pageSize, offset, {}),
+    await getAlbumList(albumListFetchType(query.sort), pageSize, offset, {}),
     query,
   );
   return { albums: data, hasMore: data.length === pageSize };

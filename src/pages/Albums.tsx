@@ -354,6 +354,7 @@ export default function Albums() {
   const sortOptions: { value: SortType; label: string }[] = [
     { value: 'alphabeticalByName',   label: t('albums.sortByName') },
     { value: 'alphabeticalByArtist', label: t('albums.sortByArtist') },
+    { value: 'byArtistThenYear',     label: t('albums.sortByArtistYear') },
   ];
 
   return (
