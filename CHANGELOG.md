@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Theme versions now show in the store (next to the author) and under each installed community theme; when an update is available, the store shows the installed → available version.
 * New store filter to show only animated themes or only static ones, next to the existing mode and sort controls.
 
+### Playlist folders
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1119](https://github.com/Psychotoxical/psysonic/pull/1119)**, suggested by [@SilverWolf24](https://github.com/SilverWolf24)
+
+* Organise your playlists into folders on the Playlists page and in the sidebar — create folders, drag playlists into them (or use the right-click "Move to folder" menu), rename, collapse and switch between the folder view and a single flat list. Folders are saved locally on this device only, since the Subsonic API has no folder support.
+
 
 ## Fixed
 
