@@ -55,12 +55,12 @@ export function PlaybackBehaviorBlock({ t }: Props) {
               className={`btn ${auth.crossfadeTrimSilence ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => auth.setCrossfadeTrimSilence(true)}
             >
-              {t('settings.smartCrossfade')}
+              {t('settings.autoDj')}
             </button>
           </div>
           {auth.crossfadeTrimSilence ? (
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '0.6rem' }}>
-              {t('settings.smartCrossfadeDesc')}
+              {t('settings.autoDjDesc')}
             </div>
           ) : (
             <div style={{ marginTop: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>

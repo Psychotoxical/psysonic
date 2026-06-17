@@ -163,7 +163,7 @@ export function QueueToolbar({
                           setCrossfadeEnabled(true);
                         }}
                       >
-                        {t('settings.smartCrossfade')}
+                        {t('settings.autoDj')}
                       </button>
                     </div>
                     {!crossfadeTrimSilence && (

@@ -157,7 +157,7 @@ export function MiniToolbar({
                 emit('mini:set-crossfade-trim-silence', { value: true }).catch(() => {});
               }}
             >
-              {t('settings.smartCrossfade')}
+              {t('settings.autoDj')}
             </button>
           </div>
           {!state.crossfadeTrimSilence && (
