@@ -35,6 +35,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The Previous / Play-Pause / Next buttons in the Windows taskbar thumbnail preview (the popup shown when hovering the taskbar icon) had stopped appearing. They are back, and the middle button's icon again reflects the current playback state.
 
+### Album order within each artist when sorting by artist
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1115](https://github.com/Psychotoxical/psysonic/pull/1115)**, suggested by [@kingley82](https://github.com/kingley82)
+
+* When browsing albums sorted by artist, each artist's albums appeared in an arbitrary order. They are now ordered A–Z by album title within each artist.
+
 
 ## [1.48.1] - 2026-06-15
 
