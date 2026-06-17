@@ -554,6 +554,8 @@ export const settings = {
   crossfadeSecs: '{{n}} 秒',
   crossfadeTrimSilence: '修剪曲目间的静音',
   crossfadeTrimSilenceDesc: '跳过当前曲目结尾和下一曲目开头的静音，让淡变叠加在音乐而非空白上。为获得稳定效果，强烈建议启用「热播放缓存」，以便下一曲目及时就绪',
+  smartCrossfade: '智能淡变',
+  smartCrossfadeDesc: '没有固定时长——淡变时长跟随实际音频，叠加在真实的淡入淡出上，而不是固定的秒数。为获得稳定效果，请启用「热播放缓存」。',
   notWithGapless: '无缝播放开启时不可用',
   notWithCrossfade: '交叉淡入淡出开启时不可用',
   gapless: '无缝播放',

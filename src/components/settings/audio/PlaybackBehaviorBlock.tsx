@@ -10,8 +10,12 @@ interface Props {
  * Crossfade ↔ Gapless are mutually exclusive — enabling one forces the
  * other off (`setGaplessEnabled(false)` / `setCrossfadeEnabled(false)`
  * on the toggle handlers) and the inactive row dims via opacity +
- * pointerEvents:none. The crossfade-seconds slider only renders while
- * crossfade is the active mode.
+ * pointerEvents:none.
+ *
+ * When crossfade is on, a "Crossfade | Smart crossfade" segmented switch
+ * (`crossfadeTrimSilence` false/true) picks the mode: classic crossfade
+ * exposes the seconds slider, smart crossfade is content-driven and has
+ * no duration to configure (just a short explainer).
  *
  * The `preservePlayNextOrder` toggle is independent of both and pinned
  * to the bottom of the block.
@@ -37,37 +41,44 @@ export function PlaybackBehaviorBlock({ t }: Props) {
         </label>
       </div>
       {auth.crossfadeEnabled && !auth.gaplessEnabled && (
-        <div style={{ paddingLeft: '1rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <input
-            type="range"
-            min={0.1}
-            max={10}
-            step={0.1}
-            value={auth.crossfadeSecs}
-            onChange={e => auth.setCrossfadeSecs(parseFloat(e.target.value))}
-            style={{ flex: 1, minWidth: 80, maxWidth: 200 }}
-            id="crossfade-secs-slider"
-          />
-          <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 36 }}>
-            {t('settings.crossfadeSecs', { n: auth.crossfadeSecs.toFixed(1) })}
-          </span>
-        </div>
-      )}
-      {auth.crossfadeEnabled && !auth.gaplessEnabled && (
-        <div className="settings-toggle-row" style={{ paddingLeft: '1rem', marginTop: '0.5rem' }}>
-          <div>
-            <div style={{ fontWeight: 500 }}>
-              {t('settings.crossfadeTrimSilence')}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              {t('settings.crossfadeTrimSilenceDesc')}
-            </div>
+        <div style={{ paddingLeft: '1rem', marginTop: '0.6rem' }}>
+          <div className="settings-segmented">
+            <button
+              type="button"
+              className={`btn ${!auth.crossfadeTrimSilence ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => auth.setCrossfadeTrimSilence(false)}
+            >
+              {t('settings.crossfade')}
+            </button>
+            <button
+              type="button"
+              className={`btn ${auth.crossfadeTrimSilence ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => auth.setCrossfadeTrimSilence(true)}
+            >
+              {t('settings.smartCrossfade')}
+            </button>
           </div>
-          <label className="toggle-switch" aria-label={t('settings.crossfadeTrimSilence')}>
-            <input type="checkbox" checked={auth.crossfadeTrimSilence}
-              onChange={e => auth.setCrossfadeTrimSilence(e.target.checked)} id="crossfade-trim-silence-toggle" />
-            <span className="toggle-track" />
-          </label>
+          {auth.crossfadeTrimSilence ? (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '0.6rem' }}>
+              {t('settings.smartCrossfadeDesc')}
+            </div>
+          ) : (
+            <div style={{ marginTop: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <input
+                type="range"
+                min={0.1}
+                max={10}
+                step={0.1}
+                value={auth.crossfadeSecs}
+                onChange={e => auth.setCrossfadeSecs(parseFloat(e.target.value))}
+                style={{ flex: 1, minWidth: 80, maxWidth: 200 }}
+                id="crossfade-secs-slider"
+              />
+              <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 36 }}>
+                {t('settings.crossfadeSecs', { n: auth.crossfadeSecs.toFixed(1) })}
+              </span>
+            </div>
+          )}
         </div>
       )}
 

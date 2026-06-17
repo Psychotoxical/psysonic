@@ -555,6 +555,8 @@ export const settings = {
   crossfadeSecs: '{{n}} s',
   crossfadeTrimSilence: 'Stilte tussen nummers bijsnijden',
   crossfadeTrimSilenceDesc: 'Sla de stilte aan het einde van het huidige nummer en aan het begin van het volgende over, zodat de overgang muziek overlapt en geen stilte. Schakel voor betrouwbare resultaten de Warme afspeelcache in zodat het volgende nummer op tijd klaarstaat',
+  smartCrossfade: 'Slimme overgang',
+  smartCrossfadeDesc: 'Geen vaste duur — de overgang volgt de werkelijke audio en overlapt echte fades en intro’s in plaats van een vast aantal seconden. Schakel voor betrouwbare resultaten de Warme afspeelcache in.',
   notWithGapless: 'Niet beschikbaar als naadloos afspelen actief is',
   notWithCrossfade: 'Niet beschikbaar als overgang actief is',
   gapless: 'Naadloos afspelen',

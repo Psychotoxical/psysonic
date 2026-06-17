@@ -136,30 +136,49 @@ export function MiniToolbar({
           style={crossfadePopStyle}
           data-tauri-drag-region="false"
         >
-          <div className="mini-player__crossfade-label">
-            <Waves size={11} />
-            {t('queue.crossfade')}
-            <span className="mini-player__crossfade-value">{(state.crossfadeSecs ?? 3).toFixed(1)} s</span>
+          <div className="mini-player__crossfade-modes">
+            <button
+              type="button"
+              className={`mini-player__crossfade-mode${!state.crossfadeTrimSilence ? ' active' : ''}`}
+              data-tauri-drag-region="false"
+              onClick={() => {
+                emit('mini:set-crossfade', { value: true }).catch(() => {});
+                emit('mini:set-crossfade-trim-silence', { value: false }).catch(() => {});
+              }}
+            >
+              {t('queue.crossfade')}
+            </button>
+            <button
+              type="button"
+              className={`mini-player__crossfade-mode${state.crossfadeTrimSilence ? ' active' : ''}`}
+              data-tauri-drag-region="false"
+              onClick={() => {
+                emit('mini:set-crossfade', { value: true }).catch(() => {});
+                emit('mini:set-crossfade-trim-silence', { value: true }).catch(() => {});
+              }}
+            >
+              {t('settings.smartCrossfade')}
+            </button>
           </div>
-          <input
-            type="range"
-            min={0.1}
-            max={10}
-            step={0.1}
-            value={state.crossfadeSecs ?? 3}
-            onChange={e => emit('mini:set-crossfade-secs', { value: parseFloat(e.target.value) }).catch(() => {})}
-            className="mini-player__crossfade-slider"
-            aria-label={t('queue.crossfade')}
-          />
-          <label className="mini-player__crossfade-toggle">
-            <span>{t('settings.crossfadeTrimSilence')}</span>
-            <input
-              type="checkbox"
-              checked={!!state.crossfadeTrimSilence}
-              onChange={e => emit('mini:set-crossfade-trim-silence', { value: e.target.checked }).catch(() => {})}
-              aria-label={t('settings.crossfadeTrimSilence')}
-            />
-          </label>
+          {!state.crossfadeTrimSilence && (
+            <>
+              <div className="mini-player__crossfade-label">
+                <Waves size={11} />
+                {t('queue.crossfade')}
+                <span className="mini-player__crossfade-value">{(state.crossfadeSecs ?? 3).toFixed(1)} s</span>
+              </div>
+              <input
+                type="range"
+                min={0.1}
+                max={10}
+                step={0.1}
+                value={state.crossfadeSecs ?? 3}
+                onChange={e => emit('mini:set-crossfade-secs', { value: parseFloat(e.target.value) }).catch(() => {})}
+                className="mini-player__crossfade-slider"
+                aria-label={t('queue.crossfade')}
+              />
+            </>
+          )}
         </div>,
         document.body,
       )}

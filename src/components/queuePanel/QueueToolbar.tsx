@@ -142,35 +142,54 @@ export function QueueToolbar({
                 </button>
                 {showCrossfadePopover && (
                   <div className="crossfade-popover" ref={crossfadePopoverRef}>
-                    <div className="crossfade-popover-label">
-                      <Waves size={11} />
-                      {t('queue.crossfade')}
-                      <span className="crossfade-popover-value">{crossfadeSecs.toFixed(1)} s</span>
+                    <div className="crossfade-popover-modes">
+                      <button
+                        type="button"
+                        className={`crossfade-popover-mode${!crossfadeTrimSilence ? ' active' : ''}`}
+                        onClick={() => {
+                          if (gaplessEnabled) setGaplessEnabled(false);
+                          setCrossfadeTrimSilence(false);
+                          setCrossfadeEnabled(true);
+                        }}
+                      >
+                        {t('queue.crossfade')}
+                      </button>
+                      <button
+                        type="button"
+                        className={`crossfade-popover-mode${crossfadeTrimSilence ? ' active' : ''}`}
+                        onClick={() => {
+                          if (gaplessEnabled) setGaplessEnabled(false);
+                          setCrossfadeTrimSilence(true);
+                          setCrossfadeEnabled(true);
+                        }}
+                      >
+                        {t('settings.smartCrossfade')}
+                      </button>
                     </div>
-                    <input
-                      type="range"
-                      min={0.1}
-                      max={10}
-                      step={0.1}
-                      value={crossfadeSecs}
-                      onChange={e => {
-                        setCrossfadeSecs(parseFloat(e.target.value));
-                        setCrossfadeEnabled(true);
-                      }}
-                      className="crossfade-popover-slider"
-                    />
-                    <div className="crossfade-popover-range">
-                      <span>0.1s</span><span>10s</span>
-                    </div>
-                    <label className="crossfade-popover-toggle">
-                      <span>{t('settings.crossfadeTrimSilence')}</span>
-                      <input
-                        type="checkbox"
-                        checked={crossfadeTrimSilence}
-                        onChange={e => setCrossfadeTrimSilence(e.target.checked)}
-                        aria-label={t('settings.crossfadeTrimSilence')}
-                      />
-                    </label>
+                    {!crossfadeTrimSilence && (
+                      <>
+                        <div className="crossfade-popover-label">
+                          <Waves size={11} />
+                          {t('queue.crossfade')}
+                          <span className="crossfade-popover-value">{crossfadeSecs.toFixed(1)} s</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0.1}
+                          max={10}
+                          step={0.1}
+                          value={crossfadeSecs}
+                          onChange={e => {
+                            setCrossfadeSecs(parseFloat(e.target.value));
+                            setCrossfadeEnabled(true);
+                          }}
+                          className="crossfade-popover-slider"
+                        />
+                        <div className="crossfade-popover-range">
+                          <span>0.1s</span><span>10s</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
