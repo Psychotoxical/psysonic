@@ -21,6 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * New store filter to show only animated themes or only static ones, next to the existing mode and sort controls.
 
 
+## Fixed
+
+### Seeking in streamed Opus/Ogg tracks
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1110](https://github.com/Psychotoxical/psysonic/pull/1110)**
+
+* Scrubbing an Opus/Ogg track that was still streaming did nothing — the seekbar snapped back, and seeking only worked once the track had fully downloaded. Seeking now works mid-stream: the player fetches just the part of the file it needs over HTTP instead of waiting for the whole track to download. Cached and local files are unchanged. (Follow-up to the 1.48.1 Opus/Ogg seek-crash fix, #1100, which made streamed seeking a safe no-op rather than a crash.)
+
+
 ## [1.48.1] - 2026-06-15
 
 ## Fixed
