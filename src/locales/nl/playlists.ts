@@ -101,4 +101,22 @@ export const playlists = {
   csvImportToast: '{{added}} toegevoegd, {{notFound}} niet gevonden, {{duplicates}} duplicaten',
   csvImportDownloadSuccess: 'Rapport succesvol gedownload',
   csvImportDownloadError: 'Rapport downloaden mislukt',
+  // Playlist folders (local, per-server organisation layer)
+  folders: {
+    newFolder: 'Nieuwe map',
+    namePlaceholder: 'Mapnaam…',
+    create: 'Aanmaken',
+    rename: 'Hernoemen',
+    delete: 'Map verwijderen',
+    ungrouped: 'Zonder map',
+    moveToFolder: 'Naar map verplaatsen',
+    removeFromFolder: 'Uit map verwijderen',
+    expandFolder: 'Map uitvouwen',
+    collapseFolder: 'Map invouwen',
+    groupByFolders: 'Groeperen op mappen',
+    count_one: '{{count}} playlist',
+    count_other: '{{count}} playlists',
+    localOnlyNotice:
+      'Mappen worden alleen in Psysonic op dit apparaat opgeslagen. Navidrome en de Subsonic-API ondersteunen geen playlistmappen, dus de structuur wordt niet op je server opgeslagen of met je andere apparaten en apps gesynchroniseerd.',
+  },
 };

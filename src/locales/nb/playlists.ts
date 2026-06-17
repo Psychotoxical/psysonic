@@ -101,4 +101,22 @@ export const playlists = {
   csvImportToast: '{{added}} lagt til, {{notFound}} ikke funnet, {{duplicates}} duplikater',
   csvImportDownloadSuccess: 'Rapport lastet ned',
   csvImportDownloadError: 'Kunne ikke laste ned rapport',
+  // Playlist folders (local, per-server organisation layer)
+  folders: {
+    newFolder: 'Ny mappe',
+    namePlaceholder: 'Mappenavn…',
+    create: 'Opprett',
+    rename: 'Gi nytt navn',
+    delete: 'Slett mappe',
+    ungrouped: 'Uten mappe',
+    moveToFolder: 'Flytt til mappe',
+    removeFromFolder: 'Fjern fra mappe',
+    expandFolder: 'Utvid mappe',
+    collapseFolder: 'Skjul mappe',
+    groupByFolders: 'Grupper etter mapper',
+    count_one: '{{count}} spilleliste',
+    count_other: '{{count}} spillelister',
+    localOnlyNotice:
+      'Mapper lagres bare i Psysonic på denne enheten. Navidrome og Subsonic-API-et støtter ikke spillelistemapper, så strukturen lagres ikke på serveren din og synkroniseres ikke med dine andre enheter og apper.',
+  },
 };

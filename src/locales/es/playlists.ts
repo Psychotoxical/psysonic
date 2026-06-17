@@ -101,4 +101,22 @@ export const playlists = {
   csvImportToast: '{{added}} agregadas, {{notFound}} no encontradas, {{duplicates}} duplicadas',
   csvImportDownloadSuccess: 'Reporte descargado exitosamente',
   csvImportDownloadError: 'Error al descargar el reporte',
+  // Playlist folders (local, per-server organisation layer)
+  folders: {
+    newFolder: 'Nueva carpeta',
+    namePlaceholder: 'Nombre de carpeta…',
+    create: 'Crear',
+    rename: 'Renombrar',
+    delete: 'Eliminar carpeta',
+    ungrouped: 'Sin carpeta',
+    moveToFolder: 'Mover a carpeta',
+    removeFromFolder: 'Quitar de la carpeta',
+    expandFolder: 'Expandir carpeta',
+    collapseFolder: 'Contraer carpeta',
+    groupByFolders: 'Agrupar por carpetas',
+    count_one: '{{count}} lista',
+    count_other: '{{count}} listas',
+    localOnlyNotice:
+      'Las carpetas se guardan solo en Psysonic en este dispositivo. Navidrome y la API de Subsonic no admiten carpetas de listas, por lo que la estructura no se guarda en tu servidor ni se sincroniza con tus otros dispositivos y aplicaciones.',
+  },
 };
