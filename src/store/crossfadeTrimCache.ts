@@ -36,6 +36,7 @@ export function setCrossfadeTransition(trackId: string, plan: CrossfadeTransitio
   planByTrackId.set(trackId, {
     bStartSec: Math.max(0, plan.bStartSec),
     overlapSec: Math.max(0, plan.overlapSec),
+    outgoingFadeSec: Math.max(0, plan.outgoingFadeSec),
   });
   trim(planByTrackId);
 }
@@ -66,21 +67,41 @@ export function markPlannedCrossfade(trackId: string): void {
 // the normal crossfade length — avoids muting the outgoing track's tail.
 let armedOverlapTrackId: string | null = null;
 let armedOverlapSec = 0;
+let armedOutgoingFadeSec = 0;
 
-/** Arm the overlap (seconds) JS just positioned for the incoming `trackId`. */
-export function armCrossfadeDynamicOverlap(trackId: string, overlapSec: number): void {
+/** The fade lengths JS armed for one incoming transition. */
+export interface ArmedCrossfadeOverlap {
+  /** Track B's fade-in length (the overlap). */
+  overlapSec: number;
+  /** Track A's engine fade-out length (0 = A rides its own recorded fade). */
+  outgoingFadeSec: number;
+}
+
+/**
+ * Arm the content-driven fade lengths JS just positioned for the incoming
+ * `trackId`: B's fade-in (`overlapSec`) and A's engine fade-out
+ * (`outgoingFadeSec`; 0 ⇒ let A ride its own recorded fade — scenario A).
+ */
+export function armCrossfadeDynamicOverlap(
+  trackId: string,
+  overlapSec: number,
+  outgoingFadeSec: number,
+): void {
   if (!trackId) return;
   armedOverlapTrackId = trackId;
   armedOverlapSec = Math.max(0, overlapSec);
+  armedOutgoingFadeSec = Math.max(0, outgoingFadeSec);
 }
 
-/** Consume + clear the armed overlap for `trackId` (null when none/mismatched). */
-export function consumeCrossfadeDynamicOverlap(trackId: string): number | null {
+/** Consume + clear the armed fades for `trackId` (null when none/mismatched). */
+export function consumeCrossfadeDynamicOverlap(trackId: string): ArmedCrossfadeOverlap | null {
   if (!trackId || armedOverlapTrackId !== trackId) return null;
-  const v = armedOverlapSec;
+  const overlapSec = armedOverlapSec;
+  const outgoingFadeSec = armedOutgoingFadeSec;
   armedOverlapTrackId = null;
   armedOverlapSec = 0;
-  return v > 0 ? v : null;
+  armedOutgoingFadeSec = 0;
+  return overlapSec > 0 ? { overlapSec, outgoingFadeSec } : null;
 }
 
 /** Test/reset hook. */
@@ -89,4 +110,5 @@ export function _resetCrossfadeTrimCacheForTest(): void {
   plannedTrackIds.clear();
   armedOverlapTrackId = null;
   armedOverlapSec = 0;
+  armedOutgoingFadeSec = 0;
 }

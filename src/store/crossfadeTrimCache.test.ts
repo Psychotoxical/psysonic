@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   _resetCrossfadeTrimCacheForTest,
+  armCrossfadeDynamicOverlap,
+  consumeCrossfadeDynamicOverlap,
   getCrossfadeTransition,
   hasPlannedCrossfade,
   markPlannedCrossfade,
@@ -16,14 +18,14 @@ describe('crossfadeTrimCache', () => {
   });
 
   it('stores and reads a transition plan', () => {
-    setCrossfadeTransition('t1', { bStartSec: 2.5, overlapSec: 4 });
-    expect(getCrossfadeTransition('t1')).toEqual({ bStartSec: 2.5, overlapSec: 4 });
+    setCrossfadeTransition('t1', { bStartSec: 2.5, overlapSec: 4, outgoingFadeSec: 0 });
+    expect(getCrossfadeTransition('t1')).toEqual({ bStartSec: 2.5, overlapSec: 4, outgoingFadeSec: 0 });
   });
 
   it('clamps negative values to 0 and ignores empty ids', () => {
-    setCrossfadeTransition('t2', { bStartSec: -1, overlapSec: -2 });
-    expect(getCrossfadeTransition('t2')).toEqual({ bStartSec: 0, overlapSec: 0 });
-    setCrossfadeTransition('', { bStartSec: 3, overlapSec: 3 });
+    setCrossfadeTransition('t2', { bStartSec: -1, overlapSec: -2, outgoingFadeSec: -3 });
+    expect(getCrossfadeTransition('t2')).toEqual({ bStartSec: 0, overlapSec: 0, outgoingFadeSec: 0 });
+    setCrossfadeTransition('', { bStartSec: 3, overlapSec: 3, outgoingFadeSec: 3 });
     expect(getCrossfadeTransition('')).toBeNull();
   });
 
@@ -34,9 +36,25 @@ describe('crossfadeTrimCache', () => {
   });
 
   it('evicts oldest entries past the cap', () => {
-    for (let i = 0; i < 40; i++) setCrossfadeTransition(`k${i}`, { bStartSec: i, overlapSec: 1 });
+    for (let i = 0; i < 40; i++) {
+      setCrossfadeTransition(`k${i}`, { bStartSec: i, overlapSec: 1, outgoingFadeSec: 1 });
+    }
     // First entries should have been evicted (cap 32).
     expect(getCrossfadeTransition('k0')).toBeNull();
-    expect(getCrossfadeTransition('k39')).toEqual({ bStartSec: 39, overlapSec: 1 });
+    expect(getCrossfadeTransition('k39')).toEqual({ bStartSec: 39, overlapSec: 1, outgoingFadeSec: 1 });
+  });
+
+  it('arms and consumes the dynamic overlap once, for the matching track', () => {
+    armCrossfadeDynamicOverlap('b1', 4, 0);
+    // Mismatched id consumes nothing and leaves the armed value intact.
+    expect(consumeCrossfadeDynamicOverlap('other')).toBeNull();
+    expect(consumeCrossfadeDynamicOverlap('b1')).toEqual({ overlapSec: 4, outgoingFadeSec: 0 });
+    // One-shot: a second consume returns null.
+    expect(consumeCrossfadeDynamicOverlap('b1')).toBeNull();
+  });
+
+  it('carries the engine fade-out length for A (non-scenario-A swaps)', () => {
+    armCrossfadeDynamicOverlap('b2', 0.5, 0.5);
+    expect(consumeCrossfadeDynamicOverlap('b2')).toEqual({ overlapSec: 0.5, outgoingFadeSec: 0.5 });
   });
 });

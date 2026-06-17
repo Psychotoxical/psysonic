@@ -118,6 +118,8 @@ describe('planCrossfadeTransition', () => {
     const plan = planCrossfadeTransition(a, 100, b, 100);
     expect(plan.overlapSec).toBeCloseTo(0.5, 5);
     expect(plan.bStartSec).toBeCloseTo(0, 5);
+    // A has no natural fade → engine supplies one (== the overlap).
+    expect(plan.outgoingFadeSec).toBeCloseTo(0.5, 5);
   });
 
   it('uses a long, content-driven overlap when a fade-out meets a buildup', () => {
@@ -134,6 +136,24 @@ describe('planCrossfadeTransition', () => {
     const b = Array(100).fill(200); // hard, loud start
     const plan = planCrossfadeTransition(a, 100, b, 100);
     expect(plan.overlapSec).toBeGreaterThan(3);
+  });
+
+  it('lets A ride its own recorded fade-out (scenario A): no engine fade on A', () => {
+    const a = [...Array(80).fill(200), ...ramp(20, 200, 20)]; // long fade-out tail
+    const b = Array(100).fill(200); // hard, loud start (no buildup)
+    const plan = planCrossfadeTransition(a, 100, b, 100);
+    // A's own fade dominates → engine fade-out suppressed (0); B still fades in.
+    expect(plan.outgoingFadeSec).toBe(0);
+    expect(plan.overlapSec).toBeGreaterThan(3);
+  });
+
+  it('keeps an engine fade on A when A is a hard cut into a quiet buildup', () => {
+    const a = Array(100).fill(200); // hard end, no fade
+    const b = [...ramp(20, 20, 200), ...Array(80).fill(200)]; // long quiet buildup
+    const plan = planCrossfadeTransition(a, 100, b, 100);
+    // Overlap is driven by B's rise, A has no fade → engine must fade A.
+    expect(plan.overlapSec).toBeGreaterThan(3);
+    expect(plan.outgoingFadeSec).toBeCloseTo(plan.overlapSec, 5);
   });
 
   it('starts the incoming track past its leading silence', () => {

@@ -377,7 +377,10 @@ export function runPlayTrack(
     const crossfadePlan = useTrim ? getCrossfadeTransition(scopedTrack.id) : null;
     const armedOverlap = useTrim ? consumeCrossfadeDynamicOverlap(scopedTrack.id) : null;
     const crossfadeStartSecs = crossfadePlan?.bStartSec ?? 0;
-    const crossfadeSecsOverride = armedOverlap && armedOverlap > 0 ? armedOverlap : null;
+    const crossfadeSecsOverride = armedOverlap ? armedOverlap.overlapSec : null;
+    // Scenario A: 0 ⇒ don't fade A (it rides its own recorded fade); only sent
+    // when JS drove this advance, so engine-driven swaps keep today's behaviour.
+    const outgoingFadeSecsOverride = armedOverlap ? armedOverlap.outgoingFadeSec : null;
     invoke('audio_play', {
       url,
       volume: state.volume,
@@ -395,6 +398,7 @@ export function runPlayTrack(
       startPaused: false,
       startSecs: crossfadeStartSecs > 0.05 ? crossfadeStartSecs : null,
       crossfadeSecsOverride,
+      outgoingFadeSecsOverride,
     })
       .then(() => {
         if (getPlayGeneration() !== gen) return;

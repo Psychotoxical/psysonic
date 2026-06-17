@@ -273,17 +273,28 @@ export function handleAudioProgress(
     if (nextTrackId) {
       const cf = Math.max(0.1, Math.min(12, crossfadeSecs));
       const plan = getCrossfadeTransition(nextTrackId);
-      const contentOverlap = plan && plan.overlapSec > 0
-        ? plan.overlapSec
-        : analyzeBoundary(store.waveformBins, dur).outroFadeSec;
+      let contentOverlap: number;
+      // Scenario A: does A carry its own recorded fade-out? If so we let it ride
+      // at full engine gain (no double fade) and bring B up underneath.
+      let aRidesOwnFade: boolean;
+      if (plan && plan.overlapSec > 0) {
+        contentOverlap = plan.overlapSec;
+        aRidesOwnFade = plan.outgoingFadeSec <= 0.001;
+      } else {
+        // No next-track envelope (cold plan) → judge A from its own waveform.
+        const aShape = analyzeBoundary(store.waveformBins, dur);
+        contentOverlap = aShape.outroFadeSec;
+        aRidesOwnFade = aShape.outroFadeSec >= 1.0;
+      }
       const wantEarly = curTrailSilenceSec > 0.3 || contentOverlap > cf + 0.3;
       if (wantEarly) {
         const overlap = Math.max(0.5, Math.min(12, contentOverlap || 0.5));
+        const outgoingFade = aRidesOwnFade ? 0 : overlap;
         const triggerAt = Math.max(0, dur - curTrailSilenceSec - overlap);
         const gen = getPlayGeneration();
         if (current_time >= triggerAt && crossfadeTrimAdvanceGen !== gen) {
           crossfadeTrimAdvanceGen = gen;
-          armCrossfadeDynamicOverlap(nextTrackId, overlap);
+          armCrossfadeDynamicOverlap(nextTrackId, overlap, outgoingFade);
           store.next(false);
           return;
         }

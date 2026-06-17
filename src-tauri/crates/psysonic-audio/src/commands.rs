@@ -66,6 +66,12 @@ pub async fn audio_play(
     // transition instead of the global `crossfade_secs`. `None` → use the global
     // setting (today's behaviour); always still clamped to the measured remaining.
     crossfade_secs_override: Option<f32>,
+    // Scenario A (dynamic crossfade): engine fade-out length for the *outgoing*
+    // track A, decoupled from B's fade-in. `Some(0)` → don't fade A at all (it
+    // already fades out in the recording, so let it ride at full engine gain
+    // while B rises underneath); `Some(x)` → fade A over x s; `None` → mirror
+    // B's fade (today's behaviour). Always clamped to A's measured remaining.
+    outgoing_fade_secs_override: Option<f32>,
     app: AppHandle,
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
@@ -261,6 +267,19 @@ pub async fn audio_play(
         Duration::from_millis(5)
     };
 
+    // Outgoing (Track A) fade-out, decoupled from B's fade-in. Defaults to
+    // `actual_fade_secs` (symmetric crossfade, today's behaviour); a `Some(0)`
+    // override means A already fades out in the recording, so we leave it at
+    // full engine gain (scenario A). Never longer than A's remaining audio.
+    let outgoing_fade_secs: f32 = if crossfade_enabled {
+        match outgoing_fade_secs_override {
+            Some(v) => v.max(0.0).min(actual_fade_secs),
+            None => actual_fade_secs,
+        }
+    } else {
+        0.0
+    };
+
     // Build source: decode → trim → resample → EQ → fade-in → fade-out → notify → count.
     let done_flag = Arc::new(AtomicBool::new(false));
     // Reset sample counter for the new track.
@@ -449,6 +468,7 @@ pub async fn audio_play(
         fadeout_samples: built.fadeout_samples,
         crossfade_enabled,
         actual_fade_secs,
+        outgoing_fade_secs,
         start_paused,
     });
 

@@ -159,12 +159,28 @@ export function analyzeBoundary(
 const DYNAMIC_OVERLAP_MIN_SEC = 0.5;
 const DYNAMIC_OVERLAP_HARD_CAP_SEC = 12;
 
+/**
+ * A's own outro fade must be at least this long (≥2 waveform bins of decay at
+ * 500 bins / 4-min track) before we trust it enough to suppress the engine
+ * fade-out and let the *recording* carry A down to silence (scenario A).
+ */
+const OWN_FADE_TRUST_SEC = 1.0;
+
 /** A per-transition crossfade plan derived from both tracks' envelopes. */
 export interface CrossfadeTransitionPlan {
   /** Where the incoming track should begin playing (leading silence skipped). */
   bStartSec: number;
   /** Fade length both sides use, derived purely from the audio's fade/rise shape. */
   overlapSec: number;
+  /**
+   * Engine fade-out length for the *outgoing* track A, decoupled from B's
+   * fade-in (`overlapSec`):
+   *   • `0`  → A already fades out in the recording, so don't double-fade it —
+   *            it rides at full engine gain while B rises underneath (scenario A);
+   *   • else → fade A over this many seconds (== `overlapSec`; A has no natural
+   *            fade, e.g. a hard cut, so the engine supplies one).
+   */
+  outgoingFadeSec: number;
 }
 
 export interface CrossfadePlanOptions extends WaveformSilenceOptions {
@@ -216,5 +232,13 @@ export function planCrossfadeTransition(
   const wanted = Math.max(aShape.outroFadeSec, bShape.introRiseSec);
   const overlapSec = Math.max(min, Math.min(cap, sustainable, wanted || min));
 
-  return { overlapSec, bStartSec };
+  // Scenario A: when A's own outro fade is the reason for the overlap (a real,
+  // trustworthy fade that's at least as long as B's intro rise), let the
+  // recording fade A out and skip the engine's fade-out — otherwise A would be
+  // attenuated twice (recording × engine) and vanish too soon under B.
+  const aRidesOwnFade =
+    aShape.outroFadeSec >= OWN_FADE_TRUST_SEC && aShape.outroFadeSec >= bShape.introRiseSec;
+  const outgoingFadeSec = aRidesOwnFade ? 0 : overlapSec;
+
+  return { overlapSec, bStartSec, outgoingFadeSec };
 }

@@ -90,6 +90,9 @@ pub(crate) struct SinkSwapInputs {
     pub(crate) fadeout_samples: Arc<AtomicU64>,
     pub(crate) crossfade_enabled: bool,
     pub(crate) actual_fade_secs: f32,
+    /// Track A fade-out length (decoupled from B's `actual_fade_secs` fade-in).
+    /// `0` ⇒ don't fade A — it rides its own recorded fade-out (scenario A).
+    pub(crate) outgoing_fade_secs: f32,
     pub(crate) start_paused: bool,
 }
 
@@ -107,6 +110,7 @@ pub(crate) fn swap_in_new_sink(state: &State<'_, AudioEngine>, inputs: SinkSwapI
         fadeout_samples: new_fadeout_samples,
         crossfade_enabled,
         actual_fade_secs,
+        outgoing_fade_secs,
         start_paused,
     } = inputs;
 
@@ -135,15 +139,21 @@ pub(crate) fn swap_in_new_sink(state: &State<'_, AudioEngine>, inputs: SinkSwapI
 
     if crossfade_enabled {
         if let Some(old) = old_sink {
-            // Trigger sample-level fade-out on Track A via TriggeredFadeOut.
-            // Calculate total fade samples from the measured actual_fade_secs.
-            let rate = state.current_sample_rate.load(Ordering::Relaxed);
-            let ch = state.current_channels.load(Ordering::Relaxed);
-            let fade_total = (actual_fade_secs as f64 * rate as f64 * ch as f64) as u64;
+            // Trigger sample-level fade-out on Track A via TriggeredFadeOut —
+            // unless `outgoing_fade_secs` is 0 (scenario A): then A keeps full
+            // engine gain and its own recorded fade carries it down while B
+            // rises underneath. Either way the old sink is kept alive until B's
+            // fade-in window elapses, so A plays out its tail before being
+            // dropped.
+            if outgoing_fade_secs > 0.0 {
+                let rate = state.current_sample_rate.load(Ordering::Relaxed);
+                let ch = state.current_channels.load(Ordering::Relaxed);
+                let fade_total = (outgoing_fade_secs as f64 * rate as f64 * ch as f64) as u64;
 
-            if let (Some(trigger), Some(samples)) = (old_fadeout_trigger, old_fadeout_samples) {
-                samples.store(fade_total.max(1), Ordering::SeqCst);
-                trigger.store(true, Ordering::SeqCst);
+                if let (Some(trigger), Some(samples)) = (old_fadeout_trigger, old_fadeout_samples) {
+                    samples.store(fade_total.max(1), Ordering::SeqCst);
+                    trigger.store(true, Ordering::SeqCst);
+                }
             }
 
             // Keep old sink alive until the fade completes + small margin,
@@ -151,7 +161,7 @@ pub(crate) fn swap_in_new_sink(state: &State<'_, AudioEngine>, inputs: SinkSwapI
             // at sample level inside the audio thread.
             *state.fading_out_sink.lock().unwrap() = Some(old);
             let fo_arc = state.fading_out_sink.clone();
-            let cleanup_dur = Duration::from_secs_f32(actual_fade_secs + 0.5);
+            let cleanup_dur = Duration::from_secs_f32(actual_fade_secs.max(outgoing_fade_secs) + 0.5);
             tokio::spawn(async move {
                 tokio::time::sleep(cleanup_dur).await;
                 if let Some(s) = fo_arc.lock().unwrap().take() {
