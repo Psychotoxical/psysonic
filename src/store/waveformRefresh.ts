@@ -22,6 +22,30 @@ export type WaveformCachePayload = {
  * track is still the current one. Best-effort: any failure leaves the
  * seekbar with the placeholder waveform.
  */
+/**
+ * Fetch a track's cached waveform bins **without touching the player store** —
+ * used by the silence-aware crossfade to inspect the *next* track's leading
+ * silence while a different track is still playing (writing `waveformBins` here
+ * would replace the current track's seekbar). Returns `null` on a cold miss /
+ * any failure so callers degrade to no-trim.
+ */
+export async function fetchWaveformBins(
+  trackId: string,
+  serverId?: string | null,
+): Promise<number[] | null> {
+  if (!trackId) return null;
+  try {
+    const row = await invoke<WaveformCachePayload | null>('analysis_get_waveform_for_track', {
+      trackId,
+      serverId: serverId ?? getPlaybackIndexKey() ?? null,
+    });
+    const bins = row ? coerceWaveformBins(row.bins) : null;
+    return bins && bins.length > 0 ? bins : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function refreshWaveformForTrack(trackId: string): Promise<void> {
   if (!trackId) return;
   const gen = getWaveformRefreshGen(trackId);

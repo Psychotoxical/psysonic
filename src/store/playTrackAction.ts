@@ -20,6 +20,7 @@ import {
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 import { useAuthStore } from './authStore';
+import { getCrossfadeLeadSilence } from './crossfadeTrimCache';
 import {
   bumpPlayGeneration,
   getPlayGeneration,
@@ -361,6 +362,17 @@ export function runPlayTrack(
       isReplayGainActive(), authStateNow.replayGainMode,
     );
     const replayGainPeak = isReplayGainActive() ? (scopedTrack.replayGainPeak ?? null) : null;
+    // Silence-aware crossfade (B-head): on a fresh auto-advance under crossfade,
+    // start past this track's leading silence (derived during pre-buffer). Manual
+    // skips hard-cut and resumes keep their saved offset, so both opt out.
+    const crossfadeStartSecs =
+      !manual
+      && authStateNow.crossfadeEnabled
+      && authStateNow.crossfadeTrimSilence
+      && !authStateNow.gaplessEnabled
+      && initialTime <= 0.05
+        ? getCrossfadeLeadSilence(scopedTrack.id)
+        : 0;
     invoke('audio_play', {
       url,
       volume: state.volume,
@@ -376,6 +388,7 @@ export function runPlayTrack(
       serverId: getPlaybackIndexKey() || null,
       streamFormatSuffix: scopedTrack.suffix ?? null,
       startPaused: false,
+      startSecs: crossfadeStartSecs > 0.05 ? crossfadeStartSecs : null,
     })
       .then(() => {
         if (getPlayGeneration() !== gen) return;

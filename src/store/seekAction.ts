@@ -3,6 +3,7 @@ import { playbackReportSeek } from './playbackReportSession';
 import { isRecoverableSeekError } from '../utils/audio/seekErrors';
 import { getPlaybackServerId } from '../utils/playback/playbackServer';
 import { useAuthStore } from './authStore';
+import { maybeCrossfadeBytePreload } from './crossfadePreload';
 import { shouldRebindPlaybackToHotCache } from './playbackUrlRouting';
 import type { PlayerState } from './playerStoreTypes';
 import { armSeekDebounce } from './seekDebounce';
@@ -68,6 +69,10 @@ export function runSeek(set: SetState, get: GetState, progress: number): void {
       setSeekTarget(time);
       setSeekFallbackVisualTarget(null);
       clearSeekFallbackRetry();
+      // Seeking straight into the crossfade pre-buffer window must kick off the
+      // next-track download now — the progress-tick path is gated by the seek
+      // settle guard, which would otherwise delay the buffer past the fade.
+      maybeCrossfadeBytePreload(time, dur);
     }).catch((err: unknown) => {
       // Release the progress-tick guard so the UI doesn't freeze
       // waiting for a target the engine will never reach.

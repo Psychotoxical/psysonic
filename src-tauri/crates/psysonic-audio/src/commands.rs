@@ -20,7 +20,7 @@ use super::sink_swap::{
     spawn_legacy_stream_start_when_armed, swap_in_new_sink, LegacyStreamStartWhenArmed,
     SinkSwapInputs,
 };
-use super::playback_rate::preserve_pitch_will_run;
+use super::playback_rate::{preserve_pitch_will_run, raw_counter_samples_for_content_position};
 use super::preview::preview_clear_for_new_main_playback;
 use super::progress_task::spawn_progress_task;
 use super::state::{ChainedInfo, PreloadedTrack};
@@ -57,10 +57,15 @@ pub async fn audio_play(
     // Silent load: no `audio:playing`, sink stays paused. Optional + defaults to
     // `false` so older/external `audio_play` callers that omit it still work.
     start_paused: Option<bool>,
+    // Silence-aware crossfade (B-head): begin playback past the next track's
+    // leading silence. Optional + defaults to `0` so existing callers are
+    // unaffected; only applied when the freshly built source is seekable.
+    start_secs: Option<f64>,
     app: AppHandle,
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
     let start_paused = start_paused.unwrap_or(false);
+    let start_secs = start_secs.unwrap_or(0.0).max(0.0);
     let gapless = state.gapless_enabled.load(Ordering::Relaxed);
 
     // ── Ghost-command guard ───────────────────────────────────────────────────
@@ -286,8 +291,9 @@ pub async fn audio_play(
         e
     })?;
     state.current_is_seekable.store(playback_source.is_seekable, Ordering::SeqCst);
+    let source_seekable = playback_source.is_seekable;
     let built = playback_source.built;
-    let source = built.source;
+    let mut source = built.source;
     let duration_secs = built.duration_secs;
     let output_rate = built.output_rate;
     let output_channels = built.output_channels;
@@ -397,6 +403,17 @@ pub async fn audio_play(
         }
     }
 
+    // Silence-aware crossfade (B-head): skip the next track's leading silence by
+    // seeking the freshly built source before it is appended. The outermost
+    // `CountingSource` stores the sample counter on a successful seek; we still
+    // re-seed `samples_played` + `seek_offset` explicitly after the swap (below)
+    // so the seekbar and the crossfade-remaining math are content-relative.
+    let did_start_seek = if start_secs > 0.05 && source_seekable {
+        source.try_seek(Duration::from_secs_f64(start_secs)).is_ok()
+    } else {
+        false
+    };
+
     sink.append(source);
 
     if needs_prefill {
@@ -425,6 +442,25 @@ pub async fn audio_play(
         actual_fade_secs,
         start_paused,
     });
+
+    // B-head: `swap_in_new_sink` resets `seek_offset` to 0 and starts the play
+    // clock — re-anchor both the wall-clock baseline (`seek_offset`) and the
+    // sample counter to the content offset so position reporting is correct.
+    if did_start_seek {
+        {
+            let mut cur = state.current.lock().unwrap();
+            cur.seek_offset = start_secs;
+        }
+        state.samples_played.store(
+            raw_counter_samples_for_content_position(
+                start_secs,
+                output_rate,
+                output_channels as u32,
+                &state.playback_rate,
+            ),
+            Ordering::Relaxed,
+        );
+    }
 
     if defer_playback_start {
         if !start_paused {

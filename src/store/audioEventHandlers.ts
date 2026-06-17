@@ -85,6 +85,14 @@ import {
   getSeekTargetSetAt,
 } from './seekTargetState';
 import { refreshWaveformForTrack } from './waveformRefresh';
+import { computeWaveformSilence } from '../utils/waveform/waveformSilence';
+import { maybeCrossfadeBytePreload } from './crossfadePreload';
+
+// Silence-aware crossfade (A-tail): guards the early advance to once per play
+// generation so a single playback instance triggers at most one trim-advance
+// (re-arms automatically on the next play / repeat-all loop, never loops on a
+// backward seek within the same playback).
+let crossfadeTrimAdvanceGen = -1;
 
 /** Rust-side `audio:normalization-state` event payload. */
 export type NormalizationStatePayload = {
@@ -231,19 +239,49 @@ export function handleAudioProgress(
   // Pre-buffer / pre-chain next track for gapless and crossfade.
   const {
     gaplessEnabled,
-    hotCacheEnabled,
     crossfadeEnabled,
     crossfadeSecs,
+    crossfadeTrimSilence,
   } = useAuthStore.getState();
   const remaining = dur - current_time;
 
-  const shouldChainGapless = gaplessEnabled && remaining < 30 && remaining > 0;
-  // Crossfade needs the next track bytes ready before the fade window.
-  const crossfadeWindowSecs = Math.max(8, Math.min(30, crossfadeSecs + 6));
-  const shouldBytePreloadForCrossfade =
-    !hotCacheEnabled && !gaplessEnabled && crossfadeEnabled && remaining < crossfadeWindowSecs && remaining > 0;
+  // Silence-aware crossfade — current track's trailing silence, derived once
+  // from its cached waveform. Drives both the early A-tail advance AND a wider
+  // pre-buffer window (the early advance must not outrun the next track's
+  // download, or its stream starts late and the fade has nothing to overlap).
+  const trimActive =
+    crossfadeEnabled && crossfadeTrimSilence && !gaplessEnabled && !store.currentRadio;
+  const curTrailSilenceSec = trimActive
+    ? computeWaveformSilence(store.waveformBins, dur).trailSilenceSec
+    : 0;
 
-  if (shouldChainGapless || shouldBytePreloadForCrossfade || gaplessEnabled) {
+  // A-tail: when the current track ends in dead air, start the next track early
+  // (by the trailing-silence amount) so the fade overlaps real music instead of
+  // silence. The engine still fades the outgoing sink on the swap; we only move
+  // the trigger earlier. Scoped to the trim case (real trailing silence present)
+  // so the regular Rust-driven crossfade end trigger is untouched otherwise.
+  if (trimActive && store.isPlaying && store.repeatMode !== 'one' && curTrailSilenceSec > 0.3) {
+    const hasNext = store.queueIndex + 1 < store.queueItems.length
+      || (store.repeatMode === 'all' && store.queueItems.length > 0);
+    if (hasNext) {
+      const cf = Math.max(0.1, Math.min(12, crossfadeSecs));
+      const triggerAt = Math.max(0, dur - curTrailSilenceSec - cf);
+      const gen = getPlayGeneration();
+      if (current_time >= triggerAt && crossfadeTrimAdvanceGen !== gen) {
+        crossfadeTrimAdvanceGen = gen;
+        store.next(false);
+        return;
+      }
+    }
+  }
+
+  // Crossfade pre-buffer (next-track byte download + leading-silence probe).
+  // Self-gating; also invoked right after a seek into the window (see seekAction).
+  maybeCrossfadeBytePreload(current_time, dur);
+
+  const shouldChainGapless = gaplessEnabled && remaining < 30 && remaining > 0;
+
+  if (gaplessEnabled) {
     const { queueItems, queueIndex, repeatMode } = store;
     const nextIdx = queueIndex + 1;
     // Next track for preload/chain. The resolver bridge keeps the window around
@@ -281,9 +319,9 @@ export function handleAudioProgress(
       : getPlaybackIndexKey();
     const nextUrl = resolvePlaybackUrl(nextTrack.id, serverId);
 
-    // Byte pre-download — gapless backup or crossfade; runs early so bytes are ready by chain time.
+    // Byte pre-download — gapless backup; runs early so bytes are ready by chain time.
     if (
-      (shouldBytePreloadForCrossfade || shouldBytePreloadForGaplessBackup)
+      shouldBytePreloadForGaplessBackup
       && nextTrack.id !== getBytePreloadingId()
     ) {
       setBytePreloadingId(nextTrack.id);
@@ -294,7 +332,6 @@ export function handleAudioProgress(
         console.info('[psysonic][preload-request]', {
           nextTrackId: nextTrack.id,
           nextUrl,
-          shouldBytePreloadForCrossfade,
           shouldBytePreloadForGaplessBackup,
           remaining,
           gaplessEnabled,
