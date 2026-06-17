@@ -86,7 +86,7 @@ import {
 } from './seekTargetState';
 import { refreshWaveformForTrack } from './waveformRefresh';
 import { analyzeBoundary, computeWaveformSilence, STANDARD_BLEND_SEC } from '../utils/waveform/waveformSilence';
-import { maybeCrossfadeBytePreload } from './crossfadePreload';
+import { isCrossfadeNextReady, maybeCrossfadeBytePreload } from './crossfadePreload';
 import { armCrossfadeDynamicOverlap, getCrossfadeTransition } from './crossfadeTrimCache';
 
 // Silence-aware crossfade (A-tail): guards the early advance to once per play
@@ -295,7 +295,19 @@ export function handleAudioProgress(
         const outgoingFade = aRidesOwnFade ? 0 : overlap;
         const triggerAt = Math.max(0, dur - curTrailSilenceSec - overlap);
         const gen = getPlayGeneration();
-        if (current_time >= triggerAt && crossfadeTrimAdvanceGen !== gen) {
+        // Readiness gate: only pre-empt the engine when B's audio is actually
+        // available (RAM preload slot or local on disk). A cold stream can't
+        // sustain a stable fade, so we leave the gen guard unset and re-check on
+        // later ticks — if B never readies, the plain engine crossfade fires.
+        if (
+          current_time >= triggerAt
+          && crossfadeTrimAdvanceGen !== gen
+          && isCrossfadeNextReady(
+            nextTrackId,
+            playbackProfileIdForRef(nextRef),
+            playbackCacheKeyForRef(nextRef),
+          )
+        ) {
           crossfadeTrimAdvanceGen = gen;
           armCrossfadeDynamicOverlap(nextTrackId, overlap, outgoingFade);
           store.next(false);

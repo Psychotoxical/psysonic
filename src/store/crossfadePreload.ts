@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { computeWaveformSilence, planCrossfadeTransition } from '../utils/waveform/waveformSilence';
+import { findLocalPlaybackUrl } from '../utils/offline/offlineLibraryHelpers';
 import { playbackCacheKeyForRef } from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveQueueTrack } from '../utils/library/queueTrackView';
@@ -20,6 +21,35 @@ import { fetchWaveformBins } from './waveformRefresh';
 // on purpose. The trailing-silence trim widens the window further so the early
 // A-tail advance keeps the full budget.
 export const CROSSFADE_PRELOAD_BUDGET_SECS = 30;
+
+/**
+ * Readiness gate for the AutoDJ early, content-driven advance. A stable fade
+ * needs the *next* track's audio at the overlap moment — analysis (waveform)
+ * alone is not enough. B counts as ready when its full bytes are in the engine
+ * RAM preload slot (`enginePreloadedTrackId`) or it is local on disk: offline
+ * library, favourite auto-sync, or hot-cache ephemeral tier. When B isn't ready
+ * we skip the early advance and let the plain engine crossfade handle the
+ * transition (graceful degrade) instead of fading over a buffering stream.
+ */
+export function isCrossfadeNextReady(
+  trackId: string,
+  profileId: string | null,
+  cacheKey: string | null,
+): boolean {
+  if (!trackId) return false;
+  if (usePlayerStore.getState().enginePreloadedTrackId === trackId) return true;
+  for (const sid of [profileId, cacheKey]) {
+    if (!sid) continue;
+    if (
+      findLocalPlaybackUrl(trackId, sid, 'library')
+      || findLocalPlaybackUrl(trackId, sid, 'favorite-auto')
+      || findLocalPlaybackUrl(trackId, sid, 'ephemeral')
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
 
 /**
  * Crossfade-only byte pre-download for the next track + (when trim is on) its
