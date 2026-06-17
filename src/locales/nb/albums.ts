@@ -2,6 +2,7 @@ export const albums = {
   title: 'Alle album',
   sortByName: 'A–Å (Album)',
   sortByArtist: 'A–Å (Artist)',
+  sortByArtistYear: 'Artist → År',
   sortNewest: 'Vis nyeste først',
   sortRandom: 'Tilfeldig',
 	yearFrom: 'Fra',
