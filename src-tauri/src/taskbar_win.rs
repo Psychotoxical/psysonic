@@ -12,10 +12,11 @@
 //! strict.
 #![cfg_attr(debug_assertions, allow(dead_code))]
 
-use std::sync::atomic::{AtomicIsize, Ordering};
+use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering};
 
 use tauri::{AppHandle, Emitter};
 use windows::{
+    core::w,
     Win32::{
         Foundation::{HWND, LPARAM, LRESULT, WPARAM},
         System::Com::{
@@ -29,7 +30,7 @@ use windows::{
             },
             WindowsAndMessaging::{
                 CreateIconFromResourceEx, DestroyIcon, HICON, LR_DEFAULTCOLOR,
-                WM_COMMAND, WM_NCDESTROY,
+                RegisterWindowMessageW, WM_COMMAND, WM_NCDESTROY,
             },
         },
     },
@@ -60,6 +61,10 @@ static HICON_PREV:  AtomicIsize = AtomicIsize::new(0);
 static HICON_PLAY:  AtomicIsize = AtomicIsize::new(0);
 static HICON_PAUSE: AtomicIsize = AtomicIsize::new(0);
 static HICON_NEXT:  AtomicIsize = AtomicIsize::new(0);
+
+// Registered window-message id for the shell's "TaskbarButtonCreated"
+// broadcast (0 until registered in `init`).
+static TASKBAR_BUTTON_CREATED_MSG: AtomicU32 = AtomicU32::new(0);
 
 // ── ICO resource loader ──────────────────────────────────────────────────────
 
@@ -174,6 +179,15 @@ unsafe extern "system" fn subclass_proc(
     _uid:   usize,
     data:   usize,
 ) -> LRESULT {
+    // The shell sends this once the taskbar button exists (on the first window
+    // show) and again after an explorer.exe restart — the only safe moment to
+    // (re)add the thumbnail buttons. See `add_thumb_buttons`.
+    let tb_created = TASKBAR_BUTTON_CREATED_MSG.load(Ordering::SeqCst);
+    if tb_created != 0 && msg == tb_created {
+        add_thumb_buttons();
+        return DefSubclassProc(hwnd, msg, wparam, lparam);
+    }
+
     if msg == WM_COMMAND {
         let hi = (wparam.0 >> 16) as u32;
         let lo = (wparam.0 & 0xFFFF) as u32;
@@ -211,6 +225,43 @@ unsafe extern "system" fn subclass_proc(
     DefSubclassProc(hwnd, msg, wparam, lparam)
 }
 
+// ── Thumbnail-button (re)attach ────────────────────────────────────────────────
+
+/// (Re)add the three media buttons to the taskbar thumbnail toolbar.
+///
+/// Must run only after the shell has created the window's taskbar button and
+/// broadcast `TaskbarButtonCreated`. Calling `ThumbBarAddButtons` before that
+/// point returns `S_OK` but silently adds nothing — which is why the buttons
+/// disappeared once the main window started hidden/deferred (PR #1030 moved the
+/// window to `visible: false` with a deferred show, so at `setup` time the
+/// taskbar button does not exist yet).
+unsafe fn add_thumb_buttons() {
+    let taskbar_raw = TASKBAR_PTR.load(Ordering::SeqCst);
+    let hwnd_raw    = HWND_VAL.load(Ordering::SeqCst);
+    if taskbar_raw == 0 || hwnd_raw == 0 { return; }
+
+    let h_prev = HICON_PREV.load(Ordering::SeqCst);
+    let h_play = HICON_PLAY.load(Ordering::SeqCst);
+    let h_next = HICON_NEXT.load(Ordering::SeqCst);
+    if h_prev == 0 || h_play == 0 || h_next == 0 { return; }
+
+    let taskbar = &*(taskbar_raw as *const ITaskbarList3);
+    let hwnd    = HWND(hwnd_raw as *mut _);
+
+    // Harmless on an already-initialised object; required again after an
+    // explorer restart recreates the taskbar button.
+    let _ = taskbar.HrInit();
+
+    let buttons = make_buttons(
+        HICON(h_prev as *mut _),
+        HICON(h_play as *mut _),
+        HICON(h_next as *mut _),
+    );
+    if let Err(e) = taskbar.ThumbBarAddButtons(hwnd, &buttons) {
+        crate::app_eprintln!("[psysonic] taskbar: ThumbBarAddButtons failed: {e}");
+    }
+}
+
 // ── Public init ──────────────────────────────────────────────────────────────
 
 pub fn init(app: &AppHandle, hwnd_raw: isize) {
@@ -242,11 +293,12 @@ pub fn init(app: &AppHandle, hwnd_raw: isize) {
         HICON_PAUSE.store(h_pause.0 as isize, Ordering::SeqCst);
         HICON_NEXT .store(h_next .0 as isize, Ordering::SeqCst);
 
-        let buttons = make_buttons(h_prev, h_play, h_next);
-        if let Err(e) = taskbar.ThumbBarAddButtons(hwnd, &buttons) {
-            crate::app_eprintln!("[psysonic] taskbar: ThumbBarAddButtons failed: {e}");
-            return;
-        }
+        // Register the shell's "TaskbarButtonCreated" message. The buttons are
+        // added from the subclass proc when it fires (after the first window
+        // show), because the deferred/hidden main window means the taskbar
+        // button does not exist yet at this point.
+        let tb_msg = RegisterWindowMessageW(w!("TaskbarButtonCreated"));
+        TASKBAR_BUTTON_CREATED_MSG.store(tb_msg, Ordering::SeqCst);
 
         let raw = Box::into_raw(Box::new(taskbar));
         TASKBAR_PTR.store(raw as isize, Ordering::SeqCst);
