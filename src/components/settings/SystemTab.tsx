@@ -56,6 +56,7 @@ export function SystemTab() {
         icon={<Globe size={16} />}
       >
         <div className="settings-card">
+          <SettingsGroup title={t('settings.language')}>
           <div className="form-group" style={{ maxWidth: '300px' }}>
             <CustomSelect
               value={i18n.language}
@@ -73,6 +74,7 @@ export function SystemTab() {
               ]}
             />
           </div>
+          </SettingsGroup>
         </div>
       </SettingsSubSection>
 
@@ -195,6 +197,7 @@ export function SystemTab() {
         icon={<Sliders size={16} />}
       >
         <div className="settings-card">
+          <SettingsGroup title={t('settings.loggingTitle')}>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
             {t('settings.loggingModeDesc')}
           </div>
@@ -215,6 +218,7 @@ export function SystemTab() {
               </button>
             </div>
           )}
+          </SettingsGroup>
         </div>
       </SettingsSubSection>
 

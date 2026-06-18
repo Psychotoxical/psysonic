@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Clock3, Download, HardDrive, Upload } from 'lucide-react';
+import { Clock3, Download, Upload } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { SettingsGroup } from './SettingsGroup';
 import {
   exportBackupToPath,
   importAnyBackupFromPath,
@@ -148,13 +149,8 @@ export function BackupSection() {
     : null;
 
   return (
-    <section className="settings-section">
-      <div className="settings-section-header">
-        <HardDrive size={18} />
-        <h2>{t('settings.backupTitle')}</h2>
-      </div>
-
-      <div className="settings-card" style={{ marginBottom: '1rem' }}>
+    <div className="settings-card">
+      <SettingsGroup title={t('settings.backupTitle')}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.85rem' }}>
           {(['full', 'library', 'config'] as BackupMode[]).map(candidate => (
             <button
@@ -197,8 +193,8 @@ export function BackupSection() {
             {importing ? '…' : importLabel}
           </button>
         </div>
-      </div>
+      </SettingsGroup>
       {busyOverlay}
-    </section>
+    </div>
   );
 }
