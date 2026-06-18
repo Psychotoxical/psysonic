@@ -88,12 +88,14 @@ import { refreshWaveformForTrack } from './waveformRefresh';
 import { analyzeBoundary, computeWaveformSilence, STANDARD_BLEND_SEC } from '../utils/waveform/waveformSilence';
 import { isCrossfadeNextReady, maybeCrossfadeBytePreload } from './crossfadePreload';
 import { armCrossfadeDynamicOverlap, getCrossfadeTransition } from './crossfadeTrimCache';
+import { armAutodjMixing, setAutodjPreparing } from './autodjTransitionUi';
 
 // Silence-aware crossfade (A-tail): guards the early advance to once per play
 // generation so a single playback instance triggers at most one trim-advance
 // (re-arms automatically on the next play / repeat-all loop, never loops on a
 // backward seek within the same playback).
 let crossfadeTrimAdvanceGen = -1;
+let autodjEngineMixArmGen = -1;
 
 // AutoDJ: mirror of the engine's `autodj_suppress_autocrossfade` flag so we only
 // invoke the setter on change. When a content fade is pending for the upcoming
@@ -102,6 +104,7 @@ let crossfadeTrimAdvanceGen = -1;
 // the engine would start a still-buffering next track and fade over it (a jump).
 let autodjSuppressSent: boolean | null = null;
 function syncAutodjSuppress(want: boolean): void {
+  setAutodjPreparing(want);
   if (autodjSuppressSent === want) return;
   autodjSuppressSent = want;
   invoke('audio_set_autodj_suppress', { enabled: want }).catch(() => {});
@@ -331,6 +334,7 @@ export function handleAudioProgress(
         ) {
           crossfadeTrimAdvanceGen = gen;
           armCrossfadeDynamicOverlap(nextTrackId, overlap, outgoingFade);
+          armAutodjMixing(overlap);
           store.next(false);
           return;
         }
@@ -338,6 +342,17 @@ export function handleAudioProgress(
     }
   }
   syncAutodjSuppress(autodjSuppressWant);
+
+  if (trimActive && store.isPlaying && !autodjSuppressWant) {
+    const cf = Math.max(0.1, Math.min(12, crossfadeSecs));
+    if (remaining > 0 && remaining <= cf + 0.25) {
+      const gen = getPlayGeneration();
+      if (autodjEngineMixArmGen !== gen) {
+        autodjEngineMixArmGen = gen;
+        armAutodjMixing(cf);
+      }
+    }
+  }
 
   // Crossfade pre-buffer (next-track byte download + leading-silence probe).
   // Self-gating; also invoked right after a seek into the window (see seekAction).

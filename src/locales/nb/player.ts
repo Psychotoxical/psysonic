@@ -9,6 +9,8 @@ export const player = {
   prev: 'Forrige spor',
   play: 'Spill av',
   pause: 'Pause',
+  autoDjMixing: 'AutoDJ — mikser',
+  autoDjPreparing: 'AutoDJ — forbereder neste spor',
   bufferingStream: 'Loading track from server',
   previewActive: 'Forhåndsvisning spilles av',
   previewLabel: 'Forhåndsvisning',

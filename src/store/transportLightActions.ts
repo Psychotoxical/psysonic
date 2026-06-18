@@ -11,6 +11,7 @@ import { clearSeekFallbackRetry } from './seekFallbackState';
 import { clearSeekTarget } from './seekTargetState';
 import { tryAcquireTogglePlayLock } from './togglePlayLock';
 import { refreshWaveformForTrack } from './waveformRefresh';
+import { clearAutodjTransitionUi } from './autodjTransitionUi';
 
 type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
@@ -32,6 +33,7 @@ export function createTransportLightActions(set: SetState, get: GetState): Pick<
   return {
     stop: () => {
       void playListenSessionFinalize('stop');
+      clearAutodjTransitionUi();
       // Report stopped before the position is reset below so the server drops the
       // now-playing entry at the right point (playbackReport extension).
       void playbackReportStopped();

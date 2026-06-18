@@ -273,6 +273,39 @@ html[data-platform="windows"] .player-bar.floating {
   filter: brightness(1.12);
 }
 
+/* AutoDJ transition — Blend icon + accent pulse on the central play button. */
+.player-btn-primary.is-autodj-transition {
+  animation: player-autodj-pulse 1.15s ease-in-out infinite;
+}
+
+.player-btn-primary.is-autodj-transition--preparing {
+  animation-duration: 1.65s;
+  opacity: 0.92;
+}
+
+.player-btn-primary.is-autodj-transition .player-btn-autodj-icon {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--text-on-accent) 55%, transparent));
+}
+
+@keyframes player-autodj-pulse {
+  0%, 100% {
+    filter: brightness(1);
+    box-shadow:
+      0 4px 18px rgba(0, 0, 0, 0.4),
+      0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+  50% {
+    filter: brightness(1.2);
+    box-shadow:
+      0 4px 18px rgba(0, 0, 0, 0.4),
+      0 0 16px 3px color-mix(in srgb, var(--accent) 65%, transparent);
+  }
+}
+
+.player-btn-primary.is-autodj-transition:hover {
+  transform: scale(1.06);
+}
+
 /* Waveform seekbar section */
 .player-waveform-section {
   flex: 1;

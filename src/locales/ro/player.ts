@@ -9,6 +9,8 @@ export const player = {
   prev: 'Piesa anterioară',
   play: 'Redă',
   pause: 'Pauză',
+  autoDjMixing: 'AutoDJ — mixare',
+  autoDjPreparing: 'AutoDJ — se pregătește următoarea piesă',
   bufferingStream: 'Loading track from server',
   previewActive: 'Previzualizează redarea',
   previewLabel: 'Previzualizare',

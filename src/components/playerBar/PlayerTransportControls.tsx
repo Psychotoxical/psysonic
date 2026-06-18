@@ -1,8 +1,9 @@
 import React from 'react';
-import { Moon, Pause, Play, Repeat, Repeat1, SkipBack, SkipForward, Square, Sunrise } from 'lucide-react';
+import { Blend, Moon, Pause, Play, Repeat, Repeat1, SkipBack, SkipForward, Square, Sunrise } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import type { TFunction } from 'i18next';
 import type { PlayerState } from '../../store/playerStoreTypes';
+import { useAutodjTransitionUi } from '../../store/autodjTransitionUi';
 import { usePreviewStore } from '../../store/previewStore';
 import PlaybackScheduleBadge from '../PlaybackScheduleBadge';
 import { usePlaybackDelayPress } from '../../hooks/usePlaybackDelayPress';
@@ -32,6 +33,10 @@ export function PlayerTransportControls({
   isPlaying, isRadio, isPreviewing, stop, previous, next, toggleRepeat, repeatMode,
   playPauseBind, scheduleRemaining, transportAnchorRef, playSlotRef, t,
 }: Props) {
+  const autodjPhase = useAutodjTransitionUi(s => s.phase);
+  const showAutodjTransition =
+    isPlaying && !isPreviewing && scheduleRemaining == null && autodjPhase !== 'idle';
+
   return (
     <div className="player-buttons" ref={transportAnchorRef}>
       <button
@@ -68,7 +73,13 @@ export function PlayerTransportControls({
           </svg>
         )}
         <button
-          className={`player-btn player-btn-primary${isPreviewing ? ' is-previewing' : ''}`}
+          className={[
+            'player-btn player-btn-primary',
+            isPreviewing ? 'is-previewing' : '',
+            showAutodjTransition
+              ? `is-autodj-transition is-autodj-transition--${autodjPhase}`
+              : '',
+          ].filter(Boolean).join(' ')}
           type="button"
           {...playPauseBind}
           onClick={isPreviewing
@@ -80,8 +91,16 @@ export function PlayerTransportControls({
                 invoke('audio_preview_stop').catch(() => {});
               })
             : playPauseBind.onClick}
-          aria-label={isPreviewing ? t('playlists.previewStop') : isPlaying ? t('player.pause') : t('player.play')}
-          data-tooltip={isPreviewing ? t('playlists.previewStop') : isPlaying ? t('player.pause') : t('player.play')}
+          aria-label={isPreviewing
+            ? t('playlists.previewStop')
+            : showAutodjTransition
+              ? (autodjPhase === 'preparing' ? t('player.autoDjPreparing') : t('player.autoDjMixing'))
+              : isPlaying ? t('player.pause') : t('player.play')}
+          data-tooltip={isPreviewing
+            ? t('playlists.previewStop')
+            : showAutodjTransition
+              ? (autodjPhase === 'preparing' ? t('player.autoDjPreparing') : t('player.autoDjMixing'))
+              : isPlaying ? t('player.pause') : t('player.play')}
         >
           {scheduleRemaining != null ? (
             <span className={`player-btn-schedule-stack player-btn-schedule-stack--${scheduleRemaining.mode}`}>
@@ -92,6 +111,8 @@ export function PlayerTransportControls({
             </span>
           ) : isPreviewing ? (
             <Square size={16} fill="currentColor" strokeWidth={0} />
+          ) : showAutodjTransition ? (
+            <Blend size={22} className="player-btn-autodj-icon" strokeWidth={2.25} />
           ) : isPlaying ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" />}
         </button>
       </span>

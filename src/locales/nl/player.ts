@@ -9,6 +9,8 @@ export const player = {
   prev: 'Vorig nummer',
   play: 'Afspelen',
   pause: 'Pauzeren',
+  autoDjMixing: 'AutoDJ — mixen',
+  autoDjPreparing: 'AutoDJ — volgend nummer voorbereiden',
   bufferingStream: 'Loading track from server',
   previewActive: 'Voorbeeld speelt af',
   previewLabel: 'Voorbeeld',
