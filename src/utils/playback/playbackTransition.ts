@@ -58,17 +58,3 @@ export function transitionFlagsFor(mode: TransitionMode): TransitionFlags {
 export function setTransitionMode(mode: TransitionMode): void {
   useAuthStore.setState(transitionFlagsFor(mode));
 }
-
-/** Default outgoing fade length for AutoDJ smooth skip (manual next/previous). */
-export const SMOOTH_SKIP_FADE_SEC = 0.4;
-
-/**
- * When AutoDJ smooth skip is enabled and the user skips while audio is playing,
- * return the short outgoing fade to pass to `audio_play`; otherwise `null`.
- */
-export function resolveManualSkipFadeSecs(manual: boolean, wasPlaying: boolean): number | null {
-  if (!manual || !wasPlaying) return null;
-  const auth = useAuthStore.getState();
-  if (getTransitionMode(auth) !== 'autodj' || !auth.autodjSmoothSkip) return null;
-  return SMOOTH_SKIP_FADE_SEC;
-}

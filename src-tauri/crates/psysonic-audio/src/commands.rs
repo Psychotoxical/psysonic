@@ -74,7 +74,7 @@ pub async fn audio_play(
     outgoing_fade_secs_override: Option<f32>,
     // AutoDJ smooth skip: short outgoing fade when the user hits next/previous
     // while a track is playing. Optional; only honoured when `manual` is true.
-    manual_skip_fade_secs: Option<f32>,
+    manual_autodj_blend: Option<bool>,
     app: AppHandle,
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
@@ -239,8 +239,10 @@ pub async fn audio_play(
         },
     );
 
-    // Manual skips (user-initiated) bypass crossfade — the track should start immediately.
-    let crossfade_enabled = state.crossfade_enabled.load(Ordering::Relaxed) && !manual;
+    // Manual skips bypass crossfade unless AutoDJ smooth skip requests a full blend.
+    let manual_blend = manual && manual_autodj_blend.unwrap_or(false);
+    let crossfade_enabled =
+        state.crossfade_enabled.load(Ordering::Relaxed) && (!manual || manual_blend);
     // Per-transition override (dynamic crossfade) caps the fade for this swap;
     // otherwise fall back to the global crossfade length. Both clamped the same.
     let crossfade_secs_val = crossfade_secs_override
@@ -279,15 +281,6 @@ pub async fn audio_play(
             Some(v) => v.max(0.0).min(actual_fade_secs),
             None => actual_fade_secs,
         }
-    } else {
-        0.0
-    };
-
-    let manual_skip_fade = if manual {
-        manual_skip_fade_secs
-            .filter(|&s| s > 0.0)
-            .map(|s| s.clamp(0.05, 2.0))
-            .unwrap_or(0.0)
     } else {
         0.0
     };
@@ -481,7 +474,6 @@ pub async fn audio_play(
         crossfade_enabled,
         actual_fade_secs,
         outgoing_fade_secs,
-        manual_skip_fade_secs: manual_skip_fade,
         start_paused,
     });
 

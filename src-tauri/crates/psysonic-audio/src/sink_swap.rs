@@ -93,9 +93,6 @@ pub(crate) struct SinkSwapInputs {
     /// Track A fade-out length (decoupled from B's `actual_fade_secs` fade-in).
     /// `0` ⇒ don't fade A — it rides its own recorded fade-out (scenario A).
     pub(crate) outgoing_fade_secs: f32,
-    /// Short outgoing fade on manual skip (AutoDJ smooth skip). Applied when
-    /// `crossfade_enabled` is false so B still hard-starts while A tails out.
-    pub(crate) manual_skip_fade_secs: f32,
     pub(crate) start_paused: bool,
 }
 
@@ -151,7 +148,6 @@ pub(crate) fn swap_in_new_sink(state: &State<'_, AudioEngine>, inputs: SinkSwapI
         crossfade_enabled,
         actual_fade_secs,
         outgoing_fade_secs,
-        manual_skip_fade_secs,
         start_paused,
     } = inputs;
 
@@ -201,15 +197,6 @@ pub(crate) fn swap_in_new_sink(state: &State<'_, AudioEngine>, inputs: SinkSwapI
                 }
             });
         }
-    } else if manual_skip_fade_secs > 0.0 {
-        handoff_old_sink_fade_out(
-            state,
-            old_sink,
-            old_fadeout_trigger,
-            old_fadeout_samples,
-            manual_skip_fade_secs,
-            manual_skip_fade_secs + 0.25,
-        );
     } else if let Some(old) = old_sink {
         old.stop();
     }
