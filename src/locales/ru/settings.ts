@@ -262,6 +262,8 @@ export const settings = {
   discordRichPresenceNotice: 'Внимание: это встроенная Discord Rich Presence в Psysonic. Если вы хотите использовать официальный плагин Discord Rich Presence для Navidrome, оставьте эту функцию выключенной и вместо этого включите «Показывать в „Сейчас играет"» ниже на этой странице.',
   discordCoverSource: 'Источник обложки',
   discordCoverSourceDesc: 'Откуда загружать обложку альбома для профиля Discord.',
+  discordCoverTitle: 'Источник обложки',
+  discordCoverDesc: 'Откуда берётся обложка, показываемая в вашем профиле Discord.',
   discordCoverNone: 'Нет (только иконка приложения)',
   discordCoverServer: 'Сервер (через информацию об альбоме)',
   discordCoverApple: 'Apple Music',

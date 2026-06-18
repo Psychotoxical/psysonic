@@ -243,6 +243,8 @@ export const settings = {
   discordRichPresenceNotice: 'Attention : il s\'agit de la Discord Rich Presence intégrée à Psysonic. Si vous préférez utiliser le plugin officiel Discord Rich Presence de Navidrome, laissez cette fonction désactivée et activez plutôt « Afficher dans la fenêtre live » plus bas sur cette page.',
   discordCoverSource: 'Source de pochette',
   discordCoverSourceDesc: 'D\'où récupérer la pochette pour votre profil Discord.',
+  discordCoverTitle: 'Source de la pochette',
+  discordCoverDesc: 'D\'où provient la pochette affichée sur votre profil Discord.',
   discordCoverNone: 'Aucune (icône de l\'app uniquement)',
   discordCoverServer: 'Serveur (via infos album)',
   discordCoverApple: 'Apple Music',

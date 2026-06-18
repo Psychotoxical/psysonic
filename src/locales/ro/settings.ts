@@ -258,6 +258,8 @@ export const settings = {
   linuxWaylandTextRenderMinimal: 'Minim (netezire CSS implicită)',
   discordCoverSource: 'Sursa artei de copertă',
   discordCoverSourceDesc: 'De unde să fie preluată arta de album afișată pe profilul tău de Discord.',
+  discordCoverTitle: 'Sursa coperții',
+  discordCoverDesc: 'De unde provine coperta afișată pe profilul tău Discord.',
   discordCoverNone: 'Niciuna (doar iconița aplicației)',
   discordCoverServer: 'Server (prin informații album)',
   discordCoverApple: 'Apple Music',

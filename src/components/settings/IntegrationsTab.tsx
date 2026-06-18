@@ -42,19 +42,18 @@ export function IntegrationsTab() {
           >
             {t('settings.discordRichPresenceNotice')}
           </div>
-          <div className="settings-toggle-row">
-            <div>
-              <div style={{ fontWeight: 500 }}>{t('settings.discordRichPresence')}</div>
+          <SettingsGroup title={t('settings.discordRichPresence')}>
+            <div className="settings-toggle-row">
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.discordRichPresenceDesc')}</div>
+              <label className="toggle-switch" aria-label={t('settings.discordRichPresence')}>
+                <input type="checkbox" checked={auth.discordRichPresence} onChange={e => auth.setDiscordRichPresence(e.target.checked)} />
+                <span className="toggle-track" />
+              </label>
             </div>
-            <label className="toggle-switch" aria-label={t('settings.discordRichPresence')}>
-              <input type="checkbox" checked={auth.discordRichPresence} onChange={e => auth.setDiscordRichPresence(e.target.checked)} />
-              <span className="toggle-track" />
-            </label>
-          </div>
+          </SettingsGroup>
           {auth.discordRichPresence && (
             <>
-              <SettingsGroup>
+              <SettingsGroup title={t('settings.discordCoverTitle')} desc={t('settings.discordCoverDesc')}>
                 <div className="settings-toggle-row">
                   <div style={{ fontWeight: 500 }}>{t('settings.discordCoverNone')}</div>
                   <label className="toggle-switch" aria-label={t('settings.discordCoverNone')}>
@@ -145,16 +144,15 @@ export function IntegrationsTab() {
         icon={<Info size={16} />}
       >
         <div className="settings-card">
-          <div className="settings-toggle-row">
-            <div>
-              <div style={{ fontWeight: 500 }}>{t('settings.enableBandsintown')}</div>
+          <SettingsGroup title={t('settings.enableBandsintown')}>
+            <div className="settings-toggle-row">
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.enableBandsintownDesc')}</div>
+              <label className="toggle-switch" aria-label={t('settings.enableBandsintown')}>
+                <input type="checkbox" checked={auth.enableBandsintown} onChange={e => auth.setEnableBandsintown(e.target.checked)} />
+                <span className="toggle-track" />
+              </label>
             </div>
-            <label className="toggle-switch" aria-label={t('settings.enableBandsintown')}>
-              <input type="checkbox" checked={auth.enableBandsintown} onChange={e => auth.setEnableBandsintown(e.target.checked)} />
-              <span className="toggle-track" />
-            </label>
-          </div>
+          </SettingsGroup>
         </div>
       </SettingsSubSection>
 
@@ -164,17 +162,18 @@ export function IntegrationsTab() {
         icon={<Wifi size={16} />}
       >
         <div className="settings-card">
-          <div className="settings-toggle-row">
-            <div>
-              <div style={{ fontWeight: 500 }}>{t('settings.nowPlayingEnabled')}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.nowPlayingEnabledDesc')}</div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginTop: 4 }}>{t('settings.nowPlayingPluginNote')}</div>
+          <SettingsGroup title={t('settings.nowPlayingEnabled')}>
+            <div className="settings-toggle-row">
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.nowPlayingEnabledDesc')}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginTop: 4 }}>{t('settings.nowPlayingPluginNote')}</div>
+              </div>
+              <label className="toggle-switch" aria-label={t('settings.nowPlayingEnabled')}>
+                <input type="checkbox" checked={auth.nowPlayingEnabled} onChange={e => auth.setNowPlayingEnabled(e.target.checked)} />
+                <span className="toggle-track" />
+              </label>
             </div>
-            <label className="toggle-switch" aria-label={t('settings.nowPlayingEnabled')}>
-              <input type="checkbox" checked={auth.nowPlayingEnabled} onChange={e => auth.setNowPlayingEnabled(e.target.checked)} />
-              <span className="toggle-track" />
-            </label>
-          </div>
+          </SettingsGroup>
         </div>
       </SettingsSubSection>
     </>

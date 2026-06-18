@@ -242,6 +242,8 @@ export const settings = {
   discordRichPresenceNotice: '注意：这是 Psysonic 内置的 Discord Rich Presence。如果你想使用官方的 Navidrome Discord Rich Presence 插件，请保持此功能关闭，并改为启用本页下方的"在实时窗口中显示"。',
   discordCoverSource: '封面来源',
   discordCoverSourceDesc: '从何处获取 Discord 个人资料上显示的专辑封面。',
+  discordCoverTitle: '封面来源',
+  discordCoverDesc: '你的 Discord 资料中显示的专辑封面来源。',
   discordCoverNone: '无（仅显示应用图标）',
   discordCoverServer: '服务器（通过专辑信息）',
   discordCoverApple: 'Apple Music',

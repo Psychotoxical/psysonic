@@ -259,6 +259,8 @@ export const settings = {
   linuxWaylandTextRenderMinimal: 'Minimal (default CSS smoothing)',
   discordCoverSource: 'Cover art source',
   discordCoverSourceDesc: 'Where to fetch album artwork shown on your Discord profile.',
+  discordCoverTitle: 'Cover art source',
+  discordCoverDesc: 'Where the album artwork on your Discord profile comes from.',
   discordCoverNone: 'None (app icon only)',
   discordCoverServer: 'Server (via album info)',
   discordCoverApple: 'Apple Music',

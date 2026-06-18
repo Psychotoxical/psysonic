@@ -243,6 +243,8 @@ export const settings = {
   discordRichPresenceNotice: 'Let op: dit is de in Psysonic ingebouwde Discord Rich Presence. Wil je liever de officiële Navidrome Discord Rich Presence-plug-in gebruiken, laat deze functie dan uitgeschakeld en schakel in plaats daarvan verderop op deze pagina „Weergeven in live-venster" in.',
   discordCoverSource: 'Hoesbron',
   discordCoverSourceDesc: 'Waar de albumhoes voor je Discord-profiel vandaan komt.',
+  discordCoverTitle: 'Bron albumhoes',
+  discordCoverDesc: 'Waar de albumhoes op je Discord-profiel vandaan komt.',
   discordCoverNone: 'Geen (alleen app-icoon)',
   discordCoverServer: 'Server (via albuminfo)',
   discordCoverApple: 'Apple Music',

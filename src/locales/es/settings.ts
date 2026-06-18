@@ -255,6 +255,8 @@ export const settings = {
   linuxWaylandTextRenderMinimal: 'Mínimo (suavizado CSS por defecto)',
   discordCoverSource: 'Fuente de portada',
   discordCoverSourceDesc: 'De dónde obtener la portada del álbum para tu perfil de Discord.',
+  discordCoverTitle: 'Fuente de la carátula',
+  discordCoverDesc: 'De dónde proviene la carátula mostrada en tu perfil de Discord.',
   discordCoverNone: 'Ninguna (solo icono de la app)',
   discordCoverServer: 'Servidor (vía info del álbum)',
   discordCoverApple: 'Apple Music',

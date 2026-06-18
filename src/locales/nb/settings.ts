@@ -242,6 +242,8 @@ export const settings = {
   discordRichPresenceNotice: 'Merk: dette er den innebygde Discord Rich Presence i Psysonic. Vil du heller bruke det offisielle Navidrome Discord Rich Presence-tillegget, la denne funksjonen være av og aktiver i stedet «Vis i "Nå spiller"» lenger ned på denne siden.',
   discordCoverSource: 'Coverkilde',
   discordCoverSourceDesc: 'Hvor albumcoveret for Discord-profilen din hentes fra.',
+  discordCoverTitle: 'Omslagskilde',
+  discordCoverDesc: 'Hvor albumomslaget på Discord-profilen din kommer fra.',
   discordCoverNone: 'Ingen (kun app-ikon)',
   discordCoverServer: 'Server (via albuminfo)',
   discordCoverApple: 'Apple Music',
