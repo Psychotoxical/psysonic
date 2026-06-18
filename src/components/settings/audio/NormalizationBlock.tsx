@@ -4,6 +4,7 @@ import type { TFunction } from 'i18next';
 import { useAuthStore } from '../../../store/authStore';
 import { DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB } from '../../../store/authStoreDefaults';
 import { LoudnessLufsButtonGroup } from '../LoudnessLufsButtonGroup';
+import { SettingsGroup } from '../SettingsGroup';
 
 interface Props {
   preAnalysisEffectiveDb: number;
@@ -28,9 +29,10 @@ export function NormalizationBlock({ preAnalysisEffectiveDb, t }: Props) {
   const auth = useAuthStore();
 
   return (
-    <div className="settings-group">
-      <div className="settings-group-title">{t('settings.normalization', { defaultValue: 'Normalization' })}</div>
-      <div className="settings-group-desc">{t('settings.normalizationDesc')}</div>
+    <SettingsGroup
+      title={t('settings.normalization', { defaultValue: 'Normalization' })}
+      desc={t('settings.normalizationDesc')}
+    >
       <div className="settings-segmented" style={{ marginBottom: auth.normalizationEngine === 'off' ? 0 : '0.85rem' }}>
         <button
           type="button"
@@ -176,6 +178,6 @@ export function NormalizationBlock({ preAnalysisEffectiveDb, t }: Props) {
           <div className="settings-norm-note">{t('settings.loudnessFirstPlayNote')}</div>
         </div>
       )}
-    </div>
+    </SettingsGroup>
   );
 }

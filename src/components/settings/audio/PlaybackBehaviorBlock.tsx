@@ -6,6 +6,7 @@ import {
   setTransitionMode,
   type TransitionMode,
 } from '../../../utils/playback/playbackTransition';
+import { SettingsGroup } from '../SettingsGroup';
 
 interface Props {
   t: TFunction;
@@ -35,10 +36,7 @@ export function PlaybackBehaviorBlock({ t }: Props) {
 
   return (
     <>
-      <div className="settings-group">
-        <div className="settings-group-title">{t('settings.transitionsTitle')}</div>
-        <div className="settings-group-desc">{t('settings.transitionsDesc')}</div>
-
+      <SettingsGroup title={t('settings.transitionsTitle')} desc={t('settings.transitionsDesc')}>
         <div className="settings-segmented">
           {transitions.map(item => (
             <button
@@ -74,11 +72,9 @@ export function PlaybackBehaviorBlock({ t }: Props) {
             {t('settings.autoDjDesc')}
           </div>
         )}
-      </div>
+      </SettingsGroup>
 
-      <div className="settings-group">
-        <div className="settings-group-title">{t('settings.queueBehaviourTitle')}</div>
-
+      <SettingsGroup title={t('settings.queueBehaviourTitle')}>
         <div className="settings-toggle-row">
           <div>
             <div style={{ fontWeight: 500 }}>
@@ -94,7 +90,7 @@ export function PlaybackBehaviorBlock({ t }: Props) {
             <span className="toggle-track" />
           </label>
         </div>
-      </div>
+      </SettingsGroup>
     </>
   );
 }
