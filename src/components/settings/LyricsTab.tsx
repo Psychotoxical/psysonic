@@ -3,6 +3,7 @@ import { AudioLines, Music2 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import SettingsSubSection from '../SettingsSubSection';
 import { SettingsGroup } from './SettingsGroup';
+import { SettingsToggle } from './SettingsToggle';
 import { LyricsSourcesCustomizer } from './LyricsSourcesCustomizer';
 
 export function LyricsTab() {
@@ -32,20 +33,12 @@ export function LyricsTab() {
             return (
               <div key={style}>
                 {i > 0 && <div className="settings-section-divider" />}
-                <div className="settings-toggle-row">
-                  <div>
-                    <div style={{ fontWeight: 500 }}>{t(`settings.sidebarLyricsStyle${key}` as any)}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t(`settings.sidebarLyricsStyle${key}Desc` as any)}</div>
-                  </div>
-                  <label className="toggle-switch" aria-label={t(`settings.sidebarLyricsStyle${key}` as any)}>
-                    <input
-                      type="checkbox"
-                      checked={sidebarLyricsStyle === style}
-                      onChange={e => setSidebarLyricsStyle(e.target.checked ? style : other)}
-                    />
-                    <span className="toggle-track" />
-                  </label>
-                </div>
+                <SettingsToggle
+                  label={t(`settings.sidebarLyricsStyle${key}` as any)}
+                  desc={t(`settings.sidebarLyricsStyle${key}Desc` as any)}
+                  checked={sidebarLyricsStyle === style}
+                  onChange={c => setSidebarLyricsStyle(c ? style : other)}
+                />
               </div>
             );
           })}

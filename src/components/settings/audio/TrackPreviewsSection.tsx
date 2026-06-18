@@ -6,6 +6,7 @@ import { TRACK_PREVIEW_LOCATIONS } from '../../../store/authStoreDefaults';
 import type { TrackPreviewLocation } from '../../../store/authStoreTypes';
 import SettingsSubSection from '../../SettingsSubSection';
 import { SettingsGroup } from '../SettingsGroup';
+import { SettingsToggle } from '../SettingsToggle';
 
 interface Props {
   t: TFunction;
@@ -28,21 +29,12 @@ export function TrackPreviewsSection({ t }: Props) {
     >
       <div className="settings-card">
         <SettingsGroup>
-        <div className="settings-toggle-row">
-          <div>
-            <div style={{ fontWeight: 500 }}>
-              {t('settings.trackPreviewsToggle')}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              {t('settings.trackPreviewsDesc')}
-            </div>
-          </div>
-          <label className="toggle-switch" aria-label={t('settings.trackPreviewsToggle')}>
-            <input type="checkbox" checked={auth.trackPreviewsEnabled}
-              onChange={e => auth.setTrackPreviewsEnabled(e.target.checked)} />
-            <span className="toggle-track" />
-          </label>
-        </div>
+        <SettingsToggle
+          label={t('settings.trackPreviewsToggle')}
+          desc={t('settings.trackPreviewsDesc')}
+          checked={auth.trackPreviewsEnabled}
+          onChange={auth.setTrackPreviewsEnabled}
+        />
 
         {auth.trackPreviewsEnabled && (
           <>

@@ -7,6 +7,7 @@ import { useSidebarStore, SidebarItemConfig, CONSERVED_SIDEBAR_NAV_IDS } from '.
 import { useLuckyMixAvailable } from '../../hooks/useLuckyMixAvailable';
 import { ALL_NAV_ITEMS } from '../../config/navItems';
 import { applySidebarDropReorder } from '../../utils/componentHelpers/sidebarNavReorder';
+import { SettingsToggle } from './SettingsToggle';
 
 type DropTarget = { idx: number; before: boolean; section: 'library' | 'system' } | null;
 
@@ -128,48 +129,25 @@ export function SidebarCustomizer() {
   return (
     <>
       <div style={{ marginBottom: '1rem' }}>
-        <div className="settings-toggle-row">
-          <div>
-            <div style={{ fontWeight: 500 }}>{t('settings.randomNavSplitTitle')}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.randomNavSplitDesc')}</div>
-          </div>
-          <label className="toggle-switch" aria-label={t('settings.randomNavSplitTitle')}>
-            <input
-              type="checkbox"
-              checked={randomNavMode === 'separate'}
-              onChange={e => setRandomNavMode(e.target.checked ? 'separate' : 'hub')}
-            />
-            <span className="toggle-track" />
-          </label>
-        </div>
-        <div className="settings-toggle-row" data-settings-search={t('settings.nowPlayingTopTitle')}>
-          <div>
-            <div style={{ fontWeight: 500 }}>{t('settings.nowPlayingTopTitle')}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.nowPlayingTopDesc')}</div>
-          </div>
-          <label className="toggle-switch" aria-label={t('settings.nowPlayingTopTitle')}>
-            <input
-              type="checkbox"
-              checked={nowPlayingAtTop}
-              onChange={e => setNowPlayingAtTop(e.target.checked)}
-            />
-            <span className="toggle-track" />
-          </label>
-        </div>
-        <div className="settings-toggle-row">
-          <div>
-            <div style={{ fontWeight: 500 }}>{t('settings.luckyMixMenuTitle')}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.luckyMixMenuDesc')}</div>
-          </div>
-          <label className="toggle-switch" aria-label={t('settings.luckyMixMenuTitle')}>
-            <input
-              type="checkbox"
-              checked={showLuckyMixMenu}
-              onChange={e => setShowLuckyMixMenu(e.target.checked)}
-            />
-            <span className="toggle-track" />
-          </label>
-        </div>
+        <SettingsToggle
+          label={t('settings.randomNavSplitTitle')}
+          desc={t('settings.randomNavSplitDesc')}
+          checked={randomNavMode === 'separate'}
+          onChange={c => setRandomNavMode(c ? 'separate' : 'hub')}
+        />
+        <SettingsToggle
+          label={t('settings.nowPlayingTopTitle')}
+          desc={t('settings.nowPlayingTopDesc')}
+          searchText={t('settings.nowPlayingTopTitle')}
+          checked={nowPlayingAtTop}
+          onChange={setNowPlayingAtTop}
+        />
+        <SettingsToggle
+          label={t('settings.luckyMixMenuTitle')}
+          desc={t('settings.luckyMixMenuDesc')}
+          checked={showLuckyMixMenu}
+          onChange={setShowLuckyMixMenu}
+        />
       </div>
       <div ref={containerRef} onMouseMove={handleMouseMove} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {/* Library block */}

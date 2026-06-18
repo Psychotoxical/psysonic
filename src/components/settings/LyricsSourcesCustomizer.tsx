@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useDragDrop, useDragSource } from '../../contexts/DragDropContext';
 import { useAuthStore } from '../../store/authStore';
 import type { LyricsSourceId } from '../../store/authStoreTypes';
+import { SettingsToggle } from './SettingsToggle';
 
 const LYRICS_SOURCE_LABEL_KEYS: Record<LyricsSourceId, string> = {
   server:  'settings.lyricsSourceServer',
@@ -107,20 +108,12 @@ export function LyricsSourcesCustomizer() {
           the enabled sources below act as fallback; when off only those sources
           are used. YouLyPlus off + every source off = lyrics fully disabled. */}
       <div style={{ marginBottom: '0.75rem' }}>
-        <div className="settings-toggle-row">
-          <div>
-            <div style={{ fontWeight: 500 }}>{t('settings.lyricsYouLyPlus')}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.lyricsYouLyPlusDesc')}</div>
-          </div>
-          <label className="toggle-switch" aria-label={t('settings.lyricsYouLyPlus')}>
-            <input
-              type="checkbox"
-              checked={youLyPlusEnabled}
-              onChange={e => setYouLyPlusEnabled(e.target.checked)}
-            />
-            <span className="toggle-track" />
-          </label>
-        </div>
+        <SettingsToggle
+          label={t('settings.lyricsYouLyPlus')}
+          desc={t('settings.lyricsYouLyPlusDesc')}
+          checked={youLyPlusEnabled}
+          onChange={setYouLyPlusEnabled}
+        />
       </div>
 
       <div className="playback-rate-derived" style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 0.4rem' }}>
@@ -158,16 +151,12 @@ export function LyricsSourcesCustomizer() {
 
       {/* Static-only toggle — suppresses line/word tracking in both modes. */}
       <div style={{ marginBottom: '0.75rem' }}>
-        <div className="settings-toggle-row">
-          <div>
-            <div style={{ fontWeight: 500 }}>{t('settings.lyricsStaticOnly')}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.lyricsStaticOnlyDesc')}</div>
-          </div>
-          <label className="toggle-switch" aria-label={t('settings.lyricsStaticOnly')}>
-            <input type="checkbox" checked={lyricsStaticOnly} onChange={e => setLyricsStaticOnly(e.target.checked)} />
-            <span className="toggle-track" />
-          </label>
-        </div>
+        <SettingsToggle
+          label={t('settings.lyricsStaticOnly')}
+          desc={t('settings.lyricsStaticOnlyDesc')}
+          checked={lyricsStaticOnly}
+          onChange={setLyricsStaticOnly}
+        />
       </div>
     </>
   );
