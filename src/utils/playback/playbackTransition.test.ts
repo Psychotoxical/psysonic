@@ -4,6 +4,8 @@ import {
   getTransitionMode,
   transitionFlagsFor,
   setTransitionMode,
+  resolveManualSkipFadeSecs,
+  SMOOTH_SKIP_FADE_SEC,
   type TransitionMode,
 } from './playbackTransition';
 
@@ -81,5 +83,28 @@ describe('setTransitionMode', () => {
     setTransitionMode('autodj');
     setTransitionMode('crossfade');
     expect(useAuthStore.getState().crossfadeSecs).toBe(7);
+  });
+});
+
+describe('resolveManualSkipFadeSecs', () => {
+  beforeEach(() => {
+    setTransitionMode('none');
+    useAuthStore.getState().setAutodjSmoothSkip(true);
+  });
+
+  it('returns fade length for manual skip under AutoDJ while playing', () => {
+    setTransitionMode('autodj');
+    expect(resolveManualSkipFadeSecs(true, true)).toBe(SMOOTH_SKIP_FADE_SEC);
+  });
+
+  it('returns null when not manual, paused, wrong mode, or smooth skip off', () => {
+    setTransitionMode('autodj');
+    expect(resolveManualSkipFadeSecs(false, true)).toBeNull();
+    expect(resolveManualSkipFadeSecs(true, false)).toBeNull();
+    setTransitionMode('crossfade');
+    expect(resolveManualSkipFadeSecs(true, true)).toBeNull();
+    setTransitionMode('autodj');
+    useAuthStore.getState().setAutodjSmoothSkip(false);
+    expect(resolveManualSkipFadeSecs(true, true)).toBeNull();
   });
 });

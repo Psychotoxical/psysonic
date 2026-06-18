@@ -557,6 +557,8 @@ export const settings = {
   crossfadeSecs: '{{n}} 秒',
   autoDj: 'AutoDJ',
   autoDjDesc: '没有固定时长——AutoDJ 跟随实际音频，叠加在真实的淡入淡出上，而不是固定的秒数。为获得稳定效果，请启用「热播放缓存」。',
+  autodjSmoothSkip: '平滑跳过',
+  autodjSmoothSkipDesc: '播放中跳到下一首或上一首时，当前歌曲会短暂淡出，而不是突然切断。',
   gapless: '无缝播放',
   transitionsTitle: '曲目间过渡',
   transitionsDesc: '连续曲目之间如何衔接。同一时间只能启用一种模式。',

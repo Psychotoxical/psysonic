@@ -558,6 +558,8 @@ export const settings = {
   crossfadeSecs: '{{n}} s',
   autoDj: 'AutoDJ',
   autoDjDesc: 'Geen vaste duur — AutoDJ volgt de werkelijke audio en overlapt echte fades en intro’s in plaats van een vast aantal seconden. Schakel voor betrouwbare resultaten de Warme afspeelcache in.',
+  autodjSmoothSkip: 'Zacht overslaan',
+  autodjSmoothSkipDesc: 'Bij overslaan naar het volgende of vorige nummer tijdens het afspelen fadet het huidige nummer kort uit in plaats van abrupt te stoppen.',
   gapless: 'Naadloos afspelen',
   transitionsTitle: 'Overgangen tussen nummers',
   transitionsDesc: 'Hoe opeenvolgende nummers in elkaar overvloeien. Er kan maar één modus tegelijk actief zijn.',

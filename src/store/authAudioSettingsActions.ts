@@ -28,6 +28,7 @@ export function createAudioSettingsActions(set: SetState): Pick<
   | 'setCrossfadeEnabled'
   | 'setCrossfadeSecs'
   | 'setCrossfadeTrimSilence'
+  | 'setAutodjSmoothSkip'
   | 'setGaplessEnabled'
   | 'setEnableHiRes'
   | 'setAudioOutputDevice'
@@ -69,6 +70,7 @@ export function createAudioSettingsActions(set: SetState): Pick<
     setCrossfadeEnabled: (v) => set({ crossfadeEnabled: v }),
     setCrossfadeSecs: (v) => set({ crossfadeSecs: v }),
     setCrossfadeTrimSilence: (v) => set({ crossfadeTrimSilence: v }),
+    setAutodjSmoothSkip: (v) => set({ autodjSmoothSkip: v }),
     setGaplessEnabled: (v) => set({ gaplessEnabled: v }),
     setEnableHiRes: (v) => set({ enableHiRes: v }),
     setAudioOutputDevice: (v) => set({ audioOutputDevice: v }),

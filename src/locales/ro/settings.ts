@@ -573,6 +573,8 @@ export const settings = {
   crossfadeSecs: '{{n}} s',
   autoDj: 'AutoDJ',
   autoDjDesc: 'Fără durată fixă — AutoDJ urmează sunetul real și se suprapune peste estompările și introducerile reale, în loc de un număr fix de secunde. Pentru rezultate fiabile, activează Cache-ul hot playback.',
+  autodjSmoothSkip: 'Salt lin',
+  autodjSmoothSkipDesc: 'La trecerea la piesa următoare sau anterioară în timpul redării, piesa curentă se estompează scurt în loc să fie tăiată brusc.',
   gapless: 'Playback Gapless',
   transitionsTitle: 'Tranziții între piese',
   transitionsDesc: 'Cum se îmbină piesele consecutive. Doar un mod poate fi activ la un moment dat.',

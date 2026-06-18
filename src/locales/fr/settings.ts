@@ -558,6 +558,8 @@ export const settings = {
   crossfadeSecs: '{{n}} s',
   autoDj: 'AutoDJ',
   autoDjDesc: 'Sans durée fixe : AutoDJ suit l’audio réel et se superpose aux vrais fondus et intros plutôt qu’à un nombre fixe de secondes. Pour un résultat fiable, activez le Cache de lecture à chaud.',
+  autodjSmoothSkip: 'Passage en fondu',
+  autodjSmoothSkipDesc: 'Lors d’un passage à la piste suivante ou précédente pendant la lecture, la piste en cours s’estompe brièvement au lieu d’être coupée net.',
   gapless: 'Lecture sans blanc',
   transitionsTitle: 'Transitions entre pistes',
   transitionsDesc: 'Comment les pistes consécutives s’enchaînent. Un seul mode peut être actif à la fois.',

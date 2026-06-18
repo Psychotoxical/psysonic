@@ -557,6 +557,8 @@ export const settings = {
   crossfadeSecs: '{{n}}s',
   autoDj: 'AutoDJ',
   autoDjDesc: 'Ingen fast varighet — AutoDJ følger selve lyden og overlapper ekte inn-/uttoninger i stedet for et fast antall sekunder. For pålitelige resultater bør du aktivere Varm avspillingsbuffer.',
+  autodjSmoothSkip: 'Myk hopp',
+  autodjSmoothSkipDesc: 'Når du hopper til neste eller forrige spor under avspilling, toner det pågående sporet kort ut i stedet for å kuttes brått.',
   gapless: 'Gapless avspilling',
   transitionsTitle: 'Overganger mellom spor',
   transitionsDesc: 'Hvordan etterfølgende spor går over i hverandre. Bare én modus kan være aktiv om gangen.',

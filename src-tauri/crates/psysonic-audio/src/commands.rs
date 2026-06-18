@@ -72,6 +72,9 @@ pub async fn audio_play(
     // while B rises underneath); `Some(x)` → fade A over x s; `None` → mirror
     // B's fade (today's behaviour). Always clamped to A's measured remaining.
     outgoing_fade_secs_override: Option<f32>,
+    // AutoDJ smooth skip: short outgoing fade when the user hits next/previous
+    // while a track is playing. Optional; only honoured when `manual` is true.
+    manual_skip_fade_secs: Option<f32>,
     app: AppHandle,
     state: State<'_, AudioEngine>,
 ) -> Result<(), String> {
@@ -280,6 +283,15 @@ pub async fn audio_play(
         0.0
     };
 
+    let manual_skip_fade = if manual {
+        manual_skip_fade_secs
+            .filter(|&s| s > 0.0)
+            .map(|s| s.clamp(0.05, 2.0))
+            .unwrap_or(0.0)
+    } else {
+        0.0
+    };
+
     // Build source: decode → trim → resample → EQ → fade-in → fade-out → notify → count.
     let done_flag = Arc::new(AtomicBool::new(false));
     // Reset sample counter for the new track.
@@ -469,6 +481,7 @@ pub async fn audio_play(
         crossfade_enabled,
         actual_fade_secs,
         outgoing_fade_secs,
+        manual_skip_fade_secs: manual_skip_fade,
         start_paused,
     });
 

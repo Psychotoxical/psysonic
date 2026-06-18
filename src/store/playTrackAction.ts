@@ -4,6 +4,7 @@ import { getMusicNetworkRuntimeOrNull } from '../music-network';
 import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
 import { orbitBulkGuard } from '../utils/orbitBulkGuard';
 import { sameQueueTrackId } from '../utils/playback/queueIdentity';
+import { resolveManualSkipFadeSecs } from '../utils/playback/playbackTransition';
 import {
   bindQueueServerForTracks,
   getPlaybackCacheServerKey,
@@ -190,6 +191,7 @@ export function runPlayTrack(
   }
 
   const state = get();
+  const wasPlayingBeforeSkip = state.isPlaying;
   const prevTrack = state.currentTrack;
   if (prevTrack?.id !== scopedTrack.id) {
     setSeekFallbackTrackId(null);
@@ -381,6 +383,7 @@ export function runPlayTrack(
     // Scenario A: 0 ⇒ don't fade A (it rides its own recorded fade); only sent
     // when JS drove this advance, so engine-driven swaps keep today's behaviour.
     const outgoingFadeSecsOverride = armedOverlap ? armedOverlap.outgoingFadeSec : null;
+    const manualSkipFade = resolveManualSkipFadeSecs(manual, wasPlayingBeforeSkip);
     invoke('audio_play', {
       url,
       volume: state.volume,
@@ -399,6 +402,7 @@ export function runPlayTrack(
       startSecs: crossfadeStartSecs > 0.05 ? crossfadeStartSecs : null,
       crossfadeSecsOverride,
       outgoingFadeSecsOverride,
+      manualSkipFadeSecs: manualSkipFade,
     })
       .then(() => {
         if (getPlayGeneration() !== gen) return;

@@ -571,6 +571,8 @@ export const settings = {
   crossfadeSecs: '{{n}} s',
   autoDj: 'AutoDJ',
   autoDjDesc: 'Keine feste Dauer — AutoDJ richtet sich nach dem tatsächlichen Klang und überlappt echte Aus- und Einblendungen statt einer festen Sekundenzahl. Für zuverlässige Ergebnisse den Hot-Playback-Cache aktivieren.',
+  autodjSmoothSkip: 'Weicher Skip',
+  autodjSmoothSkipDesc: 'Beim Wechsel zum nächsten oder vorherigen Titel während der Wiedergabe blendet der aktuelle Song kurz aus, statt abrupt abgeschnitten zu werden.',
   gapless: 'Nahtlose Wiedergabe',
   transitionsTitle: 'Übergänge zwischen Tracks',
   transitionsDesc: 'Wie aufeinanderfolgende Tracks ineinander übergehen. Es kann immer nur ein Modus aktiv sein.',

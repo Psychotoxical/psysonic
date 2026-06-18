@@ -69,9 +69,19 @@ export function PlaybackBehaviorBlock({ t }: Props) {
           </div>
         )}
         {mode === 'autodj' && (
-          <div style={{ paddingLeft: '1rem', fontSize: 12, color: 'var(--text-muted)', marginTop: '0.7rem' }}>
-            {t('settings.autoDjDesc')}
-          </div>
+          <>
+            <div style={{ paddingLeft: '1rem', fontSize: 12, color: 'var(--text-muted)', marginTop: '0.7rem' }}>
+              {t('settings.autoDjDesc')}
+            </div>
+            <div style={{ paddingLeft: '1rem', marginTop: '0.7rem' }}>
+              <SettingsToggle
+                label={t('settings.autodjSmoothSkip')}
+                desc={t('settings.autodjSmoothSkipDesc')}
+                checked={auth.autodjSmoothSkip}
+                onChange={auth.setAutodjSmoothSkip}
+              />
+            </div>
+          </>
         )}
       </SettingsGroup>
 

@@ -638,6 +638,8 @@ export const settings = {
   crossfadeSecs: '{{n}} s',
   autoDj: 'AutoDJ',
   autoDjDesc: 'No fixed duration — AutoDJ follows the actual audio, blending real fade-outs and intros instead of a set number of seconds. For reliable results, enable the Hot playback cache.',
+  autodjSmoothSkip: 'Smooth skip',
+  autodjSmoothSkipDesc: 'When you skip to the next or previous track while playing, briefly fade out the current song instead of cutting it off abruptly.',
   gapless: 'Gapless Playback',
   transitionsTitle: 'Track transitions',
   transitionsDesc: 'How consecutive tracks blend together. Only one mode can be active at a time.',

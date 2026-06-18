@@ -570,6 +570,8 @@ export const settings = {
   crossfadeSecs: '{{n}} s',
   autoDj: 'AutoDJ',
   autoDjDesc: 'Sin duración fija: AutoDJ se adapta al audio real y se solapa con los fundidos e introducciones reales en lugar de un número fijo de segundos. Para resultados fiables, activa la Caché de reproducción activa.',
+  autodjSmoothSkip: 'Salto suave',
+  autodjSmoothSkipDesc: 'Al pasar a la siguiente o anterior pista mientras suena una canción, esta se desvanece brevemente en lugar de cortarse de golpe.',
   gapless: 'Reproducción Gapless',
   transitionsTitle: 'Transiciones entre pistas',
   transitionsDesc: 'Cómo se enlazan las pistas consecutivas. Solo un modo puede estar activo a la vez.',

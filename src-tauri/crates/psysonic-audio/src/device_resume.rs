@@ -213,6 +213,7 @@ pub(crate) async fn try_resume_after_device_change(
             crossfade_enabled: false,
             actual_fade_secs: 0.0,
             outgoing_fade_secs: 0.0,
+            manual_skip_fade_secs: 0.0,
             start_paused: false,
         },
     );
