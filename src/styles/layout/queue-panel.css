@@ -168,6 +168,11 @@
   width: 150px;
   padding: 6px;
   gap: 2px;
+  /* Open rightward so the menu stays inside the queue panel — the playlist
+     button sits on the left, where the inherited right:0 would push it out
+     under the main container. */
+  left: 0;
+  right: auto;
 }
 
 .queue-menu-item {

@@ -31,6 +31,7 @@ vi.mock('@/utils/orbitBulkGuard', () => ({
 }));
 
 import QueuePanel from './QueuePanel';
+import { fireEvent } from '@testing-library/react';
 import { renderWithProviders } from '@/test/helpers/renderWithProviders';
 import { usePlayerStore } from '@/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
@@ -164,15 +165,28 @@ describe('QueuePanel — display mode', () => {
 });
 
 describe('QueuePanel — toolbar', () => {
-  it('exposes Shuffle / Save Playlist / Load Playlist / Share Queue / Clear via aria-label', () => {
+  it('exposes Shuffle / Playlist / Share Queue / Clear / AutoDJ via aria-label', () => {
     const tracks = makeTracks(3);
     seedQueue(tracks, { index: 0, currentTrack: tracks[0] });
     const { getByLabelText } = renderWithProviders(<QueuePanel />);
     expect(getByLabelText('Shuffle queue')).toBeInTheDocument();
-    expect(getByLabelText('Save Playlist')).toBeInTheDocument();
-    expect(getByLabelText('Load Playlist')).toBeInTheDocument();
+    expect(getByLabelText('Playlist')).toBeInTheDocument();
     expect(getByLabelText('Copy queue share link')).toBeInTheDocument();
     expect(getByLabelText('Clear queue')).toBeInTheDocument();
+    expect(getByLabelText('AutoDJ')).toBeInTheDocument();
+  });
+
+  it('Save and Load live inside the Playlist submenu, not directly on the toolbar', () => {
+    const tracks = makeTracks(3);
+    seedQueue(tracks, { index: 0, currentTrack: tracks[0] });
+    const { getByLabelText, container } = renderWithProviders(<QueuePanel />);
+    // The submenu is closed initially.
+    expect(container.querySelector('.queue-menu')).toBeNull();
+    fireEvent.click(getByLabelText('Playlist'));
+    const menu = container.querySelector('.queue-menu');
+    expect(menu).not.toBeNull();
+    expect(menu?.textContent).toContain('Save Playlist');
+    expect(menu?.textContent).toContain('Load Playlist');
   });
 
   it('Shuffle button is disabled when the queue has fewer than 2 tracks', () => {
