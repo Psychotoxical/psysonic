@@ -9,6 +9,7 @@ import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
 import { formatBytes, snapHotCacheMb } from '../../utils/format/formatBytes';
 import SettingsSubSection from '../SettingsSubSection';
 import { SettingsGroup } from './SettingsGroup';
+import { SettingsToggle } from './SettingsToggle';
 import CoverCacheStrategySection from './CoverCacheStrategySection';
 
 export function StorageTab() {
@@ -115,31 +116,23 @@ export function StorageTab() {
       >
         <div className="settings-card">
           <SettingsGroup>
-            <div className="settings-toggle-row">
-              <div>
-                <div style={{ fontWeight: 500 }}>{t('settings.hotCacheTitle')}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.hotCacheDisclaimer')}</div>
-              </div>
-              <label className="toggle-switch" aria-label={t('settings.hotCacheEnabled')}>
-                <input
-                  type="checkbox"
-                  checked={auth.hotCacheEnabled}
-                  onChange={async e => {
-                    const enabled = e.target.checked;
-                    if (!enabled) {
-                      await clearHotCacheDisk(mediaDir);
-                      setHotCacheBytes(0);
-                      auth.setHotCacheEnabled(false);
-                    } else {
-                      auth.setHotCacheEnabled(true);
-                      refreshHotCacheSize();
-                    }
-                  }}
-                  id="hot-cache-enabled-toggle"
-                />
-                <span className="toggle-track" />
-              </label>
-            </div>
+            <SettingsToggle
+              label={t('settings.hotCacheTitle')}
+              desc={t('settings.hotCacheDisclaimer')}
+              ariaLabel={t('settings.hotCacheEnabled')}
+              id="hot-cache-enabled-toggle"
+              checked={auth.hotCacheEnabled}
+              onChange={async enabled => {
+                if (!enabled) {
+                  await clearHotCacheDisk(mediaDir);
+                  setHotCacheBytes(0);
+                  auth.setHotCacheEnabled(false);
+                } else {
+                  auth.setHotCacheEnabled(true);
+                  refreshHotCacheSize();
+                }
+              }}
+            />
 
             {auth.hotCacheEnabled && (
               <div style={{ marginTop: '1.25rem' }}>

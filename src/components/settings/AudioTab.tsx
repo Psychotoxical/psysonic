@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/authStore';
 import Equalizer from '../Equalizer';
 import SettingsSubSection from '../SettingsSubSection';
 import { SettingsGroup } from './SettingsGroup';
+import { SettingsToggle } from './SettingsToggle';
 import { effectiveLoudnessPreAnalysisAttenuationDb } from '../../utils/audio/loudnessPreAnalysisSlider';
 import { useAudioDevicesProbe } from '../../hooks/useAudioDevicesProbe';
 import { AudioOutputDeviceSection } from './audio/AudioOutputDeviceSection';
@@ -53,18 +54,13 @@ export function AudioTab() {
       >
         <div className="settings-card">
           <SettingsGroup title={t('settings.hiResTitle')}>
-            <div className="settings-toggle-row">
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.hiResDesc')}</div>
-              <label className="toggle-switch" aria-label={t('settings.hiResEnabled')}>
-                <input
-                  type="checkbox"
-                  checked={auth.enableHiRes}
-                  onChange={e => auth.setEnableHiRes(e.target.checked)}
-                  id="hires-enabled-toggle"
-                />
-                <span className="toggle-track" />
-              </label>
-            </div>
+            <SettingsToggle
+              desc={t('settings.hiResDesc')}
+              ariaLabel={t('settings.hiResEnabled')}
+              id="hires-enabled-toggle"
+              checked={auth.enableHiRes}
+              onChange={auth.setEnableHiRes}
+            />
           </SettingsGroup>
         </div>
       </SettingsSubSection>

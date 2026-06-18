@@ -3,6 +3,7 @@ import { AlertTriangle, Info, Sparkles, Wifi } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import SettingsSubSection from '../SettingsSubSection';
 import { SettingsGroup } from './SettingsGroup';
+import { SettingsToggle } from './SettingsToggle';
 import { MusicNetworkSection } from './musicNetwork/MusicNetworkSection';
 
 export function IntegrationsTab() {
@@ -43,52 +44,33 @@ export function IntegrationsTab() {
             {t('settings.discordRichPresenceNotice')}
           </div>
           <SettingsGroup title={t('settings.discordRichPresence')}>
-            <div className="settings-toggle-row">
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.discordRichPresenceDesc')}</div>
-              <label className="toggle-switch" aria-label={t('settings.discordRichPresence')}>
-                <input type="checkbox" checked={auth.discordRichPresence} onChange={e => auth.setDiscordRichPresence(e.target.checked)} />
-                <span className="toggle-track" />
-              </label>
-            </div>
+            <SettingsToggle
+              desc={t('settings.discordRichPresenceDesc')}
+              ariaLabel={t('settings.discordRichPresence')}
+              checked={auth.discordRichPresence}
+              onChange={auth.setDiscordRichPresence}
+            />
           </SettingsGroup>
           {auth.discordRichPresence && (
             <>
               <SettingsGroup title={t('settings.discordCoverTitle')} desc={t('settings.discordCoverDesc')}>
-                <div className="settings-toggle-row">
-                  <div style={{ fontWeight: 500 }}>{t('settings.discordCoverNone')}</div>
-                  <label className="toggle-switch" aria-label={t('settings.discordCoverNone')}>
-                    <input
-                      type="checkbox"
-                      checked={auth.discordCoverSource === 'none'}
-                      onChange={e => auth.setDiscordCoverSource(e.target.checked ? 'none' : 'server')}
-                    />
-                    <span className="toggle-track" />
-                  </label>
-                </div>
+                <SettingsToggle
+                  label={t('settings.discordCoverNone')}
+                  checked={auth.discordCoverSource === 'none'}
+                  onChange={c => auth.setDiscordCoverSource(c ? 'none' : 'server')}
+                />
                 <div className="settings-section-divider" />
-                <div className="settings-toggle-row">
-                  <div style={{ fontWeight: 500 }}>{t('settings.discordCoverServer')}</div>
-                  <label className="toggle-switch" aria-label={t('settings.discordCoverServer')}>
-                    <input
-                      type="checkbox"
-                      checked={auth.discordCoverSource === 'server'}
-                      onChange={e => auth.setDiscordCoverSource(e.target.checked ? 'server' : 'none')}
-                    />
-                    <span className="toggle-track" />
-                  </label>
-                </div>
+                <SettingsToggle
+                  label={t('settings.discordCoverServer')}
+                  checked={auth.discordCoverSource === 'server'}
+                  onChange={c => auth.setDiscordCoverSource(c ? 'server' : 'none')}
+                />
                 <div className="settings-section-divider" />
-                <div className="settings-toggle-row">
-                  <div style={{ fontWeight: 500 }}>{t('settings.discordCoverApple')}</div>
-                  <label className="toggle-switch" aria-label={t('settings.discordCoverApple')}>
-                    <input
-                      type="checkbox"
-                      checked={auth.discordCoverSource === 'apple'}
-                      onChange={e => auth.setDiscordCoverSource(e.target.checked ? 'apple' : 'none')}
-                    />
-                    <span className="toggle-track" />
-                  </label>
-                </div>
+                <SettingsToggle
+                  label={t('settings.discordCoverApple')}
+                  checked={auth.discordCoverSource === 'apple'}
+                  onChange={c => auth.setDiscordCoverSource(c ? 'apple' : 'none')}
+                />
               </SettingsGroup>
 
               <SettingsGroup title={t('settings.discordTemplates')} desc={t('settings.discordTemplatesDesc')}>
@@ -145,13 +127,12 @@ export function IntegrationsTab() {
       >
         <div className="settings-card">
           <SettingsGroup title={t('settings.enableBandsintown')}>
-            <div className="settings-toggle-row">
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.enableBandsintownDesc')}</div>
-              <label className="toggle-switch" aria-label={t('settings.enableBandsintown')}>
-                <input type="checkbox" checked={auth.enableBandsintown} onChange={e => auth.setEnableBandsintown(e.target.checked)} />
-                <span className="toggle-track" />
-              </label>
-            </div>
+            <SettingsToggle
+              desc={t('settings.enableBandsintownDesc')}
+              ariaLabel={t('settings.enableBandsintown')}
+              checked={auth.enableBandsintown}
+              onChange={auth.setEnableBandsintown}
+            />
           </SettingsGroup>
         </div>
       </SettingsSubSection>
@@ -163,16 +144,13 @@ export function IntegrationsTab() {
       >
         <div className="settings-card">
           <SettingsGroup title={t('settings.nowPlayingEnabled')}>
-            <div className="settings-toggle-row">
-              <div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.nowPlayingEnabledDesc')}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginTop: 4 }}>{t('settings.nowPlayingPluginNote')}</div>
-              </div>
-              <label className="toggle-switch" aria-label={t('settings.nowPlayingEnabled')}>
-                <input type="checkbox" checked={auth.nowPlayingEnabled} onChange={e => auth.setNowPlayingEnabled(e.target.checked)} />
-                <span className="toggle-track" />
-              </label>
-            </div>
+            <SettingsToggle
+              desc={t('settings.nowPlayingEnabledDesc')}
+              note={t('settings.nowPlayingPluginNote')}
+              ariaLabel={t('settings.nowPlayingEnabled')}
+              checked={auth.nowPlayingEnabled}
+              onChange={auth.setNowPlayingEnabled}
+            />
           </SettingsGroup>
         </div>
       </SettingsSubSection>

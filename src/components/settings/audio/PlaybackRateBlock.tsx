@@ -22,6 +22,7 @@ import { usePlaybackRateStore } from '../../../store/playbackRateStore';
 import { useOrbitStore } from '../../../store/orbitStore';
 import { useAuthStore } from '../../../store/authStore';
 import { isOrbitPlaybackSyncActive } from '../../../utils/orbit';
+import { SettingsToggle } from '../SettingsToggle';
 
 interface Props {
   t: TFunction;
@@ -109,22 +110,12 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
       onWheel={compact ? handleWheelSpeed : undefined}
     >
       {showEnable && (
-        <div className="settings-toggle-row">
-          <div>
-            <div style={{ fontWeight: 500 }}>{t('settings.playbackRateEnabled')}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              {t('settings.playbackRateEnabledDesc')}
-            </div>
-          </div>
-          <label className="toggle-switch" aria-label={t('settings.playbackRateEnabled')}>
-            <input
-              type="checkbox"
-              checked={enabled}
-              onChange={e => setEnabled(e.target.checked)}
-            />
-            <span className="toggle-track" />
-          </label>
-        </div>
+        <SettingsToggle
+          label={t('settings.playbackRateEnabled')}
+          desc={t('settings.playbackRateEnabledDesc')}
+          checked={enabled}
+          onChange={setEnabled}
+        />
       )}
 
       {(!showEnable || enabled) && (
