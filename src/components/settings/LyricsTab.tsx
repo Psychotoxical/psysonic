@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { AudioLines, Music2 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import SettingsSubSection from '../SettingsSubSection';
+import { SettingsGroup } from './SettingsGroup';
 import { LyricsSourcesCustomizer } from './LyricsSourcesCustomizer';
 
 export function LyricsTab() {
@@ -15,19 +16,22 @@ export function LyricsTab() {
         title={t('settings.lyricsSourcesTitle')}
         icon={<Music2 size={16} />}
       >
-        <LyricsSourcesCustomizer />
+        <SettingsGroup title={t('settings.lyricsSourcesTitle')}>
+          <LyricsSourcesCustomizer />
+        </SettingsGroup>
       </SettingsSubSection>
 
       <SettingsSubSection
         title={t('settings.sidebarLyricsStyle')}
         icon={<AudioLines size={16} />}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {(['classic', 'apple'] as const).map(style => {
+        <SettingsGroup title={t('settings.sidebarLyricsStyle')}>
+          {(['classic', 'apple'] as const).map((style, i) => {
             const key = style === 'classic' ? 'Classic' : 'Apple';
             const other = style === 'classic' ? 'apple' : 'classic';
             return (
-              <div key={style} className="settings-card">
+              <div key={style}>
+                {i > 0 && <div className="settings-section-divider" />}
                 <div className="settings-toggle-row">
                   <div>
                     <div style={{ fontWeight: 500 }}>{t(`settings.sidebarLyricsStyle${key}` as any)}</div>
@@ -45,7 +49,7 @@ export function LyricsTab() {
               </div>
             );
           })}
-        </div>
+        </SettingsGroup>
       </SettingsSubSection>
     </>
   );
