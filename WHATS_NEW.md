@@ -8,6 +8,43 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 `CHANGELOG.md` keeps strict PR order inside Added / Changed / Fixed.
 
 
+## [1.49.0]
+
+## Highlights
+
+### AutoDJ — minimum pauses, maximum music
+
+- New **AutoDJ** mode in **Settings → Audio** and the crossfade popover — a smart crossfade that blends tracks intelligently. Each transition is shaped to fit the music: awkward gaps fade away, handovers feel natural, and you spend less time in silence between songs. Off by default; classic **Crossfade** is unchanged.
+
+### Playlist folders — your playlists, organised
+
+- Folders on the **Playlists** page and in the sidebar keep long lists tidy — group by mood, occasion, or anything you like. Drag playlists in, rename and collapse folders, or choose **Move to folder** from the right-click menu. Switch back to a flat list whenever you prefer.
+
+### Theme store — spot updates, pick your style
+
+- Version numbers on store themes and ones you have installed make it obvious when an update is ready.
+- Filter for **animated** or **static** themes only — less scrolling when you already know the look you want.
+
+## Fixed
+
+### Playback and audio
+
+- **Opus/Ogg** tracks no longer fight the seekbar while they are still loading — scrub to where you want to be and keep listening.
+
+### Player and playlists
+
+- **Add to playlist** from the player bar adds the song you are hearing, not the whole album.
+
+### Browse and library
+
+- Albums sorted by artist now list each artist's work A–Z by title — no more random order within a name.
+- **Artist → Year** keeps artists grouped but walks through their albums chronologically, oldest first.
+
+### Windows
+
+- **Windows:** Previous, Play/Pause, and Next are back when you hover the taskbar icon — and Play/Pause shows whether music is playing or paused.
+
+
 ## [1.48.1]
 
 ## Fixed
