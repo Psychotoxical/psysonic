@@ -372,6 +372,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Performance Probe: opt-in thread-group CPU poll toggle and includeThreadGroups IPC fix (PR #891)',
       'Queue: switchable display mode — Queue (upcoming only) vs Playlist (full list), with header toggle and settings entry (PR #922)',
       'Community Theme Store: semantic-token refactor, dedicated Themes tab with day/night scheduler, install/update/uninstall, local .zip import, free-form community themes (safety floor + state-reactive styling), and per-theme download counts with popularity/newest/name sorting; 80+ palettes moved to an on-demand CDN repo (PR #1009, #1011, #1012, #1013, #1014, #1015, #1016, #1018, #1020, #1036)',
+      'AutoDJ as a standalone playback mode — own toolbar button and audio-settings entry, mutually exclusive with Crossfade and Gapless via a shared transition helper, combined playlist save/load submenu, and boxed playback settings sections (PR #1124)',
     ],
   },
   {

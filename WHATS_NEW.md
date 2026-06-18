@@ -14,7 +14,7 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 
 ### AutoDJ — minimum pauses, maximum music
 
-- New **AutoDJ** mode in **Settings → Audio** and the crossfade popover — a smart crossfade that blends tracks intelligently. Each transition is shaped to fit the music: awkward gaps fade away, handovers feel natural, and you spend less time in silence between songs. Off by default; classic **Crossfade** is unchanged.
+- New **AutoDJ** mode — a smart crossfade that blends tracks intelligently. Each transition is shaped to fit the music: awkward gaps fade away, handovers feel natural, and you spend less time in silence between songs. It's now its own choice in **Settings → Audio** and its own button in the queue toolbar, sitting alongside Crossfade and Gapless — pick one at a time. Off by default; classic **Crossfade** is unchanged.
 
 ### Playlist folders — your playlists, organised
 
