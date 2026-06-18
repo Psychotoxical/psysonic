@@ -236,6 +236,10 @@
   color: var(--bg-app);
   background: var(--accent);
 }
+.queue-round-btn.active:hover:not(:disabled) {
+  color: var(--bg-app);
+  background: var(--accent);
+}
 
 .queue-current-track {
   display: flex;
