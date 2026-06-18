@@ -63,19 +63,19 @@ export default function ServerLibraryIndexControls({
         borderTop: '1px solid color-mix(in srgb, var(--text-muted) 18%, transparent)',
       }}
     >
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.45, marginBottom: '0.5rem' }}>
-        {connection === 'offline' && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: '0.5rem' }}>
-            <WifiOff size={12} />
-            {t('settings.libraryIndexServerDeferred')}
+      <div style={{ fontSize: 12, lineHeight: 1.45, marginBottom: '0.5rem' }}>
+        {connection === 'offline' ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--text-muted)' }}>
+            <WifiOff size={12} style={{ flexShrink: 0 }} />
+            {phaseLabel}
           </span>
-        )}
-        {busy && (
-          <span style={{ color: 'var(--accent)', marginRight: '0.5rem' }}>
-            {t('settings.libraryIndexServerSyncing')}
+        ) : busy ? (
+          <span style={{ color: 'var(--accent)' }}>
+            {t('settings.libraryIndexServerSyncing')} {phaseLabel}
           </span>
+        ) : (
+          <span style={{ color: 'var(--text-muted)' }}>{phaseLabel}</span>
         )}
-        {phaseLabel}
       </div>
       <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
         <button
