@@ -109,10 +109,7 @@ function QueuePanelHostOrSolo() {
   const crossfadeTrimSilence = useAuthStore(s => s.crossfadeTrimSilence);
   const gaplessEnabled = useAuthStore(s => s.gaplessEnabled);
   const infiniteQueueEnabled = useAuthStore(s => s.infiniteQueueEnabled);
-  const setCrossfadeEnabled = useAuthStore(s => s.setCrossfadeEnabled);
   const setCrossfadeSecs = useAuthStore(s => s.setCrossfadeSecs);
-  const setCrossfadeTrimSilence = useAuthStore(s => s.setCrossfadeTrimSilence);
-  const setGaplessEnabled = useAuthStore(s => s.setGaplessEnabled);
   const setInfiniteQueueEnabled = useAuthStore(s => s.setInfiniteQueueEnabled);
   const normalizationEngine = useAuthStore(s => s.normalizationEngine);
 
@@ -337,13 +334,10 @@ function QueuePanelHostOrSolo() {
             handleCopyQueueShare={handleCopyQueueShare}
             handleClear={handleClear}
             gaplessEnabled={gaplessEnabled}
-            setGaplessEnabled={setGaplessEnabled}
             crossfadeEnabled={crossfadeEnabled}
-            setCrossfadeEnabled={setCrossfadeEnabled}
+            crossfadeTrimSilence={crossfadeTrimSilence}
             crossfadeSecs={crossfadeSecs}
             setCrossfadeSecs={setCrossfadeSecs}
-            crossfadeTrimSilence={crossfadeTrimSilence}
-            setCrossfadeTrimSilence={setCrossfadeTrimSilence}
             infiniteQueueEnabled={infiniteQueueEnabled}
             setInfiniteQueueEnabled={setInfiniteQueueEnabled}
             t={t}

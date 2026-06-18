@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FolderOpen, GripVertical, Infinity, MoveRight, Save, Share2, Shuffle, Trash2, Waves } from 'lucide-react';
+import { Blend, GripVertical, Infinity, ListMusic, MoveRight, Share2, Shuffle, Trash2, Waves } from 'lucide-react';
 import { useDragDrop, useDragSource } from '../../contexts/DragDropContext';
 import { useQueueToolbarStore, QueueToolbarButtonId } from '../../store/queueToolbarStore';
 
@@ -8,25 +8,25 @@ type QueueToolbarDropTarget = { idx: number; before: boolean } | null;
 
 const QUEUE_TOOLBAR_BUTTON_ICONS: Record<QueueToolbarButtonId, typeof Shuffle | null> = {
   shuffle: Shuffle,
-  save: Save,
-  load: FolderOpen,
+  playlist: ListMusic,
   share: Share2,
   clear: Trash2,
   separator: null, // No icon for separator
   gapless: MoveRight,
   crossfade: Waves,
+  autodj: Blend,
   infinite: Infinity,
 };
 
 const QUEUE_TOOLBAR_LABEL_KEYS: Record<QueueToolbarButtonId, string> = {
   shuffle:   'queue.shuffle',
-  save:      'queue.savePlaylist',
-  load:      'queue.loadPlaylist',
+  playlist:  'queue.playlist',
   share:     'queue.shareQueue',
   clear:     'queue.clear',
   separator: 'settings.queueToolbarSeparator',
   gapless:   'queue.gapless',
   crossfade: 'queue.crossfade',
+  autodj:    'queue.autoDj',
   infinite:  'queue.infiniteQueue',
 };
 

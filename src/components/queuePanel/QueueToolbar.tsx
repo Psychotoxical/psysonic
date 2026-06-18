@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Check, FolderOpen, Infinity, MoveRight, Save, Share2, Shuffle, Trash2, Waves,
+  Blend, Check, FolderOpen, Infinity, ListMusic, MoveRight, Save, Share2, Shuffle, Trash2, Waves,
 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import type { QueueItemRef } from '../../store/playerStoreTypes';
@@ -8,6 +8,7 @@ import type {
   QueueToolbarButtonConfig,
   QueueToolbarButtonId,
 } from '../../store/queueToolbarStore';
+import { getTransitionMode, setTransitionMode } from '../../utils/playback/playbackTransition';
 
 interface Props {
   queue: QueueItemRef[];
@@ -20,13 +21,10 @@ interface Props {
   handleCopyQueueShare: () => void;
   handleClear: () => void;
   gaplessEnabled: boolean;
-  setGaplessEnabled: (v: boolean) => void;
   crossfadeEnabled: boolean;
-  setCrossfadeEnabled: (v: boolean) => void;
+  crossfadeTrimSilence: boolean;
   crossfadeSecs: number;
   setCrossfadeSecs: (v: number) => void;
-  crossfadeTrimSilence: boolean;
-  setCrossfadeTrimSilence: (v: boolean) => void;
   infiniteQueueEnabled: boolean;
   setInfiniteQueueEnabled: (v: boolean) => void;
   t: TFunction;
@@ -35,27 +33,38 @@ interface Props {
 export function QueueToolbar({
   queue, activePlaylist, saveState, toolbarButtons, shuffleQueue,
   handleSave, handleLoad, handleCopyQueueShare, handleClear,
-  gaplessEnabled, setGaplessEnabled, crossfadeEnabled, setCrossfadeEnabled,
-  crossfadeSecs, setCrossfadeSecs, crossfadeTrimSilence, setCrossfadeTrimSilence,
+  gaplessEnabled, crossfadeEnabled, crossfadeTrimSilence,
+  crossfadeSecs, setCrossfadeSecs,
   infiniteQueueEnabled, setInfiniteQueueEnabled,
   t,
 }: Props) {
   const [showCrossfadePopover, setShowCrossfadePopover] = useState(false);
+  const [showPlaylistMenu, setShowPlaylistMenu] = useState(false);
   const crossfadeBtnRef = useRef<HTMLButtonElement>(null);
   const crossfadePopoverRef = useRef<HTMLDivElement>(null);
+  const playlistBtnRef = useRef<HTMLButtonElement>(null);
+  const playlistMenuRef = useRef<HTMLDivElement>(null);
+
+  const mode = getTransitionMode({ gaplessEnabled, crossfadeEnabled, crossfadeTrimSilence });
 
   useEffect(() => {
-    if (!showCrossfadePopover) return;
+    if (!showCrossfadePopover && !showPlaylistMenu) return;
     const handle = (e: MouseEvent) => {
+      const target = e.target as Node;
       if (
-        crossfadeBtnRef.current?.contains(e.target as Node) ||
-        crossfadePopoverRef.current?.contains(e.target as Node)
-      ) return;
-      setShowCrossfadePopover(false);
+        showCrossfadePopover &&
+        !crossfadeBtnRef.current?.contains(target) &&
+        !crossfadePopoverRef.current?.contains(target)
+      ) setShowCrossfadePopover(false);
+      if (
+        showPlaylistMenu &&
+        !playlistBtnRef.current?.contains(target) &&
+        !playlistMenuRef.current?.contains(target)
+      ) setShowPlaylistMenu(false);
     };
     document.addEventListener('mousedown', handle);
     return () => document.removeEventListener('mousedown', handle);
-  }, [showCrossfadePopover]);
+  }, [showCrossfadePopover, showPlaylistMenu]);
 
   return (
     <div className="queue-toolbar">
@@ -69,24 +78,40 @@ export function QueueToolbar({
                 <Shuffle size={13} />
               </button>
             );
-          case 'save':
+          case 'playlist':
             return (
-              <button
-                key={btn.id}
-                className={`queue-round-btn${saveState === 'saved' ? ' active' : ''}`}
-                onClick={handleSave}
-                disabled={saveState === 'saving'}
-                data-tooltip={activePlaylist ? `${t('queue.updatePlaylist')}: ${activePlaylist.name}` : t('queue.savePlaylist')}
-                aria-label={t('queue.savePlaylist')}
-              >
-                {saveState === 'saved' ? <Check size={13} /> : <Save size={13} />}
-              </button>
-            );
-          case 'load':
-            return (
-              <button key={btn.id} className="queue-round-btn" onClick={handleLoad} data-tooltip={t('queue.loadPlaylist')} aria-label={t('queue.loadPlaylist')}>
-                <FolderOpen size={13} />
-              </button>
+              <div key={btn.id} style={{ position: 'relative' }}>
+                <button
+                  ref={playlistBtnRef}
+                  className={`queue-round-btn${showPlaylistMenu ? ' active' : ''}`}
+                  onClick={() => { setShowCrossfadePopover(false); setShowPlaylistMenu(v => !v); }}
+                  data-tooltip={showPlaylistMenu ? undefined : t('queue.playlist')}
+                  aria-label={t('queue.playlist')}
+                >
+                  <ListMusic size={13} />
+                </button>
+                {showPlaylistMenu && (
+                  <div className="crossfade-popover queue-menu" ref={playlistMenuRef}>
+                    <button
+                      type="button"
+                      className="queue-menu-item"
+                      onClick={() => { handleSave(); setShowPlaylistMenu(false); }}
+                      disabled={saveState === 'saving'}
+                    >
+                      {saveState === 'saved' ? <Check size={14} /> : <Save size={14} />}
+                      {activePlaylist ? `${t('queue.updatePlaylist')}: ${activePlaylist.name}` : t('queue.savePlaylist')}
+                    </button>
+                    <button
+                      type="button"
+                      className="queue-menu-item"
+                      onClick={() => { handleLoad(); setShowPlaylistMenu(false); }}
+                    >
+                      <FolderOpen size={14} />
+                      {t('queue.loadPlaylist')}
+                    </button>
+                  </div>
+                )}
+              </div>
             );
           case 'share':
             return (
@@ -112,8 +137,8 @@ export function QueueToolbar({
             return (
               <button
                 key={btn.id}
-                className={`queue-round-btn${gaplessEnabled ? ' active' : ''}`}
-                onClick={() => { setCrossfadeEnabled(false); setShowCrossfadePopover(false); setGaplessEnabled(!gaplessEnabled); }}
+                className={`queue-round-btn${mode === 'gapless' ? ' active' : ''}`}
+                onClick={() => { setShowCrossfadePopover(false); setTransitionMode(mode === 'gapless' ? 'none' : 'gapless'); }}
                 data-tooltip={t('queue.gapless')}
                 aria-label={t('queue.gapless')}
               >
@@ -125,14 +150,16 @@ export function QueueToolbar({
               <div key={btn.id} style={{ position: 'relative' }}>
                 <button
                   ref={crossfadeBtnRef}
-                  className={`queue-round-btn${crossfadeEnabled || showCrossfadePopover ? ' active' : ''}`}
+                  className={`queue-round-btn${mode === 'crossfade' || showCrossfadePopover ? ' active' : ''}`}
                   onClick={() => {
-                    // Left click: toggle on/off only. Right click opens the popover.
-                    if (!crossfadeEnabled) setGaplessEnabled(false);
-                    setCrossfadeEnabled(!crossfadeEnabled);
+                    // Left click toggles classic crossfade on/off. Right click
+                    // opens the seconds popover.
+                    setShowPlaylistMenu(false);
+                    setTransitionMode(mode === 'crossfade' ? 'none' : 'crossfade');
                   }}
                   onContextMenu={(e) => {
                     e.preventDefault();
+                    setShowPlaylistMenu(false);
                     setShowCrossfadePopover(v => !v);
                   }}
                   data-tooltip={showCrossfadePopover ? undefined : t('queue.crossfade')}
@@ -142,57 +169,42 @@ export function QueueToolbar({
                 </button>
                 {showCrossfadePopover && (
                   <div className="crossfade-popover" ref={crossfadePopoverRef}>
-                    <div className="crossfade-popover-modes">
-                      <button
-                        type="button"
-                        className={`crossfade-popover-mode${!crossfadeTrimSilence ? ' active' : ''}`}
-                        onClick={() => {
-                          if (gaplessEnabled) setGaplessEnabled(false);
-                          setCrossfadeTrimSilence(false);
-                          setCrossfadeEnabled(true);
-                        }}
-                      >
-                        {t('queue.crossfade')}
-                      </button>
-                      <button
-                        type="button"
-                        className={`crossfade-popover-mode${crossfadeTrimSilence ? ' active' : ''}`}
-                        onClick={() => {
-                          if (gaplessEnabled) setGaplessEnabled(false);
-                          setCrossfadeTrimSilence(true);
-                          setCrossfadeEnabled(true);
-                        }}
-                      >
-                        {t('settings.autoDj')}
-                      </button>
+                    <div className="crossfade-popover-label">
+                      <Waves size={11} />
+                      {t('queue.crossfade')}
+                      <span className="crossfade-popover-value">{crossfadeSecs.toFixed(1)} s</span>
                     </div>
-                    {!crossfadeTrimSilence && (
-                      <>
-                        <div className="crossfade-popover-label">
-                          <Waves size={11} />
-                          {t('queue.crossfade')}
-                          <span className="crossfade-popover-value">{crossfadeSecs.toFixed(1)} s</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={0.1}
-                          max={10}
-                          step={0.1}
-                          value={crossfadeSecs}
-                          onChange={e => {
-                            setCrossfadeSecs(parseFloat(e.target.value));
-                            setCrossfadeEnabled(true);
-                          }}
-                          className="crossfade-popover-slider"
-                        />
-                        <div className="crossfade-popover-range">
-                          <span>0.1s</span><span>10s</span>
-                        </div>
-                      </>
-                    )}
+                    <input
+                      type="range"
+                      min={0.1}
+                      max={10}
+                      step={0.1}
+                      value={crossfadeSecs}
+                      onChange={e => {
+                        setCrossfadeSecs(parseFloat(e.target.value));
+                        setTransitionMode('crossfade');
+                      }}
+                      className="crossfade-popover-slider"
+                      aria-label={t('queue.crossfade')}
+                    />
+                    <div className="crossfade-popover-range">
+                      <span>0.1s</span><span>10s</span>
+                    </div>
                   </div>
                 )}
               </div>
+            );
+          case 'autodj':
+            return (
+              <button
+                key={btn.id}
+                className={`queue-round-btn${mode === 'autodj' ? ' active' : ''}`}
+                onClick={() => { setShowCrossfadePopover(false); setShowPlaylistMenu(false); setTransitionMode(mode === 'autodj' ? 'none' : 'autodj'); }}
+                data-tooltip={t('queue.autoDj')}
+                aria-label={t('queue.autoDj')}
+              >
+                <Blend size={13} />
+              </button>
             );
           case 'infinite':
             return (

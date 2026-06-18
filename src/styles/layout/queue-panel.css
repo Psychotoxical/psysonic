@@ -162,6 +162,41 @@
   color: var(--bg-app);
 }
 
+/* Compact dropdown menu reusing the .crossfade-popover box (the playlist
+   save/load submenu). Items stack vertically as left-aligned rows. */
+.queue-menu {
+  width: 150px;
+  padding: 6px;
+  gap: 2px;
+}
+
+.queue-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.queue-menu-item:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.queue-menu-item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .queue-toolbar-sep {
   width: 1px;
   height: 18px;
