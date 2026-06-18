@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'r
 import { useTranslation } from 'react-i18next';
 import { listen } from '@tauri-apps/api/event';
 import SettingsSubSection from '../SettingsSubSection';
+import { SettingsGroup } from './SettingsGroup';
 import { useCoverStrategyStore } from '../../store/coverStrategyStore';
 import { useAuthStore } from '../../store/authStore';
 import {
@@ -232,12 +233,13 @@ export default function CoverCacheStrategySection() {
   return (
     <SettingsSubSection title={t('settings.coverCacheStrategyTitle')} icon={<Image size={16} />}>
       <div className="settings-card">
+        <SettingsGroup title={t('settings.coverCacheStrategyTitle')}>
         <div style={{ overflowX: 'auto' }}>
           <table style={TABLE_STYLE}>
             <CoverCacheColGroup />
             <thead>
               <tr>
-                <th style={TH_STYLE}>{t('settings.imageCacheScopeLabel')}</th>
+                <th style={{ ...TH_STYLE, paddingLeft: 0 }}>{t('settings.imageCacheScopeLabel')}</th>
                 <th style={STRATEGY_GAP_TH} aria-hidden="true" />
                 <th style={TH_STYLE}>{t('settings.coverCacheStrategyProgressLabel')}</th>
                 <th style={TH_STYLE}>{t('settings.coverCacheStrategyActionsLabel')}</th>
@@ -245,7 +247,7 @@ export default function CoverCacheStrategySection() {
             </thead>
             <tbody>
               <tr>
-                <td style={{ padding: '10px', fontSize: 13, color: 'var(--text-primary)' }}>
+                <td style={{ padding: '10px', paddingLeft: 0, fontSize: 13, color: 'var(--text-primary)' }}>
                   {t('settings.imageCacheSubTitle')}
                 </td>
                 <td style={STRATEGY_GAP_TD} aria-hidden="true" />
@@ -285,7 +287,7 @@ export default function CoverCacheStrategySection() {
             <CoverCacheColGroup />
             <thead>
               <tr>
-                <th style={TH_STYLE}>{t('settings.coverCacheStrategyServerLabel')}</th>
+                <th style={{ ...TH_STYLE, paddingLeft: 0 }}>{t('settings.coverCacheStrategyServerLabel')}</th>
                 <th style={TH_STYLE}>{t('settings.coverCacheStrategyLabel')}</th>
                 <th style={TH_STYLE}>{t('settings.coverCacheStrategyProgressLabel')}</th>
                 <th style={TH_STYLE}>{t('settings.coverCacheStrategyActionsLabel')}</th>
@@ -299,7 +301,7 @@ export default function CoverCacheStrategySection() {
                 const label = serverListDisplayLabel(server, servers);
                 return (
                   <tr key={server.id} style={ROW_BORDER}>
-                    <td style={{ padding: '10px', fontSize: 13, color: 'var(--text-primary)' }}>{label}</td>
+                    <td style={{ padding: '10px', paddingLeft: 0, fontSize: 13, color: 'var(--text-primary)' }}>{label}</td>
                     <td style={{ padding: '10px' }}>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                         {COVER_CACHE_STRATEGIES.map(s => (
@@ -338,7 +340,7 @@ export default function CoverCacheStrategySection() {
               })}
               {removedServerKeys.map(key => (
                 <tr key={`removed-${key}`} style={ROW_BORDER}>
-                  <td style={{ padding: '10px', fontSize: 13, color: 'var(--text-muted)' }}>
+                  <td style={{ padding: '10px', paddingLeft: 0, fontSize: 13, color: 'var(--text-muted)' }}>
                     {key}
                     <span style={{ marginLeft: 6, fontSize: 11 }}>({t('settings.coverCacheStrategyServerRemoved')})</span>
                   </td>
@@ -414,6 +416,7 @@ export default function CoverCacheStrategySection() {
             </div>
           </div>
         )}
+        </SettingsGroup>
       </div>
     </SettingsSubSection>
   );
