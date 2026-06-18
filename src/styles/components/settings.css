@@ -573,6 +573,12 @@ span.settings-server-use-active-slot {
   margin-bottom: 0.85rem;
 }
 
+/* Small consistent left inset for box content (the title/header stays flush
+   at the box edge; the controls sit slightly indented for breathing room). */
+.settings-group-body {
+  padding-left: 10px;
+}
+
 .settings-card.user-row {
   transition: background 120ms ease, border-color 120ms ease;
 }

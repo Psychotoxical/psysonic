@@ -19,8 +19,10 @@ export function SettingsGroup({ title, desc, children }: Props) {
   return (
     <div className="settings-group">
       {title && <div className="settings-group-title">{title}</div>}
-      {desc && <div className="settings-group-desc">{desc}</div>}
-      {children}
+      <div className="settings-group-body">
+        {desc && <div className="settings-group-desc">{desc}</div>}
+        {children}
+      </div>
     </div>
   );
 }
