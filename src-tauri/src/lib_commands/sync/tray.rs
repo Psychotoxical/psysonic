@@ -415,7 +415,7 @@ pub(crate) fn toggle_tray_icon(
 
 pub(crate) use crate::audio::stop_audio_engine;
 
-/// Returns `true` if running under a tiling window manager (Hyprland, Sway, i3,
+/// Returns `true` if running under a tiling window manager (Hyprland, Niri, Sway, i3,
 /// bspwm, AwesomeWM, Openbox, etc.).  Detection is based on environment variables
 /// set by the compositor / DE.
 #[cfg(target_os = "linux")]
@@ -423,6 +423,7 @@ pub(crate) fn is_tiling_wm() -> bool {
     // Direct compositor signatures (most reliable).
     let direct = [
         "HYPRLAND_INSTANCE_SIGNATURE", // Hyprland
+        "NIRI_SOCKET",                  // Niri
         "SWAYSOCK",                     // Sway
         "I3SOCK",                       // i3
     ]
@@ -437,7 +438,7 @@ pub(crate) fn is_tiling_wm() -> bool {
     if let Ok(desktop) = std::env::var("XDG_CURRENT_DESKTOP") {
         let desktop = desktop.to_lowercase();
         let tiling_wms = [
-            "hyprland", "sway", "i3", "bspwm", "awesome", "openbox",
+            "hyprland", "niri", "sway", "i3", "bspwm", "awesome", "openbox",
             "xmonad", "dwm", "qtile", "herbstluftwm", "leftwm",
         ];
         if tiling_wms.iter().any(|&wm| desktop.contains(wm)) {
