@@ -547,8 +547,9 @@ span.settings-server-use-active-slot {
 /* A card whose only content is one boxed group double-frames it (card border +
    group border). Collapse the card so single-group sections render just the
    group — matching the card-less subsections (e.g. Lyrics). Multi-group cards
-   keep their frame as the grouping container. */
-.settings-card:has(> .settings-group:only-child) {
+   keep their frame as the grouping container. The flat Themes sections are
+   excluded: not being inside an accordion, their card is the contrast surface. */
+.settings-card:has(> .settings-group:only-child):not(.themes-section *) {
   background: none;
   border: none;
   padding: 0;
