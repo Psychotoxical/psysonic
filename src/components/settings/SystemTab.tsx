@@ -15,6 +15,7 @@ import { AboutPsysonicBrandHeader } from '../AboutPsysonicLol';
 import CustomSelect from '../CustomSelect';
 import LicensesPanel from '../LicensesPanel';
 import SettingsSubSection from '../SettingsSubSection';
+import { SettingsGroup } from './SettingsGroup';
 import { BackupSection } from './BackupSection';
 import { CONTRIBUTORS, MAINTAINERS } from '../../config/settingsCredits';
 
@@ -81,30 +82,32 @@ export function SystemTab() {
         icon={<AppWindow size={16} />}
       >
         <div className="settings-card">
-          <div className="settings-toggle-row">
-            <div>
-              <div style={{ fontWeight: 500 }}>{t('settings.showTrayIcon')}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showTrayIconDesc')}</div>
+          <SettingsGroup title={t('settings.groupTray')}>
+            <div className="settings-toggle-row">
+              <div>
+                <div style={{ fontWeight: 500 }}>{t('settings.showTrayIcon')}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showTrayIconDesc')}</div>
+              </div>
+              <label className="toggle-switch" aria-label={t('settings.showTrayIcon')}>
+                <input type="checkbox" checked={auth.showTrayIcon} onChange={e => auth.setShowTrayIcon(e.target.checked)} />
+                <span className="toggle-track" />
+              </label>
             </div>
-            <label className="toggle-switch" aria-label={t('settings.showTrayIcon')}>
-              <input type="checkbox" checked={auth.showTrayIcon} onChange={e => auth.setShowTrayIcon(e.target.checked)} />
-              <span className="toggle-track" />
-            </label>
-          </div>
-          <div className="settings-section-divider" />
-          <div className="settings-toggle-row">
-            <div>
-              <div style={{ fontWeight: 500 }}>{t('settings.minimizeToTray')}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.minimizeToTrayDesc')}</div>
+            <div className="settings-section-divider" />
+            <div className="settings-toggle-row">
+              <div>
+                <div style={{ fontWeight: 500 }}>{t('settings.minimizeToTray')}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.minimizeToTrayDesc')}</div>
+              </div>
+              <label className="toggle-switch" aria-label={t('settings.minimizeToTray')}>
+                <input type="checkbox" checked={auth.minimizeToTray} onChange={e => auth.setMinimizeToTray(e.target.checked)} />
+                <span className="toggle-track" />
+              </label>
             </div>
-            <label className="toggle-switch" aria-label={t('settings.minimizeToTray')}>
-              <input type="checkbox" checked={auth.minimizeToTray} onChange={e => auth.setMinimizeToTray(e.target.checked)} />
-              <span className="toggle-track" />
-            </label>
-          </div>
+          </SettingsGroup>
+
           {IS_LINUX && (
-            <>
-              <div className="settings-section-divider" />
+            <SettingsGroup title={t('settings.groupLinuxRendering')}>
               <div className="settings-toggle-row">
                 <div>
                   <div style={{ fontWeight: 500 }}>{t('settings.linuxWebkitSmoothScroll')}</div>
@@ -155,26 +158,28 @@ export function SystemTab() {
                   </div>
                 </>
               )}
-            </>
+            </SettingsGroup>
           )}
-          <div className="settings-section-divider" />
-          <div className="settings-toggle-row">
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 500 }}>{t('settings.clockFormat')}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.clockFormatDesc')}</div>
+
+          <SettingsGroup title={t('settings.groupClock')}>
+            <div className="settings-toggle-row">
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 500 }}>{t('settings.clockFormat')}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.clockFormatDesc')}</div>
+              </div>
+              <div style={{ minWidth: 160 }}>
+                <CustomSelect
+                  value={auth.clockFormat}
+                  onChange={(v) => auth.setClockFormat(v as ClockFormat)}
+                  options={[
+                    { value: 'auto', label: t('settings.clockFormatAuto') },
+                    { value: '24h',  label: t('settings.clockFormatTwentyFour') },
+                    { value: '12h',  label: t('settings.clockFormatTwelve') },
+                  ]}
+                />
+              </div>
             </div>
-            <div style={{ minWidth: 160 }}>
-              <CustomSelect
-                value={auth.clockFormat}
-                onChange={(v) => auth.setClockFormat(v as ClockFormat)}
-                options={[
-                  { value: 'auto', label: t('settings.clockFormatAuto') },
-                  { value: '24h',  label: t('settings.clockFormatTwentyFour') },
-                  { value: '12h',  label: t('settings.clockFormatTwelve') },
-                ]}
-              />
-            </div>
-          </div>
+          </SettingsGroup>
         </div>
       </SettingsSubSection>
 

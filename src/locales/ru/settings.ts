@@ -137,6 +137,9 @@ export const settings = {
   eqAutoEqRateLimit: 'Лимит GitHub — попробуйте через минуту',
   eqAutoEqFetchError: 'Не удалось загрузить профиль EQ',
   behavior: 'Поведение',
+  groupTray: 'Трей',
+  groupLinuxRendering: 'Отрисовка (Linux)',
+  groupClock: 'Часы',
   cacheTitle: 'Макс. размер кэша',
   cacheDesc:
     'Кэш обложек и фото исполнителей в хранилище приложения (IndexedDB). При нехватке места старые записи удаляются автоматически.',
