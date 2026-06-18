@@ -93,29 +93,29 @@ export function PersonalisationTab() {
       >
         <div className="settings-card">
           <SettingsGroup>
-          {/* Three mutually exclusive modes — exactly one is always active, so
-              turning one on turns the others off; the active one cannot be
-              switched off directly (ignore the uncheck). */}
-          <SettingsToggle
-            label={t('queue.title')}
-            desc={t('settings.queueModeQueueSub')}
-            checked={queueDisplayMode === 'queue'}
-            onChange={c => { if (c) setQueueDisplayMode('queue'); }}
-          />
-          <div className="settings-section-divider" />
-          <SettingsToggle
-            label={t('queue.modePlaylist')}
-            desc={t('settings.queueModePlaylistSub')}
-            checked={queueDisplayMode === 'playlist'}
-            onChange={c => { if (c) setQueueDisplayMode('playlist'); }}
-          />
-          <div className="settings-section-divider" />
-          <SettingsToggle
-            label={t('queue.modeTimeline')}
-            desc={t('settings.queueModeTimelineSub')}
-            checked={queueDisplayMode === 'timeline'}
-            onChange={c => { if (c) setQueueDisplayMode('timeline'); }}
-          />
+            {/* Three mutually exclusive modes — exactly one is always active, so
+                turning one on turns the others off; the active one cannot be
+                switched off directly (ignore the uncheck). */}
+            <SettingsToggle
+              label={t('queue.title')}
+              desc={t('settings.queueModeQueueSub')}
+              checked={queueDisplayMode === 'queue'}
+              onChange={c => { if (c) setQueueDisplayMode('queue'); }}
+            />
+            <div className="settings-section-divider" />
+            <SettingsToggle
+              label={t('queue.modePlaylist')}
+              desc={t('settings.queueModePlaylistSub')}
+              checked={queueDisplayMode === 'playlist'}
+              onChange={c => { if (c) setQueueDisplayMode('playlist'); }}
+            />
+            <div className="settings-section-divider" />
+            <SettingsToggle
+              label={t('queue.modeTimeline')}
+              desc={t('settings.queueModeTimelineSub')}
+              checked={queueDisplayMode === 'timeline'}
+              onChange={c => { if (c) setQueueDisplayMode('timeline'); }}
+            />
           </SettingsGroup>
         </div>
       </SettingsSubSection>

@@ -58,23 +58,23 @@ export function SystemTab() {
       >
         <div className="settings-card">
           <SettingsGroup>
-          <div className="form-group" style={{ maxWidth: '300px' }}>
-            <CustomSelect
-              value={i18n.language}
-              onChange={v => i18n.changeLanguage(v)}
-              options={[
-                { value: 'en', label: t('settings.languageEn') },
-                { value: 'de', label: t('settings.languageDe') },
-                { value: 'es', label: t('settings.languageEs') },
-                { value: 'fr', label: t('settings.languageFr') },
-                { value: 'nl', label: t('settings.languageNl') },
-                { value: 'nb', label: t('settings.languageNb') },
-                { value: 'ru', label: t('settings.languageRu') },
-                { value: 'zh', label: t('settings.languageZh') },
-                { value: 'ro', label: t('settings.languageRo') },
-              ]}
-            />
-          </div>
+            <div className="form-group" style={{ maxWidth: '300px' }}>
+              <CustomSelect
+                value={i18n.language}
+                onChange={v => i18n.changeLanguage(v)}
+                options={[
+                  { value: 'en', label: t('settings.languageEn') },
+                  { value: 'de', label: t('settings.languageDe') },
+                  { value: 'es', label: t('settings.languageEs') },
+                  { value: 'fr', label: t('settings.languageFr') },
+                  { value: 'nl', label: t('settings.languageNl') },
+                  { value: 'nb', label: t('settings.languageNb') },
+                  { value: 'ru', label: t('settings.languageRu') },
+                  { value: 'zh', label: t('settings.languageZh') },
+                  { value: 'ro', label: t('settings.languageRo') },
+                ]}
+              />
+            </div>
           </SettingsGroup>
         </div>
       </SettingsSubSection>
@@ -175,26 +175,26 @@ export function SystemTab() {
       >
         <div className="settings-card">
           <SettingsGroup>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-            {t('settings.loggingModeDesc')}
-          </div>
-          <CustomSelect
-            value={auth.loggingMode}
-            onChange={(v) => auth.setLoggingMode(v as LoggingMode)}
-            options={[
-              { value: 'off', label: t('settings.loggingModeOff') },
-              { value: 'normal', label: t('settings.loggingModeNormal') },
-              { value: 'debug', label: t('settings.loggingModeDebug') },
-            ]}
-          />
-          {auth.loggingMode === 'debug' && (
-            <div style={{ marginTop: '0.75rem' }}>
-              <button className="btn btn-surface" onClick={exportRuntimeLogs}>
-                <Download size={14} />
-                {t('settings.loggingExport')}
-              </button>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+              {t('settings.loggingModeDesc')}
             </div>
-          )}
+            <CustomSelect
+              value={auth.loggingMode}
+              onChange={(v) => auth.setLoggingMode(v as LoggingMode)}
+              options={[
+                { value: 'off', label: t('settings.loggingModeOff') },
+                { value: 'normal', label: t('settings.loggingModeNormal') },
+                { value: 'debug', label: t('settings.loggingModeDebug') },
+              ]}
+            />
+            {auth.loggingMode === 'debug' && (
+              <div style={{ marginTop: '0.75rem' }}>
+                <button className="btn btn-surface" onClick={exportRuntimeLogs}>
+                  <Download size={14} />
+                  {t('settings.loggingExport')}
+                </button>
+              </div>
+            )}
           </SettingsGroup>
         </div>
       </SettingsSubSection>
