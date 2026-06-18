@@ -34,6 +34,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * AutoDJ is now its own mode rather than a sub-option of Crossfade — its own button in the queue toolbar and its own entry in the audio settings. Crossfade, AutoDJ and Gapless are mutually exclusive (only one active at a time) under a single Off / Gapless / Crossfade / AutoDJ picker, the playback settings are regrouped into clearer Normalization / Track transitions / Queue behaviour panels, and the queue toolbar's separate Save and Load playlist buttons are combined into one Playlist menu (existing toolbar layouts are preserved). Off by default; classic Crossfade is unchanged.
 
 
+## Changed
+
+### Settings — consistent grouped layout
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1126](https://github.com/Psychotoxical/psysonic/pull/1126)**
+
+* The settings tabs now group related controls into clearly bordered, labelled panels for a more consistent, easier-to-scan layout — across Appearance, System, Audio, Storage, Library, Integrations, Music Network, Lyrics, Personalisation, Input and Themes. Standalone toggles are left as they were, and a few duplicated section titles are gone.
+* The **Lucky Mix menu** toggle moved from the Library tab to the sidebar customizer, alongside the other navigation toggles.
+* The **Native Hi-Res Playback** description now explains what turning it on actually does — play each track at its original sample rate, matching the audio device to the file, instead of resampling everything to 44.1 kHz. The old wording described the off state and read as if the option forced 44.1 kHz.
+
+
 ## Fixed
 
 ### Seeking in streamed Opus/Ogg tracks

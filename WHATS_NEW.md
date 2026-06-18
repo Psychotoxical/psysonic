@@ -25,6 +25,10 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 - Version numbers on store themes and ones you have installed make it obvious when an update is ready.
 - Filter for **animated** or **static** themes only — less scrolling when you already know the look you want.
 
+### Settings — tidier and easier to scan
+
+- Settings are grouped into clear, labelled panels so related options sit together — less hunting around. The **Native Hi-Res Playback** option now explains in plain language what it actually does.
+
 ## Fixed
 
 ### Playback and audio
