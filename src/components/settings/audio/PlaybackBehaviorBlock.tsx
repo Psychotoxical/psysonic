@@ -1,106 +1,90 @@
 import React from 'react';
 import type { TFunction } from 'i18next';
 import { useAuthStore } from '../../../store/authStore';
+import {
+  getTransitionMode,
+  setTransitionMode,
+  type TransitionMode,
+} from '../../../utils/playback/playbackTransition';
 
 interface Props {
   t: TFunction;
 }
 
 /**
- * Crossfade ↔ Gapless are mutually exclusive — enabling one forces the
- * other off (`setGaplessEnabled(false)` / `setCrossfadeEnabled(false)`
- * on the toggle handlers) and the inactive row dims via opacity +
- * pointerEvents:none.
+ * Track-transition picker. Crossfade, AutoDJ and Gapless are mutually
+ * exclusive — only one can be active — so they are presented as a single
+ * `Off | Gapless | Crossfade | AutoDJ` segmented control (mirroring the
+ * Normalization picker above it) backed by the shared transition-mode helper.
  *
- * When crossfade is on, a "Crossfade | Smart crossfade" segmented switch
- * (`crossfadeTrimSilence` false/true) picks the mode: classic crossfade
- * exposes the seconds slider, smart crossfade is content-driven and has
- * no duration to configure (just a short explainer).
- *
- * The `preservePlayNextOrder` toggle is independent of both and pinned
- * to the bottom of the block.
+ * Classic crossfade exposes the seconds slider; AutoDJ is content-driven and
+ * has no duration to configure (just a short explainer). The
+ * `preservePlayNextOrder` toggle is independent and grouped under its own
+ * "Queue behaviour" heading at the bottom.
  */
 export function PlaybackBehaviorBlock({ t }: Props) {
   const auth = useAuthStore();
+  const mode = getTransitionMode(auth);
+
+  const transitions: { id: TransitionMode; label: string }[] = [
+    { id: 'none', label: t('settings.transitionOff') },
+    { id: 'gapless', label: t('settings.gapless') },
+    { id: 'crossfade', label: t('settings.crossfade') },
+    { id: 'autodj', label: t('settings.autoDj') },
+  ];
 
   return (
     <>
-      <div className="settings-toggle-row" style={auth.gaplessEnabled ? { opacity: 0.45, pointerEvents: 'none' } : undefined}>
-        <div>
-          <div style={{ fontWeight: 500 }}>
-            {t('settings.crossfade')}
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            {auth.gaplessEnabled ? t('settings.notWithGapless') : t('settings.crossfadeDesc')}
-          </div>
+      <div style={{ marginBottom: '0.6rem' }}>
+        <div style={{ fontWeight: 500 }}>{t('settings.transitionsTitle')}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+          {t('settings.transitionsDesc')}
         </div>
-        <label className="toggle-switch" aria-label={t('settings.crossfade')}>
-          <input type="checkbox" checked={auth.crossfadeEnabled} disabled={auth.gaplessEnabled}
-            onChange={e => { auth.setGaplessEnabled(false); auth.setCrossfadeEnabled(e.target.checked); }} id="crossfade-toggle" />
-          <span className="toggle-track" />
-        </label>
       </div>
-      {auth.crossfadeEnabled && !auth.gaplessEnabled && (
-        <div style={{ paddingLeft: '1rem', marginTop: '0.6rem' }}>
-          <div className="settings-segmented">
-            <button
-              type="button"
-              className={`btn ${!auth.crossfadeTrimSilence ? 'btn-primary' : 'btn-ghost'}`}
-              onClick={() => auth.setCrossfadeTrimSilence(false)}
-            >
-              {t('settings.crossfade')}
-            </button>
-            <button
-              type="button"
-              className={`btn ${auth.crossfadeTrimSilence ? 'btn-primary' : 'btn-ghost'}`}
-              onClick={() => auth.setCrossfadeTrimSilence(true)}
-            >
-              {t('settings.autoDj')}
-            </button>
-          </div>
-          {auth.crossfadeTrimSilence ? (
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '0.6rem' }}>
-              {t('settings.autoDjDesc')}
-            </div>
-          ) : (
-            <div style={{ marginTop: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <input
-                type="range"
-                min={0.1}
-                max={10}
-                step={0.1}
-                value={auth.crossfadeSecs}
-                onChange={e => auth.setCrossfadeSecs(parseFloat(e.target.value))}
-                style={{ flex: 1, minWidth: 80, maxWidth: 200 }}
-                id="crossfade-secs-slider"
-              />
-              <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 36 }}>
-                {t('settings.crossfadeSecs', { n: auth.crossfadeSecs.toFixed(1) })}
-              </span>
-            </div>
-          )}
+
+      <div className="settings-segmented">
+        {transitions.map(item => (
+          <button
+            key={item.id}
+            type="button"
+            className={`btn ${mode === item.id ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => setTransitionMode(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'crossfade' && (
+        <div style={{ paddingLeft: '1rem', marginTop: '0.7rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <input
+            type="range"
+            min={0.1}
+            max={10}
+            step={0.1}
+            value={auth.crossfadeSecs}
+            onChange={e => auth.setCrossfadeSecs(parseFloat(e.target.value))}
+            style={{ flex: 1, minWidth: 80, maxWidth: 200 }}
+            id="crossfade-secs-slider"
+          />
+          <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 36 }}>
+            {t('settings.crossfadeSecs', { n: auth.crossfadeSecs.toFixed(1) })}
+          </span>
+        </div>
+      )}
+      {mode === 'autodj' && (
+        <div style={{ paddingLeft: '1rem', fontSize: 12, color: 'var(--text-muted)', marginTop: '0.7rem' }}>
+          {t('settings.autoDjDesc')}
         </div>
       )}
 
       <div className="divider" />
 
-      <div className="settings-toggle-row" style={auth.crossfadeEnabled ? { opacity: 0.45, pointerEvents: 'none' } : undefined}>
-        <div>
-          <div style={{ fontWeight: 500 }}>
-            {t('settings.gapless')}
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            {auth.crossfadeEnabled ? t('settings.notWithCrossfade') : t('settings.gaplessDesc')}
-          </div>
-        </div>
-        <label className="toggle-switch" aria-label={t('settings.gapless')}>
-          <input type="checkbox" checked={auth.gaplessEnabled} disabled={auth.crossfadeEnabled}
-            onChange={e => { auth.setCrossfadeEnabled(false); auth.setGaplessEnabled(e.target.checked); }} id="gapless-toggle" />
-          <span className="toggle-track" />
-        </label>
+      <div style={{ marginBottom: '0.6rem' }}>
+        <div style={{ fontWeight: 500 }}>{t('settings.queueBehaviourTitle')}</div>
       </div>
 
-      <div className="settings-toggle-row" style={{ marginTop: '0.75rem' }}>
+      <div className="settings-toggle-row">
         <div>
           <div style={{ fontWeight: 500 }}>
             {t('settings.preservePlayNextOrder')}
