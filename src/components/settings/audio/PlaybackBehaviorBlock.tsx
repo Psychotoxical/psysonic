@@ -35,69 +35,65 @@ export function PlaybackBehaviorBlock({ t }: Props) {
 
   return (
     <>
-      <div style={{ marginBottom: '0.6rem' }}>
-        <div style={{ fontWeight: 500 }}>{t('settings.transitionsTitle')}</div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-          {t('settings.transitionsDesc')}
+      <div className="settings-group">
+        <div className="settings-group-title">{t('settings.transitionsTitle')}</div>
+        <div className="settings-group-desc">{t('settings.transitionsDesc')}</div>
+
+        <div className="settings-segmented">
+          {transitions.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              className={`btn ${mode === item.id ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setTransitionMode(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
-      </div>
 
-      <div className="settings-segmented">
-        {transitions.map(item => (
-          <button
-            key={item.id}
-            type="button"
-            className={`btn ${mode === item.id ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setTransitionMode(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-
-      {mode === 'crossfade' && (
-        <div style={{ paddingLeft: '1rem', marginTop: '0.7rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <input
-            type="range"
-            min={0.1}
-            max={10}
-            step={0.1}
-            value={auth.crossfadeSecs}
-            onChange={e => auth.setCrossfadeSecs(parseFloat(e.target.value))}
-            style={{ flex: 1, minWidth: 80, maxWidth: 200 }}
-            id="crossfade-secs-slider"
-          />
-          <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 36 }}>
-            {t('settings.crossfadeSecs', { n: auth.crossfadeSecs.toFixed(1) })}
-          </span>
-        </div>
-      )}
-      {mode === 'autodj' && (
-        <div style={{ paddingLeft: '1rem', fontSize: 12, color: 'var(--text-muted)', marginTop: '0.7rem' }}>
-          {t('settings.autoDjDesc')}
-        </div>
-      )}
-
-      <div className="divider" />
-
-      <div style={{ marginBottom: '0.6rem' }}>
-        <div style={{ fontWeight: 500 }}>{t('settings.queueBehaviourTitle')}</div>
-      </div>
-
-      <div className="settings-toggle-row">
-        <div>
-          <div style={{ fontWeight: 500 }}>
-            {t('settings.preservePlayNextOrder')}
+        {mode === 'crossfade' && (
+          <div style={{ paddingLeft: '1rem', marginTop: '0.7rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <input
+              type="range"
+              min={0.1}
+              max={10}
+              step={0.1}
+              value={auth.crossfadeSecs}
+              onChange={e => auth.setCrossfadeSecs(parseFloat(e.target.value))}
+              style={{ flex: 1, minWidth: 80, maxWidth: 200 }}
+              id="crossfade-secs-slider"
+            />
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 36 }}>
+              {t('settings.crossfadeSecs', { n: auth.crossfadeSecs.toFixed(1) })}
+            </span>
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            {t('settings.preservePlayNextOrderDesc')}
+        )}
+        {mode === 'autodj' && (
+          <div style={{ paddingLeft: '1rem', fontSize: 12, color: 'var(--text-muted)', marginTop: '0.7rem' }}>
+            {t('settings.autoDjDesc')}
           </div>
+        )}
+      </div>
+
+      <div className="settings-group">
+        <div className="settings-group-title">{t('settings.queueBehaviourTitle')}</div>
+
+        <div className="settings-toggle-row">
+          <div>
+            <div style={{ fontWeight: 500 }}>
+              {t('settings.preservePlayNextOrder')}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              {t('settings.preservePlayNextOrderDesc')}
+            </div>
+          </div>
+          <label className="toggle-switch" aria-label={t('settings.preservePlayNextOrder')}>
+            <input type="checkbox" checked={auth.preservePlayNextOrder}
+              onChange={e => auth.setPreservePlayNextOrder(e.target.checked)} />
+            <span className="toggle-track" />
+          </label>
         </div>
-        <label className="toggle-switch" aria-label={t('settings.preservePlayNextOrder')}>
-          <input type="checkbox" checked={auth.preservePlayNextOrder}
-            onChange={e => auth.setPreservePlayNextOrder(e.target.checked)} />
-          <span className="toggle-track" />
-        </label>
       </div>
     </>
   );

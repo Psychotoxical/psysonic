@@ -96,9 +96,6 @@ export function AudioTab() {
       >
         <div className="settings-card">
           <NormalizationBlock preAnalysisEffectiveDb={preAnalysisEffectiveDb} t={t} />
-
-          <div className="divider" />
-
           <PlaybackBehaviorBlock t={t} />
         </div>
       </SettingsSubSection>

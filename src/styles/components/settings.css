@@ -544,6 +544,35 @@ span.settings-server-use-active-slot {
   padding: var(--space-3);
 }
 
+/* Boxed sub-section panel inside a settings card — sets related controls
+   apart as a distinct block (e.g. Normalization / Track transitions /
+   Queue behaviour in the Playback card). */
+.settings-group {
+  background: var(--bg-app);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+.settings-group + .settings-group {
+  margin-top: var(--space-3);
+}
+
+.settings-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.settings-group-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 0.85rem;
+}
+
 .settings-card.user-row {
   transition: background 120ms ease, border-color 120ms ease;
 }

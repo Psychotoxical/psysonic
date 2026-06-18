@@ -28,13 +28,9 @@ export function NormalizationBlock({ preAnalysisEffectiveDb, t }: Props) {
   const auth = useAuthStore();
 
   return (
-    <>
-      <div style={{ marginBottom: '0.6rem' }}>
-        <div style={{ fontWeight: 500 }}>{t('settings.normalization', { defaultValue: 'Normalization' })}</div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-          {t('settings.normalizationDesc')}
-        </div>
-      </div>
+    <div className="settings-group">
+      <div className="settings-group-title">{t('settings.normalization', { defaultValue: 'Normalization' })}</div>
+      <div className="settings-group-desc">{t('settings.normalizationDesc')}</div>
       <div className="settings-segmented" style={{ marginBottom: auth.normalizationEngine === 'off' ? 0 : '0.85rem' }}>
         <button
           type="button"
@@ -180,6 +176,6 @@ export function NormalizationBlock({ preAnalysisEffectiveDb, t }: Props) {
           <div className="settings-norm-note">{t('settings.loudnessFirstPlayNote')}</div>
         </div>
       )}
-    </>
+    </div>
   );
 }
