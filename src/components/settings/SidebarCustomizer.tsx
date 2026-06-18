@@ -41,6 +41,8 @@ export function SidebarCustomizer() {
   const setRandomNavMode = useAuthStore(s => s.setRandomNavMode);
   const nowPlayingAtTop = useAuthStore(s => s.nowPlayingAtTop);
   const setNowPlayingAtTop = useAuthStore(s => s.setNowPlayingAtTop);
+  const showLuckyMixMenu = useAuthStore(s => s.showLuckyMixMenu);
+  const setShowLuckyMixMenu = useAuthStore(s => s.setShowLuckyMixMenu);
   const luckyMixBase = useLuckyMixAvailable();
   const luckyMixAvailable = luckyMixBase && randomNavMode === 'separate';
 
@@ -150,6 +152,20 @@ export function SidebarCustomizer() {
               type="checkbox"
               checked={nowPlayingAtTop}
               onChange={e => setNowPlayingAtTop(e.target.checked)}
+            />
+            <span className="toggle-track" />
+          </label>
+        </div>
+        <div className="settings-toggle-row">
+          <div>
+            <div style={{ fontWeight: 500 }}>{t('settings.luckyMixMenuTitle')}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.luckyMixMenuDesc')}</div>
+          </div>
+          <label className="toggle-switch" aria-label={t('settings.luckyMixMenuTitle')}>
+            <input
+              type="checkbox"
+              checked={showLuckyMixMenu}
+              onChange={e => setShowLuckyMixMenu(e.target.checked)}
             />
             <span className="toggle-track" />
           </label>

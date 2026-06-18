@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import SettingsSubSection from '../SettingsSubSection';
+import { SettingsGroup } from './SettingsGroup';
 import { useAnalysisStrategyStore } from '../../store/analysisStrategyStore';
 import { useAuthStore } from '../../store/authStore';
 import {
@@ -253,11 +254,12 @@ export default function AnalyticsStrategySection() {
       icon={<BarChart3 size={16} />}
     >
       <div className="settings-card">
+        <SettingsGroup title={t('settings.analyticsStrategyTitle')}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
             <thead>
               <tr>
-                <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 12, color: 'var(--text-muted)' }}>
+                <th style={{ textAlign: 'left', padding: '8px 10px', paddingLeft: 0, fontSize: 12, color: 'var(--text-muted)' }}>
                   {t('settings.analyticsStrategyServerLabel')}
                 </th>
                 <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 12, color: 'var(--text-muted)' }}>
@@ -284,7 +286,7 @@ export default function AnalyticsStrategySection() {
                 const label = serverListDisplayLabel(server, servers);
                 return (
                   <tr key={server.id} style={{ borderTop: '1px solid var(--border-subtle, rgba(255,255,255,0.06))' }}>
-                    <td style={{ padding: '10px', fontSize: 13, color: 'var(--text-primary)' }}>
+                    <td style={{ padding: '10px', paddingLeft: 0, fontSize: 13, color: 'var(--text-primary)' }}>
                       {label}
                     </td>
                     <td style={{ padding: '10px' }}>
@@ -365,7 +367,7 @@ export default function AnalyticsStrategySection() {
                   key={serverId}
                   style={{ borderTop: '1px solid var(--border-subtle, rgba(255,255,255,0.06))' }}
                 >
-                  <td style={{ padding: '10px', fontSize: 13, color: 'var(--text-secondary)' }}>
+                  <td style={{ padding: '10px', paddingLeft: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
                     <div>{serverId}</div>
                     <div style={{ fontSize: 11, color: 'var(--warning, #f59e0b)', marginTop: 2 }}>
                       {t('settings.analyticsStrategyServerRemoved')}
@@ -432,6 +434,7 @@ export default function AnalyticsStrategySection() {
             {t('settings.analyticsStrategyAdvancedWarning')}
           </span>
         </div>
+        </SettingsGroup>
       </div>
 
       {clearTarget &&

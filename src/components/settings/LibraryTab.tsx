@@ -4,6 +4,8 @@ import { Shuffle, Star } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { MIX_MIN_RATING_FILTER_MAX_STARS } from '../../store/authStoreDefaults';
 import SettingsSubSection from '../SettingsSubSection';
+import { SettingsGroup } from './SettingsGroup';
+import { SettingsToggle } from './SettingsToggle';
 import StarRating from '../StarRating';
 import AnalyticsStrategySection from './AnalyticsStrategySection';
 const AUDIOBOOK_GENRES_DISPLAY = ['Hörbuch', 'Hoerbuch', 'Hörspiel', 'Hoerspiel', 'Audiobook', 'Audio Book', 'Spoken Word', 'Spokenword', 'Podcast', 'Kapitel', 'Thriller', 'Krimi', 'Speech', 'Fantasy', 'Comedy', 'Literature'];
@@ -23,6 +25,7 @@ export function LibraryTab() {
         icon={<Shuffle size={16} />}
       >
         <div className="settings-card">
+          <SettingsGroup title={t('settings.randomMixTitle')}>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>
             {t('settings.randomMixBlacklistDesc')}
           </p>
@@ -83,28 +86,7 @@ export function LibraryTab() {
             </button>
           </div>
 
-          <div className="divider" style={{ margin: '1rem 0' }} />
-
-          <div className="settings-toggle-row" style={{ marginBottom: '1rem' }}>
-            <div>
-              <div style={{ fontWeight: 500 }}>{t('settings.luckyMixMenuTitle')}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                {t('settings.luckyMixMenuDesc')}
-              </div>
-            </div>
-            <label className="toggle-switch" aria-label={t('settings.luckyMixMenuTitle')}>
-              <input
-                type="checkbox"
-                checked={auth.showLuckyMixMenu}
-                onChange={e => auth.setShowLuckyMixMenu(e.target.checked)}
-              />
-              <span className="toggle-track" />
-            </label>
-          </div>
-
-          <div className="divider" style={{ margin: '1rem 0' }} />
-
-          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: '0.5rem', color: 'var(--text-muted)' }}>{t('settings.randomMixHardcodedTitle')}</div>
+          <div style={{ fontSize: 13, fontWeight: 500, margin: '1rem 0 0.5rem', color: 'var(--text-muted)' }}>{t('settings.randomMixHardcodedTitle')}</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
             {AUDIOBOOK_GENRES_DISPLAY.map(genre => (
               <span key={genre} className="genre-keyword-badge" style={{
@@ -116,6 +98,7 @@ export function LibraryTab() {
               </span>
             ))}
           </div>
+          </SettingsGroup>
         </div>
       </SettingsSubSection>
 
@@ -125,6 +108,7 @@ export function LibraryTab() {
         icon={<Star size={16} />}
       >
         <div className="settings-card">
+          <SettingsGroup title={t('settings.ratingsSectionTitle')}>
           <div className="settings-toggle-row">
             <div>
               <div style={{ fontWeight: 500 }}>{t('settings.ratingsSkipStarTitle')}</div>
@@ -162,25 +146,15 @@ export function LibraryTab() {
 
           <div className="settings-section-divider" />
 
-          <div className="settings-toggle-row">
-            <div>
-              <div style={{ fontWeight: 500 }}>{t('settings.ratingsMixFilterTitle')}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                {t('settings.ratingsMixFilterDesc', {
-                  mix: t('sidebar.randomMix'),
-                  albums: t('sidebar.randomAlbums'),
-                })}
-              </div>
-            </div>
-            <label className="toggle-switch" aria-label={t('settings.ratingsMixFilterTitle')}>
-              <input
-                type="checkbox"
-                checked={auth.mixMinRatingFilterEnabled}
-                onChange={e => auth.setMixMinRatingFilterEnabled(e.target.checked)}
-              />
-              <span className="toggle-track" />
-            </label>
-          </div>
+          <SettingsToggle
+            label={t('settings.ratingsMixFilterTitle')}
+            desc={t('settings.ratingsMixFilterDesc', {
+              mix: t('sidebar.randomMix'),
+              albums: t('sidebar.randomAlbums'),
+            })}
+            checked={auth.mixMinRatingFilterEnabled}
+            onChange={auth.setMixMinRatingFilterEnabled}
+          />
           {auth.mixMinRatingFilterEnabled && (
             <>
               <div className="settings-section-divider" />
@@ -220,6 +194,7 @@ export function LibraryTab() {
               </div>
             </>
           )}
+          </SettingsGroup>
         </div>
       </SettingsSubSection>
     </>
