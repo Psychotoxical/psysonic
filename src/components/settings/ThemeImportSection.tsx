@@ -62,7 +62,7 @@ export function ThemeImportSection() {
   };
 
   return (
-    <div className="settings-card">
+    <div>
       <button
         type="button"
         onClick={handleImport}

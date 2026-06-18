@@ -71,7 +71,7 @@ export function InstalledThemes() {
   ];
 
   return (
-    <div className="settings-card">
+    <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: '10px' }}>
         {cards.map(c => {
           const isActive = active === c.id;

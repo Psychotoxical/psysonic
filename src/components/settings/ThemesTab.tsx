@@ -9,6 +9,7 @@ import { FIXED_THEMES } from './fixedThemes';
 import { InstalledThemes } from './InstalledThemes';
 import { ThemeImportSection } from './ThemeImportSection';
 import { ThemeStoreSection } from './ThemeStoreSection';
+import { SettingsGroup } from './SettingsGroup';
 
 /**
  * A flat, always-visible section. The Themes tab has a single purpose, so its
@@ -16,14 +17,14 @@ import { ThemeStoreSection } from './ThemeStoreSection';
  * the collapsible <details> SettingsSubSection used elsewhere. `data-settings-
  * search` keeps each section reachable from the global settings search.
  */
-function ThemesSection({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
+function ThemesSection({ icon, title, children, boxed }: { icon: ReactNode; title: string; children: ReactNode; boxed?: boolean }) {
   return (
     <section className="themes-section" data-settings-search={title} style={{ marginBottom: '1.75rem' }}>
       <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 600, margin: '0 0 0.75rem' }}>
         <span style={{ display: 'inline-flex', color: 'var(--accent)' }}>{icon}</span>
         {title}
       </h2>
-      {children}
+      {boxed ? <SettingsGroup>{children}</SettingsGroup> : children}
     </section>
   );
 }
@@ -39,7 +40,7 @@ export function ThemesTab() {
 
   return (
     <>
-      <ThemesSection icon={<Palette size={16} />} title={t('settings.themesYourThemesTitle')}>
+      <ThemesSection icon={<Palette size={16} />} title={t('settings.themesYourThemesTitle')} boxed>
         {theme.enableThemeScheduler && (
           <div className="settings-hint settings-hint-info" style={{ marginBottom: '0.75rem' }}>
             {t('settings.themeSchedulerActiveHint')}
@@ -48,8 +49,8 @@ export function ThemesTab() {
         <InstalledThemes />
       </ThemesSection>
 
-      <ThemesSection icon={<Clock size={16} />} title={t('settings.themeSchedulerTitle')}>
-        <div className="settings-card">
+      <ThemesSection icon={<Clock size={16} />} title={t('settings.themeSchedulerTitle')} boxed>
+        <div>
           <div className="settings-toggle-row">
             <div>
               <div style={{ fontWeight: 500 }}>{t('settings.themeSchedulerEnable')}</div>
@@ -114,7 +115,7 @@ export function ThemesTab() {
         </div>
       </ThemesSection>
 
-      <ThemesSection icon={<Upload size={16} />} title={t('settings.themeImportTitle')}>
+      <ThemesSection icon={<Upload size={16} />} title={t('settings.themeImportTitle')} boxed>
         <ThemeImportSection />
       </ThemesSection>
 
