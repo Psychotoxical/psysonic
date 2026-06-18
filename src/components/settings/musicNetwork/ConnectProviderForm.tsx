@@ -71,13 +71,13 @@ export function ConnectProviderForm({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-      <div style={{ fontWeight: 500, fontSize: 13 }}>{t('musicNetwork.addService')}</div>
+      <div className="settings-group-title">{t('musicNetwork.addService')}</div>
       {available.map(preset => {
         const id = preset.manifest.presetId;
         const isExpanded = expanded === id;
         const isBusy = busy === id;
         return (
-          <div key={id} className="settings-card" style={{ padding: '0.75rem 1rem' }}>
+          <div key={id} className="settings-group" style={{ padding: '0.75rem 1rem', marginTop: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <div style={{ flexShrink: 0 }} aria-hidden="true">{renderPresetIcon(preset.manifest.icon, 18)}</div>
               <div style={{ flex: 1, minWidth: 0 }}>

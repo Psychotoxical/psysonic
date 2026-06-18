@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Share2 } from 'lucide-react';
 import SettingsSubSection from '../../SettingsSubSection';
+import { SettingsGroup } from '../SettingsGroup';
 import { showToast } from '../../../utils/ui/toast';
 import { useAuthStore } from '../../../store/authStore';
 import {
@@ -77,38 +78,24 @@ export function MusicNetworkSection() {
           {t('musicNetwork.desc')}
         </p>
 
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '1rem',
-            padding: '0.75rem 1rem',
-            borderRadius: '10px',
-            border: '1px solid var(--border)',
-          }}
-        >
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 500 }}>{t('musicNetwork.masterToggle')}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('musicNetwork.masterToggleDesc')}</div>
+        <SettingsGroup title={t('musicNetwork.masterToggle')}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <div style={{ minWidth: 0, fontSize: 12, color: 'var(--text-muted)' }}>{t('musicNetwork.masterToggleDesc')}</div>
+            <label className="toggle-switch" style={{ flexShrink: 0 }} aria-label={t('musicNetwork.masterToggle')}>
+              <input type="checkbox" checked={scrobblingMasterEnabled} onChange={e => setMaster(e.target.checked)} />
+              <span className="toggle-track" />
+            </label>
           </div>
-          <label className="toggle-switch" style={{ flexShrink: 0 }} aria-label={t('musicNetwork.masterToggle')}>
-            <input type="checkbox" checked={scrobblingMasterEnabled} onChange={e => setMaster(e.target.checked)} />
-            <span className="toggle-track" />
-          </label>
-        </div>
+        </SettingsGroup>
 
-        <div style={{ marginTop: '0.75rem' }}>
-          <EnrichmentPrimarySelect
-            accounts={accounts}
-            primaryId={enrichmentPrimaryId}
-            onChange={setPrimary}
-          />
-        </div>
+        <EnrichmentPrimarySelect
+          accounts={accounts}
+          primaryId={enrichmentPrimaryId}
+          onChange={setPrimary}
+        />
 
         {accounts.length > 0 && (
-          <>
-            <div className="settings-section-divider" />
+          <SettingsGroup>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {accounts.map(account => (
                 <ScrobbleDestinationCard
@@ -120,13 +107,13 @@ export function MusicNetworkSection() {
                 />
               ))}
             </div>
-
             <MalojaProxyWarning accounts={accounts} />
-          </>
+          </SettingsGroup>
         )}
 
-        <div className="settings-section-divider" />
-        <ConnectProviderForm connectedPresetIds={connectedPresetIds} onConnect={connect} />
+        <div style={{ marginTop: 'var(--space-3)' }}>
+          <ConnectProviderForm connectedPresetIds={connectedPresetIds} onConnect={connect} />
+        </div>
       </div>
     </SettingsSubSection>
   );

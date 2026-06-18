@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import CustomSelect from '../../CustomSelect';
+import { SettingsGroup } from '../SettingsGroup';
 import type { Account } from '../../../music-network';
 
 /**
@@ -26,28 +27,24 @@ export function EnrichmentPrimarySelect({
   ];
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '1rem',
-        flexWrap: 'wrap',
-        padding: '0.75rem 1rem',
-        borderRadius: '10px',
-        border: '1px solid var(--border)',
-      }}
-    >
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 500 }}>{t('musicNetwork.primaryLabel')}</div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('musicNetwork.primaryDesc')}</div>
+    <SettingsGroup title={t('musicNetwork.primaryLabel')}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1rem',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ minWidth: 0, fontSize: 12, color: 'var(--text-muted)' }}>{t('musicNetwork.primaryDesc')}</div>
+        <CustomSelect
+          value={primaryId ?? ''}
+          options={options}
+          onChange={v => onChange(v || null)}
+          style={{ minWidth: 180 }}
+        />
       </div>
-      <CustomSelect
-        value={primaryId ?? ''}
-        options={options}
-        onChange={v => onChange(v || null)}
-        style={{ minWidth: 180 }}
-      />
-    </div>
+    </SettingsGroup>
   );
 }
