@@ -73,6 +73,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The Live header badge only refreshed `getNowPlaying` while the "Who is listening?" popover was open, so the listener count could stay stale or hidden until opened. Poll every 30 s while the window is visible (10 s while the popover is open); background fetches are silent so the header does not flash a loading state.
 
+### Niri compositor tiling WM detection
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1127](https://github.com/Psychotoxical/psysonic/pull/1127)**
+
+* Niri is now recognized as a tiling window manager (`NIRI_SOCKET`, `XDG_CURRENT_DESKTOP=niri`), so it gets the same custom title bar, window decorations, and mini-player behavior as Hyprland and Sway instead of being treated like a floating desktop.
+
 
 ## [1.48.1] - 2026-06-15
 

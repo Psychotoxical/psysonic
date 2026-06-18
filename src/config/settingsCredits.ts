@@ -167,6 +167,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Playback speed follow-up — Semitones varispeed strategy, two-decimal speed label, per-strategy tooltips, and Advanced fine-step toggle (PR #1084)',
       'Streamed Opus/Ogg seeking via on-demand HTTP Range fetches — seek mid-stream without a full pre-download (PR #1110)',
       'AutoDJ — content-aware crossfade: waveform-driven silence trim, content-driven overlap, scenario-A self-fade, readiness gate + engine auto-crossfade suppression (PR #1122)',
+      'Niri compositor tiling WM detection (PR #1127)',
     ],
   },
   {
