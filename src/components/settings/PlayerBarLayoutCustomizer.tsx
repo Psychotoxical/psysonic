@@ -35,7 +35,7 @@ export function PlayerBarLayoutCustomizer() {
   const toggleItem = usePlayerBarLayoutStore(s => s.toggleItem);
 
   return (
-    <div className="settings-card" style={{ padding: '4px 0' }}>
+    <div style={{ padding: '4px 0' }}>
       {items.map((it) => {
         const label = t(PLAYER_BAR_LAYOUT_LABEL_KEYS[it.id]);
         return (

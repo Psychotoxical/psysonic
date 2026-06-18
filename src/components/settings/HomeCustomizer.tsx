@@ -19,7 +19,7 @@ export function HomeCustomizer() {
   };
 
   return (
-    <div className="settings-card" style={{ padding: '4px 0' }}>
+    <div style={{ padding: '4px 0' }}>
       {sections.map(sec => (
         <div key={sec.id} className="sidebar-customizer-row">
           <span style={{ flex: 1, fontSize: 14 }}>{SECTION_LABELS[sec.id]}</span>

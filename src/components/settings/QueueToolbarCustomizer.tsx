@@ -104,7 +104,7 @@ export function QueueToolbarCustomizer() {
   };
 
   return (
-    <div ref={containerRef} onMouseMove={handleMouseMove} className="settings-card" style={{ padding: '4px 0' }}>
+    <div ref={containerRef} onMouseMove={handleMouseMove} style={{ padding: '4px 0' }}>
       {buttons.map((btn, idx) => {
         const Icon = QUEUE_TOOLBAR_BUTTON_ICONS[btn.id];
         const label = t(QUEUE_TOOLBAR_LABEL_KEYS[btn.id]);

@@ -24,7 +24,7 @@ export function PlaylistLayoutCustomizer() {
   const toggleItem = usePlaylistLayoutStore(s => s.toggleItem);
 
   return (
-    <div className="settings-card" style={{ padding: '4px 0' }}>
+    <div style={{ padding: '4px 0' }}>
       {items.map((it) => {
         const Icon = PLAYLIST_LAYOUT_ICONS[it.id];
         const label = t(PLAYLIST_LAYOUT_LABEL_KEYS[it.id]);

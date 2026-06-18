@@ -94,7 +94,6 @@ export function ArtistLayoutCustomizer() {
         {t('settings.artistLayoutDesc')}
       </p>
       <div
-        className="settings-card"
         style={{ padding: '4px 0' }}
         ref={setContainerEl}
         onMouseMove={handleMouseMove}

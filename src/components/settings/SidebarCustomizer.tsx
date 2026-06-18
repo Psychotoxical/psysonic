@@ -127,7 +127,7 @@ export function SidebarCustomizer() {
 
   return (
     <>
-      <div className="settings-card" style={{ marginBottom: '1rem' }}>
+      <div style={{ marginBottom: '1rem' }}>
         <div className="settings-toggle-row">
           <div>
             <div style={{ fontWeight: 500 }}>{t('settings.randomNavSplitTitle')}</div>
@@ -173,12 +173,12 @@ export function SidebarCustomizer() {
       </div>
       <div ref={containerRef} onMouseMove={handleMouseMove} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {/* Library block */}
-        <div className="settings-card" style={{ padding: '4px 0' }}>
+        <div style={{ padding: '4px 0' }}>
           <div className="sidebar-customizer-block-label">{t('sidebar.library')}</div>
           {libraryItems.map((cfg, i) => renderRow(cfg, i, 'library'))}
         </div>
         {/* System block */}
-        <div className="settings-card" style={{ padding: '4px 0' }}>
+        <div style={{ padding: '4px 0' }}>
           <div className="sidebar-customizer-block-label">{t('sidebar.system')}</div>
           {systemItems.map((cfg, i) => renderRow(cfg, i, 'system'))}
           <div className="sidebar-customizer-fixed-hint">

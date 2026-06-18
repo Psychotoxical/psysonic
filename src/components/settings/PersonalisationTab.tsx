@@ -8,6 +8,7 @@ import { usePlaylistLayoutStore } from '../../store/playlistLayoutStore';
 import { useQueueToolbarStore } from '../../store/queueToolbarStore';
 import { useSidebarStore } from '../../store/sidebarStore';
 import SettingsSubSection from '../SettingsSubSection';
+import { SettingsGroup } from './SettingsGroup';
 import { ArtistLayoutCustomizer } from './ArtistLayoutCustomizer';
 import { HomeCustomizer } from './HomeCustomizer';
 import { PlayerBarLayoutCustomizer } from './PlayerBarLayoutCustomizer';
@@ -37,7 +38,9 @@ export function PersonalisationTab() {
           </button>
         }
       >
-        <SidebarCustomizer />
+        <SettingsGroup title={t('settings.sidebarTitle')}>
+          <SidebarCustomizer />
+        </SettingsGroup>
       </SettingsSubSection>
 
       <SettingsSubSection
@@ -56,7 +59,9 @@ export function PersonalisationTab() {
           </button>
         }
       >
-        <HomeCustomizer />
+        <SettingsGroup title={t('settings.homeCustomizerTitle')}>
+          <HomeCustomizer />
+        </SettingsGroup>
       </SettingsSubSection>
 
       <SettingsSubSection
@@ -76,7 +81,9 @@ export function PersonalisationTab() {
           </button>
         }
       >
-        <ArtistLayoutCustomizer />
+        <SettingsGroup title={t('settings.artistLayoutTitle')}>
+          <ArtistLayoutCustomizer />
+        </SettingsGroup>
       </SettingsSubSection>
 
       <SettingsSubSection
@@ -84,6 +91,7 @@ export function PersonalisationTab() {
         icon={<ListOrdered size={16} />}
       >
         <div className="settings-card">
+          <SettingsGroup title={t('settings.queueModeTitle')}>
           {/* Three mutually exclusive modes — exactly one is always active, so
               turning one on turns the others off; the active one cannot be
               switched off directly (ignore the uncheck). */}
@@ -131,6 +139,7 @@ export function PersonalisationTab() {
               <span className="toggle-track" />
             </label>
           </div>
+          </SettingsGroup>
         </div>
       </SettingsSubSection>
 
@@ -151,7 +160,9 @@ export function PersonalisationTab() {
           </button>
         }
       >
-        <QueueToolbarCustomizer />
+        <SettingsGroup title={t('settings.queueToolbarTitle')}>
+          <QueueToolbarCustomizer />
+        </SettingsGroup>
       </SettingsSubSection>
 
       <SettingsSubSection
@@ -171,7 +182,9 @@ export function PersonalisationTab() {
           </button>
         }
       >
-        <PlaylistLayoutCustomizer />
+        <SettingsGroup title={t('settings.playlistLayoutTitle')}>
+          <PlaylistLayoutCustomizer />
+        </SettingsGroup>
       </SettingsSubSection>
 
       <SettingsSubSection
@@ -191,7 +204,9 @@ export function PersonalisationTab() {
           </button>
         }
       >
-        <PlayerBarLayoutCustomizer />
+        <SettingsGroup title={t('settings.playerBarTitle')}>
+          <PlayerBarLayoutCustomizer />
+        </SettingsGroup>
       </SettingsSubSection>
     </>
   );
