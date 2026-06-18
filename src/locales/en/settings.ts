@@ -215,7 +215,7 @@ export const settings = {
   audioOutputDeviceMacNotice: 'On macOS, playback currently always follows the system output device for technical reasons. Change the target via System Settings → Sound or the speaker icon in the menu bar. Background: CoreAudio triggers a microphone-permission prompt when opening a non-default stream — we avoid it by always using the system default.',
   hiResTitle: 'Native Hi-Res Playback',
   hiResEnabled: 'Enable native hi-res playback',
-  hiResDesc: "Forces 44.1 kHz output by default for maximum stability. Enable only if your hardware and network reliably support high sample rates (88.2 kHz+).",
+  hiResDesc: "Plays each track at its original sample rate instead of resampling everything to 44.1 kHz, switching the audio device to match the file (88.2 kHz and up). Enable only if your hardware and network reliably handle high sample rates.",
   showArtistImages: 'Show Artist Images',
   showArtistImagesDesc: 'Load and display artist images in the Artists overview. Disabled by default to reduce server disk I/O and network load on large libraries.',
   showOrbitTrigger: 'Show "Orbit" in the header',

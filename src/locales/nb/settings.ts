@@ -212,7 +212,7 @@ export const settings = {
   audioOutputDeviceMacNotice: 'På macOS følger avspillingen av tekniske årsaker alltid systemets lydutgang. Endre målet via Systeminnstillinger → Lyd eller høyttalerikonet i menylinjen. Bakgrunn: CoreAudio utløser en mikrofontillatelsesdialog når en ikke-standard strøm åpnes — vi unngår det ved alltid å bruke systemets standardutgang.',
   hiResTitle: 'Innebygd hi-res-avspilling',
   hiResEnabled: 'Aktiver innebygd hi-res-avspilling',
-  hiResDesc: "Begrenser utdata til 44,1 kHz som standard for maksimal stabilitet. Aktiver kun hvis maskinvare og nettverk støtter høye samplingsrater (88,2 kHz+) pålitelig.",
+  hiResDesc: "Spiller hvert spor med sin opprinnelige samplingsrate i stedet for å nedsample alt til 44,1 kHz, og stiller utdataenheten etter filen (88,2 kHz og høyere). Aktiver kun hvis maskinvare og nettverk håndterer høye samplingsrater pålitelig.",
   showArtistImages: 'Vis artistbilder',
   showArtistImagesDesc: 'Last inn og vis artistbilder i artistoversikten. Denne er deaktivert som standard, for å redusere disk-I/O og nettverksbelastningen på store biblioteker.',
   showOrbitTrigger: 'Vis «Orbit» i toppen',

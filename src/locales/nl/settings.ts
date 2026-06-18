@@ -211,7 +211,7 @@ export const settings = {
   audioOutputDeviceMacNotice: 'Op macOS volgt de weergave om technische redenen altijd het standaard-uitvoerapparaat van het systeem. Wijzig het doel via Systeeminstellingen → Geluid of via het luidsprekerpictogram in de menubalk. Achtergrond: CoreAudio vraagt bij het openen van een niet-standaard stream om microfoontoestemming — dat vermijden we door altijd de systeemstandaard te gebruiken.',
   hiResTitle: 'Natieve hi-res-weergave',
   hiResEnabled: 'Natieve hi-res-weergave inschakelen',
-  hiResDesc: "Beperkt de uitvoer standaard tot 44,1 kHz voor maximale stabiliteit. Alleen inschakelen als hardware en netwerk hoge samplerates (88,2 kHz+) ondersteunen.",
+  hiResDesc: "Speelt elke track af op zijn oorspronkelijke samplerate in plaats van alles te herbemonsteren naar 44,1 kHz, en stelt het uitvoerapparaat af op het bestand (88,2 kHz en hoger). Alleen inschakelen als hardware en netwerk hoge samplerates betrouwbaar aankunnen.",
   showArtistImages: 'Artiestafbeeldingen weergeven',
   showArtistImagesDesc: 'Laadt en toont artiestafbeeldingen in het artiestenoverzicht. Standaard uitgeschakeld om server-I/O en netwerkbelasting bij grote bibliotheken te beperken.',
   showOrbitTrigger: '"Orbit" in de kop tonen',

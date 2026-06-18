@@ -211,7 +211,7 @@ export const settings = {
   audioOutputDeviceMacNotice: '在 macOS 上，出于技术原因，目前播放始终跟随系统输出设备。请通过 系统设置 → 声音 或菜单栏扬声器图标切换目标设备。背景：打开非默认音频流时 CoreAudio 会触发麦克风权限提示 —— 我们通过始终使用系统默认输出来避免此提示。',
   hiResTitle: '原生高清晰度播放',
   hiResEnabled: '启用原生高清晰度播放',
-  hiResDesc: "默认强制 44.1 kHz 输出以获得最大稳定性。仅在硬件和网络可靠支持高采样率（88.2 kHz+）时启用。",
+  hiResDesc: "以每个曲目的原始采样率播放，而不是将所有内容重采样到 44.1 kHz，并将输出设备切换为与文件匹配（88.2 kHz 及以上）。仅在硬件和网络能可靠处理高采样率时启用。",
   showArtistImages: '显示艺术家图片',
   showArtistImagesDesc: '在艺术家概览中加载并显示艺术家图片。默认关闭以减少大型音乐库的服务器磁盘I/O和网络负载。',
   showOrbitTrigger: '在顶栏显示"Orbit"',

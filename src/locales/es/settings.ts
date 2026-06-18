@@ -211,7 +211,7 @@ export const settings = {
   audioOutputDeviceMacNotice: 'En macOS, la reproducción actualmente sigue siempre al dispositivo de salida del sistema por razones técnicas. Cambia el destino mediante Ajustes del Sistema → Sonido o el icono del altavoz en la barra de menús. Motivo: CoreAudio activa una solicitud de permiso de micrófono al abrir un stream no-predeterminado — lo evitamos usando siempre la salida por defecto del sistema.',
   hiResTitle: 'Reproducción Nativa Hi-Res',
   hiResEnabled: 'Habilitar reproducción nativa hi-res',
-  hiResDesc: "Fuerza 44.1 kHz de salida por defecto para máxima estabilidad. Habilita solo si tu hardware y red soportan confiablemente altas tasas de muestreo (88.2 kHz+).",
+  hiResDesc: "Reproduce cada pista a su frecuencia de muestreo original en vez de remuestrear todo a 44.1 kHz, ajustando el dispositivo de salida para que coincida con el archivo (88.2 kHz o más). Habilítalo solo si tu hardware y tu red soportan de forma fiable altas tasas de muestreo.",
   showArtistImages: 'Mostrar Imágenes de Artistas',
   showArtistImagesDesc: 'Carga y muestra imágenes de artistas en el resumen de Artistas. Desactivado por defecto para reducir I/O de disco del servidor y carga de red en bibliotecas grandes.',
   showOrbitTrigger: 'Mostrar "Orbit" en la cabecera',

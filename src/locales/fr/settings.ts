@@ -211,7 +211,7 @@ export const settings = {
   audioOutputDeviceMacNotice: 'Sur macOS, la lecture suit actuellement toujours la sortie audio du système pour des raisons techniques. Changez la cible via Réglages Système → Son ou l\'icône haut-parleur de la barre de menus. Contexte : CoreAudio déclenche une demande d\'autorisation du microphone à l\'ouverture d\'un flux non par défaut — nous l\'évitons en utilisant toujours la sortie système par défaut.',
   hiResTitle: 'Lecture haute résolution native',
   hiResEnabled: 'Activer la lecture haute résolution native',
-  hiResDesc: "Force une sortie à 44,1 kHz par défaut pour une stabilité maximale. N'activer que si le matériel et le réseau prennent en charge les hautes fréquences d'échantillonnage (88,2 kHz+).",
+  hiResDesc: "Lit chaque piste à sa fréquence d'échantillonnage d'origine au lieu de tout rééchantillonner à 44,1 kHz, en réglant le périphérique de sortie sur celle du fichier (88,2 kHz et plus). N'activer que si le matériel et le réseau gèrent ces hautes fréquences de façon fiable.",
   showArtistImages: 'Afficher les images d\'artistes',
   showArtistImagesDesc: 'Charge et affiche les images d\'artistes dans la vue d\'ensemble. Désactivé par défaut pour réduire les E/S disque serveur et la charge réseau sur les grandes bibliothèques.',
   showOrbitTrigger: 'Afficher « Orbit » dans l\'en-tête',
