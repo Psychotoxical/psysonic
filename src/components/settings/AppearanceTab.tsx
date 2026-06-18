@@ -12,6 +12,7 @@ import { useFontStore, FontId } from '../../store/fontStore';
 import { useThemeStore } from '../../store/themeStore';
 import { IS_LINUX, IS_WINDOWS } from '../../utils/platform';
 import SettingsSubSection from '../SettingsSubSection';
+import { SettingsGroup } from './SettingsGroup';
 import { SeekbarPreview } from '../WaveformSeekPreview';
 import WindowButtonPreview from '../WindowButtonPreview';
 
@@ -74,93 +75,95 @@ export function AppearanceTab() {
         icon={<Palette size={16} />}
       >
         <div className="settings-card">
-          <div className="settings-toggle-row">
-            <div>
-              <div style={{ fontWeight: 500 }}>{t('settings.coverArtBackground')}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.coverArtBackgroundSub')}</div>
-            </div>
-            <label className="toggle-switch">
-              <input type="checkbox" checked={theme.enableCoverArtBackground} onChange={e => theme.setEnableCoverArtBackground(e.target.checked)} />
-              <span className="toggle-track" />
-            </label>
-          </div>
-          <div className="settings-section-divider" />
-          <div className="settings-toggle-row">
-            <div>
-              <div style={{ fontWeight: 500 }}>{t('settings.playlistCoverPhoto')}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.playlistCoverPhotoSub')}</div>
-            </div>
-            <label className="toggle-switch">
-              <input type="checkbox" checked={theme.enablePlaylistCoverPhoto} onChange={e => theme.setEnablePlaylistCoverPhoto(e.target.checked)} />
-              <span className="toggle-track" />
-            </label>
-          </div>
-          <div className="settings-section-divider" />
-          <div className="settings-toggle-row">
-            <div>
-              <div style={{ fontWeight: 500 }}>{t('settings.showBitrate')}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showBitrateSub')}</div>
-            </div>
-            <label className="toggle-switch">
-              <input type="checkbox" checked={theme.showBitrate} onChange={e => theme.setShowBitrate(e.target.checked)} />
-              <span className="toggle-track" />
-            </label>
-          </div>
-          <div className="settings-section-divider" />
-          <div className="settings-toggle-row">
-            <div>
-              <div style={{ fontWeight: 500 }}>{t('settings.floatingPlayerBar')}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.floatingPlayerBarSub')}</div>
-            </div>
-            <label className="toggle-switch">
-              <input type="checkbox" checked={theme.floatingPlayerBar} onChange={e => theme.setFloatingPlayerBar(e.target.checked)} />
-              <span className="toggle-track" />
-            </label>
-          </div>
-          <div className="settings-section-divider" />
-          <div className="settings-toggle-row">
-            <div>
-              <div style={{ fontWeight: 500 }}>{t('settings.showArtistImages')}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showArtistImagesDesc')}</div>
-            </div>
-            <label className="toggle-switch" aria-label={t('settings.showArtistImages')}>
-              <input type="checkbox" checked={auth.showArtistImages} onChange={e => auth.setShowArtistImages(e.target.checked)} />
-              <span className="toggle-track" />
-            </label>
-          </div>
-          <div className="settings-section-divider" />
-          <div className="settings-toggle-row">
-            <div>
-              <div style={{ fontWeight: 500 }}>{t('settings.showOrbitTrigger')}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showOrbitTriggerDesc')}</div>
-            </div>
-            <label className="toggle-switch" aria-label={t('settings.showOrbitTrigger')}>
-              <input type="checkbox" checked={auth.showOrbitTrigger} onChange={e => auth.setShowOrbitTrigger(e.target.checked)} />
-              <span className="toggle-track" />
-            </label>
-          </div>
-          {!IS_WINDOWS && (
-            <>
-              <div className="settings-section-divider" />
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.preloadMiniPlayer')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.preloadMiniPlayerDesc')}</div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.preloadMiniPlayer')}>
-                  <input
-                    type="checkbox"
-                    checked={auth.preloadMiniPlayer}
-                    onChange={e => auth.setPreloadMiniPlayer(e.target.checked)}
-                  />
-                  <span className="toggle-track" />
-                </label>
+          <SettingsGroup title={t('settings.groupDisplay')}>
+            <div className="settings-toggle-row">
+              <div>
+                <div style={{ fontWeight: 500 }}>{t('settings.coverArtBackground')}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.coverArtBackgroundSub')}</div>
               </div>
-            </>
-          )}
+              <label className="toggle-switch">
+                <input type="checkbox" checked={theme.enableCoverArtBackground} onChange={e => theme.setEnableCoverArtBackground(e.target.checked)} />
+                <span className="toggle-track" />
+              </label>
+            </div>
+            <div className="settings-section-divider" />
+            <div className="settings-toggle-row">
+              <div>
+                <div style={{ fontWeight: 500 }}>{t('settings.playlistCoverPhoto')}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.playlistCoverPhotoSub')}</div>
+              </div>
+              <label className="toggle-switch">
+                <input type="checkbox" checked={theme.enablePlaylistCoverPhoto} onChange={e => theme.setEnablePlaylistCoverPhoto(e.target.checked)} />
+                <span className="toggle-track" />
+              </label>
+            </div>
+            <div className="settings-section-divider" />
+            <div className="settings-toggle-row">
+              <div>
+                <div style={{ fontWeight: 500 }}>{t('settings.showBitrate')}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showBitrateSub')}</div>
+              </div>
+              <label className="toggle-switch">
+                <input type="checkbox" checked={theme.showBitrate} onChange={e => theme.setShowBitrate(e.target.checked)} />
+                <span className="toggle-track" />
+              </label>
+            </div>
+            <div className="settings-section-divider" />
+            <div className="settings-toggle-row">
+              <div>
+                <div style={{ fontWeight: 500 }}>{t('settings.floatingPlayerBar')}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.floatingPlayerBarSub')}</div>
+              </div>
+              <label className="toggle-switch">
+                <input type="checkbox" checked={theme.floatingPlayerBar} onChange={e => theme.setFloatingPlayerBar(e.target.checked)} />
+                <span className="toggle-track" />
+              </label>
+            </div>
+            <div className="settings-section-divider" />
+            <div className="settings-toggle-row">
+              <div>
+                <div style={{ fontWeight: 500 }}>{t('settings.showArtistImages')}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showArtistImagesDesc')}</div>
+              </div>
+              <label className="toggle-switch" aria-label={t('settings.showArtistImages')}>
+                <input type="checkbox" checked={auth.showArtistImages} onChange={e => auth.setShowArtistImages(e.target.checked)} />
+                <span className="toggle-track" />
+              </label>
+            </div>
+            <div className="settings-section-divider" />
+            <div className="settings-toggle-row">
+              <div>
+                <div style={{ fontWeight: 500 }}>{t('settings.showOrbitTrigger')}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showOrbitTriggerDesc')}</div>
+              </div>
+              <label className="toggle-switch" aria-label={t('settings.showOrbitTrigger')}>
+                <input type="checkbox" checked={auth.showOrbitTrigger} onChange={e => auth.setShowOrbitTrigger(e.target.checked)} />
+                <span className="toggle-track" />
+              </label>
+            </div>
+            {!IS_WINDOWS && (
+              <>
+                <div className="settings-section-divider" />
+                <div className="settings-toggle-row">
+                  <div>
+                    <div style={{ fontWeight: 500 }}>{t('settings.preloadMiniPlayer')}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.preloadMiniPlayerDesc')}</div>
+                  </div>
+                  <label className="toggle-switch" aria-label={t('settings.preloadMiniPlayer')}>
+                    <input
+                      type="checkbox"
+                      checked={auth.preloadMiniPlayer}
+                      onChange={e => auth.setPreloadMiniPlayer(e.target.checked)}
+                    />
+                    <span className="toggle-track" />
+                  </label>
+                </div>
+              </>
+            )}
+          </SettingsGroup>
+
           {IS_LINUX && !isTilingWm && (
-            <>
-              <div className="settings-section-divider" />
+            <SettingsGroup title={t('settings.groupWindow')}>
               <div className="settings-toggle-row">
                 <div>
                   <div style={{ fontWeight: 500 }}>{t('settings.useCustomTitlebar')}</div>
@@ -204,7 +207,7 @@ export function AppearanceTab() {
                   </div>
                 </>
               )}
-            </>
+            </SettingsGroup>
           )}
         </div>
       </SettingsSubSection>

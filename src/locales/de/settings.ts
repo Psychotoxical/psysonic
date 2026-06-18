@@ -141,6 +141,8 @@ export const settings = {
   groupTray: 'Tray',
   groupLinuxRendering: 'Linux-Rendering',
   groupClock: 'Uhr',
+  groupDisplay: 'Anzeige',
+  groupWindow: 'Fenster',
   cacheTitle: 'Max. Speichergröße',
   cacheDesc: 'Browser-Cache für Cover und Künstlerbilder (IndexedDB). Wenn voll, werden die ältesten Einträge automatisch entfernt.',
   cacheUsedImages: 'Bilder:',

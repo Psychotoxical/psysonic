@@ -140,6 +140,8 @@ export const settings = {
   groupTray: 'Systemkurv',
   groupLinuxRendering: 'Linux-gjengivelse',
   groupClock: 'Klokke',
+  groupDisplay: 'Visning',
+  groupWindow: 'Vindu',
   cacheTitle: 'Maks. lagringsstørrelse',
   cacheDesc: 'Nettlesercache for plateomslag og artistbilder (IndexedDB). Når den er full, fjernes de eldste oppføringene automatisk.',
   cacheUsed: 'Brukt: {{images}} bilder · {{offline}} frakoblede spor',

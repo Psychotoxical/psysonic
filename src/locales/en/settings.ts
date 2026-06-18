@@ -141,6 +141,8 @@ export const settings = {
   groupTray: 'Tray',
   groupLinuxRendering: 'Linux rendering',
   groupClock: 'Clock',
+  groupDisplay: 'Display',
+  groupWindow: 'Window',
   cacheTitle: 'Max. Storage Size',
   cacheDesc: 'In-browser cache for cover art and artist images (IndexedDB). Oldest entries are removed automatically when space runs low.',
   cacheUsedImages: 'Images:',

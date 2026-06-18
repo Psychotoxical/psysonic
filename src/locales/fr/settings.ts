@@ -140,6 +140,8 @@ export const settings = {
   groupTray: 'Zone de notification',
   groupLinuxRendering: 'Rendu Linux',
   groupClock: 'Horloge',
+  groupDisplay: 'Affichage',
+  groupWindow: 'Fenêtre',
   cacheTitle: 'Taille max. du stockage',
   cacheDesc: 'Cache navigateur pour pochettes et images d\'artistes (IndexedDB). Quand il est plein, les entrées les plus anciennes sont supprimées automatiquement.',
   cacheUsedImages: 'Images :',

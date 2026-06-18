@@ -140,6 +140,8 @@ export const settings = {
   groupTray: 'Systeemvak',
   groupLinuxRendering: 'Linux-rendering',
   groupClock: 'Klok',
+  groupDisplay: 'Weergave',
+  groupWindow: 'Venster',
   cacheTitle: 'Max. opslaggrootte',
   cacheDesc: 'Browsercache voor albumhoezen en artiestafbeeldingen (IndexedDB). Als de cache vol is, worden de oudste items automatisch verwijderd.',
   cacheUsedImages: 'Afbeeldingen:',

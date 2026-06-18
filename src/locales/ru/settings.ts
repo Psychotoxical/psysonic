@@ -140,6 +140,8 @@ export const settings = {
   groupTray: 'Трей',
   groupLinuxRendering: 'Отрисовка (Linux)',
   groupClock: 'Часы',
+  groupDisplay: 'Отображение',
+  groupWindow: 'Окно',
   cacheTitle: 'Макс. размер кэша',
   cacheDesc:
     'Кэш обложек и фото исполнителей в хранилище приложения (IndexedDB). При нехватке места старые записи удаляются автоматически.',

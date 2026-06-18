@@ -140,6 +140,8 @@ export const settings = {
   groupTray: '系统托盘',
   groupLinuxRendering: 'Linux 渲染',
   groupClock: '时钟',
+  groupDisplay: '显示',
+  groupWindow: '窗口',
   cacheTitle: '最大存储大小',
   cacheDesc: '浏览器内封面和艺术家图片缓存（IndexedDB）。存满时，最旧的条目将自动移除。',
   cacheUsedImages: '图片：',

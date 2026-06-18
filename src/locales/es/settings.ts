@@ -140,6 +140,8 @@ export const settings = {
   groupTray: 'Bandeja',
   groupLinuxRendering: 'Renderizado Linux',
   groupClock: 'Reloj',
+  groupDisplay: 'Visualización',
+  groupWindow: 'Ventana',
   cacheTitle: 'Tamaño Máx. de Almacenamiento',
   cacheDesc: 'Caché del navegador para portadas e imágenes de artistas (IndexedDB). Cuando está lleno, las entradas más antiguas se eliminan automáticamente.',
   cacheUsedImages: 'Imágenes:',

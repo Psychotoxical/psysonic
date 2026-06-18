@@ -140,6 +140,8 @@ export const settings = {
   groupTray: 'Bară de sistem',
   groupLinuxRendering: 'Randare Linux',
   groupClock: 'Ceas',
+  groupDisplay: 'Afișare',
+  groupWindow: 'Fereastră',
   cacheTitle: 'Spațiu de stocare maxim',
   cacheDesc: 'Cache în browser pentru coperte și imagini de artiști (IndexedDB). Când este plin, cele mai vechi intrări sunt șterse automat.',
   cacheUsedImages: 'Imagini:',
