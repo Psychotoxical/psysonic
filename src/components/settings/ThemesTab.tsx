@@ -18,13 +18,22 @@ import { SettingsGroup } from './SettingsGroup';
  * search` keeps each section reachable from the global settings search.
  */
 function ThemesSection({ icon, title, children, boxed }: { icon: ReactNode; title: string; children: ReactNode; boxed?: boolean }) {
+  if (boxed) {
+    return (
+      <section className="themes-section" data-settings-search={title} style={{ marginBottom: '1.75rem' }}>
+        <div className="settings-card">
+          <SettingsGroup title={title}>{children}</SettingsGroup>
+        </div>
+      </section>
+    );
+  }
   return (
     <section className="themes-section" data-settings-search={title} style={{ marginBottom: '1.75rem' }}>
       <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 600, margin: '0 0 0.75rem' }}>
         <span style={{ display: 'inline-flex', color: 'var(--accent)' }}>{icon}</span>
         {title}
       </h2>
-      {boxed ? <SettingsGroup>{children}</SettingsGroup> : children}
+      {children}
     </section>
   );
 }
