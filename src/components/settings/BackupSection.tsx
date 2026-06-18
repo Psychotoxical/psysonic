@@ -150,7 +150,7 @@ export function BackupSection() {
 
   return (
     <div className="settings-card">
-      <SettingsGroup title={t('settings.backupTitle')}>
+      <SettingsGroup>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.85rem' }}>
           {(['full', 'library', 'config'] as BackupMode[]).map(candidate => (
             <button

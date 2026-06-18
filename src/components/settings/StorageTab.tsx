@@ -75,7 +75,7 @@ export function StorageTab() {
         icon={<FolderOpen size={16} />}
       >
         <div className="settings-card">
-          <SettingsGroup title={t('settings.mediaDirTitle')} desc={t('settings.mediaDirDesc')}>
+          <SettingsGroup desc={t('settings.mediaDirDesc')}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <input
                 className="input"
@@ -114,7 +114,7 @@ export function StorageTab() {
         icon={<Download size={16} />}
       >
         <div className="settings-card">
-          <SettingsGroup title={t('settings.nextTrackBufferingTitle')}>
+          <SettingsGroup>
             <div className="settings-toggle-row">
               <div>
                 <div style={{ fontWeight: 500 }}>{t('settings.hotCacheTitle')}</div>
@@ -196,7 +196,7 @@ export function StorageTab() {
         icon={<FolderOpen size={16} />}
       >
         <div className="settings-card">
-          <SettingsGroup title={t('settings.downloadsTitle')} desc={t('settings.downloadsFolderDesc')}>
+          <SettingsGroup desc={t('settings.downloadsFolderDesc')}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <input
                 className="input"

@@ -38,7 +38,7 @@ export function PersonalisationTab() {
           </button>
         }
       >
-        <SettingsGroup title={t('settings.sidebarTitle')}>
+        <SettingsGroup>
           <SidebarCustomizer />
         </SettingsGroup>
       </SettingsSubSection>
@@ -59,7 +59,7 @@ export function PersonalisationTab() {
           </button>
         }
       >
-        <SettingsGroup title={t('settings.homeCustomizerTitle')}>
+        <SettingsGroup>
           <HomeCustomizer />
         </SettingsGroup>
       </SettingsSubSection>
@@ -81,7 +81,7 @@ export function PersonalisationTab() {
           </button>
         }
       >
-        <SettingsGroup title={t('settings.artistLayoutTitle')}>
+        <SettingsGroup>
           <ArtistLayoutCustomizer />
         </SettingsGroup>
       </SettingsSubSection>
@@ -91,7 +91,7 @@ export function PersonalisationTab() {
         icon={<ListOrdered size={16} />}
       >
         <div className="settings-card">
-          <SettingsGroup title={t('settings.queueModeTitle')}>
+          <SettingsGroup>
           {/* Three mutually exclusive modes — exactly one is always active, so
               turning one on turns the others off; the active one cannot be
               switched off directly (ignore the uncheck). */}
@@ -160,7 +160,7 @@ export function PersonalisationTab() {
           </button>
         }
       >
-        <SettingsGroup title={t('settings.queueToolbarTitle')}>
+        <SettingsGroup>
           <QueueToolbarCustomizer />
         </SettingsGroup>
       </SettingsSubSection>
@@ -182,7 +182,7 @@ export function PersonalisationTab() {
           </button>
         }
       >
-        <SettingsGroup title={t('settings.playlistLayoutTitle')}>
+        <SettingsGroup>
           <PlaylistLayoutCustomizer />
         </SettingsGroup>
       </SettingsSubSection>
@@ -204,7 +204,7 @@ export function PersonalisationTab() {
           </button>
         }
       >
-        <SettingsGroup title={t('settings.playerBarTitle')}>
+        <SettingsGroup>
           <PlayerBarLayoutCustomizer />
         </SettingsGroup>
       </SettingsSubSection>

@@ -233,7 +233,7 @@ export default function CoverCacheStrategySection() {
   return (
     <SettingsSubSection title={t('settings.coverCacheStrategyTitle')} icon={<Image size={16} />}>
       <div className="settings-card">
-        <SettingsGroup title={t('settings.coverCacheStrategyTitle')}>
+        <SettingsGroup>
         <div style={{ overflowX: 'auto' }}>
           <table style={TABLE_STYLE}>
             <CoverCacheColGroup />

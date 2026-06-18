@@ -33,7 +33,7 @@ export function InputTab() {
         }
       >
         <div className="settings-card">
-          <SettingsGroup title={t('settings.inputKeybindingsTitle')}>
+          <SettingsGroup>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {IN_APP_SHORTCUT_ACTIONS.map(({ id: action, getLabel }) => {
               const label = getLabel(t);
@@ -119,7 +119,7 @@ export function InputTab() {
         }
       >
         <div className="settings-card">
-          <SettingsGroup title={t('settings.globalShortcutsTitle')}>
+          <SettingsGroup>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {GLOBAL_SHORTCUT_ACTIONS.map(({ id: action, getLabel }) => {
               const label = getLabel(t);

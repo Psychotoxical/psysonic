@@ -25,7 +25,7 @@ export function LibraryTab() {
         icon={<Shuffle size={16} />}
       >
         <div className="settings-card">
-          <SettingsGroup title={t('settings.randomMixTitle')}>
+          <SettingsGroup>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>
             {t('settings.randomMixBlacklistDesc')}
           </p>
@@ -108,7 +108,7 @@ export function LibraryTab() {
         icon={<Star size={16} />}
       >
         <div className="settings-card">
-          <SettingsGroup title={t('settings.ratingsSectionTitle')}>
+          <SettingsGroup>
           <div className="settings-toggle-row">
             <div>
               <div style={{ fontWeight: 500 }}>{t('settings.ratingsSkipStarTitle')}</div>

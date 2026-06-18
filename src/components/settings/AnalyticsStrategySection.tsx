@@ -254,7 +254,7 @@ export default function AnalyticsStrategySection() {
       icon={<BarChart3 size={16} />}
     >
       <div className="settings-card">
-        <SettingsGroup title={t('settings.analyticsStrategyTitle')}>
+        <SettingsGroup>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
             <thead>

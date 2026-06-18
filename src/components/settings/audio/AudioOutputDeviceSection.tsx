@@ -44,7 +44,7 @@ export function AudioOutputDeviceSection({
       icon={<AudioLines size={16} />}
     >
       <div className="settings-card">
-        <SettingsGroup title={t('settings.audioOutputDevice')}>
+        <SettingsGroup>
         {IS_MACOS ? (
           <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.55 }}>
             {t('settings.audioOutputDeviceMacNotice')}

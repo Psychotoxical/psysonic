@@ -544,6 +544,17 @@ span.settings-server-use-active-slot {
   padding: var(--space-3);
 }
 
+/* A card whose only content is one boxed group double-frames it (card border +
+   group border). Collapse the card so single-group sections render just the
+   group — matching the card-less subsections (e.g. Lyrics). Multi-group cards
+   keep their frame as the grouping container. */
+.settings-card:has(> .settings-group:only-child) {
+  background: none;
+  border: none;
+  padding: 0;
+  border-radius: 0;
+}
+
 /* Boxed sub-section panel inside a settings card — sets related controls
    apart as a distinct block (e.g. Normalization / Track transitions /
    Queue behaviour in the Playback card). */

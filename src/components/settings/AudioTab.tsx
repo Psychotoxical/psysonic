@@ -75,7 +75,7 @@ export function AudioTab() {
         icon={<Sliders size={16} />}
       >
         <div className="settings-card">
-          <SettingsGroup title={t('settings.eqTitle')}>
+          <SettingsGroup>
             <Equalizer />
           </SettingsGroup>
         </div>
@@ -87,7 +87,7 @@ export function AudioTab() {
         icon={<Gauge size={16} />}
       >
         <div className="settings-card">
-          <SettingsGroup title={t('settings.playbackRateTitle')}>
+          <SettingsGroup>
             <PlaybackRateBlock t={t} />
           </SettingsGroup>
         </div>

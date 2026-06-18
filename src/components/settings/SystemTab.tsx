@@ -56,7 +56,7 @@ export function SystemTab() {
         icon={<Globe size={16} />}
       >
         <div className="settings-card">
-          <SettingsGroup title={t('settings.language')}>
+          <SettingsGroup>
           <div className="form-group" style={{ maxWidth: '300px' }}>
             <CustomSelect
               value={i18n.language}
@@ -197,7 +197,7 @@ export function SystemTab() {
         icon={<Sliders size={16} />}
       >
         <div className="settings-card">
-          <SettingsGroup title={t('settings.loggingTitle')}>
+          <SettingsGroup>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
             {t('settings.loggingModeDesc')}
           </div>

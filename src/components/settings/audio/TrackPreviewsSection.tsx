@@ -27,7 +27,7 @@ export function TrackPreviewsSection({ t }: Props) {
       icon={<Play size={16} />}
     >
       <div className="settings-card">
-        <SettingsGroup title={t('settings.trackPreviewsTitle')}>
+        <SettingsGroup>
         <div className="settings-toggle-row">
           <div>
             <div style={{ fontWeight: 500 }}>
