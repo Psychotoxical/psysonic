@@ -35,6 +35,7 @@ export function AppearanceTab() {
         icon={<LayoutGrid size={16} />}
       >
         <div className="settings-card">
+          <SettingsGroup title={t('settings.libraryGridMaxColumnsTitle')}>
           <div className="settings-hint settings-hint-info" style={{ marginBottom: '0.75rem' }}>
             {t('settings.libraryGridMaxColumnsPerfHint')}
           </div>
@@ -67,6 +68,7 @@ export function AppearanceTab() {
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '0.75rem', lineHeight: 1.45 }}>
             {t('settings.libraryGridMaxColumnsDesc')}
           </p>
+          </SettingsGroup>
         </div>
       </SettingsSubSection>
 
@@ -217,6 +219,7 @@ export function AppearanceTab() {
         icon={<ZoomIn size={16} />}
       >
         <div className="settings-card">
+          <SettingsGroup title={t('settings.uiScaleTitle')}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('settings.uiScaleLabel')}</span>
@@ -268,6 +271,7 @@ export function AppearanceTab() {
               );
             })()}
           </div>
+          </SettingsGroup>
         </div>
       </SettingsSubSection>
 
@@ -276,6 +280,7 @@ export function AppearanceTab() {
         icon={<Type size={16} />}
       >
         <div className="settings-card">
+          <SettingsGroup title={t('settings.font')}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {(
               [
@@ -317,6 +322,7 @@ export function AppearanceTab() {
               </button>
             ))}
           </div>
+          </SettingsGroup>
         </div>
       </SettingsSubSection>
 
@@ -325,6 +331,7 @@ export function AppearanceTab() {
         icon={<Sliders size={16} />}
       >
         <div className="settings-card">
+          <SettingsGroup title={t('settings.seekbarStyle')}>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
             {t('settings.seekbarStyleDesc')}
           </div>
@@ -339,6 +346,7 @@ export function AppearanceTab() {
               />
             ))}
           </div>
+          </SettingsGroup>
         </div>
       </SettingsSubSection>
     </>
