@@ -571,12 +571,20 @@ span.settings-server-use-active-slot {
 }
 
 .settings-group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--accent);
   margin-bottom: 6px;
+}
+
+.settings-group-title-icon {
+  display: inline-flex;
+  color: var(--accent);
 }
 
 .settings-group-desc {

@@ -4,6 +4,9 @@ interface Props {
   /** Accent uppercase header. Omit for a plain boxed panel (no header) —
    *  used when the surrounding SettingsSubSection already names the group. */
   title?: string;
+  /** Optional accent-coloured icon shown before the title (e.g. on the flat
+   *  Themes sections). Ignored when `title` is omitted. */
+  icon?: React.ReactNode;
   /** Optional one-line description shown under the title. */
   desc?: string;
   children: React.ReactNode;
@@ -15,10 +18,15 @@ interface Props {
  * settings card. Wraps the `.settings-group` styles so the look stays
  * consistent everywhere it is used (Audio, Appearance, Library, …).
  */
-export function SettingsGroup({ title, desc, children }: Props) {
+export function SettingsGroup({ title, icon, desc, children }: Props) {
   return (
     <div className="settings-group">
-      {title && <div className="settings-group-title">{title}</div>}
+      {title && (
+        <div className="settings-group-title">
+          {icon && <span className="settings-group-title-icon">{icon}</span>}
+          {title}
+        </div>
+      )}
       <div className="settings-group-body">
         {desc && <div className="settings-group-desc">{desc}</div>}
         {children}

@@ -22,7 +22,7 @@ function ThemesSection({ icon, title, children, boxed }: { icon: ReactNode; titl
     return (
       <section className="themes-section" data-settings-search={title} style={{ marginBottom: '1.75rem' }}>
         <div className="settings-card">
-          <SettingsGroup title={title}>{children}</SettingsGroup>
+          <SettingsGroup title={title} icon={icon}>{children}</SettingsGroup>
         </div>
       </section>
     );
