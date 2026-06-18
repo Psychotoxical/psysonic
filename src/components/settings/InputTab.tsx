@@ -5,6 +5,7 @@ import { IN_APP_SHORTCUT_ACTIONS, GLOBAL_SHORTCUT_ACTIONS } from '../../config/s
 import { useGlobalShortcutsStore, type GlobalAction, buildGlobalShortcut, formatGlobalShortcut } from '../../store/globalShortcutsStore';
 import { useKeybindingsStore, type KeyAction, buildInAppBinding, formatBinding } from '../../store/keybindingsStore';
 import SettingsSubSection from '../SettingsSubSection';
+import { SettingsGroup } from './SettingsGroup';
 
 export function InputTab() {
   const { t } = useTranslation();
@@ -32,6 +33,7 @@ export function InputTab() {
         }
       >
         <div className="settings-card">
+          <SettingsGroup title={t('settings.inputKeybindingsTitle')}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {IN_APP_SHORTCUT_ACTIONS.map(({ id: action, getLabel }) => {
               const label = getLabel(t);
@@ -95,6 +97,7 @@ export function InputTab() {
               );
             })}
           </div>
+          </SettingsGroup>
         </div>
       </SettingsSubSection>
 
@@ -116,6 +119,7 @@ export function InputTab() {
         }
       >
         <div className="settings-card">
+          <SettingsGroup title={t('settings.globalShortcutsTitle')}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {GLOBAL_SHORTCUT_ACTIONS.map(({ id: action, getLabel }) => {
               const label = getLabel(t);
@@ -177,6 +181,7 @@ export function InputTab() {
               );
             })}
           </div>
+          </SettingsGroup>
         </div>
       </SettingsSubSection>
     </>
