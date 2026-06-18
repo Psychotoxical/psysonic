@@ -4,6 +4,7 @@ import { AudioLines, RotateCcw } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import CustomSelect from '../../CustomSelect';
 import SettingsSubSection from '../../SettingsSubSection';
+import { SettingsGroup } from '../SettingsGroup';
 import { useAuthStore } from '../../../store/authStore';
 import { IS_MACOS } from '../../../utils/platform';
 import { buildAudioDeviceSelectOptions } from '../../../utils/audio/audioDeviceLabels';
@@ -43,6 +44,7 @@ export function AudioOutputDeviceSection({
       icon={<AudioLines size={16} />}
     >
       <div className="settings-card">
+        <SettingsGroup title={t('settings.audioOutputDevice')}>
         {IS_MACOS ? (
           <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.55 }}>
             {t('settings.audioOutputDeviceMacNotice')}
@@ -86,6 +88,7 @@ export function AudioOutputDeviceSection({
             </div>
           </>
         )}
+        </SettingsGroup>
       </div>
     </SettingsSubSection>
   );

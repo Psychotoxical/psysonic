@@ -5,6 +5,7 @@ import { useAuthStore } from '../../../store/authStore';
 import { TRACK_PREVIEW_LOCATIONS } from '../../../store/authStoreDefaults';
 import type { TrackPreviewLocation } from '../../../store/authStoreTypes';
 import SettingsSubSection from '../../SettingsSubSection';
+import { SettingsGroup } from '../SettingsGroup';
 
 interface Props {
   t: TFunction;
@@ -26,6 +27,7 @@ export function TrackPreviewsSection({ t }: Props) {
       icon={<Play size={16} />}
     >
       <div className="settings-card">
+        <SettingsGroup title={t('settings.trackPreviewsTitle')}>
         <div className="settings-toggle-row">
           <div>
             <div style={{ fontWeight: 500 }}>
@@ -123,6 +125,7 @@ export function TrackPreviewsSection({ t }: Props) {
             </div>
           </>
         )}
+        </SettingsGroup>
       </div>
     </SettingsSubSection>
   );
