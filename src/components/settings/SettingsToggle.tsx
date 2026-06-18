@@ -1,15 +1,19 @@
+import type { ReactNode } from 'react';
+
 interface Props {
   label: string;
-  /** Muted one-line description under the label. */
-  desc?: string;
+  /** Muted description under the label (string, or JSX for inline links). */
+  desc?: ReactNode;
   /** Bold secondary note under the description (e.g. a requirement hint). */
-  note?: string;
+  note?: ReactNode;
   checked: boolean;
   onChange: (checked: boolean) => void;
   /** Dims the row and blocks interaction (e.g. mutually-exclusive options). */
   disabled?: boolean;
   /** Overrides the toggle's accessible name when it should differ from the label. */
   ariaLabel?: string;
+  /** Indexes the row for the settings search (data-settings-search). */
+  searchText?: string;
 }
 
 /**
@@ -17,9 +21,9 @@ interface Props {
  * on the right. Centralises the markup repeated across every settings tab so
  * sections only describe what they toggle, not how a toggle row looks.
  */
-export function SettingsToggle({ label, desc, note, checked, onChange, disabled, ariaLabel }: Props) {
+export function SettingsToggle({ label, desc, note, checked, onChange, disabled, ariaLabel, searchText }: Props) {
   return (
-    <div className="settings-toggle-row" style={disabled ? { opacity: 0.45, pointerEvents: 'none' } : undefined}>
+    <div className="settings-toggle-row" data-settings-search={searchText} style={disabled ? { opacity: 0.45, pointerEvents: 'none' } : undefined}>
       <div>
         <div style={{ fontWeight: 500 }}>{label}</div>
         {desc && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{desc}</div>}

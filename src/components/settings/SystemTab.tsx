@@ -16,6 +16,7 @@ import CustomSelect from '../CustomSelect';
 import LicensesPanel from '../LicensesPanel';
 import SettingsSubSection from '../SettingsSubSection';
 import { SettingsGroup } from './SettingsGroup';
+import { SettingsToggle } from './SettingsToggle';
 import { BackupSection } from './BackupSection';
 import { CONTRIBUTORS, MAINTAINERS } from '../../config/settingsCredits';
 
@@ -85,60 +86,36 @@ export function SystemTab() {
       >
         <div className="settings-card">
           <SettingsGroup title={t('settings.groupTray')}>
-            <div className="settings-toggle-row">
-              <div>
-                <div style={{ fontWeight: 500 }}>{t('settings.showTrayIcon')}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showTrayIconDesc')}</div>
-              </div>
-              <label className="toggle-switch" aria-label={t('settings.showTrayIcon')}>
-                <input type="checkbox" checked={auth.showTrayIcon} onChange={e => auth.setShowTrayIcon(e.target.checked)} />
-                <span className="toggle-track" />
-              </label>
-            </div>
+            <SettingsToggle
+              label={t('settings.showTrayIcon')}
+              desc={t('settings.showTrayIconDesc')}
+              checked={auth.showTrayIcon}
+              onChange={auth.setShowTrayIcon}
+            />
             <div className="settings-section-divider" />
-            <div className="settings-toggle-row">
-              <div>
-                <div style={{ fontWeight: 500 }}>{t('settings.minimizeToTray')}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.minimizeToTrayDesc')}</div>
-              </div>
-              <label className="toggle-switch" aria-label={t('settings.minimizeToTray')}>
-                <input type="checkbox" checked={auth.minimizeToTray} onChange={e => auth.setMinimizeToTray(e.target.checked)} />
-                <span className="toggle-track" />
-              </label>
-            </div>
+            <SettingsToggle
+              label={t('settings.minimizeToTray')}
+              desc={t('settings.minimizeToTrayDesc')}
+              checked={auth.minimizeToTray}
+              onChange={auth.setMinimizeToTray}
+            />
           </SettingsGroup>
 
           {IS_LINUX && (
             <SettingsGroup title={t('settings.groupLinuxRendering')}>
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.linuxWebkitSmoothScroll')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.linuxWebkitSmoothScrollDesc')}</div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.linuxWebkitSmoothScroll')}>
-                  <input
-                    type="checkbox"
-                    checked={auth.linuxWebkitKineticScroll}
-                    onChange={e => auth.setLinuxWebkitKineticScroll(e.target.checked)}
-                  />
-                  <span className="toggle-track" />
-                </label>
-              </div>
+              <SettingsToggle
+                label={t('settings.linuxWebkitSmoothScroll')}
+                desc={t('settings.linuxWebkitSmoothScrollDesc')}
+                checked={auth.linuxWebkitKineticScroll}
+                onChange={auth.setLinuxWebkitKineticScroll}
+              />
               <div className="settings-section-divider" />
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.linuxWebkitInputForceRepaint')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.linuxWebkitInputForceRepaintDesc')}</div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.linuxWebkitInputForceRepaint')}>
-                  <input
-                    type="checkbox"
-                    checked={auth.linuxWebkitInputForceRepaint}
-                    onChange={e => auth.setLinuxWebkitInputForceRepaint(e.target.checked)}
-                  />
-                  <span className="toggle-track" />
-                </label>
-              </div>
+              <SettingsToggle
+                label={t('settings.linuxWebkitInputForceRepaint')}
+                desc={t('settings.linuxWebkitInputForceRepaintDesc')}
+                checked={auth.linuxWebkitInputForceRepaint}
+                onChange={auth.setLinuxWebkitInputForceRepaint}
+              />
               {waylandTextRenderAvailable && (
                 <>
                   <div className="settings-section-divider" />
@@ -280,20 +257,12 @@ export function SystemTab() {
           </div>
 
           <div className="settings-section-divider" style={{ marginTop: '1.25rem' }} />
-          <div className="settings-toggle-row">
-            <div>
-              <div style={{ fontWeight: 500 }}>{t('settings.showChangelogOnUpdate')}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showChangelogOnUpdateDesc')}</div>
-            </div>
-            <label className="toggle-switch" aria-label={t('settings.showChangelogOnUpdate')}>
-              <input
-                type="checkbox"
-                checked={auth.showChangelogOnUpdate}
-                onChange={e => auth.setShowChangelogOnUpdate(e.target.checked)}
-              />
-              <span className="toggle-track" />
-            </label>
-          </div>
+          <SettingsToggle
+            label={t('settings.showChangelogOnUpdate')}
+            desc={t('settings.showChangelogOnUpdateDesc')}
+            checked={auth.showChangelogOnUpdate}
+            onChange={auth.setShowChangelogOnUpdate}
+          />
 
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.25rem', flexWrap: 'wrap' }}>
             <button

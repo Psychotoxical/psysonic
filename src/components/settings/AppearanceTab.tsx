@@ -13,6 +13,7 @@ import { useThemeStore } from '../../store/themeStore';
 import { IS_LINUX, IS_WINDOWS } from '../../utils/platform';
 import SettingsSubSection from '../SettingsSubSection';
 import { SettingsGroup } from './SettingsGroup';
+import { SettingsToggle } from './SettingsToggle';
 import { SeekbarPreview } from '../WaveformSeekPreview';
 import WindowButtonPreview from '../WindowButtonPreview';
 
@@ -78,104 +79,68 @@ export function AppearanceTab() {
       >
         <div className="settings-card">
           <SettingsGroup title={t('settings.groupDisplay')}>
-            <div className="settings-toggle-row">
-              <div>
-                <div style={{ fontWeight: 500 }}>{t('settings.coverArtBackground')}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.coverArtBackgroundSub')}</div>
-              </div>
-              <label className="toggle-switch">
-                <input type="checkbox" checked={theme.enableCoverArtBackground} onChange={e => theme.setEnableCoverArtBackground(e.target.checked)} />
-                <span className="toggle-track" />
-              </label>
-            </div>
+            <SettingsToggle
+              label={t('settings.coverArtBackground')}
+              desc={t('settings.coverArtBackgroundSub')}
+              checked={theme.enableCoverArtBackground}
+              onChange={theme.setEnableCoverArtBackground}
+            />
             <div className="settings-section-divider" />
-            <div className="settings-toggle-row">
-              <div>
-                <div style={{ fontWeight: 500 }}>{t('settings.playlistCoverPhoto')}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.playlistCoverPhotoSub')}</div>
-              </div>
-              <label className="toggle-switch">
-                <input type="checkbox" checked={theme.enablePlaylistCoverPhoto} onChange={e => theme.setEnablePlaylistCoverPhoto(e.target.checked)} />
-                <span className="toggle-track" />
-              </label>
-            </div>
+            <SettingsToggle
+              label={t('settings.playlistCoverPhoto')}
+              desc={t('settings.playlistCoverPhotoSub')}
+              checked={theme.enablePlaylistCoverPhoto}
+              onChange={theme.setEnablePlaylistCoverPhoto}
+            />
             <div className="settings-section-divider" />
-            <div className="settings-toggle-row">
-              <div>
-                <div style={{ fontWeight: 500 }}>{t('settings.showBitrate')}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showBitrateSub')}</div>
-              </div>
-              <label className="toggle-switch">
-                <input type="checkbox" checked={theme.showBitrate} onChange={e => theme.setShowBitrate(e.target.checked)} />
-                <span className="toggle-track" />
-              </label>
-            </div>
+            <SettingsToggle
+              label={t('settings.showBitrate')}
+              desc={t('settings.showBitrateSub')}
+              checked={theme.showBitrate}
+              onChange={theme.setShowBitrate}
+            />
             <div className="settings-section-divider" />
-            <div className="settings-toggle-row">
-              <div>
-                <div style={{ fontWeight: 500 }}>{t('settings.floatingPlayerBar')}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.floatingPlayerBarSub')}</div>
-              </div>
-              <label className="toggle-switch">
-                <input type="checkbox" checked={theme.floatingPlayerBar} onChange={e => theme.setFloatingPlayerBar(e.target.checked)} />
-                <span className="toggle-track" />
-              </label>
-            </div>
+            <SettingsToggle
+              label={t('settings.floatingPlayerBar')}
+              desc={t('settings.floatingPlayerBarSub')}
+              checked={theme.floatingPlayerBar}
+              onChange={theme.setFloatingPlayerBar}
+            />
             <div className="settings-section-divider" />
-            <div className="settings-toggle-row">
-              <div>
-                <div style={{ fontWeight: 500 }}>{t('settings.showArtistImages')}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showArtistImagesDesc')}</div>
-              </div>
-              <label className="toggle-switch" aria-label={t('settings.showArtistImages')}>
-                <input type="checkbox" checked={auth.showArtistImages} onChange={e => auth.setShowArtistImages(e.target.checked)} />
-                <span className="toggle-track" />
-              </label>
-            </div>
+            <SettingsToggle
+              label={t('settings.showArtistImages')}
+              desc={t('settings.showArtistImagesDesc')}
+              checked={auth.showArtistImages}
+              onChange={auth.setShowArtistImages}
+            />
             <div className="settings-section-divider" />
-            <div className="settings-toggle-row">
-              <div>
-                <div style={{ fontWeight: 500 }}>{t('settings.showOrbitTrigger')}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showOrbitTriggerDesc')}</div>
-              </div>
-              <label className="toggle-switch" aria-label={t('settings.showOrbitTrigger')}>
-                <input type="checkbox" checked={auth.showOrbitTrigger} onChange={e => auth.setShowOrbitTrigger(e.target.checked)} />
-                <span className="toggle-track" />
-              </label>
-            </div>
+            <SettingsToggle
+              label={t('settings.showOrbitTrigger')}
+              desc={t('settings.showOrbitTriggerDesc')}
+              checked={auth.showOrbitTrigger}
+              onChange={auth.setShowOrbitTrigger}
+            />
             {!IS_WINDOWS && (
               <>
                 <div className="settings-section-divider" />
-                <div className="settings-toggle-row">
-                  <div>
-                    <div style={{ fontWeight: 500 }}>{t('settings.preloadMiniPlayer')}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.preloadMiniPlayerDesc')}</div>
-                  </div>
-                  <label className="toggle-switch" aria-label={t('settings.preloadMiniPlayer')}>
-                    <input
-                      type="checkbox"
-                      checked={auth.preloadMiniPlayer}
-                      onChange={e => auth.setPreloadMiniPlayer(e.target.checked)}
-                    />
-                    <span className="toggle-track" />
-                  </label>
-                </div>
+                <SettingsToggle
+                  label={t('settings.preloadMiniPlayer')}
+                  desc={t('settings.preloadMiniPlayerDesc')}
+                  checked={auth.preloadMiniPlayer}
+                  onChange={auth.setPreloadMiniPlayer}
+                />
               </>
             )}
           </SettingsGroup>
 
           {IS_LINUX && !isTilingWm && (
             <SettingsGroup title={t('settings.groupWindow')}>
-              <div className="settings-toggle-row">
-                <div>
-                  <div style={{ fontWeight: 500 }}>{t('settings.useCustomTitlebar')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.useCustomTitlebarDesc')}</div>
-                </div>
-                <label className="toggle-switch" aria-label={t('settings.useCustomTitlebar')}>
-                  <input type="checkbox" checked={auth.useCustomTitlebar} onChange={e => auth.setUseCustomTitlebar(e.target.checked)} />
-                  <span className="toggle-track" />
-                </label>
-              </div>
+              <SettingsToggle
+                label={t('settings.useCustomTitlebar')}
+                desc={t('settings.useCustomTitlebarDesc')}
+                checked={auth.useCustomTitlebar}
+                onChange={auth.setUseCustomTitlebar}
+              />
               {auth.useCustomTitlebar && (
                 <>
                   <div className="settings-section-divider" />
@@ -197,16 +162,12 @@ export function AppearanceTab() {
                     </div>
                   </div>
                   <div className="settings-section-divider" />
-                  <div className="settings-toggle-row">
-                    <div>
-                      <div style={{ fontWeight: 500 }}>{t('settings.showMinimizeButton')}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.showMinimizeButtonDesc')}</div>
-                    </div>
-                    <label className="toggle-switch" aria-label={t('settings.showMinimizeButton')}>
-                      <input type="checkbox" checked={auth.showMinimizeButton} onChange={e => auth.setShowMinimizeButton(e.target.checked)} />
-                      <span className="toggle-track" />
-                    </label>
-                  </div>
+                  <SettingsToggle
+                    label={t('settings.showMinimizeButton')}
+                    desc={t('settings.showMinimizeButtonDesc')}
+                    checked={auth.showMinimizeButton}
+                    onChange={auth.setShowMinimizeButton}
+                  />
                 </>
               )}
             </SettingsGroup>
