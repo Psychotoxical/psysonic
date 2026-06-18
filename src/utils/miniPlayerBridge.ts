@@ -2,6 +2,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen, emitTo } from '@tauri-apps/api/event';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
+import { setTransitionMode, type TransitionMode } from './playback/playbackTransition';
 import { resolveQueueTrack } from './library/queueTrackView';
 import type { SubsonicOpenArtistRef } from '../api/subsonicTypes';
 
@@ -247,28 +248,16 @@ export function initMiniPlayerBridgeOnMain(): () => void {
 
   // Gapless ↔ Crossfade are mutually exclusive. Bridge handles the exclusion
   // so the mini doesn't need to know about both states to act.
-  const gaplessUnlisten = listen<{ value: boolean }>('mini:set-gapless', (e) => {
-    const v = !!e.payload?.value;
-    const a = useAuthStore.getState();
-    if (v) a.setCrossfadeEnabled(false);
-    a.setGaplessEnabled(v);
-  });
-
-  const crossfadeUnlisten = listen<{ value: boolean }>('mini:set-crossfade', (e) => {
-    const v = !!e.payload?.value;
-    const a = useAuthStore.getState();
-    if (v) a.setGaplessEnabled(false);
-    a.setCrossfadeEnabled(v);
+  const transitionModeUnlisten = listen<{ value: string }>('mini:set-transition-mode', (e) => {
+    const v = e.payload?.value;
+    const modes: TransitionMode[] = ['none', 'gapless', 'crossfade', 'autodj'];
+    if (modes.includes(v as TransitionMode)) setTransitionMode(v as TransitionMode);
   });
 
   const crossfadeSecsUnlisten = listen<{ value: number }>('mini:set-crossfade-secs', (e) => {
     const v = e.payload?.value;
     if (typeof v !== 'number' || !Number.isFinite(v)) return;
     useAuthStore.getState().setCrossfadeSecs(Math.max(0.1, Math.min(10, v)));
-  });
-
-  const crossfadeTrimSilenceUnlisten = listen<{ value: boolean }>('mini:set-crossfade-trim-silence', (e) => {
-    useAuthStore.getState().setCrossfadeTrimSilence(!!e.payload?.value);
   });
 
   const infiniteQueueUnlisten = listen<{ value: boolean }>('mini:set-infinite-queue', (e) => {
@@ -300,10 +289,8 @@ export function initMiniPlayerBridgeOnMain(): () => void {
     shuffleUnlisten.then(fn => fn()).catch(() => {});
     undoQueueUnlisten.then(fn => fn()).catch(() => {});
     redoQueueUnlisten.then(fn => fn()).catch(() => {});
-    gaplessUnlisten.then(fn => fn()).catch(() => {});
-    crossfadeUnlisten.then(fn => fn()).catch(() => {});
+    transitionModeUnlisten.then(fn => fn()).catch(() => {});
     crossfadeSecsUnlisten.then(fn => fn()).catch(() => {});
-    crossfadeTrimSilenceUnlisten.then(fn => fn()).catch(() => {});
     infiniteQueueUnlisten.then(fn => fn()).catch(() => {});
     songInfoUnlisten.then(fn => fn()).catch(() => {});
   };

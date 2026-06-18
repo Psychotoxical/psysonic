@@ -240,39 +240,6 @@
   cursor: pointer;
 }
 
-.mini-player__crossfade-modes {
-  display: flex;
-  gap: 4px;
-}
-
-.mini-player__crossfade-mode {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 5px 6px;
-  font-size: 11px;
-  font-weight: 600;
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
-}
-
-.mini-player__crossfade-mode:hover {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-subtle));
-  color: var(--text-primary);
-}
-
-.mini-player__crossfade-mode.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--bg-app);
-}
-
 .mini-player__volume-pct {
   font-size: 10px;
   color: var(--text-muted);
