@@ -126,7 +126,7 @@ export function IntegrationsTab() {
         icon={<Info size={16} />}
       >
         <div className="settings-card">
-          <SettingsGroup title={t('settings.enableBandsintown')}>
+          <SettingsGroup>
             <SettingsToggle
               desc={t('settings.enableBandsintownDesc')}
               ariaLabel={t('settings.enableBandsintown')}
@@ -143,7 +143,7 @@ export function IntegrationsTab() {
         icon={<Wifi size={16} />}
       >
         <div className="settings-card">
-          <SettingsGroup title={t('settings.nowPlayingEnabled')}>
+          <SettingsGroup>
             <SettingsToggle
               desc={t('settings.nowPlayingEnabledDesc')}
               note={t('settings.nowPlayingPluginNote')}

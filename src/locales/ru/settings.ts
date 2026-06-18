@@ -259,7 +259,8 @@ export const settings = {
   discordRichPresence: 'Статус в Discord',
   discordRichPresenceDesc:
     'Показывать текущий трек в профиле и статусе Discord. Нужен запущенный клиент Discord.',
-  discordRichPresenceNotice: 'Внимание: это встроенная Discord Rich Presence в Psysonic. Если вы хотите использовать официальный плагин Discord Rich Presence для Navidrome, оставьте эту функцию выключенной и вместо этого включите «Показывать в „Сейчас играет"» ниже на этой странице.',  discordCoverTitle: 'Источник обложки',
+  discordRichPresenceNotice: 'Внимание: это встроенная Discord Rich Presence в Psysonic. Если вы хотите использовать официальный плагин Discord Rich Presence для Navidrome, оставьте эту функцию выключенной и вместо этого включите «Показывать в „Сейчас играет"» ниже на этой странице.',
+  discordCoverTitle: 'Источник обложки',
   discordCoverDesc: 'Откуда берётся обложка, показываемая в вашем профиле Discord.',
   discordCoverNone: 'Нет (только иконка приложения)',
   discordCoverServer: 'Сервер (через информацию об альбоме)',

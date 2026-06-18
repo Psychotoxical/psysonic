@@ -53,7 +53,7 @@ export function AudioTab() {
         icon={<Waves size={16} />}
       >
         <div className="settings-card">
-          <SettingsGroup title={t('settings.hiResTitle')}>
+          <SettingsGroup>
             <SettingsToggle
               desc={t('settings.hiResDesc')}
               ariaLabel={t('settings.hiResEnabled')}
