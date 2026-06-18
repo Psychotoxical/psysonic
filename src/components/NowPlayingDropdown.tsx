@@ -23,13 +23,14 @@ export default function NowPlayingDropdown() {
   const triggerWrapRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  // Wall-clock baseline for the last poll: between polls (every 10 s) we
-  // extrapolate the position of `playing` entries locally so the progress bar
-  // glides instead of snapping. The server already extrapolates positionMs at
-  // fetch time, so this just continues from there using the reported speed.
+  // Wall-clock baseline for the last poll: between polls we extrapolate the
+  // position of `playing` entries locally so the progress bar glides instead
+  // of snapping. The server already extrapolates positionMs at fetch time.
   const fetchedAtRef = useRef(0);
   const [, forceTick] = useState(0);
   const PANEL_WIDTH = 340;
+  const LIVE_POLL_OPEN_MS = 10_000;
+  const LIVE_POLL_BACKGROUND_MS = 30_000;
 
   const formatClock = (totalSec: number) => {
     const s = Math.max(0, Math.floor(totalSec));
@@ -61,8 +62,8 @@ export default function NowPlayingDropdown() {
     setPanelPos({ top, left });
   }, []);
 
-  const fetchNowPlaying = async () => {
-    setLoading(true);
+  const fetchNowPlaying = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     try {
       const data = await getNowPlaying();
       fetchedAtRef.current = Date.now();
@@ -70,9 +71,9 @@ export default function NowPlayingDropdown() {
     } catch (e) {
       console.error('Failed to load Now Playing', e);
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
-  };
+  }, []);
 
   const handleRefresh = () => {
     setSpinning(true);
@@ -81,18 +82,30 @@ export default function NowPlayingDropdown() {
     });
   };
 
-  // Poll only while the dropdown is open AND the page is visible.
+  // Poll while the page is visible: every 30 s for the header badge, every 10 s
+  // while the popover is open so the list stays fresher.
   useEffect(() => {
-    if (!isOpen) return;
-    fetchNowPlaying();
-    const id = setInterval(() => {
-      if (document.visibilityState === 'visible') fetchNowPlaying();
-    }, 10000);
-    return () => clearInterval(id);
-  }, [isOpen]);
+    const poll = (silent: boolean) => {
+      if (document.visibilityState === 'visible') void fetchNowPlaying({ silent });
+    };
+
+    poll(!isOpen);
+    const intervalMs = isOpen ? LIVE_POLL_OPEN_MS : LIVE_POLL_BACKGROUND_MS;
+    const id = setInterval(() => poll(true), intervalMs);
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') poll(true);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [isOpen, fetchNowPlaying]);
 
   // Re-render once per second while a `playing` entry exposes a position, so the
-  // locally-extrapolated bar advances smoothly between the 10 s polls.
+  // locally-extrapolated bar advances smoothly between polls.
   const hasLivePosition = nowPlaying.some(
     e => e.state === 'playing' && typeof e.positionMs === 'number',
   );
