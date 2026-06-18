@@ -67,6 +67,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Bumped transitive `form-data` 4.0.5 → 4.0.6 (via axios) to close Dependabot alert [#18](https://github.com/Psychotoxical/psysonic/security/dependabot/18) for CRLF injection in multipart field names (CVE-2026-12143). Psysonic only uses axios for GET requests, so exploitability was low; the lockfile bump clears the advisory.
 
+### Live listener badge stale when the popover was closed
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1125](https://github.com/Psychotoxical/psysonic/pull/1125)**
+
+* The Live header badge only refreshed `getNowPlaying` while the "Who is listening?" popover was open, so the listener count could stay stale or hidden until opened. Poll every 30 s while the window is visible (10 s while the popover is open); background fetches are silent so the header does not flash a loading state.
+
 
 ## [1.48.1] - 2026-06-15
 
