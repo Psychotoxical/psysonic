@@ -16,7 +16,7 @@ export function LyricsTab() {
         title={t('settings.lyricsSourcesTitle')}
         icon={<Music2 size={16} />}
       >
-        <SettingsGroup title={t('settings.lyricsSourcesTitle')}>
+        <SettingsGroup>
           <LyricsSourcesCustomizer />
         </SettingsGroup>
       </SettingsSubSection>
@@ -25,7 +25,7 @@ export function LyricsTab() {
         title={t('settings.sidebarLyricsStyle')}
         icon={<AudioLines size={16} />}
       >
-        <SettingsGroup title={t('settings.sidebarLyricsStyle')}>
+        <SettingsGroup>
           {(['classic', 'apple'] as const).map((style, i) => {
             const key = style === 'classic' ? 'Classic' : 'Apple';
             const other = style === 'classic' ? 'apple' : 'classic';

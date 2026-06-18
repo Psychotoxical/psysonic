@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { GripVertical, Music2 } from 'lucide-react';
+import { GripVertical } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useDragDrop, useDragSource } from '../../contexts/DragDropContext';
 import { useAuthStore } from '../../store/authStore';
@@ -98,11 +98,7 @@ export function LyricsSourcesCustomizer() {
   };
 
   return (
-    <section className="settings-section">
-      <div className="settings-section-header">
-        <Music2 size={18} />
-        <h2>{t('settings.lyricsSourcesTitle')}</h2>
-      </div>
+    <>
       <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: '0.75rem', lineHeight: 1.5 }}>
         {t('settings.lyricsSourcesDesc')}
       </p>
@@ -110,7 +106,7 @@ export function LyricsSourcesCustomizer() {
       {/* YouLyPlus (karaoke) — independent toggle. When on it is tried first and
           the enabled sources below act as fallback; when off only those sources
           are used. YouLyPlus off + every source off = lyrics fully disabled. */}
-      <div className="settings-card" style={{ marginBottom: '0.75rem' }}>
+      <div style={{ marginBottom: '0.75rem' }}>
         <div className="settings-toggle-row">
           <div>
             <div style={{ fontWeight: 500 }}>{t('settings.lyricsYouLyPlus')}</div>
@@ -131,7 +127,6 @@ export function LyricsSourcesCustomizer() {
         {youLyPlusEnabled ? t('settings.lyricsSourcesFallbackHint') : t('settings.lyricsSourcesPrimaryHint')}
       </div>
       <div
-        className="settings-card"
         style={{ padding: '4px 0', marginBottom: '0.75rem' }}
         ref={setContainerEl}
         onMouseMove={handleMouseMove}
@@ -162,7 +157,7 @@ export function LyricsSourcesCustomizer() {
         </div>
 
       {/* Static-only toggle — suppresses line/word tracking in both modes. */}
-      <div className="settings-card" style={{ marginBottom: '0.75rem' }}>
+      <div style={{ marginBottom: '0.75rem' }}>
         <div className="settings-toggle-row">
           <div>
             <div style={{ fontWeight: 500 }}>{t('settings.lyricsStaticOnly')}</div>
@@ -174,6 +169,6 @@ export function LyricsSourcesCustomizer() {
           </label>
         </div>
       </div>
-    </section>
+    </>
   );
 }
