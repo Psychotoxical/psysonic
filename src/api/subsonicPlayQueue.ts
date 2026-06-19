@@ -1,11 +1,32 @@
 import { api, apiForServer } from './subsonicClient';
 import type { SubsonicSong } from './subsonicTypes';
 
-export async function getPlayQueue(): Promise<{ current?: string; position?: number; songs: SubsonicSong[] }> {
+export type PlayQueueResult = { current?: string; position?: number; songs: SubsonicSong[] };
+
+function parsePlayQueueResponse(
+  data: { playQueue?: { current?: string; position?: number; entry?: SubsonicSong[] } },
+): PlayQueueResult {
+  const pq = data.playQueue;
+  return { current: pq?.current, position: pq?.position, songs: pq?.entry ?? [] };
+}
+
+export async function getPlayQueue(): Promise<PlayQueueResult> {
   try {
     const data = await api<{ playQueue: { current?: string; position?: number; entry?: SubsonicSong[] } }>('getPlayQueue.view');
-    const pq = data.playQueue;
-    return { current: pq?.current, position: pq?.position, songs: pq?.entry ?? [] };
+    return parsePlayQueueResponse(data);
+  } catch {
+    return { songs: [] };
+  }
+}
+
+export async function getPlayQueueForServer(serverId: string): Promise<PlayQueueResult> {
+  if (!serverId) return { songs: [] };
+  try {
+    const data = await apiForServer<{ playQueue: { current?: string; position?: number; entry?: SubsonicSong[] } }>(
+      serverId,
+      'getPlayQueue.view',
+    );
+    return parsePlayQueueResponse(data);
   } catch {
     return { songs: [] };
   }

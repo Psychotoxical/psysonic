@@ -6,6 +6,8 @@ import {
 } from '../../cover/coverTraffic';
 import { useAuthStore } from '../../store/authStore';
 import { useOrbitStore } from '../../store/orbitStore';
+import { flushPlayQueueForServer } from '../../store/queueSync';
+import { markQueueHandoffPending } from '../../store/queueSyncUiState';
 import { endOrbitSession, leaveOrbitSession } from '../orbit';
 import { ensureConnectUrlResolved } from './serverEndpoint';
 
@@ -36,16 +38,24 @@ export async function switchActiveServer(server: ServerProfile): Promise<boolean
       useOrbitStore.getState().reset();
     }
 
+    const auth = useAuthStore.getState();
+    const oldActiveId = auth.activeServerId;
+    if (oldActiveId && oldActiveId !== server.id) {
+      await flushPlayQueueForServer(oldActiveId);
+    }
+
     const identity = {
       type: probe.ping.type,
       serverVersion: probe.ping.serverVersion,
       openSubsonic: probe.ping.openSubsonic,
     };
-    const auth = useAuthStore.getState();
     auth.setSubsonicServerIdentity(server.id, identity);
     scheduleInstantMixProbeForServer(server.id, probe.baseUrl, server.username, server.password, identity);
     auth.setActiveServer(server.id);
     auth.setLoggedIn(true);
+    if (oldActiveId && oldActiveId !== server.id) {
+      markQueueHandoffPending();
+    }
     return true;
   } catch {
     return false;

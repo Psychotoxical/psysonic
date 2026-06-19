@@ -59,6 +59,7 @@ import { useOfflineLibraryFilterSuspend } from '../hooks/useOfflineLibraryFilter
 import { AppShellQueueResizerSeam } from '../components/AppShellQueueResizerSeam';
 import { IS_LINUX } from '../utils/platform';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
+import { useIdlePlayQueuePull } from '../hooks/useIdlePlayQueuePull';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
 import '../store/previewPlayerVolumeSync';
@@ -102,6 +103,7 @@ export function AppShell() {
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const isPlaying = usePlayerStore(s => s.isPlaying);
   const { status: connStatus, isRetrying: connRetrying, retry: connRetry, isLan, serverName } = useConnectionStatus();
+  useIdlePlayQueuePull(connStatus);
   const navigate = useNavigate();
   const location = useLocation();
   const prevPathnameRef = useRef(location.pathname);

@@ -31,6 +31,7 @@ import type { PlayerState } from './playerStoreTypes';
 import { resolveQueueTrack } from '../utils/library/queueTrackView';
 import { promoteCompletedStreamToHotCache } from './promoteStreamCache';
 import { syncQueueToServer } from './queueSync';
+import { markPlaybackActive } from './queuePlaybackIdle';
 import { playbackReportPlaying } from './playbackReportSession';
 import { resumeRadio } from './radioPlayer';
 import { clearAllPlaybackScheduleTimers } from './scheduleTimers';
@@ -64,6 +65,7 @@ type GetState = () => PlayerState;
  */
 export function runResume(set: SetState, get: GetState): void {
   clearAllPlaybackScheduleTimers();
+  markPlaybackActive();
   set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null, scheduledResumeAtMs: null, scheduledResumeStartMs: null });
 
   // Orbit guest: resume means "catch up to the host's live stream".

@@ -25,6 +25,52 @@
   flex-shrink: 0;
 }
 
+.connection-sync-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.connection-sync-btn:disabled {
+  cursor: default;
+}
+
+.connection-sync-icon {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  color: var(--text-muted);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.connection-sync-btn--visible .connection-sync-icon {
+  opacity: 0.85;
+}
+
+.connection-sync-btn--busy .connection-sync-icon {
+  opacity: 1;
+  animation: connection-sync-spin 0.9s linear infinite;
+}
+
+@keyframes connection-sync-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.connection-meta--clickable {
+  cursor: pointer;
+}
+
 .connection-led {
   width: 9px;
   height: 9px;
@@ -36,6 +82,11 @@
 .connection-led--connected {
   background: #a6e3a1;
   box-shadow: 0 0 6px 2px rgba(166, 227, 161, 0.55);
+}
+
+.connection-led--queue-handoff {
+  background: #f9e2af;
+  box-shadow: 0 0 6px 2px rgba(249, 226, 175, 0.55);
 }
 
 .connection-led--disconnected {

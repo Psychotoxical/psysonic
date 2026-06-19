@@ -1,9 +1,16 @@
 import { savePlayQueue } from '../api/subsonicPlayQueue';
 import type { QueueItemRef, Track } from './playerStoreTypes';
 import { isSubsonicServerReachable } from '../utils/network/subsonicNetworkGuard';
-import { getPlaybackServerId } from '../utils/playback/playbackServer';
+import {
+  filterQueueRefsForPlaybackServer,
+  getPlaybackServerId,
+  playbackProfileIdForTrack,
+} from '../utils/playback/playbackServer';
+import { filterQueueRefsForServerProfile } from '../utils/playback/trackServerScope';
 import { getPlaybackProgressSnapshot } from './playbackProgress';
+import { touchQueueMutationClock } from './queuePlaybackIdle';
 import { usePlayerStore } from './playerStore';
+
 /**
  * Server-side play-queue persistence. Subsonic's `savePlayQueue` accepts
  * the current queue, the active track id, and the position in ms — so the
@@ -17,6 +24,7 @@ import { usePlayerStore } from './playerStore';
  *    called from the playback heartbeat, `pause()`, and the app-close path
  *    where the user might switch devices mid-track.
  *
+ * Mixed-server queues push only refs owned by the playback server.
  * Queues are capped at 1000 ids to match Subsonic's max-length contract.
  * Radio sessions skip persistence (the seed station is restored separately).
  */
@@ -32,18 +40,31 @@ function isPlaybackServerReachable(): boolean {
   return serverId ? isSubsonicServerReachable(serverId) : false;
 }
 
+function pushRefsForServer(
+  refs: QueueItemRef[],
+  currentTrack: Track | null,
+  currentTime: number,
+  serverId: string,
+): Promise<void> {
+  if (!serverId || refs.length === 0 || !currentTrack) return Promise.resolve();
+  if (playbackProfileIdForTrack(currentTrack) !== serverId) return Promise.resolve();
+  const ids = refs.slice(0, QUEUE_ID_LIMIT).map(r => r.trackId);
+  const pos = Math.floor(currentTime * 1000);
+  return savePlayQueue(ids, currentTrack.id, pos, serverId).catch(() => {
+    // Expected when offline or the playback server is unreachable.
+  });
+}
+
 export function syncQueueToServer(queue: QueueItemRef[], currentTrack: Track | null, currentTime: number): void {
+  touchQueueMutationClock();
   if (!isPlaybackServerReachable()) return;
   if (syncTimeout) clearTimeout(syncTimeout);
   syncTimeout = setTimeout(() => {
     syncTimeout = null;
     if (!isPlaybackServerReachable()) return;
-    const ids = queue.slice(0, QUEUE_ID_LIMIT).map(r => r.trackId);
-    const pos = Math.floor(currentTime * 1000);
     const serverId = getPlaybackServerId();
-    savePlayQueue(ids, currentTrack?.id, pos, serverId).catch(() => {
-      // Expected when offline or the playback server is unreachable.
-    });
+    const refs = filterQueueRefsForPlaybackServer(queue);
+    void pushRefsForServer(refs, currentTrack, currentTime, serverId);
   }, SYNC_DEBOUNCE_MS);
 }
 
@@ -55,12 +76,27 @@ export function flushQueueSyncToServer(queue: QueueItemRef[], currentTrack: Trac
   if (!isPlaybackServerReachable()) return Promise.resolve();
   if (!currentTrack || queue.length === 0) return Promise.resolve();
   lastQueueHeartbeatAt = Date.now();
-  const ids = queue.slice(0, QUEUE_ID_LIMIT).map(r => r.trackId);
-  const pos = Math.floor(currentTime * 1000);
   const serverId = getPlaybackServerId();
-  return savePlayQueue(ids, currentTrack.id, pos, serverId).catch(() => {
-    // Expected when offline or the playback server is unreachable.
-  });
+  const refs = filterQueueRefsForPlaybackServer(queue);
+  return pushRefsForServer(refs, currentTrack, currentTime, serverId);
+}
+
+/**
+ * Immediate flush of one server's queue slice (e.g. before browse switch).
+ * Does not mutate local player state.
+ */
+export function flushPlayQueueForServer(serverProfileId: string): Promise<void> {
+  if (syncTimeout) {
+    clearTimeout(syncTimeout);
+    syncTimeout = null;
+  }
+  if (!serverProfileId || !isSubsonicServerReachable(serverProfileId)) return Promise.resolve();
+  const s = usePlayerStore.getState();
+  if (s.currentRadio) return Promise.resolve();
+  const refs = filterQueueRefsForServerProfile(s.queueItems, serverProfileId);
+  if (refs.length === 0 || !s.currentTrack) return Promise.resolve();
+  const currentTime = getPlaybackProgressSnapshot().currentTime;
+  return pushRefsForServer(refs, s.currentTrack, currentTime, serverProfileId);
 }
 
 /** Last heartbeat timestamp (ms epoch). Used by the playback heartbeat to throttle the 15-second auto-flush cadence. */

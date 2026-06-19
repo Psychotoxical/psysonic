@@ -38,4 +38,11 @@ export const connection = {
   switchServerHint: 'Нажмите, чтобы выбрать другой сохранённый сервер.',
   manageServers: 'Управление серверами…',
   switchFailed: 'Не удалось переключиться — сервер недоступен.',
+  queueSynced: 'Очередь синхронизирована с сервером',
+  queuePullHint: 'Нажмите, чтобы подтянуть очередь с {{server}}',
+  queuePulling: 'Подтягиваем очередь…',
+  queuePullSuccess: 'Очередь обновлена с сервера',
+  queuePullEmpty: 'Очередь на сервере пуста',
+  queuePullFailed: 'Не удалось подтянуть очередь с сервера',
+  queuePullAria: 'Синхронизировать очередь с сервером',
 };

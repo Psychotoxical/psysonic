@@ -50,19 +50,29 @@ export function profileIdFromQueueRef(ref: QueueItemRef | null | undefined): str
   return resolveServerIdForIndexKey(ref.serverId) || ref.serverId;
 }
 
-function queueRefProfileId(ref: QueueItemRef): string {
+function refsForServerProfile(refs: QueueItemRef[], profileId: string): QueueItemRef[] {
+  if (!profileId) return [];
+  return refs.filter(ref => queueRefProfileIdForTarget(ref, profileId));
+}
+
+function queueRefProfileIdForTarget(ref: QueueItemRef, profileId: string): boolean {
   const fromRef = profileIdFromQueueRef(ref);
-  if (fromRef) return fromRef;
+  if (fromRef) return fromRef === profileId;
   const pin = usePlayerStore.getState().queueServerId;
-  if (pin) return resolveServerIdForIndexKey(pin) || pin;
-  return activeServerProfileId() ?? '';
+  if (pin) return (resolveServerIdForIndexKey(pin) || pin) === profileId;
+  return profileId === (activeServerProfileId() ?? '');
+}
+
+/** Queue refs that belong to a saved server profile (mixed-queue safe). */
+export function filterQueueRefsForServerProfile(refs: QueueItemRef[], profileId: string): QueueItemRef[] {
+  return refsForServerProfile(refs, profileId);
 }
 
 /** Queue refs that belong to the browsed (active) server — for export/save on mixed queues. */
 export function filterQueueRefsForActiveServer(refs: QueueItemRef[]): QueueItemRef[] {
   const activeId = activeServerProfileId();
   if (!activeId) return [];
-  return refs.filter(ref => queueRefProfileId(ref) === activeId);
+  return refsForServerProfile(refs, activeId);
 }
 
 export function activeServerQueueTrackIds(refs: QueueItemRef[]): string[] {

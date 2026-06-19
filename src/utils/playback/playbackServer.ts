@@ -18,6 +18,7 @@ import {
 } from '../server/serverIndexKey';
 import {
   activeServerProfileId,
+  filterQueueRefsForServerProfile,
   isMultiServerQueue,
   profileIdFromQueueRef,
   queueItemRefAt,
@@ -172,6 +173,13 @@ export function playbackServerDiffersFromActive(): boolean {
 
 export function queueIsMultiServer(): boolean {
   return isMultiServerQueue(usePlayerStore.getState().queueItems);
+}
+
+/** Refs owned by the server that is currently playing (mixed-queue safe). */
+export function filterQueueRefsForPlaybackServer(refs: QueueItemRef[]): QueueItemRef[] {
+  const playbackSid = getPlaybackServerId();
+  if (!playbackSid) return [];
+  return filterQueueRefsForServerProfile(refs, playbackSid);
 }
 
 /**

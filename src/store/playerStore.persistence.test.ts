@@ -57,6 +57,8 @@ vi.mock('@/utils/playback/playbackServer', () => ({
   bindQueueServerForPlayback: vi.fn(),
   clearQueueServerForPlayback: vi.fn(),
   playbackServerDiffersFromActive: () => false,
+  filterQueueRefsForPlaybackServer: (refs: { serverId: string; trackId: string }[]) => refs,
+  playbackProfileIdForTrack: (track: { serverId?: string } | null) => track?.serverId ?? 'srv-test',
   playbackCoverArtForId: (id: string, size: number) => ({
     src: `https://mock/cover/${id}?size=${size}`,
     cacheKey: `mock:cover:${id}:${size}`,

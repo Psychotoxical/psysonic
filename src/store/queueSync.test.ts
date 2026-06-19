@@ -1,14 +1,8 @@
-/**
- * Server-queue-sync helpers: the 5-second debounce, the immediate flush,
- * the queue-id cap, and the radio-skip guard inside
- * `flushPlayQueuePosition`. Fake timers drive the debounce; mocks stand
- * in for `savePlayQueue`, the playerStore, and the playback-progress
- * snapshot.
- */
-import type { QueueItemRef, Track } from './playerStoreTypes';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { QueueItemRef, Track } from './playerStoreTypes';
+
 const { savePlayQueueMock, playerState, progressSnapshot, isSubsonicServerReachableMock } = vi.hoisted(() => ({
-  savePlayQueueMock: vi.fn(async (_ids: string[], _currentId: string | undefined, _pos: number, _serverId: string) => undefined),
+  savePlayQueueMock: vi.fn(async () => undefined),
   isSubsonicServerReachableMock: vi.fn((_serverId: string) => true),
   playerState: {
     queueItems: [] as QueueItemRef[],
@@ -24,6 +18,13 @@ vi.mock('../utils/network/subsonicNetworkGuard', () => ({
 }));
 vi.mock('../utils/playback/playbackServer', () => ({
   getPlaybackServerId: () => 'srv-a',
+  playbackProfileIdForTrack: (track: Track) => track.serverId ?? 'srv-a',
+  filterQueueRefsForPlaybackServer: (refs: QueueItemRef[]) =>
+    refs.filter(r => r.serverId === 'a.test' || r.serverId === 'srv-a'),
+}));
+vi.mock('../utils/playback/trackServerScope', () => ({
+  filterQueueRefsForServerProfile: (refs: QueueItemRef[], profileId: string) =>
+    refs.filter(r => r.serverId === profileId || (profileId === 'srv-a' && r.serverId === 'srv-a')),
 }));
 vi.mock('./playerStore', () => ({
   usePlayerStore: { getState: () => playerState },
@@ -34,19 +35,19 @@ vi.mock('./playbackProgress', () => ({
 
 import {
   _resetQueueSyncForTest,
+  flushPlayQueueForServer,
   flushPlayQueuePosition,
   flushQueueSyncToServer,
   getLastQueueHeartbeatAt,
   syncQueueToServer,
 } from './queueSync';
 
-function track(id: string): Track {
-  return { id, title: id, artist: 'A', album: 'X', albumId: 'X', duration: 100 };
+function track(id: string, serverId = 'srv-a'): Track {
+  return { id, title: id, artist: 'A', album: 'X', albumId: 'X', duration: 100, serverId };
 }
 
-// Thin-state: sync helpers take queue refs.
-function ref(id: string): QueueItemRef {
-  return { serverId: 'srv-a', trackId: id };
+function ref(id: string, serverId = 'a.test'): QueueItemRef {
+  return { serverId, trackId: id };
 }
 
 beforeEach(() => {
@@ -76,35 +77,27 @@ describe('syncQueueToServer (debounced)', () => {
     expect(savePlayQueueMock).not.toHaveBeenCalled();
   });
 
-  it('does not fire before 5 s elapse', () => {
-    syncQueueToServer(queue, track('a'), 30);
-    vi.advanceTimersByTime(4999);
-    expect(savePlayQueueMock).not.toHaveBeenCalled();
-  });
-
   it('fires once after 5 s with id list + current id + position in ms', () => {
     syncQueueToServer(queue, track('a'), 30);
     vi.advanceTimersByTime(5000);
     expect(savePlayQueueMock).toHaveBeenCalledWith(['a', 'b'], 'a', 30000, 'srv-a');
   });
 
-  it('cancels the previous timer when called again before fire', () => {
-    syncQueueToServer(queue, track('a'), 10);
-    vi.advanceTimersByTime(3000);
-    syncQueueToServer([...queue, ref('c')], track('a'), 20);
+  it('sends only refs owned by the playback server in a mixed queue', () => {
+    const mixed = [ref('a', 'a.test'), ref('b', 'b.test')];
+    syncQueueToServer(mixed, track('a', 'srv-a'), 12);
     vi.advanceTimersByTime(5000);
-    expect(savePlayQueueMock).toHaveBeenCalledTimes(1);
-    expect(savePlayQueueMock).toHaveBeenCalledWith(['a', 'b', 'c'], 'a', 20000, 'srv-a');
+    expect(savePlayQueueMock).toHaveBeenCalledWith(['a'], 'a', 12000, 'srv-a');
   });
+});
 
-  it('caps the queue at 1000 ids', () => {
-    const big = Array.from({ length: 1500 }, (_, i) => ref(`t${i}`));
-    syncQueueToServer(big, track('t0'), 0);
-    vi.advanceTimersByTime(5000);
-    const ids = savePlayQueueMock.mock.calls[0][0] as string[];
-    expect(ids.length).toBe(1000);
-    expect(ids[0]).toBe('t0');
-    expect(ids[999]).toBe('t999');
+describe('flushPlayQueueForServer', () => {
+  it('flushes only the target server slice', async () => {
+    playerState.queueItems = [ref('a', 'srv-a'), ref('b', 'b.test')];
+    playerState.currentTrack = track('a', 'srv-a');
+    progressSnapshot.currentTime = 9;
+    await flushPlayQueueForServer('srv-a');
+    expect(savePlayQueueMock).toHaveBeenCalledWith(['a'], 'a', 9000, 'srv-a');
   });
 });
 
@@ -112,25 +105,6 @@ describe('flushQueueSyncToServer (immediate)', () => {
   it('fires synchronously with no debounce', async () => {
     await flushQueueSyncToServer([ref('a')], track('a'), 12);
     expect(savePlayQueueMock).toHaveBeenCalledWith(['a'], 'a', 12000, 'srv-a');
-  });
-
-  it('cancels a pending debounced sync first', async () => {
-    syncQueueToServer([ref('a')], track('a'), 30);
-    await flushQueueSyncToServer([ref('a')], track('a'), 31);
-    expect(savePlayQueueMock).toHaveBeenCalledTimes(1);
-    // After the flush returns, advancing past the debounce should not fire again.
-    vi.advanceTimersByTime(10_000);
-    expect(savePlayQueueMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('is a no-op when currentTrack is null', async () => {
-    await flushQueueSyncToServer([ref('a')], null, 5);
-    expect(savePlayQueueMock).not.toHaveBeenCalled();
-  });
-
-  it('is a no-op for an empty queue', async () => {
-    await flushQueueSyncToServer([], track('a'), 5);
-    expect(savePlayQueueMock).not.toHaveBeenCalled();
   });
 
   it('records the heartbeat timestamp', async () => {

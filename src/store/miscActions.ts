@@ -1,7 +1,6 @@
-import { getPlayQueue } from '../api/subsonicPlayQueue';
+import { applyServerPlayQueue } from './applyServerPlayQueue';
 import { invoke } from '@tauri-apps/api/core';
 import i18n from '../i18n';
-import { songToTrack } from '../utils/playback/songToTrack';
 import { showToast } from '../utils/ui/toast';
 import { useAuthStore } from './authStore';
 import {
@@ -30,8 +29,6 @@ import {
   setSeekFallbackVisualTarget,
 } from './seekFallbackState';
 import { clearSeekTarget } from './seekTargetState';
-import { preparePausedRestoreOnStartup } from './pausedRestorePrepare';
-import { refreshWaveformForTrack } from './waveformRefresh';
 
 type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
@@ -146,42 +143,9 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
     },
 
     initializeFromServerQueue: async () => {
-      try {
-        const q = await getPlayQueue();
-        if (q.songs.length > 0) {
-          const mappedTracks: Track[] = q.songs.map(songToTrack);
-
-          let currentTrack = mappedTracks[0];
-          let queueIndex = 0;
-
-          if (q.current) {
-            const idx = mappedTracks.findIndex(t => t.id === q.current);
-            if (idx >= 0) { currentTrack = mappedTracks[idx]; queueIndex = idx; }
-          }
-
-          // Prefer the server position if available; otherwise keep the
-          // localStorage-persisted currentTime (more reliable than server
-          // queue position, which may not flush before app close).
-          const serverTime = q.position ? q.position / 1000 : 0;
-          const localTime = get().currentTime;
-          const sid = get().queueServerId ?? useAuthStore.getState().activeServerId ?? '';
-          // Seed the resolver with the restored tracks so the queue UI / hot
-          // paths resolve them without a network round-trip.
-          if (sid) seedQueueResolver(sid, mappedTracks);
-          const atSeconds = serverTime > 0 ? serverTime : localTime;
-          const queueItems = toQueueItemRefs(sid, mappedTracks);
-          set({
-            queueItems,
-            queueIndex,
-            currentTrack,
-            currentTime: atSeconds,
-          });
-          void refreshWaveformForTrack(currentTrack.id);
-          preparePausedRestoreOnStartup(currentTrack, queueItems, queueIndex, atSeconds);
-        }
-      } catch (e) {
-        console.error('Failed to initialize queue from server', e);
-      }
+      const activeId = useAuthStore.getState().activeServerId;
+      if (!activeId) return;
+      await applyServerPlayQueue(activeId, { mode: 'startup' });
     },
 
     reanalyzeLoudnessForTrack: async (trackId: string) => {

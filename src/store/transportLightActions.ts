@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { setIsAudioPaused } from './engineState';
 import type { PlayerState } from './playerStoreTypes';
 import { flushQueueSyncToServer } from './queueSync';
+import { markPlaybackActive, markPlaybackIdle } from './queuePlaybackIdle';
 import { playListenSessionFinalize, playListenSessionOnPause } from './playListenSession';
 import { playbackReportPaused, playbackReportStopped } from './playbackReportSession';
 import { pauseRadio, stopRadio } from './radioPlayer';
@@ -70,6 +71,7 @@ export function createTransportLightActions(set: SetState, get: GetState): Pick<
       // Re-hydrate from the analysis DB in case the bins were never loaded or
       // only partially filled while the (now stopped) track was playing.
       if (keptTrackId) void refreshWaveformForTrack(keptTrackId);
+      markPlaybackIdle();
     },
 
     pause: () => {
@@ -89,6 +91,7 @@ export function createTransportLightActions(set: SetState, get: GetState): Pick<
         }
       }
       set({ isPlaying: false, scheduledPauseAtMs: null, scheduledPauseStartMs: null, scheduledResumeAtMs: null, scheduledResumeStartMs: null });
+      markPlaybackIdle();
     },
 
     resetAudioPause: () => {

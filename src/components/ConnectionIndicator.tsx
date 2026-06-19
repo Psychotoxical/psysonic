@@ -1,10 +1,12 @@
-import type { ServerProfile } from '../store/authStoreTypes';
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import type React from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Check, ChevronDown } from 'lucide-react';
-import { ConnectionStatus } from '../hooks/useConnectionStatus';
+import { Check, ChevronDown, RefreshCw } from 'lucide-react';
+import type { ConnectionStatus } from '../hooks/useConnectionStatus';
+import { usePlayQueueSyncLedState } from '../hooks/usePlayQueueSyncLedState';
+import type { ServerProfile } from '../store/authStoreTypes';
 import { useAuthStore } from '../store/authStore';
 import { switchActiveServer } from '../utils/server/switchActiveServer';
 import { showToast } from '../utils/ui/toast';
@@ -21,6 +23,12 @@ export default function ConnectionIndicator({ status, isLan, serverName }: Props
   const navigate = useNavigate();
   const servers = useAuthStore(s => s.servers);
   const activeServerId = useAuthStore(s => s.activeServerId);
+  const {
+    ledVariant,
+    pullInFlight,
+    syncRingVisible,
+    pullFromActiveServer,
+  } = usePlayQueueSyncLedState(status);
   const [menuOpen, setMenuOpen] = useState(false);
   const [switchingId, setSwitchingId] = useState<string | null>(null);
   const [menuFixed, setMenuFixed] = useState({ top: 0, right: 0 });
@@ -51,9 +59,9 @@ export default function ConnectionIndicator({ status, isLan, serverName }: Props
   useEffect(() => {
     if (!menuOpen) return;
     const onDown = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (hostRef.current?.contains(t)) return;
-      if (menuPanelRef.current?.contains(t)) return;
+      const target = e.target as Node;
+      if (hostRef.current?.contains(target)) return;
+      if (menuPanelRef.current?.contains(target)) return;
       setMenuOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
@@ -72,12 +80,18 @@ export default function ConnectionIndicator({ status, isLan, serverName }: Props
     navigate('/settings', { state: { tab: 'servers' } });
   };
 
-  const onTriggerClick = () => {
+  const onMetaClick = () => {
     if (!multi) {
       goServerSettings();
       return;
     }
     setMenuOpen(o => !o);
+  };
+
+  const onSyncClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (status !== 'connected') return;
+    void pullFromActiveServer();
   };
 
   const onPickServer = async (srv: ServerProfile) => {
@@ -97,28 +111,44 @@ export default function ConnectionIndicator({ status, isLan, serverName }: Props
   };
 
   const label = isLan ? 'LAN' : t('connection.extern');
-  const tooltip = multi
-    ? t('connection.switchServerHint')
-    : status === 'connected'
-      ? t('connection.connectedTo', { server: serverName })
-      : status === 'disconnected'
-        ? t('connection.disconnectedFrom', { server: serverName })
-        : t('connection.checking');
+  const tooltip = pullInFlight
+    ? t('connection.queuePulling')
+    : ledVariant === 'queue-handoff'
+      ? t('connection.queuePullHint', { server: serverName })
+      : ledVariant === 'connected'
+        ? t('connection.queueSynced')
+        : multi
+          ? t('connection.switchServerHint')
+          : status === 'connected'
+            ? t('connection.connectedTo', { server: serverName })
+            : status === 'disconnected'
+              ? t('connection.disconnectedFrom', { server: serverName })
+              : t('connection.checking');
 
   return (
     <div className="connection-indicator-host" ref={hostRef}>
-      <div
-        className="connection-indicator"
-        style={{ cursor: 'pointer' }}
-        onClick={onTriggerClick}
-        data-tooltip={tooltip}
-        data-tooltip-pos="bottom"
-        role={multi ? 'button' : undefined}
-        aria-haspopup={multi ? 'menu' : undefined}
-        aria-expanded={multi ? menuOpen : undefined}
-      >
-        <div className={`connection-led connection-led--${status}`} />
-        <div className="connection-meta">
+      <div className="connection-indicator">
+        <button
+          type="button"
+          className={`connection-sync-btn${syncRingVisible ? ' connection-sync-btn--visible' : ''}${pullInFlight ? ' connection-sync-btn--busy' : ''}`}
+          onClick={onSyncClick}
+          disabled={status !== 'connected' || pullInFlight}
+          data-tooltip={tooltip}
+          data-tooltip-pos="bottom"
+          aria-label={t('connection.queuePullAria')}
+        >
+          <RefreshCw size={13} className="connection-sync-icon" aria-hidden />
+          <div className={`connection-led connection-led--${ledVariant}`} />
+        </button>
+        <div
+          className="connection-meta connection-meta--clickable"
+          onClick={onMetaClick}
+          data-tooltip={multi ? t('connection.switchServerHint') : undefined}
+          data-tooltip-pos="bottom"
+          role={multi ? 'button' : undefined}
+          aria-haspopup={multi ? 'menu' : undefined}
+          aria-expanded={multi ? menuOpen : undefined}
+        >
           <span className="connection-type">{label}</span>
           <span className="connection-server" style={{ display: 'flex', alignItems: 'center', gap: 4, maxWidth: 120 }}>
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{serverName}</span>
