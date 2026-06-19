@@ -3,6 +3,7 @@ import { resolveAlbumForActiveServer } from '../offline/offlineMediaResolve';
 import { songToTrack } from './songToTrack';
 import { useOrbitStore } from '../../store/orbitStore';
 import { fadeOut } from './fadeOut';
+import { shouldAutodjInterruptBlend } from './autodjManualBlend';
 import type { Track } from '../../store/playerStoreTypes';
 import { shuffleArray } from './shuffleArray';
 
@@ -35,7 +36,7 @@ async function startAlbumPlayback(tracks: Track[]): Promise<void> {
   const store = usePlayerStore.getState();
   const { isPlaying, volume } = store;
 
-  if (isPlaying) {
+  if (isPlaying && !shouldAutodjInterruptBlend(true)) {
     await fadeOut(store.setVolume, volume, 700);
     // Restore volume only in the Zustand store — do NOT call audio_set_volume here,
     // otherwise the old track glitches back to full volume before playTrack stops it.

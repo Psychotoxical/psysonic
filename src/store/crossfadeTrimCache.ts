@@ -104,6 +104,11 @@ export function consumeCrossfadeDynamicOverlap(trackId: string): ArmedCrossfadeO
   return overlapSec > 0 ? { overlapSec, outgoingFadeSec } : null;
 }
 
+/** True when JS A-tail advance armed a handoff for `trackId` (peek only). */
+export function peekArmedCrossfadeDynamicOverlap(trackId: string): boolean {
+  return !!trackId && armedOverlapTrackId === trackId && armedOverlapSec > 0;
+}
+
 /** Test/reset hook. */
 export function _resetCrossfadeTrimCacheForTest(): void {
   planByTrackId.clear();

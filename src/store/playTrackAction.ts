@@ -6,10 +6,14 @@ import { orbitBulkGuard } from '../utils/orbitBulkGuard';
 import { sameQueueTrackId } from '../utils/playback/queueIdentity';
 import {
   computeAutodjManualBlendPlan,
-  shouldAutodjManualBlend,
+  shouldAutodjInterruptBlend,
 } from '../utils/playback/autodjManualBlend';
 import type { CrossfadeTransitionPlan } from '../utils/waveform/waveformSilence';
-import { isCrossfadeNextReady } from './crossfadePreload';
+import {
+  INTERRUPT_BLEND_PRELOAD_WAIT_MS,
+  kickEagerCrossfadePreload,
+  waitForCrossfadeNextReady,
+} from './crossfadePreload';
 import { armAutodjMixing, clearAutodjTransitionUi } from './autodjTransitionUi';
 import {
   bindQueueServerForTracks,
@@ -27,7 +31,7 @@ import {
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
 import { useAuthStore } from './authStore';
-import { consumeCrossfadeDynamicOverlap, getCrossfadeTransition } from './crossfadeTrimCache';
+import { consumeCrossfadeDynamicOverlap, getCrossfadeTransition, peekArmedCrossfadeDynamicOverlap } from './crossfadeTrimCache';
 import {
   bumpPlayGeneration,
   getPlayGeneration,
@@ -372,11 +376,11 @@ export function runPlayTrack(
     );
     const replayGainPeak = isReplayGainActive() ? (scopedTrack.replayGainPeak ?? null) : null;
 
-    const wantManualBlend =
-      shouldAutodjManualBlend(manual, wasPlayingBeforeSkip)
+    const hasJsAutoHandoff = !manual && peekArmedCrossfadeDynamicOverlap(scopedTrack.id);
+    const wantInterruptBlend =
+      shouldAutodjInterruptBlend(wasPlayingBeforeSkip, hasJsAutoHandoff)
       && prevTrack
-      && !sameQueueTrackId(prevTrack.id, scopedTrack.id)
-      && isCrossfadeNextReady(scopedTrack.id, playbackSid, playbackCacheSid);
+      && !sameQueueTrackId(prevTrack.id, scopedTrack.id);
 
     const invokeAudioPlay = (manualBlend: CrossfadeTransitionPlan | null) => {
       // Silence-aware crossfade (B-head + dynamic overlap): on a fresh auto-advance
@@ -503,24 +507,37 @@ export function runPlayTrack(
       finishPlaybackSideEffects();
     };
 
-    if (wantManualBlend && prevTrack) {
+    if (wantInterruptBlend && prevTrack) {
       const aDur = prevTrack.duration || 0;
-      void fetchWaveformBins(scopedTrack.id, playbackCacheSid || null)
-        .then(bBins => {
+      kickEagerCrossfadePreload(scopedTrack, playbackSid, playbackCacheSid);
+      void (async () => {
+        try {
+          const [ready, bBins] = await Promise.all([
+            waitForCrossfadeNextReady(
+              scopedTrack.id,
+              playbackSid,
+              playbackCacheSid,
+              INTERRUPT_BLEND_PRELOAD_WAIT_MS,
+              () => getPlayGeneration() !== gen,
+            ),
+            fetchWaveformBins(scopedTrack.id, playbackCacheSid || null),
+          ]);
           if (getPlayGeneration() !== gen) return;
-          const blend = computeAutodjManualBlendPlan(
-            outgoingWaveformBins,
-            aDur,
-            skipFromTimeSec,
-            bBins,
-            scopedTrack.duration || 0,
-          );
+          const blend = ready
+            ? computeAutodjManualBlendPlan(
+              outgoingWaveformBins,
+              aDur,
+              skipFromTimeSec,
+              bBins,
+              scopedTrack.duration || 0,
+            )
+            : null;
           startAudio(blend);
-        })
-        .catch(() => {
+        } catch {
           if (getPlayGeneration() !== gen) return;
           startAudio(null);
-        });
+        }
+      })();
       return;
     }
 

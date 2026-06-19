@@ -1,21 +1,8 @@
 import type { SubsonicSong } from '../../api/subsonicTypes';
 import { songToTrack } from './songToTrack';
 import { usePlayerStore } from '../../store/playerStore';
-function fadeOut(setVolume: (v: number) => void, from: number, durationMs: number): Promise<void> {
-  return new Promise(resolve => {
-    const steps = 16;
-    const stepMs = durationMs / steps;
-    let step = 0;
-    const id = setInterval(() => {
-      step++;
-      setVolume(Math.max(0, from * (1 - step / steps)));
-      if (step >= steps) {
-        clearInterval(id);
-        resolve();
-      }
-    }, stepMs);
-  });
-}
+import { fadeOut } from './fadeOut';
+import { shouldAutodjInterruptBlend } from './autodjManualBlend';
 
 /**
  * Play a single song. When `queue` is provided, surrounds the chosen song with that queue
@@ -30,7 +17,7 @@ export async function playSongNow(song: SubsonicSong, queue?: SubsonicSong[]): P
   const store = usePlayerStore.getState();
   const { isPlaying, volume } = store;
 
-  if (isPlaying) {
+  if (isPlaying && !shouldAutodjInterruptBlend(true)) {
     await fadeOut(store.setVolume, volume, 700);
     usePlayerStore.setState({ volume });
   }
@@ -47,7 +34,7 @@ export async function enqueueAndPlay(song: SubsonicSong): Promise<void> {
   const store = usePlayerStore.getState();
   const { isPlaying, volume, queueItems } = store;
 
-  if (isPlaying) {
+  if (isPlaying && !shouldAutodjInterruptBlend(true)) {
     await fadeOut(store.setVolume, volume, 700);
     usePlayerStore.setState({ volume });
   }

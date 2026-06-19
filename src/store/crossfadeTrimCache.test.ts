@@ -3,6 +3,7 @@ import {
   _resetCrossfadeTrimCacheForTest,
   armCrossfadeDynamicOverlap,
   consumeCrossfadeDynamicOverlap,
+  peekArmedCrossfadeDynamicOverlap,
   getCrossfadeTransition,
   hasPlannedCrossfade,
   markPlannedCrossfade,
@@ -51,6 +52,14 @@ describe('crossfadeTrimCache', () => {
     expect(consumeCrossfadeDynamicOverlap('b1')).toEqual({ overlapSec: 4, outgoingFadeSec: 0 });
     // One-shot: a second consume returns null.
     expect(consumeCrossfadeDynamicOverlap('b1')).toBeNull();
+  });
+
+  it('peeks armed overlap without consuming', () => {
+    armCrossfadeDynamicOverlap('b3', 2, 2);
+    expect(peekArmedCrossfadeDynamicOverlap('b3')).toBe(true);
+    expect(peekArmedCrossfadeDynamicOverlap('other')).toBe(false);
+    expect(consumeCrossfadeDynamicOverlap('b3')).not.toBeNull();
+    expect(peekArmedCrossfadeDynamicOverlap('b3')).toBe(false);
   });
 
   it('carries the engine fade-out length for A (non-scenario-A swaps)', () => {

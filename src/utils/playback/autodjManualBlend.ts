@@ -20,15 +20,25 @@ const MIN_A_REMAINING_SEC = 0.15;
 const MANUAL_SKIP_MAX_BLEND_SEC = STANDARD_BLEND_SEC;
 
 /**
- * True when a user-initiated skip should run the full AutoDJ crossfade rules
- * (overlap, B-head trim, scenario A) from the current playback position.
+ * True when switching to a different track while audio is already playing should
+ * use the AutoDJ interrupt blend (same rules as manual skip). Excludes JS
+ * auto-advance handoffs — those consume `armCrossfadeDynamicOverlap` instead.
  */
-export function shouldAutodjManualBlend(manual: boolean, wasPlaying: boolean): boolean {
-  if (!manual || !wasPlaying) return false;
+export function shouldAutodjInterruptBlend(
+  wasPlaying: boolean,
+  hasJsAutoHandoff = false,
+): boolean {
+  if (!wasPlaying || hasJsAutoHandoff) return false;
   const auth = useAuthStore.getState();
   return getTransitionMode(auth) === 'autodj'
     && auth.autodjSmoothSkip
     && !auth.gaplessEnabled;
+}
+
+/** @deprecated Use {@link shouldAutodjInterruptBlend} — manual flag is no longer required. */
+export function shouldAutodjManualBlend(manual: boolean, wasPlaying: boolean): boolean {
+  void manual;
+  return shouldAutodjInterruptBlend(wasPlaying);
 }
 
 /**

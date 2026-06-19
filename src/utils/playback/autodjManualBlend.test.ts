@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { computeAutodjManualBlendPlan } from './autodjManualBlend';
+import { useAuthStore } from '../../store/authStore';
+import { setTransitionMode } from './playbackTransition';
+import { computeAutodjManualBlendPlan, shouldAutodjInterruptBlend } from './autodjManualBlend';
 
 /** Loud plateau with a short trailing silence (500 bins, 100 s). */
 function loudTrackBins(trailQuietBins = 8): number[] {
@@ -14,6 +16,20 @@ function loudIntroBins(leadQuietBins = 6): number[] {
   for (let i = 0; i < leadQuietBins; i++) bins[i] = 8;
   return bins;
 }
+
+describe('shouldAutodjInterruptBlend', () => {
+  it('is true while playing even when manual flag would be false', () => {
+    setTransitionMode('autodj');
+    useAuthStore.setState({ autodjSmoothSkip: true, gaplessEnabled: false });
+    expect(shouldAutodjInterruptBlend(true, false)).toBe(true);
+  });
+
+  it('is false when JS auto-advance armed the handoff', () => {
+    setTransitionMode('autodj');
+    useAuthStore.setState({ autodjSmoothSkip: true, gaplessEnabled: false });
+    expect(shouldAutodjInterruptBlend(true, true)).toBe(false);
+  });
+});
 
 describe('computeAutodjManualBlendPlan', () => {
   it('clamps overlap to remaining audible tail when skipping mid-track', () => {

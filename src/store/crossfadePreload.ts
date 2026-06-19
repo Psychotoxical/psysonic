@@ -4,6 +4,7 @@ import { findLocalPlaybackUrl } from '../utils/offline/offlineLibraryHelpers';
 import { playbackCacheKeyForRef } from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveQueueTrack } from '../utils/library/queueTrackView';
+import type { Track } from './playerStoreTypes';
 import { useAuthStore } from './authStore';
 import {
   hasPlannedCrossfade,
@@ -49,6 +50,58 @@ export function isCrossfadeNextReady(
     }
   }
   return false;
+}
+
+/** Max wait for interrupt-blend preload (library pick / out-of-queue play). */
+export const INTERRUPT_BLEND_PRELOAD_WAIT_MS = 1200;
+
+/**
+ * Start an eager RAM preload for a track the user just picked (no queue lead time).
+ * No-op when already ready or a preload for this id is in flight.
+ */
+export function kickEagerCrossfadePreload(
+  track: Track,
+  profileId: string | null,
+  cacheKey: string | null,
+): void {
+  if (isCrossfadeNextReady(track.id, profileId, cacheKey)) return;
+  if (track.id === getBytePreloadingId()) return;
+  const serverId = cacheKey || profileId;
+  const url = resolvePlaybackUrl(track.id, serverId);
+  setBytePreloadingId(track.id);
+  void refreshLoudnessForTrack(track.id, { syncPlayingEngine: false });
+  invoke('audio_preload', {
+    url,
+    durationHint: track.duration,
+    analysisTrackId: track.id,
+    serverId: serverId || null,
+    eager: true,
+  }).catch(() => {});
+}
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise(resolve => { window.setTimeout(resolve, ms); });
+}
+
+/**
+ * Poll until B is playable for a stable crossfade, or `maxWaitMs` elapses.
+ * Returns false when `isStale()` reports a superseding play generation.
+ */
+export async function waitForCrossfadeNextReady(
+  trackId: string,
+  profileId: string | null,
+  cacheKey: string | null,
+  maxWaitMs: number,
+  isStale: () => boolean,
+): Promise<boolean> {
+  if (isCrossfadeNextReady(trackId, profileId, cacheKey)) return true;
+  const deadline = Date.now() + maxWaitMs;
+  while (Date.now() < deadline) {
+    if (isStale()) return false;
+    await sleepMs(50);
+    if (isCrossfadeNextReady(trackId, profileId, cacheKey)) return true;
+  }
+  return isCrossfadeNextReady(trackId, profileId, cacheKey);
 }
 
 /**
