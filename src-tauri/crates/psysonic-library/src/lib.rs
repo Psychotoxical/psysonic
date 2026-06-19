@@ -15,6 +15,7 @@ mod advanced_search_mood;
 pub mod analysis_backfill;
 pub mod analysis_backfill_policy;
 pub mod library_readiness;
+pub mod artist_artwork;
 pub mod artist_lossless_browse;
 pub mod cover_backfill;
 pub mod cover_resolve;

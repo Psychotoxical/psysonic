@@ -9,7 +9,7 @@ use tauri::Manager;
 
 /// Current head of the embedded migrations. Bump each time a new
 /// `migrations/NNN_*.sql` is added.
-pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 12;
+pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 13;
 
 /// Lowest applied schema version the current code can advance from purely
 /// additively. If a DB carries a version below this, the breaking-bump hook
@@ -26,10 +26,18 @@ pub(crate) const INITIAL_SQL: &str = include_str!("../migrations/001_initial.sql
 /// still pick up `track_genre` + `library_data_migration`.
 pub(crate) const MIGRATION_012_TRACK_GENRE_LEGACY: &str =
     include_str!("../migrations/012_track_genre_legacy_repair.sql");
+/// Version 13: additive `artist_artwork_lookup` table for external artist
+/// artwork (fanart.tv) — image-scraper §12. Pure CREATE TABLE IF NOT EXISTS.
+pub(crate) const MIGRATION_013_ARTIST_ARTWORK_LOOKUP: &str =
+    include_str!("../migrations/013_artist_artwork_lookup.sql");
 
 /// Embedded migrations. Ordered ascending by `version`; the runner sorts
 /// defensively before applying so the source order can stay readable.
-const MIGRATIONS: &[(i64, &str)] = &[(1, INITIAL_SQL), (12, MIGRATION_012_TRACK_GENRE_LEGACY)];
+const MIGRATIONS: &[(i64, &str)] = &[
+    (1, INITIAL_SQL),
+    (12, MIGRATION_012_TRACK_GENRE_LEGACY),
+    (13, MIGRATION_013_ARTIST_ARTWORK_LOOKUP),
+];
 
 /// Idempotent repair — also runs after the migration runner on every open so
 /// DBs that recorded the wrong version numbers still get the tables.
