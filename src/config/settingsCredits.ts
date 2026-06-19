@@ -168,6 +168,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Streamed Opus/Ogg seeking via on-demand HTTP Range fetches — seek mid-stream without a full pre-download (PR #1110)',
       'AutoDJ — content-aware crossfade: waveform-driven silence trim, content-driven overlap, scenario-A self-fade, readiness gate + engine auto-crossfade suppression (PR #1122)',
       'AutoDJ — smooth skip and interrupt blend: manual/out-of-queue crossfade, loud→loud ~2s advance, cold-target prep duck + deferred player-bar handoff (PR #1128)',
+      'Play queue sync — manual pull via connection indicator, idle auto-pull, multi-server push filter, flush-on-server-switch (PR #1131)',
       'Niri compositor tiling WM detection (PR #1127)',
     ],
   },

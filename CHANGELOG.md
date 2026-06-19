@@ -42,6 +42,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * When the target track is not buffered yet, the player briefly ducks the outgoing track while preloading; the player bar keeps showing the current song until the handoff so titles and artwork do not flicker or pause spuriously.
 * During an active blend, the play/pause button shows a pulsing Blend icon.
 
+### Play queue sync — cross-device handoff
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1131](https://github.com/Psychotoxical/psysonic/pull/1131)**, closes [#1129](https://github.com/Psychotoxical/psysonic/issues/1129)
+
+* Manual **pull** from the header connection indicator (LED + sync ring): click to fetch the active server's play queue when it differs from the local player; no-op when already in sync. Yellow LED when browse server ≠ playback server (e.g. after switching servers).
+* **Idle auto-pull** when paused/stopped for 30+ seconds on a single-server queue (active = playback): polls every 10s and applies server changes.
+* **Push** now sends only tracks owned by the playback server (fixes mixed-server queues). Switching browse servers flushes the old server's queue slice without auto-pull.
+
 
 ## Changed
 
