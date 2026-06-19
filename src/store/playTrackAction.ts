@@ -62,7 +62,7 @@ import { toQueueItemRefs } from '../utils/library/queueItemRef';
 import { getQueueTracksView, resolveQueueTrack } from '../utils/library/queueTrackView';
 import { seedQueueResolver } from '../utils/library/queueTrackResolver';
 import { promoteCompletedStreamToHotCache } from './promoteStreamCache';
-import { syncQueueToServer } from './queueSync';
+import { pushQueueOnPlaybackStart } from './queueSync';
 import { playListenSessionFinalize } from './playListenSession';
 import { pushQueueUndoFromGetter } from './queueUndo';
 import { stopRadio } from './radioPlayer';
@@ -543,7 +543,7 @@ export function runPlayTrack(
             }));
           });
       }
-      syncQueueToServer(get().queueItems, scopedTrack, initialTime);
+      pushQueueOnPlaybackStart(get().queueItems, scopedTrack, initialTime);
       touchHotCacheOnPlayback(scopedTrack.id, playbackCacheSid);
     };
 

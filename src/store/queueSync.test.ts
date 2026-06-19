@@ -40,6 +40,7 @@ import {
   flushQueueSyncToServer,
   getLastQueueHeartbeatAt,
   hasPendingQueueSync,
+  pushQueueOnPlaybackStart,
   syncQueueToServer,
 } from './queueSync';
 import {
@@ -112,6 +113,26 @@ describe('syncQueueToServer (debounced)', () => {
     vi.advanceTimersByTime(5000);
     await Promise.resolve();
     expect(isIdleQueuePullSuspended()).toBe(true);
+  });
+});
+
+describe('pushQueueOnPlaybackStart', () => {
+  const queue = [ref('a'), ref('b')];
+
+  it('flushes immediately and clears idle pull suspension when locally edited', async () => {
+    syncQueueToServer(queue, track('a'), 30);
+    expect(hasPendingQueueSync()).toBe(true);
+    pushQueueOnPlaybackStart(queue, track('a'), 42);
+    expect(hasPendingQueueSync()).toBe(false);
+    await vi.runAllTimersAsync();
+    expect(savePlayQueueMock).toHaveBeenCalledWith(['a', 'b'], 'a', 42000, 'srv-a');
+    expect(isIdleQueuePullSuspended()).toBe(false);
+  });
+
+  it('debounces when idle pull is not suspended', () => {
+    pushQueueOnPlaybackStart(queue, track('a'), 12);
+    expect(hasPendingQueueSync()).toBe(true);
+    expect(savePlayQueueMock).not.toHaveBeenCalled();
   });
 });
 

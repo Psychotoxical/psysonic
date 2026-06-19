@@ -8,7 +8,7 @@ import {
 } from '../utils/playback/playbackServer';
 import { filterQueueRefsForServerProfile } from '../utils/playback/trackServerScope';
 import { getPlaybackProgressSnapshot } from './playbackProgress';
-import { touchQueueMutationClock } from './queuePlaybackIdle';
+import { touchQueueMutationClock, isIdleQueuePullSuspended, resumeIdleQueuePull } from './queuePlaybackIdle';
 import { usePlayerStore } from './playerStore';
 
 /**
@@ -119,6 +119,41 @@ export function flushPlayQueuePosition(): Promise<void> {
   const s = usePlayerStore.getState();
   if (s.currentRadio) return Promise.resolve();
   return flushQueueSyncToServer(s.queueItems, s.currentTrack, getPlaybackProgressSnapshot().currentTime);
+}
+
+/**
+ * When the user edited the queue while paused, idle pull is suspended (yellow LED).
+ * Starting playback makes this client authoritative — push the local queue immediately
+ * and re-enable idle auto-pull (blocked anyway while `isPlaying`).
+ */
+export function pushQueueOnPlaybackStart(
+  queue: QueueItemRef[],
+  currentTrack: Track | null,
+  currentTime: number,
+): void {
+  if (!currentTrack || queue.length === 0) return;
+  if (isIdleQueuePullSuspended()) {
+    void flushQueueSyncToServer(queue, currentTrack, currentTime).then(() => {
+      resumeIdleQueuePull();
+    });
+    return;
+  }
+  syncQueueToServer(queue, currentTrack, currentTime);
+}
+
+export function flushLocalQueueWhenTakingPlayback(): Promise<void> {
+  if (!isIdleQueuePullSuspended()) return Promise.resolve();
+  const s = usePlayerStore.getState();
+  if (s.currentRadio || !s.currentTrack || s.queueItems.length === 0) {
+    return Promise.resolve();
+  }
+  return flushQueueSyncToServer(
+    s.queueItems,
+    s.currentTrack,
+    getPlaybackProgressSnapshot().currentTime,
+  ).then(() => {
+    resumeIdleQueuePull();
+  });
 }
 
 /** Test-only: drop the debounce + reset the heartbeat. */
