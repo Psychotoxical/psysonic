@@ -24,15 +24,16 @@ interface Props {
  *
  * Switching engines clears the other engine's enabled flag so only one
  * can be live at a time.
+ *
+ * Rendered as its own top-level "Normalization" category in the Audio tab, so
+ * the boxed `SettingsGroup` is title-less — the `SettingsSubSection` header and
+ * description name it.
  */
 export function NormalizationBlock({ preAnalysisEffectiveDb, t }: Props) {
   const auth = useAuthStore();
 
   return (
-    <SettingsGroup
-      title={t('settings.normalization', { defaultValue: 'Normalization' })}
-      desc={t('settings.normalizationDesc')}
-    >
+    <SettingsGroup>
       <div className="settings-segmented" style={{ marginBottom: auth.normalizationEngine === 'off' ? 0 : '0.85rem' }}>
         <button
           type="button"

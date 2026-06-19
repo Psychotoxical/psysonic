@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Music2, Sliders, Waves } from 'lucide-react';
+import { Blend, Gauge, Music2, Sliders, Volume2, Waves } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import Equalizer from '../Equalizer';
 import SettingsSubSection from '../SettingsSubSection';
@@ -10,9 +10,9 @@ import { effectiveLoudnessPreAnalysisAttenuationDb } from '../../utils/audio/lou
 import { useAudioDevicesProbe } from '../../hooks/useAudioDevicesProbe';
 import { AudioOutputDeviceSection } from './audio/AudioOutputDeviceSection';
 import { NormalizationBlock } from './audio/NormalizationBlock';
-import { Gauge } from 'lucide-react';
 import { PlaybackBehaviorBlock } from './audio/PlaybackBehaviorBlock';
 import { PlaybackRateBlock } from './audio/PlaybackRateBlock';
+import { TrackTransitionsBlock } from './audio/TrackTransitionsBlock';
 import { TrackPreviewsSection } from './audio/TrackPreviewsSection';
 
 export function AudioTab() {
@@ -46,6 +46,28 @@ export function AudioTab() {
         refreshAudioDevices={refreshAudioDevices}
         t={t}
       />
+
+      {/* Normalization — loudness levelling (own category) */}
+      <SettingsSubSection
+        title={t('settings.normalization')}
+        description={t('settings.normalizationDesc')}
+        icon={<Volume2 size={16} />}
+      >
+        <div className="settings-card">
+          <NormalizationBlock preAnalysisEffectiveDb={preAnalysisEffectiveDb} t={t} />
+        </div>
+      </SettingsSubSection>
+
+      {/* Track transitions — crossfade / gapless / AutoDJ (own category) */}
+      <SettingsSubSection
+        title={t('settings.transitionsTitle')}
+        description={t('settings.transitionsDesc')}
+        icon={<Blend size={16} />}
+      >
+        <div className="settings-card">
+          <TrackTransitionsBlock t={t} />
+        </div>
+      </SettingsSubSection>
 
       {/* Native Hi-Res Playback */}
       <SettingsSubSection
@@ -89,13 +111,12 @@ export function AudioTab() {
         </div>
       </SettingsSubSection>
 
-      {/* Replay Gain + Crossfade + Gapless */}
+      {/* Playback — queue behaviour (slated to move to Personalisation) */}
       <SettingsSubSection
         title={t('settings.playbackTitle')}
         icon={<Music2 size={16} />}
       >
         <div className="settings-card">
-          <NormalizationBlock preAnalysisEffectiveDb={preAnalysisEffectiveDb} t={t} />
           <PlaybackBehaviorBlock t={t} />
         </div>
       </SettingsSubSection>
