@@ -124,7 +124,11 @@ export function QueueToolbarCustomizer() {
             {Icon ? (
               <Icon size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
             ) : (
-              <div style={{ width: 1, height: 16, background: 'var(--border-subtle)', flexShrink: 0 }} />
+              // Reserve the same 16px icon column so the label lines up with the
+              // other rows; the 1px rule is centred within it.
+              <div style={{ width: 16, display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
+                <div style={{ width: 1, height: 16, background: 'var(--border-subtle)' }} />
+              </div>
             )}
             <span style={{ flex: 1, fontSize: 14 }}>{label}</span>
             <label className="toggle-switch" aria-label={label}>

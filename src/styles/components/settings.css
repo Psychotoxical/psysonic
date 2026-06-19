@@ -587,8 +587,9 @@ span.settings-server-use-active-slot {
   color: var(--accent);
 }
 
-/* Right-aligned slot in the group title row (e.g. a reset button). */
-.settings-group-title-action {
+/* Right-aligned slot in the group title row holding the optional Advanced
+   badge and/or action (e.g. a reset button), in that order. */
+.settings-group-title-end {
   margin-left: auto;
   display: inline-flex;
   align-items: center;

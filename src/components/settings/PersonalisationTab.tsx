@@ -135,6 +135,7 @@ export function PersonalisationTab() {
           {advancedSettingsEnabled && (
             <SettingsGroup
               title={t('settings.queueToolbarTitle')}
+              advanced
               action={
                 <button
                   type="button"
