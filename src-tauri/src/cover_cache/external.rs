@@ -8,10 +8,6 @@
 //! are downloaded by the ensure flow via `fetch::fetch_cover_bytes` (a generic
 //! retrying GET). All network use is gated by the caller (feature flag +
 //! reachability + the dedicated low-concurrency fanart semaphore).
-//!
-//! `dead_code` is allowed until the `ensure_inner` external branch (§4/§5)
-//! wires these in — that is the next commit.
-#![allow(dead_code)]
 
 use reqwest::Client;
 

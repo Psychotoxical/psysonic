@@ -134,6 +134,15 @@ pub struct CoverCacheEnsureArgs {
     /// with the album/artist name. On-demand UI ensures leave it `None`.
     #[serde(default)]
     pub library_server_id: Option<String>,
+    /// Image-scraper spike (§16 P0): when true, an artist `fanart` ensure may
+    /// fetch a fanart.tv background into `{tier}-fanart.webp`. Inert unless the
+    /// fanart project key is present (`PSYSONIC_FANART_KEY`). Off by default.
+    #[serde(default)]
+    pub external_artwork_enabled: bool,
+    /// Surface intent for external artwork — `fanart` for the 16:9 artist
+    /// background. `None` on plain cover ensures.
+    #[serde(default)]
+    pub surface_kind: Option<String>,
 }
 
 fn cover_dir_for_args(root: &Path, args: &CoverCacheEnsureArgs) -> PathBuf {
@@ -162,9 +171,8 @@ pub struct CoverCacheState {
     pub http_sem: Arc<Semaphore>,
     pub cover_cpu_ui_sem: Arc<Semaphore>,
     pub cover_cpu_backfill_sem: Arc<Semaphore>,
-    /// External-provider (fanart.tv) HTTP lane — separate from `http_sem`.
-    /// Wired by the ensure external branch (§4).
-    #[allow(dead_code)]
+    /// External-provider (fanart.tv) HTTP lane — separate from `http_sem` so
+    /// external fetches never starve Navidrome cover / getArtistInfo2 (§26).
     pub fanart_http_sem: Arc<Semaphore>,
     /// Live permit count of `cover_cpu_backfill_sem` (the semaphore itself only
     /// exposes *available* permits, not the configured ceiling).
@@ -238,7 +246,7 @@ impl CoverCacheState {
     ) -> Result<CoverCacheEnsureResult, String> {
         let this = state.lock().await;
         let dir = cover_dir_for_args(&this.root, args);
-        if let Some(path) = peek_tier_path(&dir, args.tier) {
+        if let Some(path) = peek_cover_path(&dir, args.tier, args) {
             return Ok(CoverCacheEnsureResult {
                 hit: true,
                 path: path.to_string_lossy().into_owned(),
@@ -263,6 +271,7 @@ impl CoverCacheState {
         let root = this.root.clone();
         let http_sem = http_sem_override.unwrap_or_else(|| this.http_sem.clone());
         let cover_cpu_sem = this.cpu_sem_for(args.library_bulk);
+        let fanart_sem = this.fanart_http_sem.clone();
         drop(this);
 
         if cover_fetch_recently_failed(&dir) {
@@ -271,6 +280,26 @@ impl CoverCacheState {
                 path: String::new(),
                 tier: args.tier,
             });
+        }
+
+        // Image-scraper spike (§16 P0): for the artist 16:9 `fanart` surface,
+        // try fanart.tv before the Navidrome fallback. On any miss it falls
+        // through WITHOUT writing a `.fetch-failed` marker, so Navidrome stays
+        // the display fallback (§28).
+        if args.external_artwork_enabled
+            && !args.library_bulk
+            && args.cache_kind == "artist"
+            && args.surface_kind.as_deref() == Some("fanart")
+        {
+            if let Some(path) =
+                try_external_fanart(app, args, &dir, &client, &fanart_sem, args.tier).await
+            {
+                return Ok(CoverCacheEnsureResult {
+                    hit: true,
+                    path: path.to_string_lossy().into_owned(),
+                    tier: args.tier,
+                });
+            }
         }
 
         let requested = args.tier;
@@ -831,6 +860,134 @@ fn peek_tier_path(dir: &Path, want: u32) -> Option<PathBuf> {
         }
     }
     None
+}
+
+/// Spike negative-cache marker — "this artist has no fanart", mirrors the
+/// `.fetch-failed` ~30 min backoff (image-scraper §13/§24).
+const FANART_MISS_MARKER: &str = ".miss-fanart";
+
+/// Like [`peek_tier_path`] but, for the `fanart` surface, prefers the external
+/// `{tier}-fanart.webp` tiers first (the file only exists once fanart was
+/// fetched). Other surfaces are unaffected. Spike default = fanart-first when
+/// present; the configurable provider-priority walk (§18) is P1.
+fn peek_cover_path(dir: &Path, want: u32, args: &CoverCacheEnsureArgs) -> Option<PathBuf> {
+    if args.surface_kind.as_deref() == Some("fanart") {
+        if let Some(p) = disk::provider_tier_exists(dir, want, "fanart") {
+            return Some(p);
+        }
+        for &tier in peek_fallback_tiers(want) {
+            if let Some(p) = disk::provider_tier_exists(dir, tier, "fanart") {
+                return Some(p);
+            }
+        }
+    }
+    peek_tier_path(dir, want)
+}
+
+fn marker_recent(path: &Path, max_age: Duration) -> bool {
+    std::fs::metadata(path)
+        .and_then(|m| m.modified())
+        .map(|t| t.elapsed().map(|e| e < max_age).unwrap_or(true))
+        .unwrap_or(false)
+}
+
+fn write_marker(path: &Path) {
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = std::fs::write(path, b"1");
+}
+
+/// Image-scraper P0 spike: try to satisfy an artist `fanart` surface from
+/// fanart.tv. Writes `2000-fanart.webp` + `512-fanart.webp` into the entity dir
+/// and returns the requested-tier path on success. `None` = "no fanart, fall
+/// through to Navidrome" — never writes a `.fetch-failed` marker (§28).
+///
+/// MBID resolution stays Rust-side (§23): the tag MBID via `getArtistInfo2`.
+/// The name→MusicBrainz path, the per-surface quality gate (§11), and the
+/// `artist_artwork_lookup` status writes are P1; the spike uses disk markers.
+async fn try_external_fanart(
+    app: &AppHandle,
+    args: &CoverCacheEnsureArgs,
+    dir: &Path,
+    client: &Client,
+    fanart_sem: &Arc<Semaphore>,
+    requested: u32,
+) -> Option<PathBuf> {
+    // Behind the project key — the spike reads it from the environment so no
+    // secret lands in the repo. The BYOK personal key is optional (§22).
+    let api_key = std::env::var("PSYSONIC_FANART_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())?;
+    let byok = std::env::var("PSYSONIC_FANART_CLIENT_KEY")
+        .ok()
+        .filter(|k| !k.is_empty());
+
+    let miss_marker = dir.join(FANART_MISS_MARKER);
+    if marker_recent(&miss_marker, Duration::from_secs(30 * 60)) {
+        return None;
+    }
+
+    let _permit = fanart_sem.clone().acquire_owned().await.ok()?;
+
+    // §23: resolve the artist's tag MBID in Rust via getArtistInfo2.
+    let mbid = match external::fetch_artist_tag_mbid(
+        client,
+        &args.rest_base_url,
+        &args.username,
+        &args.password,
+        &args.cache_entity_id,
+    )
+    .await
+    {
+        Ok(Some(m)) => m,
+        Ok(None) => return None, // no tag MBID → Navidrome fallback
+        Err(e) => {
+            eprintln!("[fanart] getArtistInfo2 failed: {e}");
+            return None;
+        }
+    };
+
+    let bg_url =
+        match external::fetch_fanart_background_url(client, &mbid, &api_key, byok.as_deref()).await {
+            Ok(Some(u)) => u,
+            Ok(None) => {
+                write_marker(&miss_marker); // artist has no fanart
+                return None;
+            }
+            Err(e) => {
+                eprintln!("[fanart] lookup failed: {e}");
+                return None;
+            }
+        };
+
+    let bytes = match fetch::fetch_cover_bytes(client, &bg_url).await {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("[fanart] download failed: {e}");
+            return None;
+        }
+    };
+
+    // Decode + write 2000-fanart.webp + derive 512-fanart.webp (matryoshka §17).
+    let dir_owned = dir.to_path_buf();
+    let encoded = tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        let img = decode_image_bytes(&bytes)?;
+        std::fs::create_dir_all(&dir_owned).map_err(|e| e.to_string())?;
+        for tier in [2000u32, 512u32] {
+            write_webp_tier(&img, tier, &disk::provider_tier_path(&dir_owned, tier, "fanart"))?;
+        }
+        Ok(())
+    })
+    .await;
+    if !matches!(encoded, Ok(Ok(()))) {
+        eprintln!("[fanart] encode failed: {encoded:?}");
+        return None;
+    }
+
+    let out = disk::provider_tier_path(dir, requested, "fanart");
+    emit_tier_ready(app, args, requested, &out);
+    Some(out)
 }
 
 #[tauri::command]

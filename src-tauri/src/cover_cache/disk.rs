@@ -13,6 +13,22 @@ pub fn tier_path(dir: &Path, tier: u32) -> PathBuf {
     dir.join(format!("{tier}.webp"))
 }
 
+/// External-provider tier file in the SAME entity dir, differentiated by a
+/// filename suffix only (image-scraper §14/§16): `{tier}-{provider}.webp`
+/// (e.g. `2000-fanart.webp`). The `coverStorageKey`/`cacheKind` is unchanged.
+pub fn provider_tier_path(dir: &Path, tier: u32, provider: &str) -> PathBuf {
+    dir.join(format!("{tier}-{provider}.webp"))
+}
+
+pub fn provider_tier_exists(dir: &Path, tier: u32, provider: &str) -> Option<PathBuf> {
+    let p = provider_tier_path(dir, tier, provider);
+    if p.is_file() {
+        Some(p)
+    } else {
+        None
+    }
+}
+
 #[allow(dead_code)]
 pub fn meta_path(dir: &Path) -> PathBuf {
     dir.join("meta.json")
