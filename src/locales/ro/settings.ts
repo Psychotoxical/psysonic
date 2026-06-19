@@ -211,7 +211,6 @@ export const settings = {
   audioOutputDeviceOsDefaultNow: 'ieșirea curentă a sistemului',
   audioOutputDeviceListError: 'Nu s-a putut încărca lista dispozitivelor audio',
   audioOutputDeviceNotInCurrentList: 'nu există în lista curentă',
-  audioOutputDeviceMacNotice: 'În macOS, redarea urmărește mereu dispozitivul audio de ieșire al sistemului din motive tehnice. Schimbă ținta în Setări → Sunet sau iconița difuzor din bara de meniu. Fundal: CoreAudio declanșează un prompt de permisiune de microfon când se deschide un stream non-implicit — îl evităm folosind opțiunea implicită a sistemului mereu.',
   hiResTitle: 'Playback Hi-Res nativ',
   hiResEnabled: 'Pornește playback-ul hi-res nativ',
   hiResDesc: "Redă fiecare piesă la rata sa de eșantionare originală în loc să reeșantioneze totul la 44.1 kHz, comutând dispozitivul de ieșire pentru a se potrivi cu fișierul (88.2 kHz și peste). Pornește doar dacă hardware-ul și rețeaua gestionează fiabil rate mari de eșantionare.",

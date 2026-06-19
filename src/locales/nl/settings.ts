@@ -208,7 +208,6 @@ export const settings = {
   audioOutputDeviceOsDefaultNow: 'huidige systeemuitvoer',
   audioOutputDeviceListError: 'De lijst met audio-apparaten kon niet worden geladen.',
   audioOutputDeviceNotInCurrentList: 'staat niet in de huidige lijst',
-  audioOutputDeviceMacNotice: 'Op macOS volgt de weergave om technische redenen altijd het standaard-uitvoerapparaat van het systeem. Wijzig het doel via Systeeminstellingen → Geluid of via het luidsprekerpictogram in de menubalk. Achtergrond: CoreAudio vraagt bij het openen van een niet-standaard stream om microfoontoestemming — dat vermijden we door altijd de systeemstandaard te gebruiken.',
   hiResTitle: 'Natieve hi-res-weergave',
   hiResEnabled: 'Natieve hi-res-weergave inschakelen',
   hiResDesc: "Speelt elke track af op zijn oorspronkelijke samplerate in plaats van alles te herbemonsteren naar 44,1 kHz, en stelt het uitvoerapparaat af op het bestand (88,2 kHz en hoger). Alleen inschakelen als hardware en netwerk hoge samplerates betrouwbaar aankunnen.",

@@ -209,7 +209,6 @@ export const settings = {
   audioOutputDeviceOsDefaultNow: 'gjeldende systemutgang',
   audioOutputDeviceListError: 'Kunne ikke laste listen over lydenheter.',
   audioOutputDeviceNotInCurrentList: 'ikke i gjeldende liste',
-  audioOutputDeviceMacNotice: 'På macOS følger avspillingen av tekniske årsaker alltid systemets lydutgang. Endre målet via Systeminnstillinger → Lyd eller høyttalerikonet i menylinjen. Bakgrunn: CoreAudio utløser en mikrofontillatelsesdialog når en ikke-standard strøm åpnes — vi unngår det ved alltid å bruke systemets standardutgang.',
   hiResTitle: 'Innebygd hi-res-avspilling',
   hiResEnabled: 'Aktiver innebygd hi-res-avspilling',
   hiResDesc: "Spiller hvert spor med sin opprinnelige samplingsrate i stedet for å nedsample alt til 44,1 kHz, og stiller utdataenheten etter filen (88,2 kHz og høyere). Aktiver kun hvis maskinvare og nettverk håndterer høye samplingsrater pålitelig.",

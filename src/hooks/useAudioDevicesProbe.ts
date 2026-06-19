@@ -24,7 +24,7 @@ interface UseAudioDevicesProbeResult {
  * (`audio:device-changed` / `audio:device-reset`).
  *
  * macOS short-circuits — the audio stream is pinned to the system default
- * there (see `audioOutputDeviceMacNotice`) and the picker UI is hidden.
+ * there, and the whole output-device category is gated out in settings.
  */
 export function useAudioDevicesProbe(t: TFunction): UseAudioDevicesProbeResult {
   const [audioDevices, setAudioDevices] = useState<string[]>([]);

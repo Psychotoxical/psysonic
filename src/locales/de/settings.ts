@@ -209,7 +209,6 @@ export const settings = {
   audioOutputDeviceOsDefaultNow: 'aktuelle Systemausgabe',
   audioOutputDeviceListError: 'Audiogeräteliste konnte nicht geladen werden.',
   audioOutputDeviceNotInCurrentList: 'nicht in der aktuellen Liste',
-  audioOutputDeviceMacNotice: 'Auf macOS folgt die Wiedergabe aus technischen Gründen zurzeit immer dem System-Ausgabegerät. Du kannst das Ziel über Systemeinstellungen → Ton oder das Lautsprecher-Symbol in der Menüleiste wechseln. Hintergrund: CoreAudio löst beim Öffnen eines nicht-Default-Streams eine Mikrofonberechtigungsabfrage aus — wir vermeiden sie, indem wir stets den System-Default verwenden.',
   hiResTitle: 'Native Hi-Res-Wiedergabe',
   hiResEnabled: 'Native Hi-Res-Wiedergabe aktivieren',
   hiResDesc: "Spielt jeden Titel mit seiner ursprünglichen Abtastrate ab, statt alles auf 44,1 kHz herunterzurechnen, und stellt das Ausgabegerät passend zur Datei um (88,2 kHz und höher). Nur aktivieren, wenn Hardware und Netzwerk hohe Abtastraten zuverlässig verarbeiten.",

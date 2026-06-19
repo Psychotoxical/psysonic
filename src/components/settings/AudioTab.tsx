@@ -8,6 +8,7 @@ import { SettingsGroup } from './SettingsGroup';
 import { SettingsToggle } from './SettingsToggle';
 import { effectiveLoudnessPreAnalysisAttenuationDb } from '../../utils/audio/loudnessPreAnalysisSlider';
 import { useAudioDevicesProbe } from '../../hooks/useAudioDevicesProbe';
+import { IS_MACOS } from '../../utils/platform';
 import { AudioOutputDeviceSection } from './audio/AudioOutputDeviceSection';
 import { NormalizationBlock } from './audio/NormalizationBlock';
 import { PlaybackRateBlock } from './audio/PlaybackRateBlock';
@@ -36,15 +37,19 @@ export function AudioTab() {
 
   return (
     <>
-      <AudioOutputDeviceSection
-        audioDevices={audioDevices}
-        osDefaultAudioDeviceId={osDefaultAudioDeviceId}
-        deviceSwitching={deviceSwitching}
-        devicesLoading={devicesLoading}
-        setDeviceSwitching={setDeviceSwitching}
-        refreshAudioDevices={refreshAudioDevices}
-        t={t}
-      />
+      {/* Output-device picker is hidden on macOS — the stream is pinned to the
+          system default there, so the whole category is gated out. */}
+      {!IS_MACOS && (
+        <AudioOutputDeviceSection
+          audioDevices={audioDevices}
+          osDefaultAudioDeviceId={osDefaultAudioDeviceId}
+          deviceSwitching={deviceSwitching}
+          devicesLoading={devicesLoading}
+          setDeviceSwitching={setDeviceSwitching}
+          refreshAudioDevices={refreshAudioDevices}
+          t={t}
+        />
+      )}
 
       {/* Normalization — loudness levelling (own category) */}
       <SettingsSubSection

@@ -208,7 +208,6 @@ export const settings = {
   audioOutputDeviceOsDefaultNow: 'sortie système actuelle',
   audioOutputDeviceListError: 'Impossible de charger la liste des périphériques audio.',
   audioOutputDeviceNotInCurrentList: 'absent de la liste actuelle',
-  audioOutputDeviceMacNotice: 'Sur macOS, la lecture suit actuellement toujours la sortie audio du système pour des raisons techniques. Changez la cible via Réglages Système → Son ou l\'icône haut-parleur de la barre de menus. Contexte : CoreAudio déclenche une demande d\'autorisation du microphone à l\'ouverture d\'un flux non par défaut — nous l\'évitons en utilisant toujours la sortie système par défaut.',
   hiResTitle: 'Lecture haute résolution native',
   hiResEnabled: 'Activer la lecture haute résolution native',
   hiResDesc: "Lit chaque piste à sa fréquence d'échantillonnage d'origine au lieu de tout rééchantillonner à 44,1 kHz, en réglant le périphérique de sortie sur celle du fichier (88,2 kHz et plus). N'activer que si le matériel et le réseau gèrent ces hautes fréquences de façon fiable.",
