@@ -8,6 +8,7 @@ import {
   INTERRUPT_BLEND_PREP_FADE_SEC,
   isInterruptHandoffPending,
   runInterruptBlendPrep,
+  shouldDeferInterruptHandoffUi,
 } from './autodjInterruptPrep';
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -55,5 +56,11 @@ describe('runInterruptBlendPrep', () => {
     expect(isInterruptHandoffPending()).toBe(true);
     clearInterruptHandoff();
     expect(isInterruptHandoffPending()).toBe(false);
+  });
+
+  it('defers player UI only for cold interrupt handoffs', () => {
+    expect(shouldDeferInterruptHandoffUi(true, false)).toBe(true);
+    expect(shouldDeferInterruptHandoffUi(true, true)).toBe(false);
+    expect(shouldDeferInterruptHandoffUi(false, false)).toBe(false);
   });
 });

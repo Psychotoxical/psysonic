@@ -13,6 +13,7 @@ import {
   armInterruptHandoff,
   clearInterruptHandoff,
   runInterruptBlendPrep,
+  shouldDeferInterruptHandoffUi,
 } from '../utils/playback/autodjInterruptPrep';
 import { isCrossfadeNextReady } from './crossfadePreload';
 import { STANDARD_BLEND_SEC } from '../utils/waveform/waveformSilence';
@@ -341,31 +342,64 @@ export function runPlayTrack(
       shouldAutodjInterruptBlend(wasPlayingBeforeSkip, hasJsAutoHandoff)
       && prevTrack
       && !sameQueueTrackId(prevTrack.id, scopedTrack.id);
+    const bReadyNow = isCrossfadeNextReady(scopedTrack.id, playbackSid, playbackCacheSid);
+    /** Cold interrupt: engine still on A — don't swap player-bar metadata until handoff. */
+    const deferInterruptUi = shouldDeferInterruptHandoffUi(wantInterruptBlend, bReadyNow);
 
-    set({
-      currentTrack: scopedTrack,
-      currentRadio: null,
-      waveformBins: null,
-      ...deriveNormalizationSnapshot(scopedTrack, normWindow, normIdx),
-      // Only a replace rewrites the queue; navigation keeps the canonical refs.
-      ...(replacing ? { queueItems: toQueueItemRefs(queueSid, scopedQueue) } : {}),
-      queueIndex: idx >= 0 ? idx : 0,
-      progress: initialProgress,
-      buffered: 0,
-      currentTime: initialTime,
-      scrobbled: false,
-      networkLoved: false,
-      // HTTP stream: wait for Rust `audio:playing` so the seekbar does not
-      // extrapolate while RangedHttpSource / legacy reader is still buffering.
-      // During interrupt prep A is still audible — keep the play affordance on.
-      isPlaying: (wantInterruptBlend && wasPlayingBeforeSkip) || playbackSourceHint !== 'stream',
-      isPlaybackBuffering: wantInterruptBlend && wasPlayingBeforeSkip
-        ? false
-        : playbackSourceHint === 'stream',
-      currentPlaybackSource: playbackSourceHint,
-      enginePreloadedTrackId: keepPreloadHint ? scopedTrack.id : null,
-    });
+    const applyInterruptHandoffUi = () => {
+      set({
+        currentTrack: scopedTrack,
+        waveformBins: null,
+        ...deriveNormalizationSnapshot(scopedTrack, normWindow, normIdx),
+        progress: initialProgress,
+        buffered: 0,
+        currentTime: initialTime,
+        scrobbled: false,
+        networkLoved: false,
+        isPlaying: playbackSourceHint !== 'stream',
+        isPlaybackBuffering: playbackSourceHint === 'stream',
+        currentPlaybackSource: playbackSourceHint,
+        enginePreloadedTrackId: keepPreloadHint ? scopedTrack.id : null,
+      });
+      void refreshWaveformForTrack(scopedTrack.id);
+      void refreshLoudnessForTrack(scopedTrack.id);
+    };
 
+    if (deferInterruptUi) {
+      set({
+        currentRadio: null,
+        ...(replacing ? { queueItems: toQueueItemRefs(queueSid, scopedQueue) } : {}),
+        queueIndex: idx >= 0 ? idx : 0,
+      });
+    } else {
+      set({
+        currentTrack: scopedTrack,
+        currentRadio: null,
+        waveformBins: null,
+        ...deriveNormalizationSnapshot(scopedTrack, normWindow, normIdx),
+        // Only a replace rewrites the queue; navigation keeps the canonical refs.
+        ...(replacing ? { queueItems: toQueueItemRefs(queueSid, scopedQueue) } : {}),
+        queueIndex: idx >= 0 ? idx : 0,
+        progress: initialProgress,
+        buffered: 0,
+        currentTime: initialTime,
+        scrobbled: false,
+        networkLoved: false,
+        // HTTP stream: wait for Rust `audio:playing` so the seekbar does not
+        // extrapolate while RangedHttpSource / legacy reader is still buffering.
+        // During interrupt prep A is still audible — keep the play affordance on.
+        isPlaying: (wantInterruptBlend && wasPlayingBeforeSkip) || playbackSourceHint !== 'stream',
+        isPlaybackBuffering: wantInterruptBlend && wasPlayingBeforeSkip
+          ? false
+          : playbackSourceHint === 'stream',
+        currentPlaybackSource: playbackSourceHint,
+        enginePreloadedTrackId: keepPreloadHint ? scopedTrack.id : null,
+      });
+      void refreshWaveformForTrack(scopedTrack.id);
+      void refreshLoudnessForTrack(scopedTrack.id);
+    }
+
+    setDeferHotCachePrefetch(true);
     if (
       prevTrack
       && !sameQueueTrackId(prevTrack.id, scopedTrack.id)
@@ -380,9 +414,6 @@ export function runPlayTrack(
         );
       }
     }
-    void refreshWaveformForTrack(scopedTrack.id);
-    void refreshLoudnessForTrack(scopedTrack.id);
-    setDeferHotCachePrefetch(true);
     const replayGainDb = resolveReplayGainDb(
       scopedTrack, prevTrack, nextNeighbour,
       isReplayGainActive(), authStateNow.replayGainMode,
@@ -510,6 +541,7 @@ export function runPlayTrack(
     };
 
     const startAudio = (manualBlend: CrossfadeTransitionPlan | null) => {
+      if (deferInterruptUi) applyInterruptHandoffUi();
       clearInterruptHandoff();
       invokeAudioPlay(manualBlend);
       finishPlaybackSideEffects();
@@ -519,7 +551,6 @@ export function runPlayTrack(
       const aDur = prevTrack.duration || 0;
       armAutodjMixing(STANDARD_BLEND_SEC);
       armInterruptHandoff(gen);
-      const bReadyNow = isCrossfadeNextReady(scopedTrack.id, playbackSid, playbackCacheSid);
       void (async () => {
         try {
           const [prep, bBins] = await Promise.all([

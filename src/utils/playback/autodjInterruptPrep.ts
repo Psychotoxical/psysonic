@@ -24,6 +24,14 @@ export function isInterruptHandoffPending(): boolean {
   return pendingHandoffGen !== null;
 }
 
+/** Keep player-bar metadata on A until B is buffered and the engine handoff runs. */
+export function shouldDeferInterruptHandoffUi(
+  wantInterruptBlend: boolean,
+  bReadyNow: boolean,
+): boolean {
+  return wantInterruptBlend && !bReadyNow;
+}
+
 function sleepMs(ms: number): Promise<void> {
   return new Promise(resolve => { window.setTimeout(resolve, ms); });
 }
