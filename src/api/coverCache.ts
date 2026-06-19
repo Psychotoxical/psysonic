@@ -63,13 +63,14 @@ export type CoverEnsureOpts = {
 
 /**
  * External-artwork ensure fields (§28). `externalArtworkEnabled` is gated by the
- * master toggle AND restricted to the artist `fanart` surface, so plain album/
- * artist cover ensures are never affected.
+ * master toggle AND restricted to the external artist surfaces (`fanart` /
+ * `banner`), so plain album/artist cover ensures are never affected.
  */
 function externalEnsureFields(ref: CoverArtRef, opts?: CoverEnsureOpts) {
   const surfaceKind = opts?.surfaceKind;
+  const isExternalSurface = surfaceKind === 'fanart' || surfaceKind === 'banner';
   const externalArtworkEnabled =
-    surfaceKind === 'fanart' &&
+    isExternalSurface &&
     ref.cacheKind === 'artist' &&
     useThemeStore.getState().externalArtworkEnabled;
   return {
