@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from '../store/authStore';
+import { useThemeStore } from '../store/themeStore';
 import { coverIndexKeyFromRef, coverStorageKeyFromRef } from '../cover/storageKeys';
 import { connectBaseUrlForServer } from '../utils/server/serverEndpoint';
 import { serverIndexKeyForProfile } from '../utils/server/serverIndexKey';
@@ -52,7 +53,34 @@ export function setCoverCacheAutoDownloadEnabled(enabled: boolean): void {
   coverAutoDownloadEnabled = enabled;
 }
 
-function ensureArgsFromRef(ref: CoverArtRef, tier: CoverArtTier) {
+export type CoverEnsureOpts = {
+  /** External-artwork surface intent — `'fanart'` for the 16:9 artist background (§28). */
+  surfaceKind?: string;
+  /** §19 name→MusicBrainz context: the artist display name + the album in context. */
+  artistName?: string;
+  albumTitle?: string;
+};
+
+/**
+ * External-artwork ensure fields (§28). `externalArtworkEnabled` is gated by the
+ * master toggle AND restricted to the artist `fanart` surface, so plain album/
+ * artist cover ensures are never affected.
+ */
+function externalEnsureFields(ref: CoverArtRef, opts?: CoverEnsureOpts) {
+  const surfaceKind = opts?.surfaceKind;
+  const externalArtworkEnabled =
+    surfaceKind === 'fanart' &&
+    ref.cacheKind === 'artist' &&
+    useThemeStore.getState().externalArtworkEnabled;
+  return {
+    externalArtworkEnabled,
+    surfaceKind,
+    artistName: opts?.artistName,
+    albumTitle: opts?.albumTitle,
+  };
+}
+
+function ensureArgsFromRef(ref: CoverArtRef, tier: CoverArtTier, opts?: CoverEnsureOpts) {
   const { getBaseUrl, getActiveServer } = useAuthStore.getState();
   const scope = ref.serverScope;
   if (scope.kind === 'server') {
@@ -69,6 +97,7 @@ function ensureArgsFromRef(ref: CoverArtRef, tier: CoverArtTier) {
       ),
       username: scope.username,
       password: scope.password,
+      ...externalEnsureFields(ref, opts),
     };
   }
   const server =
@@ -94,6 +123,7 @@ function ensureArgsFromRef(ref: CoverArtRef, tier: CoverArtTier) {
     restBaseUrl: baseUrl ? coverCacheRestHost(baseUrl) : '',
     username: server?.username ?? '',
     password: server?.password ?? '',
+    ...externalEnsureFields(ref, opts),
   };
 }
 
@@ -125,9 +155,10 @@ export async function coverCacheEnsure(
   ref: CoverArtRef,
   tier: CoverArtTier,
   _priority?: string,
+  opts?: CoverEnsureOpts,
 ): Promise<CoverCacheEnsureResult> {
   return invoke<CoverCacheEnsureResult>('cover_cache_ensure', {
-    args: ensureArgsFromRef(ref, tier),
+    args: ensureArgsFromRef(ref, tier, opts),
   });
 }
 

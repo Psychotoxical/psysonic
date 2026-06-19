@@ -6,10 +6,10 @@ import {
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../../store/playerStore';
 import { queueSongStar, queueSongRating } from '../../store/pendingStarSync';
-import { useAlbumCoverRef } from '../../cover/useLibraryCoverRef';
+import { useAlbumCoverRef, useArtistCoverRef } from '../../cover/useLibraryCoverRef';
 import { usePlaybackCoverArt } from '../../hooks/usePlaybackCoverArt';
 import { useCachedUrl } from '../CachedImage';
-import { useFsArtistPortrait } from '../../hooks/useFsArtistPortrait';
+import { useArtistFanart } from '../../cover/useArtistFanart';
 import { useFsIdleFade } from '../../hooks/useFsIdleFade';
 import { useQueueTrackAt } from '../../hooks/useQueueTracks';
 import WaveformSeek from '../WaveformSeek';
@@ -64,9 +64,19 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
   const coverUrl = useCachedUrl(cover.src, cover.cacheKey, true);
   const resolvedCoverUrl = coverUrl;
   const thumbUrl = coverUrl;
-  // Artist photo is the background; fall back to the album cover.
-  const artistBgUrl = useFsArtistPortrait(currentTrack?.artistId);
-  const bgUrl = artistBgUrl || resolvedCoverUrl;
+  // Background priority (§28): fanart.tv 16:9 → Navidrome artist image (via the
+  // cover pipeline, no live probe) → album cover. The toggle is off by default,
+  // so the Navidrome artist image stays the default background.
+  const fanartBgUrl = useArtistFanart(currentTrack?.artistId, {
+    artistName: currentTrack?.artist,
+    albumTitle: currentTrack?.album,
+  });
+  const artistCoverRef =
+    useArtistCoverRef(currentTrack?.artistId, undefined, undefined, { libraryResolve: false }) ??
+    undefined;
+  const artistImage = usePlaybackCoverArt(artistCoverRef, 2000, { fullRes: true });
+  const artistImgUrl = useCachedUrl(artistImage.src, artistImage.cacheKey, true);
+  const bgUrl = fanartBgUrl || artistImgUrl || resolvedCoverUrl;
 
   const nextTrack = useQueueTrackAt(queueIndex + 1);
 
