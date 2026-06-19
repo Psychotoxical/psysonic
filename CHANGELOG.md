@@ -47,11 +47,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Settings — consistent grouped layout
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1126](https://github.com/Psychotoxical/psysonic/pull/1126)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1126](https://github.com/Psychotoxical/psysonic/pull/1126) and PR [#1130](https://github.com/Psychotoxical/psysonic/pull/1130)**
 
 * The settings tabs now group related controls into clearly bordered, labelled panels for a more consistent, easier-to-scan layout — across Appearance, System, Audio, Storage, Library, Integrations, Music Network, Lyrics, Personalisation, Input and Themes. Standalone toggles are left as they were, and a few duplicated section titles are gone.
 * The **Lucky Mix menu** toggle moved from the Library tab to the sidebar customizer, alongside the other navigation toggles.
 * The **Native Hi-Res Playback** description now explains what turning it on actually does — play each track at its original sample rate, matching the audio device to the file, instead of resampling everything to 44.1 kHz. The old wording described the off state and read as if the option forced 44.1 kHz.
+* **Settings → Audio**: **Normalization** and **Track transitions** are now their own top-level categories (directly under Audio Output Device) instead of being grouped together inside one *Playback* section.
+* **Settings → Personalisation** gains a **Queue Settings** category that brings the queue display mode, the queue toolbar customizer, and the **Preserve "Play Next" order** toggle (moved here from Audio) together in one place.
+* On macOS, the **Audio Output Device** category is now hidden rather than showing a notice — playback there always follows the system output device.
 
 
 ## Fixed
