@@ -338,10 +338,11 @@ export function runPlayTrack(
     }
 
     const hasJsAutoHandoff = !manual && peekArmedCrossfadeDynamicOverlap(scopedTrack.id);
-    const wantInterruptBlend =
+    const wantInterruptBlend = Boolean(
       shouldAutodjInterruptBlend(wasPlayingBeforeSkip, hasJsAutoHandoff)
       && prevTrack
-      && !sameQueueTrackId(prevTrack.id, scopedTrack.id);
+      && !sameQueueTrackId(prevTrack.id, scopedTrack.id),
+    );
     const bReadyNow = isCrossfadeNextReady(scopedTrack.id, playbackSid, playbackCacheSid);
     /** Cold interrupt: engine still on A — don't swap player-bar metadata until handoff. */
     const deferInterruptUi = shouldDeferInterruptHandoffUi(wantInterruptBlend, bReadyNow);

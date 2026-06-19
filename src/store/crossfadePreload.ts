@@ -70,7 +70,7 @@ export function kickEagerCrossfadePreload(
   if (isCrossfadeNextReady(track.id, profileId, cacheKey)) return;
   if (track.id === getBytePreloadingId()) return;
   const serverId = cacheKey || profileId;
-  const url = resolvePlaybackUrl(track.id, serverId);
+  const url = resolvePlaybackUrl(track.id, serverId ?? undefined);
   setBytePreloadingId(track.id);
   void refreshLoudnessForTrack(track.id, { syncPlayingEngine: false });
   invoke('audio_preload', {

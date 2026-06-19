@@ -20,6 +20,7 @@ const track: Track = {
   title: 'B',
   artist: 'A',
   album: '',
+  albumId: '',
   duration: 200,
   suffix: 'mp3',
 };
