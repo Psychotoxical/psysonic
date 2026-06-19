@@ -19,12 +19,15 @@ fn random_salt() -> String {
     format!("{nanos:x}")
 }
 
-pub fn build_cover_art_url(
+/// Build a token-authed Subsonic REST URL `{rest_base}/rest/{endpoint}.view`
+/// with the standard `u/t/s/v/c` auth params plus the given `extra` query
+/// pairs. Shared by all Subsonic GETs (cover art, `getArtistInfo2`, …).
+pub(crate) fn build_subsonic_url(
     rest_base: &str,
+    endpoint: &str,
     username: &str,
     password: &str,
-    cover_art_id: &str,
-    size: u32,
+    extra: &[(&str, &str)],
 ) -> String {
     let base = rest_base.trim_end_matches('/');
     let api_base = if base.ends_with("/rest") {
@@ -34,23 +37,41 @@ pub fn build_cover_art_url(
     };
     let salt = random_salt();
     let token = format!("{:x}", md5::compute(format!("{password}{salt}")));
-    let endpoint = format!("{api_base}/getCoverArt.view");
+    let endpoint_url = format!("{api_base}/{endpoint}.view");
     let mut serializer = url::form_urlencoded::Serializer::new(String::new());
-    serializer.append_pair("id", cover_art_id);
-    serializer.append_pair("size", &size.to_string());
+    for (k, v) in extra {
+        serializer.append_pair(k, v);
+    }
     serializer.append_pair("u", username);
     serializer.append_pair("t", &token);
     serializer.append_pair("s", &salt);
     serializer.append_pair("v", "1.16.1");
     serializer.append_pair("c", SUBSONIC_CLIENT);
     let query = serializer.finish();
-    match Url::parse(&endpoint) {
+    match Url::parse(&endpoint_url) {
         Ok(mut url) => {
             url.set_query(Some(&query));
             url.to_string()
         }
-        Err(_) => format!("{endpoint}?{query}"),
+        Err(_) => format!("{endpoint_url}?{query}"),
     }
+}
+
+pub fn build_cover_art_url(
+    rest_base: &str,
+    username: &str,
+    password: &str,
+    cover_art_id: &str,
+    size: u32,
+) -> String {
+    let size_s = size.to_string();
+    build_subsonic_url(
+        rest_base,
+        "getCoverArt",
+        username,
+        password,
+        &[("id", cover_art_id), ("size", &size_s)],
+    )
 }
 
 /// Outcome of a single fetch attempt: transient errors are worth retrying,

@@ -3,6 +3,7 @@
 mod backfill_worker;
 mod disk;
 mod encode;
+mod external;
 mod fetch;
 
 use disk::{cover_dir, tier_exists, tier_path, DERIVE_TIERS};
@@ -148,6 +149,9 @@ const COVER_CPU_UI_CONCURRENCY: usize = 2;
 const COVER_CPU_BACKFILL_CONCURRENCY: usize = 2;
 /// Upper bound for the runtime encode-pool knob (matches the worker cap).
 const COVER_CPU_BACKFILL_MAX: usize = 16;
+/// External providers (fanart.tv) get their own low-concurrency HTTP lane so
+/// they can never starve Navidrome cover / getArtistInfo2 fetches (§26).
+const FANART_HTTP_CONCURRENCY: usize = 4;
 
 pub struct CoverCacheState {
     pub root: PathBuf,
@@ -158,6 +162,10 @@ pub struct CoverCacheState {
     pub http_sem: Arc<Semaphore>,
     pub cover_cpu_ui_sem: Arc<Semaphore>,
     pub cover_cpu_backfill_sem: Arc<Semaphore>,
+    /// External-provider (fanart.tv) HTTP lane — separate from `http_sem`.
+    /// Wired by the ensure external branch (§4).
+    #[allow(dead_code)]
+    pub fanart_http_sem: Arc<Semaphore>,
     /// Live permit count of `cover_cpu_backfill_sem` (the semaphore itself only
     /// exposes *available* permits, not the configured ceiling).
     cover_cpu_backfill_max: AtomicUsize,
@@ -180,6 +188,7 @@ impl CoverCacheState {
             http_sem: Arc::new(Semaphore::new(COVER_HTTP_CONCURRENCY)),
             cover_cpu_ui_sem: Arc::new(Semaphore::new(COVER_CPU_UI_CONCURRENCY)),
             cover_cpu_backfill_sem: Arc::new(Semaphore::new(COVER_CPU_BACKFILL_CONCURRENCY)),
+            fanart_http_sem: Arc::new(Semaphore::new(FANART_HTTP_CONCURRENCY)),
             cover_cpu_backfill_max: AtomicUsize::new(COVER_CPU_BACKFILL_CONCURRENCY),
         })
     }
