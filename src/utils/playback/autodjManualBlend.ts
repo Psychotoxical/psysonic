@@ -14,6 +14,12 @@ const OWN_FADE_TRUST_SEC = 1.0;
 const MIN_A_REMAINING_SEC = 0.15;
 
 /**
+ * Manual skip is a deliberate "next track now" — cap how long loud A lingers over a
+ * quiet B intro. End-of-track AutoDJ keeps content-driven spans; scenario A unchanged.
+ */
+const MANUAL_SKIP_MAX_BLEND_SEC = STANDARD_BLEND_SEC;
+
+/**
  * True when a user-initiated skip should run the full AutoDJ crossfade rules
  * (overlap, B-head trim, scenario A) from the current playback position.
  */
@@ -28,7 +34,8 @@ export function shouldAutodjManualBlend(manual: boolean, wasPlaying: boolean): b
 /**
  * Apply the same transition planning as end-of-track AutoDJ, but clamp the
  * overlap to the audible tail remaining on A from `skipFromTimeSec` (mid-track
- * skip). Scenario A only applies when the skip lands inside A's outro fade zone.
+ * skip). Non–scenario-A skips are capped to ~2 s so loud A does not linger over
+ * a quiet B intro. Scenario A only applies when the skip lands inside A's outro fade zone.
  */
 export function computeAutodjManualBlendPlan(
   aBins: number[] | null | undefined,
@@ -60,6 +67,9 @@ export function computeAutodjManualBlendPlan(
     && aShape.outroFadeSec >= bShape.introRiseSec;
   if (!aRidesOwnFade && overlap < STANDARD_BLEND_SEC) {
     overlap = Math.min(STANDARD_BLEND_SEC, aRemaining, bPlayable > 0 ? bPlayable * 0.9 : STANDARD_BLEND_SEC);
+  }
+  if (!aRidesOwnFade && overlap > MANUAL_SKIP_MAX_BLEND_SEC) {
+    overlap = MANUAL_SKIP_MAX_BLEND_SEC;
   }
 
   const outgoingFadeSec = aRidesOwnFade ? 0 : overlap;

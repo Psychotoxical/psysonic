@@ -31,8 +31,17 @@ describe('computeAutodjManualBlendPlan', () => {
     const bBins = loudIntroBins(4);
     const plan = computeAutodjManualBlendPlan(aBins, 100, 50, bBins, 100);
     expect(plan).not.toBeNull();
-    expect(plan!.overlapSec).toBeGreaterThanOrEqual(2);
-    expect(plan!.outgoingFadeSec).toBe(plan!.overlapSec);
+    expect(plan!.overlapSec).toBe(2);
+    expect(plan!.outgoingFadeSec).toBe(2);
+  });
+
+  it('caps skip blend to 2s when B has a long quiet intro', () => {
+    const aBins = loudTrackBins();
+    const bBins = loudIntroBins(80);
+    const plan = computeAutodjManualBlendPlan(aBins, 100, 40, bBins, 100);
+    expect(plan).not.toBeNull();
+    expect(plan!.overlapSec).toBe(2);
+    expect(plan!.outgoingFadeSec).toBe(2);
   });
 
   it('returns null when almost no audible tail remains on A', () => {
