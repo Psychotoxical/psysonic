@@ -11,6 +11,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useArtistOfflineState } from '../../hooks/useArtistOfflineState';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { ArtistHeroCover } from '../../cover/artistHero';
+import { useArtistBanner, useArtistFanart } from '../../cover/useArtistFanart';
 import { useCoverLightboxSrc } from '../../cover/lightbox';
 import type { CoverArtRef } from '../../cover/types';
 import LastfmIcon from '../LastfmIcon';
@@ -71,6 +72,13 @@ export default function ArtistDetailHero({
 
   const { open: openLightbox, lightbox } = useCoverLightboxSrc(coverRef, { alt: artist.name });
 
+  // Artist-detail header banner (§28, Option B): fanart.tv banner → the 16:9
+  // fanart background cropped to the strip → empty (no regression when off).
+  const artistKey = id ?? artist.id;
+  const bannerUrl = useArtistBanner(artistKey, { artistName: artist.name });
+  const fanartBgUrl = useArtistFanart(artistKey, { artistName: artist.name });
+  const headerBgUrl = bannerUrl || fanartBgUrl;
+
   const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(artist.name)}`;
 
   return (
@@ -85,7 +93,17 @@ export default function ArtistDetailHero({
 
       {lightbox}
 
-      <div className="artist-detail-header">
+      <div className={`artist-detail-header${headerBgUrl ? ' artist-detail-header--framed' : ''}`}>
+        {headerBgUrl && (
+          <>
+            <div
+              className="artist-detail-bg"
+              style={{ backgroundImage: `url(${headerBgUrl})` }}
+              aria-hidden="true"
+            />
+            <div className="artist-detail-overlay" aria-hidden="true" />
+          </>
+        )}
         <div className="artist-detail-avatar" style={{ position: 'relative' }}>
           {coverId ? (
             <button

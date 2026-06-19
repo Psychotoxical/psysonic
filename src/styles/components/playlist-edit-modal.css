@@ -140,6 +140,36 @@
   align-items: flex-start;
   gap: 2rem;
   margin-bottom: 2rem;
+  /* Own stacking context so a `z-index:-1` fanart banner clips here and paints
+     behind the avatar + meta without a content wrapper. Harmless with no banner. */
+  position: relative;
+  isolation: isolate;
+}
+
+/* Album-detail-style framing — only applied when an external banner is shown,
+   so the no-banner header stays pixel-identical to before (External Artwork
+   Scraper is off by default). */
+.artist-detail-header--framed {
+  overflow: hidden;
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+}
+
+.artist-detail-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  z-index: -1;
+  opacity: 0.35;
+  transition: opacity var(--transition-slow);
+}
+
+.artist-detail-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(30, 30, 46, 0.5) 0%, var(--bg-app) 100%);
+  z-index: -1;
 }
 
 .artist-detail-avatar {
