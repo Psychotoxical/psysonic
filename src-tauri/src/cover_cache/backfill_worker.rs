@@ -312,6 +312,8 @@ async fn ensure_one(
         // Library backfill never touches external providers (§15).
         external_artwork_enabled: false,
         surface_kind: None,
+        artist_name: None,
+        album_title: None,
     };
     let _ = CoverCacheState::ensure_inner(&st, &app, &args, Some(http_sem)).await;
 }

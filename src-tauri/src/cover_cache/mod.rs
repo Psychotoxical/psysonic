@@ -143,6 +143,14 @@ pub struct CoverCacheEnsureArgs {
     /// background. `None` on plain cover ensures.
     #[serde(default)]
     pub surface_kind: Option<String>,
+    /// Artist display name — context for the §19 name→MusicBrainz fallback when
+    /// the artist carries no tag MBID. `None` skips that fallback.
+    #[serde(default)]
+    pub artist_name: Option<String>,
+    /// Album title currently in context (fullscreen playback) — disambiguates
+    /// the name→MusicBrainz query (§19).
+    #[serde(default)]
+    pub album_title: Option<String>,
 }
 
 fn cover_dir_for_args(root: &Path, args: &CoverCacheEnsureArgs) -> PathBuf {
@@ -1033,10 +1041,12 @@ async fn try_external_fanart(
     fanart_sem: &Arc<Semaphore>,
     requested: u32,
 ) -> Option<PathBuf> {
-    // Behind the project key — the spike reads it from the environment so no
-    // secret lands in the repo. The BYOK personal key is optional (§22).
+    // Behind the project key: a runtime env var (dev convenience) wins, else the
+    // key baked in at build time via `option_env!` (release builds). No secret
+    // lands in the repo. The BYOK personal key is optional (§22).
     let api_key = std::env::var("PSYSONIC_FANART_KEY")
         .ok()
+        .or_else(|| option_env!("PSYSONIC_FANART_KEY").map(str::to_string))
         .filter(|k| !k.is_empty())?;
     let byok = std::env::var("PSYSONIC_FANART_CLIENT_KEY")
         .ok()
