@@ -145,14 +145,11 @@ pub struct CoverCacheEnsureArgs {
     pub surface_kind: Option<String>,
     /// Artist display name — context for the §19 name→MusicBrainz fallback when
     /// the artist carries no tag MBID. `None` skips that fallback.
-    /// Read by the name→MusicBrainz resolver (P1 #9).
     #[serde(default)]
-    #[allow(dead_code)]
     pub artist_name: Option<String>,
     /// Album title currently in context (fullscreen playback) — disambiguates
-    /// the name→MusicBrainz query (§19). Read by the §19 resolver (P1 #9).
+    /// the name→MusicBrainz query (§19).
     #[serde(default)]
-    #[allow(dead_code)]
     pub album_title: Option<String>,
 }
 
@@ -185,6 +182,10 @@ pub struct CoverCacheState {
     /// External-provider (fanart.tv) HTTP lane — separate from `http_sem` so
     /// external fetches never starve Navidrome cover / getArtistInfo2 (§26).
     pub fanart_http_sem: Arc<Semaphore>,
+    /// MusicBrainz name→MBID lane — a single permit, so the §19 resolver runs
+    /// strictly serially and the caller's ≥1s spacing keeps us under MB's rate
+    /// limit (their ToS).
+    pub musicbrainz_sem: Arc<Semaphore>,
     /// Live permit count of `cover_cpu_backfill_sem` (the semaphore itself only
     /// exposes *available* permits, not the configured ceiling).
     cover_cpu_backfill_max: AtomicUsize,
@@ -208,6 +209,7 @@ impl CoverCacheState {
             cover_cpu_ui_sem: Arc::new(Semaphore::new(COVER_CPU_UI_CONCURRENCY)),
             cover_cpu_backfill_sem: Arc::new(Semaphore::new(COVER_CPU_BACKFILL_CONCURRENCY)),
             fanart_http_sem: Arc::new(Semaphore::new(FANART_HTTP_CONCURRENCY)),
+            musicbrainz_sem: Arc::new(Semaphore::new(1)),
             cover_cpu_backfill_max: AtomicUsize::new(COVER_CPU_BACKFILL_CONCURRENCY),
         })
     }
@@ -283,6 +285,7 @@ impl CoverCacheState {
         let http_sem = http_sem_override.unwrap_or_else(|| this.http_sem.clone());
         let cover_cpu_sem = this.cpu_sem_for(args.library_bulk);
         let fanart_sem = this.fanart_http_sem.clone();
+        let musicbrainz_sem = this.musicbrainz_sem.clone();
         drop(this);
 
         if cover_fetch_recently_failed(&dir) {
@@ -299,9 +302,17 @@ impl CoverCacheState {
         // stays the display fallback (§28).
         if args.external_artwork_enabled && !args.library_bulk && args.cache_kind == "artist" {
             if let Some(surface) = external_surface(args.surface_kind.as_deref()) {
-                if let Some(path) =
-                    try_external_fanart(app, args, &dir, &client, &fanart_sem, args.tier, surface)
-                        .await
+                if let Some(path) = try_external_fanart(
+                    app,
+                    args,
+                    &dir,
+                    &client,
+                    &fanart_sem,
+                    &musicbrainz_sem,
+                    args.tier,
+                    surface,
+                )
+                .await
                 {
                     return Ok(CoverCacheEnsureResult {
                         hit: true,
@@ -1046,14 +1057,17 @@ async fn persist_artist_lookup(
 /// (§28).
 ///
 /// MBID resolution stays Rust-side (§23): the tag MBID via `getArtistInfo2`,
-/// cached per surface in `artist_artwork_lookup` (§12). The §11 quality gate
-/// runs first for the `fanart` surface only. Name→MusicBrainz (§19) is still P1.
+/// else a name→MusicBrainz album-confirmed lookup (§19), cached per surface in
+/// `artist_artwork_lookup` (§12). The §11 quality gate runs first for the
+/// `fanart` surface only.
+#[allow(clippy::too_many_arguments)]
 async fn try_external_fanart(
     app: &AppHandle,
     args: &CoverCacheEnsureArgs,
     dir: &Path,
     client: &Client,
     fanart_sem: &Arc<Semaphore>,
+    musicbrainz_sem: &Arc<Semaphore>,
     requested: u32,
     surface: &str,
 ) -> Option<PathBuf> {
@@ -1119,12 +1133,54 @@ async fn try_external_fanart(
         {
             Ok(Some(m)) => (m, Some("tag".to_string())),
             Ok(None) => {
-                // No tag MBID; name→MusicBrainz is P1. Record + back off 24h.
-                persist_artist_lookup(
-                    &store, server_id, artist_id, surface, "no_mbid", None, None, None, now,
-                )
-                .await;
-                return None;
+                // No tag MBID. §19: try a name→MusicBrainz album-confirmed lookup
+                // when both the artist name and an album are in context.
+                match (args.artist_name.as_deref(), args.album_title.as_deref()) {
+                    (Some(name), Some(album))
+                        if !name.trim().is_empty() && !album.trim().is_empty() =>
+                    {
+                        // ≤1 req/s: hold the single MB permit across the request
+                        // plus a ≥1s spacing so concurrent ensures can't burst MB.
+                        let _mb = musicbrainz_sem.clone().acquire_owned().await.ok()?;
+                        let resolved =
+                            external::resolve_mbid_via_musicbrainz(client, name, album).await;
+                        tokio::time::sleep(Duration::from_millis(1100)).await;
+                        drop(_mb);
+                        match resolved {
+                            Ok(external::MbResolution::Found(m)) => {
+                                (m, Some("musicbrainz".to_string()))
+                            }
+                            Ok(external::MbResolution::Ambiguous) => {
+                                persist_artist_lookup(
+                                    &store, server_id, artist_id, surface, "mbid_ambiguous", None,
+                                    None, None, now,
+                                )
+                                .await;
+                                return None;
+                            }
+                            Ok(external::MbResolution::None) => {
+                                persist_artist_lookup(
+                                    &store, server_id, artist_id, surface, "no_mbid", None, None,
+                                    None, now,
+                                )
+                                .await;
+                                return None;
+                            }
+                            Err(e) => {
+                                eprintln!("[fanart] musicbrainz failed: {e}"); // transient
+                                return None;
+                            }
+                        }
+                    }
+                    _ => {
+                        // No album context → cannot disambiguate; back off 24h.
+                        persist_artist_lookup(
+                            &store, server_id, artist_id, surface, "no_mbid", None, None, None, now,
+                        )
+                        .await;
+                        return None;
+                    }
+                }
             }
             Err(e) => {
                 eprintln!("[fanart] getArtistInfo2 failed: {e}"); // transient — don't cache

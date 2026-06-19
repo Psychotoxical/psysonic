@@ -14,6 +14,13 @@ use reqwest::Client;
 use super::fetch::build_subsonic_url;
 
 const FANART_API_BASE: &str = "https://webservice.fanart.tv/v3/music";
+const MUSICBRAINZ_BASE: &str = "https://musicbrainz.org/ws/2";
+/// MusicBrainz requires a meaningful, contactable User-Agent (their ToS).
+const MUSICBRAINZ_USER_AGENT: &str = concat!(
+    "Psysonic/",
+    env!("CARGO_PKG_VERSION"),
+    " ( https://github.com/Psychotoxical/psysonic )"
+);
 
 /// Subsonic `getArtistInfo2.view` (JSON) URL for an artist id.
 pub fn build_artist_info2_url(
@@ -104,6 +111,88 @@ pub async fn fetch_fanart_image_url(
     Ok(img)
 }
 
+/// Outcome of a name→MusicBrainz artist-MBID resolution (§19).
+pub enum MbResolution {
+    /// A single, confident artist MBID (one artist across high-score releases).
+    Found(String),
+    /// Multiple candidate artists — never guess; the caller backs off 24h.
+    Ambiguous,
+    /// No matching release at all.
+    None,
+}
+
+/// Escape the Lucene special characters that would break a MusicBrainz query.
+fn mb_escape(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+/// Resolve an artist MBID by name, confirmed by an album release (§19). One
+/// query to the MusicBrainz release search; the primary artist across the
+/// high-confidence releases wins, conflicting ids → `Ambiguous`. Sends the
+/// required User-Agent. The caller enforces the ≤1 req/s rate limit.
+pub async fn resolve_mbid_via_musicbrainz(
+    client: &Client,
+    artist_name: &str,
+    album_title: &str,
+) -> Result<MbResolution, String> {
+    let query = format!(
+        "artist:\"{}\" AND release:\"{}\"",
+        mb_escape(artist_name),
+        mb_escape(album_title)
+    );
+    // Scope the (non-Send) serializer so it is dropped before the await below.
+    let url = {
+        let mut serializer = url::form_urlencoded::Serializer::new(String::new());
+        serializer.append_pair("query", &query);
+        serializer.append_pair("fmt", "json");
+        serializer.append_pair("limit", "8");
+        format!("{MUSICBRAINZ_BASE}/release/?{}", serializer.finish())
+    };
+
+    let resp = client
+        .get(&url)
+        .header(reqwest::header::USER_AGENT, MUSICBRAINZ_USER_AGENT)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    let body = resp.text().await.map_err(|e| e.to_string())?;
+    let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
+    Ok(classify_mb_releases(&v))
+}
+
+/// Pure classification of a MusicBrainz release-search response: the primary
+/// artist id of each release scoring ≥ 90. One distinct id → `Found`, several →
+/// `Ambiguous`, none → `None`.
+fn classify_mb_releases(v: &serde_json::Value) -> MbResolution {
+    let mut ids = std::collections::BTreeSet::new();
+    if let Some(releases) = v.get("releases").and_then(|r| r.as_array()) {
+        for rel in releases {
+            let score = rel.get("score").and_then(|s| s.as_i64()).unwrap_or(0);
+            if score < 90 {
+                continue;
+            }
+            if let Some(id) = rel
+                .get("artist-credit")
+                .and_then(|c| c.as_array())
+                .and_then(|a| a.first())
+                .and_then(|c| c.get("artist"))
+                .and_then(|a| a.get("id"))
+                .and_then(|i| i.as_str())
+            {
+                ids.insert(id.to_string());
+            }
+        }
+    }
+    match ids.len() {
+        0 => MbResolution::None,
+        1 => MbResolution::Found(ids.into_iter().next().unwrap_or_default()),
+        _ => MbResolution::Ambiguous,
+    }
+}
+
 /// Single GET → response text; any non-2xx is an error.
 async fn http_get_text(client: &Client, url: &str) -> Result<String, String> {
     let resp = client.get(url).send().await.map_err(|e| e.to_string())?;
@@ -170,5 +259,45 @@ mod tests {
         assert_eq!(fanart_json_key("fanart"), "artistbackground");
         assert_eq!(fanart_json_key("banner"), "musicbanner");
         assert_eq!(fanart_json_key("anything-else"), "artistbackground");
+    }
+
+    #[test]
+    fn mb_escape_handles_quotes_and_backslashes() {
+        assert_eq!(mb_escape("AC/DC"), "AC/DC");
+        assert_eq!(mb_escape(r#"a"b"#), r#"a\"b"#);
+        assert_eq!(mb_escape(r"a\b"), r"a\\b");
+    }
+
+    #[test]
+    fn classify_mb_picks_single_high_score_artist() {
+        let v: serde_json::Value = serde_json::from_str(
+            r#"{"releases":[
+                {"score":100,"artist-credit":[{"artist":{"id":"mbid-A"}}]},
+                {"score":95,"artist-credit":[{"artist":{"id":"mbid-A"}}]},
+                {"score":40,"artist-credit":[{"artist":{"id":"mbid-Z"}}]}
+            ]}"#,
+        )
+        .unwrap();
+        assert!(matches!(classify_mb_releases(&v), MbResolution::Found(id) if id == "mbid-A"));
+    }
+
+    #[test]
+    fn classify_mb_ambiguous_and_none() {
+        let two: serde_json::Value = serde_json::from_str(
+            r#"{"releases":[
+                {"score":100,"artist-credit":[{"artist":{"id":"mbid-A"}}]},
+                {"score":92,"artist-credit":[{"artist":{"id":"mbid-B"}}]}
+            ]}"#,
+        )
+        .unwrap();
+        assert!(matches!(classify_mb_releases(&two), MbResolution::Ambiguous));
+
+        let low: serde_json::Value =
+            serde_json::from_str(r#"{"releases":[{"score":50,"artist-credit":[{"artist":{"id":"x"}}]}]}"#)
+                .unwrap();
+        assert!(matches!(classify_mb_releases(&low), MbResolution::None));
+
+        let empty: serde_json::Value = serde_json::from_str(r#"{"releases":[]}"#).unwrap();
+        assert!(matches!(classify_mb_releases(&empty), MbResolution::None));
     }
 }
