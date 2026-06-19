@@ -85,7 +85,13 @@ import {
   getSeekTargetSetAt,
 } from './seekTargetState';
 import { refreshWaveformForTrack } from './waveformRefresh';
-import { analyzeBoundary, computeWaveformSilence, STANDARD_BLEND_SEC } from '../utils/waveform/waveformSilence';
+import { analyzeBoundary, computeWaveformSilence } from '../utils/waveform/waveformSilence';
+import {
+  autodjJsTriggerAtSec,
+  clampCrossfadeSecs,
+  computeAutodjJsOverlap,
+  shouldJsDriveAutodjTransition,
+} from '../utils/playback/autodjAutoAdvance';
 import { isCrossfadeNextReady, maybeCrossfadeBytePreload } from './crossfadePreload';
 import { armCrossfadeDynamicOverlap, getCrossfadeTransition } from './crossfadeTrimCache';
 import { armAutodjMixing } from './autodjTransitionUi';
@@ -271,16 +277,9 @@ export function handleAudioProgress(
     : 0;
 
   // A-tail: start the next track early so the fade overlaps *audible* tail/head.
-  // The overlap is content-driven ("by fact"): the planned value (A fade-out vs
-  // B buildup) when ready, else A's own fade-out measured synchronously from its
-  // already-loaded waveform. We only pre-empt the engine's own crossfade trigger
-  // (which fires `crossfadeSecs` before the end) when we'd actually start
-  // earlier — i.e. there's dead air to skip OR the content overlap is longer than
-  // crossfadeSecs (a real fade/buildup). Plain loud→loud endings fall through to
-  // the normal engine crossfade.
-  // When a content fade is pending we suppress the engine's autonomous
-  // crossfade timer (set below) so JS solely drives this transition; cleared
-  // for plain loud→loud (engine keeps its normal crossfade) and non-AutoDJ.
+  // Overlap is content-driven ("by fact"); loud→loud always uses the standard
+  // ~2 s JS blend (not the engine crossfadeSecs slider). When JS drives we
+  // suppress the engine's autonomous crossfade timer so B is readiness-gated.
   let autodjSuppressWant = false;
   if (trimActive && store.isPlaying && store.repeatMode !== 'one') {
     const nextIdx = store.queueIndex + 1;
@@ -289,7 +288,7 @@ export function handleAudioProgress(
       : (store.repeatMode === 'all' && store.queueItems.length > 0 ? store.queueItems[0] : null);
     const nextTrackId = nextRef ? resolveQueueTrack(nextRef)?.id : undefined;
     if (nextTrackId) {
-      const cf = Math.max(0.1, Math.min(12, crossfadeSecs));
+      const cf = clampCrossfadeSecs(crossfadeSecs);
       const plan = getCrossfadeTransition(nextTrackId);
       let contentOverlap: number;
       // Scenario A: does A carry its own recorded fade-out? If so we let it ride
@@ -304,18 +303,10 @@ export function handleAudioProgress(
         contentOverlap = aShape.outroFadeSec;
         aRidesOwnFade = aShape.outroFadeSec >= 1.0;
       }
-      const wantEarly = curTrailSilenceSec > 0.3 || contentOverlap > cf + 0.3;
-      if (wantEarly) {
-        // This transition is ours to drive: stop the engine from firing its own
-        // crossfade into a possibly-cold next track. If B never readies, A plays
-        // out to its natural end and we degrade to a clean sequential start.
+      if (shouldJsDriveAutodjTransition(curTrailSilenceSec, contentOverlap, cf, aRidesOwnFade)) {
         autodjSuppressWant = true;
-        let overlap = Math.max(0.5, Math.min(12, contentOverlap || 0.5));
-        // Hard, loud→loud meeting reached by trimming protective silence (no
-        // natural fade to ride): use a standard ~2 s blend instead of a near-cut.
-        if (!aRidesOwnFade && overlap < STANDARD_BLEND_SEC) overlap = STANDARD_BLEND_SEC;
-        const outgoingFade = aRidesOwnFade ? 0 : overlap;
-        const triggerAt = Math.max(0, dur - curTrailSilenceSec - overlap);
+        const { overlapSec, outgoingFadeSec } = computeAutodjJsOverlap(contentOverlap, aRidesOwnFade);
+        const triggerAt = autodjJsTriggerAtSec(dur, curTrailSilenceSec, overlapSec);
         const gen = getPlayGeneration();
         // Readiness gate: only advance when B's audio is actually available (RAM
         // preload slot or local on disk). A cold stream can't sustain a stable
@@ -332,8 +323,8 @@ export function handleAudioProgress(
           )
         ) {
           crossfadeTrimAdvanceGen = gen;
-          armCrossfadeDynamicOverlap(nextTrackId, overlap, outgoingFade);
-          armAutodjMixing(overlap);
+          armCrossfadeDynamicOverlap(nextTrackId, overlapSec, outgoingFadeSec);
+          armAutodjMixing(overlapSec);
           store.next(false);
           return;
         }
@@ -343,7 +334,7 @@ export function handleAudioProgress(
   syncAutodjSuppress(autodjSuppressWant);
 
   if (trimActive && store.isPlaying && !autodjSuppressWant) {
-    const cf = Math.max(0.1, Math.min(12, crossfadeSecs));
+    const cf = clampCrossfadeSecs(crossfadeSecs);
     if (remaining > 0 && remaining <= cf) {
       const gen = getPlayGeneration();
       if (autodjEngineMixArmGen !== gen) {
