@@ -587,6 +587,13 @@ span.settings-server-use-active-slot {
   color: var(--accent);
 }
 
+/* Right-aligned slot in the group title row (e.g. a reset button). */
+.settings-group-title-action {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+}
+
 .settings-group-desc {
   font-size: 12px;
   color: var(--text-muted);

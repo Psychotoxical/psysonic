@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Blend, Gauge, Music2, Sliders, Volume2, Waves } from 'lucide-react';
+import { Blend, Gauge, Sliders, Volume2, Waves } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import Equalizer from '../Equalizer';
 import SettingsSubSection from '../SettingsSubSection';
@@ -10,7 +10,6 @@ import { effectiveLoudnessPreAnalysisAttenuationDb } from '../../utils/audio/lou
 import { useAudioDevicesProbe } from '../../hooks/useAudioDevicesProbe';
 import { AudioOutputDeviceSection } from './audio/AudioOutputDeviceSection';
 import { NormalizationBlock } from './audio/NormalizationBlock';
-import { PlaybackBehaviorBlock } from './audio/PlaybackBehaviorBlock';
 import { PlaybackRateBlock } from './audio/PlaybackRateBlock';
 import { TrackTransitionsBlock } from './audio/TrackTransitionsBlock';
 import { TrackPreviewsSection } from './audio/TrackPreviewsSection';
@@ -108,16 +107,6 @@ export function AudioTab() {
           <SettingsGroup>
             <PlaybackRateBlock t={t} />
           </SettingsGroup>
-        </div>
-      </SettingsSubSection>
-
-      {/* Playback — queue behaviour (slated to move to Personalisation) */}
-      <SettingsSubSection
-        title={t('settings.playbackTitle')}
-        icon={<Music2 size={16} />}
-      >
-        <div className="settings-card">
-          <PlaybackBehaviorBlock t={t} />
         </div>
       </SettingsSubSection>
 

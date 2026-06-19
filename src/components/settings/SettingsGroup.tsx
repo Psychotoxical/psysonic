@@ -9,6 +9,9 @@ interface Props {
   icon?: React.ReactNode;
   /** Optional one-line description shown under the title. */
   desc?: string;
+  /** Optional right-aligned node in the title row (e.g. a reset button).
+   *  Ignored when `title` is omitted. */
+  action?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -18,13 +21,14 @@ interface Props {
  * settings card. Wraps the `.settings-group` styles so the look stays
  * consistent everywhere it is used (Audio, Appearance, Library, …).
  */
-export function SettingsGroup({ title, icon, desc, children }: Props) {
+export function SettingsGroup({ title, icon, desc, action, children }: Props) {
   return (
     <div className="settings-group">
       {title && (
         <div className="settings-group-title">
           {icon && <span className="settings-group-title-icon">{icon}</span>}
           {title}
+          {action && <span className="settings-group-title-action">{action}</span>}
         </div>
       )}
       <div className="settings-group-body">

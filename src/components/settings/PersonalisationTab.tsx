@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Disc3, LayoutGrid, ListMusic, ListOrdered, ListTodo, PanelLeft, RotateCcw, Users } from 'lucide-react';
+import { Disc3, LayoutGrid, ListOrdered, ListTodo, PanelLeft, RotateCcw, Users } from 'lucide-react';
 import { useArtistLayoutStore } from '../../store/artistLayoutStore';
 import { useAuthStore } from '../../store/authStore';
 import { useHomeStore } from '../../store/homeStore';
@@ -21,6 +21,9 @@ export function PersonalisationTab() {
   const { t } = useTranslation();
   const queueDisplayMode = useAuthStore(s => s.queueDisplayMode);
   const setQueueDisplayMode = useAuthStore(s => s.setQueueDisplayMode);
+  const preservePlayNextOrder = useAuthStore(s => s.preservePlayNextOrder);
+  const setPreservePlayNextOrder = useAuthStore(s => s.setPreservePlayNextOrder);
+  const advancedSettingsEnabled = useAuthStore(s => s.advancedSettingsEnabled);
   return (
     <>
       <SettingsSubSection
@@ -87,12 +90,14 @@ export function PersonalisationTab() {
         </SettingsGroup>
       </SettingsSubSection>
 
+      {/* Queue Settings — display mode, queue behaviour and (advanced) the
+          toolbar customizer, grouped under one category. */}
       <SettingsSubSection
-        title={t('settings.queueModeTitle')}
+        title={t('settings.queueSettingsTitle')}
         icon={<ListOrdered size={16} />}
       >
         <div className="settings-card">
-          <SettingsGroup>
+          <SettingsGroup title={t('settings.queueModeTitle')}>
             {/* Three mutually exclusive modes — exactly one is always active, so
                 turning one on turns the others off; the active one cannot be
                 switched off directly (ignore the uncheck). */}
@@ -117,29 +122,36 @@ export function PersonalisationTab() {
               onChange={c => { if (c) setQueueDisplayMode('timeline'); }}
             />
           </SettingsGroup>
-        </div>
-      </SettingsSubSection>
 
-      <SettingsSubSection
-        title={t('settings.queueToolbarTitle')}
-        icon={<ListMusic size={16} />}
-        advanced
-        action={
-          <button
-            type="button"
-            className="btn btn-ghost"
-            style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}
-            onClick={() => useQueueToolbarStore.getState().reset()}
-            data-tooltip={t('settings.queueToolbarReset')}
-            aria-label={t('settings.queueToolbarReset')}
-          >
-            <RotateCcw size={14} />
-          </button>
-        }
-      >
-        <SettingsGroup>
-          <QueueToolbarCustomizer />
-        </SettingsGroup>
+          <SettingsGroup title={t('settings.queueBehaviourTitle')}>
+            <SettingsToggle
+              label={t('settings.preservePlayNextOrder')}
+              desc={t('settings.preservePlayNextOrderDesc')}
+              checked={preservePlayNextOrder}
+              onChange={setPreservePlayNextOrder}
+            />
+          </SettingsGroup>
+
+          {advancedSettingsEnabled && (
+            <SettingsGroup
+              title={t('settings.queueToolbarTitle')}
+              action={
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}
+                  onClick={() => useQueueToolbarStore.getState().reset()}
+                  data-tooltip={t('settings.queueToolbarReset')}
+                  aria-label={t('settings.queueToolbarReset')}
+                >
+                  <RotateCcw size={14} />
+                </button>
+              }
+            >
+              <QueueToolbarCustomizer />
+            </SettingsGroup>
+          )}
+        </div>
       </SettingsSubSection>
 
       <SettingsSubSection
