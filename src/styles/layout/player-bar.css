@@ -278,11 +278,6 @@ html[data-platform="windows"] .player-bar.floating {
   animation: player-autodj-pulse 1.15s ease-in-out infinite;
 }
 
-.player-btn-primary.is-autodj-transition--preparing {
-  animation-duration: 1.65s;
-  opacity: 0.92;
-}
-
 .player-btn-primary.is-autodj-transition .player-btn-autodj-icon {
   filter: drop-shadow(0 0 6px color-mix(in srgb, var(--text-on-accent) 55%, transparent));
 }

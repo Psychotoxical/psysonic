@@ -1,19 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useAuthStore } from './authStore';
+import { setTransitionMode } from '../utils/playback/playbackTransition';
 import {
   armAutodjMixing,
   clearAutodjTransitionUi,
-  setAutodjPreparing,
   useAutodjTransitionUi,
 } from './autodjTransitionUi';
 
 describe('autodjTransitionUi', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    setTransitionMode('autodj');
     clearAutodjTransitionUi();
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    setTransitionMode('none');
   });
 
   it('arms mixing then returns to idle after overlap', () => {
@@ -23,14 +26,9 @@ describe('autodjTransitionUi', () => {
     expect(useAutodjTransitionUi.getState().phase).toBe('idle');
   });
 
-  it('mixing wins over preparing until overlap ends', () => {
-    setAutodjPreparing(true);
-    expect(useAutodjTransitionUi.getState().phase).toBe('preparing');
-    armAutodjMixing(1);
-    expect(useAutodjTransitionUi.getState().phase).toBe('mixing');
-    setAutodjPreparing(false);
-    expect(useAutodjTransitionUi.getState().phase).toBe('mixing');
-    vi.advanceTimersByTime(1300);
+  it('does not arm outside AutoDJ mode', () => {
+    setTransitionMode('crossfade');
+    armAutodjMixing(2);
     expect(useAutodjTransitionUi.getState().phase).toBe('idle');
   });
 });

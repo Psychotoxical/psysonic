@@ -1,7 +1,9 @@
 import { create } from 'zustand';
+import { useAuthStore } from './authStore';
+import { getTransitionMode } from '../utils/playback/playbackTransition';
 
 /** User-visible AutoDJ transition feedback on the player-bar play button. */
-export type AutodjTransitionPhase = 'idle' | 'preparing' | 'mixing';
+export type AutodjTransitionPhase = 'idle' | 'mixing';
 
 interface AutodjTransitionUiState {
   phase: AutodjTransitionPhase;
@@ -27,24 +29,12 @@ export function clearAutodjTransitionUi(): void {
 }
 
 /**
- * B is not ready yet or the JS early-advance is armed — slower pulse on the
- * play button. Mixing takes priority when both are active.
+ * Show the mixing indicator only while a real crossfade overlap is in progress.
+ * No-op outside AutoDJ mode.
  */
-export function setAutodjPreparing(active: boolean): void {
-  const { phase } = useAutodjTransitionUi.getState();
-  if (active) {
-    if (phase === 'mixing') return;
-    useAutodjTransitionUi.setState({ phase: 'preparing' });
-    return;
-  }
-  if (phase === 'preparing') {
-    useAutodjTransitionUi.setState({ phase: 'idle' });
-  }
-}
-
-/** Active crossfade overlap — faster pulse until `overlapSec` elapses. */
 export function armAutodjMixing(overlapSec: number): void {
   if (!(overlapSec > 0)) return;
+  if (getTransitionMode(useAuthStore.getState()) !== 'autodj') return;
   clearMixingTimer();
   useAutodjTransitionUi.setState({ phase: 'mixing' });
   const ms = Math.round(overlapSec * 1000) + 250;

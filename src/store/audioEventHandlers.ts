@@ -88,7 +88,7 @@ import { refreshWaveformForTrack } from './waveformRefresh';
 import { analyzeBoundary, computeWaveformSilence, STANDARD_BLEND_SEC } from '../utils/waveform/waveformSilence';
 import { isCrossfadeNextReady, maybeCrossfadeBytePreload } from './crossfadePreload';
 import { armCrossfadeDynamicOverlap, getCrossfadeTransition } from './crossfadeTrimCache';
-import { armAutodjMixing, setAutodjPreparing } from './autodjTransitionUi';
+import { armAutodjMixing } from './autodjTransitionUi';
 
 // Silence-aware crossfade (A-tail): guards the early advance to once per play
 // generation so a single playback instance triggers at most one trim-advance
@@ -104,7 +104,6 @@ let autodjEngineMixArmGen = -1;
 // the engine would start a still-buffering next track and fade over it (a jump).
 let autodjSuppressSent: boolean | null = null;
 function syncAutodjSuppress(want: boolean): void {
-  setAutodjPreparing(want);
   if (autodjSuppressSent === want) return;
   autodjSuppressSent = want;
   invoke('audio_set_autodj_suppress', { enabled: want }).catch(() => {});
@@ -345,7 +344,7 @@ export function handleAudioProgress(
 
   if (trimActive && store.isPlaying && !autodjSuppressWant) {
     const cf = Math.max(0.1, Math.min(12, crossfadeSecs));
-    if (remaining > 0 && remaining <= cf + 0.25) {
+    if (remaining > 0 && remaining <= cf) {
       const gen = getPlayGeneration();
       if (autodjEngineMixArmGen !== gen) {
         autodjEngineMixArmGen = gen;

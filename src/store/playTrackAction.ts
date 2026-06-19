@@ -10,7 +10,7 @@ import {
 } from '../utils/playback/autodjManualBlend';
 import type { CrossfadeTransitionPlan } from '../utils/waveform/waveformSilence';
 import { isCrossfadeNextReady } from './crossfadePreload';
-import { armAutodjMixing, clearAutodjTransitionUi, setAutodjPreparing } from './autodjTransitionUi';
+import { armAutodjMixing, clearAutodjTransitionUi } from './autodjTransitionUi';
 import {
   bindQueueServerForTracks,
   getPlaybackCacheServerKey,
@@ -408,6 +408,8 @@ export function runPlayTrack(
         armAutodjMixing(manualBlend.overlapSec);
       } else if (crossfadeSecsOverride != null && crossfadeSecsOverride > 0) {
         armAutodjMixing(crossfadeSecsOverride);
+      } else if (manual) {
+        clearAutodjTransitionUi();
       }
 
       invoke('audio_play', {
@@ -503,11 +505,9 @@ export function runPlayTrack(
 
     if (wantManualBlend && prevTrack) {
       const aDur = prevTrack.duration || 0;
-      setAutodjPreparing(true);
       void fetchWaveformBins(scopedTrack.id, playbackCacheSid || null)
         .then(bBins => {
           if (getPlayGeneration() !== gen) return;
-          setAutodjPreparing(false);
           const blend = computeAutodjManualBlendPlan(
             outgoingWaveformBins,
             aDur,
@@ -519,7 +519,6 @@ export function runPlayTrack(
         })
         .catch(() => {
           if (getPlayGeneration() !== gen) return;
-          setAutodjPreparing(false);
           startAudio(null);
         });
       return;

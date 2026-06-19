@@ -35,7 +35,7 @@ export function PlayerTransportControls({
 }: Props) {
   const autodjPhase = useAutodjTransitionUi(s => s.phase);
   const showAutodjTransition =
-    isPlaying && !isPreviewing && scheduleRemaining == null && autodjPhase !== 'idle';
+    isPlaying && !isPreviewing && scheduleRemaining == null && autodjPhase === 'mixing';
 
   return (
     <div className="player-buttons" ref={transportAnchorRef}>
@@ -76,9 +76,7 @@ export function PlayerTransportControls({
           className={[
             'player-btn player-btn-primary',
             isPreviewing ? 'is-previewing' : '',
-            showAutodjTransition
-              ? `is-autodj-transition is-autodj-transition--${autodjPhase}`
-              : '',
+            showAutodjTransition ? 'is-autodj-transition' : '',
           ].filter(Boolean).join(' ')}
           type="button"
           {...playPauseBind}
@@ -94,12 +92,12 @@ export function PlayerTransportControls({
           aria-label={isPreviewing
             ? t('playlists.previewStop')
             : showAutodjTransition
-              ? (autodjPhase === 'preparing' ? t('player.autoDjPreparing') : t('player.autoDjMixing'))
+              ? t('player.autoDjMixing')
               : isPlaying ? t('player.pause') : t('player.play')}
           data-tooltip={isPreviewing
             ? t('playlists.previewStop')
             : showAutodjTransition
-              ? (autodjPhase === 'preparing' ? t('player.autoDjPreparing') : t('player.autoDjMixing'))
+              ? t('player.autoDjMixing')
               : isPlaying ? t('player.pause') : t('player.play')}
         >
           {scheduleRemaining != null ? (
