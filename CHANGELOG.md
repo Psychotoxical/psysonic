@@ -116,6 +116,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * After cross-device idle pull while paused, a local queue change (e.g. enqueue) could be overwritten when auto-pull ran again. Idle auto-pull now stops on local mutations until manual sync from the header; the connection LED turns yellow while auto-sync is paused.
 
+### Paused client did not push edited queue on Play
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1133](https://github.com/Psychotoxical/psysonic/pull/1133)**
+
+* After editing the queue while paused (yellow sync LED), pressing Play only resumed audio and could leave the server on another device's queue until the debounced push fired. Resume and play-from-queue now flush the local play queue immediately and clear the yellow indicator when the push succeeds.
+
 
 ## [1.48.1] - 2026-06-15
 
