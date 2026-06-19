@@ -872,6 +872,11 @@ const FANART_MISS_MARKER: &str = ".miss-fanart";
 /// present; the configurable provider-priority walk (§18) is P1.
 fn peek_cover_path(dir: &Path, want: u32, args: &CoverCacheEnsureArgs) -> Option<PathBuf> {
     if args.surface_kind.as_deref() == Some("fanart") {
+        // Fanart-prioritised surface (§18): the early peek serves ONLY the
+        // external `{tier}-fanart.webp` tiers. If none exist yet, return None so
+        // ensure runs the external branch (fetch fanart; Navidrome is the
+        // fallback inside that branch's miss path) instead of short-circuiting
+        // on a cached Navidrome tier.
         if let Some(p) = disk::provider_tier_exists(dir, want, "fanart") {
             return Some(p);
         }
@@ -880,6 +885,7 @@ fn peek_cover_path(dir: &Path, want: u32, args: &CoverCacheEnsureArgs) -> Option
                 return Some(p);
             }
         }
+        return None;
     }
     peek_tier_path(dir, want)
 }
