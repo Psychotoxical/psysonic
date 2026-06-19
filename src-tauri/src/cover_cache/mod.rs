@@ -866,6 +866,13 @@ fn peek_tier_path(dir: &Path, want: u32) -> Option<PathBuf> {
 /// `.fetch-failed` ~30 min backoff (image-scraper §13/§24).
 const FANART_MISS_MARKER: &str = ".miss-fanart";
 
+/// §11 quality gate for the fanart (16:9) surface: an existing on-disk image
+/// pre-empts an external fetch only when it is wide enough AND roughly 16:9.
+/// Square Navidrome artist portraits never satisfy it.
+const FANART_MIN_WIDTH: u32 = 1280;
+const FANART_ASPECT_MIN: f32 = 1.6;
+const FANART_ASPECT_MAX: f32 = 2.0;
+
 /// Like [`peek_tier_path`] but, for the `fanart` surface, prefers the external
 /// `{tier}-fanart.webp` tiers first (the file only exists once fanart was
 /// fetched). Other surfaces are unaffected. Spike default = fanart-first when
@@ -904,14 +911,56 @@ fn write_marker(path: &Path) {
     let _ = std::fs::write(path, b"1");
 }
 
+/// §11: do these pixel dimensions satisfy the fanart (16:9) surface?
+fn dims_satisfy_fanart(w: u32, h: u32) -> bool {
+    if w < FANART_MIN_WIDTH || h == 0 {
+        return false;
+    }
+    let aspect = w as f32 / h as f32;
+    (FANART_ASPECT_MIN..=FANART_ASPECT_MAX).contains(&aspect)
+}
+
+/// §11 quality gate: true when a Navidrome tier already on disk is an HQ ~16:9
+/// image (so the external fetch can be skipped). Reads dimensions only — no
+/// full decode. Square artist portraits fail and external proceeds.
+fn navidrome_tier_is_hq_fanart(dir: &Path) -> bool {
+    for &tier in &[2000u32, 800, 512, 256, 128] {
+        let p = tier_path(dir, tier);
+        if p.is_file() {
+            if let Ok((w, h)) = image::image_dimensions(&p) {
+                if dims_satisfy_fanart(w, h) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod fanart_gate_tests {
+    use super::dims_satisfy_fanart;
+
+    #[test]
+    fn gate_accepts_wide_16_9_and_rejects_square_or_small() {
+        assert!(dims_satisfy_fanart(2000, 1125)); // 16:9, wide
+        assert!(dims_satisfy_fanart(1280, 800)); // aspect 1.6 boundary
+        assert!(dims_satisfy_fanart(1280, 640)); // aspect 2.0 boundary
+        assert!(!dims_satisfy_fanart(2000, 2000)); // square portrait
+        assert!(!dims_satisfy_fanart(1000, 560)); // width < 1280
+        assert!(!dims_satisfy_fanart(1280, 600)); // aspect 2.13 > 2.0
+        assert!(!dims_satisfy_fanart(1280, 0)); // div-by-zero guard
+    }
+}
+
 /// Image-scraper P0 spike: try to satisfy an artist `fanart` surface from
 /// fanart.tv. Writes `2000-fanart.webp` + `512-fanart.webp` into the entity dir
 /// and returns the requested-tier path on success. `None` = "no fanart, fall
 /// through to Navidrome" — never writes a `.fetch-failed` marker (§28).
 ///
 /// MBID resolution stays Rust-side (§23): the tag MBID via `getArtistInfo2`.
-/// The name→MusicBrainz path, the per-surface quality gate (§11), and the
-/// `artist_artwork_lookup` status writes are P1; the spike uses disk markers.
+/// The §11 quality gate runs first. The name→MusicBrainz path and the
+/// `artist_artwork_lookup` status writes are still P1; the spike uses disk markers.
 async fn try_external_fanart(
     app: &AppHandle,
     args: &CoverCacheEnsureArgs,
@@ -928,6 +977,12 @@ async fn try_external_fanart(
     let byok = std::env::var("PSYSONIC_FANART_CLIENT_KEY")
         .ok()
         .filter(|k| !k.is_empty());
+
+    // §11 quality gate: if Navidrome already serves an HQ ~16:9 image for this
+    // artist, skip the external fetch and let it serve as the fallback.
+    if navidrome_tier_is_hq_fanart(dir) {
+        return None;
+    }
 
     let miss_marker = dir.join(FANART_MISS_MARKER);
     if marker_recent(&miss_marker, Duration::from_secs(30 * 60)) {
