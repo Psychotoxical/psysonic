@@ -953,14 +953,78 @@ mod fanart_gate_tests {
     }
 }
 
-/// Image-scraper P0 spike: try to satisfy an artist `fanart` surface from
-/// fanart.tv. Writes `2000-fanart.webp` + `512-fanart.webp` into the entity dir
-/// and returns the requested-tier path on success. `None` = "no fanart, fall
-/// through to Navidrome" — never writes a `.fetch-failed` marker (§28).
+fn now_unix_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+/// Read the cached `artist_artwork_lookup` row off the async executor (§12).
+async fn read_artist_lookup(
+    store: &Option<Arc<psysonic_library::store::LibraryStore>>,
+    server_id: &str,
+    artist_id: &str,
+) -> Option<psysonic_library::artist_artwork::ArtistArtworkRow> {
+    let store = store.clone()?;
+    let (server_id, artist_id) = (server_id.to_string(), artist_id.to_string());
+    tauri::async_runtime::spawn_blocking(move || {
+        psysonic_library::artist_artwork::get_artist_artwork(&store, &server_id, &artist_id, "fanart")
+            .ok()
+            .flatten()
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
+/// Upsert an `artist_artwork_lookup` row off the async executor (§12). No-op
+/// when the library store is absent (e.g. before login).
+#[allow(clippy::too_many_arguments)]
+async fn persist_artist_lookup(
+    store: &Option<Arc<psysonic_library::store::LibraryStore>>,
+    server_id: &str,
+    artist_id: &str,
+    status: &str,
+    mbid: Option<&str>,
+    mbid_source: Option<&str>,
+    provider: Option<&str>,
+    now: i64,
+) {
+    let Some(store) = store.clone() else {
+        return;
+    };
+    let (server_id, artist_id, status) =
+        (server_id.to_string(), artist_id.to_string(), status.to_string());
+    let (mbid, mbid_source, provider) = (
+        mbid.map(String::from),
+        mbid_source.map(String::from),
+        provider.map(String::from),
+    );
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+        psysonic_library::artist_artwork::upsert_artist_artwork(
+            &store,
+            &server_id,
+            &artist_id,
+            "fanart",
+            mbid.as_deref(),
+            mbid_source.as_deref(),
+            &status,
+            provider.as_deref(),
+            now,
+        )
+    })
+    .await;
+}
+
+/// Try to satisfy an artist `fanart` surface from fanart.tv. Writes
+/// `2000-fanart.webp` + `512-fanart.webp` into the entity dir and returns the
+/// requested-tier path on success. `None` = "no fanart, fall through to
+/// Navidrome" — never writes a `.fetch-failed` marker (§28).
 ///
-/// MBID resolution stays Rust-side (§23): the tag MBID via `getArtistInfo2`.
-/// The §11 quality gate runs first. The name→MusicBrainz path and the
-/// `artist_artwork_lookup` status writes are still P1; the spike uses disk markers.
+/// MBID resolution stays Rust-side (§23): the tag MBID via `getArtistInfo2`,
+/// cached in `artist_artwork_lookup` (§12). The §11 quality gate runs first.
+/// The name→MusicBrainz path (§19) is still P1.
 async fn try_external_fanart(
     app: &AppHandle,
     args: &CoverCacheEnsureArgs,
@@ -984,6 +1048,28 @@ async fn try_external_fanart(
         return None;
     }
 
+    // §12: the lookup table is both the MBID resolution cache and the negative
+    // cache. Absent before login → all reads/writes become no-ops.
+    let store: Option<Arc<psysonic_library::store::LibraryStore>> =
+        app.try_state::<LibraryRuntime>().map(|rt| rt.store.clone());
+    let server_id = &args.server_index_key;
+    let artist_id = &args.cache_entity_id;
+    let now = now_unix_ms();
+
+    let cached = read_artist_lookup(&store, server_id, artist_id).await;
+    if let Some(row) = &cached {
+        // Back off: no/ambiguous MBID for 24h; a confirmed "no fanart" miss for
+        // 30 min (also held by the `.miss-fanart` marker).
+        let within = |window: Duration| now - row.updated_at < window.as_millis() as i64;
+        match row.status.as_str() {
+            "no_mbid" | "mbid_ambiguous" if within(Duration::from_secs(24 * 60 * 60)) => {
+                return None;
+            }
+            "miss" if within(Duration::from_secs(30 * 60)) => return None,
+            _ => {}
+        }
+    }
+
     let miss_marker = dir.join(FANART_MISS_MARKER);
     if marker_recent(&miss_marker, Duration::from_secs(30 * 60)) {
         return None;
@@ -991,22 +1077,31 @@ async fn try_external_fanart(
 
     let _permit = fanart_sem.clone().acquire_owned().await.ok()?;
 
-    // §23: resolve the artist's tag MBID in Rust via getArtistInfo2.
-    let mbid = match external::fetch_artist_tag_mbid(
-        client,
-        &args.rest_base_url,
-        &args.username,
-        &args.password,
-        &args.cache_entity_id,
-    )
-    .await
-    {
-        Ok(Some(m)) => m,
-        Ok(None) => return None, // no tag MBID → Navidrome fallback
-        Err(e) => {
-            eprintln!("[fanart] getArtistInfo2 failed: {e}");
-            return None;
-        }
+    // §23: resolve the tag MBID Rust-side via getArtistInfo2 — unless the cache
+    // already carries one (skip the Navidrome round-trip).
+    let (mbid, mbid_source) = match cached.as_ref().and_then(|r| r.mbid.clone()) {
+        Some(m) => (m, cached.as_ref().and_then(|r| r.mbid_source.clone())),
+        None => match external::fetch_artist_tag_mbid(
+            client,
+            &args.rest_base_url,
+            &args.username,
+            &args.password,
+            &args.cache_entity_id,
+        )
+        .await
+        {
+            Ok(Some(m)) => (m, Some("tag".to_string())),
+            Ok(None) => {
+                // No tag MBID; name→MusicBrainz is P1. Record + back off 24h.
+                persist_artist_lookup(&store, server_id, artist_id, "no_mbid", None, None, None, now)
+                    .await;
+                return None;
+            }
+            Err(e) => {
+                eprintln!("[fanart] getArtistInfo2 failed: {e}"); // transient — don't cache
+                return None;
+            }
+        },
     };
 
     let bg_url =
@@ -1014,10 +1109,21 @@ async fn try_external_fanart(
             Ok(Some(u)) => u,
             Ok(None) => {
                 write_marker(&miss_marker); // artist has no fanart
+                persist_artist_lookup(
+                    &store,
+                    server_id,
+                    artist_id,
+                    "miss",
+                    Some(&mbid),
+                    mbid_source.as_deref(),
+                    None,
+                    now,
+                )
+                .await;
                 return None;
             }
             Err(e) => {
-                eprintln!("[fanart] lookup failed: {e}");
+                eprintln!("[fanart] lookup failed: {e}"); // transient — don't cache
                 return None;
             }
         };
@@ -1025,7 +1131,7 @@ async fn try_external_fanart(
     let bytes = match fetch::fetch_cover_bytes(client, &bg_url).await {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("[fanart] download failed: {e}");
+            eprintln!("[fanart] download failed: {e}"); // transient — don't cache
             return None;
         }
     };
@@ -1045,6 +1151,18 @@ async fn try_external_fanart(
         eprintln!("[fanart] encode failed: {encoded:?}");
         return None;
     }
+
+    persist_artist_lookup(
+        &store,
+        server_id,
+        artist_id,
+        "hit",
+        Some(&mbid),
+        mbid_source.as_deref(),
+        Some("fanart"),
+        now,
+    )
+    .await;
 
     let out = disk::provider_tier_path(dir, requested, "fanart");
     emit_tier_ready(app, args, requested, &out);
