@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Image as ImageIcon, Info, Sparkles, Wifi } from 'lucide-react';
+import { AlertTriangle, Check, Image as ImageIcon, Info, Sparkles, Wifi } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import SettingsSubSection from '../SettingsSubSection';
@@ -154,6 +154,38 @@ export function IntegrationsTab() {
               onChange={theme.setExternalArtworkEnabled}
             />
           </SettingsGroup>
+          {theme.externalArtworkEnabled && (
+            <SettingsGroup
+              title={t('settings.externalArtworkByokTitle')}
+              desc={t('settings.externalArtworkByokDesc')}
+            >
+              <div className="form-group">
+                <input
+                  className="input"
+                  type="password"
+                  value={theme.externalArtworkByok}
+                  onChange={e => theme.setExternalArtworkByok(e.target.value)}
+                  placeholder="fanart.tv personal API key"
+                  spellCheck={false}
+                  autoComplete="off"
+                />
+                {theme.externalArtworkByok.trim() && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: 'var(--text-muted)',
+                      marginTop: 6,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                  >
+                    <Check size={13} /> {t('settings.externalArtworkByokSaved')}
+                  </div>
+                )}
+              </div>
+            </SettingsGroup>
+          )}
         </div>
       </SettingsSubSection>
 

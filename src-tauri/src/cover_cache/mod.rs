@@ -151,6 +151,10 @@ pub struct CoverCacheEnsureArgs {
     /// the name→MusicBrainz query (§19).
     #[serde(default)]
     pub album_title: Option<String>,
+    /// Optional BYOK personal fanart.tv key from settings — sent in addition to
+    /// the project key (§22). Falls back to the `PSYSONIC_FANART_CLIENT_KEY` env.
+    #[serde(default)]
+    pub external_artwork_byok: Option<String>,
 }
 
 fn cover_dir_for_args(root: &Path, args: &CoverCacheEnsureArgs) -> PathBuf {
@@ -1078,8 +1082,14 @@ async fn try_external_fanart(
         .ok()
         .or_else(|| option_env!("PSYSONIC_FANART_KEY").map(str::to_string))
         .filter(|k| !k.is_empty())?;
-    let byok = std::env::var("PSYSONIC_FANART_CLIENT_KEY")
-        .ok()
+    // BYOK personal key (§22): the settings field wins, else the dev env var.
+    let byok = args
+        .external_artwork_byok
+        .as_deref()
+        .map(str::trim)
+        .filter(|k| !k.is_empty())
+        .map(str::to_string)
+        .or_else(|| std::env::var("PSYSONIC_FANART_CLIENT_KEY").ok())
         .filter(|k| !k.is_empty());
 
     // §11 quality gate applies to the 16:9 `fanart` surface only — if Navidrome

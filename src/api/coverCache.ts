@@ -69,15 +69,16 @@ export type CoverEnsureOpts = {
 function externalEnsureFields(ref: CoverArtRef, opts?: CoverEnsureOpts) {
   const surfaceKind = opts?.surfaceKind;
   const isExternalSurface = surfaceKind === 'fanart' || surfaceKind === 'banner';
+  const theme = useThemeStore.getState();
   const externalArtworkEnabled =
-    isExternalSurface &&
-    ref.cacheKind === 'artist' &&
-    useThemeStore.getState().externalArtworkEnabled;
+    isExternalSurface && ref.cacheKind === 'artist' && theme.externalArtworkEnabled;
   return {
     externalArtworkEnabled,
     surfaceKind,
     artistName: opts?.artistName,
     albumTitle: opts?.albumTitle,
+    // BYOK personal fanart.tv key (§22), only when the external branch will run.
+    externalArtworkByok: externalArtworkEnabled ? theme.externalArtworkByok : undefined,
   };
 }
 

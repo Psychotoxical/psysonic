@@ -314,6 +314,7 @@ async fn ensure_one(
         surface_kind: None,
         artist_name: None,
         album_title: None,
+        external_artwork_byok: None,
     };
     let _ = CoverCacheState::ensure_inner(&st, &app, &args, Some(http_sem)).await;
 }
