@@ -143,6 +143,25 @@ pub fn audio_set_gapless(enabled: bool, state: State<'_, AudioEngine>) {
     state.gapless_enabled.store(enabled, Ordering::Relaxed);
 }
 
+/// Begin a sample-level fade-out on the *current* sink without swapping tracks.
+/// Used by AutoDJ interrupt prep: duck A for ~1 s while the next track preloads.
+#[tauri::command]
+pub fn audio_begin_outgoing_fade(fade_secs: f32, state: State<'_, AudioEngine>) {
+    let fade_secs = fade_secs.clamp(0.1, 12.0);
+    let cur = state.current.lock().unwrap();
+    let Some(trigger) = cur.fadeout_trigger.as_ref() else {
+        return;
+    };
+    let Some(samples) = cur.fadeout_samples.as_ref() else {
+        return;
+    };
+    let rate = state.current_sample_rate.load(Ordering::Relaxed);
+    let ch = state.current_channels.load(Ordering::Relaxed);
+    let fade_total = (fade_secs as f64 * rate as f64 * ch as f64) as u64;
+    samples.store(fade_total.max(1), Ordering::SeqCst);
+    trigger.store(true, Ordering::Relaxed);
+}
+
 /// AutoDJ: when `true`, the progress task stops firing its autonomous
 /// crossfade `audio:ended` timer so the JS A-tail logic drives every advance
 /// (only when the next track is actually playable). When `false`, the engine's

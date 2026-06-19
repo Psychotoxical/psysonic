@@ -52,8 +52,11 @@ export function isCrossfadeNextReady(
   return false;
 }
 
-/** Max wait for interrupt-blend preload (library pick / out-of-queue play). */
-export const INTERRUPT_BLEND_PRELOAD_WAIT_MS = 1200;
+/** Outgoing fade + preload window before an interrupt handoff (library pick, etc.). */
+export const INTERRUPT_BLEND_PREP_FADE_SEC = 1.0;
+
+/** @deprecated Use {@link INTERRUPT_BLEND_PREP_FADE_SEC} — prep and wait are aligned. */
+export const INTERRUPT_BLEND_PRELOAD_WAIT_MS = Math.round(INTERRUPT_BLEND_PREP_FADE_SEC * 1000);
 
 /**
  * Start an eager RAM preload for a track the user just picked (no queue lead time).

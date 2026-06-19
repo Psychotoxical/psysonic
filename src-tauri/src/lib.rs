@@ -735,6 +735,7 @@ pub fn run() {
             audio::preview::audio_preview_set_volume,
             audio::mix_commands::audio_set_crossfade,
             audio::mix_commands::audio_set_gapless,
+            audio::mix_commands::audio_begin_outgoing_fade,
             audio::mix_commands::audio_set_autodj_suppress,
             audio::mix_commands::audio_set_normalization,
             audio::device_commands::audio_list_devices,

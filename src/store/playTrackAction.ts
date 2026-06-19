@@ -10,10 +10,10 @@ import {
 } from '../utils/playback/autodjManualBlend';
 import type { CrossfadeTransitionPlan } from '../utils/waveform/waveformSilence';
 import {
-  INTERRUPT_BLEND_PRELOAD_WAIT_MS,
-  kickEagerCrossfadePreload,
-  waitForCrossfadeNextReady,
-} from './crossfadePreload';
+  runInterruptBlendPrep,
+} from '../utils/playback/autodjInterruptPrep';
+import { isCrossfadeNextReady } from './crossfadePreload';
+import { STANDARD_BLEND_SEC } from '../utils/waveform/waveformSilence';
 import { armAutodjMixing, clearAutodjTransitionUi } from './autodjTransitionUi';
 import {
   bindQueueServerForTracks,
@@ -509,21 +509,23 @@ export function runPlayTrack(
 
     if (wantInterruptBlend && prevTrack) {
       const aDur = prevTrack.duration || 0;
-      kickEagerCrossfadePreload(scopedTrack, playbackSid, playbackCacheSid);
+      armAutodjMixing(STANDARD_BLEND_SEC);
+      const bReadyNow = isCrossfadeNextReady(scopedTrack.id, playbackSid, playbackCacheSid);
       void (async () => {
         try {
-          const [ready, bBins] = await Promise.all([
-            waitForCrossfadeNextReady(
-              scopedTrack.id,
-              playbackSid,
-              playbackCacheSid,
-              INTERRUPT_BLEND_PRELOAD_WAIT_MS,
-              () => getPlayGeneration() !== gen,
-            ),
+          const [prep, bBins] = await Promise.all([
+            bReadyNow
+              ? Promise.resolve({ ready: true })
+              : runInterruptBlendPrep(
+                scopedTrack,
+                playbackSid,
+                playbackCacheSid,
+                () => getPlayGeneration() !== gen,
+              ),
             fetchWaveformBins(scopedTrack.id, playbackCacheSid || null),
           ]);
           if (getPlayGeneration() !== gen) return;
-          const blend = ready
+          const blend = prep.ready
             ? computeAutodjManualBlendPlan(
               outgoingWaveformBins,
               aDur,
@@ -532,7 +534,13 @@ export function runPlayTrack(
               scopedTrack.duration || 0,
             )
             : null;
-          startAudio(blend);
+          startAudio(blend
+            ? {
+              ...blend,
+              // Prep fade already ducked A when we waited for a cold B.
+              outgoingFadeSec: bReadyNow ? blend.outgoingFadeSec : 0,
+            }
+            : null);
         } catch {
           if (getPlayGeneration() !== gen) return;
           startAudio(null);
