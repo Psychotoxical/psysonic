@@ -37,6 +37,7 @@ export const connection = {
   switchFailed: 'Could not switch — server unreachable.',
   queueSynced: 'Queue is in sync with the server',
   queuePullHint: 'Click to pull the play queue from {{server}}',
+  queueLocalEditHint: 'Play queue changed locally — auto-sync paused. Click to pull from server.',
   queuePulling: 'Pulling play queue…',
   queuePullSuccess: 'Play queue updated from server',
   queuePullEmpty: 'The server play queue is empty',

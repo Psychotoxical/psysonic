@@ -1,7 +1,28 @@
-/** Timestamps for idle auto-pull guards (play queue sync). */
+/** Timestamps and flags for idle auto-pull guards (play queue sync). */
 
 let playbackIdleSinceMs = 0;
 let lastQueueMutationAt = 0;
+/** When true, idle auto-pull is disabled until manual pull re-enables it. */
+let idleQueuePullSuspended = false;
+/** Bumped on each local queue mutation; stale in-flight idle pulls must not apply. */
+let idlePullGeneration = 0;
+
+const idlePullSuspensionListeners = new Set<() => void>();
+
+function emitIdlePullSuspensionChange(): void {
+  for (const listener of idlePullSuspensionListeners) {
+    listener();
+  }
+}
+
+export function subscribeIdleQueuePullSuspended(listener: () => void): () => void {
+  idlePullSuspensionListeners.add(listener);
+  return () => idlePullSuspensionListeners.delete(listener);
+}
+
+export function getIdleQueuePullSuspendedSnapshot(): boolean {
+  return idleQueuePullSuspended;
+}
 
 export function markPlaybackIdle(): void {
   if (playbackIdleSinceMs === 0) playbackIdleSinceMs = Date.now();
@@ -19,8 +40,30 @@ export function isPlaybackIdleLongEnough(thresholdMs: number): boolean {
   return playbackIdleSinceMs > 0 && Date.now() - playbackIdleSinceMs >= thresholdMs;
 }
 
+export function suspendIdleQueuePull(): void {
+  if (idleQueuePullSuspended) return;
+  idleQueuePullSuspended = true;
+  emitIdlePullSuspensionChange();
+}
+
+export function resumeIdleQueuePull(): void {
+  if (!idleQueuePullSuspended) return;
+  idleQueuePullSuspended = false;
+  emitIdlePullSuspensionChange();
+}
+
+export function isIdleQueuePullSuspended(): boolean {
+  return idleQueuePullSuspended;
+}
+
+export function getIdlePullGeneration(): number {
+  return idlePullGeneration;
+}
+
 export function touchQueueMutationClock(): void {
   lastQueueMutationAt = Date.now();
+  suspendIdleQueuePull();
+  idlePullGeneration += 1;
 }
 
 export function getLastQueueMutationAt(): number {
@@ -35,4 +78,6 @@ export function hasRecentQueueMutation(withinMs: number): boolean {
 export function _resetQueuePlaybackIdleForTest(): void {
   playbackIdleSinceMs = 0;
   lastQueueMutationAt = 0;
+  idleQueuePullSuspended = false;
+  idlePullGeneration = 0;
 }

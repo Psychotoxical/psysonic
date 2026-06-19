@@ -5,15 +5,15 @@ import { useOrbitStore } from '../store/orbitStore';
 import { usePlayerStore } from '../store/playerStore';
 import {
   getPlaybackIdleSinceMs,
-  hasRecentQueueMutation,
+  isIdleQueuePullSuspended,
   isPlaybackIdleLongEnough,
   markPlaybackIdle,
 } from '../store/queuePlaybackIdle';
+import { hasPendingQueueSync } from '../store/queueSync';
 import type { ConnectionStatus } from './useConnectionStatus';
 import { canAutoIdlePlayQueuePull } from './usePlayQueueSyncLedState';
 
 const IDLE_THRESHOLD_MS = 30_000;
-const MUTATION_QUIET_MS = 15_000;
 const POLL_INTERVAL_MS = 10_000;
 
 /** Background pull when paused/stopped long enough on a single-server, in-sync browse context. */
@@ -37,7 +37,8 @@ export function useIdlePlayQueuePull(status: ConnectionStatus) {
       if (!canAutoIdlePlayQueuePull(status, orbitRole)) return;
       if (isPlaying) return;
       if (!isPlaybackIdleLongEnough(IDLE_THRESHOLD_MS)) return;
-      if (hasRecentQueueMutation(MUTATION_QUIET_MS)) return;
+      if (isIdleQueuePullSuspended()) return;
+      if (hasPendingQueueSync()) return;
       if (!activeServerId) return;
 
       inFlightRef.current = true;

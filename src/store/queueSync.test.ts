@@ -39,8 +39,13 @@ import {
   flushPlayQueuePosition,
   flushQueueSyncToServer,
   getLastQueueHeartbeatAt,
+  hasPendingQueueSync,
   syncQueueToServer,
 } from './queueSync';
+import {
+  _resetQueuePlaybackIdleForTest,
+  isIdleQueuePullSuspended,
+} from './queuePlaybackIdle';
 
 function track(id: string, serverId = 'srv-a'): Track {
   return { id, title: id, artist: 'A', album: 'X', albumId: 'X', duration: 100, serverId };
@@ -60,6 +65,7 @@ beforeEach(() => {
   playerState.currentTrack = null;
   playerState.currentRadio = null;
   progressSnapshot.currentTime = 0;
+  _resetQueuePlaybackIdleForTest();
 });
 
 afterEach(() => {
@@ -88,6 +94,24 @@ describe('syncQueueToServer (debounced)', () => {
     syncQueueToServer(mixed, track('a', 'srv-a'), 12);
     vi.advanceTimersByTime(5000);
     expect(savePlayQueueMock).toHaveBeenCalledWith(['a'], 'a', 12000, 'srv-a');
+  });
+
+  it('suspends idle pull on mutation and stays suspended after successful debounced push', async () => {
+    syncQueueToServer(queue, track('a'), 30);
+    expect(isIdleQueuePullSuspended()).toBe(true);
+    expect(hasPendingQueueSync()).toBe(true);
+    vi.advanceTimersByTime(5000);
+    await Promise.resolve();
+    expect(savePlayQueueMock).toHaveBeenCalled();
+    expect(isIdleQueuePullSuspended()).toBe(true);
+  });
+
+  it('keeps idle pull suspended when debounced push fails', async () => {
+    savePlayQueueMock.mockRejectedValueOnce(new Error('offline'));
+    syncQueueToServer(queue, track('a'), 30);
+    vi.advanceTimersByTime(5000);
+    await Promise.resolve();
+    expect(isIdleQueuePullSuspended()).toBe(true);
   });
 });
 

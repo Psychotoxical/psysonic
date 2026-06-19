@@ -99,6 +99,11 @@ export function flushPlayQueueForServer(serverProfileId: string): Promise<void> 
   return pushRefsForServer(refs, s.currentTrack, currentTime, serverProfileId);
 }
 
+/** True while a debounced savePlayQueue is scheduled. */
+export function hasPendingQueueSync(): boolean {
+  return syncTimeout !== null;
+}
+
 /** Last heartbeat timestamp (ms epoch). Used by the playback heartbeat to throttle the 15-second auto-flush cadence. */
 export function getLastQueueHeartbeatAt(): number {
   return lastQueueHeartbeatAt;

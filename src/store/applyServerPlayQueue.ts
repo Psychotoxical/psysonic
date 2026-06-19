@@ -10,6 +10,11 @@ import { usePlayerStore } from './playerStore';
 import { preparePausedRestoreOnStartup } from './pausedRestorePrepare';
 import { pushQueueUndoFromGetter } from './queueUndo';
 import { refreshWaveformForTrack } from './waveformRefresh';
+import {
+  getIdlePullGeneration,
+  isIdleQueuePullSuspended,
+  resumeIdleQueuePull,
+} from './queuePlaybackIdle';
 import { clearQueueHandoffPending } from './queueSyncUiState';
 
 export type ApplyPlayQueueMode = 'startup' | 'idle' | 'manual';
@@ -125,12 +130,19 @@ export async function applyServerPlayQueue(
   const profileId = resolveServerProfileId(serverId);
   if (!profileId) return 'error';
 
+  if (options.mode === 'idle' && isIdleQueuePullSuspended()) {
+    return 'noop';
+  }
+  const idleGenerationAtStart = options.mode === 'idle' ? getIdlePullGeneration() : null;
+
   try {
     const q = await getPlayQueueForServer(profileId);
     if (q.songs.length === 0) return 'empty';
 
     const preferServerPosition = options.preferServerPosition ?? options.mode !== 'startup';
     if (options.mode === 'idle') {
+      if (isIdleQueuePullSuspended()) return 'noop';
+      if (idleGenerationAtStart !== getIdlePullGeneration()) return 'noop';
       const serverFp = fingerprintFromServer(q);
       const localFp = fingerprintFromLocalQueue();
       if (playQueueFingerprintsEqual(serverFp, localFp)) return 'noop';
@@ -169,17 +181,27 @@ export async function pullPlayQueueFromActiveServer(): Promise<ApplyPlayQueueRes
 
   try {
     const q = await getPlayQueueForServer(activeId);
-    if (q.songs.length === 0) return 'empty';
+    if (q.songs.length === 0) {
+      resumeIdleQueuePull();
+      return 'empty';
+    }
 
     const serverFp = fingerprintFromServer(q);
     const localFp = fingerprintFromLocalQueue();
-    if (playQueueFingerprintsEqual(serverFp, localFp)) return 'noop';
+    if (playQueueFingerprintsEqual(serverFp, localFp)) {
+      resumeIdleQueuePull();
+      return 'noop';
+    }
 
-    return applyServerPlayQueue(activeId, {
+    const result = await applyServerPlayQueue(activeId, {
       mode: 'manual',
       preferServerPosition: true,
       pushUndo: true,
     });
+    if (result === 'applied' || result === 'noop') {
+      resumeIdleQueuePull();
+    }
+    return result;
   } catch (e) {
     console.error('[psysonic] pullPlayQueueFromActiveServer failed', e);
     return 'error';

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ConnectionStatus } from '../hooks/useConnectionStatus';
 import { pullPlayQueueFromActiveServer } from '../store/applyServerPlayQueue';
@@ -6,6 +6,10 @@ import { useAuthStore } from '../store/authStore';
 import { useOrbitStore } from '../store/orbitStore';
 import { usePlayerStore } from '../store/playerStore';
 import { getPlaybackServerId, queueIsMultiServer } from '../utils/playback/playbackServer';
+import {
+  getIdleQueuePullSuspendedSnapshot,
+  subscribeIdleQueuePullSuspended,
+} from '../store/queuePlaybackIdle';
 import { clearQueueHandoffPending, isQueueHandoffPending } from '../store/queueSyncUiState';
 import { showToast } from '../utils/ui/toast';
 
@@ -13,9 +17,12 @@ export function usePlayQueueSyncLedState(status: ConnectionStatus) {
   const { t } = useTranslation();
   const activeServerId = useAuthStore(s => s.activeServerId);
   const orbitRole = useOrbitStore(s => s.role);
-  const isPlaying = usePlayerStore(s => s.isPlaying);
   const currentRadio = usePlayerStore(s => s.currentRadio);
   const [pullInFlight, setPullInFlight] = useState(false);
+  const idlePullSuspended = useSyncExternalStore(
+    subscribeIdleQueuePullSuspended,
+    getIdleQueuePullSuspendedSnapshot,
+  );
 
   const queueItems = usePlayerStore(s => s.queueItems);
   const queueIndex = usePlayerStore(s => s.queueIndex);
@@ -32,12 +39,21 @@ export function usePlayQueueSyncLedState(status: ConnectionStatus) {
     }
   }, [activeServerId, playbackServerId]);
 
+  const autoSyncContext = canAutoIdlePlayQueuePull(status, orbitRole);
+  const localQueueSyncPaused = autoSyncContext && idlePullSuspended;
+
   const needsQueuePull = status === 'connected'
     && Boolean(activeServerId)
     && (
       (Boolean(playbackServerId) && activeServerId !== playbackServerId)
       || isQueueHandoffPending()
+      || localQueueSyncPaused
     );
+
+  const queueHandoffReason = status === 'connected'
+    && Boolean(activeServerId)
+    && Boolean(playbackServerId)
+    && activeServerId !== playbackServerId;
 
   const ledVariant = status === 'checking'
     ? 'checking'
@@ -81,6 +97,8 @@ export function usePlayQueueSyncLedState(status: ConnectionStatus) {
   return {
     ledVariant,
     needsQueuePull,
+    localQueueSyncPaused,
+    queueHandoffReason,
     pullInFlight,
     syncRingVisible,
     pullFromActiveServer,

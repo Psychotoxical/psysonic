@@ -25,6 +25,8 @@ export default function ConnectionIndicator({ status, isLan, serverName }: Props
   const activeServerId = useAuthStore(s => s.activeServerId);
   const {
     ledVariant,
+    localQueueSyncPaused,
+    queueHandoffReason,
     pullInFlight,
     syncRingVisible,
     pullFromActiveServer,
@@ -114,7 +116,9 @@ export default function ConnectionIndicator({ status, isLan, serverName }: Props
   const tooltip = pullInFlight
     ? t('connection.queuePulling')
     : ledVariant === 'queue-handoff'
-      ? t('connection.queuePullHint', { server: serverName })
+      ? localQueueSyncPaused && !queueHandoffReason
+        ? t('connection.queueLocalEditHint')
+        : t('connection.queuePullHint', { server: serverName })
       : ledVariant === 'connected'
         ? t('connection.queueSynced')
         : multi
