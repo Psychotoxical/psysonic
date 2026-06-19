@@ -83,28 +83,29 @@ export default function ArtistDetailHero({
 
   return (
     <>
-      <button
-        className="btn btn-ghost"
-        onClick={() => goBack()}
-        style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-      >
-        <ArrowLeft size={16} /> <span>{t('artistDetail.back')}</span>
-      </button>
-
       {lightbox}
 
-      <div className={`artist-detail-header${headerBgUrl ? ' artist-detail-header--framed' : ''}`}>
+      {/* Same structure + classes as the album-detail header (AlbumHeader.tsx),
+          with the fanart banner as the background instead of the album cover.
+          `artist-detail-bleed` breaks out of the artist page's .content-body
+          padding so it is full-bleed like the album page (flush .album-detail). */}
+      <div className="album-detail-header artist-detail-bleed">
         {headerBgUrl && (
           <>
             <div
-              className="artist-detail-bg"
+              className="album-detail-bg"
               style={{ backgroundImage: `url(${headerBgUrl})` }}
               aria-hidden="true"
             />
-            <div className="artist-detail-overlay" aria-hidden="true" />
+            <div className="album-detail-overlay" aria-hidden="true" />
           </>
         )}
-        <div className="artist-detail-avatar" style={{ position: 'relative' }}>
+        <div className="album-detail-content">
+          <button className="btn btn-ghost album-detail-back" onClick={() => goBack()}>
+            <ArrowLeft size={16} /> <span>{t('artistDetail.back')}</span>
+          </button>
+          <div className="album-detail-hero">
+            <div className="artist-detail-avatar" style={{ position: 'relative' }}>
           {coverId ? (
             <button
               className="artist-detail-avatar-btn"
@@ -291,6 +292,8 @@ export default function ArtistDetailHero({
                 )}
               </button>
             )}
+          </div>
+            </div>
           </div>
         </div>
       </div>
