@@ -363,7 +363,7 @@ export function runPlayTrack(
         enginePreloadedTrackId: keepPreloadHint ? scopedTrack.id : null,
       });
       void refreshWaveformForTrack(scopedTrack.id);
-      void refreshLoudnessForTrack(scopedTrack.id);
+      void refreshLoudnessForTrack(scopedTrack.id, { syncPlayingEngine: false });
     };
 
     if (deferInterruptUi) {
@@ -397,7 +397,10 @@ export function runPlayTrack(
         enginePreloadedTrackId: keepPreloadHint ? scopedTrack.id : null,
       });
       void refreshWaveformForTrack(scopedTrack.id);
-      void refreshLoudnessForTrack(scopedTrack.id);
+      void refreshLoudnessForTrack(
+        scopedTrack.id,
+        wantInterruptBlend ? { syncPlayingEngine: false } : undefined,
+      );
     }
 
     setDeferHotCachePrefetch(true);
@@ -477,6 +480,9 @@ export function runPlayTrack(
       })
         .then(() => {
           if (getPlayGeneration() !== gen) return;
+          if (wantInterruptBlend) {
+            get().updateReplayGainForCurrentTrack();
+          }
           if (keepPreloadHint) {
             set({ enginePreloadedTrackId: null });
           }

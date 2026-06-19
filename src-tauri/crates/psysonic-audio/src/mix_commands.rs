@@ -13,9 +13,9 @@ use super::ipc::{maybe_emit_normalization_state, NormalizationStatePayload};
 #[tauri::command]
 pub fn audio_set_volume(volume: f32, state: State<'_, AudioEngine>) {
     let mut cur = state.current.lock().unwrap();
-    let prev_effective = (cur.base_volume * cur.replay_gain_linear * MASTER_HEADROOM).clamp(0.0, 1.0);
     cur.base_volume = volume.clamp(0.0, 1.0);
     if let Some(sink) = &cur.sink {
+        let prev_effective = sink_volume_now(sink);
         let next_effective = (cur.base_volume * cur.replay_gain_linear * MASTER_HEADROOM).clamp(0.0, 1.0);
         ramp_sink_volume(Arc::clone(sink), prev_effective, next_effective);
     }
@@ -105,11 +105,19 @@ pub fn audio_update_replay_gain(
         volume,
         effective
     );
+    if state
+        .interrupt_outgoing_duck_active
+        .load(Ordering::Relaxed)
+    {
+        // Interrupt prep ducked the outgoing sink; syncing B's loudness here would
+        // ramp A back to full gain before the handoff swap.
+        return;
+    }
     let mut cur = state.current.lock().unwrap();
-    let prev_effective = (cur.base_volume * cur.replay_gain_linear * MASTER_HEADROOM).clamp(0.0, 1.0);
     cur.replay_gain_linear = gain_linear;
     cur.base_volume = volume.clamp(0.0, 1.0);
     if let Some(sink) = &cur.sink {
+        let prev_effective = sink_volume_now(sink);
         ramp_sink_volume(Arc::clone(sink), prev_effective, effective);
     }
     drop(cur);
@@ -152,8 +160,12 @@ pub fn audio_begin_outgoing_fade(fade_secs: f32, state: State<'_, AudioEngine>) 
     let Some(sink) = cur.sink.as_ref() else {
         return;
     };
-    let effective = (cur.base_volume * cur.replay_gain_linear * MASTER_HEADROOM).clamp(0.0, 1.0);
-    ramp_sink_volume_over_secs(Arc::clone(sink), effective, 0.0, fade_secs);
+    state
+        .interrupt_outgoing_duck_active
+        .store(true, Ordering::Relaxed);
+    cancel_sink_volume_ramp();
+    let from = sink_volume_now(sink);
+    ramp_sink_volume_over_secs(Arc::clone(sink), from, 0.0, fade_secs);
 }
 
 /// AutoDJ: when `true`, the progress task stops firing its autonomous

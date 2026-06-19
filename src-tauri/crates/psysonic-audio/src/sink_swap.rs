@@ -187,6 +187,14 @@ pub(crate) fn swap_in_new_sink(state: &State<'_, AudioEngine>, inputs: SinkSwapI
                 actual_fade_secs.max(outgoing_fade_secs) + 0.5,
             );
         } else if let Some(old) = old_sink {
+            // Prep already volume-ducked A; scenario-A keeps sample gain at 1.0
+            // so clamp the handoff sink or A blasts over B's fade-in.
+            if state
+                .interrupt_outgoing_duck_active
+                .load(Ordering::Relaxed)
+            {
+                old.set_volume(0.0);
+            }
             *state.fading_out_sink.lock().unwrap() = Some(old);
             let fo_arc = state.fading_out_sink.clone();
             let cleanup_dur = Duration::from_secs_f32(actual_fade_secs + 0.5);
@@ -200,4 +208,7 @@ pub(crate) fn swap_in_new_sink(state: &State<'_, AudioEngine>, inputs: SinkSwapI
     } else if let Some(old) = old_sink {
         old.stop();
     }
+    state
+        .interrupt_outgoing_duck_active
+        .store(false, Ordering::Relaxed);
 }

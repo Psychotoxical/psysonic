@@ -807,6 +807,17 @@ pub(crate) fn loudness_ui_current_gain_db(gain_linear: f32) -> Option<f32> {
 
 static SINK_VOLUME_RAMP_GEN: AtomicU64 = AtomicU64::new(0);
 
+/// Cancel any in-flight sink-volume ramp (new ramp wins).
+pub(crate) fn cancel_sink_volume_ramp() {
+    SINK_VOLUME_RAMP_GEN.fetch_add(1, Ordering::SeqCst);
+}
+
+/// Audible sink multiplier — may differ from `base_volume * replay_gain` after
+/// interrupt prep or a mid-ramp correction.
+pub(crate) fn sink_volume_now(sink: &Player) -> f32 {
+    sink.volume().clamp(0.0, 1.0)
+}
+
 pub(crate) fn ramp_sink_volume(sink: Arc<Player>, from: f32, to: f32) {
     let from = from.clamp(0.0, 1.0);
     let to = to.clamp(0.0, 1.0);

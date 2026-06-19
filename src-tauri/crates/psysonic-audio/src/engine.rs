@@ -66,6 +66,9 @@ pub struct AudioEngine {
     /// the engine from starting a still-buffering next track and fading over it
     /// (an audible "jump"); cold next-track degrades to a clean sequential start.
     pub(crate) autodj_suppress_autocrossfade: Arc<AtomicBool>,
+    /// AutoDJ interrupt prep: `audio_begin_outgoing_fade` volume-ducked the
+    /// outgoing sink; block normalization/volume ramps until the handoff swap.
+    pub(crate) interrupt_outgoing_duck_active: Arc<AtomicBool>,
     pub fading_out_sink: Arc<Mutex<Option<Arc<Player>>>>,
     /// When true, audio_play chains sources to the existing Sink instead of
     /// creating a new one, achieving sample-accurate gapless transitions.
@@ -482,6 +485,7 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
         crossfade_enabled: Arc::new(AtomicBool::new(false)),
         crossfade_secs: Arc::new(AtomicU32::new(3.0f32.to_bits())),
         autodj_suppress_autocrossfade: Arc::new(AtomicBool::new(false)),
+        interrupt_outgoing_duck_active: Arc::new(AtomicBool::new(false)),
         fading_out_sink: Arc::new(Mutex::new(None)),
         gapless_enabled: Arc::new(AtomicBool::new(false)),
         normalization_engine: Arc::new(AtomicU32::new(0)),
