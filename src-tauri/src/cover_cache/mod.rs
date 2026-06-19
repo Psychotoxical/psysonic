@@ -145,11 +145,14 @@ pub struct CoverCacheEnsureArgs {
     pub surface_kind: Option<String>,
     /// Artist display name — context for the §19 name→MusicBrainz fallback when
     /// the artist carries no tag MBID. `None` skips that fallback.
+    /// Read by the name→MusicBrainz resolver (P1 #9).
     #[serde(default)]
+    #[allow(dead_code)]
     pub artist_name: Option<String>,
     /// Album title currently in context (fullscreen playback) — disambiguates
-    /// the name→MusicBrainz query (§19).
+    /// the name→MusicBrainz query (§19). Read by the §19 resolver (P1 #9).
     #[serde(default)]
+    #[allow(dead_code)]
     pub album_title: Option<String>,
 }
 
@@ -290,23 +293,22 @@ impl CoverCacheState {
             });
         }
 
-        // Image-scraper spike (§16 P0): for the artist 16:9 `fanart` surface,
-        // try fanart.tv before the Navidrome fallback. On any miss it falls
-        // through WITHOUT writing a `.fetch-failed` marker, so Navidrome stays
-        // the display fallback (§28).
-        if args.external_artwork_enabled
-            && !args.library_bulk
-            && args.cache_kind == "artist"
-            && args.surface_kind.as_deref() == Some("fanart")
-        {
-            if let Some(path) =
-                try_external_fanart(app, args, &dir, &client, &fanart_sem, args.tier).await
-            {
-                return Ok(CoverCacheEnsureResult {
-                    hit: true,
-                    path: path.to_string_lossy().into_owned(),
-                    tier: args.tier,
-                });
+        // For an external artist surface (`fanart` 16:9 background or `banner`
+        // strip), try fanart.tv before the Navidrome fallback. On any miss it
+        // falls through WITHOUT writing a `.fetch-failed` marker, so Navidrome
+        // stays the display fallback (§28).
+        if args.external_artwork_enabled && !args.library_bulk && args.cache_kind == "artist" {
+            if let Some(surface) = external_surface(args.surface_kind.as_deref()) {
+                if let Some(path) =
+                    try_external_fanart(app, args, &dir, &client, &fanart_sem, args.tier, surface)
+                        .await
+                {
+                    return Ok(CoverCacheEnsureResult {
+                        hit: true,
+                        path: path.to_string_lossy().into_owned(),
+                        tier: args.tier,
+                    });
+                }
             }
         }
 
@@ -871,9 +873,6 @@ fn peek_tier_path(dir: &Path, want: u32) -> Option<PathBuf> {
 }
 
 /// Spike negative-cache marker — "this artist has no fanart", mirrors the
-/// `.fetch-failed` ~30 min backoff (image-scraper §13/§24).
-const FANART_MISS_MARKER: &str = ".miss-fanart";
-
 /// §11 quality gate for the fanart (16:9) surface: an existing on-disk image
 /// pre-empts an external fetch only when it is wide enough AND roughly 16:9.
 /// Square Navidrome artist portraits never satisfy it.
@@ -881,22 +880,29 @@ const FANART_MIN_WIDTH: u32 = 1280;
 const FANART_ASPECT_MIN: f32 = 1.6;
 const FANART_ASPECT_MAX: f32 = 2.0;
 
-/// Like [`peek_tier_path`] but, for the `fanart` surface, prefers the external
-/// `{tier}-fanart.webp` tiers first (the file only exists once fanart was
-/// fetched). Other surfaces are unaffected. Spike default = fanart-first when
-/// present; the configurable provider-priority walk (§18) is P1.
+/// The external-artwork surfaces fanart.tv serves for an artist. Returns the
+/// surface name — also the on-disk file suffix (`{tier}-{surface}.webp`) and the
+/// lookup `surface_kind` — when the requested surface is external, else `None`.
+fn external_surface(surface_kind: Option<&str>) -> Option<&str> {
+    match surface_kind {
+        Some("fanart") => Some("fanart"),
+        Some("banner") => Some("banner"),
+        _ => None,
+    }
+}
+
+/// Like [`peek_tier_path`] but, for an external surface (`fanart`/`banner`),
+/// serves only the matching `{tier}-{surface}.webp` tiers. If none exist yet it
+/// returns None so ensure runs the external branch (fetch; Navidrome is the
+/// fallback inside that branch's miss path) instead of short-circuiting on a
+/// cached Navidrome tier (§18, "external prioritised").
 fn peek_cover_path(dir: &Path, want: u32, args: &CoverCacheEnsureArgs) -> Option<PathBuf> {
-    if args.surface_kind.as_deref() == Some("fanart") {
-        // Fanart-prioritised surface (§18): the early peek serves ONLY the
-        // external `{tier}-fanart.webp` tiers. If none exist yet, return None so
-        // ensure runs the external branch (fetch fanart; Navidrome is the
-        // fallback inside that branch's miss path) instead of short-circuiting
-        // on a cached Navidrome tier.
-        if let Some(p) = disk::provider_tier_exists(dir, want, "fanart") {
+    if let Some(surface) = external_surface(args.surface_kind.as_deref()) {
+        if let Some(p) = disk::provider_tier_exists(dir, want, surface) {
             return Some(p);
         }
         for &tier in peek_fallback_tiers(want) {
-            if let Some(p) = disk::provider_tier_exists(dir, tier, "fanart") {
+            if let Some(p) = disk::provider_tier_exists(dir, tier, surface) {
                 return Some(p);
             }
         }
@@ -968,16 +974,19 @@ fn now_unix_ms() -> i64 {
         .unwrap_or(0)
 }
 
-/// Read the cached `artist_artwork_lookup` row off the async executor (§12).
+/// Read the cached `artist_artwork_lookup` row for a surface off the async
+/// executor (§12).
 async fn read_artist_lookup(
     store: &Option<Arc<psysonic_library::store::LibraryStore>>,
     server_id: &str,
     artist_id: &str,
+    surface: &str,
 ) -> Option<psysonic_library::artist_artwork::ArtistArtworkRow> {
     let store = store.clone()?;
-    let (server_id, artist_id) = (server_id.to_string(), artist_id.to_string());
+    let (server_id, artist_id, surface) =
+        (server_id.to_string(), artist_id.to_string(), surface.to_string());
     tauri::async_runtime::spawn_blocking(move || {
-        psysonic_library::artist_artwork::get_artist_artwork(&store, &server_id, &artist_id, "fanart")
+        psysonic_library::artist_artwork::get_artist_artwork(&store, &server_id, &artist_id, &surface)
             .ok()
             .flatten()
     })
@@ -993,6 +1002,7 @@ async fn persist_artist_lookup(
     store: &Option<Arc<psysonic_library::store::LibraryStore>>,
     server_id: &str,
     artist_id: &str,
+    surface: &str,
     status: &str,
     mbid: Option<&str>,
     mbid_source: Option<&str>,
@@ -1002,8 +1012,12 @@ async fn persist_artist_lookup(
     let Some(store) = store.clone() else {
         return;
     };
-    let (server_id, artist_id, status) =
-        (server_id.to_string(), artist_id.to_string(), status.to_string());
+    let (server_id, artist_id, surface, status) = (
+        server_id.to_string(),
+        artist_id.to_string(),
+        surface.to_string(),
+        status.to_string(),
+    );
     let (mbid, mbid_source, provider) = (
         mbid.map(String::from),
         mbid_source.map(String::from),
@@ -1014,7 +1028,7 @@ async fn persist_artist_lookup(
             &store,
             &server_id,
             &artist_id,
-            "fanart",
+            &surface,
             mbid.as_deref(),
             mbid_source.as_deref(),
             &status,
@@ -1025,14 +1039,15 @@ async fn persist_artist_lookup(
     .await;
 }
 
-/// Try to satisfy an artist `fanart` surface from fanart.tv. Writes
-/// `2000-fanart.webp` + `512-fanart.webp` into the entity dir and returns the
-/// requested-tier path on success. `None` = "no fanart, fall through to
-/// Navidrome" — never writes a `.fetch-failed` marker (§28).
+/// Try to satisfy an external artist `surface` (`fanart` 16:9 background or
+/// `banner` strip) from fanart.tv. Writes `{2000,512}-{surface}.webp` into the
+/// entity dir and returns the requested-tier path on success. `None` = "no
+/// image, fall through to Navidrome" — never writes a `.fetch-failed` marker
+/// (§28).
 ///
 /// MBID resolution stays Rust-side (§23): the tag MBID via `getArtistInfo2`,
-/// cached in `artist_artwork_lookup` (§12). The §11 quality gate runs first.
-/// The name→MusicBrainz path (§19) is still P1.
+/// cached per surface in `artist_artwork_lookup` (§12). The §11 quality gate
+/// runs first for the `fanart` surface only. Name→MusicBrainz (§19) is still P1.
 async fn try_external_fanart(
     app: &AppHandle,
     args: &CoverCacheEnsureArgs,
@@ -1040,6 +1055,7 @@ async fn try_external_fanart(
     client: &Client,
     fanart_sem: &Arc<Semaphore>,
     requested: u32,
+    surface: &str,
 ) -> Option<PathBuf> {
     // Behind the project key: a runtime env var (dev convenience) wins, else the
     // key baked in at build time via `option_env!` (release builds). No secret
@@ -1052,9 +1068,10 @@ async fn try_external_fanart(
         .ok()
         .filter(|k| !k.is_empty());
 
-    // §11 quality gate: if Navidrome already serves an HQ ~16:9 image for this
-    // artist, skip the external fetch and let it serve as the fallback.
-    if navidrome_tier_is_hq_fanart(dir) {
+    // §11 quality gate applies to the 16:9 `fanart` surface only — if Navidrome
+    // already serves an HQ ~16:9 image, skip the external fetch. The `banner`
+    // strip has its own aspect and is never pre-empted by a Navidrome tier.
+    if surface == "fanart" && navidrome_tier_is_hq_fanart(dir) {
         return None;
     }
 
@@ -1066,7 +1083,7 @@ async fn try_external_fanart(
     let artist_id = &args.cache_entity_id;
     let now = now_unix_ms();
 
-    let cached = read_artist_lookup(&store, server_id, artist_id).await;
+    let cached = read_artist_lookup(&store, server_id, artist_id, surface).await;
     if let Some(row) = &cached {
         // Back off: no/ambiguous MBID for 24h; a confirmed "no fanart" miss for
         // 30 min (also held by the `.miss-fanart` marker).
@@ -1080,7 +1097,7 @@ async fn try_external_fanart(
         }
     }
 
-    let miss_marker = dir.join(FANART_MISS_MARKER);
+    let miss_marker = dir.join(format!(".miss-{surface}"));
     if marker_recent(&miss_marker, Duration::from_secs(30 * 60)) {
         return None;
     }
@@ -1103,8 +1120,10 @@ async fn try_external_fanart(
             Ok(Some(m)) => (m, Some("tag".to_string())),
             Ok(None) => {
                 // No tag MBID; name→MusicBrainz is P1. Record + back off 24h.
-                persist_artist_lookup(&store, server_id, artist_id, "no_mbid", None, None, None, now)
-                    .await;
+                persist_artist_lookup(
+                    &store, server_id, artist_id, surface, "no_mbid", None, None, None, now,
+                )
+                .await;
                 return None;
             }
             Err(e) => {
@@ -1114,31 +1133,39 @@ async fn try_external_fanart(
         },
     };
 
-    let bg_url =
-        match external::fetch_fanart_background_url(client, &mbid, &api_key, byok.as_deref()).await {
-            Ok(Some(u)) => u,
-            Ok(None) => {
-                write_marker(&miss_marker); // artist has no fanart
-                persist_artist_lookup(
-                    &store,
-                    server_id,
-                    artist_id,
-                    "miss",
-                    Some(&mbid),
-                    mbid_source.as_deref(),
-                    None,
-                    now,
-                )
-                .await;
-                return None;
-            }
-            Err(e) => {
-                eprintln!("[fanart] lookup failed: {e}"); // transient — don't cache
-                return None;
-            }
-        };
+    let img_url = match external::fetch_fanart_image_url(
+        client,
+        &mbid,
+        &api_key,
+        byok.as_deref(),
+        surface,
+    )
+    .await
+    {
+        Ok(Some(u)) => u,
+        Ok(None) => {
+            write_marker(&miss_marker); // artist has no image of this kind
+            persist_artist_lookup(
+                &store,
+                server_id,
+                artist_id,
+                surface,
+                "miss",
+                Some(&mbid),
+                mbid_source.as_deref(),
+                None,
+                now,
+            )
+            .await;
+            return None;
+        }
+        Err(e) => {
+            eprintln!("[fanart] lookup failed: {e}"); // transient — don't cache
+            return None;
+        }
+    };
 
-    let bytes = match fetch::fetch_cover_bytes(client, &bg_url).await {
+    let bytes = match fetch::fetch_cover_bytes(client, &img_url).await {
         Ok(b) => b,
         Err(e) => {
             eprintln!("[fanart] download failed: {e}"); // transient — don't cache
@@ -1146,13 +1173,14 @@ async fn try_external_fanart(
         }
     };
 
-    // Decode + write 2000-fanart.webp + derive 512-fanart.webp (matryoshka §17).
+    // Decode + write {2000,512}-{surface}.webp (matryoshka §17).
     let dir_owned = dir.to_path_buf();
+    let surface_owned = surface.to_string();
     let encoded = tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
         let img = decode_image_bytes(&bytes)?;
         std::fs::create_dir_all(&dir_owned).map_err(|e| e.to_string())?;
         for tier in [2000u32, 512u32] {
-            write_webp_tier(&img, tier, &disk::provider_tier_path(&dir_owned, tier, "fanart"))?;
+            write_webp_tier(&img, tier, &disk::provider_tier_path(&dir_owned, tier, &surface_owned))?;
         }
         Ok(())
     })
@@ -1166,6 +1194,7 @@ async fn try_external_fanart(
         &store,
         server_id,
         artist_id,
+        surface,
         "hit",
         Some(&mbid),
         mbid_source.as_deref(),
@@ -1174,7 +1203,7 @@ async fn try_external_fanart(
     )
     .await;
 
-    let out = disk::provider_tier_path(dir, requested, "fanart");
+    let out = disk::provider_tier_path(dir, requested, surface);
     emit_tier_ready(app, args, requested, &out);
     Some(out)
 }

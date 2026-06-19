@@ -68,29 +68,40 @@ pub async fn fetch_artist_tag_mbid(
     Ok(mbid)
 }
 
-/// GET the fanart.tv music JSON for an MBID and return the first
-/// `artistbackground` URL (the API returns them most-liked first). `Ok(None)`
-/// when the artist has no fanart (404 or empty array).
-pub async fn fetch_fanart_background_url(
+/// Map a render surface to its fanart.tv JSON array key. `fanart` (the 16:9
+/// fullscreen background) → `artistbackground`; `banner` (the wide artist-detail
+/// header strip) → `musicbanner`.
+pub fn fanart_json_key(surface: &str) -> &'static str {
+    match surface {
+        "banner" => "musicbanner",
+        _ => "artistbackground",
+    }
+}
+
+/// GET the fanart.tv music JSON for an MBID and return the first image URL for
+/// the requested `surface` (the API returns each kind most-liked first).
+/// `Ok(None)` when the artist has no image of that kind (404 or empty array).
+pub async fn fetch_fanart_image_url(
     client: &Client,
     mbid: &str,
     api_key: &str,
     client_key: Option<&str>,
+    surface: &str,
 ) -> Result<Option<String>, String> {
     let url = build_fanart_url(mbid, api_key, client_key);
     let Some(body) = http_get_text_opt(client, &url).await? else {
-        return Ok(None); // 404 → artist has no fanart
+        return Ok(None); // 404 → artist has no fanart at all
     };
     let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
-    let bg = v
-        .get("artistbackground")
+    let img = v
+        .get(fanart_json_key(surface))
         .and_then(|a| a.as_array())
         .and_then(|arr| arr.first())
         .and_then(|o| o.get("url"))
         .and_then(|u| u.as_str())
         .filter(|s| !s.is_empty())
         .map(str::to_string);
-    Ok(bg)
+    Ok(img)
 }
 
 /// Single GET → response text; any non-2xx is an error.
@@ -152,5 +163,12 @@ mod tests {
             .and_then(|o| o.get("url"))
             .and_then(|u| u.as_str());
         assert_eq!(bg, Some("https://a/bg1.jpg"));
+    }
+
+    #[test]
+    fn json_key_maps_surface() {
+        assert_eq!(fanart_json_key("fanart"), "artistbackground");
+        assert_eq!(fanart_json_key("banner"), "musicbanner");
+        assert_eq!(fanart_json_key("anything-else"), "artistbackground");
     }
 }
