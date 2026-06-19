@@ -1307,6 +1307,17 @@ pub async fn cover_cache_clear_server(
     }
     invalidate_dir_usage_cache(&server_index_key);
     drop(guard);
+    // §12/B.4: the on-disk external tiers (`{tier}-fanart.webp` / `-banner.webp`)
+    // + `.miss-*` markers went with the dir removal above; also drop the
+    // `artist_artwork_lookup` rows for this server so no resolution state lingers.
+    if let Some(rt) = app.try_state::<LibraryRuntime>() {
+        let store = rt.store.clone();
+        let key = server_index_key.clone();
+        let _ = tauri::async_runtime::spawn_blocking(move || {
+            psysonic_library::artist_artwork::clear_artist_artwork_for_server(&store, &key)
+        })
+        .await;
+    }
     // Clearing drops files the cheap idle-gate signature can't see, so re-arm
     // the backfill worker — otherwise the next sync-idle would skip the rescan.
     if let Some(worker) = app.try_state::<Arc<CoverBackfillWorker>>() {
