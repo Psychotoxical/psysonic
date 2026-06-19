@@ -110,6 +110,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Niri is now recognized as a tiling window manager (`NIRI_SOCKET`, `XDG_CURRENT_DESKTOP=niri`), so it gets the same custom title bar, window decorations, and mini-player behavior as Hyprland and Sway instead of being treated like a floating desktop.
 
+### Play queue idle pull overwrote local edits
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1132](https://github.com/Psychotoxical/psysonic/pull/1132)**
+
+* After cross-device idle pull while paused, a local queue change (e.g. enqueue) could be overwritten when auto-pull ran again. Idle auto-pull now stops on local mutations until manual sync from the header; the connection LED turns yellow while auto-sync is paused.
+
 
 ## [1.48.1] - 2026-06-15
 
