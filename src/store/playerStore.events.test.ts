@@ -7,6 +7,7 @@
  * cleanup function returned by `initAudioListeners` must actually unsub.
  */
 import { initAudioListeners } from './initAudioListeners';
+import { armInterruptHandoff, clearInterruptHandoff } from '../utils/playback/autodjInterruptPrep';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/subsonic', async () => {
@@ -201,6 +202,16 @@ describe('audio:ended', () => {
     expect(s.buffered).toBe(0);
     // currentTrack stays — `next()` (deferred 150 ms) will replace it.
     expect(s.currentTrack?.id).toBe(queue[0].id);
+  });
+
+  it('ignores ended while an interrupt handoff is pending', () => {
+    const queue = makeTracks(2);
+    seedQueue(queue, { index: 0, currentTrack: queue[1] });
+    usePlayerStore.setState({ isPlaying: true, progress: 0.5, currentTime: 90 });
+    armInterruptHandoff(1);
+    emitTauriEvent('audio:ended', undefined);
+    expect(usePlayerStore.getState().isPlaying).toBe(true);
+    clearInterruptHandoff();
   });
 
   it('clears state and currentRadio for a radio stream without advancing the queue', () => {

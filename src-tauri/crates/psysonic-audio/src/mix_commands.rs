@@ -143,23 +143,17 @@ pub fn audio_set_gapless(enabled: bool, state: State<'_, AudioEngine>) {
     state.gapless_enabled.store(enabled, Ordering::Relaxed);
 }
 
-/// Begin a sample-level fade-out on the *current* sink without swapping tracks.
-/// Used by AutoDJ interrupt prep: duck A for ~1 s while the next track preloads.
+/// Duck the current sink over `fade_secs` without exhausting its source (which
+/// would spuriously emit `audio:ended` before the interrupt handoff).
 #[tauri::command]
 pub fn audio_begin_outgoing_fade(fade_secs: f32, state: State<'_, AudioEngine>) {
     let fade_secs = fade_secs.clamp(0.1, 12.0);
     let cur = state.current.lock().unwrap();
-    let Some(trigger) = cur.fadeout_trigger.as_ref() else {
+    let Some(sink) = cur.sink.as_ref() else {
         return;
     };
-    let Some(samples) = cur.fadeout_samples.as_ref() else {
-        return;
-    };
-    let rate = state.current_sample_rate.load(Ordering::Relaxed);
-    let ch = state.current_channels.load(Ordering::Relaxed);
-    let fade_total = (fade_secs as f64 * rate as f64 * ch as f64) as u64;
-    samples.store(fade_total.max(1), Ordering::SeqCst);
-    trigger.store(true, Ordering::Relaxed);
+    let effective = (cur.base_volume * cur.replay_gain_linear * MASTER_HEADROOM).clamp(0.0, 1.0);
+    ramp_sink_volume_over_secs(Arc::clone(sink), effective, 0.0, fade_secs);
 }
 
 /// AutoDJ: when `true`, the progress task stops firing its autonomous

@@ -9,6 +9,21 @@ import {
 
 export { INTERRUPT_BLEND_PREP_FADE_SEC };
 
+/** Play generation with a pending interrupt handoff (suppress spurious `audio:ended`). */
+let pendingHandoffGen: number | null = null;
+
+export function armInterruptHandoff(gen: number): void {
+  pendingHandoffGen = gen;
+}
+
+export function clearInterruptHandoff(): void {
+  pendingHandoffGen = null;
+}
+
+export function isInterruptHandoffPending(): boolean {
+  return pendingHandoffGen !== null;
+}
+
 function sleepMs(ms: number): Promise<void> {
   return new Promise(resolve => { window.setTimeout(resolve, ms); });
 }
@@ -21,7 +36,7 @@ export interface InterruptBlendPrepResult {
 /**
  * Win preload time before the incoming track starts: fade the outgoing engine
  * source for ~1 s while eagerly buffering B. Caller should pass
- * `outgoingFadeSec: 0` on the blend plan — A is already fading.
+ * `outgoingFadeSec: 0` on the blend plan when prep ran — A was volume-ducked only.
  */
 export async function runInterruptBlendPrep(
   track: Track,

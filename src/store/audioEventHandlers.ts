@@ -92,6 +92,7 @@ import {
   computeAutodjJsOverlap,
   shouldJsDriveAutodjTransition,
 } from '../utils/playback/autodjAutoAdvance';
+import { isInterruptHandoffPending } from '../utils/playback/autodjInterruptPrep';
 import { isCrossfadeNextReady, maybeCrossfadeBytePreload } from './crossfadePreload';
 import { armCrossfadeDynamicOverlap, getCrossfadeTransition } from './crossfadeTrimCache';
 import { armAutodjMixing } from './autodjTransitionUi';
@@ -455,6 +456,10 @@ export function handleAudioEnded(): void {
   notifyLibraryPlaybackHint('idle');
 
   if (Date.now() - getLastGaplessSwitchTime() < 600) {
+    return;
+  }
+
+  if (isInterruptHandoffPending()) {
     return;
   }
 

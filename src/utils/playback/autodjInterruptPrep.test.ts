@@ -3,7 +3,10 @@ import { invoke } from '@tauri-apps/api/core';
 import type { Track } from '../../store/playerStoreTypes';
 import * as crossfadePreload from '../../store/crossfadePreload';
 import {
+  armInterruptHandoff,
+  clearInterruptHandoff,
   INTERRUPT_BLEND_PREP_FADE_SEC,
+  isInterruptHandoffPending,
   runInterruptBlendPrep,
 } from './autodjInterruptPrep';
 
@@ -35,6 +38,7 @@ describe('runInterruptBlendPrep', () => {
   });
 
   it('fades the outgoing track and waits the prep window', async () => {
+    armInterruptHandoff(7);
     const promise = runInterruptBlendPrep(track, 'srv', 'srv', () => false);
     await vi.advanceTimersByTimeAsync(INTERRUPT_BLEND_PREP_FADE_SEC * 1000);
     const result = await promise;
@@ -43,5 +47,13 @@ describe('runInterruptBlendPrep', () => {
     });
     expect(crossfadePreload.kickEagerCrossfadePreload).toHaveBeenCalledWith(track, 'srv', 'srv');
     expect(result).toEqual({ ready: false });
+    clearInterruptHandoff();
+  });
+
+  it('tracks interrupt handoff pending state', () => {
+    armInterruptHandoff(3);
+    expect(isInterruptHandoffPending()).toBe(true);
+    clearInterruptHandoff();
+    expect(isInterruptHandoffPending()).toBe(false);
   });
 });

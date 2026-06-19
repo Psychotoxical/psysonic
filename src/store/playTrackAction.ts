@@ -10,6 +10,8 @@ import {
 } from '../utils/playback/autodjManualBlend';
 import type { CrossfadeTransitionPlan } from '../utils/waveform/waveformSilence';
 import {
+  armInterruptHandoff,
+  clearInterruptHandoff,
   runInterruptBlendPrep,
 } from '../utils/playback/autodjInterruptPrep';
 import { isCrossfadeNextReady } from './crossfadePreload';
@@ -187,6 +189,7 @@ export function runPlayTrack(
   set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null, scheduledResumeAtMs: null, scheduledResumeStartMs: null });
 
   const gen = bumpPlayGeneration();
+  clearInterruptHandoff();
   setIsAudioPaused(false);
   clearPreloadingIds(); // new track — allow fresh preload for next
   clearSeekDebounce(); clearSeekTarget();
@@ -332,6 +335,13 @@ export function runPlayTrack(
     } else if (queueSid) {
       seedQueueResolver(queueSid, [scopedTrack]);
     }
+
+    const hasJsAutoHandoff = !manual && peekArmedCrossfadeDynamicOverlap(scopedTrack.id);
+    const wantInterruptBlend =
+      shouldAutodjInterruptBlend(wasPlayingBeforeSkip, hasJsAutoHandoff)
+      && prevTrack
+      && !sameQueueTrackId(prevTrack.id, scopedTrack.id);
+
     set({
       currentTrack: scopedTrack,
       currentRadio: null,
@@ -347,8 +357,11 @@ export function runPlayTrack(
       networkLoved: false,
       // HTTP stream: wait for Rust `audio:playing` so the seekbar does not
       // extrapolate while RangedHttpSource / legacy reader is still buffering.
-      isPlaying: playbackSourceHint !== 'stream',
-      isPlaybackBuffering: playbackSourceHint === 'stream',
+      // During interrupt prep A is still audible — keep the play affordance on.
+      isPlaying: (wantInterruptBlend && wasPlayingBeforeSkip) || playbackSourceHint !== 'stream',
+      isPlaybackBuffering: wantInterruptBlend && wasPlayingBeforeSkip
+        ? false
+        : playbackSourceHint === 'stream',
       currentPlaybackSource: playbackSourceHint,
       enginePreloadedTrackId: keepPreloadHint ? scopedTrack.id : null,
     });
@@ -375,12 +388,6 @@ export function runPlayTrack(
       isReplayGainActive(), authStateNow.replayGainMode,
     );
     const replayGainPeak = isReplayGainActive() ? (scopedTrack.replayGainPeak ?? null) : null;
-
-    const hasJsAutoHandoff = !manual && peekArmedCrossfadeDynamicOverlap(scopedTrack.id);
-    const wantInterruptBlend =
-      shouldAutodjInterruptBlend(wasPlayingBeforeSkip, hasJsAutoHandoff)
-      && prevTrack
-      && !sameQueueTrackId(prevTrack.id, scopedTrack.id);
 
     const invokeAudioPlay = (manualBlend: CrossfadeTransitionPlan | null) => {
       // Silence-aware crossfade (B-head + dynamic overlap): on a fresh auto-advance
@@ -503,6 +510,7 @@ export function runPlayTrack(
     };
 
     const startAudio = (manualBlend: CrossfadeTransitionPlan | null) => {
+      clearInterruptHandoff();
       invokeAudioPlay(manualBlend);
       finishPlaybackSideEffects();
     };
@@ -510,6 +518,7 @@ export function runPlayTrack(
     if (wantInterruptBlend && prevTrack) {
       const aDur = prevTrack.duration || 0;
       armAutodjMixing(STANDARD_BLEND_SEC);
+      armInterruptHandoff(gen);
       const bReadyNow = isCrossfadeNextReady(scopedTrack.id, playbackSid, playbackCacheSid);
       void (async () => {
         try {
@@ -524,7 +533,10 @@ export function runPlayTrack(
               ),
             fetchWaveformBins(scopedTrack.id, playbackCacheSid || null),
           ]);
-          if (getPlayGeneration() !== gen) return;
+          if (getPlayGeneration() !== gen) {
+            clearInterruptHandoff();
+            return;
+          }
           const blend = prep.ready
             ? computeAutodjManualBlendPlan(
               outgoingWaveformBins,
@@ -542,7 +554,10 @@ export function runPlayTrack(
             }
             : null);
         } catch {
-          if (getPlayGeneration() !== gen) return;
+          if (getPlayGeneration() !== gen) {
+            clearInterruptHandoff();
+            return;
+          }
           startAudio(null);
         }
       })();

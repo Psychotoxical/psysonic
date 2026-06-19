@@ -805,6 +805,8 @@ pub(crate) fn loudness_ui_current_gain_db(gain_linear: f32) -> Option<f32> {
     gain_linear_to_db(gain_linear)
 }
 
+static SINK_VOLUME_RAMP_GEN: AtomicU64 = AtomicU64::new(0);
+
 pub(crate) fn ramp_sink_volume(sink: Arc<Player>, from: f32, to: f32) {
     let from = from.clamp(0.0, 1.0);
     let to = to.clamp(0.0, 1.0);
@@ -812,8 +814,7 @@ pub(crate) fn ramp_sink_volume(sink: Arc<Player>, from: f32, to: f32) {
         sink.set_volume(to);
         return;
     }
-    static RAMP_GEN: AtomicU64 = AtomicU64::new(0);
-    let my_gen = RAMP_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+    let my_gen = SINK_VOLUME_RAMP_GEN.fetch_add(1, Ordering::SeqCst) + 1;
     std::thread::spawn(move || {
         let delta = (to - from).abs();
         // Stretch large corrections to avoid audible "step down" moments.
@@ -826,16 +827,44 @@ pub(crate) fn ramp_sink_volume(sink: Arc<Player>, from: f32, to: f32) {
         } else {
             (8, 16)
         };
-        for i in 1..=steps {
-            if RAMP_GEN.load(Ordering::SeqCst) != my_gen {
-                return;
-            }
-            let t = i as f32 / steps as f32;
-            let v = from + (to - from) * t;
-            sink.set_volume(v.clamp(0.0, 1.0));
-            std::thread::sleep(Duration::from_millis(step_ms));
-        }
+        ramp_sink_volume_steps(sink, from, to, steps, step_ms, my_gen);
     });
+}
+
+/// Linear sink-volume ramp over an explicit wall-clock duration (interrupt prep).
+pub(crate) fn ramp_sink_volume_over_secs(sink: Arc<Player>, from: f32, to: f32, secs: f32) {
+    let from = from.clamp(0.0, 1.0);
+    let to = to.clamp(0.0, 1.0);
+    if (to - from).abs() < 0.002 {
+        sink.set_volume(to);
+        return;
+    }
+    let my_gen = SINK_VOLUME_RAMP_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+    let secs = secs.clamp(0.1, 12.0);
+    let step_ms: u64 = 20;
+    let steps = ((secs * 1000.0) / step_ms as f32).round().max(1.0) as usize;
+    std::thread::spawn(move || {
+        ramp_sink_volume_steps(sink, from, to, steps, step_ms, my_gen);
+    });
+}
+
+fn ramp_sink_volume_steps(
+    sink: Arc<Player>,
+    from: f32,
+    to: f32,
+    steps: usize,
+    step_ms: u64,
+    my_gen: u64,
+) {
+    for i in 1..=steps {
+        if SINK_VOLUME_RAMP_GEN.load(Ordering::SeqCst) != my_gen {
+            return;
+        }
+        let t = i as f32 / steps as f32;
+        let v = from + (to - from) * t;
+        sink.set_volume(v.clamp(0.0, 1.0));
+        std::thread::sleep(Duration::from_millis(step_ms));
+    }
 }
 
 #[cfg(test)]
