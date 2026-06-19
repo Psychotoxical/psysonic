@@ -42,9 +42,7 @@ export function PersonalisationTab() {
           </button>
         }
       >
-        <SettingsGroup>
-          <SidebarCustomizer />
-        </SettingsGroup>
+        <SidebarCustomizer />
       </SettingsSubSection>
 
       <SettingsSubSection
@@ -96,7 +94,7 @@ export function PersonalisationTab() {
         title={t('settings.queueSettingsTitle')}
         icon={<ListOrdered size={16} />}
       >
-        <div className="settings-card">
+        <>
           <SettingsGroup title={t('settings.queueModeTitle')}>
             {/* Three mutually exclusive modes — exactly one is always active, so
                 turning one on turns the others off; the active one cannot be
@@ -152,7 +150,7 @@ export function PersonalisationTab() {
               <QueueToolbarCustomizer />
             </SettingsGroup>
           )}
-        </div>
+        </>
       </SettingsSubSection>
 
       <SettingsSubSection

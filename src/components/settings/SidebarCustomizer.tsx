@@ -7,6 +7,7 @@ import { useSidebarStore, SidebarItemConfig, CONSERVED_SIDEBAR_NAV_IDS } from '.
 import { useLuckyMixAvailable } from '../../hooks/useLuckyMixAvailable';
 import { ALL_NAV_ITEMS } from '../../config/navItems';
 import { applySidebarDropReorder } from '../../utils/componentHelpers/sidebarNavReorder';
+import { SettingsGroup } from './SettingsGroup';
 import { SettingsToggle } from './SettingsToggle';
 
 type DropTarget = { idx: number; before: boolean; section: 'library' | 'system' } | null;
@@ -128,7 +129,7 @@ export function SidebarCustomizer() {
 
   return (
     <>
-      <div style={{ marginBottom: '1rem' }}>
+      <SettingsGroup>
         <SettingsToggle
           label={t('settings.randomNavSplitTitle')}
           desc={t('settings.randomNavSplitDesc')}
@@ -148,22 +149,25 @@ export function SidebarCustomizer() {
           checked={showLuckyMixMenu}
           onChange={setShowLuckyMixMenu}
         />
-      </div>
-      <div ref={containerRef} onMouseMove={handleMouseMove} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {/* Library block */}
-        <div style={{ padding: '4px 0' }}>
-          <div className="sidebar-customizer-block-label">{t('sidebar.library')}</div>
-          {libraryItems.map((cfg, i) => renderRow(cfg, i, 'library'))}
-        </div>
-        {/* System block */}
-        <div style={{ padding: '4px 0' }}>
-          <div className="sidebar-customizer-block-label">{t('sidebar.system')}</div>
-          {systemItems.map((cfg, i) => renderRow(cfg, i, 'system'))}
-          <div className="sidebar-customizer-fixed-hint">
-            <span>{t('settings.sidebarFixed')}: {t('sidebar.nowPlaying')}, {t('sidebar.settings')}</span>
+      </SettingsGroup>
+
+      <SettingsGroup>
+        <div ref={containerRef} onMouseMove={handleMouseMove} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {/* Library block */}
+          <div style={{ padding: '4px 0' }}>
+            <div className="sidebar-customizer-block-label">{t('sidebar.library')}</div>
+            {libraryItems.map((cfg, i) => renderRow(cfg, i, 'library'))}
+          </div>
+          {/* System block */}
+          <div style={{ padding: '4px 0' }}>
+            <div className="sidebar-customizer-block-label">{t('sidebar.system')}</div>
+            {systemItems.map((cfg, i) => renderRow(cfg, i, 'system'))}
+            <div className="sidebar-customizer-fixed-hint">
+              <span>{t('settings.sidebarFixed')}: {t('sidebar.nowPlaying')}, {t('sidebar.settings')}</span>
+            </div>
           </div>
         </div>
-      </div>
+      </SettingsGroup>
     </>
   );
 }
