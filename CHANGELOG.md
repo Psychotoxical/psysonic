@@ -33,6 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * New **AutoDJ** crossfade mode. Instead of a fixed crossfade time, it blends what you actually hear: it trims the dead silence at the end of one track and the start of the next, and picks the overlap from the music itself — a track that fades out rides its own fade while the next one rises underneath, and two tracks that both start/end loud get a short musical blend instead of an abrupt cut. Works most reliably with the Hot playback cache enabled, since the next track's audio needs to be ready for the blend.
 * AutoDJ is now its own mode rather than a sub-option of Crossfade — its own button in the queue toolbar and its own entry in the audio settings. Crossfade, AutoDJ and Gapless are mutually exclusive (only one active at a time) under a single Off / Gapless / Crossfade / AutoDJ picker, the playback settings are regrouped into clearer Normalization / Track transitions / Queue behaviour panels, and the queue toolbar's separate Save and Load playlist buttons are combined into one Playlist menu (existing toolbar layouts are preserved). Off by default; classic Crossfade is unchanged.
 
+### AutoDJ — smooth skip and interrupt blend
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1128](https://github.com/Psychotoxical/psysonic/pull/1128)**
+
+* New **Smooth skip** toggle under Settings → Audio → Track transitions (on by default when AutoDJ is active). Manual Next/Previous and picking a track from the library, an album, or the infinite queue crossfade from where you are listening instead of hard-cutting.
+* Loud→loud queue advances use a consistent ~2s musical blend; manual skips cap at the same length so quiet intros are not drowned out.
+* When the target track is not buffered yet, the player briefly ducks the outgoing track while preloading; the player bar keeps showing the current song until the handoff so titles and artwork do not flicker or pause spuriously.
+* During an active blend, the play/pause button shows a pulsing Blend icon.
+
 
 ## Changed
 
