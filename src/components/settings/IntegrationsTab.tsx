@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Info, Sparkles, Wifi } from 'lucide-react';
+import { AlertTriangle, Image as ImageIcon, Info, Sparkles, Wifi } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { useThemeStore } from '../../store/themeStore';
 import SettingsSubSection from '../SettingsSubSection';
 import { SettingsGroup } from './SettingsGroup';
 import { SettingsToggle } from './SettingsToggle';
@@ -9,6 +10,7 @@ import { MusicNetworkSection } from './musicNetwork/MusicNetworkSection';
 export function IntegrationsTab() {
   const { t } = useTranslation();
   const auth = useAuthStore();
+  const theme = useThemeStore();
 
   return (
     <>
@@ -132,6 +134,24 @@ export function IntegrationsTab() {
               ariaLabel={t('settings.enableBandsintown')}
               checked={auth.enableBandsintown}
               onChange={auth.setEnableBandsintown}
+            />
+          </SettingsGroup>
+        </div>
+      </SettingsSubSection>
+
+      {/* External artist artwork (fanart.tv) */}
+      <SettingsSubSection
+        title={t('settings.externalArtwork')}
+        icon={<ImageIcon size={16} />}
+      >
+        <div className="settings-card">
+          <SettingsGroup>
+            <SettingsToggle
+              desc={t('settings.externalArtworkDesc')}
+              note={t('settings.externalArtworkNote')}
+              ariaLabel={t('settings.externalArtwork')}
+              checked={theme.externalArtworkEnabled}
+              onChange={theme.setExternalArtworkEnabled}
             />
           </SettingsGroup>
         </div>

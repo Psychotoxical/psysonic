@@ -275,6 +275,9 @@ export const settings = {
   nowPlayingEnabledDesc:
     'Отправлять на сервер, что вы сейчас слушаете. Отключите, чтобы не делиться этим.',
   nowPlayingPluginNote: 'Необходимо при использовании официального плагина Discord Rich Presence для Navidrome.',
+  externalArtwork: 'Внешний сборщик обложек',
+  externalArtworkDesc: 'Загружает фоновые изображения исполнителей в высоком разрешении с fanart.tv для полноэкранного плеера и страниц исполнителей. По умолчанию выключено.',
+  externalArtworkNote: 'Обращается к fanart.tv, передавая MusicBrainz-идентификатор исполнителя.',
   enableBandsintown: 'Даты туров Bandsintown',
   enableBandsintownDesc: 'Показывает предстоящие концерты текущего исполнителя на вкладке «Инфо». Данные берутся из публичного API Bandsintown.',
   lyricsServerFirst: 'Предпочитать тексты с сервера',
