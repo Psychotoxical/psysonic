@@ -126,6 +126,22 @@ fn mb_escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
+/// Strip a single trailing parenthetical / bracketed qualifier (e.g.
+/// "(2004 Remastered)", "[Deluxe Edition]") so a decorated library album title
+/// still matches the canonical MusicBrainz release. Leaves leading qualifiers
+/// (e.g. "(What's the Story) Morning Glory?") untouched.
+fn normalize_album_for_mb(title: &str) -> String {
+    let t = title.trim();
+    let stripped = if t.ends_with(')') {
+        t.rfind(" (").map(|i| &t[..i]).unwrap_or(t)
+    } else if t.ends_with(']') {
+        t.rfind(" [").map(|i| &t[..i]).unwrap_or(t)
+    } else {
+        t
+    };
+    stripped.trim().to_string()
+}
+
 /// Resolve an artist MBID by name, confirmed by an album release (§19). One
 /// query to the MusicBrainz release search; the primary artist across the
 /// high-confidence releases wins, conflicting ids → `Ambiguous`. Sends the
@@ -135,10 +151,11 @@ pub async fn resolve_mbid_via_musicbrainz(
     artist_name: &str,
     album_title: &str,
 ) -> Result<MbResolution, String> {
+    let album = normalize_album_for_mb(album_title);
     let query = format!(
         "artist:\"{}\" AND release:\"{}\"",
         mb_escape(artist_name),
-        mb_escape(album_title)
+        mb_escape(&album)
     );
     // Scope the (non-Send) serializer so it is dropped before the await below.
     let url = {
@@ -259,6 +276,18 @@ mod tests {
         assert_eq!(fanart_json_key("fanart"), "artistbackground");
         assert_eq!(fanart_json_key("banner"), "musicbanner");
         assert_eq!(fanart_json_key("anything-else"), "artistbackground");
+    }
+
+    #[test]
+    fn normalize_album_strips_trailing_qualifier_only() {
+        assert_eq!(normalize_album_for_mb("Show No Mercy (2004 Remastered)"), "Show No Mercy");
+        assert_eq!(normalize_album_for_mb("Album [Deluxe Edition]"), "Album");
+        assert_eq!(normalize_album_for_mb("Reign in Blood"), "Reign in Blood");
+        // leading qualifier left intact (does not end with a close bracket)
+        assert_eq!(
+            normalize_album_for_mb("(What's the Story) Morning Glory?"),
+            "(What's the Story) Morning Glory?"
+        );
     }
 
     #[test]
