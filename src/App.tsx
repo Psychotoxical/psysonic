@@ -5,7 +5,6 @@ import { useLyricsStore } from './store/lyricsStore';
 import { useThemeStore } from './store/themeStore';
 import { useInstalledThemesStore } from './store/installedThemesStore';
 import { syncInjectedThemes } from './utils/themes/themeInjection';
-import { registerFanartSpike } from './dev/fanartSpike';
 import { useThemeScheduler } from './hooks/useThemeScheduler';
 import { useFontStore } from './store/fontStore';
 import { getWindowKind } from './app/windowKind';
@@ -39,8 +38,6 @@ export default function App() {
   // authoring is live without re-importing a zip. Never wired in production.
   useEffect(() => {
     if (!import.meta.env.DEV) return;
-    // Dev-only: expose the artist-fanart P0 spike on window (image-scraper).
-    registerFanartSpike();
     let unlisten: (() => void) | undefined;
     void import('@tauri-apps/api/event').then(({ listen }) => {
       const sub = listen<string>('theme-watch:css', ({ payload }) => {
