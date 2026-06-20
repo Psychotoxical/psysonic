@@ -30,6 +30,10 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 - Settings are grouped into clear, labelled panels so related options sit together — less hunting around. The **Native Hi-Res Playback** option now explains in plain language what it actually does.
 - **Normalization** and **Track transitions** are now their own sections under **Settings → Audio**, and the queue options (display mode, toolbar, and Play-Next order) are gathered into one **Queue Settings** group under **Personalisation**.
 
+### Japanese — now in your language
+
+- Psysonic is now available in **Japanese (日本語)** — pick it from the language menu on the **Settings** and **Login** screens.
+
 ## Fixed
 
 ### Playback and audio

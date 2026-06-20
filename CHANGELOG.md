@@ -50,6 +50,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Idle auto-pull** when paused/stopped for 30+ seconds on a single-server queue (active = playback): polls every 10s and applies server changes.
 * **Push** now sends only tracks owned by the playback server (fixes mixed-server queues). Switching browse servers flushes the old server's queue slice without auto-pull.
 
+### Japanese translation
+
+**By [@Soli0222](https://github.com/Soli0222), PR [#1134](https://github.com/Psychotoxical/psysonic/pull/1134)**
+
+* Full Japanese (日本語) UI translation — selectable from the language picker on the Settings and Login screens.
+
 
 ## Changed
 

@@ -393,6 +393,13 @@ const CONTRIBUTOR_ENTRIES = [
       'Linux auto-install script — fix curl | sudo bash URL capture bug (PR #1079)',
     ],
   },
+  {
+    github: 'Soli0222',
+    since: '1.49.0',
+    contributions: [
+      'Japanese (ja) full UI translation (PR #1134)',
+    ],
+  },
 ] as const;
 
 // PR number of a contributor's first listed contribution, used as the
