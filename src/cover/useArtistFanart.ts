@@ -17,10 +17,12 @@ import { useThemeStore } from '../store/themeStore';
  * hands back. The cache is shared across callers, so e.g. the artist-detail
  * header and the fullscreen player warm each other's images.
  */
+type ArtistImageCtx = { artistName?: string; albumTitle?: string };
+
 function useArtistExternalImage(
   artistId: string | null | undefined,
   surface: 'fanart' | 'banner',
-  ctx?: { artistName?: string; albumTitle?: string },
+  ctx?: ArtistImageCtx,
 ): string {
   const enabled = useThemeStore((s) => s.externalArtworkEnabled);
   const [src, setSrc] = useState('');
@@ -28,8 +30,10 @@ function useArtistExternalImage(
   const albumTitle = ctx?.albumTitle;
 
   useEffect(() => {
+    // Reset on any input change so a previous artist's image never lingers
+    // while the new one resolves.
+    setSrc('');
     if (!enabled || !artistId) {
-      setSrc('');
       return;
     }
     let cancelled = false;
@@ -52,7 +56,7 @@ function useArtistExternalImage(
 /** fanart.tv 16:9 `artistbackground` (fullscreen player background). */
 export function useArtistFanart(
   artistId: string | null | undefined,
-  ctx?: { artistName?: string; albumTitle?: string },
+  ctx?: ArtistImageCtx,
 ): string {
   return useArtistExternalImage(artistId, 'fanart', ctx);
 }
@@ -60,7 +64,7 @@ export function useArtistFanart(
 /** fanart.tv wide `musicbanner` (artist-detail header strip). */
 export function useArtistBanner(
   artistId: string | null | undefined,
-  ctx?: { artistName?: string; albumTitle?: string },
+  ctx?: ArtistImageCtx,
 ): string {
   return useArtistExternalImage(artistId, 'banner', ctx);
 }

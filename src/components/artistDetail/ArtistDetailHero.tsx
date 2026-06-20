@@ -74,9 +74,26 @@ export default function ArtistDetailHero({
 
   // Artist-detail header banner (§28, Option B): fanart.tv banner → the 16:9
   // fanart background cropped to the strip → empty (no regression when off).
-  const artistKey = id ?? artist.id;
-  const bannerUrl = useArtistBanner(artistKey, { artistName: artist.name });
-  const fanartBgUrl = useArtistFanart(artistKey, { artistName: artist.name });
+  // Use the LOADED artist's id (not the route `id`), so the id, name and album
+  // handed to the external-artwork hooks always describe the SAME artist. The
+  // route `id` flips immediately on navigation while `artist`/`albums` refetch
+  // a beat later — that mismatch previously wrote the previous artist's image
+  // under the new artist's key (Sepultura's image under Lordi's id).
+  const artistKey = artist.id;
+  // An album from the artist's own list gives the §19 name→MusicBrainz fallback
+  // the context it needs when the artist carries no Navidrome tag MBID.
+  // Pick the first album that actually belongs to THIS artist. `albums` refetches
+  // a beat after `artist` on navigation, so a stale album would run a mismatched
+  // name→MusicBrainz query and could cache a wrong `no_mbid` for the new artist.
+  const albumContext = albums.find((a) => a.artistId === artist.id)?.name;
+  const bannerUrl = useArtistBanner(artistKey, {
+    artistName: artist.name,
+    albumTitle: albumContext,
+  });
+  const fanartBgUrl = useArtistFanart(artistKey, {
+    artistName: artist.name,
+    albumTitle: albumContext,
+  });
   const headerBgUrl = bannerUrl || fanartBgUrl;
 
   const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(artist.name)}`;
