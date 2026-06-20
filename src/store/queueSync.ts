@@ -18,8 +18,10 @@ import { usePlayerStore } from './playerStore';
  * another client.
  *
  * Two flush shapes:
- *  - `syncQueueToServer` debounces for 5 s so rapid edits (drag-reorder,
- *    auto-queue trimming, lucky-mix swaps) collapse into a single roundtrip.
+ *  - `syncQueueToServer` debounces playback position/queue pushes (track
+ *    changes, resume) without blocking idle auto-pull.
+ *  - `syncUserQueueMutationToServer` — same debounce plus idle-pull
+ *    suspension for user-initiated queue edits.
  *  - `flushQueueSyncToServer` cancels the debounce and pushes immediately —
  *    called from the playback heartbeat, `pause()`, and the app-close path
  *    where the user might switch devices mid-track.
@@ -55,8 +57,11 @@ function pushRefsForServer(
   });
 }
 
-export function syncQueueToServer(queue: QueueItemRef[], currentTrack: Track | null, currentTime: number): void {
-  touchQueueMutationClock();
+function scheduleQueueSyncToServer(
+  queue: QueueItemRef[],
+  currentTrack: Track | null,
+  currentTime: number,
+): void {
   if (!isPlaybackServerReachable()) return;
   if (syncTimeout) clearTimeout(syncTimeout);
   syncTimeout = setTimeout(() => {
@@ -66,6 +71,21 @@ export function syncQueueToServer(queue: QueueItemRef[], currentTrack: Track | n
     const refs = filterQueueRefsForPlaybackServer(queue);
     void pushRefsForServer(refs, currentTrack, currentTime, serverId);
   }, SYNC_DEBOUNCE_MS);
+}
+
+/** Debounced push during playback (track advance, resume) — does not suspend idle pull. */
+export function syncQueueToServer(queue: QueueItemRef[], currentTrack: Track | null, currentTime: number): void {
+  scheduleQueueSyncToServer(queue, currentTrack, currentTime);
+}
+
+/** Debounced push after a user queue edit — suspends idle auto-pull until manual sync or Play. */
+export function syncUserQueueMutationToServer(
+  queue: QueueItemRef[],
+  currentTrack: Track | null,
+  currentTime: number,
+): void {
+  touchQueueMutationClock();
+  scheduleQueueSyncToServer(queue, currentTrack, currentTime);
 }
 
 export function flushQueueSyncToServer(queue: QueueItemRef[], currentTrack: Track | null, currentTime: number): Promise<void> {

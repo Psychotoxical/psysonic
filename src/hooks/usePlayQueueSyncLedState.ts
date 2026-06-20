@@ -17,6 +17,7 @@ export function usePlayQueueSyncLedState(status: ConnectionStatus) {
   const { t } = useTranslation();
   const activeServerId = useAuthStore(s => s.activeServerId);
   const orbitRole = useOrbitStore(s => s.role);
+  const isPlaying = usePlayerStore(s => s.isPlaying);
   const currentRadio = usePlayerStore(s => s.currentRadio);
   const [pullInFlight, setPullInFlight] = useState(false);
   const idlePullSuspended = useSyncExternalStore(
@@ -40,7 +41,7 @@ export function usePlayQueueSyncLedState(status: ConnectionStatus) {
   }, [activeServerId, playbackServerId]);
 
   const autoSyncContext = canAutoIdlePlayQueuePull(status, orbitRole);
-  const localQueueSyncPaused = autoSyncContext && idlePullSuspended;
+  const localQueueSyncPaused = autoSyncContext && idlePullSuspended && !isPlaying;
 
   const needsQueuePull = status === 'connected'
     && Boolean(activeServerId)

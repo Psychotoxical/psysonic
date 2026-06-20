@@ -23,7 +23,7 @@ import { refreshLoudnessForTrack } from './loudnessRefresh';
 import { refreshWaveformForTrack } from './waveformRefresh';
 import { stopRadio } from './radioPlayer';
 import { clearAllPlaybackScheduleTimers } from './scheduleTimers';
-import { syncQueueToServer } from './queueSync';
+import { syncUserQueueMutationToServer } from './queueSync';
 
 type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
@@ -209,7 +209,7 @@ export function applyQueueHistorySnapshot(
   if (!nextTrack) {
     invoke('audio_stop').catch(console.error);
     setIsAudioPaused(false);
-    syncQueueToServer(nextItems, null, 0);
+    syncUserQueueMutationToServer(nextItems, null, 0);
     if (typeof snap.queueListScrollTop === 'number' && Number.isFinite(snap.queueListScrollTop)) {
       setPendingQueueListScrollTop(Math.max(0, snap.queueListScrollTop));
     }
@@ -235,6 +235,6 @@ export function applyQueueHistorySnapshot(
   if (typeof snap.queueListScrollTop === 'number' && Number.isFinite(snap.queueListScrollTop)) {
     setPendingQueueListScrollTop(Math.max(0, snap.queueListScrollTop));
   }
-  syncQueueToServer(nextItems, nextTrack, tRestore);
+  syncUserQueueMutationToServer(nextItems, nextTrack, tRestore);
   return true;
 }
