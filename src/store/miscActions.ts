@@ -16,7 +16,7 @@ import { toQueueItemRefs } from '../utils/library/queueItemRef';
 import { resolveQueueTrack } from '../utils/library/queueTrackView';
 import { seedQueueResolver } from '../utils/library/queueTrackResolver';
 import { pushQueueUndoFromGetter } from './queueUndo';
-import { syncQueueToServer } from './queueSync';
+import { syncUserQueueMutationToServer } from './queueSync';
 import {
   clearRadioReconnectTimer,
   playRadioStream,
@@ -173,7 +173,7 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
         queueIndex: 0,
         currentTrack: track,
       });
-      syncQueueToServer(newItems, track, s.currentTime);
+      syncUserQueueMutationToServer(newItems, track, s.currentTime);
       if (!wasPlaying) get().resume();
     },
   };

@@ -50,6 +50,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Idle auto-pull** when paused/stopped for 30+ seconds on a single-server queue (active = playback): polls every 10s and applies server changes.
 * **Push** now sends only tracks owned by the playback server (fixes mixed-server queues). Switching browse servers flushes the old server's queue slice without auto-pull.
 
+### Japanese translation
+
+**By [@Soli0222](https://github.com/Soli0222), PR [#1134](https://github.com/Psychotoxical/psysonic/pull/1134)**
+
+* Full Japanese (日本語) UI translation — selectable from the language picker on the Settings and Login screens.
+
 
 ## Changed
 
@@ -115,6 +121,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1132](https://github.com/Psychotoxical/psysonic/pull/1132)**
 
 * After cross-device idle pull while paused, a local queue change (e.g. enqueue) could be overwritten when auto-pull ran again. Idle auto-pull now stops on local mutations until manual sync from the header; the connection LED turns yellow while auto-sync is paused.
+
+### Paused client did not push edited queue on Play
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1133](https://github.com/Psychotoxical/psysonic/pull/1133)**
+
+* After editing the queue while paused (yellow sync LED), pressing Play only resumed audio and could leave the server on another device's queue until the debounced push fired. Resume and play-from-queue now flush the local play queue immediately and clear the yellow indicator when the push succeeds.
+
+### Connection indicator flapping on flaky links
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1135](https://github.com/Psychotoxical/psysonic/pull/1135)**
+
+* The header connection probe now retries a failed ping twice (2 s apart) before marking the server unreachable, so a single dropped packet on an otherwise fine link no longer flips the LED to disconnected.
+
+### Yellow sync LED during normal playback
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1136](https://github.com/Psychotoxical/psysonic/pull/1136)**
+
+* Track-advance queue pushes no longer suspend idle auto-pull, so the connection LED does not flash yellow on every song change. Yellow sync still appears after a local queue edit while paused; it clears while audio is playing.
 
 
 ## [1.48.1] - 2026-06-15

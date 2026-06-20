@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { resetAuthStore } from '@/test/helpers/storeReset';
 import { useAuthStore } from '@/store/authStore';
@@ -25,6 +25,10 @@ beforeEach(() => {
   invalidateReachableEndpointCache();
   useDevOfflineBrowseStore.getState().setForceOffline(false);
   vi.mocked(pingWithCredentials).mockReset();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 function seedDualAddressServer(): string {
@@ -57,6 +61,7 @@ describe('useConnectionStatus.isLan', () => {
   });
 
   it('falls back to public when only the public address answers', async () => {
+    vi.useFakeTimers();
     seedDualAddressServer();
     vi.mocked(pingWithCredentials).mockImplementation(async url =>
       url === 'https://music.example.com'
@@ -65,7 +70,12 @@ describe('useConnectionStatus.isLan', () => {
     );
 
     const { result } = renderHook(() => useConnectionStatus());
-    await waitFor(() => expect(result.current.status).toBe('connected'));
+    await act(async () => {
+      for (let i = 0; i < 2; i++) {
+        await vi.advanceTimersByTimeAsync(2000);
+      }
+    });
+    expect(result.current.status).toBe('connected');
     // primary url is `https://music.example.com` — public. isLanUrl alone
     // would have said `false` for the wrong reason (because the primary
     // happens to be public); the test is meaningful because the LAN side
@@ -126,9 +136,14 @@ describe('useConnectionStatus online event', () => {
         : { ok: false },
     );
 
+    vi.useFakeTimers();
     await act(async () => {
       window.dispatchEvent(new Event('online'));
+      for (let i = 0; i < 2; i++) {
+        await vi.advanceTimersByTimeAsync(2000);
+      }
     });
+    vi.useRealTimers();
 
     await waitFor(() => expect(result.current.isLan).toBe(false));
     // Both endpoints were probed (LAN refused, public answered).

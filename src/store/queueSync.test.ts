@@ -40,7 +40,9 @@ import {
   flushQueueSyncToServer,
   getLastQueueHeartbeatAt,
   hasPendingQueueSync,
+  pushQueueOnPlaybackStart,
   syncQueueToServer,
+  syncUserQueueMutationToServer,
 } from './queueSync';
 import {
   _resetQueuePlaybackIdleForTest,
@@ -96,8 +98,17 @@ describe('syncQueueToServer (debounced)', () => {
     expect(savePlayQueueMock).toHaveBeenCalledWith(['a'], 'a', 12000, 'srv-a');
   });
 
-  it('suspends idle pull on mutation and stays suspended after successful debounced push', async () => {
+  it('does not suspend idle pull during playback sync', () => {
     syncQueueToServer(queue, track('a'), 30);
+    expect(isIdleQueuePullSuspended()).toBe(false);
+  });
+});
+
+describe('syncUserQueueMutationToServer (debounced)', () => {
+  const queue = [ref('a'), ref('b')];
+
+  it('suspends idle pull on user mutation and stays suspended after successful debounced push', async () => {
+    syncUserQueueMutationToServer(queue, track('a'), 30);
     expect(isIdleQueuePullSuspended()).toBe(true);
     expect(hasPendingQueueSync()).toBe(true);
     vi.advanceTimersByTime(5000);
@@ -108,10 +119,30 @@ describe('syncQueueToServer (debounced)', () => {
 
   it('keeps idle pull suspended when debounced push fails', async () => {
     savePlayQueueMock.mockRejectedValueOnce(new Error('offline'));
-    syncQueueToServer(queue, track('a'), 30);
+    syncUserQueueMutationToServer(queue, track('a'), 30);
     vi.advanceTimersByTime(5000);
     await Promise.resolve();
     expect(isIdleQueuePullSuspended()).toBe(true);
+  });
+});
+
+describe('pushQueueOnPlaybackStart', () => {
+  const queue = [ref('a'), ref('b')];
+
+  it('flushes immediately and clears idle pull suspension when locally edited', async () => {
+    syncUserQueueMutationToServer(queue, track('a'), 30);
+    expect(hasPendingQueueSync()).toBe(true);
+    pushQueueOnPlaybackStart(queue, track('a'), 42);
+    expect(hasPendingQueueSync()).toBe(false);
+    await vi.runAllTimersAsync();
+    expect(savePlayQueueMock).toHaveBeenCalledWith(['a', 'b'], 'a', 42000, 'srv-a');
+    expect(isIdleQueuePullSuspended()).toBe(false);
+  });
+
+  it('debounces when idle pull is not suspended', () => {
+    pushQueueOnPlaybackStart(queue, track('a'), 12);
+    expect(hasPendingQueueSync()).toBe(true);
+    expect(savePlayQueueMock).not.toHaveBeenCalled();
   });
 });
 

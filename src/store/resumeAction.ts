@@ -30,7 +30,7 @@ import {
 import type { PlayerState } from './playerStoreTypes';
 import { resolveQueueTrack } from '../utils/library/queueTrackView';
 import { promoteCompletedStreamToHotCache } from './promoteStreamCache';
-import { syncQueueToServer } from './queueSync';
+import { pushQueueOnPlaybackStart, flushLocalQueueWhenTakingPlayback } from './queueSync';
 import { markPlaybackActive } from './queuePlaybackIdle';
 import { playbackReportPlaying } from './playbackReportSession';
 import { resumeRadio } from './radioPlayer';
@@ -134,6 +134,7 @@ export function runResume(set: SetState, get: GetState): void {
     set({ isPlaying: true });
     // Mirror pause(): tell the server immediately, don't wait for `audio:playing`.
     playbackReportPlaying(currentTime);
+    void flushLocalQueueWhenTakingPlayback();
     touchHotCacheOnPlayback(currentTrack.id, getPlaybackCacheServerKey());
   } else {
     // Engine has no loaded paused stream (app relaunch, or track ended and user
@@ -199,7 +200,7 @@ export function runResume(set: SetState, get: GetState): void {
           console.error('[psysonic] audio_play (cold resume) failed:', err);
           set({ isPlaying: false });
         });
-        syncQueueToServer(queueItems, trackToPlay, currentTime);
+        pushQueueOnPlaybackStart(queueItems, trackToPlay, currentTime);
       }).catch(() => {
         if (getPlayGeneration() !== gen) return;
         // Fallback to currentTrack if fetch fails
@@ -236,7 +237,7 @@ export function runResume(set: SetState, get: GetState): void {
           console.error('[psysonic] audio_play (cold resume) failed:', err);
           set({ isPlaying: false });
         });
-        syncQueueToServer(queueItems, currentTrack, currentTime);
+        pushQueueOnPlaybackStart(queueItems, currentTrack, currentTime);
       });
     })();
   }

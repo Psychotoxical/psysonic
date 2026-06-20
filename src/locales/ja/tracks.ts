@@ -1,0 +1,16 @@
+export const tracks = {
+  title: 'トラック',
+  subtitle: 'ブラウズ。検索。発見。',
+  heroEyebrow: '今のトラック',
+  heroReroll: '別の曲を選ぶ',
+  playSong: '再生',
+  enqueueSong: 'キューに追加',
+  toAlbum: 'アルバムへ',
+  railRandom: 'ランダムピック',
+  railHighlyRated: '高評価',
+  browseTitle: 'すべてのトラックをブラウズ',
+  browseUnsupported: 'このサーバーはライブラリ全体を一度に一覧できません。上の検索で特定のトラックを探してください。',
+  searchPlaceholder: 'タイトル、アーティスト、アルバムでトラックを検索…',
+  count_one: '{{count}} 曲',
+  count_other: '{{count}} 曲',
+};

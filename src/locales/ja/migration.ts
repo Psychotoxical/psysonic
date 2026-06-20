@@ -1,0 +1,15 @@
+export const migration = {
+  preparing: 'データ更新を準備中…',
+  preparingBody: 'ライブラリと解析キャッシュを確認中…',
+  migrating: 'データを移行中',
+  working: '処理中…',
+  skippedRows: '削除済みサーバーの行はスキップされました。切り替え成功後に古いバックアップ DB が削除されます。',
+  failed: '移行に失敗しました',
+  retry: '再試行',
+  copyDetails: '詳細をコピー',
+  complete: '更新完了',
+  completeRows: '{{count}} 行を移行しました',
+  genreTagsTitle: 'ジャンルインデックスを更新中…',
+  genreTagsBody: 'ブラウズとフィルター用にジャンルをインデックスしています。アップグレード後に一度だけ実行されます。',
+  genreTagsFailed: 'ジャンルインデックスの更新に失敗しました',
+};

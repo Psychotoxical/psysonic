@@ -7,7 +7,7 @@ import type { PlayerState, QueueItemRef, Track } from './playerStoreTypes';
 import { toQueueItemRefs } from '../utils/library/queueItemRef';
 import { seedQueueResolver } from '../utils/library/queueTrackResolver';
 import { pushQueueUndoFromGetter } from './queueUndo';
-import { syncQueueToServer } from './queueSync';
+import { syncUserQueueMutationToServer } from './queueSync';
 import {
   addRadioSessionSeen,
   clearRadioSessionSeenIds,
@@ -51,7 +51,7 @@ function seedIncoming(state: PlayerState, tracks: Track[]): void {
 /**
  * Eleven queue-mutation actions. Shared invariant: every action except
  * `setRadioArtistId` pushes a queue-undo snapshot and calls
- * `syncQueueToServer` so the Navidrome `savePlayQueue` stays in sync.
+ * `syncUserQueueMutationToServer` so the Navidrome `savePlayQueue` stays in sync.
  * Exceptions: `enqueue`'s optional third argument **`skipQueueUndo`** and
  * **`pruneUpcomingToCurrent(true)`** — Lucky Mix pushes one snapshot up-front.
  */
@@ -89,7 +89,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
         const newItems = firstAutoIdx === -1
           ? [...items, ...incoming]
           : [...items.slice(0, firstAutoIdx), ...incoming, ...items.slice(firstAutoIdx)];
-        syncQueueToServer(newItems, state.currentTrack, state.currentTime);
+        syncUserQueueMutationToServer(newItems, state.currentTrack, state.currentTime);
         prefetchLoudnessForEnqueuedTracks(newItems, state.queueIndex);
         return { queueItems: newItems };
       });
@@ -148,7 +148,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
           ? [...upcoming, ...incoming]
           : [...upcoming.slice(0, firstAutoIdx), ...incoming, ...upcoming.slice(firstAutoIdx)];
         const newItems = [...beforeAndCurrent, ...mergedItems];
-        syncQueueToServer(newItems, state.currentTrack, state.currentTime);
+        syncUserQueueMutationToServer(newItems, state.currentTrack, state.currentTime);
         return { queueItems: newItems };
       });
     },
@@ -171,7 +171,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
         const newQueueIndex = idx <= state.queueIndex
           ? state.queueIndex + tracks.length
           : state.queueIndex;
-        syncQueueToServer(newItems, state.currentTrack, state.currentTime);
+        syncUserQueueMutationToServer(newItems, state.currentTrack, state.currentTime);
         prefetchLoudnessForEnqueuedTracks(newItems, newQueueIndex);
         return { queueItems: newItems, queueIndex: newQueueIndex };
       });
@@ -202,7 +202,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
         if (s.queueItems.length === 0) return;
         if (!skipQueueUndo) pushQueueUndoFromGetter(get);
         set({ queueItems: [], queueIndex: 0 });
-        syncQueueToServer([], null, 0);
+        syncUserQueueMutationToServer([], null, 0);
         return;
       }
       if (!skipQueueUndo) pushQueueUndoFromGetter(get);
@@ -216,7 +216,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
         : toQueueItemRefs(s.queueServerId ?? '', [s.currentTrack!]);
       const newIndex = at >= 0 ? at : 0;
       set({ queueItems: newItems, queueIndex: newIndex });
-      syncQueueToServer(newItems, s.currentTrack, s.currentTime);
+      syncUserQueueMutationToServer(newItems, s.currentTrack, s.currentTime);
     },
 
     clearQueue: () => {
@@ -229,7 +229,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
       setCurrentRadioArtistId(null);
       clearQueueServerForPlayback();
       set({ queueItems: [], queueIndex: 0, currentTrack: null, isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
-      syncQueueToServer([], null, 0);
+      syncUserQueueMutationToServer([], null, 0);
     },
 
     reorderQueue: (startIndex, endIndex) => {
@@ -242,7 +242,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
       let newIndex = queueIndex;
       if (currentTrack) newIndex = result.findIndex(r => r.trackId === currentTrack.id);
       set({ queueItems: result, queueIndex: Math.max(0, newIndex) });
-      syncQueueToServer(result, currentTrack, get().currentTime);
+      syncUserQueueMutationToServer(result, currentTrack, get().currentTime);
     },
 
     shuffleQueue: () => {
@@ -262,7 +262,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
         : others;
       const newIndex = currentIdx >= 0 ? 0 : -1;
       set({ queueItems: result, queueIndex: Math.max(0, newIndex) });
-      syncQueueToServer(result, currentTrack, get().currentTime);
+      syncUserQueueMutationToServer(result, currentTrack, get().currentTime);
     },
 
     shuffleUpcomingQueue: () => {
@@ -281,7 +281,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
       }
       const result = [...head, ...upcoming];
       set({ queueItems: result });
-      syncQueueToServer(result, currentTrack, get().currentTime);
+      syncUserQueueMutationToServer(result, currentTrack, get().currentTime);
     },
 
     removeTrack: (index) => {
@@ -294,7 +294,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
         queueItems: newItems,
         queueIndex: Math.min(queueIndex, newItems.length - 1),
       });
-      syncQueueToServer(newItems, get().currentTrack, get().currentTime);
+      syncUserQueueMutationToServer(newItems, get().currentTrack, get().currentTime);
     },
   };
 }

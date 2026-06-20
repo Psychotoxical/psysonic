@@ -1,0 +1,21 @@
+export const home = {
+  hero: '注目',
+  starred: '個人のお気に入り',
+  mostPlayed: 'よく再生',
+  recentlyPlayed: '最近再生',
+  losslessAlbums: 'ロスレスアルバム',
+  discover: '発見',
+  discoverSongs: '曲を発見',
+  loadMore: 'さらに読み込む',
+  discoverMore: 'さらに発見',
+  discoverArtists: 'アーティストを発見',
+  discoverArtistsMore: 'すべてのアーティスト',
+  becauseYouLike: '最近聴いた音楽から…',
+  becauseYouLikeFor: '{{artist}} を聴いたあなたへ',
+  similarTo: '{{artist}} に類似',
+  becauseYouLikeTracks_one: '{{count}} 曲',
+  becauseYouLikeTracks_other: '{{count}} 曲',
+  mainstageEmptyTitle: 'Mainstage は空です',
+  mainstageEmptyBody: 'すべてのセクションがオフになっています。セクションを再度オンにするか、サイドバーから Mainstage を非表示にしてください。',
+  mainstageEmptyCta: 'パーソナライズ設定を開く'
+};

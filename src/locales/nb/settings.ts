@@ -10,6 +10,7 @@ export const settings = {
   languageRu: 'Русский',
   languageZh: '中文',
   languageRo: 'Română',
+  languageJa: '日本語',
   font: 'Skrifttype',
   fontHintOpenDyslexic: 'Dyslexivennlig · ingen kinesisk støtte',
   theme: 'Tema',
