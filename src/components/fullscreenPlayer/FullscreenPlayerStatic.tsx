@@ -10,6 +10,7 @@ import { useAlbumCoverRef, useArtistCoverRef } from '../../cover/useLibraryCover
 import { usePlaybackCoverArt } from '../../hooks/usePlaybackCoverArt';
 import { useCachedUrl } from '../CachedImage';
 import { useArtistFanart } from '../../cover/useArtistFanart';
+import { useThemeStore } from '../../store/themeStore';
 import { useFsIdleFade } from '../../hooks/useFsIdleFade';
 import { useQueueTrackAt } from '../../hooks/useQueueTracks';
 import WaveformSeek from '../WaveformSeek';
@@ -22,6 +23,35 @@ import { FsTimeReadout } from './FsTimeReadout';
 interface Props {
   onClose: () => void;
 }
+
+/**
+ * Fullscreen background image that eases in once its pixels are loaded, so a
+ * new background fades up from the empty backdrop instead of hard-cutting.
+ *
+ * Mount it with `key={url}` so every source gets a fresh element (and a fresh
+ * `loaded=false`). Both load paths are covered: `onLoad` for a network/disk
+ * fetch, and the `ref`'s `complete` check for an already-cached image whose
+ * `load` event can fire before React attaches the handler (e.g. skipping back
+ * to a recently shown artist) — without it the background would stay black.
+ */
+function FsBackground({ url }: { url: string }) {
+  const [loaded, setLoaded] = useState(false);
+  if (!url) return <div className="fsp-bg fsp-bg--empty" aria-hidden="true" />;
+  return (
+    <img
+      className={`fsp-bg${loaded ? ' is-loaded' : ''}`}
+      src={url}
+      onLoad={() => setLoaded(true)}
+      ref={(el) => {
+        if (el?.complete) setLoaded(true);
+      }}
+      alt=""
+      aria-hidden="true"
+      draggable={false}
+    />
+  );
+}
+
 export default function FullscreenPlayerStatic({ onClose }: Props) {
   const { t } = useTranslation();
   const currentTrack = usePlayerStore(s => s.currentTrack);
@@ -56,18 +86,21 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
   // `usePlaybackCoverArt` still re-scopes it to the playback server.
   const playbackCoverRef =
     useAlbumCoverRef(currentTrack?.albumId, undefined, undefined, { libraryResolve: false }) ?? undefined;
-  // One high-res cover (cucadmuh's fullRes 2000px path) feeds both the background
-  // fallback and the foreground thumbnail: crisp instead of the old low-res tier,
-  // and a single fetch/decode shared by both.
+  // One high-res cover (cucadmuh's fullRes 2000px path) feeds the foreground
+  // thumbnail — crisp instead of the old low-res tier. It is no longer a
+  // background source (see below).
   const cover = usePlaybackCoverArt(playbackCoverRef, 2000, { fullRes: true });
   // `true` = show the raw URL immediately while the blob resolves (same as FsArt).
   const coverUrl = useCachedUrl(cover.src, cover.cacheKey, true);
-  const resolvedCoverUrl = coverUrl;
   const thumbUrl = coverUrl;
-  // Background priority (§28): fanart.tv 16:9 → Navidrome artist image (via the
-  // cover pipeline, no live probe) → album cover. The toggle is off by default,
-  // so the Navidrome artist image stays the default background.
-  const fanartBgUrl = useArtistFanart(currentTrack?.artistId, {
+  // Background (§28). The album cover is deliberately NOT a background source —
+  // it only ever feeds the foreground thumbnail. With the scraper on, the
+  // fanart.tv 16:9 image is the background; while it resolves the background
+  // stays empty (no album/artist flash), and on a confirmed miss it falls back
+  // to the Navidrome artist image. With the scraper off, the Navidrome artist
+  // image is the background straight away.
+  const externalEnabled = useThemeStore((s) => s.externalArtworkEnabled);
+  const fanart = useArtistFanart(currentTrack?.artistId, {
     artistName: currentTrack?.artist,
     albumTitle: currentTrack?.album,
   });
@@ -76,7 +109,9 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
     undefined;
   const artistImage = usePlaybackCoverArt(artistCoverRef, 2000, { fullRes: true });
   const artistImgUrl = useCachedUrl(artistImage.src, artistImage.cacheKey, true);
-  const bgUrl = fanartBgUrl || artistImgUrl || resolvedCoverUrl;
+  const bgUrl = externalEnabled
+    ? fanart.src || (fanart.pending ? '' : artistImgUrl)
+    : artistImgUrl;
 
   const nextTrack = useQueueTrackAt(queueIndex + 1);
 
@@ -113,10 +148,8 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
       data-idle={isIdle}
       onMouseMove={handleMouseMove}
     >
-      {/* Static sharp background — no blur, no animation */}
-      {bgUrl
-        ? <img className="fsp-bg" src={bgUrl} alt="" aria-hidden="true" draggable={false} />
-        : <div className="fsp-bg fsp-bg--empty" aria-hidden="true" />}
+      {/* Sharp background — no blur; eases in once its pixels are loaded. */}
+      <FsBackground key={bgUrl} url={bgUrl} />
       <div className="fsp-scrim" aria-hidden="true" />
       <div className="fsp-vignette" aria-hidden="true" />
 

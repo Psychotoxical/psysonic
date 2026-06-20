@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAlbumDetailBack } from '../../hooks/useAlbumDetailBack';
 import {
@@ -46,6 +46,48 @@ interface Props {
   actionPolicy?: OfflineActionPolicy;
 }
 
+/**
+ * Artist-detail header background (banner / fanart). Preloads the final image
+ * and only then fades it in over the empty header — so the chosen image never
+ * hard-cuts and no intermediate source flashes first. Reuses the shared
+ * `album-detail-bg` / `-overlay` structure; the fade is a scoped inline opacity
+ * so the class stays untouched for the album/playlist headers that share it.
+ *
+ * Mount with `key={url}` for a fresh element (and `loaded=false`) per source.
+ * Both load paths are covered: `onLoad` for a network fetch, and the `ref`'s
+ * `complete` check for an already-cached image whose `load` event can fire
+ * before React attaches the handler.
+ */
+function ArtistHeaderBg({ url }: { url: string }) {
+  const [loaded, setLoaded] = useState(false);
+  if (!url) return null;
+  return (
+    <>
+      {/* Hidden preloader — drives `loaded`; the visible background is CSS. */}
+      <img
+        src={url}
+        alt=""
+        aria-hidden="true"
+        style={{ display: 'none' }}
+        onLoad={() => setLoaded(true)}
+        ref={(el) => {
+          if (el?.complete) setLoaded(true);
+        }}
+      />
+      <div
+        className="album-detail-bg"
+        style={{
+          backgroundImage: `url(${url})`,
+          opacity: loaded ? 1 : 0,
+          transition: 'opacity 0.4s ease',
+        }}
+        aria-hidden="true"
+      />
+      {loaded && <div className="album-detail-overlay" aria-hidden="true" />}
+    </>
+  );
+}
+
 export default function ArtistDetailHero({
   artist, id, albums, info, isStarred, artistEntityRating, handleArtistEntityRating,
   toggleStar, handlePlayAll, handleShuffle, handleStartRadio, handleShareArtist,
@@ -86,15 +128,20 @@ export default function ArtistDetailHero({
   // a beat after `artist` on navigation, so a stale album would run a mismatched
   // name→MusicBrainz query and could cache a wrong `no_mbid` for the new artist.
   const albumContext = albums.find((a) => a.artistId === artist.id)?.name;
-  const bannerUrl = useArtistBanner(artistKey, {
+  const banner = useArtistBanner(artistKey, {
     artistName: artist.name,
     albumTitle: albumContext,
   });
-  const fanartBgUrl = useArtistFanart(artistKey, {
+  const fanartBg = useArtistFanart(artistKey, {
     artistName: artist.name,
     albumTitle: albumContext,
   });
-  const headerBgUrl = bannerUrl || fanartBgUrl;
+  // Banner is preferred: while it is still resolving, show nothing rather than
+  // flashing the fanart background first and then swapping. Only once the banner
+  // has resolved to a miss do we fall back to the 16:9 fanart (which is itself
+  // '' while still loading). Empty when neither has an image. Off → both '',
+  // not pending → empty, no regression.
+  const headerBgUrl = banner.src || (banner.pending ? '' : fanartBg.src);
 
   const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(artist.name)}`;
 
@@ -107,16 +154,7 @@ export default function ArtistDetailHero({
           `artist-detail-bleed` breaks out of the artist page's .content-body
           padding so it is full-bleed like the album page (flush .album-detail). */}
       <div className="album-detail-header artist-detail-bleed">
-        {headerBgUrl && (
-          <>
-            <div
-              className="album-detail-bg"
-              style={{ backgroundImage: `url(${headerBgUrl})` }}
-              aria-hidden="true"
-            />
-            <div className="album-detail-overlay" aria-hidden="true" />
-          </>
-        )}
+        <ArtistHeaderBg key={headerBgUrl} url={headerBgUrl} />
         <div className="album-detail-content">
           <button className="btn btn-ghost album-detail-back" onClick={() => goBack()}>
             <ArrowLeft size={16} /> <span>{t('artistDetail.back')}</span>

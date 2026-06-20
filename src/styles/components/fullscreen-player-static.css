@@ -27,9 +27,19 @@
   object-fit: cover;
   /* Bias toward the upper third so faces survive a 16:9 crop of square art. */
   object-position: center 30%;
+  /* Eases in once the image has loaded (toggled via `.is-loaded`), so a new
+     background fades up from the empty backdrop instead of hard-cutting. */
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.fsp-bg.is-loaded {
+  opacity: 1;
 }
 
 .fsp-bg--empty {
+  /* The empty/loading backdrop is shown as-is (no image to fade in). */
+  opacity: 1;
   background: radial-gradient(circle at 50% 35%, #1a1a2e, #06060e 70%);
 }
 
