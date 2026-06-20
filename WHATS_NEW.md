@@ -34,6 +34,10 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 
 - Psysonic is now available in **Japanese (日本語)** — pick it from the language menu on the **Settings** and **Login** screens.
 
+### Artist artwork — richer artist and fullscreen views
+
+- Switch on **External Artwork Scraper** under **Settings → Integrations** to pull artist imagery from fanart.tv: a wide backdrop on the fullscreen player and a banner across the top of the artist page. Off by default, your Navidrome covers stay in charge, and turning it back off removes the fetched images again.
+
 ## Fixed
 
 ### Playback and audio
