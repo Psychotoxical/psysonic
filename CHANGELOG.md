@@ -146,6 +146,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Track-advance queue pushes no longer suspend idle auto-pull, so the connection LED does not flash yellow on every song change. Yellow sync still appears after a local queue edit while paused; it clears while audio is playing.
 
+### Favorites — bulk add to playlist and play/enqueue selected
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by zunoz on the Psysonic Discord, PR [#1140](https://github.com/Psychotoxical/psysonic/pull/1140)**
+
+* Bulk **Add to playlist** no longer cleared the selection on `mousedown` before the click ran, so chosen tracks were not actually added.
+* With rows selected, **Play all** / **Add all to queue** become **Play selected** / **Add selected to queue** and act on the checked tracks only.
+
 
 ## [1.48.1] - 2026-06-15
 
