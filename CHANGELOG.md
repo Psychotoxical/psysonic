@@ -136,7 +136,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Yellow sync LED during normal playback
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#XXXX](https://github.com/Psychotoxical/psysonic/pull/XXXX)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1136](https://github.com/Psychotoxical/psysonic/pull/1136)**
 
 * Track-advance queue pushes no longer suspend idle auto-pull, so the connection LED does not flash yellow on every song change. Yellow sync still appears after a local queue edit while paused; it clears while audio is playing.
 
