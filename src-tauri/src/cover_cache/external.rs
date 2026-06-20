@@ -15,6 +15,13 @@ use super::fetch::build_subsonic_url;
 
 const FANART_API_BASE: &str = "https://webservice.fanart.tv/v3/music";
 const MUSICBRAINZ_BASE: &str = "https://musicbrainz.org/ws/2";
+/// fanart.tv project `api_key`, embedded in the binary like Last.fm's key and as
+/// fanart.tv's own terms expect ("sent in addition to your project key" — the app
+/// ships a project key, users add a personal one on top). Committed as a literal
+/// (not a build secret) so every build — CI, local, AUR, Nix, from-source — has
+/// it; desktop-app keys are extractable from any binary anyway. Users can still
+/// add their own personal key (BYOK, §22), sent in addition to this one.
+pub(super) const FANART_PROJECT_KEY: &str = "a32e00543d18deadb797bc0cc9826760";
 /// MusicBrainz requires a meaningful, contactable User-Agent (their ToS).
 const MUSICBRAINZ_USER_AGENT: &str = concat!(
     "Psysonic/",

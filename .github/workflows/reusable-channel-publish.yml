@@ -306,7 +306,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_LASTFM_API_KEY: ${{ secrets.VITE_LASTFM_API_KEY }}
           VITE_LASTFM_API_SECRET: ${{ secrets.VITE_LASTFM_API_SECRET }}
-          PSYSONIC_FANART_KEY: ${{ secrets.PSYSONIC_FANART_KEY }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -400,7 +399,6 @@ jobs:
         env:
           VITE_LASTFM_API_KEY: ${{ secrets.VITE_LASTFM_API_KEY }}
           VITE_LASTFM_API_SECRET: ${{ secrets.VITE_LASTFM_API_SECRET }}
-          PSYSONIC_FANART_KEY: ${{ secrets.PSYSONIC_FANART_KEY }}
           APPIMAGE_EXTRACT_AND_RUN: 1
         run: npm run tauri:build -- --bundles deb,rpm,appimage
       - name: upload Linux artifacts

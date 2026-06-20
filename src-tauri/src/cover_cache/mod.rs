@@ -135,9 +135,9 @@ pub struct CoverCacheEnsureArgs {
     /// with the album/artist name. On-demand UI ensures leave it `None`.
     #[serde(default)]
     pub library_server_id: Option<String>,
-    /// Image-scraper spike (§16 P0): when true, an artist `fanart` ensure may
-    /// fetch a fanart.tv background into `{tier}-fanart.webp`. Inert unless the
-    /// fanart project key is present (`PSYSONIC_FANART_KEY`). Off by default.
+    /// External artwork (§16): when true, an artist `fanart`/`banner` ensure may
+    /// fetch from fanart.tv into `{tier}-{provider}.webp`. Gated by the master
+    /// toggle (off by default); the project key is embedded (`FANART_PROJECT_KEY`).
     #[serde(default)]
     pub external_artwork_enabled: bool,
     /// Surface intent for external artwork — `fanart` for the 16:9 artist

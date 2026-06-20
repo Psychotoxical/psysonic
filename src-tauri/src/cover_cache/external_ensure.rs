@@ -188,13 +188,14 @@ pub(super) async fn try_external_fanart(
     requested: u32,
     surface: &str,
 ) -> Option<PathBuf> {
-    // Behind the project key: a runtime env var (dev convenience) wins, else the
-    // key baked in at build time via `option_env!` (release builds). No secret
-    // lands in the repo. The BYOK personal key is optional (§22).
+    // Project key: a runtime env var (dev convenience) wins, else the embedded
+    // `FANART_PROJECT_KEY` committed in the source — so the feature works in every
+    // build (CI, local, AUR, Nix, from-source), not just ones built with a secret.
+    // The BYOK personal key is optional and sent in addition (§22).
     let api_key = std::env::var("PSYSONIC_FANART_KEY")
         .ok()
-        .or_else(|| option_env!("PSYSONIC_FANART_KEY").map(str::to_string))
-        .filter(|k| !k.is_empty())?;
+        .filter(|k| !k.is_empty())
+        .unwrap_or_else(|| external::FANART_PROJECT_KEY.to_string());
     // BYOK personal key (§22): the settings field wins, else the dev env var.
     let byok = args
         .external_artwork_byok
