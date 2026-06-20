@@ -128,6 +128,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * After editing the queue while paused (yellow sync LED), pressing Play only resumed audio and could leave the server on another device's queue until the debounced push fired. Resume and play-from-queue now flush the local play queue immediately and clear the yellow indicator when the push succeeds.
 
+### Connection indicator flapping on flaky links
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1135](https://github.com/Psychotoxical/psysonic/pull/1135)**
+
+* The header connection probe now retries a failed ping twice (2 s apart) before marking the server unreachable, so a single dropped packet on an otherwise fine link no longer flips the LED to disconnected.
+
 
 ## [1.48.1] - 2026-06-15
 
