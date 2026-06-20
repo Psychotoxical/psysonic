@@ -248,13 +248,44 @@ export function invalidateReachableEndpointCache(profileId?: string): void {
   if (connectCache.delete(profileId)) notifyConnectCacheChanged();
 }
 
+/** Retries after a failed connect ping before trying the next endpoint / unreachable. */
+const CONNECT_PING_RETRIES = 2;
+const CONNECT_PING_RETRY_DELAY_MS = 2000;
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * `pingWithCredentials` for connect probing — retries flaky links (packet loss,
+ * proxy TLS flakes) before the connection indicator marks the server down.
+ */
+async function pingWithConnectRetries(
+  baseUrl: string,
+  username: string,
+  password: string,
+): Promise<PingWithCredentialsResult> {
+  let ping = await pingWithCredentials(baseUrl, username, password);
+  if (ping.ok) return ping;
+  for (let retry = 0; retry < CONNECT_PING_RETRIES; retry++) {
+    await sleepMs(CONNECT_PING_RETRY_DELAY_MS);
+    ping = await pingWithCredentials(baseUrl, username, password);
+    if (ping.ok) return ping;
+  }
+  return ping;
+}
+
 /**
  * Sequentially ping the profile's endpoints (LAN-first), return the first one
  * that answers OK. Sticky: if a cached endpoint exists and is still in the
  * list, it's tried first; on failure, the cache entry is cleared and the full
  * sequence runs.
  *
- * Single-address profiles: one ping, identical to the legacy behavior.
+ * Each endpoint is probed with {@link pingWithConnectRetries} (initial ping +
+ * {@link CONNECT_PING_RETRIES} retries, {@link CONNECT_PING_RETRY_DELAY_MS} apart).
+ *
+ * Single-address profiles: one endpoint sequence, identical intent to legacy
+ * behavior aside from the retry cushion.
  */
 export async function pickReachableBaseUrl(
   profile: ServerProfile,
@@ -278,7 +309,7 @@ export async function pickReachableBaseUrl(
         : ordered;
 
     for (const endpoint of endpoints) {
-      const ping = await pingWithCredentials(endpoint.url, profile.username, profile.password);
+      const ping = await pingWithConnectRetries(endpoint.url, profile.username, profile.password);
       if (ping.ok) {
         const prev = connectCache.get(profile.id);
         connectCache.set(profile.id, endpoint.url);

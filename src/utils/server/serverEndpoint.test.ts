@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../api/subsonic', () => ({
   pingWithCredentials: vi.fn(),
@@ -41,6 +41,16 @@ function pingOk(overrides: Partial<{ type: string; serverVersion: string; openSu
 }
 function pingFail() {
   return { ok: false as const };
+}
+
+/** Initial connect ping + 2 retries (`serverEndpoint.ts`). */
+const CONNECT_PROBE_ATTEMPTS = 3;
+
+function mockDualAddressLanFailPublicOk() {
+  vi.mocked(pingWithCredentials).mockImplementation(async (url: string) => {
+    if (url === 'http://192.168.0.10') return pingFail();
+    return pingOk();
+  });
 }
 
 describe('normalizeServerBaseUrl', () => {
@@ -205,6 +215,10 @@ describe('pickReachableBaseUrl', () => {
     vi.mocked(pingWithCredentials).mockReset();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('returns the single endpoint when it pings ok and caches it', async () => {
     vi.mocked(pingWithCredentials).mockResolvedValue(pingOk());
     const result = await pickReachableBaseUrl(makeProfile({ url: 'https://music.example.com' }));
@@ -234,19 +248,34 @@ describe('pickReachableBaseUrl', () => {
   });
 
   it('falls through to the public endpoint when LAN ping fails', async () => {
-    vi.mocked(pingWithCredentials)
-      .mockResolvedValueOnce(pingFail())
-      .mockResolvedValueOnce(pingOk());
-    const result = await pickReachableBaseUrl(
+    vi.useFakeTimers();
+    mockDualAddressLanFailPublicOk();
+    const promise = pickReachableBaseUrl(
       makeProfile({
         url: 'https://music.example.com',
         alternateUrl: 'http://192.168.0.10',
       }),
     );
+    await vi.runAllTimersAsync();
+    const result = await promise;
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.baseUrl).toBe('https://music.example.com');
+    expect(pingWithCredentials).toHaveBeenCalledTimes(CONNECT_PROBE_ATTEMPTS + 1);
+    expect(getCachedConnectBaseUrl('profile-1')).toBe('https://music.example.com');
+  });
+
+  it('retries a flaky endpoint before declaring it unreachable', async () => {
+    vi.useFakeTimers();
+    vi.mocked(pingWithCredentials)
+      .mockResolvedValueOnce(pingFail())
+      .mockResolvedValueOnce(pingOk());
+    const promise = pickReachableBaseUrl(makeProfile({ url: 'https://music.example.com' }));
+    await vi.runAllTimersAsync();
+    const result = await promise;
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.baseUrl).toBe('https://music.example.com');
     expect(pingWithCredentials).toHaveBeenCalledTimes(2);
-    expect(getCachedConnectBaseUrl('profile-1')).toBe('https://music.example.com');
+    vi.useRealTimers();
   });
 
   it('returns unreachable and clears cache when every endpoint fails', async () => {
@@ -258,9 +287,13 @@ describe('pickReachableBaseUrl', () => {
 
     vi.mocked(pingWithCredentials).mockReset();
     vi.mocked(pingWithCredentials).mockResolvedValue(pingFail());
-    const result = await pickReachableBaseUrl(makeProfile({ url: 'https://music.example.com' }));
+    vi.useFakeTimers();
+    const unreachablePromise = pickReachableBaseUrl(makeProfile({ url: 'https://music.example.com' }));
+    await vi.runAllTimersAsync();
+    const result = await unreachablePromise;
     expect(result).toEqual({ ok: false, reason: 'unreachable' });
     expect(getCachedConnectBaseUrl('profile-1')).toBeNull();
+    expect(pingWithCredentials).toHaveBeenCalledTimes(CONNECT_PROBE_ATTEMPTS);
   });
 
   it('returns unreachable when the profile has no usable url', async () => {
@@ -341,10 +374,11 @@ describe('pickReachableBaseUrl', () => {
 
     // LAN now fails; public answers.
     vi.mocked(pingWithCredentials).mockClear();
-    vi.mocked(pingWithCredentials)
-      .mockResolvedValueOnce(pingFail())
-      .mockResolvedValueOnce(pingOk());
-    const result = await pickReachableBaseUrl(profile);
+    vi.useFakeTimers();
+    mockDualAddressLanFailPublicOk();
+    const fallbackPromise = pickReachableBaseUrl(profile);
+    await vi.runAllTimersAsync();
+    const result = await fallbackPromise;
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.baseUrl).toBe('https://music.example.com');
     expect(getCachedConnectBaseUrl('profile-1')).toBe('https://music.example.com');
@@ -398,10 +432,11 @@ describe('subscribeConnectCache — connect-URL flip notifications', () => {
     expect(listener).toHaveBeenCalledTimes(1);
 
     // LAN drops, public answers → cached URL flips → another notification.
-    vi.mocked(pingWithCredentials)
-      .mockResolvedValueOnce(pingFail())
-      .mockResolvedValueOnce(pingOk());
-    await pickReachableBaseUrl(profile);
+    vi.useFakeTimers();
+    mockDualAddressLanFailPublicOk();
+    const flipPromise = pickReachableBaseUrl(profile);
+    await vi.runAllTimersAsync();
+    await flipPromise;
     expect(listener).toHaveBeenCalledTimes(2);
 
     unsubscribe();
