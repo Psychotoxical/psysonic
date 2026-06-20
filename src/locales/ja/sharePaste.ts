@@ -1,0 +1,20 @@
+export const sharePaste = {
+  notLoggedIn: '共有リンクを貼り付ける前にサインインしてサーバーを追加してください。',
+  noMatchingServer: 'このリンクに一致する保存済みサーバーがありません。このアドレスのサーバーを追加してください: {{url}}',
+  trackUnavailable: 'このトラックはサーバー上で見つかりませんでした。',
+  albumUnavailable: 'このアルバムはサーバー上で見つかりませんでした。',
+  artistUnavailable: 'このアーティストはサーバー上で見つかりませんでした。',
+  composerUnavailable: 'この作曲者はサーバー上で見つかりませんでした。',
+  openedTrack: '共有トラックを再生しています。',
+  openedAlbum: '共有アルバムを開いています。',
+  openedArtist: '共有アーティストを開いています。',
+  openedComposer: '共有作曲者を開いています。',
+  openedQueue_one: '共有リンクから {{count}} 曲を再生しています。',
+  openedQueue_other: '共有リンクから {{count}} 曲を再生しています。',
+  openedQueuePartial:
+    'リンク内の {{total}} 曲中 {{played}} 曲を再生しています ({{skipped}} 曲はこのサーバーで見つかりませんでした)。',
+  queueAllUnavailable: 'このリンク内のトラックはどれもサーバー上で見つかりませんでした。',
+  playQueue: '再生キュー',
+  playQueueing: '再生を開始中…',
+  genericError: '共有リンクを開けませんでした。',
+};

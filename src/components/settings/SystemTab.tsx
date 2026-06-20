@@ -72,6 +72,7 @@ export function SystemTab() {
                   { value: 'ru', label: t('settings.languageRu') },
                   { value: 'zh', label: t('settings.languageZh') },
                   { value: 'ro', label: t('settings.languageRo') },
+                  { value: 'ja', label: t('settings.languageJa') },
                 ]}
               />
             </div>

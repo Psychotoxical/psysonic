@@ -1,0 +1,15 @@
+export const genres = {
+  title: 'ジャンル',
+  genreCount: 'ジャンル',
+  albumCount_one: '{{count}} 枚のアルバム',
+  albumCount_other: '{{count}} 枚のアルバム',
+  loading: 'ジャンルを読み込み中…',
+  empty: 'ジャンルが見つかりません。',
+  albumsLoading: 'アルバムを読み込み中…',
+  albumsEmpty: 'このジャンルのアルバムは見つかりません。',
+  loadMore: 'さらに読み込む',
+  back: '戻る',
+  playTooltip: '再生 (長押しでシャッフル)',
+  shuffle: 'シャッフル',
+  addToQueue: 'キューに追加',
+};
