@@ -1268,9 +1268,14 @@ async fn try_external_fanart(
     )
     .await;
 
-    let out = disk::provider_tier_path(dir, requested, surface);
-    emit_tier_ready(app, args, requested, &out);
-    Some(out)
+    // NOTE: do NOT emit `cover:tier-ready` here. That event is keyed by the
+    // canonical cover key (cacheKind/cacheEntityId/tier, no surface), so emitting
+    // it with the `{tier}-{surface}.webp` path would seed the frontend disk-src
+    // cache for the *Navidrome* artist cover with the external image — leaking
+    // fanart/banner into the plain artist cover (avatar, FS "navidrome-artist"
+    // fallback) even with the scraper off. The external hooks read the path from
+    // this function's return value, so no event is needed.
+    Some(disk::provider_tier_path(dir, requested, surface))
 }
 
 #[tauri::command]
