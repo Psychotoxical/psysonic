@@ -1183,11 +1183,10 @@ async fn try_external_fanart(
                         }
                     }
                     _ => {
-                        // No album context → cannot disambiguate; back off 24h.
-                        persist_artist_lookup(
-                            &store, server_id, artist_id, surface, "no_mbid", None, None, None, now,
-                        )
-                        .await;
+                        // No album context → we could not even *attempt* name→MB.
+                        // Do NOT cache `no_mbid`: a later ensure that arrives with
+                        // album context (e.g. once the artist's album list loads)
+                        // would otherwise be blocked by the 24h backoff.
                         return None;
                     }
                 }
