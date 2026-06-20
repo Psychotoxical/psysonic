@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListPlus, Play, SlidersHorizontal, X } from 'lucide-react';
 import type { SubsonicSong } from '../../api/subsonicTypes';
@@ -47,6 +47,10 @@ export default function FavoritesSongsSectionHeader({
     if (!inSelectMode) return visibleSongs;
     return visibleSongs.filter(s => selectedIds.has(s.id));
   }, [inSelectMode, visibleSongs, selectedIds]);
+
+  // Snapshot selection when the picker opens so add-to-playlist still sees every
+  // checked row if a document mousedown races ahead of the playlist click.
+  const pickerSongIdsRef = useRef<string[]>([]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '0.75rem' }}>
@@ -124,14 +128,20 @@ export default function FavoritesSongsSectionHeader({
             <div className="bulk-pl-picker-wrap">
               <button
                 className="btn btn-surface btn-sm"
-                onClick={() => setShowPlPicker(v => !v)}
+                onClick={() => {
+                  setShowPlPicker(prev => {
+                    if (!prev) pickerSongIdsRef.current = [...selectedIds];
+                    return !prev;
+                  });
+                }}
               >
                 <ListPlus size={14} />
                 {t('common.bulkAddToPlaylist')}
               </button>
               {showPlPicker && (
                 <AddToPlaylistSubmenu
-                  songIds={[...useSelectionStore.getState().selectedIds]}
+                  songIds={pickerSongIdsRef.current}
+                  resolveSongIds={() => pickerSongIdsRef.current}
                   onDone={() => { setShowPlPicker(false); useSelectionStore.getState().clearAll(); }}
                   dropDown
                 />

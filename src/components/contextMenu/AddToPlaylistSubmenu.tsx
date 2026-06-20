@@ -12,15 +12,19 @@ import {
 
 interface Props {
   songIds: string[];
+  /** When set (bulk toolbar pickers), read IDs at action time — avoids stale props if selection changes after open. */
+  resolveSongIds?: () => readonly string[];
   onDone: () => void;
   dropDown?: boolean;
   triggerId?: string;
 }
 
-export function AddToPlaylistSubmenu({ songIds, onDone, dropDown, triggerId }: Props) {
+export function AddToPlaylistSubmenu({ songIds, resolveSongIds, onDone, dropDown, triggerId }: Props) {
   const { t } = useTranslation();
   const subRef = useRef<HTMLDivElement>(null);
   const newNameRef = useRef<HTMLInputElement>(null);
+  const songIdsRef = useRef(songIds);
+  songIdsRef.current = songIds;
   const [adding, setAdding] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
@@ -62,24 +66,27 @@ export function AddToPlaylistSubmenu({ songIds, onDone, dropDown, triggerId }: P
     if (creating) newNameRef.current?.focus();
   }, [creating]);
 
+  const idsForAction = () => [...(resolveSongIds?.() ?? songIdsRef.current)];
+
   const handleAdd = async (pl: SubsonicPlaylist) => {
+    const ids = idsForAction();
     setAdding(pl.id);
     try {
       const { songs } = await getPlaylist(pl.id);
       const existingIds = new Set(songs.map((s) => s.id));
-      const newIds = songIds.filter((id) => !existingIds.has(id));
+      const newIds = ids.filter((id) => !existingIds.has(id));
       if (newIds.length > 0) {
         await updatePlaylist(pl.id, [...songs.map((s) => s.id), ...newIds]);
         showToast(t('playlists.addSuccess', { count: newIds.length, playlist: pl.name }));
         touchPlaylist(pl.id);
       } else {
-        const accepted = await confirmAddAllDuplicates(pl.name, songIds.length, t);
+        const accepted = await confirmAddAllDuplicates(pl.name, ids.length, t);
         if (accepted) {
-          await updatePlaylist(pl.id, [...songs.map((s) => s.id), ...songIds]);
-          showToast(t('playlists.addedAsDuplicates', { count: songIds.length, playlist: pl.name }), 3000, 'info');
+          await updatePlaylist(pl.id, [...songs.map((s) => s.id), ...ids]);
+          showToast(t('playlists.addedAsDuplicates', { count: ids.length, playlist: pl.name }), 3000, 'info');
           touchPlaylist(pl.id);
         } else {
-          showToast(t('playlists.addAllSkipped', { count: songIds.length, playlist: pl.name }), 3000, 'info');
+          showToast(t('playlists.addAllSkipped', { count: ids.length, playlist: pl.name }), 3000, 'info');
         }
       }
     } catch {
@@ -90,11 +97,12 @@ export function AddToPlaylistSubmenu({ songIds, onDone, dropDown, triggerId }: P
   };
 
   const handleCreate = async () => {
+    const ids = idsForAction();
     const name = newName.trim() || t('playlists.unnamed');
     try {
-      const pl = await createPlaylist(name, songIds);
+      const pl = await createPlaylist(name, ids);
       if (pl?.id) {
-        showToast(t('playlists.createAndAddSuccess', { count: songIds.length, playlist: pl.name || name }));
+        showToast(t('playlists.createAndAddSuccess', { count: ids.length, playlist: pl.name || name }));
       }
     } catch {
       showToast(t('playlists.createError'), 3000, 'error');
@@ -111,7 +119,13 @@ export function AddToPlaylistSubmenu({ songIds, onDone, dropDown, triggerId }: P
       : { left: '100%', right: 'auto', top: flipUp ? 'auto' : -4, bottom: flipUp ? 0 : 'auto' };
 
   return (
-    <div className="context-submenu" data-parent-trigger-id={triggerId ?? ''} ref={subRef} style={subStyle}>
+    <div
+      className="context-submenu"
+      data-parent-trigger-id={triggerId ?? ''}
+      ref={subRef}
+      style={subStyle}
+      onMouseDown={dropDown ? (e) => e.stopPropagation() : undefined}
+    >
       {!creating ? (
         <div
           className="context-menu-item context-submenu-new"

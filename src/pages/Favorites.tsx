@@ -121,7 +121,7 @@ export default function Favorites() {
     [selectedArtist, topFavoriteArtists],
   );
 
-  const { toggleSelect } = useFavoritesSelection(songs, inSelectMode, tracklistRef);
+  const { toggleSelect } = useFavoritesSelection(visibleSongs, inSelectMode, tracklistRef);
 
   useBulkPlPickerOutsideClick(showPlPicker, setShowPlPicker);
 
