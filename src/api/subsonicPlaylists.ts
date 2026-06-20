@@ -3,7 +3,6 @@ import { useAuthStore } from '../store/authStore';
 import { shouldAttemptSubsonicForServer } from '../utils/network/subsonicNetworkGuard';
 import { api, apiForServer } from './subsonicClient';
 import type { SubsonicPlaylist, SubsonicSong } from './subsonicTypes';
-import { playlistAddDevLog } from '../utils/playlist/playlistAddDevLog';
 
 export async function getPlaylists(includeOrbit = false): Promise<SubsonicPlaylist[]> {
   const data = await api<{ playlists: { playlist: SubsonicPlaylist[] } }>('getPlaylists.view', { _t: Date.now() });
@@ -42,28 +41,13 @@ export async function createPlaylist(name: string, songIds?: string[]): Promise<
   if (songIds && songIds.length > 0) {
     params.songId = songIds;
   }
-  playlistAddDevLog('api:createPlaylist.request', {
-    name,
-    songIdCount: songIds?.length ?? 0,
-    songIds: songIds ?? [],
-  });
   const data = await api<{ playlist: SubsonicPlaylist }>('createPlaylist.view', params);
-  playlistAddDevLog('api:createPlaylist.response', {
-    playlistId: data.playlist?.id,
-    playlistName: data.playlist?.name,
-  });
   return data.playlist;
 }
 
 export async function updatePlaylist(id: string, songIds: string[], prevCount = 0): Promise<void> {
   if (songIds.length > 0) {
     // createPlaylist with playlistId replaces the existing playlist's songs (Subsonic API 1.14+)
-    playlistAddDevLog('api:updatePlaylist.request', {
-      playlistId: id,
-      songIdCount: songIds.length,
-      songIds,
-      prevCount,
-    });
     await api('createPlaylist.view', { playlistId: id, songId: songIds });
   } else if (prevCount > 0) {
     // Axios serialises empty arrays as no params — createPlaylist.view would leave songs unchanged.

@@ -9,7 +9,6 @@ import {
   confirmAddAllDuplicates,
   isSmartPlaylistName,
 } from '../../utils/componentHelpers/contextMenuHelpers';
-import { playlistAddDevLog } from '../../utils/playlist/playlistAddDevLog';
 
 interface Props {
   songIds: string[];
@@ -69,90 +68,28 @@ export function AddToPlaylistSubmenu({ songIds, resolveSongIds, onDone, dropDown
 
   const idsForAction = () => [...(resolveSongIds?.() ?? songIdsRef.current)];
 
-  const verifyPlaylistAdd = async (
-    playlist: SubsonicPlaylist,
-    sentIds: string[],
-    context: string,
-  ) => {
-    if (!import.meta.env.DEV) return;
-    try {
-      const { songs: after } = await getPlaylist(playlist.id);
-      const afterIds = after.map((s) => s.id);
-      const afterSet = new Set(afterIds);
-      const missingIds = sentIds.filter((id) => !afterSet.has(id));
-      playlistAddDevLog('verify-after-update', {
-        context,
-        playlistId: playlist.id,
-        playlistName: playlist.name,
-        sentCount: sentIds.length,
-        serverCount: after.length,
-        missingIds,
-        sentIds,
-        serverIds: afterIds,
-        serverTitles: after.map((s) => ({ id: s.id, title: s.title, artist: s.artist })),
-      });
-      if (missingIds.length > 0) {
-        console.warn(
-          '[psysonic][playlist-add] server playlist missing IDs that were sent',
-          { playlist: playlist.name, missingIds },
-        );
-      }
-    } catch (err) {
-      playlistAddDevLog('verify-after-update.error', {
-        context,
-        playlistId: playlist.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  };
-
   const handleAdd = async (pl: SubsonicPlaylist) => {
     const ids = idsForAction();
-    playlistAddDevLog('ui:add.start', {
-      playlistId: pl.id,
-      playlistName: pl.name,
-      requestedIds: ids,
-      requestedCount: ids.length,
-      dropDown: !!dropDown,
-    });
     setAdding(pl.id);
     try {
       const { songs } = await getPlaylist(pl.id);
       const existingIds = new Set(songs.map((s) => s.id));
       const newIds = ids.filter((id) => !existingIds.has(id));
-      const skippedAsExisting = ids.filter((id) => existingIds.has(id));
-      playlistAddDevLog('ui:add.diff', {
-        playlistId: pl.id,
-        existingCount: songs.length,
-        existingIds: [...existingIds],
-        newIds,
-        skippedAsExisting,
-      });
       if (newIds.length > 0) {
-        const payload = [...songs.map((s) => s.id), ...newIds];
-        await updatePlaylist(pl.id, payload);
-        await verifyPlaylistAdd(pl, payload, 'append-new');
+        await updatePlaylist(pl.id, [...songs.map((s) => s.id), ...newIds]);
         showToast(t('playlists.addSuccess', { count: newIds.length, playlist: pl.name }));
         touchPlaylist(pl.id);
       } else {
         const accepted = await confirmAddAllDuplicates(pl.name, ids.length, t);
         if (accepted) {
-          const payload = [...songs.map((s) => s.id), ...ids];
-          playlistAddDevLog('ui:add.duplicates-confirmed', { playlistId: pl.id, payload });
-          await updatePlaylist(pl.id, payload);
-          await verifyPlaylistAdd(pl, payload, 'append-duplicates');
+          await updatePlaylist(pl.id, [...songs.map((s) => s.id), ...ids]);
           showToast(t('playlists.addedAsDuplicates', { count: ids.length, playlist: pl.name }), 3000, 'info');
           touchPlaylist(pl.id);
         } else {
-          playlistAddDevLog('ui:add.duplicates-declined', { playlistId: pl.id, ids });
           showToast(t('playlists.addAllSkipped', { count: ids.length, playlist: pl.name }), 3000, 'info');
         }
       }
-    } catch (err) {
-      playlistAddDevLog('ui:add.error', {
-        playlistId: pl.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
+    } catch {
       showToast(t('playlists.addError'), 3000, 'error');
     }
     setAdding(null);
@@ -162,17 +99,12 @@ export function AddToPlaylistSubmenu({ songIds, resolveSongIds, onDone, dropDown
   const handleCreate = async () => {
     const ids = idsForAction();
     const name = newName.trim() || t('playlists.unnamed');
-    playlistAddDevLog('ui:create.start', { name, songIds: ids });
     try {
       const pl = await createPlaylist(name, ids);
       if (pl?.id) {
-        await verifyPlaylistAdd(pl, ids, 'create');
         showToast(t('playlists.createAndAddSuccess', { count: ids.length, playlist: pl.name || name }));
       }
-    } catch (err) {
-      playlistAddDevLog('ui:create.error', {
-        error: err instanceof Error ? err.message : String(err),
-      });
+    } catch {
       showToast(t('playlists.createError'), 3000, 'error');
     }
     onDone();
