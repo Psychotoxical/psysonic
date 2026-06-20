@@ -146,6 +146,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Track-advance queue pushes no longer suspend idle auto-pull, so the connection LED does not flash yellow on every song change. Yellow sync still appears after a local queue edit while paused; it clears while audio is playing.
 
+### Update notification — clearer popup on Linux
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1142](https://github.com/Psychotoxical/psysonic/pull/1142)**, reported by zunoz on Discord
+
+* The "new version available" popup no longer shows blurry, unfocused text on some Linux setups (the background blur could bleed onto the dialog). The version arrow now lines up with the heading, and the Skip / Remind me later buttons read clearly — Remind me later is the highlighted action when there's no in-app installer.
+
 
 ## [1.48.1] - 2026-06-15
 
