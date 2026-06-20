@@ -134,6 +134,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The header connection probe now retries a failed ping twice (2 s apart) before marking the server unreachable, so a single dropped packet on an otherwise fine link no longer flips the LED to disconnected.
 
+### Yellow sync LED during normal playback
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#XXXX](https://github.com/Psychotoxical/psysonic/pull/XXXX)**
+
+* Track-advance queue pushes no longer suspend idle auto-pull, so the connection LED does not flash yellow on every song change. Yellow sync still appears after a local queue edit while paused; it clears while audio is playing.
+
 
 ## [1.48.1] - 2026-06-15
 
