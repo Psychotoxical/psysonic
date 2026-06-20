@@ -23,9 +23,12 @@ export function useFavoritesSelection(
   useEffect(() => {
     if (!inSelectMode) return;
     const handler = (e: MouseEvent) => {
-      if (tracklistRef.current && !tracklistRef.current.contains(e.target as Node)) {
-        useSelectionStore.getState().clearAll();
-      }
+      const target = e.target as HTMLElement;
+      if (!tracklistRef.current || tracklistRef.current.contains(target)) return;
+      // Toolbar (play/enqueue, filters, bulk actions) sits outside the tracklist
+      // DOM but belongs to the selection — don't clear before its click runs.
+      if (target.closest('.favorites-songs-toolbar')) return;
+      useSelectionStore.getState().clearAll();
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);

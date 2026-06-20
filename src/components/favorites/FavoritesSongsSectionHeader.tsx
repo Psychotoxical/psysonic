@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListPlus, Play, SlidersHorizontal, X } from 'lucide-react';
 import type { SubsonicSong } from '../../api/subsonicTypes';
@@ -29,6 +29,7 @@ interface Props {
   currentYear: number;
   inSelectMode: boolean;
   selectedCount: number;
+  selectedIds: ReadonlySet<string>;
   showPlPicker: boolean;
   setShowPlPicker: React.Dispatch<React.SetStateAction<boolean>>;
 }
@@ -38,9 +39,14 @@ export default function FavoritesSongsSectionHeader({
   selectedGenres, setSelectedGenres, yearRange, setYearRange,
   showFilters, setShowFilters, setSortKey, setSortClickCount,
   playTrack, enqueue, starredOverrides, minYear, currentYear,
-  inSelectMode, selectedCount, showPlPicker, setShowPlPicker,
+  inSelectMode, selectedCount, selectedIds, showPlPicker, setShowPlPicker,
 }: Props) {
   const { t } = useTranslation();
+
+  const targetSongs = useMemo(() => {
+    if (!inSelectMode) return visibleSongs;
+    return visibleSongs.filter(s => selectedIds.has(s.id));
+  }, [inSelectMode, visibleSongs, selectedIds]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '0.75rem' }}>
@@ -57,30 +63,30 @@ export default function FavoritesSongsSectionHeader({
       </div>
 
       {/* Action Buttons */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+      <div className="favorites-songs-toolbar" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
         <button
           className="btn btn-primary"
-          disabled={visibleSongs.length === 0}
+          disabled={targetSongs.length === 0}
           onClick={() => {
-            if (visibleSongs.length === 0) return;
-            const tracks = visibleSongs.map(songToTrack);
+            if (targetSongs.length === 0) return;
+            const tracks = targetSongs.map(songToTrack);
             playTrack(tracks[0], tracks);
           }}
         >
           <Play size={15} />
-          {t('favorites.playAll')}
+          {inSelectMode ? t('favorites.playSelected') : t('favorites.playAll')}
         </button>
         <button
           className="btn btn-surface"
-          disabled={visibleSongs.length === 0}
+          disabled={targetSongs.length === 0}
           onClick={() => {
-            if (visibleSongs.length === 0) return;
-            const tracks = visibleSongs.map(songToTrack);
+            if (targetSongs.length === 0) return;
+            const tracks = targetSongs.map(songToTrack);
             enqueue(tracks);
           }}
         >
           <ListPlus size={15} />
-          {t('favorites.enqueueAll')}
+          {inSelectMode ? t('favorites.enqueueSelected') : t('favorites.enqueueAll')}
         </button>
 
         {/* Filter Toggle Button */}
@@ -111,7 +117,7 @@ export default function FavoritesSongsSectionHeader({
         {/* Bulk action chips — inline at row end so a selection does not
             push the column header / rows downward (matches Album toolbar). */}
         {inSelectMode && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: 'auto' }}>
+          <div className="bulk-action-toolbar" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: 'auto' }}>
             <span className="bulk-action-count">
               {t('common.bulkSelected', { count: selectedCount })}
             </span>
