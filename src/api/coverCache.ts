@@ -189,6 +189,23 @@ export async function coverCacheClearServer(serverIndexKey: string): Promise<voi
   return invoke('cover_cache_clear_server', { serverIndexKey });
 }
 
+/**
+ * Opt-out purge: when the External Artwork toggle is turned off, drop every
+ * fetched external image + `.miss-*` marker + lookup row across all configured
+ * servers (Navidrome covers are left intact). Fire-and-forget; per-server
+ * failures are swallowed so one unreachable server can't block the rest.
+ */
+export async function purgeExternalArtworkAllServers(): Promise<void> {
+  const { servers } = useAuthStore.getState();
+  await Promise.all(
+    servers.map(s =>
+      invoke('cover_cache_purge_external', {
+        serverIndexKey: serverIndexKeyForProfile(s),
+      }).catch(() => undefined),
+    ),
+  );
+}
+
 export async function coverCacheStatsServer(
   serverIndexKey: string,
 ): Promise<Pick<CoverCacheStats, 'bytes' | 'entryCount'>> {

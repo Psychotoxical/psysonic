@@ -1011,6 +1011,65 @@ pub async fn cover_cache_clear_server(
     Ok(())
 }
 
+/// Delete only external-provider artifacts under a server's cover dir — the
+/// `{tier}-{provider}.webp` tiers and `.miss-{provider}` markers — leaving the
+/// canonical Navidrome `{tier}.webp` and `.fetch-failed` untouched (Navidrome
+/// tiers have no `-` in the stem; their marker is `.fetch-failed`, not
+/// `.miss-*`). FS-only so it is testable against a real `tempdir`. Returns the
+/// number of files removed.
+fn purge_external_files(server_dir: &Path) -> usize {
+    fn is_external(name: &str) -> bool {
+        (name.ends_with(".webp") && name.contains('-')) || name.starts_with(".miss-")
+    }
+    fn walk(dir: &Path, count: &mut usize) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                walk(&p, count);
+            } else if p.file_name().and_then(|n| n.to_str()).is_some_and(is_external)
+                && std::fs::remove_file(&p).is_ok()
+            {
+                *count += 1;
+            }
+        }
+    }
+    let mut count = 0;
+    walk(server_dir, &mut count);
+    count
+}
+
+/// Opt-out purge (§9, §12, Appendix B.4): drop every external artwork artifact
+/// for a server — `{tier}-{provider}.webp`, `.miss-{provider}`, and the
+/// `artist_artwork_lookup` rows — while leaving the canonical Navidrome covers
+/// intact. Fired when the user turns the External Artwork toggle off. Unlike
+/// `cover_cache_clear_server`, Navidrome tiers survive.
+#[tauri::command]
+pub async fn cover_cache_purge_external(
+    app: AppHandle,
+    server_index_key: String,
+) -> Result<(), String> {
+    let st = state(&app)?;
+    let guard = st.lock().await;
+    let path = cover_server_dir(&guard.root, &server_index_key);
+    if path.is_dir() {
+        purge_external_files(&path);
+    }
+    invalidate_dir_usage_cache(&server_index_key);
+    drop(guard);
+    if let Some(rt) = app.try_state::<LibraryRuntime>() {
+        let store = rt.store.clone();
+        let key = server_index_key.clone();
+        let _ = tauri::async_runtime::spawn_blocking(move || {
+            psysonic_library::artist_artwork::clear_artist_artwork_for_server(&store, &key)
+        })
+        .await;
+    }
+    Ok(())
+}
+
 /// Rename a server's cover-cache bucket on disk after the user edits the
 /// primary URL (and the derived index key changes). Used by the URL-change
 /// remigration pipeline (dual-server-address spec §8.3) so cached covers
@@ -1290,7 +1349,10 @@ mod tests {
 
     use super::decode_image_bytes;
     use super::disk::{cover_dir, tier_path};
-    use super::{count_cached_cover_ids, is_safe_index_key, merge_cover_bucket, rename_bucket_inner};
+    use super::{
+        count_cached_cover_ids, is_safe_index_key, merge_cover_bucket, purge_external_files,
+        rename_bucket_inner,
+    };
     use psysonic_core::cover_cache_layout::CANONICAL_PROGRESS_TIER;
     use std::fs;
     use std::path::PathBuf;
@@ -1483,6 +1545,35 @@ mod tests {
             fs::read(root.join("new").join("al-2").join("128.webp")).unwrap(),
             b"from-new",
         );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn purge_external_removes_only_external_artifacts() {
+        let root = fresh_tmpdir("purge-external");
+        let entity = root.join("artist").join("ar-1");
+        fs::create_dir_all(&entity).unwrap();
+        // Navidrome canonical — must survive.
+        fs::write(entity.join("2000.webp"), b"n").unwrap();
+        fs::write(entity.join("512.webp"), b"n").unwrap();
+        fs::write(entity.join(".fetch-failed"), b"1").unwrap();
+        // External — must go.
+        fs::write(entity.join("2000-fanart.webp"), b"f").unwrap();
+        fs::write(entity.join("512-fanart.webp"), b"f").unwrap();
+        fs::write(entity.join("2000-banner.webp"), b"b").unwrap();
+        fs::write(entity.join(".miss-fanart"), b"1").unwrap();
+        fs::write(entity.join(".miss-banner"), b"1").unwrap();
+
+        assert_eq!(purge_external_files(&root), 5);
+
+        assert!(entity.join("2000.webp").exists());
+        assert!(entity.join("512.webp").exists());
+        assert!(entity.join(".fetch-failed").exists());
+        assert!(!entity.join("2000-fanart.webp").exists());
+        assert!(!entity.join("512-fanart.webp").exists());
+        assert!(!entity.join("2000-banner.webp").exists());
+        assert!(!entity.join(".miss-fanart").exists());
+        assert!(!entity.join(".miss-banner").exists());
         let _ = fs::remove_dir_all(&root);
     }
 }

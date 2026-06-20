@@ -6,6 +6,7 @@ import SettingsSubSection from '../SettingsSubSection';
 import { SettingsGroup } from './SettingsGroup';
 import { SettingsToggle } from './SettingsToggle';
 import { MusicNetworkSection } from './musicNetwork/MusicNetworkSection';
+import { purgeExternalArtworkAllServers } from '../../api/coverCache';
 
 export function IntegrationsTab() {
   const { t } = useTranslation();
@@ -151,7 +152,13 @@ export function IntegrationsTab() {
               note={t('settings.externalArtworkNote')}
               ariaLabel={t('settings.externalArtwork')}
               checked={theme.externalArtworkEnabled}
-              onChange={theme.setExternalArtworkEnabled}
+              onChange={v => {
+                theme.setExternalArtworkEnabled(v);
+                // Opt-out: purge the fetched external images + lookup rows so
+                // turning the scraper off actually removes the third-party data,
+                // not just hides it (design-review §9/§12/B.4).
+                if (!v) void purgeExternalArtworkAllServers();
+              }}
             />
           </SettingsGroup>
           {theme.externalArtworkEnabled && (

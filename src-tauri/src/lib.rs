@@ -843,6 +843,7 @@ pub fn run() {
             cover_cache::cover_cache_configure,
             cover_cache::cover_cache_clear,
             cover_cache::cover_cache_clear_server,
+            cover_cache::cover_cache_purge_external,
             cover_cache::cover_cache_rename_server_bucket,
             cover_cache::cover_cache_stats_server,
             cover_cache::cover_cache_get_pipeline_queue_stats,
