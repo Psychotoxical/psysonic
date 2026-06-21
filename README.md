@@ -160,6 +160,9 @@ install via Windows Package Manager (WinGet):
 ```powershell
 winget install Psysonic
 ```
+
+You can also browse and install it on [winstall.app](https://winstall.app/apps/Psychotoxical.Psysonic).
+
 ## macOS
 
 Download the signed DMG from the [GitHub Releases](https://github.com/Psychotoxical/psysonic/releases/latest).
