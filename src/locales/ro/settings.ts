@@ -124,6 +124,7 @@ export const settings = {
   eqPresetCustom: 'Personalizat',
   eqPresetBuiltin: 'Preseturi încorporate',
   eqPresetCustomGroup: 'Preseturile mele',
+  eqPresetAutoEqGroup: 'AutoEQ',
   eqSavePreset: 'Salvează ca Preset',
   eqPresetName: 'Nume preset…',
   eqDeletePreset: 'Șterge preset',

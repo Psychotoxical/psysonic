@@ -124,6 +124,7 @@ export const settings = {
   eqPresetCustom: 'Свой',
   eqPresetBuiltin: 'Встроенные',
   eqPresetCustomGroup: 'Мои пресеты',
+  eqPresetAutoEqGroup: 'AutoEQ',
   eqSavePreset: 'Сохранить как пресет',
   eqPresetName: 'Название пресета…',
   eqDeletePreset: 'Удалить пресет',

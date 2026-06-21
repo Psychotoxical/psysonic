@@ -124,6 +124,7 @@ export const settings = {
   eqPresetCustom: 'Aangepast',
   eqPresetBuiltin: 'Ingebouwde voorinstellingen',
   eqPresetCustomGroup: 'Mijn voorinstellingen',
+  eqPresetAutoEqGroup: 'AutoEQ',
   eqSavePreset: 'Opslaan als voorinstelling',
   eqPresetName: 'Naam voorinstelling…',
   eqDeletePreset: 'Voorinstelling verwijderen',

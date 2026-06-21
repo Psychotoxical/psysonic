@@ -124,6 +124,7 @@ export const settings = {
   eqPresetCustom: 'Egendefinert',
   eqPresetBuiltin: 'Innebygde forhåndsinnstillinger',
   eqPresetCustomGroup: 'Mine forhåndsinnstillinger',
+  eqPresetAutoEqGroup: 'AutoEQ',
   eqSavePreset: 'Lagre som forhåndsinnstilling',
   eqPresetName: 'Navn på forhåndsinnstilling…',
   eqDeletePreset: 'Slett forhåndsinnstilling',

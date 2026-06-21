@@ -124,6 +124,7 @@ export const settings = {
   eqPresetCustom: '自定义',
   eqPresetBuiltin: '内置预设',
   eqPresetCustomGroup: '我的预设',
+  eqPresetAutoEqGroup: 'AutoEQ',
   eqSavePreset: '保存为预设',
   eqPresetName: '预设名称…',
   eqDeletePreset: '删除预设',

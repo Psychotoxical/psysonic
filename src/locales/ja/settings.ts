@@ -125,6 +125,7 @@ export const settings = {
   eqPresetCustom: 'カスタム',
   eqPresetBuiltin: '内蔵プリセット',
   eqPresetCustomGroup: '自分のプリセット',
+  eqPresetAutoEqGroup: 'AutoEQ',
   eqSavePreset: 'プリセットとして保存',
   eqPresetName: 'プリセット名…',
   eqDeletePreset: 'プリセットを削除',

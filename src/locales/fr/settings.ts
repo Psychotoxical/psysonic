@@ -124,6 +124,7 @@ export const settings = {
   eqPresetCustom: 'Personnalisé',
   eqPresetBuiltin: 'Préréglages intégrés',
   eqPresetCustomGroup: 'Mes préréglages',
+  eqPresetAutoEqGroup: 'AutoEQ',
   eqSavePreset: 'Enregistrer comme préréglage',
   eqPresetName: 'Nom du préréglage…',
   eqDeletePreset: 'Supprimer le préréglage',

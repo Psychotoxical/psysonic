@@ -125,6 +125,7 @@ export const settings = {
   eqPresetCustom: 'Benutzerdefiniert',
   eqPresetBuiltin: 'Eingebaute Presets',
   eqPresetCustomGroup: 'Meine Presets',
+  eqPresetAutoEqGroup: 'AutoEQ',
   eqSavePreset: 'Als Preset speichern',
   eqPresetName: 'Preset-Name…',
   eqDeletePreset: 'Preset löschen',
