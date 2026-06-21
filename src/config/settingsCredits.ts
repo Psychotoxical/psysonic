@@ -380,6 +380,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Settings refactor — reusable boxed panels (SettingsGroup/SettingsToggle) rolled across every tab, Normalization and Track transitions promoted to their own Audio categories, a unified Queue Settings group on Personalisation, and the Audio Output Device category gated out on macOS (PR #1126, #1130)',
       'Artist artwork from fanart.tv — opt-in fullscreen background + artist-header banner, off by default (PR #1137)',
       'Per-device equalizer profiles — opt-in, remembers and restores the EQ for each audio output device (PR #1146)',
+      'Hungarian (Magyar) translation (PR #1149)',
     ],
   },
   {

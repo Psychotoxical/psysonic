@@ -68,6 +68,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * New opt-in **Remember EQ per device** toggle (Settings → Audio → Audio Output Device, off by default): the equalizer profile — bands, pre-gain, enabled state and active preset — is saved per audio output device and restored automatically when you switch devices.
 
+### Hungarian translation
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1149](https://github.com/Psychotoxical/psysonic/pull/1149)**, a gift to [@falu](https://github.com/falu) for the first independent review of Psysonic
+
+* Psysonic is now available in **Hungarian (Magyar)** — pick it from the language menu on the Settings and Login screens.
+
 
 ## Changed
 
