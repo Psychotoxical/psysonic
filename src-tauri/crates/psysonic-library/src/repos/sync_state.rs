@@ -561,6 +561,44 @@ impl<'a> SyncStateRepository<'a> {
         })
     }
 
+    /// Read `ignored_articles` from the last `getArtists` pass (Navidrome
+    /// `IgnoredArticles` string — space-separated article tokens).
+    pub fn get_ignored_articles(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+    ) -> Result<Option<String>, String> {
+        self.read(|conn| {
+            conn.query_row(
+                "SELECT ignored_articles FROM sync_state \
+                 WHERE server_id = ?1 AND library_scope = ?2",
+                params![server_id, library_scope],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()
+        })
+        .map(|opt| opt.flatten())
+    }
+
+    /// Persist server `ignoredArticles` for local artist sort-key computation.
+    pub fn set_ignored_articles(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+        ignored_articles: &str,
+    ) -> Result<(), String> {
+        self.store.with_conn("sync_state.set_ignored_articles", |conn| {
+            conn.execute(
+                "INSERT INTO sync_state (server_id, library_scope, ignored_articles) \
+                 VALUES (?1, ?2, ?3) \
+                 ON CONFLICT(server_id, library_scope) DO UPDATE SET \
+                   ignored_articles = excluded.ignored_articles",
+                params![server_id, library_scope, ignored_articles],
+            )?;
+            Ok(())
+        })
+    }
+
     /// Write `library_tier` (spec §6.2.2 — `small` / `medium` / `huge`
     /// / `unknown`). Drives the adaptive poll interval; PR-3d wires
     /// the EWMA loop that picks this.

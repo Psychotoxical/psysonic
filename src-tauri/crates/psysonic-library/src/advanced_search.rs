@@ -39,7 +39,7 @@ const ALBUM_COLUMNS: &str = "a.server_id, a.id, a.name, a.artist, a.artist_id, \
     WHERE t.server_id = a.server_id AND t.album_id = a.id AND t.deleted = 0)), \
   a.genre, a.cover_art_id, a.starred_at, a.synced_at, a.raw_json";
 
-const ARTIST_COLUMNS: &str = "ar.server_id, ar.id, ar.name, ar.album_count, \
+const ARTIST_COLUMNS: &str = "ar.server_id, ar.id, ar.name, ar.name_sort, ar.album_count, \
   ar.synced_at, ar.raw_json";
 
 /// Flat track projection used when browsing albums in advanced search.
@@ -527,7 +527,9 @@ fn build_artist_from_table(
         }
     }
     let order = order_clause(&req.sort, EntityKind::Artist)
-        .unwrap_or_else(|| "ORDER BY ar.name COLLATE NOCASE ASC, ar.id ASC".to_string());
+        .unwrap_or_else(|| {
+            "ORDER BY COALESCE(ar.name_sort, ar.name) COLLATE NOCASE ASC, ar.id ASC".to_string()
+        });
     query_rows(
         store,
         ARTIST_COLUMNS,
@@ -794,10 +796,16 @@ fn build_artist_from_fts(
             if !seen.insert(artist_id.clone()) {
                 continue;
             }
+            let name = artist.unwrap_or_default();
+            let name_sort = crate::artist_sort::sort_key_for_display_name(
+                &name,
+                crate::artist_sort::DEFAULT_IGNORED_ARTICLES,
+            );
             deduped.push(LibraryArtistDto {
                 server_id,
                 id: artist_id,
-                name: artist.unwrap_or_default(),
+                name,
+                name_sort: Some(name_sort),
                 album_count: None,
                 synced_at,
                 raw_json: Value::Null,
@@ -1179,13 +1187,14 @@ fn map_album(r: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryAlbumDto> {
 }
 
 fn map_artist(r: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryArtistDto> {
-    let raw: Option<String> = r.get(5)?;
+    let raw: Option<String> = r.get(6)?;
     Ok(LibraryArtistDto {
         server_id: r.get(0)?,
         id: r.get(1)?,
         name: r.get(2)?,
-        album_count: r.get(3)?,
-        synced_at: r.get(4)?,
+        name_sort: r.get(3)?,
+        album_count: r.get(4)?,
+        synced_at: r.get(5)?,
         raw_json: parse_raw_json(raw),
     })
 }
@@ -1211,10 +1220,16 @@ fn map_album_from_tracks(r: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryAlbum
 }
 
 fn map_artist_from_tracks(r: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryArtistDto> {
+    let name: String = r.get(2)?;
+    let name_sort = crate::artist_sort::sort_key_for_display_name(
+        &name,
+        crate::artist_sort::DEFAULT_IGNORED_ARTICLES,
+    );
     Ok(LibraryArtistDto {
         server_id: r.get(0)?,
         id: r.get(1)?,
-        name: r.get(2)?,
+        name,
+        name_sort: Some(name_sort),
         album_count: Some(r.get(3)?),
         synced_at: r.get(4)?,
         raw_json: Value::Null,
@@ -1289,7 +1304,7 @@ fn sort_column(field: &str, entity: EntityKind) -> Option<&'static str> {
         ("name", EntityKind::Album) => Some("a.name COLLATE NOCASE"),
         ("year", EntityKind::Album) => Some("a.year"),
         ("artist", EntityKind::Album) => Some("a.artist COLLATE NOCASE"),
-        ("name", EntityKind::Artist) => Some("ar.name COLLATE NOCASE"),
+        ("name", EntityKind::Artist) => Some("COALESCE(ar.name_sort, ar.name) COLLATE NOCASE"),
         // SQLite built-in: ORDER BY RANDOM() LIMIT N — fast pseudo-random sample,
         // no index scan needed beyond the row-id range. Direction is ignored.
         ("random", _) => Some("RANDOM()"),

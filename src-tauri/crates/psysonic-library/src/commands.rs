@@ -180,8 +180,8 @@ pub async fn library_get_status(
             conn.query_row(
                 "SELECT sync_phase, capability_flags, library_tier, last_full_sync_at, \
                  last_delta_sync_at, next_poll_at, server_last_scan_iso, \
-                 indexes_last_modified_ms, artists_last_modified_ms, local_track_count, \
-                 server_track_count, last_error \
+                 indexes_last_modified_ms, artists_last_modified_ms, ignored_articles, \
+                 local_track_count, server_track_count, last_error \
                  FROM sync_state WHERE server_id = ?1 AND library_scope = ?2",
                 params![server_id, scope],
                 |r| {
@@ -195,9 +195,10 @@ pub async fn library_get_status(
                         server_last_scan_iso: r.get(6)?,
                         indexes_last_modified_ms: r.get(7)?,
                         artists_last_modified_ms: r.get(8)?,
-                        local_track_count: r.get(9)?,
-                        server_track_count: r.get(10)?,
-                        last_error: r.get(11)?,
+                        ignored_articles: r.get(9)?,
+                        local_track_count: r.get(10)?,
+                        server_track_count: r.get(11)?,
+                        last_error: r.get(12)?,
                     })
                 },
             )
@@ -246,6 +247,7 @@ pub async fn library_get_status(
         server_last_scan_iso: row.server_last_scan_iso,
         indexes_last_modified_ms: row.indexes_last_modified_ms,
         artists_last_modified_ms: row.artists_last_modified_ms,
+        ignored_articles: row.ignored_articles,
         local_track_count,
         server_track_count: row.server_track_count,
         last_error: row.last_error,
@@ -622,6 +624,7 @@ struct SyncStateRow {
     server_last_scan_iso: Option<String>,
     indexes_last_modified_ms: Option<i64>,
     artists_last_modified_ms: Option<i64>,
+    ignored_articles: Option<String>,
     local_track_count: Option<i64>,
     server_track_count: Option<i64>,
     last_error: Option<String>,

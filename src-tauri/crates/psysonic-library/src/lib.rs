@@ -17,6 +17,7 @@ pub mod analysis_backfill_policy;
 pub mod library_readiness;
 pub mod artist_artwork;
 pub mod artist_lossless_browse;
+pub mod artist_sort;
 pub mod cover_backfill;
 pub mod cover_resolve;
 pub mod canonical;

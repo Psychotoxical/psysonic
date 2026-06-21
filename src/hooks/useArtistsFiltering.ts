@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { SubsonicArtist } from '../api/subsonicTypes';
 import { usePlayerStore } from '../store/playerStore';
-import { ALL_SENTINEL, artistBucketKey, compareBuckets, type ArtistListFlatRow } from '../utils/componentHelpers/artistsHelpers';
+import { ALL_SENTINEL, artistLetterBucket, compareBuckets, type ArtistListFlatRow } from '../utils/componentHelpers/artistsHelpers';
 
 interface UseArtistsFilteringArgs {
   artists: SubsonicArtist[];
@@ -10,6 +10,8 @@ interface UseArtistsFilteringArgs {
   starredOnly: boolean;
   visibleCount: number;
   viewMode: 'grid' | 'list';
+  /** Server `ignoredArticles` when known (local index); omit for Navidrome default. */
+  ignoredArticles?: string | null;
 }
 
 interface UseArtistsFilteringResult {
@@ -42,13 +44,14 @@ export function useArtistsFiltering({
   starredOnly,
   visibleCount,
   viewMode,
+  ignoredArticles,
 }: UseArtistsFilteringArgs): UseArtistsFilteringResult {
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
 
   const filtered = useMemo(() => {
     let out = artists;
     if (letterFilter !== ALL_SENTINEL) {
-      out = out.filter(a => artistBucketKey(a.name) === letterFilter);
+      out = out.filter(a => artistLetterBucket(a, ignoredArticles) === letterFilter);
     }
     if (filter) {
       const needle = filter.toLowerCase();
@@ -58,7 +61,7 @@ export function useArtistsFiltering({
       out = out.filter(a => a.id in starredOverrides ? starredOverrides[a.id] : !!a.starred);
     }
     return out;
-  }, [artists, letterFilter, filter, starredOnly, starredOverrides]);
+  }, [artists, letterFilter, filter, starredOnly, starredOverrides, ignoredArticles]);
 
   const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
   const hasMore = visibleCount < filtered.length;
@@ -67,12 +70,12 @@ export function useArtistsFiltering({
     if (viewMode !== 'list') return { groups: {} as Record<string, SubsonicArtist[]>, letters: [] as string[] };
     const g: Record<string, SubsonicArtist[]> = {};
     for (const a of visible) {
-      const key = artistBucketKey(a.name);
+      const key = artistLetterBucket(a, ignoredArticles);
       if (!g[key]) g[key] = [];
       g[key].push(a);
     }
     return { groups: g, letters: Object.keys(g).sort(compareBuckets) };
-  }, [visible, viewMode]);
+  }, [visible, viewMode, ignoredArticles]);
 
   const artistListFlatRows = useMemo((): ArtistListFlatRow[] => {
     if (viewMode !== 'list') return [];

@@ -1,3 +1,4 @@
+pub mod artist;
 pub mod artifact;
 pub mod fact;
 pub mod play_session;
@@ -5,6 +6,7 @@ pub mod sync_state;
 pub mod track;
 pub mod track_id_history;
 
+pub use artist::ArtistRepository;
 pub use artifact::ArtifactRepository;
 pub use fact::FactRepository;
 pub use play_session::PlaySessionRepository;

@@ -161,6 +161,8 @@ export interface SubsonicNowPlaying extends SubsonicSong {
 export interface SubsonicArtist {
   id: string;
   name: string;
+  /** Article-stripped lowercase sort key (local index / OpenSubsonic). */
+  nameSort?: string;
   albumCount?: number;
   coverArt?: string;
   starred?: string;

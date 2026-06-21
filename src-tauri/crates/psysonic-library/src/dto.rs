@@ -28,6 +28,8 @@ pub struct SyncStateDto {
     pub server_last_scan_iso: Option<String>,
     pub indexes_last_modified_ms: Option<i64>,
     pub artists_last_modified_ms: Option<i64>,
+    /// Space-separated leading articles from the server's `getArtists` response.
+    pub ignored_articles: Option<String>,
     pub local_track_count: Option<i64>,
     pub server_track_count: Option<i64>,
     pub last_error: Option<String>,
@@ -476,6 +478,8 @@ pub struct LibraryArtistDto {
     pub server_id: String,
     pub id: String,
     pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name_sort: Option<String>,
     pub album_count: Option<i64>,
     pub synced_at: i64,
     pub raw_json: Value,
@@ -861,6 +865,7 @@ mod tests {
             server_last_scan_iso: None,
             indexes_last_modified_ms: None,
             artists_last_modified_ms: None,
+            ignored_articles: None,
             local_track_count: None,
             server_track_count: None,
             last_error: None,

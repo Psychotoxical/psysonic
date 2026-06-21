@@ -204,11 +204,17 @@ impl<'a> DeltaSyncRunner<'a> {
             }
         }
 
-        // DS-9 — stamp watermarks.
-        if let Some(ms) = probe.next_artists_watermark {
-            sync_state
-                .set_artists_last_modified_ms(&self.server_id, &self.library_scope, ms)
-                .map_err(SyncError::Storage)?;
+        // DS-9 — stamp watermarks + refresh artist browse index when applicable.
+        if probe.next_artists_watermark.is_some() {
+            let scope = self.library_scope_opt();
+            if let Ok(index) = self.subsonic.get_artists(scope).await {
+                super::artist_index::apply_artist_index(
+                    self.store,
+                    &self.server_id,
+                    &self.library_scope,
+                    &index,
+                )?;
+            }
         }
         if let Some(iso) = probe.next_last_scan_iso.as_deref() {
             sync_state

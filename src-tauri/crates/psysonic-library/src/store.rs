@@ -9,7 +9,7 @@ use tauri::Manager;
 
 /// Current head of the embedded migrations. Bump each time a new
 /// `migrations/NNN_*.sql` is added.
-pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 13;
+pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 14;
 
 /// Lowest applied schema version the current code can advance from purely
 /// additively. If a DB carries a version below this, the breaking-bump hook
@@ -30,6 +30,8 @@ pub(crate) const MIGRATION_012_TRACK_GENRE_LEGACY: &str =
 /// artwork (fanart.tv) — image-scraper §12. Pure CREATE TABLE IF NOT EXISTS.
 pub(crate) const MIGRATION_013_ARTIST_ARTWORK_LOOKUP: &str =
     include_str!("../migrations/013_artist_artwork_lookup.sql");
+pub(crate) const MIGRATION_014_ARTIST_NAME_SORT: &str =
+    include_str!("../migrations/014_artist_name_sort.sql");
 
 /// Embedded migrations. Ordered ascending by `version`; the runner sorts
 /// defensively before applying so the source order can stay readable.
@@ -37,6 +39,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (1, INITIAL_SQL),
     (12, MIGRATION_012_TRACK_GENRE_LEGACY),
     (13, MIGRATION_013_ARTIST_ARTWORK_LOOKUP),
+    (14, MIGRATION_014_ARTIST_NAME_SORT),
 ];
 
 /// Idempotent repair — also runs after the migration runner on every open so
@@ -85,6 +88,7 @@ impl LibraryStore {
         let write_conn = Connection::open(db_path).map_err(|e| e.to_string())?;
         configure_write_connection(&write_conn).map_err(|e| e.to_string())?;
         run_migrations(&write_conn).map_err(|e| e.to_string())?;
+        repair_artist_name_sort_keys(&write_conn).map_err(|e| e.to_string())?;
         ensure_genre_tags_schema(&write_conn).map_err(|e| e.to_string())?;
         checkpoint_wal_conn(&write_conn, "open").map_err(|e| e.to_string())?;
         let read_conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
@@ -103,6 +107,7 @@ impl LibraryStore {
         let write_conn = Connection::open(&uri).expect("in-memory write connection");
         configure_write_connection(&write_conn).expect("write pragmas");
         run_migrations(&write_conn).expect("schema migration");
+        repair_artist_name_sort_keys(&write_conn).expect("artist name_sort repair");
         ensure_genre_tags_schema(&write_conn).expect("genre tags schema");
         let read_conn = Connection::open(&uri).expect("in-memory read connection");
         configure_read_connection(&read_conn).expect("read pragmas");
@@ -425,6 +430,53 @@ fn checkpoint_wal_conn(conn: &Connection, op: &str) -> rusqlite::Result<()> {
         crate::app_eprintln!(
             "[library-db] wal checkpoint busy op={op} busy={busy} log={log} checkpointed={checkpointed}"
         );
+    }
+    Ok(())
+}
+
+/// Reconcile `artist.name_sort` with display `name` (upgrade / stale rows).
+fn repair_artist_name_sort_keys(conn: &Connection) -> rusqlite::Result<()> {
+    let table_exists: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'artist'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+    if table_exists == 0 {
+        return Ok(());
+    }
+    let column_exists: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('artist') WHERE name = 'name_sort'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+    if column_exists == 0 {
+        return Ok(());
+    }
+    let ignored = crate::artist_sort::DEFAULT_IGNORED_ARTICLES;
+    let mut stmt = conn.prepare("SELECT server_id, id, name, name_sort FROM artist")?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, Option<String>>(3)?,
+            ))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    for (server_id, id, name, current) in rows {
+        let expected = crate::artist_sort::sort_key_for_display_name(&name, ignored);
+        if current.as_deref() == Some(&expected) {
+            continue;
+        }
+        conn.execute(
+            "UPDATE artist SET name_sort = ?1 WHERE server_id = ?2 AND id = ?3",
+            rusqlite::params![expected, server_id, id],
+        )?;
     }
     Ok(())
 }

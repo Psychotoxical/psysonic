@@ -1,11 +1,71 @@
 import { describe, expect, it } from 'vitest';
-import { artistBucketKey, compareBuckets, OTHER_BUCKET, ALPHABET } from './artistsHelpers';
+import {
+  artistBucketKey,
+  artistSortKey,
+  compareBuckets,
+  DEFAULT_IGNORED_ARTICLES,
+  OTHER_BUCKET,
+  ALPHABET,
+  stripLeadingArticles,
+} from './artistsHelpers';
+
+describe('stripLeadingArticles', () => {
+  it('strips The from Beatles', () => {
+    expect(stripLeadingArticles('The Beatles', DEFAULT_IGNORED_ARTICLES)).toBe('Beatles');
+  });
+
+  it('strips The from Kinks', () => {
+    expect(stripLeadingArticles('The Kinks', DEFAULT_IGNORED_ARTICLES)).toBe('Kinks');
+  });
+});
+
+describe('artistSortKey', () => {
+  it('prefers persisted nameSort', () => {
+    expect(artistSortKey('The Beatles', 'beatles')).toBe('beatles');
+  });
+
+  it('strips articles when nameSort missing', () => {
+    expect(artistSortKey('The Beatles')).toBe('beatles');
+  });
+
+  it('does not let stale nameSort override display strip for buckets', () => {
+    expect(artistBucketKey('The Chemical Brothers', 'the chemical brothers')).toBe('C');
+  });
+});
+
+describe('screenshot T-filter artists (Navidrome article rules)', () => {
+  it('keeps Theme/Tossers/Temper/Tiger under T after stripping The', () => {
+    expect(artistBucketKey('The Theme Guys')).toBe('T');
+    expect(artistBucketKey('The Tossers')).toBe('T');
+    expect(artistBucketKey('The Temper Trap')).toBe('T');
+    expect(artistBucketKey('The Tiger Lillies')).toBe('T');
+    expect(artistBucketKey('TV Themes')).toBe('T');
+    expect(artistBucketKey('Tribute To The N...')).toBe('T');
+  });
+
+  it('moves Beatles/Chemical/Cure/Doors out of T', () => {
+    expect(artistBucketKey('The Beatles')).toBe('B');
+    expect(artistBucketKey('The Chemical Brothers')).toBe('C');
+    expect(artistBucketKey('The Cure')).toBe('C');
+    expect(artistBucketKey('The Doors')).toBe('D');
+    expect(artistBucketKey('The Fat Rat')).toBe('F');
+  });
+
+  it('keeps glued TheFatRat under T (no space after article — Navidrome parity)', () => {
+    expect(artistBucketKey('TheFatRat')).toBe('T');
+  });
+});
 
 describe('artistBucketKey', () => {
   it('buckets A–Z names by their uppercased first letter', () => {
     expect(artistBucketKey('Adele')).toBe('A');
     expect(artistBucketKey('zz top')).toBe('Z');
     expect(artistBucketKey('mGla')).toBe('M');
+  });
+
+  it('puts The Beatles under B', () => {
+    expect(artistBucketKey('The Beatles')).toBe('B');
+    expect(artistBucketKey('The Kinks')).toBe('K');
   });
 
   it('puts digit-leading names in #', () => {

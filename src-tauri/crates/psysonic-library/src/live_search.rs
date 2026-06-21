@@ -193,6 +193,7 @@ fn query_artists(
             server_id: r.get(0)?,
             id: r.get(1)?,
             name: r.get::<_, Option<String>>(2)?.unwrap_or_default(),
+            name_sort: None,
             album_count: None,
             synced_at: r.get(3)?,
             raw_json: serde_json::Value::Null,

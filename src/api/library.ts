@@ -80,6 +80,7 @@ export interface SyncStateDto {
   serverLastScanIso?: string | null;
   indexesLastModifiedMs?: number | null;
   artistsLastModifiedMs?: number | null;
+  ignoredArticles?: string | null;
   localTrackCount?: number | null;
   serverTrackCount?: number | null;
   lastError?: string | null;
@@ -237,6 +238,7 @@ export interface LibraryArtistDto {
   serverId: string;
   id: string;
   name: string;
+  nameSort?: string | null;
   albumCount?: number | null;
   syncedAt: number;
   rawJson: unknown;

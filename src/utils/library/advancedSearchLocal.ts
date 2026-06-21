@@ -242,10 +242,17 @@ export function artistToArtist(ar: LibraryArtistDto): SubsonicArtist {
   const base: SubsonicArtist = {
     id: ar.id,
     name: ar.name,
+    nameSort: ar.nameSort ?? undefined,
     albumCount: ar.albumCount ?? undefined,
     coverArt: ar.id,
   };
-  return { ...base, ...(raw as Partial<SubsonicArtist>) };
+  const merged = mergeArtistRawJson(base, raw as Partial<SubsonicArtist>);
+  return merged;
+}
+
+/** Hot columns from SQLite win over sparse `raw_json` (ADR-7). */
+function mergeArtistRawJson(base: SubsonicArtist, raw: Partial<SubsonicArtist>): SubsonicArtist {
+  return { ...raw, ...base };
 }
 
 /**

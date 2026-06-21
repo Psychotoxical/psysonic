@@ -6,21 +6,74 @@ export const ALL_SENTINEL = 'ALL';
 export const OTHER_BUCKET = 'OTHER';
 export const ALPHABET = [ALL_SENTINEL, '#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), OTHER_BUCKET];
 
+/** Navidrome default (`IgnoredArticles` when the server omits the field). */
+export const DEFAULT_IGNORED_ARTICLES = 'The El La Los Las Le Les Os As O A';
+
 /** Stable ordering index for a bucket key — '#' first, A–Z, then 'Other' last. */
 const BUCKET_ORDER = new Map(ALPHABET.map((l, i) => [l, i]));
 
+/** Strip leading articles for sort/bucket keys (Navidrome `RemoveArticle` parity). */
+export function stripLeadingArticles(
+  name: string,
+  ignoredArticles = DEFAULT_IGNORED_ARTICLES,
+): string {
+  const trimmed = name.trim();
+  for (const article of ignoredArticles.split(' ').filter(Boolean)) {
+    const prefix = `${article} `;
+    if (
+      trimmed.length >= prefix.length
+      && trimmed.slice(0, prefix.length).toLowerCase() === prefix.toLowerCase()
+    ) {
+      return trimmed.slice(prefix.length).trimStart();
+    }
+  }
+  return trimmed;
+}
+
+/** Lowercase sort key for SQL `ORDER BY` (may use persisted `nameSort`). */
+export function artistSortKey(
+  displayName: string,
+  nameSort?: string | null,
+  ignoredArticles?: string | null,
+): string {
+  if (nameSort?.trim()) return nameSort.trim();
+  return sortKeyFromDisplayName(displayName, ignoredArticles);
+}
+
+/** Sort key from display name only — article strip, no persisted override. */
+export function sortKeyFromDisplayName(
+  displayName: string,
+  ignoredArticles?: string | null,
+): string {
+  const articles = ignoredArticles?.trim() || DEFAULT_IGNORED_ARTICLES;
+  return stripLeadingArticles(displayName, articles).toLowerCase();
+}
+
 /**
- * Bucket an artist name into the alphabet index:
+ * Bucket an artist into the alphabet index (after article stripping on display name):
  *  - `#`      → starts with a digit (0–9)
- *  - `A`–`Z`  → starts with an ASCII letter
+ *  - `A`–`Z`  → starts with an ASCII letter on the sort key
  *  - `OTHER`  → anything else (accents, CJK, Cyrillic, symbols, empty)
  */
-export function artistBucketKey(name: string): string {
-  const first = name?.trim()?.[0];
+export function artistBucketKey(
+  name: string,
+  _nameSort?: string | null,
+  ignoredArticles?: string | null,
+): string {
+  const sortKey = sortKeyFromDisplayName(name, ignoredArticles);
+  const first = sortKey?.[0];
   if (!first) return OTHER_BUCKET;
   if (/^[0-9]$/.test(first)) return '#';
   const up = first.toUpperCase();
   return /^[A-Z]$/.test(up) ? up : OTHER_BUCKET;
+}
+
+/** Letter bucket for a browse row (display `name` + optional persisted `nameSort`). */
+export function artistLetterBucket(
+  artist: SubsonicArtist,
+  ignoredArticles?: string | null,
+): string {
+  return artistBucketKey(artist.name, artist.nameSort, ignoredArticles);
 }
 
 /** Sort comparator for bucket keys following ALPHABET order (unknown keys last). */
