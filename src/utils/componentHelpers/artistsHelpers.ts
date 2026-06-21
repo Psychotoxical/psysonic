@@ -30,17 +30,7 @@ export function stripLeadingArticles(
   return trimmed;
 }
 
-/** Lowercase sort key for SQL `ORDER BY` (may use persisted `nameSort`). */
-export function artistSortKey(
-  displayName: string,
-  nameSort?: string | null,
-  ignoredArticles?: string | null,
-): string {
-  if (nameSort?.trim()) return nameSort.trim();
-  return sortKeyFromDisplayName(displayName, ignoredArticles);
-}
-
-/** Sort key from display name only — article strip, no persisted override. */
+/** Sort key from display name — article strip + lowercase (Navidrome parity). */
 export function sortKeyFromDisplayName(
   displayName: string,
   ignoredArticles?: string | null,
@@ -50,14 +40,16 @@ export function sortKeyFromDisplayName(
 }
 
 /**
- * Bucket an artist into the alphabet index (after article stripping on display name):
+ * Bucket an artist name into the alphabet index (after article stripping):
  *  - `#`      → starts with a digit (0–9)
  *  - `A`–`Z`  → starts with an ASCII letter on the sort key
  *  - `OTHER`  → anything else (accents, CJK, Cyrillic, symbols, empty)
+ *
+ * Buckets always derive from the display `name` + `ignoredArticles`, never the
+ * persisted `nameSort` (which can lag a renamed artist until the next reconcile).
  */
 export function artistBucketKey(
   name: string,
-  _nameSort?: string | null,
   ignoredArticles?: string | null,
 ): string {
   const sortKey = sortKeyFromDisplayName(name, ignoredArticles);
@@ -68,12 +60,12 @@ export function artistBucketKey(
   return /^[A-Z]$/.test(up) ? up : OTHER_BUCKET;
 }
 
-/** Letter bucket for a browse row (display `name` + optional persisted `nameSort`). */
+/** Letter bucket for a browse row — uses the server's `ignoredArticles` when known. */
 export function artistLetterBucket(
   artist: SubsonicArtist,
   ignoredArticles?: string | null,
 ): string {
-  return artistBucketKey(artist.name, artist.nameSort, ignoredArticles);
+  return artistBucketKey(artist.name, ignoredArticles);
 }
 
 /** Sort comparator for bucket keys following ALPHABET order (unknown keys last). */

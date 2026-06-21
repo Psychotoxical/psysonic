@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   artistBucketKey,
-  artistSortKey,
+  artistLetterBucket,
   compareBuckets,
   DEFAULT_IGNORED_ARTICLES,
   OTHER_BUCKET,
   ALPHABET,
+  sortKeyFromDisplayName,
   stripLeadingArticles,
 } from './artistsHelpers';
 
@@ -17,19 +18,27 @@ describe('stripLeadingArticles', () => {
   it('strips The from Kinks', () => {
     expect(stripLeadingArticles('The Kinks', DEFAULT_IGNORED_ARTICLES)).toBe('Kinks');
   });
+
+  it('honours a custom ignoredArticles list', () => {
+    expect(stripLeadingArticles('Los Lobos', 'Los')).toBe('Lobos');
+  });
 });
 
-describe('artistSortKey', () => {
-  it('prefers persisted nameSort', () => {
-    expect(artistSortKey('The Beatles', 'beatles')).toBe('beatles');
+describe('sortKeyFromDisplayName', () => {
+  it('strips articles and lowercases', () => {
+    expect(sortKeyFromDisplayName('The Beatles')).toBe('beatles');
+  });
+});
+
+describe('artistLetterBucket', () => {
+  it('buckets a browse row by its display name, ignoring stale nameSort', () => {
+    const artist = { id: '1', name: 'The Chemical Brothers', nameSort: 'the chemical brothers' };
+    expect(artistLetterBucket(artist)).toBe('C');
   });
 
-  it('strips articles when nameSort missing', () => {
-    expect(artistSortKey('The Beatles')).toBe('beatles');
-  });
-
-  it('does not let stale nameSort override display strip for buckets', () => {
-    expect(artistBucketKey('The Chemical Brothers', 'the chemical brothers')).toBe('C');
+  it('uses a server ignoredArticles override when supplied', () => {
+    const artist = { id: '2', name: 'Los Lobos' };
+    expect(artistLetterBucket(artist, 'Los')).toBe('L');
   });
 });
 
