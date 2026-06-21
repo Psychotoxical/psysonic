@@ -164,8 +164,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1145](https://github.com/Psychotoxical/psysonic/pull/1145)**, closes [#1144](https://github.com/Psychotoxical/psysonic/issues/1144)
 
-* On the **Artists** page (and **Composers**), the A–Z filter now groups names like Navidrome: leading articles such as **The** are skipped before picking the letter — **The Beatles** lands under **B**, not **T**.
-* The local library index stores `name_sort` and the server's `ignoredArticles` from `getArtists`, sorts browse SQL by the sort key, and repairs stale keys on upgrade.
+* On the **Artists** page (and **Composers**), the A–Z filter now groups names like Navidrome: leading articles such as **The** are skipped before picking the letter — **The Beatles** lands under **B**, not **T**. The bucket follows the server's own `ignoredArticles` list when the local index knows it.
+* The local library index stores `name_sort` and the server's `ignoredArticles` from `getArtists`, sorts browse SQL by the sort key (now indexed), and repairs stale keys once on upgrade.
+
+### Library index — safer open, swap and recovery
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1145](https://github.com/Psychotoxical/psysonic/pull/1145)**
+
+* The local library database now opens, swaps and restores through one pipeline, so a swapped or restored file always picks up pending migrations and one-time repairs instead of serving a stale schema.
+* A panic or a poisoned lock in one query no longer wedges the whole library index — connections recover and report the error instead, and the new sort-key migration applies idempotently so a half-applied upgrade self-heals on the next launch.
 
 ## [1.48.1] - 2026-06-15
 
