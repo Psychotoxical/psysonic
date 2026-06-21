@@ -9,6 +9,9 @@ use tauri::Manager;
 
 /// Current head of the embedded migrations. Bump each time a new
 /// `migrations/NNN_*.sql` is added.
+///
+/// Migration checklist (wiring, data backfill, open/swap path):
+/// psysonic-workdocs `ai/agent-rules/08-library-db-migrations.md`.
 pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 14;
 
 /// One-time data repair after migration 014 (`artist.name_sort`).
