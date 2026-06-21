@@ -4,12 +4,15 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use rusqlite::{params, Connection, OpenFlags};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use tauri::Manager;
 
 /// Current head of the embedded migrations. Bump each time a new
 /// `migrations/NNN_*.sql` is added.
 pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 14;
+
+/// One-time data repair after migration 014 (`artist.name_sort`).
+pub(crate) const ARTIST_NAME_SORT_RECONCILE_ID: &str = "artist_name_sort_reconcile_v1";
 
 /// Lowest applied schema version the current code can advance from purely
 /// additively. If a DB carries a version below this, the breaking-bump hook
@@ -86,11 +89,7 @@ impl LibraryStore {
 
     fn open_file(db_path: &Path) -> Result<Self, String> {
         let write_conn = Connection::open(db_path).map_err(|e| e.to_string())?;
-        configure_write_connection(&write_conn).map_err(|e| e.to_string())?;
-        run_migrations(&write_conn).map_err(|e| e.to_string())?;
-        repair_artist_name_sort_keys(&write_conn).map_err(|e| e.to_string())?;
-        ensure_genre_tags_schema(&write_conn).map_err(|e| e.to_string())?;
-        checkpoint_wal_conn(&write_conn, "open").map_err(|e| e.to_string())?;
+        prepare_write_connection_for_open(&write_conn).map_err(|e| e.to_string())?;
         let read_conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
             .map_err(|e| e.to_string())?;
         configure_read_connection(&read_conn).map_err(|e| e.to_string())?;
@@ -106,9 +105,7 @@ impl LibraryStore {
         let uri = in_memory_uri();
         let write_conn = Connection::open(&uri).expect("in-memory write connection");
         configure_write_connection(&write_conn).expect("write pragmas");
-        run_migrations(&write_conn).expect("schema migration");
-        repair_artist_name_sort_keys(&write_conn).expect("artist name_sort repair");
-        ensure_genre_tags_schema(&write_conn).expect("genre tags schema");
+        prepare_write_connection_for_open(&write_conn).expect("schema migration");
         let read_conn = Connection::open(&uri).expect("in-memory read connection");
         configure_read_connection(&read_conn).expect("read pragmas");
         Self {
@@ -245,11 +242,8 @@ impl LibraryStore {
             return Err(err.to_string());
         }
 
-        let reopened_write = Connection::open(active_path).map_err(|e| e.to_string())?;
-        configure_write_connection(&reopened_write).map_err(|e| e.to_string())?;
-        let reopened_read = Connection::open_with_flags(active_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .map_err(|e| e.to_string())?;
-        configure_read_connection(&reopened_read).map_err(|e| e.to_string())?;
+        let (reopened_write, reopened_read) =
+            open_database_connections(active_path).map_err(|e| e.to_string())?;
         *write_conn = reopened_write;
         *read_conn = reopened_read;
         Ok(Some(backup))
@@ -281,11 +275,8 @@ impl LibraryStore {
             move_sidecar(backup_path, active_path, "-shm")?;
         }
 
-        let reopened_write = Connection::open(active_path).map_err(|e| e.to_string())?;
-        configure_write_connection(&reopened_write).map_err(|e| e.to_string())?;
-        let reopened_read = Connection::open_with_flags(active_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .map_err(|e| e.to_string())?;
-        configure_read_connection(&reopened_read).map_err(|e| e.to_string())?;
+        let (reopened_write, reopened_read) =
+            open_database_connections(active_path).map_err(|e| e.to_string())?;
         *write_conn = reopened_write;
         *read_conn = reopened_read;
         Ok(())
@@ -434,6 +425,69 @@ fn checkpoint_wal_conn(conn: &Connection, op: &str) -> rusqlite::Result<()> {
     Ok(())
 }
 
+/// Open write + read handles after migrations, one-time repairs, and WAL checkpoint.
+fn open_database_connections(db_path: &Path) -> rusqlite::Result<(Connection, Connection)> {
+    let write_conn = Connection::open(db_path)?;
+    configure_write_connection(&write_conn)?;
+    prepare_write_connection_for_open(&write_conn)?;
+    let read_conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+    configure_read_connection(&read_conn)?;
+    Ok((write_conn, read_conn))
+}
+
+fn prepare_write_connection_for_open(conn: &Connection) -> rusqlite::Result<()> {
+    run_migrations(conn)?;
+    maybe_reconcile_artist_name_sort(conn)?;
+    ensure_genre_tags_schema(conn)?;
+    checkpoint_wal_conn(conn, "open")?;
+    Ok(())
+}
+
+fn artist_name_sort_column_exists(conn: &Connection) -> rusqlite::Result<bool> {
+    let column_exists: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('artist') WHERE name = 'name_sort'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+    Ok(column_exists > 0)
+}
+
+fn artist_name_sort_reconcile_completed(conn: &Connection) -> rusqlite::Result<bool> {
+    let completed: Option<Option<i64>> = conn
+        .query_row(
+            "SELECT completed_at FROM library_data_migration WHERE id = ?1",
+            params![ARTIST_NAME_SORT_RECONCILE_ID],
+            |row| row.get(0),
+        )
+        .optional()?;
+    Ok(completed.flatten().is_some())
+}
+
+fn mark_artist_name_sort_reconcile_completed(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO library_data_migration (id, cursor_rowid, started_at, completed_at) \
+         VALUES (?1, 0, strftime('%s','now'), strftime('%s','now')) \
+         ON CONFLICT(id) DO UPDATE SET completed_at = excluded.completed_at",
+        params![ARTIST_NAME_SORT_RECONCILE_ID],
+    )?;
+    Ok(())
+}
+
+/// One-time reconcile after schema 014 — not on every open (avoids long write locks at startup).
+fn maybe_reconcile_artist_name_sort(conn: &Connection) -> rusqlite::Result<()> {
+    if !artist_name_sort_column_exists(conn)? {
+        return Ok(());
+    }
+    if artist_name_sort_reconcile_completed(conn)? {
+        return Ok(());
+    }
+    repair_artist_name_sort_keys(conn)?;
+    mark_artist_name_sort_reconcile_completed(conn)?;
+    Ok(())
+}
+
 /// Reconcile `artist.name_sort` with display `name` (upgrade / stale rows).
 fn repair_artist_name_sort_keys(conn: &Connection) -> rusqlite::Result<()> {
     let table_exists: i64 = conn
@@ -446,38 +500,30 @@ fn repair_artist_name_sort_keys(conn: &Connection) -> rusqlite::Result<()> {
     if table_exists == 0 {
         return Ok(());
     }
-    let column_exists: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM pragma_table_info('artist') WHERE name = 'name_sort'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
-    if column_exists == 0 {
+    if !artist_name_sort_column_exists(conn)? {
         return Ok(());
     }
     let ignored = crate::artist_sort::DEFAULT_IGNORED_ARTICLES;
-    let mut stmt = conn.prepare("SELECT server_id, id, name, name_sort FROM artist")?;
-    let rows = stmt
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, Option<String>>(3)?,
-            ))
-        })?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    for (server_id, id, name, current) in rows {
-        let expected = crate::artist_sort::sort_key_for_display_name(&name, ignored);
-        if current.as_deref() == Some(&expected) {
-            continue;
+    let tx = conn.unchecked_transaction()?;
+    {
+        let mut stmt = tx.prepare("SELECT server_id, id, name, name_sort FROM artist")?;
+        let mut rows = stmt.query([])?;
+        while let Some(row) = rows.next()? {
+            let server_id: String = row.get(0)?;
+            let id: String = row.get(1)?;
+            let name: String = row.get(2)?;
+            let current: Option<String> = row.get(3)?;
+            let expected = crate::artist_sort::sort_key_for_display_name(&name, ignored);
+            if current.as_deref() == Some(&expected) {
+                continue;
+            }
+            tx.execute(
+                "UPDATE artist SET name_sort = ?1 WHERE server_id = ?2 AND id = ?3",
+                rusqlite::params![expected, server_id, id],
+            )?;
         }
-        conn.execute(
-            "UPDATE artist SET name_sort = ?1 WHERE server_id = ?2 AND id = ?3",
-            rusqlite::params![expected, server_id, id],
-        )?;
     }
+    tx.commit()?;
     Ok(())
 }
 
@@ -530,6 +576,10 @@ pub(crate) fn run_migrations_with(
             continue;
         }
         conn.execute_batch(sql)?;
+        if version == 14 {
+            repair_artist_name_sort_keys(conn)?;
+            mark_artist_name_sort_reconcile_completed(conn)?;
+        }
         conn.execute(
             "INSERT INTO schema_migrations (version, applied_at) VALUES (?1, strftime('%s','now'))",
             params![version],
@@ -833,5 +883,65 @@ mod tests {
         )
         .unwrap();
         assert_eq!(outcome, MigrationOutcome::Applied);
+    }
+
+    #[test]
+    fn artist_name_sort_reconcile_runs_once_and_sets_name_sort() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn_mut("test.seed_artist", |conn| {
+                conn.execute(
+                    "INSERT INTO artist (server_id, id, name, name_sort, synced_at) \
+                     VALUES ('s1', 'ar1', 'The Beatles', 'the beatles', 1)",
+                    [],
+                )?;
+                conn.execute(
+                    "DELETE FROM library_data_migration WHERE id = ?1",
+                    params![ARTIST_NAME_SORT_RECONCILE_ID],
+                )?;
+                Ok(())
+            })
+            .expect("seed artist");
+
+        store
+            .with_conn("test.reconcile", maybe_reconcile_artist_name_sort)
+            .expect("reconcile");
+
+        let name_sort: String = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT name_sort FROM artist WHERE server_id = 's1' AND id = 'ar1'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .expect("read name_sort");
+        assert_eq!(name_sort, "beatles");
+
+        let completed_before: i64 = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT completed_at FROM library_data_migration WHERE id = ?1",
+                    params![ARTIST_NAME_SORT_RECONCILE_ID],
+                    |r| r.get(0),
+                )
+            })
+            .expect("reconcile marker");
+        assert!(completed_before > 0);
+
+        store
+            .with_conn("test.reconcile_again", maybe_reconcile_artist_name_sort)
+            .expect("reconcile again");
+
+        let name_sort_after: String = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT name_sort FROM artist WHERE server_id = 's1' AND id = 'ar1'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .expect("read name_sort again");
+        assert_eq!(name_sort_after, "beatles");
     }
 }
