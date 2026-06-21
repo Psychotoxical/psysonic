@@ -11,6 +11,7 @@ export const settings = {
   languageEs: 'Spaniolă',
   languageRo: 'Română',
   languageJa: '日本語',
+  languageHu: 'Magyar',
   font: 'Font',
   fontHintOpenDyslexic: 'Prietenos cu dislexia · Chineza nu este suportată',
   theme: 'Temă',

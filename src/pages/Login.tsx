@@ -246,6 +246,7 @@ export default function Login() {
               { value: 'ru', label: t('settings.languageRu') },
               { value: 'zh', label: t('settings.languageZh') },
               { value: 'ja', label: t('settings.languageJa') },
+              { value: 'hu', label: t('settings.languageHu') },
             ]}
           />
         </div>
