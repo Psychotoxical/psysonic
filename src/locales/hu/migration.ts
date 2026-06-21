@@ -1,0 +1,15 @@
+export const migration = {
+  preparing: 'Adatfrissítés előkészítése…',
+  preparingBody: 'A könyvtár és az elemzési gyorsítótár vizsgálata…',
+  migrating: 'Adatok átköltöztetése',
+  working: 'folyamatban…',
+  skippedRows: 'Az eltávolított szerverekhez tartozó sorok kihagyva; a régi biztonsági másolat adatbázisa a sikeres váltás után törlődik.',
+  failed: 'Az átköltöztetés nem sikerült',
+  retry: 'Újra',
+  copyDetails: 'Részletek másolása',
+  complete: 'A frissítés kész',
+  completeRows: '{{count}} sor átköltöztetve',
+  genreTagsTitle: 'Műfajindex frissítése…',
+  genreTagsBody: 'Műfajok indexelése a böngészéshez és a szűrőkhöz. Ez frissítés után egyszer fut le.',
+  genreTagsFailed: 'A műfajindex frissítése nem sikerült',
+};

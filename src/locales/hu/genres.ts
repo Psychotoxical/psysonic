@@ -1,0 +1,15 @@
+export const genres = {
+  title: 'Műfajok',
+  genreCount: 'Műfaj',
+  albumCount_one: '{{count}} album',
+  albumCount_other: '{{count}} album',
+  loading: 'Műfajok betöltése…',
+  empty: 'Nem található műfaj.',
+  albumsLoading: 'Albumok betöltése…',
+  albumsEmpty: 'Nem található album ehhez a műfajhoz.',
+  loadMore: 'Több betöltése',
+  back: 'Vissza',
+  playTooltip: 'Lejátszás (tartsd nyomva a keveréshez)',
+  shuffle: 'Keverés',
+  addToQueue: 'Hozzáadás a sorhoz',
+};
