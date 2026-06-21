@@ -167,7 +167,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * On the **Artists** page (and **Composers**), the A–Z filter now groups names like Navidrome: leading articles such as **The** are skipped before picking the letter — **The Beatles** lands under **B**, not **T**.
 * The local library index stores `name_sort` and the server's `ignoredArticles` from `getArtists`, sorts browse SQL by the sort key, and repairs stale keys on upgrade.
 
-
 ## [1.48.1] - 2026-06-15
 
 ## Fixed
