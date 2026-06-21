@@ -55,7 +55,12 @@ export default function Equalizer() {
     return () => details.removeEventListener('toggle', onToggle);
   }, [redraw]);
 
-  const isCustomSaved = activePreset && !BUILTIN_PRESETS.some(p => p.name === activePreset);
+  const isCustomSaved = activePreset !== null && customPresets.some(p => p.name === activePreset);
+  const isBuiltin = activePreset !== null && BUILTIN_PRESETS.some(p => p.name === activePreset);
+  // AutoEQ profiles store the headphone name in activePreset, which is neither a
+  // built-in nor a saved custom preset — surface it in the picker so the active
+  // profile name stays visible after the lookup clears.
+  const isAutoEq = activePreset !== null && !isBuiltin && !isCustomSaved;
   const selectValue = activePreset ?? '__custom__';
 
   const handleSave = () => {
@@ -85,6 +90,7 @@ export default function Equalizer() {
             onChange={v => applyPreset(v)}
             options={[
               ...(activePreset === null ? [{ value: '__custom__', label: t('settings.eqPresetCustom'), disabled: true }] : []),
+              ...(isAutoEq ? [{ value: activePreset!, label: activePreset!, group: t('settings.eqPresetAutoEqGroup') }] : []),
               ...BUILTIN_PRESETS.map(p => ({ value: p.name, label: p.name, group: t('settings.eqPresetBuiltin') })),
               ...customPresets.map(p => ({ value: p.name, label: p.name, group: t('settings.eqPresetCustomGroup') })),
             ]}

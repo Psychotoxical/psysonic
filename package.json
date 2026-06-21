@@ -69,5 +69,8 @@
     "typescript": "^6.0.3",
     "vite": "^8.0.14",
     "vitest": "^4.1.8"
+  },
+  "overrides": {
+    "undici": "^7.28.0"
   }
 }

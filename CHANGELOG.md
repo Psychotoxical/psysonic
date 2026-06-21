@@ -62,6 +62,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * New opt-in **External Artwork Scraper** (Settings → Integrations, off by default): artist imagery from fanart.tv — a 16:9 background on the fullscreen player and a wide banner on the artist page — with Navidrome staying the canonical cover. Optional personal key; turning it off removes the fetched images again.
 
+### Remember the equalizer per audio output device
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1146](https://github.com/Psychotoxical/psysonic/pull/1146)**, suggested by [@JustBuddy](https://github.com/JustBuddy)
+
+* New opt-in **Remember EQ per device** toggle (Settings → Audio → Audio Output Device, off by default): the equalizer profile — bands, pre-gain, enabled state and active preset — is saved per audio output device and restored automatically when you switch devices.
+
+### Hungarian translation
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1149](https://github.com/Psychotoxical/psysonic/pull/1149)**, a gift to [@falu](https://github.com/falu) for the first independent review of Psysonic
+
+* Psysonic is now available in **Hungarian (Magyar)** — pick it from the language menu on the Settings and Login screens.
+
 
 ## Changed
 
@@ -173,6 +185,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The local library database now opens, swaps and restores through one pipeline, so a swapped or restored file always picks up pending migrations and one-time repairs instead of serving a stale schema.
 * A panic or a poisoned lock in one query no longer wedges the whole library index — connections recover and report the error instead, and the new sort-key migration applies idempotently so a half-applied upgrade self-heals on the next launch.
+
+### Equalizer — the active AutoEQ profile name stays visible
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1147](https://github.com/Psychotoxical/psysonic/pull/1147)**
+
+* After applying an AutoEQ headphone profile, the preset picker now shows the profile name under an AutoEQ group instead of going blank, and the delete button no longer appears for AutoEQ profiles (where it did nothing).
 
 ### All Albums — compilation and favorites filters
 

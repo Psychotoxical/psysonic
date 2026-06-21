@@ -21,6 +21,14 @@ export interface EqPreset {
   builtin: boolean;
 }
 
+/** The per-device-storable slice of the EQ (everything except the global preset list). */
+export interface EqSnapshot {
+  gains: number[];
+  enabled: boolean;
+  preGain: number;
+  activePreset: string | null;
+}
+
 export const BUILTIN_PRESETS: EqPreset[] = [
   { name: 'Flat',        builtin: true, gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
   { name: 'Bass Boost',  builtin: true, gains: [6, 5, 4, 2, 0, 0, 0, 0, 0, 0] },
@@ -41,6 +49,11 @@ interface EqState {
   activePreset: string | null;
   customPresets: EqPreset[];
 
+  /** Opt-in: remember the EQ profile per audio output device (default off). */
+  rememberPerDevice: boolean;
+  /** Saved EQ snapshot per device key (canonical device name; '__default__' = system default). */
+  byDevice: Record<string, EqSnapshot>;
+
   setBandGain: (index: number, gain: number) => void;
   setEnabled: (v: boolean) => void;
   setPreGain: (v: number) => void;
@@ -49,6 +62,12 @@ interface EqState {
   saveCustomPreset: (name: string) => void;
   deleteCustomPreset: (name: string) => void;
   syncToRust: () => void;
+
+  setRememberPerDevice: (v: boolean) => void;
+  /** Apply a saved snapshot to the live EQ (clamped) and push it to Rust. */
+  applySnapshot: (snap: EqSnapshot) => void;
+  /** Capture the current live EQ into `byDevice[deviceKey]`. */
+  saveSnapshotFor: (deviceKey: string) => void;
 }
 
 function syncEq(gains: number[], enabled: boolean, preGain: number) {
@@ -63,6 +82,8 @@ export const useEqStore = create<EqState>()(
       preGain: 0,
       activePreset: 'Flat',
       customPresets: [],
+      rememberPerDevice: false,
+      byDevice: {},
 
       setBandGain: (index, gain) => {
         const clamped = Math.max(-12, Math.min(12, gain));
@@ -115,6 +136,22 @@ export const useEqStore = create<EqState>()(
         const { gains, enabled, preGain } = get();
         syncEq(gains, enabled, preGain);
       },
+
+      setRememberPerDevice: (v) => set({ rememberPerDevice: v }),
+
+      applySnapshot: (snap) => {
+        const gains = snap.gains.map(g => Math.max(-12, Math.min(12, g)));
+        const preGain = Math.max(-30, Math.min(6, snap.preGain));
+        set({ gains, enabled: snap.enabled, preGain, activePreset: snap.activePreset });
+        syncEq(gains, snap.enabled, preGain);
+      },
+
+      saveSnapshotFor: (deviceKey) => {
+        const { gains, enabled, preGain, activePreset } = get();
+        set(s => ({
+          byDevice: { ...s.byDevice, [deviceKey]: { gains: [...gains], enabled, preGain, activePreset } },
+        }));
+      },
     }),
     {
       name: 'psysonic-eq',
@@ -125,6 +162,8 @@ export const useEqStore = create<EqState>()(
         preGain: s.preGain,
         activePreset: s.activePreset,
         customPresets: s.customPresets,
+        rememberPerDevice: s.rememberPerDevice,
+        byDevice: s.byDevice,
       }),
     }
   )

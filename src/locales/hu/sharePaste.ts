@@ -1,0 +1,20 @@
+export const sharePaste = {
+  notLoggedIn: 'Jelentkezz be és add hozzá a szervert, mielőtt megosztási linket illesztesz be.',
+  noMatchingServer: 'Egyik mentett szerver sem egyezik ezzel a linkkel. Adj hozzá egy szervert ezzel a címmel: {{url}}',
+  trackUnavailable: 'Ez a szám nem található a szerveren.',
+  albumUnavailable: 'Ez az album nem található a szerveren.',
+  artistUnavailable: 'Ez az előadó nem található a szerveren.',
+  composerUnavailable: 'Ez a zeneszerző nem található a szerveren.',
+  openedTrack: 'Megosztott szám lejátszása.',
+  openedAlbum: 'Megosztott album megnyitása.',
+  openedArtist: 'Megosztott előadó megnyitása.',
+  openedComposer: 'Megosztott zeneszerző megnyitása.',
+  openedQueue_one: '{{count}} szám lejátszása a megosztási linkről.',
+  openedQueue_other: '{{count}} szám lejátszása a megosztási linkről.',
+  openedQueuePartial:
+    '{{played}}/{{total}} szám lejátszása a linkről ({{skipped}} nem található ezen a szerveren).',
+  queueAllUnavailable: 'A link egyetlen száma sem található a szerveren.',
+  playQueue: 'Sor lejátszása',
+  playQueueing: 'Lejátszás indítása…',
+  genericError: 'A megosztási link megnyitása nem sikerült.',
+};

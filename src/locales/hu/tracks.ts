@@ -1,0 +1,16 @@
+export const tracks = {
+  title: 'Számok',
+  subtitle: 'Böngéssz. Keress. Fedezz fel.',
+  heroEyebrow: 'A pillanat száma',
+  heroReroll: 'Válassz másikat',
+  playSong: 'Lejátszás',
+  enqueueSong: 'Hozzáadás a sorhoz',
+  toAlbum: 'Az albumhoz',
+  railRandom: 'Véletlen választás',
+  railHighlyRated: 'Magasra értékelt',
+  browseTitle: 'Összes szám böngészése',
+  browseUnsupported: 'Ez a szerver nem listázza a teljes könyvtárat egyszerre. Használd a fenti keresőt konkrét számok megtalálásához.',
+  searchPlaceholder: 'Szám keresése cím, előadó vagy album szerint…',
+  count_one: '{{count}} szám',
+  count_other: '{{count}} szám',
+};

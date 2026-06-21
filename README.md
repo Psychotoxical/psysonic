@@ -18,7 +18,7 @@ Psysonic is built primarily for **Navidrome** and also works with **Gonic**, **A
 
 <br><br>
 
-**Available languages:** English, German, Spanish, French, Norwegian Bokmål, Dutch, Romanian, Russian, Chinese and Japanese.
+**Available languages:** English, German, Spanish, French, Norwegian Bokmål, Dutch, Romanian, Russian, Chinese, Japanese and Hungarian.
 
 More translations are added over time.
 
@@ -160,6 +160,9 @@ install via Windows Package Manager (WinGet):
 ```powershell
 winget install Psysonic
 ```
+
+You can also browse and install it on [winstall.app](https://winstall.app/apps/Psychotoxical.Psysonic).
+
 ## macOS
 
 Download the signed DMG from the [GitHub Releases](https://github.com/Psychotoxical/psysonic/releases/latest).
@@ -195,6 +198,12 @@ Psysonic is built for self-hosted music collections. Your library is yours.
 * No hidden tracking
 
 See [TELEMETRY.md](TELEMETRY.md) for the telemetry stance and [PRIVACY.md](PRIVACY.md) for how each opt-in integration handles data.
+
+---
+
+# Reviews
+
+* [An independent review at falu.github.io](https://falu.github.io/2026/06/19/psysonic.html)
 
 ---
 
