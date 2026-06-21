@@ -198,6 +198,12 @@ See [TELEMETRY.md](TELEMETRY.md) for the telemetry stance and [PRIVACY.md](PRIVA
 
 ---
 
+# Reviews
+
+* [An independent review at falu.github.io](https://falu.github.io/2026/06/19/psysonic.html)
+
+---
+
 # Community & Support
 
 Join the community, report bugs, suggest features, share themes and help shape the future of Psysonic.
