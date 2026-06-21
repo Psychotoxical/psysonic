@@ -4,6 +4,7 @@ import { setupAuthSync } from './audioListenerSetup/authSyncListener';
 import { setupMprisSync } from './audioListenerSetup/mprisSync';
 import { setupRadioMprisMetadata } from './audioListenerSetup/radioMprisMetadata';
 import { setupDiscordPresence } from './audioListenerSetup/discordPresence';
+import { setupEqDeviceSync } from './audioListenerSetup/eqDeviceSync';
 
 /**
  * Set up Tauri event listeners for the Rust audio engine.
@@ -21,6 +22,7 @@ export function initAudioListeners(): () => void {
   const stopMprisSync = setupMprisSync();
   const stopRadioMprisMetadata = setupRadioMprisMetadata();
   const stopDiscordPresence = setupDiscordPresence();
+  const stopEqDeviceSync = setupEqDeviceSync();
 
   return () => {
     stopAuthSync();
@@ -28,5 +30,6 @@ export function initAudioListeners(): () => void {
     stopDiscordPresence();
     stopEngineListeners();
     stopRadioMprisMetadata();
+    stopEqDeviceSync();
   };
 }

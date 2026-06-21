@@ -5,7 +5,9 @@ import type { TFunction } from 'i18next';
 import CustomSelect from '../../CustomSelect';
 import SettingsSubSection from '../../SettingsSubSection';
 import { SettingsGroup } from '../SettingsGroup';
+import { SettingsToggle } from '../SettingsToggle';
 import { useAuthStore } from '../../../store/authStore';
+import { useEqStore } from '../../../store/eqStore';
 import { buildAudioDeviceSelectOptions } from '../../../utils/audio/audioDeviceLabels';
 
 interface Props {
@@ -37,6 +39,8 @@ export function AudioOutputDeviceSection({
 }: Props) {
   const audioOutputDevice = useAuthStore(s => s.audioOutputDevice);
   const setAudioOutputDevice = useAuthStore(s => s.setAudioOutputDevice);
+  const rememberEqPerDevice = useEqStore(s => s.rememberPerDevice);
+  const setRememberEqPerDevice = useEqStore(s => s.setRememberPerDevice);
 
   return (
     <SettingsSubSection
@@ -80,6 +84,15 @@ export function AudioOutputDeviceSection({
               <RotateCcw size={15} className={devicesLoading ? 'spin' : ''} />
             </button>
           </div>
+        </SettingsGroup>
+        <SettingsGroup>
+          <SettingsToggle
+            label={t('settings.audioOutputDeviceRememberEq')}
+            desc={t('settings.audioOutputDeviceRememberEqDesc')}
+            checked={rememberEqPerDevice}
+            onChange={setRememberEqPerDevice}
+            searchText={t('settings.audioOutputDeviceRememberEq')}
+          />
         </SettingsGroup>
       </div>
     </SettingsSubSection>

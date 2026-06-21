@@ -62,6 +62,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * New opt-in **External Artwork Scraper** (Settings → Integrations, off by default): artist imagery from fanart.tv — a 16:9 background on the fullscreen player and a wide banner on the artist page — with Navidrome staying the canonical cover. Optional personal key; turning it off removes the fetched images again.
 
+### Remember the equalizer per audio output device
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1146](https://github.com/Psychotoxical/psysonic/pull/1146)**, suggested by [@JustBuddy](https://github.com/JustBuddy)
+
+* New opt-in **Remember EQ per device** toggle (Settings → Audio → Audio Output Device, off by default): the equalizer profile — bands, pre-gain, enabled state and active preset — is saved per audio output device and restored automatically when you switch devices.
+
 
 ## Changed
 
