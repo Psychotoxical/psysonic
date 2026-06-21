@@ -616,8 +616,20 @@ fn sync_state_ignored_articles_column_exists(conn: &Connection) -> rusqlite::Res
     Ok(column_exists > 0)
 }
 
-fn migration_14_schema_present(conn: &Connection) -> rusqlite::Result<bool> {
-    Ok(artist_name_sort_column_exists(conn)? && sync_state_ignored_articles_column_exists(conn)?)
+/// Apply schema 014 idempotently — mirrors `migrations/014_artist_name_sort.sql`
+/// but tolerates a partial prior apply (missing one column / re-run).
+fn apply_migration_14(conn: &Connection) -> rusqlite::Result<()> {
+    if !artist_name_sort_column_exists(conn)? {
+        conn.execute_batch("ALTER TABLE artist ADD COLUMN name_sort TEXT;")?;
+    }
+    if !sync_state_ignored_articles_column_exists(conn)? {
+        conn.execute_batch("ALTER TABLE sync_state ADD COLUMN ignored_articles TEXT;")?;
+    }
+    conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_artist_name_sort ON artist(server_id, name_sort);",
+    )?;
+    finish_migration_14_reconcile(conn)?;
+    Ok(())
 }
 
 fn record_schema_migration(conn: &Connection, version: i64) -> rusqlite::Result<()> {
@@ -757,16 +769,16 @@ pub(crate) fn run_migrations_with(
         if already > 0 {
             continue;
         }
-        if version == 14 && migration_14_schema_present(conn)? {
-            // Partial apply recovery — DDL landed without schema_migrations row.
-            finish_migration_14_reconcile(conn)?;
+        if version == 14 {
+            // Applied idempotently (per-column ADD + IF NOT EXISTS index) so a
+            // partial DDL apply — one ALTER landed before a crash, no
+            // schema_migrations row — recovers instead of failing on a
+            // duplicate-column re-run of the batch.
+            apply_migration_14(conn)?;
             record_schema_migration(conn, version)?;
             continue;
         }
         conn.execute_batch(sql)?;
-        if version == 14 {
-            finish_migration_14_reconcile(conn)?;
-        }
         record_schema_migration(conn, version)?;
     }
     Ok(MigrationOutcome::Applied)

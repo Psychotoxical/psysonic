@@ -1228,13 +1228,7 @@ fn is_empty_cursor(v: &Value) -> bool {
     matches!(v, Value::Object(o) if o.is_empty())
 }
 
-fn now_unix_ms() -> i64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis().min(i64::MAX as u128) as i64)
-        .unwrap_or(0)
-}
+use super::now_unix_ms;
 
 /// Wrap an async closure in §6.8 backoff. Retries on `SyncError::Transport`
 /// up to `MAX_ATTEMPTS_PER_BATCH`, sleeping per the backoff schedule

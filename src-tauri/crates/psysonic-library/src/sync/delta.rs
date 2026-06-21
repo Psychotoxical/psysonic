@@ -205,7 +205,7 @@ impl<'a> DeltaSyncRunner<'a> {
         }
 
         // DS-9 — stamp watermarks + refresh artist browse index when applicable.
-        if probe.next_artists_watermark.is_some() {
+        if let Some(ms) = probe.next_artists_watermark {
             let scope = self.library_scope_opt();
             if let Ok(index) = self.subsonic.get_artists(scope).await {
                 super::artist_index::apply_artist_index(
@@ -215,6 +215,12 @@ impl<'a> DeltaSyncRunner<'a> {
                     &index,
                 )?;
             }
+            // Advance the watermark to the probed value regardless of the index
+            // refresh result — a failed/empty `getArtists` must not force a full
+            // refetch on every delta. Wins over the index's own last-modified.
+            sync_state
+                .set_artists_last_modified_ms(&self.server_id, &self.library_scope, ms)
+                .map_err(SyncError::Storage)?;
         }
         if let Some(iso) = probe.next_last_scan_iso.as_deref() {
             sync_state
@@ -535,13 +541,7 @@ struct DeltaPollOutcome {
     next_artists_watermark: Option<i64>,
 }
 
-fn now_unix_ms() -> i64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis().min(i64::MAX as u128) as i64)
-        .unwrap_or(0)
-}
+use super::now_unix_ms;
 
 async fn retry_with_backoff<'a, F, FFut, T, E>(
     runner: &DeltaSyncRunner<'a>,

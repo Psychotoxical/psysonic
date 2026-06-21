@@ -12,7 +12,7 @@ pub fn apply_artist_index(
     library_scope: &str,
     index: &ArtistIndex,
 ) -> Result<(), SyncError> {
-    let synced_at = now_unix_ms();
+    let synced_at = super::now_unix_ms();
     let ignored = crate::artist_sort::ignored_articles_or_default(
         index.ignored_articles.as_deref(),
     );
@@ -29,12 +29,4 @@ pub fn apply_artist_index(
             .map_err(SyncError::Storage)?;
     }
     Ok(())
-}
-
-fn now_unix_ms() -> i64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis().min(i64::MAX as u128) as i64)
-        .unwrap_or(0)
 }
