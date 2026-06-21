@@ -210,7 +210,7 @@ export const settings = {
   audioOutputDeviceListError: 'De lijst met audio-apparaten kon niet worden geladen.',
   audioOutputDeviceNotInCurrentList: 'staat niet in de huidige lijst',
   audioOutputDeviceRememberEq: 'EQ per apparaat onthouden',
-  audioOutputDeviceRememberEqDesc: 'Slaat de equalizer-instellingen op voor elk audio-uitvoerapparaat en herstelt ze automatisch wanneer je van apparaat wisselt.',
+  audioOutputDeviceRememberEqDesc: 'Slaat de equalizer-instellingen op voor elk audio-uitvoerapparaat en herstelt ze automatisch wanneer je van apparaat wisselt. Profielen wisselen alleen als je hier een apparaat kiest; de systeemstandaard gebruikt één gedeeld profiel.',
   hiResTitle: 'Natieve hi-res-weergave',
   hiResEnabled: 'Natieve hi-res-weergave inschakelen',
   hiResDesc: "Speelt elke track af op zijn oorspronkelijke samplerate in plaats van alles te herbemonsteren naar 44,1 kHz, en stelt het uitvoerapparaat af op het bestand (88,2 kHz en hoger). Alleen inschakelen als hardware en netwerk hoge samplerates betrouwbaar aankunnen.",

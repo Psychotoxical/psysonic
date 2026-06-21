@@ -211,7 +211,7 @@ export const settings = {
   audioOutputDeviceListError: 'Kunne ikke laste listen over lydenheter.',
   audioOutputDeviceNotInCurrentList: 'ikke i gjeldende liste',
   audioOutputDeviceRememberEq: 'Husk EQ per enhet',
-  audioOutputDeviceRememberEqDesc: 'Lagrer equalizer-innstillingene for hver lydutgangsenhet og gjenoppretter dem automatisk når du bytter enhet.',
+  audioOutputDeviceRememberEqDesc: 'Lagrer equalizer-innstillingene for hver lydutgangsenhet og gjenoppretter dem automatisk når du bytter enhet. Profiler bytter bare når du velger en enhet her; systemstandarden bruker én delt profil.',
   hiResTitle: 'Innebygd hi-res-avspilling',
   hiResEnabled: 'Aktiver innebygd hi-res-avspilling',
   hiResDesc: "Spiller hvert spor med sin opprinnelige samplingsrate i stedet for å nedsample alt til 44,1 kHz, og stiller utdataenheten etter filen (88,2 kHz og høyere). Aktiver kun hvis maskinvare og nettverk håndterer høye samplingsrater pålitelig.",
