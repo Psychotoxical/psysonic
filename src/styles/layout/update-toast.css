@@ -34,18 +34,6 @@
   text-transform: uppercase;
   flex: 1;
 }
-.app-updater-dismiss {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-muted);
-  padding: 0;
-  display: flex;
-  align-items: center;
-  opacity: 0.6;
-  transition: opacity var(--transition-fast);
-}
-.app-updater-dismiss:hover { opacity: 1; }
 .app-updater-version {
   font-size: 12px;
   color: var(--text-secondary);
@@ -136,30 +124,7 @@
   font-style: italic;
 }
 
-/* ── Update Modal ────────────────────────────────────────────────────────── */
-.update-modal {
-  width: min(520px, 94vw);
-  gap: 0;
-  padding: 0;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
-}
-.update-modal-header {
-  padding: 14px 16px 14px 18px;
-}
-.update-modal-versions {
-  font-size: 12px;
-  color: var(--text-muted);
-  display: block;
-  margin-top: 2px;
-}
-/* Scrollable middle section (changelog + download area combined) */
-.update-modal-body {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
-}
+/* ── Update Modal — content styles (the shell is the reusable Modal) ── */
 /* Changelog accordion */
 .update-modal-changelog {
   border-top: 1px solid var(--border-subtle);
@@ -318,22 +283,6 @@
 .update-modal-asset-none {
   padding: 4px 0;
 }
-/* Footer */
-.update-modal-footer {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 12px 18px;
-  border-top: 1px solid var(--border-subtle);
-  flex-shrink: 0;
-}
-.update-modal-skip {
-  font-size: 12px;
-  color: var(--text-muted);
-  padding: var(--space-1) var(--space-2);
-}
-.update-modal-skip:hover { color: var(--text-secondary); }
-
 .update-toast {
   margin: 0 var(--space-1) var(--space-2);
   padding: var(--space-3) var(--space-3);
