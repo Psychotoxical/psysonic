@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { SubsonicAlbum } from '../../api/subsonicTypes';
 import {
+  albumBrowseCompFilterClientOnly,
   albumBrowseCompScanComplete,
   albumIsCompilation,
+  albumIsCompilationFromTrackDtos,
   ALBUM_COMP_FILTER_MAX_SCAN_ALBUMS,
 } from './albumCompilation';
 import { filterAlbumsByCompilation } from './albumBrowseFilters';
@@ -55,5 +57,35 @@ describe('albumBrowseCompScanComplete', () => {
 
   it('continues while under budget', () => {
     expect(albumBrowseCompScanComplete([album()], 'only', true)).toBe(false);
+  });
+});
+
+describe('albumBrowseCompFilterClientOnly', () => {
+  it('matches page mode only', () => {
+    expect(albumBrowseCompFilterClientOnly('only', 'page')).toBe(true);
+    expect(albumBrowseCompFilterClientOnly('only', 'slice')).toBe(false);
+  });
+});
+
+describe('albumIsCompilationFromTrackDtos', () => {
+  it('detects compilation flag in track rawJson', () => {
+    expect(albumIsCompilationFromTrackDtos([{
+      serverId: 's1',
+      id: 't1',
+      title: 'Hit',
+      album: 'Comp Album',
+      albumId: 'al1',
+      syncedAt: 1,
+      rawJson: { compilation: true },
+    }])).toBe(true);
+    expect(albumIsCompilationFromTrackDtos([{
+      serverId: 's1',
+      id: 't2',
+      title: 'Song',
+      album: 'Studio',
+      albumId: 'al2',
+      syncedAt: 1,
+      rawJson: {},
+    }])).toBe(false);
   });
 });

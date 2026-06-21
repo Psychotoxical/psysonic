@@ -4,12 +4,14 @@ import {
   albumBrowseHasGenreFilter,
   albumBrowseHasServerFilters,
   albumBrowseStarredNeedsLocalIntersect,
+  applyAlbumBrowseClientFilters,
   compilationFilterClauses,
   countGenresFromAlbums,
   filterAlbumsByNameTextQuery,
   filterAlbumsByStarred,
   filterAlbumsByYearBounds,
 } from './albumBrowseFilters';
+import { albumBrowseCompFilterClientOnly } from './albumCompilation';
 import type { AlbumBrowseQuery } from './albumBrowseTypes';
 
 describe('albumBrowseLoad', () => {
@@ -92,6 +94,59 @@ describe('compilationFilterClauses', () => {
     expect(compilationFilterClauses('only')).toEqual([{ field: 'compilation', op: 'is_true' }]);
     expect(compilationFilterClauses('hide')).toEqual([{ field: 'compilation', op: 'eq', value: false }]);
     expect(compilationFilterClauses('all')).toEqual([]);
+  });
+});
+
+describe('applyAlbumBrowseClientFilters', () => {
+  const base: AlbumBrowseQuery = {
+    sort: 'alphabeticalByName',
+    genres: [],
+    losslessOnly: false,
+    starredOnly: false,
+    compFilter: 'all',
+  };
+  const sqlMatchedComp: SubsonicAlbum = {
+    id: 'c1',
+    name: 'Greatest Hits',
+    artist: 'Various Artists',
+    artistId: 'va',
+    songCount: 12,
+    duration: 3600,
+  };
+  const studio: SubsonicAlbum = {
+    id: 'r1',
+    name: 'Studio',
+    artist: 'Band',
+    artistId: 'b',
+    songCount: 8,
+    duration: 2400,
+  };
+
+  it('does not re-filter compilations in slice mode after SQL pre-filter', () => {
+    const query = { ...base, compFilter: 'only' as const };
+    expect(applyAlbumBrowseClientFilters([sqlMatchedComp, studio], query, {}, 'slice')).toHaveLength(2);
+  });
+
+  it('filters compilations client-side in page (network) mode', () => {
+    const query = { ...base, compFilter: 'only' as const };
+    expect(applyAlbumBrowseClientFilters(
+      [{ ...sqlMatchedComp, isCompilation: true }, studio],
+      query,
+      {},
+      'page',
+    )).toEqual([{ ...sqlMatchedComp, isCompilation: true }]);
+  });
+
+  it('does not re-filter favorites in slice mode', () => {
+    const query = { ...base, starredOnly: true };
+    const starred = { ...studio, starred: '2024-01-01' };
+    expect(applyAlbumBrowseClientFilters([starred], query, {}, 'slice')).toHaveLength(1);
+  });
+
+  it('applies optimistic unstar overrides in slice favorites mode', () => {
+    const query = { ...base, starredOnly: true };
+    const starred = { ...studio, starred: '2024-01-01' };
+    expect(applyAlbumBrowseClientFilters([starred], query, { r1: false }, 'slice')).toHaveLength(0);
   });
 });
 

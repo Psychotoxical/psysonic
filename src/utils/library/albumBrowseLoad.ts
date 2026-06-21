@@ -12,6 +12,7 @@ export type {
 export {
   albumBrowseHasGenreFilter,
   albumBrowseHasServerFilters,
+  applyAlbumBrowseClientFilters,
   filterAlbumsByCompilation,
   filterAlbumsByStarred,
 } from './albumBrowseFilters';
@@ -35,10 +36,14 @@ import { GENRE_ALBUM_FETCH_LIMIT } from './albumBrowseTypes';
 /** One local-index chunk for lazy catalog loading (All Albums slice mode). */
 export async function fetchLocalAlbumCatalogChunk(
   serverId: string,
+  indexEnabled: boolean,
   query: AlbumBrowseQuery,
   offset: number,
   chunkSize: number,
 ): Promise<AlbumBrowsePageResult | null> {
+  if (query.starredOnly) {
+    return fetchAlbumBrowsePage(serverId, indexEnabled, query, offset, chunkSize);
+  }
   const singleGenre = query.genres.length === 1;
   if (query.genres.length > 1 && offset > 0) {
     return { albums: [], hasMore: false };

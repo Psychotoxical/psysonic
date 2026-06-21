@@ -13,16 +13,15 @@ import {
 } from '../cover/coverTraffic';
 import { coverEnsureQueueBacklog, coverEnsureResumePump, coverEnsureSubscribeBacklogDrain } from '../cover/ensureQueue';
 import { dedupeById } from '../utils/dedupeById';
-import { albumBrowseCompScanComplete } from '../utils/library/albumCompilation';
+import { albumBrowseCompScanComplete, albumBrowseCompFilterClientOnly } from '../utils/library/albumCompilation';
 import type { AlbumCompFilter } from '../utils/library/albumCompilation';
 import {
   albumBrowseHasGenreFilter,
   albumBrowseHasServerFilters,
+  applyAlbumBrowseClientFilters,
   fetchAlbumBrowseGenreOptions,
   fetchAlbumBrowsePage,
   fetchLocalAlbumCatalogChunk,
-  filterAlbumsByCompilation,
-  filterAlbumsByStarred,
   type AlbumBrowseQuery,
   type GenreFilterOption,
 } from '../utils/library/albumBrowseLoad';
@@ -137,15 +136,12 @@ export function useAlbumBrowseData({
   }), [sort, yearFilterActive, yearFilterBounds, losslessOnly, starredOnly, compFilter]);
 
   const compFilterActive = compFilter !== 'all';
-  const compFilterClientOnly = compFilterActive && !indexEnabled;
+  const compFilterClientOnly = albumBrowseCompFilterClientOnly(compFilter, browseMode);
 
-  const visibleAlbums = useMemo(() => {
-    let out = compFilterActive
-      ? filterAlbumsByCompilation(albums, compFilter)
-      : albums;
-    if (starredOnly) out = filterAlbumsByStarred(out, starredOverrides);
-    return out;
-  }, [albums, compFilter, compFilterActive, starredOnly, starredOverrides]);
+  const visibleAlbums = useMemo(
+    () => applyAlbumBrowseClientFilters(albums, browseQuery, starredOverrides, browseMode),
+    [albums, browseQuery, starredOverrides, browseMode],
+  );
 
   const {
     visibleCount,
@@ -243,6 +239,7 @@ export function useAlbumBrowseData({
     try {
       const chunk = await fetchAlbumBrowseCatalogChunk(
         serverId,
+        indexEnabled,
         query,
         offset,
         CATALOG_CHUNK_SIZE,
@@ -261,7 +258,7 @@ export function useAlbumBrowseData({
         setCatalogLoadingMore(false);
       }
     }
-  }, [offlineBrowseActive, serverId, starredOverrides]);
+  }, [indexEnabled, offlineBrowseActive, serverId, starredOverrides]);
 
   const loadBrowse = useCallback(async (
     query: AlbumBrowseQuery,
@@ -359,6 +356,7 @@ export function useAlbumBrowseData({
         try {
           const first = await fetchLocalAlbumCatalogChunk(
             serverId,
+            indexEnabled,
             browseQuery,
             0,
             CATALOG_CHUNK_SIZE,

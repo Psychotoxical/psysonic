@@ -25,6 +25,7 @@ export function mergeAlbumCatalogChunk(
 /** Local-index or offline-bytes catalog chunk for the albums grid. */
 export async function fetchAlbumBrowseCatalogChunk(
   serverId: string,
+  indexEnabled: boolean,
   query: AlbumBrowseQuery,
   offset: number,
   chunkSize: number,
@@ -39,5 +40,5 @@ export async function fetchAlbumBrowseCatalogChunk(
       starredOverrides,
     );
   }
-  return fetchLocalAlbumCatalogChunk(serverId, query, offset, chunkSize);
+  return fetchLocalAlbumCatalogChunk(serverId, indexEnabled, query, offset, chunkSize);
 }

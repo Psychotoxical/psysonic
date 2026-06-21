@@ -62,6 +62,17 @@ export function filterAlbumsByStarred(
   });
 }
 
+/** Slice favorites grid: fetch is authoritative; only apply optimistic star/unstar overrides. */
+export function applyStarredOverridesInSlice(
+  albums: SubsonicAlbum[],
+  starredOverrides: Record<string, boolean>,
+): SubsonicAlbum[] {
+  return albums.filter(a => {
+    if (a.id in starredOverrides) return starredOverrides[a.id];
+    return true;
+  });
+}
+
 export function filterAlbumsByYearBounds(
   albums: SubsonicAlbum[],
   bounds: AlbumYearBounds,
@@ -81,6 +92,29 @@ export function filterAlbumsByCompilation(
   if (compFilter === 'only') return albums.filter(albumIsCompilation);
   if (compFilter === 'hide') return albums.filter(a => !albumIsCompilation(a));
   return albums;
+}
+
+/**
+ * Client post-filters for the All Albums grid. Slice mode (local index or offline
+ * catalog) already applied compilation / favorites in SQL or `applyAlbumBrowseQuery`.
+ */
+export function applyAlbumBrowseClientFilters(
+  albums: SubsonicAlbum[],
+  query: Pick<AlbumBrowseQuery, 'compFilter' | 'starredOnly'>,
+  starredOverrides: Record<string, boolean>,
+  browseMode: 'slice' | 'page',
+): SubsonicAlbum[] {
+  const fetchAlreadyFiltered = browseMode === 'slice';
+  let out = albums;
+  if (query.compFilter !== 'all' && !fetchAlreadyFiltered) {
+    out = filterAlbumsByCompilation(out, query.compFilter);
+  }
+  if (query.starredOnly && fetchAlreadyFiltered) {
+    out = applyStarredOverridesInSlice(out, starredOverrides);
+  } else if (query.starredOnly) {
+    out = filterAlbumsByStarred(out, starredOverrides);
+  }
+  return out;
 }
 
 export function filterAlbumsByGenres(

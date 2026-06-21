@@ -10,6 +10,7 @@ import {
   resolveTrackCoverArtId,
   trackToSong,
 } from '../library/advancedSearchLocal';
+import { albumIsCompilationFromTrackDtos } from '../library/albumCompilation';
 import {
   filterAlbumsByCompilation,
   filterAlbumsByGenres,
@@ -60,6 +61,7 @@ export function buildAlbumFromTracks(
   const songs = tracks.map(trackToSong).map(s => ({ ...s, serverId }));
   const first = tracks[0];
   const starred = tracks.some(t => t.starredAt != null);
+  const isCompilation = albumIsCompilationFromTrackDtos(tracks);
   return {
     id: albumId,
     name: first.album ?? albumId,
@@ -71,6 +73,7 @@ export function buildAlbumFromTracks(
     songCount: songs.length,
     duration: songs.reduce((sum, s) => sum + (s.duration ?? 0), 0),
     starred: starred ? new Date().toISOString() : undefined,
+    isCompilation: isCompilation || undefined,
     serverId,
   };
 }
