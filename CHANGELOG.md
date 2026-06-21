@@ -174,6 +174,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The local library database now opens, swaps and restores through one pipeline, so a swapped or restored file always picks up pending migrations and one-time repairs instead of serving a stale schema.
 * A panic or a poisoned lock in one query no longer wedges the whole library index — connections recover and report the error instead, and the new sort-key migration applies idempotently so a half-applied upgrade self-heals on the next launch.
 
+### Equalizer — the active AutoEQ profile name stays visible
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1147](https://github.com/Psychotoxical/psysonic/pull/1147)**
+
+* After applying an AutoEQ headphone profile, the preset picker now shows the profile name under an AutoEQ group instead of going blank, and the delete button no longer appears for AutoEQ profiles (where it did nothing).
+
 ## [1.48.1] - 2026-06-15
 
 ## Fixed
