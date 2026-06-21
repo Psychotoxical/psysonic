@@ -171,6 +171,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Play queue sync — manual pull via connection indicator, idle auto-pull, multi-server push filter, flush-on-server-switch (PR #1131)',
       'Niri compositor tiling WM detection (PR #1127)',
       'Local library index: Navidrome ignored-articles artist/composer letter buckets (name_sort + server ignoredArticles), idempotent migration with safe open/swap and poisoned-lock recovery (PR #1145)',
+      'All Albums browse: compilation and favorites filters in slice mode — skip redundant client comp filter, route favorites through getStarred2, pre-index page scan, offline isCompilation from tracks (PR #1151)',
     ],
   },
   {

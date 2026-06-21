@@ -174,6 +174,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The local library database now opens, swaps and restores through one pipeline, so a swapped or restored file always picks up pending migrations and one-time repairs instead of serving a stale schema.
 * A panic or a poisoned lock in one query no longer wedges the whole library index — connections recover and report the error instead, and the new sort-key migration applies idempotently so a half-applied upgrade self-heals on the next launch.
 
+### All Albums — compilation and favorites filters
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by [@bcorporaal](https://github.com/bcorporaal), PR [#1151](https://github.com/Psychotoxical/psysonic/pull/1151)**, closes [#1143](https://github.com/Psychotoxical/psysonic/issues/1143)
+
+* **Only compilations** no longer shows a handful of albums after the local index already filtered them — slice mode skips the redundant client pass that dropped rows without `isCompilation` on the DTO.
+* **Favorites** on All Albums uses the same `getStarred2` catalog path as the Favorites page instead of the empty sparse `album` table browse.
+* Pre-index compilation filtering auto-paginates again in network page mode; offline library aggregates set `isCompilation` from track tags.
+
 ## [1.48.1] - 2026-06-15
 
 ## Fixed
