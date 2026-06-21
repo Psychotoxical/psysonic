@@ -170,6 +170,7 @@ const CONTRIBUTOR_ENTRIES = [
       'AutoDJ — smooth skip and interrupt blend: manual/out-of-queue crossfade, loud→loud ~2s advance, cold-target prep duck + deferred player-bar handoff (PR #1128)',
       'Play queue sync — manual pull via connection indicator, idle auto-pull, multi-server push filter, flush-on-server-switch (PR #1131)',
       'Niri compositor tiling WM detection (PR #1127)',
+      'Local library index: Navidrome ignored-articles artist/composer letter buckets (name_sort + server ignoredArticles), idempotent migration with safe open/swap and poisoned-lock recovery (PR #1145)',
     ],
   },
   {
