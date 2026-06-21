@@ -135,6 +135,29 @@ describe('eqDeviceSync', () => {
     expect(useEqStore.getState().activePreset).toBe('Jazz');
   });
 
+  it('mirrors the system default (null device) into the __default__ bucket', () => {
+    useAuthStore.getState().setAudioOutputDevice(null);
+    resetEq({ rememberPerDevice: true });
+    cleanup = setupEqDeviceSync();
+
+    useEqStore.getState().setBandGain(0, 4);
+
+    expect(useEqStore.getState().byDevice['__default__'].gains[0]).toBe(4);
+  });
+
+  it('restores the __default__ profile when the device resets to null (unplug / audio:device-reset)', () => {
+    // The audio:device-reset event sets audioOutputDevice = null; the sync
+    // reacts to that store change like any other device switch.
+    useAuthStore.getState().setAudioOutputDevice('A');
+    resetEq({ rememberPerDevice: true, byDevice: { __default__: snap(8, { enabled: true }) } });
+    cleanup = setupEqDeviceSync();
+
+    useAuthStore.getState().setAudioOutputDevice(null);
+
+    expect(useEqStore.getState().gains[0]).toBe(8);
+    expect(useEqStore.getState().enabled).toBe(true);
+  });
+
   it('cleanup stops mirroring further edits', () => {
     useAuthStore.getState().setAudioOutputDevice('A');
     resetEq({ rememberPerDevice: true });
