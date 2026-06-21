@@ -38,6 +38,10 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 
 - Switch on **External Artwork Scraper** under **Settings → Integrations** to pull artist imagery from fanart.tv: a wide backdrop on the fullscreen player and a banner across the top of the artist page. Off by default, your Navidrome covers stay in charge, and turning it back off removes the fetched images again.
 
+### Equalizer — a profile per output device
+
+- Turn on **Remember EQ per device** under **Settings → Audio** and Psysonic keeps a separate equalizer setup for each output — speakers, headphones, a USB DAC — and switches to the right one automatically when you change devices. Off by default.
+
 ## Fixed
 
 ### Playback and audio
