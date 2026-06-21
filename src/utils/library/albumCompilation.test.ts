@@ -75,6 +75,7 @@ describe('albumIsCompilationFromTrackDtos', () => {
       title: 'Hit',
       album: 'Comp Album',
       albumId: 'al1',
+      durationSec: 1,
       syncedAt: 1,
       rawJson: { compilation: true },
     }])).toBe(true);
@@ -84,6 +85,7 @@ describe('albumIsCompilationFromTrackDtos', () => {
       title: 'Song',
       album: 'Studio',
       albumId: 'al2',
+      durationSec: 1,
       syncedAt: 1,
       rawJson: {},
     }])).toBe(false);
