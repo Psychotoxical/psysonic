@@ -209,6 +209,8 @@ export const settings = {
   audioOutputDeviceOsDefaultNow: '当前系统输出',
   audioOutputDeviceListError: '无法加载音频设备列表。',
   audioOutputDeviceNotInCurrentList: '不在当前列表中',
+  audioOutputDeviceRememberEq: '为每个设备记住均衡器',
+  audioOutputDeviceRememberEqDesc: '为每个音频输出设备保存均衡器设置，并在切换设备时自动恢复。',
   hiResTitle: '原生高清晰度播放',
   hiResEnabled: '启用原生高清晰度播放',
   hiResDesc: "以每个曲目的原始采样率播放，而不是将所有内容重采样到 44.1 kHz，并将输出设备切换为与文件匹配（88.2 kHz 及以上）。仅在硬件和网络能可靠处理高采样率时启用。",

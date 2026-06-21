@@ -210,6 +210,8 @@ export const settings = {
   audioOutputDeviceOsDefaultNow: 'aktuelle Systemausgabe',
   audioOutputDeviceListError: 'Audiogeräteliste konnte nicht geladen werden.',
   audioOutputDeviceNotInCurrentList: 'nicht in der aktuellen Liste',
+  audioOutputDeviceRememberEq: 'EQ pro Gerät merken',
+  audioOutputDeviceRememberEqDesc: 'Speichert die Equalizer-Einstellungen für jedes Audioausgabegerät und stellt sie beim Wechsel automatisch wieder her.',
   hiResTitle: 'Native Hi-Res-Wiedergabe',
   hiResEnabled: 'Native Hi-Res-Wiedergabe aktivieren',
   hiResDesc: "Spielt jeden Titel mit seiner ursprünglichen Abtastrate ab, statt alles auf 44,1 kHz herunterzurechnen, und stellt das Ausgabegerät passend zur Datei um (88,2 kHz und höher). Nur aktivieren, wenn Hardware und Netzwerk hohe Abtastraten zuverlässig verarbeiten.",
