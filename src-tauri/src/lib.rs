@@ -106,6 +106,7 @@ pub fn run() {
 
     let builder = tauri::Builder::default()
         .manage(audio_engine)
+        .manage(Arc::new(psysonic_core::server_http::ServerHttpRegistry::new()))
         .manage(ShortcutMap::default())
         .manage(discord::DiscordState::new())
         .manage(Arc::new(tokio::sync::Semaphore::new(MAX_DL_CONCURRENCY)) as DownloadSemaphore)
@@ -238,7 +239,10 @@ pub fn run() {
                             let flags = psysonic_library::sync::capability::CapabilityFlags::new(
                                 flags_bits,
                             );
-                            let subsonic = psysonic_integration::subsonic::SubsonicClient::new(
+                            let registry = app_for_sched.state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>();
+                            let subsonic = psysonic_integration::subsonic::subsonic_client_with_registry(
+                                Some(registry.as_ref()),
+                                &session.server_id,
                                 session.base_url.clone(),
                                 session.username.clone(),
                                 session.password.clone(),
@@ -682,6 +686,9 @@ pub fn run() {
             migration_inspect,
             migration_run,
             resolve_host_addresses,
+            server_http_context_sync,
+            server_http_context_sync_all,
+            server_http_context_clear,
             psysonic_syncfs::sync::batch::calculate_sync_payload,
             exit_app,
             cli_publish_player_snapshot,

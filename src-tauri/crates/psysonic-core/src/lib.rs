@@ -4,6 +4,7 @@
 //! macros) and the cross-crate port traits used to break dependency cycles
 //! between `psysonic-audio`, `psysonic-analysis`, and other domain crates.
 
+pub mod server_http;
 pub mod cover_cache_layout;
 pub mod log_sanitize;
 pub mod media_layout;

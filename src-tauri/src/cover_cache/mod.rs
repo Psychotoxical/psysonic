@@ -354,7 +354,10 @@ impl CoverCacheState {
         let source = if let Some(img) = load_image_from_disk(&dir) {
             CoverSource::Image(img)
         } else {
-            match download_cover_payload(&dir, &client, &http_sem, args).await {
+            let http_registry = app
+                .try_state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>()
+                .map(|s| Arc::clone(&*s));
+            match download_cover_payload(&dir, &client, &http_sem, args, http_registry).await {
                 Ok(bytes) => CoverSource::Bytes(bytes),
                 Err(err) => {
                     log_cover_fetch_failure(app, args, &err);
@@ -532,6 +535,7 @@ async fn download_cover_payload(
     client: &Client,
     http_sem: &Semaphore,
     args: &CoverCacheEnsureArgs,
+    registry: Option<Arc<psysonic_core::server_http::ServerHttpRegistry>>,
 ) -> Result<Vec<u8>, String> {
     let _permit = http_sem
         .acquire()
@@ -549,7 +553,13 @@ async fn download_cover_payload(
         &args.cover_art_id,
         fetch_size,
     );
-    fetch::fetch_cover_bytes(client, &url).await
+    fetch::fetch_cover_bytes(
+        client,
+        &url,
+        registry.as_deref(),
+        Some(args.server_index_key.as_str()),
+    )
+    .await
 }
 
 fn spawn_derive_remaining_tiers(

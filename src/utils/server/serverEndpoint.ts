@@ -1,4 +1,4 @@
-import { pingWithCredentials } from '../../api/subsonic';
+import { pingWithCredentialsForProfile } from '../../api/subsonic';
 import type { PingWithCredentialsResult } from '../../api/subsonicTypes';
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { serverProfileBaseUrl } from './serverBaseUrl';
@@ -261,15 +261,14 @@ function sleepMs(ms: number): Promise<void> {
  * proxy TLS flakes) before the connection indicator marks the server down.
  */
 async function pingWithConnectRetries(
-  baseUrl: string,
-  username: string,
-  password: string,
+  profile: ServerProfile,
+  endpointUrl: string,
 ): Promise<PingWithCredentialsResult> {
-  let ping = await pingWithCredentials(baseUrl, username, password);
+  let ping = await pingWithCredentialsForProfile(profile, endpointUrl);
   if (ping.ok) return ping;
   for (let retry = 0; retry < CONNECT_PING_RETRIES; retry++) {
     await sleepMs(CONNECT_PING_RETRY_DELAY_MS);
-    ping = await pingWithCredentials(baseUrl, username, password);
+    ping = await pingWithCredentialsForProfile(profile, endpointUrl);
     if (ping.ok) return ping;
   }
   return ping;
@@ -309,7 +308,7 @@ export async function pickReachableBaseUrl(
         : ordered;
 
     for (const endpoint of endpoints) {
-      const ping = await pingWithConnectRetries(endpoint.url, profile.username, profile.password);
+      const ping = await pingWithConnectRetries(profile, endpoint.url);
       if (ping.ok) {
         const prev = connectCache.get(profile.id);
         connectCache.set(profile.id, endpoint.url);

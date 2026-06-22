@@ -344,7 +344,7 @@ pub(super) async fn try_external_fanart(
         }
     };
 
-    let bytes = match fetch::fetch_cover_bytes(client, &img_url).await {
+    let bytes = match fetch::fetch_cover_bytes(client, &img_url, None, None).await {
         Ok(b) => b,
         Err(e) => {
             eprintln!("[fanart] download failed: {e}"); // transient — don't cache

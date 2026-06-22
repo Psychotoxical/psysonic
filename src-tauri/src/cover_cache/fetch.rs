@@ -1,4 +1,5 @@
 use reqwest::Client;
+use psysonic_core::server_http::ServerHttpRegistry;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use url::Url;
 
@@ -83,8 +84,21 @@ enum FetchAttempt {
     Permanent(String),
 }
 
-async fn fetch_cover_once(client: &Client, url: &str) -> FetchAttempt {
-    let resp = match client.get(url).send().await {
+async fn fetch_cover_once(
+    client: &Client,
+    url: &str,
+    registry: Option<&ServerHttpRegistry>,
+    server_ref: Option<&str>,
+) -> FetchAttempt {
+    let mut req = client.get(url);
+    if let Some(reg) = registry {
+        if let Some(sid) = server_ref.filter(|s| !s.is_empty()) {
+            req = reg.apply_for_http_url(sid, url, req);
+        } else if let Some(ctx) = reg.get_for_server_url(url) {
+            req = psysonic_core::server_http::apply_server_headers_for_http_url(req, &ctx, url);
+        }
+    }
+    let resp = match req.send().await {
         Ok(r) => r,
         // Connection reset / timeout / DNS — transient under server load.
         Err(e) => return FetchAttempt::Transient(e.to_string()),
@@ -104,10 +118,15 @@ async fn fetch_cover_once(client: &Client, url: &str) -> FetchAttempt {
     }
 }
 
-pub async fn fetch_cover_bytes(client: &Client, url: &str) -> Result<Vec<u8>, String> {
+pub async fn fetch_cover_bytes(
+    client: &Client,
+    url: &str,
+    registry: Option<&ServerHttpRegistry>,
+    server_ref: Option<&str>,
+) -> Result<Vec<u8>, String> {
     let mut last_err = String::from("cover fetch failed");
     for attempt in 0..COVER_FETCH_ATTEMPTS {
-        match fetch_cover_once(client, url).await {
+        match fetch_cover_once(client, url, registry, server_ref).await {
             FetchAttempt::Ok(bytes) => return Ok(bytes),
             FetchAttempt::Permanent(e) => return Err(e),
             FetchAttempt::Transient(e) => {

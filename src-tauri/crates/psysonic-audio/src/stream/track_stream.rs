@@ -15,6 +15,7 @@ use ringbuf::HeapProd;
 use ringbuf::traits::Producer;
 use tauri::AppHandle;
 
+use super::super::engine::PlaybackHttpHeaders;
 use super::super::state::PreloadedTrack;
 use super::{
     maybe_arm_stream_playback, TRACK_STREAM_MAX_RECONNECTS, TRACK_STREAM_PROMOTE_MAX_BYTES,
@@ -37,6 +38,7 @@ pub(crate) async fn track_download_task(
     cache_track_id: Option<String>,
     // Playback server scope for the analysis-cache write key (empty/`None` → legacy '').
     server_id: Option<String>,
+    http_headers: PlaybackHttpHeaders,
     playback_armed: Arc<AtomicBool>,
 ) {
     let mut downloaded: u64 = 0;
@@ -53,6 +55,7 @@ pub(crate) async fn track_download_task(
             if downloaded > 0 {
                 req = req.header(reqwest::header::RANGE, format!("bytes={downloaded}-"));
             }
+            req = http_headers.apply(&url, req);
             match req.send().await {
                 Ok(r) => r,
                 Err(err) => {

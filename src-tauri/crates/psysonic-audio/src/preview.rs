@@ -8,7 +8,7 @@ use rodio::Source;
 use tauri::{AppHandle, Emitter, State};
 
 use super::decode::SizedDecoder;
-use super::engine::{audio_http_client, AudioEngine};
+use super::engine::{audio_http_client, AudioEngine, PlaybackHttpHeaders};
 use super::helpers::{
     content_type_to_hint, format_hint_from_content_disposition, normalize_stream_suffix_for_hint,
     resolve_playback_format_hint, sniff_stream_format_extension, STREAM_FORMAT_SNIFF_PROBE_BYTES,
@@ -155,9 +155,10 @@ async fn open_preview_decoder(
     state: &AudioEngine,
     app: &AppHandle,
 ) -> Result<Option<SizedDecoder>, String> {
+    let http_headers = PlaybackHttpHeaders::from_app(app, None);
     let preview_http = preview_http_client(state);
-    let response = preview_http
-        .get(url)
+    let response = http_headers
+        .apply(url, preview_http.get(url))
         .send()
         .await
         .map_err(|e| format!("preview: connection failed: {e}"))?
@@ -194,8 +195,8 @@ async fn open_preview_decoder(
             let last = total_u64
                 .saturating_sub(1)
                 .min((STREAM_FORMAT_SNIFF_PROBE_BYTES - 1) as u64);
-            if let Ok(pr) = preview_http
-                .get(url)
+            if let Ok(pr) = http_headers
+                .apply(url, preview_http.get(url))
                 .header(reqwest::header::RANGE, format!("bytes=0-{last}"))
                 .send()
                 .await
@@ -257,6 +258,7 @@ async fn open_preview_decoder(
             state.loudness_pre_analysis_attenuation_db.clone(),
             None,
             None,
+            http_headers.clone(),
             None,
             playback_armed,
             stream_hint.clone(),

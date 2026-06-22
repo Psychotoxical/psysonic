@@ -16,6 +16,12 @@ vi.mock('@/api/subsonic', () => ({
     serverVersion: '0.55.0',
     openSubsonic: true,
   })),
+  pingWithCredentialsForProfile: vi.fn(async () => ({
+    ok: true,
+    type: 'navidrome',
+    serverVersion: '0.55.0',
+    openSubsonic: true,
+  })),
   scheduleInstantMixProbeForServer: vi.fn(),
   buildStreamUrl: vi.fn((id: string) => `https://mock/stream/${id}`),
   buildCoverArtUrl: vi.fn((id: string) => `https://mock/cover/${id}`),

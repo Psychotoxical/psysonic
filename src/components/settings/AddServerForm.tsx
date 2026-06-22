@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ServerProfile } from '../../store/authStoreTypes';
+import type { CustomHeaderEntry, CustomHeadersApplyTo, ServerProfile } from '../../store/authStoreTypes';
 import { showToast } from '../../utils/ui/toast';
+import {
+  DEFAULT_CUSTOM_HEADERS_APPLY_TO,
+  validateCustomHeaders,
+} from '../../utils/server/serverHttpHeaders';
 import {
   decodeServerMagicString,
   encodeServerMagicString,
@@ -19,6 +23,9 @@ type FormState = {
   shareUsesLocalUrl: boolean;
   username: string;
   password: string;
+  customHeaders: CustomHeaderEntry[];
+  customHeadersApplyTo: CustomHeadersApplyTo;
+  customHeadersOpen: boolean;
 };
 
 /** Hostname for the DNS-based form hint, or null when the input is a literal IP. */
@@ -62,6 +69,12 @@ export function AddServerForm({
           shareUsesLocalUrl: editingServer.shareUsesLocalUrl ?? false,
           username: editingServer.username,
           password: editingServer.password,
+          customHeaders: editingServer.customHeaders?.length
+            ? editingServer.customHeaders.map(h => ({ ...h }))
+            : [{ name: '', value: '' }],
+          customHeadersApplyTo:
+            editingServer.customHeadersApplyTo ?? DEFAULT_CUSTOM_HEADERS_APPLY_TO,
+          customHeadersOpen: Boolean(editingServer.customHeaders?.length),
         }
       : {
           name: '',
@@ -70,6 +83,9 @@ export function AddServerForm({
           shareUsesLocalUrl: false,
           username: '',
           password: '',
+          customHeaders: [{ name: '', value: '' }],
+          customHeadersApplyTo: DEFAULT_CUSTOM_HEADERS_APPLY_TO,
+          customHeadersOpen: false,
         },
   );
   const [magicString, setMagicString] = useState('');
@@ -175,6 +191,20 @@ export function AddServerForm({
     return true;
   };
 
+  const customHeadersPayload = (): Pick<
+    ServerProfile,
+    'customHeaders' | 'customHeadersApplyTo'
+  > => {
+    const rows = form.customHeaders
+      .map(h => ({ name: h.name.trim(), value: h.value }))
+      .filter(h => h.name || h.value);
+    if (!rows.length) return {};
+    return {
+      customHeaders: rows,
+      customHeadersApplyTo: form.customHeadersApplyTo,
+    };
+  };
+
   const submit = async () => {
     const ms = magicString.trim();
     if (ms) {
@@ -193,6 +223,7 @@ export function AddServerForm({
         url: decoded.url,
         username: decoded.username,
         password: decoded.password,
+        ...customHeadersPayload(),
         ...(altDecoded
           ? {
               alternateUrl: altDecoded,
@@ -205,6 +236,15 @@ export function AddServerForm({
     if (!form.url.trim()) return;
     if (!validateAddresses()) return;
 
+    const headerValidation = validateCustomHeaders(
+      form.customHeaders.filter(h => h.name.trim() || h.value),
+    );
+    if (!headerValidation.ok) {
+      const first = headerValidation.fieldErrors[0];
+      showToast(t(first.messageKey, { defaultValue: first.messageKey }), 5000, 'error');
+      return;
+    }
+
     const altTrimmed = form.alternateUrl.trim();
     // If the user clears the second address, strip the share-flag as well so
     // we don't leave a dangling preference (spec §5.3 last row).
@@ -213,6 +253,7 @@ export function AddServerForm({
       url: form.url.trim(),
       username: form.username.trim(),
       password: form.password,
+      ...customHeadersPayload(),
       ...(altTrimmed
         ? {
             alternateUrl: altTrimmed,
@@ -337,6 +378,108 @@ export function AddServerForm({
             />
           )}
         </div>
+      </div>
+      <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          style={{ fontSize: 13, padding: '4px 0' }}
+          onClick={() => setForm(f => ({ ...f, customHeadersOpen: !f.customHeadersOpen }))}
+        >
+          {form.customHeadersOpen ? '▾' : '▸'} {t('settings.customHeadersTitle')}
+        </button>
+        {form.customHeadersOpen && (
+          <div style={{ marginTop: 8 }}>
+            <p style={{ fontSize: 11, opacity: 0.75, margin: '0 0 8px' }}>
+              {t('settings.customHeadersHelp')}
+            </p>
+            {form.customHeaders.map((row, index) => (
+              <div key={index} className="form-row" style={{ marginBottom: 6, gap: 8 }}>
+                <input
+                  className="input"
+                  type="text"
+                  value={row.name}
+                  onChange={e => {
+                    const name = e.target.value;
+                    setForm(f => {
+                      const customHeaders = f.customHeaders.map((h, i) =>
+                        i === index ? { ...h, name } : h,
+                      );
+                      return { ...f, customHeaders };
+                    });
+                  }}
+                  placeholder={t('settings.customHeadersNamePlaceholder')}
+                  autoComplete="off"
+                />
+                <input
+                  className="input"
+                  type="password"
+                  value={row.value}
+                  onChange={e => {
+                    const value = e.target.value;
+                    setForm(f => ({
+                      ...f,
+                      customHeaders: f.customHeaders.map((h, i) =>
+                        i === index ? { ...h, value } : h,
+                      ),
+                    }));
+                  }}
+                  placeholder={t('settings.customHeadersValuePlaceholder')}
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  aria-label={t('settings.customHeadersRemoveRow')}
+                  onClick={() =>
+                    setForm(f => ({
+                      ...f,
+                      customHeaders:
+                        f.customHeaders.length <= 1
+                          ? [{ name: '', value: '' }]
+                          : f.customHeaders.filter((_, i) => i !== index),
+                    }))
+                  }
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{ fontSize: 12, marginBottom: 8 }}
+              onClick={() =>
+                setForm(f => ({
+                  ...f,
+                  customHeaders: [...f.customHeaders, { name: '', value: '' }],
+                }))
+              }
+            >
+              {t('settings.customHeadersAddRow')}
+            </button>
+            <fieldset
+              disabled={!form.customHeaders.some(h => h.name.trim() || h.value)}
+              style={{ border: 'none', padding: 0, margin: 0 }}
+            >
+              <legend style={{ fontSize: 12, marginBottom: 4 }}>{t('settings.customHeadersApplyTo')}</legend>
+              {(['public', 'local', 'both'] as const).map(kind => (
+                <label key={kind} style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
+                  <input
+                    type="radio"
+                    name="customHeadersApplyTo"
+                    checked={form.customHeadersApplyTo === kind}
+                    onChange={() => setForm(f => ({ ...f, customHeadersApplyTo: kind }))}
+                  />{' '}
+                  {t(`settings.customHeadersApplyTo_${kind}`)}
+                </label>
+              ))}
+            </fieldset>
+            <p style={{ fontSize: 11, opacity: 0.65, marginTop: 6 }}>
+              {t('settings.customHeadersNotInShare')}
+            </p>
+          </div>
+        )}
       </div>
       {!isEdit && (
         <div className="form-group" style={{ marginBottom: '0.75rem' }}>

@@ -6,6 +6,23 @@ import type {
 } from '../utils/server/subsonicServerIdentity';
 import type { PersistedAccount } from '../music-network';
 
+export type CustomHeaderEntry = {
+  name: string;
+  value: string;
+};
+
+export type CustomHeadersApplyTo = 'local' | 'public' | 'both';
+
+export type CustomHeadersFieldError = {
+  index: number;
+  field: 'name' | 'value';
+  messageKey: string;
+};
+
+export type CustomHeadersValidationResult =
+  | { ok: true }
+  | { ok: false; fieldErrors: CustomHeadersFieldError[]; formMessage?: string };
+
 export interface ServerProfile {
   id: string;
   name: string;
@@ -30,6 +47,10 @@ export interface ServerProfile {
   shareUsesLocalUrl?: boolean;
   username: string;
   password: string;
+  /** Optional HTTP headers for reverse-proxy gates (Pangolin, Cloudflare Access). */
+  customHeaders?: CustomHeaderEntry[];
+  /** Which profile endpoint(s) receive `customHeaders`. Default when absent: `'public'`. */
+  customHeadersApplyTo?: CustomHeadersApplyTo;
 }
 
 export type SeekbarStyle = 'truewave' | 'pseudowave' | 'linedot' | 'bar' | 'thick' | 'segmented' | 'neon' | 'pulsewave' | 'particletrail' | 'liquidfill' | 'retrotape';

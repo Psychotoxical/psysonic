@@ -36,7 +36,10 @@ pub(crate) use integration::{
     unregister_global_shortcut,
 };
 pub(crate) use migration::{migration_inspect, migration_run};
-pub(crate) use network::resolve_host_addresses;
+pub(crate) use network::{
+    resolve_host_addresses, server_http_context_clear, server_http_context_sync,
+    server_http_context_sync_all,
+};
 
 // Discord, Navidrome admin, last.fm + radio-browser + CORS proxy, bandsintown,
 // and analysis admin commands now live in their domain crates. invoke_handler!

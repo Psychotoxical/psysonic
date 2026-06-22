@@ -23,6 +23,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Listing every export the store uses keeps the override stable.
 vi.mock('@/api/subsonic', () => ({
   pingWithCredentials: vi.fn(async () => ({ ok: true })),
+  pingWithCredentialsForProfile: vi.fn(async () => ({ ok: true })),
+  scheduleInstantMixProbeForServer: vi.fn(),
 }));
 vi.mock('@/api/subsonicPlayQueue', () => ({
   savePlayQueue: vi.fn(async () => undefined),

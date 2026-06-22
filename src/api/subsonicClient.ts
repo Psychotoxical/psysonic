@@ -4,6 +4,7 @@ import { version } from '../../package.json';
 import { useAuthStore } from '../store/authStore';
 import type { ServerProfile } from '../store/authStoreTypes';
 import { connectBaseUrlForServer } from '../utils/server/serverEndpoint';
+import { headersForServerRequest } from '../utils/server/serverHttpHeaders';
 import { findServerByIdOrIndexKey, resolveServerIdForIndexKey } from '../utils/server/serverLookup';
 
 export const SUBSONIC_CLIENT = `psysonic/${version}`;
@@ -32,10 +33,16 @@ export async function apiWithCredentials<T>(
   endpoint: string,
   extra: Record<string, unknown> = {},
   timeout = 15000,
+  headerProfile?: Pick<
+    ServerProfile,
+    'url' | 'alternateUrl' | 'customHeaders' | 'customHeadersApplyTo'
+  >,
 ): Promise<T> {
   const params = { ...getAuthParams(username, password), ...extra };
+  const headers = headerProfile ? headersForServerRequest(headerProfile, serverUrl) : {};
   const resp = await axios.get(`${restBaseFromUrl(serverUrl)}/${endpoint}`, {
     params,
+    headers,
     paramsSerializer: { indexes: null },
     timeout,
   });
@@ -78,6 +85,7 @@ export async function apiForServer<T>(
     endpoint,
     extra,
     timeout,
+    server,
   );
 }
 
@@ -88,8 +96,13 @@ export async function api<T>(
   signal?: AbortSignal,
 ): Promise<T> {
   const { baseUrl, params } = getClient();
+  const server = useAuthStore.getState().getActiveServer();
+  const connectBase = useAuthStore.getState().getBaseUrl();
+  const headers =
+    server && connectBase ? headersForServerRequest(server, connectBase) : {};
   const resp = await axios.get(`${baseUrl}/${endpoint}`, {
     params: { ...params, ...extra },
+    headers,
     paramsSerializer: { indexes: null },
     timeout,
     signal,

@@ -1,6 +1,8 @@
 import axios from 'axios';
 import md5 from 'md5';
 import { useAuthStore } from '../store/authStore';
+import type { ServerProfile } from '../store/authStoreTypes';
+import { headersForServerRequest } from '../utils/server/serverHttpHeaders';
 import {
   type InstantMixProbeResult,
   type SubsonicServerIdentity,
@@ -57,6 +59,47 @@ export async function pingWithCredentials(
     };
   } catch (err) {
     console.warn('[psysonic] pingWithCredentials failed:', serverUrl, err);
+    return { ok: false };
+  }
+}
+
+/** Profile-aware ping for connect probe — attaches custom headers per endpoint. */
+export async function pingWithCredentialsForProfile(
+  profile: Pick<
+    ServerProfile,
+    'url' | 'alternateUrl' | 'username' | 'password' | 'customHeaders' | 'customHeadersApplyTo'
+  >,
+  endpointBaseUrl: string,
+): Promise<PingWithCredentialsResult> {
+  try {
+    const base = endpointBaseUrl.startsWith('http')
+      ? endpointBaseUrl.replace(/\/$/, '')
+      : `http://${endpointBaseUrl.replace(/\/$/, '')}`;
+    const salt = secureRandomSalt();
+    const token = md5(profile.password + salt);
+    const resp = await axios.get(`${base}/rest/ping.view`, {
+      params: {
+        u: profile.username,
+        t: token,
+        s: salt,
+        v: '1.16.1',
+        c: SUBSONIC_CLIENT,
+        f: 'json',
+      },
+      headers: headersForServerRequest(profile, endpointBaseUrl),
+      paramsSerializer: { indexes: null },
+      timeout: 15000,
+    });
+    const data = resp.data?.['subsonic-response'];
+    const ok = data?.status === 'ok';
+    return {
+      ok,
+      type: typeof data?.type === 'string' ? data.type : undefined,
+      serverVersion: typeof data?.serverVersion === 'string' ? data.serverVersion : undefined,
+      openSubsonic: data?.openSubsonic === true,
+    };
+  } catch (err) {
+    console.warn('[psysonic] pingWithCredentialsForProfile failed:', endpointBaseUrl, err);
     return { ok: false };
   }
 }

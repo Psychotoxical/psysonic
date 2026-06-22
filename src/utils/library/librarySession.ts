@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useLibraryIndexStore } from '../../store/libraryIndexStore';
 import { ensureConnectUrlResolved } from '../server/serverEndpoint';
 import { serverIndexKeyForProfile } from '../server/serverIndexKey';
+import { syncServerHttpContextForProfile } from '../server/syncServerHttpContext';
 import { libraryDevEnabled, logLibraryStatus, logLibrarySync, timed } from './libraryDevLog';
 
 export type BindServerResult = 'bound' | 'offline' | 'error';
@@ -49,6 +50,7 @@ export async function bindIndexedServer(server: ServerProfile): Promise<BindServ
       });
       logLibraryStatus(server.id, status, 'bind_session');
     }
+    void syncServerHttpContextForProfile(server);
     return 'bound';
   } catch {
     return 'error';

@@ -10,7 +10,8 @@ pub mod types;
 
 pub use auth::SubsonicCredentials;
 pub use client::{
-    fingerprint_sample, SubsonicClient, SUBSONIC_API_VERSION, SUBSONIC_CLIENT_ID,
+    fingerprint_sample, subsonic_client_with_registry, SubsonicClient, SUBSONIC_API_VERSION,
+    SUBSONIC_CLIENT_ID,
 };
 pub use stream_url::{build_stream_view_url, rest_base_from_url};
 pub use error::SubsonicError;

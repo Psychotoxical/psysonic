@@ -20,6 +20,7 @@ import {
   DEFAULT_LIBRARY_GRID_MAX_COLUMNS,
 } from './authStoreDefaults';
 import { computeAuthStoreRehydration } from './authStoreRehydrate';
+import { syncAllServerHttpContexts } from '../utils/server/syncServerHttpContext';
 import type { AuthState } from './authStoreTypes';
 import { getCachedConnectBaseUrl } from '../utils/server/serverEndpoint';
 import { serverProfileBaseUrl } from '../utils/server/serverBaseUrl';
@@ -172,6 +173,7 @@ export const useAuthStore = create<AuthState>()(
       onRehydrateStorage: () => (state, error) => {
         if (error || !state) return;
         useAuthStore.setState(computeAuthStoreRehydration(state));
+        void syncAllServerHttpContexts(useAuthStore.getState().servers);
       },
     }
   )

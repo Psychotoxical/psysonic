@@ -12,6 +12,7 @@ use serde::Deserialize;
 use super::auth::SubsonicCredentials;
 use super::error::{flatten_reqwest_error, SubsonicError};
 use super::types::{Album, AlbumSummary, ArtistIndex, ScanStatus, SearchResult, ServerInfo, Song};
+use psysonic_core::server_http::{apply_server_headers, ServerHttpContext};
 
 /// Protocol level we advertise — pre-OpenSubsonic Subsonic baseline that
 /// Navidrome and other servers in the wild support. OpenSubsonic
@@ -42,6 +43,7 @@ pub struct SubsonicClient {
     base_url: String,
     credentials: CredentialsMode,
     http: reqwest::Client,
+    http_context: Option<ServerHttpContext>,
 }
 
 impl SubsonicClient {
@@ -75,7 +77,26 @@ impl SubsonicClient {
                 password: password.into(),
             },
             http,
+            http_context: None,
         }
+    }
+
+    pub fn with_http_context(mut self, ctx: ServerHttpContext) -> Self {
+        self.http_context = Some(ctx);
+        self
+    }
+
+    /// Production helper — attach registry context when present for `server_ref`
+    /// (app server id or index key).
+    pub fn with_registry(
+        self,
+        registry: Option<&psysonic_core::server_http::ServerHttpRegistry>,
+        server_ref: &str,
+    ) -> Self {
+        registry
+            .and_then(|r| r.get_for_server_ref(server_ref))
+            .map(|ctx| self.clone().with_http_context((*ctx).clone()))
+            .unwrap_or(self)
     }
 
     /// Test-/cache-friendly constructor — re-uses the same
@@ -95,6 +116,7 @@ impl SubsonicClient {
             base_url: url,
             credentials: CredentialsMode::Static(credentials),
             http,
+            http_context: None,
         }
     }
 
@@ -301,10 +323,15 @@ impl SubsonicClient {
         let mut query: Vec<(&str, &str)> = auth.to_vec();
         query.extend_from_slice(extra);
 
-        let resp = self
+        let mut req = self
             .http
             .get(format!("{}/rest/{method}.view", self.base_url))
-            .query(&query)
+            .query(&query);
+        if let Some(ctx) = &self.http_context {
+            req = apply_server_headers(req, ctx, &self.base_url);
+        }
+
+        let resp = req
             .send()
             .await
             .map_err(|e| SubsonicError::Transport(flatten_reqwest_error(e)))?;
@@ -329,6 +356,16 @@ fn default_http_client() -> reqwest::Client {
         .user_agent(format!("Psysonic/{} (Tauri)", env!("CARGO_PKG_VERSION")))
         .build()
         .unwrap_or_else(|_| reqwest::Client::new())
+}
+
+pub fn subsonic_client_with_registry(
+    registry: Option<&psysonic_core::server_http::ServerHttpRegistry>,
+    server_ref: &str,
+    base_url: impl Into<String>,
+    username: impl Into<String>,
+    password: impl Into<String>,
+) -> SubsonicClient {
+    SubsonicClient::new(base_url, username, password).with_registry(registry, server_ref)
 }
 
 /// Validate the Subsonic envelope and return the raw `serde_json::Value`

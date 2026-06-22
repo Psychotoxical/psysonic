@@ -21,6 +21,7 @@ use futures_util::StreamExt;
 use symphonia::core::io::MediaSource;
 use tauri::{AppHandle, Emitter};
 
+use super::super::engine::PlaybackHttpHeaders;
 use super::super::state::PreloadedTrack;
 use super::{
     RADIO_YIELD_MS, TRACK_READ_TIMEOUT_SECS, TRACK_STREAM_MAX_RECONNECTS,
@@ -88,6 +89,7 @@ pub(crate) struct OnDemand {
     /// Bumped after every completed (success or failure) fetch so the read loop
     /// can reset its stall deadline while on-demand fetches make progress.
     progress: AtomicU64,
+    http_headers: PlaybackHttpHeaders,
 }
 
 impl OnDemand {
@@ -100,6 +102,7 @@ impl OnDemand {
         total_size: u64,
         gen_arc: Arc<AtomicU64>,
         gen: u64,
+        http_headers: PlaybackHttpHeaders,
     ) -> Self {
         OnDemand {
             http,
@@ -112,6 +115,7 @@ impl OnDemand {
             filled: Mutex::new(Vec::new()),
             inflight: Mutex::new(Vec::new()),
             progress: AtomicU64::new(0),
+            http_headers,
         }
     }
 
@@ -154,6 +158,7 @@ impl OnDemand {
                 end_inclusive,
                 me.gen,
                 &me.gen_arc,
+                &me.http_headers,
             )
             .await;
             if let Ok(written) = res {
@@ -367,6 +372,7 @@ pub(crate) async fn ranged_http_download_loop<F>(
     downloaded_to: &Arc<AtomicUsize>,
     gen: u64,
     gen_arc: &Arc<AtomicU64>,
+    http_headers: &PlaybackHttpHeaders,
     mut on_partial: F,
     playback_armed: Option<&AtomicBool>,
 ) -> (usize, RangedHttpLoopOutcome)
@@ -387,6 +393,7 @@ where
             if downloaded > 0 {
                 req = req.header(reqwest::header::RANGE, format!("bytes={downloaded}-"));
             }
+            req = http_headers.apply(url, req);
             match req.send().await {
                 Ok(r) => r,
                 Err(err) => {
@@ -495,13 +502,18 @@ async fn ranged_write_http_range(
     end_inclusive: u64,
     gen: u64,
     gen_arc: &Arc<AtomicU64>,
+    http_headers: &PlaybackHttpHeaders,
 ) -> Result<usize, ()> {
     if gen_arc.load(Ordering::SeqCst) != gen {
         return Err(());
     }
-    let response = http_client
-        .get(url)
-        .header(reqwest::header::RANGE, format!("bytes={start}-{end_inclusive}"))
+    let response = http_headers
+        .apply(
+            url,
+            http_client
+                .get(url)
+                .header(reqwest::header::RANGE, format!("bytes={start}-{end_inclusive}")),
+        )
         .send()
         .await
         .map_err(|_| ())?;
@@ -555,6 +567,7 @@ async fn ranged_prefetch_mp4_tail(
     playback_armed: Arc<AtomicBool>,
     gen: u64,
     gen_arc: Arc<AtomicU64>,
+    http_headers: PlaybackHttpHeaders,
 ) {
     const MIN_TAIL: u64 = 256 * 1024;
     const MAX_TAIL: u64 = 8 * 1024 * 1024;
@@ -573,6 +586,7 @@ async fn ranged_prefetch_mp4_tail(
         end_inclusive,
         gen,
         &gen_arc,
+        &http_headers,
     )
     .await
     {
@@ -622,6 +636,7 @@ pub(crate) async fn ranged_download_task(
     cache_track_id: Option<String>,
     // Playback server scope for the analysis-cache write key (empty/`None` → legacy '').
     server_id: Option<String>,
+    http_headers: PlaybackHttpHeaders,
     // When `Some`, ranged playback seeds on completion — defer HTTP backfill for that
     // track; `None` for large files where ranged skips seed (needs backfill).
     loudness_seed_hold: Option<LoudnessSeedHold>,
@@ -705,6 +720,7 @@ pub(crate) async fn ranged_download_task(
         let tail_from_bg = tail_filled_from.clone();
         let armed_bg = playback_armed.clone();
         let gen_bg = gen_arc.clone();
+        let headers_bg = http_headers.clone();
         Some(tokio::spawn(async move {
             ranged_prefetch_mp4_tail(
                 client,
@@ -716,6 +732,7 @@ pub(crate) async fn ranged_download_task(
                 armed_bg,
                 gen,
                 gen_bg,
+                headers_bg,
             )
             .await;
         }))
@@ -736,6 +753,7 @@ pub(crate) async fn ranged_download_task(
         &downloaded_to,
         gen,
         &gen_arc,
+        &http_headers,
         on_partial,
         linear_arm,
     )
@@ -1127,6 +1145,7 @@ mod tests {
             &dl,
             1,
             &gen_arc,
+            &PlaybackHttpHeaders::default(),
             |_, _| {},
             None,
         )
@@ -1162,6 +1181,7 @@ mod tests {
             &dl,
             1,
             &gen_arc,
+            &PlaybackHttpHeaders::default(),
             |downloaded, total| calls.lock().unwrap().push((downloaded, total)),
             None,
         )
@@ -1190,7 +1210,7 @@ mod tests {
         let (buf, dl, gen_arc) = loop_state(1024);
 
         let (downloaded, outcome) =
-            ranged_http_download_loop(client, &url, initial, &buf, &dl, 1, &gen_arc, |_, _| {}, None)
+            ranged_http_download_loop(client, &url, initial, &buf, &dl, 1, &gen_arc, &PlaybackHttpHeaders::default(), |_, _| {}, None)
                 .await;
 
         assert_eq!(outcome, RangedHttpLoopOutcome::Aborted);
@@ -1221,7 +1241,7 @@ mod tests {
         gen_arc.store(99, Ordering::SeqCst);
 
         let (downloaded, outcome) =
-            ranged_http_download_loop(client, &url, initial, &buf, &dl, 1, &gen_arc, |_, _| {}, None)
+            ranged_http_download_loop(client, &url, initial, &buf, &dl, 1, &gen_arc, &PlaybackHttpHeaders::default(), |_, _| {}, None)
                 .await;
 
         assert_eq!(outcome, RangedHttpLoopOutcome::Superseded);
@@ -1280,7 +1300,7 @@ mod tests {
         let (buf, dl, gen_arc) = loop_state(body.len());
 
         let (downloaded, outcome) =
-            ranged_http_download_loop(client, &url, initial, &buf, &dl, 1, &gen_arc, |_, _| {}, None)
+            ranged_http_download_loop(client, &url, initial, &buf, &dl, 1, &gen_arc, &PlaybackHttpHeaders::default(), |_, _| {}, None)
                 .await;
 
         // Stream finishes via a Range-resumed second request.
@@ -1440,7 +1460,7 @@ mod tests {
         let (buf, dl, gen_arc) = loop_state(body.len());
 
         let (downloaded, outcome) =
-            ranged_http_download_loop(client, &url, initial, &buf, &dl, 1, &gen_arc, |_, _| {}, None)
+            ranged_http_download_loop(client, &url, initial, &buf, &dl, 1, &gen_arc, &PlaybackHttpHeaders::default(), |_, _| {}, None)
                 .await;
 
         // Reconnect server returned 200 instead of 206 → Aborted, downloaded

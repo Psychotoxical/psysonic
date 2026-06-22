@@ -2,6 +2,11 @@
 //! dual-server-address add/edit form (UI hint only — not for connect).
 
 use std::collections::HashSet;
+
+use std::sync::Arc;
+
+use psysonic_core::server_http::{ServerHttpContextSyncWire, ServerHttpRegistry};
+use tauri::State;
 use tokio::net::lookup_host;
 
 /// Resolve a hostname to a deduped list of IP address strings (IPv4 + IPv6).
@@ -56,6 +61,34 @@ pub(crate) async fn resolve_host_addresses(hostname: String) -> Result<Vec<Strin
         }
     }
     Ok(result)
+}
+
+#[tauri::command]
+pub(crate) fn server_http_context_sync(
+    registry: State<'_, Arc<ServerHttpRegistry>>,
+    wire: ServerHttpContextSyncWire,
+) -> Result<(), String> {
+    registry.sync(wire);
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn server_http_context_sync_all(
+    registry: State<'_, Arc<ServerHttpRegistry>>,
+    entries: Vec<ServerHttpContextSyncWire>,
+) -> Result<(), String> {
+    registry.sync_all(entries);
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn server_http_context_clear(
+    registry: State<'_, Arc<ServerHttpRegistry>>,
+    serverId: String,
+    appServerId: String,
+) -> Result<(), String> {
+    registry.remove(&serverId, &appServerId);
+    Ok(())
 }
 
 /// Strip a `:port` suffix. Handles `host:port` and `[ipv6]:port`; leaves

@@ -15,7 +15,7 @@ use super::analysis_dispatch::{
     prepare_playback_analysis, spawn_track_analysis_bytes, spawn_track_analysis_file,
     TrackAnalysisOrigin,
 };
-use super::engine::{audio_http_client, AudioEngine};
+use super::engine::{audio_http_client, AudioEngine, PlaybackHttpHeaders};
 use super::helpers::{
     content_type_to_hint, fetch_data, format_hint_from_content_disposition,
     normalize_stream_suffix_for_hint, sniff_stream_format_extension,
@@ -217,7 +217,12 @@ async fn open_ranged_or_streaming_input(
     state: &State<'_, AudioEngine>,
     app: &AppHandle,
 ) -> Result<Option<PlayInput>, String> {
-    let response = audio_http_client(state).get(ctx.url).send().await.map_err(|e| e.to_string())?;
+    let http_headers = PlaybackHttpHeaders::from_app(app, ctx.server_id);
+    let response = http_headers
+        .apply(ctx.url, audio_http_client(state).get(ctx.url))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
     if !response.status().is_success() {
         if state.generation.load(Ordering::SeqCst) != ctx.gen {
             return Ok(None); // superseded
@@ -256,8 +261,8 @@ async fn open_ranged_or_streaming_input(
             let last = total_u64
                 .saturating_sub(1)
                 .min((STREAM_FORMAT_SNIFF_PROBE_BYTES - 1) as u64);
-            if let Ok(pr) = audio_http_client(state)
-                .get(ctx.url)
+            if let Ok(pr) = http_headers
+                .apply(ctx.url, audio_http_client(state).get(ctx.url))
                 .header(reqwest::header::RANGE, format!("bytes=0-{last}"))
                 .send()
                 .await
@@ -328,6 +333,7 @@ async fn open_ranged_or_streaming_input(
             state.loudness_pre_analysis_attenuation_db.clone(),
             ctx.cache_id_for_tasks.map(|s| s.to_string()),
             ctx.server_id.map(|s| s.to_string()),
+            http_headers.clone(),
             loudness_hold_for_defer,
             playback_armed,
             stream_hint.clone(),
@@ -347,6 +353,7 @@ async fn open_ranged_or_streaming_input(
             total,
             state.generation.clone(),
             ctx.gen,
+            http_headers.clone(),
         )));
         let reader = RangedHttpSource {
             buf,
@@ -401,6 +408,7 @@ async fn open_ranged_or_streaming_input(
         state.loudness_pre_analysis_attenuation_db.clone(),
         ctx.cache_id_for_tasks.map(|s| s.to_string()),
         ctx.server_id.map(|s| s.to_string()),
+        http_headers,
         playback_armed,
     ));
 

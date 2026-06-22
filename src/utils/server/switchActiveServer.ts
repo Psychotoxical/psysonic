@@ -10,6 +10,7 @@ import { flushPlayQueueForServer } from '../../store/queueSync';
 import { markQueueHandoffPending } from '../../store/queueSyncUiState';
 import { endOrbitSession, leaveOrbitSession } from '../orbit';
 import { ensureConnectUrlResolved } from './serverEndpoint';
+import { syncServerHttpContextForProfile } from './syncServerHttpContext';
 
 export async function switchActiveServer(server: ServerProfile): Promise<boolean> {
   coverTrafficBeginServerSwitch();
@@ -56,6 +57,7 @@ export async function switchActiveServer(server: ServerProfile): Promise<boolean
     if (oldActiveId && oldActiveId !== server.id) {
       markQueueHandoffPending();
     }
+    void syncServerHttpContextForProfile(server);
     return true;
   } catch {
     return false;
