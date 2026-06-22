@@ -733,6 +733,7 @@ pub async fn library_sync_bind_session(
         &runtime.store,
         &subsonic,
         navidrome_creds.as_ref(),
+        Some(http_registry.as_ref()),
         &server_id,
         scope,
     )
@@ -913,7 +914,8 @@ async fn library_sync_start_inner(
             )
             .with_cancellation(Arc::clone(&cancel_for_task))
             .with_progress(Arc::clone(&progress))
-            .with_parallelism_budget(parallelism);
+            .with_parallelism_budget(parallelism)
+            .with_http_registry(Some(Arc::clone(&registry)));
             if let Some(creds) = navidrome_creds.clone() {
                 runner = runner.with_navidrome_credentials(creds);
             }
@@ -937,7 +939,8 @@ async fn library_sync_start_inner(
                 capability_flags,
             )
             .with_cancellation(Arc::clone(&cancel_for_task))
-            .with_progress(Arc::clone(&progress));
+            .with_progress(Arc::clone(&progress))
+            .with_http_registry(Some(Arc::clone(&registry)));
             if tombstone_budget > 0 {
                 runner = runner.with_tombstone_budget(tombstone_budget);
             }

@@ -6,7 +6,7 @@
 //! endpoint? — so this stays a free function rather than a client
 //! struct. The full `nd_list_songs`-style ingest loop lands with PR-3b.
 
-use super::client::{nd_err, nd_http_client};
+use super::client::{nd_apply_request, nd_err, nd_http_client};
 
 /// Returns `Ok(true)` when `GET /api/song?_start=0&_end=1` answers with
 /// a 2xx status, `Ok(false)` for 4xx (auth ok but endpoint missing or
@@ -16,15 +16,25 @@ use super::client::{nd_err, nd_http_client};
 /// Spec §6.1 ties the result to the `NavidromeNativeBulk` capability
 /// flag. Wider call into the actual ingest path (`nd_list_songs` port)
 /// is PR-3b's job.
-pub async fn native_bulk_available(server_url: &str, token: &str) -> Result<bool, String> {
+pub async fn native_bulk_available(
+    registry: Option<&psysonic_core::server_http::ServerHttpRegistry>,
+    server_ref: Option<&str>,
+    server_url: &str,
+    token: &str,
+) -> Result<bool, String> {
     let client = nd_http_client();
     let url = format!("{}/api/song?_start=0&_end=1", server_url.trim_end_matches('/'));
-    let resp = client
-        .get(url)
-        .header("X-ND-Authorization", format!("Bearer {token}"))
-        .send()
-        .await
-        .map_err(nd_err)?;
+    let resp = nd_apply_request(
+        registry,
+        server_ref,
+        &url,
+        client
+            .get(&url)
+            .header("X-ND-Authorization", format!("Bearer {token}")),
+    )
+    .send()
+    .await
+    .map_err(nd_err)?;
 
     let status = resp.status();
     if status.is_success() {
@@ -56,7 +66,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let ok = native_bulk_available(&server.uri(), "tok-123").await.unwrap();
+        let ok = native_bulk_available(None, None, &server.uri(), "tok-123").await.unwrap();
         assert!(ok);
     }
 
@@ -71,7 +81,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let ok = native_bulk_available(&server.uri(), "tok").await.unwrap();
+        let ok = native_bulk_available(None, None, &server.uri(), "tok").await.unwrap();
         assert!(!ok);
     }
 
@@ -84,7 +94,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let ok = native_bulk_available(&server.uri(), "bad").await.unwrap();
+        let ok = native_bulk_available(None, None, &server.uri(), "bad").await.unwrap();
         assert!(!ok, "401 reads as `endpoint not available for this caller`");
     }
 
@@ -97,7 +107,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let err = native_bulk_available(&server.uri(), "tok").await.unwrap_err();
+        let err = native_bulk_available(None, None, &server.uri(), "tok").await.unwrap_err();
         assert!(err.contains("503"));
     }
 
@@ -111,6 +121,6 @@ mod tests {
             .await;
 
         let with_slash = format!("{}/", server.uri());
-        assert!(native_bulk_available(&with_slash, "tok").await.unwrap());
+        assert!(native_bulk_available(None, None, &with_slash, "tok").await.unwrap());
     }
 }

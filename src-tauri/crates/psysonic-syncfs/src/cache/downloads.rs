@@ -2,6 +2,8 @@ use tauri::{Emitter, Manager};
 
 use psysonic_core::user_agent::subsonic_wire_user_agent;
 
+use crate::file_transfer::apply_server_http_get;
+
 pub fn resolve_hot_cache_root(
     custom_dir: Option<String>,
     app: &tauri::AppHandle,
@@ -340,7 +342,18 @@ pub async fn download_zip(
         .build()
         .map_err(|e| e.to_string())?;
 
-    let response = client.get(&url).send().await.map_err(|e| e.to_string())?;
+    let http_registry = app
+        .try_state::<std::sync::Arc<psysonic_core::server_http::ServerHttpRegistry>>()
+        .map(|s| std::sync::Arc::clone(&*s));
+    let response = apply_server_http_get(
+        &client,
+        http_registry.as_deref(),
+        None,
+        &url,
+    )
+    .send()
+    .await
+    .map_err(|e| e.to_string())?;
     if !response.status().is_success() {
         return Err(format!("HTTP {}", response.status().as_u16()));
     }

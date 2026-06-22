@@ -63,13 +63,15 @@ pub fn build_fanart_url(mbid: &str, api_key: &str, client_key: Option<&str>) -> 
 /// `Ok(None)` when the artist carries no MBID tag.
 pub async fn fetch_artist_tag_mbid(
     client: &Client,
+    registry: Option<&psysonic_core::server_http::ServerHttpRegistry>,
+    server_ref: Option<&str>,
     rest_base: &str,
     username: &str,
     password: &str,
     artist_id: &str,
 ) -> Result<Option<String>, String> {
     let url = build_artist_info2_url(rest_base, username, password, artist_id);
-    let body = http_get_text(client, &url).await?;
+    let body = http_get_text_scoped(client, registry, server_ref, &url).await?;
     let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
     let mbid = v
         .get("subsonic-response")
@@ -218,8 +220,21 @@ fn classify_mb_releases(v: &serde_json::Value) -> MbResolution {
 }
 
 /// Single GET → response text; any non-2xx is an error.
-async fn http_get_text(client: &Client, url: &str) -> Result<String, String> {
-    let resp = client.get(url).send().await.map_err(|e| e.to_string())?;
+async fn http_get_text_scoped(
+    client: &Client,
+    registry: Option<&psysonic_core::server_http::ServerHttpRegistry>,
+    server_ref: Option<&str>,
+    url: &str,
+) -> Result<String, String> {
+    let resp = psysonic_core::server_http::apply_optional_registry_headers(
+        registry,
+        server_ref,
+        url,
+        client.get(url),
+    )
+    .send()
+    .await
+    .map_err(|e| e.to_string())?;
     let status = resp.status();
     if !status.is_success() {
         return Err(format!("HTTP {status}"));

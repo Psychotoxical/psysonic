@@ -16,7 +16,7 @@ use super::analysis_dispatch::{
     dispatch_track_analysis_bytes, prepare_playback_analysis, spawn_track_analysis_file,
     TrackAnalysisOrigin,
 };
-use super::engine::{audio_http_client, AudioEngine};
+use super::engine::AudioEngine;
 use super::helpers::{analysis_cache_track_id, same_playback_target};
 use super::state::PreloadedTrack;
 
@@ -197,7 +197,15 @@ pub async fn audio_preload(
         }
     }
 
-    let response = audio_http_client(&state).get(&url).send().await.map_err(|e| e.to_string())?;
+    let response = crate::engine::playback_scoped_get(
+        &state,
+        &app,
+        &url,
+        server_id.as_deref(),
+    )
+    .send()
+    .await
+    .map_err(|e| e.to_string())?;
     if !response.status().is_success() {
         emit_preload_cancelled(&app, url, track_id_for_events);
         return Ok(());

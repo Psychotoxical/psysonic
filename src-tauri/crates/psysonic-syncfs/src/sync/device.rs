@@ -1,6 +1,6 @@
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
-use crate::file_transfer::{finalize_streamed_download, subsonic_http_client};
+use crate::file_transfer::{apply_server_http_get, finalize_streamed_download, subsonic_http_client};
 
 // ─── Device Sync ─────────────────────────────────────────────────────────────
 
@@ -333,6 +333,8 @@ pub(crate) async fn sync_download_one_track(
     suffix: &str,
     url: &str,
     client: &reqwest::Client,
+    registry: Option<&psysonic_core::server_http::ServerHttpRegistry>,
+    server_ref: Option<&str>,
 ) -> Result<bool, String> {
     if dest_path.exists() {
         return Ok(false);
@@ -342,7 +344,10 @@ pub(crate) async fn sync_download_one_track(
             .await
             .map_err(|e| e.to_string())?;
     }
-    let response = client.get(url).send().await.map_err(|e| e.to_string())?;
+    let response = apply_server_http_get(client, registry, server_ref, url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
     if !response.status().is_success() {
         return Err(format!("HTTP {}", response.status().as_u16()));
     }
@@ -366,7 +371,19 @@ pub async fn sync_track_to_device(
     let path_str = dest_path.to_string_lossy().to_string();
 
     let client = subsonic_http_client(std::time::Duration::from_secs(300))?;
-    match sync_download_one_track(&dest_path, &track.suffix, &track.url, &client).await {
+    let http_registry = app
+        .try_state::<std::sync::Arc<psysonic_core::server_http::ServerHttpRegistry>>()
+        .map(|s| std::sync::Arc::clone(&*s));
+    match sync_download_one_track(
+        &dest_path,
+        &track.suffix,
+        &track.url,
+        &client,
+        http_registry.as_deref(),
+        None,
+    )
+    .await
+    {
         Ok(false) => {
             let _ = app.emit("device:sync:progress", serde_json::json!({
                 "jobId": job_id, "trackId": track.id, "status": "skipped", "path": path_str,
@@ -656,7 +673,7 @@ mod tests {
         let dest = dir.path().join("Album").join("01 - track.flac");
         let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
         let url = format!("{}/track", server.uri());
-        let downloaded = sync_download_one_track(&dest, "flac", &url, &client)
+        let downloaded = sync_download_one_track(&dest, "flac", &url, &client, None, None)
             .await
             .unwrap();
         assert!(downloaded, "fresh download must report Ok(true)");
@@ -672,7 +689,7 @@ mod tests {
 
         let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
         let url = format!("{}/should-not-be-hit", server.uri());
-        let downloaded = sync_download_one_track(&dest, "mp3", &url, &client)
+        let downloaded = sync_download_one_track(&dest, "mp3", &url, &client, None, None)
             .await
             .unwrap();
         assert!(!downloaded, "pre-existing file must be reported as skipped");
@@ -692,7 +709,7 @@ mod tests {
         let dest = dir.path().join("track.opus");
         let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
         let url = format!("{}/missing", server.uri());
-        let err = sync_download_one_track(&dest, "opus", &url, &client)
+        let err = sync_download_one_track(&dest, "opus", &url, &client, None, None)
             .await
             .unwrap_err();
         assert!(err.contains("HTTP 403"));
@@ -714,7 +731,7 @@ mod tests {
         assert!(!dest.parent().unwrap().exists());
         let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
         let url = format!("{}/t", server.uri());
-        sync_download_one_track(&dest, "mp3", &url, &client)
+        sync_download_one_track(&dest, "mp3", &url, &client, None, None)
             .await
             .unwrap();
         assert!(dest.exists());

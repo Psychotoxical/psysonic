@@ -9,7 +9,7 @@ use psysonic_analysis::analysis_runtime::{
 };
 use crate::{offline_cancel_flags, DownloadSemaphore};
 
-use crate::file_transfer::{finalize_streamed_download, subsonic_http_client};
+use crate::file_transfer::{apply_server_http_get, finalize_streamed_download, subsonic_http_client};
 
 // ─── Offline Track Cache ──────────────────────────────────────────────────────
 
@@ -37,6 +37,8 @@ pub(crate) async fn download_track_to_cache_dir(
     suffix: &str,
     url: &str,
     client: &reqwest::Client,
+    registry: Option<&psysonic_core::server_http::ServerHttpRegistry>,
+    server_ref: Option<&str>,
     cancel: Option<&AtomicBool>,
 ) -> Result<std::path::PathBuf, String> {
     tokio::fs::create_dir_all(cache_dir)
@@ -48,7 +50,10 @@ pub(crate) async fn download_track_to_cache_dir(
         return Ok(file_path);
     }
 
-    let response = client.get(url).send().await.map_err(|e| e.to_string())?;
+    let response = apply_server_http_get(client, registry, server_ref, url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
     if !response.status().is_success() {
         return Err(format!("HTTP {}", response.status().as_u16()));
     }
@@ -129,12 +134,17 @@ pub async fn download_track_offline(
     }
 
     let client = subsonic_http_client(std::time::Duration::from_secs(120))?;
+    let http_registry = app
+        .try_state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>()
+        .map(|s| Arc::clone(&*s));
     let final_path = download_track_to_cache_dir(
         &cache_dir,
         &track_id,
         &suffix,
         &url,
         &client,
+        http_registry.as_deref(),
+        Some(&server_id),
         cancel_flag.as_deref(),
     )
     .await?;
@@ -191,7 +201,7 @@ mod tests {
         let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
         let url = format!("{}/stream/track-1", server.uri());
 
-        let path = download_track_to_cache_dir(&cache_dir, "track-1", "flac", &url, &client, None)
+        let path = download_track_to_cache_dir(&cache_dir, "track-1", "flac", &url, &client, None, None, None)
             .await
             .unwrap();
         assert!(path.exists());
@@ -211,7 +221,7 @@ mod tests {
         let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
         let url = format!("{}/should-not-be-hit", server.uri());
 
-        let path = download_track_to_cache_dir(&cache_dir, "track-1", "flac", &url, &client, None)
+        let path = download_track_to_cache_dir(&cache_dir, "track-1", "flac", &url, &client, None, None, None)
             .await
             .unwrap();
         assert_eq!(path, pre_existing);
@@ -232,7 +242,7 @@ mod tests {
         let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
         let url = format!("{}/stream/missing", server.uri());
 
-        let err = download_track_to_cache_dir(&cache_dir, "missing", "flac", &url, &client, None)
+        let err = download_track_to_cache_dir(&cache_dir, "missing", "flac", &url, &client, None, None, None)
             .await
             .unwrap_err();
         assert!(err.contains("HTTP 404"), "got {err}");
@@ -256,7 +266,7 @@ mod tests {
         let client = subsonic_http_client(std::time::Duration::from_secs(5)).unwrap();
         let url = format!("{}/track", server.uri());
 
-        download_track_to_cache_dir(&cache_dir, "t", "mp3", &url, &client, None)
+        download_track_to_cache_dir(&cache_dir, "t", "mp3", &url, &client, None, None, None)
             .await
             .unwrap();
         assert!(cache_dir.join("t.mp3").exists());
@@ -278,7 +288,7 @@ mod tests {
 
         let cancel = AtomicBool::new(true);
         let err =
-            download_track_to_cache_dir(&cache_dir, "track-1", "flac", &url, &client, Some(&cancel))
+            download_track_to_cache_dir(&cache_dir, "track-1", "flac", &url, &client, None, None, Some(&cancel))
                 .await
                 .unwrap_err();
         assert_eq!(err, "CANCELLED");

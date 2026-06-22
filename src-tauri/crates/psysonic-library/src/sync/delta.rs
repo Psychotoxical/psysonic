@@ -20,6 +20,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
+use psysonic_core::server_http::ServerHttpRegistry;
 use psysonic_integration::navidrome::queries::nd_list_songs_internal;
 use psysonic_integration::subsonic::SubsonicClient;
 use serde_json::Value;
@@ -71,6 +72,7 @@ pub struct DeltaSyncRunner<'a> {
     store: &'a LibraryStore,
     subsonic: &'a SubsonicClient,
     navidrome: Option<NavidromeProbeCredentials>,
+    http_registry: Option<Arc<ServerHttpRegistry>>,
     server_id: String,
     library_scope: String,
     capability_flags: CapabilityFlags,
@@ -95,6 +97,7 @@ impl<'a> DeltaSyncRunner<'a> {
             store,
             subsonic,
             navidrome: None,
+            http_registry: None,
             server_id: server_id.into(),
             library_scope: library_scope.into(),
             capability_flags,
@@ -108,6 +111,11 @@ impl<'a> DeltaSyncRunner<'a> {
 
     pub fn with_navidrome_credentials(mut self, creds: NavidromeProbeCredentials) -> Self {
         self.navidrome = Some(creds);
+        self
+    }
+
+    pub fn with_http_registry(mut self, registry: Option<Arc<ServerHttpRegistry>>) -> Self {
+        self.http_registry = registry;
         self
     }
 
@@ -396,6 +404,8 @@ impl<'a> DeltaSyncRunner<'a> {
                 self,
                 || {
                     nd_list_songs_internal(
+                        self.http_registry.as_deref(),
+                        Some(&self.server_id),
                         &creds.server_url,
                         &creds.bearer_token,
                         "updated_at",

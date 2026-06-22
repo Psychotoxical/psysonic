@@ -255,7 +255,8 @@ pub fn run() {
                                     scope.clone(),
                                     flags,
                                 )
-                                .with_playback_hint(hint);
+                                .with_playback_hint(hint)
+                                .with_http_registry(Some(Arc::clone(&registry)));
                             if let Some(tok) = session.navidrome_token.clone() {
                                 sched = sched.with_navidrome_credentials(
                                     psysonic_library::sync::capability::NavidromeProbeCredentials {

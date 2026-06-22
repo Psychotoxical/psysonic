@@ -11,7 +11,7 @@ use rodio::Source;
 use tauri::{AppHandle, Emitter, State};
 
 use super::decode::build_source;
-use super::engine::{audio_http_client, AudioEngine};
+use super::engine::AudioEngine;
 use super::helpers::*;
 use super::ipc::{maybe_emit_normalization_state, NormalizationStatePayload};
 use super::play_input::{select_play_input, url_format_hint, PlayInputContext};
@@ -597,7 +597,14 @@ pub async fn audio_chain_preload(
         } else if let Some(path) = url.strip_prefix("psysonic-local://") {
             tokio::fs::read(path).await.map_err(|e| e.to_string())?
         } else {
-            let resp = audio_http_client(&state).get(&url).send().await
+            let resp = crate::engine::playback_scoped_get(
+                &state,
+                &app,
+                &url,
+                server_id.as_deref(),
+            )
+            .send()
+            .await
                 .map_err(|e| e.to_string())?;
             if !resp.status().is_success() {
                 return Ok(()); // silently fail — audio_play will retry

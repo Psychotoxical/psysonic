@@ -22,7 +22,7 @@ use psysonic_library::repos::TrackRow;
 use psysonic_library::{repos::TrackRepository, LibraryRuntime};
 use tauri::{AppHandle, Manager, State};
 
-use crate::file_transfer::{finalize_streamed_download, subsonic_http_client};
+use crate::file_transfer::{apply_server_http_get, finalize_streamed_download, subsonic_http_client};
 use crate::{offline_cancel_flags, DownloadSemaphore};
 
 use super::offline::enqueue_analysis_seed_from_file;
@@ -359,7 +359,18 @@ pub async fn download_track_local(
     }
 
     let client = subsonic_http_client(std::time::Duration::from_secs(120))?;
-    let response = client.get(&url).send().await.map_err(|e| e.to_string())?;
+    let http_registry = app
+        .try_state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>()
+        .map(|s| Arc::clone(&*s));
+    let response = apply_server_http_get(
+        &client,
+        http_registry.as_deref(),
+        Some(&server_index_key),
+        &url,
+    )
+    .send()
+    .await
+    .map_err(|e| e.to_string())?;
     if !response.status().is_success() {
         return Err(format!("HTTP {}", response.status().as_u16()));
     }

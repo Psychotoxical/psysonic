@@ -1,11 +1,11 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 use crate::sync_cancel_flags;
 
-use crate::file_transfer::{finalize_streamed_download, subsonic_http_client};
+use crate::file_transfer::{apply_server_http_get, finalize_streamed_download, subsonic_http_client};
 use super::device::{
     build_track_path, get_removable_drives, is_path_on_mounted_volume, SyncBatchResult,
     TrackSyncInfo,
@@ -107,6 +107,7 @@ pub struct SyncDeltaResult {
 
 pub async fn fetch_subsonic_songs(
     client: &reqwest::Client,
+    registry: Option<&psysonic_core::server_http::ServerHttpRegistry>,
     auth: &SubsonicAuthPayload,
     endpoint: &str,
     id: &str,
@@ -121,7 +122,11 @@ pub async fn fetch_subsonic_songs(
         ("f", auth.f.as_str()),
         ("id", id),
     ];
-    let res = client.get(&url).query(&query).send().await.map_err(|e| e.to_string())?;
+    let res = apply_server_http_get(client, registry, None, &url)
+        .query(&query)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
     let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
     parse_subsonic_songs(&json, endpoint)
 }
@@ -239,8 +244,12 @@ pub async fn calculate_sync_payload(
     deletion_ids: Vec<String>,
     auth: SubsonicAuthPayload,
     target_dir: String,
+    app: tauri::AppHandle,
 ) -> Result<SyncDeltaResult, String> {
     let client = subsonic_http_client(std::time::Duration::from_secs(30))?;
+    let http_registry = app
+        .try_state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>()
+        .map(|s| Arc::clone(&*s));
 
     let mut add_bytes = 0;
     let mut add_count = 0;
@@ -264,17 +273,19 @@ pub async fn calculate_sync_payload(
             v: auth.v.clone(), c: auth.c.clone(), f: auth.f.clone(),
         };
         let cli = client.clone();
+        let reg_for_task = http_registry.clone();
         let source_snapshot = source.clone();
         let handle = tokio::spawn(async move {
+            let registry = reg_for_task.as_deref();
             let mut res_tracks = Vec::new();
             if source.source_type == "album" {
-                if let Ok(ts) = fetch_subsonic_songs(&cli, &auth_clone, "getAlbum.view", &source.id).await { res_tracks.extend(ts); }
+                if let Ok(ts) = fetch_subsonic_songs(&cli, registry, &auth_clone, "getAlbum.view", &source.id).await { res_tracks.extend(ts); }
             } else if source.source_type == "playlist" {
-                if let Ok(ts) = fetch_subsonic_songs(&cli, &auth_clone, "getPlaylist.view", &source.id).await { res_tracks.extend(ts); }
+                if let Ok(ts) = fetch_subsonic_songs(&cli, registry, &auth_clone, "getPlaylist.view", &source.id).await { res_tracks.extend(ts); }
             } else if source.source_type == "artist" {
                 let url = format!("{}/getArtist.view", auth_clone.base_url);
                 let query = vec![("u", auth_clone.u.as_str()), ("t", auth_clone.t.as_str()), ("s", auth_clone.s.as_str()), ("v", auth_clone.v.as_str()), ("c", auth_clone.c.as_str()), ("f", auth_clone.f.as_str()), ("id", &source.id)];
-                if let Ok(re) = cli.get(&url).query(&query).send().await {
+                if let Ok(re) = apply_server_http_get(&cli, registry, None, &url).query(&query).send().await {
                    if let Ok(js) = re.json::<serde_json::Value>().await {
                        if let Some(root) = js.get("subsonic-response").and_then(|r| r.get("artist")).and_then(|a| a.get("album")) {
                           let arr = root.as_array().cloned().unwrap_or_else(|| {
@@ -282,7 +293,7 @@ pub async fn calculate_sync_payload(
                           });
                           for al in arr {
                               if let Some(aid) = al.get("id").and_then(|i| i.as_str()) {
-                                  if let Ok(ts) = fetch_subsonic_songs(&cli, &auth_clone, "getAlbum.view", aid).await {
+                                  if let Ok(ts) = fetch_subsonic_songs(&cli, registry, &auth_clone, "getAlbum.view", aid).await {
                                       res_tracks.extend(ts);
                                   }
                               }
@@ -303,12 +314,14 @@ pub async fn calculate_sync_payload(
             v: auth.v.clone(), c: auth.c.clone(), f: auth.f.clone(),
         };
         let cli = client.clone();
+        let reg_for_task = http_registry.clone();
         del_handles.push(tokio::spawn(async move {
+            let registry = reg_for_task.as_deref();
             let mut res_tracks = Vec::new();
             if source.source_type == "album" {
-                if let Ok(ts) = fetch_subsonic_songs(&cli, &auth_clone, "getAlbum.view", &source.id).await { res_tracks.extend(ts); }
+                if let Ok(ts) = fetch_subsonic_songs(&cli, registry, &auth_clone, "getAlbum.view", &source.id).await { res_tracks.extend(ts); }
             } else if source.source_type == "playlist" {
-                if let Ok(ts) = fetch_subsonic_songs(&cli, &auth_clone, "getPlaylist.view", &source.id).await { res_tracks.extend(ts); }
+                if let Ok(ts) = fetch_subsonic_songs(&cli, registry, &auth_clone, "getPlaylist.view", &source.id).await { res_tracks.extend(ts); }
             }
             res_tracks
         }));
@@ -437,6 +450,9 @@ pub async fn sync_batch_to_device(
 
     // Shared reqwest client — reused across all downloads.
     let client = subsonic_http_client(Duration::from_secs(300))?;
+    let http_registry = app
+        .try_state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>()
+        .map(|s| Arc::clone(&*s));
 
     // Concurrency limiter: max 2 parallel USB writes.
     let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(2));
@@ -455,6 +471,7 @@ pub async fn sync_batch_to_device(
     for track in tracks {
         let sem = semaphore.clone();
         let cli = client.clone();
+        let reg_for_task = http_registry.clone();
         let app2 = app.clone();
         let job = job_id.clone();
         let dest = dest_dir.clone();
@@ -466,6 +483,7 @@ pub async fn sync_batch_to_device(
 
         handles.push(tokio::spawn(async move {
             let _permit = sem.acquire().await.expect("semaphore closed");
+            let registry = reg_for_task.as_deref();
 
             // Bail out if cancelled while waiting in the semaphore queue.
             if cancel.load(Ordering::Relaxed) { return; }
@@ -492,7 +510,7 @@ pub async fn sync_batch_to_device(
                     }
                 }
 
-                let response = match cli.get(&track.url).send().await {
+                let response = match apply_server_http_get(&cli, registry, None, &track.url).send().await {
                     Ok(r) if r.status().is_success() => r,
                     Ok(r) => {
                         f.fetch_add(1, Ordering::Relaxed);
@@ -819,7 +837,7 @@ mod tests {
         let client = crate::file_transfer::subsonic_http_client(std::time::Duration::from_secs(5))
             .unwrap();
         let auth = fake_auth(server.uri());
-        let songs = fetch_subsonic_songs(&client, &auth, "getAlbum.view", "album-42")
+        let songs = fetch_subsonic_songs(&client, None, &auth, "getAlbum.view", "album-42")
             .await
             .unwrap();
         assert_eq!(songs.len(), 2);
@@ -838,7 +856,7 @@ mod tests {
         let client = crate::file_transfer::subsonic_http_client(std::time::Duration::from_secs(5))
             .unwrap();
         let auth = fake_auth(server.uri());
-        let result = fetch_subsonic_songs(&client, &auth, "getAlbum.view", "missing").await;
+        let result = fetch_subsonic_songs(&client, None, &auth, "getAlbum.view", "missing").await;
         // 404 with HTML/empty body fails the JSON parse, surfacing as an Err — we
         // just assert the function does not panic and propagates an error string.
         assert!(result.is_err());
@@ -989,7 +1007,7 @@ mod tests {
         let client = crate::file_transfer::subsonic_http_client(std::time::Duration::from_secs(5))
             .unwrap();
         let auth = fake_auth(server.uri());
-        let songs = fetch_subsonic_songs(&client, &auth, "getPlaylist.view", "p1")
+        let songs = fetch_subsonic_songs(&client, None, &auth, "getPlaylist.view", "p1")
             .await
             .unwrap();
         assert_eq!(songs.len(), 1, "single-object response normalised to 1-element vec");

@@ -242,12 +242,18 @@ pub(super) async fn try_external_fanart(
 
     let _permit = fanart_sem.clone().acquire_owned().await.ok()?;
 
+    let http_registry = app
+        .try_state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>()
+        .map(|s| Arc::clone(&*s));
+
     // §23: resolve the tag MBID Rust-side via getArtistInfo2 — unless the cache
     // already carries one (skip the Navidrome round-trip).
     let (mbid, mbid_source) = match cached.as_ref().and_then(|r| r.mbid.clone()) {
         Some(m) => (m, cached.as_ref().and_then(|r| r.mbid_source.clone())),
         None => match external::fetch_artist_tag_mbid(
             client,
+            http_registry.as_deref(),
+            Some(server_id),
             &args.rest_base_url,
             &args.username,
             &args.password,

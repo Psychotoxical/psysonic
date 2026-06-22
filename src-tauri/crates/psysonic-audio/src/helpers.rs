@@ -708,7 +708,10 @@ pub(crate) async fn fetch_data(
         return Ok(Some(data));
     }
 
-    let response = crate::engine::audio_http_client(state).get(url).send().await.map_err(|e| e.to_string())?;
+    let response = crate::engine::playback_scoped_get(state, app, url, None)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
     let status = response.status();
     let ct = response.headers()
         .get(reqwest::header::CONTENT_TYPE)

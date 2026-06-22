@@ -91,6 +91,7 @@ pub async fn probe_and_persist(
     store: &crate::store::LibraryStore,
     subsonic: &psysonic_integration::subsonic::SubsonicClient,
     navidrome: Option<&NavidromeProbeCredentials>,
+    http_registry: Option<&psysonic_core::server_http::ServerHttpRegistry>,
     server_id: &str,
     library_scope: &str,
 ) -> Result<CapabilityProbeResult, psysonic_integration::subsonic::SubsonicError> {
@@ -110,7 +111,7 @@ pub async fn probe_and_persist(
         .map_err(psysonic_integration::subsonic::SubsonicError::Transport)?
         .unwrap_or(0);
 
-    let mut result = CapabilityProbe::run(subsonic, navidrome).await?;
+    let mut result = CapabilityProbe::run(subsonic, navidrome, http_registry, Some(server_id)).await?;
 
     // R7-15 Q3: a probe run without a Navidrome bearer can't test N1, so it
     // must not drop a previously-learned NavidromeNativeBulk capability — the
@@ -173,6 +174,8 @@ impl CapabilityProbe {
     pub async fn run(
         subsonic: &SubsonicClient,
         navidrome: Option<&NavidromeProbeCredentials>,
+        http_registry: Option<&psysonic_core::server_http::ServerHttpRegistry>,
+        server_id: Option<&str>,
     ) -> Result<CapabilityProbeResult, SubsonicError> {
         let server_info = subsonic.server_info().await?;
 
@@ -207,7 +210,14 @@ impl CapabilityProbe {
         }
 
         if let Some(creds) = navidrome {
-            match native_bulk_available(&creds.server_url, &creds.bearer_token).await {
+            match native_bulk_available(
+                http_registry,
+                server_id,
+                &creds.server_url,
+                &creds.bearer_token,
+            )
+            .await
+            {
                 Ok(true) => flags.insert(CapabilityFlags::NAVIDROME_NATIVE_BULK),
                 Ok(false) => {}
                 Err(_) => {
@@ -345,7 +355,7 @@ mod tests {
         let server = MockServer::start().await;
         mount_subsonic_full_navidrome(&server).await;
 
-        let result = CapabilityProbe::run(&test_subsonic_client(&server.uri()), None)
+        let result = CapabilityProbe::run(&test_subsonic_client(&server.uri()), None, None, None)
             .await
             .unwrap();
         assert!(result.flags.contains(CapabilityFlags::SUBSONIC_SEARCH3_BULK));
@@ -372,7 +382,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let err = CapabilityProbe::run(&test_subsonic_client(&server.uri()), None)
+        let err = CapabilityProbe::run(&test_subsonic_client(&server.uri()), None, None, None)
             .await
             .unwrap_err();
         assert!(matches!(err, SubsonicError::Api { code: 40, .. }));
@@ -415,7 +425,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let result = CapabilityProbe::run(&test_subsonic_client(&server.uri()), None)
+        let result = CapabilityProbe::run(&test_subsonic_client(&server.uri()), None, None, None)
             .await
             .unwrap();
         assert!(result.flags.contains(CapabilityFlags::SUBSONIC_SEARCH3_BULK));
@@ -440,7 +450,7 @@ mod tests {
             server_url: server.uri(),
             bearer_token: "nd-tok".into(),
         };
-        let result = CapabilityProbe::run(&test_subsonic_client(&server.uri()), Some(&nav))
+        let result = CapabilityProbe::run(&test_subsonic_client(&server.uri()), Some(&nav), None, None)
             .await
             .unwrap();
         assert!(result.flags.contains(CapabilityFlags::NAVIDROME_NATIVE_BULK));
@@ -460,6 +470,7 @@ mod tests {
         let result = super::probe_and_persist(
             &store,
             &test_subsonic_client(&server.uri()),
+            None,
             None,
             "s1",
             "",
@@ -498,6 +509,7 @@ mod tests {
             &store,
             &test_subsonic_client(&server.uri()),
             None,
+            None,
             "s1",
             "",
         )
@@ -529,6 +541,7 @@ mod tests {
         super::probe_and_persist(
             &store,
             &test_subsonic_client(&server.uri()),
+            None,
             None,
             "s1",
             "",
@@ -584,7 +597,7 @@ mod tests {
 
         let store = LibraryStore::open_in_memory();
         let result =
-            super::probe_and_persist(&store, &test_subsonic_client(&server.uri()), None, "s1", "")
+            super::probe_and_persist(&store, &test_subsonic_client(&server.uri()), None, None, "s1", "")
                 .await
                 .unwrap();
         assert_eq!(result.server_track_count, Some(170_000));
@@ -617,6 +630,7 @@ mod tests {
             &store,
             &test_subsonic_client(&server.uri()),
             None,
+            None,
             "s1",
             "",
         )
@@ -647,7 +661,7 @@ mod tests {
         mount_subsonic_full_navidrome(&server).await; // scanStatus has no count
 
         let result =
-            super::probe_and_persist(&store, &test_subsonic_client(&server.uri()), None, "s1", "")
+            super::probe_and_persist(&store, &test_subsonic_client(&server.uri()), None, None, "s1", "")
                 .await
                 .unwrap();
         assert_eq!(result.server_track_count, None);
@@ -672,7 +686,7 @@ mod tests {
             server_url: server.uri(),
             bearer_token: "nd-tok".into(),
         };
-        let result = CapabilityProbe::run(&test_subsonic_client(&server.uri()), Some(&nav))
+        let result = CapabilityProbe::run(&test_subsonic_client(&server.uri()), Some(&nav), None, None)
             .await
             .unwrap();
         assert!(!result.flags.contains(CapabilityFlags::NAVIDROME_NATIVE_BULK));

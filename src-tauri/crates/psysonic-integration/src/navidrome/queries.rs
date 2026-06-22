@@ -2,13 +2,20 @@
 //! incompletely: songs, role-filtered artist/album lists, libraries,
 //! per-user library assignment, and absolute song path resolution.
 
-use super::client::{navidrome_token, nd_err, nd_http_client, nd_retry};
+use std::sync::Arc;
+
+use psysonic_core::server_http::ServerHttpRegistry;
+use tauri::State;
+
+use super::client::{navidrome_token_with_registry, nd_apply_request, nd_err, nd_http_client, nd_retry};
 
 /// GET `/api/song?_sort=...&_order=...&_start=...&_end=...` — paginated
 /// song list. Pure async helper used by the library-side N1 ingest
 /// loop (spec §6.3, PR-3*); also wrapped by the `#[tauri::command]`
 /// variant below for existing frontend callers.
 pub async fn nd_list_songs_internal(
+    registry: Option<&ServerHttpRegistry>,
+    server_ref: Option<&str>,
     server_url: &str,
     token: &str,
     sort: &str,
@@ -20,12 +27,24 @@ pub async fn nd_list_songs_internal(
         "{}/api/song?_sort={}&_order={}&_start={}&_end={}",
         server_url, sort, order, start, end
     );
+    let auth = format!("Bearer {token}");
     let resp = nd_retry(|| {
-        nd_http_client()
-            .get(&url)
-            .header("X-ND-Authorization", format!("Bearer {token}"))
+        let url = url.clone();
+        let auth = auth.clone();
+        async move {
+            nd_apply_request(
+                registry,
+                server_ref,
+                &url,
+                nd_http_client()
+                    .get(&url)
+                    .header("X-ND-Authorization", auth),
+            )
             .send()
-    }).await?;
+            .await
+        }
+    })
+    .await?;
     if !resp.status().is_success() {
         return Err(format!("HTTP {}", resp.status()));
     }
@@ -36,6 +55,7 @@ pub async fn nd_list_songs_internal(
 /// surface unchanged for existing call sites in the WebView.
 #[tauri::command]
 pub async fn nd_list_songs(
+    http_registry: State<'_, Arc<ServerHttpRegistry>>,
     server_url: String,
     token: String,
     sort: String,
@@ -43,7 +63,17 @@ pub async fn nd_list_songs(
     start: u32,
     end: u32,
 ) -> Result<serde_json::Value, String> {
-    nd_list_songs_internal(&server_url, &token, &sort, &order, start, end).await
+    nd_list_songs_internal(
+        Some(http_registry.as_ref()),
+        None,
+        &server_url,
+        &token,
+        &sort,
+        &order,
+        start,
+        end,
+    )
+    .await
 }
 
 /// Build the `_filters` JSON for native-API list calls. Optionally narrows the
@@ -70,6 +100,7 @@ fn nd_build_filters(seed: serde_json::Map<String, serde_json::Value>, library_id
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn nd_list_artists_by_role(
+    http_registry: State<'_, Arc<ServerHttpRegistry>>,
     server_url: String,
     token: String,
     role: String,
@@ -79,24 +110,42 @@ pub async fn nd_list_artists_by_role(
     end: u32,
     library_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
+    let reg = http_registry.as_ref();
     let mut seed = serde_json::Map::new();
     seed.insert("role".to_string(), serde_json::Value::String(role.clone()));
     let filters = nd_build_filters(seed, library_id.as_deref());
     let start_s = start.to_string();
     let end_s = end.to_string();
+    let base = format!("{}/api/artist", server_url);
     let resp = nd_retry(|| {
-        nd_http_client()
-            .get(format!("{}/api/artist", server_url))
-            .query(&[
-                ("_filters", filters.as_str()),
-                ("_sort", sort.as_str()),
-                ("_order", order.as_str()),
-                ("_start", start_s.as_str()),
-                ("_end", end_s.as_str()),
-            ])
-            .header("X-ND-Authorization", format!("Bearer {}", token))
+        let base = base.clone();
+        let filters = filters.clone();
+        let sort = sort.clone();
+        let order = order.clone();
+        let start_s = start_s.clone();
+        let end_s = end_s.clone();
+        let auth = format!("Bearer {}", token);
+        async move {
+            nd_apply_request(
+                Some(reg),
+                None,
+                &base,
+                nd_http_client()
+                    .get(&base)
+                    .query(&[
+                        ("_filters", filters.as_str()),
+                        ("_sort", sort.as_str()),
+                        ("_order", order.as_str()),
+                        ("_start", start_s.as_str()),
+                        ("_end", end_s.as_str()),
+                    ])
+                    .header("X-ND-Authorization", auth),
+            )
             .send()
-    }).await?;
+            .await
+        }
+    })
+    .await?;
     if !resp.status().is_success() {
         return Err(format!("HTTP {}", resp.status()));
     }
@@ -111,6 +160,7 @@ pub async fn nd_list_artists_by_role(
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn nd_list_albums_by_artist_role(
+    http_registry: State<'_, Arc<ServerHttpRegistry>>,
     server_url: String,
     token: String,
     artist_id: String,
@@ -121,25 +171,43 @@ pub async fn nd_list_albums_by_artist_role(
     end: u32,
     library_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
+    let reg = http_registry.as_ref();
     let filter_key = format!("role_{}_id", role);
     let mut seed = serde_json::Map::new();
     seed.insert(filter_key, serde_json::Value::String(artist_id.clone()));
     let filters = nd_build_filters(seed, library_id.as_deref());
     let start_s = start.to_string();
     let end_s = end.to_string();
+    let base = format!("{}/api/album", server_url);
     let resp = nd_retry(|| {
-        nd_http_client()
-            .get(format!("{}/api/album", server_url))
-            .query(&[
-                ("_filters", filters.as_str()),
-                ("_sort", sort.as_str()),
-                ("_order", order.as_str()),
-                ("_start", start_s.as_str()),
-                ("_end", end_s.as_str()),
-            ])
-            .header("X-ND-Authorization", format!("Bearer {}", token))
+        let base = base.clone();
+        let filters = filters.clone();
+        let sort = sort.clone();
+        let order = order.clone();
+        let start_s = start_s.clone();
+        let end_s = end_s.clone();
+        let auth = format!("Bearer {}", token);
+        async move {
+            nd_apply_request(
+                Some(reg),
+                None,
+                &base,
+                nd_http_client()
+                    .get(&base)
+                    .query(&[
+                        ("_filters", filters.as_str()),
+                        ("_sort", sort.as_str()),
+                        ("_order", order.as_str()),
+                        ("_start", start_s.as_str()),
+                        ("_end", end_s.as_str()),
+                    ])
+                    .header("X-ND-Authorization", auth),
+            )
             .send()
-    }).await?;
+            .await
+        }
+    })
+    .await?;
     if !resp.status().is_success() {
         return Err(format!("HTTP {}", resp.status()));
     }
@@ -149,15 +217,28 @@ pub async fn nd_list_albums_by_artist_role(
 /// GET `/api/library` — list all libraries (admin only). Returns the raw JSON array.
 #[tauri::command]
 pub async fn nd_list_libraries(
+    http_registry: State<'_, Arc<ServerHttpRegistry>>,
     server_url: String,
     token: String,
 ) -> Result<serde_json::Value, String> {
+    let reg = http_registry.as_ref();
+    let url = format!("{}/api/library", server_url);
+    let auth = format!("Bearer {}", token);
     let resp = nd_retry(|| {
-        nd_http_client()
-            .get(format!("{}/api/library", server_url))
-            .header("X-ND-Authorization", format!("Bearer {}", token))
+        let url = url.clone();
+        let auth = auth.clone();
+        async move {
+            nd_apply_request(
+                Some(reg),
+                None,
+                &url,
+                nd_http_client().get(&url).header("X-ND-Authorization", auth),
+            )
             .send()
-    }).await?;
+            .await
+        }
+    })
+    .await?;
     if !resp.status().is_success() {
         return Err(format!("HTTP {}", resp.status()));
     }
@@ -168,19 +249,35 @@ pub async fn nd_list_libraries(
 /// Admin users auto-receive all libraries; calling this for an admin returns HTTP 400.
 #[tauri::command]
 pub async fn nd_set_user_libraries(
+    http_registry: State<'_, Arc<ServerHttpRegistry>>,
     server_url: String,
     token: String,
     id: String,
     library_ids: Vec<i64>,
 ) -> Result<(), String> {
+    let reg = http_registry.as_ref();
     let body = serde_json::json!({ "libraryIds": library_ids });
+    let url = format!("{}/api/user/{}/library", server_url, id);
+    let auth = format!("Bearer {}", token);
     let resp = nd_retry(|| {
-        nd_http_client()
-            .put(format!("{}/api/user/{}/library", server_url, id))
-            .header("X-ND-Authorization", format!("Bearer {}", token))
-            .json(&body)
+        let url = url.clone();
+        let auth = auth.clone();
+        let body = body.clone();
+        async move {
+            nd_apply_request(
+                Some(reg),
+                None,
+                &url,
+                nd_http_client()
+                    .put(&url)
+                    .header("X-ND-Authorization", auth)
+                    .json(&body),
+            )
             .send()
-    }).await?;
+            .await
+        }
+    })
+    .await?;
     let status = resp.status();
     if !status.is_success() {
         let text = resp.text().await.unwrap_or_default();
@@ -202,18 +299,31 @@ pub async fn nd_set_user_libraries(
 /// it for non-admin users on some configurations.
 #[tauri::command]
 pub async fn nd_get_song_path(
+    http_registry: State<'_, Arc<ServerHttpRegistry>>,
     server_url: String,
     username: String,
     password: String,
     id: String,
 ) -> Result<Option<String>, String> {
-    let token = navidrome_token(&server_url, &username, &password).await?;
+    let reg = http_registry.as_ref();
+    let token = navidrome_token_with_registry(Some(reg), &server_url, &username, &password).await?;
     let url = format!("{}/api/song/{}", server_url, id);
+    let auth = format!("Bearer {}", token);
     let resp = nd_retry(|| {
-        nd_http_client()
-            .get(&url)
-            .header("X-ND-Authorization", format!("Bearer {}", token))
+        let url = url.clone();
+        let auth = auth.clone();
+        async move {
+            nd_apply_request(
+                Some(reg),
+                None,
+                &url,
+                nd_http_client()
+                    .get(&url)
+                    .header("X-ND-Authorization", auth),
+            )
             .send()
+            .await
+        }
     })
     .await?;
     if !resp.status().is_success() {

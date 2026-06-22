@@ -12,6 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+use psysonic_core::server_http::ServerHttpRegistry;
 use psysonic_integration::navidrome::queries::nd_list_songs_internal;
 use psysonic_integration::subsonic::SubsonicClient;
 use serde_json::Value;
@@ -109,6 +110,7 @@ pub struct InitialSyncRunner<'a> {
     store: &'a LibraryStore,
     subsonic: &'a SubsonicClient,
     navidrome: Option<NavidromeProbeCredentials>,
+    http_registry: Option<Arc<ServerHttpRegistry>>,
     server_id: String,
     library_scope: String,
     capability_flags: CapabilityFlags,
@@ -132,6 +134,7 @@ impl<'a> InitialSyncRunner<'a> {
             store,
             subsonic,
             navidrome: None,
+            http_registry: None,
             server_id: server_id.into(),
             library_scope: library_scope.into(),
             capability_flags,
@@ -151,6 +154,11 @@ impl<'a> InitialSyncRunner<'a> {
 
     pub fn with_navidrome_credentials(mut self, creds: NavidromeProbeCredentials) -> Self {
         self.navidrome = Some(creds);
+        self
+    }
+
+    pub fn with_http_registry(mut self, registry: Option<Arc<ServerHttpRegistry>>) -> Self {
+        self.http_registry = registry;
         self
     }
 
@@ -580,6 +588,8 @@ impl<'a> InitialSyncRunner<'a> {
         let cancel = self.cancel.clone();
         let sleep_enabled = self.sleep_enabled;
         let creds = creds.clone();
+        let http_registry = self.http_registry.clone();
+        let server_id = self.server_id.clone();
         let mut queue = LinearPrefetchQueue::new(&budget, batch_size, offset);
 
         loop {
@@ -590,6 +600,8 @@ impl<'a> InitialSyncRunner<'a> {
             queue.pump(|| self.check_cancellation(), |off| {
                 let creds = creds.clone();
                 let cancel = cancel.clone();
+                let http_registry = http_registry.clone();
+                let server_id = server_id.clone();
                 tokio::spawn(async move {
                     retry_fetch(
                         sleep_enabled,
@@ -597,6 +609,8 @@ impl<'a> InitialSyncRunner<'a> {
                         || async {
                             let end = off.saturating_add(batch_size);
                             let response = nd_list_songs_internal(
+                                http_registry.as_deref(),
+                                Some(&server_id),
                                 &creds.server_url,
                                 &creds.bearer_token,
                                 "id",
@@ -671,6 +685,8 @@ impl<'a> InitialSyncRunner<'a> {
             self,
             || {
                 nd_list_songs_internal(
+                    self.http_registry.as_deref(),
+                    Some(&self.server_id),
                     &creds.server_url,
                     &creds.bearer_token,
                     "id",

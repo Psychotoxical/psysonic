@@ -629,3 +629,25 @@ pub(crate) fn scoped_http_get(
         audio_http_client(state).get(url),
     )
 }
+
+/// Resolve registry + server id for playback/preload HTTP GETs.
+pub(crate) fn playback_scoped_get(
+    state: &AudioEngine,
+    app: &tauri::AppHandle,
+    url: &str,
+    server_id: Option<&str>,
+) -> reqwest::RequestBuilder {
+    let registry = app
+        .try_state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>()
+        .map(|s| Arc::clone(&*s));
+    let sid = server_id
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .or_else(|| state.current_playback_server_id.lock().unwrap().clone());
+    scoped_http_get(
+        state,
+        registry.as_deref(),
+        sid.as_deref(),
+        url,
+    )
+}

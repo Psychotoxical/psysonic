@@ -301,6 +301,24 @@ impl ServerHttpRegistry {
     }
 }
 
+/// Apply custom headers when `registry` is present — prefers `server_ref`, falls back to URL match.
+pub fn apply_optional_registry_headers(
+    registry: Option<&ServerHttpRegistry>,
+    server_ref: Option<&str>,
+    full_http_url: &str,
+    builder: RequestBuilder,
+) -> RequestBuilder {
+    if let Some(reg) = registry {
+        if let Some(sid) = server_ref.filter(|s| !s.is_empty()) {
+            return reg.apply_for_http_url(sid, full_http_url, builder);
+        }
+        if let Some(ctx) = reg.get_for_server_url(full_http_url) {
+            return apply_server_headers_for_http_url(builder, &ctx, full_http_url);
+        }
+    }
+    builder
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

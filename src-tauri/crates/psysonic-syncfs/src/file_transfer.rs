@@ -13,6 +13,20 @@ pub fn subsonic_http_client(timeout: Duration) -> Result<reqwest::Client, String
         .map_err(|e| e.to_string())
 }
 
+pub fn apply_server_http_get(
+    client: &reqwest::Client,
+    registry: Option<&psysonic_core::server_http::ServerHttpRegistry>,
+    server_ref: Option<&str>,
+    url: &str,
+) -> reqwest::RequestBuilder {
+    psysonic_core::server_http::apply_optional_registry_headers(
+        registry,
+        server_ref,
+        url,
+        client.get(url),
+    )
+}
+
 /// Streams an HTTP response body to `dest_path` in chunks. Never buffers the full
 /// file in memory — keeps RAM flat regardless of file size.
 ///

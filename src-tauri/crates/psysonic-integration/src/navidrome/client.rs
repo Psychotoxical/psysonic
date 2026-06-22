@@ -1,7 +1,7 @@
 //! Auth + retry + HTTP client for Navidrome's native REST API.
 //! Used by every other navidrome submodule for `/auth/*` and `/api/*` calls.
 
-use psysonic_core::server_http::{apply_server_headers_for_http_url, ServerHttpRegistry};
+use psysonic_core::server_http::{apply_server_headers_for_http_url, apply_optional_registry_headers, ServerHttpRegistry};
 
 /// Authenticate with Navidrome's own REST API and return a Bearer token.
 pub async fn navidrome_token(server_url: &str, username: &str, password: &str) -> Result<String, String> {
@@ -31,6 +31,16 @@ pub async fn navidrome_token_with_registry(
         .as_str()
         .map(|s| s.to_string())
         .ok_or_else(|| "Navidrome auth: no token in response".to_string())
+}
+
+/// Attach gate headers for Navidrome `/auth/*` and `/api/*` requests.
+pub fn nd_apply_request(
+    registry: Option<&ServerHttpRegistry>,
+    server_ref: Option<&str>,
+    full_url: &str,
+    builder: reqwest::RequestBuilder,
+) -> reqwest::RequestBuilder {
+    apply_optional_registry_headers(registry, server_ref, full_url, builder)
 }
 
 /// Payload returned by Navidrome's `/auth/login`.

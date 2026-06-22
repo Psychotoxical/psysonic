@@ -1,8 +1,11 @@
+use std::sync::Arc;
+
 use psysonic_analysis::analysis_runtime::{enqueue_track_analysis, AnalysisBackfillPriority};
 use psysonic_audio as audio;
 use psysonic_core::user_agent::subsonic_wire_user_agent;
+use tauri::Manager;
 
-use crate::file_transfer::stream_to_file;
+use crate::file_transfer::{apply_server_http_get, stream_to_file};
 use super::downloads::{resolve_hot_cache_root, HotCacheDownloadResult};
 use super::offline::enqueue_analysis_seed_from_file;
 
@@ -70,7 +73,14 @@ pub async fn download_track_hot_cache(
         .build()
         .map_err(|e| e.to_string())?;
 
-    let response = client.get(&url).send().await.map_err(|e| e.to_string())?;
+    let http_registry = app
+        .try_state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>()
+        .map(|s| Arc::clone(&*s));
+
+    let response = apply_server_http_get(&client, http_registry.as_deref(), Some(&server_id), &url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
     if !response.status().is_success() {
         return Err(format!("HTTP {}", response.status().as_u16()));
     }

@@ -11,6 +11,7 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
+use psysonic_core::server_http::ServerHttpRegistry;
 use psysonic_integration::subsonic::SubsonicClient;
 
 use super::bandwidth::{ParallelismBudget, PlaybackHint};
@@ -45,6 +46,7 @@ pub struct BackgroundScheduler<'a> {
     store: &'a LibraryStore,
     subsonic: &'a SubsonicClient,
     navidrome: Option<NavidromeProbeCredentials>,
+    http_registry: Option<Arc<ServerHttpRegistry>>,
     server_id: String,
     library_scope: String,
     capability_flags: CapabilityFlags,
@@ -70,6 +72,7 @@ impl<'a> BackgroundScheduler<'a> {
             store,
             subsonic,
             navidrome: None,
+            http_registry: None,
             server_id: server_id.into(),
             library_scope: library_scope.into(),
             capability_flags,
@@ -84,6 +87,11 @@ impl<'a> BackgroundScheduler<'a> {
 
     pub fn with_navidrome_credentials(mut self, creds: NavidromeProbeCredentials) -> Self {
         self.navidrome = Some(creds);
+        self
+    }
+
+    pub fn with_http_registry(mut self, registry: Option<Arc<ServerHttpRegistry>>) -> Self {
+        self.http_registry = registry;
         self
     }
 
@@ -220,7 +228,8 @@ impl<'a> BackgroundScheduler<'a> {
             &self.library_scope,
             self.capability_flags,
         )
-        .with_progress(Arc::clone(&self.progress));
+        .with_progress(Arc::clone(&self.progress))
+        .with_http_registry(self.http_registry.clone());
         if let Some(creds) = &self.navidrome {
             runner = runner.with_navidrome_credentials(creds.clone());
         }
