@@ -25,7 +25,12 @@ export async function cleanupOrphanedOrbitPlaylists(): Promise<number> {
   const TTL = ORBIT_ORPHAN_TTL_MS;
   const currentSid = useOrbitStore.getState().sessionId;
 
-  const nameRe = new RegExp(`^${ORBIT_PLAYLIST_PREFIX}([a-f0-9]+)(_from_.+__)?$`);
+  // The trailing `__` is part of *both* the session name (`__psyorbit_<sid>__`)
+  // and the outbox name (`__psyorbit_<sid>_from_<user>__`), so it must sit
+  // outside the optional `_from_…` group. Keeping it inside (the old bug) meant
+  // the bare session name never matched and fell into the unconditional-prune
+  // branch below — deleting live sessions on the user's other devices.
+  const nameRe = new RegExp(`^${ORBIT_PLAYLIST_PREFIX}([a-f0-9]+)(_from_.+)?__$`);
   let deleted = 0;
 
   for (const p of all) {
