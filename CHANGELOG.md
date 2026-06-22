@@ -186,6 +186,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The local library database now opens, swaps and restores through one pipeline, so a swapped or restored file always picks up pending migrations and one-time repairs instead of serving a stale schema.
 * A panic or a poisoned lock in one query no longer wedges the whole library index — connections recover and report the error instead, and the new sort-key migration applies idempotently so a half-applied upgrade self-heals on the next launch.
 
+### Artist sort — UTF-8 names no longer panic the library index
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1152](https://github.com/Psychotoxical/psysonic/pull/1152)**
+
+* Stripping ignored articles from artist display names no longer panics on multibyte UTF-8 (e.g. `Eləmir` when probing the `El ` prefix), which had poisoned the library read lock during browse and reconcile (follow-up to #1145).
+
 ### Equalizer — the active AutoEQ profile name stays visible
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1147](https://github.com/Psychotoxical/psysonic/pull/1147)**
