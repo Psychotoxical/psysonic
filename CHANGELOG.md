@@ -224,6 +224,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * A guest who joined while radio was playing could have unrelated radio tracks appended to their queue, drifting them out of sync with the host. Automatic radio top-up is now paused while you are in an Orbit session.
 
+### Orbit — auto-approve could switch on unexpectedly in older sessions
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1157](https://github.com/Psychotoxical/psysonic/pull/1157)**
+
+* In a long-running Orbit session created by an older build, toggling auto-shuffle could silently also turn on auto-approve, so guest suggestions started playing without the host approving them. The two settings are now independent again.
+
+### Orbit — sessions could go over their guest limit
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1157](https://github.com/Psychotoxical/psysonic/pull/1157)**
+
+* When several people joined at the same moment, a session could end up with more guests than its limit allowed. The host now enforces the limit, keeping the earliest joiners.
+
+### Orbit — an accepted suggestion could occasionally be dropped
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1157](https://github.com/Psychotoxical/psysonic/pull/1157)**
+
+* Under load the host's updates could overlap and overwrite each other, occasionally losing a guest suggestion that had just been picked up. Host updates are now serialised so none are lost.
+
 ## [1.48.1] - 2026-06-15
 
 ## Fixed
