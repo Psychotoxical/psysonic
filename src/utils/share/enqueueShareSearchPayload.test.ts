@@ -133,6 +133,7 @@ describe('share search payload resolution', () => {
       sharedServer.username,
       sharedServer.password,
       'song-1',
+      sharedServer,
     );
     expect(mocks.getSong).not.toHaveBeenCalled();
     expect(mocks.authState.current.setActiveServer).not.toHaveBeenCalled();
@@ -147,12 +148,14 @@ describe('share search payload resolution', () => {
       sharedServer.username,
       sharedServer.password,
       'album-1',
+      sharedServer,
     );
     expect(mocks.getArtistWithCredentials).toHaveBeenCalledWith(
       sharedServer.url,
       sharedServer.username,
       sharedServer.password,
       'artist-1',
+      sharedServer,
     );
     expect(mocks.getAlbum).not.toHaveBeenCalled();
     expect(mocks.getArtist).not.toHaveBeenCalled();
@@ -172,6 +175,7 @@ describe('share search payload resolution', () => {
       sharedServer.username,
       sharedServer.password,
       'composer-1',
+      sharedServer,
     );
     expect(mocks.authState.current.setActiveServer).not.toHaveBeenCalled();
   });

@@ -31,11 +31,26 @@ describe('scheduleInstantMixProbeForServer (idempotency)', () => {
     fetchMock.mockReset();
     fetchMock.mockResolvedValue(['sonicSimilarity']);
     reset();
+    useAuthStore.setState({
+      servers: [{
+        id: SID,
+        name: 'Probe',
+        url: 'https://music.example.com',
+        username: 'u',
+        password: 'p',
+        customHeaders: [{ name: 'CF-Access-Client-Secret', value: 'gate-secret' }],
+        customHeadersApplyTo: 'public',
+      }],
+    } as never);
   });
 
   it('probes once, caches the result, then skips on the next poll', async () => {
     scheduleInstantMixProbeForServer(SID, 'url', 'u', 'p', id062);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[3]).toMatchObject({
+      url: 'https://music.example.com',
+      customHeaders: [{ name: 'CF-Access-Client-Secret', value: 'gate-secret' }],
+    });
     await flush();
     expect(useAuthStore.getState().audiomusePluginProbeByServer[SID]).toBe('present');
 

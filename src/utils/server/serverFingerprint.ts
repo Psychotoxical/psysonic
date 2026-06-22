@@ -15,9 +15,16 @@
  */
 
 import md5 from 'md5';
-import { apiWithCredentials, restBaseFromUrl, secureRandomSalt, SUBSONIC_CLIENT } from '../../api/subsonicClient';
+import {
+  apiWithCredentials,
+  restBaseFromUrl,
+  secureRandomSalt,
+  SUBSONIC_CLIENT,
+  type ServerHttpHeaderProfile,
+} from '../../api/subsonicClient';
 import type { ServerProfile } from '../../store/authStoreTypes';
 import { allNormalizedAddresses } from './serverEndpoint';
+import { headersForServerRequest } from './serverHttpHeaders';
 
 export type ServerFingerprint = {
   ping: {
@@ -55,6 +62,7 @@ async function fetchPingFingerprint(
   baseUrl: string,
   username: string,
   password: string,
+  headerProfile?: ServerHttpHeaderProfile,
 ): Promise<PingFingerprint> {
   // Mirrors pingWithCredentials but also extracts envelope `version`.
   // Using fetch (the bundled axios pulls in extra noise here; one call is fine).
@@ -69,9 +77,18 @@ async function fetchPingFingerprint(
     f: 'json',
   });
   const url = `${restBaseFromUrl(baseUrl)}/ping.view?${params.toString()}`;
+  const profileForHeaders: ServerHttpHeaderProfile = headerProfile ?? {
+    url: baseUrl,
+    alternateUrl: undefined,
+    customHeaders: undefined,
+    customHeadersApplyTo: undefined,
+  };
   let body: Record<string, unknown> | null = null;
   try {
-    const resp = await fetch(url, { method: 'GET' });
+    const resp = await fetch(url, {
+      method: 'GET',
+      headers: headersForServerRequest(profileForHeaders, baseUrl),
+    });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const json = (await resp.json()) as Record<string, unknown>;
     body = (json?.['subsonic-response'] as Record<string, unknown>) ?? null;
@@ -171,12 +188,13 @@ export async function fetchServerFingerprint(
   baseUrl: string,
   username: string,
   password: string,
+  headerProfile?: ServerHttpHeaderProfile,
 ): Promise<ServerFingerprint> {
   // Ping is required — but we still build a (mostly-null) fingerprint when
   // it fails so callers can tell the difference between "server unreachable"
   // (verify reports `unreachable`) and "server reachable but disagrees"
   // (verify reports `mismatch` / `insufficient`).
-  const ping = await fetchPingFingerprint(baseUrl, username, password);
+  const ping = await fetchPingFingerprint(baseUrl, username, password, headerProfile);
 
   // The optional calls only make sense once ping succeeded — without that,
   // any subsequent call against the same URL is just wasted bandwidth.
@@ -196,10 +214,42 @@ export async function fetchServerFingerprint(
   }
 
   const settled = await Promise.allSettled([
-    apiWithCredentials<Record<string, unknown>>(baseUrl, username, password, 'getMusicFolders.view'),
-    apiWithCredentials<Record<string, unknown>>(baseUrl, username, password, 'getUser.view', { username }),
-    apiWithCredentials<Record<string, unknown>>(baseUrl, username, password, 'getLicense.view'),
-    apiWithCredentials<Record<string, unknown>>(baseUrl, username, password, 'getIndexes.view'),
+    apiWithCredentials<Record<string, unknown>>(
+      baseUrl,
+      username,
+      password,
+      'getMusicFolders.view',
+      {},
+      15000,
+      headerProfile,
+    ),
+    apiWithCredentials<Record<string, unknown>>(
+      baseUrl,
+      username,
+      password,
+      'getUser.view',
+      { username },
+      15000,
+      headerProfile,
+    ),
+    apiWithCredentials<Record<string, unknown>>(
+      baseUrl,
+      username,
+      password,
+      'getLicense.view',
+      {},
+      15000,
+      headerProfile,
+    ),
+    apiWithCredentials<Record<string, unknown>>(
+      baseUrl,
+      username,
+      password,
+      'getIndexes.view',
+      {},
+      15000,
+      headerProfile,
+    ),
   ]);
 
   const [foldersResult, userResult, licenseResult, indexesResult] = settled;
@@ -299,7 +349,10 @@ function musicFoldersEqual(
  * `ok: true` — nothing to verify.
  */
 export async function verifySameServerEndpoints(
-  profile: Pick<ServerProfile, 'url' | 'alternateUrl'>,
+  profile: Pick<
+    ServerProfile,
+    'url' | 'alternateUrl' | 'customHeaders' | 'customHeadersApplyTo'
+  >,
   username: string,
   password: string,
 ): Promise<VerifySameServerResult> {
@@ -307,7 +360,7 @@ export async function verifySameServerEndpoints(
   if (endpoints.length <= 1) return { ok: true };
 
   const fingerprints = await Promise.all(
-    endpoints.map(baseUrl => fetchServerFingerprint(baseUrl, username, password)),
+    endpoints.map(baseUrl => fetchServerFingerprint(baseUrl, username, password, profile)),
   );
 
   // If any ping failed → unreachable (with the offending host for the UI).

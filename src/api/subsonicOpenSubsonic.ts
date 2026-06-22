@@ -1,4 +1,4 @@
-import { apiWithCredentials } from './subsonicClient';
+import { apiWithCredentials, type ServerHttpHeaderProfile } from './subsonicClient';
 
 export interface OpenSubsonicExtension {
   name: string;
@@ -30,6 +30,7 @@ export async function fetchOpenSubsonicExtensionsWithCredentials(
   serverUrl: string,
   username: string,
   password: string,
+  headerProfile?: ServerHttpHeaderProfile,
 ): Promise<string[] | null> {
   try {
     const data = await apiWithCredentials<{ openSubsonicExtensions?: unknown }>(
@@ -39,6 +40,7 @@ export async function fetchOpenSubsonicExtensionsWithCredentials(
       'getOpenSubsonicExtensions.view',
       {},
       12000,
+      headerProfile,
     );
     return parseOpenSubsonicExtensions(data.openSubsonicExtensions).map(ext => ext.name);
   } catch {

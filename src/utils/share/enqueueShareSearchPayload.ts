@@ -110,6 +110,7 @@ async function resolveSharedSong(
     lookup.server.username,
     lookup.server.password,
     id,
+    lookup.server,
   );
 }
 
@@ -187,6 +188,7 @@ export async function resolveShareSearchAlbum(
           lookup.server.username,
           lookup.server.password,
           payload.id,
+          lookup.server,
         );
     return { type: 'ok', album };
   } catch {
@@ -214,6 +216,7 @@ export async function resolveShareSearchArtist(
           lookup.server.username,
           lookup.server.password,
           payload.id,
+          lookup.server,
         );
     return { type: 'ok', artist };
   } catch {

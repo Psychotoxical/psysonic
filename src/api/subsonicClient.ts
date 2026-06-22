@@ -9,6 +9,12 @@ import { findServerByIdOrIndexKey, resolveServerIdForIndexKey } from '../utils/s
 
 export const SUBSONIC_CLIENT = `psysonic/${version}`;
 
+/** Subset of `ServerProfile` needed to attach gate headers on credential-based REST calls. */
+export type ServerHttpHeaderProfile = Pick<
+  ServerProfile,
+  'url' | 'alternateUrl' | 'customHeaders' | 'customHeadersApplyTo'
+>;
+
 export function secureRandomSalt(): string {
   const buf = new Uint8Array(8);
   crypto.getRandomValues(buf);
@@ -33,10 +39,7 @@ export async function apiWithCredentials<T>(
   endpoint: string,
   extra: Record<string, unknown> = {},
   timeout = 15000,
-  headerProfile?: Pick<
-    ServerProfile,
-    'url' | 'alternateUrl' | 'customHeaders' | 'customHeadersApplyTo'
-  >,
+  headerProfile?: ServerHttpHeaderProfile,
 ): Promise<T> {
   const params = { ...getAuthParams(username, password), ...extra };
   const headers = headerProfile ? headersForServerRequest(headerProfile, serverUrl) : {};

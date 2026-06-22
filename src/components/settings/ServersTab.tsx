@@ -243,7 +243,12 @@ export function ServersTab({
       // straight to the legacy ping (which is also the connect-test).
       if (data.alternateUrl) {
         const verify = await verifySameServerEndpoints(
-          { url: data.url, alternateUrl: data.alternateUrl },
+          {
+            url: data.url,
+            alternateUrl: data.alternateUrl,
+            customHeaders: data.customHeaders,
+            customHeadersApplyTo: data.customHeadersApplyTo,
+          },
           data.username,
           data.password,
         );
@@ -331,7 +336,12 @@ export function ServersTab({
     if (dualAddressChanged) {
       setConnStatus(s => ({ ...s, [id]: 'testing' }));
       const verify = await verifySameServerEndpoints(
-        { url: data.url, alternateUrl: data.alternateUrl },
+        {
+          url: data.url,
+          alternateUrl: data.alternateUrl,
+          customHeaders: data.customHeaders,
+          customHeadersApplyTo: data.customHeadersApplyTo,
+        },
         data.username,
         data.password,
       );

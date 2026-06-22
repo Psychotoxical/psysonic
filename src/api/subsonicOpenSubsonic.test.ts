@@ -69,4 +69,15 @@ describe('fetchOpenSubsonicExtensionsWithCredentials', () => {
       fetchOpenSubsonicExtensionsWithCredentials('https://music.test', 'u', 'p'),
     ).resolves.toBeNull();
   });
+
+  it('sends custom gate headers when a header profile is supplied', async () => {
+    vi.mocked(axios.get).mockResolvedValue(okExtensions([]));
+    await fetchOpenSubsonicExtensionsWithCredentials('https://music.test', 'u', 'p', {
+      url: 'https://music.test',
+      customHeaders: [{ name: 'CF-Access-Client-Secret', value: 'gate-secret' }],
+      customHeadersApplyTo: 'public',
+    });
+    const config = vi.mocked(axios.get).mock.calls[0]?.[1] as { headers?: Record<string, string> };
+    expect(config.headers?.['CF-Access-Client-Secret']).toBe('gate-secret');
+  });
 });

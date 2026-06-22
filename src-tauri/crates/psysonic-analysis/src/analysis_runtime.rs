@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use tauri::{Emitter, Manager};
 
 use psysonic_core::ports::PlaybackQueryHandle;
+use psysonic_core::server_http::{apply_optional_registry_headers, ServerHttpRegistry};
 use psysonic_core::user_agent::subsonic_wire_user_agent;
 use psysonic_core::track_enrichment::TrackEnrichmentOutcome;
 
@@ -679,10 +680,22 @@ fn analysis_http_client() -> &'static reqwest::Client {
     })
 }
 
-async fn analysis_backfill_download_bytes(url: &str) -> Result<(Vec<u8>, u64), String> {
+async fn analysis_backfill_download_bytes(
+    app: &tauri::AppHandle,
+    server_id: &str,
+    url: &str,
+) -> Result<(Vec<u8>, u64), String> {
     let fetch_started = std::time::Instant::now();
-    let response = analysis_http_client()
-        .get(url)
+    let registry = app
+        .try_state::<Arc<ServerHttpRegistry>>()
+        .map(|s| Arc::clone(&*s));
+    let request = apply_optional_registry_headers(
+        registry.as_deref(),
+        Some(server_id),
+        url,
+        analysis_http_client().get(url),
+    );
+    let response = request
         .send()
         .await
         .map_err(|e| e.to_string())?;
@@ -781,7 +794,7 @@ async fn spawn_backfill_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisBackf
         let app = app.clone();
         let shared = shared.clone();
         tauri::async_runtime::spawn(async move {
-            let download_result = analysis_backfill_download_bytes(&url).await;
+            let download_result = analysis_backfill_download_bytes(&app, &server_id, &url).await;
             {
                 let mut st = shared
                     .state

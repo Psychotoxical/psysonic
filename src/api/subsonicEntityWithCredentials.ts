@@ -1,4 +1,4 @@
-import { apiWithCredentials } from './subsonicClient';
+import { apiWithCredentials, type ServerHttpHeaderProfile } from './subsonicClient';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from './subsonicTypes';
 
 export async function getSongWithCredentials(
@@ -6,6 +6,7 @@ export async function getSongWithCredentials(
   username: string,
   password: string,
   id: string,
+  headerProfile?: ServerHttpHeaderProfile,
 ): Promise<SubsonicSong | null> {
   try {
     const data = await apiWithCredentials<{ song: SubsonicSong }>(
@@ -14,6 +15,8 @@ export async function getSongWithCredentials(
       password,
       'getSong.view',
       { id },
+      15000,
+      headerProfile,
     );
     return data.song ?? null;
   } catch {
@@ -26,6 +29,7 @@ export async function getAlbumWithCredentials(
   username: string,
   password: string,
   id: string,
+  headerProfile?: ServerHttpHeaderProfile,
 ): Promise<{ album: SubsonicAlbum; songs: SubsonicSong[] }> {
   const data = await apiWithCredentials<{ album: SubsonicAlbum & { song: SubsonicSong[] } }>(
     serverUrl,
@@ -33,6 +37,8 @@ export async function getAlbumWithCredentials(
     password,
     'getAlbum.view',
     { id },
+    15000,
+    headerProfile,
   );
   const { song, ...album } = data.album;
   return { album, songs: song ?? [] };
@@ -43,6 +49,7 @@ export async function getArtistWithCredentials(
   username: string,
   password: string,
   id: string,
+  headerProfile?: ServerHttpHeaderProfile,
 ): Promise<{ artist: SubsonicArtist; albums: SubsonicAlbum[] }> {
   const data = await apiWithCredentials<{ artist: SubsonicArtist & { album: SubsonicAlbum[] } }>(
     serverUrl,
@@ -50,6 +57,8 @@ export async function getArtistWithCredentials(
     password,
     'getArtist.view',
     { id },
+    15000,
+    headerProfile,
   );
   const { album, ...artist } = data.artist;
   return { artist, albums: album ?? [] };
