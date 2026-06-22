@@ -82,6 +82,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Headers attach to every user-server HTTP path — library sync, playback, covers, offline download, Navidrome admin, capability probes, and share-link preview — without putting secrets in invite links or magic strings.
 * Gate header values are redacted from application logs.
 
+### Orbit — shared crossfade, gapless and AutoDJ
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1158](https://github.com/Psychotoxical/psysonic/pull/1158)**
+
+* In an Orbit session the host's track-transition settings — crossfade, gapless or AutoDJ, including the crossfade length and smooth-skip — now apply to everyone, so guests blend between tracks the same way the host does instead of each person using their own. Your own settings are restored when you leave.
+* While you are a guest in a session, the transition controls in Settings → Audio and the queue toolbar are shown as host-controlled.
+
 
 ## Changed
 
