@@ -1,6 +1,6 @@
 import { getSong } from '../api/subsonicLibrary';
 import { songToTrack } from '../utils/playback/songToTrack';
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useOrbitStore } from '../store/orbitStore';
 import { usePlayerStore } from '../store/playerStore';
 import {
@@ -9,6 +9,7 @@ import {
   applyOutboxSnapshotsToState,
   maybeShuffleQueue,
   effectiveShuffleIntervalMs,
+  makeCoalescedRunner,
   suggestionKey,
 } from '../utils/orbit';
 import {
@@ -48,10 +49,6 @@ export function useOrbitHost(): void {
   const outboxPlaylistId  = useOrbitStore(s => s.outboxPlaylistId);
   const sessionId         = useOrbitStore(s => s.sessionId);
   const hostName          = useOrbitStore(s => s.state?.host);
-
-  // Refs hold the last values we used to build the patch — cheap to
-  // recompute against, no need to subscribe to every playerStore tick.
-  const lastPushedAtRef = useRef(0);
 
   const active = role === 'host' && phase === 'active' && !!sessionPlaylistId;
 
@@ -138,7 +135,6 @@ export function useOrbitHost(): void {
       useOrbitStore.getState().setState(next);
       try {
         await writeOrbitState(sessionPlaylistId, next);
-        lastPushedAtRef.current = Date.now();
         pushOrbitEvent('host:push', JSON.stringify({
           track: next.currentTrack?.trackId ?? null,
           playing: next.isPlaying,
@@ -221,11 +217,17 @@ export function useOrbitHost(): void {
       }
     };
 
+    // Serialise pushState across its three triggers (mount, timer, play/pause
+    // flip): two bodies must never run concurrently, or a slow run that already
+    // swept+cleared an outbox can lose its write to a faster one. A request
+    // arriving mid-run coalesces into a single rerun so no trigger is lost.
+    const runPush = makeCoalescedRunner(pushState);
+
     // Immediate push on mount so guests see fresh state without waiting
     // a full tick after the host comes online.
-    void pushState();
+    void runPush();
 
-    const id = window.setInterval(() => { void pushState(); }, STATE_TICK_MS);
+    const id = window.setInterval(() => { void runPush(); }, STATE_TICK_MS);
 
     // Event-driven push on play/pause flips. Without this the worst-case
     // delay between "host hits pause" and "guest stops" is two full polling
@@ -239,7 +241,7 @@ export function useOrbitHost(): void {
       if (state.isPlaying === prevIsPlaying) return;
       prevIsPlaying = state.isPlaying;
       pushOrbitEvent('host:event-push', `isPlaying flip → ${state.isPlaying}`);
-      void pushState();
+      void runPush();
     });
 
     return () => {

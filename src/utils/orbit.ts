@@ -27,6 +27,7 @@ export {
 } from './orbit/constants';
 export {
   generateSessionId,
+  makeCoalescedRunner,
   OrbitStateTooLarge,
   serialiseOrbitState,
   suggestionKey,
