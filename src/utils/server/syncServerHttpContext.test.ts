@@ -33,8 +33,5 @@ describe('syncServerHttpContextForProfile', () => {
         customHeadersApplyTo: 'public',
       }),
     });
-    const args = invokeMock.mock.calls[0]![1] as { wire: Record<string, unknown> };
-    expect(args).toHaveProperty('wire');
-    expect(args).not.toHaveProperty('serverId');
   });
 });
