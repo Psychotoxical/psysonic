@@ -1375,6 +1375,7 @@ mod tests {
             total as u64,
             gen_arc.clone(),
             1,
+            PlaybackHttpHeaders::default(),
         )));
         let mut src = RangedHttpSource {
             buf,
@@ -1427,6 +1428,7 @@ mod tests {
             2047,
             1,
             &gen_arc,
+            &PlaybackHttpHeaders::default(),
         )
         .await;
 
