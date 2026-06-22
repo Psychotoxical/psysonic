@@ -8,9 +8,10 @@ pub fn strip_leading_articles(name: &str, ignored_articles: &str) -> String {
     let trimmed = name.trim();
     for article in ignored_articles.split(' ').filter(|s| !s.is_empty()) {
         let prefix = format!("{} ", article);
-        if trimmed.len() >= prefix.len()
-            && trimmed[..prefix.len()].eq_ignore_ascii_case(&prefix)
-        {
+        // `prefix` is ASCII; use `get` so we never slice inside a multibyte rune
+        // (e.g. "Elə…" must not panic when probing the "El " article).
+        let head = trimmed.get(0..prefix.len());
+        if head.is_some_and(|h| h.eq_ignore_ascii_case(&prefix)) {
             return trimmed[prefix.len()..].trim_start().to_string();
         }
     }
@@ -59,5 +60,13 @@ mod tests {
             sort_key_for_display_name("The Beatles", "The"),
             "beatles"
         );
+    }
+
+    #[test]
+    fn does_not_panic_when_article_prefix_aligns_with_multibyte_rune() {
+        // Regression: byte slice `trimmed[..prefix.len()]` panicked on "Elə…"
+        // when probing the "El " ignored article (ə spans bytes 2..4).
+        let key = sort_key_for_display_name("Eləmir", DEFAULT_IGNORED_ARTICLES);
+        assert_eq!(key, "eləmir");
     }
 }
