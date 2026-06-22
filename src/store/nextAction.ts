@@ -111,9 +111,12 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
         }).catch(() => {}).finally(() => { setInfiniteQueueFetching(false); });
       }
     }
-    // Proactively top up radio tracks when ≤ 2 remain — always, regardless
-    // of infinite queue setting.
-    if (nextRef.radioAdded && !isRadioFetching()) {
+    // Proactively top up radio tracks when ≤ 2 remain — independent of the
+    // infinite-queue setting, but still skipped in Orbit: the radio top-up
+    // appends unrelated tracks and trims queue history, which would drift a
+    // guest off the host's playlist (same rationale as the infinite-queue
+    // branch above).
+    if (nextRef.radioAdded && !isRadioFetching() && !isInOrbitSession()) {
       const remainingRadio = queueItems.slice(nextIdx + 1).filter(r => r.radioAdded).length;
       if (remainingRadio <= 2) {
         // H2: nextTrack may be a placeholder if its ref is still cold — empty
@@ -133,6 +136,10 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
           setRadioFetching(true);
           Promise.all([getSimilarSongs2(seedArtistId), getTopSongs(seedArtistName)])
             .then(([similar, top]) => {
+              // Re-check — the user may have joined an Orbit session between
+              // scheduling this fetch and its resolution (mirrors the
+              // infinite-queue branch). The finally() still clears the flag.
+              if (isInOrbitSession()) return;
               const existingIds = new Set(get().queueItems.map(r => r.trackId));
               // Lead with similar (other artists) for variety; top tracks
               // of the upcoming artist are only a fallback when similar
