@@ -84,6 +84,7 @@ pub async fn nd_list_users(
 
 /// POST `/api/user` — create a user.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn nd_create_user(
     http_registry: State<'_, Arc<ServerHttpRegistry>>,
     server_url: String,

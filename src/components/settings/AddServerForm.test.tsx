@@ -165,7 +165,7 @@ describe('AddServerForm — custom HTTP headers', () => {
     await user.type(headerNameInputs[0]!, 'CF-Access-Client-Secret');
     await user.type(headerValueInputs[0]!, 'gate-secret');
 
-    await user.click(screen.getByRole('button', { name: 'Add', exact: true }));
+    await user.click(screen.getByRole('button', { name: 'Add' }));
 
     expect(onSave).toHaveBeenCalledTimes(1);
     const arg = onSave.mock.calls[0]![0];

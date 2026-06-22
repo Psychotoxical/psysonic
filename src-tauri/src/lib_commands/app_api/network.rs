@@ -84,10 +84,10 @@ pub(crate) fn server_http_context_sync_all(
 #[tauri::command]
 pub(crate) fn server_http_context_clear(
     registry: State<'_, Arc<ServerHttpRegistry>>,
-    serverId: String,
-    appServerId: String,
+    server_id: String,
+    app_server_id: String,
 ) -> Result<(), String> {
-    registry.remove(&serverId, &appServerId);
+    registry.remove(&server_id, &app_server_id);
     Ok(())
 }
 

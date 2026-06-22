@@ -15,18 +15,13 @@ pub enum EndpointKind {
     Public,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CustomHeadersApplyTo {
     Local,
+    #[default]
     Public,
     Both,
-}
-
-impl Default for CustomHeadersApplyTo {
-    fn default() -> Self {
-        Self::Public
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

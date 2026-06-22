@@ -13,6 +13,7 @@ use super::client::{navidrome_token_with_registry, nd_apply_request, nd_err, nd_
 /// song list. Pure async helper used by the library-side N1 ingest
 /// loop (spec §6.3, PR-3*); also wrapped by the `#[tauri::command]`
 /// variant below for existing frontend callers.
+#[allow(clippy::too_many_arguments)]
 pub async fn nd_list_songs_internal(
     registry: Option<&ServerHttpRegistry>,
     server_ref: Option<&str>,

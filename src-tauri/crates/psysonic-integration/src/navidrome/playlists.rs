@@ -23,7 +23,6 @@ pub async fn nd_list_playlists(
     let resp = nd_retry(|| {
         let base = base.clone();
         let auth = auth.clone();
-        let smart = smart;
         async move {
             let mut req = nd_apply_request(
                 Some(reg),

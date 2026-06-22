@@ -31,6 +31,7 @@ pub async fn enqueue_analysis_seed_from_file(
 ///
 /// `cancel`, when supplied, aborts the in-flight stream with `Err("CANCELLED")`
 /// (the `.part` file is cleaned up); `None` means the download is not cancellable.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn download_track_to_cache_dir(
     cache_dir: &std::path::Path,
     track_id: &str,

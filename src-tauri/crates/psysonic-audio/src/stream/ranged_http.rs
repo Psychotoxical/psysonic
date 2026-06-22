@@ -494,6 +494,7 @@ where
 }
 
 /// Fetch `bytes=start-end` into `buf[start..=end]` (inclusive HTTP Range).
+#[allow(clippy::too_many_arguments)]
 async fn ranged_write_http_range(
     http_client: &reqwest::Client,
     url: &str,

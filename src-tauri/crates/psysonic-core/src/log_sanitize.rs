@@ -52,7 +52,7 @@ fn redact_pangolin_headers(line: &str) -> String {
     while let Some(rel) = lower[search_from..].find("x-pangolin-") {
         let idx = search_from + rel;
         let after_prefix = &lower[idx..];
-        let Some(sep_rel) = after_prefix.find(|c: char| c == ':' || c == '=') else {
+        let Some(sep_rel) = after_prefix.find([':', '=']) else {
             search_from = idx + 1;
             continue;
         };
