@@ -91,6 +91,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Orbit — opening the app on another device could end a live session
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1155](https://github.com/Psychotoxical/psysonic/pull/1155)**
+
+* Starting Psysonic on a second device while you were hosting or in an Orbit session could delete that session's playlist, dropping your guests as if you had ended it. The start-up cleanup that clears leftover Orbit playlists now leaves a session that is still live on another device alone.
+
+### Orbit — long sessions could quietly stop updating for guests
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1155](https://github.com/Psychotoxical/psysonic/pull/1155)**
+
+* During a long Orbit session the host could silently stop broadcasting, leaving guests frozen until they timed out. The shared session data is now kept within its size limit (trimming the oldest suggestion history first), so the host keeps updating instead of stalling.
+
+### Orbit — radio could add unrelated tracks for guests
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1155](https://github.com/Psychotoxical/psysonic/pull/1155)**
+
+* A guest who joined while radio was playing could have unrelated radio tracks appended to their queue, drifting them out of sync with the host. Automatic radio top-up is now paused while you are in an Orbit session.
+
 ### Playlists header buttons clipped at narrow widths
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1153](https://github.com/Psychotoxical/psysonic/pull/1153)**
