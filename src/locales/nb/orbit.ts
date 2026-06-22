@@ -143,6 +143,7 @@ export const orbit = {
   settingShuffleNow: 'Stokk nå',
   toastSuggested: '{{user}} foreslo "{{title}}"',
   toastSuggestedMany: '{{count}} nye forslag i køen',
+  toastSuggestLost: 'Forslaget ditt nådde kanskje ikke verten',
   toastShuffled: 'Kø stokket',
   toastJoined: 'Ble med i økt',
   toastLoginFirst: 'Logg inn før du blir med i en økt',

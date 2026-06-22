@@ -10,6 +10,7 @@ import {
   type OrbitState,
 } from '../../api/orbit';
 import { suggestionKey } from './helpers';
+import { notePendingSuggestion } from './pendingResend';
 import { findSessionPlaylistId, readOrbitState, writeOrbitHeartbeat } from './remote';
 
 export class OrbitJoinError extends Error {
@@ -74,7 +75,18 @@ export async function joinOrbitSession(sid: string): Promise<OrbitState> {
     // Guard against a stale outbox from a previous abandoned join attempt —
     // if one exists under the same name, reuse its id instead of creating
     // a duplicate (Navidrome allows duplicate names but it'd leak).
-    const existing = (await getPlaylists(true).catch(() => [])).find(p => p.name === outboxName);
+    // A *transient* getPlaylists failure must not make us create a duplicate
+    // outbox — distinguish "lookup failed" (undefined) from "genuinely absent"
+    // (null) and retry only on failure before falling back to create.
+    const lookupOutbox = async () => {
+      try {
+        return (await getPlaylists(true)).find(p => p.name === outboxName) ?? null;
+      } catch {
+        return undefined;
+      }
+    };
+    let existing = await lookupOutbox();
+    if (existing === undefined) existing = await lookupOutbox();
     if (existing) {
       outboxPlaylistId = existing.id;
     } else {
@@ -165,17 +177,27 @@ export async function suggestOrbitTrack(trackId: string): Promise<void> {
   if (role !== 'guest') throw new Error('Not joined to a session as a guest');
   if (!outboxPlaylistId || !sessionId) throw new Error('No outbox bound');
 
-  // Read current outbox contents and append — createPlaylist.view with
-  // playlistId replaces songs wholesale, so we need to carry the existing
-  // list along.
-  const { songs } = await getPlaylist(outboxPlaylistId);
-  const nextIds = [...songs.map(s => s.id), trackId];
-  await updatePlaylist(outboxPlaylistId, nextIds, songs.length);
+  await ensureTrackInOutbox(outboxPlaylistId, trackId);
 
   // Record the suggestion locally so the UI can surface it as "waiting on
   // host" until the host's next sweep merges it into the shared queue.
-  // Drained by the guest tick's reconcilePendingSuggestions call.
+  // Drained by the guest tick's reconcilePendingSuggestions call; tracked for
+  // lost-update re-send by notePendingSuggestion.
   useOrbitStore.getState().addPendingSuggestion(trackId);
+  notePendingSuggestion(trackId);
+}
+
+/**
+ * Append a track to an outbox playlist unless it's already there. Subsonic's
+ * playlist update replaces the song list wholesale, so we carry the existing
+ * ids along. Shared by the initial suggest and the guest tick's lost-update
+ * re-send (where a no-op append means the host already cleared + recorded it).
+ */
+export async function ensureTrackInOutbox(outboxPlaylistId: string, trackId: string): Promise<void> {
+  const { songs } = await getPlaylist(outboxPlaylistId);
+  const ids = songs.map(s => s.id);
+  if (ids.includes(trackId)) return;
+  await updatePlaylist(outboxPlaylistId, [...ids, trackId], ids.length);
 }
 
 /**

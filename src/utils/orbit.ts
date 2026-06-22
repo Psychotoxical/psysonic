@@ -73,6 +73,7 @@ export {
 export {
   approveOrbitSuggestion,
   declineOrbitSuggestion,
+  ensureTrackInOutbox,
   evaluateOrbitSuggestGate,
   joinOrbitSession,
   leaveOrbitSession,
@@ -81,5 +82,10 @@ export {
   suggestOrbitTrack,
   type OrbitSuggestGateReason,
 } from './orbit/guest';
+export {
+  forgetPendingSuggestion,
+  planPendingResends,
+  resetPendingResendState,
+} from './orbit/pendingResend';
 export { sweepGuestOutboxes } from './orbit/sweep';
 export { cleanupOrphanedOrbitPlaylists } from './orbit/cleanup';

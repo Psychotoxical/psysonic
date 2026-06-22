@@ -143,6 +143,7 @@ export const orbit = {
   settingShuffleNow: 'Keverés most',
   toastSuggested: '{{user}} javasolta: „{{title}}"',
   toastSuggestedMany: '{{count}} új javaslat a sorban',
+  toastSuggestLost: 'A javaslatod lehet, hogy nem jutott el a házigazdához',
   toastShuffled: 'A sor megkeverve',
   toastJoined: 'Csatlakoztál a munkamenethez',
   toastLoginFirst: 'Jelentkezz be, mielőtt csatlakozol egy munkamenethez',

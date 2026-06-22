@@ -143,6 +143,7 @@ export const orbit = {
   settingShuffleNow: '今すぐシャッフル',
   toastSuggested: '{{user}} が "{{title}}" を提案しました',
   toastSuggestedMany: 'キューに {{count}} 件の新しい提案',
+  toastSuggestLost: 'あなたの提案がホストに届かなかった可能性があります',
   toastShuffled: 'キューをシャッフルしました',
   toastJoined: 'セッションに参加しました',
   toastLoginFirst: 'セッション参加前にログインしてください',

@@ -145,6 +145,7 @@ export const orbit = {
   settingShuffleNow: 'Перемешать сейчас',
   toastSuggested: '{{user}} предложил «{{title}}»',
   toastSuggestedMany: '{{count}} новых предложений в очереди',
+  toastSuggestLost: 'Возможно, ваше предложение не дошло до хоста',
   toastShuffled: 'Очередь перемешана',
   toastJoined: 'Присоединился к сессии',
   toastLoginFirst: 'Войди, прежде чем присоединяться к сессии',

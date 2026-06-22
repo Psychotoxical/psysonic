@@ -143,6 +143,7 @@ export const orbit = {
   settingShuffleNow: 'Amestecă acum',
   toastSuggested: '{{user}} a sugerat "{{title}}"',
   toastSuggestedMany: '{{count}} noi sugestii în coadă',
+  toastSuggestLost: 'Sugestia ta s-ar putea să nu fi ajuns la gazdă',
   toastShuffled: 'Coadă amestecată',
   toastJoined: 'A intrat în sesiune',
   toastLoginFirst: 'Log in before joining a session',

@@ -143,6 +143,7 @@ export const orbit = {
   settingShuffleNow: '立即洗牌',
   toastSuggested: '{{user}} 推荐了"{{title}}"',
   toastSuggestedMany: '队列中有 {{count}} 个新建议',
+  toastSuggestLost: '你的建议可能未送达主持人',
   toastShuffled: '队列已洗牌',
   toastJoined: '已加入会话',
   toastLoginFirst: '加入会话前请先登录',

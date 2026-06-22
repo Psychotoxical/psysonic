@@ -143,6 +143,7 @@ export const orbit = {
   settingShuffleNow: 'Nu shufflen',
   toastSuggested: '{{user}} stelde "{{title}}" voor',
   toastSuggestedMany: '{{count}} nieuwe suggesties in de wachtrij',
+  toastSuggestLost: 'Je suggestie heeft de host mogelijk niet bereikt',
   toastShuffled: 'Wachtrij geshuffled',
   toastJoined: 'Deelgenomen aan sessie',
   toastLoginFirst: 'Log eerst in voordat je aan een sessie deelneemt',

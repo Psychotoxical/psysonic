@@ -143,6 +143,7 @@ export const orbit = {
   settingShuffleNow: 'Mezclar ahora',
   toastSuggested: '{{user}} sugirió "{{title}}"',
   toastSuggestedMany: '{{count}} nuevas sugerencias en la cola',
+  toastSuggestLost: 'Es posible que tu sugerencia no haya llegado al anfitrión',
   toastShuffled: 'Cola mezclada',
   toastJoined: 'Te has unido a la sesión',
   toastLoginFirst: 'Inicia sesión antes de unirte a una sesión',
