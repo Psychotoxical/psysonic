@@ -37,6 +37,51 @@ export class OrbitStateTooLarge extends Error {
   }
 }
 
+function trySerialise(state: OrbitState): string | null {
+  try {
+    return serialiseOrbitState(state);
+  } catch (e) {
+    if (e instanceof OrbitStateTooLarge) return null;
+    throw e;
+  }
+}
+
+/**
+ * Serialise the state blob for the wire, shedding the least-important data
+ * instead of throwing when it would exceed the byte budget. Without this a
+ * single over-budget tick makes `writeOrbitState` throw, the host swallows it
+ * and retries the same too-large state forever — guests freeze and time out.
+ *
+ * Sheds, in order: oldest attribution history (`queue`), then the tail of the
+ * published `playQueue`. Operates on copies — the caller's local store keeps
+ * full state; only the published blob shrinks, which is all guests consume.
+ * If even a minimal blob overflows (pathological session name / participant
+ * list) it throws `OrbitStateTooLarge` as before, so the caller still logs.
+ */
+export function serialiseOrbitStateForWire(state: OrbitState): string {
+  const direct = trySerialise(state);
+  if (direct !== null) return direct;
+
+  // Drop oldest suggestions first — they're the least useful for attribution.
+  const queue = [...state.queue].sort((a, b) => a.addedAt - b.addedAt);
+  while (queue.length > 0) {
+    queue.shift();
+    const out = trySerialise({ ...state, queue });
+    if (out !== null) return out;
+  }
+
+  // Queue exhausted and still too large — shorten the published play queue.
+  const playQueue = [...(state.playQueue ?? [])];
+  while (playQueue.length > 0) {
+    playQueue.pop();
+    const out = trySerialise({ ...state, queue: [], playQueue });
+    if (out !== null) return out;
+  }
+
+  // Even the minimal blob overflows — surface it so the host tick logs it.
+  return serialiseOrbitState({ ...state, queue: [], playQueue: [] });
+}
+
 export function serialiseOutboxMeta(meta: OrbitOutboxMeta): string {
   return JSON.stringify(meta);
 }

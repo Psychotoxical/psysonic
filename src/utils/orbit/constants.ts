@@ -27,6 +27,17 @@ export const ORBIT_ORPHAN_TTL_MS = 5 * 60_000;
 export const ORBIT_SHUFFLE_INTERVAL_MS = 15 * 60_000;
 
 /**
+ * Upper bound on `OrbitState.queue` (the suggestion/attribution history).
+ * The list is append-only at the sweep-fold step, so without a cap a long
+ * session grows it without limit until the serialised blob blows past
+ * `ORBIT_STATE_MAX_BYTES` and the host silently stops publishing. We keep the
+ * most-recently-added entries (oldest dropped first) — those cover the
+ * upcoming play queue, which is all the attribution lookup needs. The wire
+ * serialiser trims further per-write if the blob still overflows.
+ */
+export const ORBIT_QUEUE_HISTORY_LIMIT = 64;
+
+/**
  * How long a soft-`removed` marker stays in the state blob. Long enough for
  * the affected guest's 2.5 s read tick to surface the modal even after a
  * one-tick miss; short enough that the marker doesn't bloat state if the

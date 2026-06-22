@@ -6,9 +6,24 @@ import type {
 } from '../../api/orbit';
 import {
   ORBIT_HEARTBEAT_ALIVE_MS,
+  ORBIT_QUEUE_HISTORY_LIMIT,
   ORBIT_REMOVED_TTL_MS,
   ORBIT_SHUFFLE_INTERVAL_MS,
 } from './constants';
+
+/**
+ * Keep `OrbitState.queue` bounded. Drops the oldest suggestions (by `addedAt`)
+ * once the history exceeds the limit — `queue` is periodically shuffled, so a
+ * positional trim could discard recent entries; ordering by `addedAt` keeps
+ * the trim honest. The dropped tracks have long since played, so losing their
+ * attribution / dedupe entry is harmless.
+ */
+function capQueueHistory(queue: OrbitQueueItem[]): OrbitQueueItem[] {
+  if (queue.length <= ORBIT_QUEUE_HISTORY_LIMIT) return queue;
+  return [...queue]
+    .sort((a, b) => a.addedAt - b.addedAt)
+    .slice(queue.length - ORBIT_QUEUE_HISTORY_LIMIT);
+}
 
 /** Merge a patch into the store's state blob, keeping nullability. */
 export function patchOrbitState(patch: Partial<OrbitState>): OrbitState | null {
@@ -137,7 +152,7 @@ export function applyOutboxSnapshotsToState(
 
   return {
     ...state,
-    queue: newItems.length > 0 ? [...state.queue, ...newItems] : state.queue,
+    queue: newItems.length > 0 ? capQueueHistory([...state.queue, ...newItems]) : state.queue,
     participants,
     removed,
   };

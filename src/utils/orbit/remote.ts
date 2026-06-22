@@ -5,7 +5,7 @@ import {
   type OrbitOutboxMeta,
   type OrbitState,
 } from '../../api/orbit';
-import { serialiseOrbitState, serialiseOutboxMeta } from './helpers';
+import { serialiseOrbitStateForWire, serialiseOutboxMeta } from './helpers';
 
 /** Pull + parse the canonical state from the session playlist. Null on miss or parse error. */
 export async function readOrbitState(sessionPlaylistId: string): Promise<OrbitState | null> {
@@ -31,7 +31,7 @@ export async function writeOrbitState(
   sessionPlaylistId: string,
   state: OrbitState,
 ): Promise<void> {
-  const comment = serialiseOrbitState(state);
+  const comment = serialiseOrbitStateForWire(state);
   const name = orbitSessionPlaylistName(state.sid);
   await updatePlaylistMeta(sessionPlaylistId, name, comment, /* public */ true);
 }
