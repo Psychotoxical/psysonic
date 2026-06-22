@@ -19,7 +19,6 @@ export default function OrbitExitModal() {
   const { t } = useTranslation();
   const phase        = useOrbitStore(s => s.phase);
   const errorMessage = useOrbitStore(s => s.errorMessage);
-  const role         = useOrbitStore(s => s.role);
   const sessionName  = useOrbitStore(s => s.state?.name);
   const hostName     = useOrbitStore(s => s.state?.host);
 
@@ -31,7 +30,10 @@ export default function OrbitExitModal() {
 
   const onOk = async () => {
     try {
-      if (role === 'guest') await leaveOrbitSession();
+      // Read role fresh from the store — the keydown effect binds once per
+      // open (deps [isOpen]) and would otherwise act on a stale role if it
+      // changed while the modal was up.
+      if (useOrbitStore.getState().role === 'guest') await leaveOrbitSession();
       else useOrbitStore.getState().reset();
     } catch {
       useOrbitStore.getState().reset();
