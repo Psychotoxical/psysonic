@@ -221,41 +221,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Favorites** on All Albums uses the same `getStarred2` catalog path as the Favorites page instead of the empty sparse `album` table browse.
 * Pre-index compilation filtering auto-paginates again in network page mode; offline library aggregates set `isCompilation` from track tags.
 
-### Orbit — opening the app on another device could end a live session
+### Orbit — session reliability fixes
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1155](https://github.com/Psychotoxical/psysonic/pull/1155)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PRs [#1155](https://github.com/Psychotoxical/psysonic/pull/1155), [#1157](https://github.com/Psychotoxical/psysonic/pull/1157), [#1159](https://github.com/Psychotoxical/psysonic/pull/1159)**
 
-* Starting Psysonic on a second device while you were hosting or in an Orbit session could delete that session's playlist, dropping your guests as if you had ended it. The start-up cleanup that clears leftover Orbit playlists now leaves a session that is still live on another device alone.
-
-### Orbit — long sessions could quietly stop updating for guests
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1155](https://github.com/Psychotoxical/psysonic/pull/1155)**
-
-* During a long Orbit session the host could silently stop broadcasting, leaving guests frozen until they timed out. The shared session data is now kept within its size limit (trimming the oldest suggestion history first), so the host keeps updating instead of stalling.
-
-### Orbit — radio could add unrelated tracks for guests
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1155](https://github.com/Psychotoxical/psysonic/pull/1155)**
-
-* A guest who joined while radio was playing could have unrelated radio tracks appended to their queue, drifting them out of sync with the host. Automatic radio top-up is now paused while you are in an Orbit session.
-
-### Orbit — auto-approve could switch on unexpectedly in older sessions
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1157](https://github.com/Psychotoxical/psysonic/pull/1157)**
-
-* In a long-running Orbit session created by an older build, toggling auto-shuffle could silently also turn on auto-approve, so guest suggestions started playing without the host approving them. The two settings are now independent again.
-
-### Orbit — sessions could go over their guest limit
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1157](https://github.com/Psychotoxical/psysonic/pull/1157)**
-
-* When several people joined at the same moment, a session could end up with more guests than its limit allowed. The host now enforces the limit, keeping the earliest joiners.
-
-### Orbit — an accepted suggestion could occasionally be dropped
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1157](https://github.com/Psychotoxical/psysonic/pull/1157)**
-
-* Under load the host's updates could overlap and overwrite each other, occasionally losing a guest suggestion that had just been picked up. Host updates are now serialised so none are lost.
+* Opening Psysonic on a second device no longer deletes a session that is still live on another device.
+* Long sessions keep updating for guests instead of silently stalling once the shared state grew too large.
+* Radio no longer adds unrelated tracks to a guest's queue mid-session.
+* Auto-shuffle and auto-approve are independent again — toggling one in an older session no longer flips the other.
+* A session is kept within its guest limit even when several people join at once.
+* Guest suggestions no longer get silently lost or stuck on "waiting on host": overlapping host updates are serialised, a lost suggestion is re-sent (with a notice if it still can't get through), and a flaky join no longer leaves a duplicate suggestion list on the server.
+* Pasted invites are rejected unless they point at a normal http/https server address.
 
 ## [1.48.1] - 2026-06-15
 
