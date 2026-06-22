@@ -11,7 +11,11 @@ const SENSITIVE_QUERY_KEYS = new Set([
 const SENSITIVE_KV_KEYS = [
   'password', 'passwd', 'token', 'secret', 'api_key', 'apikey',
   'access_token', 'refresh_token', 'authorization', 'auth',
+  'cookie', 'x-api-key', 'cf-access-client-secret', 'cf-access-client-id', 'x-auth-token',
 ];
+
+/** Gate / reverse-proxy header names — redact any `x-pangolin-*` prefix. */
+const PANGOLIN_HEADER_RE = /(\bx-pangolin-[a-z0-9-]+\s*[:=]\s*)(\S+)/gi;
 
 function isIpv4LanLiteral(ip: string): boolean {
   const parts = ip.split('.');
@@ -175,6 +179,10 @@ function redactBearerTokens(line: string): string {
   return s;
 }
 
+function redactPangolinHeaders(line: string): string {
+  return line.replace(PANGOLIN_HEADER_RE, '$1REDACTED');
+}
+
 function redactSensitiveKeyValues(line: string): string {
   let out = line;
   for (const key of SENSITIVE_KV_KEYS) {
@@ -231,5 +239,5 @@ function redactUrlsInText(line: string): string {
 }
 
 export function sanitizeLogLine(line: string): string {
-  return redactUrlsInText(redactSensitiveKeyValues(redactBearerTokens(line)));
+  return redactUrlsInText(redactSensitiveKeyValues(redactPangolinHeaders(redactBearerTokens(line))));
 }

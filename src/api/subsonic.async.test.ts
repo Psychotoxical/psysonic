@@ -26,7 +26,7 @@ vi.mock('../utils/network/subsonicNetworkGuard', () => ({
 }));
 
 import axios from 'axios';
-import { pingWithCredentials, ping } from './subsonic';
+import { pingWithCredentials, pingWithCredentialsForProfile, ping } from './subsonic';
 import { getAlbumInfo2 } from './subsonicAlbumInfo';
 import { getStarred } from './subsonicStarRating';
 import { search } from './subsonicSearch';
@@ -438,5 +438,41 @@ describe('pingWithCredentials — explicit URL/credentials path', () => {
     vi.mocked(axios.get).mockResolvedValue(okResponse({}));
     const r = await pingWithCredentials('https://x.test', 'u', 'p');
     expect(r.openSubsonic).toBe(false);
+  });
+});
+
+describe('pingWithCredentialsForProfile — custom gate headers', () => {
+  it('sends resolved custom headers on the ping request', async () => {
+    vi.mocked(axios.get).mockResolvedValue(okResponse({ type: 'navidrome' }));
+    await pingWithCredentialsForProfile(
+      {
+        url: 'https://music.example.com',
+        alternateUrl: 'http://192.168.0.10:4533',
+        username: 'u',
+        password: 'p',
+        customHeaders: [{ name: 'CF-Access-Client-Secret', value: 'gate-secret' }],
+        customHeadersApplyTo: 'public',
+      },
+      'https://music.example.com',
+    );
+    const config = vi.mocked(axios.get).mock.calls[0]?.[1] as { headers?: Record<string, string> };
+    expect(config.headers?.['CF-Access-Client-Secret']).toBe('gate-secret');
+  });
+
+  it('omits gate headers when probing the LAN endpoint with applyTo=public', async () => {
+    vi.mocked(axios.get).mockResolvedValue(okResponse({}));
+    await pingWithCredentialsForProfile(
+      {
+        url: 'https://music.example.com',
+        alternateUrl: 'http://192.168.0.10:4533',
+        username: 'u',
+        password: 'p',
+        customHeaders: [{ name: 'CF-Access-Client-Secret', value: 'gate-secret' }],
+        customHeadersApplyTo: 'public',
+      },
+      'http://192.168.0.10:4533',
+    );
+    const config = vi.mocked(axios.get).mock.calls[0]?.[1] as { headers?: Record<string, string> };
+    expect(config.headers?.['CF-Access-Client-Secret']).toBeUndefined();
   });
 });

@@ -8,12 +8,14 @@ const SENSITIVE_QUERY_KEYS: &[&str] = &[
 
 const SENSITIVE_KV_KEYS: &[&str] = &[
     "password", "passwd", "token", "secret", "api_key", "apikey", "access_token",
-    "refresh_token", "authorization", "auth",
+    "refresh_token", "authorization", "auth", "cookie", "x-api-key",
+    "cf-access-client-secret", "cf-access-client-id", "x-auth-token",
 ];
 
 /// Sanitize one runtime log line for display and export.
 pub fn sanitize_log_line(line: &str) -> String {
     let mut out = redact_bearer_tokens(line);
+    out = redact_pangolin_headers(&out);
     out = redact_sensitive_key_values(&out);
     out = redact_urls_in_text(&out);
     out
@@ -41,6 +43,37 @@ fn redact_bearer_tokens(line: &str) -> String {
         search_from = start + "REDACTED".len();
     }
     s
+}
+
+fn redact_pangolin_headers(line: &str) -> String {
+    let lower = line.to_ascii_lowercase();
+    let mut out = line.to_string();
+    let mut search_from = 0;
+    while let Some(rel) = lower[search_from..].find("x-pangolin-") {
+        let idx = search_from + rel;
+        let after_prefix = &lower[idx..];
+        let Some(sep_rel) = after_prefix.find(|c: char| c == ':' || c == '=') else {
+            search_from = idx + 1;
+            continue;
+        };
+        let sep_idx = idx + sep_rel;
+        let val_start = sep_idx + 1;
+        let slice = &out[val_start..];
+        let trimmed = slice.trim_start();
+        let ws = slice.len().saturating_sub(trimmed.len());
+        let val_start = val_start + ws;
+        let end = trimmed
+            .find(|c: char| c.is_whitespace() || c == '&' || c == ',' || c == ';' || c == ')')
+            .unwrap_or(trimmed.len());
+        if end > 0 {
+            out.replace_range(val_start..val_start + end, "REDACTED");
+        }
+        search_from = val_start + "REDACTED".len();
+        if search_from >= out.len() {
+            break;
+        }
+    }
+    out
 }
 
 fn redact_sensitive_key_values(line: &str) -> String {
@@ -366,6 +399,17 @@ mod tests {
         let out = sanitize_log_line(line);
         assert!(out.contains("***@10.0.0.5"));
         assert!(!out.contains("user:pass"));
+    }
+
+    #[test]
+    fn redacts_reverse_proxy_gate_headers() {
+        let line = "req CF-Access-Client-Secret: gate-secret Authorization: Bearer tok123 x-pangolin-auth: pangolin-key";
+        let out = sanitize_log_line(line);
+        assert!(out.contains("CF-Access-Client-Secret: REDACTED"));
+        assert!(!out.contains("gate-secret"));
+        assert!(!out.contains("tok123"));
+        assert!(out.contains("x-pangolin-auth: REDACTED"));
+        assert!(!out.contains("pangolin-key"));
     }
 
     #[test]

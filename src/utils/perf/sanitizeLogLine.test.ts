@@ -34,4 +34,15 @@ describe('sanitizeLogLine', () => {
     expect(out).toContain('password=REDACTED');
     expect(out).not.toContain('sekrit');
   });
+
+  it('redacts reverse-proxy gate header values', () => {
+    const line = 'req CF-Access-Client-Secret: gate-secret Authorization: Bearer tok123 x-pangolin-auth: pangolin-key';
+    const out = sanitizeLogLine(line);
+    expect(out).toContain('CF-Access-Client-Secret: REDACTED');
+    expect(out).not.toContain('gate-secret');
+    expect(out).not.toContain('tok123');
+    expect(out).toContain('x-pangolin-auth: REDACTED');
+    expect(out).not.toContain('pangolin-key');
+    expect(out).not.toMatch(/Authorization:\s*Bearer\s+\S/i);
+  });
 });

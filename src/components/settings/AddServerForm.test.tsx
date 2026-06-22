@@ -143,3 +143,33 @@ describe('AddServerForm — dual-address behaviour', () => {
     expect(arg).not.toHaveProperty('shareUsesLocalUrl');
   });
 });
+
+describe('AddServerForm — custom HTTP headers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('includes configured custom headers on save', async () => {
+    const onSave = vi.fn();
+    renderWithProviders(<AddServerForm onSave={onSave} onCancel={vi.fn()} />);
+    const user = userEvent.setup();
+
+    const inputs = screen.getAllByRole('textbox');
+    await user.type(inputs[1]!, 'https://music.example.com');
+    await user.type(inputs[3]!, 'tester');
+    await user.type(screen.getByPlaceholderText('••••••••'), 'pw');
+
+    await user.click(screen.getByRole('button', { name: /custom http headers/i }));
+    const headerNameInputs = screen.getAllByPlaceholderText(/header name/i);
+    const headerValueInputs = screen.getAllByPlaceholderText(/header value/i);
+    await user.type(headerNameInputs[0]!, 'CF-Access-Client-Secret');
+    await user.type(headerValueInputs[0]!, 'gate-secret');
+
+    await user.click(screen.getByRole('button', { name: 'Add', exact: true }));
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const arg = onSave.mock.calls[0]![0];
+    expect(arg.customHeaders).toEqual([{ name: 'CF-Access-Client-Secret', value: 'gate-secret' }]);
+    expect(arg.customHeadersApplyTo).toBe('public');
+  });
+});
