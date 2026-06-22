@@ -592,6 +592,7 @@ export const settings = {
   transitionsTitle: '曲目间过渡',
   transitionsDesc: '连续曲目之间如何衔接。同一时间只能启用一种模式。',
   transitionOff: '关闭',
+  transitionsHostControlled: '会话期间由 Orbit 主持人控制',
   queueBehaviourTitle: '队列行为',
   preservePlayNextOrder: '保留"下一首播放"顺序',
   preservePlayNextOrderDesc: '新添加的"下一首播放"项目排在现有项目之后，而不是插到前面。',

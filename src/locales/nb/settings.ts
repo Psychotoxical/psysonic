@@ -592,6 +592,7 @@ export const settings = {
   transitionsTitle: 'Overganger mellom spor',
   transitionsDesc: 'Hvordan etterfølgende spor går over i hverandre. Bare én modus kan være aktiv om gangen.',
   transitionOff: 'Av',
+  transitionsHostControlled: 'Styres av Orbit-verten under økten',
   queueBehaviourTitle: 'Køoppførsel',
   preservePlayNextOrder: 'Behold "Spill neste"-rekkefølge',
   preservePlayNextOrderDesc: 'Nye "Spill neste"-elementer havner bak de eksisterende i stedet for å snike seg foran.',

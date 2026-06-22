@@ -606,6 +606,7 @@ export const settings = {
   transitionsTitle: 'Übergänge zwischen Tracks',
   transitionsDesc: 'Wie aufeinanderfolgende Tracks ineinander übergehen. Es kann immer nur ein Modus aktiv sein.',
   transitionOff: 'Aus',
+  transitionsHostControlled: 'Während der Orbit-Session vom Host gesteuert',
   queueBehaviourTitle: 'Warteschlangen-Verhalten',
   preservePlayNextOrder: '„Als Nächstes"-Reihenfolge bewahren',
   preservePlayNextOrderDesc: 'Neu hinzugefügte „Als Nächstes"-Titel reihen sich hinten an statt sich vorn einzuschieben.',

@@ -1,6 +1,7 @@
 import React from 'react';
 import type { TFunction } from 'i18next';
 import { useAuthStore } from '../../../store/authStore';
+import { useOrbitStore } from '../../../store/orbitStore';
 import {
   getTransitionMode,
   setTransitionMode,
@@ -30,6 +31,12 @@ interface Props {
 export function TrackTransitionsBlock({ t }: Props) {
   const auth = useAuthStore();
   const mode = getTransitionMode(auth);
+  // While a guest in a live Orbit session, transitions mirror the host's and
+  // are re-applied every read tick — let the user see them but not fight the
+  // sync. Restored to their own on leave.
+  const hostControlled = useOrbitStore(
+    s => s.role === 'guest' && (s.phase === 'active' || s.phase === 'joining'),
+  );
 
   const transitions: { id: TransitionMode; label: string }[] = [
     { id: 'none', label: t('settings.transitionOff') },
@@ -40,12 +47,18 @@ export function TrackTransitionsBlock({ t }: Props) {
 
   return (
     <SettingsGroup>
-      <div className="settings-segmented">
+      {hostControlled && (
+        <div style={{ marginBottom: '0.6rem', fontSize: 12, color: 'var(--text-muted)' }}>
+          {t('settings.transitionsHostControlled')}
+        </div>
+      )}
+      <div className="settings-segmented" style={hostControlled ? { opacity: 0.45, pointerEvents: 'none' } : undefined}>
         {transitions.map(item => (
           <button
             key={item.id}
             type="button"
             className={`btn ${mode === item.id ? 'btn-primary' : 'btn-ghost'}`}
+            disabled={hostControlled}
             onClick={() => setTransitionMode(item.id)}
           >
             {item.label}
@@ -61,6 +74,7 @@ export function TrackTransitionsBlock({ t }: Props) {
             max={10}
             step={0.1}
             value={auth.crossfadeSecs}
+            disabled={hostControlled}
             onChange={e => auth.setCrossfadeSecs(parseFloat(e.target.value))}
             style={{ flex: 1, minWidth: 80, maxWidth: 200 }}
             id="crossfade-secs-slider"
@@ -80,6 +94,7 @@ export function TrackTransitionsBlock({ t }: Props) {
               label={t('settings.autodjSmoothSkip')}
               desc={t('settings.autodjSmoothSkipDesc')}
               checked={auth.autodjSmoothSkip}
+              disabled={hostControlled}
               onChange={auth.setAutodjSmoothSkip}
             />
           </div>

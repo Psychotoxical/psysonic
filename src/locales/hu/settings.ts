@@ -673,6 +673,7 @@ export const settings = {
   transitionsTitle: 'Számátmenetek',
   transitionsDesc: 'Hogyan tűnik át egymásba az egymást követő számok. Egyszerre csak egy mód lehet aktív.',
   transitionOff: 'Ki',
+  transitionsHostControlled: 'A munkamenet alatt az Orbit házigazdája vezérli',
   queueBehaviourTitle: 'Lejátszási sor viselkedése',
   preservePlayNextOrder: 'A „Játszás következőként" sorrend megőrzése',
   preservePlayNextOrderDesc: 'Az újonnan hozzáadott „Játszás következőként" elemek a korábbiak mögé sorakoznak fel, ahelyett, hogy eléjük ugranának.',

@@ -667,6 +667,7 @@ export const settings = {
   transitionsTitle: 'トラック遷移',
   transitionsDesc: '連続するトラックのつなぎ方です。一度に有効にできるモードは 1 つだけです。',
   transitionOff: 'オフ',
+  transitionsHostControlled: 'セッション中はOrbitホストが制御します',
   queueBehaviourTitle: 'キューの動作',
   preservePlayNextOrder: '"次に再生" の順序を保持',
   preservePlayNextOrderDesc: '新しく追加された "次に再生" 項目を、先に追加されたものの前へ割り込ませず後ろに並べます。',

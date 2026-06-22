@@ -693,6 +693,7 @@ export const settings = {
   transitionsTitle: 'Переходы между треками',
   transitionsDesc: 'Как соединяются идущие подряд треки. Одновременно может быть активен только один режим.',
   transitionOff: 'Выкл.',
+  transitionsHostControlled: 'Управляется хостом Orbit во время сессии',
   queueBehaviourTitle: 'Поведение очереди',
   preservePlayNextOrder: 'Сохранять порядок «Играть следующим»',
   preservePlayNextOrderDesc: 'Новые элементы «Играть следующим» становятся в конец очереди, а не лезут вперёд.',

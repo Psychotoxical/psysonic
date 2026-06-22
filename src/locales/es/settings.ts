@@ -605,6 +605,7 @@ export const settings = {
   transitionsTitle: 'Transiciones entre pistas',
   transitionsDesc: 'Cómo se enlazan las pistas consecutivas. Solo un modo puede estar activo a la vez.',
   transitionOff: 'Desactivado',
+  transitionsHostControlled: 'Controlado por el anfitrión de Orbit durante la sesión',
   queueBehaviourTitle: 'Comportamiento de la cola',
   preservePlayNextOrder: 'Mantener el orden de "Reproducir Siguiente"',
   preservePlayNextOrderDesc: 'Los elementos añadidos a "Reproducir Siguiente" se encolan detrás de los anteriores en vez de saltar al principio.',

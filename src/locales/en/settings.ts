@@ -673,6 +673,7 @@ export const settings = {
   transitionsTitle: 'Track transitions',
   transitionsDesc: 'How consecutive tracks blend together. Only one mode can be active at a time.',
   transitionOff: 'Off',
+  transitionsHostControlled: 'Controlled by the Orbit host during the session',
   queueBehaviourTitle: 'Queue behaviour',
   preservePlayNextOrder: 'Preserve "Play Next" order',
   preservePlayNextOrderDesc: 'Newly added Play Next items queue up behind earlier ones instead of jumping in front.',

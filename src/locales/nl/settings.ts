@@ -593,6 +593,7 @@ export const settings = {
   transitionsTitle: 'Overgangen tussen nummers',
   transitionsDesc: 'Hoe opeenvolgende nummers in elkaar overvloeien. Er kan maar één modus tegelijk actief zijn.',
   transitionOff: 'Uit',
+  transitionsHostControlled: 'Tijdens de Orbit-sessie beheerd door de host',
   queueBehaviourTitle: 'Wachtrijgedrag',
   preservePlayNextOrder: '"Volgende afspelen"-volgorde behouden',
   preservePlayNextOrderDesc: 'Nieuwe "Volgende afspelen"-items komen achter bestaande te staan in plaats van ervoor.',

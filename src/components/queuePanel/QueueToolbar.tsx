@@ -9,6 +9,7 @@ import type {
   QueueToolbarButtonId,
 } from '../../store/queueToolbarStore';
 import { getTransitionMode, setTransitionMode } from '../../utils/playback/playbackTransition';
+import { useOrbitStore } from '../../store/orbitStore';
 
 interface Props {
   queue: QueueItemRef[];
@@ -46,6 +47,12 @@ export function QueueToolbar({
   const playlistMenuRef = useRef<HTMLDivElement>(null);
 
   const mode = getTransitionMode({ gaplessEnabled, crossfadeEnabled, crossfadeTrimSilence });
+  // Transitions are host-controlled while a guest in a live session — disable
+  // the quick-toggles so the user can't fight the per-tick sync.
+  const transitionsLocked = useOrbitStore(
+    s => s.role === 'guest' && (s.phase === 'active' || s.phase === 'joining'),
+  );
+  const transitionLockTip = transitionsLocked ? t('settings.transitionsHostControlled') : undefined;
 
   useEffect(() => {
     if (!showCrossfadePopover && !showPlaylistMenu) return;
@@ -139,7 +146,8 @@ export function QueueToolbar({
                 key={btn.id}
                 className={`queue-round-btn${mode === 'gapless' ? ' active' : ''}`}
                 onClick={() => { setShowCrossfadePopover(false); setTransitionMode(mode === 'gapless' ? 'none' : 'gapless'); }}
-                data-tooltip={t('queue.gapless')}
+                disabled={transitionsLocked}
+                data-tooltip={transitionLockTip ?? t('queue.gapless')}
                 aria-label={t('queue.gapless')}
               >
                 <MoveRight size={13} />
@@ -162,7 +170,8 @@ export function QueueToolbar({
                     setShowPlaylistMenu(false);
                     setShowCrossfadePopover(v => !v);
                   }}
-                  data-tooltip={showCrossfadePopover ? undefined : t('queue.crossfade')}
+                  disabled={transitionsLocked}
+                  data-tooltip={transitionLockTip ?? (showCrossfadePopover ? undefined : t('queue.crossfade'))}
                   aria-label={t('queue.crossfade')}
                 >
                   <Waves size={13} />
@@ -200,7 +209,8 @@ export function QueueToolbar({
                 key={btn.id}
                 className={`queue-round-btn${mode === 'autodj' ? ' active' : ''}`}
                 onClick={() => { setShowCrossfadePopover(false); setShowPlaylistMenu(false); setTransitionMode(mode === 'autodj' ? 'none' : 'autodj'); }}
-                data-tooltip={t('queue.autoDj')}
+                disabled={transitionsLocked}
+                data-tooltip={transitionLockTip ?? t('queue.autoDj')}
                 aria-label={t('queue.autoDj')}
               >
                 <Blend size={13} />

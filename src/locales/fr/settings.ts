@@ -593,6 +593,7 @@ export const settings = {
   transitionsTitle: 'Transitions entre pistes',
   transitionsDesc: 'Comment les pistes consécutives s’enchaînent. Un seul mode peut être actif à la fois.',
   transitionOff: 'Désactivé',
+  transitionsHostControlled: 'Géré par l\'hôte Orbit pendant la session',
   queueBehaviourTitle: 'Comportement de la file',
   preservePlayNextOrder: "Préserver l'ordre « Lire ensuite »",
   preservePlayNextOrderDesc: 'Les nouveaux éléments « Lire ensuite » s\'ajoutent à la fin de la file existante au lieu de la doubler.',

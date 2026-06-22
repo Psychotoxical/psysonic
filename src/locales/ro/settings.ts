@@ -608,6 +608,7 @@ export const settings = {
   transitionsTitle: 'Tranziții între piese',
   transitionsDesc: 'Cum se îmbină piesele consecutive. Doar un mod poate fi activ la un moment dat.',
   transitionOff: 'Dezactivat',
+  transitionsHostControlled: 'Controlat de gazda Orbit în timpul sesiunii',
   queueBehaviourTitle: 'Comportamentul cozii',
   preservePlayNextOrder: 'Prezervă ordinea "Redă următoarea"',
   preservePlayNextOrderDesc: 'Elementele Redă Următoarea noi adăugate sunt puse după cele adăugate mai devreme în loc să sară în față.',
