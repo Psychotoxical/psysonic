@@ -10,9 +10,11 @@ import {
   maybeShuffleQueue,
   effectiveShuffleIntervalMs,
   makeCoalescedRunner,
+  readOrbitTransitionSettings,
   suggestionKey,
 } from '../utils/orbit';
 import {
+  ORBIT_DEFAULT_SETTINGS,
   ORBIT_PLAY_QUEUE_LIMIT,
   type OrbitState,
   type OrbitQueueItem,
@@ -129,6 +131,9 @@ export function useOrbitHost(): void {
         ...snapshotPlayerPatch(base.host),
         playQueue,
         playQueueTotal: upcoming.length,
+        // Refresh the mirrored transition prefs each tick so a mid-session
+        // change to the host's crossfade/gapless/AutoDJ reaches guests.
+        settings: { ...(afterShuffle.settings ?? ORBIT_DEFAULT_SETTINGS), transitions: readOrbitTransitionSettings() },
       };
 
       // 5) Commit locally + push remote.

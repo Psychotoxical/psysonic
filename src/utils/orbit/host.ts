@@ -15,6 +15,7 @@ import {
   type OrbitState,
 } from '../../api/orbit';
 import { generateSessionId } from './helpers';
+import { readOrbitTransitionSettings } from './transitions';
 import { writeOrbitHeartbeat, writeOrbitState } from './remote';
 
 export interface StartOrbitArgs {
@@ -75,6 +76,10 @@ export async function startOrbitSession(args: StartOrbitArgs): Promise<OrbitStat
       name: args.name,
       maxUsers: args.maxUsers ?? ORBIT_DEFAULT_MAX_USERS,
     });
+    // Seed the host's current track-transition prefs so a guest joining
+    // immediately adopts them from the very first blob; the host tick keeps
+    // them fresh thereafter.
+    state.settings = { ...(state.settings ?? ORBIT_DEFAULT_SETTINGS), transitions: readOrbitTransitionSettings() };
     await writeOrbitState(sessionPlaylistId, state);
     await writeOrbitHeartbeat(outboxPlaylistId, outboxName);
 

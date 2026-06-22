@@ -47,6 +47,12 @@ export {
   writeOrbitState,
 } from './orbit/remote';
 export {
+  readOrbitTransitionSettings,
+  applyOrbitTransitionSettings,
+  saveGuestTransitionsOnce,
+  restoreGuestTransitions,
+} from './orbit/transitions';
+export {
   buildOrbitShareLink,
   parseOrbitShareLink,
   type OrbitShareLink,

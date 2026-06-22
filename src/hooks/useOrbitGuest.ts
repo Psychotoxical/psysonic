@@ -4,7 +4,12 @@ import { useEffect, useRef } from 'react';
 import { useOrbitStore } from '../store/orbitStore';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '../store/playerStore';
-import { readOrbitState } from '../utils/orbit';
+import {
+  readOrbitState,
+  applyOrbitTransitionSettings,
+  saveGuestTransitionsOnce,
+  restoreGuestTransitions,
+} from '../utils/orbit';
 import { estimateLivePosition, type OrbitState } from '../api/orbit';
 import { pushOrbitEvent } from '../utils/orbitDiag';
 import { useOrbitOutboxHeartbeat } from './useOrbitOutboxHeartbeat';
@@ -61,6 +66,9 @@ export function useOrbitGuest(): void {
 
     let cancelled = false;
     lastAppliedRef.current = null;
+    // Snapshot the user's own transition prefs once, before the first tick
+    // adopts the host's — restored on leave by this effect's cleanup.
+    saveGuestTransitionsOnce();
 
     /**
      * Load `trackId` into the local player and seek to the host's live
@@ -183,6 +191,13 @@ export function useOrbitGuest(): void {
       }
 
       useOrbitStore.getState().setState(state);
+
+      // Adopt the host's track-transition prefs for the session — idempotent,
+      // only writes when they actually changed. Absent on pre-transition-sync
+      // hosts, in which case the guest keeps its own.
+      if (state.settings?.transitions) {
+        applyOrbitTransitionSettings(state.settings.transitions);
+      }
 
       // Auto-leave after prolonged host silence. We keep polling as long as
       // state reads succeed (short reconnects are silent), but if the host
@@ -357,6 +372,8 @@ export function useOrbitGuest(): void {
     return () => {
       cancelled = true;
       if (timer !== null) window.clearTimeout(timer);
+      // Leaving / session ended → give the user their own transition prefs back.
+      restoreGuestTransitions();
     };
   }, [active, sessionPlaylistId]);
 

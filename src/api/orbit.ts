@@ -116,6 +116,21 @@ export interface OrbitState {
 export const ORBIT_SHUFFLE_INTERVAL_PRESETS_MIN = [1, 5, 10, 15, 30] as const;
 export type OrbitShuffleIntervalMin = typeof ORBIT_SHUFFLE_INTERVAL_PRESETS_MIN[number];
 
+/**
+ * Host's playback-transition preferences, mirrored into the session so guests
+ * blend tracks the same way the host does (otherwise each client uses its own
+ * local transition settings, re-introducing the drift the Catch-Up button
+ * exists to fix). Optional on the wire — a session hosted by a build that
+ * predates transition sync simply omits it, and guests keep their own.
+ */
+export interface OrbitTransitionSettings {
+  crossfadeEnabled: boolean;
+  crossfadeSecs: number;
+  crossfadeTrimSilence: boolean;
+  autodjSmoothSkip: boolean;
+  gaplessEnabled: boolean;
+}
+
 export interface OrbitSettings {
   /** Guest suggestions go straight into the host's play queue. */
   autoApprove: boolean;
@@ -127,6 +142,13 @@ export interface OrbitSettings {
    * field fall back to 15 via `effectiveShuffleIntervalMs`.
    */
   shuffleIntervalMin?: OrbitShuffleIntervalMin;
+  /**
+   * Host's track-transition prefs (crossfade / gapless / AutoDJ), refreshed
+   * every host tick from the host's own playback settings. Guests adopt these
+   * for the session and restore their own on leave. Optional: absent on
+   * pre-transition-sync sessions.
+   */
+  transitions?: OrbitTransitionSettings;
 }
 
 export const ORBIT_DEFAULT_SETTINGS: OrbitSettings = {
