@@ -74,6 +74,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Psysonic is now available in **Hungarian (Magyar)** — pick it from the language menu on the Settings and Login screens.
 
+### Custom HTTP headers for gated servers
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1156](https://github.com/Psychotoxical/psysonic/pull/1156)**, closes [#1095](https://github.com/Psychotoxical/psysonic/issues/1095)
+
+* Per-server **custom HTTP headers** in Settings → Servers for reverse-proxy gates (Cloudflare Access, Pangolin, and similar): add name/value pairs, choose whether they apply to the local URL, public URL, or both on dual-address profiles.
+* Headers attach to every user-server HTTP path — library sync, playback, covers, offline download, Navidrome admin, capability probes, and share-link preview — without putting secrets in invite links or magic strings.
+* Gate header values are redacted from application logs.
+
 
 ## Changed
 
