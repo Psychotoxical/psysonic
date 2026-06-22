@@ -48,7 +48,7 @@ export default function PlaylistsHeader({
           ? t('playlists.selectionCount', { count: selectedIds.size })
           : t('playlists.title')}
       </h1>
-      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
         {policy.canEditPlaylist && !(selectionMode && selectedIds.size > 0) && (<>
             {creating ? (
               <>
