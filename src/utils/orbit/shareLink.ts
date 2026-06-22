@@ -16,7 +16,11 @@ export function parseOrbitShareLink(text: string): OrbitShareLink | null {
   if (!text) return null;
   const payload = decodeOrbitSharePayloadFromText(text);
   if (!payload) return null;
-  try { new URL(payload.srv); } catch { return null; }
+  let url: URL;
+  try { url = new URL(payload.srv); } catch { return null; }
+  // Only http(s) — a pasted invite must not smuggle file:/javascript:/etc.
+  // Neutralized downstream by the known-server match too, but reject early.
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
   return { serverBase: payload.srv, sid: payload.sid };
 }
 
