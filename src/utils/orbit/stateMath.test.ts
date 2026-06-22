@@ -57,3 +57,58 @@ describe('applyOutboxSnapshotsToState — queue history cap', () => {
     expect(next.queue.map(q => q.trackId)).toEqual(['t0', 't1']);
   });
 });
+
+describe('applyOutboxSnapshotsToState — maxUsers enforcement', () => {
+  const NOW = 5_000;
+  const fresh = (user: string, trackIds: string[] = []): OutboxSnapshot => ({
+    user,
+    outboxPlaylistId: `ob-${user}`,
+    trackIds,
+    lastHeartbeat: NOW,
+  });
+
+  function hostState(maxUsers: number, participants: OrbitState['participants']): OrbitState {
+    return {
+      ...makeInitialOrbitState({ sid: 'aaaa1111', host: 'host', name: 'sesh', maxUsers }),
+      participants,
+    };
+  }
+
+  it('admits at most maxUsers guests, dropping the surplus', () => {
+    const state = hostState(2, []);
+    const next = applyOutboxSnapshotsToState(
+      state,
+      [fresh('aaa'), fresh('bbb'), fresh('ccc')],
+      NOW,
+    );
+    // Three guests joined on the same tick; the deterministic username
+    // tie-break keeps the first two alphabetically.
+    expect(next.participants.map(p => p.user)).toEqual(['aaa', 'bbb']);
+  });
+
+  it('never displaces an established participant for a newcomer', () => {
+    // `zoe` joined earlier (smaller joinedAt) — she keeps her slot even though
+    // her name sorts last.
+    const state = hostState(2, [{ user: 'zoe', joinedAt: 1_000, lastHeartbeat: 1_000 }]);
+    const next = applyOutboxSnapshotsToState(
+      state,
+      [fresh('zoe'), fresh('aaa'), fresh('bbb')],
+      NOW,
+    );
+    expect(next.participants.map(p => p.user)).toEqual(['zoe', 'aaa']);
+  });
+
+  it('ignores suggestions from an over-cap guest', () => {
+    const state = hostState(2, []);
+    const next = applyOutboxSnapshotsToState(
+      state,
+      [fresh('aaa', ['t-a']), fresh('bbb', ['t-b']), fresh('ccc', ['t-c'])],
+      NOW,
+    );
+    const addedTracks = next.queue.map(q => q.trackId);
+    expect(addedTracks).toContain('t-a');
+    expect(addedTracks).toContain('t-b');
+    // ccc is over the cap → not a participant, suggestion ignored.
+    expect(addedTracks).not.toContain('t-c');
+  });
+});
