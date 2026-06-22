@@ -91,6 +91,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Playlists header buttons clipped at narrow widths
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1153](https://github.com/Psychotoxical/psysonic/pull/1153)**
+
+* The action buttons at the top of the Playlists page (New Playlist, New Smart Playlist, folder controls, Select) could run off-screen and get cut off when the window was narrow or the queue panel was open. They now wrap onto multiple rows, left-aligned.
+
 ### Seeking in streamed Opus/Ogg tracks
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1110](https://github.com/Psychotoxical/psysonic/pull/1110)**
