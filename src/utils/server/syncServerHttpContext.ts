@@ -5,7 +5,7 @@ import { serverIndexKeyForProfile } from './serverIndexKey';
 
 export async function syncServerHttpContextForProfile(server: ServerProfile): Promise<void> {
   const wire = serverHttpContextWireForProfile(server);
-  await invoke('server_http_context_sync', wire);
+  await invoke('server_http_context_sync', { wire });
 }
 
 export async function syncAllServerHttpContexts(servers: ServerProfile[]): Promise<void> {
