@@ -41,7 +41,6 @@ describe('coerceWaveformBins', () => {
   });
 
   it('coerces a generic ArrayLike (Tauri serializes Vec<u8> as object)', () => {
-    const arrayLike = { 0: 10, 1: 20, length: 500 } as ArrayLike<number>;
     // Fill remaining slots with zeros to match expected shape
     const proxy: ArrayLike<number> = {
       length: 500,

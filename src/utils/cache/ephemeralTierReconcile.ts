@@ -50,7 +50,7 @@ export async function reconcileEphemeralCache(): Promise<EphemeralReconcileResul
 
   let removedStaleIndex = 0;
 
-  ephemeral.forEach(([key, entry], i) => {
+  ephemeral.forEach(([key, _entry], i) => {
     if (existsFlags[i]) {
       return;
     }

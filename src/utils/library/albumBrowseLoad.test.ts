@@ -11,7 +11,6 @@ import {
   filterAlbumsByStarred,
   filterAlbumsByYearBounds,
 } from './albumBrowseFilters';
-import { albumBrowseCompFilterClientOnly } from './albumCompilation';
 import type { AlbumBrowseQuery } from './albumBrowseTypes';
 
 describe('albumBrowseLoad', () => {

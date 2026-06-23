@@ -10,8 +10,6 @@ import {
   LIVE_SEARCH_DEBOUNCE_NETWORK_MS,
   LIVE_SEARCH_DEBOUNCE_RACE_MS,
 } from './liveSearchLocal';
-import type { LibrarySortClause } from '../../api/library';
-import { dedupeById } from '../dedupeById';
 import {
   albumToAlbum,
   artistToArtist,
@@ -386,7 +384,7 @@ export async function loadMoreLocalBrowseSongs(
 
 export type { AlbumBrowseSort } from './albumBrowseSort';
 export { albumSortClauses, sortSubsonicAlbums } from './albumBrowseSort';
-import { albumSortClauses, type AlbumBrowseSort } from './albumBrowseSort';
+import { type AlbumBrowseSort } from './albumBrowseSort';
 import { filterAlbumsByNameTextQuery } from './albumBrowseFilters';
 import { runLocalAlbumBrowse, type AlbumBrowseQuery } from './albumBrowseLoad';
 import { GENRE_ALBUM_FETCH_LIMIT } from './albumBrowseTypes';

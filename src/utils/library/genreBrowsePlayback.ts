@@ -9,7 +9,7 @@ import type { Track } from '../../store/playerStoreTypes';
 import { songToTrack } from '../playback/songToTrack';
 import { shuffleArray } from '../playback/shuffleArray';
 import { trackToSong } from './advancedSearchLocal';
-import { albumSortClauses, type AlbumBrowseSort } from './albumBrowseSort';
+import { type AlbumBrowseSort } from './albumBrowseSort';
 import {
   genreCatalogCacheKey,
   getInflightGenreCatalog,

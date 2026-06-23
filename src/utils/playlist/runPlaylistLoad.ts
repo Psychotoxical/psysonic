@@ -37,7 +37,7 @@ function applyLoadedPlaylist(
 }
 
 export async function runPlaylistLoad(deps: RunPlaylistLoadDeps): Promise<void> {
-  const { id, setLoading, setPlaylist, setSongs, setCustomCoverId, setRatings, setStarredSongs } = deps;
+  const { id, setLoading, setPlaylist, setSongs } = deps;
   setLoading(true);
   try {
     const serverId = useAuthStore.getState().activeServerId ?? '';

@@ -14,10 +14,6 @@ import type {
   AlbumBrowseQuery,
 } from './albumBrowseTypes';
 
-function markServerStarredAlbums(albums: SubsonicAlbum[]): SubsonicAlbum[] {
-  return albums.map(a => ({ ...a, starred: a.starred ?? 'true' }));
-}
-
 function applyStarredNetworkPostFilters(
   albums: SubsonicAlbum[],
   query: AlbumBrowseQuery,
