@@ -9,7 +9,6 @@ import type { ShareQueuePreviewState } from '../../hooks/useShareQueuePreview';
 import { sharePayloadTotal, type QueueableShareSearchPayload } from '../../utils/share/shareSearch';
 import OverlayScrollArea from '../OverlayScrollArea';
 import { usePlayerStore } from '../../store/playerStore';
-import { CoverArtImage } from '../../cover/CoverArtImage';
 import { COVER_DENSE_SEARCH_CSS_PX } from '../../cover/layoutSizes';
 import { COVER_SCOPE_ACTIVE, type CoverServerScope } from '../../cover/types';
 import { AlbumCoverArtImage } from '../../cover/AlbumCoverArtImage';

@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next';
 import { Play, ChevronRight, FolderTree, ListMusic, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { SubsonicPlaylist } from '../../api/subsonicTypes';
-import { useAuthStore } from '../../store/authStore';
 import { usePlaylistStore } from '../../store/playlistStore';
 import { MultiPlaylistToPlaylistSubmenu, SinglePlaylistToPlaylistSubmenu } from './PlaylistToPlaylistSubmenus';
 import MoveToFolderSubmenu from './MoveToFolderSubmenu';
@@ -10,19 +9,13 @@ import type { ContextMenuItemsProps } from './contextMenuItemTypes';
 
 export default function PlaylistContextItems(props: ContextMenuItemsProps) {
   const {
-    type, item, queueIndex, playlistId, playlistSongIndex, shareKindOverride,
-    playTrack, playNext, enqueue, removeTrack, queue, currentTrack, closeContextMenu,
-    starredOverrides, setStarredOverride, networkLovedCache, setNetworkLovedForSong,
-    openSongInfo, userRatingOverrides, setKeyboardRating, keyboardRating,
+    type, item, closeContextMenu,
     playlistSubmenuOpen, setPlaylistSubmenuOpen, cancelPlaylistSubmenuCloseTimer, onPlaylistSubmenuTriggerMouseLeave,
     playlistSongIds, setPlaylistSongIds,
-    orbitRole, entityRatingSupport, audiomuseNavidromeEnabled,
-    applySongRating, applyAlbumRating, applyArtistRating,
-    handleAction, startRadio, startInstantMix, downloadAlbum, copyShareLink, isStarred,
+    handleAction,
     offlinePolicy,
   } = props;
   const { t } = useTranslation();
-  const auth = useAuthStore();
   const navigate = useNavigate();
 
   return (

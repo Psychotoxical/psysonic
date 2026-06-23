@@ -18,15 +18,15 @@ import type { ContextMenuItemsProps } from './contextMenuItemTypes';
 
 export default function SongContextItems(props: ContextMenuItemsProps) {
   const {
-    type, item, queueIndex, playlistId, playlistSongIndex, shareKindOverride,
-    playTrack, playNext, enqueue, removeTrack, queue, currentTrack, closeContextMenu,
-    starredOverrides, networkLovedCache, setNetworkLovedForSong,
+    type, item, playlistId, playlistSongIndex,
+    playTrack, playNext, enqueue, closeContextMenu,
+    networkLovedCache, setNetworkLovedForSong,
     openSongInfo, userRatingOverrides, setKeyboardRating, keyboardRating,
     playlistSubmenuOpen, setPlaylistSubmenuOpen, cancelPlaylistSubmenuCloseTimer, onPlaylistSubmenuTriggerMouseLeave,
     playlistSongIds, setPlaylistSongIds,
-    orbitRole, entityRatingSupport, audiomuseNavidromeEnabled,
-    applySongRating, applyAlbumRating, applyArtistRating,
-    handleAction, startRadio, startInstantMix, downloadAlbum, copyShareLink, isStarred,
+    orbitRole, audiomuseNavidromeEnabled,
+    applySongRating,
+    handleAction, startRadio, startInstantMix, copyShareLink, isStarred,
     offlinePolicy,
   } = props;
   const { t } = useTranslation();

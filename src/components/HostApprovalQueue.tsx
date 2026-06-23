@@ -9,7 +9,6 @@ import {
   declineOrbitSuggestion,
   suggestionKey,
 } from '../utils/orbit';
-import { CoverArtImage } from '../cover/CoverArtImage';
 import { TrackCoverArtImage } from '../cover/TrackCoverArtImage';
 import { ORBIT_DEFAULT_SETTINGS } from '../api/orbit';
 

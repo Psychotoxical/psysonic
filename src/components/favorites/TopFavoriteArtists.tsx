@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, Users } from 'lucide-react';
-import { CoverArtImage } from '../../cover/CoverArtImage';
 import { ArtistCoverArtImage } from '../../cover/ArtistCoverArtImage';
 import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '../../cover/layoutSizes';
 import { coverServerScopeForServerId } from '../../cover/serverScope';

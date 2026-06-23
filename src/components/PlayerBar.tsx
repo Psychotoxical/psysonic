@@ -1,8 +1,7 @@
 import { queueSongStar } from '../store/pendingStarSync';
 import { coverArtIdFromRadio } from '../cover/ids';
 import { resolvePlaybackTrackCoverArtId } from '../cover/resolveCoverArtId';
-import type { SubsonicAlbum } from '../api/subsonicTypes';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   SlidersVertical, X,
@@ -13,23 +12,18 @@ import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
-import WaveformSeek from './WaveformSeek';
 import Equalizer from './Equalizer';
 import { useTranslation } from 'react-i18next';
 import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
-import { useLyricsStore } from '../store/lyricsStore';
-import MarqueeText from './MarqueeText';
 import { useRadioMetadata } from '../hooks/useRadioMetadata';
 import { useRadioMprisSync } from '../hooks/useRadioMprisSync';
 import { usePlaybackDelayPress } from '../hooks/usePlaybackDelayPress';
 import PlaybackDelayModal from './PlaybackDelayModal';
-import PlaybackScheduleBadge from './PlaybackScheduleBadge';
 import { usePlaybackScheduleRemaining } from '../utils/format/playbackScheduleFormat';
 import { usePreviewStore } from '../store/previewStore';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { coerceOpenArtistRefs } from '../utils/openArtistRefs';
 import { resolveTrackArtistRefs } from '../utils/playback/trackArtistRefs';
-import { formatTrackTime } from '../utils/format/formatDuration';
 import { PlayerTrackInfo } from './playerBar/PlayerTrackInfo';
 import { PlayerTransportControls } from './playerBar/PlayerTransportControls';
 import { PlayerSeekbarSection } from './playerBar/PlayerSeekbarSection';
@@ -53,15 +47,12 @@ export default function PlayerBar() {
   const [showVolPct, setShowVolPct] = useState(false);
   const [localShowRemaining, setLocalShowRemaining] = useState(() => useThemeStore.getState().showRemainingTime);
   const premuteVolumeRef = useRef(1);
-  const showLyrics   = useLyricsStore(s => s.showLyrics);
-  const activeTab    = useLyricsStore(s => s.activeTab);
   // currentTime is intentionally excluded — PlaybackTime handles it via direct DOM update.
   const {
     currentTrack, currentRadio, isPlaying, volume,
     togglePlay, next, previous, setVolume,
     stop, toggleRepeat, repeatMode, toggleFullscreen,
     networkLoved, toggleNetworkLove,
-    isQueueVisible, toggleQueue,
     starredOverrides,
     userRatingOverrides,
     openContextMenu,

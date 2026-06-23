@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { resolveAlbum, resolveMediaServerId } from '../../utils/offline/offlineMediaResolve';
 import { star, unstar } from '../../api/subsonicStarRating';
 import type { SubsonicAlbum } from '../../api/subsonicTypes';
-import { useAuthStore } from '../../store/authStore';
 import { songToTrack } from '../../utils/playback/songToTrack';
 import StarRating from '../StarRating';
 import { AlbumToPlaylistSubmenu } from './AlbumArtistToPlaylistSubmenu';
@@ -13,19 +12,15 @@ import type { ContextMenuItemsProps } from './contextMenuItemTypes';
 
 export default function AlbumContextItems(props: ContextMenuItemsProps) {
   const {
-    type, item, queueIndex, playlistId, playlistSongIndex, shareKindOverride,
-    playTrack, playNext, enqueue, removeTrack, queue, currentTrack, closeContextMenu,
-    starredOverrides, setStarredOverride, networkLovedCache, setNetworkLovedForSong,
-    openSongInfo, userRatingOverrides, setKeyboardRating, keyboardRating,
+    type, item, playNext, enqueue, closeContextMenu,
+    setStarredOverride, userRatingOverrides, setKeyboardRating, keyboardRating,
     playlistSubmenuOpen, setPlaylistSubmenuOpen, cancelPlaylistSubmenuCloseTimer, onPlaylistSubmenuTriggerMouseLeave,
     playlistSongIds, setPlaylistSongIds,
-    orbitRole, entityRatingSupport, audiomuseNavidromeEnabled,
-    applySongRating, applyAlbumRating, applyArtistRating,
-    handleAction, startRadio, startInstantMix, downloadAlbum, copyShareLink, isStarred,
+    entityRatingSupport, applyAlbumRating,
+    handleAction, downloadAlbum, copyShareLink, isStarred,
     pinToPlaybackServer, navigateLibrary, offlinePolicy,
   } = props;
   const { t } = useTranslation();
-  const auth = useAuthStore();
   const navigate = useNavigate();
   const goLibrary = pinToPlaybackServer ? navigateLibrary : (path: string) => { navigate(path); };
 

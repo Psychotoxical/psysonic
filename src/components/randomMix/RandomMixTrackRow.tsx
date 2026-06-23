@@ -36,9 +36,9 @@ interface Props {
 }
 
 export default function RandomMixTrackRow({
-  song, idx, gridTemplateColumns, track, queueSongs,
+  song, idx, gridTemplateColumns, track,
   isCurrentTrack, isPlaying, isContextActive, orbitActive,
-  previewingId, previewAudioStarted, starredOverrides, isStarred,
+  previewingId, previewAudioStarted, isStarred,
   customGenreBlacklist, addedArtist, addedGenre, showGenreCol, isGenreBlocked,
   onPlay, onQueueHint, onAddTrackToOrbit, onOpenContextMenu, onToggleStar,
   onBlacklistArtist, onBlacklistGenre,

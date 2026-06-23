@@ -1,8 +1,8 @@
 import type { EntityRatingSupportLevel, SubsonicOpenArtistRef, SubsonicSong } from '../api/subsonicTypes';
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Play, Heart, ExternalLink, X, ChevronLeft, Download, ListPlus, HardDriveDownload, Share2, Highlighter, Loader2, Shuffle } from 'lucide-react';
+import { Play, Heart, X, ChevronLeft, Download, ListPlus, HardDriveDownload, Share2, Highlighter, Loader2, Shuffle } from 'lucide-react';
 import { CoverArtImage } from '../cover/CoverArtImage';
 import { useAlbumCoverRef } from '../cover/useLibraryCoverRef';
 import { useCoverLightboxSrc } from '../cover/lightbox';

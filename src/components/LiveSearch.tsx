@@ -20,7 +20,7 @@ import {
 import {
   logLibrarySearch,
 } from '../utils/library/libraryDevLog';
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useNavigateToAlbum } from '../hooks/useNavigateToAlbum';
 import { Search, Disc3, Users, Music, TextSearch, Database, Globe } from 'lucide-react';

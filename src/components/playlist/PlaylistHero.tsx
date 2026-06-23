@@ -15,7 +15,6 @@ import {
   displayPlaylistName, formatSize, isSmartPlaylistName, totalDurationLabel,
 } from '../../utils/componentHelpers/playlistDetailHelpers';
 import type { CoverArtId } from '../../cover/types';
-import { CoverArtImage } from '../../cover/CoverArtImage';
 import { AlbumCoverArtImage } from '../../cover/AlbumCoverArtImage';
 import { PLAYLIST_MAIN_COVER_CSS_PX } from '../../hooks/usePlaylistCovers';
 import { PlaylistSmartCoverCell } from '../playlists/PlaylistCoverImages';

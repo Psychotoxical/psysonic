@@ -1,9 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Radio, Heart, ChevronRight, ListMusic, Star, Share2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { star, unstar } from '../../api/subsonicStarRating';
 import type { SubsonicArtist } from '../../api/subsonicTypes';
-import { useAuthStore } from '../../store/authStore';
 import StarRating from '../StarRating';
 import { ArtistToPlaylistSubmenu } from './AlbumArtistToPlaylistSubmenu';
 import { MultiArtistToPlaylistSubmenu } from './MultiArtistToPlaylistSubmenu';
@@ -11,20 +9,15 @@ import type { ContextMenuItemsProps } from './contextMenuItemTypes';
 
 export default function ArtistContextItems(props: ContextMenuItemsProps) {
   const {
-    type, item, queueIndex, playlistId, playlistSongIndex, shareKindOverride,
-    playTrack, playNext, enqueue, removeTrack, queue, currentTrack, closeContextMenu,
-    starredOverrides, setStarredOverride, networkLovedCache, setNetworkLovedForSong,
-    openSongInfo, userRatingOverrides, setKeyboardRating, keyboardRating,
+    type, item, shareKindOverride, closeContextMenu,
+    setStarredOverride, userRatingOverrides, setKeyboardRating, keyboardRating,
     playlistSubmenuOpen, setPlaylistSubmenuOpen, cancelPlaylistSubmenuCloseTimer, onPlaylistSubmenuTriggerMouseLeave,
     playlistSongIds, setPlaylistSongIds,
-    orbitRole, entityRatingSupport, audiomuseNavidromeEnabled,
-    applySongRating, applyAlbumRating, applyArtistRating,
-    handleAction, startRadio, startInstantMix, downloadAlbum, copyShareLink, isStarred,
+    entityRatingSupport, applyArtistRating,
+    handleAction, startRadio, copyShareLink, isStarred,
     offlinePolicy,
   } = props;
   const { t } = useTranslation();
-  const auth = useAuthStore();
-  const navigate = useNavigate();
 
   return (
     <>

@@ -1,6 +1,6 @@
 import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
 import { usePlaybackTrackCoverRef } from '../cover/useLibraryCoverRef';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { emit } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';

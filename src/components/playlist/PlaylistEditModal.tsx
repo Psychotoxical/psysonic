@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { Camera, Loader2, X } from 'lucide-react';
 import type { SubsonicPlaylist } from '../../api/subsonicTypes';
 import type { CoverArtId } from '../../cover/types';
-import { CoverArtImage } from '../../cover/CoverArtImage';
 import { AlbumCoverArtImage } from '../../cover/AlbumCoverArtImage';
 import { PLAYLIST_MAIN_COVER_CSS_PX } from '../../hooks/usePlaylistCovers';
 import { PlaylistSmartCoverCell } from '../playlists/PlaylistCoverImages';

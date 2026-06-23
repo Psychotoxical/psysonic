@@ -29,8 +29,8 @@ export function AboutPsysonicBrandHeader({
 }) {
   const modalWordmarkGradSuffix = useId().replace(/:/g, '');
   const [phase, setPhase] = useState<'idle' | 'hint' | 'done'>('idle');
-  const [idleTaps, setIdleTaps] = useState(0);
-  const [hintTimestamps, setHintTimestamps] = useState<number[]>([]);
+  const [, setIdleTaps] = useState(0);
+  const [, setHintTimestamps] = useState<number[]>([]);
   const [overlayOpen, setOverlayOpen] = useState(false);
 
   const onLogoClick = useCallback(() => {

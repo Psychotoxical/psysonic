@@ -21,7 +21,6 @@ import { useThemeStore } from '../store/themeStore';
 import { useLyricsStore } from '../store/lyricsStore';
 import LyricsPane from './LyricsPane';
 import NowPlayingInfo from './NowPlayingInfo';
-import { TFunction } from 'i18next';
 import { useLuckyMixStore } from '../store/luckyMixStore';
 import { useQueueToolbarStore } from '../store/queueToolbarStore';
 import { SavePlaylistModal } from './queuePanel/SavePlaylistModal';

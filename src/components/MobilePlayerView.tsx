@@ -3,7 +3,7 @@ import { usePlaybackCoverArt } from '../hooks/usePlaybackCoverArt';
 import { usePlaybackTrackCoverRef } from '../cover/useLibraryCoverRef';
 import type { Track } from '../store/playerStoreTypes';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '../store/playbackProgress';
-import React, { useState, useCallback, useMemo, useRef, useEffect, useSyncExternalStore, CSSProperties } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useSyncExternalStore, CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
 import { useTranslation } from 'react-i18next';

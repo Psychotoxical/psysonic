@@ -7,7 +7,6 @@
  * markup as long as the menu items + their handlers stay observable.
  */
 import type { ServerProfile } from '@/store/authStoreTypes';
-import type { Track } from '@/store/playerStoreTypes';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/subsonic', () => ({

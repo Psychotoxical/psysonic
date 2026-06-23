@@ -1,4 +1,3 @@
-import { CoverArtImage } from '../cover/CoverArtImage';
 import { TrackCoverArtImage } from '../cover/TrackCoverArtImage';
 import { getNowPlaying } from '../api/subsonicScrobble';
 import type { SubsonicNowPlaying } from '../api/subsonicTypes';
