@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { MusicNetworkRuntime } from './MusicNetworkRuntime';
 import type { MusicNetworkStore, RuntimeHost } from './store';
 import { __resetWires, registerWire } from '../registry/wireRegistry';

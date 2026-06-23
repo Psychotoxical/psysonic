@@ -1,5 +1,5 @@
 import md5 from 'md5';
-import { coverStorageKey, coverStorageKeyFromRef } from '../cover/storageKeys';
+import { coverStorageKeyFromRef } from '../cover/storageKeys';
 import { coverEntryToRef, resolveAlbumCoverEntry } from '../cover/resolveEntry';
 import type { CoverArtTier } from '../cover/types';
 import { useAuthStore } from '../store/authStore';

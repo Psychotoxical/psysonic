@@ -136,11 +136,6 @@ async function albumIdsInLibraryScope(serverId: string): Promise<Set<string> | n
   return ids;
 }
 
-async function albumIdsInActiveLibraryScope(): Promise<Set<string> | null> {
-  const { activeServerId } = useAuthStore.getState();
-  return activeServerId ? albumIdsInLibraryScope(activeServerId) : null;
-}
-
 export async function filterSongsToServerLibrary(
   songs: SubsonicSong[],
   serverId: string,
