@@ -5,6 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
+  // `scripts/` (Node CI helpers) is intentionally ignored — this config targets the browser `src/` tree.
   { ignores: ['dist', 'coverage', 'src-tauri', 'research', 'scripts'] },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
