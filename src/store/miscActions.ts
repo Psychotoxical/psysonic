@@ -11,7 +11,7 @@ import { clearPreloadingIds } from './gaplessPreloadState';
 import { reseedLoudnessForTrackId } from './loudnessReseed';
 import { getPlaybackProgressSnapshot } from './playbackProgress';
 import { shouldRebindPlaybackToHotCache } from './playbackUrlRouting';
-import type { PlayerState, Track } from './playerStoreTypes';
+import type { PlayerState } from './playerStoreTypes';
 import { toQueueItemRefs } from '../utils/library/queueItemRef';
 import { resolveQueueTrack } from '../utils/library/queueTrackView';
 import { seedQueueResolver } from '../utils/library/queueTrackResolver';

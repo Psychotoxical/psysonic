@@ -14,7 +14,6 @@ import { getPlaybackProgressSnapshot } from '../playbackProgress';
 export function setupDiscordPresence(): () => void {
   let discordPrevTrackId: string | null = null;
   let discordPrevIsPlaying: boolean | null = null;
-  let discordPrevFetchCovers: boolean | null = null;
   let discordPrevTemplateDetails: string | null = null;
   let discordPrevTemplateState: string | null = null;
   let discordPrevTemplateLargeText: string | null = null;
@@ -38,7 +37,6 @@ export function setupDiscordPresence(): () => void {
       if (discordPrevTrackId !== null) {
         discordPrevTrackId = null;
         discordPrevIsPlaying = null;
-        discordPrevFetchCovers = null;
         discordPrevCoverSource = null;
         discordPrevTemplateDetails = null;
         discordPrevTemplateState = null;
@@ -60,7 +58,6 @@ export function setupDiscordPresence(): () => void {
 
     discordPrevTrackId = currentTrack.id;
     discordPrevIsPlaying = isPlaying;
-    discordPrevFetchCovers = discordCoverSource === 'apple';
     discordPrevCoverSource = discordCoverSource;
     discordPrevTemplateDetails = discordTemplateDetails;
     discordPrevTemplateState = discordTemplateState;

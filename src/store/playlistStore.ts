@@ -20,7 +20,7 @@ interface PlaylistStore {
 
 export const usePlaylistStore = create<PlaylistStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       recentIds: [],
       playlists: [],
       playlistsLoading: false,

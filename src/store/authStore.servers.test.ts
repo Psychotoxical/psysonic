@@ -15,7 +15,6 @@ import { useAuthStore } from './authStore';
 import { usePlayerStore } from './playerStore';
 import { resetAuthStore } from '@/test/helpers/storeReset';
 import { resetPlayerStore } from '@/test/helpers/storeReset';
-import { makeServer } from '@/test/helpers/factories';
 
 function addThree(): { a: string; b: string; c: string } {
   const a = useAuthStore.getState().addServer({ name: 'A', url: 'https://a.test', username: 'u', password: 'p' });
@@ -141,7 +140,7 @@ describe('removeServer', () => {
 
 describe('selectors — getBaseUrl / getActiveServer', () => {
   it('getActiveServer returns the entry matching activeServerId', () => {
-    const { a, b } = addThree();
+    const { b } = addThree();
     useAuthStore.getState().setActiveServer(b);
     expect(useAuthStore.getState().getActiveServer()?.id).toBe(b);
   });

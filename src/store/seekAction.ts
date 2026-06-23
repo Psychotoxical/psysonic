@@ -2,7 +2,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { playbackReportSeek } from './playbackReportSession';
 import { isRecoverableSeekError } from '../utils/audio/seekErrors';
 import { getPlaybackServerId } from '../utils/playback/playbackServer';
-import { useAuthStore } from './authStore';
 import { maybeCrossfadeBytePreload } from './crossfadePreload';
 import { shouldRebindPlaybackToHotCache } from './playbackUrlRouting';
 import type { PlayerState } from './playerStoreTypes';

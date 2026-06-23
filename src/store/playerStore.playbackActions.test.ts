@@ -52,7 +52,6 @@ vi.mock('@/utils/orbitBulkGuard', () => ({
 }));
 
 import { usePlayerStore } from './playerStore';
-import { useAuthStore } from './authStore';
 import { onInvoke, invokeMock } from '@/test/mocks/tauri';
 import { resetPlayerStore, resetAuthStore } from '@/test/helpers/storeReset';
 import { makeTrack, makeTracks, seedQueue } from '@/test/helpers/factories';

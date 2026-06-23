@@ -37,9 +37,6 @@ export const DEFAULT_ALBUM_BROWSE_RETURN_FILTERS: AlbumBrowseReturnFilters = {
   losslessOnly: false,
 };
 
-interface ServerAlbumBrowseSession {
-  sort: AlbumBrowseSort;
-}
 
 interface AlbumBrowseSessionStore {
   /** Session-lifetime sort per server (sidebar ↔ album detail). */

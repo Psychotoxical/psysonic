@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useAuthStore } from './authStore';
 import { setTransitionMode } from '../utils/playback/playbackTransition';
 import {
   armAutodjMixing,
