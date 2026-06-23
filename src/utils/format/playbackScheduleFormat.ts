@@ -47,6 +47,9 @@ export function usePlaybackScheduleRemaining(): PlaybackScheduleInfo | null {
   const windowHidden = useWindowVisibility();
   useEffect(() => {
     if (deadlineMs == null) return;
+    // On a deadline change, snap the wall-clock to now so the countdown is fresh
+    // before the 500 ms interval first fires; nowMs is real time, not derivable.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNowMs(Date.now());
   }, [deadlineMs]);
   useEffect(() => {
