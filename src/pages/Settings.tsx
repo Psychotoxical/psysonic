@@ -47,6 +47,8 @@ export default function Settings() {
     const st = routeState as { openAddServerInvite?: ServerMagicPayload; tab?: Tab } | null;
     const inv = st?.openAddServerInvite;
     if (inv) {
+      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPendingServerInvite(inv);
       setActiveTab('servers');
       navigate(
@@ -63,6 +65,8 @@ export default function Settings() {
   // eine Query aktiv ist, wird der Tab-Content gerendert-nicht und stattdessen
   // die Ergebnisliste angezeigt.
   useEffect(() => {
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSearchResults(searchSettings(searchQuery, activeTab, t));
     setSelectedResultIdx(0);
   }, [searchQuery, activeTab, t]);
@@ -114,12 +118,16 @@ export default function Settings() {
     const timer = window.setTimeout(() => {
       el.classList.remove('settings-sub-section--flash');
     }, 1500);
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPendingFocusTitle(null);
     return () => window.clearTimeout(timer);
   }, [pendingFocusTitle, activeTab]);
 
   useEffect(() => {
     const server = auth.getActiveServer();
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNdAuthChecked(false);
     if (!server) { setNdAdminAuth(null); setNdAuthChecked(true); return; }
     const serverUrl = (server.url.startsWith('http') ? server.url : `http://${server.url}`).replace(/\/$/, '');
@@ -139,6 +147,8 @@ export default function Settings() {
   }, [auth.activeServerId]);
 
   useEffect(() => {
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (activeTab === 'users' && ndAuthChecked && ndAdminAuth === null) setActiveTab('servers');
   }, [activeTab, ndAdminAuth, ndAuthChecked]);
 

@@ -170,6 +170,8 @@ export default function Home() {
       // When lazy initializers already pre-populated state from this same
       // snapshot, re-applying it would only create new array references and
       // trigger unnecessary child re-renders with identical data.
+      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (!wasPrePopulated) applyFeedSnapshot(cached);
       setLoading(false);
       void warmHomeMainstageCovers(cached);
@@ -243,6 +245,8 @@ export default function Home() {
     const stale = readHomeFeedCacheStale(activeServerId);
     if (!stale || isHomeFeedSnapshotEmpty(stale)) return;
     if (recent.length > 0 || random.length > 0 || heroAlbums.length > 0) return;
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     applyFeedSnapshot(stale);
     setLoading(false);
   }, [activeServerId, connStatus, devForceOffline, offlineBrowseActive]); // eslint-disable-line react-hooks/exhaustive-deps

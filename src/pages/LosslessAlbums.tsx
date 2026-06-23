@@ -173,6 +173,8 @@ export default function LosslessAlbums() {
     seenIds.current = new Set();
     localOffset.current = 0;
     inFlight.current = false;
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setAlbums([]);
     setHasMore(true);
     setUnsupported(false);

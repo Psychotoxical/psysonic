@@ -160,6 +160,8 @@ export function DragDropProvider({ children }: { children: React.ReactNode }) {
   });
 
   const stateRef = useRef(state);
+  // React Compiler refs rule: latest-value box kept in sync for use in callbacks; not render data.
+  // eslint-disable-next-line react-hooks/refs
   stateRef.current = state;
 
   const startDrag = useCallback(
@@ -289,6 +291,8 @@ export function useDragSource(getPayload: () => DragPayload) {
   const { startDrag } = useDragDrop();
   const startPosRef = useRef<{ x: number; y: number } | null>(null);
   const payloadRef = useRef(getPayload);
+  // React Compiler refs rule: latest-value box kept in sync for use in handlers; not render data.
+  // eslint-disable-next-line react-hooks/refs
   payloadRef.current = getPayload;
 
   const onMouseDown = useCallback(

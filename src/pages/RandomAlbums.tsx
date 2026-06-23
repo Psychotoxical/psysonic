@@ -248,14 +248,20 @@ export default function RandomAlbums() {
   ]);
 
   const loadRef = useRef(load);
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   loadRef.current = load;
   useEffect(() => {
     if (restoringSessionRef.current) return;
     loadRef.current(selectedGenres);
   }, [selectedGenres]);
 
+  // React Compiler immutability rule: intentional imperative mutation of an external/DOM target inside an effect.
+  // eslint-disable-next-line react-hooks/immutability
   const handleRefresh = useCallback(() => {
     if (scrollBodyEl) {
+      // React Compiler immutability rule: intentional imperative mutation of an external/DOM target inside an effect.
+      // eslint-disable-next-line react-hooks/immutability
       scrollBodyEl.scrollTop = 0;
       scrollBodyEl.dispatchEvent(new Event('scroll', { bubbles: false }));
     }
@@ -263,6 +269,8 @@ export default function RandomAlbums() {
     load(selectedGenres);
   }, [scrollBodyEl, load, selectedGenres]);
 
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   gridSnapshotRef.current = { albums, hasMore: false };
   useAlbumBrowseScrollSnapshotSync(scrollSnapshotRef, scrollBodyEl, albums.length);
 

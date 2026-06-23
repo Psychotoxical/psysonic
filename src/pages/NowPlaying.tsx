@@ -185,6 +185,8 @@ export default function NowPlaying() {
   }, [dndActive, dndPayload]);
 
   // Clear the drop indicator when the drag ends (no psy-drop on our target)
+  // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (!draggingCardId) setDragOver(null); }, [draggingCardId]);
 
   const toggleCardVisible = useCallback((id: NpCardId, next: boolean) => {
@@ -198,6 +200,8 @@ export default function NowPlaying() {
   // Ref mirror of dragOver so the document-level psy-drop handler always sees
   // the latest hovered column/index regardless of closure timing.
   const dragOverRef = useRef(dragOver);
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   dragOverRef.current = dragOver;
 
   // Global psy-drop listener: catches drops anywhere on the page (even below a

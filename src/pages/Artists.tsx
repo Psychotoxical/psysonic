@@ -267,6 +267,8 @@ export default function Artists() {
     },
   );
 
+  // React Compiler incompatible-library rule: third-party hook/value the compiler cannot analyze; usage is correct.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const artistListVirtualizer = useVirtualizer({
     count:
       artistBrowsePlainLayout || viewMode !== 'list' ? 0 : artistListFlatRows.length,

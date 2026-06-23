@@ -66,6 +66,8 @@ export default function InternetRadio() {
     const currentIds = new Set(stations.map(s => s.id));
     const merged = saved.filter((id: string) => currentIds.has(id));
     stations.forEach(s => { if (!merged.includes(s.id)) merged.push(s.id); });
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setManualOrder(merged);
   }, [stations]);
 

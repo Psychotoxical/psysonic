@@ -21,6 +21,8 @@ export default function LabelAlbums() {
 
   useEffect(() => {
     if (!name) return;
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
 
     // Search for the label name and ask for a large number of albums

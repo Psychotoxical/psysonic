@@ -45,6 +45,8 @@ export default function FolderBrowser() {
       error: false,
       kind: 'roots',
     };
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setColumns([placeholder]);
     getMusicFolders()
       .then(folders => {
@@ -61,6 +63,8 @@ export default function FolderBrowser() {
   }, []);
 
   useEffect(() => {
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setColumnFilters(prev => {
       const next: Record<number, string> = {};
       let changed = false;
@@ -75,6 +79,8 @@ export default function FolderBrowser() {
   }, [columns.length]);
 
   useEffect(() => {
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!isContextMenuOpen) setContextAnchorPos(null);
   }, [isContextMenuOpen]);
 

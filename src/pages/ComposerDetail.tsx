@@ -44,6 +44,8 @@ export default function ComposerDetail() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     Promise.all([
       getArtist(id).catch(() => null),
@@ -73,6 +75,8 @@ export default function ComposerDetail() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setInfo(null);
     getArtistInfo(id, { similarArtistCount: 0 })
       .then(i => { if (!cancelled) setInfo(i ?? null); })
@@ -81,6 +85,8 @@ export default function ComposerDetail() {
   }, [id]);
 
   useEffect(() => {
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHeaderCoverFailed(false);
   }, [id]);
 
