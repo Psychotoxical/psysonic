@@ -92,31 +92,66 @@ export function ThemesTab() {
             const dayM = theme.timeDayStart.split(':')[1];
             const nightH = theme.timeNightStart.split(':')[0];
             const nightM = theme.timeNightStart.split(':')[1];
+            const isSystem = theme.schedulerMode === 'system';
             return (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
-                <div className="form-group">
-                  <label className="settings-label" style={{ marginBottom: 6 }}>{t('settings.themeSchedulerDayTheme')}</label>
-                  <CustomSelect value={theme.themeDay} onChange={theme.setThemeDay} options={themeOptions} />
-                </div>
-                <div className="form-group">
-                  <label className="settings-label" style={{ marginBottom: 6 }}>{t('settings.themeSchedulerDayStart')}</label>
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    <CustomSelect value={dayH} onChange={v => theme.setTimeDayStart(`${v}:${dayM}`)} options={hourOptions} />
-                    <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>:</span>
-                    <CustomSelect value={dayM} onChange={v => theme.setTimeDayStart(`${dayH}:${v}`)} options={minuteOptions} />
+              <div style={{ marginTop: '1rem' }}>
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label className="settings-label" style={{ marginBottom: 6 }}>{t('settings.themeSchedulerModeLabel')}</label>
+                  <div className="settings-segmented">
+                    <button
+                      type="button"
+                      className={`btn ${!isSystem ? 'btn-primary' : 'btn-ghost'}`}
+                      onClick={() => theme.setSchedulerMode('time')}
+                    >
+                      {t('settings.themeSchedulerModeTime')}
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn ${isSystem ? 'btn-primary' : 'btn-ghost'}`}
+                      onClick={() => theme.setSchedulerMode('system')}
+                    >
+                      {t('settings.themeSchedulerModeSystem')}
+                    </button>
                   </div>
                 </div>
-                <div className="form-group">
-                  <label className="settings-label" style={{ marginBottom: 6 }}>{t('settings.themeSchedulerNightTheme')}</label>
-                  <CustomSelect value={theme.themeNight} onChange={theme.setThemeNight} options={themeOptions} />
-                </div>
-                <div className="form-group">
-                  <label className="settings-label" style={{ marginBottom: 6 }}>{t('settings.themeSchedulerNightStart')}</label>
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    <CustomSelect value={nightH} onChange={v => theme.setTimeNightStart(`${v}:${nightM}`)} options={hourOptions} />
-                    <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>:</span>
-                    <CustomSelect value={nightM} onChange={v => theme.setTimeNightStart(`${nightH}:${v}`)} options={minuteOptions} />
+                {isSystem && (
+                  <div className="settings-hint settings-hint-info" style={{ marginBottom: '1rem' }}>
+                    {t('settings.themeSchedulerSystemRestartHint')}
                   </div>
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="settings-label" style={{ marginBottom: 6 }}>
+                      {isSystem ? t('settings.themeSchedulerLightTheme') : t('settings.themeSchedulerDayTheme')}
+                    </label>
+                    <CustomSelect value={theme.themeDay} onChange={theme.setThemeDay} options={themeOptions} />
+                  </div>
+                  {!isSystem && (
+                    <div className="form-group">
+                      <label className="settings-label" style={{ marginBottom: 6 }}>{t('settings.themeSchedulerDayStart')}</label>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <CustomSelect value={dayH} onChange={v => theme.setTimeDayStart(`${v}:${dayM}`)} options={hourOptions} />
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>:</span>
+                        <CustomSelect value={dayM} onChange={v => theme.setTimeDayStart(`${dayH}:${v}`)} options={minuteOptions} />
+                      </div>
+                    </div>
+                  )}
+                  <div className="form-group">
+                    <label className="settings-label" style={{ marginBottom: 6 }}>
+                      {isSystem ? t('settings.themeSchedulerDarkTheme') : t('settings.themeSchedulerNightTheme')}
+                    </label>
+                    <CustomSelect value={theme.themeNight} onChange={theme.setThemeNight} options={themeOptions} />
+                  </div>
+                  {!isSystem && (
+                    <div className="form-group">
+                      <label className="settings-label" style={{ marginBottom: 6 }}>{t('settings.themeSchedulerNightStart')}</label>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <CustomSelect value={nightH} onChange={v => theme.setTimeNightStart(`${v}:${nightM}`)} options={hourOptions} />
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>:</span>
+                        <CustomSelect value={nightM} onChange={v => theme.setTimeNightStart(`${nightH}:${v}`)} options={minuteOptions} />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );

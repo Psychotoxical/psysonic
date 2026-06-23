@@ -69,14 +69,23 @@ export function applyThemeAtStartup(): void {
     const s = parsed.state;
     if (!s) return;
     syncInjectedThemes(readInstalledThemes());
-    const effective = getScheduledTheme({
-      enableThemeScheduler: !!s.enableThemeScheduler,
-      theme: String(s.theme ?? 'mocha'),
-      themeDay: String(s.themeDay ?? 'latte'),
-      themeNight: String(s.themeNight ?? 'mocha'),
-      timeDayStart: String(s.timeDayStart ?? '07:00'),
-      timeNightStart: String(s.timeNightStart ?? '19:00'),
-    });
+    // First-frame best effort for the "follow system" mode: the Web media query
+    // is sync here (the native Tauri theme resolves only after mount, when the
+    // App effect re-applies the effective theme). Unreliable on Linux WebKitGTK,
+    // but only affects this initial paint before the effect corrects it.
+    const systemPrefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+    const effective = getScheduledTheme(
+      {
+        enableThemeScheduler: !!s.enableThemeScheduler,
+        schedulerMode: s.schedulerMode === 'system' ? 'system' : 'time',
+        theme: String(s.theme ?? 'mocha'),
+        themeDay: String(s.themeDay ?? 'latte'),
+        themeNight: String(s.themeNight ?? 'mocha'),
+        timeDayStart: String(s.timeDayStart ?? '07:00'),
+        timeNightStart: String(s.timeNightStart ?? '19:00'),
+      },
+      systemPrefersDark,
+    );
     if (effective) document.documentElement.setAttribute('data-theme', effective);
   } catch {
     // Non-fatal — App's effects apply the theme after mount.

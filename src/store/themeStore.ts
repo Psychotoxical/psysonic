@@ -18,11 +18,17 @@ export type BuiltinTheme =
  */
 export type Theme = BuiltinTheme | (string & {});
 
+/** Trigger for the day/night theme switch. */
+export type ThemeSchedulerMode = 'time' | 'system';
+
 interface ThemeState {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   enableThemeScheduler: boolean;
   setEnableThemeScheduler: (v: boolean) => void;
+  /** What drives the day/night switch: a clock schedule or the OS theme. */
+  schedulerMode: ThemeSchedulerMode;
+  setSchedulerMode: (v: ThemeSchedulerMode) => void;
   themeDay: string;
   setThemeDay: (v: string) => void;
   themeNight: string;
@@ -51,8 +57,16 @@ interface ThemeState {
   setExternalArtworkByok: (v: string) => void;
 }
 
-export function getScheduledTheme(state: Pick<ThemeState, 'enableThemeScheduler' | 'theme' | 'themeDay' | 'themeNight' | 'timeDayStart' | 'timeNightStart'>): string {
+export function getScheduledTheme(
+  state: Pick<
+    ThemeState,
+    'enableThemeScheduler' | 'schedulerMode' | 'theme' | 'themeDay' | 'themeNight' | 'timeDayStart' | 'timeNightStart'
+  >,
+  systemPrefersDark = false,
+): string {
   if (!state.enableThemeScheduler) return state.theme;
+  // Follow the OS theme: dark → night theme, light → day theme.
+  if (state.schedulerMode === 'system') return systemPrefersDark ? state.themeNight : state.themeDay;
   const now = new Date();
   const nowMins = now.getHours() * 60 + now.getMinutes();
   const [dh, dm] = state.timeDayStart.split(':').map(Number);
@@ -72,6 +86,8 @@ export const useThemeStore = create<ThemeState>()(
       setTheme: (theme) => set({ theme }),
       enableThemeScheduler: false,
       setEnableThemeScheduler: (v) => set({ enableThemeScheduler: v }),
+      schedulerMode: 'time',
+      setSchedulerMode: (v) => set({ schedulerMode: v }),
       themeDay: 'latte',
       setThemeDay: (v) => set({ themeDay: v }),
       themeNight: 'mocha',
