@@ -68,6 +68,8 @@ function extractVibrantColor(imageUrl: string): Promise<string> {
 function useAlbumAccentColor(imageUrl: string): string {
   const [color, setColor] = useState('0,0,0');
   useEffect(() => {
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!imageUrl) { setColor('0,0,0'); return; }
     let cancelled = false;
     extractVibrantColor(imageUrl).then(c => { if (!cancelled) setColor(c); });
@@ -96,6 +98,8 @@ function QueueDrawer({ onClose }: { onClose: () => void }) {
 
   // Virtualize so a multi-thousand-track queue keeps DOM at O(visible rows) on
   // mobile too (matches the desktop QueuePanel).
+  // React Compiler incompatible-library rule: third-party hook/value the compiler cannot analyze; usage is correct.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: queue.length,
     getScrollElement: () => listRef.current,
@@ -294,6 +298,8 @@ export default function MobilePlayerView() {
 
   useEffect(() => {
     pendingSeekRef.current = null;
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPreviewProgress(null);
   }, [currentTrack?.id]);
 

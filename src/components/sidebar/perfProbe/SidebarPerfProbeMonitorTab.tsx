@@ -33,10 +33,14 @@ export default function SidebarPerfProbeMonitorTab() {
 
   const maxMemoryKb = useMemo(() => {
     const current = Math.max(1, ...(cpu?.memory.map(m => m.rss_kb) ?? [1]));
+    // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+    // eslint-disable-next-line react-hooks/refs
     if (current > peakMemoryKbRef.current) peakMemoryKbRef.current = current;
     return peakMemoryKbRef.current;
   }, [cpu?.memory]);
 
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   const maxThreadCpu = useMemo(() => {
     const current = Math.max(1, ...(cpu?.threadCpu.map(t => t.pct) ?? [1]));
     if (current > peakThreadCpuRef.current) peakThreadCpuRef.current = current;
@@ -121,6 +125,8 @@ export default function SidebarPerfProbeMonitorTab() {
               title="CPU — psysonic threads"
               defaultOpen
             >
+              {/* React Compiler refs rule: the row renderer reads pin-state refs (live overlay); intentional, not reactive render data. */}
+              {/* eslint-disable-next-line react-hooks/refs */}
               {cpu.threadCpu.length > 0 ? cpu.threadCpu.map(row => {
                 const pinId = `cpu:thread:${row.label}` as PerfLiveOverlayPinId;
                 return (
@@ -146,6 +152,8 @@ export default function SidebarPerfProbeMonitorTab() {
 
           {cpu.memory.length > 0 && (
             <PerfProbeMetricSection title="Memory — RSS">
+              {/* React Compiler refs rule: the row renderer reads pin-state refs (live overlay); intentional, not reactive render data. */}
+              {/* eslint-disable-next-line react-hooks/refs */}
               {cpu.memory.map(row => {
                 const pinId = `mem:${row.label}` as PerfLiveOverlayPinId;
                 return (

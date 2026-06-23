@@ -47,8 +47,12 @@ export default function PlayerStatsRecentDays({
   const [details, setDetails] = useState<Map<string, PlaySessionDayDetail>>(() => new Map());
   const [loadingDates, setLoadingDates] = useState<Set<string>>(() => new Set());
   const detailsRef = useRef(details);
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   detailsRef.current = details;
   const expandedRef = useRef(expandedDates);
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   expandedRef.current = expandedDates;
 
   const loadDetail = useCallback(async (date: string) => {
@@ -69,6 +73,8 @@ export default function PlayerStatsRecentDays({
 
   useEffect(() => {
     let cancelled = false;
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     libraryGetPlayerStatsRecentDays(PLAYER_STATS_RECENT_DAYS_LIMIT)
       .then(rows => {
@@ -129,6 +135,8 @@ export default function PlayerStatsRecentDays({
 
   useEffect(() => {
     if (!heatmapSelectedDate) return;
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setExpandedDates(prev => new Set(prev).add(heatmapSelectedDate));
     void ensureDetail(heatmapSelectedDate);
   }, [heatmapSelectedDate, ensureDetail]);

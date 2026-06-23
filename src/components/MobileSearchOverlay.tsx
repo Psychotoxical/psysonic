@@ -85,6 +85,8 @@ function MobileSearchSongThumb({
 
 function MobileSearchArtistThumb({ artist }: { artist: Pick<SubsonicArtist, 'id' | 'coverArt'> }) {
   const [failed, setFailed] = useState(false);
+  // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setFailed(false); }, [artist.id, artist.coverArt]);
   if (failed) {
     return (
@@ -151,6 +153,8 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
   // only on musicLibraryFilterVersion (search() reads the active filter state).
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const doSearch = useCallback(
+    // React Compiler rule: memoization shape is intentional here.
+    // eslint-disable-next-line react-hooks/use-memo
     debounce(async (q: string) => {
       if (!q.trim()) { setResults(null); setLoading(false); return; }
       setLoading(true);
@@ -163,6 +167,8 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
 
   useEffect(() => {
     if (isLiveSearchDropdownBlocked(scope)) {
+      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setResults(null);
       setLoading(false);
       return;

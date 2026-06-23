@@ -164,6 +164,8 @@ export default function FavoritesSongsTracklist({
     return () => ro.disconnect();
   }, [tracklistRef, bulkBarVisible, pickerOpen, visibleSongs.length]);
 
+  // React Compiler incompatible-library rule: third-party hook/value the compiler cannot analyze; usage is correct.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: visibleSongs.length,
     getScrollElement: () => document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID),

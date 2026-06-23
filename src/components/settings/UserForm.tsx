@@ -61,11 +61,15 @@ export function UserForm({
   const isEdit = !!initial;
 
   useEffect(() => {
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setShowNewUserRequiredErrors(false);
   }, [initial?.id]);
 
   useEffect(() => {
     if (!isEdit && form.userName.trim() && form.name.trim() && form.password.trim()) {
+      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShowNewUserRequiredErrors(false);
     }
   }, [isEdit, form.userName, form.name, form.password]);

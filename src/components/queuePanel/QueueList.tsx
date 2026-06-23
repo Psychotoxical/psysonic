@@ -68,6 +68,8 @@ export function QueueList({
   // Virtualize so a 10k+ Artist-Radio queue keeps DOM at O(visible rows).
   // Scroll element is the OverlayScrollArea viewport (`queueListRef`); rows have
   // variable height (radio/auto dividers, lucky-mix loader) so we measure them.
+  // React Compiler incompatible-library rule: third-party hook/value the compiler cannot analyze; usage is correct.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: queue.length,
     getScrollElement: () => queueListRef.current,

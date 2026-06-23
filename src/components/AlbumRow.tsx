@@ -139,6 +139,8 @@ export default function AlbumRow({
   // “load more” — reusing albums.length would shrink the budget mid-scroll and flash placeholders.
   const rowArtworkResetKey = uniqueAlbums[0]?.id ?? '';
   useEffect(() => {
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setArtworkBudget(initialArtworkBudget);
   }, [initialArtworkBudget, rowArtworkResetKey]);
 

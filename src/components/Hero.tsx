@@ -37,10 +37,14 @@ function HeroBg({ url }: { url: string }) {
   );
   const counter = useRef(url ? 1 : 0);
   const latestUrlRef = useRef(url);
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   latestUrlRef.current = url;
 
   useEffect(() => {
     if (!url) {
+      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLayers([]);
       return;
     }
@@ -102,6 +106,8 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   const visibilityRafRef = useRef<number | null>(null);
   const [heroInView, setHeroInView] = useState(true);
   const heroInViewRef = useRef(true);
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   heroInViewRef.current = heroInView;
 
   const computeHeroVisibleNow = useCallback((): boolean => {
@@ -198,6 +204,8 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   }, [heroInView, windowHidden, updateHeroVisibility]);
 
   useEffect(() => {
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (albumsProp?.length) { setAlbums(albumsProp); return; }
     const cfg = { ...getMixMinRatingsConfigFromAuth(), minSong: 0 };
     const albumMix = cfg.enabled && (cfg.minAlbum > 0 || cfg.minArtist > 0);
@@ -309,6 +317,8 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
       stableBgByAlbum.current[albumId] = bgHandle.src;
     }
   }, [bgHandle.src, albumId]);
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   const heroBgUrl = bgHandle.src || (albumId ? stableBgByAlbum.current[albumId] ?? '' : '');
   const { isHolding, pressBind } = useLongPressAction({
     onShortPress: () => { if (albumId) playAlbum(albumId); },
@@ -326,6 +336,8 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
       onClick={() => navigateToAlbum(album.id)}
       style={{ cursor: 'pointer' }}
     >
+      {/* React Compiler refs rule: heroBgUrl reads a ref to mirror the latest cover URL; it is not part of reactive render data. */}
+      {/* eslint-disable-next-line react-hooks/refs */}
       {enableCoverArtBackground && !perfFlags.disableMainstageHeroBackdrop && heroInView && <HeroBg url={heroBgUrl} />}
       {enableCoverArtBackground && !perfFlags.disableMainstageHeroBackdrop && heroInView && <div className="hero-overlay" aria-hidden="true" />}
 

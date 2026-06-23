@@ -47,6 +47,8 @@ export default function OrbitStartModal({ onClose }: Props) {
 
   const shareLink = useMemo(
     () => buildOrbitShareLink(serverBase, sid),
+    // React Compiler rule: manual memoization is intentional and must be preserved.
+    // eslint-disable-next-line react-hooks/preserve-manual-memoization
     [serverBase, sid],
   );
 

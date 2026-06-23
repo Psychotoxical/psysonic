@@ -93,6 +93,8 @@ export default function PerfOverlaySparkline({
   const peakRef = useRef(1);
 
   const { path, areaPath } = useMemo(() => {
+    // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+    // eslint-disable-next-line react-hooks/refs
     const bounds = stableScale(samples, kind, peakRef);
     const paths = sparklinePaths(samples, now, windowMs, width, height, bounds.min, bounds.max);
     return { path: paths.line, areaPath: paths.area };

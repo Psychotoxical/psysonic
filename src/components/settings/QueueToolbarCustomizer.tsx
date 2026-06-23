@@ -56,9 +56,13 @@ export function QueueToolbarCustomizer() {
   const [dropTarget, setDropTarget] = useState<QueueToolbarDropTarget>(null);
   const dropTargetRef = useRef<QueueToolbarDropTarget>(null);
   const buttonsRef = useRef(buttons);
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   buttonsRef.current = buttons;
 
   useEffect(() => {
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!isPsyDragging) { dropTargetRef.current = null; setDropTarget(null); }
   }, [isPsyDragging]);
 

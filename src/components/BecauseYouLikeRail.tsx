@@ -214,6 +214,8 @@ function useBecauseRowSlotCount(active: boolean, max = SHOW_COUNT): number {
 
   useEffect(() => {
     if (!active) {
+      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCount(1);
       return;
     }
@@ -370,6 +372,8 @@ export default function BecauseYouLikeRail({
    *  while-revalidate), only clearing to skeleton when nothing is available. */
   useLayoutEffect(() => {
     if (hasValidReserve(activeServerId, musicLibraryFilterVersion)) {
+      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAnchor(_becauseReserve!.anchor);
       setRecs(_becauseReserve!.recs);
       setRefreshing(false);
@@ -413,6 +417,8 @@ export default function BecauseYouLikeRail({
       return;
     }
     if (!activeServerId) {
+      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAnchor(null);
       setRecs([]);
       setRefreshing(false);

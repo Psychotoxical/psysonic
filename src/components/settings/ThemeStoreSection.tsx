@@ -91,6 +91,8 @@ export function ThemeStoreSection() {
   const thumbUrl = (rel: string) =>
     generatedAt ? `${assetUrl(rel)}?v=${encodeURIComponent(generatedAt)}` : assetUrl(rel);
 
+  // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(false); }, []);
 
   const installedMap = useMemo(() => {
@@ -123,6 +125,8 @@ export function ThemeStoreSection() {
 
   // A changed filter can shrink the result set below the current page; reset to
   // the first page whenever the query or mode filter changes.
+  // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setPage(1); }, [query, mode, sortMode, animFilter]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));

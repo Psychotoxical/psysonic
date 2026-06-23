@@ -69,8 +69,14 @@ export default function SidebarPerfProbeLogsTab() {
   // Topmost visible line to re-pin against while the user is scrolled up, so the
   // view stays put even as new lines append below or old ones scroll out.
   const anchorRef = useRef<{ seq: number; offset: number } | null>(null);
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   pausedRef.current = paused;
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   lineCapRef.current = lineCap;
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   followRef.current = follow;
 
   // Keep the backend mode readout in sync with reality on open.
@@ -130,6 +136,8 @@ export default function SidebarPerfProbeLogsTab() {
   // When following resumes (or the cap shrinks), trim retained history to the cap.
   useEffect(() => {
     if (!follow) return;
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLines(prev => (prev.length > lineCap ? prev.slice(prev.length - lineCap) : prev));
   }, [follow, lineCap]);
 

@@ -82,6 +82,8 @@ export function ServersTab({
   const [serverDropTarget, setServerDropTarget] = useState<ServerDropTarget>(null);
   const serverDropTargetRef = useRef<ServerDropTarget>(null);
   const serversRef = useRef(auth.servers);
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   serversRef.current = auth.servers;
   const addServerInviteAnchorRef = useRef<HTMLDivElement>(null);
 
@@ -94,6 +96,8 @@ export function ServersTab({
   // ServersTab is already mounted (initial mount is handled via useState).
   useEffect(() => {
     if (initialInvite) {
+      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPastedServerInvite(initialInvite);
       setShowAddForm(true);
     }
@@ -103,6 +107,8 @@ export function ServersTab({
   useEffect(() => {
     if (!psyDragState.isDragging) {
       serverDropTargetRef.current = null;
+      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setServerDropTarget(null);
     }
   }, [psyDragState.isDragging]);

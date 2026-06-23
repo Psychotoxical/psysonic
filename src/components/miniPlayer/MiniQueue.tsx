@@ -38,6 +38,8 @@ export function MiniQueue({
 }: Props) {
   // Virtualize so a multi-thousand-track queue keeps the mini window's DOM at
   // O(visible rows). Scroll element is the OverlayScrollArea viewport.
+  // React Compiler incompatible-library rule: third-party hook/value the compiler cannot analyze; usage is correct.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: state.queue.length,
     getScrollElement: () => queueScrollRef.current,

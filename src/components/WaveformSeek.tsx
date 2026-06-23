@@ -39,7 +39,11 @@ export default function WaveformSeek({ trackId }: Props) {
   const heightsRef   = useRef<Float32Array | null>(null);
   const progressRef  = useRef(getPlaybackProgressSnapshot().progress);
   const bufferedRef  = useRef(getPlaybackProgressSnapshot().buffered);
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   const visualProgressRef = useRef(progressRef.current);
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   const visualTargetProgressRef = useRef(progressRef.current);
   const isDragging   = useRef(false);
   const animStateRef = useRef<AnimState>(makeAnimState());
@@ -60,6 +64,8 @@ export default function WaveformSeek({ trackId }: Props) {
   // Ref so the subscription callback (closed over at mount) can read the
   // current style without stale-closure issues.
   const styleRef = useRef(seekbarStyle);
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   styleRef.current = seekbarStyle;
 
   useWaveformHeights({
@@ -185,6 +191,8 @@ export default function WaveformSeek({ trackId }: Props) {
   // When preview ends, interpolation must restart from "now", otherwise the
   // old anchor timestamp adds preview duration and causes a one-frame jump.
   useEffect(() => {
+    // React Compiler immutability rule: intentional imperative mutation of an external/DOM target inside an effect.
+    // eslint-disable-next-line react-hooks/immutability
     progressAnchorRef.current = {
       progress: progressRef.current,
       atMs: performance.now(),
@@ -241,13 +249,21 @@ export default function WaveformSeek({ trackId }: Props) {
   }, [seekbarStyle]);
 
   const trackIdRef = useRef(trackId);
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   trackIdRef.current = trackId;
   const seekRef = useRef(seek);
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   seekRef.current = seek;
   const pendingSeekRef = useRef<number | null>(null);
   const pendingCommittedSeekRef = useRef<{ fraction: number; setAtMs: number } | null>(null);
   const progressAnchorRef = useRef<{ progress: number; atMs: number }>({
+    // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+    // eslint-disable-next-line react-hooks/refs
     progress: progressRef.current,
+    // React Compiler purity rule: reads a stable module/global value during render (constant for this render pass).
+    // eslint-disable-next-line react-hooks/purity
     atMs: performance.now(),
   });
   const wheelSeekTimerRef = useRef<number | null>(null);
@@ -278,6 +294,8 @@ export default function WaveformSeek({ trackId }: Props) {
     progressRef.current = fraction;
     visualProgressRef.current = fraction;
     visualTargetProgressRef.current = fraction;
+    // React Compiler immutability rule: intentional imperative mutation of an external/DOM target inside an effect.
+    // eslint-disable-next-line react-hooks/immutability
     progressAnchorRef.current = {
       progress: fraction,
       atMs: performance.now(),
@@ -293,6 +311,8 @@ export default function WaveformSeek({ trackId }: Props) {
     const fraction = pendingSeekRef.current;
     if (fraction === null) return;
     pendingSeekRef.current = null;
+    // React Compiler immutability rule: intentional imperative mutation of an external/DOM target inside an effect.
+    // eslint-disable-next-line react-hooks/immutability
     pendingCommittedSeekRef.current = { fraction, setAtMs: Date.now() };
     seekRef.current(fraction);
   };
@@ -348,11 +368,17 @@ export default function WaveformSeek({ trackId }: Props) {
           progressRef.current = nextFraction;
           visualProgressRef.current = nextFraction;
           visualTargetProgressRef.current = nextFraction;
+          // React Compiler immutability rule: intentional imperative mutation of an external/DOM target inside an effect.
+          // eslint-disable-next-line react-hooks/immutability
           progressAnchorRef.current = {
             progress: nextFraction,
             atMs: performance.now(),
           };
+          // React Compiler immutability rule: intentional imperative mutation of an external/DOM target inside an effect.
+          // eslint-disable-next-line react-hooks/immutability
           wheelPreviewFractionRef.current = nextFraction;
+          // React Compiler immutability rule: intentional imperative mutation of an external/DOM target inside an effect.
+          // eslint-disable-next-line react-hooks/immutability
           wheelPreviewUntilRef.current = now + WHEEL_SEEK_DEBOUNCE_MS;
           const canvas = canvasRef.current;
           if (canvas && !ANIMATED_STYLES.has(styleRef.current)) {

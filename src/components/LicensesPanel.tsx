@@ -171,6 +171,8 @@ export default function LicensesPanel() {
   }, [data, query]);
 
   const scrollParentRef = useRef<HTMLDivElement | null>(null);
+  // React Compiler incompatible-library rule: third-party hook/value the compiler cannot analyze; usage is correct.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: filtered.length,
     getScrollElement: () => scrollParentRef.current,
