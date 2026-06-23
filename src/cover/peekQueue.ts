@@ -3,7 +3,6 @@ import { getDiskSrc } from './diskSrcCache';
 import { getDiskSrcForGrid } from './diskSrcLookup';
 import { coverTrafficServerSwitchPaused } from './coverTraffic';
 import { rememberGridDiskSrc } from './diskSrcLookup';
-import { coverStorageKeyFromRef } from './storageKeys';
 import type { CoverArtRef, CoverArtTier } from './types';
 
 function peekMemoryHit(storageKey: string, ref: CoverArtRef, tier: CoverArtTier): boolean {

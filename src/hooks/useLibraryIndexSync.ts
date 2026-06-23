@@ -78,7 +78,7 @@ export function useLibraryIndexSync() {
   const refreshAllStatuses = useCallback(async () => {
     if (!masterEnabled || indexedServers.length === 0) return;
     const entries = await Promise.all(
-      indexedServers.map(async ({ key, server }) => {
+      indexedServers.map(async ({ key }) => {
         try {
           const fresh = await libraryGetStatus(key);
           syncPhaseRef.current[key] = fresh.syncPhase;
