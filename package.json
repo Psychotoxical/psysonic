@@ -13,7 +13,6 @@
     "tauri:build": "npm run prebuild:release-notes && tauri build",
     "lint": "eslint -c eslint.config.mjs src",
     "lint:gradual": "eslint -c eslint.config.gradual.mjs src",
-    "lint:scripts": "eslint -c eslint.config.mjs scripts",
     "test": "npm run prebuild:release-notes && vitest run && node --test scripts/extract-release-section.test.mjs && npm run check:css-imports",
     "test:watch": "vitest",
     "test:coverage": "npm run prebuild:release-notes && vitest run --coverage && npm run check:css-imports"

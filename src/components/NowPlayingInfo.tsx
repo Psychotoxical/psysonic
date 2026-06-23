@@ -118,13 +118,13 @@ export default function NowPlayingInfo() {
   const bioRef = useRef<HTMLParagraphElement | null>(null);
 
   // Reset per-track UI state when the track changes
-  // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+  // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setBioExpanded(false); setShowAllTours(false); }, [artistId, songId]);
 
   // Artist bio + image
   useEffect(() => {
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!subsonicReady || !subsonicServerId || !artistId) { setArtistInfoEntry(null); return; }
     const cacheKey = queuePanelCacheKey(subsonicServerId, artistId);
@@ -140,7 +140,7 @@ export default function NowPlayingInfo() {
 
   // Song detail (for OpenSubsonic contributors[])
   useEffect(() => {
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!subsonicReady || !subsonicServerId || !songId) { setSongDetailEntry(null); return; }
     const cacheKey = queuePanelCacheKey(subsonicServerId, songId);
@@ -156,7 +156,7 @@ export default function NowPlayingInfo() {
 
   // Bandsintown — only when opt-in toggle is on
   useEffect(() => {
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!enableBandsintown || !artistName) { setTourEvents([]); return; }
     let cancelled = false;

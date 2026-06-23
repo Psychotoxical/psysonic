@@ -97,7 +97,7 @@ export default function OrbitSessionBar() {
     if (role !== 'guest' || !state || !state.currentTrack) {
       overSinceRef.current = null;
       underSinceRef.current = null;
-      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // React Compiler set-state-in-effect rule: local state synced with store/prop inputs when the effect’s dependencies change.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setShowCatchUp(false);
       return;

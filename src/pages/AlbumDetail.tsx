@@ -92,7 +92,7 @@ export default function AlbumDetail() {
 
   useEffect(() => {
     if (!id) return;
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: local state synced with store/prop inputs when the effect’s dependencies change.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (album && album.album.id === id) setAlbumEntityRating(album.album.userRating ?? 0);
     // Keyed on the album's id / userRating primitives; depending on the `album`
@@ -343,7 +343,7 @@ const handleShuffleAll = () => {
   }, [showPlPicker]);
 
   useEffect(() => {
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from an external subscription/event callback.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!inSelectMode) setShowPlPicker(false);
   }, [inSelectMode]);

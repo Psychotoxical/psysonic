@@ -55,7 +55,7 @@ export function useAlbumGridBrowseFilters(
   const [selectedGenres, setSelectedGenres] = useState<string[]>(() => initialState.selectedGenres);
   const restoredFromStashRef = useRef(false);
   const filtersRef = useRef({ selectedGenres, searchQuery: '' });
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
   // eslint-disable-next-line react-hooks/refs
   filtersRef.current = {
     selectedGenres,

@@ -82,7 +82,7 @@ export default function Statistics() {
 
   useEffect(() => {
     if (offlineBrowseActive || isPlayerStats) {
-      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
       return;
@@ -102,7 +102,7 @@ export default function Statistics() {
   useEffect(() => {
     if (offlineBrowseActive || isPlayerStats) return;
     let cancelled = false;
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTotalPlaytime(null);
     setTotalAlbums(null);
@@ -135,7 +135,7 @@ export default function Statistics() {
   useEffect(() => {
     if (offlineBrowseActive || isPlayerStats) return;
     let cancelled = false;
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setFormatData(null);
     setFormatSampleSize(0);
@@ -152,7 +152,7 @@ export default function Statistics() {
   useEffect(() => {
     if (offlineBrowseActive || isPlayerStats) return;
     if (enrichmentPrimaryId === null) return;
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLfmRecentLoading(true);
     getMusicNetworkRuntime().getRecentTracks(20)
@@ -163,7 +163,7 @@ export default function Statistics() {
   useEffect(() => {
     if (offlineBrowseActive || isPlayerStats) return;
     if (enrichmentPrimaryId === null) return;
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLfmLoading(true);
     Promise.all([

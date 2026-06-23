@@ -132,7 +132,7 @@ export default function OfflineLibrary() {
     if (!hasLoadedOnceRef.current) {
       setLoading(true);
     }
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void refreshCardsFromDisk().then(hydrated => {
       if (cancelled || generation !== cardsRefreshGenerationRef.current) return;
@@ -157,7 +157,7 @@ export default function OfflineLibrary() {
   }, [deleteAlbum, refreshOfflineDiskSizes]);
 
   useEffect(() => {
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from an external subscription/event callback.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void refreshOfflineDiskSizes();
   }, [favoritesTrackCount, mediaDir, refreshOfflineDiskSizes]);
@@ -207,7 +207,7 @@ export default function OfflineLibrary() {
 
   useEffect(() => {
     if (!showCacheQueueCard) {
-      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setCacheCoverQuad([null, null, null, null]);
       return;
@@ -221,7 +221,7 @@ export default function OfflineLibrary() {
 
   useEffect(() => {
     if (!showFavoritesCard) {
-      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setFavoritesCoverQuad([null, null, null, null]);
       return;

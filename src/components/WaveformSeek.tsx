@@ -39,10 +39,10 @@ export default function WaveformSeek({ trackId }: Props) {
   const heightsRef   = useRef<Float32Array | null>(null);
   const progressRef  = useRef(getPlaybackProgressSnapshot().progress);
   const bufferedRef  = useRef(getPlaybackProgressSnapshot().buffered);
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
   // eslint-disable-next-line react-hooks/refs
   const visualProgressRef = useRef(progressRef.current);
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
   // eslint-disable-next-line react-hooks/refs
   const visualTargetProgressRef = useRef(progressRef.current);
   const isDragging   = useRef(false);
@@ -64,7 +64,7 @@ export default function WaveformSeek({ trackId }: Props) {
   // Ref so the subscription callback (closed over at mount) can read the
   // current style without stale-closure issues.
   const styleRef = useRef(seekbarStyle);
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
   // eslint-disable-next-line react-hooks/refs
   styleRef.current = seekbarStyle;
 
@@ -249,20 +249,20 @@ export default function WaveformSeek({ trackId }: Props) {
   }, [seekbarStyle]);
 
   const trackIdRef = useRef(trackId);
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
   // eslint-disable-next-line react-hooks/refs
   trackIdRef.current = trackId;
   const seekRef = useRef(seek);
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
   // eslint-disable-next-line react-hooks/refs
   seekRef.current = seek;
   const pendingSeekRef = useRef<number | null>(null);
   const pendingCommittedSeekRef = useRef<{ fraction: number; setAtMs: number } | null>(null);
   const progressAnchorRef = useRef<{ progress: number; atMs: number }>({
-    // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+    // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
     // eslint-disable-next-line react-hooks/refs
     progress: progressRef.current,
-    // React Compiler purity rule: reads a stable module/global value during render (constant for this render pass).
+    // React Compiler purity rule: intentional live-timestamp read at render (performance.now()); the value is allowed to differ between renders.
     // eslint-disable-next-line react-hooks/purity
     atMs: performance.now(),
   });

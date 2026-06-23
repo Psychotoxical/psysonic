@@ -86,7 +86,7 @@ export default function ArtistDetail() {
 
   useEffect(() => {
     if (!id) return;
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: local state synced with store/prop inputs when the effect’s dependencies change.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (artist && artist.id === id) setArtistEntityRating(artist.userRating ?? 0);
     // Keyed on the artist's id / userRating primitives; depending on the `artist`
@@ -181,7 +181,7 @@ export default function ArtistDetail() {
   }, [albums, albumYearOrder, t]);
 
   useEffect(() => {
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setHeaderCoverFailed(false);
   }, [coverId, coverRevision, id]);

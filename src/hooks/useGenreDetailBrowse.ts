@@ -28,13 +28,13 @@ export function useGenreDetailBrowse(
   const restoreKeyRef = useRef('');
   const restoreDisplayCountRef = useRef<number | undefined>(undefined);
   const restoreKey = `${serverId}:${genreName}`;
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
   // eslint-disable-next-line react-hooks/refs
   if (restoreKeyRef.current !== restoreKey) {
-    // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+    // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
     // eslint-disable-next-line react-hooks/refs
     restoreKeyRef.current = restoreKey;
-    // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+    // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
     // eslint-disable-next-line react-hooks/refs
     restoreDisplayCountRef.current = peekGenreDetailScrollRestore(serverId, genreName)?.displayCount;
   }
@@ -83,7 +83,7 @@ export function useGenreDetailBrowse(
 
   return {
     sort,
-    // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+    // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
     // eslint-disable-next-line react-hooks/refs
     restoreDisplayCount: restoreDisplayCountRef.current,
   };

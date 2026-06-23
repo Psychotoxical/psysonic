@@ -10,7 +10,7 @@ export function useAlbumDetailBack(fallback = '/') {
   const navigate = useNavigate();
   const location = useLocation();
   const locationStateRef = useRef(location.state);
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
   // eslint-disable-next-line react-hooks/refs
   locationStateRef.current = location.state;
 

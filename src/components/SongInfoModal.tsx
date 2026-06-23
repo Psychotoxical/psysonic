@@ -80,7 +80,7 @@ export default function SongInfoModal() {
 
   useEffect(() => {
     if (!songInfoModal.isOpen || !songInfoModal.songId) {
-      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSong(null);
       setEnrichment(null);

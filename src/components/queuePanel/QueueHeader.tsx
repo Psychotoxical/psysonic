@@ -77,7 +77,7 @@ export function QueueHeader({
   if (queue.length > 0) {
     if (durationMode === 'total') dur = formatLongDuration(Math.floor(totalSecs));
     else if (durationMode === 'remaining') dur = `-${formatLongDuration(Math.floor(remainingSecs))}`;
-    // React Compiler purity rule: reads a stable module/global value during render (constant for this render pass).
+    // React Compiler purity rule: intentional live-timestamp read at render (Date.now()); the value is allowed to differ between renders.
     // eslint-disable-next-line react-hooks/purity
     else dur = formatClockTime(Date.now() + remainingSecs * 1000, clockFormat, i18n.language);
   }

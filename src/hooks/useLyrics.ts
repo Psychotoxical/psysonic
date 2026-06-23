@@ -93,7 +93,7 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
     // show nothing — not even embedded/cache (issue #810). LyricsPane surfaces
     // the "no sources selected" hint.
     if (!lyricsActive) {
-      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // React Compiler set-state-in-effect rule: local state synced with store/prop inputs when the effect’s dependencies change.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSyncedLines(null);
       setWordLines(null);

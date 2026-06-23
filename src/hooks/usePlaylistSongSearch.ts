@@ -19,7 +19,7 @@ export function usePlaylistSongSearch(
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from a timer/animation callback.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!searchOpen || !searchQuery.trim()) { setSearchResults([]); return; }
     if (searchDebounce.current) clearTimeout(searchDebounce.current);

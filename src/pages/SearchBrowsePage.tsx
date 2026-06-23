@@ -183,7 +183,7 @@ export default function SearchBrowsePage() {
       : null;
 
   const tracksLiveSearchInitRef = useRef(false);
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref used as a once-only init guard (checked before first assignment); not render data.
   // eslint-disable-next-line react-hooks/refs
   if (!tracksLiveSearchInitRef.current && restoreStash && showTracksChrome) {
     tracksLiveSearchInitRef.current = true;
@@ -208,36 +208,36 @@ export default function SearchBrowsePage() {
   const leaveSnapshotRef = useRef<AdvancedSearchLeaveSnapshot | null>(
     restoringSession ? resolveAdvancedSearchLeaveSnapshot(restoreStash) : null,
   );
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
   // eslint-disable-next-line react-hooks/refs
   const scrollTopRestoreTargetRef = useRef(leaveSnapshotRef.current?.scrollTop ?? 0);
   const tracksSearchRestorePendingRef = useRef(
     !!(songBrowseInitialRestore?.query.trim()),
   );
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
   // eslint-disable-next-line react-hooks/refs
   const albumRowScrollLeftRestoreRef = useRef(leaveSnapshotRef.current?.albumRowScrollLeft ?? 0);
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
   // eslint-disable-next-line react-hooks/refs
   const artistRowScrollLeftRestoreRef = useRef(leaveSnapshotRef.current?.artistRowScrollLeft ?? 0);
   const mainScrollTopRef = useRef(0);
   const albumRowScrollLeftRef = useRef(0);
   const artistRowScrollLeftRef = useRef(0);
   const skipSearchAutoFocusRef = useRef(restoreStash != null);
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
   // eslint-disable-next-line react-hooks/refs
   const skipEnterAnimationRef = useRef(restoreStash != null || leaveSnapshotRef.current != null);
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref used as a once-only init guard (checked before first assignment); not render data.
   // eslint-disable-next-line react-hooks/refs
   const leaveRestoreUiFinishedRef = useRef(leaveSnapshotRef.current == null);
   const restoringTracksSearch = !!(restoreStash?.query.trim() && showTracksChrome);
   const [tracksChromeLayoutReady, setTracksChromeLayoutReady] = useState(
-    // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+    // React Compiler refs rule: ref used as a once-only init guard (checked before first assignment); not render data.
     // eslint-disable-next-line react-hooks/refs
     () => !showTracksChrome || leaveSnapshotRef.current == null || restoringTracksSearch,
   );
   const [isLeaveRestorePending, setIsLeaveRestorePending] = useState(
-    // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+    // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
     // eslint-disable-next-line react-hooks/refs
     () => leaveSnapshotRef.current != null,
   );
@@ -285,7 +285,7 @@ export default function SearchBrowsePage() {
     tracksBrowseMode: false,
     tracksBrowseUnsupported: false,
   });
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
   // eslint-disable-next-line react-hooks/refs
   sessionRef.current = {
     query: showTracksChrome ? liveSearchQuery : query,
@@ -631,7 +631,7 @@ export default function SearchBrowsePage() {
       restoredFromStashRef.current = true;
       const stash = useAdvancedSearchSessionStore.getState().peekReturnStash();
       if (stash) {
-        // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+        // React Compiler set-state-in-effect rule: local state synced with store/prop inputs when the effect’s dependencies change.
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setQuery(stash.query);
         if (showTracksChrome) {
@@ -670,25 +670,25 @@ export default function SearchBrowsePage() {
   }, [navigationType, location.state]);
 
   const tracksSearchRestoreSynced =
-    // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+    // React Compiler refs rule: ref used as a once-only init guard (checked before first assignment); not render data.
     // eslint-disable-next-line react-hooks/refs
     !tracksSearchRestorePendingRef.current
     || tracksSearchQuery.trim() === (songBrowseInitialRestore?.query.trim() ?? '');
 
   const leaveRestoreContentReady = showTracksChrome
-    // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+    // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
     // eslint-disable-next-line react-hooks/refs
     ? tracksChromeLayoutReady
-      // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+      // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
       // eslint-disable-next-line react-hooks/refs
       && tracksSearchRestoreSynced
       && (
-        // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+        // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
         // eslint-disable-next-line react-hooks/refs
         (hadRestoreOnMountRef.current && songBrowseInitialRestore != null)
         || (songBrowse.hasSearched && !songBrowse.loading)
       )
-    // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+    // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
     // eslint-disable-next-line react-hooks/refs
     : ((hadRestoreOnMountRef.current && results !== null) || (hasSearched && !loading));
 
@@ -701,7 +701,7 @@ export default function SearchBrowsePage() {
       return;
     }
     return restoreMainViewportScroll(target, finishLeaveRestoreUi);
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
   // eslint-disable-next-line react-hooks/refs
   }, [leaveRestoreContentReady, finishLeaveRestoreUi, showTracksChrome]);
 
@@ -720,7 +720,7 @@ export default function SearchBrowsePage() {
     leaveRestoreContentReady,
     finishLeaveRestoreUi,
     songBrowse.songs.length,
-    // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+    // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
     // eslint-disable-next-line react-hooks/refs
     tracksSearchRestoreSynced,
   ]);
@@ -742,7 +742,7 @@ export default function SearchBrowsePage() {
     const q = qFromUrl.trim();
     if (!q) {
       if (!showAdvancedPanel) {
-        // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+        // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setResults(null);
         setHasSearched(false);
@@ -889,7 +889,7 @@ export default function SearchBrowsePage() {
 
   return (
     <div
-      // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+      // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
       // eslint-disable-next-line react-hooks/refs
       className={`content-body${skipEnterAnimationRef.current ? '' : ' animate-fade-in'}${showTracksChrome ? ' tracks-page' : ''}`}
       style={{ position: 'relative' }}
@@ -955,7 +955,7 @@ export default function SearchBrowsePage() {
                 onChange={e => setQuery(e.target.value)}
                 placeholder={t('search.advancedSearchPlaceholder')}
                 style={{ flex: 1 }}
-                // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+                // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
                 // eslint-disable-next-line react-hooks/refs
                 autoFocus={!skipSearchAutoFocusRef.current}
               />
@@ -1172,10 +1172,10 @@ export default function SearchBrowsePage() {
               artists={filteredResults.artists}
               artistLinkQuery={activeSearch?.losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
               restoreScrollLeft={
-                // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+                // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
                 // eslint-disable-next-line react-hooks/refs
                 artistRowScrollLeftRestoreRef.current > 0
-                  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+                  // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
                   // eslint-disable-next-line react-hooks/refs
                   ? artistRowScrollLeftRestoreRef.current
                   : undefined
@@ -1200,10 +1200,10 @@ export default function SearchBrowsePage() {
               windowArtworkByViewport
               initialArtworkBudget={12}
               restoreScrollLeft={
-                // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+                // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
                 // eslint-disable-next-line react-hooks/refs
                 albumRowScrollLeftRestoreRef.current > 0
-                  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+                  // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
                   // eslint-disable-next-line react-hooks/refs
                   ? albumRowScrollLeftRestoreRef.current
                   : undefined

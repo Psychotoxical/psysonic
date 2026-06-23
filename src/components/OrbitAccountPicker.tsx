@@ -19,7 +19,7 @@ export default function OrbitAccountPicker() {
   // Reset + focus first item each time the picker re-opens.
   useEffect(() => {
     if (!isOpen) return;
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: local state synced with store/prop inputs when the effect’s dependencies change.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelected(0);
     // Defer focus to the next tick so the DOM has actually mounted.

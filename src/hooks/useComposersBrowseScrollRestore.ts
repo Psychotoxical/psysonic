@@ -50,11 +50,11 @@ export function useComposersBrowseScrollRestore({
   const pendingRef = useRef<PendingScroll | null>(null);
   const doneRef = useRef(false);
 
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref used as a once-only init guard (checked before first assignment); not render data.
   // eslint-disable-next-line react-hooks/refs
   if (!initRef.current) {
     initRef.current = true;
-    // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+    // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
     // eslint-disable-next-line react-hooks/refs
     pendingRef.current = readPendingScrollRestore(serverId, navigationType, location.state);
   }
@@ -83,7 +83,7 @@ export function useComposersBrowseScrollRestore({
     scrollBodyEl.dispatchEvent(new Event('scroll', { bubbles: false }));
     pendingRef.current = null;
     doneRef.current = true;
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from a DOM/layout measurement.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsScrollRestorePending(false);
     useComposerBrowseSessionStore.getState().clearReturnStash(serverId);

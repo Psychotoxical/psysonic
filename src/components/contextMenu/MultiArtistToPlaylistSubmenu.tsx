@@ -24,7 +24,7 @@ export function MultiArtistToPlaylistSubmenu({ artistIds, onDone, triggerId: _tr
   const [showLoading, setShowLoading] = useState(false);
 
   useEffect(() => {
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from a timer/animation callback.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTotalArtists(artistIds.length);
     const loadingTimeout = setTimeout(() => setShowLoading(true), 300);

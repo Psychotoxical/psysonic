@@ -91,7 +91,7 @@ export function ThemeStoreSection() {
   const thumbUrl = (rel: string) =>
     generatedAt ? `${assetUrl(rel)}?v=${encodeURIComponent(generatedAt)}` : assetUrl(rel);
 
-  // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+  // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(false); }, []);
 
@@ -125,7 +125,7 @@ export function ThemeStoreSection() {
 
   // A changed filter can shrink the result set below the current page; reset to
   // the first page whenever the query or mode filter changes.
-  // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+  // React Compiler set-state-in-effect rule: local state synced with store/prop inputs when the effect’s dependencies change.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setPage(1); }, [query, mode, sortMode, animFilter]);
 

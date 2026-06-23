@@ -69,13 +69,13 @@ export default function SidebarPerfProbeLogsTab() {
   // Topmost visible line to re-pin against while the user is scrolled up, so the
   // view stays put even as new lines append below or old ones scroll out.
   const anchorRef = useRef<{ seq: number; offset: number } | null>(null);
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
   // eslint-disable-next-line react-hooks/refs
   pausedRef.current = paused;
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
   // eslint-disable-next-line react-hooks/refs
   lineCapRef.current = lineCap;
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
   // eslint-disable-next-line react-hooks/refs
   followRef.current = follow;
 
@@ -136,7 +136,7 @@ export default function SidebarPerfProbeLogsTab() {
   // When following resumes (or the cap shrinks), trim retained history to the cap.
   useEffect(() => {
     if (!follow) return;
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from a DOM/layout measurement.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLines(prev => (prev.length > lineCap ? prev.slice(prev.length - lineCap) : prev));
   }, [follow, lineCap]);

@@ -37,13 +37,13 @@ function HeroBg({ url }: { url: string }) {
   );
   const counter = useRef(url ? 1 : 0);
   const latestUrlRef = useRef(url);
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
   // eslint-disable-next-line react-hooks/refs
   latestUrlRef.current = url;
 
   useEffect(() => {
     if (!url) {
-      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // React Compiler set-state-in-effect rule: state set from a timer/animation callback.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setLayers([]);
       return;
@@ -106,7 +106,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   const visibilityRafRef = useRef<number | null>(null);
   const [heroInView, setHeroInView] = useState(true);
   const heroInViewRef = useRef(true);
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
   // eslint-disable-next-line react-hooks/refs
   heroInViewRef.current = heroInView;
 
@@ -204,7 +204,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   }, [heroInView, windowHidden, updateHeroVisibility]);
 
   useEffect(() => {
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from a timer/animation callback.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (albumsProp?.length) { setAlbums(albumsProp); return; }
     const cfg = { ...getMixMinRatingsConfigFromAuth(), minSong: 0 };
@@ -317,7 +317,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
       stableBgByAlbum.current[albumId] = bgHandle.src;
     }
   }, [bgHandle.src, albumId]);
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
   // eslint-disable-next-line react-hooks/refs
   const heroBgUrl = bgHandle.src || (albumId ? stableBgByAlbum.current[albumId] ?? '' : '');
   const { isHolding, pressBind } = useLongPressAction({

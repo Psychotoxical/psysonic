@@ -222,7 +222,7 @@ export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseS
     }
   }, [enabled, loading, hasMore, debouncedQuery, offset, fetchSongPage]);
 
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
   // eslint-disable-next-line react-hooks/refs
   return {
     songs,
@@ -231,7 +231,7 @@ export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseS
     hasMore,
     browseUnsupported,
     hasSearched,
-    // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+    // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
     // eslint-disable-next-line react-hooks/refs
     localSearchMode: localSearchModeRef.current,
     loadMore,

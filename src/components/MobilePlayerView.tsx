@@ -68,7 +68,7 @@ function extractVibrantColor(imageUrl: string): Promise<string> {
 function useAlbumAccentColor(imageUrl: string): string {
   const [color, setColor] = useState('0,0,0');
   useEffect(() => {
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from a DOM/layout measurement.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!imageUrl) { setColor('0,0,0'); return; }
     let cancelled = false;
@@ -298,7 +298,7 @@ export default function MobilePlayerView() {
 
   useEffect(() => {
     pendingSeekRef.current = null;
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from an external subscription/event callback.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPreviewProgress(null);
   }, [currentTrack?.id]);

@@ -44,7 +44,7 @@ export default function NowPlayingDropdown() {
     let ms = entry.positionMs;
     if (entry.state === 'playing') {
       const rate = entry.playbackRate && entry.playbackRate > 0 ? entry.playbackRate : 1;
-      // React Compiler purity rule: reads a stable module/global value during render (constant for this render pass).
+      // React Compiler purity rule: intentional live-timestamp read at render (Date.now()); the value is allowed to differ between renders.
       // eslint-disable-next-line react-hooks/purity
       ms += (Date.now() - fetchedAtRef.current) * rate;
     }

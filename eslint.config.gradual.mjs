@@ -7,6 +7,11 @@ import tseslint from 'typescript-eslint';
 export default tseslint.config(
   // `scripts/` (Node CI helpers) is intentionally ignored — this config targets the browser `src/` tree.
   { ignores: ['dist', 'coverage', 'src-tauri', 'research', 'scripts'] },
+  // This gradual baseline deliberately omits the React Compiler rules (set-state-in-effect, refs,
+  // immutability, …) that the strict config enables. The per-line `eslint-disable-next-line` directives
+  // those rules require therefore read as "unused" here, so unused-directive reporting is turned off for
+  // this config only — the strict config keeps the default reporting and stays 0/0.
+  { linterOptions: { reportUnusedDisableDirectives: 'off' } },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {

@@ -78,7 +78,7 @@ export function useArtistDetailData(
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setInfoEntry(null);
@@ -176,7 +176,7 @@ export function useArtistDetailData(
   useEffect(() => {
     if (!id || preferLocalArtist) return;
     let cancelled = false;
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setArtistInfoLoading(true);
     getArtistInfo(id, { similarArtistCount: audiomuseNavidromeEnabled ? 24 : undefined })
@@ -195,7 +195,7 @@ export function useArtistDetailData(
   useEffect(() => {
     if (!id || !artist || preferLocalArtist) return;
     const ownAlbumIds = new Set(albums.map(a => a.id));
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setFeaturedLoading(true);
     search(artist.name, { songCount: 500, artistCount: 0, albumCount: 0 })

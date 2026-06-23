@@ -40,7 +40,7 @@ export function useSidebarNavDnd({
   const [navDnd, setNavDnd] = useState<NavDndState | null>(null);
   const [navDropTarget, setNavDropTarget] = useState<SidebarNavDropTarget | null>(null);
   const navDropTargetRef = useRef<SidebarNavDropTarget | null>(null);
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
   // eslint-disable-next-line react-hooks/refs
   navDropTargetRef.current = navDropTarget;
   /** DOM timers are numeric; avoid NodeJS `Timeout` typing from `setTimeout`. */

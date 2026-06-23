@@ -33,13 +33,13 @@ export default function SidebarPerfProbeMonitorTab() {
 
   const maxMemoryKb = useMemo(() => {
     const current = Math.max(1, ...(cpu?.memory.map(m => m.rss_kb) ?? [1]));
-    // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+    // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
     // eslint-disable-next-line react-hooks/refs
     if (current > peakMemoryKbRef.current) peakMemoryKbRef.current = current;
     return peakMemoryKbRef.current;
   }, [cpu?.memory]);
 
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
   // eslint-disable-next-line react-hooks/refs
   const maxThreadCpu = useMemo(() => {
     const current = Math.max(1, ...(cpu?.threadCpu.map(t => t.pct) ?? [1]));

@@ -59,7 +59,7 @@ export function useCachedUrl(
   // `fetchUrl` were an effect dependency, cleanup would run every frame, call
   // `releaseUrl`, revoke the blob, and break <img> until onError hides it.
   const fetchUrlRef = useRef(fetchUrl);
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
   // eslint-disable-next-line react-hooks/refs
   fetchUrlRef.current = fetchUrl;
 
@@ -78,7 +78,7 @@ export function useCachedUrl(
   );
 
   const getPriorityRef = useRef(getPriority);
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
   // eslint-disable-next-line react-hooks/refs
   getPriorityRef.current = getPriority;
 
@@ -109,7 +109,7 @@ export function useCachedUrl(
     const sync = acquireUrl(cacheKey);
     if (sync) {
       ownedKeyRef.current = cacheKey;
-      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setResolvedSlice({ key: cacheKey, url: sync });
       return release;
@@ -222,7 +222,7 @@ export default function CachedImage({
   // useLayoutEffect: one paint with `loaded` still true + a stale/wrong `src`
   // showed a broken-cover flash in the player bar when switching tracks (#606).
   useLayoutEffect(() => {
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from a timer/animation callback.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoaded(false);
     setFallbackSrc(undefined);

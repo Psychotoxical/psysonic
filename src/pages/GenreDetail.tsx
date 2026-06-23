@@ -98,7 +98,7 @@ export default function GenreDetail() {
   useEffect(() => {
     if (!genre || !serverId) return;
     const cached = lookupGenreAlbumCount(serverId, genre, libraryScopeForServer(serverId));
-    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // React Compiler set-state-in-effect rule: state set from a timer/animation callback.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (cached != null) setAlbumCount(cached);
   }, [serverId, genre, musicLibraryFilterVersion]);

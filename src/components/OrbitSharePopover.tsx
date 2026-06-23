@@ -57,7 +57,7 @@ export default function OrbitSharePopover({ anchorRef, onClose }: Props) {
 
   if (!shareLink) return null;
 
-  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
   // eslint-disable-next-line react-hooks/refs
   const anchor = anchorRef.current?.getBoundingClientRect();
   const style: React.CSSProperties = anchor
