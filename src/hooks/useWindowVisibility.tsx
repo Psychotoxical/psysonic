@@ -61,6 +61,9 @@ export function WindowVisibilityProvider({ children }: { children: ReactNode }) 
   );
 }
 
+// Companion hook intentionally co-located with WindowVisibilityProvider in this
+// small context module; HMR-only rule does not warrant a separate file.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useWindowVisibility() {
   return useContext(WindowVisibilityContext);
 }

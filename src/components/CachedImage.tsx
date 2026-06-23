@@ -43,6 +43,11 @@ type ResolvedSlice = { key: string | null; url: string };
  *   loading immediately.  Pass false for CSS background-image consumers that
  *   should only see a stable blob URL (prevents a double crossfade).
  */
+// useCachedUrl is the headless companion of CachedImage — it shares the same
+// caching contract and the module-local ResolvedSlice type, and is documented
+// alongside the component in src/CLAUDE.md. Intentional co-location; the
+// fast-refresh rule is an HMR-only concern.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useCachedUrl(
   fetchUrl: string,
   cacheKey: string,

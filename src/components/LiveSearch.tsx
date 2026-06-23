@@ -42,6 +42,8 @@ import ShareSearchResults from './search/ShareSearchResults';
 import {
   LiveSearchScopeBadge,
   LiveSearchScopeGhostBadge,
+} from './search/liveSearchScopeUi';
+import {
   createLiveSearchScopeBackspaceState,
   handleLiveSearchScopeBackspace,
   handleLiveSearchScopeUndo,
@@ -50,7 +52,7 @@ import {
   noteLiveSearchScopeQueryInput,
   resetLiveSearchScopeBackspaceState,
   resolveLiveSearchScopeGhost,
-} from './search/liveSearchScopeUi';
+} from './search/liveSearchScope';
 import { useLiveSearchScopeStore } from '../store/liveSearchScopeStore';
 import { resolveIndexKey } from '../utils/server/serverIndexKey';
 

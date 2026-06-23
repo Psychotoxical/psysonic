@@ -22,6 +22,8 @@ import ShareSearchResults from './search/ShareSearchResults';
 import {
   LiveSearchScopeBadge,
   LiveSearchScopeGhostBadge,
+} from './search/liveSearchScopeUi';
+import {
   createLiveSearchScopeBackspaceState,
   handleLiveSearchScopeBackspace,
   handleLiveSearchScopeUndo,
@@ -30,7 +32,7 @@ import {
   noteLiveSearchScopeQueryInput,
   resetLiveSearchScopeBackspaceState,
   resolveLiveSearchScopeGhost,
-} from './search/liveSearchScopeUi';
+} from './search/liveSearchScope';
 
 const STORAGE_KEY = 'psysonic_recent_searches';
 const MAX_RECENT = 6;

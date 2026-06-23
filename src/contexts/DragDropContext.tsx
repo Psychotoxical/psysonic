@@ -53,6 +53,10 @@ const Ctx = createContext<DragDropContextValue>({
   isDragging: false,
 });
 
+// useDragDrop / useDragSource / registerQueueDragHitTest are the documented
+// drag-drop API surface, intentionally co-located with DragDropProvider; this
+// HMR-only rule does not warrant fragmenting the context module.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useDragDrop = () => useContext(Ctx);
 
 function isQueueReorderDrag(data: string): boolean {
@@ -70,6 +74,8 @@ const queueDragHitTests: Array<(x: number, y: number) => boolean> = [];
  * Register a function that returns true when (clientX, clientY) lies inside
  * this window’s queue drop area. Unregister on cleanup.
  */
+// Part of the drag-drop API co-located with the provider (see note above).
+// eslint-disable-next-line react-refresh/only-export-components
 export function registerQueueDragHitTest(fn: (x: number, y: number) => boolean): () => void {
   queueDragHitTests.push(fn);
   return () => {
@@ -277,6 +283,8 @@ const DRAG_THRESHOLD = 5; // px before drag starts
  * Returns an onMouseDown handler for a draggable element.
  * Usage:  <div {...useDragSource(payload)} />
  */
+// Part of the drag-drop API co-located with the provider (see note above).
+// eslint-disable-next-line react-refresh/only-export-components
 export function useDragSource(getPayload: () => DragPayload) {
   const { startDrag } = useDragDrop();
   const startPosRef = useRef<{ x: number; y: number } | null>(null);

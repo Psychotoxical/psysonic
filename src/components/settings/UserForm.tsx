@@ -20,7 +20,7 @@ export interface UserFormState {
   libraryIds: number[];
 }
 
-export function initialUserFormState(u: NdUser | undefined, allLibraries: NdLibrary[]): UserFormState {
+function initialUserFormState(u: NdUser | undefined, allLibraries: NdLibrary[]): UserFormState {
   const defaultIds = allLibraries.map(l => l.id);
   return {
     userName: u?.userName ?? '',
