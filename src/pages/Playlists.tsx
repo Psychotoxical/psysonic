@@ -4,16 +4,14 @@ import { filterSongsToActiveLibrary } from '../api/subsonicLibrary';
 import type { SubsonicPlaylist, SubsonicGenre } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { usePlayerStore } from '../store/playerStore';
 import { usePlaylistStore } from '../store/playlistStore';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
 import { useRangeSelection } from '../hooks/useRangeSelection';
 
-import { formatHumanHoursMinutes } from '../utils/format/formatHumanDuration';
 import {
-  defaultSmartFilters, isSmartPlaylistName,
+  defaultSmartFilters,
   type SmartFilters, type PendingSmartPlaylist,
 } from '../utils/playlist/playlistsSmart';
 import { useSmartCoverCollage } from '../hooks/useSmartCoverCollage';
@@ -22,7 +20,7 @@ import { usePendingSmartPolling } from '../hooks/usePendingSmartPolling';
 import { runPlaylistsOpenSmartEditor } from '../utils/playlist/runPlaylistsOpenSmartEditor';
 import { runPlaylistsSaveSmart } from '../utils/playlist/runPlaylistsSaveSmart';
 import {
-  runPlaylistDelete, runPlaylistDeleteSelected, runPlaylistMergeSelected,
+  runPlaylistDelete, runPlaylistDeleteSelected,
 } from '../utils/playlist/runPlaylistsActions';
 import PlaylistsSmartEditor from '../components/playlists/PlaylistsSmartEditor';
 import PlaylistsHeader from '../components/playlists/PlaylistsHeader';
@@ -35,21 +33,14 @@ import { Info } from 'lucide-react';
 import PlaylistsFolderView from '../components/playlists/PlaylistsFolderView';
 import { usePlaylistFolderStore } from '../store/playlistFolderStore';
 
-function formatDuration(seconds: number): string {
-  return formatHumanHoursMinutes(seconds);
-}
-
 export default function Playlists() {
   const { t } = useTranslation();
   const perfFlags = usePerfProbeFlags();
-  const navigate = useNavigate();
   const playTrack = usePlayerStore(s => s.playTrack);
-  const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const touchPlaylist = usePlaylistStore((s) => s.touchPlaylist);
   const removeId = usePlaylistStore((s) => s.removeId);
   const playlists = usePlaylistStore((s) => s.playlists);
   const fetchPlaylists = usePlaylistStore((s) => s.fetchPlaylists);
-  const playlistsLoading = usePlaylistStore((s) => s.playlistsLoading);
   const activeUsername = useAuthStore(s => s.getActiveServer()?.username ?? '');
   const activeServerId = useAuthStore(s => s.activeServerId);
   const folderCount = usePlaylistFolderStore(
@@ -175,10 +166,6 @@ export default function Playlists() {
 
   const handleDeleteSelected = () => runPlaylistDeleteSelected({
     selectedPlaylists, selectedIds, isPlaylistDeletable, removeId, clearSelection, t,
-  });
-
-  const handleMergeSelected = (targetPlaylist: SubsonicPlaylist) => runPlaylistMergeSelected({
-    targetPlaylist, selectedPlaylists, touchPlaylist, clearSelection, t,
   });
 
   const renderCard = (pl: SubsonicPlaylist) => (

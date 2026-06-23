@@ -1,20 +1,10 @@
-import { buildDownloadUrl } from '../api/subsonicStreamUrl';
 import type { SubsonicSong } from '../api/subsonicTypes';
 import React, { useState, useCallback, useMemo } from 'react';
-import {
-  HardDriveUpload, Loader2,
-  ListMusic, Disc3, Users, CheckCircle2, AlertCircle, Clock,
-  ChevronRight, ChevronDown, Trash2, Undo2, Search, Shuffle, Zap, X,
-} from 'lucide-react';
-import CustomSelect from '../components/CustomSelect';
 import { useTranslation } from 'react-i18next';
 import { useDeviceSyncStore, DeviceSyncSource } from '../store/deviceSyncStore';
 import { useDeviceSyncJobStore } from '../store/deviceSyncJobStore';
-import { showToast } from '../utils/ui/toast';
-import { IS_WINDOWS } from '../utils/platform';
 
 import {
-  formatBytes,
   type SourceTab,
 } from '../utils/deviceSync/deviceSyncHelpers';
 import { useDeviceSyncDrives } from '../hooks/useDeviceSyncDrives';
@@ -52,8 +42,8 @@ export default function DeviceSync() {
   const scanning         = useDeviceSyncStore(s => s.scanning);
   const {
     setTargetDir, addSource, removeSource,
-    clearSources, toggleChecked, setCheckedIds, markForDeletion,
-    unmarkDeletion, removeSources, setDeviceFilePaths, setScanning,
+    toggleChecked, setCheckedIds, markForDeletion,
+    unmarkDeletion, removeSources,
   } = useDeviceSyncStore.getState();
 
   const jobStatus = useDeviceSyncJobStore(s => s.status);
@@ -193,12 +183,6 @@ export default function DeviceSync() {
     isRunning ||
     (!driveDetected && !!targetDir) ||
     (pendingCount === 0 && deletionCount === 0);
-
-  const tabs: { key: SourceTab; icon: React.ReactNode; label: string }[] = [
-    { key: 'playlists', icon: <ListMusic size={14} />, label: t('deviceSync.tabPlaylists') },
-    { key: 'albums',    icon: <Disc3 size={14} />,     label: t('deviceSync.tabAlbums') },
-    { key: 'artists',   icon: <Users size={14} />,     label: t('deviceSync.tabArtists') },
-  ];
 
   return (
     <div className="device-sync-page">

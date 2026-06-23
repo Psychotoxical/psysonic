@@ -25,7 +25,6 @@ export default function FolderBrowser() {
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const isPlaying = usePlayerStore(s => s.isPlaying);
   const playTrack = usePlayerStore(s => s.playTrack);
-  const enqueue = usePlayerStore(s => s.enqueue);
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const isContextMenuOpen = usePlayerStore(s => s.contextMenu.isOpen);
 

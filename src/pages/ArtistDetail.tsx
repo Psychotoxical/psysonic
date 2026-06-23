@@ -1,24 +1,14 @@
-import { uploadArtistImage } from '../api/subsonicPlaylists';
 import { useCoverArt } from '../cover/useCoverArt';
 import { useArtistCoverRef } from '../cover/useLibraryCoverRef';
-import { setRating, star, unstar } from '../api/subsonicStarRating';
-import type { SubsonicArtist, SubsonicAlbum, SubsonicSong, SubsonicArtistInfo } from '../api/subsonicTypes';
-import { useEffect, useState, useRef, Fragment, useMemo } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import type { SubsonicArtist, SubsonicAlbum } from '../api/subsonicTypes';
+import { useEffect, useState, Fragment, useMemo } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import AlbumCard from '../components/AlbumCard';
-import { ArrowLeft, Users, ExternalLink, Heart, Play, Square, Shuffle, Radio, HardDriveDownload, Check, Camera, Loader2, ChevronDown, ChevronRight, ChevronUp, Share2, AudioLines, ArrowDownUp } from 'lucide-react';
-import { useIsMobile } from '../hooks/useIsMobile';
-import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
+import { ArrowDownUp } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
 import { usePlayerStore } from '../store/playerStore';
-import { usePreviewStore } from '../store/previewStore';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from 'react-i18next';
-import LastfmIcon from '../components/LastfmIcon';
-import { invalidateCoverArt } from '../utils/imageCache';
-import { showToast } from '../utils/ui/toast';
-import { copyEntityShareLink } from '../utils/share/copyEntityShareLink';
-import StarRating from '../components/StarRating';
 import { useArtistLayoutStore, type ArtistSectionId } from '../store/artistLayoutStore';
 import {
   DEFAULT_ARTIST_ALBUM_YEAR_ORDER,
@@ -57,7 +47,6 @@ export default function ArtistDetail() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const losslessOnly = searchParams.get('lossless') === '1';
-  const navigate = useNavigate();
   const {
     artist, setArtist, albums, topSongs, info, featuredAlbums,
     loading, artistInfoLoading, featuredLoading,
@@ -69,27 +58,17 @@ export default function ArtistDetail() {
   const { similarArtists, similarLoading } = useArtistSimilarArtists(artist, info, artistInfoLoading);
   const [uploading, setUploading] = useState(false);
   const [similarCollapsed, setSimilarCollapsed] = useState(true);
-  const isMobile = useIsMobile();
   const [coverRevision, setCoverRevision] = useState(0);
   /** True after header cover onError — avoid `display:none` on the img (breaks recovery). */
   const [headerCoverFailed, setHeaderCoverFailed] = useState(false);
-  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const playTrack = usePlayerStore(state => state.playTrack);
   const enqueue = usePlayerStore(state => state.enqueue);
-  const { orbitActive, queueHint, addTrackToOrbit } = useOrbitSongRowBehavior();
-  const clearQueue = usePlayerStore(state => state.clearQueue);
-  const openContextMenu = usePlayerStore(state => state.openContextMenu);
-  const currentTrack = usePlayerStore(state => state.currentTrack);
-  const isPlaying = usePlayerStore(state => state.isPlaying);
-  const previewingId = usePreviewStore(s => s.previewingId);
-  const previewAudioStarted = usePreviewStore(s => s.audioStarted);
   const authActiveServerId = useAuthStore(s => s.activeServerId);
   const activeServerId = readDetailServerId(searchParams, authActiveServerId) ?? '';
   const audiomuseNavidromeEnabled = useAuthStore(
     s => !!(activeServerId && s.audiomuseNavidromeByServer[activeServerId]),
   );
-  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const enrichmentConfigured = useAuthStore(s => s.enrichmentPrimaryId !== null);
   const albumYearOrder = useArtistAlbumYearSortStore(
     s => s.orderByServer[activeServerId] ?? DEFAULT_ARTIST_ALBUM_YEAR_ORDER,
@@ -99,7 +78,6 @@ export default function ArtistDetail() {
   // call order will mismatch between renders.
   const sectionConfig = useArtistLayoutStore(s => s.sections);
   const entityRatingSupportByServer = useAuthStore(s => s.entityRatingSupportByServer);
-  const setEntityRatingSupport = useAuthStore(s => s.setEntityRatingSupport);
   const artistEntityRatingSupport = entityRatingSupportByServer[activeServerId] ?? 'unknown';
   const offlineCtx = useOfflineBrowseContext();
   const artistActionPolicy = offlineActionPolicy('artistDetail', offlineCtx.active);
@@ -239,8 +217,6 @@ export default function ArtistDetail() {
       </div>
     );
   }
-
-  const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(artist.name)}`;
 
   const serverSimilarArtists: SubsonicArtist[] = (info?.similarArtist ?? []).map(sa => ({
     id: sa.id,

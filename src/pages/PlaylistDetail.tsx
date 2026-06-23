@@ -2,32 +2,18 @@ import { updatePlaylist } from '../api/subsonicPlaylists';
 import type { SubsonicPlaylist, SubsonicSong } from '../api/subsonicTypes';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronDown, ChevronLeft, ChevronRight, Play, ListPlus, Trash2, Search, X, Loader2, Plus, GripVertical, Star, RefreshCw, Shuffle, Heart, HardDriveDownload, Check, Pencil, Globe, Lock, Camera, Download, FileUp, RotateCcw, Sparkles, Square, AudioLines } from 'lucide-react';
 import { useTracklistColumns, type ColDef } from '../utils/useTracklistColumns';
-import { AddToPlaylistSubmenu } from '../components/ContextMenu';
 import { usePlayerStore } from '../store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { usePlaylistStore } from '../store/playlistStore';
-import { usePreviewStore } from '../store/previewStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { useLocalPlaybackStore } from '../store/localPlaybackStore';
 import { useAlbumOfflineState } from '../hooks/useAlbumOfflineState';
-import { dequeueOfflinePin } from '../utils/offline/offlinePinQueue';
 import { useAuthStore } from '../store/authStore';
-import { useThemeStore } from '../store/themeStore';
 import { useDownloadModalStore } from '../store/downloadModalStore';
-import { useOrbitSongRowBehavior } from '../hooks/useOrbitSongRowBehavior';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
 import { useDragDrop } from '../contexts/DragDropContext';
 import { useTranslation } from 'react-i18next';
-import StarRating from '../components/StarRating';
-import {
-  formatSize,
-  totalDurationLabel,
-  isSmartPlaylistName,
-  displayPlaylistName,
-  codecLabel,
-} from '../utils/componentHelpers/playlistDetailHelpers';
 import type { SpotifyCsvTrack } from '../utils/playlist/spotifyCsvImport';
 import { runPlaylistCsvImport } from '../utils/playlist/runPlaylistCsvImport';
 import PlaylistEditModal from '../components/playlist/PlaylistEditModal';
@@ -79,31 +65,20 @@ export default function PlaylistDetail() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const { playTrack, enqueue, openContextMenu, currentTrack, isPlaying, starredOverrides, setStarredOverride, userRatingOverrides } = usePlayerStore(
+  const { playTrack, enqueue } = usePlayerStore(
     useShallow(s => ({
       playTrack: s.playTrack,
       enqueue: s.enqueue,
-      openContextMenu: s.openContextMenu,
-      currentTrack: s.currentTrack,
-      isPlaying: s.isPlaying,
-      starredOverrides: s.starredOverrides,
-      setStarredOverride: s.setStarredOverride,
-      userRatingOverrides: s.userRatingOverrides,
     }))
   );
-  const { orbitActive, queueHint, addTrackToOrbit } = useOrbitSongRowBehavior();
   const touchPlaylist = usePlaylistStore((s) => s.touchPlaylist);
-  const { startDrag, isDragging } = useDragDrop();
+  const { startDrag } = useDragDrop();
   const downloadPlaylist = useOfflineStore(s => s.downloadPlaylist);
   const deleteAlbum = useOfflineStore(s => s.deleteAlbum);
   const activeServerId = useAuthStore(s => s.activeServerId) ?? '';
   void useLocalPlaybackStore(s => s.entries);
   const downloadFolder = useAuthStore(s => s.downloadFolder);
-  const setDownloadFolder = useAuthStore(s => s.setDownloadFolder);
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
-  const enableCoverArtBackground = useThemeStore(s => s.enableCoverArtBackground);
-  const enablePlaylistCoverPhoto = useThemeStore(s => s.enablePlaylistCoverPhoto);
-  const showBitrate = useThemeStore(s => s.showBitrate);
 
   const [playlist, setPlaylist] = useState<SubsonicPlaylist | null>(null);
   const [songs, setSongs] = useState<SubsonicSong[]>([]);
@@ -120,8 +95,6 @@ export default function PlaylistDetail() {
   const [sortClickCount, setSortClickCount] = useState(0);
   const [starredSongs, setStarredSongs] = useState<Set<string>>(new Set());
   const [hoveredSuggestionId, setHoveredSuggestionId] = useState<string | null>(null);
-  const previewingId = usePreviewStore(s => s.previewingId);
-  const previewAudioStarted = usePreviewStore(s => s.audioStarted);
   const [contextMenuSongId, setContextMenuSongId] = useState<string | null>(null);
   const zipDownloads = useZipDownloadStore(s => s.downloads);
   const [zipDownloadId, setZipDownloadId] = useState<string | null>(null);

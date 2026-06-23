@@ -2,7 +2,7 @@ import { getAlbumList } from '../api/subsonicLibrary';
 import { resolveAlbum } from '../utils/offline/offlineMediaResolve';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { songToTrack } from '../utils/playback/songToTrack';
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowUpDown, ArrowDown, ArrowUp, TrendingUp, UsersRound, Play, ListPlus } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';

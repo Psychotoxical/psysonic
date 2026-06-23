@@ -3,18 +3,17 @@ import { albumCoverRef } from '../cover/ref';
 import { usePlaybackTrackCoverRef } from '../cover/useLibraryCoverRef';
 import { coverArtIdFromRadio } from '../cover/ids';
 import type { SubsonicArtistInfo, SubsonicSong } from '../api/subsonicTypes';
-import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { usePlaybackLibraryNavigate } from '../hooks/usePlaybackLibraryNavigate';
 import { usePlaybackServerId } from '../hooks/usePlaybackServerId';
 import { useTranslation } from 'react-i18next';
-import { Music, ExternalLink, Cast, Users, Radio, Clock, SkipForward, Info, Calendar, Disc3, Play, EyeOff, LayoutGrid, RotateCcw, Eye } from 'lucide-react';
-import { open as shellOpen } from '@tauri-apps/plugin-shell';
+import { Music, EyeOff, LayoutGrid, RotateCcw, Eye } from 'lucide-react';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
 import { useLyricsStore } from '../store/lyricsStore';
 import { songToTrack } from '../utils/playback/songToTrack';
 import { useRadioMetadata } from '../hooks/useRadioMetadata';
-import { useDragSource, useDragDrop } from '../contexts/DragDropContext';
+import { useDragDrop } from '../contexts/DragDropContext';
 import OverlayScrollArea from '../components/OverlayScrollArea';
 import {
   useNpLayoutStore, NP_CARD_IDS,
@@ -24,9 +23,7 @@ import {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 import {
-  formatTime, formatCompact, isoToParts,
   buildContributorRows,
-  type ContributorRow,
 } from '../utils/componentHelpers/nowPlayingHelpers';
 import NpCardWrap from '../components/nowPlaying/NpCardWrap';
 import NpColumnEl from '../components/nowPlaying/NpColumnEl';
