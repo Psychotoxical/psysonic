@@ -383,6 +383,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Artist artwork from fanart.tv — opt-in fullscreen background + artist-header banner, off by default (PR #1137)',
       'Per-device equalizer profiles — opt-in, remembers and restores the EQ for each audio output device (PR #1146)',
       'Hungarian (Magyar) translation (PR #1149)',
+      'Theme scheduler — follow the OS light/dark setting as an alternative to the time-based day/night schedule (PR #1163)',
     ],
   },
   {

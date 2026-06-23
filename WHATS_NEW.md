@@ -42,6 +42,10 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 
 - Turn on **Remember EQ per device** under **Settings → Audio** and Psysonic keeps a separate equalizer setup for each output — speakers, headphones, a USB DAC — and switches to the right one automatically when you change devices. Off by default.
 
+### Themes — follow your system's light and dark mode
+
+- The theme scheduler can now match your **system's light/dark setting** instead of a fixed clock: pick a light theme and a dark one, and Psysonic switches along with your OS. Choose **Time of Day** or **System Theme** under **Settings → Themes** — the existing time-based schedule is still there.
+
 ## Fixed
 
 ### Playback and audio

@@ -89,6 +89,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * In an Orbit session the host's track-transition settings — crossfade, gapless or AutoDJ, including the crossfade length and smooth-skip — now apply to everyone, so guests blend between tracks the same way the host does instead of each person using their own. Your own settings are restored when you leave.
 * While you are a guest in a session, the transition controls in Settings → Audio and the queue toolbar are shown as host-controlled.
 
+### Theme scheduler — follow the system theme
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1163](https://github.com/Psychotoxical/psysonic/pull/1163)**, suggested by [@mokazemi](https://github.com/mokazemi)
+
+* The theme scheduler can now switch your day/night theme pair based on your operating system's light/dark setting, in addition to the existing time-of-day schedule. Pick the trigger with a new Time of Day / System Theme switch; in system mode the two pickers read as Light and Dark theme. On Linux setups where the OS does not signal the change live, a hint notes it applies after restarting the app.
+
 
 ## Changed
 
