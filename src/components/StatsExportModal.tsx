@@ -53,7 +53,7 @@ export default function StatsExportModal({ open, albums, meta, onClose }: Props)
   useEffect(() => {
     if (!open) return;
     if (albums.length >= MAX_NEEDED) {
-      // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
+      // React Compiler set-state-in-effect rule: local state synced with the already-available `albums` prop when the modal opens (the async top-up below is skipped).
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTopUpAlbums(albums);
       return;

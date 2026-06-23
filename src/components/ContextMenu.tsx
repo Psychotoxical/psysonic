@@ -109,7 +109,7 @@ export default function ContextMenu() {
   useEffect(() => {
     if (contextMenu.isOpen) {
       cancelPlaylistSubmenuCloseTimer();
-      // React Compiler set-state-in-effect rule: state set from a DOM/layout measurement.
+      // React Compiler set-state-in-effect rule: local coords synced from the store's contextMenu position when the menu opens.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setCoords({ x: contextMenu.x, y: contextMenu.y });
       setPlaylistSubmenuOpen(false);
