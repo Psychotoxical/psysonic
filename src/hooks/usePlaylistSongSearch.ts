@@ -27,7 +27,7 @@ export function usePlaylistSongSearch(
         const res = await search(searchQuery, { songCount: 20, artistCount: 0, albumCount: 0 });
         const existingIds = new Set(songs.map(s => s.id));
         setSearchResults(res.songs.filter(s => !existingIds.has(s.id)));
-      } catch {}
+      } catch { /* ignore: best-effort */ }
       setSearching(false);
     }, 350);
     return () => { if (searchDebounce.current) clearTimeout(searchDebounce.current); };

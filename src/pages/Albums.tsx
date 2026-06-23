@@ -56,6 +56,7 @@ import { useScopedBrowseSearchQuery } from '../store/liveSearchScopeStore';
 type SortType = AlbumBrowseSort;
 
 function sanitizeFilename(name: string): string {
+  // eslint-disable-next-line no-control-regex -- intentional: strip control chars for safe download filenames
   return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim() || 'download';
 }
 

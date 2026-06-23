@@ -48,6 +48,7 @@ const NETWORK_SONGS_PER_FETCH = 100;
 const NETWORK_MAX_FETCHES_PER_LOAD = 2;
 
 function sanitizeFilename(name: string): string {
+  // eslint-disable-next-line no-control-regex -- intentional: strip control chars for safe download filenames
   return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim() || 'download';
 }
 

@@ -14,7 +14,7 @@ export function waveformBlobLenOk(len: number): boolean {
 
 export function coerceWaveformBins(bins: unknown): number[] | null {
   if (bins == null) return null;
-  let raw: number[] | null = null;
+  let raw: number[];
   if (Array.isArray(bins)) {
     if (bins.length === 0) return null;
     raw = bins.map(x => Number(x) & 255);

@@ -205,7 +205,7 @@ export default function InternetRadio() {
     try {
       await deleteInternetRadioStation(s.id);
       setStations(prev => prev.filter(st => st.id !== s.id));
-    } catch {}
+    } catch { /* ignore: best-effort */ }
     setDeleteConfirmId(null);
   };
 

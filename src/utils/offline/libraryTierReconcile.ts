@@ -184,7 +184,7 @@ export async function reconcileLibraryTierForServer(
     removedStaleIndex += 1;
   }
 
-  let orphansRemoved = 0;
+  let orphansRemoved: number;
   try {
     const removed = await invoke<string[]>('prune_orphan_library_tier_files', {
       serverIndexKey,
@@ -256,7 +256,7 @@ export async function reconcileLibraryTierForAlbum(
     keepPaths.add(hit.path);
   }
 
-  let orphansRemoved = 0;
+  let orphansRemoved: number;
   try {
     const removed = await invoke<string[]>('prune_orphan_library_tier_files', {
       serverIndexKey,

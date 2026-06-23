@@ -30,7 +30,8 @@ export function usePlaylistStarRating(deps: PlaylistStarRatingDeps): PlaylistSta
     const isStarred = song.id in starredOverrides ? starredOverrides[song.id] : starredSongs.has(song.id);
     setStarredSongs(prev => {
       const next = new Set(prev);
-      isStarred ? next.delete(song.id) : next.add(song.id);
+      if (isStarred) next.delete(song.id);
+      else next.add(song.id);
       return next;
     });
     // F4: optimistic override + retried server sync via the central helper (no rollback).

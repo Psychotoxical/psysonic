@@ -145,7 +145,7 @@ export default function PlaylistDetail() {
     try {
       await updatePlaylist(id, updatedSongs.map(s => s.id), prevCount);
       if (id) touchPlaylist(id);
-    } catch {}
+    } catch { /* ignore: best-effort */ }
     setSaving(false);
   }, [id, touchPlaylist]);
 

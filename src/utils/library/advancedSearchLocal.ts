@@ -274,7 +274,7 @@ export async function runNetworkAdvancedTextSearch(
 
   let artists = r.artists;
   let albums = r.albums;
-  let songs = applyClientSongFilters(r.songs, opts);
+  const songs = applyClientSongFilters(r.songs, opts);
 
   const g = opts.genre;
   const from = opts.yearFrom ? parseInt(opts.yearFrom, 10) : null;

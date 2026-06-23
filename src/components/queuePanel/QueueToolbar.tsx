@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Blend, Check, FolderOpen, Infinity, ListMusic, MoveRight, Save, Share2, Shuffle, Trash2, Waves,
+  Blend, Check, FolderOpen, Infinity as InfinityIcon, ListMusic, MoveRight, Save, Share2, Shuffle, Trash2, Waves,
 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import type { QueueItemRef } from '../../store/playerStoreTypes';
@@ -225,7 +225,7 @@ export function QueueToolbar({
                 data-tooltip={t('queue.infiniteQueue')}
                 aria-label={t('queue.infiniteQueue')}
               >
-                <Infinity size={13} />
+                <InfinityIcon size={13} />
               </button>
             );
           default:

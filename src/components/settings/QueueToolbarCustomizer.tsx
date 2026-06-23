@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Blend, GripVertical, Infinity, ListMusic, MoveRight, Share2, Shuffle, Trash2, Waves } from 'lucide-react';
+import { Blend, GripVertical, Infinity as InfinityIcon, ListMusic, MoveRight, Share2, Shuffle, Trash2, Waves } from 'lucide-react';
 import { useDragDrop, useDragSource } from '../../contexts/DragDropContext';
 import { useQueueToolbarStore, QueueToolbarButtonId } from '../../store/queueToolbarStore';
 
@@ -15,7 +15,7 @@ const QUEUE_TOOLBAR_BUTTON_ICONS: Record<QueueToolbarButtonId, typeof Shuffle | 
   gapless: MoveRight,
   crossfade: Waves,
   autodj: Blend,
-  infinite: Infinity,
+  infinite: InfinityIcon,
 };
 
 const QUEUE_TOOLBAR_LABEL_KEYS: Record<QueueToolbarButtonId, string> = {

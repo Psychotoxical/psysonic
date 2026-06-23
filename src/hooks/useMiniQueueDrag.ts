@@ -44,7 +44,7 @@ export function useMiniQueueDrag({
     const onPsyDrop = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (!detail?.data) return;
-      let parsed: any = null;
+      let parsed: any;
       try { parsed = JSON.parse(detail.data); } catch { return; }
       const tgt = dropTargetRef.current;
       dropTargetRef.current = null;
@@ -74,7 +74,7 @@ export function useMiniQueueDrag({
       const cx = d.clientX;
       const cy = d.clientY;
       if (typeof cx !== 'number' || typeof cy !== 'number') return;
-      let parsed: { type?: string; index?: number } | null = null;
+      let parsed: { type?: string; index?: number };
       try {
         parsed = JSON.parse(d.data);
       } catch {

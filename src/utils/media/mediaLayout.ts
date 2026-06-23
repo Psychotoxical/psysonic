@@ -1,6 +1,7 @@
 import type { LibraryTrackDto } from '../../api/library';
 
 const MAX_SEGMENT_LEN = 120;
+// eslint-disable-next-line no-control-regex -- intentional: strip C0/DEL control chars from path segments (mirrors Rust sanitize_path_segment)
 const FORBIDDEN = /[\\/:*?"<>|\u0000-\u001f\u007f]/g;
 const WINDOWS_RESERVED = new Set([
   'CON', 'PRN', 'AUX', 'NUL',
@@ -10,7 +11,7 @@ const WINDOWS_RESERVED = new Set([
 
 /** Keep path-segment rules aligned with `psysonic_core::cover_cache_layout::sanitize_path_segment`. */
 function sanitizeSegment(segment: string): string {
-  let trimmed = segment.trim().replace(/[. ]+$/, '');
+  const trimmed = segment.trim().replace(/[. ]+$/, '');
   if (!trimmed) return '_';
   const cleaned = trimmed.replace(FORBIDDEN, '_');
   if (!cleaned || cleaned === '.' || cleaned === '..') return '_';

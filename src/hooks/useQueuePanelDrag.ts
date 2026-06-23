@@ -55,7 +55,7 @@ export function useQueuePanelDrag({
       const detail = (e as CustomEvent).detail;
       if (!detail?.data) return;
 
-      let parsedData: any = null;
+      let parsedData: any;
       try { parsedData = JSON.parse(detail.data); } catch { return; }
 
       // Radio streams are not tracks — reject silently
@@ -99,7 +99,7 @@ export function useQueuePanelDrag({
       const cx = d.clientX;
       const cy = d.clientY;
       if (typeof cx !== 'number' || typeof cy !== 'number') return;
-      let parsed: { type?: string; index?: number } | null = null;
+      let parsed: { type?: string; index?: number } | null;
       try {
         parsed = JSON.parse(d.data);
       } catch {

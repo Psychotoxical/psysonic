@@ -24,13 +24,12 @@ export function acquireNetFetchSlot(signal?: AbortSignal, getPriority?: () => nu
     return Promise.resolve(true);
   }
   return new Promise<boolean>(resolve => {
-    let waiter: LoadWaiter;
     const onAbort = () => {
       signal?.removeEventListener('abort', onAbort);
       removeLoadWaiter(waiter);
       resolve(false);
     };
-    waiter = {
+    const waiter: LoadWaiter = {
       getPriority: getPriority ?? (() => 0),
       resolve: (granted: boolean) => {
         signal?.removeEventListener('abort', onAbort);

@@ -340,7 +340,7 @@ export async function syncPinnedArtistIfNeeded(
   const scopeIds = knownAlbumIds ?? pinnedBefore;
   if (!isArtistDiscographyPinnedOffline(sid, scopeIds) && pinnedBefore.length === 0) return;
 
-  let liveAlbumIds: string[] = [];
+  let liveAlbumIds: string[];
   try {
     const { albums } = await getArtistForServer(sid, artistId);
     liveAlbumIds = albums.map(a => a.id);

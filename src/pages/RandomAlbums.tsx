@@ -45,6 +45,7 @@ const ALBUM_FETCH_OVERSHOOT = 100;
 const GENRE_UNION_PREFILTER_CAP = 250;
 
 function sanitizeFilename(name: string): string {
+  // eslint-disable-next-line no-control-regex -- intentional: strip control chars for safe download filenames
   return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim() || 'download';
 }
 

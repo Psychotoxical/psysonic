@@ -107,7 +107,7 @@ export default function Login() {
 
     // Test connection directly with entered credentials — don't touch the store yet.
     // This avoids any race condition with Zustand's async store rehydration.
-    let ping: Awaited<ReturnType<typeof pingWithCredentials>> = { ok: false };
+    let ping: Awaited<ReturnType<typeof pingWithCredentials>>;
     try {
       ping = await pingWithCredentials(profile.url.trim(), profile.username.trim(), profile.password);
     } catch {

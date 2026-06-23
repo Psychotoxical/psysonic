@@ -159,7 +159,7 @@ export default function RandomMix() {
         targetSize: overrideSize ?? randomMixSize,
       });
       setGenreMixSongs(list);
-    } catch {}
+    } catch { /* ignore: best-effort */ }
     setGenreMixLoading(false);
     setGenreMixComplete(true);
   };

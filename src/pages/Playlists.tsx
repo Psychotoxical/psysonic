@@ -165,7 +165,7 @@ export default function Playlists() {
         touchPlaylist(pl.id);
         playTrack(tracks[0], tracks);
       }
-    } catch {}
+    } catch { /* ignore: best-effort */ }
     setPlayingId(null);
   };
 

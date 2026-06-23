@@ -95,11 +95,11 @@ export default function MiniPlayer() {
   const toggleOnTop = async () => {
     const next = !alwaysOnTop;
     setAlwaysOnTop(next);
-    try { await invoke('set_mini_player_always_on_top', { onTop: next }); } catch {}
+    try { await invoke('set_mini_player_always_on_top', { onTop: next }); } catch { /* ignore: best-effort */ }
   };
 
   const closeMini = async () => {
-    try { await invoke('close_mini_player'); } catch {}
+    try { await invoke('close_mini_player'); } catch { /* ignore: best-effort */ }
   };
 
   const showMain = () => invoke('show_main_window').catch(() => {});
@@ -112,11 +112,11 @@ export default function MiniPlayer() {
     if (!next) {
       const h = Math.round(window.innerHeight);
       if (h >= EXPANDED_MIN.h) {
-        try { localStorage.setItem(EXPANDED_H_KEY, String(h)); } catch {}
+        try { localStorage.setItem(EXPANDED_H_KEY, String(h)); } catch { /* ignore: best-effort */ }
       }
     }
     setQueueOpen(next);
-    try { localStorage.setItem(QUEUE_OPEN_KEY, next ? '1' : '0'); } catch {}
+    try { localStorage.setItem(QUEUE_OPEN_KEY, next ? '1' : '0'); } catch { /* ignore: best-effort */ }
     const targetH = next ? readStoredExpandedHeight() : COLLAPSED_SIZE.h;
     const targetW = next ? EXPANDED_SIZE.w : COLLAPSED_SIZE.w;
     const min = next ? EXPANDED_MIN : COLLAPSED_MIN;
@@ -127,7 +127,7 @@ export default function MiniPlayer() {
         minWidth: min.w,
         minHeight: min.h,
       });
-    } catch {}
+    } catch { /* ignore: best-effort */ }
   };
 
   const jumpTo = (index: number) => emit('mini:jump', { index }).catch(() => {});

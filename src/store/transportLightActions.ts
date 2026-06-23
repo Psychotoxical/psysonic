@@ -101,7 +101,8 @@ export function createTransportLightActions(set: SetState, get: GetState): Pick<
     togglePlay: () => {
       if (!tryAcquireTogglePlayLock()) return;
       const { isPlaying } = get();
-      isPlaying ? get().pause() : get().resume();
+      if (isPlaying) get().pause();
+      else get().resume();
     },
   };
 }

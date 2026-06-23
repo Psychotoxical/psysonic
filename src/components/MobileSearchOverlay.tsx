@@ -183,7 +183,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
     showToast(t('search.addedToQueueToast', { title: track.title }), 2200, 'info');
     onClose();
   };
-  const useRecent = (term: string) => {
+  const applyRecentSearch = (term: string) => {
     setQuery(term, { recordUndo: true });
     inputRef.current?.focus();
   };
@@ -268,7 +268,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
               <div className="mobile-search-section">
                 <div className="mobile-search-section-label">{t('search.recentSearches')}</div>
                 {recentSearches.map(term => (
-                  <button key={term} className="mobile-search-item" onClick={() => useRecent(term)}>
+                  <button key={term} className="mobile-search-item" onClick={() => applyRecentSearch(term)}>
                     <div className="mobile-search-avatar">
                       <Clock size={18} />
                     </div>

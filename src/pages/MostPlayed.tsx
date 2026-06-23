@@ -121,7 +121,7 @@ export default function MostPlayed() {
       const result = await getAlbumList('frequent', PAGE_SIZE, 0);
       setAlbums(result);
       setHasMore(result.length === PAGE_SIZE);
-    } catch {}
+    } catch { /* ignore: best-effort */ }
     setLoading(false);
   }, [musicLibraryFilterVersion]);
 
@@ -134,7 +134,7 @@ export default function MostPlayed() {
       const result = await getAlbumList('frequent', PAGE_SIZE, albums.length);
       setAlbums(prev => [...prev, ...result]);
       setHasMore(result.length === PAGE_SIZE);
-    } catch {}
+    } catch { /* ignore: best-effort */ }
     setLoadingMore(false);
   };
 

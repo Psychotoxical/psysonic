@@ -23,7 +23,7 @@ export function readStoredExpandedHeight(): number {
       const n = parseInt(raw, 10);
       if (Number.isFinite(n) && n >= EXPANDED_MIN.h) return n;
     }
-  } catch {}
+  } catch { /* ignore: best-effort */ }
   return EXPANDED_SIZE.h;
 }
 

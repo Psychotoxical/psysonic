@@ -370,7 +370,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
                     const albumData = await resolveAlbum(serverId, album.id);
                     if (!albumData) return;
                     usePlayerStore.getState().enqueue(albumData.songs.map(songToTrack));
-                  } catch (_) {}
+                  } catch (_) { /* ignore: best-effort */ }
                 }}
                 aria-label={t('hero.enqueue')}
                 data-tooltip={t('hero.enqueueTooltip')}
@@ -404,7 +404,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
                     if (!albumData) return;
                     const tracks = albumData.songs.map(songToTrack);
                     usePlayerStore.getState().enqueue(tracks);
-                  } catch (_) {}
+                  } catch (_) { /* ignore: best-effort */ }
                 }}
                 style={{ padding: '0 1.5rem', fontWeight: 600, fontSize: '0.95rem' }}
                 data-tooltip={t('hero.enqueueTooltip')}

@@ -126,7 +126,7 @@ async function runOrchestrator(force = false): Promise<void> {
     const after = await migrationInspect(mappings);
     state.setInspect(after);
     state.setNeedsMigration(after.needsMigration);
-    skippedLogged = logSkippedUnknownRowsOnce(after, skippedLogged);
+    logSkippedUnknownRowsOnce(after, skippedLogged);
     if (!after.needsMigration) {
       localStorage.setItem(MIGRATION_DONE_FLAG, '1');
       await runGenreTagsPhase();

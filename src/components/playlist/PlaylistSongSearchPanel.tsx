@@ -130,7 +130,8 @@ export default function PlaylistSongSearchPanel({
               onClick={e => e.stopPropagation()}
               onChange={() => setSelectedSearchIds(prev => {
                 const next = new Set(prev);
-                next.has(song.id) ? next.delete(song.id) : next.add(song.id);
+                if (next.has(song.id)) next.delete(song.id);
+                else next.add(song.id);
                 return next;
               })}
             />

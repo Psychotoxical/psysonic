@@ -83,7 +83,7 @@ async function fetchPingFingerprint(
     customHeaders: undefined,
     customHeadersApplyTo: undefined,
   };
-  let body: Record<string, unknown> | null = null;
+  let body: Record<string, unknown> | null;
   try {
     const resp = await fetch(url, {
       method: 'GET',

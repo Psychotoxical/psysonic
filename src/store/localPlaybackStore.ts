@@ -232,7 +232,7 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
           return idx >= 0 ? idx : null;
         };
 
-        let entries = { ...get().entries };
+        const entries = { ...get().entries };
         let sum = Object.values(entries)
           .filter(e => e.tier === 'ephemeral')
           .reduce((a, e) => a + (e.sizeBytes || 0), 0);

@@ -70,7 +70,8 @@ export function useAlbumTrackListSelection({
         const to   = Math.max(lastSelectedIdxRef.current, globalIdx);
         songs.slice(from, to + 1).forEach(s => next.add(s.id));
       } else {
-        next.has(id) ? next.delete(id) : next.add(id);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
       }
       lastSelectedIdxRef.current = globalIdx;
       return next;

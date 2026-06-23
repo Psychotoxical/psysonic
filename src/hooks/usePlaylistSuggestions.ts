@@ -30,7 +30,7 @@ export function usePlaylistSuggestions(songs: SubsonicSong[], playlistId: string
     try {
       const random = await getRandomSongs(25, genre);
       setSuggestions(random.filter(s => !existingIds.has(s.id)).slice(0, 10));
-    } catch {}
+    } catch { /* ignore: best-effort */ }
     setLoadingSuggestions(false);
   }, []);
 

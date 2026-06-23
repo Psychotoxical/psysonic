@@ -42,6 +42,7 @@ import { useScopedBrowseSearchQuery } from '../store/liveSearchScopeStore';
 const PAGE_SIZE = 30;
 
 function sanitizeFilename(name: string): string {
+  // eslint-disable-next-line no-control-regex -- intentional: strip control chars for safe download filenames
   return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim() || 'download';
 }
 

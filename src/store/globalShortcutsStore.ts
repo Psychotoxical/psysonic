@@ -46,7 +46,7 @@ export const useGlobalShortcutsStore = create<GlobalShortcutsState>()(
       setShortcut: async (action, shortcut) => {
         const prev = get().shortcuts[action];
         if (GLOBAL_SHORTCUTS_OS_ENABLED && prev) {
-          try { await invoke('unregister_global_shortcut', { shortcut: prev }); } catch {}
+          try { await invoke('unregister_global_shortcut', { shortcut: prev }); } catch { /* ignore: best-effort */ }
         }
         if (shortcut) {
           if (GLOBAL_SHORTCUTS_OS_ENABLED) {
@@ -90,7 +90,7 @@ export const useGlobalShortcutsStore = create<GlobalShortcutsState>()(
         if (GLOBAL_SHORTCUTS_OS_ENABLED) {
           for (const shortcut of Object.values(shortcuts)) {
             if (shortcut) {
-              try { await invoke('unregister_global_shortcut', { shortcut }); } catch {}
+              try { await invoke('unregister_global_shortcut', { shortcut }); } catch { /* ignore: best-effort */ }
             }
           }
         }
