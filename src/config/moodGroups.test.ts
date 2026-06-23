@@ -4,8 +4,6 @@ import {
   MOOD_GROUPS,
   OXIMEDIA_MOOD_TAG_IDS,
   TOP_OXIMEDIA_MOOD_TAG_TEST_SCORES,
-  moodScoresFromValenceArousal,
-  topDistinctOximediaMoodTagIds,
   topDistinctOximediaMoodTagIdsFromValenceArousal,
   topOximediaMoodTagIds,
 } from './moodGroups';

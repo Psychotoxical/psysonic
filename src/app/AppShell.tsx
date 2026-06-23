@@ -2,7 +2,6 @@ import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ensurePlaybackServerActive } from '../utils/playback/playbackServer';
 import { navigatePathWithAlbumReturnTo, shouldSkipMainScrollResetOnRouteChange } from '../utils/navigation/albumDetailNavigation';
-import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { PanelRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -113,7 +112,6 @@ export function AppShell() {
   const useCustomTitlebar = useAuthStore(s => s.useCustomTitlebar);
   const offlineCtx = useOfflineBrowseContext();
   const offlineNav = offlineBrowseNavFlags(offlineCtx.capabilities);
-  const hasOfflineContent = offlineCtx.hasBrowsingContent;
   const hasOfflineBrowse = offlineCtx.hasBrowseCapability;
   const floatingPlayerBar = useThemeStore(s => s.floatingPlayerBar);
   const perfFlags = usePerfProbeFlags();
@@ -218,7 +216,6 @@ export function AppShell() {
 
   const {
     queueWidth,
-    isDraggingQueue,
     setIsDraggingQueue,
     queueHandleTop,
     handleQueueHandleMouseDown,
