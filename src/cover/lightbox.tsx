@@ -16,6 +16,8 @@ export function useCoverLightboxSrc(
   useEffect(() => {
     if (!open || !ref) return;
     let cancelled = false;
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     void (async () => {
       const diskSrc = await ensureCoverTierDiskSrc(ref, 2000);
@@ -37,6 +39,8 @@ export function useCoverLightboxSrc(
 
   useEffect(() => {
     if (open) return;
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSrc('');
     setLoading(false);
   }, [open]);

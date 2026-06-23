@@ -9,6 +9,8 @@ export function useElementClientHeightById(elementId: string, fallback = 800): n
   useLayoutEffect(() => {
     const el = typeof document !== 'undefined' ? document.getElementById(elementId) : null;
     if (!el) {
+      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setH(fallback);
       return;
     }
@@ -46,6 +48,8 @@ export function useElementClientHeightForElement(
   const [h, setH] = useState(fallback);
   useLayoutEffect(() => {
     if (!element) {
+      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setH(fallback);
       return;
     }

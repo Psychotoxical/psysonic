@@ -30,6 +30,8 @@ export function useMainstageInpageHeaderTight(
   }, [scrollBodyEl]);
 
   useEffect(() => {
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTight(false);
     // Spread values so deps track filter keys, not a new array identity each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps

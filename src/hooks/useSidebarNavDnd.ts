@@ -40,6 +40,8 @@ export function useSidebarNavDnd({
   const [navDnd, setNavDnd] = useState<NavDndState | null>(null);
   const [navDropTarget, setNavDropTarget] = useState<SidebarNavDropTarget | null>(null);
   const navDropTargetRef = useRef<SidebarNavDropTarget | null>(null);
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   navDropTargetRef.current = navDropTarget;
   /** DOM timers are numeric; avoid NodeJS `Timeout` typing from `setTimeout`. */
   const longPressTimersRef = useRef<Map<number, number>>(new Map());

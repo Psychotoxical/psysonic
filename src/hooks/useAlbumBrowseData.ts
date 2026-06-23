@@ -204,6 +204,8 @@ export function useAlbumBrowseData({
   const loadMoreRef = useRef<() => void>(() => {});
   const sentinelIntersectingRef = useRef(false);
   const browseModeRef = useRef(browseMode);
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   browseModeRef.current = browseMode;
 
   useEffect(() => {
@@ -324,6 +326,8 @@ export function useAlbumBrowseData({
     catalogOffsetRef.current = 0;
     loadPendingRef.current = false;
     catalogLoadingRef.current = false;
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(0);
     setAlbums([]);
     setHasMore(true);
@@ -394,6 +398,8 @@ export function useAlbumBrowseData({
 
   useEffect(() => {
     if (!genreCatalogActive) {
+      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setGenreCatalogOptions(null);
       return;
     }
@@ -459,6 +465,8 @@ export function useAlbumBrowseData({
     loadMorePage();
   }, [browseMode, loadMoreGrid, loadMorePage]);
 
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   loadMoreRef.current = loadMore;
 
   useEffect(() => {

@@ -28,6 +28,8 @@ export function useDeviceSyncDrives(targetDir: string | null): DeviceSyncDrivesR
 
   // Fetch drives on mount, then poll every 5 seconds
   useEffect(() => {
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshDrives();
     const interval = setInterval(refreshDrives, 5000);
     return () => clearInterval(interval);

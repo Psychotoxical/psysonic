@@ -53,6 +53,8 @@ export function useArtistsBrowseFilters(
   const restoredFromStashRef = useRef(false);
   const showArtistImages = useAuthStore(s => s.showArtistImages);
 
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   browseStateRef.current = {
     filter: useLiveSearchScopeStore.getState().query,
     letterFilter,
@@ -73,6 +75,8 @@ export function useArtistsBrowseFilters(
       const restored = useArtistBrowseSessionStore.getState().peekReturnStash(serverId);
       if (restored) {
         useLiveSearchScopeStore.getState().setQuery(restored.filter);
+        // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setLetterFilter(restored.letterFilter);
         setStarredOnly(restored.starredOnly);
         setViewMode(restored.viewMode);

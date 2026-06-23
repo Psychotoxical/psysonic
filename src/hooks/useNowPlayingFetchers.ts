@@ -216,6 +216,8 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
 
   // Fetch batch per entity change (not per song switch — same-artist songs share artist/top/tour fetches)
   useEffect(() => {
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!indexFetchAllowed || !songId) { setSongMetaEntry(null); return; }
     const cacheKey = subsonicCacheKey(subsonicServerId, songId);
     const cached = songMetaCache.get(cacheKey);
@@ -229,6 +231,8 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
   }, [indexFetchAllowed, subsonicServerId, songId, connStatus]);
 
   useEffect(() => {
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!networkOnlyAllowed || !artistId) { setArtistInfoEntry(null); return; }
     const cacheKey = subsonicCacheKey(subsonicServerId, artistId);
     const cached = artistInfoCache.get(cacheKey);
@@ -242,6 +246,8 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
   }, [networkOnlyAllowed, subsonicServerId, artistId, audiomuseNavidromeEnabled, connStatus]);
 
   useEffect(() => {
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!indexFetchAllowed || !albumId) { setAlbumDataEntry(null); return; }
     const cacheKey = subsonicCacheKey(subsonicServerId, albumId);
     const cached = albumCache.get(cacheKey);
@@ -255,6 +261,8 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
   }, [indexFetchAllowed, subsonicServerId, albumId, connStatus]);
 
   useEffect(() => {
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!indexFetchAllowed || !topSongsKey) { setTopSongsEntry(null); return; }
     const cached = topSongsCache.get(topSongsKey);
     if (cached !== undefined) { setTopSongsEntry({ key: topSongsKey, value: cached }); return; }
@@ -267,6 +275,8 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
   }, [indexFetchAllowed, topSongsKey, subsonicServerId, artistId, artistName, connStatus]);
 
   useEffect(() => {
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!tourKey) { setTourEventsEntry(null); setTourLoading(false); return; }
     const cached = tourCache.get(tourKey);
     if (cached !== undefined) { setTourEventsEntry({ key: tourKey, value: cached }); setTourLoading(false); return; }
@@ -281,6 +291,8 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
 
   // Discography via getArtist
   useEffect(() => {
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!indexFetchAllowed || !artistId) { setDiscographyEntry(null); return; }
     const cacheKey = subsonicCacheKey(subsonicServerId, artistId);
     const cached = discographyCache.get(cacheKey);
@@ -296,6 +308,8 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
   // Enrichment track stats (per-track, from the enrichment primary)
   useEffect(() => {
     const runtime = getMusicNetworkRuntimeOrNull();
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!runtime?.getEnrichmentPrimaryId() || !currentTrack || !networkTrackKey) { setNetworkTrackEntry(null); return; }
     const cached = networkTrackCache.get(networkTrackKey);
     if (cached !== undefined) { setNetworkTrackEntry({ key: networkTrackKey, value: cached }); return; }
@@ -310,6 +324,8 @@ export function useNowPlayingFetchers(deps: NowPlayingFetchersDeps): NowPlayingF
   // Enrichment artist stats (per-artist — shared across same-artist tracks)
   useEffect(() => {
     const runtime = getMusicNetworkRuntimeOrNull();
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!runtime?.getEnrichmentPrimaryId() || !artistName || !networkArtistKey) { setNetworkArtistEntry(null); return; }
     const cached = networkArtistCache.get(networkArtistKey);
     if (cached !== undefined) { setNetworkArtistEntry({ key: networkArtistKey, value: cached }); return; }

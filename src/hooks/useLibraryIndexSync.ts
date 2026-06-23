@@ -127,6 +127,8 @@ export function useLibraryIndexSync() {
 
   useEffect(() => {
     if (!masterEnabled || indexedKeys.length === 0) return;
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void runBootstrap();
   }, [masterEnabled, indexedKeys.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 

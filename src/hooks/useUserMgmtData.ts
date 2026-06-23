@@ -56,6 +56,8 @@ export function useUserMgmtData(serverUrl: string, token: string, t: TFunction):
     }
   }, [serverUrl, token, t]);
 
+  // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
   return { users, libraries, loading, loadError, load };

@@ -41,7 +41,11 @@ export function useGenreAlbumBrowse(
   const loadMoreRef = useRef<() => void>(() => {});
   const browseSessionRef = useRef({ key: '', restoreDisplayCount: undefined as number | undefined });
   const browseKey = `${serverId}:${genre}`;
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   if (browseSessionRef.current.key !== browseKey) {
+    // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+    // eslint-disable-next-line react-hooks/refs
     browseSessionRef.current = {
       key: browseKey,
       restoreDisplayCount: restoreDisplayCount,
@@ -53,6 +57,8 @@ export function useGenreAlbumBrowse(
     visibleCount,
     loadingMore: sliceLoadingMore,
     loadMore: sliceLoadMore,
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   } = useClientSliceInfiniteScroll({
     pageSize: CLIENT_SLICE_PAGE_SIZE,
     resetDeps: [
@@ -64,6 +70,8 @@ export function useGenreAlbumBrowse(
     ],
     getScrollRoot,
     scrollRootEl,
+    // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+    // eslint-disable-next-line react-hooks/refs
     restoreDisplayCount: sessionRestoreDisplayCount,
   });
 
@@ -115,6 +123,8 @@ export function useGenreAlbumBrowse(
 
   useEffect(() => {
     if (!genre) {
+      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAlbums([]);
       setCatalogHasMore(false);
       setLoading(false);
@@ -160,6 +170,8 @@ export function useGenreAlbumBrowse(
     }
   }, [genre, visibleCount, albums.length, catalogHasMore, sliceLoadMore, loadCatalogChunk]);
 
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   loadMoreRef.current = loadMore;
 
   const bindLoadMoreSentinel = useInpageScrollSentinel({

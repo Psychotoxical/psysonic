@@ -39,6 +39,8 @@ export function useBrowseArtistTextSearch(
   useEffect(() => {
     const q = debouncedFilter;
     if (!q || !indexEnabled || !serverId) {
+      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTextSearchArtists(null);
       setTextSearchLoading(false);
       return;

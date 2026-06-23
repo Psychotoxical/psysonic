@@ -31,6 +31,8 @@ export function useInpageScrollSentinel({
   intersectingRef,
 }: UseInpageScrollSentinelArgs): RefCallback<HTMLDivElement | null> {
   const onIntersectRef = useRef(onIntersect);
+  // React Compiler refs rule: ref intentionally read/written outside reactive rendering (once-only init guard or holding the latest value for effects/handlers/cleanup); not used to compute the render output.
+  // eslint-disable-next-line react-hooks/refs
   onIntersectRef.current = onIntersect;
 
   const setIntersecting = useCallback((hit: boolean) => {

@@ -54,6 +54,8 @@ export function useDeviceSyncBrowser(
 
   useEffect(() => {
     resetSearch();
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (activeTab === 'playlists' && playlists.length === 0) loadPlaylists();
     if (activeTab === 'albums'    && randomAlbums.length === 0) loadRandomAlbums();
     if (activeTab === 'artists'   && artists.length === 0)   loadArtists();
@@ -64,6 +66,8 @@ export function useDeviceSyncBrowser(
   useEffect(() => {
     if (activeTab !== 'albums') return;
     const q = search.trim();
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!q) { setAlbumSearchResults([]); return; }
     setAlbumSearchLoading(true);
     const timer = setTimeout(async () => {

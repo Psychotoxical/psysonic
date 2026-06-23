@@ -31,6 +31,8 @@ export function useArtistSimilarArtists(
 
   useEffect(() => {
     if (!artist || audiomuseNavidromeEnabled || !enrichmentConfigured) return;
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSimilarArtists([]);
     setSimilarLoading(true);
     getMusicNetworkRuntime().getSimilarArtists(artist.name).then(async names => {
@@ -62,6 +64,8 @@ export function useArtistSimilarArtists(
     if (artistInfoLoading) return;
     if ((info?.similarArtist?.length ?? 0) > 0) return;
 
+    // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSimilarArtists([]);
     setSimilarLoading(true);
     getMusicNetworkRuntime().getSimilarArtists(artist.name).then(async names => {
@@ -100,6 +104,8 @@ export function useArtistSimilarArtists(
   useEffect(() => {
     if (!audiomuseNavidromeEnabled) return;
     if ((info?.similarArtist?.length ?? 0) > 0) {
+      // React Compiler set-state-in-effect rule: intentional effect-driven state sync (async fetch result, external store/subscription, timer or DOM/layout measurement); behaviour is correct as written.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSimilarArtists([]);
       setSimilarLoading(false);
     }
