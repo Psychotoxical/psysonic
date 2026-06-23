@@ -19,7 +19,7 @@ export async function listenBrainzCall(
   ep: ListenBrainzEndpoint,
   path: string,
   jsonBody?: unknown,
-): Promise<any> {
+): Promise<unknown> {
   return invokeTransport(
     'listenbrainz_request',
     {

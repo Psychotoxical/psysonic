@@ -44,7 +44,7 @@ export function useMiniQueueDrag({
     const onPsyDrop = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (!detail?.data) return;
-      let parsed: any;
+      let parsed: { type?: string; index?: number };
       try { parsed = JSON.parse(detail.data); } catch { return; }
       const tgt = dropTargetRef.current;
       dropTargetRef.current = null;

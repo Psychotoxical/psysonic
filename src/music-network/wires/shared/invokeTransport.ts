@@ -27,7 +27,7 @@ export interface TransportAuthRule {
  * Invoke a provider transport command. On failure, throws the auth-class
  * MusicNetworkError when `auth.match` recognises the message, otherwise NETWORK.
  */
-export async function invokeTransport<T = any>(
+export async function invokeTransport<T = unknown>(
   command: string,
   args: Record<string, unknown>,
   auth?: TransportAuthRule,

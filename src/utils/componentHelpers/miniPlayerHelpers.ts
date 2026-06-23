@@ -1,6 +1,7 @@
 import { usePlayerStore } from '../../store/playerStore';
 import { resolveQueueTrack } from '../library/queueTrackView';
 import type { MiniSyncPayload, MiniTrackInfo } from '../miniPlayerBridge';
+import type { Track } from '../../store/playerStoreTypes';
 
 /** Half-width of the mini initial-snapshot queue window (matches the bridge). */
 const MINI_SNAPSHOT_HALF = 100;
@@ -35,7 +36,7 @@ export function readQueueOpen(): boolean {
   try { return localStorage.getItem(QUEUE_OPEN_KEY) === '1'; } catch { return false; }
 }
 
-export function toMini(t: any): MiniTrackInfo {
+export function toMini(t: Track): MiniTrackInfo {
   return {
     id: t.id,
     title: t.title,

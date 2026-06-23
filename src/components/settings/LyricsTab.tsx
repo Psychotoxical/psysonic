@@ -34,8 +34,8 @@ export function LyricsTab() {
               <div key={style}>
                 {i > 0 && <div className="settings-section-divider" />}
                 <SettingsToggle
-                  label={t(`settings.sidebarLyricsStyle${key}` as any)}
-                  desc={t(`settings.sidebarLyricsStyle${key}Desc` as any)}
+                  label={t(`settings.sidebarLyricsStyle${key}`)}
+                  desc={t(`settings.sidebarLyricsStyle${key}Desc`)}
                   checked={sidebarLyricsStyle === style}
                   onChange={c => setSidebarLyricsStyle(c ? style : other)}
                 />

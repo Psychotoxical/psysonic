@@ -17,7 +17,7 @@ export async function malojaCall(
   path: string,
   jsonBody?: unknown,
   query: [string, string][] = [],
-): Promise<any> {
+): Promise<unknown> {
   return invokeTransport(
     'maloja_request',
     {

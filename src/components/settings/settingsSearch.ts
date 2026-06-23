@@ -17,11 +17,11 @@ export function searchSettings(query: string, activeTab: Tab, t: TFunction): Set
   const hits: SettingsSearchHit[] = [];
 
   for (const entry of SETTINGS_INDEX) {
-    const title = t(entry.titleKey as any);
+    const title = t(entry.titleKey);
     const hay = entry.keywords ? `${title} ${entry.keywords}` : title;
     const score = matchScore(hay, q);
     if (score <= 0) continue;
-    const focusTitle = entry.focusTitleKey ? t(entry.focusTitleKey as any) : title;
+    const focusTitle = entry.focusTitleKey ? t(entry.focusTitleKey) : title;
     hits.push({ tab: entry.tab, title, focusTitle, score, key: entry.titleKey });
   }
 

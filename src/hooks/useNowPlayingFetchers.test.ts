@@ -11,7 +11,7 @@
  */
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SubsonicArtistInfo, SubsonicSong, SubsonicAlbum } from '../api/subsonicTypes';
+import type { SubsonicArtistInfo, SubsonicSong, SubsonicAlbum, SubsonicArtist } from '../api/subsonicTypes';
 
 vi.mock('../api/subsonicArtists');
 vi.mock('../api/subsonicLibrary');
@@ -25,6 +25,11 @@ import { getArtistForServer, getArtistInfoForServer, getTopSongsForServer } from
 import { getAlbumForServer, getSongForServer } from '../api/subsonicLibrary';
 import { fetchBandsintownEvents } from '../api/bandsintown';
 import { useNowPlayingFetchers, type NowPlayingFetchersDeps } from './useNowPlayingFetchers';
+
+// Resolved return shapes of the mocked API calls — used to cast deliberately
+// partial test fixtures without `any`.
+type ArtistForServer = Awaited<ReturnType<typeof getArtistForServer>>;
+type AlbumForServer = Awaited<ReturnType<typeof getAlbumForServer>>;
 
 // The real getArtistInfo signature returns `Promise<SubsonicArtistInfo>`, but
 // the hook treats `null` as the "no info available" case and stores it as
@@ -50,7 +55,7 @@ const baseDeps: NowPlayingFetchersDeps = {
 
 beforeEach(() => {
   vi.mocked(getTopSongsForServer).mockResolvedValue([]);
-  vi.mocked(getArtistForServer).mockResolvedValue({ albums: [] } as any);
+  vi.mocked(getArtistForServer).mockResolvedValue({ albums: [] } as unknown as ArtistForServer);
   vi.mocked(fetchBandsintownEvents).mockResolvedValue([]);
 });
 
@@ -161,9 +166,9 @@ describe('useNowPlayingFetchers — id-gated songMeta / albumData / discography'
     const al1 = deferred<{ album: SubsonicAlbum; songs: SubsonicSong[] } | null>();
     const al2 = deferred<{ album: SubsonicAlbum; songs: SubsonicSong[] } | null>();
     vi.mocked(getAlbumForServer).mockImplementation(async (_sid, id) => {
-      if (id === 'alb1') return al1.promise as any;
-      if (id === 'alb2') return al2.promise as any;
-      return null as any;
+      if (id === 'alb1') return al1.promise as unknown as AlbumForServer;
+      if (id === 'alb2') return al2.promise as unknown as AlbumForServer;
+      return null as unknown as AlbumForServer;
     });
 
     const { result, rerender } = renderHook(
@@ -183,12 +188,12 @@ describe('useNowPlayingFetchers — id-gated songMeta / albumData / discography'
   });
 
   it('gates discography on artistId match (empty fallback while gated)', async () => {
-    const d1 = deferred<{ artist: any; albums: SubsonicAlbum[] }>();
-    const d2 = deferred<{ artist: any; albums: SubsonicAlbum[] }>();
+    const d1 = deferred<{ artist: Partial<SubsonicArtist>; albums: SubsonicAlbum[] }>();
+    const d2 = deferred<{ artist: Partial<SubsonicArtist>; albums: SubsonicAlbum[] }>();
     vi.mocked(getArtistForServer).mockImplementation(async (_sid, id) => {
-      if (id === 'art-D1') return d1.promise as any;
-      if (id === 'art-D2') return d2.promise as any;
-      return { albums: [] } as any;
+      if (id === 'art-D1') return d1.promise as unknown as ArtistForServer;
+      if (id === 'art-D2') return d2.promise as unknown as ArtistForServer;
+      return { albums: [] } as unknown as ArtistForServer;
     });
     mockArtistInfo.mockResolvedValue(null);
 
@@ -241,10 +246,10 @@ describe('useNowPlayingFetchers — local-playback metadata', () => {
     );
     vi.mocked(getSongForServer).mockResolvedValue({ id: 'np-song', title: 'Local Track' } as SubsonicSong);
     vi.mocked(getAlbumForServer).mockResolvedValue(
-      { album: { id: 'np-al', name: 'Album' } as SubsonicAlbum, songs: [] } as any,
+      { album: { id: 'np-al', name: 'Album' } as SubsonicAlbum, songs: [] },
     );
-    vi.mocked(getArtistForServer).mockResolvedValue({ albums: [{ id: 'np-al' }] } as any);
-    vi.mocked(getTopSongsForServer).mockResolvedValue([{ id: 'np-top' }] as any);
+    vi.mocked(getArtistForServer).mockResolvedValue({ albums: [{ id: 'np-al' } as SubsonicAlbum] } as unknown as ArtistForServer);
+    vi.mocked(getTopSongsForServer).mockResolvedValue([{ id: 'np-top' } as unknown as SubsonicSong]);
 
     const { result } = renderHook(() =>
       useNowPlayingFetchers({ ...baseDeps, songId: 'np-song', albumId: 'np-al', artistId: 'np-art', artistName: 'NP Artist' }),

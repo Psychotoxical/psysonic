@@ -154,7 +154,7 @@ export function AppearanceTab() {
                         <WindowButtonPreview
                           key={style}
                           style={style}
-                          label={t(`settings.windowButtons${style.charAt(0).toUpperCase() + style.slice(1)}` as any)}
+                          label={t(`settings.windowButtons${style.charAt(0).toUpperCase() + style.slice(1)}`)}
                           selected={auth.windowButtonStyle === style}
                           onClick={() => auth.setWindowButtonStyle(style)}
                         />
@@ -301,7 +301,7 @@ export function AppearanceTab() {
                 <SeekbarPreview
                   key={style}
                   style={style}
-                  label={t(`settings.seekbar${style.charAt(0).toUpperCase() + style.slice(1)}` as any)}
+                  label={t(`settings.seekbar${style.charAt(0).toUpperCase() + style.slice(1)}`)}
                   selected={auth.seekbarStyle === style}
                   onClick={() => auth.setSeekbarStyle(style)}
                 />

@@ -1,7 +1,9 @@
 // Shared types for the shortcut-action subsystem. The contract overview lives
 // in the barrel, `shortcutActions.ts`.
 
-export type TranslateLike = (key: string, options?: any) => string;
+import type { NavigateOptions } from 'react-router-dom';
+
+export type TranslateLike = (key: string, options?: Record<string, unknown>) => string;
 
 /** One bindable slot (in-app OR global). `defaultBinding` is the out-of-box
  * chord, or `null` for "unbound by default". `hidden` keeps the action out of
@@ -12,15 +14,15 @@ export type ShortcutSlot = { defaultBinding: string | null; hidden?: boolean };
  * track-preview is interrupted: 'stop' for explicit UI / in-app keys, 'ignore'
  * for hardware media keys. */
 export type ActionContext = {
-  navigate: (to: string, options?: any) => void;
+  navigate: (to: string, options?: NavigateOptions) => void;
   previewPolicy: 'stop' | 'ignore';
 };
 
 /** Passed to `executeCliPlayerCommand` — the raw `cli:player-command` payload
  * plus a navigate fn. */
 export type CliContext = {
-  navigate: (to: string, options?: any) => void;
-  payload: any;
+  navigate: (to: string, options?: NavigateOptions) => void;
+  payload: Record<string, unknown>;
 };
 
 /** Registry entry for one shortcut action. `inApp` / `global` /

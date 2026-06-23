@@ -38,8 +38,8 @@ function toArray<T>(v: T | T[] | undefined | null): T[] {
   return Array.isArray(v) ? v : [v];
 }
 
-function topTags(raw: any, max = 5): string[] {
-  return toArray(raw).map((tg: any) => String(tg.name)).slice(0, max);
+function topTags(raw: unknown, max = 5): string[] {
+  return toArray(raw).map(tg => String((tg as { name?: unknown }).name)).slice(0, max);
 }
 
 class AudioscrobblerWireImpl implements EnrichmentWire {
@@ -181,7 +181,7 @@ class AudioscrobblerWireImpl implements EnrichmentWire {
   async getSimilarArtists(ctx: WireContext, name: string): Promise<string[]> {
     try {
       const data = await audioscrobblerCall(ctx, { method: 'artist.getSimilar', artist: name, limit: '50' }, false, true);
-      return toArray(data?.similarartists?.artist).map((a: any) => a.name as string);
+      return toArray(data?.similarartists?.artist).map(a => a.name as string);
     } catch {
       return [];
     }
@@ -257,7 +257,7 @@ class AudioscrobblerWireImpl implements EnrichmentWire {
         period,
         limit: String(limit),
       }, false, true);
-      return toArray(data?.[collection]?.[node]).map((it: any) => ({
+      return toArray(data?.[collection]?.[node]).map(it => ({
         name: it.name,
         playcount: it.playcount,
         ...(kind === 'artists' ? {} : { artist: it.artist?.name ?? '' }),
@@ -275,7 +275,7 @@ class AudioscrobblerWireImpl implements EnrichmentWire {
         sk: ctx.sessionKey,
         limit: String(limit),
       }, false, true);
-      return toArray(data?.recenttracks?.track).map((t: any) => ({
+      return toArray(data?.recenttracks?.track).map(t => ({
         name: t.name,
         artist: t.artist?.['#text'] ?? t.artist?.name ?? '',
         album: t.album?.['#text'] ?? '',

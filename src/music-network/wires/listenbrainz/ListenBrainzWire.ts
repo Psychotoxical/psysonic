@@ -65,7 +65,7 @@ class ListenBrainzWireImpl implements ScrobbleWire {
     const caps: CapabilitySet = {};
     try {
       const data = await listenBrainzCall(endpoint(ctx), '/1/validate-token');
-      const valid = data?.valid === true;
+      const valid = (data as { valid?: boolean })?.valid === true;
       caps.scrobble = { status: valid ? 'yes' : 'error', message: valid ? undefined : 'Token invalid' };
       caps.nowPlaying = { status: valid ? 'yes' : 'error' };
     } catch (e) {

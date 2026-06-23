@@ -13,13 +13,13 @@ export function runPlaylistReorderDrop(deps: RunPlaylistReorderDropDeps): void {
   const { e, songs, savePlaylist, setDropTargetIdx, setSongs } = deps;
   const detail = (e as CustomEvent).detail;
   if (!detail?.data) return;
-  let parsed: any;
+  let parsed: { type?: string; index?: number };
   try { parsed = JSON.parse(detail.data); } catch { return; }
   if (parsed.type !== 'playlist_reorder') return;
 
   setDropTargetIdx(null);
 
-  const fromIdx: number = parsed.index;
+  const fromIdx = parsed.index as number;
 
   // Determine drop index from the event target row
   const target = (e.target as HTMLElement).closest('[data-track-idx]');

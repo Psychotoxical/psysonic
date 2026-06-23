@@ -15,7 +15,8 @@ import type {
 } from './subsonicTypes';
 
 export async function getArtists(): Promise<SubsonicArtist[]> {
-  const data = await api<{ artists: { index: any } }>('getArtists.view', {
+  type ArtistIndexEntry = { artist?: SubsonicArtist | SubsonicArtist[] };
+  const data = await api<{ artists?: { index?: ArtistIndexEntry | ArtistIndexEntry[] } }>('getArtists.view', {
     ...libraryFilterParams(),
   });
   const rawIdx = data.artists?.index;

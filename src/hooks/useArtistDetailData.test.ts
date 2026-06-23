@@ -28,7 +28,7 @@ const mockArtistInfo = vi.mocked(getArtistInfo) as unknown as {
 
 beforeEach(() => {
   vi.mocked(getTopSongs).mockResolvedValue([]);
-  vi.mocked(search).mockResolvedValue({ songs: [], albums: [], artists: [] } as any);
+  vi.mocked(search).mockResolvedValue({ songs: [], albums: [], artists: [] });
 });
 
 afterEach(() => {
@@ -49,7 +49,7 @@ function deferred<T>() {
 describe('useArtistDetailData — id-gated info', () => {
   it('returns null info when id changes before the new fetch resolves', async () => {
     vi.mocked(getArtist).mockImplementation(async (id) => (
-      { artist: { id, name: id }, albums: [] } as any
+      { artist: { id, name: id }, albums: [] }
     ));
     const a = deferred<SubsonicArtistInfo | null>();
     const b = deferred<SubsonicArtistInfo | null>();
@@ -83,7 +83,7 @@ describe('useArtistDetailData — id-gated info', () => {
     // compilation has no flat `albumArtist` on the child — the credit lives in
     // OpenSubsonic's structured `albumArtists` (and/or `displayAlbumArtist`).
     // Dropping it made the card render "—" instead of "Various Artists".
-    vi.mocked(getArtist).mockResolvedValue({ artist: { id: 'A', name: 'A' }, albums: [] } as any);
+    vi.mocked(getArtist).mockResolvedValue({ artist: { id: 'A', name: 'A' }, albums: [] });
     vi.mocked(search).mockResolvedValue({
       artists: [],
       albums: [],
@@ -99,7 +99,7 @@ describe('useArtistDetailData — id-gated info', () => {
           displayAlbumArtist: 'Various Artists',
         },
       ],
-    } as any);
+    });
 
     const { result } = renderHook(() => useArtistDetailData('A'), { wrapper: routerWrapper });
 
@@ -112,7 +112,7 @@ describe('useArtistDetailData — id-gated info', () => {
 
   it('ignores a late-arriving resolve for a stale id', async () => {
     vi.mocked(getArtist).mockImplementation(async (id) => (
-      { artist: { id, name: id }, albums: [] } as any
+      { artist: { id, name: id }, albums: [] }
     ));
     const a = deferred<SubsonicArtistInfo | null>();
     mockArtistInfo.mockImplementation(async (id) => {

@@ -141,7 +141,7 @@ describe('useMigrationOrchestrator', () => {
       analysis: { totalLegacyRows: 0, skippedUnknownServerRows: 0, tables: {} },
       mappings: [{ legacyId: 'legacy-a', indexKey: 'a.test' }],
     });
-    let resolveGenre: ((value: any) => void) | undefined;
+    let resolveGenre: ((value: unknown) => void) | undefined;
     libraryGenreTagsInspectMock.mockImplementation(
       () => new Promise(resolve => { resolveGenre = resolve; }),
     );
@@ -165,7 +165,7 @@ describe('useMigrationOrchestrator', () => {
 
   it('keeps startup non-blocking while done-flag precheck is pending', async () => {
     localStorage.setItem(DONE_FLAG, '1');
-    let resolveInspect: ((value: any) => void) | undefined;
+    let resolveInspect: ((value: unknown) => void) | undefined;
     migrationInspectMock.mockImplementation(
       () => new Promise(resolve => { resolveInspect = resolve; }),
     );

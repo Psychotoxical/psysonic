@@ -184,7 +184,7 @@ export function useCliBridge(navigate: NavigateFunction) {
         }).catch(() => {});
       }
     }).then(u => unsubs.push(u));
-    listen<any>('cli:player-command', async e => {
+    listen<Record<string, unknown>>('cli:player-command', async e => {
       await executeCliPlayerCommand({ payload: e.payload ?? {}, navigate });
     }).then(u => unsubs.push(u));
     return () => {

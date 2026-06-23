@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore';
 import { setTransitionMode, type TransitionMode } from './playback/playbackTransition';
 import { resolveQueueTrack } from './library/queueTrackView';
 import type { SubsonicOpenArtistRef } from '../api/subsonicTypes';
+import type { Track } from '../store/playerStoreTypes';
 
 export const MINI_WINDOW_LABEL = 'mini';
 
@@ -44,7 +45,7 @@ export type MiniControlAction =
   | 'prev'
   | 'show-main';
 
-function toMini(t: any): MiniTrackInfo {
+function toMini(t: Track): MiniTrackInfo {
   return {
     id: t.id,
     title: t.title,

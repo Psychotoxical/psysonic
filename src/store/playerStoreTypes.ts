@@ -202,7 +202,7 @@ export interface PlayerState {
     isOpen: boolean;
     x: number;
     y: number;
-    item: any;
+    item: unknown;
     type: 'song' | 'favorite-song' | 'album' | 'artist' | 'queue-item' | 'album-song' | 'playlist' | 'multi-album' | 'multi-artist' | 'multi-playlist' | null;
     queueIndex?: number;
     playlistId?: string;
@@ -217,7 +217,7 @@ export interface PlayerState {
   openContextMenu: (
     x: number,
     y: number,
-    item: any,
+    item: unknown,
     type: 'song' | 'favorite-song' | 'album' | 'artist' | 'queue-item' | 'album-song' | 'playlist' | 'multi-album' | 'multi-artist' | 'multi-playlist',
     queueIndex?: number,
     playlistId?: string,

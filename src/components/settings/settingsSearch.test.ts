@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { TFunction } from 'i18next';
 import { matchScore } from './settingsTabs';
 import { searchSettings } from './settingsSearch';
 
@@ -31,17 +32,17 @@ describe('matchScore', () => {
 
 describe('searchSettings', () => {
   it('finds AudioMuse by product name', () => {
-    const hits = searchSettings('AudioMuse', 'library', t as any);
+    const hits = searchSettings('AudioMuse', 'library', t as unknown as TFunction);
     expect(hits.some(h => h.title.includes('AudioMuse'))).toBe(true);
   });
 
   it('finds global volume shortcuts', () => {
-    const hits = searchSettings('Volume', 'library', t as any);
+    const hits = searchSettings('Volume', 'library', t as unknown as TFunction);
     expect(hits.some(h => h.title === 'Volume up')).toBe(true);
     expect(hits.some(h => h.title === 'Volume down')).toBe(true);
   });
 
   it('returns nothing for nonsense queries', () => {
-    expect(searchSettings('aaaaaaa', 'library', t as any)).toEqual([]);
+    expect(searchSettings('aaaaaaa', 'library', t as unknown as TFunction)).toEqual([]);
   });
 });

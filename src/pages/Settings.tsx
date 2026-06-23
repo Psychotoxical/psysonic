@@ -275,7 +275,7 @@ export default function Settings() {
                     setActiveTab(hit.tab);
                   }}
                 >
-                  <span className="settings-search-result-badge">{t(tabLabelKey as any)}</span>
+                  <span className="settings-search-result-badge">{t(tabLabelKey)}</span>
                   <span className="settings-search-result-title">{hit.title}</span>
                 </button>
               </li>

@@ -26,12 +26,18 @@ const SESSION_INVALID_MESSAGE = /authentication failed|invalid (session|token)/i
 /**
  * Calls the Audioscrobbler endpoint. `sign` adds an api_sig; `get` uses GET
  * instead of a form POST. Throws MusicNetworkError on failure.
+ *
+ * Returns the raw decoded JSON. Last.fm / Audioscrobbler responses are
+ * deeply-nested, loosely-documented and vary per method; the wire narrows and
+ * coerces fields at each use, so precisely typing every response is not
+ * tractable for this external API we do not control.
  */
 export async function audioscrobblerCall(
   ep: AudioscrobblerEndpoint,
   params: Record<string, string>,
   sign = false,
   get = false,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- external Last.fm JSON, shape not under our control (see doc above)
 ): Promise<any> {
   const entries = Object.entries(params) as [string, string][];
   return invokeTransport(
