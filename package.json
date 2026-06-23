@@ -9,7 +9,7 @@
     "build": "npm run prebuild:release-notes && tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:dev": "npm run prebuild:release-notes && tauri dev",
+    "tauri:dev": "npm run prebuild:release-notes && tauri dev --config src-tauri/tauri.dev.conf.json",
     "tauri:build": "npm run prebuild:release-notes && tauri build",
     "lint": "eslint -c eslint.config.mjs src",
     "lint:gradual": "eslint -c eslint.config.gradual.mjs src",
