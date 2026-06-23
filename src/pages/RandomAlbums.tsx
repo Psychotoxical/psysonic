@@ -252,7 +252,7 @@ export default function RandomAlbums() {
   useEffect(() => {
     if (restoringSessionRef.current) return;
     loadRef.current(selectedGenres);
-  }, [selectedGenres]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedGenres]);
 
   const handleRefresh = useCallback(() => {
     if (scrollBodyEl) {

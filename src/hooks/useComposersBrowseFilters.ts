@@ -90,6 +90,9 @@ export function useComposersBrowseFilters(
       if (!serverId) return;
       const path = window.location.pathname;
       if (isComposerDetailPath(path)) {
+        // Read at cleanup time on purpose: we want the scroll snapshot as it is
+        // at navigation-away. Copying it at effect setup would stash a stale value.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         const snapshot = scrollSnapshotRef?.current;
         useComposerBrowseSessionStore.getState().stashReturnState(serverId, {
           ...browseStateRef.current,

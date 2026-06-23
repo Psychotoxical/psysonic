@@ -159,7 +159,10 @@ export default function Albums() {
   const loading = textSearchActive ? textSearchLoading : browseData.loading;
   const loadingMore = textSearchActive ? false : browseData.loadingMore;
   const hasMore = textSearchActive ? false : browseData.hasMore;
-  const displayAlbums = textSearchActive ? (textSearchVisibleAlbums ?? []) : browseData.displayAlbums;
+  const displayAlbums = useMemo(
+    () => (textSearchActive ? (textSearchVisibleAlbums ?? []) : browseData.displayAlbums),
+    [textSearchActive, textSearchVisibleAlbums, browseData.displayAlbums],
+  );
   const visibleAlbums = textSearchActive ? (textSearchVisibleAlbums ?? []) : browseData.visibleAlbums;
   const genreFiltered = textSearchActive ? selectedGenres.length > 0 : browseData.genreFiltered;
   const serverFilterActive = textSearchActive
@@ -350,7 +353,7 @@ export default function Albums() {
 
   useEffect(() => {
     if (!indexEnabled && losslessOnly) setLosslessOnly(false);
-  }, [indexEnabled, losslessOnly]);
+  }, [indexEnabled, losslessOnly, setLosslessOnly]);
 
   const sortOptions: { value: SortType; label: string }[] = [
     { value: 'alphabeticalByName',   label: t('albums.sortByName') },

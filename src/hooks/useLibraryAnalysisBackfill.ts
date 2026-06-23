@@ -66,6 +66,10 @@ export function useLibraryAnalysisBackfill(enabled = true): void {
     });
 
     return disable;
+    // Keyed on the server's primitive fields (url/username/password); depending
+    // on the `server` object would restart the backfill on every render when its
+    // identity changes but its connection fields do not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     enabled,
     strategy,

@@ -93,6 +93,9 @@ export default function AlbumDetail() {
   useEffect(() => {
     if (!id) return;
     if (album && album.album.id === id) setAlbumEntityRating(album.album.userRating ?? 0);
+    // Keyed on the album's id / userRating primitives; depending on the `album`
+    // object would re-run on every render when its identity changes but those do not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, album?.album.id, album?.album.userRating]);
 
   const effectiveSongs = useMemo(() => {

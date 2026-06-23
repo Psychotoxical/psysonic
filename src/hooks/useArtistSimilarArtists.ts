@@ -84,6 +84,9 @@ export function useArtistSimilarArtists(
       setSimilarArtists(found);
       setSimilarLoading(false);
     }).catch(() => setSimilarLoading(false));
+    // Keyed on artist?.id / artist?.name; depending on the `artist` object would
+    // re-run on every render when its identity changes but its id/name do not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     artist?.id,
     artist?.name,

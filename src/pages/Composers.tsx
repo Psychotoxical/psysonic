@@ -246,7 +246,7 @@ export default function Composers() {
     () =>
       scrollBodyRef.current
       ?? (document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID) as HTMLElement | null),
-    [],
+    [scrollBodyRef],
   );
 
   const composerListOverscan = Math.max(

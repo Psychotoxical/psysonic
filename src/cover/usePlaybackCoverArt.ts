@@ -26,6 +26,10 @@ export function usePlaybackCoverArt(
 
   const scope = useMemo(
     () => resolvePlaybackCoverScope(),
+    // resolvePlaybackCoverScope() reads global server/queue state; the listed
+    // values look unused but are intentional recompute triggers so the scope
+    // re-derives whenever the playback server or queue position changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [queueServerId, queueIndex, playingServerId, queueLength, activeServerId, serversFingerprint],
   );
   const refWithScope = useMemo(

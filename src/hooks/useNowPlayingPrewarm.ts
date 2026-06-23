@@ -82,6 +82,9 @@ export function useNowPlayingPrewarm(): void {
         if (ref) void prewarmCoverRef(ref);
       });
     }
+    // Keyed on currentTrack?.id; depending on the `currentTrack` object would
+    // re-prewarm on every render when its identity changes but its id does not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     currentTrack?.id,
     currentTrack?.artistId,

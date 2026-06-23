@@ -91,7 +91,11 @@ export function useAlbumGridBrowseFilters(
       if (!serverId) return;
       const path = window.location.pathname;
       if (isAlbumDetailPath(path)) {
+        // Read at cleanup time on purpose: we want the snapshots as they are at
+        // navigation-away. Copying them at effect setup would stash stale values.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         const scrollSnapshot = scrollSnapshotRef?.current;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         const gridSnapshot = gridSnapshotRef?.current;
         const viewportId = inpageScrollViewportIdForSurface(surface);
         const scrollTop = Math.max(

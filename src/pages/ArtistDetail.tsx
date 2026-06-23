@@ -87,6 +87,9 @@ export default function ArtistDetail() {
   useEffect(() => {
     if (!id) return;
     if (artist && artist.id === id) setArtistEntityRating(artist.userRating ?? 0);
+    // Keyed on the artist's id / userRating primitives; depending on the `artist`
+    // object would re-run on every render when its identity changes but those do not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, artist?.id, artist?.userRating]);
 
   const handleArtistEntityRating = (rating: number) => runArtistEntityRating({

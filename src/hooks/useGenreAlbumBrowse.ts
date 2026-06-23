@@ -144,6 +144,9 @@ export function useGenreAlbumBrowse(
     return () => {
       cancelled = true;
     };
+    // sessionRestoreDisplayCount is read once to restore the prior visible count;
+    // the catalog load must not re-run when it later changes, so it is excluded.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverId, genre, indexEnabled, sort, musicLibraryFilterVersion, loadCatalogChunk]);
 
   const loadMore = useCallback(() => {

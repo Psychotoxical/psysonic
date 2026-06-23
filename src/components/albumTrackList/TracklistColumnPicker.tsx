@@ -63,7 +63,6 @@ export function TracklistColumnPicker({
   // Position before paint so the menu appears in place.
   useLayoutEffect(() => {
     if (pickerOpen) updatePos();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickerOpen]);
 
   // Keep anchored on scroll/resize, and close on outside-click / Escape.

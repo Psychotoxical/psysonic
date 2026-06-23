@@ -30,5 +30,9 @@ export function useInAppKeybindings(navigate: NavigateFunction) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+    // Registered once on mount; `navigate` is captured by closure and stays valid
+    // (router navigation is not location-dependent), so re-binding the global
+    // keydown listener on every navigation is intentionally avoided.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 }

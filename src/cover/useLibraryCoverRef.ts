@@ -65,7 +65,7 @@ export function useAlbumCoverRef(
     const id = albumId?.trim();
     if (!id) return null;
     return albumCoverRef(id, fallbackCoverArt, { serverScope, distinctDiscCovers });
-  }, [albumId, fallbackCoverArt, scopeKey, serverScope, distinctDiscCovers]);
+  }, [albumId, fallbackCoverArt, serverScope, distinctDiscCovers]);
 
   const [ref, setRef] = useState<CoverArtRef | null>(syncRef);
 
@@ -83,6 +83,10 @@ export function useAlbumCoverRef(
     return () => {
       cancelled = true;
     };
+    // serverScope is keyed via the stable `scopeKey` string (and via syncRef);
+    // depending on the object directly would re-resolve from SQLite on every
+    // render when the scope identity changes but its content does not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [albumId, fallbackCoverArt, scopeKey, syncRef, libraryResolve]);
 
   return libraryResolve ? ref : syncRef;
@@ -101,7 +105,7 @@ export function useArtistCoverRef(
     const id = artistId?.trim();
     if (!id) return null;
     return artistCoverRef(id, fallbackCoverArt, serverScope);
-  }, [artistId, fallbackCoverArt, scopeKey, serverScope]);
+  }, [artistId, fallbackCoverArt, serverScope]);
 
   const [ref, setRef] = useState<CoverArtRef | null>(syncRef);
 
@@ -119,6 +123,10 @@ export function useArtistCoverRef(
     return () => {
       cancelled = true;
     };
+    // serverScope is keyed via the stable `scopeKey` string (and via syncRef);
+    // depending on the object directly would re-resolve from SQLite on every
+    // render when the scope identity changes but its content does not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [artistId, fallbackCoverArt, scopeKey, syncRef, libraryResolve]);
 
   return libraryResolve ? ref : syncRef;
@@ -193,6 +201,10 @@ export function useTrackCoverRef(
     return () => {
       cancelled = true;
     };
+    // serverScope is keyed via the stable `scopeKey` string; depending on the
+    // object directly would re-resolve from SQLite on every render when the
+    // scope identity changes but its content does not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [song, songId, albumId, coverArt, discNumber, scopeKey, syncRef, libraryResolve, distinctDiscCovers]);
 
   return libraryResolve ? ref : syncRef;
@@ -226,6 +238,11 @@ export function usePlaybackTrackCoverRef(
       }
     }
     return resolvePlaybackCoverScope();
+    // queueServerId/queueLength/activeServerId/serversFingerprint look unused but
+    // are intentional recompute triggers: resolvePlaybackCoverScope() and
+    // resolveServerIdForIndexKey() read global server/queue state, so the scope
+    // must re-derive when those change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [track, queueItems, queueIndex, queueServerId, queueLength, activeServerId, serversFingerprint]);
   const scopeKey = coverScopeKey(scope);
 
@@ -237,6 +254,9 @@ export function usePlaybackTrackCoverRef(
   const syncRef = useMemo(() => {
     if (!albumId?.trim() || !track) return undefined;
     return albumCoverRefForPlayback(track, scope);
+    // `scope` is keyed via the stable `scopeKey` string; the primitive track
+    // fields recompute the ref when the playing track changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [track, trackId, albumId, coverArt, discNumber, scopeKey]);
 
   const [ref, setRef] = useState<CoverArtRef | undefined>(syncRef);
@@ -279,6 +299,9 @@ export function usePlaybackTrackCoverRef(
     return () => {
       cancelled = true;
     };
+    // `scope` is keyed via the stable `scopeKey` string; depending on the object
+    // directly would re-resolve from SQLite on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [track, trackId, albumId, coverArt, discNumber, scopeKey, syncRef]);
 
   return ref;

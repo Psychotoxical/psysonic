@@ -79,6 +79,9 @@ export function useArtistInfoBatch(
     });
 
     return () => { cancelled = true; };
+    // Keyed on idsKey (the stable string form of `ids`); depending on the ids
+    // array directly would re-fetch on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverId, idsKey, similarArtistCount]);
 
   return byId;

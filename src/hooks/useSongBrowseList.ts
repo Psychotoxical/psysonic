@@ -141,6 +141,10 @@ export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseS
 
       return (await runNetworkBrowseSongPage(q, pageOffset, PAGE_SIZE)) ?? [];
     },
+    // musicLibraryFilterVersion is an intentional re-create trigger: the page
+    // loaders read the active genre/library filter state internally, so the
+    // callback must refresh when that version bumps even though it is unused here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [indexEnabled, musicLibraryFilterVersion, offlineBrowseActive, serverId],
   );
 

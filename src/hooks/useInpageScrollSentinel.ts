@@ -65,6 +65,10 @@ export function useInpageScrollSentinel({
     );
     observer.observe(node);
     observerInst.current = observer;
+    // scrollRootEl is an intentional re-create trigger: when the resolved scroll
+    // root element changes the sentinel must re-bind its observer to the new root,
+    // even though the body reads it via getScrollRoot() rather than directly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, getScrollRoot, scrollRootEl, rootMargin, setIntersecting]);
 
   useEffect(() => {

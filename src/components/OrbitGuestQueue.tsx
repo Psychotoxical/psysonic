@@ -25,7 +25,7 @@ export default function OrbitGuestQueue() {
   const { t } = useTranslation();
   const state        = useOrbitStore(s => s.state);
   const pending      = useOrbitStore(s => s.pendingSuggestions);
-  const queueItems   = state?.playQueue ?? [];
+  const queueItems   = useMemo(() => state?.playQueue ?? [], [state?.playQueue]);
   const totalUpcoming = state?.playQueueTotal ?? queueItems.length;
   const truncatedBy  = Math.max(0, totalUpcoming - queueItems.length);
   const currentTrack = state?.currentTrack ?? null;

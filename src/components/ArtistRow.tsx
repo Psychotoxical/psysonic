@@ -83,12 +83,18 @@ export default function ArtistRow({
     return () => {
       cancelled = true;
     };
+    // handleScroll is recreated each render but reads live refs; the restore pass
+    // is intentionally keyed on the row identity, not on the callback identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rowResetKey, artists.length]);
 
   useEffect(() => {
     handleScroll();
     window.addEventListener('resize', handleScroll);
     return () => window.removeEventListener('resize', handleScroll);
+    // handleScroll is recreated each render but reads live refs; the resize
+    // listener is intentionally rebound only when the row data changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [artists]);
 
   const scroll = (dir: 'left' | 'right') => {

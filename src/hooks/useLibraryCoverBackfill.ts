@@ -87,6 +87,10 @@ export function useLibraryCoverBackfill(enabled = true): void {
     })();
 
     return disable;
+    // Keyed on the server's primitive fields; depending on the `server` object
+    // would restart the backfill on every render when its identity changes but
+    // its connection fields do not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, strategy, activeServerId, server?.url, server?.username, server?.password]);
 
   // Connect-URL flip: push the new reachable address live. The native worker
@@ -104,5 +108,8 @@ export function useLibraryCoverBackfill(enabled = true): void {
       return;
     }
     void libraryCoverBackfillSetBaseUrl(coverCacheRestHost(connectBaseUrl));
+    // Keyed on connectBaseUrl / server?.url; the `server` object guard does not
+    // need to retrigger this base-URL push on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectBaseUrl, enabled, strategy, activeServerId, server?.url]);
 }

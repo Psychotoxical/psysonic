@@ -41,7 +41,7 @@ export function useCardGridMetrics(
     const ro = new ResizeObserver(onResize);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [observerEnabled, variant, layoutSignal, maxCols]);
+  }, [observerEnabled, variant, layoutSignal, maxCols, measureRef]);
 
   return { gridCols, rowHeightEst };
 }

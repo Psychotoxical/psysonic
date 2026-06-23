@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 /** Fixed popover anchored above a player-bar trigger (overflow menu / speed btn). */
 export function usePlayerBarAnchoredPopover(width: number, zIndex = 10050) {
@@ -7,7 +7,7 @@ export function usePlayerBarAnchoredPopover(width: number, zIndex = 10050) {
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
 
-  const updatePopStyle = () => {
+  const updatePopStyle = useCallback(() => {
     const btn = btnRef.current;
     if (!btn) return;
     const MARGIN = 8;
@@ -23,12 +23,12 @@ export function usePlayerBarAnchoredPopover(width: number, zIndex = 10050) {
       bottom: window.innerHeight - r.top + MARGIN,
       zIndex,
     });
-  };
+  }, [width, zIndex]);
 
   useLayoutEffect(() => {
     if (!open) return;
     updatePopStyle();
-  }, [open, width]);
+  }, [open, updatePopStyle]);
 
   useEffect(() => {
     if (!open) return;
@@ -39,7 +39,7 @@ export function usePlayerBarAnchoredPopover(width: number, zIndex = 10050) {
       window.removeEventListener('resize', onReposition);
       window.removeEventListener('scroll', onReposition, true);
     };
-  }, [open, width]);
+  }, [open, updatePopStyle]);
 
   useEffect(() => {
     if (!open) return;

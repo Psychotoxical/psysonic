@@ -144,6 +144,10 @@ export function useLibraryIndexSync() {
       if (pollTimer.current) clearTimeout(pollTimer.current);
       pollTimer.current = null;
     };
+    // indexedKeys is derived from indexedServers (already a dep); the poll loop is
+    // keyed on the server set, not on the recomputed key array, to avoid
+    // restarting the poll on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [masterEnabled, indexedServers, refreshAllStatuses]);
 
   useEffect(() => {

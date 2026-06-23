@@ -84,6 +84,10 @@ export default function SongRail({
       window.removeEventListener('resize', handleScroll);
       ro.disconnect();
     };
+    // handleScroll/recomputeArtworkBudget are recreated each render but read live
+    // refs/props; the listeners are intentionally (re)bound only when the row data
+    // or artwork config changes, not on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uniqueSongs, interactivityDisabled, windowArtworkByViewport, initialArtworkBudget]);
 
   const rowArtworkResetKey = uniqueSongs[0]?.id ?? '';

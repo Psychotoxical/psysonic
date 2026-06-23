@@ -258,6 +258,10 @@ export function useAlbumBrowseData({
         setCatalogLoadingMore(false);
       }
     }
+    // offlineBrowseActive is an intentional re-create trigger so the catalog
+    // reloads from the right source when offline browse toggles; the loader reads
+    // the active mode internally rather than referencing the flag directly here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indexEnabled, offlineBrowseActive, serverId, starredOverrides]);
 
   const loadBrowse = useCallback(async (
@@ -383,6 +387,9 @@ export function useAlbumBrowseData({
     return () => {
       cancelled = true;
     };
+    // starredOverrides is read to seed star state during the load, but the browse
+    // list must not reload on every star toggle — it is intentionally excluded.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [browseQuery, indexEnabled, offlineBrowseActive, offlineBrowseReloadTs, serverId, loadBrowse, musicLibraryFilterVersion]);
 
   useEffect(() => {

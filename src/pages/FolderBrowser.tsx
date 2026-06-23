@@ -212,7 +212,7 @@ export default function FolderBrowser() {
       const queue = visibleItems.filter(it => !it.isDir).map(entryToTrack);
       playTrack(entryToTrack(item), queue.length > 0 ? queue : [entryToTrack(item)]);
     },
-    [columns, filteredItemsByCol, playTrack],
+    [columns, filteredItemsByCol, playTrack, setPlayingPathIds],
   );
 
   const setSelectedInColumn = useCallback((colIndex: number, itemId: string) => {

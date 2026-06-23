@@ -288,6 +288,10 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
     }).catch(() => {
       setAlbumFormats(prev => ({ ...prev, [album.id]: '' }));
     });
+    // Intentionally keyed on album?.id only: the format label is fetched once per
+    // album id and cached in albumFormats. Depending on the album object or the
+    // albumFormats map would re-run on every render / cache write.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [album?.id]);
 
   const heroCoverRef = useAlbumCoverRef(album?.id, album?.coverArt);

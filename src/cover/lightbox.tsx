@@ -30,6 +30,9 @@ export function useCoverLightboxSrc(
     return () => {
       cancelled = true;
     };
+    // Keyed on the ref's identity fields intentionally; depending on the `ref`
+    // object itself would re-fetch the lightbox source on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, ref?.cacheEntityId, ref?.cacheKind, ref?.fetchCoverArtId, ref?.serverScope]);
 
   useEffect(() => {

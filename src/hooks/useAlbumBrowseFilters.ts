@@ -149,6 +149,9 @@ export function useAlbumBrowseFilters(
       if (!serverId) return;
       const path = window.location.pathname;
       if (isAlbumDetailPath(path)) {
+        // Read at cleanup time on purpose: we want the scroll snapshot as it is
+        // at navigation-away. Copying it at effect setup would stash a stale value.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         const snapshot = scrollSnapshotRef?.current;
         const scrollTop = Math.max(
           readInpageScrollTop(ALBUMS_INPAGE_SCROLL_VIEWPORT_ID),

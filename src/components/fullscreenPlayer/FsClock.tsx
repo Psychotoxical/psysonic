@@ -16,7 +16,7 @@ export const FsClock = memo(function FsClock() {
   const [time, setTime] = useState(formatNow);
 
   useEffect(() => {
-    setTime(formatNow());
+    setTime(formatClockTime(Date.now(), clockFormat, i18n.language));
   }, [clockFormat, i18n.language]);
 
   useEffect(() => {

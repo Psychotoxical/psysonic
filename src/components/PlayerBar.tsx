@@ -168,7 +168,7 @@ export default function PlayerBar() {
         volumeWheelMenuTimerRef.current = null;
       }, 1000);
     }
-  }, [volume, setVolume, utilityOverflow]);
+  }, [volume, setVolume, utilityOverflow, setSuppressOverflowTooltip, setUtilityMenuMode, setUtilityMenuOpen, volumeWheelMenuTimerRef]);
 
   const volumeStyle = {
     background: `linear-gradient(to right, var(--volume-accent, var(--accent)) ${volume * 100}%, var(--bg-elevated) ${volume * 100}%)`,

@@ -63,6 +63,9 @@ function MobileSearchSongThumb({
 }) {
   const coverRef = useMemo(
     () => (song.albumId?.trim() ? albumCoverRefForSong(song) : undefined),
+    // Keyed on song's identity fields; depending on the `song` object would
+    // recompute the ref on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [song.id, song.albumId, song.coverArt, song.discNumber],
   );
   if (!coverRef) return null;
@@ -141,6 +144,10 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
     return () => { document.body.style.overflow = prev; };
   }, []);
 
+  // doSearch wraps a debounce() result, so the useCallback argument is not an
+  // inline function and its deps can't be statically analysed. It is recreated
+  // only on musicLibraryFilterVersion (search() reads the active filter state).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const doSearch = useCallback(
     debounce(async (q: string) => {
       if (!q.trim()) { setResults(null); setLoading(false); return; }

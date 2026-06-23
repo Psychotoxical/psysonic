@@ -290,7 +290,7 @@ export default function MobilePlayerView() {
       window.removeEventListener('touchmove', onMove);
       window.removeEventListener('touchend', onEnd);
     };
-  }, [seekFromX]);
+  }, [seekFromX, seek]);
 
   useEffect(() => {
     pendingSeekRef.current = null;

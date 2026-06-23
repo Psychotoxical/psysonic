@@ -31,6 +31,9 @@ export function usePlayQueueSyncLedState(status: ConnectionStatus) {
 
   const playbackServerId = useMemo(
     () => getPlaybackServerId(),
+    // getPlaybackServerId() reads global queue/auth state; the listed values
+    // are intentional recompute triggers, not direct inputs to the body.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [activeServerId, queueItems, queueIndex, currentTrackId],
   );
 

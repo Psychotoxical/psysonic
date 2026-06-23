@@ -225,13 +225,17 @@ export default function Home() {
       }
     })();
     return () => { cancelled = true; };
+    // isVisible / wasPrePopulated are read for one-shot gating inside the loader;
+    // the home feed reloads on server / filter / section / offline changes only,
+    // not when visibility or the pre-populate flag flips.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeServerId,
     musicLibraryFilterVersion,
     homeSections,
     offlineBrowseActive,
     offlineBrowseReloadTs,
-  ]); // eslint-disable-line react-hooks/exhaustive-deps
+  ]);
 
   /** When offline toggles without a library-filter bump, re-apply stale cache if the feed was cleared. */
   useEffect(() => {

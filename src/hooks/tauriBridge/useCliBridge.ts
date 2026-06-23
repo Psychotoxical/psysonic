@@ -190,5 +190,9 @@ export function useCliBridge(navigate: NavigateFunction) {
     return () => {
       unsubs.forEach(u => u());
     };
+    // Listeners registered once on mount; `navigate` is captured by closure and
+    // stays valid (router navigation is not location-dependent), so the Tauri
+    // event subscriptions are intentionally not torn down on every navigation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 }

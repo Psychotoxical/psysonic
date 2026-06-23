@@ -132,7 +132,7 @@ export default function OrbitSessionBar() {
         overSinceRef.current = null;
       }
     }
-  }, [role, state, nowMs, showCatchUp]);
+  }, [role, state, nowMs, showCatchUp, SHOW_THRESHOLD_MS]);
 
   // Bar is visible while active, ended (pre-ack), or explicitly kicked / soft-removed.
   const shouldShowBar = !!state && (

@@ -123,6 +123,10 @@ export default function MostPlayed() {
       setHasMore(result.length === PAGE_SIZE);
     } catch { /* ignore: best-effort */ }
     setLoading(false);
+    // musicLibraryFilterVersion is an intentional re-create trigger: getAlbumList
+    // reads the active library filter internally, so `load` must refresh (and the
+    // mount effect re-run) when that version bumps even though it is unused here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [musicLibraryFilterVersion]);
 
   useEffect(() => { load(); }, [load]);

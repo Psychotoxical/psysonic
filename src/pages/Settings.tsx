@@ -132,6 +132,10 @@ export default function Settings() {
       .catch(() => { if (!cancelled) setNdAdminAuth(null); })
       .finally(() => { if (!cancelled) setNdAuthChecked(true); });
     return () => { cancelled = true; };
+    // Keyed on auth.activeServerId; the effect reads the active server via `auth`
+    // but must only re-probe admin auth when the active server changes, not on
+    // every auth-store update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.activeServerId]);
 
   useEffect(() => {

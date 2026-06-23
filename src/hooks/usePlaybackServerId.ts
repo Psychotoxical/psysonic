@@ -16,6 +16,9 @@ export function usePlaybackServerId(): string {
   const activeServerId = useAuthStore(s => s.activeServerId);
   return useMemo(
     () => getPlaybackServerId(),
+    // getPlaybackServerId() reads global queue/auth state; the listed values
+    // are intentional recompute triggers, not direct inputs to the body.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [queueServerId, queueIndex, playingServerId, activeServerId],
   );
 }

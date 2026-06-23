@@ -189,6 +189,10 @@ export default function NewReleases() {
     } finally {
       setLoading(false);
     }
+    // musicLibraryFilterVersion is an intentional re-create trigger (fetchByGenres
+    // reads the active library filter internally); the setters are stable. The
+    // loader must refresh when that version bumps even though it is unused here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [musicLibraryFilterVersion]);
 
   useEffect(() => {

@@ -66,7 +66,6 @@ export function useAppUpdater() {
       clearTimeout(timer);
       window.removeEventListener('psysonic:preview-update', handler);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Clean up download listener when component unmounts

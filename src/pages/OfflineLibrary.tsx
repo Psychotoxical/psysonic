@@ -91,6 +91,9 @@ export default function OfflineLibrary() {
 
   const favoritesTrackCount = useMemo(
     () => countFavoriteAutoTracks(),
+    // countFavoriteAutoTracks() reads the local-playback store; localPlaybackEntries
+    // is the intentional recompute trigger, not a direct input to the body.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [localPlaybackEntries],
   );
 
@@ -181,6 +184,9 @@ export default function OfflineLibrary() {
 
   const cacheQueueTrackCount = useMemo(
     () => countEphemeralCacheTracks(),
+    // countEphemeralCacheTracks() reads the local-playback store; localPlaybackEntries
+    // is the intentional recompute trigger, not a direct input to the body.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [localPlaybackEntries],
   );
 
@@ -189,6 +195,9 @@ export default function OfflineLibrary() {
 
   const cacheCoverScope = useMemo(
     () => ephemeralCacheCoverScope(),
+    // ephemeralCacheCoverScope() reads the local-playback store; localPlaybackEntries
+    // is the intentional recompute trigger, not a direct input to the body.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [localPlaybackEntries],
   );
 

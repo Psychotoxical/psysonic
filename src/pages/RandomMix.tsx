@@ -120,6 +120,9 @@ export default function RandomMix() {
         setDisplayedGenres([]);
       })
       .finally(() => setGenresLoading(false));
+    // fetchSongs is a local helper recreated each render; the mix reload is keyed
+    // on the library filter / server / index, not on the function identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [musicLibraryFilterVersion, activeServerId, indexEnabled]);
 
   const filteredSongs = filterRandomMixSongs(songs, { excludeAudiobooks, customGenreBlacklist, mixRatingCfg });

@@ -402,6 +402,10 @@ export function useOrbitGuest(): void {
       restoreGuestTransitions();
       resetPendingResendState();
     };
+    // outboxPlaylistId is read inside the tick loop at call time; the loop is
+    // intentionally (re)started only on session activation / playlist change, not
+    // when the outbox id updates mid-session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, sessionPlaylistId]);
 
   // Outbox heartbeat — shared with the host hook; the guest's outbox is keyed

@@ -644,6 +644,9 @@ export default function SearchBrowsePage() {
     }
     if (restoredFromStashRef.current) return;
     useAdvancedSearchSessionStore.getState().clearReturnStash();
+    // showTracksChrome is read inside the restore branch but must not retrigger
+    // this navigation-driven stash restore; it is keyed on navigation only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigationType, location.state]);
 
   const tracksSearchRestoreSynced =
@@ -725,6 +728,9 @@ export default function SearchBrowsePage() {
     } else {
       void runBasicSearch(q);
     }
+    // runSearch / runBasicSearch are local helpers recreated each render; the
+    // search is keyed on the query / panel / filter inputs, not their identities.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [musicLibraryFilterVersion, qFromUrl, showAdvancedPanel, showTracksChrome, serverId, indexEnabled]);
 
   const loadMoreSongs = useCallback(async () => {

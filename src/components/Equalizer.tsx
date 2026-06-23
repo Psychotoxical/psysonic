@@ -31,6 +31,10 @@ export default function Equalizer() {
     const bg = style.getPropertyValue('--bg-app').trim() || '#1e1e2e';
     const text = style.getPropertyValue('--text-muted').trim() || 'rgba(255,255,255,0.4)';
     drawCurve(canvas, gains, accent, bg, text);
+    // theme is an intentional re-create trigger: redraw reads the live CSS custom
+    // properties via getComputedStyle, so it must re-run when the theme changes
+    // even though the `theme` value itself is not referenced here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gains, theme]);
 
   useEffect(() => { redraw(); }, [redraw]);

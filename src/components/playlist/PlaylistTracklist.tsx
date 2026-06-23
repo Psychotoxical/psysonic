@@ -163,6 +163,9 @@ export default function PlaylistTracklist({
   const [scrollMargin, setScrollMargin] = useState(0);
   const viewportH = useElementClientHeightById(APP_MAIN_SCROLL_VIEWPORT_ID);
 
+  // Bulk bar show/hide shifts listWrapRef top — remeasure on that edge only.
+  const bulkBarVisible = selectedIds.size > 0;
+
   useLayoutEffect(() => {
     const sc = document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID);
     const root = tracklistRef.current?.closest('.album-detail') as HTMLElement | null;
@@ -178,7 +181,7 @@ export default function PlaylistTracklist({
     if (root) ro.observe(root);
     measure();
     return () => ro.disconnect();
-  }, [tracklistRef, selectedIds.size > 0, pickerOpen, displayedSongs.length]);
+  }, [tracklistRef, bulkBarVisible, pickerOpen, displayedSongs.length]);
 
   const rowVirtualizer = useVirtualizer({
     count: displayedSongs.length,

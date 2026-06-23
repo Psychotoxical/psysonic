@@ -77,7 +77,7 @@ export function usePlatformShellSetup(): { isTilingWm: boolean } {
     return () => {
       cancelHydration?.();
     };
-  }, [IS_LINUX, waylandTextUi, linuxWaylandTextRenderProfile]);
+  }, [waylandTextUi, linuxWaylandTextRenderProfile]);
 
   // Sync custom titlebar preference with native decorations on Linux.
   // On tiling WMs decorations are always off (no native title bar to replace).

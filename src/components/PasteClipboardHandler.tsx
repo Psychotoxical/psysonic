@@ -198,6 +198,10 @@ export default function PasteClipboardHandler() {
     };
     document.addEventListener('paste', onPaste, true);
     return () => document.removeEventListener('paste', onPaste, true);
+    // handleJoinError and the router location are captured by the onPaste closure;
+    // the global paste listener is intentionally not re-registered on every render
+    // or navigation, only when the auth/handler inputs below change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate, t, isLoggedIn, queuePaste]);
 
   const closeQueuePaste = () => {
