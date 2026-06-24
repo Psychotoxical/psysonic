@@ -239,6 +239,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Guest suggestions no longer get silently lost or stuck on "waiting on host": overlapping host updates are serialised, a lost suggestion is re-sent (with a notice if it still can't get through), and a flaky join no longer leaves a duplicate suggestion list on the server.
 * Pasted invites are rejected unless they point at a normal http/https server address.
 
+### macOS dock icon larger than native apps
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1169](https://github.com/Psychotoxical/psysonic/pull/1169)**, closes [#1166](https://github.com/Psychotoxical/psysonic/issues/1166)
+
+* On macOS the dock icon was rendered edge-to-edge and looked larger than other apps; it is now padded to Apple's icon grid so it matches native sizing.
+
 ## Under the Hood
 
 ### ESLint setup and a strict lint pass over the frontend
