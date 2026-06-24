@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next';
 import { Play, ChevronRight, FolderTree, ListMusic, Trash2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import type { SubsonicPlaylist } from '../../api/subsonicTypes';
 import { usePlaylistStore } from '../../store/playlistStore';
 import { MultiPlaylistToPlaylistSubmenu, SinglePlaylistToPlaylistSubmenu } from './PlaylistToPlaylistSubmenus';
@@ -16,7 +15,6 @@ export default function PlaylistContextItems(props: ContextMenuItemsProps) {
     offlinePolicy,
   } = props;
   const { t } = useTranslation();
-  const navigate = useNavigate();
 
   return (
     <>
@@ -24,7 +22,14 @@ export default function PlaylistContextItems(props: ContextMenuItemsProps) {
           const playlist = item as SubsonicPlaylist;
           return (
             <>
-              <div className="context-menu-item" onClick={() => handleAction(() => navigate(`/playlists/${playlist.id}`))}>
+              <div className="context-menu-item" onClick={() => handleAction(async () => {
+                const { playPlaylistById } = await import('../../utils/playlist/playPlaylistById');
+                try {
+                  await playPlaylistById(playlist.id);
+                } catch {
+                  // Network/load failure — leave playback untouched rather than crash.
+                }
+              })}>
                 <Play size={14} /> {t('contextMenu.playNow')}
               </div>
               <div className="context-menu-divider" />
