@@ -21,6 +21,7 @@ import {
   isRadioFetching,
   setRadioFetching,
 } from './radioSessionState';
+import { finalizePlayQueueAtTrackEnd } from './queueSync';
 import { applySkipStarOnManualNext } from './skipStarRating';
 
 type SetState = (
@@ -48,6 +49,17 @@ function appendTracksAndPlayFirst(set: SetState, get: GetState, fresh: Track[]):
   // canonical list and its targetQueueIndex validates against the new tail.
   set({ queueItems: [...state.queueItems, ...incoming] });
   get().playTrack(fresh[0], undefined, false, false, playAt);
+}
+
+/** Repeat-off queue tail: stop transport and finalize server play queue at EOF. */
+function stopAtNaturalQueueEnd(set: SetState, get: GetState): void {
+  const { currentTrack, queueItems } = get();
+  if (currentTrack && queueItems.length > 0) {
+    void finalizePlayQueueAtTrackEnd(queueItems, currentTrack);
+  }
+  invoke('audio_stop').catch(console.error);
+  setIsAudioPaused(false);
+  set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
 }
 
 /**
@@ -232,16 +244,12 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
             if (fresh.length > 0) {
               appendTracksAndPlayFirst(set, get, fresh);
             } else {
-              invoke('audio_stop').catch(console.error);
-              setIsAudioPaused(false);
-              set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
+              stopAtNaturalQueueEnd(set, get);
             }
           })
           .catch(() => {
             setRadioFetching(false);
-            invoke('audio_stop').catch(console.error);
-            setIsAudioPaused(false);
-            set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
+            stopAtNaturalQueueEnd(set, get);
           });
         return;
       }
@@ -262,22 +270,16 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
           return;
         }
         if (newTracks.length === 0) {
-          invoke('audio_stop').catch(console.error);
-          setIsAudioPaused(false);
-          set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
+          stopAtNaturalQueueEnd(set, get);
           return;
         }
         appendTracksAndPlayFirst(set, get, newTracks);
       }).catch(() => {
         setInfiniteQueueFetching(false);
-        invoke('audio_stop').catch(console.error);
-        setIsAudioPaused(false);
-        set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
+        stopAtNaturalQueueEnd(set, get);
       });
     } else {
-      invoke('audio_stop').catch(console.error);
-      setIsAudioPaused(false);
-      set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
+      stopAtNaturalQueueEnd(set, get);
     }
   }
 }

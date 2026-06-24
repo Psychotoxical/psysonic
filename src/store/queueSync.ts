@@ -8,7 +8,7 @@ import {
 } from '../utils/playback/playbackServer';
 import { filterQueueRefsForServerProfile } from '../utils/playback/trackServerScope';
 import { getPlaybackProgressSnapshot } from './playbackProgress';
-import { touchQueueMutationClock, isIdleQueuePullSuspended, resumeIdleQueuePull } from './queuePlaybackIdle';
+import { touchQueueMutationClock, isIdleQueuePullSuspended, resumeIdleQueuePull, markQueueNaturallyEnded } from './queuePlaybackIdle';
 import { usePlayerStore } from './playerStore';
 
 /**
@@ -139,6 +139,23 @@ export function flushPlayQueuePosition(): Promise<void> {
   const s = usePlayerStore.getState();
   if (s.currentRadio) return Promise.resolve();
   return flushQueueSyncToServer(s.queueItems, s.currentTrack, getPlaybackProgressSnapshot().currentTime);
+}
+
+/**
+ * Queue exhausted (repeat off): push the final track at end-of-file so idle
+ * auto-pull does not rewind to an earlier debounced position on the server.
+ */
+export function finalizePlayQueueAtTrackEnd(
+  queue: QueueItemRef[],
+  currentTrack: Track,
+): Promise<void> {
+  if (syncTimeout) {
+    clearTimeout(syncTimeout);
+    syncTimeout = null;
+  }
+  markQueueNaturallyEnded();
+  const endSec = Math.max(0, currentTrack.duration ?? 0);
+  return flushQueueSyncToServer(queue, currentTrack, endSec);
 }
 
 /**

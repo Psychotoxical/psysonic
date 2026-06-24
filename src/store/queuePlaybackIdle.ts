@@ -4,6 +4,8 @@ let playbackIdleSinceMs = 0;
 let lastQueueMutationAt = 0;
 /** When true, idle auto-pull is disabled until manual pull re-enables it. */
 let idleQueuePullSuspended = false;
+/** Set when repeat-off playback reaches the queue tail — blocks idle pull until play resumes. */
+let queueNaturallyEnded = false;
 /** Bumped on each local queue mutation; stale in-flight idle pulls must not apply. */
 let idlePullGeneration = 0;
 
@@ -30,6 +32,19 @@ export function markPlaybackIdle(): void {
 
 export function markPlaybackActive(): void {
   playbackIdleSinceMs = 0;
+  clearQueueNaturallyEnded();
+}
+
+export function markQueueNaturallyEnded(): void {
+  queueNaturallyEnded = true;
+}
+
+export function clearQueueNaturallyEnded(): void {
+  queueNaturallyEnded = false;
+}
+
+export function isQueueNaturallyEnded(): boolean {
+  return queueNaturallyEnded;
 }
 
 export function getPlaybackIdleSinceMs(): number {
@@ -62,6 +77,7 @@ export function getIdlePullGeneration(): number {
 
 export function touchQueueMutationClock(): void {
   lastQueueMutationAt = Date.now();
+  clearQueueNaturallyEnded();
   suspendIdleQueuePull();
   idlePullGeneration += 1;
 }
@@ -79,5 +95,6 @@ export function _resetQueuePlaybackIdleForTest(): void {
   playbackIdleSinceMs = 0;
   lastQueueMutationAt = 0;
   idleQueuePullSuspended = false;
+  queueNaturallyEnded = false;
   idlePullGeneration = 0;
 }

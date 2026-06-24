@@ -1,4 +1,20 @@
 import { DYNAMIC_OVERLAP_HARD_CAP_SEC, STANDARD_BLEND_SEC } from '../waveform/waveformSilence';
+import type { QueueItemRef } from '../../store/playerStoreTypes';
+
+export type QueueRepeatMode = 'off' | 'all' | 'one';
+
+/** Next queue slot AutoDJ / silence-aware crossfade may hand off to, if any. */
+export function nextQueueRefForTransition(
+  queueItems: QueueItemRef[],
+  queueIndex: number,
+  repeatMode: QueueRepeatMode,
+): QueueItemRef | null {
+  if (repeatMode === 'one') return null;
+  const nextIdx = queueIndex + 1;
+  if (nextIdx < queueItems.length) return queueItems[nextIdx] ?? null;
+  if (repeatMode === 'all' && queueItems.length > 0) return queueItems[0] ?? null;
+  return null;
+}
 
 /** Clamp engine crossfade setting to the same bounds used in progress handling. */
 export function clampCrossfadeSecs(crossfadeSecs: number): number {

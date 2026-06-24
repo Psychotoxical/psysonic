@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import type { QueueItemRef } from '../../store/playerStoreTypes';
 import {
   autodjJsTriggerAtSec,
   computeAutodjJsOverlap,
+  nextQueueRefForTransition,
   shouldJsDriveAutodjTransition,
 } from './autodjAutoAdvance';
 
@@ -42,5 +44,29 @@ describe('computeAutodjJsOverlap', () => {
 describe('autodjJsTriggerAtSec', () => {
   it('ends the blend at A content end', () => {
     expect(autodjJsTriggerAtSec(200, 3, 2)).toBe(195);
+  });
+});
+
+describe('nextQueueRefForTransition', () => {
+  const ref = (id: string): QueueItemRef => ({ trackId: id, serverId: 's1' });
+
+  it('returns the next slot when one exists', () => {
+    const items = [ref('a'), ref('b')];
+    expect(nextQueueRefForTransition(items, 0, 'off')).toBe(items[1]);
+  });
+
+  it('returns null on the queue tail without repeat-all', () => {
+    const items = [ref('a'), ref('b')];
+    expect(nextQueueRefForTransition(items, 1, 'off')).toBeNull();
+  });
+
+  it('wraps to the head on repeat-all', () => {
+    const items = [ref('a'), ref('b')];
+    expect(nextQueueRefForTransition(items, 1, 'all')).toBe(items[0]);
+  });
+
+  it('returns null for repeat-one', () => {
+    const items = [ref('a'), ref('b')];
+    expect(nextQueueRefForTransition(items, 0, 'one')).toBeNull();
   });
 });

@@ -73,6 +73,7 @@ import {
   getLastQueueHeartbeatAt,
   syncQueueToServer,
 } from './queueSync';
+import { clearQueueNaturallyEnded } from './queuePlaybackIdle';
 import { isSeekDebouncePending } from './seekDebounce';
 import {
   SEEK_FALLBACK_VISUAL_GUARD_MS,
@@ -92,6 +93,7 @@ import {
   autodjJsTriggerAtSec,
   clampCrossfadeSecs,
   computeAutodjJsOverlap,
+  nextQueueRefForTransition,
   shouldJsDriveAutodjTransition,
 } from '../utils/playback/autodjAutoAdvance';
 import { isInterruptHandoffPending } from '../utils/playback/autodjInterruptPrep';
@@ -126,6 +128,7 @@ export type NormalizationStatePayload = {
 };
 
 export function handleAudioPlaying(duration: number): void {
+  clearQueueNaturallyEnded();
   setDeferHotCachePrefetch(false);
   resetProgressEmitThrottles();
   usePlayerStore.setState({ isPlaying: true, isPlaybackBuffering: false });
@@ -284,12 +287,11 @@ export function handleAudioProgress(
   // ~2 s JS blend (not the engine crossfadeSecs slider). When JS drives we
   // suppress the engine's autonomous crossfade timer so B is readiness-gated.
   let autodjSuppressWant = false;
+  const nextRef = trimActive && store.isPlaying && store.repeatMode !== 'one'
+    ? nextQueueRefForTransition(store.queueItems, store.queueIndex, store.repeatMode)
+    : null;
+  const nextTrackId = nextRef ? resolveQueueTrack(nextRef)?.id : undefined;
   if (trimActive && store.isPlaying && store.repeatMode !== 'one') {
-    const nextIdx = store.queueIndex + 1;
-    const nextRef = nextIdx < store.queueItems.length
-      ? store.queueItems[nextIdx]
-      : (store.repeatMode === 'all' && store.queueItems.length > 0 ? store.queueItems[0] : null);
-    const nextTrackId = nextRef ? resolveQueueTrack(nextRef)?.id : undefined;
     if (nextTrackId) {
       const cf = clampCrossfadeSecs(crossfadeSecs);
       const plan = getCrossfadeTransition(nextTrackId);
@@ -333,11 +335,15 @@ export function handleAudioProgress(
           return;
         }
       }
+    } else {
+      // Queue tail with no successor — play A through its real ending; suppress
+      // the engine's early crossfade timer so `audio:ended` fires on exhaustion.
+      autodjSuppressWant = true;
     }
   }
   syncAutodjSuppress(autodjSuppressWant);
 
-  if (trimActive && store.isPlaying && !autodjSuppressWant) {
+  if (trimActive && store.isPlaying && !autodjSuppressWant && nextTrackId) {
     const cf = clampCrossfadeSecs(crossfadeSecs);
     if (remaining > 0 && remaining <= cf) {
       const gen = getPlayGeneration();

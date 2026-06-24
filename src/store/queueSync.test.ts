@@ -35,6 +35,7 @@ vi.mock('./playbackProgress', () => ({
 
 import {
   _resetQueueSyncForTest,
+  finalizePlayQueueAtTrackEnd,
   flushPlayQueueForServer,
   flushPlayQueuePosition,
   flushQueueSyncToServer,
@@ -47,6 +48,7 @@ import {
 import {
   _resetQueuePlaybackIdleForTest,
   isIdleQueuePullSuspended,
+  isQueueNaturallyEnded,
 } from './queuePlaybackIdle';
 
 function track(id: string, serverId = 'srv-a'): Track {
@@ -184,5 +186,19 @@ describe('flushPlayQueuePosition', () => {
     playerState.currentRadio = { id: 'radio-1' };
     await flushPlayQueuePosition();
     expect(savePlayQueueMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('finalizePlayQueueAtTrackEnd', () => {
+  it('flushes immediately at track duration and marks the queue naturally ended', async () => {
+    const queue = [ref('a'), ref('b')];
+    const current = track('b');
+    current.duration = 245;
+    syncQueueToServer(queue, current, 120);
+    await finalizePlayQueueAtTrackEnd(queue, current);
+    expect(savePlayQueueMock).toHaveBeenCalledTimes(1);
+    expect(savePlayQueueMock).toHaveBeenCalledWith(['a', 'b'], 'b', 245000, 'srv-a');
+    expect(isQueueNaturallyEnded()).toBe(true);
+    expect(hasPendingQueueSync()).toBe(false);
   });
 });

@@ -3,6 +3,9 @@ import {
   _resetQueuePlaybackIdleForTest,
   getIdlePullGeneration,
   isIdleQueuePullSuspended,
+  isQueueNaturallyEnded,
+  markPlaybackActive,
+  markQueueNaturallyEnded,
   resumeIdleQueuePull,
   subscribeIdleQueuePullSuspended,
   touchQueueMutationClock,
@@ -46,5 +49,29 @@ describe('idle queue pull suspension', () => {
     resumeIdleQueuePull();
     expect(count).toBe(2);
     unsub();
+  });
+});
+
+describe('natural queue end', () => {
+  beforeEach(() => {
+    _resetQueuePlaybackIdleForTest();
+  });
+
+  it('starts clear and can be marked after queue exhaustion', () => {
+    expect(isQueueNaturallyEnded()).toBe(false);
+    markQueueNaturallyEnded();
+    expect(isQueueNaturallyEnded()).toBe(true);
+  });
+
+  it('clears when playback becomes active again', () => {
+    markQueueNaturallyEnded();
+    markPlaybackActive();
+    expect(isQueueNaturallyEnded()).toBe(false);
+  });
+
+  it('clears on local queue mutation', () => {
+    markQueueNaturallyEnded();
+    touchQueueMutationClock();
+    expect(isQueueNaturallyEnded()).toBe(false);
   });
 });

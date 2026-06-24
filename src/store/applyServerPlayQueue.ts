@@ -14,6 +14,7 @@ import {
   getIdlePullGeneration,
   isIdleQueuePullSuspended,
   resumeIdleQueuePull,
+  clearQueueNaturallyEnded,
 } from './queuePlaybackIdle';
 import { clearQueueHandoffPending } from './queueSyncUiState';
 
@@ -178,6 +179,8 @@ export async function fetchActiveServerPlayQueueFingerprint(): Promise<PlayQueue
 export async function pullPlayQueueFromActiveServer(): Promise<ApplyPlayQueueResult> {
   const activeId = useAuthStore.getState().activeServerId;
   if (!activeId) return 'error';
+
+  clearQueueNaturallyEnded();
 
   try {
     const q = await getPlayQueueForServer(activeId);

@@ -6,6 +6,7 @@ import { usePlayerStore } from '../store/playerStore';
 import {
   getPlaybackIdleSinceMs,
   isIdleQueuePullSuspended,
+  isQueueNaturallyEnded,
   isPlaybackIdleLongEnough,
   markPlaybackIdle,
 } from '../store/queuePlaybackIdle';
@@ -38,6 +39,7 @@ export function useIdlePlayQueuePull(status: ConnectionStatus) {
       if (isPlaying) return;
       if (!isPlaybackIdleLongEnough(IDLE_THRESHOLD_MS)) return;
       if (isIdleQueuePullSuspended()) return;
+      if (isQueueNaturallyEnded()) return;
       if (hasPendingQueueSync()) return;
       if (!activeServerId) return;
 
