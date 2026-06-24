@@ -226,9 +226,6 @@ export const settings = {
   touchpadBackForwardGestures: 'Swipe to go back / forward',
   touchpadBackForwardGesturesDesc:
     'Two-finger horizontal touchpad swipe navigates in-app history, like in a browser.',
-  touchpadBackForwardGestures: 'Swipe to go back / forward',
-  touchpadBackForwardGesturesDesc:
-    'Two-finger horizontal touchpad swipe navigates in-app history, like in a browser.',
   clockFormat: 'Clock Format',
   clockFormatDesc: 'Wall-clock display used by the queue ETA and the sleep-timer preview.',
   clockFormatAuto: 'Auto (system locale)',

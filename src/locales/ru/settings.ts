@@ -227,9 +227,6 @@ export const settings = {
   touchpadBackForwardGestures: 'Свайп назад / вперёд',
   touchpadBackForwardGesturesDesc:
     'Горизонтальный свайп двумя пальцами по тачпаду перелистывает историю навигации в приложении, как в браузере.',
-  touchpadBackForwardGestures: 'Свайп назад / вперёд',
-  touchpadBackForwardGesturesDesc:
-    'Горизонтальный свайп двумя пальцами по тачпаду перелистывает историю навигации в приложении, как в браузере.',
   clockFormat: 'Формат времени',
   clockFormatDesc: 'Формат времени для ETA очереди и предпросмотра таймера сна.',
   clockFormatAuto: 'Авто (системный)',
