@@ -723,7 +723,7 @@ export const settings = {
   trackPreviewLocation_playlists: 'В плейлистах',
   trackPreviewLocation_favorites: 'В избранном',
   trackPreviewLocation_artist: 'В топ-треках исполнителя',
-  trackPreviewLocation_randomMix: 'В Random Mix',
+  trackPreviewLocation_randomMix: 'В случайном миксе',
   nextTrackBufferingTitle: 'Буферизация',
   infiniteQueue: 'Бесконечная очередь',
   infiniteQueueDesc: 'Подмешивать случайные треки, когда очередь закончится',
