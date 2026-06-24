@@ -70,36 +70,33 @@ export function TrackTransitionsBlock({ t }: Props) {
       </div>
 
       {mode === 'crossfade' && (
-        <div style={{ paddingLeft: '1rem', marginTop: '0.7rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <input
-            type="range"
-            min={0.1}
-            max={10}
-            step={0.1}
-            value={auth.crossfadeSecs}
-            disabled={hostControlled}
-            onChange={e => auth.setCrossfadeSecs(parseFloat(e.target.value))}
-            style={{ flex: 1, minWidth: 80, maxWidth: 200 }}
-            id="crossfade-secs-slider"
-          />
-          <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 36 }}>
-            {t('settings.crossfadeSecs', { n: auth.crossfadeSecs.toFixed(1) })}
-          </span>
+        <div className="settings-norm-block" style={{ marginTop: '0.85rem' }}>
+          <div className="settings-norm-row">
+            <input
+              type="range"
+              min={0.1}
+              max={10}
+              step={0.1}
+              value={auth.crossfadeSecs}
+              disabled={hostControlled}
+              onChange={e => auth.setCrossfadeSecs(parseFloat(e.target.value))}
+              id="crossfade-secs-slider"
+            />
+            <span className="settings-norm-value">
+              {t('settings.crossfadeSecs', { n: auth.crossfadeSecs.toFixed(1) })}
+            </span>
+          </div>
         </div>
       )}
       {mode === 'autodj' && (
-        <>
-          <div style={{ paddingLeft: '1rem', fontSize: 12, color: 'var(--text-muted)', marginTop: '0.7rem' }}>
-            {t('settings.autoDjDesc')}
-          </div>
-          <div style={{ paddingLeft: '1rem', marginTop: '0.9rem' }}>
-            <p className="settings-row-label" style={{ marginBottom: '0.45rem' }}>
+        <div className="settings-norm-block" style={{ marginTop: '0.85rem' }}>
+          <div className="settings-norm-help">{t('settings.autoDjDesc')}</div>
+          <div className="settings-norm-field">
+            <span className="settings-norm-label" style={{ minWidth: 0 }}>
               {t('settings.autodjOverlapCapTitle')}
-            </p>
-            <p className="settings-row-desc" style={{ marginBottom: '0.6rem' }}>
-              {t('settings.autodjOverlapCapDesc')}
-            </p>
-            <div className="settings-segmented" style={{ marginBottom: auth.autodjOverlapCapMode === 'limit' ? '0.65rem' : 0 }}>
+            </span>
+            <div className="settings-norm-help">{t('settings.autodjOverlapCapDesc')}</div>
+            <div className="settings-segmented">
               <button
                 type="button"
                 className={`btn ${auth.autodjOverlapCapMode === 'auto' ? 'btn-primary' : 'btn-ghost'}`}
@@ -118,7 +115,7 @@ export function TrackTransitionsBlock({ t }: Props) {
               </button>
             </div>
             {auth.autodjOverlapCapMode === 'limit' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <div className="settings-norm-row">
                 <input
                   type="range"
                   min={AUTODJ_OVERLAP_CAP_MIN_SEC}
@@ -127,25 +124,22 @@ export function TrackTransitionsBlock({ t }: Props) {
                   value={auth.autodjOverlapCapSec}
                   disabled={hostControlled}
                   onChange={e => auth.setAutodjOverlapCapSec(parseInt(e.target.value, 10))}
-                  style={{ flex: 1, minWidth: 80, maxWidth: 200 }}
                   id="autodj-overlap-cap-slider"
                 />
-                <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 48 }}>
+                <span className="settings-norm-value">
                   {t('settings.autodjOverlapCapSecs', { n: auth.autodjOverlapCapSec })}
                 </span>
               </div>
             )}
           </div>
-          <div style={{ paddingLeft: '1rem', marginTop: '0.7rem' }}>
-            <SettingsToggle
-              label={t('settings.autodjSmoothSkip')}
-              desc={t('settings.autodjSmoothSkipDesc')}
-              checked={auth.autodjSmoothSkip}
-              disabled={hostControlled}
-              onChange={auth.setAutodjSmoothSkip}
-            />
-          </div>
-        </>
+          <SettingsToggle
+            label={t('settings.autodjSmoothSkip')}
+            desc={t('settings.autodjSmoothSkipDesc')}
+            checked={auth.autodjSmoothSkip}
+            disabled={hostControlled}
+            onChange={auth.setAutodjSmoothSkip}
+          />
+        </div>
       )}
     </SettingsGroup>
   );

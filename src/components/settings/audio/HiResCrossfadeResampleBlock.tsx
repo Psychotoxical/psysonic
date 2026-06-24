@@ -4,7 +4,6 @@ import {
   sanitizeHiResCrossfadeResampleHz,
 } from '../../../utils/audio/hiResCrossfadeResample';
 import type { TFunction } from 'i18next';
-import { SettingsGroup } from '../SettingsGroup';
 
 interface Props {
   enabled: boolean;
@@ -29,28 +28,28 @@ export function HiResCrossfadeResampleBlock({
   if (!enabled) return null;
 
   return (
-    <SettingsGroup>
-      <p className="settings-row-label" style={{ marginBottom: '0.5rem' }}>
-        {t('settings.hiResCrossfadeResampleTitle')}
-      </p>
-      <p className="settings-row-desc" style={{ marginBottom: '0.75rem' }}>
-        {t('settings.hiResCrossfadeResampleDesc')}
-      </p>
-      <div className="settings-segmented" style={{ marginBottom: '0.75rem' }}>
-        {HI_RES_CROSSFADE_RESAMPLE_OPTIONS.map((hz) => (
-          <button
-            key={hz}
-            type="button"
-            className={`btn ${resampleHz === hz ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => onResampleHzChange(sanitizeHiResCrossfadeResampleHz(hz))}
-          >
-            {labelForHz(t, hz)}
-          </button>
-        ))}
+    <div className="settings-norm-block" style={{ marginTop: '0.85rem' }}>
+      <div className="settings-norm-field">
+        <span className="settings-norm-label" style={{ minWidth: 0 }}>
+          {t('settings.hiResCrossfadeResampleTitle')}
+        </span>
+        <div className="settings-norm-help">{t('settings.hiResCrossfadeResampleDesc')}</div>
+        <div className="settings-segmented">
+          {HI_RES_CROSSFADE_RESAMPLE_OPTIONS.map((hz) => (
+            <button
+              key={hz}
+              type="button"
+              className={`btn ${resampleHz === hz ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => onResampleHzChange(sanitizeHiResCrossfadeResampleHz(hz))}
+            >
+              {labelForHz(t, hz)}
+            </button>
+          ))}
+        </div>
+        <div className="settings-norm-help" role="note">
+          {t('settings.hiResCrossfadeResampleWarning')}
+        </div>
       </div>
-      <p className="settings-row-desc" role="note" style={{ marginBottom: 0, opacity: 0.85 }}>
-        {t('settings.hiResCrossfadeResampleWarning')}
-      </p>
-    </SettingsGroup>
+    </div>
   );
 }
