@@ -2,7 +2,7 @@
 
 use rusqlite::{params, Transaction};
 
-use crate::artist_sort::{ignored_articles_or_default, sort_key_for_display_name, DEFAULT_IGNORED_ARTICLES};
+use crate::artist_sort::{ignored_articles_or_default, sort_key_for_display_name};
 use crate::store::LibraryStore;
 use psysonic_integration::subsonic::ArtistIndex;
 
@@ -198,6 +198,7 @@ mod tests {
 
     #[test]
     fn backfill_from_tracks_accepts_cjk_artist_display_name() {
+        use crate::artist_sort::DEFAULT_IGNORED_ARTICLES;
         use crate::repos::{TrackRepository, TrackRow};
 
         let store = LibraryStore::open_in_memory();
