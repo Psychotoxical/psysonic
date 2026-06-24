@@ -1,0 +1,49 @@
+name: eslint
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vitest.config.ts'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - 'eslint.config.mjs'
+      - '.github/workflows/eslint.yml'
+      - '.github/frontend-hot-path-files.txt'
+      - 'scripts/check-frontend-hot-path-coverage.sh'
+      - 'scripts/check-css-import-graph.mjs'
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vitest.config.ts'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - 'eslint.config.mjs'
+      - '.github/workflows/eslint.yml'
+      - '.github/frontend-hot-path-files.txt'
+      - 'scripts/check-frontend-hot-path-coverage.sh'
+      - 'scripts/check-css-import-graph.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eslint:
+    name: eslint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+      - run: npm ci
+      - name: eslint
+        run: npm run lint

@@ -1,15 +1,30 @@
 name: ci-main
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: [frontend-tests, rust-tests, eslint]
+    types: [completed]
   workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: read
 
 jobs:
   ci-ok:
     runs-on: ubuntu-latest
     steps:
-      - name: ci sentinel
-        run: echo "main CI sentinel is green"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha || github.sha }}
+      - name: aggregate required checks
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { runCiOkAggregate } = await import('${{ github.workspace }}/.github/scripts/ci-ok-aggregate.mjs');
+            await runCiOkAggregate(github, context, core);

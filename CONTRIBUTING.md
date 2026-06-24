@@ -73,7 +73,7 @@ If you use **Nix**, `nix develop` (see [`flake.nix`](flake.nix)) provides the pi
 | Topic | Location |
 |--------|----------|
 | Frontend test stack (Vitest, Tauri/Subsonic mocks, store resets, i18n in tests) | [`src/test/README.md`](src/test/README.md) |
-| What CI runs for frontend / backend | [`frontend-tests.yml`](.github/workflows/frontend-tests.yml), [`rust-tests.yml`](.github/workflows/rust-tests.yml) |
+| What CI runs for frontend / backend | [`frontend-tests.yml`](.github/workflows/frontend-tests.yml), [`eslint.yml`](.github/workflows/eslint.yml), [`rust-tests.yml`](.github/workflows/rust-tests.yml) |
 | Frontend "hot path" files held to a coverage threshold | [`frontend-hot-path-files.txt`](.github/frontend-hot-path-files.txt), [`check-frontend-hot-path-coverage.sh`](scripts/check-frontend-hot-path-coverage.sh) |
 | Rust hot-path gate | [`hot-path-files.txt`](.github/hot-path-files.txt), [`check-hot-path-coverage.sh`](scripts/check-hot-path-coverage.sh) |
 | Nix packaging / release automation | [`flake.nix`](flake.nix), workflows under [`.github/workflows/`](.github/workflows/) |
@@ -84,7 +84,7 @@ If you use **Nix**, `nix develop` (see [`flake.nix`](flake.nix)) provides the pi
 
 1. **One pull request, one coherent goal.** Easier review, easier revert, fewer merge conflicts.
 2. **Match existing style** in touched files (naming, module layout, comment density). Avoid drive-by refactors unrelated to the task.
-3. **Linting and formatting:** there is no enforced JS/TS formatter or ESLint config in the repo today — `tsc --noEmit` is the only frontend gate beyond tests. For Rust, `cargo clippy --workspace --all-targets -- -D warnings` is the lint gate; `cargo fmt` is not currently required but won't hurt.
+3. **Linting and formatting:** ESLint (strict `eslint.config.mjs`) runs in CI on frontend paths; run `npm run lint` locally before opening a frontend PR. `tsc --noEmit` is also required. For Rust, `cargo clippy --workspace --all-targets -- -D warnings` is the lint gate; `cargo fmt` is not currently required but won't hurt.
 4. **Commit messages:** a short **human-readable** summary of what changed and why; Conventional Commits-style prefixes (`feat:`, `fix:`, ...) are fine if you prefer them. Do not include meta references (IDEs, assistants, or how the message was produced) — only what matters for project history.
 5. **License:** new code must remain compatible with the project's GPLv3.
 6. **Tests:** when you change behaviour users rely on, add or update tests next to the code (see [`src/test/README.md`](src/test/README.md)). Purely visual tweaks may not need tests, but behavioural regressions should be covered where the suite can catch them.
@@ -114,8 +114,10 @@ PRs must target `main`. `next` and `release` are maintainer-driven promotion bra
 
 Workflows are path-filtered (see the YAML for exact `paths` / `paths-ignore`):
 
-- **Frontend** (`src/**`, lockfile, Vitest/Vite/tsconfig, etc.): `npm test` (Vitest), `npx tsc --noEmit`, then a coverage run.
+- **Frontend** (`src/**`, lockfile, Vitest/Vite/tsconfig, ESLint config, etc.): `npm run lint` (ESLint strict), `npm test` (Vitest), `npx tsc --noEmit`, then a coverage run.
 - **Rust** (`src-tauri/**`): `cargo test --workspace --all-targets`, `cargo clippy --workspace --all-targets -- -D warnings`, then coverage.
+
+The **`ci-ok`** job in [`ci-main.yml`](.github/workflows/ci-main.yml) is the merge gate: it waits for every required job above whose path filter matched the PR, and fails if any of them failed or did not finish in time.
 
 Hot-path coverage gates are **required** on pull requests: the `coverage` jobs in [`frontend-tests.yml`](.github/workflows/frontend-tests.yml) and [`rust-tests.yml`](.github/workflows/rust-tests.yml) fail when any listed file drops below the floor. See the headers in [`frontend-hot-path-files.txt`](.github/frontend-hot-path-files.txt) and [`hot-path-files.txt`](.github/hot-path-files.txt) for curation rules and thresholds.
 
@@ -129,6 +131,7 @@ Assume the repository root is `psysonic/` (for example after `git clone https://
 
 ```bash
 npm ci
+npm run lint
 npm test
 npx tsc --noEmit
 npm run test:coverage
