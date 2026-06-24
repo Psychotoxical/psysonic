@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 
+### Hi-Res transition blend rate
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1171](https://github.com/Psychotoxical/psysonic/pull/1171)**
+
+* **Settings → Audio → Native Hi-Res** gains a blend-rate picker (44.1 / 88.2 / 96 kHz, default 44.1 kHz) for transitions when adjacent tracks have different sample rates, with a note that resampling uses extra CPU and memory.
+* **Crossfade / AutoDJ:** both sides resample to the chosen rate; the output stream reopens when needed and the outgoing track rebuilds from cache so mixed 88.2 ↔ 44.1 kHz transitions no longer tear mid-fade.
+* **Gapless:** the next track chains at the blend rate and the current track realigns when the stream Hz differs, instead of falling back to a hard cut.
+
 ### Theme store — version numbers and an animated/static filter
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1104](https://github.com/Psychotoxical/psysonic/pull/1104)**

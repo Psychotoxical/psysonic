@@ -174,6 +174,7 @@ const CONTRIBUTOR_ENTRIES = [
       'All Albums browse: compilation and favorites filters in slice mode — skip redundant client comp filter, route favorites through getStarred2, pre-index page scan, offline isCompilation from tracks (PR #1151)',
       'Custom HTTP headers for reverse-proxy gates — per-server header editor, TS/Rust registry sync, full playback/sync/cover path coverage, log redaction (PR #1156)',
       'CI: ESLint strict workflow and path-aware ci-ok merge gate (PR #1170)',
+      'Hi-Res transition blend rate — configurable 44.1/88.2/96 kHz resampling for crossfade, AutoDJ, and gapless when adjacent tracks differ in sample rate (PR #1171)',
     ],
   },
   {
