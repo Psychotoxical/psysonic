@@ -120,6 +120,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Artist header showing the plain image instead of the external background
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1172](https://github.com/Psychotoxical/psysonic/pull/1172)**
+
+* On the artist page, when an artist had an external background image (from fanart.tv) but no banner, the header showed the plain Navidrome artist image instead of the background — even though the fullscreen player used the background correctly. The header now falls back banner → background → Navidrome image as intended. The background also sits a little higher so band members' heads aren't cropped on wide screens.
+
 ### Playlists header buttons clipped at narrow widths
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1153](https://github.com/Psychotoxical/psysonic/pull/1153)**
