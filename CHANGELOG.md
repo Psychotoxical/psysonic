@@ -266,6 +266,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * After retagging a track and resyncing the library, genres with no remaining albums could still appear on the Genres page until restart. The local genre catalog now counts only live indexed tracks, filters zero-count genres, and the Genres page refreshes when library sync finishes.
 
+### AutoDJ — last track in the queue was cut short
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1183](https://github.com/Psychotoxical/psysonic/pull/1183)**
+
+* With AutoDJ active and no next track to blend into, the engine could still fire the crossfade end timer and trim the final song. The last track now plays through to real source exhaustion.
+
+### Play queue sync — idle pull rewound after the queue finished
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1183](https://github.com/Psychotoxical/psysonic/pull/1183)**
+
+* After the last track ended (repeat off), idle auto-pull could restore an earlier server position from the last debounced push and seek backward. The client now flushes end-of-track position to the server and skips idle auto-pull until playback resumes, the queue is edited, or the user pulls manually.
+
 ## Under the Hood
 
 ### ESLint setup and a strict lint pass over the frontend
