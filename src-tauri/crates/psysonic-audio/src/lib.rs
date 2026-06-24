@@ -34,6 +34,7 @@ mod power_notify_win;
 #[cfg(target_os = "linux")]
 mod power_notify_linux;
 mod helpers;
+mod hi_res_blend;
 mod ipc;
 pub mod preview;
 mod sources;

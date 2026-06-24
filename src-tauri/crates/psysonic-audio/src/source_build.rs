@@ -33,6 +33,8 @@ pub(crate) struct BuildSourceArgs<'a> {
     pub done_flag: Arc<AtomicBool>,
     pub fade_in_dur: Duration,
     pub hi_res_enabled: bool,
+    /// When > 0, resample decoded audio to this Hz (hi-res crossfade / AutoDJ blend).
+    pub resample_target_hz: u32,
     pub duration_hint: f64,
 }
 
@@ -183,6 +185,7 @@ pub(crate) async fn build_playback_source_with_probe_fallback(
         done_flag,
         fade_in_dur,
         hi_res_enabled,
+        resample_target_hz,
         duration_hint,
     } = args;
     let media_hint = play_media_format_hint(&play_input);
@@ -203,6 +206,7 @@ pub(crate) async fn build_playback_source_with_probe_fallback(
         done_flag.clone(),
         fade_in_dur,
         hi_res_enabled,
+        resample_target_hz,
         duration_hint,
     )
     .await
@@ -264,6 +268,7 @@ pub(crate) async fn build_playback_source_with_probe_fallback(
                 done_flag.clone(),
                 fade_in_dur,
                 hi_res_enabled,
+                resample_target_hz,
                 duration_hint,
             )
             .await
@@ -299,6 +304,7 @@ pub(crate) async fn build_playback_source_with_probe_fallback(
                         done_flag,
                         fade_in_dur,
                         hi_res_enabled,
+                        resample_target_hz,
                         duration_hint,
                     )
                     .await
@@ -320,11 +326,11 @@ async fn build_source_from_play_input(
     done_flag: Arc<AtomicBool>,
     fade_in_dur: Duration,
     hi_res_enabled: bool,
+    resample_target_hz: u32,
     duration_hint: f64,
 ) -> Result<PlaybackSource, String> {
-    // Always 0 — no application-level resampling. Rodio handles conversion to
-    // the output device rate internally; we let every track play at its native rate.
-    let target_rate: u32 = 0;
+    // 0 = native rate; hi-res crossfade blend passes an explicit Hz.
+    let target_rate: u32 = resample_target_hz;
     let mut is_seekable = true;
     let built = match play_input {
         PlayInput::Bytes(data) => build_source(

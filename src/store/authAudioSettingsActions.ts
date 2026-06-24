@@ -31,6 +31,7 @@ export function createAudioSettingsActions(set: SetState): Pick<
   | 'setAutodjSmoothSkip'
   | 'setGaplessEnabled'
   | 'setEnableHiRes'
+  | 'setHiResCrossfadeResampleHz'
   | 'setAudioOutputDevice'
 > {
   return {
@@ -73,6 +74,7 @@ export function createAudioSettingsActions(set: SetState): Pick<
     setAutodjSmoothSkip: (v) => set({ autodjSmoothSkip: v }),
     setGaplessEnabled: (v) => set({ gaplessEnabled: v }),
     setEnableHiRes: (v) => set({ enableHiRes: v }),
+    setHiResCrossfadeResampleHz: (v) => set({ hiResCrossfadeResampleHz: v }),
     setAudioOutputDevice: (v) => set({ audioOutputDevice: v }),
   };
 }

@@ -14,6 +14,7 @@ import { NormalizationBlock } from './audio/NormalizationBlock';
 import { PlaybackRateBlock } from './audio/PlaybackRateBlock';
 import { TrackTransitionsBlock } from './audio/TrackTransitionsBlock';
 import { TrackPreviewsSection } from './audio/TrackPreviewsSection';
+import { HiResCrossfadeResampleBlock } from './audio/HiResCrossfadeResampleBlock';
 
 export function AudioTab() {
   const { t } = useTranslation();
@@ -86,6 +87,12 @@ export function AudioTab() {
               id="hires-enabled-toggle"
               checked={auth.enableHiRes}
               onChange={auth.setEnableHiRes}
+            />
+            <HiResCrossfadeResampleBlock
+              enabled={auth.enableHiRes}
+              resampleHz={auth.hiResCrossfadeResampleHz}
+              onResampleHzChange={auth.setHiResCrossfadeResampleHz}
+              t={t}
             />
           </SettingsGroup>
         </div>

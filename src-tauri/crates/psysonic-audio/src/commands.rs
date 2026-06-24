@@ -13,6 +13,7 @@ use tauri::{AppHandle, Emitter, State};
 use super::decode::build_source;
 use super::engine::AudioEngine;
 use super::helpers::*;
+use super::hi_res_blend::{self, OutgoingBlendSnapshot};
 use super::ipc::{maybe_emit_normalization_state, NormalizationStatePayload};
 use super::play_input::{select_play_input, url_format_hint, PlayInputContext};
 use super::source_build::{build_playback_source_with_probe_fallback, BuildSourceArgs};
@@ -51,6 +52,7 @@ pub async fn audio_play(
     fallback_db: f32,
     manual: bool, // true = user-initiated skip → bypass crossfade, start immediately
     hi_res_enabled: bool, // false = safe 44.1 kHz mode; true = native rate (alpha)
+  hi_res_crossfade_resample_hz: Option<u32>, // 44100 / 88200 / 96000 when hi-res + crossfade
     analysis_track_id: Option<String>,
     server_id: Option<String>,
     stream_format_suffix: Option<String>,
@@ -285,6 +287,13 @@ pub async fn audio_play(
         0.0
     };
 
+    let blend_rate = hi_res_blend::blend_rate_hz(
+        hi_res_enabled,
+        crossfade_enabled,
+        hi_res_crossfade_resample_hz,
+    );
+    let resample_target_hz = blend_rate.unwrap_or(0);
+
     // Build source: decode → trim → resample → EQ → fade-in → fade-out → notify → count.
     let done_flag = Arc::new(AtomicBool::new(false));
     // Reset sample counter for the new track.
@@ -301,6 +310,7 @@ pub async fn audio_play(
             done_flag: done_flag.clone(),
             fade_in_dur,
             hi_res_enabled,
+            resample_target_hz,
             duration_hint,
         },
         &state,
@@ -339,6 +349,26 @@ pub async fn audio_play(
         return Ok(());
     }
 
+    let current_stream_rate = state.stream_sample_rate.load(Ordering::Relaxed);
+    let outgoing_blend: Option<OutgoingBlendSnapshot> =
+        if let Some(blend) = blend_rate {
+            if crossfade_enabled && current_stream_rate > 0 && current_stream_rate != blend {
+                hi_res_blend::capture_outgoing_blend_snapshot(
+                    &state,
+                    outgoing_fade_secs,
+                    actual_fade_secs,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+    if outgoing_blend.is_some() {
+        hi_res_blend::detach_current_sink_for_blend_reopen(&state);
+    }
+
     // ── Stream rate management ────────────────────────────────────────────────
     // Hi-Res ON:  open device at file's native rate (bit-perfect, no resampler).
     // Hi-Res OFF: if the stream was previously opened at a hi-res rate (e.g. the
@@ -347,11 +377,12 @@ pub async fn audio_play(
     //             If already at the device default — skip entirely (no IPC, no
     //             PipeWire reconfigure, no scheduler cost).
     {
-        let current_stream_rate = state.stream_sample_rate.load(Ordering::Relaxed);
-        let target_rate = if hi_res_enabled {
-            output_rate   // native file rate
+        let target_rate = if let Some(blend) = blend_rate {
+            blend
+        } else if hi_res_enabled {
+            output_rate // native file rate
         } else {
-            state.device_default_rate  // restore device default
+            state.device_default_rate // restore device default
         };
         let needs_switch = target_rate > 0 && target_rate != current_stream_rate;
         if needs_switch {
@@ -383,6 +414,23 @@ pub async fn audio_play(
         }
     }
 
+    if let (Some(snap), Some(blend)) = (&outgoing_blend, blend_rate) {
+        if let Err(e) = hi_res_blend::spawn_outgoing_blend_resample(
+            &app,
+            &state,
+            snap,
+            blend,
+            gen,
+        )
+        .await
+        {
+            crate::app_eprintln!("{e}");
+        }
+        if state.generation.load(Ordering::SeqCst) != gen {
+            return Ok(());
+        }
+    }
+
     let stream = super::engine::ensure_output_stream_open(&state)?;
     let sink = Arc::new(Player::connect_new(stream.mixer()));
     sink.set_volume(effective_volume);
@@ -399,7 +447,7 @@ pub async fn audio_play(
     // ring buffer time to build headroom before the cpal callback drains it.
     let needs_preserve_prefill = preserve_pitch_will_run(&state.playback_rate);
     let needs_prefill =
-        (hi_res_enabled && output_rate > 48_000) || needs_preserve_prefill;
+        (hi_res_enabled && blend_rate.unwrap_or(output_rate) > 48_000) || needs_preserve_prefill;
     let defer_playback_start = !state.stream_playback_armed.load(Ordering::Relaxed);
     if needs_prefill || defer_playback_start {
         sink.pause();

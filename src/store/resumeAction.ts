@@ -8,6 +8,7 @@ import {
 } from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
+import { audioPlayHiResBlendArgs } from '../utils/audio/hiResCrossfadeResample';
 import { songToTrack } from '../utils/playback/songToTrack';
 import { useAuthStore } from './authStore';
 import {
@@ -184,7 +185,7 @@ export function runResume(set: SetState, get: GetState): void {
           preGainDb: authStateCold.replayGainPreGainDb,
           fallbackDb: authStateCold.replayGainFallbackDb,
           manual: false,
-          hiResEnabled: useAuthStore.getState().enableHiRes,
+          ...audioPlayHiResBlendArgs(useAuthStore.getState()),
           analysisTrackId: trackToPlay.id,
           serverId: coldServerId || null,
           streamFormatSuffix: trackToPlay.suffix ?? null,
@@ -225,7 +226,7 @@ export function runResume(set: SetState, get: GetState): void {
           preGainDb: authStateCold.replayGainPreGainDb,
           fallbackDb: authStateCold.replayGainFallbackDb,
           manual: false,
-          hiResEnabled: useAuthStore.getState().enableHiRes,
+          ...audioPlayHiResBlendArgs(useAuthStore.getState()),
           analysisTrackId: currentTrack.id,
           serverId: coldServerId || null,
           streamFormatSuffix: currentTrack.suffix ?? null,

@@ -33,6 +33,7 @@ import {
 } from '../utils/offline/offlineLibraryHelpers';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
+import { audioPlayHiResBlendArgs } from '../utils/audio/hiResCrossfadeResample';
 import { useAuthStore } from './authStore';
 import { consumeCrossfadeDynamicOverlap, getCrossfadeTransition, peekArmedCrossfadeDynamicOverlap } from './crossfadeTrimCache';
 import {
@@ -468,7 +469,7 @@ export function runPlayTrack(
         preGainDb: authStateNow.replayGainPreGainDb,
         fallbackDb: authStateNow.replayGainFallbackDb,
         manual,
-        hiResEnabled: authStateNow.enableHiRes,
+        ...audioPlayHiResBlendArgs(authStateNow),
         analysisTrackId: scopedTrack.id,
         serverId: getPlaybackIndexKey() || null,
         streamFormatSuffix: scopedTrack.suffix ?? null,

@@ -7,6 +7,7 @@ import {
 } from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
+import { audioPlayHiResBlendArgs } from '../utils/audio/hiResCrossfadeResample';
 import { useAuthStore } from './authStore';
 import { getPlayGeneration, setIsAudioPaused } from './engineState';
 import { touchHotCacheOnPlayback } from './hotCacheTouch';
@@ -56,7 +57,7 @@ export function engineLoadTrackAtPosition(opts: {
     preGainDb: authState.replayGainPreGainDb,
     fallbackDb: authState.replayGainFallbackDb,
     manual: false,
-    hiResEnabled: authState.enableHiRes,
+    ...audioPlayHiResBlendArgs(authState),
     analysisTrackId: track.id,
     serverId: playbackIndexKey || null,
     streamFormatSuffix: track.suffix ?? null,

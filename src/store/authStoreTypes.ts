@@ -1,3 +1,4 @@
+import type { HiResCrossfadeResampleHz } from '../utils/audio/hiResCrossfadeResample';
 import type { EntityRatingSupportLevel } from '../api/subsonicTypes';
 import type {
   AudiomusePluginProbeResult,
@@ -242,6 +243,8 @@ export interface AuthState {
 
   /** Alpha: native hi-res sample rate output (disabled = safe 44.1 kHz mode) */
   enableHiRes: boolean;
+  /** Hi-Res: common output rate for crossfade / AutoDJ when adjacent tracks differ (Hz). */
+  hiResCrossfadeResampleHz: HiResCrossfadeResampleHz;
   /** Selected audio output device name. null = system default. */
   audioOutputDevice: string | null;
 
@@ -416,6 +419,7 @@ export interface AuthState {
   setQueueDurationDisplayMode: (v: DurationMode) => void;
   setQueueDisplayMode: (v: QueueDisplayMode) => void;
   setEnableHiRes: (v: boolean) => void;
+  setHiResCrossfadeResampleHz: (v: HiResCrossfadeResampleHz) => void;
   setAudioOutputDevice: (v: string | null) => void;
   setFavoritesOfflineEnabled: (v: boolean) => void;
   setHotCacheEnabled: (v: boolean) => void;

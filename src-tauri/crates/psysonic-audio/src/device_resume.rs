@@ -161,6 +161,7 @@ pub(crate) async fn try_resume_after_device_change(
             done_flag: done_flag.clone(),
             fade_in_dur: std::time::Duration::from_millis(5),
             hi_res_enabled,
+            resample_target_hz: 0,
             duration_hint: snap.duration_secs,
         },
         &engine,

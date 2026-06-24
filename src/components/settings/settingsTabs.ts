@@ -34,7 +34,7 @@ export type SearchIndexEntry = { tab: Tab; titleKey: string; keywords?: string; 
 
 export const SETTINGS_INDEX: SearchIndexEntry[] = [
   { tab: 'audio',          titleKey: 'settings.audioOutputDevice',        keywords: 'output device speakers headphones alsa wasapi coreaudio' },
-  { tab: 'audio',          titleKey: 'settings.hiResTitle',               keywords: 'hi-res hires resampling bit depth sample rate dsd 24bit' },
+  { tab: 'audio',          titleKey: 'settings.hiResTitle',               keywords: 'hi-res hires resampling bit depth sample rate dsd 24bit crossfade autodj blend 44 88 96' },
   { tab: 'audio',          titleKey: 'settings.eqTitle',                  keywords: 'equalizer eq bass treble autoeq filter pre-gain' },
   { tab: 'audio',          titleKey: 'settings.playbackRateTitle',        keywords: 'speed playback rate tempo pitch varispeed preserve corrected time stretch' },
   { tab: 'audio',          titleKey: 'settings.normalization',            keywords: 'normalization normalisation loudness volume leveling level replaygain replay gain lufs pre-gain' },

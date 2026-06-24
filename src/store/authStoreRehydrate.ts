@@ -1,4 +1,5 @@
 import { IS_LINUX } from '../utils/platform';
+import { sanitizeHiResCrossfadeResampleHz } from '../utils/audio/hiResCrossfadeResample';
 import {
   LOUDNESS_PRE_ANALYSIS_REF_TARGET_LUFS,
   clampStoredLoudnessPreAnalysisAttenuationRefDb,
@@ -244,6 +245,9 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     loudnessTargetLufs: targetSan,
     loudnessPreAnalysisAttenuationDb: preSan,
     loudnessPreIsRefV1: true,
+    hiResCrossfadeResampleHz: sanitizeHiResCrossfadeResampleHz(
+      (state as { hiResCrossfadeResampleHz?: unknown }).hiResCrossfadeResampleHz,
+    ),
     ...lyricsSourcesMigrated,
     ...youLyPlusMigrated,
     ...wheelSmoothOneTime,

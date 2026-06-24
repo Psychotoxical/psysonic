@@ -69,6 +69,7 @@ describe('trivial pass-through setters', () => {
     ['setQueueNowPlayingCollapsed', 'queueNowPlayingCollapsed', true],
     ['setQueueDurationDisplayMode', 'queueDurationDisplayMode', 'eta'],
     ['setEnableHiRes', 'enableHiRes', true],
+    ['setHiResCrossfadeResampleHz', 'hiResCrossfadeResampleHz', 88_200],
     ['setFavoritesOfflineEnabled', 'favoritesOfflineEnabled', true],
     ['setHotCacheEnabled', 'hotCacheEnabled', true],
     ['setMixMinRatingFilterEnabled', 'mixMinRatingFilterEnabled', true],
