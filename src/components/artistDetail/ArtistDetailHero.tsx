@@ -12,6 +12,8 @@ import { useArtistOfflineState } from '../../hooks/useArtistOfflineState';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { ArtistHeroCover } from '../../cover/artistHero';
 import { useArtistBanner, useArtistFanart } from '../../cover/useArtistFanart';
+import { usePlaybackCoverArt } from '../../cover/usePlaybackCoverArt';
+import { useCachedUrl } from '../CachedImage';
 import { useCoverLightboxSrc } from '../../cover/lightbox';
 import type { CoverArtRef } from '../../cover/types';
 import LastfmIcon from '../LastfmIcon';
@@ -58,7 +60,7 @@ interface Props {
  * `complete` check for an already-cached image whose `load` event can fire
  * before React attaches the handler.
  */
-function ArtistHeaderBg({ url }: { url: string }) {
+function ArtistHeaderBg({ url, position }: { url: string; position?: string }) {
   const [loaded, setLoaded] = useState(false);
   if (!url) return null;
   return (
@@ -78,6 +80,11 @@ function ArtistHeaderBg({ url }: { url: string }) {
         className="album-detail-bg"
         style={{
           backgroundImage: `url(${url})`,
+          // Portrait-ish artist images (fanart / Navidrome) get a higher focal
+          // point so the band's heads aren't cropped off the top on wide (2K+)
+          // viewports, where `cover` scales the image up and overflows vertically.
+          // The wide banner strip is left at the shared `center` (no override).
+          ...(position ? { backgroundPosition: position } : {}),
           opacity: loaded ? 1 : 0,
           transition: 'opacity 0.4s ease',
         }}
@@ -136,12 +143,24 @@ export default function ArtistDetailHero({
     artistName: artist.name,
     albumTitle: albumContext,
   });
-  // Banner is preferred: while it is still resolving, show nothing rather than
-  // flashing the fanart background first and then swapping. Only once the banner
-  // has resolved to a miss do we fall back to the 16:9 fanart (which is itself
-  // '' while still loading). Empty when neither has an image. Off → both '',
-  // not pending → empty, no regression.
-  const headerBgUrl = banner.src || (banner.pending ? '' : fanartBg.src);
+  // §28 stage 3: the Navidrome artist cover, the last fallback when neither an
+  // external banner nor fanart exists. Resolved the same way the fullscreen
+  // player resolves its artist background (`coverRef` is the artist cover ref).
+  const ndArtist = usePlaybackCoverArt(coverRef ?? undefined, 2000, { fullRes: true });
+  const ndArtistUrl = useCachedUrl(ndArtist.src, ndArtist.cacheKey, true);
+  // Header background priority (§28): banner → fanart → Navidrome artist cover.
+  // Each external surface now reports a genuine miss (`src === ''`, not the ND
+  // cover), so the chain can step through cleanly: while a stage is still
+  // resolving we show nothing rather than flashing a lower-priority image; on a
+  // confirmed miss we drop to the next stage. Off → external surfaces are '',
+  // not pending → we fall straight through to the Navidrome cover.
+  const headerBgUrl =
+    banner.src ||
+    (banner.pending ? '' : fanartBg.src || (fanartBg.pending ? '' : ndArtistUrl));
+  // The banner is a purpose-built wide strip → keep it centered. The fanart /
+  // Navidrome artist images are portrait-ish → raise the focal point so heads
+  // stay in frame on wide viewports.
+  const headerBgPosition = banner.src ? undefined : 'center 30%';
 
   const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(artist.name)}`;
 
@@ -154,7 +173,7 @@ export default function ArtistDetailHero({
           `artist-detail-bleed` breaks out of the artist page's .content-body
           padding so it is full-bleed like the album page (flush .album-detail). */}
       <div className="album-detail-header artist-detail-bleed">
-        <ArtistHeaderBg key={headerBgUrl} url={headerBgUrl} />
+        <ArtistHeaderBg key={headerBgUrl} url={headerBgUrl} position={headerBgPosition} />
         <div className="album-detail-content">
           <button className="btn btn-ghost album-detail-back" onClick={() => goBack()}>
             <ArrowLeft size={16} /> <span>{t('artistDetail.back')}</span>
