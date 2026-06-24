@@ -14,6 +14,7 @@ import { IS_LINUX, IS_WINDOWS } from '../../utils/platform';
 import SettingsSubSection from '../SettingsSubSection';
 import { SettingsGroup } from './SettingsGroup';
 import { SettingsToggle } from './SettingsToggle';
+import { SettingsSubCard, SettingsField, SettingsRow, SettingsValue } from './SettingsSubCard';
 import { SeekbarPreview } from '../WaveformSeekPreview';
 import WindowButtonPreview from '../WindowButtonPreview';
 
@@ -40,14 +41,15 @@ export function AppearanceTab() {
             <div className="settings-hint settings-hint-info" style={{ marginBottom: '0.75rem' }}>
               {t('settings.libraryGridMaxColumnsPerfHint')}
             </div>
-            <div className="form-group">
-              <label className="settings-label" htmlFor="library-grid-max-cols">
-                {t('settings.libraryGridMaxColumnsRangeLabel', {
+            <SettingsSubCard>
+              <SettingsField
+                label={t('settings.libraryGridMaxColumnsRangeLabel', {
                   min: LIBRARY_GRID_MAX_COLUMNS_MIN,
                   max: LIBRARY_GRID_MAX_COLUMNS_MAX,
                 })}
-              </label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: 8 }}>
+                desc={t('settings.libraryGridMaxColumnsDesc')}
+                row
+              >
                 <input
                   id="library-grid-max-cols"
                   type="range"
@@ -56,19 +58,13 @@ export function AppearanceTab() {
                   step={1}
                   value={auth.libraryGridMaxColumns}
                   onChange={e => auth.setLibraryGridMaxColumns(Number(e.target.value))}
-                  style={{ flex: 1, maxWidth: 360 }}
                   aria-valuemin={LIBRARY_GRID_MAX_COLUMNS_MIN}
                   aria-valuemax={LIBRARY_GRID_MAX_COLUMNS_MAX}
                   aria-valuenow={auth.libraryGridMaxColumns}
                 />
-                <span style={{ minWidth: 28, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                  {auth.libraryGridMaxColumns}
-                </span>
-              </div>
-            </div>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: '0.75rem', lineHeight: 1.45 }}>
-              {t('settings.libraryGridMaxColumnsDesc')}
-            </p>
+                <SettingsValue>{auth.libraryGridMaxColumns}</SettingsValue>
+              </SettingsField>
+            </SettingsSubCard>
           </SettingsGroup>
         </div>
       </SettingsSubSection>
@@ -143,24 +139,24 @@ export function AppearanceTab() {
               />
               {auth.useCustomTitlebar && (
                 <>
-                  <div className="settings-section-divider" />
-                  <div>
-                    <div style={{ fontWeight: 500 }}>{t('settings.windowButtonStyle')}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-                      {t('settings.windowButtonStyleDesc')}
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                      {(['dots', 'dotsGlyph', 'flat', 'pill', 'outline', 'glyph'] as WindowButtonStyle[]).map(style => (
-                        <WindowButtonPreview
-                          key={style}
-                          style={style}
-                          label={t(`settings.windowButtons${style.charAt(0).toUpperCase() + style.slice(1)}`)}
-                          selected={auth.windowButtonStyle === style}
-                          onClick={() => auth.setWindowButtonStyle(style)}
-                        />
-                      ))}
-                    </div>
-                  </div>
+                  <SettingsSubCard style={{ marginTop: '0.85rem' }}>
+                    <SettingsField
+                      label={t('settings.windowButtonStyle')}
+                      desc={t('settings.windowButtonStyleDesc')}
+                    >
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                        {(['dots', 'dotsGlyph', 'flat', 'pill', 'outline', 'glyph'] as WindowButtonStyle[]).map(style => (
+                          <WindowButtonPreview
+                            key={style}
+                            style={style}
+                            label={t(`settings.windowButtons${style.charAt(0).toUpperCase() + style.slice(1)}`)}
+                            selected={auth.windowButtonStyle === style}
+                            onClick={() => auth.setWindowButtonStyle(style)}
+                          />
+                        ))}
+                      </div>
+                    </SettingsField>
+                  </SettingsSubCard>
                   <div className="settings-section-divider" />
                   <SettingsToggle
                     label={t('settings.showMinimizeButton')}
@@ -181,57 +177,56 @@ export function AppearanceTab() {
       >
         <div className="settings-card">
           <SettingsGroup>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('settings.uiScaleLabel')}</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', minWidth: 40, textAlign: 'right' }}>
-                  {Math.round(fontStore.uiScale * 100)}%
-                </span>
-              </div>
-              {(() => {
-                const presets = [80, 90, 100, 110, 125, 150];
-                const currentPct = Math.round(fontStore.uiScale * 100);
-                let idx = presets.indexOf(currentPct);
-                if (idx < 0) {
-                  // Snap legacy off-preset values to the closest preset.
-                  idx = presets.reduce((best, p, i) =>
-                    Math.abs(p - currentPct) < Math.abs(presets[best] - currentPct) ? i : best, 0);
-                }
-                return (
-                  <>
-                    <input
-                      type="range"
-                      min={0}
-                      max={presets.length - 1}
-                      step={1}
-                      value={idx}
-                      onChange={e => fontStore.setUiScale(presets[parseInt(e.target.value, 10)] / 100)}
-                      className="ui-scale-slider"
-                    />
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      {presets.map(p => {
-                        const active = currentPct === p;
-                        return (
-                          <button
-                            key={p}
-                            className="btn btn-ghost"
-                            style={{
-                              fontSize: 11,
-                              padding: '2px 6px',
-                              opacity: active ? 1 : 0.5,
-                              color: active ? 'var(--accent)' : undefined,
-                            }}
-                            onClick={() => fontStore.setUiScale(p / 100)}
-                          >
-                            {p}%
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
+            <SettingsSubCard>
+              <SettingsField label={t('settings.uiScaleLabel')}>
+                {(() => {
+                  const presets = [80, 90, 100, 110, 125, 150];
+                  const currentPct = Math.round(fontStore.uiScale * 100);
+                  let idx = presets.indexOf(currentPct);
+                  if (idx < 0) {
+                    // Snap legacy off-preset values to the closest preset.
+                    idx = presets.reduce((best, p, i) =>
+                      Math.abs(p - currentPct) < Math.abs(presets[best] - currentPct) ? i : best, 0);
+                  }
+                  return (
+                    <>
+                      <SettingsRow>
+                        <input
+                          type="range"
+                          min={0}
+                          max={presets.length - 1}
+                          step={1}
+                          value={idx}
+                          onChange={e => fontStore.setUiScale(presets[parseInt(e.target.value, 10)] / 100)}
+                          className="ui-scale-slider"
+                        />
+                        <SettingsValue>{currentPct}%</SettingsValue>
+                      </SettingsRow>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        {presets.map(p => {
+                          const active = currentPct === p;
+                          return (
+                            <button
+                              key={p}
+                              className="btn btn-ghost"
+                              style={{
+                                fontSize: 11,
+                                padding: '2px 6px',
+                                opacity: active ? 1 : 0.5,
+                                color: active ? 'var(--accent)' : undefined,
+                              }}
+                              onClick={() => fontStore.setUiScale(p / 100)}
+                            >
+                              {p}%
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  );
+                })()}
+              </SettingsField>
+            </SettingsSubCard>
           </SettingsGroup>
         </div>
       </SettingsSubSection>
@@ -242,6 +237,7 @@ export function AppearanceTab() {
       >
         <div className="settings-card">
           <SettingsGroup>
+            <SettingsSubCard>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {(
                 [
@@ -283,6 +279,7 @@ export function AppearanceTab() {
                 </button>
               ))}
             </div>
+            </SettingsSubCard>
           </SettingsGroup>
         </div>
       </SettingsSubSection>
@@ -293,20 +290,21 @@ export function AppearanceTab() {
       >
         <div className="settings-card">
           <SettingsGroup>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-              {t('settings.seekbarStyleDesc')}
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-              {(['truewave', 'pseudowave', 'linedot', 'bar', 'thick', 'segmented', 'neon', 'pulsewave', 'particletrail', 'liquidfill', 'retrotape'] as SeekbarStyle[]).map(style => (
-                <SeekbarPreview
-                  key={style}
-                  style={style}
-                  label={t(`settings.seekbar${style.charAt(0).toUpperCase() + style.slice(1)}`)}
-                  selected={auth.seekbarStyle === style}
-                  onClick={() => auth.setSeekbarStyle(style)}
-                />
-              ))}
-            </div>
+            <SettingsSubCard>
+              <SettingsField desc={t('settings.seekbarStyleDesc')}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  {(['truewave', 'pseudowave', 'linedot', 'bar', 'thick', 'segmented', 'neon', 'pulsewave', 'particletrail', 'liquidfill', 'retrotape'] as SeekbarStyle[]).map(style => (
+                    <SeekbarPreview
+                      key={style}
+                      style={style}
+                      label={t(`settings.seekbar${style.charAt(0).toUpperCase() + style.slice(1)}`)}
+                      selected={auth.seekbarStyle === style}
+                      onClick={() => auth.setSeekbarStyle(style)}
+                    />
+                  ))}
+                </div>
+              </SettingsField>
+            </SettingsSubCard>
           </SettingsGroup>
         </div>
       </SettingsSubSection>

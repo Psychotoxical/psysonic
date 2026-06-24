@@ -5,6 +5,7 @@ import { useThemeStore } from '../../store/themeStore';
 import SettingsSubSection from '../SettingsSubSection';
 import { SettingsGroup } from './SettingsGroup';
 import { SettingsToggle } from './SettingsToggle';
+import { SettingsSubCard, SettingsField } from './SettingsSubCard';
 import { MusicNetworkSection } from './musicNetwork/MusicNetworkSection';
 import { purgeExternalArtworkAllServers } from '../../api/coverCache';
 
@@ -77,46 +78,44 @@ export function IntegrationsTab() {
               </SettingsGroup>
 
               <SettingsGroup title={t('settings.discordTemplates')} desc={t('settings.discordTemplatesDesc')}>
-                <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-                  <label style={{ fontSize: 12 }}>{t('settings.discordTemplateName')}</label>
-                  <input
-                    className="input"
-                    type="text"
-                    value={auth.discordTemplateName}
-                    onChange={e => auth.setDiscordTemplateName(e.target.value)}
-                    placeholder="{title}"
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-                  <label style={{ fontSize: 12 }}>{t('settings.discordTemplateDetails')}</label>
-                  <input
-                    className="input"
-                    type="text"
-                    value={auth.discordTemplateDetails}
-                    onChange={e => auth.setDiscordTemplateDetails(e.target.value)}
-                    placeholder="{artist}"
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-                  <label style={{ fontSize: 12 }}>{t('settings.discordTemplateState')}</label>
-                  <input
-                    className="input"
-                    type="text"
-                    value={auth.discordTemplateState}
-                    onChange={e => auth.setDiscordTemplateState(e.target.value)}
-                    placeholder="{title}"
-                  />
-                </div>
-                <div className="form-group">
-                  <label style={{ fontSize: 12 }}>{t('settings.discordTemplateLargeText')}</label>
-                  <input
-                    className="input"
-                    type="text"
-                    value={auth.discordTemplateLargeText}
-                    onChange={e => auth.setDiscordTemplateLargeText(e.target.value)}
-                    placeholder="{album}"
-                  />
-                </div>
+                <SettingsSubCard>
+                  <SettingsField label={t('settings.discordTemplateName')}>
+                    <input
+                      className="input"
+                      type="text"
+                      value={auth.discordTemplateName}
+                      onChange={e => auth.setDiscordTemplateName(e.target.value)}
+                      placeholder="{title}"
+                    />
+                  </SettingsField>
+                  <SettingsField label={t('settings.discordTemplateDetails')}>
+                    <input
+                      className="input"
+                      type="text"
+                      value={auth.discordTemplateDetails}
+                      onChange={e => auth.setDiscordTemplateDetails(e.target.value)}
+                      placeholder="{artist}"
+                    />
+                  </SettingsField>
+                  <SettingsField label={t('settings.discordTemplateState')}>
+                    <input
+                      className="input"
+                      type="text"
+                      value={auth.discordTemplateState}
+                      onChange={e => auth.setDiscordTemplateState(e.target.value)}
+                      placeholder="{title}"
+                    />
+                  </SettingsField>
+                  <SettingsField label={t('settings.discordTemplateLargeText')}>
+                    <input
+                      className="input"
+                      type="text"
+                      value={auth.discordTemplateLargeText}
+                      onChange={e => auth.setDiscordTemplateLargeText(e.target.value)}
+                      placeholder="{album}"
+                    />
+                  </SettingsField>
+                </SettingsSubCard>
               </SettingsGroup>
             </>
           )}
@@ -166,31 +165,33 @@ export function IntegrationsTab() {
               title={t('settings.externalArtworkByokTitle')}
               desc={t('settings.externalArtworkByokDesc')}
             >
-              <div className="form-group">
-                <input
-                  className="input"
-                  type="password"
-                  value={theme.externalArtworkByok}
-                  onChange={e => theme.setExternalArtworkByok(e.target.value)}
-                  placeholder="fanart.tv personal API key"
-                  spellCheck={false}
-                  autoComplete="off"
-                />
-                {theme.externalArtworkByok.trim() && (
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: 'var(--text-muted)',
-                      marginTop: 6,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                    }}
-                  >
-                    <Check size={13} /> {t('settings.externalArtworkByokSaved')}
-                  </div>
-                )}
-              </div>
+              <SettingsSubCard>
+                <SettingsField>
+                  <input
+                    className="input"
+                    type="password"
+                    value={theme.externalArtworkByok}
+                    onChange={e => theme.setExternalArtworkByok(e.target.value)}
+                    placeholder="fanart.tv personal API key"
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                  {theme.externalArtworkByok.trim() && (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: 'var(--text-muted)',
+                        marginTop: 6,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                    >
+                      <Check size={13} /> {t('settings.externalArtworkByokSaved')}
+                    </div>
+                  )}
+                </SettingsField>
+              </SettingsSubCard>
             </SettingsGroup>
           )}
         </div>

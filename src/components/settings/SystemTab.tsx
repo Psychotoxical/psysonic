@@ -17,6 +17,7 @@ import LicensesPanel from '../LicensesPanel';
 import SettingsSubSection from '../SettingsSubSection';
 import { SettingsGroup } from './SettingsGroup';
 import { SettingsToggle } from './SettingsToggle';
+import { SettingsSubCard, SettingsField } from './SettingsSubCard';
 import { BackupSection } from './BackupSection';
 import { CONTRIBUTORS, MAINTAINERS } from '../../config/settingsCredits';
 
@@ -58,25 +59,27 @@ export function SystemTab() {
       >
         <div className="settings-card">
           <SettingsGroup>
-            <div className="form-group" style={{ maxWidth: '300px' }}>
-              <CustomSelect
-                value={i18n.language}
-                onChange={v => i18n.changeLanguage(v)}
-                options={[
-                  { value: 'en', label: t('settings.languageEn') },
-                  { value: 'de', label: t('settings.languageDe') },
-                  { value: 'es', label: t('settings.languageEs') },
-                  { value: 'fr', label: t('settings.languageFr') },
-                  { value: 'nl', label: t('settings.languageNl') },
-                  { value: 'nb', label: t('settings.languageNb') },
-                  { value: 'ru', label: t('settings.languageRu') },
-                  { value: 'zh', label: t('settings.languageZh') },
-                  { value: 'ro', label: t('settings.languageRo') },
-                  { value: 'ja', label: t('settings.languageJa') },
-                  { value: 'hu', label: t('settings.languageHu') },
-                ]}
-              />
-            </div>
+            <SettingsSubCard>
+              <SettingsField>
+                <CustomSelect
+                  value={i18n.language}
+                  onChange={v => i18n.changeLanguage(v)}
+                  options={[
+                    { value: 'en', label: t('settings.languageEn') },
+                    { value: 'de', label: t('settings.languageDe') },
+                    { value: 'es', label: t('settings.languageEs') },
+                    { value: 'fr', label: t('settings.languageFr') },
+                    { value: 'nl', label: t('settings.languageNl') },
+                    { value: 'nb', label: t('settings.languageNb') },
+                    { value: 'ru', label: t('settings.languageRu') },
+                    { value: 'zh', label: t('settings.languageZh') },
+                    { value: 'ro', label: t('settings.languageRo') },
+                    { value: 'ja', label: t('settings.languageJa') },
+                    { value: 'hu', label: t('settings.languageHu') },
+                  ]}
+                />
+              </SettingsField>
+            </SettingsSubCard>
           </SettingsGroup>
         </div>
       </SettingsSubSection>
@@ -119,13 +122,11 @@ export function SystemTab() {
                 onChange={auth.setLinuxWebkitInputForceRepaint}
               />
               {waylandTextRenderAvailable && (
-                <>
-                  <div className="settings-section-divider" />
-                  <div className="form-group" style={{ maxWidth: '420px' }}>
-                    <div style={{ fontWeight: 500 }}>{t('settings.linuxWaylandTextRender')}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-                      {t('settings.linuxWaylandTextRenderDesc')}
-                    </div>
+                <SettingsSubCard style={{ marginTop: '0.85rem' }}>
+                  <SettingsField
+                    label={t('settings.linuxWaylandTextRender')}
+                    desc={t('settings.linuxWaylandTextRenderDesc')}
+                  >
                     <CustomSelect
                       value={auth.linuxWaylandTextRenderProfile}
                       onChange={v => auth.setLinuxWaylandTextRenderProfile(v as LinuxWaylandTextRenderProfile)}
@@ -136,30 +137,28 @@ export function SystemTab() {
                         { value: 'minimal', label: t('settings.linuxWaylandTextRenderMinimal') },
                       ]}
                     />
-                  </div>
-                </>
+                  </SettingsField>
+                </SettingsSubCard>
               )}
             </SettingsGroup>
           )}
 
           <SettingsGroup title={t('settings.groupClock')}>
-            <div className="settings-toggle-row">
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 500 }}>{t('settings.clockFormat')}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('settings.clockFormatDesc')}</div>
-              </div>
-              <div style={{ minWidth: 160 }}>
-                <CustomSelect
-                  value={auth.clockFormat}
-                  onChange={(v) => auth.setClockFormat(v as ClockFormat)}
-                  options={[
-                    { value: 'auto', label: t('settings.clockFormatAuto') },
-                    { value: '24h',  label: t('settings.clockFormatTwentyFour') },
-                    { value: '12h',  label: t('settings.clockFormatTwelve') },
-                  ]}
-                />
-              </div>
-            </div>
+            <SettingsSubCard>
+              <SettingsField label={t('settings.clockFormat')} desc={t('settings.clockFormatDesc')} row>
+                <div style={{ minWidth: 160 }}>
+                  <CustomSelect
+                    value={auth.clockFormat}
+                    onChange={(v) => auth.setClockFormat(v as ClockFormat)}
+                    options={[
+                      { value: 'auto', label: t('settings.clockFormatAuto') },
+                      { value: '24h',  label: t('settings.clockFormatTwentyFour') },
+                      { value: '12h',  label: t('settings.clockFormatTwelve') },
+                    ]}
+                  />
+                </div>
+              </SettingsField>
+            </SettingsSubCard>
           </SettingsGroup>
         </div>
       </SettingsSubSection>
@@ -177,26 +176,27 @@ export function SystemTab() {
       >
         <div className="settings-card">
           <SettingsGroup>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-              {t('settings.loggingModeDesc')}
-            </div>
-            <CustomSelect
-              value={auth.loggingMode}
-              onChange={(v) => auth.setLoggingMode(v as LoggingMode)}
-              options={[
-                { value: 'off', label: t('settings.loggingModeOff') },
-                { value: 'normal', label: t('settings.loggingModeNormal') },
-                { value: 'debug', label: t('settings.loggingModeDebug') },
-              ]}
-            />
-            {auth.loggingMode === 'debug' && (
-              <div style={{ marginTop: '0.75rem' }}>
-                <button className="btn btn-surface" onClick={exportRuntimeLogs}>
-                  <Download size={14} />
-                  {t('settings.loggingExport')}
-                </button>
-              </div>
-            )}
+            <SettingsSubCard>
+              <SettingsField desc={t('settings.loggingModeDesc')}>
+                <CustomSelect
+                  value={auth.loggingMode}
+                  onChange={(v) => auth.setLoggingMode(v as LoggingMode)}
+                  options={[
+                    { value: 'off', label: t('settings.loggingModeOff') },
+                    { value: 'normal', label: t('settings.loggingModeNormal') },
+                    { value: 'debug', label: t('settings.loggingModeDebug') },
+                  ]}
+                />
+                {auth.loggingMode === 'debug' && (
+                  <div>
+                    <button className="btn btn-surface" onClick={exportRuntimeLogs}>
+                      <Download size={14} />
+                      {t('settings.loggingExport')}
+                    </button>
+                  </div>
+                )}
+              </SettingsField>
+            </SettingsSubCard>
           </SettingsGroup>
         </div>
       </SettingsSubSection>

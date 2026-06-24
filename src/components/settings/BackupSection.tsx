@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Clock3, Download, Upload } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { SettingsGroup } from './SettingsGroup';
+import { SettingsSubCard, SettingsField } from './SettingsSubCard';
 import {
   exportBackupToPath,
   importAnyBackupFromPath,
@@ -151,12 +152,12 @@ export function BackupSection() {
   return (
     <div className="settings-card">
       <SettingsGroup>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.85rem' }}>
+        <div className="settings-segmented" style={{ marginBottom: '0.85rem' }}>
           {(['full', 'library', 'config'] as BackupMode[]).map(candidate => (
             <button
               key={candidate}
               type="button"
-              className={`btn btn-sm ${mode === candidate ? 'btn-primary' : 'btn-surface'}`}
+              className={`btn ${mode === candidate ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => setMode(candidate)}
             >
               {candidate === 'full'
@@ -168,31 +169,28 @@ export function BackupSection() {
           ))}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.9rem' }}>
-          <div>
-            <div style={{ fontWeight: 500, marginBottom: '0.25rem' }}>{modeTitle}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>{modeDesc}</div>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-          <button
-            className="btn btn-primary"
-            onClick={handleExport}
-            disabled={exporting}
-          >
-            <Upload size={14} />
-            {exporting ? '…' : exportLabel}
-          </button>
-          <button
-            className="btn btn-surface"
-            onClick={handleImport}
-            disabled={importing}
-          >
-            <Download size={14} />
-            {importing ? '…' : importLabel}
-          </button>
-        </div>
+        <SettingsSubCard>
+          <SettingsField label={modeTitle} desc={modeDesc}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+              <button
+                className="btn btn-primary"
+                onClick={handleExport}
+                disabled={exporting}
+              >
+                <Upload size={14} />
+                {exporting ? '…' : exportLabel}
+              </button>
+              <button
+                className="btn btn-surface"
+                onClick={handleImport}
+                disabled={importing}
+              >
+                <Download size={14} />
+                {importing ? '…' : importLabel}
+              </button>
+            </div>
+          </SettingsField>
+        </SettingsSubCard>
       </SettingsGroup>
       {busyOverlay}
     </div>
