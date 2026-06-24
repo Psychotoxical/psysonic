@@ -38,6 +38,15 @@ pub(crate) struct BuildSourceArgs<'a> {
     pub duration_hint: f64,
 }
 
+/// Decoder/output-shaping inputs shared by [`build_source_from_play_input`].
+struct PlaybackSourceShape {
+    done_flag: Arc<AtomicBool>,
+    fade_in_dur: Duration,
+    hi_res_enabled: bool,
+    resample_target_hz: u32,
+    duration_hint: f64,
+}
+
 /// Output of `build_source_from_play_input`: the wrapped rodio source plus
 /// whether the chosen source path is seekable (only the Streaming variant
 /// is not).
@@ -199,16 +208,15 @@ pub(crate) async fn build_playback_source_with_probe_fallback(
         crate::app_deprintln!("[stream] playback format hint: {h}");
     }
 
-    match build_source_from_play_input(
-        play_input,
-        state,
-        effective_hint.as_deref(),
-        done_flag.clone(),
+    let shape = PlaybackSourceShape {
+        done_flag: done_flag.clone(),
         fade_in_dur,
         hi_res_enabled,
         resample_target_hz,
         duration_hint,
-    )
+    };
+
+    match build_source_from_play_input(play_input, state, effective_hint.as_deref(), &shape)
     .await
     {
         Ok(p) => Ok(p),
@@ -265,11 +273,7 @@ pub(crate) async fn build_playback_source_with_probe_fallback(
                 PlayInput::Bytes(data.clone()),
                 state,
                 bytes_hint.as_deref(),
-                done_flag.clone(),
-                fade_in_dur,
-                hi_res_enabled,
-                resample_target_hz,
-                duration_hint,
+                &shape,
             )
             .await
             {
@@ -301,11 +305,13 @@ pub(crate) async fn build_playback_source_with_probe_fallback(
                         PlayInput::Bytes(fresh),
                         state,
                         bytes_hint.as_deref(),
-                        done_flag,
-                        fade_in_dur,
-                        hi_res_enabled,
-                        resample_target_hz,
-                        duration_hint,
+                        &PlaybackSourceShape {
+                            done_flag,
+                            fade_in_dur,
+                            hi_res_enabled,
+                            resample_target_hz,
+                            duration_hint,
+                        },
                     )
                     .await
                 }
@@ -323,29 +329,32 @@ async fn build_source_from_play_input(
     play_input: PlayInput,
     state: &State<'_, AudioEngine>,
     format_hint: Option<&str>,
-    done_flag: Arc<AtomicBool>,
-    fade_in_dur: Duration,
-    hi_res_enabled: bool,
-    resample_target_hz: u32,
-    duration_hint: f64,
+    shape: &PlaybackSourceShape,
 ) -> Result<PlaybackSource, String> {
+    let PlaybackSourceShape {
+        done_flag,
+        fade_in_dur,
+        hi_res_enabled,
+        resample_target_hz,
+        duration_hint,
+    } = shape;
     // 0 = native rate; hi-res crossfade blend passes an explicit Hz.
-    let target_rate: u32 = resample_target_hz;
+    let target_rate: u32 = *resample_target_hz;
     let mut is_seekable = true;
     let built = match play_input {
         PlayInput::Bytes(data) => build_source(
             data,
-            duration_hint,
+            *duration_hint,
             state.eq_gains.clone(),
             state.eq_enabled.clone(),
             state.eq_pre_gain.clone(),
             state.playback_rate.clone(),
-            done_flag,
-            fade_in_dur,
+            done_flag.clone(),
+            *fade_in_dur,
             state.samples_played.clone(),
             target_rate,
             format_hint,
-            hi_res_enabled,
+            *hi_res_enabled,
         ),
         PlayInput::SeekableMedia {
             reader,
@@ -367,13 +376,13 @@ async fn build_source_from_play_input(
             .map_err(|e| e.to_string())??;
             build_streaming_source(
                 decoder,
-                duration_hint,
+                *duration_hint,
                 state.eq_gains.clone(),
                 state.eq_enabled.clone(),
                 state.eq_pre_gain.clone(),
                 state.playback_rate.clone(),
-                done_flag,
-                fade_in_dur,
+                done_flag.clone(),
+                *fade_in_dur,
                 state.samples_played.clone(),
                 target_rate,
                 None,
@@ -393,13 +402,13 @@ async fn build_source_from_play_input(
             .map_err(|e| e.to_string())??;
             build_streaming_source(
                 decoder,
-                duration_hint,
+                *duration_hint,
                 state.eq_gains.clone(),
                 state.eq_enabled.clone(),
                 state.eq_pre_gain.clone(),
                 state.playback_rate.clone(),
-                done_flag,
-                fade_in_dur,
+                done_flag.clone(),
+                *fade_in_dur,
                 state.samples_played.clone(),
                 target_rate,
                 Some(state.stream_playback_armed.clone()),
