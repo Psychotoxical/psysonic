@@ -13,21 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 
-### Hi-Res transition blend rate
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1171](https://github.com/Psychotoxical/psysonic/pull/1171)**
-
-* **Settings → Audio → Native Hi-Res** gains a blend-rate picker (44.1 / 88.2 / 96 kHz, default 44.1 kHz) for transitions when adjacent tracks have different sample rates, with a note that resampling uses extra CPU and memory.
-* **Crossfade / AutoDJ:** both sides resample to the chosen rate; the output stream reopens when needed and the outgoing track rebuilds from cache so mixed 88.2 ↔ 44.1 kHz transitions no longer tear mid-fade.
-* **Gapless:** the next track chains at the blend rate and the current track realigns when the stream Hz differs, instead of falling back to a hard cut.
-
-### AutoDJ — configurable overlap cap
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1173](https://github.com/Psychotoxical/psysonic/pull/1173)**
-
-* **Settings → Audio → Track transitions → AutoDJ:** choose **Auto** (content-driven overlap, up to 12 s) or **Limit** (slider 2–30 s, default 15 s when enabled) to cap how long AutoDJ may overlap tracks.
-* The cap applies to end-of-track planning, JS auto-advance, smooth skip, and Orbit transition sync; the audio engine accepts dynamic overlap overrides up to 30 s.
-
 ### Theme store — version numbers and an animated/static filter
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1104](https://github.com/Psychotoxical/psysonic/pull/1104)**
@@ -65,11 +50,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Idle auto-pull** when paused/stopped for 30+ seconds on a single-server queue (active = playback): polls every 10s and applies server changes.
 * **Push** now sends only tracks owned by the playback server (fixes mixed-server queues). Switching browse servers flushes the old server's queue slice without auto-pull.
 
-### Japanese translation
+### Japanese and Hungarian translations
 
 **By [@Soli0222](https://github.com/Soli0222), PR [#1134](https://github.com/Psychotoxical/psysonic/pull/1134)**
 
 * Full Japanese (日本語) UI translation — selectable from the language picker on the Settings and Login screens.
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1149](https://github.com/Psychotoxical/psysonic/pull/1149)**, a gift to [@falu](https://github.com/falu) for the first independent review of Psysonic
+
+* Psysonic is now available in **Hungarian (Magyar)** — pick it from the language menu on the Settings and Login screens.
 
 ### Artist artwork from fanart.tv
 
@@ -82,12 +71,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1146](https://github.com/Psychotoxical/psysonic/pull/1146)**, suggested by [@JustBuddy](https://github.com/JustBuddy)
 
 * New opt-in **Remember EQ per device** toggle (Settings → Audio → Audio Output Device, off by default): the equalizer profile — bands, pre-gain, enabled state and active preset — is saved per audio output device and restored automatically when you switch devices.
-
-### Hungarian translation
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1149](https://github.com/Psychotoxical/psysonic/pull/1149)**, a gift to [@falu](https://github.com/falu) for the first independent review of Psysonic
-
-* Psysonic is now available in **Hungarian (Magyar)** — pick it from the language menu on the Settings and Login screens.
 
 ### Custom HTTP headers for gated servers
 
@@ -110,6 +93,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The theme scheduler can now switch your day/night theme pair based on your operating system's light/dark setting, in addition to the existing time-of-day schedule. Pick the trigger with a new Time of Day / System Theme switch; in system mode the two pickers read as Light and Dark theme. On Linux setups where the OS does not signal the change live, a hint notes it applies after restarting the app.
 
+### Hi-Res transition blend rate
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1171](https://github.com/Psychotoxical/psysonic/pull/1171)**
+
+* **Settings → Audio → Native Hi-Res** gains a blend-rate picker (44.1 / 88.2 / 96 kHz, default 44.1 kHz) for transitions when adjacent tracks have different sample rates, with a note that resampling uses extra CPU and memory.
+* **Crossfade / AutoDJ:** both sides resample to the chosen rate; the output stream reopens when needed and the outgoing track rebuilds from cache so mixed 88.2 ↔ 44.1 kHz transitions no longer tear mid-fade.
+* **Gapless:** the next track chains at the blend rate and the current track realigns when the stream Hz differs, instead of falling back to a hard cut.
+
+### AutoDJ — configurable overlap cap
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1173](https://github.com/Psychotoxical/psysonic/pull/1173)**
+
+* **Settings → Audio → Track transitions → AutoDJ:** choose **Auto** (content-driven overlap, up to 12 s) or **Limit** (slider 2–30 s, default 15 s when enabled) to cap how long AutoDJ may overlap tracks.
+* The cap applies to end-of-track planning, JS auto-advance, smooth skip, and Orbit transition sync; the audio engine accepts dynamic overlap overrides up to 30 s.
+
 
 ## Changed
 
@@ -126,18 +124,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ## Fixed
-
-### Genres page kept empty genres after tag changes
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1176](https://github.com/Psychotoxical/psysonic/pull/1176)**, closes [#1162](https://github.com/Psychotoxical/psysonic/issues/1162)
-
-* After retagging a track and resyncing the library, genres with no remaining albums could still appear on the Genres page until restart. The local genre catalog now counts only live indexed tracks, filters zero-count genres, and the Genres page refreshes when library sync finishes.
-
-### Playlists header buttons clipped at narrow widths
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1153](https://github.com/Psychotoxical/psysonic/pull/1153)**
-
-* The action buttons at the top of the Playlists page (New Playlist, New Smart Playlist, folder controls, Select) could run off-screen and get cut off when the window was narrow or the queue panel was open. They now wrap onto multiple rows, left-aligned.
 
 ### Seeking in streamed Opus/Ogg tracks
 
@@ -182,35 +168,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Niri is now recognized as a tiling window manager (`NIRI_SOCKET`, `XDG_CURRENT_DESKTOP=niri`), so it gets the same custom title bar, window decorations, and mini-player behavior as Hyprland and Sway instead of being treated like a floating desktop.
 
-### Play queue idle pull overwrote local edits
+### Play queue sync — follow-up fixes
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1132](https://github.com/Psychotoxical/psysonic/pull/1132)**
 
 * After cross-device idle pull while paused, a local queue change (e.g. enqueue) could be overwritten when auto-pull ran again. Idle auto-pull now stops on local mutations until manual sync from the header; the connection LED turns yellow while auto-sync is paused.
 
-### Paused client did not push edited queue on Play
-
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1133](https://github.com/Psychotoxical/psysonic/pull/1133)**
 
 * After editing the queue while paused (yellow sync LED), pressing Play only resumed audio and could leave the server on another device's queue until the debounced push fired. Resume and play-from-queue now flush the local play queue immediately and clear the yellow indicator when the push succeeds.
-
-### Connection indicator flapping on flaky links
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1135](https://github.com/Psychotoxical/psysonic/pull/1135)**
 
 * The header connection probe now retries a failed ping twice (2 s apart) before marking the server unreachable, so a single dropped packet on an otherwise fine link no longer flips the LED to disconnected.
 
-### Yellow sync LED during normal playback
-
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1136](https://github.com/Psychotoxical/psysonic/pull/1136)**
 
 * Track-advance queue pushes no longer suspend idle auto-pull, so the connection LED does not flash yellow on every song change. Yellow sync still appears after a local queue edit while paused; it clears while audio is playing.
-
-### Update notification — clearer popup on Linux
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1142](https://github.com/Psychotoxical/psysonic/pull/1142)**, reported by zunoz on Discord
-
-* The "new version available" popup no longer shows blurry, unfocused text on some Linux setups (the background blur could bleed onto the dialog). The version arrow now lines up with the heading, and the Skip / Remind me later buttons read clearly — Remind me later is the highlighted action when there's no in-app installer.
 
 ### Favorites — bulk add to playlist and play/enqueue selected
 
@@ -220,17 +194,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * With rows selected, **Play all** / **Add all to queue** become **Play selected** / **Add selected to queue** and act on the checked tracks only.
 * Bulk add now snapshots every checked row when the picker opens so all selected tracks land in the playlist, not just the last one.
 
-### Artists letter index — Navidrome ignored articles
+### Update notification — clearer popup on Linux
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1142](https://github.com/Psychotoxical/psysonic/pull/1142)**, reported by zunoz on Discord
+
+* The "new version available" popup no longer shows blurry, unfocused text on some Linux setups (the background blur could bleed onto the dialog). The version arrow now lines up with the heading, and the Skip / Remind me later buttons read clearly — Remind me later is the highlighted action when there's no in-app installer.
+
+### Artists letter index — Navidrome ignored articles and library index
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1145](https://github.com/Psychotoxical/psysonic/pull/1145)**, closes [#1144](https://github.com/Psychotoxical/psysonic/issues/1144)
 
 * On the **Artists** page (and **Composers**), the A–Z filter now groups names like Navidrome: leading articles such as **The** are skipped before picking the letter — **The Beatles** lands under **B**, not **T**. The bucket follows the server's own `ignoredArticles` list when the local index knows it.
 * The local library index stores `name_sort` and the server's `ignoredArticles` from `getArtists`, sorts browse SQL by the sort key (now indexed), and repairs stale keys once on upgrade.
-
-### Library index — safer open, swap and recovery
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1145](https://github.com/Psychotoxical/psysonic/pull/1145)**
-
 * The local library database now opens, swaps and restores through one pipeline, so a swapped or restored file always picks up pending migrations and one-time repairs instead of serving a stale schema.
 * A panic or a poisoned lock in one query no longer wedges the whole library index — connections recover and report the error instead, and the new sort-key migration applies idempotently so a half-applied upgrade self-heals on the next launch.
 
@@ -247,6 +222,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Only compilations** no longer shows a handful of albums after the local index already filtered them — slice mode skips the redundant client pass that dropped rows without `isCompilation` on the DTO.
 * **Favorites** on All Albums uses the same `getStarred2` catalog path as the Favorites page instead of the empty sparse `album` table browse.
 * Pre-index compilation filtering auto-paginates again in network page mode; offline library aggregates set `isCompilation` from track tags.
+
+### Playlists header buttons clipped at narrow widths
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1153](https://github.com/Psychotoxical/psysonic/pull/1153)**
+
+* The action buttons at the top of the Playlists page (New Playlist, New Smart Playlist, folder controls, Select) could run off-screen and get cut off when the window was narrow or the queue panel was open. They now wrap onto multiple rows, left-aligned.
 
 ### Orbit — session reliability fixes
 
@@ -266,6 +247,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * On macOS the dock icon was rendered edge-to-edge and looked larger than other apps; it is now padded to Apple's icon grid so it matches native sizing.
 
+### Artist header showing the plain image instead of the external background
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1172](https://github.com/Psychotoxical/psysonic/pull/1172)**
+
+* On the artist page, when an artist had an external background image (from fanart.tv) but no banner, the header showed the plain Navidrome artist image instead of the background — even though the fullscreen player used the background correctly. The header now falls back banner → background → Navidrome image as intended. The background also sits a little higher so band members' heads aren't cropped on wide screens.
+
+### Context menu "Play Now" and resize behaviour
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1174](https://github.com/Psychotoxical/psysonic/pull/1174)**, reported by [@peri4ko](https://github.com/peri4ko)
+
+* On the Playlists page, right-clicking a playlist and choosing "Play Now" only opened the playlist instead of playing it. It now starts playback.
+* Resizing the window while a context menu was open could leave the menu stranded and drifting off-screen. The context menu now closes when the window is resized.
+
+### Genres page kept empty genres after tag changes
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1176](https://github.com/Psychotoxical/psysonic/pull/1176)**, closes [#1162](https://github.com/Psychotoxical/psysonic/issues/1162)
+
+* After retagging a track and resyncing the library, genres with no remaining albums could still appear on the Genres page until restart. The local genre catalog now counts only live indexed tracks, filters zero-count genres, and the Genres page refreshes when library sync finishes.
+
 ## Under the Hood
 
 ### ESLint setup and a strict lint pass over the frontend
@@ -280,19 +280,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Strict `npm run lint` runs in CI on frontend path filters via a dedicated workflow parallel to the existing frontend test jobs.
 * The `ci-ok` check waits for every applicable test and lint job on a PR (frontend and/or Rust, depending on changed paths) and blocks merge when any required job failed or did not finish in time.
-
-### Artist header showing the plain image instead of the external background
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1172](https://github.com/Psychotoxical/psysonic/pull/1172)**
-
-* On the artist page, when an artist had an external background image (from fanart.tv) but no banner, the header showed the plain Navidrome artist image instead of the background — even though the fullscreen player used the background correctly. The header now falls back banner → background → Navidrome image as intended. The background also sits a little higher so band members' heads aren't cropped on wide screens.
-
-### Context menu "Play Now" and resize behaviour
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1174](https://github.com/Psychotoxical/psysonic/pull/1174)**, reported by [@peri4ko](https://github.com/peri4ko)
-
-* On the Playlists page, right-clicking a playlist and choosing "Play Now" only opened the playlist instead of playing it. It now starts playback.
-* Resizing the window while a context menu was open could leave the menu stranded and drifting off-screen. The context menu now closes when the window is resized.
 
 ### Settings — consistent design for the Audio sub-sections
 

@@ -12,27 +12,40 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 
 ## Highlights
 
+### Play queue sync — pick up where you left off on another device
+
+- Click the header connection indicator to **pull** the active server's play queue when it differs from yours; a yellow LED shows when browse and playback servers do not match.
+- While paused or stopped, **idle auto-pull** checks every 10 seconds and applies server changes when you have been still for 30+ seconds.
+- Queue **push** sends only tracks owned by the playback server, so mixed-server queues stay sane when you switch servers.
+- Local queue edits while paused are no longer overwritten by auto-pull; pressing **Play** pushes your changes immediately, and the sync LED no longer flashes on every track during normal playback.
+
 ### AutoDJ — minimum pauses, maximum music
 
-- New **AutoDJ** mode — a smart crossfade that blends tracks intelligently. Each transition is shaped to fit the music: awkward gaps fade away, handovers feel natural, and you spend less time in silence between songs. It's now its own choice in **Settings → Audio** and its own button in the queue toolbar, sitting alongside Crossfade and Gapless — pick one at a time. Off by default; classic **Crossfade** is unchanged.
+- New **AutoDJ** mode — a smart crossfade that blends tracks intelligently: it trims dead air, rides natural fades, and keeps handovers musical instead of abrupt. Its own button in the queue toolbar and its own entry under **Settings → Audio**, alongside Crossfade and Gapless — only one at a time. Off by default; classic **Crossfade** is unchanged.
+- **Smooth skip** (on by default with AutoDJ) crossfades manual Next/Previous and track picks from where you are listening instead of hard-cutting; the play/pause button pulses while a blend is active.
+- Cap how long overlaps may last: **Auto** (content-driven, up to 12 s) or **Limit** (slider 2–30 s) under **Settings → Audio → Track transitions**.
 
 ### Playlist folders — your playlists, organised
 
 - Folders on the **Playlists** page and in the sidebar keep long lists tidy — group by mood, occasion, or anything you like. Drag playlists in, rename and collapse folders, or choose **Move to folder** from the right-click menu. Switch back to a flat list whenever you prefer.
-
-### Theme store — spot updates, pick your style
-
-- Version numbers on store themes and ones you have installed make it obvious when an update is ready.
-- Filter for **animated** or **static** themes only — less scrolling when you already know the look you want.
 
 ### Settings — tidier and easier to scan
 
 - Settings are grouped into clear, labelled panels so related options sit together — less hunting around. The **Native Hi-Res Playback** option now explains in plain language what it actually does.
 - **Normalization** and **Track transitions** are now their own sections under **Settings → Audio**, and the queue options (display mode, toolbar, and Play-Next order) are gathered into one **Queue Settings** group under **Personalisation**.
 
-### Japanese — now in your language
+### Japanese and Hungarian — now in your language
 
-- Psysonic is now available in **Japanese (日本語)** — pick it from the language menu on the **Settings** and **Login** screens.
+- Psysonic is now available in **Japanese (日本語)** and **Hungarian (Magyar)** — pick either from the language menu on the **Settings** and **Login** screens.
+
+### Theme store — spot updates, pick your style
+
+- Version numbers on store themes and ones you have installed make it obvious when an update is ready.
+- Filter for **animated** or **static** themes only — less scrolling when you already know the look you want.
+
+### Hi-Res playback — smoother transitions between sample rates
+
+- Under **Settings → Audio → Native Hi-Res**, choose a **blend rate** (44.1 / 88.2 / 96 kHz) for crossfade, AutoDJ, and gapless when adjacent tracks differ in sample rate — mixed 88.2 ↔ 44.1 kHz handovers no longer tear mid-transition.
 
 ### Artist artwork — richer artist and fullscreen views
 
@@ -42,28 +55,50 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 
 - Turn on **Remember EQ per device** under **Settings → Audio** and Psysonic keeps a separate equalizer setup for each output — speakers, headphones, a USB DAC — and switches to the right one automatically when you change devices. Off by default.
 
+### Orbit — everyone hears transitions the host chose
+
+- In a shared **Orbit** session, the host's crossfade, gapless, or AutoDJ settings — including length and smooth skip — apply to all guests until you leave. Transition controls in **Settings → Audio** and the queue toolbar show as host-controlled while you are a guest.
+
 ### Themes — follow your system's light and dark mode
 
 - The theme scheduler can now match your **system's light/dark setting** instead of a fixed clock: pick a light theme and a dark one, and Psysonic switches along with your OS. Choose **Time of Day** or **System Theme** under **Settings → Themes** — the existing time-based schedule is still there.
+
+### Servers behind a reverse proxy — custom HTTP headers
+
+- Per-server **custom HTTP headers** in **Settings → Servers** for Cloudflare Access, Pangolin, and similar gates — applied to library sync, playback, covers, offline download, and the rest without putting secrets in invite links.
 
 ## Fixed
 
 ### Playback and audio
 
 - **Opus/Ogg** tracks no longer fight the seekbar while they are still loading — scrub to where you want to be and keep listening.
+- The equalizer preset picker shows the active **AutoEQ** profile name again instead of going blank.
 
-### Player and playlists
+### Offline, Now Playing, and Navidrome
 
-- **Add to playlist** from the player bar adds the song you are hearing, not the whole album.
+- The **Live** listener count in the header stays up to date even when the "Who is listening?" popover is closed.
 
 ### Browse and library
 
 - Albums sorted by artist now list each artist's work A–Z by title — no more random order within a name.
 - **Artist → Year** keeps artists grouped but walks through their albums chronologically, oldest first.
+- Genres with no remaining tracks disappear after you retag and resync the library, without restarting the app.
+- The **Artists** A–Z index matches Navidrome ignored articles — **The Beatles** lands under **B**, not **T**.
+- **All Albums → Only compilations** and **Favorites** return the albums you expect instead of an empty or partial list.
 
-### Windows
+### Player and playlists
 
+- **Add to playlist** from the player bar adds the song you are hearing, not the whole album.
+- On **Favorites**, bulk **Add to playlist** and **Play selected** / **Add selected to queue** act on every checked row.
+- **Play Now** on a playlist in the right-click menu starts playback instead of only opening the list.
+
+### Other
+
+- **Orbit** sessions stay reliable on long listens — guests keep receiving updates, radio no longer pollutes the shared queue, and opening Psysonic on a second device does not delete a live session elsewhere.
+- On the artist page, the header uses the fanart.tv background when no banner is available — the same image the fullscreen player already showed.
 - **Windows:** Previous, Play/Pause, and Next are back when you hover the taskbar icon — and Play/Pause shows whether music is playing or paused.
+- **macOS:** the dock icon matches native app sizing instead of looking oversized.
+- **Linux:** **Niri** is recognised as a tiling compositor and gets the same custom title bar behaviour as Hyprland and Sway; the "new version available" popup reads clearly on setups where the background blur used to bleed through.
 
 
 ## [1.48.1]
