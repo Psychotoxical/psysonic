@@ -59,8 +59,11 @@ export const player = {
   lyricsLoading: 'Загрузка текста…',
   lyricsNotFound: 'Текст не найден',
   lyricsNoSources: 'Источники текста не выбраны — включите их в Настройки → Текст',
+  lyricsSourceServer: 'Источник: Сервер',
+  lyricsSourceLrclib: 'Источник: LRCLIB',
   lyricsSourceNetease: 'Источник: Netease',
   lyricsSourceLyricsplus: 'Источник: YouLyPlus',
+  fsLyricsToggle: 'Текст в полноэкранном режиме',
   showDuration: 'Показать длительность',
   showRemainingTime: 'Показать оставшееся время',
 };
