@@ -122,7 +122,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Context menu "Play Now" and resize behaviour
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1174](https://github.com/Psychotoxical/psysonic/pull/1174)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1174](https://github.com/Psychotoxical/psysonic/pull/1174)**, reported by [@peri4ko](https://github.com/peri4ko)
 
 * On the Playlists page, right-clicking a playlist and choosing "Play Now" only opened the playlist instead of playing it. It now starts playback.
 * Resizing the window while a context menu was open could leave the menu stranded and drifting off-screen. The context menu now closes when the window is resized.
