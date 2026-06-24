@@ -1,4 +1,4 @@
-/** Hi-Res crossfade / AutoDJ blend output rates (Hz). */
+/** Hi-Res transition blend output rates (Hz) for crossfade, AutoDJ, and gapless. */
 export const HI_RES_CROSSFADE_RESAMPLE_OPTIONS = [44_100, 88_200, 96_000] as const;
 
 export type HiResCrossfadeResampleHz = (typeof HI_RES_CROSSFADE_RESAMPLE_OPTIONS)[number];

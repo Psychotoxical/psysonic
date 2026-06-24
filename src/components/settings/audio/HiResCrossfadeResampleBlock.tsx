@@ -19,7 +19,7 @@ function labelForHz(t: TFunction, hz: HiResCrossfadeResampleHz): string {
   return t('settings.hiResCrossfadeResample44');
 }
 
-/** Hi-Res crossfade / AutoDJ blend-rate picker (visible when hi-res is on). */
+/** Hi-Res crossfade / AutoDJ / gapless blend-rate picker (visible when hi-res is on). */
 export function HiResCrossfadeResampleBlock({
   enabled,
   resampleHz,

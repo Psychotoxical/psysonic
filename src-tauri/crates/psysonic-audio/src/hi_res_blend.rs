@@ -1,14 +1,15 @@
-//! Hi-Res crossfade / AutoDJ: resample both sides to a user-chosen blend rate
-//! when the output stream must switch Hz mid-transition.
+//! Hi-Res transition blend: resample to a user-chosen rate when crossfade,
+//! AutoDJ, or gapless must cross a sample-rate boundary.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use rodio::Player;
 use tauri::{AppHandle, State};
 
 use super::engine::AudioEngine;
+use super::playback_rate::raw_counter_samples_for_content_position;
 use super::play_input::{url_format_hint, PlayInput};
 use super::source_build::{build_playback_source_with_probe_fallback, BuildSourceArgs, PlaybackSource};
 use super::stream::LocalFileSource;
@@ -17,13 +18,13 @@ const BLEND_44100: u32 = 44_100;
 const BLEND_88200: u32 = 88_200;
 const BLEND_96000: u32 = 96_000;
 
-/// User-selected blend rate for hi-res crossfade / AutoDJ; `None` when inactive.
+/// User-selected blend rate for hi-res transitions; `None` when inactive.
 pub(crate) fn blend_rate_hz(
     hi_res_enabled: bool,
-    crossfade_enabled: bool,
+    transition_blend_active: bool,
     hz: Option<u32>,
 ) -> Option<u32> {
-    if !hi_res_enabled || !crossfade_enabled {
+    if !hi_res_enabled || !transition_blend_active {
         return None;
     }
     let raw = hz.unwrap_or(BLEND_44100);
@@ -226,12 +227,117 @@ pub(crate) async fn spawn_outgoing_blend_resample(
     Ok(())
 }
 
+/// Rebuild the **current** track on a freshly opened blend-rate stream (gapless
+/// chain realign) so the next source can append to the same sink.
+pub(crate) async fn rebuild_current_track_at_blend_rate(
+    app: &AppHandle,
+    state: &State<'_, AudioEngine>,
+    snap: &OutgoingBlendSnapshot,
+    blend_rate: u32,
+    gen: u64,
+) -> Result<(), String> {
+    if state.generation.load(Ordering::SeqCst) != gen {
+        return Ok(());
+    }
+
+    let play_input = resolve_cached_play_input(state, &snap.url).ok_or_else(|| {
+        format!(
+            "[hi-res-blend] current track not cached for gapless realign: {}",
+            snap.url
+        )
+    })?;
+
+    let done_flag = Arc::new(AtomicBool::new(false));
+    let format_hint = url_format_hint(&snap.url);
+    let stream_format_suffix: Option<String> = snap
+        .url
+        .rsplit('.')
+        .next()
+        .and_then(|e| e.split('?').next())
+        .map(|s| s.to_lowercase());
+    let resume_server = super::helpers::current_playback_server_id_str(state);
+
+    let ps: PlaybackSource = build_playback_source_with_probe_fallback(
+        play_input,
+        BuildSourceArgs {
+            url: &snap.url,
+            gen,
+            cache_id_for_tasks: snap.analysis_track_id.as_deref(),
+            server_id: Some(resume_server.as_str()),
+            url_format_hint: format_hint.as_deref(),
+            stream_format_suffix: stream_format_suffix.as_deref(),
+            done_flag: done_flag.clone(),
+            fade_in_dur: Duration::from_millis(5),
+            hi_res_enabled: true,
+            resample_target_hz: blend_rate,
+            duration_hint: snap.duration_secs,
+        },
+        state,
+        app,
+    )
+    .await?;
+
+    if state.generation.load(Ordering::SeqCst) != gen {
+        return Ok(());
+    }
+
+    state
+        .current_sample_rate
+        .store(ps.built.output_rate, Ordering::Relaxed);
+    state
+        .current_channels
+        .store(ps.built.output_channels as u32, Ordering::Relaxed);
+
+    let stream = super::engine::ensure_output_stream_open(state)?;
+    let sink = Arc::new(Player::connect_new(stream.mixer()));
+    let effective_volume = (snap.base_volume * snap.gain_linear).clamp(0.0, 1.0);
+    sink.set_volume(effective_volume);
+    sink.append(ps.built.source);
+
+    if ps.is_seekable && snap.position_secs > 0.05 {
+        let target = Duration::from_secs_f64(snap.position_secs.max(0.0));
+        sink.try_seek(target)
+            .map_err(|e| format!("[hi-res-blend] gapless realign seek failed: {e}"))?;
+    }
+
+    sink.play();
+
+    {
+        let mut cur = state.current.lock().unwrap();
+        cur.sink = Some(sink);
+        cur.duration_secs = ps.built.duration_secs;
+        cur.seek_offset = snap.position_secs;
+        cur.play_started = Some(Instant::now());
+        cur.paused_at = None;
+        cur.replay_gain_linear = snap.gain_linear;
+        cur.base_volume = snap.base_volume;
+        cur.fadeout_trigger = Some(ps.built.fadeout_trigger);
+        cur.fadeout_samples = Some(ps.built.fadeout_samples);
+    }
+
+    state.samples_played.store(
+        raw_counter_samples_for_content_position(
+            snap.position_secs,
+            ps.built.output_rate,
+            ps.built.output_channels as u32,
+            &state.playback_rate,
+        ),
+        Ordering::Relaxed,
+    );
+
+    crate::app_deprintln!(
+        "[hi-res-blend] gapless realigned current track at {blend_rate} Hz from {:.2}s",
+        snap.position_secs
+    );
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn blend_rate_inactive_without_hi_res_or_crossfade() {
+    fn blend_rate_inactive_without_hi_res_or_transition() {
         assert_eq!(blend_rate_hz(false, true, Some(96_000)), None);
         assert_eq!(blend_rate_hz(true, false, Some(96_000)), None);
     }

@@ -289,7 +289,7 @@ pub async fn audio_play(
 
     let blend_rate = hi_res_blend::blend_rate_hz(
         hi_res_enabled,
-        crossfade_enabled,
+        crossfade_enabled || (gapless && !manual),
         hi_res_crossfade_resample_hz,
     );
     let resample_target_hz = blend_rate.unwrap_or(0);
@@ -610,6 +610,7 @@ pub async fn audio_chain_preload(
     pre_gain_db: f32,
     fallback_db: f32,
     hi_res_enabled: bool,
+    hi_res_crossfade_resample_hz: Option<u32>,
     analysis_track_id: Option<String>,
     server_id: Option<String>,
     app: AppHandle,
@@ -723,8 +724,9 @@ pub async fn audio_chain_preload(
     // Use a dedicated counter for the chained source — it will be swapped into
     // samples_played when the chained track becomes active.
     let chain_counter = Arc::new(AtomicU64::new(0));
-    // Always 0 — no application-level resampling (same as audio_play).
-    let target_rate: u32 = 0;
+    // Always 0 unless hi-res gapless blend resampling is active.
+    let blend_rate = hi_res_blend::blend_rate_hz(hi_res_enabled, hi_res_enabled, hi_res_crossfade_resample_hz);
+    let target_rate: u32 = blend_rate.unwrap_or(0);
     let format_hint = url.rsplit('.').next()
         .and_then(|ext| ext.split('?').next())
         .map(|s| s.to_lowercase());
@@ -750,23 +752,70 @@ pub async fn audio_chain_preload(
         return Ok(());
     }
 
-    // In hi-res mode: if the next track's native rate differs from the current
-    // output stream, we cannot chain gaplessly — audio_play will do a hard cut
-    // with a stream re-open. Store raw bytes to avoid re-downloading.
-    // In safe mode (44.1 kHz locked): the stream rate is always 44100, so the
-    // chain proceeds and rodio resamples internally — no bail needed.
-    let next_rate = if hi_res_enabled { built.output_rate } else { 44_100 };
+    // Hi-res gapless: resample the chained track to the blend rate and realign
+    // the output stream when its Hz differs from the current track.
     let stream_rate = state.stream_sample_rate.load(Ordering::Relaxed);
-    if hi_res_enabled && stream_rate > 0 && next_rate != stream_rate {
-        crate::app_eprintln!(
-            "[psysonic] gapless chain skipped: next track rate {} Hz ≠ stream {} Hz",
-            next_rate, stream_rate
-        );
-        *state.preloaded.lock().unwrap() = Some(PreloadedTrack {
-            url,
-            data: Arc::try_unwrap(raw_bytes).unwrap_or_else(|a| (*a).clone()),
-        });
-        return Ok(());
+    if let Some(br) = blend_rate {
+        if stream_rate > 0 && stream_rate != br {
+            if let Some(snap) = hi_res_blend::capture_outgoing_blend_snapshot(&state, 0.0, 0.0) {
+                hi_res_blend::detach_current_sink_for_blend_reopen(&state);
+                let dev = state.selected_device.lock().unwrap().clone();
+                if super::engine::open_output_stream_blocking(&state, br, true, dev).is_ok() {
+                    if hi_res_enabled && br > 48_000 {
+                        tokio::time::sleep(Duration::from_millis(150)).await;
+                    }
+                    if state.generation.load(Ordering::SeqCst) == snapshot_gen {
+                        if let Err(e) = hi_res_blend::rebuild_current_track_at_blend_rate(
+                            &app,
+                            &state,
+                            &snap,
+                            br,
+                            snapshot_gen,
+                        )
+                        .await
+                        {
+                            crate::app_eprintln!("{e}");
+                            *state.preloaded.lock().unwrap() = Some(PreloadedTrack {
+                                url: url.clone(),
+                                data: Arc::try_unwrap(raw_bytes).unwrap_or_else(|a| (*a).clone()),
+                            });
+                            return Ok(());
+                        }
+                    }
+                } else {
+                    crate::app_eprintln!(
+                        "[psysonic] gapless blend stream reopen failed (wanted {br} Hz, had {stream_rate} Hz)"
+                    );
+                    *state.preloaded.lock().unwrap() = Some(PreloadedTrack {
+                        url,
+                        data: Arc::try_unwrap(raw_bytes).unwrap_or_else(|a| (*a).clone()),
+                    });
+                    return Ok(());
+                }
+            } else {
+                crate::app_eprintln!(
+                    "[psysonic] gapless blend skipped: current track not cached for realign"
+                );
+                *state.preloaded.lock().unwrap() = Some(PreloadedTrack {
+                    url,
+                    data: Arc::try_unwrap(raw_bytes).unwrap_or_else(|a| (*a).clone()),
+                });
+                return Ok(());
+            }
+        }
+    } else {
+        let next_rate = if hi_res_enabled { built.output_rate } else { 44_100 };
+        if hi_res_enabled && stream_rate > 0 && next_rate != stream_rate {
+            crate::app_eprintln!(
+                "[psysonic] gapless chain skipped: next track rate {} Hz ≠ stream {} Hz",
+                next_rate, stream_rate
+            );
+            *state.preloaded.lock().unwrap() = Some(PreloadedTrack {
+                url,
+                data: Arc::try_unwrap(raw_bytes).unwrap_or_else(|a| (*a).clone()),
+            });
+            return Ok(());
+        }
     }
 
     // Append to the existing Sink. The audio hardware stream never stalls.

@@ -27,6 +27,7 @@ import {
 } from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '../utils/audio/resolveReplayGainDb';
+import { audioPlayHiResBlendArgs } from '../utils/audio/hiResCrossfadeResample';
 import { showToast } from '../utils/ui/toast';
 import { useAuthStore } from './authStore';
 import { getPlayGeneration, setIsAudioPaused } from './engineState';
@@ -444,7 +445,7 @@ export function handleAudioProgress(
         loudnessGainDb: loudnessGainDbForEngineBind(nextTrack.id),
         preGainDb: authState.replayGainPreGainDb,
         fallbackDb: authState.replayGainFallbackDb,
-        hiResEnabled: authState.enableHiRes,
+        ...audioPlayHiResBlendArgs(authState),
         analysisTrackId: nextTrack.id,
         serverId: analysisServerId || null,
       }).catch(() => {});
