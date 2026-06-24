@@ -302,12 +302,18 @@ impl CoverCacheState {
         }
 
         // For an external artist surface (`fanart` 16:9 background or `banner`
-        // strip), try fanart.tv before the Navidrome fallback. On any miss it
-        // falls through WITHOUT writing a `.fetch-failed` marker, so Navidrome
-        // stays the display fallback (§28).
+        // strip), resolve fanart.tv only. On a hit we return the external image;
+        // on a miss we report a genuine `hit=false` (no `.fetch-failed` marker)
+        // and DO NOT fall back to the Navidrome cover here. The fallback is the
+        // caller's job, because each surface has its own chain: the artist-detail
+        // hero wants banner → fanart → Navidrome, the fullscreen player wants
+        // fanart → Navidrome. Falling back to Navidrome at this layer would mask
+        // "this artist has no banner" as a hit and short-circuit the caller's
+        // fanart step (the banner ensure would win the `||` with the ND cover and
+        // the existing fanart would never show).
         if args.external_artwork_enabled && !args.library_bulk && args.cache_kind == "artist" {
             if let Some(surface) = external_ensure::external_surface(args.surface_kind.as_deref()) {
-                if let Some(path) = external_ensure::try_external_fanart(
+                let external = external_ensure::try_external_fanart(
                     app,
                     args,
                     &dir,
@@ -317,14 +323,19 @@ impl CoverCacheState {
                     args.tier,
                     surface,
                 )
-                .await
-                {
-                    return Ok(CoverCacheEnsureResult {
+                .await;
+                return Ok(match external {
+                    Some(path) => CoverCacheEnsureResult {
                         hit: true,
                         path: path.to_string_lossy().into_owned(),
                         tier: args.tier,
-                    });
-                }
+                    },
+                    None => CoverCacheEnsureResult {
+                        hit: false,
+                        path: String::new(),
+                        tier: args.tier,
+                    },
+                });
             }
         }
 
