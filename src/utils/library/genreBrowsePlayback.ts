@@ -21,6 +21,11 @@ import {
 import { fetchGenreAlbumTotal } from './genreAlbumBrowse';
 import { libraryIsReady } from './libraryReady';
 
+/** Drop genres with no indexed albums/tracks (stale server list or orphan rows). */
+export function filterGenresWithContent(genres: SubsonicGenre[]): SubsonicGenre[] {
+  return genres.filter(g => (g.albumCount ?? 0) > 0 || (g.songCount ?? 0) > 0);
+}
+
 async function loadLocalGenreCatalogRows(
   serverId: string,
   libraryScope: string | undefined,
@@ -29,11 +34,11 @@ async function loadLocalGenreCatalogRows(
     serverId,
     libraryScope,
   });
-  return rows.map(row => ({
+  return filterGenresWithContent(rows.map(row => ({
     value: row.value,
     albumCount: row.albumCount,
     songCount: row.songCount,
-  }));
+  })));
 }
 
 async function fetchLocalGenreCatalog(
@@ -153,7 +158,7 @@ export async function fetchGenreCatalog(
         /* network fallback */
       }
     }
-    const genres = await getGenres();
+    const genres = filterGenresWithContent(await getGenres());
     writeGenreCatalogCache(serverId, scope, genres);
     return genres;
   };

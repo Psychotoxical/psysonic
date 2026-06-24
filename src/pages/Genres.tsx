@@ -4,11 +4,13 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Tags } from 'lucide-react';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '../constants/appScroll';
+import { subscribeLibrarySyncIdle } from '../api/library';
 import { useAuthStore } from '../store/authStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
-import { fetchGenreCatalog } from '../utils/library/genreBrowsePlayback';
+import { fetchGenreCatalog, filterGenresWithContent } from '../utils/library/genreBrowsePlayback';
 import { libraryScopeForServer } from '../api/subsonicClient';
 import { peekGenreCatalogCache } from '../utils/library/genreCatalogCountsCache';
+import { resolveIndexKey } from '../utils/server/serverIndexKey';
 
 const CTP_COLORS = [
   'var(--ctp-rosewater)', 'var(--ctp-flamingo)', 'var(--ctp-pink)', 'var(--ctp-mauve)',
@@ -63,9 +65,31 @@ export default function Genres() {
   }, [serverId, indexEnabled, musicLibraryFilterVersion]);
 
   const genres = useMemo(
-    () => [...rawGenres].sort((a, b) => b.albumCount - a.albumCount),
+    () => filterGenresWithContent([...rawGenres]).sort((a, b) => b.albumCount - a.albumCount),
     [rawGenres],
   );
+
+  // After library resync the in-memory catalog cache is cleared, but this page
+  // can still hold pre-sync genres until we refetch (issue #1162).
+  useEffect(() => {
+    if (!serverId || !indexEnabled) return;
+    let cancelled = false;
+    const indexKey = resolveIndexKey(serverId);
+    let unlisten: (() => void) | undefined;
+    void subscribeLibrarySyncIdle(payload => {
+      if (!payload.ok) return;
+      if (payload.serverId !== indexKey && payload.serverId !== serverId) return;
+      void fetchGenreCatalog(serverId, indexEnabled).then(data => {
+        if (!cancelled) setRawGenres(data);
+      });
+    }).then(fn => {
+      unlisten = fn;
+    });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [serverId, indexEnabled]);
 
   // Log-scale font sizing — flattens the long tail (a 1000-album genre and a
   // 50-album genre look distinct, but a 1-album genre still has a readable size).

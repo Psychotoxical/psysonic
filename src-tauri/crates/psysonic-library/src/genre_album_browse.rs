@@ -45,15 +45,11 @@ fn count_genre_albums(
     conn: &rusqlite::Connection,
     where_sql: &str,
     params: &[SqlValue],
-    library_scoped: bool,
+    _library_scoped: bool,
 ) -> Result<u32, rusqlite::Error> {
-    let from = if library_scoped {
-        "FROM track_genre tg \
+    let from = "FROM track_genre tg \
          INNER JOIN track t \
-           ON t.server_id = tg.server_id AND t.id = tg.track_id AND t.deleted = 0"
-    } else {
-        "FROM track_genre tg"
-    };
+           ON t.server_id = tg.server_id AND t.id = tg.track_id AND t.deleted = 0";
     let count_sql = format!("SELECT COUNT(DISTINCT tg.album_id) {from} WHERE {where_sql}");
     let n: i64 = conn.query_row(
         &count_sql,

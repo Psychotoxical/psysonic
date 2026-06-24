@@ -113,26 +113,15 @@ pub(crate) fn genre_album_counts_for_server(
 ) -> Result<Vec<GenreAlbumCountDto>, String> {
     store
         .with_read_conn(|conn| {
-            let scoped = library_scope.is_some_and(|s| !s.trim().is_empty());
-            let mut sql = if scoped {
-                String::from(
-                    "SELECT tg.genre, COUNT(DISTINCT tg.album_id) AS album_count, \
-                            COUNT(DISTINCT tg.track_id) AS song_count \
-                     FROM track_genre tg \
-                     INNER JOIN track t \
-                       ON t.server_id = tg.server_id AND t.id = tg.track_id AND t.deleted = 0 \
-                     WHERE tg.server_id = ?1 \
-                       AND tg.album_id IS NOT NULL AND tg.album_id != ''",
-                )
-            } else {
-                String::from(
-                    "SELECT tg.genre, COUNT(DISTINCT tg.album_id) AS album_count, \
-                            COUNT(DISTINCT tg.track_id) AS song_count \
-                     FROM track_genre tg \
-                     WHERE tg.server_id = ?1 \
-                       AND tg.album_id IS NOT NULL AND tg.album_id != ''",
-                )
-            };
+            let mut sql = String::from(
+                "SELECT tg.genre, COUNT(DISTINCT tg.album_id) AS album_count, \
+                        COUNT(DISTINCT tg.track_id) AS song_count \
+                 FROM track_genre tg \
+                 INNER JOIN track t \
+                   ON t.server_id = tg.server_id AND t.id = tg.track_id AND t.deleted = 0 \
+                 WHERE tg.server_id = ?1 \
+                   AND tg.album_id IS NOT NULL AND tg.album_id != ''",
+            );
             let mut params: Vec<rusqlite::types::Value> =
                 vec![rusqlite::types::Value::Text(server_id.to_string())];
             if let Some(scope) = library_scope.filter(|s| !s.trim().is_empty()) {
@@ -141,6 +130,7 @@ pub(crate) fn genre_album_counts_for_server(
             }
             sql.push_str(
                 " GROUP BY tg.genre COLLATE NOCASE \
+                 HAVING album_count > 0 \
                  ORDER BY album_count DESC, tg.genre COLLATE NOCASE ASC",
             );
             let mut stmt = conn.prepare(&sql)?;
@@ -368,6 +358,49 @@ mod tests {
         let counts = genre_album_counts_for_server(&store, "s1", Some("lib1")).unwrap();
         assert_eq!(counts.len(), 1);
         assert_eq!(counts[0].album_count, 1);
+    }
+
+    #[test]
+    fn genre_album_counts_drop_genre_after_track_retag() {
+        let store = Arc::new(LibraryStore::open_in_memory());
+        let mut track = make_row("s1", "t1", "al1", 1);
+        track.genre = Some("ruspop".into());
+        TrackRepository::new(&store)
+            .upsert_batch(&[track.clone()])
+            .unwrap();
+        let counts = genre_album_counts_for_server(&store, "s1", None).unwrap();
+        assert_eq!(counts.len(), 1);
+        assert_eq!(counts[0].value, "ruspop");
+
+        track.genre = Some("Pop".into());
+        TrackRepository::new(&store).upsert_batch(&[track]).unwrap();
+        let counts = genre_album_counts_for_server(&store, "s1", None).unwrap();
+        assert_eq!(counts.len(), 1);
+        assert_eq!(counts[0].value, "Pop");
+    }
+
+    #[test]
+    fn genre_album_counts_ignore_orphan_track_genre_rows() {
+        let store = Arc::new(LibraryStore::open_in_memory());
+        let mut live = make_row("s1", "live", "al1", 1);
+        live.genre = Some("Rock".into());
+        let mut stale = make_row("s1", "gone", "al_stale", 1);
+        stale.genre = Some("ruspop".into());
+        TrackRepository::new(&store)
+            .upsert_batch(&[live, stale])
+            .unwrap();
+        store
+            .with_conn("test", |conn| {
+                conn.execute(
+                    "UPDATE track SET deleted = 1 WHERE server_id = 's1' AND id = 'gone'",
+                    [],
+                )
+            })
+            .unwrap();
+
+        let counts = genre_album_counts_for_server(&store, "s1", None).unwrap();
+        assert_eq!(counts.len(), 1);
+        assert_eq!(counts[0].value, "Rock");
     }
 
     #[test]

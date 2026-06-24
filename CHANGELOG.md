@@ -127,6 +127,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Genres page kept empty genres after tag changes
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#TBD](https://github.com/Psychotoxical/psysonic/pull/TBD)**, closes [#1162](https://github.com/Psychotoxical/psysonic/issues/1162)
+
+* After retagging a track and resyncing the library, genres with no remaining albums could still appear on the Genres page until restart. The local genre catalog now counts only live indexed tracks, filters zero-count genres, and the Genres page refreshes when library sync finishes.
+
 ### Playlists header buttons clipped at narrow widths
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1153](https://github.com/Psychotoxical/psysonic/pull/1153)**

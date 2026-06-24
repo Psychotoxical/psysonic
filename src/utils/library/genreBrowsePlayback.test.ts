@@ -4,6 +4,7 @@ import {
   fetchGenreCatalog,
   fetchGenreTracksForPlayback,
   fetchLocalGenreTracksForPlayback,
+  filterGenresWithContent,
   GENRE_PLAYBACK_QUEUE_CAP,
 } from './genreBrowsePlayback';
 
@@ -133,6 +134,29 @@ describe('genreBrowsePlayback', () => {
       libraryScope: 'music',
     });
     expect(getGenres).not.toHaveBeenCalled();
+  });
+
+  it('drops empty genres from server fallback catalog', async () => {
+    vi.mocked(libraryIsReady).mockResolvedValue(false);
+    vi.mocked(getGenres).mockResolvedValue([
+      { value: 'ruspop', songCount: 0, albumCount: 0 },
+      { value: 'Rock', songCount: 10, albumCount: 3 },
+    ]);
+
+    await expect(fetchGenreCatalog('srv-1', true)).resolves.toEqual([
+      { value: 'Rock', albumCount: 3, songCount: 10 },
+    ]);
+  });
+
+  it('filterGenresWithContent drops zero-count rows', () => {
+    expect(filterGenresWithContent([
+      { value: 'Empty', albumCount: 0, songCount: 0 },
+      { value: 'SongsOnly', albumCount: 0, songCount: 2 },
+      { value: 'AlbumsOnly', albumCount: 1, songCount: 0 },
+    ])).toEqual([
+      { value: 'SongsOnly', albumCount: 0, songCount: 2 },
+      { value: 'AlbumsOnly', albumCount: 1, songCount: 0 },
+    ]);
   });
 
   it('reuses cached genre catalog without repeating SQL', async () => {
