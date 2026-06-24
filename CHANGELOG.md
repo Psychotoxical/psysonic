@@ -127,19 +127,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
-### Context menu "Play Now" and resize behaviour
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1174](https://github.com/Psychotoxical/psysonic/pull/1174)**, reported by [@peri4ko](https://github.com/peri4ko)
-
-* On the Playlists page, right-clicking a playlist and choosing "Play Now" only opened the playlist instead of playing it. It now starts playback.
-* Resizing the window while a context menu was open could leave the menu stranded and drifting off-screen. The context menu now closes when the window is resized.
-
-### Artist header showing the plain image instead of the external background
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1172](https://github.com/Psychotoxical/psysonic/pull/1172)**
-
-* On the artist page, when an artist had an external background image (from fanart.tv) but no banner, the header showed the plain Navidrome artist image instead of the background — even though the fullscreen player used the background correctly. The header now falls back banner → background → Navidrome image as intended. The background also sits a little higher so band members' heads aren't cropped on wide screens.
-
 ### Playlists header buttons clipped at narrow widths
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1153](https://github.com/Psychotoxical/psysonic/pull/1153)**
@@ -287,6 +274,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Strict `npm run lint` runs in CI on frontend path filters via a dedicated workflow parallel to the existing frontend test jobs.
 * The `ci-ok` check waits for every applicable test and lint job on a PR (frontend and/or Rust, depending on changed paths) and blocks merge when any required job failed or did not finish in time.
+
+### Artist header showing the plain image instead of the external background
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1172](https://github.com/Psychotoxical/psysonic/pull/1172)**
+
+* On the artist page, when an artist had an external background image (from fanart.tv) but no banner, the header showed the plain Navidrome artist image instead of the background — even though the fullscreen player used the background correctly. The header now falls back banner → background → Navidrome image as intended. The background also sits a little higher so band members' heads aren't cropped on wide screens.
+
+### Context menu "Play Now" and resize behaviour
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1174](https://github.com/Psychotoxical/psysonic/pull/1174)**, reported by [@peri4ko](https://github.com/peri4ko)
+
+* On the Playlists page, right-clicking a playlist and choosing "Play Now" only opened the playlist instead of playing it. It now starts playback.
+* Resizing the window while a context menu was open could leave the menu stranded and drifting off-screen. The context menu now closes when the window is resized.
+
+### Settings — consistent design for the Audio sub-sections
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1175](https://github.com/Psychotoxical/psysonic/pull/1175)**
+
+* The AutoDJ overlap-cap and the Native Hi-Res blend-rate options in Settings → Audio now sit in the same bordered sub-card the Normalization options use, and the Hi-Res section no longer shows a double border.
 
 ## [1.48.1] - 2026-06-15
 
