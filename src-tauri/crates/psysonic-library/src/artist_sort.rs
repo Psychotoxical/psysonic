@@ -9,10 +9,16 @@ pub fn strip_leading_articles(name: &str, ignored_articles: &str) -> String {
     for article in ignored_articles.split(' ').filter(|s| !s.is_empty()) {
         let prefix = format!("{} ", article);
         // `prefix` is ASCII; use `get` so we never slice inside a multibyte rune
-        // (e.g. "Elə…" must not panic when probing the "El " article).
-        let head = trimmed.get(0..prefix.len());
-        if head.is_some_and(|h| h.eq_ignore_ascii_case(&prefix)) {
-            return trimmed[prefix.len()..].trim_start().to_string();
+        // (e.g. probing "The " / "El " on CJK names must not panic).
+        let Some(head) = trimmed.get(..prefix.len()) else {
+            continue;
+        };
+        if head.eq_ignore_ascii_case(&prefix) {
+            return trimmed
+                .get(prefix.len()..)
+                .map(str::trim_start)
+                .unwrap_or("")
+                .to_string();
         }
     }
     trimmed.to_string()
@@ -68,5 +74,14 @@ mod tests {
         // when probing the "El " ignored article (ə spans bytes 2..4).
         let key = sort_key_for_display_name("Eləmir", DEFAULT_IGNORED_ARTICLES);
         assert_eq!(key, "eləmir");
+    }
+
+    #[test]
+    fn does_not_panic_on_cjk_multi_artist_credit_string() {
+        // Discord report (Asra): sync panicked on FromSoftware OST composer list
+        // when probing the 4-byte "The " article prefix against 北村友香…
+        let name = "北村友香, 齋藤司, 桜庭統 & 鈴木伸嘉";
+        let key = sort_key_for_display_name(name, DEFAULT_IGNORED_ARTICLES);
+        assert_eq!(key, name.to_lowercase());
     }
 }

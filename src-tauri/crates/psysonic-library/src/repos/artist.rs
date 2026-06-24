@@ -2,7 +2,7 @@
 
 use rusqlite::{params, Transaction};
 
-use crate::artist_sort::{ignored_articles_or_default, sort_key_for_display_name};
+use crate::artist_sort::{ignored_articles_or_default, sort_key_for_display_name, DEFAULT_IGNORED_ARTICLES};
 use crate::store::LibraryStore;
 use psysonic_integration::subsonic::ArtistIndex;
 
@@ -194,5 +194,68 @@ mod tests {
             })
             .unwrap();
         assert_eq!(name_sort, "beatles");
+    }
+
+    #[test]
+    fn backfill_from_tracks_accepts_cjk_artist_display_name() {
+        use crate::repos::{TrackRepository, TrackRow};
+
+        let store = LibraryStore::open_in_memory();
+        let cjk = "北村友香, 齋藤司, 桜庭統 & 鈴木伸嘉";
+        let row = TrackRow {
+            server_id: "s1".into(),
+            id: "tr_1".into(),
+            title: "Song".into(),
+            title_sort: None,
+            artist: Some(cjk.into()),
+            artist_id: Some("ar_cjk".into()),
+            album: "al_1".into(),
+            album_id: Some("al_1".into()),
+            album_artist: None,
+            duration_sec: 200,
+            track_number: Some(1),
+            disc_number: Some(1),
+            year: None,
+            genre: None,
+            suffix: None,
+            bit_rate: None,
+            size_bytes: None,
+            cover_art_id: None,
+            starred_at: None,
+            user_rating: None,
+            play_count: None,
+            played_at: None,
+            server_path: None,
+            library_id: None,
+            isrc: None,
+            mbid_recording: None,
+            bpm: None,
+            replay_gain_track_db: None,
+            replay_gain_album_db: None,
+            content_hash: None,
+            server_updated_at: None,
+            server_created_at: None,
+            deleted: false,
+            synced_at: 1,
+            raw_json: "{}".into(),
+        };
+        TrackRepository::new(&store).upsert_batch(&[row]).unwrap();
+
+        let repo = ArtistRepository::new(&store);
+        let n = repo
+            .backfill_from_tracks("s1", DEFAULT_IGNORED_ARTICLES, 2)
+            .unwrap();
+        assert_eq!(n, 1);
+
+        let name_sort: String = store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT name_sort FROM artist WHERE server_id = 's1' AND id = 'ar_cjk'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(name_sort, cjk.to_lowercase());
     }
 }
