@@ -277,10 +277,10 @@ export const settings = {
   linuxWebkitSmoothScroll: 'Smooth wheel (Linux)',
   linuxWebkitSmoothScrollDesc: 'On: inertial scroll. Off: line-by-line, GTK-style.',
   linuxWebkitInputForceRepaint: 'Repaint inputs on focus (Linux)',
-  linuxWebkitInputForceRepaintDesc: 'Workaround for WebKitGTK 2.50.x where text fields freeze when clicked. Search icons flicker briefly on focus.',
+  linuxWebkitInputForceRepaintDesc: 'Fixes text fields that freeze when clicked. Search icons may flicker briefly on focus.',
   linuxWaylandTextRender: 'Wayland text rendering (Linux)',
   linuxWaylandTextRenderDesc:
-    'Font smoothing in the UI updates immediately. WebKit hardware acceleration (sharp / GPU presets) is saved and applied on the next app start — changing it live can freeze WebKitGTK on some setups.',
+    'Font smoothing updates immediately. The acceleration preset (Sharp / GPU) takes effect after restarting the app.',
   linuxWaylandTextRenderBalanced: 'Balanced',
   linuxWaylandTextRenderSharp: 'Sharp (CPU-friendly)',
   linuxWaylandTextRenderGpu: 'GPU-first',

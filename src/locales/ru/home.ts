@@ -19,5 +19,5 @@ export const home = {
   becauseYouLikeTracks_other: '{{count}} треков',
   mainstageEmptyTitle: 'Раздел «Для вас» пуст',
   mainstageEmptyBody: 'Все разделы отключены. Включите разделы снова или скройте «Для вас» из боковой панели.',
-  mainstageEmptyCta: 'Открыть Персонализацию',
+  mainstageEmptyCta: 'Открыть персонализацию',
 };

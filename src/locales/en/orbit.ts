@@ -134,7 +134,7 @@ export const orbit = {
   settingAutoApprove: 'Auto-approve suggestions',
   settingAutoApproveHint: "Guest suggestions land in your queue instantly. Off: they stay in the session list for you to review later.",
   settingAutoShuffle: 'Automatic reshuffle',
-  settingAutoShuffleHint: "Periodic Fisher–Yates shuffle of the upcoming queue. Off: order only changes when you rearrange it.",
+  settingAutoShuffleHint: "Periodically reshuffles the upcoming queue. Off: order only changes when you rearrange it manually.",
   settingShuffleInterval: 'Reshuffle every',
   settingShuffleIntervalHint: 'How often the upcoming queue gets reshuffled while the session runs.',
   suggestBlockedMuted: 'The host muted you for this session — suggestions are off.',
