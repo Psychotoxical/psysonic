@@ -1,4 +1,4 @@
-import { STANDARD_BLEND_SEC } from '../waveform/waveformSilence';
+import { DYNAMIC_OVERLAP_HARD_CAP_SEC, STANDARD_BLEND_SEC } from '../waveform/waveformSilence';
 
 /** Clamp engine crossfade setting to the same bounds used in progress handling. */
 export function clampCrossfadeSecs(crossfadeSecs: number): number {
@@ -26,8 +26,9 @@ export function shouldJsDriveAutodjTransition(
 export function computeAutodjJsOverlap(
   contentOverlap: number,
   aRidesOwnFade: boolean,
+  maxCapSec = DYNAMIC_OVERLAP_HARD_CAP_SEC,
 ): { overlapSec: number; outgoingFadeSec: number } {
-  let overlap = Math.max(0.5, Math.min(12, contentOverlap || 0.5));
+  let overlap = Math.max(0.5, Math.min(maxCapSec, contentOverlap || 0.5));
   if (!aRidesOwnFade && overlap < STANDARD_BLEND_SEC) overlap = STANDARD_BLEND_SEC;
   const outgoingFadeSec = aRidesOwnFade ? 0 : overlap;
   return { overlapSec: overlap, outgoingFadeSec };

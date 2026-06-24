@@ -87,6 +87,7 @@ import {
 } from './seekTargetState';
 import { refreshWaveformForTrack } from './waveformRefresh';
 import { analyzeBoundary, computeWaveformSilence } from '../utils/waveform/waveformSilence';
+import { autodjMaxOverlapCapSec } from '../utils/playback/autodjOverlapCap';
 import {
   autodjJsTriggerAtSec,
   clampCrossfadeSecs,
@@ -307,7 +308,8 @@ export function handleAudioProgress(
       }
       if (shouldJsDriveAutodjTransition(curTrailSilenceSec, contentOverlap, cf, aRidesOwnFade)) {
         autodjSuppressWant = true;
-        const { overlapSec, outgoingFadeSec } = computeAutodjJsOverlap(contentOverlap, aRidesOwnFade);
+        const maxCapSec = autodjMaxOverlapCapSec(useAuthStore.getState());
+        const { overlapSec, outgoingFadeSec } = computeAutodjJsOverlap(contentOverlap, aRidesOwnFade, maxCapSec);
         const triggerAt = autodjJsTriggerAtSec(dur, curTrailSilenceSec, overlapSec);
         const gen = getPlayGeneration();
         // Readiness gate: only advance when B's audio is actually available (RAM

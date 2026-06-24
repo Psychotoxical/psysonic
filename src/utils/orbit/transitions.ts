@@ -1,5 +1,9 @@
 import { useAuthStore } from '../../store/authStore';
 import type { OrbitTransitionSettings } from '../../api/orbit';
+import {
+  sanitizeAutodjOverlapCapMode,
+  sanitizeAutodjOverlapCapSec,
+} from '../playback/autodjOverlapCap';
 
 /**
  * Bridge between the local playback-transition settings (in `authStore`) and
@@ -29,13 +33,24 @@ export function readOrbitTransitionSettings(): OrbitTransitionSettings {
     crossfadeTrimSilence: s.crossfadeTrimSilence,
     autodjSmoothSkip: s.autodjSmoothSkip,
     gaplessEnabled: s.gaplessEnabled,
+    autodjOverlapCapMode: s.autodjOverlapCapMode,
+    autodjOverlapCapSec: s.autodjOverlapCapSec,
   };
 }
 
 /** True when the local settings already equal `t` (nothing to apply). */
 function alreadyInSync(t: OrbitTransitionSettings): boolean {
-  const s = useAuthStore.getState() as unknown as OrbitTransitionSettings;
-  return FIELDS.every(f => s[f] === t[f]);
+  const s = useAuthStore.getState();
+  if (!FIELDS.every(f => s[f] === t[f])) return false;
+  if (t.autodjOverlapCapMode !== undefined
+    && s.autodjOverlapCapMode !== sanitizeAutodjOverlapCapMode(t.autodjOverlapCapMode)) {
+    return false;
+  }
+  if (t.autodjOverlapCapSec !== undefined
+    && s.autodjOverlapCapSec !== sanitizeAutodjOverlapCapSec(t.autodjOverlapCapSec)) {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -51,6 +66,12 @@ export function applyOrbitTransitionSettings(t: OrbitTransitionSettings): void {
     crossfadeTrimSilence: t.crossfadeTrimSilence,
     autodjSmoothSkip: t.autodjSmoothSkip,
     gaplessEnabled: t.gaplessEnabled,
+    ...(t.autodjOverlapCapMode !== undefined
+      ? { autodjOverlapCapMode: sanitizeAutodjOverlapCapMode(t.autodjOverlapCapMode) }
+      : {}),
+    ...(t.autodjOverlapCapSec !== undefined
+      ? { autodjOverlapCapSec: sanitizeAutodjOverlapCapSec(t.autodjOverlapCapSec) }
+      : {}),
   });
 }
 

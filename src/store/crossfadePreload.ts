@@ -1,11 +1,12 @@
 import { invoke } from '@tauri-apps/api/core';
+import { useAuthStore } from './authStore';
+import { autodjMaxOverlapCapSec } from '../utils/playback/autodjOverlapCap';
 import { computeWaveformSilence, planCrossfadeTransition } from '../utils/waveform/waveformSilence';
 import { findLocalPlaybackUrl } from '../utils/offline/offlineLibraryHelpers';
 import { playbackCacheKeyForRef } from '../utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '../utils/playback/resolvePlaybackUrl';
 import { resolveQueueTrack } from '../utils/library/queueTrackView';
 import type { Track } from './playerStoreTypes';
-import { useAuthStore } from './authStore';
 import {
   hasPlannedCrossfade,
   markPlannedCrossfade,
@@ -185,7 +186,8 @@ export function maybeCrossfadeBytePreload(currentTime: number, dur: number): voi
       .then(nextBins => {
         // Overlap is derived purely from the audio (fade-out / buildup); the
         // user's crossfadeSecs is intentionally not a factor in this mode.
-        const plan = planCrossfadeTransition(curBins, dur, nextBins, planDuration);
+        const maxOverlapSec = autodjMaxOverlapCapSec(useAuthStore.getState());
+        const plan = planCrossfadeTransition(curBins, dur, nextBins, planDuration, { maxOverlapSec });
         setCrossfadeTransition(planTrackId, plan);
       })
       .catch(() => {});

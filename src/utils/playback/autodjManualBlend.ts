@@ -1,4 +1,5 @@
 import { useAuthStore } from '../../store/authStore';
+import { autodjMaxOverlapCapSec } from './autodjOverlapCap';
 import {
   analyzeBoundary,
   planCrossfadeTransition,
@@ -58,15 +59,19 @@ export function computeAutodjManualBlendPlan(
   const bDur = Number.isFinite(bDurationSec) && bDurationSec > 0 ? bDurationSec : 0;
   if (aDur <= 0 || bDur <= 0) return null;
 
-  const base = planCrossfadeTransition(aBins, aDur, bBins, bDur);
+  const base = planCrossfadeTransition(aBins, aDur, bBins, bDur, {
+    maxOverlapSec: autodjMaxOverlapCapSec(useAuthStore.getState()),
+  });
   if (!(base.overlapSec > 0)) return null;
+
+  const maxCapSec = autodjMaxOverlapCapSec(useAuthStore.getState());
 
   const aShape = analyzeBoundary(aBins, aDur);
   const bShape = analyzeBoundary(bBins, bDur);
   const aRemaining = aShape.contentEndSec - Math.max(0, skipFromTimeSec);
   if (aRemaining < MIN_A_REMAINING_SEC) return null;
 
-  let overlap = Math.max(0.5, Math.min(12, base.overlapSec, aRemaining));
+  let overlap = Math.max(0.5, Math.min(maxCapSec, base.overlapSec, aRemaining));
   const bPlayable = Math.max(0, bShape.contentEndSec - base.bStartSec);
   if (bPlayable > 0) overlap = Math.min(overlap, bPlayable * 0.9);
 

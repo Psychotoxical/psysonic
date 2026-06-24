@@ -56,6 +56,8 @@ export const useAuthStore = create<AuthState>()(
       crossfadeSecs: 3,
       crossfadeTrimSilence: false,
       autodjSmoothSkip: true,
+      autodjOverlapCapMode: 'auto',
+      autodjOverlapCapSec: 15,
       gaplessEnabled: false,
       trackPreviewsEnabled: true,
       trackPreviewLocations: { ...DEFAULT_TRACK_PREVIEW_LOCATIONS },

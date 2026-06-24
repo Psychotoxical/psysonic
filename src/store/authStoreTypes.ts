@@ -152,6 +152,12 @@ export interface AuthState {
    * playing (avoids an abrupt cut). Default on for new installs.
    */
   autodjSmoothSkip: boolean;
+  /**
+   * AutoDJ: upper bound for content-driven overlap. `auto` keeps the built-in
+   * 12 s cap; `limit` uses `autodjOverlapCapSec` (2–30 s, default 15).
+   */
+  autodjOverlapCapMode: 'auto' | 'limit';
+  autodjOverlapCapSec: number;
   gaplessEnabled: boolean;
   /** Show inline Play+Preview buttons in tracklists. Default on per Q3. Master kill switch — when off, all locations are off. */
   trackPreviewsEnabled: boolean;
@@ -375,6 +381,8 @@ export interface AuthState {
   setCrossfadeSecs: (v: number) => void;
   setCrossfadeTrimSilence: (v: boolean) => void;
   setAutodjSmoothSkip: (v: boolean) => void;
+  setAutodjOverlapCapMode: (v: 'auto' | 'limit') => void;
+  setAutodjOverlapCapSec: (v: number) => void;
   setGaplessEnabled: (v: boolean) => void;
   setTrackPreviewsEnabled: (v: boolean) => void;
   setTrackPreviewLocation: (location: TrackPreviewLocation, enabled: boolean) => void;

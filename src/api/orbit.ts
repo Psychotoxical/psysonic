@@ -129,6 +129,9 @@ export interface OrbitTransitionSettings {
   crossfadeTrimSilence: boolean;
   autodjSmoothSkip: boolean;
   gaplessEnabled: boolean;
+  /** Optional — absent on sessions hosted by builds before overlap-cap sync. */
+  autodjOverlapCapMode?: 'auto' | 'limit';
+  autodjOverlapCapSec?: number;
 }
 
 export interface OrbitSettings {

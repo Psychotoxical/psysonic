@@ -10,6 +10,8 @@ const { store, setState } = vi.hoisted(() => {
       crossfadeTrimSilence: false,
       autodjSmoothSkip: true,
       gaplessEnabled: false,
+      autodjOverlapCapMode: 'auto',
+      autodjOverlapCapSec: 15,
     } as Record<string, unknown>,
   };
   const setState = vi.fn((patch: Record<string, unknown>) => {
@@ -36,6 +38,8 @@ const GUEST_OWN: OrbitTransitionSettings = {
   crossfadeTrimSilence: false,
   autodjSmoothSkip: true,
   gaplessEnabled: false,
+  autodjOverlapCapMode: 'auto',
+  autodjOverlapCapSec: 15,
 };
 const HOST: OrbitTransitionSettings = {
   crossfadeEnabled: true,
@@ -43,6 +47,8 @@ const HOST: OrbitTransitionSettings = {
   crossfadeTrimSilence: true,
   autodjSmoothSkip: false,
   gaplessEnabled: false,
+  autodjOverlapCapMode: 'limit',
+  autodjOverlapCapSec: 20,
 };
 
 beforeEach(() => {
@@ -52,7 +58,7 @@ beforeEach(() => {
 });
 
 describe('read/apply transition settings', () => {
-  it('reads the five transition fields from the store', () => {
+  it('reads the transition fields from the store', () => {
     expect(readOrbitTransitionSettings()).toEqual(GUEST_OWN);
   });
 

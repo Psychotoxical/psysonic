@@ -157,7 +157,8 @@ export function analyzeBoundary(
 
 /** Engine fade min/max — the override is clamped to the same range on the Rust side. */
 const DYNAMIC_OVERLAP_MIN_SEC = 0.5;
-const DYNAMIC_OVERLAP_HARD_CAP_SEC = 12;
+export const DYNAMIC_OVERLAP_HARD_CAP_SEC = 12;
+export const DYNAMIC_OVERLAP_ABSOLUTE_MAX_SEC = 30;
 
 /**
  * Standard pleasant blend used when *both* edges are known but neither fades —
@@ -227,7 +228,8 @@ export function planCrossfadeTransition(
   opts: CrossfadePlanOptions = {},
 ): CrossfadeTransitionPlan {
   const min = Math.max(0.1, opts.minOverlapSec ?? DYNAMIC_OVERLAP_MIN_SEC);
-  const cap = Math.min(DYNAMIC_OVERLAP_HARD_CAP_SEC, Math.max(min, opts.maxOverlapSec ?? DYNAMIC_OVERLAP_HARD_CAP_SEC));
+  const capUpper = opts.maxOverlapSec ?? DYNAMIC_OVERLAP_HARD_CAP_SEC;
+  const cap = Math.max(min, Math.min(capUpper, DYNAMIC_OVERLAP_ABSOLUTE_MAX_SEC));
 
   const aShape = analyzeBoundary(aBins, aDurationSec, opts);
   const bShape = analyzeBoundary(bBins, bDurationSec, opts);
