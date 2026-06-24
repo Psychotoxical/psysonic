@@ -4,6 +4,7 @@ import {
   sanitizeHiResCrossfadeResampleHz,
 } from '../../../utils/audio/hiResCrossfadeResample';
 import type { TFunction } from 'i18next';
+import { SettingsSubCard, SettingsField } from '../SettingsSubCard';
 
 interface Props {
   enabled: boolean;
@@ -28,12 +29,12 @@ export function HiResCrossfadeResampleBlock({
   if (!enabled) return null;
 
   return (
-    <div className="settings-norm-block" style={{ marginTop: '0.85rem' }}>
-      <div className="settings-norm-field">
-        <span className="settings-norm-label" style={{ minWidth: 0 }}>
-          {t('settings.hiResCrossfadeResampleTitle')}
-        </span>
-        <div className="settings-norm-help">{t('settings.hiResCrossfadeResampleDesc')}</div>
+    <SettingsSubCard style={{ marginTop: '0.85rem' }}>
+      <SettingsField
+        label={t('settings.hiResCrossfadeResampleTitle')}
+        desc={t('settings.hiResCrossfadeResampleDesc')}
+        note={t('settings.hiResCrossfadeResampleWarning')}
+      >
         <div className="settings-segmented">
           {HI_RES_CROSSFADE_RESAMPLE_OPTIONS.map((hz) => (
             <button
@@ -46,10 +47,7 @@ export function HiResCrossfadeResampleBlock({
             </button>
           ))}
         </div>
-        <div className="settings-norm-help" role="note">
-          {t('settings.hiResCrossfadeResampleWarning')}
-        </div>
-      </div>
-    </div>
+      </SettingsField>
+    </SettingsSubCard>
   );
 }

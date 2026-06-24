@@ -13,6 +13,7 @@ import {
 } from '../../../utils/playback/playbackTransition';
 import { SettingsGroup } from '../SettingsGroup';
 import { SettingsToggle } from '../SettingsToggle';
+import { SettingsSubCard, SettingsField, SettingsRow, SettingsValue } from '../SettingsSubCard';
 
 interface Props {
   t: TFunction;
@@ -70,8 +71,8 @@ export function TrackTransitionsBlock({ t }: Props) {
       </div>
 
       {mode === 'crossfade' && (
-        <div className="settings-norm-block" style={{ marginTop: '0.85rem' }}>
-          <div className="settings-norm-row">
+        <SettingsSubCard style={{ marginTop: '0.85rem' }}>
+          <SettingsRow>
             <input
               type="range"
               min={0.1}
@@ -82,20 +83,19 @@ export function TrackTransitionsBlock({ t }: Props) {
               onChange={e => auth.setCrossfadeSecs(parseFloat(e.target.value))}
               id="crossfade-secs-slider"
             />
-            <span className="settings-norm-value">
+            <SettingsValue>
               {t('settings.crossfadeSecs', { n: auth.crossfadeSecs.toFixed(1) })}
-            </span>
-          </div>
-        </div>
+            </SettingsValue>
+          </SettingsRow>
+        </SettingsSubCard>
       )}
       {mode === 'autodj' && (
-        <div className="settings-norm-block" style={{ marginTop: '0.85rem' }}>
-          <div className="settings-norm-help">{t('settings.autoDjDesc')}</div>
-          <div className="settings-norm-field">
-            <span className="settings-norm-label" style={{ minWidth: 0 }}>
-              {t('settings.autodjOverlapCapTitle')}
-            </span>
-            <div className="settings-norm-help">{t('settings.autodjOverlapCapDesc')}</div>
+        <SettingsSubCard style={{ marginTop: '0.85rem' }}>
+          <SettingsField desc={t('settings.autoDjDesc')} />
+          <SettingsField
+            label={t('settings.autodjOverlapCapTitle')}
+            desc={t('settings.autodjOverlapCapDesc')}
+          >
             <div className="settings-segmented">
               <button
                 type="button"
@@ -115,7 +115,7 @@ export function TrackTransitionsBlock({ t }: Props) {
               </button>
             </div>
             {auth.autodjOverlapCapMode === 'limit' && (
-              <div className="settings-norm-row">
+              <SettingsRow>
                 <input
                   type="range"
                   min={AUTODJ_OVERLAP_CAP_MIN_SEC}
@@ -126,12 +126,12 @@ export function TrackTransitionsBlock({ t }: Props) {
                   onChange={e => auth.setAutodjOverlapCapSec(parseInt(e.target.value, 10))}
                   id="autodj-overlap-cap-slider"
                 />
-                <span className="settings-norm-value">
+                <SettingsValue>
                   {t('settings.autodjOverlapCapSecs', { n: auth.autodjOverlapCapSec })}
-                </span>
-              </div>
+                </SettingsValue>
+              </SettingsRow>
             )}
-          </div>
+          </SettingsField>
           <SettingsToggle
             label={t('settings.autodjSmoothSkip')}
             desc={t('settings.autodjSmoothSkipDesc')}
@@ -139,7 +139,7 @@ export function TrackTransitionsBlock({ t }: Props) {
             disabled={hostControlled}
             onChange={auth.setAutodjSmoothSkip}
           />
-        </div>
+        </SettingsSubCard>
       )}
     </SettingsGroup>
   );
