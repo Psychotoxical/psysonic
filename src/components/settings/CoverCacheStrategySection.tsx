@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { listen } from '@tauri-apps/api/event';
 import SettingsSubSection from '../SettingsSubSection';
 import { SettingsGroup } from './SettingsGroup';
+import { SettingsSubCard } from './SettingsSubCard';
 import { useCoverStrategyStore } from '../../store/coverStrategyStore';
 import { useAuthStore } from '../../store/authStore';
 import {
@@ -234,6 +235,7 @@ export default function CoverCacheStrategySection() {
     <SettingsSubSection title={t('settings.coverCacheStrategyTitle')} icon={<Image size={16} />}>
       <div className="settings-card">
         <SettingsGroup>
+        <SettingsSubCard>
         <div style={{ overflowX: 'auto' }}>
           <table style={TABLE_STYLE}>
             <CoverCacheColGroup />
@@ -416,6 +418,7 @@ export default function CoverCacheStrategySection() {
             </div>
           </div>
         )}
+        </SettingsSubCard>
         </SettingsGroup>
       </div>
     </SettingsSubSection>

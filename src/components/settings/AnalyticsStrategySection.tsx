@@ -6,6 +6,7 @@ import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import SettingsSubSection from '../SettingsSubSection';
 import { SettingsGroup } from './SettingsGroup';
+import { SettingsSubCard } from './SettingsSubCard';
 import { useAnalysisStrategyStore } from '../../store/analysisStrategyStore';
 import { useAuthStore } from '../../store/authStore';
 import {
@@ -255,6 +256,7 @@ export default function AnalyticsStrategySection() {
     >
       <div className="settings-card">
         <SettingsGroup>
+        <SettingsSubCard>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
             <thead>
@@ -434,6 +436,7 @@ export default function AnalyticsStrategySection() {
             {t('settings.analyticsStrategyAdvancedWarning')}
           </span>
         </div>
+        </SettingsSubCard>
         </SettingsGroup>
       </div>
 

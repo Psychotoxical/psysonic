@@ -23,6 +23,7 @@ import { useOrbitStore } from '../../../store/orbitStore';
 import { useAuthStore } from '../../../store/authStore';
 import { isOrbitPlaybackSyncActive } from '../../../utils/orbit';
 import { SettingsToggle } from '../SettingsToggle';
+import { SettingsSubCard } from '../SettingsSubCard';
 
 interface Props {
   t: TFunction;
@@ -118,10 +119,9 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
         />
       )}
 
-      {(!showEnable || enabled) && (
-        <>
-          {showEnable && <div className="divider" />}
-
+      {(!showEnable || enabled) && (() => {
+        const body = (
+          <>
           <div className="playback-rate-strategy-row">
             {!compact && (
               <span className="playback-rate-label">{t('settings.playbackRateStrategy')}</span>
@@ -281,8 +281,12 @@ export function PlaybackRateControls({ t, showEnable = true }: Props) {
               {t('settings.playbackRateNeutral')}
             </p>
           )}
-        </>
-      )}
+          </>
+        );
+        return compact
+          ? body
+          : <SettingsSubCard style={{ marginTop: '0.85rem' }}>{body}</SettingsSubCard>;
+      })()}
     </div>
   );
 }

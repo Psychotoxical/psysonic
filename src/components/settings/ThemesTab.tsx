@@ -10,6 +10,7 @@ import { InstalledThemes } from './InstalledThemes';
 import { ThemeImportSection } from './ThemeImportSection';
 import { ThemeStoreSection } from './ThemeStoreSection';
 import { SettingsGroup } from './SettingsGroup';
+import { SettingsSubCard, SettingsField } from './SettingsSubCard';
 
 /**
  * A flat, always-visible section. The Themes tab has a single purpose, so its
@@ -94,9 +95,8 @@ export function ThemesTab() {
             const nightM = theme.timeNightStart.split(':')[1];
             const isSystem = theme.schedulerMode === 'system';
             return (
-              <div style={{ marginTop: '1rem' }}>
-                <div className="form-group" style={{ marginBottom: '1rem' }}>
-                  <label className="settings-label" style={{ marginBottom: 6 }}>{t('settings.themeSchedulerModeLabel')}</label>
+              <SettingsSubCard style={{ marginTop: '0.85rem' }}>
+                <SettingsField label={t('settings.themeSchedulerModeLabel')}>
                   <div className="settings-segmented">
                     <button
                       type="button"
@@ -113,9 +113,9 @@ export function ThemesTab() {
                       {t('settings.themeSchedulerModeSystem')}
                     </button>
                   </div>
-                </div>
+                </SettingsField>
                 {isSystem && (
-                  <div className="settings-hint settings-hint-info" style={{ marginBottom: '1rem' }}>
+                  <div className="settings-hint settings-hint-info">
                     {t('settings.themeSchedulerSystemRestartHint')}
                   </div>
                 )}
@@ -153,7 +153,7 @@ export function ThemesTab() {
                     </div>
                   )}
                 </div>
-              </div>
+              </SettingsSubCard>
             );
           })()}
         </div>
