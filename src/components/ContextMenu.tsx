@@ -132,6 +132,18 @@ export default function ContextMenu() {
     }
   }, [contextMenu.isOpen, contextMenu.x, contextMenu.y]);
 
+  // Close on any window resize. The menu is absolutely positioned at fixed
+  // coordinates, so a resize would otherwise leave it stranded and drifting
+  // off-screen. Whether a resize closed the menu was inconsistent across
+  // setups (it stayed open on some Windows and Linux environments); always
+  // closing it here makes the behaviour the same everywhere.
+  useEffect(() => {
+    if (!contextMenu.isOpen) return;
+    const onResize = () => closeContextMenu();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [contextMenu.isOpen, closeContextMenu]);
+
   useEffect(() => {
     if (contextMenu.isOpen) {
       previousFocusRef.current = document.activeElement as HTMLElement | null;
