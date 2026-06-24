@@ -247,6 +247,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Added an ESLint config and `npm run lint`, and brought `src/` to zero errors and warnings under the strict React-hooks ruleset. Developer-only — no user-facing behaviour change.
 
+### CI — ESLint gate and path-aware ci-ok merge check
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1170](https://github.com/Psychotoxical/psysonic/pull/1170)**
+
+* Strict `npm run lint` runs in CI on frontend path filters via a dedicated workflow parallel to the existing frontend test jobs.
+* The `ci-ok` check waits for every applicable test and lint job on a PR (frontend and/or Rust, depending on changed paths) and blocks merge when any required job failed or did not finish in time.
+
 ## [1.48.1] - 2026-06-15
 
 ## Fixed
