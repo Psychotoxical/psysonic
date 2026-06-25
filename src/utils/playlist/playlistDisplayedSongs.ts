@@ -1,6 +1,6 @@
 import type { SubsonicSong } from '../../api/subsonicTypes';
 
-export type PlaylistSortKey = 'natural' | 'title' | 'artist' | 'album' | 'favorite' | 'rating' | 'duration' | 'playCount' | 'lastPlayed' | 'bpm';
+export type PlaylistSortKey = 'natural' | 'position' | 'title' | 'artist' | 'album' | 'favorite' | 'rating' | 'duration' | 'playCount' | 'lastPlayed' | 'bpm';
 export type PlaylistSortDir = 'asc' | 'desc';
 
 export interface DisplayedSongsOptions {
@@ -18,6 +18,13 @@ export function getDisplayedSongs(songs: SubsonicSong[], opts: DisplayedSongsOpt
   if (!q && opts.sortKey === 'natural') return songs;
   let result = [...songs];
   if (q) result = result.filter(s => s.title.toLowerCase().includes(q) || (s.artist ?? '').toLowerCase().includes(q));
+  if (opts.sortKey === 'position') {
+    // Playlist position is the "date added" proxy: servers append new tracks at
+    // the end, so ascending = oldest→newest (load order) and descending =
+    // newest→oldest. Reverse rather than compare — stable and O(n), and the
+    // Subsonic playlist response carries no per-entry timestamp to compare on.
+    return opts.sortDir === 'desc' ? result.reverse() : result;
+  }
   if (opts.sortKey !== 'natural') {
     result.sort((a, b) => {
       let av: string | number;

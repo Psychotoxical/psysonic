@@ -57,3 +57,12 @@ html[data-button-size="small"] .mp-sort-btn .compact-btn-label,
 html[data-button-size="small"] .mp-filter-btn .compact-btn-label {
   display: none;
 }
+
+/* Playlist filter/sort toolbar: the SortDropdown collapses to icon-only in Small
+   too (label hidden, square button), reusing the shared `toolbar-btn-label`. */
+html[data-button-size="small"] .playlist-filter-toolbar .toolbar-btn-label {
+  display: none;
+}
+html[data-button-size="small"] .playlist-filter-toolbar .btn-surface {
+  padding: 0.5rem;
+}

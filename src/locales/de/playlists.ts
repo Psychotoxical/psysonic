@@ -1,4 +1,7 @@
 export const playlists = {
+  sortTooltip: 'Titel sortieren',
+  sortDateAddedNewest: 'Hinzugefügt (neueste)',
+  sortDateAddedOldest: 'Hinzugefügt (älteste)',
   title: 'Playlists',
   newPlaylist: 'Neue Playlist',
   unnamed: 'Unbenannte Playlist',

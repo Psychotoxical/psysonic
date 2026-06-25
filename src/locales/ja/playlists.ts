@@ -1,4 +1,7 @@
 export const playlists = {
+  sortTooltip: '曲を並べ替え',
+  sortDateAddedNewest: '追加日（新しい順）',
+  sortDateAddedOldest: '追加日（古い順）',
   title: 'プレイリスト',
   newPlaylist: '新規プレイリスト',
   unnamed: '名前のないプレイリスト',

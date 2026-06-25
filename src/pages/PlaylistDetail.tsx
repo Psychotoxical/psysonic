@@ -293,7 +293,15 @@ export default function PlaylistDetail() {
 
       {/* ── Filter / sort toolbar ── */}
       {songs.length > 0 && (
-        <PlaylistFilterToolbar filterText={filterText} setFilterText={setFilterText} />
+        <PlaylistFilterToolbar
+          filterText={filterText}
+          setFilterText={setFilterText}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          setSortKey={setSortKey}
+          setSortDir={setSortDir}
+          setSortClickCount={setSortClickCount}
+        />
       )}
 
       {/* ── Tracklist ── */}

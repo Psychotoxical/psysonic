@@ -1,4 +1,7 @@
 export const playlists = {
+  sortTooltip: 'Sortează piesele',
+  sortDateAddedNewest: 'Data adăugării (cele mai noi)',
+  sortDateAddedOldest: 'Data adăugării (cele mai vechi)',
   title: 'Playlisturi',
   newPlaylist: 'Playlist nou',
   unnamed: 'Playlist fără nume',
