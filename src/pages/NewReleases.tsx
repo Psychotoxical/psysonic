@@ -5,7 +5,8 @@ import { resolveAlbum } from '../utils/offline/offlineMediaResolve';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { dedupeById } from '../utils/dedupeById';
 import { useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { CheckSquare2, Download, HardDriveDownload } from 'lucide-react';
+import { Download, HardDriveDownload } from 'lucide-react';
+import SelectionToggleButton from '../components/SelectionToggleButton';
 import AlbumCard from '../components/AlbumCard';
 import GenreFilterBar from '../components/GenreFilterBar';
 import { useTranslation } from 'react-i18next';
@@ -271,16 +272,13 @@ export default function NewReleases() {
             ) : (
               <GenreFilterBar selected={selectedGenres} onSelectionChange={setSelectedGenres} />
             )}
-            <button
-              className={`btn btn-surface${selectionMode ? ' btn-sort-active' : ''}`}
-              onClick={toggleSelectionMode}
-              data-tooltip={selectionMode ? t('albums.cancelSelect') : t('albums.startSelect')}
-              data-tooltip-pos="bottom"
-              style={selectionMode ? { background: 'var(--accent)', color: 'var(--text-on-accent)' } : {}}
-            >
-              <CheckSquare2 size={15} />
-              {selectionMode ? t('albums.cancelSelect') : t('albums.select')}
-            </button>
+            <SelectionToggleButton
+              active={selectionMode}
+              onToggle={toggleSelectionMode}
+              selectLabel={t('albums.select')}
+              cancelLabel={t('albums.cancelSelect')}
+              startTooltip={t('albums.startSelect')}
+            />
           </div>
         </div>
       </div>

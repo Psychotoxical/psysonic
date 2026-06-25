@@ -18,7 +18,8 @@ import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { showToast } from '../utils/ui/toast';
 import { invoke } from '@tauri-apps/api/core';
 import { join } from '@tauri-apps/api/path';
-import { CheckSquare2, Download, HardDriveDownload, ListPlus } from 'lucide-react';
+import { Download, HardDriveDownload, ListPlus } from 'lucide-react';
+import SelectionToggleButton from '../components/SelectionToggleButton';
 import { albumGridWarmCovers } from '../cover/layoutSizes';
 import { VirtualCardGrid } from '../components/VirtualCardGrid';
 import OverlayScrollArea from '../components/OverlayScrollArea';
@@ -330,16 +331,13 @@ export default function LosslessAlbums() {
                   </button>
                 </>
               )}
-              <button
-                className={`btn btn-surface${selectionMode ? ' btn-sort-active' : ''}`}
-                onClick={toggleSelectionMode}
-                data-tooltip={selectionMode ? t('albums.cancelSelect') : t('albums.startSelect')}
-                data-tooltip-pos="bottom"
-                style={selectionMode ? { background: 'var(--accent)', color: 'var(--text-on-accent)' } : {}}
-              >
-                <CheckSquare2 size={15} />
-                {selectionMode ? t('albums.cancelSelect') : t('albums.select')}
-              </button>
+              <SelectionToggleButton
+                active={selectionMode}
+                onToggle={toggleSelectionMode}
+                selectLabel={t('albums.select')}
+                cancelLabel={t('albums.cancelSelect')}
+                startTooltip={t('albums.startSelect')}
+              />
             </div>
           </div>
         </div>

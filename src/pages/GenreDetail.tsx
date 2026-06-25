@@ -166,10 +166,12 @@ export default function GenreDetail() {
           <button
             className="btn btn-ghost"
             onClick={handleBack}
+            aria-label={t('genres.back')}
+            data-tooltip={t('genres.back')}
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginRight: '0.25rem' }}
           >
             <ArrowLeft size={16} />
-            <span>{t('genres.back')}</span>
+            <span className="toolbar-btn-label">{t('genres.back')}</span>
           </button>
           <h1 className="page-title" style={{ marginBottom: 0 }}>{genre}</h1>
           {headerCount != null && headerCount > 0 && (
@@ -185,12 +187,13 @@ export default function GenreDetail() {
                 className="btn btn-primary long-press-play-btn"
                 {...pressBind}
                 disabled={bulkLoading}
+                aria-label={t('genres.playTooltip')}
                 data-tooltip={t('genres.playTooltip')}
               >
                 <LongPressWaveOverlay active={isHolding} size="compact" />
                 <span className="long-press-play-btn__icon" style={{ gap: '0.35rem' }}>
                   {bulkLoading ? <Loader2 size={15} className="spin" /> : <Play size={15} fill="currentColor" />}
-                  {t('common.play')}
+                  <span className="toolbar-btn-label">{t('common.play')}</span>
                 </span>
               </button>
               <button

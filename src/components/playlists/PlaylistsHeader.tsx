@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { CheckSquare2, Plus, Trash2 } from 'lucide-react';
+import { CheckSquare2, Plus, Sparkles, Trash2 } from 'lucide-react';
 import type { SubsonicPlaylist } from '../../api/subsonicTypes';
 import {
   defaultSmartFilters, type SmartFilters,
@@ -48,7 +48,7 @@ export default function PlaylistsHeader({
           ? t('playlists.selectionCount', { count: selectedIds.size })
           : t('playlists.title')}
       </h1>
-      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+      <div className="hero-action-bar" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
         {policy.canEditPlaylist && !(selectionMode && selectedIds.size > 0) && (<>
             {creating ? (
               <>
@@ -72,8 +72,8 @@ export default function PlaylistsHeader({
                 </button>
               </>
             ) : (
-              <button className="btn btn-primary" onClick={() => { setCreatingSmart(false); setCreating(true); }}>
-                <Plus size={15} /> {t('playlists.newPlaylist')}
+              <button className="btn btn-primary" onClick={() => { setCreatingSmart(false); setCreating(true); }} aria-label={t('playlists.newPlaylist')} data-tooltip={t('playlists.newPlaylist')}>
+                <Plus size={15} /> <span className="hero-btn-label">{t('playlists.newPlaylist')}</span>
               </button>
             )}
             {!creating && isNavidromeServer && (
@@ -83,8 +83,8 @@ export default function PlaylistsHeader({
                 setSmartFilters(defaultSmartFilters);
                 setGenreQuery('');
                 setCreatingSmart(v => !v);
-              }}>
-                <Plus size={15} /> {t('smartPlaylists.create')}
+              }} aria-label={t('smartPlaylists.create')} data-tooltip={t('smartPlaylists.create')}>
+                <Sparkles size={15} /> <span className="hero-btn-label">{t('smartPlaylists.create')}</span>
               </button>
             )}
           </>
@@ -98,25 +98,27 @@ export default function PlaylistsHeader({
               className="btn btn-danger"
               onClick={handleDeleteSelected}
               disabled={deletableCount === 0}
+              aria-label={t('playlists.deleteSelected')}
               data-tooltip={deletableCount === selectedIds.size
                 ? undefined
                 : t('playlists.deleteSelectedPartial', { n: deletableCount, total: selectedIds.size })}
               data-tooltip-pos="bottom"
             >
               <Trash2 size={15} />
-              {t('playlists.deleteSelected')}
+              <span className="hero-btn-label">{t('playlists.deleteSelected')}</span>
             </button>
           );
         })()}
         <button
           className={`btn btn-surface${selectionMode ? ' btn-sort-active' : ''}`}
           onClick={toggleSelectionMode}
+          aria-label={selectionMode ? t('playlists.cancelSelect') : t('playlists.select')}
           data-tooltip={selectionMode ? t('playlists.cancelSelect') : t('playlists.startSelect')}
           data-tooltip-pos="bottom"
           style={selectionMode ? { background: 'var(--accent)', color: 'var(--text-on-accent)' } : {}}
         >
           <CheckSquare2 size={15} />
-          {selectionMode ? t('playlists.cancelSelect') : t('playlists.select')}
+          <span className="hero-btn-label">{selectionMode ? t('playlists.cancelSelect') : t('playlists.select')}</span>
         </button>
       </div>
     </div>

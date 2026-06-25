@@ -61,8 +61,8 @@ export default function PlaylistsNewFolderButton() {
   }
 
   return (
-    <button className="btn btn-surface" onClick={() => setCreating(true)}>
-      <FolderPlus size={15} /> {t('playlists.folders.newFolder')}
+    <button className="btn btn-surface" onClick={() => setCreating(true)} aria-label={t('playlists.folders.newFolder')} data-tooltip={t('playlists.folders.newFolder')}>
+      <FolderPlus size={15} /> <span className="hero-btn-label">{t('playlists.folders.newFolder')}</span>
     </button>
   );
 }

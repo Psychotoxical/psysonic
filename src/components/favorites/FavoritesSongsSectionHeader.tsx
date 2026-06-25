@@ -67,10 +67,12 @@ export default function FavoritesSongsSectionHeader({
       </div>
 
       {/* Action Buttons */}
-      <div className="favorites-songs-toolbar" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+      <div className="favorites-songs-toolbar hero-action-bar" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
         <button
           className="btn btn-primary"
           disabled={targetSongs.length === 0}
+          aria-label={inSelectMode ? t('favorites.playSelected') : t('favorites.playAll')}
+          data-tooltip={inSelectMode ? t('favorites.playSelected') : t('favorites.playAll')}
           onClick={() => {
             if (targetSongs.length === 0) return;
             const tracks = targetSongs.map(songToTrack);
@@ -78,11 +80,13 @@ export default function FavoritesSongsSectionHeader({
           }}
         >
           <Play size={15} />
-          {inSelectMode ? t('favorites.playSelected') : t('favorites.playAll')}
+          <span className="hero-btn-label">{inSelectMode ? t('favorites.playSelected') : t('favorites.playAll')}</span>
         </button>
         <button
           className="btn btn-surface"
           disabled={targetSongs.length === 0}
+          aria-label={inSelectMode ? t('favorites.enqueueSelected') : t('favorites.enqueueAll')}
+          data-tooltip={inSelectMode ? t('favorites.enqueueSelected') : t('favorites.enqueueAll')}
           onClick={() => {
             if (targetSongs.length === 0) return;
             const tracks = targetSongs.map(songToTrack);
@@ -90,21 +94,25 @@ export default function FavoritesSongsSectionHeader({
           }}
         >
           <ListPlus size={15} />
-          {inSelectMode ? t('favorites.enqueueSelected') : t('favorites.enqueueAll')}
+          <span className="hero-btn-label">{inSelectMode ? t('favorites.enqueueSelected') : t('favorites.enqueueAll')}</span>
         </button>
 
         {/* Filter Toggle Button */}
         <button
           className={`btn ${showFilters || selectedGenres.length > 0 || yearRange[0] !== minYear || yearRange[1] !== currentYear ? 'btn-primary' : 'btn-surface'}`}
           onClick={() => setShowFilters(v => !v)}
+          aria-label={t('common.filters')}
+          data-tooltip={t('common.filters')}
         >
           <SlidersHorizontal size={14} />
-          {t('common.filters')}
+          <span className="hero-btn-label">{t('common.filters')}</span>
         </button>
 
         {(selectedArtist || selectedGenres.length > 0 || yearRange[0] !== minYear || yearRange[1] !== currentYear) && (
           <button
             className="btn btn-ghost"
+            aria-label={t('common.clearAll')}
+            data-tooltip={t('common.clearAll')}
             onClick={() => {
               setSelectedArtist(null);
               setSelectedGenres([]);
@@ -114,7 +122,7 @@ export default function FavoritesSongsSectionHeader({
             }}
           >
             <X size={13} />
-            {t('common.clearAll')}
+            <span className="hero-btn-label">{t('common.clearAll')}</span>
           </button>
         )}
 

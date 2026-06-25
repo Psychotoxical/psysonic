@@ -475,7 +475,7 @@ export default function AlbumHeader({
                   </div>
                 </div>
               ) : (
-                <div className="album-detail-actions">
+                <div className="album-detail-actions hero-action-bar">
                   <div className="album-detail-actions-primary">
                     <button
                       className="btn btn-primary"
@@ -483,7 +483,7 @@ export default function AlbumHeader({
                       onClick={onPlayAll}
                       {...tooltipAttrs(t('albumDetail.playTooltip'))}
                     >
-                      <Play size={15} /> {t('common.play', 'Reproducir')}
+                      <Play size={15} /> <span className="hero-btn-label">{t('common.play', 'Reproducir')}</span>
                     </button>
                     {onShuffleAll && (
                       <button
@@ -528,7 +528,7 @@ export default function AlbumHeader({
                       onClick={onBio}
                       {...tooltipAttrs(t('albumDetail.artistBioTooltip'))}
                     >
-                      <Highlighter size={16} /> {t('albumDetail.artistBio')}
+                      <Highlighter size={16} /> <span className="hero-btn-label">{t('albumDetail.artistBio')}</span>
                     </button>
                   )}
 
@@ -548,7 +548,7 @@ export default function AlbumHeader({
                         onClick={onDownload}
                         {...tooltipAttrs(t('albumDetail.downloadTooltip'))}
                       >
-                        <Download size={16} /> {t('albumDetail.download')}{totalSize > 0 ? ` · ${formatMb(totalSize)}` : ''}
+                        <Download size={16} /> <span className="hero-btn-label">{t('albumDetail.download')}{totalSize > 0 ? ` · ${formatMb(totalSize)}` : ''}</span>
                       </button>
                     )
                   )}
@@ -562,28 +562,31 @@ export default function AlbumHeader({
                       <button
                         className="btn btn-surface offline-cache-btn offline-cache-btn--queued"
                         onClick={onCacheOffline}
+                        aria-label={t('albumDetail.offlineQueued')}
                         data-tooltip={t('albumDetail.removeFromOfflineQueue')}
                       >
                         <HardDriveDownload size={16} />
-                        {t('albumDetail.offlineQueued')}
+                        <span className="hero-btn-label">{t('albumDetail.offlineQueued')}</span>
                       </button>
                     ) : offlineStatus === 'cached' ? (
                       <button
                         className="btn btn-surface offline-cache-btn offline-cache-btn--cached"
                         onClick={onRemoveOffline}
+                        aria-label={t('albumDetail.offlineCached')}
                         data-tooltip={t('albumDetail.removeOffline')}
                       >
                         <HardDriveDownload size={16} />
-                        {t('albumDetail.offlineCached')}
+                        <span className="hero-btn-label">{t('albumDetail.offlineCached')}</span>
                       </button>
                     ) : (
                       <button
                         className="btn btn-surface offline-cache-btn"
                         onClick={onCacheOffline}
+                        aria-label={t('albumDetail.cacheOffline')}
                         data-tooltip={t('albumDetail.cacheOffline')}
                       >
                         <HardDriveDownload size={16} />
-                        {t('albumDetail.cacheOffline')}
+                        <span className="hero-btn-label">{t('albumDetail.cacheOffline')}</span>
                       </button>
                     )
                   )}

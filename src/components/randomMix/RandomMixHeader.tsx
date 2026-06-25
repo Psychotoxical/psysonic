@@ -28,28 +28,31 @@ export default function RandomMixHeader({
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
       <h1 className="page-title">{t('randomMix.title')}</h1>
 
-      <div style={{ display: 'flex', gap: '0.5rem' }}>
+      <div className="hero-action-bar" style={{ display: 'flex', gap: '0.5rem' }}>
         <button
           className="btn btn-surface"
           onClick={onRefresh}
           disabled={selectedGenre ? genreMixLoading : loading}
+          aria-label={selectedGenre ? t('randomMix.remixGenre', { genre: selectedGenre }) : t('randomMix.remix')}
           data-tooltip={selectedGenre
             ? t('randomMix.remixTooltipGenre', { genre: selectedGenre })
             : t('randomMix.remixTooltip')
           }
         >
           <RefreshCw size={18} className={(selectedGenre ? genreMixLoading : loading) ? 'spin' : ''} />
-          {selectedGenre ? t('randomMix.remixGenre', { genre: selectedGenre }) : t('randomMix.remix')}
+          <span className="hero-btn-label">{selectedGenre ? t('randomMix.remixGenre', { genre: selectedGenre }) : t('randomMix.remix')}</span>
         </button>
         <button
           className={`btn ${isGenreLoading ? 'btn-surface' : 'btn-primary'}`}
           onClick={onPlayAll}
           disabled={isPlayDisabled}
+          aria-label={t('randomMix.playAll')}
+          data-tooltip={t('randomMix.playAll')}
         >
           {isGenreLoading ? (
-            <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> {Math.min(genreMixSongsLength, randomMixSize)} / {randomMixSize}</>
+            <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> <span className="hero-btn-label">{Math.min(genreMixSongsLength, randomMixSize)} / {randomMixSize}</span></>
           ) : (
-            <><Play size={18} fill="currentColor" /> {t('randomMix.playAll')}</>
+            <><Play size={18} fill="currentColor" /> <span className="hero-btn-label">{t('randomMix.playAll')}</span></>
           )}
         </button>
       </div>

@@ -6,7 +6,8 @@ import type { SubsonicAlbum } from '../api/subsonicTypes';
 import { dedupeById } from '../utils/dedupeById';
 import { shuffleArray } from '../utils/playback/shuffleArray';
 import React, { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
-import { RefreshCw, CheckSquare2, Download, HardDriveDownload } from 'lucide-react';
+import { RefreshCw, Download, HardDriveDownload } from 'lucide-react';
+import SelectionToggleButton from '../components/SelectionToggleButton';
 import AlbumCard from '../components/AlbumCard';
 import GenreFilterBar from '../components/GenreFilterBar';
 import { useTranslation } from 'react-i18next';
@@ -314,13 +315,13 @@ export default function RandomAlbums() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             {selectionMode && selectedIds.size > 0 ? (
               <>
-                <button className="btn btn-surface albums-selection-action-btn" onClick={handleAddOffline}>
+                <button className="btn btn-surface albums-selection-action-btn" onClick={handleAddOffline} aria-label={t('albums.addOffline')} data-tooltip={t('albums.addOffline')}>
                   <HardDriveDownload size={15} />
-                  {t('albums.addOffline')}
+                  <span className="toolbar-btn-label">{t('albums.addOffline')}</span>
                 </button>
-                <button className="btn btn-surface albums-selection-action-btn" onClick={handleDownloadZips}>
+                <button className="btn btn-surface albums-selection-action-btn" onClick={handleDownloadZips} aria-label={t('albums.downloadZips')} data-tooltip={t('albums.downloadZips')}>
                   <Download size={15} />
-                  {t('albums.downloadZips')}
+                  <span className="toolbar-btn-label">{t('albums.downloadZips')}</span>
                 </button>
               </>
             ) : (
@@ -330,23 +331,21 @@ export default function RandomAlbums() {
                   className="btn btn-surface"
                   onClick={handleRefresh}
                   disabled={loading}
+                  aria-label={t('randomAlbums.refresh')}
                   data-tooltip={t('randomAlbums.refresh')}
                 >
                   <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-                  {t('randomAlbums.refresh')}
+                  <span className="toolbar-btn-label">{t('randomAlbums.refresh')}</span>
                 </button>
               </>
             )}
-            <button
-              className={`btn btn-surface${selectionMode ? ' btn-sort-active' : ''}`}
-              onClick={toggleSelectionMode}
-              data-tooltip={selectionMode ? t('albums.cancelSelect') : t('albums.startSelect')}
-              data-tooltip-pos="bottom"
-              style={selectionMode ? { background: 'var(--accent)', color: 'var(--text-on-accent)' } : {}}
-            >
-              <CheckSquare2 size={15} />
-              {selectionMode ? t('albums.cancelSelect') : t('albums.select')}
-            </button>
+            <SelectionToggleButton
+              active={selectionMode}
+              onToggle={toggleSelectionMode}
+              selectLabel={t('albums.select')}
+              cancelLabel={t('albums.cancelSelect')}
+              startTooltip={t('albums.startSelect')}
+            />
           </div>
         </div>
       </div>

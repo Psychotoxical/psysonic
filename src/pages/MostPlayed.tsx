@@ -157,10 +157,11 @@ export default function MostPlayed() {
         <button
           className="btn btn-surface mp-sort-btn"
           onClick={() => setSortAsc(v => !v)}
+          aria-label={sortAsc ? t('mostPlayed.sortLeast') : t('mostPlayed.sortMost')}
           data-tooltip={sortAsc ? t('mostPlayed.sortMost') : t('mostPlayed.sortLeast')}
         >
           {sortAsc ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
-          {sortAsc ? t('mostPlayed.sortLeast') : t('mostPlayed.sortMost')}
+          <span className="hero-btn-label">{sortAsc ? t('mostPlayed.sortLeast') : t('mostPlayed.sortMost')}</span>
           <ArrowUpDown size={12} style={{ opacity: 0.45 }} />
         </button>
       </div>
@@ -173,11 +174,12 @@ export default function MostPlayed() {
             <button
               className={`btn btn-surface mp-filter-btn${filterCompilations ? ' mp-filter-btn--active' : ''}`}
               onClick={() => setFilterCompilations(v => !v)}
+              aria-label={t('mostPlayed.filterCompilations')}
               data-tooltip={t('mostPlayed.filterCompilations')}
               data-tooltip-pos="left"
             >
               <UsersRound size={14} />
-              {t('mostPlayed.filterCompilationsShort')}
+              <span className="hero-btn-label">{t('mostPlayed.filterCompilationsShort')}</span>
             </button>
           </div>
           {topArtists.length === 0 && (

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LayoutGrid, List, Images, CheckSquare2 } from 'lucide-react';
+import { LayoutGrid, List, Images } from 'lucide-react';
+import SelectionToggleButton from '../components/SelectionToggleButton';
 import StarFilterButton from '../components/StarFilterButton';
 import OverlayScrollArea from '../components/OverlayScrollArea';
 import { usePlayerStore } from '../store/playerStore';
@@ -361,16 +362,14 @@ export default function Artists() {
                   </button>
                 </>
               )}
-              <button
-                className={`btn btn-surface${selectionMode ? ' btn-sort-active' : ''}`}
-                onClick={toggleSelectionMode}
-                data-tooltip={selectionMode ? t('artists.cancelSelect') : t('artists.startSelect')}
-                data-tooltip-pos="bottom"
-                style={selectionMode ? { background: 'var(--accent)', color: 'var(--text-on-accent)' } : {}}
-              >
-                <CheckSquare2 size={15} />
-                {selectionMode ? t('artists.cancelSelect') : t('artists.select')}
-              </button>
+              <SelectionToggleButton
+                active={selectionMode}
+                onToggle={toggleSelectionMode}
+                selectLabel={t('artists.select')}
+                cancelLabel={t('artists.cancelSelect')}
+                startTooltip={t('artists.startSelect')}
+                iconSize={20}
+              />
             </div>
           </div>
 

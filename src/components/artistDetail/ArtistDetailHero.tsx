@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAlbumDetailBack } from '../../hooks/useAlbumDetailBack';
 import {
-  ArrowLeft, Camera, Check, ExternalLink, HardDriveDownload, Heart,
+  ArrowLeft, Camera, Check, HardDriveDownload, Heart,
   Loader2, Play, Radio, Share2, Shuffle, Users,
 } from 'lucide-react';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicArtistInfo } from '../../api/subsonicTypes';
@@ -17,6 +17,7 @@ import { useCachedUrl } from '../CachedImage';
 import { useCoverLightboxSrc } from '../../cover/lightbox';
 import type { CoverArtRef } from '../../cover/types';
 import LastfmIcon from '../LastfmIcon';
+import WikipediaIcon from '../WikipediaIcon';
 import StarRating from '../StarRating';
 import { tooltipAttrs } from '../tooltipAttrs';
 import { offlineActionPolicy, type OfflineActionPolicy } from '../../utils/offline/offlineActionPolicy';
@@ -241,7 +242,7 @@ export default function ArtistDetailHero({
             />
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div className="hero-action-bar" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {(info?.lastFmUrl || artist.name) && (
               <div className="artist-detail-links">
                 {info?.lastFmUrl && (
@@ -251,7 +252,7 @@ export default function ArtistDetailHero({
                     {...tooltipAttrs(t('artistDetail.lastfmTooltip'))}
                   >
                     <LastfmIcon size={14} />
-                    {openedLink === 'lastfm' ? t('artistDetail.openedInBrowser') : 'Last.fm'}
+                    <span className="hero-btn-label">{openedLink === 'lastfm' ? t('artistDetail.openedInBrowser') : 'Last.fm'}</span>
                   </button>
                 )}
                 <button
@@ -259,8 +260,8 @@ export default function ArtistDetailHero({
                   onClick={() => openLink(wikiUrl, 'wiki')}
                   {...tooltipAttrs(t('artistDetail.wikipediaTooltip'))}
                 >
-                  <ExternalLink size={14} />
-                  {openedLink === 'wiki' ? t('artistDetail.openedInBrowser') : 'Wikipedia'}
+                  <WikipediaIcon size={14} />
+                  <span className="hero-btn-label">{openedLink === 'wiki' ? t('artistDetail.openedInBrowser') : 'Wikipedia'}</span>
                 </button>
               </div>
             )}
@@ -269,16 +270,17 @@ export default function ArtistDetailHero({
               <button
                 className="artist-ext-link"
                 onClick={toggleStar}
+                aria-label={isStarred ? t('artistDetail.favoriteRemove') : t('artistDetail.favoriteAdd')}
                 data-tooltip={isStarred ? t('artistDetail.favoriteRemove') : t('artistDetail.favoriteAdd')}
                 style={{ color: isStarred ? 'var(--accent)' : 'inherit', border: isStarred ? '1px solid var(--accent)' : undefined }}
               >
                 <Heart size={14} fill={isStarred ? "currentColor" : "none"} />
-                {t('artistDetail.favorite')}
+                <span className="hero-btn-label">{t('artistDetail.favorite')}</span>
               </button>
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', marginTop: '1.5rem', flexWrap: 'wrap' }}>
+          <div className="hero-action-bar" style={{ display: 'flex', gap: '8px', marginTop: '1.5rem', flexWrap: 'wrap' }}>
             {albums.length > 0 && (
               <>
                 <button
@@ -288,7 +290,7 @@ export default function ArtistDetailHero({
                   {...tooltipAttrs(t('artistDetail.playAllTooltip'))}
                 >
                   {playAllLoading ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} /> : <Play size={16} />}
-                  {t('artistDetail.playAll')}
+                  <span className="hero-btn-label">{t('artistDetail.playAll')}</span>
                 </button>
                 <button
                   className="btn btn-surface"
@@ -297,7 +299,7 @@ export default function ArtistDetailHero({
                   {...tooltipAttrs(t('artistDetail.shuffleTooltip'))}
                 >
                   {playAllLoading ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} /> : <Shuffle size={16} />}
-                  {!isMobile && t('artistDetail.shuffle')}
+                  {!isMobile && <span className="hero-btn-label">{t('artistDetail.shuffle')}</span>}
                 </button>
               </>
             )}
@@ -308,7 +310,7 @@ export default function ArtistDetailHero({
               {...tooltipAttrs(t('artistDetail.radioTooltip'))}
             >
               {radioLoading ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} /> : <Radio size={16} />}
-              {!isMobile && (radioLoading ? t('artistDetail.loading') : t('artistDetail.radio'))}
+              {!isMobile && <span className="hero-btn-label">{radioLoading ? t('artistDetail.loading') : t('artistDetail.radio')}</span>}
             </button>
             {id && artist && (
               <button
@@ -353,16 +355,18 @@ export default function ArtistDetailHero({
                     ? <Check size={16} />
                     : <HardDriveDownload size={16} />}
                 {!isMobile && (
-                  artistOfflineStatus === 'downloading' && artistOfflineProgress
-                    ? t('artistDetail.offlineDownloading', {
-                      done: artistOfflineProgress.done,
-                      total: artistOfflineProgress.total,
-                    })
-                    : artistOfflineStatus === 'queued'
-                      ? t('artistDetail.offlineQueued')
-                      : artistOfflineStatus === 'cached'
-                        ? t('artistDetail.offlineCached')
-                        : t('artistDetail.cacheOffline')
+                  <span className="hero-btn-label">{
+                    artistOfflineStatus === 'downloading' && artistOfflineProgress
+                      ? t('artistDetail.offlineDownloading', {
+                        done: artistOfflineProgress.done,
+                        total: artistOfflineProgress.total,
+                      })
+                      : artistOfflineStatus === 'queued'
+                        ? t('artistDetail.offlineQueued')
+                        : artistOfflineStatus === 'cached'
+                          ? t('artistDetail.offlineCached')
+                          : t('artistDetail.cacheOffline')
+                  }</span>
                 )}
               </button>
             )}

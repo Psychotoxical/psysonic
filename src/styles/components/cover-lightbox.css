@@ -193,6 +193,56 @@
   flex-wrap: wrap;
 }
 
+/* Compact / icon-only hero action buttons (Settings → Appearance → Hero buttons).
+   Reusable: any hero header opts in by adding `hero-action-bar` to its button
+   row and wrapping each button's text in a `hero-btn-label` span. */
+html[data-hero-buttons="small"] .hero-action-bar {
+  gap: 6px;
+}
+
+html[data-hero-buttons="small"] .hero-action-bar .btn,
+html[data-hero-buttons="small"] .hero-action-bar .artist-ext-link {
+  padding: 5px;
+  gap: 5px;
+  min-height: 0;
+  min-width: 0;
+}
+
+html[data-hero-buttons="small"] .hero-action-bar .btn svg,
+html[data-hero-buttons="small"] .hero-action-bar .artist-ext-link svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Labelled buttons (Play, Bio, Download, Offline, …) become icon-only in Small. */
+html[data-hero-buttons="small"] .hero-action-bar .hero-btn-label {
+  display: none;
+}
+
+/* Album header keeps its inner primary cluster tight in Small too. */
+html[data-hero-buttons="small"] .album-detail-actions-primary {
+  gap: 5px;
+}
+
+/* Browse-page toolbars (All Albums style: Sort, Year, Genre, Favorites, Lossless,
+   Sampler, multi-select) collapse to icon-only in Small, reusing the same pattern
+   as the mobile toolbar — labels live in `.toolbar-btn-label`, the icon + tooltip
+   + aria-label stay. One rule covers every shared `mainstage-inpage-toolbar`. */
+html[data-hero-buttons="small"] .mainstage-inpage-toolbar .toolbar-btn-label {
+  display: none;
+}
+
+/* Once labels are hidden, keep all toolbar buttons square / equal size. */
+html[data-hero-buttons="small"] .mainstage-inpage-toolbar .btn {
+  padding: 0.5rem;
+}
+
+/* Most Played has its own standalone sort/filter buttons (not in a shared bar). */
+html[data-hero-buttons="small"] .mp-sort-btn .hero-btn-label,
+html[data-hero-buttons="small"] .mp-filter-btn .hero-btn-label {
+  display: none;
+}
+
 .album-detail-content {
   position: relative;
   z-index: 1;

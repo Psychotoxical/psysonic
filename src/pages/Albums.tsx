@@ -22,7 +22,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { join } from '@tauri-apps/api/path';
 import { showToast } from '../utils/ui/toast';
 import { useZipDownloadStore } from '../store/zipDownloadStore';
-import { CheckSquare2, Download, HardDriveDownload, Disc3, ListPlus } from 'lucide-react';
+import { Download, HardDriveDownload, Disc3, ListPlus } from 'lucide-react';
+import SelectionToggleButton from '../components/SelectionToggleButton';
 import FilterQuickClear from '../components/FilterQuickClear';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import { useRangeSelection } from '../hooks/useRangeSelection';
@@ -445,16 +446,13 @@ export default function Albums() {
                 </>
               )}
 
-              <button
-                className={`btn btn-surface${selectionMode ? ' btn-sort-active' : ''}`}
-                onClick={toggleSelectionMode}
-                data-tooltip={selectionMode ? t('albums.cancelSelect') : t('albums.startSelect')}
-                data-tooltip-pos="bottom"
-                style={selectionMode ? { background: 'var(--accent)', color: 'var(--text-on-accent)' } : {}}
-              >
-                <CheckSquare2 size={15} />
-                <span className="toolbar-btn-label">{selectionMode ? t('albums.cancelSelect') : t('albums.select')}</span>
-              </button>
+              <SelectionToggleButton
+                active={selectionMode}
+                onToggle={toggleSelectionMode}
+                selectLabel={t('albums.select')}
+                cancelLabel={t('albums.cancelSelect')}
+                startTooltip={t('albums.startSelect')}
+              />
             </div>
           </div>
         </div>

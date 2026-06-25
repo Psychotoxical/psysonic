@@ -8,7 +8,8 @@ import AlbumCard from '../components/AlbumCard';
 import { ArtistHeroCover } from '../cover/artistHero';
 import { coverArtRef } from '../cover/ref';
 import { useCoverLightboxSrc } from '../cover/lightbox';
-import { ArrowLeft, Users, ExternalLink, Heart, Feather, Share2 } from 'lucide-react';
+import { ArrowLeft, Users, Heart, Feather, Share2 } from 'lucide-react';
+import WikipediaIcon from '../components/WikipediaIcon';
 import { open } from '@tauri-apps/plugin-shell';
 import { usePlayerStore } from '../store/playerStore';
 import { useAuthStore } from '../store/authStore';
@@ -211,12 +212,12 @@ export default function ComposerDetail() {
             <span>{t('composerDetail.workCount', { count: albums.length })}</span>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div className="hero-action-bar" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {wikiUrl && (
               <div className="artist-detail-links">
-                <button className="artist-ext-link" onClick={() => openLink(wikiUrl, 'wiki')}>
-                  <ExternalLink size={14} />
-                  {openedLink === 'wiki' ? t('artistDetail.openedInBrowser') : 'Wikipedia'}
+                <button className="artist-ext-link" onClick={() => openLink(wikiUrl, 'wiki')} aria-label={t('artistDetail.wikipediaTooltip')} data-tooltip={t('artistDetail.wikipediaTooltip')}>
+                  <WikipediaIcon size={14} />
+                  <span className="hero-btn-label">{openedLink === 'wiki' ? t('artistDetail.openedInBrowser') : 'Wikipedia'}</span>
                 </button>
               </div>
             )}
@@ -225,11 +226,12 @@ export default function ComposerDetail() {
               <button
                 className="artist-ext-link"
                 onClick={toggleStar}
+                aria-label={isStarred ? t('artistDetail.favoriteRemove') : t('artistDetail.favoriteAdd')}
                 data-tooltip={isStarred ? t('artistDetail.favoriteRemove') : t('artistDetail.favoriteAdd')}
                 style={{ color: isStarred ? 'var(--accent)' : 'inherit', border: isStarred ? '1px solid var(--accent)' : undefined }}
               >
                 <Heart size={14} fill={isStarred ? 'currentColor' : 'none'} />
-                {t('artistDetail.favorite')}
+                <span className="hero-btn-label">{t('artistDetail.favorite')}</span>
               </button>
             )}
 

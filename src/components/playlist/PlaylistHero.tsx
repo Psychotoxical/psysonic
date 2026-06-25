@@ -148,15 +148,16 @@ export default function PlaylistHero({
               )}
               {saving && <Loader2 size={12} className="spin-slow" style={{ display: 'inline', marginLeft: 4 }} />}
             </div>
-            <div className="album-detail-actions">
+            <div className="album-detail-actions hero-action-bar">
               <div className="album-detail-actions-primary">
                 <button
                   className="btn btn-primary"
                   disabled={songs.length === 0}
                   onClick={handlePlayAll}
+                  aria-label={t('playlists.playTooltip')}
                   data-tooltip={t('playlists.playTooltip')}
                 >
-                  <Play size={15} /> {t('common.play', 'Reproducir')}
+                  <Play size={15} /> <span className="hero-btn-label">{t('common.play', 'Reproducir')}</span>
                 </button>
                 <button
                   className="btn btn-ghost"
@@ -179,9 +180,10 @@ export default function PlaylistHero({
                 <button
                   className={`btn btn-ghost ${searchOpen ? 'active' : ''}`}
                   onClick={() => { setSearchOpen(v => !v); setSearchQuery(''); setSearchResults([]); setSelectedSearchIds(new Set()); setSearchPlPickerOpen(false); }}
+                  aria-label={t('playlists.addSongsTooltip')}
                   data-tooltip={t('playlists.addSongsTooltip')}
                 >
-                  <Search size={16} /> {t('playlists.addSongs')}
+                  <Search size={16} /> <span className="hero-btn-label">{t('playlists.addSongs')}</span>
                 </button>
               )}
               {actionPolicy.canEditPlaylist && isLayoutVisible('importCsv') && (
@@ -189,10 +191,11 @@ export default function PlaylistHero({
                   className="btn btn-ghost"
                   onClick={handleImportCsv}
                   disabled={csvImporting}
+                  aria-label={t('playlists.importCSVTooltip')}
                   data-tooltip={t('playlists.importCSVTooltip')}
                 >
                   {csvImporting ? <Loader2 size={16} className="spin-slow" /> : <FileUp size={16} />}
-                  {t('playlists.importCSV')}
+                  <span className="hero-btn-label">{t('playlists.importCSV')}</span>
                 </button>
               )}
               {actionPolicy.canDownload && isLayoutVisible('downloadZip') && songs.length > 0 && (
@@ -205,8 +208,8 @@ export default function PlaylistHero({
                     <span className="download-progress-pct">{activeZip.total ? Math.round((activeZip.bytes / activeZip.total) * 100) : '…'}%</span>
                   </div>
                 ) : (
-                  <button className="btn btn-ghost" onClick={handleDownload} data-tooltip={t('playlists.downloadZip')}>
-                    <Download size={16} /> {t('playlists.downloadZip')}{songs.reduce((acc, s) => acc + (s.size ?? 0), 0) > 0 ? ` · ${formatSize(songs.reduce((acc, s) => acc + (s.size ?? 0), 0))}` : ''}
+                  <button className="btn btn-ghost" onClick={handleDownload} aria-label={t('playlists.downloadZip')} data-tooltip={t('playlists.downloadZip')}>
+                    <Download size={16} /> <span className="hero-btn-label">{t('playlists.downloadZip')}{songs.reduce((acc, s) => acc + (s.size ?? 0), 0) > 0 ? ` · ${formatSize(songs.reduce((acc, s) => acc + (s.size ?? 0), 0))}` : ''}</span>
                   </button>
                 )
               )}
@@ -235,22 +238,22 @@ export default function PlaylistHero({
                   {offlineStatus === 'downloading' ? (
                     <>
                       <div className="spinner" style={{ width: 14, height: 14, borderTopColor: 'currentColor' }} />
-                      {t('albumDetail.offlineDownloading', { n: offlineProgress?.done ?? 0, total: offlineProgress?.total ?? 0 })}
+                      <span className="hero-btn-label">{t('albumDetail.offlineDownloading', { n: offlineProgress?.done ?? 0, total: offlineProgress?.total ?? 0 })}</span>
                     </>
                   ) : offlineStatus === 'queued' ? (
                     <>
                       <HardDriveDownload size={16} />
-                      {t('albumDetail.offlineQueued')}
+                      <span className="hero-btn-label">{t('albumDetail.offlineQueued')}</span>
                     </>
                   ) : offlineStatus === 'cached' ? (
                     <>
                       <Trash2 size={16} />
-                      {t('playlists.removeOffline')}
+                      <span className="hero-btn-label">{t('playlists.removeOffline')}</span>
                     </>
                   ) : (
                     <>
                       <HardDriveDownload size={16} />
-                      {t('playlists.cacheOffline')}
+                      <span className="hero-btn-label">{t('playlists.cacheOffline')}</span>
                     </>
                   )}
                 </button>
