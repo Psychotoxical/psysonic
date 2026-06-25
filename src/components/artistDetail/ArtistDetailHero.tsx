@@ -12,6 +12,7 @@ import { useArtistOfflineState } from '../../hooks/useArtistOfflineState';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { ArtistHeroCover } from '../../cover/artistHero';
 import { useArtistBanner, useArtistFanart } from '../../cover/useArtistFanart';
+import { pickArtistBackdrop } from '../../cover/artistBackdrop';
 import { usePlaybackCoverArt } from '../../cover/usePlaybackCoverArt';
 import { useCachedUrl } from '../CachedImage';
 import { useCoverLightboxSrc } from '../../cover/lightbox';
@@ -150,18 +151,9 @@ export default function ArtistDetailHero({
   const ndArtist = usePlaybackCoverArt(coverRef ?? undefined, 2000, { fullRes: true });
   const ndArtistUrl = useCachedUrl(ndArtist.src, ndArtist.cacheKey, true);
   // Header background priority (§28): banner → fanart → Navidrome artist cover.
-  // Each external surface now reports a genuine miss (`src === ''`, not the ND
-  // cover), so the chain can step through cleanly: while a stage is still
-  // resolving we show nothing rather than flashing a lower-priority image; on a
-  // confirmed miss we drop to the next stage. Off → external surfaces are '',
-  // not pending → we fall straight through to the Navidrome cover.
-  const headerBgUrl =
-    banner.src ||
-    (banner.pending ? '' : fanartBg.src || (fanartBg.pending ? '' : ndArtistUrl));
-  // The banner is a purpose-built wide strip → keep it centered. The fanart /
-  // Navidrome artist images are portrait-ish → raise the focal point so heads
-  // stay in frame on wide viewports.
-  const headerBgPosition = banner.src ? undefined : 'center 30%';
+  // Shared with the mainstage hero via pickArtistBackdrop so the two headers
+  // resolve and frame their backdrop identically.
+  const headerBackdrop = pickArtistBackdrop(banner, fanartBg, ndArtistUrl);
 
   const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(artist.name)}`;
 
@@ -174,7 +166,7 @@ export default function ArtistDetailHero({
           `artist-detail-bleed` breaks out of the artist page's .content-body
           padding so it is full-bleed like the album page (flush .album-detail). */}
       <div className="album-detail-header artist-detail-bleed">
-        <ArtistHeaderBg key={headerBgUrl} url={headerBgUrl} position={headerBgPosition} />
+        <ArtistHeaderBg key={headerBackdrop.url} url={headerBackdrop.url} position={headerBackdrop.position} />
         <div className="album-detail-content">
           <button className="btn btn-ghost album-detail-back" onClick={() => goBack()}>
             <ArrowLeft size={16} /> <span>{t('artistDetail.back')}</span>
