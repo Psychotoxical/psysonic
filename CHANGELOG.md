@@ -108,6 +108,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Settings → Audio → Track transitions → AutoDJ:** choose **Auto** (content-driven overlap, up to 12 s) or **Limit** (slider 2–30 s, default 15 s when enabled) to cap how long AutoDJ may overlap tracks.
 * The cap applies to end-of-track planning, JS auto-advance, smooth skip, and Orbit transition sync; the audio engine accepts dynamic overlap overrides up to 30 s.
 
+### Multiple genres in album details
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1186](https://github.com/Psychotoxical/psysonic/pull/1186)**, suggested by [@Thraka](https://github.com/Thraka)
+
+* Album details now list every genre instead of just the first one, and each genre is a link that opens its genre page. Falls back to the album's single genre on servers that don't report multiple ones.
+
 
 ## Changed
 
