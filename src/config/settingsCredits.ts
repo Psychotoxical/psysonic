@@ -195,6 +195,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Golos Text and Unbounded fonts with Cyrillic support (PR #206)',
       'Fullscreen & sidebar lyrics: duration-based ease-out scroll animator replacing spring physics; bottom fade for plain lyrics (PR #214)',
       'Sidebar lyrics: YouLy+ source strings render in a single line (PR #215)',
+      'Russian locale — 50 missing strings, copy polish, and EN user-facing cleanup (PR #1181)',
     ],
   },
   {

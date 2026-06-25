@@ -124,6 +124,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Settings → Personalisation** gains a **Queue Settings** category that brings the queue display mode, the queue toolbar customizer, and the **Preserve "Play Next" order** toggle (moved here from Audio) together in one place.
 * On macOS, the **Audio Output Device** category is now hidden rather than showing a notice — playback there always follows the system output device.
 
+### Russian locale — missing strings and copy polish
+
+**By [@kilyabin](https://github.com/kilyabin), PR [#1181](https://github.com/Psychotoxical/psysonic/pull/1181)**
+
+* Fifty strings that still fell back to English in the Russian UI are now translated — macOS in-place updater, device sync file migration, fullscreen lyrics, and statistics share-image export.
+* User-facing descriptions in Russian and English no longer mention WebKitGTK or Fisher–Yates internals; several Russian labels and section titles read more naturally (settings casing, smart playlists, track transitions, and home rails).
+
 
 ## Fixed
 
