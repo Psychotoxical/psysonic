@@ -291,6 +291,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * After the last track ended (repeat off), idle auto-pull could restore an earlier server position from the last debounced push and seek backward. The client now flushes end-of-track position to the server and skips idle auto-pull until playback resumes, the queue is edited, or the user pulls manually.
 
+### Sidebar — offline nav gating after manual reconnect Retry
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1190](https://github.com/Psychotoxical/psysonic/pull/1190)**, closes [#1160](https://github.com/Psychotoxical/psysonic/issues/1160)
+
+* Strengthens the existing disconnect/recovery path: connection status is now shared across all `useConnectionStatus` hook instances, so a successful **Retry** on the offline banner clears offline-browse sidebar filtering in step with the header connection indicator (no app restart).
+
 ## Under the Hood
 
 ### ESLint setup and a strict lint pass over the frontend
