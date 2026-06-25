@@ -29,6 +29,8 @@ export const albumDetail = {
   goToArtist: '前往 {{artist}}',
   moreLabelAlbums: '{{label}} 的更多专辑',
   moreGenreAlbums: '{{genre}} 类型的更多专辑',
+  genresModalTitle: '流派',
+  showAllGenres: '显示所有流派',
   trackTitle: '标题',
   trackAlbum: '专辑',
   trackArtist: '艺术家',

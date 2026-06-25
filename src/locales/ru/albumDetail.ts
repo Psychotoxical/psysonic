@@ -30,6 +30,8 @@ export const albumDetail = {
   goToArtist: 'Перейти к {{artist}}',
   moreLabelAlbums: 'Другие альбомы на {{label}}',
   moreGenreAlbums: 'Другие альбомы в жанре {{genre}}',
+  genresModalTitle: 'Жанры',
+  showAllGenres: 'Показать все жанры',
   trackTitle: 'Название',
   trackAlbum: 'Альбом',
   trackArtist: 'Исполнитель',

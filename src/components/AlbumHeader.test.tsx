@@ -25,7 +25,7 @@ vi.mock('../cover/CoverArtImage', () => ({ CoverArtImage: () => null }));
 function baseProps() {
   return {
     headerArtistRefs: [],
-    songs: [{ id: 't1', duration: 100, suffix: 'mp3' } as SubsonicSong],
+    songs: [] as SubsonicSong[],
     resolvedCoverUrl: null,
     isStarred: false,
     downloadProgress: null,
@@ -47,38 +47,62 @@ function baseProps() {
   };
 }
 
+const albumInfo = (over: Record<string, unknown> = {}) => ({
+  id: 'al1', name: 'Album', artist: 'Artist', artistId: 'a1', ...over,
+});
+
 describe('AlbumHeader genres', () => {
-  it('renders each OpenSubsonic genre as a clickable link and navigates with return state', async () => {
+  it('shows the primary genre inline and the rest in a cursor menu', async () => {
     navigate.mockClear();
     const user = userEvent.setup();
     renderWithProviders(
       <AlbumHeader
         {...baseProps()}
-        info={{
-          id: 'al1', name: 'Album', artist: 'Artist', artistId: 'a1',
-          genres: [{ name: 'Power Metal' }, { name: 'Heavy Metal' }],
-        }}
+        info={albumInfo({ genres: [{ name: 'Power Metal' }, { name: 'Rock' }] })}
       />,
     );
 
-    expect(screen.getByText('Power Metal')).toHaveClass('album-detail-artist-link');
-    expect(screen.getByText('Heavy Metal')).toHaveClass('album-detail-artist-link');
+    // Primary genre is a link; the extra genre stays hidden until the menu opens.
+    expect(screen.getByRole('button', { name: 'More albums in Power Metal' })).toBeInTheDocument();
+    expect(screen.queryByText('Rock')).not.toBeInTheDocument();
 
-    await user.click(screen.getByText('Heavy Metal'));
-    expect(navigate).toHaveBeenCalledWith('/genres/Heavy%20Metal', {
-      state: { returnTo: '/album/al1' },
-    });
+    await user.click(screen.getByRole('button', { name: 'Show all genres' }));
+
+    // The menu lists only the remaining genres — the primary is not repeated.
+    expect(screen.getAllByText('Power Metal')).toHaveLength(1);
+    const rock = screen.getByText('Rock');
+    await user.click(rock);
+    expect(navigate).toHaveBeenCalledWith('/genres/Rock', { state: { returnTo: '/album/al1' } });
   });
 
-  it('falls back to splitting the legacy genre string when no genres[] array is present', () => {
+  it('unions track-level genres after the album genres', async () => {
+    const user = userEvent.setup();
     renderWithProviders(
       <AlbumHeader
         {...baseProps()}
-        info={{ id: 'al2', name: 'Album', artist: 'Artist', artistId: 'a1', genre: 'Rock; Metal' }}
+        songs={[{ id: 't1', duration: 100, genres: [{ name: 'Heavy Metal' }] } as unknown as SubsonicSong]}
+        info={albumInfo({ genres: [{ name: 'Power Metal' }] })}
       />,
     );
 
-    expect(screen.getByText('Rock')).toHaveClass('album-detail-artist-link');
-    expect(screen.getByText('Metal')).toHaveClass('album-detail-artist-link');
+    // Album has one genre, the track adds another → +1 chip, extra genre in the menu.
+    await user.click(screen.getByRole('button', { name: 'Show all genres' }));
+    expect(screen.getByText('Heavy Metal')).toBeInTheDocument();
+  });
+
+  it('shows no +N control for a single genre', () => {
+    renderWithProviders(
+      <AlbumHeader {...baseProps()} info={albumInfo({ genres: [{ name: 'Power Metal' }] })} />,
+    );
+    expect(screen.getByRole('button', { name: 'More albums in Power Metal' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Show all genres' })).not.toBeInTheDocument();
+  });
+
+  it('falls back to splitting the legacy genre string', () => {
+    renderWithProviders(
+      <AlbumHeader {...baseProps()} info={albumInfo({ genre: 'Rock; Metal' })} />,
+    );
+    expect(screen.getByRole('button', { name: 'More albums in Rock' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show all genres' })).toBeInTheDocument();
   });
 });

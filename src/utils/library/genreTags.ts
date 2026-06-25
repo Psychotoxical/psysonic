@@ -63,3 +63,28 @@ export function genreTagsFor(item: GenreTagSource): string[] {
   const g = item.genre?.trim();
   return g ? splitGenreTags(g) : [];
 }
+
+/**
+ * All genres a release should surface: album-level tags first (authoritative for
+ * order and "what the release is"), then track-only tags appended in track order,
+ * case-insensitively deduped against what is already shown. Mirrors what genre
+ * browse derives from `track_genre`, but in-memory from the already-loaded songs —
+ * no extra SQL round-trip.
+ */
+export function deriveAlbumGenreTags(
+  album: GenreTagSource,
+  songs: GenreTagSource[] = [],
+): string[] {
+  const primary = genreTagsFor(album);
+  const seen = new Set(primary.map(g => g.toLocaleLowerCase()));
+  const out = [...primary];
+  for (const song of songs) {
+    for (const g of genreTagsFor(song)) {
+      const key = g.toLocaleLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(g);
+    }
+  }
+  return out;
+}

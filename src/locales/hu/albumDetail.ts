@@ -29,6 +29,8 @@ export const albumDetail = {
   goToArtist: 'Ugrás ide: {{artist}}',
   moreLabelAlbums: 'Több album a(z) {{label}} kiadótól',
   moreGenreAlbums: 'Több album a(z) {{genre}} műfajban',
+  genresModalTitle: 'Műfajok',
+  showAllGenres: 'Összes műfaj megjelenítése',
   trackTitle: 'Cím',
   trackAlbum: 'Album',
   trackArtist: 'Előadó',

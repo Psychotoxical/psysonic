@@ -1,5 +1,5 @@
 import type { EntityRatingSupportLevel, SubsonicItemGenre, SubsonicOpenArtistRef, SubsonicSong } from '../api/subsonicTypes';
-import React from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Play, Heart, X, ChevronLeft, Download, ListPlus, HardDriveDownload, Share2, Highlighter, Loader2, Shuffle } from 'lucide-react';
@@ -20,7 +20,7 @@ import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { OpenArtistRefInline } from './OpenArtistRefInline';
 import { tooltipAttrs } from './tooltipAttrs';
 import { offlineActionPolicy, type OfflineActionPolicy } from '../utils/offline/offlineActionPolicy';
-import { genreTagsFor } from '../utils/library/genreTags';
+import { deriveAlbumGenreTags } from '../utils/library/genreTags';
 
 /** True when the album artist label means "no single artist" — `getArtistInfo`
  *  has nothing meaningful to return for these, so the Artist Bio entry is hidden.
@@ -54,6 +54,68 @@ function BioModal({ bio, onClose }: { bio: string; onClose: () => void }) {
   );
 }
 
+
+/** Cursor-anchored genre list (context-menu style) for the "+N" chip. */
+function GenreMenu({
+  genres, pos, onPick, onClose,
+}: {
+  genres: string[];
+  pos: { x: number; y: number };
+  onPick: (genre: string) => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const ref = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState(pos);
+
+  // Clamp into the viewport once the menu has measured its own size.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const pad = 8;
+    setCoords({
+      x: Math.max(pad, Math.min(pos.x, window.innerWidth - rect.width - pad)),
+      y: Math.max(pad, Math.min(pos.y, window.innerHeight - rect.height - pad)),
+    });
+  }, [pos]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onDown);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onDown);
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      ref={ref}
+      className="genre-menu"
+      role="menu"
+      aria-label={t('albumDetail.genresModalTitle')}
+      style={{ left: coords.x, top: coords.y }}
+    >
+      {genres.map(g => (
+        <button
+          key={g}
+          type="button"
+          role="menuitem"
+          className="genre-menu-item"
+          onClick={() => onPick(g)}
+        >
+          {g}
+        </button>
+      ))}
+    </div>,
+    document.body,
+  );
+}
 
 interface AlbumInfo {
   id: string;
@@ -142,7 +204,12 @@ export default function AlbumHeader({
   const formatLabel = [...new Set(songs.map(s => s.suffix).filter((f): f is string => !!f))].map(f => f.toUpperCase()).join(' / ');
   const isNewAlbum = isAlbumRecentlyAdded(info.created);
   const showBioButton = !isVariousArtistsLabel(info.artist);
-  const genreTags = genreTagsFor(info);
+  const genreTags = deriveAlbumGenreTags(info, songs);
+  const [genreMenuPos, setGenreMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const goToGenre = (genre: string) => {
+    setGenreMenuPos(null);
+    navigate(`/genres/${encodeURIComponent(genre)}`, { state: { returnTo: `/album/${info.id}` } });
+  };
 
   const handleShareAlbum = async () => {
     try {
@@ -158,6 +225,15 @@ export default function AlbumHeader({
     <>
       {bioOpen && bio && <BioModal bio={bio} onClose={onCloseBio} />}
       {lightbox}
+
+      {genreMenuPos && (
+        <GenreMenu
+          genres={genreTags.slice(1)}
+          pos={genreMenuPos}
+          onPick={goToGenre}
+          onClose={() => setGenreMenuPos(null)}
+        />
+      )}
 
       <div className="album-detail-header">
         {resolvedCoverUrl && enableCoverArtBackground && (
@@ -212,19 +288,24 @@ export default function AlbumHeader({
                 {genreTags.length > 0 && (
                   <span className="album-detail-genres">
                     {'· '}
-                    {genreTags.map((g, i) => (
-                      <React.Fragment key={g}>
-                        {i > 0 && ', '}
-                        <button
-                          className="album-detail-artist-link"
-                          data-tooltip={t('albumDetail.moreGenreAlbums', { genre: g })}
-                          aria-label={t('albumDetail.moreGenreAlbums', { genre: g })}
-                          onClick={() => navigate(`/genres/${encodeURIComponent(g)}`, { state: { returnTo: `/album/${info.id}` } })}
-                        >
-                          {g}
-                        </button>
-                      </React.Fragment>
-                    ))}
+                    <button
+                      className="album-detail-artist-link"
+                      data-tooltip={t('albumDetail.moreGenreAlbums', { genre: genreTags[0] })}
+                      aria-label={t('albumDetail.moreGenreAlbums', { genre: genreTags[0] })}
+                      onClick={() => goToGenre(genreTags[0])}
+                    >
+                      {genreTags[0]}
+                    </button>
+                    {genreTags.length > 1 && (
+                      <button
+                        className="album-detail-artist-link album-detail-genres-more"
+                        data-tooltip={t('albumDetail.showAllGenres')}
+                        aria-label={t('albumDetail.showAllGenres')}
+                        onClick={e => setGenreMenuPos({ x: e.clientX, y: e.clientY })}
+                      >
+                        {`+${genreTags.length - 1}`}
+                      </button>
+                    )}
                   </span>
                 )}
                 <span>· {songs.length} Tracks</span>

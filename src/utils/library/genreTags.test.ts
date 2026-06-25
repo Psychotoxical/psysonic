@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { genreTagsFor, parseItemGenres, splitGenreTags } from './genreTags';
+import { deriveAlbumGenreTags, genreTagsFor, parseItemGenres, splitGenreTags } from './genreTags';
 
 describe('splitGenreTags', () => {
   it('splits Navidrome-default separators and dedupes case-insensitively', () => {
@@ -49,5 +49,39 @@ describe('genreTagsFor', () => {
       'Dark Ambient',
       'Experimental Black Metal',
     ]);
+  });
+});
+
+describe('deriveAlbumGenreTags', () => {
+  it('returns album tags only when songs carry no extra genres', () => {
+    expect(deriveAlbumGenreTags(
+      { genres: [{ name: 'Power Metal' }, { name: 'Rock' }] },
+      [{ genres: [{ name: 'Rock' }] }],
+    )).toEqual(['Power Metal', 'Rock']);
+  });
+
+  it('surfaces track-only genres when the album has none', () => {
+    expect(deriveAlbumGenreTags(
+      {},
+      [{ genres: [{ name: 'Metal' }] }, { genres: [{ name: 'Jazz' }] }],
+    )).toEqual(['Metal', 'Jazz']);
+  });
+
+  it('appends additional track genres after the primary album genres', () => {
+    expect(deriveAlbumGenreTags(
+      { genre: 'Rock' },
+      [{ genre: 'Metal' }],
+    )).toEqual(['Rock', 'Metal']);
+  });
+
+  it('dedupes a track genre that equals an album genre, keeping primary position', () => {
+    expect(deriveAlbumGenreTags(
+      { genres: [{ name: 'Power Metal' }] },
+      [{ genres: [{ name: 'power metal' }] }, { genres: [{ name: 'Heavy Metal' }] }],
+    )).toEqual(['Power Metal', 'Heavy Metal']);
+  });
+
+  it('splits a legacy compound album genre string via genreTagsFor', () => {
+    expect(deriveAlbumGenreTags({ genre: 'Rock; Metal' }, [])).toEqual(['Rock', 'Metal']);
   });
 });
