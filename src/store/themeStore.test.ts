@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { getScheduledTheme } from './themeStore';
+import { getScheduledTheme, useThemeStore } from './themeStore';
 
 type SchedState = Parameters<typeof getScheduledTheme>[0];
 
@@ -75,5 +75,22 @@ describe('getScheduledTheme', () => {
     it('still returns the plain theme when the scheduler is off', () => {
       expect(getScheduledTheme(state({ enableThemeScheduler: false, schedulerMode: 'system' }), true)).toBe('mocha');
     });
+  });
+});
+
+describe('buttonSize', () => {
+  afterEach(() => {
+    useThemeStore.getState().setButtonSize('large');
+  });
+
+  it('defaults to large', () => {
+    expect(useThemeStore.getState().buttonSize).toBe('large');
+  });
+
+  it('setButtonSize switches to small and back to large', () => {
+    useThemeStore.getState().setButtonSize('small');
+    expect(useThemeStore.getState().buttonSize).toBe('small');
+    useThemeStore.getState().setButtonSize('large');
+    expect(useThemeStore.getState().buttonSize).toBe('large');
   });
 });

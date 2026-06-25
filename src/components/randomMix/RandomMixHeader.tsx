@@ -28,7 +28,7 @@ export default function RandomMixHeader({
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
       <h1 className="page-title">{t('randomMix.title')}</h1>
 
-      <div className="hero-action-bar" style={{ display: 'flex', gap: '0.5rem' }}>
+      <div className="compact-action-bar" style={{ display: 'flex', gap: '0.5rem' }}>
         <button
           className="btn btn-surface"
           onClick={onRefresh}
@@ -40,7 +40,7 @@ export default function RandomMixHeader({
           }
         >
           <RefreshCw size={18} className={(selectedGenre ? genreMixLoading : loading) ? 'spin' : ''} />
-          <span className="hero-btn-label">{selectedGenre ? t('randomMix.remixGenre', { genre: selectedGenre }) : t('randomMix.remix')}</span>
+          <span className="compact-btn-label">{selectedGenre ? t('randomMix.remixGenre', { genre: selectedGenre }) : t('randomMix.remix')}</span>
         </button>
         <button
           className={`btn ${isGenreLoading ? 'btn-surface' : 'btn-primary'}`}
@@ -50,9 +50,9 @@ export default function RandomMixHeader({
           data-tooltip={t('randomMix.playAll')}
         >
           {isGenreLoading ? (
-            <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> <span className="hero-btn-label">{Math.min(genreMixSongsLength, randomMixSize)} / {randomMixSize}</span></>
+            <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> <span className="compact-btn-label">{Math.min(genreMixSongsLength, randomMixSize)} / {randomMixSize}</span></>
           ) : (
-            <><Play size={18} fill="currentColor" /> <span className="hero-btn-label">{t('randomMix.playAll')}</span></>
+            <><Play size={18} fill="currentColor" /> <span className="compact-btn-label">{t('randomMix.playAll')}</span></>
           )}
         </button>
       </div>

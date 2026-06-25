@@ -242,7 +242,7 @@ export default function ArtistDetailHero({
             />
           </div>
 
-          <div className="hero-action-bar" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div className="compact-action-bar" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {(info?.lastFmUrl || artist.name) && (
               <div className="artist-detail-links">
                 {info?.lastFmUrl && (
@@ -252,7 +252,7 @@ export default function ArtistDetailHero({
                     {...tooltipAttrs(t('artistDetail.lastfmTooltip'))}
                   >
                     <LastfmIcon size={14} />
-                    <span className="hero-btn-label">{openedLink === 'lastfm' ? t('artistDetail.openedInBrowser') : 'Last.fm'}</span>
+                    <span className="compact-btn-label">{openedLink === 'lastfm' ? t('artistDetail.openedInBrowser') : 'Last.fm'}</span>
                   </button>
                 )}
                 <button
@@ -261,7 +261,7 @@ export default function ArtistDetailHero({
                   {...tooltipAttrs(t('artistDetail.wikipediaTooltip'))}
                 >
                   <WikipediaIcon size={14} />
-                  <span className="hero-btn-label">{openedLink === 'wiki' ? t('artistDetail.openedInBrowser') : 'Wikipedia'}</span>
+                  <span className="compact-btn-label">{openedLink === 'wiki' ? t('artistDetail.openedInBrowser') : 'Wikipedia'}</span>
                 </button>
               </div>
             )}
@@ -275,12 +275,12 @@ export default function ArtistDetailHero({
                 style={{ color: isStarred ? 'var(--accent)' : 'inherit', border: isStarred ? '1px solid var(--accent)' : undefined }}
               >
                 <Heart size={14} fill={isStarred ? "currentColor" : "none"} />
-                <span className="hero-btn-label">{t('artistDetail.favorite')}</span>
+                <span className="compact-btn-label">{t('artistDetail.favorite')}</span>
               </button>
             )}
           </div>
 
-          <div className="hero-action-bar" style={{ display: 'flex', gap: '8px', marginTop: '1.5rem', flexWrap: 'wrap' }}>
+          <div className="compact-action-bar" style={{ display: 'flex', gap: '8px', marginTop: '1.5rem', flexWrap: 'wrap' }}>
             {albums.length > 0 && (
               <>
                 <button
@@ -290,7 +290,7 @@ export default function ArtistDetailHero({
                   {...tooltipAttrs(t('artistDetail.playAllTooltip'))}
                 >
                   {playAllLoading ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} /> : <Play size={16} />}
-                  <span className="hero-btn-label">{t('artistDetail.playAll')}</span>
+                  <span className="compact-btn-label">{t('artistDetail.playAll')}</span>
                 </button>
                 <button
                   className="btn btn-surface"
@@ -299,7 +299,7 @@ export default function ArtistDetailHero({
                   {...tooltipAttrs(t('artistDetail.shuffleTooltip'))}
                 >
                   {playAllLoading ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} /> : <Shuffle size={16} />}
-                  {!isMobile && <span className="hero-btn-label">{t('artistDetail.shuffle')}</span>}
+                  {!isMobile && <span className="compact-btn-label">{t('artistDetail.shuffle')}</span>}
                 </button>
               </>
             )}
@@ -310,7 +310,7 @@ export default function ArtistDetailHero({
               {...tooltipAttrs(t('artistDetail.radioTooltip'))}
             >
               {radioLoading ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} /> : <Radio size={16} />}
-              {!isMobile && <span className="hero-btn-label">{radioLoading ? t('artistDetail.loading') : t('artistDetail.radio')}</span>}
+              {!isMobile && <span className="compact-btn-label">{radioLoading ? t('artistDetail.loading') : t('artistDetail.radio')}</span>}
             </button>
             {id && artist && (
               <button
@@ -355,7 +355,7 @@ export default function ArtistDetailHero({
                     ? <Check size={16} />
                     : <HardDriveDownload size={16} />}
                 {!isMobile && (
-                  <span className="hero-btn-label">{
+                  <span className="compact-btn-label">{
                     artistOfflineStatus === 'downloading' && artistOfflineProgress
                       ? t('artistDetail.offlineDownloading', {
                         done: artistOfflineProgress.done,

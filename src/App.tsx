@@ -17,7 +17,7 @@ export default function App() {
   useThemeStore(s => s.theme);
   const effectiveTheme = useThemeScheduler();
   const font = useFontStore(s => s.font);
-  const heroButtonSize = useThemeStore(s => s.heroButtonSize);
+  const buttonSize = useThemeStore(s => s.buttonSize);
   const installedThemes = useInstalledThemesStore(s => s.themes);
 
   // Document-attribute hooks are shared between both window kinds — each
@@ -83,8 +83,8 @@ export default function App() {
   }, [font]);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-hero-buttons', heroButtonSize);
-  }, [heroButtonSize]);
+    document.documentElement.setAttribute('data-button-size', buttonSize);
+  }, [buttonSize]);
 
   // Hide all inline track-preview buttons when the user opts out — single
   // CSS hook (`html[data-track-previews="off"]`) instead of conditional

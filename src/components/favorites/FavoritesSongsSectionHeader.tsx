@@ -67,7 +67,7 @@ export default function FavoritesSongsSectionHeader({
       </div>
 
       {/* Action Buttons */}
-      <div className="favorites-songs-toolbar hero-action-bar" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+      <div className="favorites-songs-toolbar compact-action-bar" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
         <button
           className="btn btn-primary"
           disabled={targetSongs.length === 0}
@@ -80,7 +80,7 @@ export default function FavoritesSongsSectionHeader({
           }}
         >
           <Play size={15} />
-          <span className="hero-btn-label">{inSelectMode ? t('favorites.playSelected') : t('favorites.playAll')}</span>
+          <span className="compact-btn-label">{inSelectMode ? t('favorites.playSelected') : t('favorites.playAll')}</span>
         </button>
         <button
           className="btn btn-surface"
@@ -94,7 +94,7 @@ export default function FavoritesSongsSectionHeader({
           }}
         >
           <ListPlus size={15} />
-          <span className="hero-btn-label">{inSelectMode ? t('favorites.enqueueSelected') : t('favorites.enqueueAll')}</span>
+          <span className="compact-btn-label">{inSelectMode ? t('favorites.enqueueSelected') : t('favorites.enqueueAll')}</span>
         </button>
 
         {/* Filter Toggle Button */}
@@ -105,7 +105,7 @@ export default function FavoritesSongsSectionHeader({
           data-tooltip={t('common.filters')}
         >
           <SlidersHorizontal size={14} />
-          <span className="hero-btn-label">{t('common.filters')}</span>
+          <span className="compact-btn-label">{t('common.filters')}</span>
         </button>
 
         {(selectedArtist || selectedGenres.length > 0 || yearRange[0] !== minYear || yearRange[1] !== currentYear) && (
@@ -122,7 +122,7 @@ export default function FavoritesSongsSectionHeader({
             }}
           >
             <X size={13} />
-            <span className="hero-btn-label">{t('common.clearAll')}</span>
+            <span className="compact-btn-label">{t('common.clearAll')}</span>
           </button>
         )}
 

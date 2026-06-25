@@ -230,12 +230,12 @@ export default function InternetRadio() {
       <div className="playlists-header">
         <h1 className="page-title" style={{ marginBottom: 0 }}>{t('radio.title')}</h1>
         {canManage && (
-          <div className="hero-action-bar" style={{ display: 'flex', gap: 8 }}>
+          <div className="compact-action-bar" style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-primary" onClick={() => setBrowseOpen(true)} aria-label={t('radio.browseDirectory')} data-tooltip={t('radio.browseDirectory')}>
-              <Search size={14} /> <span className="hero-btn-label">{t('radio.browseDirectory')}</span>
+              <Search size={14} /> <span className="compact-btn-label">{t('radio.browseDirectory')}</span>
             </button>
             <button className="btn btn-primary" onClick={() => setModalStation('new')} aria-label={t('radio.addStation')} data-tooltip={t('radio.addStation')}>
-              <Plus size={15} /> <span className="hero-btn-label">{t('radio.addStation')}</span>
+              <Plus size={15} /> <span className="compact-btn-label">{t('radio.addStation')}</span>
             </button>
           </div>
         )}

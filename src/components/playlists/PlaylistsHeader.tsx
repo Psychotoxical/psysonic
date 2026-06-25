@@ -48,7 +48,7 @@ export default function PlaylistsHeader({
           ? t('playlists.selectionCount', { count: selectedIds.size })
           : t('playlists.title')}
       </h1>
-      <div className="hero-action-bar" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+      <div className="compact-action-bar" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
         {policy.canEditPlaylist && !(selectionMode && selectedIds.size > 0) && (<>
             {creating ? (
               <>
@@ -73,7 +73,7 @@ export default function PlaylistsHeader({
               </>
             ) : (
               <button className="btn btn-primary" onClick={() => { setCreatingSmart(false); setCreating(true); }} aria-label={t('playlists.newPlaylist')} data-tooltip={t('playlists.newPlaylist')}>
-                <Plus size={15} /> <span className="hero-btn-label">{t('playlists.newPlaylist')}</span>
+                <Plus size={15} /> <span className="compact-btn-label">{t('playlists.newPlaylist')}</span>
               </button>
             )}
             {!creating && isNavidromeServer && (
@@ -84,7 +84,7 @@ export default function PlaylistsHeader({
                 setGenreQuery('');
                 setCreatingSmart(v => !v);
               }} aria-label={t('smartPlaylists.create')} data-tooltip={t('smartPlaylists.create')}>
-                <Sparkles size={15} /> <span className="hero-btn-label">{t('smartPlaylists.create')}</span>
+                <Sparkles size={15} /> <span className="compact-btn-label">{t('smartPlaylists.create')}</span>
               </button>
             )}
           </>
@@ -105,7 +105,7 @@ export default function PlaylistsHeader({
               data-tooltip-pos="bottom"
             >
               <Trash2 size={15} />
-              <span className="hero-btn-label">{t('playlists.deleteSelected')}</span>
+              <span className="compact-btn-label">{t('playlists.deleteSelected')}</span>
             </button>
           );
         })()}
@@ -118,7 +118,7 @@ export default function PlaylistsHeader({
           style={selectionMode ? { background: 'var(--accent)', color: 'var(--text-on-accent)' } : {}}
         >
           <CheckSquare2 size={15} />
-          <span className="hero-btn-label">{selectionMode ? t('playlists.cancelSelect') : t('playlists.select')}</span>
+          <span className="compact-btn-label">{selectionMode ? t('playlists.cancelSelect') : t('playlists.select')}</span>
         </button>
       </div>
     </div>

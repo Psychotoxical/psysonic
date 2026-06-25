@@ -65,7 +65,7 @@ export default function PlaylistSuggestions({
 
   return (
     <div className="playlist-suggestions tracklist" data-preview-loc="suggestions">
-      <div className="playlist-suggestions-header hero-action-bar">
+      <div className="playlist-suggestions-header compact-action-bar">
         <div className="playlist-suggestions-title">
           <h2 className="section-title" style={{ marginBottom: 0 }}>{t('playlists.suggestions')}</h2>
           <span className="playlist-suggestions-hint">{t('playlists.suggestionsHint')}</span>
@@ -78,7 +78,7 @@ export default function PlaylistSuggestions({
           data-tooltip={t('playlists.refreshSuggestions')}
         >
           <RefreshCw size={14} className={loadingSuggestions ? 'spin-slow' : ''} />
-          <span className="hero-btn-label">{t('playlists.refreshSuggestions')}</span>
+          <span className="compact-btn-label">{t('playlists.refreshSuggestions')}</span>
         </button>
       </div>
 

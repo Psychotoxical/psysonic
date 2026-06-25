@@ -161,7 +161,7 @@ export default function MostPlayed() {
           data-tooltip={sortAsc ? t('mostPlayed.sortMost') : t('mostPlayed.sortLeast')}
         >
           {sortAsc ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
-          <span className="hero-btn-label">{sortAsc ? t('mostPlayed.sortLeast') : t('mostPlayed.sortMost')}</span>
+          <span className="compact-btn-label">{sortAsc ? t('mostPlayed.sortLeast') : t('mostPlayed.sortMost')}</span>
           <ArrowUpDown size={12} style={{ opacity: 0.45 }} />
         </button>
       </div>
@@ -179,7 +179,7 @@ export default function MostPlayed() {
               data-tooltip-pos="left"
             >
               <UsersRound size={14} />
-              <span className="hero-btn-label">{t('mostPlayed.filterCompilationsShort')}</span>
+              <span className="compact-btn-label">{t('mostPlayed.filterCompilationsShort')}</span>
             </button>
           </div>
           {topArtists.length === 0 && (

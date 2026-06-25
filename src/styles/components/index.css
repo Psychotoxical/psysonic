@@ -11,6 +11,7 @@
 @import './album-detail.css';
 @import './offline-library.css';
 @import './cover-lightbox.css';
+@import './compact-buttons.css';
 @import './offline-cache-button.css';
 @import './download-folder-modal.css';
 @import './song-info-modal.css';

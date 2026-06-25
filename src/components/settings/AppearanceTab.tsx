@@ -310,24 +310,24 @@ export function AppearanceTab() {
       </SettingsSubSection>
 
       <SettingsSubSection
-        title={t('settings.heroButtonSizeTitle')}
+        title={t('settings.buttonSizeTitle')}
         icon={<Maximize2 size={16} />}
       >
         <div className="settings-card">
           <SettingsGroup>
             <SettingsSubCard>
               <SettingsField
-                label={t('settings.heroButtonSizeLabel')}
-                desc={t('settings.heroButtonSizeDesc')}
+                label={t('settings.buttonSizeLabel')}
+                desc={t('settings.buttonSizeDesc')}
               >
                 <div style={{ display: 'flex', gap: 8 }}>
                   {(['large', 'small'] as const).map(size => (
                     <button
                       key={size}
-                      className={`btn ${theme.heroButtonSize === size ? 'btn-primary' : 'btn-ghost'}`}
-                      onClick={() => theme.setHeroButtonSize(size)}
+                      className={`btn ${theme.buttonSize === size ? 'btn-primary' : 'btn-ghost'}`}
+                      onClick={() => theme.setButtonSize(size)}
                     >
-                      {t(`settings.heroButtonSize_${size}`)}
+                      {t(`settings.buttonSize_${size}`)}
                     </button>
                   ))}
                 </div>

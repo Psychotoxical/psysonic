@@ -166,12 +166,12 @@ export default function TracksPageChrome({
                 </>
               )}
             </p>
-            <div className="tracks-hero-actions hero-action-bar">
+            <div className="tracks-hero-actions compact-action-bar">
               <button className="btn btn-primary" onClick={() => playSongNow(hero)} aria-label={t('tracks.playSong')} data-tooltip={t('tracks.playSong')}>
-                <Play size={16} fill="currentColor" /> <span className="hero-btn-label">{t('tracks.playSong')}</span>
+                <Play size={16} fill="currentColor" /> <span className="compact-btn-label">{t('tracks.playSong')}</span>
               </button>
               <button className="btn btn-surface" onClick={() => enqueue([songToTrack(hero)])} aria-label={t('tracks.enqueueSong')} data-tooltip={t('tracks.enqueueSong')}>
-                <ListPlus size={16} /> <span className="hero-btn-label">{t('tracks.enqueueSong')}</span>
+                <ListPlus size={16} /> <span className="compact-btn-label">{t('tracks.enqueueSong')}</span>
               </button>
               <button
                 className="btn btn-surface"

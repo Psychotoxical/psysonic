@@ -212,12 +212,12 @@ export default function ComposerDetail() {
             <span>{t('composerDetail.workCount', { count: albums.length })}</span>
           </div>
 
-          <div className="hero-action-bar" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div className="compact-action-bar" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {wikiUrl && (
               <div className="artist-detail-links">
                 <button className="artist-ext-link" onClick={() => openLink(wikiUrl, 'wiki')} aria-label={t('artistDetail.wikipediaTooltip')} data-tooltip={t('artistDetail.wikipediaTooltip')}>
                   <WikipediaIcon size={14} />
-                  <span className="hero-btn-label">{openedLink === 'wiki' ? t('artistDetail.openedInBrowser') : 'Wikipedia'}</span>
+                  <span className="compact-btn-label">{openedLink === 'wiki' ? t('artistDetail.openedInBrowser') : 'Wikipedia'}</span>
                 </button>
               </div>
             )}
@@ -231,7 +231,7 @@ export default function ComposerDetail() {
                 style={{ color: isStarred ? 'var(--accent)' : 'inherit', border: isStarred ? '1px solid var(--accent)' : undefined }}
               >
                 <Heart size={14} fill={isStarred ? 'currentColor' : 'none'} />
-                <span className="hero-btn-label">{t('artistDetail.favorite')}</span>
+                <span className="compact-btn-label">{t('artistDetail.favorite')}</span>
               </button>
             )}
 

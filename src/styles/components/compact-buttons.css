@@ -1,0 +1,59 @@
+/* ─ Compact buttons (Settings → Appearance → Compact buttons) ─
+   Toggled by `html[data-button-size="small"]` (themeStore `buttonSize`).
+   Reusable opt-in: a button row adds `compact-action-bar`, and each button
+   wraps its text in a `compact-btn-label` span. In Small the labels hide and
+   the buttons collapse to icon-only — across detail-page hero rows, shared
+   browse toolbars (`mainstage-inpage-toolbar` → `toolbar-btn-label`) and the
+   standalone Most Played sort/filter buttons.
+
+   These rules are viewport-agnostic, so the toggle applies on mobile too. The
+   one deliberate exception is the AlbumHeader's mobile layout: it renders its
+   own large touch-target buttons (`album-icon-btn`, ~44–54px) instead of a
+   `compact-action-bar`, so Small never shrinks them below the touch target. */
+
+html[data-button-size="small"] .compact-action-bar {
+  gap: 6px;
+}
+
+html[data-button-size="small"] .compact-action-bar .btn,
+html[data-button-size="small"] .compact-action-bar .artist-ext-link {
+  padding: 5px;
+  gap: 5px;
+  min-height: 0;
+  min-width: 0;
+}
+
+html[data-button-size="small"] .compact-action-bar .btn svg,
+html[data-button-size="small"] .compact-action-bar .artist-ext-link svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Labelled buttons (Play, Bio, Download, Offline, …) become icon-only in Small. */
+html[data-button-size="small"] .compact-action-bar .compact-btn-label {
+  display: none;
+}
+
+/* Album header keeps its inner primary cluster tight in Small too. */
+html[data-button-size="small"] .album-detail-actions-primary {
+  gap: 5px;
+}
+
+/* Browse-page toolbars (All Albums style: Sort, Year, Genre, Favorites, Lossless,
+   Sampler, multi-select) collapse to icon-only in Small, reusing the same pattern
+   as the mobile toolbar — labels live in `.toolbar-btn-label`, the icon + tooltip
+   + aria-label stay. One rule covers every shared `mainstage-inpage-toolbar`. */
+html[data-button-size="small"] .mainstage-inpage-toolbar .toolbar-btn-label {
+  display: none;
+}
+
+/* Once labels are hidden, keep all toolbar buttons square / equal size. */
+html[data-button-size="small"] .mainstage-inpage-toolbar .btn {
+  padding: 0.5rem;
+}
+
+/* Most Played has its own standalone sort/filter buttons (not in a shared bar). */
+html[data-button-size="small"] .mp-sort-btn .compact-btn-label,
+html[data-button-size="small"] .mp-filter-btn .compact-btn-label {
+  display: none;
+}
