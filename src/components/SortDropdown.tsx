@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowDownUp, Check } from 'lucide-react';
 import { tooltipAttrs } from './tooltipAttrs';
@@ -15,9 +15,15 @@ interface Props<V extends string> {
   ariaLabel?: string;
   /** Hover tooltip describing the action (shown below the trigger). */
   tooltip?: string;
+  /**
+   * Horizontal anchor of the popover. `right` opens it leftwards (right edge
+   * aligned to the trigger) — use it when the trigger is docked to the right,
+   * e.g. next to an open side panel, so the popover never opens off-screen.
+   */
+  align?: 'left' | 'right';
 }
 
-export default function SortDropdown<V extends string>({ value, options, onChange, ariaLabel, tooltip }: Props<V>) {
+export default function SortDropdown<V extends string>({ value, options, onChange, ariaLabel, tooltip, align = 'left' }: Props<V>) {
   const [open, setOpen] = useState(false);
   const [popStyle, setPopStyle] = useState<React.CSSProperties>({});
 
@@ -26,7 +32,7 @@ export default function SortDropdown<V extends string>({ value, options, onChang
 
   const current = options.find(o => o.value === value);
 
-  const updatePopStyle = () => {
+  const updatePopStyle = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
     const MARGIN = 6;
@@ -35,8 +41,9 @@ export default function SortDropdown<V extends string>({ value, options, onChang
     const spaceBelow = window.innerHeight - rect.bottom - MARGIN;
     const spaceAbove = rect.top - MARGIN;
     const useAbove = spaceBelow < 160 && spaceAbove > spaceBelow;
+    const anchorLeft = align === 'right' ? rect.right - WIDTH : rect.left;
     const left = Math.min(
-      Math.max(rect.left, 8),
+      Math.max(anchorLeft, 8),
       window.innerWidth - WIDTH - 8,
     );
     setPopStyle({
@@ -49,12 +56,12 @@ export default function SortDropdown<V extends string>({ value, options, onChang
       maxHeight: Math.min(MAX_H, useAbove ? spaceAbove : spaceBelow),
       zIndex: 99998,
     });
-  };
+  }, [align]);
 
   useLayoutEffect(() => {
     if (!open) return;
     updatePopStyle();
-  }, [open]);
+  }, [open, updatePopStyle]);
 
   useEffect(() => {
     if (!open) return;
@@ -65,7 +72,7 @@ export default function SortDropdown<V extends string>({ value, options, onChang
       window.removeEventListener('resize', onResize);
       window.removeEventListener('scroll', onResize, true);
     };
-  }, [open]);
+  }, [open, updatePopStyle]);
 
   useEffect(() => {
     if (!open) return;
