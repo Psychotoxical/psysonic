@@ -387,6 +387,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Per-device equalizer profiles — opt-in, remembers and restores the EQ for each audio output device (PR #1146)',
       'Hungarian (Magyar) translation (PR #1149)',
       'Theme scheduler — follow the OS light/dark setting as an alternative to the time-based day/night schedule (PR #1163)',
+      'Compact buttons — appearance toggle that switches action and toolbar buttons to icon-only across detail headers and browse views, app-wide (PR #1189)',
     ],
   },
   {
