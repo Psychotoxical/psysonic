@@ -388,6 +388,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Hungarian (Magyar) translation (PR #1149)',
       'Theme scheduler — follow the OS light/dark setting as an alternative to the time-based day/night schedule (PR #1163)',
       'Compact buttons — appearance toggle that switches action and toolbar buttons to icon-only across detail headers and browse views, app-wide (PR #1189)',
+      'Playlist sort — sort a playlist by date added (newest/oldest) or any track column from a visible sort dropdown (PR #1191)',
     ],
   },
   {
