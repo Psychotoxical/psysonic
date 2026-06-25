@@ -28,6 +28,7 @@ export const albumDetail = {
   tracksCount: '{{n}} Tracks',
   goToArtist: 'Zu {{artist}} wechseln',
   moreLabelAlbums: 'Weitere Alben von {{label}} anzeigen',
+  moreGenreAlbums: 'Weitere Alben im Genre {{genre}}',
   trackTitle: 'Titel',
   trackAlbum: 'Album',
   trackArtist: 'Interpret',

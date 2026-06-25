@@ -1,4 +1,4 @@
-import type { EntityRatingSupportLevel, SubsonicOpenArtistRef, SubsonicSong } from '../api/subsonicTypes';
+import type { EntityRatingSupportLevel, SubsonicItemGenre, SubsonicOpenArtistRef, SubsonicSong } from '../api/subsonicTypes';
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -20,6 +20,7 @@ import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { OpenArtistRefInline } from './OpenArtistRefInline';
 import { tooltipAttrs } from './tooltipAttrs';
 import { offlineActionPolicy, type OfflineActionPolicy } from '../utils/offline/offlineActionPolicy';
+import { genreTagsFor } from '../utils/library/genreTags';
 
 /** True when the album artist label means "no single artist" — `getArtistInfo`
  *  has nothing meaningful to return for these, so the Artist Bio entry is hidden.
@@ -61,6 +62,8 @@ interface AlbumInfo {
   artistId: string;
   year?: number;
   genre?: string;
+  /** OpenSubsonic atomic genres — preferred over the legacy `genre` string. */
+  genres?: SubsonicItemGenre[];
   coverArt?: string;
   recordLabel?: string;
   created?: string;
@@ -139,6 +142,7 @@ export default function AlbumHeader({
   const formatLabel = [...new Set(songs.map(s => s.suffix).filter((f): f is string => !!f))].map(f => f.toUpperCase()).join(' / ');
   const isNewAlbum = isAlbumRecentlyAdded(info.created);
   const showBioButton = !isVariousArtistsLabel(info.artist);
+  const genreTags = genreTagsFor(info);
 
   const handleShareAlbum = async () => {
     try {
@@ -205,7 +209,24 @@ export default function AlbumHeader({
               </p>
               <div className="album-detail-info">
                 {info.year && <span>{info.year}</span>}
-                {info.genre && <span>· {info.genre}</span>}
+                {genreTags.length > 0 && (
+                  <span className="album-detail-genres">
+                    {'· '}
+                    {genreTags.map((g, i) => (
+                      <React.Fragment key={g}>
+                        {i > 0 && ', '}
+                        <button
+                          className="album-detail-artist-link"
+                          data-tooltip={t('albumDetail.moreGenreAlbums', { genre: g })}
+                          aria-label={t('albumDetail.moreGenreAlbums', { genre: g })}
+                          onClick={() => navigate(`/genres/${encodeURIComponent(g)}`, { state: { returnTo: `/album/${info.id}` } })}
+                        >
+                          {g}
+                        </button>
+                      </React.Fragment>
+                    ))}
+                  </span>
+                )}
                 <span>· {songs.length} Tracks</span>
                 <span>· {formatLongDuration(totalDuration)}</span>
                 {formatLabel && <span>· {formatLabel}</span>}

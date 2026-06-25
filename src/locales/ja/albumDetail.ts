@@ -28,6 +28,7 @@ export const albumDetail = {
   tracksCount: '{{n}} 曲',
   goToArtist: '{{artist}} へ移動',
   moreLabelAlbums: '{{label}} の他のアルバム',
+  moreGenreAlbums: '{{genre}} ジャンルの他のアルバム',
   trackTitle: 'タイトル',
   trackAlbum: 'アルバム',
   trackArtist: 'アーティスト',

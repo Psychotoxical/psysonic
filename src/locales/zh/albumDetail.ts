@@ -28,6 +28,7 @@ export const albumDetail = {
   tracksCount: '{{n}} 首曲目',
   goToArtist: '前往 {{artist}}',
   moreLabelAlbums: '{{label}} 的更多专辑',
+  moreGenreAlbums: '{{genre}} 类型的更多专辑',
   trackTitle: '标题',
   trackAlbum: '专辑',
   trackArtist: '艺术家',

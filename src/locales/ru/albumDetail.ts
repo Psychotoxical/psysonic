@@ -29,6 +29,7 @@ export const albumDetail = {
   tracksCount: 'Композиций: {{n}}',
   goToArtist: 'Перейти к {{artist}}',
   moreLabelAlbums: 'Другие альбомы на {{label}}',
+  moreGenreAlbums: 'Другие альбомы в жанре {{genre}}',
   trackTitle: 'Название',
   trackAlbum: 'Альбом',
   trackArtist: 'Исполнитель',
