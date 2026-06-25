@@ -4,8 +4,10 @@ import type { CustomHeaderEntry, CustomHeadersApplyTo, ServerProfile } from '../
 import { showToast } from '../../utils/ui/toast';
 import {
   DEFAULT_CUSTOM_HEADERS_APPLY_TO,
+  serverCustomHeadersFromForm,
   validateCustomHeaders,
 } from '../../utils/server/serverHttpHeaders';
+import { CustomHttpHeadersEditor } from './CustomHttpHeadersEditor';
 import {
   decodeServerMagicString,
   encodeServerMagicString,
@@ -193,19 +195,8 @@ export function AddServerForm({
     return true;
   };
 
-  const customHeadersPayload = (): Pick<
-    ServerProfile,
-    'customHeaders' | 'customHeadersApplyTo'
-  > => {
-    const rows = form.customHeaders
-      .map(h => ({ name: h.name.trim(), value: h.value }))
-      .filter(h => h.name || h.value);
-    if (!rows.length) return {};
-    return {
-      customHeaders: rows,
-      customHeadersApplyTo: form.customHeadersApplyTo,
-    };
-  };
+  const customHeadersPayload = () =>
+    serverCustomHeadersFromForm(form.customHeaders, form.customHeadersApplyTo);
 
   const submit = async () => {
     const ms = magicString.trim();
@@ -381,108 +372,15 @@ export function AddServerForm({
           )}
         </div>
       </div>
-      <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-        <button
-          type="button"
-          className="btn btn-ghost"
-          style={{ fontSize: 13, padding: '4px 0' }}
-          onClick={() => setForm(f => ({ ...f, customHeadersOpen: !f.customHeadersOpen }))}
-        >
-          {form.customHeadersOpen ? '▾' : '▸'} {t('settings.customHeadersTitle')}
-        </button>
-        {form.customHeadersOpen && (
-          <div style={{ marginTop: 8 }}>
-            <p style={{ fontSize: 11, opacity: 0.75, margin: '0 0 8px' }}>
-              {t('settings.customHeadersHelp')}
-            </p>
-            {form.customHeaders.map((row, index) => (
-              <div key={index} className="form-row" style={{ marginBottom: 6, gap: 8 }}>
-                <input
-                  className="input"
-                  type="text"
-                  value={row.name}
-                  onChange={e => {
-                    const name = e.target.value;
-                    setForm(f => {
-                      const customHeaders = f.customHeaders.map((h, i) =>
-                        i === index ? { ...h, name } : h,
-                      );
-                      return { ...f, customHeaders };
-                    });
-                  }}
-                  placeholder={t('settings.customHeadersNamePlaceholder')}
-                  autoComplete="off"
-                />
-                <input
-                  className="input"
-                  type="password"
-                  value={row.value}
-                  onChange={e => {
-                    const value = e.target.value;
-                    setForm(f => ({
-                      ...f,
-                      customHeaders: f.customHeaders.map((h, i) =>
-                        i === index ? { ...h, value } : h,
-                      ),
-                    }));
-                  }}
-                  placeholder={t('settings.customHeadersValuePlaceholder')}
-                  autoComplete="off"
-                />
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  aria-label={t('settings.customHeadersRemoveRow')}
-                  onClick={() =>
-                    setForm(f => ({
-                      ...f,
-                      customHeaders:
-                        f.customHeaders.length <= 1
-                          ? [{ name: '', value: '' }]
-                          : f.customHeaders.filter((_, i) => i !== index),
-                    }))
-                  }
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            <button
-              type="button"
-              className="btn btn-ghost"
-              style={{ fontSize: 12, marginBottom: 8 }}
-              onClick={() =>
-                setForm(f => ({
-                  ...f,
-                  customHeaders: [...f.customHeaders, { name: '', value: '' }],
-                }))
-              }
-            >
-              {t('settings.customHeadersAddRow')}
-            </button>
-            <fieldset
-              disabled={!form.customHeaders.some(h => h.name.trim() || h.value)}
-              style={{ border: 'none', padding: 0, margin: 0 }}
-            >
-              <legend style={{ fontSize: 12, marginBottom: 4 }}>{t('settings.customHeadersApplyTo')}</legend>
-              {(['public', 'local', 'both'] as const).map(kind => (
-                <label key={kind} style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-                  <input
-                    type="radio"
-                    name="customHeadersApplyTo"
-                    checked={form.customHeadersApplyTo === kind}
-                    onChange={() => setForm(f => ({ ...f, customHeadersApplyTo: kind }))}
-                  />{' '}
-                  {t(`settings.customHeadersApplyTo_${kind}`)}
-                </label>
-              ))}
-            </fieldset>
-            <p style={{ fontSize: 11, opacity: 0.65, marginTop: 6 }}>
-              {t('settings.customHeadersNotInShare')}
-            </p>
-          </div>
-        )}
-      </div>
+      <CustomHttpHeadersEditor
+        headers={form.customHeaders}
+        applyTo={form.customHeadersApplyTo}
+        open={form.customHeadersOpen}
+        onOpenChange={open => setForm(f => ({ ...f, customHeadersOpen: open }))}
+        onHeadersChange={customHeaders => setForm(f => ({ ...f, customHeaders }))}
+        onApplyToChange={customHeadersApplyTo => setForm(f => ({ ...f, customHeadersApplyTo }))}
+        radioGroupName="addServerCustomHeadersApplyTo"
+      />
       {!isEdit && (
         <div className="form-group" style={{ marginBottom: '0.75rem' }}>
           <label style={{ fontSize: 13 }}>{t('login.orMagicString')}</label>

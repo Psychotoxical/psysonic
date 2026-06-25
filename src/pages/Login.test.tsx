@@ -7,7 +7,7 @@ import { useAuthStore } from '@/store/authStore';
 import { encodeServerMagicString } from '@/utils/server/serverMagicString';
 
 vi.mock('@/api/subsonic', () => ({
-  pingWithCredentials: vi.fn(async () => ({
+  pingWithCredentialsForProfile: vi.fn(async () => ({
     ok: true,
     type: 'navidrome',
     serverVersion: '0.55.0',
@@ -16,11 +16,15 @@ vi.mock('@/api/subsonic', () => ({
   scheduleInstantMixProbeForServer: vi.fn(),
 }));
 
-import { pingWithCredentials } from '@/api/subsonic';
+vi.mock('@/utils/server/syncServerHttpContext', () => ({
+  syncServerHttpContextForProfile: vi.fn(async () => undefined),
+}));
+
+import { pingWithCredentialsForProfile } from '@/api/subsonic';
 
 beforeEach(() => {
   resetAuthStore();
-  vi.mocked(pingWithCredentials).mockClear();
+  vi.mocked(pingWithCredentialsForProfile).mockClear();
 });
 
 afterEach(() => {
@@ -93,5 +97,38 @@ describe('Login — v2 magic string paste persistence', () => {
     // profile so localStorage doesn't carry dangling defaults.
     expect(saved.alternateUrl).toBeUndefined();
     expect(saved.shareUsesLocalUrl).toBeUndefined();
+  });
+
+  it('persists custom HTTP headers and probes with gate profile on first connect', async () => {
+    const Login = (await import('./Login')).default;
+    renderWithProviders(<Login />);
+    const user = userEvent.setup();
+
+    await user.type(screen.getByLabelText(/server url/i), 'https://music.example.com');
+    await user.type(screen.getByLabelText(/username/i), 'tester');
+    await user.type(screen.getByPlaceholderText('••••••••'), 'pw');
+
+    await user.click(screen.getByRole('button', { name: /custom http headers/i }));
+    const nameInputs = screen.getAllByPlaceholderText(/header name/i);
+    const valueInputs = screen.getAllByPlaceholderText(/header value/i);
+    await user.type(nameInputs[0]!, 'CF-Access-Client-Secret');
+    await user.type(valueInputs[0]!, 'gate-secret');
+
+    await user.click(screen.getByRole('button', { name: /connect/i }));
+
+    await waitFor(() => {
+      expect(useAuthStore.getState().servers.length).toBe(1);
+    });
+
+    const saved = useAuthStore.getState().servers[0]!;
+    expect(saved.customHeaders).toEqual([{ name: 'CF-Access-Client-Secret', value: 'gate-secret' }]);
+    expect(saved.customHeadersApplyTo).toBe('public');
+    expect(vi.mocked(pingWithCredentialsForProfile)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'https://music.example.com',
+        customHeaders: [{ name: 'CF-Access-Client-Secret', value: 'gate-secret' }],
+      }),
+      'https://music.example.com',
+    );
   });
 });

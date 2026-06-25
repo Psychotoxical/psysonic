@@ -2,7 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Wifi, WifiOff, Eye, EyeOff, Server, Globe } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { pingWithCredentials, scheduleInstantMixProbeForServer } from '../api/subsonic';
+import type { CustomHeaderEntry, CustomHeadersApplyTo, ServerProfile } from '../store/authStoreTypes';
+import { pingWithCredentialsForProfile, scheduleInstantMixProbeForServer } from '../api/subsonic';
+import { CustomHttpHeadersEditor } from '../components/settings/CustomHttpHeadersEditor';
+import {
+  DEFAULT_CUSTOM_HEADERS_APPLY_TO,
+  serverCustomHeadersFromForm,
+  validateCustomHeaders,
+} from '../utils/server/serverHttpHeaders';
+import { syncServerHttpContextForProfile } from '../utils/server/syncServerHttpContext';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import CustomSelect from '../components/CustomSelect';
@@ -35,6 +43,9 @@ export default function Login() {
     password: '',
     alternateUrl: '' as string,
     shareUsesLocalUrl: false,
+    customHeaders: [{ name: '', value: '' }] as CustomHeaderEntry[],
+    customHeadersApplyTo: DEFAULT_CUSTOM_HEADERS_APPLY_TO as CustomHeadersApplyTo,
+    customHeadersOpen: false,
   });
   const [magicString, setMagicString] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -50,14 +61,15 @@ export default function Login() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setShowPass(false);
     setBlockPasswordReveal(true);
-    setForm({
+    setForm(f => ({
+      ...f,
       serverName: (inv.name && inv.name.trim()) || shortHostFromServerUrl(inv.url),
       url: inv.url,
       username: inv.username,
       password: inv.password,
       alternateUrl: inv.alternateUrl ?? '',
       shareUsesLocalUrl: inv.shareUsesLocalUrl ?? false,
-    });
+    }));
     setMagicString(encodeServerMagicString(inv));
     navigate('/login', { replace: true, state: {} });
   }, [location.state, navigate]);
@@ -73,14 +85,15 @@ export default function Login() {
     if (decoded) {
       setShowPass(false);
       setBlockPasswordReveal(true);
-      setForm({
+      setForm(f => ({
+        ...f,
         serverName: (decoded.name && decoded.name.trim()) || shortHostFromServerUrl(decoded.url),
         url: decoded.url,
         username: decoded.username,
         password: decoded.password,
         alternateUrl: decoded.alternateUrl ?? '',
         shareUsesLocalUrl: decoded.shareUsesLocalUrl ?? false,
-      });
+      }));
       if (status === 'error') {
         setStatus('idle');
         setTestMessage('');
@@ -95,6 +108,8 @@ export default function Login() {
     password: string;
     alternateUrl?: string;
     shareUsesLocalUrl?: boolean;
+    customHeaders?: CustomHeaderEntry[];
+    customHeadersApplyTo?: CustomHeadersApplyTo;
   }) => {
     if (!profile.url.trim()) {
       setTestMessage(t('login.urlRequired'));
@@ -102,16 +117,42 @@ export default function Login() {
       return;
     }
 
+    const headerRows = (profile.customHeaders ?? []).filter(h => h.name.trim() || h.value);
+    if (headerRows.length) {
+      const headerValidation = validateCustomHeaders(headerRows);
+      if (!headerValidation.ok) {
+        const first = headerValidation.fieldErrors[0]!;
+        setTestMessage(t(first.messageKey, { defaultValue: first.messageKey }));
+        setStatus('error');
+        return;
+      }
+    }
+
     setStatus('testing');
     setTestMessage(t('login.connecting'));
     setConnecting(true);
     setConnectionError(null);
 
-    // Test connection directly with entered credentials — don't touch the store yet.
-    // This avoids any race condition with Zustand's async store rehydration.
-    let ping: Awaited<ReturnType<typeof pingWithCredentials>>;
+    const urlTrimmed = profile.url.trim();
+    const usernameTrimmed = profile.username.trim();
+    const headersPayload = serverCustomHeadersFromForm(
+      profile.customHeaders ?? [],
+      profile.customHeadersApplyTo ?? DEFAULT_CUSTOM_HEADERS_APPLY_TO,
+    );
+    const pingProfile: Pick<
+      ServerProfile,
+      'url' | 'alternateUrl' | 'username' | 'password' | 'customHeaders' | 'customHeadersApplyTo'
+    > = {
+      url: urlTrimmed,
+      username: usernameTrimmed,
+      password: profile.password,
+      alternateUrl: profile.alternateUrl?.trim() || undefined,
+      ...headersPayload,
+    };
+
+    let ping: Awaited<ReturnType<typeof pingWithCredentialsForProfile>>;
     try {
-      ping = await pingWithCredentials(profile.url.trim(), profile.username.trim(), profile.password);
+      ping = await pingWithCredentialsForProfile(pingProfile, urlTrimmed);
     } catch {
       ping = { ok: false };
     }
@@ -125,11 +166,16 @@ export default function Login() {
       // though Login itself never shows the second-address field. The
       // user can edit/remove them later via Settings → Servers.
       const altTrimmed = profile.alternateUrl?.trim() ?? '';
+      const savedHeaders = serverCustomHeadersFromForm(
+        profile.customHeaders ?? [],
+        profile.customHeadersApplyTo ?? DEFAULT_CUSTOM_HEADERS_APPLY_TO,
+      );
       let serverId: string;
       if (existing) {
         updateServer(existing.id, {
           name: profile.name.trim() || profile.url.trim(),
           password: profile.password,
+          ...savedHeaders,
           ...(altTrimmed
             ? {
                 alternateUrl: altTrimmed,
@@ -141,9 +187,10 @@ export default function Login() {
       } else {
         serverId = addServer({
           name: profile.name.trim() || profile.url.trim(),
-          url: profile.url.trim(),
-          username: profile.username.trim(),
+          url: urlTrimmed,
+          username: usernameTrimmed,
           password: profile.password,
+          ...savedHeaders,
           ...(altTrimmed
             ? {
                 alternateUrl: altTrimmed,
@@ -160,11 +207,13 @@ export default function Login() {
       useAuthStore.getState().setSubsonicServerIdentity(serverId, identity);
       scheduleInstantMixProbeForServer(
         serverId,
-        profile.url.trim(),
-        profile.username.trim(),
+        urlTrimmed,
+        usernameTrimmed,
         profile.password,
         identity,
       );
+      const saved = useAuthStore.getState().servers.find(s => s.id === serverId);
+      if (saved) void syncServerHttpContextForProfile(saved);
       setActiveServer(serverId);
       setLoggedIn(true);
       setStatus('ok');
@@ -194,6 +243,8 @@ export default function Login() {
         password: decoded.password,
         alternateUrl: decoded.alternateUrl,
         shareUsesLocalUrl: decoded.shareUsesLocalUrl,
+        customHeaders: form.customHeaders,
+        customHeadersApplyTo: form.customHeadersApplyTo,
       });
       return;
     }
@@ -204,6 +255,8 @@ export default function Login() {
       password: form.password,
       alternateUrl: form.alternateUrl,
       shareUsesLocalUrl: form.shareUsesLocalUrl,
+      customHeaders: form.customHeaders,
+      customHeadersApplyTo: form.customHeadersApplyTo,
     });
   };
 
@@ -218,6 +271,11 @@ export default function Login() {
       password: srv.password,
       alternateUrl: srv.alternateUrl ?? '',
       shareUsesLocalUrl: srv.shareUsesLocalUrl ?? false,
+      customHeaders: srv.customHeaders?.length
+        ? srv.customHeaders.map(h => ({ ...h }))
+        : [{ name: '', value: '' }],
+      customHeadersApplyTo: srv.customHeadersApplyTo ?? DEFAULT_CUSTOM_HEADERS_APPLY_TO,
+      customHeadersOpen: Boolean(srv.customHeaders?.length),
     });
     await attemptConnect({
       name: srv.name,
@@ -226,6 +284,8 @@ export default function Login() {
       password: srv.password,
       alternateUrl: srv.alternateUrl,
       shareUsesLocalUrl: srv.shareUsesLocalUrl,
+      customHeaders: srv.customHeaders,
+      customHeadersApplyTo: srv.customHeadersApplyTo,
     });
   };
 
@@ -360,6 +420,16 @@ export default function Login() {
               )}
             </div>
           </div>
+
+          <CustomHttpHeadersEditor
+            headers={form.customHeaders}
+            applyTo={form.customHeadersApplyTo}
+            open={form.customHeadersOpen}
+            onOpenChange={customHeadersOpen => setForm(f => ({ ...f, customHeadersOpen }))}
+            onHeadersChange={customHeaders => setForm(f => ({ ...f, customHeaders }))}
+            onApplyToChange={customHeadersApplyTo => setForm(f => ({ ...f, customHeadersApplyTo }))}
+            radioGroupName="loginCustomHeadersApplyTo"
+          />
 
           <div className="form-group">
             <label htmlFor="login-magic-string">{t('login.orMagicString')}</label>

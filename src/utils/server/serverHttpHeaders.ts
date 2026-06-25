@@ -96,6 +96,18 @@ export function validateCustomHeaders(
   return { ok: true };
 }
 
+/** Non-empty custom header rows from a form editor → profile fields (or omit when empty). */
+export function serverCustomHeadersFromForm(
+  headers: CustomHeaderEntry[],
+  applyTo: CustomHeadersApplyTo,
+): Pick<ServerProfile, 'customHeaders' | 'customHeadersApplyTo'> | Record<string, never> {
+  const rows = headers
+    .map(h => ({ name: h.name.trim(), value: h.value }))
+    .filter(h => h.name || h.value);
+  if (!rows.length) return {};
+  return { customHeaders: rows, customHeadersApplyTo: applyTo };
+}
+
 function headersRecord(entries: CustomHeaderEntry[]): Record<string, string> {
   const out: Record<string, string> = {};
   for (const row of entries) {

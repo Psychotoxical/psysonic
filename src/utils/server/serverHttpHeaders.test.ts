@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   headersForServerRequest,
   requestBaseUrlFromHttpUrl,
+  serverCustomHeadersFromForm,
   validateCustomHeaders,
 } from './serverHttpHeaders';
 
@@ -49,5 +50,20 @@ describe('validateCustomHeaders', () => {
     expect(
       validateCustomHeaders([{ name: 'X-Custom', value: 'ok' }]),
     ).toEqual({ ok: true });
+  });
+});
+
+describe('serverCustomHeadersFromForm', () => {
+  it('returns empty object when all rows are blank', () => {
+    expect(serverCustomHeadersFromForm([{ name: '', value: '' }], 'public')).toEqual({});
+  });
+
+  it('trims and returns profile fields for non-empty rows', () => {
+    expect(
+      serverCustomHeadersFromForm([{ name: ' X-Gate ', value: 'secret' }], 'public'),
+    ).toEqual({
+      customHeaders: [{ name: 'X-Gate', value: 'secret' }],
+      customHeadersApplyTo: 'public',
+    });
   });
 });
