@@ -124,7 +124,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Settings → Personalisation** gains a **Queue Settings** category that brings the queue display mode, the queue toolbar customizer, and the **Preserve "Play Next" order** toggle (moved here from Audio) together in one place.
 * On macOS, the **Audio Output Device** category is now hidden rather than showing a notice — playback there always follows the system output device.
 
-### Russian locale — missing strings and copy polish
+### Russian locale — missing strings and phrasing cleanup
 
 **By [@kilyabin](https://github.com/kilyabin), PR [#1181](https://github.com/Psychotoxical/psysonic/pull/1181)**
 
