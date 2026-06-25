@@ -1,5 +1,5 @@
 import type { EntityRatingSupportLevel, SubsonicItemGenre, SubsonicOpenArtistRef, SubsonicSong } from '../api/subsonicTypes';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Play, Heart, X, ChevronLeft, Download, ListPlus, HardDriveDownload, Share2, Highlighter, Loader2, Shuffle } from 'lucide-react';
@@ -21,6 +21,7 @@ import { OpenArtistRefInline } from './OpenArtistRefInline';
 import { tooltipAttrs } from './tooltipAttrs';
 import { offlineActionPolicy, type OfflineActionPolicy } from '../utils/offline/offlineActionPolicy';
 import { deriveAlbumGenreTags } from '../utils/library/genreTags';
+import { genreColor } from '../utils/library/genreColor';
 
 /** True when the album artist label means "no single artist" — `getArtistInfo`
  *  has nothing meaningful to return for these, so the Artist Bio entry is hidden.
@@ -68,7 +69,8 @@ function GenreMenu({
   const ref = useRef<HTMLDivElement>(null);
   const [coords, setCoords] = useState(pos);
 
-  // Clamp into the viewport once the menu has measured its own size.
+  // Clamp into the viewport once the menu has measured its own size, then move
+  // focus to the first genre so keyboard users land inside the menu.
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -78,10 +80,23 @@ function GenreMenu({
       x: Math.max(pad, Math.min(pos.x, window.innerWidth - rect.width - pad)),
       y: Math.max(pad, Math.min(pos.y, window.innerHeight - rect.height - pad)),
     });
+    el.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
   }, [pos]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { onClose(); return; }
+      const items = Array.from(
+        ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
+      );
+      if (items.length === 0) return;
+      const focusAt = (i: number) => items[(i + items.length) % items.length].focus();
+      const at = items.indexOf(document.activeElement as HTMLElement);
+      if (e.key === 'ArrowDown') { e.preventDefault(); focusAt(at + 1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); focusAt(at < 0 ? -1 : at - 1); }
+      else if (e.key === 'Home') { e.preventDefault(); focusAt(0); }
+      else if (e.key === 'End') { e.preventDefault(); focusAt(items.length - 1); }
+    };
     const onDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     };
@@ -107,6 +122,7 @@ function GenreMenu({
           type="button"
           role="menuitem"
           className="genre-menu-item"
+          style={{ '--genre-color': genreColor(g) } as CSSProperties}
           onClick={() => onPick(g)}
         >
           {g}
@@ -206,6 +222,7 @@ export default function AlbumHeader({
   const showBioButton = !isVariousArtistsLabel(info.artist);
   const genreTags = deriveAlbumGenreTags(info, songs);
   const [genreMenuPos, setGenreMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const genreMoreRef = useRef<HTMLButtonElement>(null);
   const goToGenre = (genre: string) => {
     setGenreMenuPos(null);
     navigate(`/genres/${encodeURIComponent(genre)}`, { state: { returnTo: `/album/${info.id}` } });
@@ -231,7 +248,10 @@ export default function AlbumHeader({
           genres={genreTags.slice(1)}
           pos={genreMenuPos}
           onPick={goToGenre}
-          onClose={() => setGenreMenuPos(null)}
+          onClose={() => {
+            setGenreMenuPos(null);
+            genreMoreRef.current?.focus();
+          }}
         />
       )}
 
@@ -283,31 +303,42 @@ export default function AlbumHeader({
                   linkClassName="album-detail-artist-link"
                 />
               </p>
+              {genreTags.length > 0 && (
+                <div className="album-detail-genre-row">
+                  <button
+                    className="album-detail-genre-pill"
+                    data-tooltip={t('albumDetail.moreGenreAlbums', { genre: genreTags[0] })}
+                    aria-label={t('albumDetail.moreGenreAlbums', { genre: genreTags[0] })}
+                    onClick={() => goToGenre(genreTags[0])}
+                  >
+                    {genreTags[0]}
+                  </button>
+                  {genreTags.length > 1 && (
+                    <button
+                      ref={genreMoreRef}
+                      className="album-detail-genre-pill"
+                      data-tooltip={t('albumDetail.showAllGenres')}
+                      aria-label={t('albumDetail.showAllGenres')}
+                      aria-haspopup="menu"
+                      aria-expanded={genreMenuPos != null}
+                      onClick={e => {
+                        // Keyboard activation (Enter/Space) reports clientX/Y = 0 →
+                        // anchor below the chip instead of the viewport corner.
+                        if (e.detail === 0) {
+                          const r = e.currentTarget.getBoundingClientRect();
+                          setGenreMenuPos({ x: r.left, y: r.bottom + 4 });
+                        } else {
+                          setGenreMenuPos({ x: e.clientX, y: e.clientY });
+                        }
+                      }}
+                    >
+                      {`+${genreTags.length - 1}`}
+                    </button>
+                  )}
+                </div>
+              )}
               <div className="album-detail-info">
                 {info.year && <span>{info.year}</span>}
-                {genreTags.length > 0 && (
-                  <span className="album-detail-genres">
-                    {'· '}
-                    <button
-                      className="album-detail-artist-link"
-                      data-tooltip={t('albumDetail.moreGenreAlbums', { genre: genreTags[0] })}
-                      aria-label={t('albumDetail.moreGenreAlbums', { genre: genreTags[0] })}
-                      onClick={() => goToGenre(genreTags[0])}
-                    >
-                      {genreTags[0]}
-                    </button>
-                    {genreTags.length > 1 && (
-                      <button
-                        className="album-detail-artist-link album-detail-genres-more"
-                        data-tooltip={t('albumDetail.showAllGenres')}
-                        aria-label={t('albumDetail.showAllGenres')}
-                        onClick={e => setGenreMenuPos({ x: e.clientX, y: e.clientY })}
-                      >
-                        {`+${genreTags.length - 1}`}
-                      </button>
-                    )}
-                  </span>
-                )}
                 <span>· {songs.length} Tracks</span>
                 <span>· {formatLongDuration(totalDuration)}</span>
                 {formatLabel && <span>· {formatLabel}</span>}

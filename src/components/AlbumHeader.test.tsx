@@ -105,4 +105,29 @@ describe('AlbumHeader genres', () => {
     expect(screen.getByRole('button', { name: 'More albums in Rock' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Show all genres' })).toBeInTheDocument();
   });
+
+  it('opens via keyboard with focus inside the menu, arrow-navigates, and restores focus on close', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <AlbumHeader
+        {...baseProps()}
+        info={albumInfo({ genres: [{ name: 'Power Metal' }, { name: 'Rock' }, { name: 'Jazz' }] })}
+      />,
+    );
+
+    const more = screen.getByRole('button', { name: 'Show all genres' });
+    more.focus();
+    // Enter activates the chip from the keyboard — focus must land on the first item.
+    await user.keyboard('{Enter}');
+    const items = screen.getAllByRole('menuitem');
+    expect(items[0]).toHaveFocus();
+
+    await user.keyboard('{ArrowDown}');
+    expect(items[1]).toHaveFocus();
+
+    // Escape closes the menu and returns focus to the +N trigger.
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(more).toHaveFocus();
+  });
 });
