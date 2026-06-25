@@ -115,6 +115,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Album details now surface every genre a release spans instead of just the first one: the main genre shows inline with a **+N** chip that opens the full, clickable list, each genre linking to its genre page.
 * Genres combine album and track tags (matching the genre browser) and read from the local library index when it is ready, so they also work offline.
 
+### Compact buttons — switch action and toolbar buttons to icon-only
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1189](https://github.com/Psychotoxical/psysonic/pull/1189)**
+
+* New **Compact buttons** setting under Settings → Appearance. Switch the action and toolbar buttons between large labelled buttons and small icon-only ones — across album, artist and playlist headers, the shared browse toolbars (sort, filters, multi-select), and the Most Played sort/filter controls. Defaults to large, so nothing changes unless you turn it on. On phones the album header keeps its large touch targets.
+
 
 ## Changed
 
