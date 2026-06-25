@@ -10,6 +10,7 @@ import type {
 import { useAuthStore } from '../../store/authStore';
 import { shouldAttemptSubsonicForServer } from '../network/subsonicNetworkGuard';
 import { isOfflineBrowseActive } from './offlineBrowseMode';
+import { libraryIsReady } from '../library/libraryReady';
 import {
   loadAlbumFromLibraryIndex,
   loadArtistFromLibraryIndex,
@@ -27,8 +28,10 @@ import {
 export type ResolvedAlbum = { album: SubsonicAlbum; songs: SubsonicSong[] };
 
 /**
- * Album detail / play / enqueue: network album when reachable (complete track list);
- * local bytes or library index when offline browse is active.
+ * Album detail / play / enqueue: the local SQLite index first when it is ready
+ * (same data genre browse reads, no network round-trip, works offline), then the
+ * network album when reachable (complete track list), then the index as fallback.
+ * Local bytes when offline browse is active.
  */
 export async function resolveAlbum(
   serverId: string,
@@ -36,6 +39,12 @@ export async function resolveAlbum(
 ): Promise<ResolvedAlbum | null> {
   if (isOfflineBrowseActive() && offlineLocalBrowseEnabled(serverId)) {
     return loadAlbumFromLocalPlayback(serverId, albumId);
+  }
+  if (await libraryIsReady(serverId)) {
+    try {
+      const hit = await loadAlbumFromLibraryIndex(serverId, albumId);
+      if (hit) return hit;
+    } catch { /* index error → network fallback */ }
   }
   const favoritesOffline = useAuthStore.getState().favoritesOfflineEnabled;
   const networkAllowed = shouldAttemptSubsonicForServer(serverId);

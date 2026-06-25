@@ -17,6 +17,7 @@ import {
   offlineLocalBrowseEnabled,
 } from '../utils/offline/offlineLocalBrowse';
 import { readDetailServerId } from '../utils/navigation/detailServerScope';
+import { libraryIsReady } from '../utils/library/libraryReady';
 import {
   shouldAttemptSubsonicForActiveServer,
   shouldAttemptSubsonicForServer,
@@ -96,8 +97,6 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
       }
     };
 
-    const libraryFirst = favoritesOfflineEnabled && !!detailServerId;
-
     void (async () => {
       if (offlineBrowseActive && detailServerId) {
         const local = await resolveAlbum(detailServerId, id);
@@ -115,7 +114,13 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
         return;
       }
 
-      if (libraryFirst && detailServerId) {
+      // Index-first when the local SQLite index is ready, not only when the
+      // favorites-offline toggle is on — album detail then opens from SQLite
+      // (and offline) with the same genres genre browse derives.
+      const indexReady = !!detailServerId && await libraryIsReady(detailServerId);
+      const canLoadLocal = (favoritesOfflineEnabled || indexReady) && !!detailServerId;
+
+      if (canLoadLocal && detailServerId) {
         try {
           const local = await resolveAlbum(detailServerId, id);
           if (local) {
@@ -131,7 +136,7 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
         : shouldAttemptSubsonicForActiveServer();
 
       if (!detailNetworkAllowed) {
-        if (favoritesOfflineEnabled && detailServerId) {
+        if (canLoadLocal && detailServerId) {
           try {
             const local = await resolveAlbum(detailServerId, id);
             if (local) {
@@ -159,7 +164,7 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
         applyAlbumPayload(data);
         await loadRelatedAlbums(detailServerId, data.album.artistId, false, false);
       } catch {
-        if (favoritesOfflineEnabled && detailServerId) {
+        if (canLoadLocal && detailServerId) {
           try {
             const local = await loadAlbumFromLibraryIndex(detailServerId, id);
             if (local) {
