@@ -112,7 +112,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1186](https://github.com/Psychotoxical/psysonic/pull/1186)**, suggested by [@Thraka](https://github.com/Thraka)
 
-* Album details now list every genre instead of just the first one, and each genre is a link that opens its genre page. Falls back to the album's single genre on servers that don't report multiple ones.
+* Album details now surface every genre a release spans instead of just the first one: the main genre shows inline with a **+N** chip that opens the full, clickable list, each genre linking to its genre page.
+* Genres combine album and track tags (matching the genre browser) and read from the local library index when it is ready, so they also work offline.
 
 
 ## Changed
