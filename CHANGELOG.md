@@ -121,6 +121,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * New **Compact buttons** setting under Settings → Appearance. Switch the action and toolbar buttons between large labelled buttons and small icon-only ones — across album, artist and playlist headers, the shared browse toolbars (sort, filters, multi-select), and the Most Played sort/filter controls. Defaults to large, so nothing changes unless you turn it on. On phones the album header keeps its large touch targets.
 
+### Playlists — sort by date added
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1191](https://github.com/Psychotoxical/psysonic/pull/1191)**, suggested by SinFist
+
+* Sort a playlist by **Date added** (newest or oldest first), or by title, artist, album and the other columns, from a new sort dropdown in the playlist filter toolbar. The Subsonic API has no per-track "added on" date, so this follows the playlist's own order — servers add new tracks at the end, so newest-first puts your latest additions on top.
+
 
 ## Changed
 
