@@ -19,10 +19,12 @@ vi.mock('@/utils/perf/perfFlags', () => ({
 
 import { pingWithCredentialsForProfile } from '@/api/subsonic';
 import { useDevOfflineBrowseStore } from '@/store/devOfflineBrowseStore';
+import { resetActiveServerConnectionSnapshot, setConnectionStatus } from '@/utils/network/activeServerReachability';
 import { useConnectionStatus } from './useConnectionStatus';
 
 beforeEach(() => {
   resetAuthStore();
+  resetActiveServerConnectionSnapshot();
   invalidateReachableEndpointCache();
   useDevOfflineBrowseStore.getState().setForceOffline(false);
   vi.mocked(pingWithCredentialsForProfile).mockReset();
@@ -185,5 +187,24 @@ describe('useConnectionStatus DEV offline toggle', () => {
     act(() => useDevOfflineBrowseStore.getState().setForceOffline(true));
     await waitFor(() => expect(result.current.status).toBe('disconnected'));
     expect(vi.mocked(pingWithCredentialsForProfile).mock.calls.length).toBe(callsBeforeToggle);
+  });
+});
+
+describe('useConnectionStatus shared status', () => {
+  it('keeps all hook instances in sync when connection status changes', () => {
+    const shell = renderHook(() => useConnectionStatus());
+    const sidebar = renderHook(() => useConnectionStatus());
+
+    act(() => {
+      setConnectionStatus('disconnected');
+    });
+    expect(shell.result.current.status).toBe('disconnected');
+    expect(sidebar.result.current.status).toBe('disconnected');
+
+    act(() => {
+      setConnectionStatus('connected');
+    });
+    expect(shell.result.current.status).toBe('connected');
+    expect(sidebar.result.current.status).toBe('connected');
   });
 });

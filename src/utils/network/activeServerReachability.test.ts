@@ -4,13 +4,14 @@ import {
   getActiveServerReachable,
   isActiveServerReachable,
   onActiveServerBecameReachable,
+  resetActiveServerConnectionSnapshot,
   setActiveServerReachable,
 } from './activeServerReachability';
 
 describe('activeServerReachability', () => {
   beforeEach(() => {
     useDevOfflineBrowseStore.setState({ forceOffline: false });
-    setActiveServerReachable(null);
+    resetActiveServerConnectionSnapshot();
   });
 
   it('isActiveServerReachable requires an explicit successful probe', () => {

@@ -18,11 +18,10 @@ export function isOfflineBrowseActive(): boolean {
  */
 export function useOfflineBrowseActive(): boolean {
   const devForceOffline = useDevOfflineBrowseStore(s => s.forceOffline);
-  const { status: connStatus } = useConnectionStatus();
+  // Shared status — all hook instances stay in sync after manual retry.
+  useConnectionStatus();
 
   if (import.meta.env.DEV && devForceOffline) return true;
   if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
-  if (connStatus === 'disconnected') return true;
-  if (connStatus === 'connected') return false;
   return !isActiveServerReachable();
 }

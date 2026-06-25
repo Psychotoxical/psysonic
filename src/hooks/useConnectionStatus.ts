@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, useSyncExternalStore } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { scheduleInstantMixProbeForServer } from '../api/subsonic';
 import { serverListDisplayLabel } from '../utils/server/serverDisplayName';
@@ -8,7 +8,13 @@ import {
   isLanUrl,
   type ServerEndpointKind,
 } from '../utils/server/serverEndpoint';
-import { setActiveServerReachable } from '../utils/network/activeServerReachability';
+import {
+  getConnectionStatus,
+  setActiveServerReachable,
+  setConnectionStatus,
+  subscribeConnectionStatus,
+  type ConnectionStatus,
+} from '../utils/network/activeServerReachability';
 import { usePerfProbeFlags } from '../utils/perf/perfFlags';
 import {
   isDevOfflineBrowseForced,
@@ -17,13 +23,12 @@ import {
 
 // Backward-compatible re-export for call sites that still import from the hook.
 export { isLanUrl };
-
-export type ConnectionStatus = 'connected' | 'disconnected' | 'checking';
+export type { ConnectionStatus };
 
 export function useConnectionStatus() {
   const perfFlags = usePerfProbeFlags();
   const devForceOffline = useDevOfflineBrowseStore(s => s.forceOffline);
-  const [status, setStatus] = useState<ConnectionStatus>('checking');
+  const status = useSyncExternalStore(subscribeConnectionStatus, getConnectionStatus, getConnectionStatus);
   const [isRetrying, setIsRetrying] = useState(false);
   // Tracks the kind of endpoint the last successful probe answered on so the
   // badge reflects the *active* connection, not just whatever the user typed
@@ -36,20 +41,20 @@ export function useConnectionStatus() {
   const check = useCallback(async () => {
     if (isDevOfflineBrowseForced()) {
       setActiveServerReachable(false);
-      setStatus('disconnected');
+      setConnectionStatus('disconnected');
       return;
     }
 
     const server = useAuthStore.getState().getActiveServer();
     if (!server) {
       setActiveServerReachable(false);
-      setStatus('disconnected');
+      setConnectionStatus('disconnected');
       return;
     }
 
     if (!navigator.onLine) {
       setActiveServerReachable(false);
-      setStatus('disconnected');
+      setConnectionStatus('disconnected');
       return;
     }
 
@@ -74,7 +79,7 @@ export function useConnectionStatus() {
       setActiveEndpointKind(null);
     }
     setActiveServerReachable(probe.ok);
-    setStatus(probe.ok ? 'connected' : 'disconnected');
+    setConnectionStatus(probe.ok ? 'connected' : 'disconnected');
   }, []);
 
   const retry = useCallback(async () => {
@@ -97,9 +102,7 @@ export function useConnectionStatus() {
       prevDevForceOfflineRef.current = devForceOffline;
       if (devForceOffline) {
         setActiveServerReachable(false);
-        // React Compiler set-state-in-effect rule: local state synced with store/prop inputs when the effect’s dependencies change.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setStatus('disconnected');
+        setConnectionStatus('disconnected');
       }
       return;
     }
@@ -109,10 +112,12 @@ export function useConnectionStatus() {
 
     if (devForceOffline) {
       setActiveServerReachable(false);
-      setStatus('disconnected');
+      setConnectionStatus('disconnected');
       return;
     }
     if (!perfFlags.disableBackgroundPolling) {
+      // React Compiler set-state-in-effect rule: probe after DEV offline toggle clears.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       void check();
     }
   }, [devForceOffline, check, perfFlags.disableBackgroundPolling]);
@@ -125,15 +130,15 @@ export function useConnectionStatus() {
       }
       if (isDevOfflineBrowseForced()) {
         setActiveServerReachable(false);
-        // React Compiler set-state-in-effect rule: state set from a timer/animation callback.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setStatus('disconnected');
+        setConnectionStatus('disconnected');
       } else {
         setActiveServerReachable(true);
-        setStatus('connected');
+        setConnectionStatus('connected');
       }
       return;
     }
+    // React Compiler set-state-in-effect rule: initial probe + polling interval on mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     check();
     intervalRef.current = setInterval(check, 120_000);
 
@@ -146,7 +151,7 @@ export function useConnectionStatus() {
     };
     const handleOffline = () => {
       setActiveServerReachable(false);
-      setStatus('disconnected');
+      setConnectionStatus('disconnected');
     };
 
     window.addEventListener('online', handleOnline);
