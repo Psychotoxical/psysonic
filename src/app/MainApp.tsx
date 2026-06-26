@@ -32,6 +32,7 @@ import { useMigrationOrchestrator } from '../hooks/useMigrationOrchestrator';
 import { IS_WINDOWS } from '../utils/platform';
 import TauriEventBridge from './TauriEventBridge';
 import AppShell from './AppShell';
+import ErrorBoundary from '../components/ErrorBoundary';
 import BlockingMigrationGate from './BlockingMigrationGate';
 import RequireAuth from './RequireAuth';
 import { useMigrationStore } from '../store/migrationStore';
@@ -191,9 +192,11 @@ export default function MainApp() {
                 path="/*"
                 element={
                   <RequireAuth>
-                    <DragDropProvider>
-                      <AppShell />
-                    </DragDropProvider>
+                    <ErrorBoundary>
+                      <DragDropProvider>
+                        <AppShell />
+                      </DragDropProvider>
+                    </ErrorBoundary>
                   </RequireAuth>
                 }
               />
