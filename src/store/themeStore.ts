@@ -15,13 +15,14 @@ const allEnabled = (sources: BackdropSource[]): BackdropSourcePref[] =>
   sources.map((source) => ({ source, enabled: true }));
 
 /**
- * Defaults preserve today's behaviour: both heroes resolve banner → fanart →
- * Navidrome; the fullscreen player has no banner (a wide strip suits neither a
- * portrait nor a square stage), so it offers fanart → Navidrome only.
+ * Defaults: both heroes resolve fanart → Navidrome → banner — the artist image
+ * leads, with the wide banner as a last resort. The fullscreen player has no
+ * banner (a wide strip suits neither a portrait nor a square stage), so it
+ * offers fanart → Navidrome only. All user-reorderable per surface.
  */
 const DEFAULT_BACKDROPS: Record<BackdropSurface, SurfaceBackdropConfig> = {
-  mainstageHero: { enabled: true, sources: allEnabled(['banner', 'fanart', 'navidrome']) },
-  artistDetailHero: { enabled: true, sources: allEnabled(['banner', 'fanart', 'navidrome']) },
+  mainstageHero: { enabled: true, sources: allEnabled(['fanart', 'navidrome', 'banner']) },
+  artistDetailHero: { enabled: true, sources: allEnabled(['fanart', 'navidrome', 'banner']) },
   fullscreenPlayer: { enabled: true, sources: allEnabled(['fanart', 'navidrome']) },
 };
 
