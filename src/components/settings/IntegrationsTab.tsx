@@ -6,6 +6,9 @@ import SettingsSubSection from '../SettingsSubSection';
 import { SettingsGroup } from './SettingsGroup';
 import { SettingsToggle } from './SettingsToggle';
 import { SettingsSubCard, SettingsField } from './SettingsSubCard';
+import { BackdropSourceList } from './BackdropSourceList';
+import type { BackdropSurface } from '../../store/themeStore';
+import type { BackdropSource } from '../../cover/artistBackdrop';
 import { MusicNetworkSection } from './musicNetwork/MusicNetworkSection';
 import { purgeExternalArtworkAllServers } from '../../api/coverCache';
 
@@ -13,6 +16,18 @@ export function IntegrationsTab() {
   const { t } = useTranslation();
   const auth = useAuthStore();
   const theme = useThemeStore();
+
+  const backdropSurfaces: { key: BackdropSurface; label: string }[] = [
+    { key: 'mainstageHero', label: t('settings.backdropSurfaceMainstage') },
+    { key: 'artistDetailHero', label: t('settings.backdropSurfaceArtistDetail') },
+    { key: 'fullscreenPlayer', label: t('settings.backdropSurfaceFullscreen') },
+  ];
+  const backdropSourceLabel = (s: BackdropSource): string =>
+    s === 'banner'
+      ? t('settings.backdropSourceBanner')
+      : s === 'fanart'
+        ? t('settings.backdropSourceFanart')
+        : t('settings.backdropSourceNavidrome');
 
   return (
     <>
@@ -191,6 +206,34 @@ export function IntegrationsTab() {
                     </div>
                   )}
                 </SettingsField>
+              </SettingsSubCard>
+            </SettingsGroup>
+          )}
+          {theme.externalArtworkEnabled && (
+            <SettingsGroup
+              title={t('settings.backdropSourcesTitle')}
+              desc={t('settings.backdropSourcesSub')}
+            >
+              <SettingsSubCard>
+                {backdropSurfaces.map(({ key, label }) => (
+                  <div className="backdrop-surface-block" key={key}>
+                    <SettingsToggle
+                      label={label}
+                      checked={theme.backdrops[key].enabled}
+                      onChange={(v) => theme.setBackdropEnabled(key, v)}
+                    />
+                    {theme.backdrops[key].enabled && (
+                      <BackdropSourceList
+                        surface={key}
+                        sources={theme.backdrops[key].sources}
+                        labelFor={backdropSourceLabel}
+                        onChange={(next) => theme.setBackdropSources(key, next)}
+                        moveUpLabel={t('settings.backdropMoveUp')}
+                        moveDownLabel={t('settings.backdropMoveDown')}
+                      />
+                    )}
+                  </div>
+                ))}
               </SettingsSubCard>
             </SettingsGroup>
           )}

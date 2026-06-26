@@ -10,7 +10,7 @@ import { useAlbumCoverRef } from '../cover/useLibraryCoverRef';
 import { useArtistBanner, useArtistFanart } from '../cover/useArtistFanart';
 import { usePlaybackCoverArt } from '../cover/usePlaybackCoverArt';
 import { artistCoverRef } from '../cover/ref';
-import { pickArtistBackdrop } from '../cover/artistBackdrop';
+import { backdropFromConfig } from '../cover/artistBackdrop';
 import { useCachedUrl } from './CachedImage';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
@@ -102,7 +102,7 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   const isMobile = useIsMobile();
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const mixMinRatingFilterEnabled = useAuthStore(s => s.mixMinRatingFilterEnabled);
-  const enableCoverArtBackground = useThemeStore(s => s.enableCoverArtBackground);
+  const mainstageBackdrop = useThemeStore(s => s.backdrops.mainstageHero);
   const mixMinRatingAlbum = useAuthStore(s => s.mixMinRatingAlbum);
   const mixMinRatingArtist = useAuthStore(s => s.mixMinRatingArtist);
   const [albums, setAlbums] = useState<SubsonicAlbum[]>(() =>
@@ -340,7 +340,15 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   );
   const ndArtist = usePlaybackCoverArt(heroArtistCoverRef, HERO_BG_CSS_PX, { fullRes: true });
   const ndArtistUrl = useCachedUrl(ndArtist.src, ndArtist.cacheKey, true);
-  const heroBackdrop = pickArtistBackdrop(heroBanner, heroFanart, ndArtistUrl);
+  const heroBackdrop = backdropFromConfig(mainstageBackdrop.sources, {
+    banner: heroBanner,
+    fanart: heroFanart,
+    navidrome: ndArtistUrl,
+  });
+  const showHeroBackdrop =
+    mainstageBackdrop.enabled &&
+    !perfFlags.disableMainstageHeroBackdrop &&
+    heroInView;
   const { isHolding, pressBind } = useLongPressAction({
     onShortPress: () => { if (albumId) playAlbum(albumId); },
     onLongPress: () => { if (albumId) playAlbumShuffled(albumId); },
@@ -357,8 +365,8 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
       onClick={() => navigateToAlbum(album.id)}
       style={{ cursor: 'pointer' }}
     >
-      {enableCoverArtBackground && !perfFlags.disableMainstageHeroBackdrop && heroInView && <HeroBg url={heroBackdrop.url} position={heroBackdrop.position} />}
-      {enableCoverArtBackground && !perfFlags.disableMainstageHeroBackdrop && heroInView && <div className="hero-overlay" aria-hidden="true" />}
+      {showHeroBackdrop && <HeroBg url={heroBackdrop.url} position={heroBackdrop.position} />}
+      {showHeroBackdrop && <div className="hero-overlay" aria-hidden="true" />}
 
       {/* key causes re-mount → animate-fade-in triggers on each album change */}
       <div className="hero-content" key={album.id}>

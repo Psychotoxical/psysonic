@@ -1,0 +1,95 @@
+/* Backdrop source priority lists (Appearance → Cover Art Background).
+   Each row reorders via the shared psy-drop drag system (grip) or the ↑/↓
+   buttons; the per-row switch drops a source out of the resolution chain
+   without losing its place. */
+/* One surface (Mainstage / Artist page / Fullscreen): its enable toggle and,
+   when on, its source list. */
+.backdrop-surface-block {
+  margin-top: 10px;
+}
+.backdrop-surface-block:first-of-type {
+  margin-top: 6px;
+}
+
+.backdrop-source-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.backdrop-source-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  position: relative;
+}
+
+.backdrop-source-row--off .backdrop-source-name {
+  opacity: 0.5;
+}
+
+/* Drop target: an accent line across the top edge, mirroring the sidebar reorder. */
+.backdrop-source-row--drop {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.backdrop-source-row--drop::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: -3px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.backdrop-source-grip {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  cursor: grab;
+  flex-shrink: 0;
+}
+.backdrop-source-grip:active {
+  cursor: grabbing;
+}
+
+.backdrop-source-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.backdrop-source-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.backdrop-source-move {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.backdrop-source-move:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.backdrop-source-move:disabled {
+  opacity: 0.35;
+  cursor: default;
+}

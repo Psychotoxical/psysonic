@@ -8,11 +8,12 @@ import {
 import type { SubsonicAlbum, SubsonicArtist, SubsonicArtistInfo } from '../../api/subsonicTypes';
 import { useOfflineStore } from '../../store/offlineStore';
 import { useAuthStore } from '../../store/authStore';
+import { useThemeStore } from '../../store/themeStore';
 import { useArtistOfflineState } from '../../hooks/useArtistOfflineState';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { ArtistHeroCover } from '../../cover/artistHero';
 import { useArtistBanner, useArtistFanart } from '../../cover/useArtistFanart';
-import { pickArtistBackdrop } from '../../cover/artistBackdrop';
+import { backdropFromConfig } from '../../cover/artistBackdrop';
 import { usePlaybackCoverArt } from '../../cover/usePlaybackCoverArt';
 import { useCachedUrl } from '../CachedImage';
 import { useCoverLightboxSrc } from '../../cover/lightbox';
@@ -150,10 +151,16 @@ export default function ArtistDetailHero({
   // player resolves its artist background (`coverRef` is the artist cover ref).
   const ndArtist = usePlaybackCoverArt(coverRef ?? undefined, 2000, { fullRes: true });
   const ndArtistUrl = useCachedUrl(ndArtist.src, ndArtist.cacheKey, true);
-  // Header background priority (§28): banner → fanart → Navidrome artist cover.
-  // Shared with the mainstage hero via pickArtistBackdrop so the two headers
-  // resolve and frame their backdrop identically.
-  const headerBackdrop = pickArtistBackdrop(banner, fanartBg, ndArtistUrl);
+  // Header background priority (§28): banner → fanart → Navidrome artist cover,
+  // now user-configurable per surface. Shared with the mainstage hero via
+  // backdropFromConfig so the two headers resolve and frame identically.
+  const artistDetailBackdrop = useThemeStore((s) => s.backdrops.artistDetailHero);
+  const headerBackdrop = backdropFromConfig(artistDetailBackdrop.sources, {
+    banner,
+    fanart: fanartBg,
+    navidrome: ndArtistUrl,
+  });
+  const showHeaderBackdrop = artistDetailBackdrop.enabled;
 
   const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(artist.name)}`;
 
@@ -166,7 +173,9 @@ export default function ArtistDetailHero({
           `artist-detail-bleed` breaks out of the artist page's .content-body
           padding so it is full-bleed like the album page (flush .album-detail). */}
       <div className="album-detail-header artist-detail-bleed">
-        <ArtistHeaderBg key={headerBackdrop.url} url={headerBackdrop.url} position={headerBackdrop.position} />
+        {showHeaderBackdrop && (
+          <ArtistHeaderBg key={headerBackdrop.url} url={headerBackdrop.url} position={headerBackdrop.position} />
+        )}
         <div className="album-detail-content">
           <button className="btn btn-ghost album-detail-back" onClick={() => goBack()}>
             <ArrowLeft size={16} /> <span>{t('artistDetail.back')}</span>

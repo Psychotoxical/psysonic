@@ -1,5 +1,29 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { BackdropSource, BackdropSourcePref } from '../cover/artistBackdrop';
+
+/** Surfaces that can render an artist backdrop, each independently configurable. */
+export type BackdropSurface = 'mainstageHero' | 'artistDetailHero' | 'fullscreenPlayer';
+
+/** A surface's backdrop config: an on/off and an ordered source priority list. */
+export interface SurfaceBackdropConfig {
+  enabled: boolean;
+  sources: BackdropSourcePref[];
+}
+
+const allEnabled = (sources: BackdropSource[]): BackdropSourcePref[] =>
+  sources.map((source) => ({ source, enabled: true }));
+
+/**
+ * Defaults preserve today's behaviour: both heroes resolve banner → fanart →
+ * Navidrome; the fullscreen player has no banner (a wide strip suits neither a
+ * portrait nor a square stage), so it offers fanart → Navidrome only.
+ */
+const DEFAULT_BACKDROPS: Record<BackdropSurface, SurfaceBackdropConfig> = {
+  mainstageHero: { enabled: true, sources: allEnabled(['banner', 'fanart', 'navidrome']) },
+  artistDetailHero: { enabled: true, sources: allEnabled(['banner', 'fanart', 'navidrome']) },
+  fullscreenPlayer: { enabled: true, sources: allEnabled(['fanart', 'navidrome']) },
+};
 
 /** Themes that ship bundled with the app and can never be uninstalled. */
 export type BuiltinTheme =
@@ -37,8 +61,14 @@ interface ThemeState {
   setTimeDayStart: (v: string) => void;
   timeNightStart: string;
   setTimeNightStart: (v: string) => void;
+  /** Master umbrella for artist backdrops; the per-surface configs below apply
+   *  only while this is on. */
   enableCoverArtBackground: boolean;
   setEnableCoverArtBackground: (v: boolean) => void;
+  /** Per-surface backdrop on/off + ordered, individually toggleable sources. */
+  backdrops: Record<BackdropSurface, SurfaceBackdropConfig>;
+  setBackdropEnabled: (surface: BackdropSurface, enabled: boolean) => void;
+  setBackdropSources: (surface: BackdropSurface, sources: BackdropSourcePref[]) => void;
   enablePlaylistCoverPhoto: boolean;
   setEnablePlaylistCoverPhoto: (v: boolean) => void;
   showBitrate: boolean;
@@ -101,6 +131,11 @@ export const useThemeStore = create<ThemeState>()(
       setTimeNightStart: (v) => set({ timeNightStart: v }),
       enableCoverArtBackground: true,
       setEnableCoverArtBackground: (v) => set({ enableCoverArtBackground: v }),
+      backdrops: DEFAULT_BACKDROPS,
+      setBackdropEnabled: (surface, enabled) =>
+        set((s) => ({ backdrops: { ...s.backdrops, [surface]: { ...s.backdrops[surface], enabled } } })),
+      setBackdropSources: (surface, sources) =>
+        set((s) => ({ backdrops: { ...s.backdrops, [surface]: { ...s.backdrops[surface], sources } } })),
       enablePlaylistCoverPhoto: true,
       setEnablePlaylistCoverPhoto: (v) => set({ enablePlaylistCoverPhoto: v }),
       showBitrate: true,
@@ -120,10 +155,12 @@ export const useThemeStore = create<ThemeState>()(
     }),
     {
       name: 'psysonic_theme',
-      version: 1,
+      version: 2,
       // Identity migrate: preserve persisted state from older versions as-is.
-      // Theme-id repair for removed / store-only themes now happens in the
-      // pre-React bootstrap migration (see utils/themes/themeMigration).
+      // v2 adds `backdrops`; a v1 state simply lacks the key, so the default
+      // merge seeds it (every surface enabled, legacy source order) — no
+      // transform needed. Theme-id repair for removed / store-only themes still
+      // happens in the pre-React bootstrap migration (see utils/themes/themeMigration).
       migrate: (persistedState) => persistedState,
     }
   )
