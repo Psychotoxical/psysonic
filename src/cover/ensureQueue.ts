@@ -1,4 +1,4 @@
-import { coverCacheEnsure } from '../api/coverCache';
+import { coverCacheEnsure, type CoverEnsureOpts } from '../api/coverCache';
 import { getDiskSrc } from './diskSrcCache';
 import { getDiskSrcForGrid } from './diskSrcLookup';
 import { coverIndexKeyFromRef } from './storageKeys';
@@ -11,6 +11,8 @@ type EnsureJob = {
   priority: CoverPrefetchPriority;
   /** Larger = closer to viewport / more recently bumped — dequeued first within the same priority band. */
   orderKey: number;
+  /** External-artwork ensure context (fanart/banner surfaces); undefined for plain covers. */
+  opts?: CoverEnsureOpts;
   resolve: (r: { hit: boolean; path: string }) => void;
 };
 
@@ -35,8 +37,12 @@ const backlogDrainListeners = new Set<() => void>();
 
 type EnsureInvokeResult = { hit: boolean; path: string };
 
-function coverInflightKey(ref: CoverArtRef): string {
-  return `${coverIndexKeyFromRef(ref)}:${ref.cacheKind}:${ref.cacheEntityId}`;
+function coverInflightKey(ref: CoverArtRef, surfaceKind?: string): string {
+  const base = `${coverIndexKeyFromRef(ref)}:${ref.cacheKind}:${ref.cacheEntityId}`;
+  // External surfaces (fanart/banner) are distinct downloads for the same artist
+  // id, so they must not share one in-flight chain. Plain covers append nothing,
+  // keeping every existing key byte-identical.
+  return surfaceKind ? `${base}:${surfaceKind}` : base;
 }
 
 /** One active Rust ensure per cover art id — waiters attach without consuming invoke slots. */
@@ -66,13 +72,14 @@ function invokeEnsureForCover(
   ref: CoverArtRef,
   tier: CoverArtTier,
   priority: CoverPrefetchPriority,
+  opts?: CoverEnsureOpts,
 ): Promise<EnsureInvokeResult> {
-  const key = coverInflightKey(ref);
+  const key = coverInflightKey(ref, opts?.surfaceKind);
   const existing = coverArtInFlight.get(key);
   if (existing) return existing;
 
   const flight = withEnsureTimeout(
-    coverCacheEnsure(ref, tier, priority).then(r => ({ hit: r.hit, path: r.path })),
+    coverCacheEnsure(ref, tier, priority, opts).then(r => ({ hit: r.hit, path: r.path })),
   ).finally(() => {
     if (coverArtInFlight.get(key) === flight) coverArtInFlight.delete(key);
   });
@@ -88,7 +95,7 @@ function attachQueuedJobsToActiveFlights(): void {
   let i = 0;
   while (i < queue.length) {
     const job = queue[i]!;
-    const flight = coverArtInFlight.get(coverInflightKey(job.ref));
+    const flight = coverArtInFlight.get(coverInflightKey(job.ref, job.opts?.surfaceKind));
     if (!flight) {
       i += 1;
       continue;
@@ -165,7 +172,7 @@ function pump(): void {
       if (coverTrafficBackgroundPaused() && candidate.priority !== 'high') {
         break;
       }
-      if (coverArtInFlight.has(coverInflightKey(candidate.ref))) continue;
+      if (coverArtInFlight.has(coverInflightKey(candidate.ref, candidate.opts?.surfaceKind))) continue;
       pickIdx = i;
       break;
     }
@@ -174,7 +181,7 @@ function pump(): void {
     const job = queue.splice(pickIdx, 1)[0]!;
     inflight += 1;
     inflightStorageKeys.add(job.storageKey);
-    void invokeEnsureForCover(job.ref, job.tier, job.priority)
+    void invokeEnsureForCover(job.ref, job.tier, job.priority, job.opts)
       .then(r => settleJob(job, r))
       .catch(() => settleJob(job, { hit: false, path: '' }))
       .finally(() => {
@@ -307,8 +314,12 @@ export function coverEnsureQueued(
   ref: CoverArtRef,
   tier: CoverArtTier,
   priority: CoverPrefetchPriority,
+  opts?: CoverEnsureOpts,
 ): Promise<{ hit: boolean; path: string }> {
-  if (ensureMemoryHit(storageKey, ref, tier)) {
+  // External surfaces (fanart/banner) bypass the disk-src memory short-circuit:
+  // their `{tier}-{surface}.webp` never seeds those caches, and the artist's
+  // canonical cover sitting in the grid cache must not be mistaken for a hit.
+  if (!opts?.surfaceKind && ensureMemoryHit(storageKey, ref, tier)) {
     return Promise.resolve({ hit: true, path: '' });
   }
 
@@ -333,7 +344,7 @@ export function coverEnsureQueued(
       pump();
       return;
     }
-    queue.push({ storageKey, ref, tier, priority, orderKey, resolve });
+    queue.push({ storageKey, ref, tier, priority, orderKey, opts, resolve });
     sortQueue();
     trimQueue();
     pump();
@@ -341,4 +352,26 @@ export function coverEnsureQueued(
 
   ensureInflight.set(storageKey, p);
   return p;
+}
+
+/**
+ * Queue an external artist-backdrop ensure (fanart/banner surface) at a given
+ * priority, reusing the same dedupe / reprioritise / memory-pressure trim as
+ * grid covers. The surface is woven into the storage + in-flight keys so the
+ * two surfaces of one artist do not collide. Always tier 2000 (external
+ * surfaces are 2000-only). Resolves `{ hit, path }`; `path` is the on-disk
+ * `{2000}-{surface}.webp` to hand to `coverDiskUrl`.
+ */
+export function ensureArtistBackdropQueued(
+  storageKey: string,
+  ref: CoverArtRef,
+  surface: 'fanart' | 'banner',
+  priority: CoverPrefetchPriority,
+  ctx?: { artistName?: string; albumTitle?: string },
+): Promise<{ hit: boolean; path: string }> {
+  return coverEnsureQueued(storageKey, ref, 2000, priority, {
+    surfaceKind: surface,
+    artistName: ctx?.artistName,
+    albumTitle: ctx?.albumTitle,
+  });
 }
