@@ -1,12 +1,16 @@
 import { coverCachePeekBatch } from '../api/coverCache';
 import type { SubsonicAlbum } from '../api/subsonicTypes';
-import { coverEnsureQueued } from './ensureQueue';
+import { coverEnsureQueued, ensureArtistBackdropQueued } from './ensureQueue';
 import { getDiskSrcForGrid, rememberGridDiskSrc } from './diskSrcLookup';
-import { albumCoverRef } from './ref';
+import { albumCoverRef, artistCoverRef } from './ref';
+import { coverDiskUrl } from './diskSrcCache';
 import { resolveAlbumCoverRefFromLibrary } from './resolveEntryLibrary';
 import { coverStorageKeyFromRef } from './storageKeys';
 import { resolveCoverDisplayTier } from './tiers';
-import type { CoverArtRef, CoverArtTier, CoverSurfaceKind } from './types';
+import type { CoverArtRef, CoverArtTier, CoverPrefetchPriority, CoverSurfaceKind } from './types';
+import { useThemeStore } from '../store/themeStore';
+import { deriveAlbumArtistRefs } from '../utils/album/deriveAlbumHeaderArtistRefs';
+import { getHeroBackdropUpgrade, recordHeroBackdropUpgrade } from './heroBackdropMemory';
 
 export type CoverWarmItem = {
   ref: CoverArtRef;
@@ -206,6 +210,96 @@ export async function warmHomeMainstageCovers(snapshot: {
     200,
     8,
   );
+
+  // Hero artist backdrops (fanart/banner) — prefetch the upcoming slides at
+  // slide-index priorities so the higher-priority source is on disk before its
+  // slide is shown. Inert when the scraper is off.
+  void warmHeroArtistBackdrops(snapshot.heroAlbums);
+}
+
+const HERO_BACKDROP_TIER: CoverArtTier = 2000;
+
+/** Static priority at open: slide 1 = next auto-advance (≤10 s) → `high`; slide 0
+ *  is already shown via Navidrome → `low`; the rest are lookahead → `middle`.
+ *  No recompute on navigation (cucadmuh, 2026-06). */
+function heroSlidePriority(idx: number): CoverPrefetchPriority {
+  return idx === 1 ? 'high' : idx === 0 ? 'low' : 'middle';
+}
+
+/**
+ * Prefetch each hero slide's artist backdrop (the configured external surfaces:
+ * `banner` / `fanart`) at its slide-index priority, reusing the standard ensure
+ * queue (`ensureArtistBackdropQueued` → same dedupe / trim as grid covers). Each
+ * disk hit is recorded in the per-album memory so {@link useHeroBackdrop} can
+ * paint it on entry. Inert when the scraper is off, the mainstage surface is
+ * disabled, or no external source is enabled.
+ */
+export async function warmHeroArtistBackdrops(
+  heroAlbums: ReadonlyArray<SubsonicAlbum>,
+): Promise<void> {
+  const theme = useThemeStore.getState();
+  if (!theme.externalArtworkEnabled) return;
+  const cfg = theme.backdrops.mainstageHero;
+  if (!cfg.enabled) return;
+  const surfaces = cfg.sources
+    .filter(s => s.enabled && (s.source === 'banner' || s.source === 'fanart'))
+    .map(s => s.source as 'banner' | 'fanart');
+  if (surfaces.length === 0) return;
+
+  await Promise.allSettled(
+    heroAlbums.flatMap((album, idx) => {
+      const artist = deriveAlbumArtistRefs(album)[0];
+      if (!artist?.id || !album.id) return [];
+      const ref = artistCoverRef(artist.id);
+      const priority = heroSlidePriority(idx);
+      const albumId = album.id;
+      return surfaces.map(surface => {
+        const key = `${coverStorageKeyFromRef(ref, HERO_BACKDROP_TIER)}:${surface}`;
+        return ensureArtistBackdropQueued(key, ref, surface, priority, {
+          artistName: artist.name,
+          albumTitle: album.name,
+        }).then(res => {
+          if (res.hit && res.path) {
+            recordHeroBackdropUpgrade(albumId, surface, coverDiskUrl(res.path));
+          }
+        });
+      });
+    }),
+  );
+
+  void predecodeHeroBackdrops(heroAlbums);
+}
+
+/** Decode the on-disk hero backdrop of every slide already warmed, so the first
+ *  `HeroBg` paint is hitch-free (Frank, 2026-06: every slide on disk). */
+async function predecodeHeroBackdrops(heroAlbums: ReadonlyArray<SubsonicAlbum>): Promise<void> {
+  if (typeof window === 'undefined') return;
+  const urls: string[] = [];
+  for (const album of heroAlbums) {
+    const mem = getHeroBackdropUpgrade(album.id);
+    const url = mem?.banner ?? mem?.fanart;
+    if (url) urls.push(url);
+  }
+  if (urls.length === 0) return;
+  await Promise.allSettled(urls.map(decodeImage));
+}
+
+/** Browser-decode an image so it is paint-ready from cache, never throwing. */
+function decodeImage(src: string): Promise<void> {
+  return new Promise<void>(resolve => {
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = src;
+    if (img.complete) {
+      resolve();
+      return;
+    }
+    img.onload = () => resolve();
+    img.onerror = () => resolve();
+    if ('decode' in img) {
+      void (img as HTMLImageElement).decode().then(resolve).catch(resolve);
+    }
+  });
 }
 
 async function predecodeWarmAlbums(
@@ -227,23 +321,5 @@ async function predecodeWarmAlbums(
   }
   if (urls.length === 0) return;
 
-  await Promise.allSettled(
-    urls.map(
-      src =>
-        new Promise<void>(resolve => {
-          const img = new Image();
-          img.decoding = 'async';
-          img.src = src;
-          if (img.complete) {
-            resolve();
-            return;
-          }
-          img.onload = () => resolve();
-          img.onerror = () => resolve();
-          if ('decode' in img) {
-            void (img as HTMLImageElement).decode().then(resolve).catch(resolve);
-          }
-        }),
-    ),
-  );
+  await Promise.allSettled(urls.map(decodeImage));
 }

@@ -10,7 +10,7 @@ import { useAlbumCoverRef } from '../cover/useLibraryCoverRef';
 import { useArtistBanner, useArtistFanart } from '../cover/useArtistFanart';
 import { usePlaybackCoverArt } from '../cover/usePlaybackCoverArt';
 import { artistCoverRef } from '../cover/ref';
-import { backdropFromConfig } from '../cover/artistBackdrop';
+import { useHeroBackdrop } from '../cover/useHeroBackdrop';
 import { useCachedUrl } from './CachedImage';
 import { usePlayerStore } from '../store/playerStore';
 import { useTranslation } from 'react-i18next';
@@ -49,6 +49,23 @@ function HeroBg({ url, position }: { url: string; position?: string }) {
   // eslint-disable-next-line react-hooks/refs
   latestUrlRef.current = url;
 
+  // Reveal a layer (crossfade) only once its bytes are loaded — never fade in an
+  // unloaded image (same preload gate as FsBackground / ArtistHeaderBg). Ignores
+  // a superseded layer; a stale invisible layer is dropped when the latest one
+  // reveals. Idempotent, so onLoad + the cached `complete` ref may both call it.
+  const revealLayer = useCallback((id: number, layerUrl: string) => {
+    if (layerUrl !== latestUrlRef.current) return;
+    setLayers(prev =>
+      prev.some(l => l.id === id && !l.visible)
+        ? prev.map(l => ({ ...l, visible: l.id === id }))
+        : prev,
+    );
+    window.setTimeout(() => {
+      if (layerUrl !== latestUrlRef.current) return;
+      setLayers(prev => prev.filter(l => l.id === id));
+    }, 900);
+  }, []);
+
   useEffect(() => {
     if (!url) {
       // React Compiler set-state-in-effect rule: state set from a timer/animation callback.
@@ -58,15 +75,11 @@ function HeroBg({ url, position }: { url: string; position?: string }) {
     }
     const id = counter.current++;
     setLayers(prev => [...prev, { url, position, id, visible: false }]);
-    const t1 = setTimeout(() => {
-      if (latestUrlRef.current !== url) return;
-      setLayers(prev => prev.map(l => ({ ...l, visible: l.id === id })));
-    }, 20);
-    const t2 = setTimeout(() => {
-      if (latestUrlRef.current !== url) return;
-      setLayers(prev => prev.filter(l => l.id === id));
-    }, 900);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    // Fallback so a layer can't get stuck invisible if onLoad/onError never fire
+    // (e.g. a cached decode without an event). The real reveal usually comes from
+    // the img's onLoad below.
+    const fallback = window.setTimeout(() => revealLayer(id, url), 1200);
+    return () => window.clearTimeout(fallback);
     // `position` is intentionally omitted — it tracks `url` 1:1, and adding it
     // would spawn a duplicate layer if it ever changed without the url.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -85,6 +98,9 @@ function HeroBg({ url, position }: { url: string; position?: string }) {
           loading="eager"
           decoding="sync"
           draggable={false}
+          onLoad={() => revealLayer(layer.id, layer.url)}
+          onError={() => revealLayer(layer.id, layer.url)}
+          ref={el => { if (el?.complete && el.naturalWidth > 0) revealLayer(layer.id, layer.url); }}
         />
       ))}
     </>
@@ -340,11 +356,11 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   );
   const ndArtist = usePlaybackCoverArt(heroArtistCoverRef, HERO_BG_CSS_PX, { fullRes: true });
   const ndArtistUrl = useCachedUrl(ndArtist.src, ndArtist.cacheKey, true);
-  const heroBackdrop = backdropFromConfig(mainstageBackdrop.sources, {
-    banner: heroBanner,
-    fanart: heroFanart,
-    navidrome: ndArtistUrl,
-  });
+  const heroBackdrop = useHeroBackdrop(
+    mainstageBackdrop.sources,
+    { banner: heroBanner, fanart: heroFanart, navidrome: ndArtistUrl },
+    albumId,
+  );
   const showHeroBackdrop =
     mainstageBackdrop.enabled &&
     !perfFlags.disableMainstageHeroBackdrop &&
