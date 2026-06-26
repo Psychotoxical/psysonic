@@ -68,9 +68,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Artist artwork from fanart.tv
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1137](https://github.com/Psychotoxical/psysonic/pull/1137)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1137](https://github.com/Psychotoxical/psysonic/pull/1137) and PR [#1193](https://github.com/Psychotoxical/psysonic/pull/1193)**
 
 * New opt-in **External Artwork Scraper** (Settings → Integrations, off by default): artist imagery from fanart.tv — a 16:9 background on the fullscreen player and a wide banner on the artist page — with Navidrome staying the canonical cover. Optional personal key; turning it off removes the fetched images again.
+* The **mainstage hero** on the home screen now shows the album artist's backdrop too, matching the fullscreen player and artist page.
+* Choose, per place (mainstage hero, artist page, fullscreen player), which images to use as the background and in what order — drag to reorder or switch a source off, under the same setting. The hero also preloads the upcoming backdrops so they appear without a long blank.
 
 ### Remember the equalizer per audio output device
 
@@ -132,13 +134,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1191](https://github.com/Psychotoxical/psysonic/pull/1191)**, suggested by SinFist
 
 * Sort a playlist by **Date added** (newest or oldest first), or by title, artist, album and the other columns, from a new sort dropdown in the playlist filter toolbar. The Subsonic API has no per-track "added on" date, so this follows the playlist's own order — servers add new tracks at the end, so newest-first puts your latest additions on top.
-
-### Configurable artist backdrops and the mainstage hero
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1193](https://github.com/Psychotoxical/psysonic/pull/1193)**
-
-* The **mainstage hero** on the home screen now shows the album artist's backdrop, matching the fullscreen player and artist page.
-* Under **Settings → Integrations → External Artwork Scraper** you can now pick, per place (mainstage hero, artist page, fullscreen player), which images to use as the background and in what order — drag to reorder or switch a source off. The hero also preloads the upcoming backdrops so they appear without a long blank.
 
 
 ## Changed
