@@ -14,6 +14,7 @@ import {
 import { SettingsGroup } from '../SettingsGroup';
 import { SettingsToggle } from '../SettingsToggle';
 import { SettingsSubCard, SettingsField, SettingsRow, SettingsValue } from '../SettingsSubCard';
+import { SettingsSegmented, type SegmentedOption } from '../SettingsSegmented';
 
 interface Props {
   t: TFunction;
@@ -42,11 +43,16 @@ export function TrackTransitionsBlock({ t }: Props) {
     s => s.role === 'guest' && (s.phase === 'active' || s.phase === 'joining'),
   );
 
-  const transitions: { id: TransitionMode; label: string }[] = [
+  const transitions: SegmentedOption<TransitionMode>[] = [
     { id: 'none', label: t('settings.transitionOff') },
     { id: 'gapless', label: t('settings.gapless') },
     { id: 'crossfade', label: t('settings.crossfade') },
     { id: 'autodj', label: t('settings.autoDj') },
+  ];
+
+  const overlapCapOptions: SegmentedOption<'auto' | 'limit'>[] = [
+    { id: 'auto', label: t('settings.autodjOverlapCapAuto') },
+    { id: 'limit', label: t('settings.autodjOverlapCapLimit') },
   ];
 
   return (
@@ -56,19 +62,13 @@ export function TrackTransitionsBlock({ t }: Props) {
           {t('settings.transitionsHostControlled')}
         </div>
       )}
-      <div className="settings-segmented" style={hostControlled ? { opacity: 0.45, pointerEvents: 'none' } : undefined}>
-        {transitions.map(item => (
-          <button
-            key={item.id}
-            type="button"
-            className={`btn ${mode === item.id ? 'btn-primary' : 'btn-ghost'}`}
-            disabled={hostControlled}
-            onClick={() => setTransitionMode(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
+      <SettingsSegmented
+        options={transitions}
+        value={mode}
+        onChange={setTransitionMode}
+        disabled={hostControlled}
+        style={hostControlled ? { opacity: 0.45, pointerEvents: 'none' } : undefined}
+      />
 
       {mode === 'crossfade' && (
         <SettingsSubCard style={{ marginTop: '0.85rem' }}>
@@ -96,24 +96,12 @@ export function TrackTransitionsBlock({ t }: Props) {
             label={t('settings.autodjOverlapCapTitle')}
             desc={t('settings.autodjOverlapCapDesc')}
           >
-            <div className="settings-segmented">
-              <button
-                type="button"
-                className={`btn ${auth.autodjOverlapCapMode === 'auto' ? 'btn-primary' : 'btn-ghost'}`}
-                disabled={hostControlled}
-                onClick={() => auth.setAutodjOverlapCapMode('auto')}
-              >
-                {t('settings.autodjOverlapCapAuto')}
-              </button>
-              <button
-                type="button"
-                className={`btn ${auth.autodjOverlapCapMode === 'limit' ? 'btn-primary' : 'btn-ghost'}`}
-                disabled={hostControlled}
-                onClick={() => auth.setAutodjOverlapCapMode('limit')}
-              >
-                {t('settings.autodjOverlapCapLimit')}
-              </button>
-            </div>
+            <SettingsSegmented
+              options={overlapCapOptions}
+              value={auth.autodjOverlapCapMode}
+              onChange={auth.setAutodjOverlapCapMode}
+              disabled={hostControlled}
+            />
             {auth.autodjOverlapCapMode === 'limit' && (
               <SettingsRow>
                 <input

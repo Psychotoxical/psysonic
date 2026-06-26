@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { Disc3, LayoutGrid, ListOrdered, ListTodo, PanelLeft, RotateCcw, Users } from 'lucide-react';
 import { useArtistLayoutStore } from '../../store/artistLayoutStore';
 import { useAuthStore } from '../../store/authStore';
+import type { QueueDisplayMode } from '../../store/authStoreTypes';
 import { useHomeStore } from '../../store/homeStore';
 import { usePlayerBarLayoutStore } from '../../store/playerBarLayoutStore';
 import { usePlaylistLayoutStore } from '../../store/playlistLayoutStore';
@@ -10,6 +11,8 @@ import { useSidebarStore } from '../../store/sidebarStore';
 import SettingsSubSection from '../SettingsSubSection';
 import { SettingsGroup } from './SettingsGroup';
 import { SettingsToggle } from './SettingsToggle';
+import { SettingsSegmented, type SegmentedOption } from './SettingsSegmented';
+import { SettingsSubCard, SettingsField } from './SettingsSubCard';
 import { ArtistLayoutCustomizer } from './ArtistLayoutCustomizer';
 import { HomeCustomizer } from './HomeCustomizer';
 import { PlayerBarLayoutCustomizer } from './PlayerBarLayoutCustomizer';
@@ -24,6 +27,19 @@ export function PersonalisationTab() {
   const preservePlayNextOrder = useAuthStore(s => s.preservePlayNextOrder);
   const setPreservePlayNextOrder = useAuthStore(s => s.setPreservePlayNextOrder);
   const advancedSettingsEnabled = useAuthStore(s => s.advancedSettingsEnabled);
+
+  const queueModeOptions: SegmentedOption<QueueDisplayMode>[] = [
+    { id: 'queue', label: t('queue.title') },
+    { id: 'playlist', label: t('queue.modePlaylist') },
+    { id: 'timeline', label: t('queue.modeTimeline') },
+  ];
+  const queueModeDescKey =
+    queueDisplayMode === 'queue'
+      ? 'settings.queueModeQueueSub'
+      : queueDisplayMode === 'playlist'
+        ? 'settings.queueModePlaylistSub'
+        : 'settings.queueModeTimelineSub';
+
   return (
     <>
       <SettingsSubSection
@@ -95,30 +111,17 @@ export function PersonalisationTab() {
         icon={<ListOrdered size={16} />}
       >
         <>
+          {/* Three mutually exclusive modes — a segmented picker enforces that
+              exactly one is active, instead of toggles that read as independent. */}
           <SettingsGroup title={t('settings.queueModeTitle')}>
-            {/* Three mutually exclusive modes — exactly one is always active, so
-                turning one on turns the others off; the active one cannot be
-                switched off directly (ignore the uncheck). */}
-            <SettingsToggle
-              label={t('queue.title')}
-              desc={t('settings.queueModeQueueSub')}
-              checked={queueDisplayMode === 'queue'}
-              onChange={c => { if (c) setQueueDisplayMode('queue'); }}
+            <SettingsSegmented
+              options={queueModeOptions}
+              value={queueDisplayMode}
+              onChange={setQueueDisplayMode}
             />
-            <div className="settings-section-divider" />
-            <SettingsToggle
-              label={t('queue.modePlaylist')}
-              desc={t('settings.queueModePlaylistSub')}
-              checked={queueDisplayMode === 'playlist'}
-              onChange={c => { if (c) setQueueDisplayMode('playlist'); }}
-            />
-            <div className="settings-section-divider" />
-            <SettingsToggle
-              label={t('queue.modeTimeline')}
-              desc={t('settings.queueModeTimelineSub')}
-              checked={queueDisplayMode === 'timeline'}
-              onChange={c => { if (c) setQueueDisplayMode('timeline'); }}
-            />
+            <SettingsSubCard style={{ marginTop: '0.85rem' }}>
+              <SettingsField desc={t(queueModeDescKey)} />
+            </SettingsSubCard>
           </SettingsGroup>
 
           <SettingsGroup title={t('settings.queueBehaviourTitle')}>
