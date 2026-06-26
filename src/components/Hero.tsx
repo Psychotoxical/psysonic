@@ -8,8 +8,7 @@ import { Play, ListPlus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { CoverArtImage } from '../cover/CoverArtImage';
 import { useAlbumCoverRef } from '../cover/useLibraryCoverRef';
 import { useArtistBanner, useArtistFanart } from '../cover/useArtistFanart';
-import { usePlaybackCoverArt } from '../cover/usePlaybackCoverArt';
-import { artistCoverRef } from '../cover/ref';
+import { useCoverArt } from '../cover/useCoverArt';
 import { useHeroBackdrop } from '../cover/useHeroBackdrop';
 import { useCachedUrl } from './CachedImage';
 import { usePlayerStore } from '../store/playerStore';
@@ -343,11 +342,14 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
   const heroCoverRef = useAlbumCoverRef(album?.id, album?.coverArt);
   const albumId = album?.id;
 
-  // Mainstage hero backdrop — the album artist's fanart, resolved exactly like
-  // the artist-detail header (banner → 16:9 fanart → Navidrome artist cover).
+  // Mainstage hero backdrop — the album artist's fanart (banner → 16:9 fanart),
+  // but its LAST fallback is the album's own Navidrome cover, not the artist
+  // image: the hero frames an album, so its base layer stays the album cover
+  // (the same backdrop shown when the feature is off). The artist-detail header
+  // keeps the artist cover as its last fallback — that surface frames an artist.
   // Fed entirely from the album already in hand (artist id + name + album title),
   // so there is no getArtist/getAlbum round-trip: the MBID lookup + fanart fetch
-  // live Rust-side in cover_cache, and the artist cover ref needs only the id.
+  // live Rust-side in cover_cache.
   const heroArtist = useMemo(
     () => (album ? deriveAlbumArtistRefs(album)[0] : undefined),
     [album],
@@ -361,15 +363,13 @@ export default function Hero({ albums: albumsProp }: HeroProps = {}) {
     artistName: heroArtist?.name,
     albumTitle: album?.name,
   });
-  const heroArtistCoverRef = useMemo(
-    () => (heroArtistId ? artistCoverRef(heroArtistId) : undefined),
-    [heroArtistId],
-  );
-  const ndArtist = usePlaybackCoverArt(heroArtistCoverRef, HERO_BG_CSS_PX, { fullRes: true });
-  const ndArtistUrl = useCachedUrl(ndArtist.src, ndArtist.cacheKey, true);
+  // Last-fallback layer: the album's own Navidrome cover (HERO_BG_CSS_PX, full
+  // res), resolved scope-true from the album cover ref already in hand.
+  const ndAlbum = useCoverArt(heroCoverRef, HERO_BG_CSS_PX, { surface: 'sparse', fullRes: true });
+  const ndAlbumUrl = useCachedUrl(ndAlbum.src, ndAlbum.cacheKey, true);
   const heroBackdrop = useHeroBackdrop(
     mainstageBackdrop.sources,
-    { banner: heroBanner, fanart: heroFanart, navidrome: ndArtistUrl },
+    { banner: heroBanner, fanart: heroFanart, navidrome: ndAlbumUrl },
     albumId,
   );
   const showHeroBackdrop =
