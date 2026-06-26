@@ -337,6 +337,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The AutoDJ overlap-cap and the Native Hi-Res blend-rate options in Settings → Audio now sit in the same bordered sub-card the Normalization options use, and the Hi-Res section no longer shows a double border.
 
+### App no longer blanks on an unexpected error
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1194](https://github.com/Psychotoxical/psysonic/pull/1194)**
+
+* If a screen hit an unexpected rendering error, the whole window could go blank with no way back. The app now shows a small recoverable error card (Try again / Reload app) instead, and playback keeps going.
+
 ## [1.48.1] - 2026-06-15
 
 ## Fixed
