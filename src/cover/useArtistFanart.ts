@@ -34,6 +34,19 @@ function useArtistExternalImage(
   const artistName = ctx?.artistName;
   const albumTitle = ctx?.albumTitle;
 
+  // Reset synchronously when the target artist/surface changes, so a consumer
+  // never reads the *previous* artist's resolved image for the one render
+  // between the change and the effect below. Without this the hero froze (or
+  // cached into per-album memory) a neighbouring slide's banner. This is the
+  // React "adjust state on prop change" pattern — the set-state-during-render
+  // restarts the render, so `image` is already cleared this pass.
+  const resetKey = `${enabled ? '1' : '0'}|${artistId ?? ''}|${surface}`;
+  const [seenKey, setSeenKey] = useState(resetKey);
+  if (seenKey !== resetKey) {
+    setSeenKey(resetKey);
+    setImage({ src: '', pending: Boolean(enabled && artistId) });
+  }
+
   useEffect(() => {
     if (!enabled || !artistId) {
       // Nothing will resolve — not pending, so callers fall back immediately.
