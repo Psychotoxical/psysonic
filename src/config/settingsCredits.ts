@@ -391,6 +391,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Theme scheduler — follow the OS light/dark setting as an alternative to the time-based day/night schedule (PR #1163)',
       'Compact buttons — appearance toggle that switches action and toolbar buttons to icon-only across detail headers and browse views, app-wide (PR #1189)',
       'Playlist sort — sort a playlist by date added (newest/oldest) or any track column from a visible sort dropdown (PR #1191)',
+      'Configurable artist backdrops — per-place source order + on/off (mainstage hero, artist page, fullscreen), with the mainstage hero showing the artist backdrop and prefetching upcoming ones (PR #1193)',
     ],
   },
   {

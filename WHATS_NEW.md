@@ -47,9 +47,10 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 
 - Under **Settings → Audio → Native Hi-Res**, choose a **blend rate** (44.1 / 88.2 / 96 kHz) for crossfade, AutoDJ, and gapless when adjacent tracks differ in sample rate — mixed 88.2 ↔ 44.1 kHz handovers no longer tear mid-transition.
 
-### Artist artwork — richer artist and fullscreen views
+### Artist artwork — richer home, artist, and fullscreen views
 
-- Switch on **External Artwork Scraper** under **Settings → Integrations** to pull artist imagery from fanart.tv: a wide backdrop on the fullscreen player and a banner across the top of the artist page. Off by default, your Navidrome covers stay in charge, and turning it back off removes the fetched images again.
+- Switch on **External Artwork Scraper** under **Settings → Integrations** to pull artist imagery from fanart.tv: a wide backdrop on the fullscreen player, a banner across the top of the artist page, and now the artist's backdrop behind the home screen's **mainstage** too. Off by default, your Navidrome covers stay in charge, and turning it back off removes the fetched images again.
+- Choose which images each place uses as its background, and in what order — drag to reorder or switch a source off — right under the same setting. The mainstage also loads the next backdrops ahead of time so they appear without a blank gap.
 
 ### Equalizer — a profile per output device
 

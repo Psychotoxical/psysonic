@@ -133,6 +133,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Sort a playlist by **Date added** (newest or oldest first), or by title, artist, album and the other columns, from a new sort dropdown in the playlist filter toolbar. The Subsonic API has no per-track "added on" date, so this follows the playlist's own order — servers add new tracks at the end, so newest-first puts your latest additions on top.
 
+### Configurable artist backdrops and the mainstage hero
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1193](https://github.com/Psychotoxical/psysonic/pull/1193)**
+
+* The **mainstage hero** on the home screen now shows the album artist's backdrop, matching the fullscreen player and artist page.
+* Under **Settings → Integrations → External Artwork Scraper** you can now pick, per place (mainstage hero, artist page, fullscreen player), which images to use as the background and in what order — drag to reorder or switch a source off. The hero also preloads the upcoming backdrops so they appear without a long blank.
+
 
 ## Changed
 
