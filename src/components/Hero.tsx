@@ -58,15 +58,42 @@ function HeroBg({ url, position }: { url: string; position?: string }) {
     }
     const id = counter.current++;
     setLayers(prev => [...prev, { url, position, id, visible: false }]);
-    const t1 = setTimeout(() => {
-      if (latestUrlRef.current !== url) return;
+
+    let revealed = false;
+    let cleanup: ReturnType<typeof setTimeout> | undefined;
+    const reveal = () => {
+      if (revealed || latestUrlRef.current !== url) return;
+      revealed = true;
+      // Crossfade this layer in; the others fade out, then get dropped.
       setLayers(prev => prev.map(l => ({ ...l, visible: l.id === id })));
-    }, 20);
-    const t2 = setTimeout(() => {
-      if (latestUrlRef.current !== url) return;
-      setLayers(prev => prev.filter(l => l.id === id));
-    }, 900);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+      cleanup = setTimeout(() => {
+        if (latestUrlRef.current !== url) return;
+        setLayers(prev => prev.filter(l => l.id === id));
+      }, 900);
+    };
+
+    // Reveal only once the bytes are decoded, so the crossfade never fades in a
+    // blank / half-loaded image (the flicker the bare 20 ms timer had). The
+    // preload + scheduling happen exactly once here per url — no per-render
+    // <img> ref / onLoad, so this can't stack updates like the reverted attempt.
+    const pre = new Image();
+    pre.decoding = 'async';
+    pre.src = url;
+    let fallback: ReturnType<typeof setTimeout> | undefined;
+    if (pre.complete && pre.naturalWidth > 0) {
+      reveal();
+    } else {
+      pre.onload = reveal;
+      pre.onerror = reveal;
+      fallback = setTimeout(reveal, 1500);
+    }
+
+    return () => {
+      if (fallback) clearTimeout(fallback);
+      if (cleanup) clearTimeout(cleanup);
+      pre.onload = null;
+      pre.onerror = null;
+    };
     // `position` is intentionally omitted — it tracks `url` 1:1, and adding it
     // would spawn a duplicate layer if it ever changed without the url.
     // eslint-disable-next-line react-hooks/exhaustive-deps
