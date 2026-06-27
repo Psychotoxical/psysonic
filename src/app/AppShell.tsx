@@ -56,7 +56,7 @@ import { useNowPlayingPrewarm } from '../hooks/useNowPlayingPrewarm';
 import { useOfflineAutoNav } from '../hooks/useOfflineAutoNav';
 import { useOfflineLibraryFilterSuspend } from '../hooks/useOfflineLibraryFilterSuspend';
 import { AppShellQueueResizerSeam } from '../components/AppShellQueueResizerSeam';
-import { IS_LINUX } from '../utils/platform';
+import { IS_LINUX, IS_MACOS } from '../utils/platform';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
 import { useIdlePlayQueuePull } from '../hooks/useIdlePlayQueuePull';
 import { useAuthStore } from '../store/authStore';
@@ -75,7 +75,7 @@ import {
 } from '../utils/componentHelpers/appShellHelpers';
 
 /**
- * The main webview's persistent layout: titlebar (Linux only) + sidebar +
+ * The main webview's persistent layout: titlebar (Linux + macOS) + sidebar +
  * main content area (header + route host + offline banner) + queue panel +
  * player bar + fullscreen overlay + global modals + tray-tooltip / title
  * sync. Mounted under `<RequireAuth>` and shared across all routes.
@@ -226,12 +226,22 @@ export function AppShell() {
 
   const isMobilePlayer = isMobile && location.pathname === '/now-playing';
 
+  // Custom in-page titlebar. Linux: opt-in, native decorations off. macOS:
+  // always on — `titleBarStyle: Overlay` lets the webview reach the top edge
+  // with the native traffic lights floating over our themed bar, so the bar
+  // follows the active theme instead of the grey system titlebar (#1198).
+  // Hidden in native fullscreen (the OS chrome is gone there anyway).
+  const showLinuxTitlebar = IS_LINUX && useCustomTitlebar && !isWindowFullscreen && !isTilingWm;
+  const showMacTitlebar = IS_MACOS && !isWindowFullscreen;
+  const showTitlebar = showLinuxTitlebar || showMacTitlebar;
+
   return (
     <div
       className={`app-shell ${floatingPlayerBar ? 'floating-player' : ''}`}
       data-mobile={isMobile || undefined}
       data-mobile-player={isMobilePlayer || undefined}
-      data-titlebar={(IS_LINUX && useCustomTitlebar && !isWindowFullscreen && !isTilingWm) || undefined}
+      data-titlebar={showTitlebar || undefined}
+      data-titlebar-platform={showMacTitlebar ? 'macos' : showLinuxTitlebar ? 'linux' : undefined}
       data-fullscreen={isWindowFullscreen || undefined}
       style={{
         '--sidebar-width': isMobile ? '0px' : (isSidebarCollapsed ? '72px' : 'clamp(200px, 15vw, 220px)'),
@@ -241,7 +251,7 @@ export function AppShell() {
       } as React.CSSProperties}
       onContextMenu={e => e.preventDefault()}
     >
-      {IS_LINUX && useCustomTitlebar && !isWindowFullscreen && !isTilingWm && <TitleBar />}
+      {showTitlebar && <TitleBar />}
       {import.meta.env.DEV && isMobile && (
         <span className="dev-build-badge" aria-hidden>DEV</span>
       )}

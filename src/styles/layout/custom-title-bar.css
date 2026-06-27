@@ -1,4 +1,4 @@
-/* ─── Custom title bar (Linux only — decorations: false) ─── */
+/* ─── Custom title bar — Linux (decorations: false) + macOS (titleBarStyle: Overlay) ─── */
 :root {
   --titlebar-height: 32px;
 }
@@ -19,9 +19,10 @@
     "sidebar  main     queue";
 }
 
-/* Resize grips — replace the native GTK grips lost when decorations: false */
-.app-shell[data-titlebar]::before,
-.app-shell[data-titlebar]::after {
+/* Resize grips — Linux only; replace the native GTK grips lost when
+   decorations: false. macOS keeps its native window-edge resize. */
+.app-shell[data-titlebar-platform='linux']::before,
+.app-shell[data-titlebar-platform='linux']::after {
   content: '';
   position: fixed;
   bottom: 0;
@@ -33,8 +34,8 @@
   opacity: 0.35;
   z-index: 9999;
 }
-.app-shell[data-titlebar]::before { left: 0; }
-.app-shell[data-titlebar]::after  { right: 0; }
+.app-shell[data-titlebar-platform='linux']::before { left: 0; }
+.app-shell[data-titlebar-platform='linux']::after  { right: 0; }
 
 .titlebar {
   grid-area: titlebar;

@@ -1,6 +1,6 @@
 @import './_intro.css';
 @import './dev-build-chrome.css';
-@import './custom-title-bar-linux-only-decorations-false.css';
+@import './custom-title-bar.css';
 @import './resizer-handles.css';
 @import './sidebar.css';
 @import './update-toast.css';
