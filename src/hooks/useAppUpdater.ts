@@ -4,8 +4,8 @@ import { dirname } from '@tauri-apps/api/path';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
 import { version as currentVersion } from '../../package.json';
-import { IS_LINUX, IS_MACOS } from '../utils/platform';
-import { SKIP_KEY, isNewer, pickAsset, type ReleaseData, type DlState } from '../utils/componentHelpers/appUpdaterHelpers';
+import { IS_LINUX, IS_MACOS, IS_WINDOWS } from '../utils/platform';
+import { SKIP_KEY, isNewer, isWithinModerationWindow, pickAsset, type ReleaseData, type DlState } from '../utils/componentHelpers/appUpdaterHelpers';
 
 /** All update-modal state, the GitHub release probe and the download/relaunch
  * handlers. The component owns only the early-return guard and the JSX. */
@@ -36,6 +36,10 @@ export function useAppUpdater() {
         if (!isNewer(version, currentVersion)) return;
         const skipped = localStorage.getItem(SKIP_KEY);
         if (skipped === version) return;
+        // Windows updates go through WinGet moderation; hold the notice until
+        // the release clears the moderation window so users aren't pointed at a
+        // version WinGet hasn't published yet. macOS/Linux use other channels.
+        if (IS_WINDOWS && isWithinModerationWindow(data.published_at, Date.now())) return;
       }
       setDismissed(false);
       setDlState('idle');
