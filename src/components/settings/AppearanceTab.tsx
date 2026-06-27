@@ -14,7 +14,8 @@ import { IS_LINUX, IS_WINDOWS } from '../../utils/platform';
 import SettingsSubSection from '../SettingsSubSection';
 import { SettingsGroup } from './SettingsGroup';
 import { SettingsToggle } from './SettingsToggle';
-import { SettingsSubCard, SettingsField, SettingsRow, SettingsValue } from './SettingsSubCard';
+import { SettingsSubCard, SettingsField, SettingsValue } from './SettingsSubCard';
+import { SettingsSegmented, type SegmentedOption } from './SettingsSegmented';
 import { SeekbarPreview } from '../WaveformSeekPreview';
 import WindowButtonPreview from '../WindowButtonPreview';
 
@@ -182,47 +183,24 @@ export function AppearanceTab() {
                 {(() => {
                   const presets = [80, 90, 100, 110, 125, 150];
                   const currentPct = Math.round(fontStore.uiScale * 100);
-                  let idx = presets.indexOf(currentPct);
-                  if (idx < 0) {
-                    // Snap legacy off-preset values to the closest preset.
-                    idx = presets.reduce((best, p, i) =>
-                      Math.abs(p - currentPct) < Math.abs(presets[best] - currentPct) ? i : best, 0);
-                  }
+                  // Snap a legacy off-preset value to the closest preset so one
+                  // button is always marked active.
+                  const activePct = presets.includes(currentPct)
+                    ? currentPct
+                    : presets.reduce(
+                        (best, p) => (Math.abs(p - currentPct) < Math.abs(best - currentPct) ? p : best),
+                        presets[0],
+                      );
+                  const options: SegmentedOption<string>[] = presets.map(p => ({
+                    id: String(p),
+                    label: `${p}%`,
+                  }));
                   return (
-                    <>
-                      <SettingsRow>
-                        <input
-                          type="range"
-                          min={0}
-                          max={presets.length - 1}
-                          step={1}
-                          value={idx}
-                          onChange={e => fontStore.setUiScale(presets[parseInt(e.target.value, 10)] / 100)}
-                          className="ui-scale-slider"
-                        />
-                        <SettingsValue>{currentPct}%</SettingsValue>
-                      </SettingsRow>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        {presets.map(p => {
-                          const active = currentPct === p;
-                          return (
-                            <button
-                              key={p}
-                              className="btn btn-ghost"
-                              style={{
-                                fontSize: 11,
-                                padding: '2px 6px',
-                                opacity: active ? 1 : 0.5,
-                                color: active ? 'var(--accent)' : undefined,
-                              }}
-                              onClick={() => fontStore.setUiScale(p / 100)}
-                            >
-                              {p}%
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </>
+                    <SettingsSegmented
+                      options={options}
+                      value={String(activePct)}
+                      onChange={id => fontStore.setUiScale(parseInt(id, 10) / 100)}
+                    />
                   );
                 })()}
               </SettingsField>
