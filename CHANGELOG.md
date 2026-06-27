@@ -135,6 +135,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Sort a playlist by **Date added** (newest or oldest first), or by title, artist, album and the other columns, from a new sort dropdown in the playlist filter toolbar. The Subsonic API has no per-track "added on" date, so this follows the playlist's own order — servers add new tracks at the end, so newest-first puts your latest additions on top.
 
+### WinGet update command in the update dialog (Windows)
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1202](https://github.com/Psychotoxical/psysonic/pull/1202)**
+
+* The Windows update dialog now also shows the WinGet command (`winget upgrade Psysonic`) next to the installer download, so you can update whichever way you installed.
+
 
 ## Changed
 
