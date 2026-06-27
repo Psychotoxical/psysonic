@@ -357,6 +357,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * On Windows, the "update available" notice now waits until a release is a couple of days old, so it no longer points to a version that WinGet has not finished publishing yet. macOS and Linux are unaffected.
 
+### Playlist no longer reloads when you press Play
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1201](https://github.com/Psychotoxical/psysonic/pull/1201)**
+
+* Pressing Play, Shuffle or Add to queue on a playlist no longer reloads the whole page with a spinner — it just starts playback. Editing the playlist (adding or removing songs) still refreshes the list as before.
+
 ## [1.48.1] - 2026-06-15
 
 ## Fixed
