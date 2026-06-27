@@ -156,6 +156,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fifty strings that still fell back to English in the Russian UI are now translated — macOS in-place updater, device sync file migration, fullscreen lyrics, and statistics share-image export.
 * User-facing descriptions in Russian and English no longer mention WebKitGTK or Fisher–Yates internals; several Russian labels and section titles read more naturally (settings casing, smart playlists, track transitions, and home rails).
 
+### macOS — themed window title bar
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1199](https://github.com/Psychotoxical/psysonic/pull/1199)**, suggested by [@bcorporaal](https://github.com/bcorporaal)
+
+* On macOS the window's title bar now follows the active theme instead of the grey system bar; the native macOS window buttons stay in place, floating over the themed bar.
+
 
 ## Fixed
 
