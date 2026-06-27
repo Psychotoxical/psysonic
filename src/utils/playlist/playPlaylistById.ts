@@ -1,7 +1,6 @@
 import { getPlaylist } from '../../api/subsonicPlaylists';
 import { songToTrack } from '../playback/songToTrack';
 import { usePlayerStore } from '../../store/playerStore';
-import { usePlaylistStore } from '../../store/playlistStore';
 import { playPlaylistAll } from './playlistBulkPlayActions';
 
 /**
@@ -16,6 +15,5 @@ export async function playPlaylistById(id: string): Promise<void> {
   const { songs } = await getPlaylist(id);
   const tracks = songs.map(songToTrack);
   const { playTrack, enqueue } = usePlayerStore.getState();
-  const { touchPlaylist } = usePlaylistStore.getState();
-  playPlaylistAll({ songsLength: tracks.length, id, tracks, touchPlaylist, playTrack, enqueue });
+  playPlaylistAll({ songsLength: tracks.length, id, tracks, playTrack, enqueue });
 }

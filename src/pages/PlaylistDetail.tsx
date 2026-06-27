@@ -223,7 +223,7 @@ export default function PlaylistDetail() {
 
   // ── Playback actions (encapsulated like AlbumHeader) ─────────
   const { handlePlayAll, handleShuffleAll, handleEnqueueAll } = usePlaylistBulkPlayCallbacks({
-    songsLength: songs.length, id, tracks, touchPlaylist, playTrack, enqueue,
+    songsLength: songs.length, id, tracks, playTrack, enqueue,
   });
 
   // ── Render ────────────────────────────────────────────────────

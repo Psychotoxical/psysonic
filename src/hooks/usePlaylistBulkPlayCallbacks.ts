@@ -6,7 +6,6 @@ export interface PlaylistBulkPlayCallbacksDeps {
   songsLength: number;
   id: string | undefined;
   tracks: Track[];
-  touchPlaylist: (id: string) => void;
   playTrack: (track: Track, queue: Track[]) => void;
   enqueue: (tracks: Track[]) => void;
 }
@@ -18,21 +17,21 @@ export interface PlaylistBulkPlayCallbacks {
 }
 
 export function usePlaylistBulkPlayCallbacks(deps: PlaylistBulkPlayCallbacksDeps): PlaylistBulkPlayCallbacks {
-  const { songsLength, id, tracks, touchPlaylist, playTrack, enqueue } = deps;
+  const { songsLength, id, tracks, playTrack, enqueue } = deps;
 
   const handlePlayAll = useCallback(
-    () => playPlaylistAll({ songsLength, id, tracks, touchPlaylist, playTrack, enqueue }),
-    [songsLength, id, tracks, touchPlaylist, playTrack, enqueue],
+    () => playPlaylistAll({ songsLength, id, tracks, playTrack, enqueue }),
+    [songsLength, id, tracks, playTrack, enqueue],
   );
 
   const handleShuffleAll = useCallback(
-    () => shufflePlaylistAll({ songsLength, id, tracks, touchPlaylist, playTrack, enqueue }),
-    [songsLength, id, tracks, touchPlaylist, playTrack, enqueue],
+    () => shufflePlaylistAll({ songsLength, id, tracks, playTrack, enqueue }),
+    [songsLength, id, tracks, playTrack, enqueue],
   );
 
   const handleEnqueueAll = useCallback(
-    () => enqueuePlaylistAll({ songsLength, id, tracks, touchPlaylist, playTrack, enqueue }),
-    [songsLength, id, tracks, touchPlaylist, playTrack, enqueue],
+    () => enqueuePlaylistAll({ songsLength, id, tracks, playTrack, enqueue }),
+    [songsLength, id, tracks, playTrack, enqueue],
   );
 
   return { handlePlayAll, handleShuffleAll, handleEnqueueAll };
