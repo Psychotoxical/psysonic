@@ -351,6 +351,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * If a screen hit an unexpected rendering error, the whole window could go blank with no way back. The app now shows a small recoverable error card (Try again / Reload app) instead, and playback keeps going.
 
+### Windows update notice waits out WinGet moderation
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1200](https://github.com/Psychotoxical/psysonic/pull/1200)**
+
+* On Windows, the "update available" notice now waits until a release is a couple of days old, so it no longer points to a version that WinGet has not finished publishing yet. macOS and Linux are unaffected.
+
 ## [1.48.1] - 2026-06-15
 
 ## Fixed
