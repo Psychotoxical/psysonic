@@ -48,6 +48,7 @@ export const common = {
   updaterShowFolder: 'Megjelenítés a mappában',
   updaterInstallHint: 'Zárd be a Psysonicot, és futtasd a telepítőt kézzel.',
   updaterAurHint: 'Telepítsd a frissítést az AUR-on keresztül:',
+  updaterWingetHint: 'Vagy frissíts a WinGeten keresztül:',
   updaterErrorMsg: 'A letöltés nem sikerült',
   updaterRetryBtn: 'Újra',
   updaterInstallNow: 'Telepítés most',

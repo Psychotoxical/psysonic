@@ -280,6 +280,28 @@
 .update-modal-aur-alt {
   color: var(--text-muted);
 }
+/* WinGet update hint — shown alongside the Windows installer download, mirrors
+   the AUR hint styling with a little top gap to separate it from the asset. */
+.update-modal-winget {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.update-modal-winget-title {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.update-modal-winget-cmd {
+  display: block;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--accent);
+  font-family: monospace;
+}
 .update-modal-asset-none {
   padding: 4px 0;
 }

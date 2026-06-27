@@ -47,6 +47,7 @@ export const common = {
   updaterShowFolder: '在文件夹中显示',
   updaterInstallHint: '请关闭 Psysonic 并手动运行安装程序。',
   updaterAurHint: '通过 AUR 安装更新：',
+  updaterWingetHint: '或通过 WinGet 更新：',
   updaterErrorMsg: '下载失败',
   updaterRetryBtn: '重试',
   durationHoursMinutes: '{{hours}}小时{{minutes}}分钟',

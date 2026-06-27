@@ -13,7 +13,7 @@ export default function AppUpdater() {
   const {
     release, dismissed, setDismissed, changelogOpen, setChangelogOpen,
     dlState, dlProgress, dlError, countdown,
-    asset, showAurHint, useTauriUpdater, showInstallBtn, pct,
+    asset, showAurHint, showWingetHint, useTauriUpdater, showInstallBtn, pct,
     handleSkip, handleRestartNow, handleDownload, handleShowFolder,
   } = useAppUpdater();
 
@@ -182,6 +182,12 @@ export default function AppUpdater() {
               <div className="update-modal-asset">
                 <span className="update-modal-asset-name">{asset.name}</span>
                 <span className="update-modal-asset-size">{formatBytes(asset.size)}</span>
+              </div>
+            )}
+            {dlState === 'idle' && showWingetHint && (
+              <div className="update-modal-winget">
+                <div className="update-modal-winget-title">{t('common.updaterWingetHint')}</div>
+                <code className="update-modal-winget-cmd">winget upgrade Psysonic</code>
               </div>
             )}
             {dlState === 'downloading' && (

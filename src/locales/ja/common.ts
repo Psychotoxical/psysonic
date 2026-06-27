@@ -48,6 +48,7 @@ export const common = {
   updaterShowFolder: 'フォルダーに表示',
   updaterInstallHint: 'Psysonic を閉じて、インストーラーを手動で実行してください。',
   updaterAurHint: 'AUR からアップデートをインストール:',
+  updaterWingetHint: 'または WinGet で更新:',
   updaterErrorMsg: 'ダウンロードに失敗しました',
   updaterRetryBtn: '再試行',
   updaterInstallNow: '今すぐインストール',

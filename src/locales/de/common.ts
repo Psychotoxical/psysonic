@@ -48,6 +48,7 @@ export const common = {
   updaterShowFolder: 'Im Ordner anzeigen',
   updaterInstallHint: 'Psysonic schließen und das Installationsprogramm manuell ausführen.',
   updaterAurHint: 'Update über AUR installieren:',
+  updaterWingetHint: 'Oder per WinGet aktualisieren:',
   updaterErrorMsg: 'Download fehlgeschlagen',
   updaterInstallNow: 'Jetzt installieren',
   updaterMacReadyTitle: 'Bereit zur Installation',

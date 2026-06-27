@@ -196,6 +196,11 @@ export function useAppUpdater() {
   };
 
   const showAurHint = IS_LINUX && isArch;
+  // Windows can also update through WinGet once a release clears moderation
+  // (the notice itself is held back for that window, see #1200). Shown next to
+  // the installer download, not instead of it — not every Windows user
+  // installed via WinGet.
+  const showWingetHint = IS_WINDOWS;
   // On macOS the Tauri Updater handles architecture, signature verification
   // and in-place install — we don't need (and should not show) a DMG asset.
   const useTauriUpdater = IS_MACOS;
@@ -208,7 +213,7 @@ export function useAppUpdater() {
   return {
     release, dismissed, setDismissed, changelogOpen, setChangelogOpen,
     dlState, dlProgress, dlError, countdown,
-    asset, showAurHint, useTauriUpdater, showInstallBtn, pct,
+    asset, showAurHint, showWingetHint, useTauriUpdater, showInstallBtn, pct,
     handleSkip, handleRestartNow, handleDownload, handleShowFolder,
   };
 }

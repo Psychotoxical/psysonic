@@ -48,6 +48,7 @@ export const common = {
   updaterShowFolder: 'Pokaż w folderze',
   updaterInstallHint: 'Zamknij PsySonic i uruchom instalator ręcznie.',
   updaterAurHint: 'Zainstaluj aktualizację przez AUR:',
+  updaterWingetHint: 'Lub zaktualizuj przez WinGet:',
   updaterErrorMsg: 'Pobieranie nie powiodło się',
   updaterRetryBtn: 'Spróbuj ponownie',
   updaterInstallNow: 'Zainstaluj teraz',

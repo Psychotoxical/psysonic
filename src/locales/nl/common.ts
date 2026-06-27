@@ -47,6 +47,7 @@ export const common = {
   updaterShowFolder: 'Tonen in map',
   updaterInstallHint: 'Sluit Psysonic en voer het installatieprogramma handmatig uit.',
   updaterAurHint: 'Update installeren via AUR:',
+  updaterWingetHint: 'Of bijwerken via WinGet:',
   updaterErrorMsg: 'Downloaden mislukt',
   updaterRetryBtn: 'Opnieuw proberen',
   durationHoursMinutes: '{{hours}} u {{minutes}} min',

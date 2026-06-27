@@ -48,6 +48,7 @@ export const common = {
   updaterShowFolder: 'Arată în Folder',
   updaterInstallHint: 'Închide Psysonic și rulează programul de instalare manual.',
   updaterAurHint: 'Instalează update-ul prin AUR:',
+  updaterWingetHint: 'Sau actualizează prin WinGet:',
   updaterErrorMsg: 'Descărcare eșuată',
   updaterRetryBtn: 'Reîncearcă',
   updaterInstallNow: 'Instalează acum',

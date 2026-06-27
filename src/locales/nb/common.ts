@@ -47,6 +47,7 @@ export const common = {
   updaterShowFolder: 'Vis i mappe',
   updaterInstallHint: 'Lukk Psysonic og kjør installasjonsprogrammet manuelt.',
   updaterAurHint: 'Installer oppdateringen via AUR:',
+  updaterWingetHint: 'Eller oppdater via WinGet:',
   updaterErrorMsg: 'Nedlasting mislyktes',
   updaterRetryBtn: 'Prøv igjen',
   durationHoursMinutes: '{{hours}} t {{minutes}} min',
