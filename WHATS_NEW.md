@@ -68,6 +68,22 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 
 - Per-server **custom HTTP headers** in **Settings → Servers** for Cloudflare Access, Pangolin, and similar gates — applied to library sync, playback, covers, offline download, and the rest without putting secrets in invite links.
 
+### Album details — every genre, not just the first
+
+- Album details now show **all** the genres a release spans: the main genre appears inline with a **+N** chip that opens the full, clickable list, each genre linking to its own page. Genres combine album and track tags and read from the local library index, so they work offline too.
+
+### Compact buttons — switch to icon-only controls
+
+- New **Compact buttons** option under **Settings → Appearance** switches the action and toolbar buttons between large labelled buttons and small icon-only ones — across album, artist and playlist headers, the shared browse toolbars, and the Most Played controls. Defaults to large; on phones the album header keeps its large touch targets.
+
+### Playlists — sort by date added
+
+- Sort a playlist by **Date added** (newest or oldest first), or by title, artist, album and the other columns, from a new sort dropdown in the playlist toolbar. The Subsonic API has no per-track "added on" date, so this follows the playlist's own order — servers add new tracks at the end, so newest-first puts your latest additions on top.
+
+## Improved
+
+- **macOS:** the window's title bar now follows the active theme instead of the grey system bar; the native window buttons stay in place, floating over the themed bar.
+
 ## Fixed
 
 ### Playback and audio
@@ -100,6 +116,10 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 - **Windows:** Previous, Play/Pause, and Next are back when you hover the taskbar icon — and Play/Pause shows whether music is playing or paused.
 - **macOS:** the dock icon matches native app sizing instead of looking oversized.
 - **Linux:** **Niri** is recognised as a tiling compositor and gets the same custom title bar behaviour as Hyprland and Sway; the "new version available" popup reads clearly on setups where the background blur used to bleed through.
+
+## Under the hood
+
+- If a screen hits an unexpected error, the app now shows a small recoverable card (**Try again** / **Reload app**) and keeps playing, instead of the whole window going blank.
 
 
 ## [1.48.1]
