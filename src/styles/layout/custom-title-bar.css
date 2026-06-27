@@ -88,13 +88,6 @@
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
 }
 
-/* macOS already gives the bar a defined themed background, so the Linux
-   contrast shadow is unneeded here and only roughens the small text on
-   Retina — drop it so the glyphs stay crisp. */
-.app-shell[data-titlebar-platform='macos'] .titlebar-track-text {
-  text-shadow: none;
-}
-
 .titlebar-controls {
   display: flex;
   align-items: center;
