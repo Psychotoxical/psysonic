@@ -16,6 +16,7 @@ import {
 import { sameQueueTrackId } from '../../utils/playback/queueIdentity';
 import type { TimelineDisplayRow } from '../../utils/queue/buildTimelineDisplayRows';
 import { findTimelineScrollLocalIndex } from '../../utils/queue/buildTimelineDisplayRows';
+import { playTimelineHistoryTrack } from '../../utils/queue/playTimelineHistoryTrack';
 
 type StartDrag = (
   payload: { data: string; label: string },
@@ -80,7 +81,30 @@ export function QueueList({
       suppressNextAutoScrollRef.current = false;
       return;
     }
-    if (activeTab !== 'queue' || rowCount === 0) return;
+    if (activeTab !== 'queue' || rowCount === 0 || !usingTimeline || !timelineRows) return;
+
+    const localIdx = findTimelineScrollLocalIndex(timelineRows);
+    if (localIdx == null) return;
+
+    const pinToTop = (index: number, scrollSelector: string) => {
+      rowVirtualizer.scrollToIndex(index, { align: 'start' });
+      const id = requestAnimationFrame(() => {
+        const el = queueListRef.current?.querySelector<HTMLElement>(scrollSelector);
+        el?.scrollIntoView({ block: 'start', behavior: 'instant' });
+      });
+      return () => cancelAnimationFrame(id);
+    };
+
+    return pinToTop(localIdx, `[data-timeline-local-idx="${localIdx}"]`);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queueIndex, activeTab, queueDisplayMode, usingTimeline]);
+
+  useEffect(() => {
+    if (suppressNextAutoScrollRef.current) {
+      suppressNextAutoScrollRef.current = false;
+      return;
+    }
+    if (activeTab !== 'queue' || rowCount === 0 || usingTimeline) return;
 
     const pinToTop = (localIndex: number, scrollSelector: string) => {
       rowVirtualizer.scrollToIndex(localIndex, { align: 'start' });
@@ -94,19 +118,6 @@ export function QueueList({
     if (queueDisplayMode === 'queue') {
       if (queueIndex < 0) return;
       return pinToTop(0, `[data-queue-idx="${displayBaseIndex}"]`);
-    }
-
-    if (usingTimeline && timelineRows) {
-      const localIdx = findTimelineScrollLocalIndex(timelineRows);
-      if (localIdx == null) return;
-      rowVirtualizer.scrollToIndex(localIdx, { align: 'center' });
-      const id = requestAnimationFrame(() => {
-        const el = queueListRef.current?.querySelector<HTMLElement>(
-          `[data-timeline-local-idx="${localIdx}"]`,
-        );
-        el?.scrollIntoView({ block: 'center', behavior: 'instant' });
-      });
-      return () => cancelAnimationFrame(id);
     }
 
     if (queueDisplayMode === 'timeline') {
@@ -130,14 +141,7 @@ export function QueueList({
 
   const playHistoryRow = (serverId: string, trackId: string) => {
     suppressNextAutoScrollRef.current = true;
-    const track = resolveQueueTrack({ serverId, trackId });
-    const lookup = canonicalQueue ?? usePlayerStore.getState().queueItems;
-    const absIdx = lookup.findIndex(r => sameQueueTrackId(r.trackId, trackId));
-    if (absIdx >= 0) {
-      playTrack(track, undefined, undefined, undefined, absIdx);
-    } else {
-      playTrack(track, [track]);
-    }
+    playTimelineHistoryTrack(serverId, trackId, canonicalQueue);
   };
 
   const renderTrackRow = (args: {

@@ -504,7 +504,7 @@ export const settings = {
   queueModeTitle: 'Queue Display Mode',
   queueModeQueueSub: 'Show only upcoming tracks. The current track stays in the header and leaves the list once it has played.',
   queueModePlaylistSub: 'Keep the whole queue in the list with the current track highlighted at the top; played tracks stay.',
-  queueModeTimelineSub: 'Center the current track, with played history above and upcoming tracks (in shuffle order) below.',
+  queueModeTimelineSub: 'Keep the current track at the top of the list, with played history scrollable above and upcoming tracks (in shuffle order) below.',
   queueToolbarTitle: 'Queue Toolbar',
   queueToolbarReset: 'Reset to default',
   queueToolbarSeparator: 'Separator',

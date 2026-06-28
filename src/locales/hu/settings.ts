@@ -503,7 +503,7 @@ export const settings = {
   queueModeTitle: 'Lejátszási sor megjelenítési módja',
   queueModeQueueSub: 'Csak a következő számokat mutatja. Az aktuális szám a fejlécben marad, és lejátszás után kikerül a listából.',
   queueModePlaylistSub: 'A teljes sort a listában tartja, az aktuális számmal felül kiemelve; a lejátszott számok megmaradnak.',
-  queueModeTimelineSub: 'Az aktuális számot középre helyezi, fölötte a lejátszott előzményekkel, alatta a következő számokkal (keverési sorrendben).',
+  queueModeTimelineSub: 'Az aktuális számot a lista tetején tartja, fölötte görgethető lejátszási előzményekkel, alatta a következő számokkal (keverési sorrendben).',
   queueToolbarTitle: 'Lejátszási sor eszköztára',
   queueToolbarReset: 'Visszaállítás alapértelmezettre',
   queueToolbarSeparator: 'Elválasztó',

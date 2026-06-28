@@ -497,7 +497,7 @@ export const settings = {
   queueModeTitle: 'キュー表示モード',
   queueModeQueueSub: '今後のトラックのみ表示します。現在のトラックはヘッダーに残り、再生済みになるとリストから外れます。',
   queueModePlaylistSub: 'キュー全体をリストに残し、現在のトラックを上部で強調表示します。再生済みトラックも残ります。',
-  queueModeTimelineSub: '現在のトラックを中央に置き、上に再生履歴、下に今後のトラック (シャッフル順) を表示します。',
+  queueModeTimelineSub: '現在のトラックをリスト上部に固定し、上にスクロール可能な再生履歴、下に今後のトラック (シャッフル順) を表示します。',
   queueToolbarTitle: 'キューツールバー',
   queueToolbarReset: '既定に戻す',
   queueToolbarSeparator: '区切り',

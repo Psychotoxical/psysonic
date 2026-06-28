@@ -3,14 +3,12 @@ import { libraryGetRecentPlaySessions, type PlaySessionRecentTrack } from '../ap
 import { seedQueueResolver } from '../utils/library/queueTrackResolver';
 import {
   applyTimelineBootstrap,
-  filterTimelineHistoryForCurrent,
   getTimelineSessionHistorySnapshot,
   markTimelineBootstrapAttempted,
   subscribeTimelineSessionHistory,
   TIMELINE_HISTORY_BOOTSTRAP_LIMIT,
   type TimelinePlayedRef,
 } from '../store/timelineSessionHistory';
-import { usePlayerStore } from '../store/playerStore';
 
 function bootstrapRowToRef(row: PlaySessionRecentTrack): TimelinePlayedRef {
   return {
@@ -49,14 +47,7 @@ export function ensureTimelineBootstrap(): void {
 }
 
 export function useTimelinePlayHistory(): TimelinePlayedRef[] {
-  useSyncExternalStore(subscribeTimelineSessionHistory, getTimelineSessionHistorySnapshot);
-
-  const currentTrack = usePlayerStore(s => s.currentTrack);
-  const queueItems = usePlayerStore(s => s.queueItems);
-  const queueIndex = usePlayerStore(s => s.queueIndex);
-
-  const raw = getTimelineSessionHistorySnapshot();
-  return filterTimelineHistoryForCurrent(raw, currentTrack, queueItems, queueIndex);
+  return useSyncExternalStore(subscribeTimelineSessionHistory, getTimelineSessionHistorySnapshot);
 }
 
 export function useTimelineBootstrapOnMode(isTimeline: boolean): void {

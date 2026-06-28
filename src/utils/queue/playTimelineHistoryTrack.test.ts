@@ -1,0 +1,64 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { usePlayerStore } from '../../store/playerStore';
+import { resetPlayerStore } from '@/test/helpers/storeReset';
+import { makeTrack, seedQueue } from '@/test/helpers/factories';
+import { seedQueueResolver } from '@/utils/library/queueTrackResolver';
+import { playTimelineHistoryTrack } from './playTimelineHistoryTrack';
+
+describe('playTimelineHistoryTrack', () => {
+  beforeEach(() => {
+    resetPlayerStore();
+  });
+
+  it('inserts after current when the track is not in the queue', () => {
+    const a = makeTrack({ id: 'a' });
+    const b = makeTrack({ id: 'b' });
+    const c = makeTrack({ id: 'c' });
+    const h1 = makeTrack({ id: 'h1' });
+    seedQueue([a, b, c], { index: 1, currentTrack: b, serverId: 's1' });
+    seedQueueResolver('s1', [h1]);
+    const playTrack = vi.fn();
+    usePlayerStore.setState({ playTrack });
+
+    playTimelineHistoryTrack('s1', 'h1');
+
+    expect(playTrack).toHaveBeenCalledTimes(1);
+    const [track, queue, , , targetIdx] = playTrack.mock.calls[0]!;
+    expect(track.id).toBe('h1');
+    expect(queue?.map((t: { id: string }) => t.id)).toEqual(['a', 'b', 'h1', 'c']);
+    expect(targetIdx).toBe(2);
+  });
+
+  it('jumps to an upcoming slot when the track is already queued ahead', () => {
+    const a = makeTrack({ id: 'a' });
+    const b = makeTrack({ id: 'b' });
+    const c = makeTrack({ id: 'c' });
+    seedQueue([a, b, c], { index: 0, currentTrack: a, serverId: 's1' });
+    const playTrack = vi.fn();
+    usePlayerStore.setState({ playTrack });
+
+    playTimelineHistoryTrack('s1', 'c');
+
+    expect(playTrack).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'c' }),
+      undefined,
+      undefined,
+      undefined,
+      2,
+    );
+  });
+
+  it('does not replace the queue when replaying a track that was already played in-queue', () => {
+    const a = makeTrack({ id: 'a' });
+    const b = makeTrack({ id: 'b' });
+    seedQueue([a, b], { index: 1, currentTrack: b, serverId: 's1' });
+    const playTrack = vi.fn();
+    usePlayerStore.setState({ playTrack });
+
+    playTimelineHistoryTrack('s1', 'a');
+
+    expect(playTrack).toHaveBeenCalledTimes(1);
+    const [, queue] = playTrack.mock.calls[0]!;
+    expect(queue?.map((t: { id: string }) => t.id)).toEqual(['a', 'b', 'a']);
+  });
+});

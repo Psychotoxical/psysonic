@@ -504,7 +504,7 @@ export const settings = {
   queueModeTitle: 'Tryb wyświetlania kolejki',
   queueModeQueueSub: 'Pokaż tylko nadchodzące utwory. Bierzący utwór pozostaje w nagłówku i znika z listy po odtworzeniu.',
   queueModePlaylistSub: 'Zachowuj całą kolejkę na liście, z bieżącym utworem wyróżnionym u góry; odtworzone utwory pozostają na liście.',
-  queueModeTimelineSub: 'Wyśrodkuj bieżący utwór, z historią odtworzeń powyżej i nadchodzącymi utworami poniżej (w kolejności losowej).',
+  queueModeTimelineSub: 'Utrzymuj bieżący utwór u góry listy — historia odtworzeń przewijana powyżej, nadchodzące utwory (w kolejności losowej) poniżej.',
   queueToolbarTitle: 'Pasek narzędzi kolejki',
   queueToolbarReset: 'Przywróć domyślne',
   queueToolbarSeparator: 'Separator',

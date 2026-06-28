@@ -447,7 +447,7 @@ export const settings = {
   queueModeTitle: 'Mode d\'affichage de la file',
   queueModeQueueSub: 'N\'affiche que les pistes à venir. La piste en cours reste dans l\'en-tête et quitte la liste une fois jouée.',
   queueModePlaylistSub: 'Conserve toute la file dans la liste, la piste en cours surlignée en haut ; les pistes jouées restent.',
-  queueModeTimelineSub: 'Centrer le morceau en cours, avec l\'historique au-dessus et les morceaux à venir (dans l\'ordre aléatoire) en dessous.',
+  queueModeTimelineSub: 'Garde le morceau en cours en haut de la liste, avec l\'historique défilable au-dessus et les morceaux à venir (dans l\'ordre aléatoire) en dessous.',
   queueToolbarTitle: 'Barre d\'outils de file d\'attente',
   queueToolbarReset: 'Réinitialiser',
   queueToolbarSeparator: 'Séparateur',

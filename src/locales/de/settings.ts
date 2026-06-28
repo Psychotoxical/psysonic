@@ -460,7 +460,7 @@ export const settings = {
   queueModeTitle: 'Warteschlangen-Ansicht',
   queueModeQueueSub: 'Zeigt nur kommende Titel. Der laufende Titel bleibt im Kopf und verschwindet aus der Liste, sobald er gespielt wurde.',
   queueModePlaylistSub: 'Behält die ganze Warteschlange in der Liste, der laufende Titel oben hervorgehoben; gespielte Titel bleiben stehen.',
-  queueModeTimelineSub: 'Aktuellen Titel zentrieren — gespielter Verlauf darüber, kommende Titel (in Shuffle-Reihenfolge) darunter.',
+  queueModeTimelineSub: 'Aktuellen Titel oben in der Liste halten — gespielter Verlauf darüber scrollbar, kommende Titel (in Shuffle-Reihenfolge) darunter.',
   queueToolbarTitle: 'Warteschlangen-Toolbar',
   queueToolbarReset: 'Zurücksetzen',
   queueToolbarSeparator: 'Trennlinie',

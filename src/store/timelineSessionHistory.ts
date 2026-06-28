@@ -132,26 +132,6 @@ export function applyTimelineBootstrap(rowsOldestFirst: TimelinePlayedRef[]): vo
   emit();
 }
 
-/** Exclude the currently playing track from the history strip. */
-export function filterTimelineHistoryForCurrent(
-  history: TimelinePlayedRef[],
-  currentTrack: Track | null,
-  queueItems: QueueItemRef[],
-  queueIndex: number,
-): TimelinePlayedRef[] {
-  if (!currentTrack) return history;
-  const currentRef = queueIndex >= 0 ? queueItems[queueIndex] : undefined;
-  const currentSid =
-    playbackProfileIdForTrack(currentTrack, currentRef)
-    ?? currentRef?.serverId
-    ?? currentTrack.serverId
-    ?? '';
-  if (!currentSid) return history;
-  return history.filter(
-    row => !(row.serverId === currentSid && row.trackId === currentTrack.id),
-  );
-}
-
 /** Test-only reset */
 export function _resetTimelineSessionHistoryForTest(): void {
   sessionPlays = [];
