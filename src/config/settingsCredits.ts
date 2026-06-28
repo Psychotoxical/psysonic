@@ -401,6 +401,7 @@ const CONTRIBUTOR_ENTRIES = [
     since: '1.47.0',
     contributions: [
       'Long-press album Play to shuffle with hold progress animation (PR #888)',
+      'WinGet release automation — GitHub Actions workflow that opens manifest PRs on each release (PR #1077)',
     ],
   },
   {

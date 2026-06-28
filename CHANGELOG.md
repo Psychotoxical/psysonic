@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 >
 
 
-## [1.49.0]
+## [1.49.0] - 2026-06-29
 
 ## Added
 
@@ -60,12 +60,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Psysonic is now available in **Hungarian (Magyar)** — pick it from the language menu on the Settings and Login screens.
 
-### Polish translation
-
-**By [@Rextens](https://github.com/Rextens), PR [#1185](https://github.com/Psychotoxical/psysonic/pull/1185)**
-
-* Full Polish (Polski) UI translation — selectable from the language picker on the Settings and Login screens.
-
 ### Artist artwork from fanart.tv
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1137](https://github.com/Psychotoxical/psysonic/pull/1137) and PR [#1193](https://github.com/Psychotoxical/psysonic/pull/1193)**
@@ -115,6 +109,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * **Settings → Audio → Track transitions → AutoDJ:** choose **Auto** (content-driven overlap, up to 12 s) or **Limit** (slider 2–30 s, default 15 s when enabled) to cap how long AutoDJ may overlap tracks.
 * The cap applies to end-of-track planning, JS auto-advance, smooth skip, and Orbit transition sync; the audio engine accepts dynamic overlap overrides up to 30 s.
+
+### Polish translation
+
+**By [@Rextens](https://github.com/Rextens), PR [#1185](https://github.com/Psychotoxical/psysonic/pull/1185)**
+
+* Full Polish (Polski) UI translation — selectable from the language picker on the Settings and Login screens.
 
 ### Multiple genres in album details
 
@@ -346,6 +346,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Album and artist covers — and the full-size view when you click a cover — could appear small and low-quality even though the source image was large, depending on how you reached the album. Root cause: the cache built its larger sizes from a smaller already-saved size instead of the full-resolution download, so they were stored downscaled. Covers are now built from the full-resolution image, and the full-size view opens at full resolution. The cover cache refreshes once on update. Reported by users on Discord.
 
 ## Under the Hood
+
+### WinGet — automated manifest updates on release
+
+**By [@ImAsra](https://github.com/ImAsra), PR [#1077](https://github.com/Psychotoxical/psysonic/pull/1077)**
+
+* New GitHub Actions workflow publishes Windows installer updates to `microsoft/winget-pkgs` on each release — scans the `_x64-setup.exe` asset, computes SHA-256, and opens the upstream PR via `winget-releaser`.
 
 ### ESLint setup and a strict lint pass over the frontend
 

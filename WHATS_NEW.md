@@ -18,12 +18,14 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 - While paused or stopped, **idle auto-pull** checks every 10 seconds and applies server changes when you have been still for 30+ seconds.
 - Queue **push** sends only tracks owned by the playback server, so mixed-server queues stay sane when you switch servers.
 - Local queue edits while paused are no longer overwritten by auto-pull; pressing **Play** pushes your changes immediately, and the sync LED no longer flashes on every track during normal playback.
+- After the last track ends with repeat off, idle pull no longer rewinds to an earlier server position — the queue stays where playback finished.
 
 ### AutoDJ — minimum pauses, maximum music
 
 - New **AutoDJ** mode — a smart crossfade that blends tracks intelligently: it trims dead air, rides natural fades, and keeps handovers musical instead of abrupt. Its own button in the queue toolbar and its own entry under **Settings → Audio**, alongside Crossfade and Gapless — only one at a time. Off by default; classic **Crossfade** is unchanged.
 - **Smooth skip** (on by default with AutoDJ) crossfades manual Next/Previous and track picks from where you are listening instead of hard-cutting; the play/pause button pulses while a blend is active.
 - Cap how long overlaps may last: **Auto** (content-driven, up to 12 s) or **Limit** (slider 2–30 s) under **Settings → Audio → Track transitions**.
+- The last track in the queue plays through to the end instead of being trimmed when nothing follows.
 
 ### Playlist folders — your playlists, organised
 
@@ -83,11 +85,14 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 ## Improved
 
 - **macOS:** the window's title bar now follows the active theme instead of the grey system bar; the native window buttons stay in place, floating over the themed bar.
+- Pressing **Play**, **Shuffle**, or **Add to queue** on a playlist starts playback without reloading the whole page with a spinner — editing the playlist still refreshes the list as before.
+- Dragging sidebar items in **Settings → Personalisation → Sidebar** (or long-pressing in the sidebar itself) keeps each item exactly where you release it — no snap-back or off-by-one landing.
 
 ## Fixed
 
 ### Playback and audio
 
+- **Timeline** mode keeps your session play-history strip when you **Play** an album or playlist; the current track stays pinned at the top, and replaying a history row inserts after the playing track instead of replacing the queue.
 - **Opus/Ogg** tracks no longer fight the seekbar while they are still loading — scrub to where you want to be and keep listening.
 - The equalizer preset picker shows the active **AutoEQ** profile name again instead of going blank.
 
@@ -97,6 +102,7 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 
 ### Browse and library
 
+- Album and artist covers — and the full-size view when you click a cover — open at full resolution again instead of looking soft or small.
 - Albums sorted by artist now list each artist's work A–Z by title — no more random order within a name.
 - **Artist → Year** keeps artists grouped but walks through their albums chronologically, oldest first.
 - Genres with no remaining tracks disappear after you retag and resync the library, without restarting the app.
@@ -108,6 +114,7 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 - **Add to playlist** from the player bar adds the song you are hearing, not the whole album.
 - On **Favorites**, bulk **Add to playlist** and **Play selected** / **Add selected to queue** act on every checked row.
 - **Play Now** on a playlist in the right-click menu starts playback instead of only opening the list.
+- Playlists page header buttons wrap on narrow windows instead of clipping off-screen when the queue panel is open.
 
 ### Other
 
