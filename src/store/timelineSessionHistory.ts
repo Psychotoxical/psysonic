@@ -115,9 +115,7 @@ export function applyTimelineBootstrap(rowsOldestFirst: TimelinePlayedRef[]): vo
   if (historyClearedThisSession || rowsOldestFirst.length === 0) return;
 
   if (sessionPlays.length === 0) {
-    sessionPlays = rowsOldestFirst.filter(
-      row => !isDuplicateInBuffer([], row, TIMELINE_MERGE_DEDUPE_MS),
-    );
+    sessionPlays = [...rowsOldestFirst];
     emit();
     return;
   }

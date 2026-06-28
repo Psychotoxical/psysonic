@@ -159,7 +159,7 @@ export function QueueList({
         className={`queue-item ${isPlaying ? 'active' : ''} ${contextMenu.isOpen && contextMenu.type === (absIdx != null ? 'queue-item' : 'song') && (absIdx != null ? contextMenu.queueIndex === absIdx : contextMenu.item === track) ? 'context-active' : ''}`}
         onClick={() => {
           if (isHistory) {
-            playHistoryRow(track.serverId ?? base?.serverId ?? '', track.id);
+            playHistoryRow(base?.serverId ?? track.serverId ?? '', track.id);
             return;
           }
           if (absIdx == null) return;
@@ -305,7 +305,7 @@ export function QueueList({
                   isPlaying,
                   isPast,
                   isHistory: row.kind === 'history',
-                  base: row.kind === 'history' ? undefined : row.ref,
+                  base,
                   dragStyle,
                 })}
                 {luckyRolling && isPlaying && (

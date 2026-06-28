@@ -709,7 +709,7 @@ export type PlaySessionDayTrack = {
   title: string;
   artist: string | null;
   listenedSec: number;
-  completion: 'partial' | 'full' | string;
+  completion: 'partial' | 'full';
   startedAtMs: number;
 };
 
@@ -850,7 +850,7 @@ export type PlaySessionRecentTrack = {
   coverArtId: string | null;
   startedAtMs: number;
   listenedSec: number;
-  completion: 'partial' | 'full' | string;
+  completion: 'partial' | 'full';
 };
 
 export function libraryGetRecentPlaySessions(args?: {

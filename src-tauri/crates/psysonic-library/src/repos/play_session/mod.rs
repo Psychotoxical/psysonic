@@ -362,32 +362,17 @@ impl<'a> PlaySessionRepository<'a> {
         let limit = limit.clamp(1, 200);
         self.store
             .with_read_conn(|conn| {
-                let sql = if since_ms.is_some() {
-                    "SELECT ps.server_id, ps.track_id, t.title, t.artist, \
+                let sql = "SELECT ps.server_id, ps.track_id, t.title, t.artist, \
                             ps.listened_sec, ps.completion, ps.started_at_ms, \
                             t.album, t.album_id, t.cover_art_id \
                      FROM play_session ps \
                      INNER JOIN track t \
                        ON t.server_id = ps.server_id AND t.id = ps.track_id AND t.deleted = 0 \
-                     WHERE ps.started_at_ms >= ?2 \
+                     WHERE (?2 IS NULL OR ps.started_at_ms >= ?2) \
                      ORDER BY ps.started_at_ms DESC \
-                     LIMIT ?1"
-                } else {
-                    "SELECT ps.server_id, ps.track_id, t.title, t.artist, \
-                            ps.listened_sec, ps.completion, ps.started_at_ms, \
-                            t.album, t.album_id, t.cover_art_id \
-                     FROM play_session ps \
-                     INNER JOIN track t \
-                       ON t.server_id = ps.server_id AND t.id = ps.track_id AND t.deleted = 0 \
-                     ORDER BY ps.started_at_ms DESC \
-                     LIMIT ?1"
-                };
+                     LIMIT ?1";
                 let mut stmt = conn.prepare(sql)?;
-                let rows = if let Some(since) = since_ms {
-                    stmt.query_map(params![limit, since], map_play_session_track_row)?
-                } else {
-                    stmt.query_map(params![limit], map_play_session_track_row)?
-                };
+                let rows = stmt.query_map(params![limit, since_ms], map_play_session_track_row)?;
                 rows.collect::<rusqlite::Result<Vec<_>>>()
             })
             .map_err(|e| e.to_string())
