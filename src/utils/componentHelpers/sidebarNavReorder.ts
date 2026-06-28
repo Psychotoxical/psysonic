@@ -1,5 +1,6 @@
 import { ALL_NAV_ITEMS } from '../../config/navItems';
 import { CONSERVED_SIDEBAR_NAV_IDS, type SidebarItemConfig } from '../../store/sidebarStore';
+import { applyListReorderById, type ListReorderDropTarget } from './listReorder';
 
 export type SidebarNavSection = 'library' | 'system';
 
@@ -82,26 +83,14 @@ export function applySidebarReorderById(
   allItems: SidebarItemConfig[],
   section: SidebarNavSection,
   draggedId: string,
-  target: SidebarNavDropTarget | null,
+  target: ListReorderDropTarget | null,
 ): SidebarItemConfig[] | null {
   if (!target || target.section !== section) return null;
-  const targetId = target.id;
-  if (draggedId === targetId) return null;
 
   // Guard: both ids must be real, non-conserved items that belong to `section`.
   if (!itemBelongsToSection(draggedId, section)) return null;
-  if (!itemBelongsToSection(targetId, section)) return null;
+  if (!itemBelongsToSection(target.id, section)) return null;
 
-  const fromIdx = allItems.findIndex(c => c.id === draggedId);
-  if (fromIdx < 0) return null;
-
-  const next = [...allItems];
-  const [moved] = next.splice(fromIdx, 1);
-  const anchor = next.findIndex(c => c.id === targetId);
-  if (anchor < 0) return null;
-  next.splice(target.before ? anchor : anchor + 1, 0, moved);
-
-  // No-op if the resulting order is identical (e.g. dropped on its own edge).
-  if (next.every((c, i) => c.id === allItems[i].id)) return null;
-  return next;
+  // The move itself is the shared id-based reorder over the canonical array.
+  return applyListReorderById(allItems, draggedId, target);
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
@@ -17,7 +17,6 @@ import {
   clearServerHttpContext,
   syncServerHttpContextForProfile,
 } from '../../utils/server/syncServerHttpContext';
-import { useDragDrop } from '../../contexts/DragDropContext';
 import { type ServerMagicPayload } from '../../utils/server/serverMagicString';
 import { ensureConnectUrlResolved, invalidateReachableEndpointCache } from '../../utils/server/serverEndpoint';
 import {
@@ -38,7 +37,9 @@ import { serverIndexKeyForProfile } from '../../utils/server/serverIndexKey';
 import { switchActiveServer } from '../../utils/server/switchActiveServer';
 import { AddServerForm } from './AddServerForm';
 import { ServerCapabilityHeaderBadge } from './ServerCapabilityHeaderBadge';
-import { ServerGripHandle } from './ServerGripHandle';
+import { useListReorderDnd } from '../../hooks/useListReorderDnd';
+import { applyListReorderById, type ListReorderDropTarget } from '../../utils/componentHelpers/listReorder';
+import { ReorderGripHandle } from './ReorderGripHandle';
 import { tooltipAttrs } from '../tooltipAttrs';
 
 const AUDIOMUSE_NV_PLUGIN_URL = 'https://github.com/NeptuneHub/AudioMuse-AI-NV-plugin';
@@ -61,8 +62,6 @@ function showLegacyAudiomuseToggleRow(
   return isNavidromeAudiomuseSoftwareEligible(identity) && instantMixProbe !== 'empty';
 }
 
-type ServerDropTarget = { idx: number; before: boolean } | null;
-
 export function ServersTab({
   initialInvite,
 }: {
@@ -71,16 +70,12 @@ export function ServersTab({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const auth = useAuthStore();
-  const psyDragState = useDragDrop();
   const librarySync = useLibraryIndexSync();
 
   const [connStatus, setConnStatus] = useState<Record<string, 'idle' | 'testing' | 'ok' | 'error'>>({});
   const [showAddForm, setShowAddForm] = useState<boolean>(initialInvite != null);
   const [editingServerId, setEditingServerId] = useState<string | null>(null);
   const [pastedServerInvite, setPastedServerInvite] = useState<ServerMagicPayload | null>(initialInvite);
-  const [serverContainerEl, setServerContainerEl] = useState<HTMLDivElement | null>(null);
-  const [serverDropTarget, setServerDropTarget] = useState<ServerDropTarget>(null);
-  const serverDropTargetRef = useRef<ServerDropTarget>(null);
   const serversRef = useRef(auth.servers);
   // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
   // eslint-disable-next-line react-hooks/refs
@@ -103,56 +98,15 @@ export function ServersTab({
     }
   }, [initialInvite]);
 
-  // Clear drop target when drag ends
-  useEffect(() => {
-    if (!psyDragState.isDragging) {
-      serverDropTargetRef.current = null;
-      // React Compiler set-state-in-effect rule: local state synced with store/prop inputs when the effect’s dependencies change.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setServerDropTarget(null);
-    }
-  }, [psyDragState.isDragging]);
+  const applyServerReorder = useCallback((draggedId: string, target: ListReorderDropTarget) => {
+    const next = applyListReorderById(serversRef.current, draggedId, target);
+    if (next) auth.setServers(next);
+  }, [auth]);
 
-  // psy-drop listener for server reorder
-  useEffect(() => {
-    if (!serverContainerEl) return;
-    const onPsyDrop = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (!detail?.data) return;
-      let parsed: { type?: string; index?: number };
-      try { parsed = JSON.parse(detail.data as string); } catch { return; }
-      if (parsed.type !== 'server_reorder' || parsed.index == null) return;
-
-      const fromIdx = parsed.index;
-      const target = serverDropTargetRef.current;
-      serverDropTargetRef.current = null; setServerDropTarget(null);
-      if (!target) return;
-
-      const insertBefore = target.before ? target.idx : target.idx + 1;
-      if (insertBefore === fromIdx || insertBefore === fromIdx + 1) return;
-
-      const next = [...serversRef.current];
-      const [moved] = next.splice(fromIdx, 1);
-      next.splice(insertBefore > fromIdx ? insertBefore - 1 : insertBefore, 0, moved);
-      auth.setServers(next);
-    };
-    serverContainerEl.addEventListener('psy-drop', onPsyDrop);
-    return () => serverContainerEl.removeEventListener('psy-drop', onPsyDrop);
-  }, [serverContainerEl, auth]);
-
-  const handleServerDragMove = (e: React.MouseEvent) => {
-    if (!psyDragState.isDragging || !serverContainerEl) return;
-    const rows = serverContainerEl.querySelectorAll<HTMLElement>('[data-server-idx]');
-    let target: ServerDropTarget = null;
-    for (const row of rows) {
-      const rect = row.getBoundingClientRect();
-      const idx = Number(row.dataset.serverIdx);
-      if (e.clientY < rect.top + rect.height / 2) { target = { idx, before: true }; break; }
-      target = { idx, before: false };
-    }
-    serverDropTargetRef.current = target;
-    setServerDropTarget(target);
-  };
+  const { isDragging, setContainer, onMouseMove, dropEdge } = useListReorderDnd({
+    type: 'server_reorder',
+    apply: applyServerReorder,
+  });
 
   const testConnection = async (server: ServerProfile) => {
     setConnStatus(s => ({ ...s, [server.id]: 'testing' }));
@@ -403,11 +357,11 @@ export function ServersTab({
           </div>
         ) : (
           <div
-            ref={setServerContainerEl}
-            onMouseMove={handleServerDragMove}
+            ref={setContainer}
+            onMouseMove={onMouseMove}
             style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
           >
-            {auth.servers.map((srv, srvIdx) => {
+            {auth.servers.map((srv) => {
               if (editingServerId === srv.id) {
                 return (
                   <AddServerForm
@@ -424,8 +378,9 @@ export function ServersTab({
               }
               const isActive = srv.id === auth.activeServerId;
               const status = connStatus[srv.id];
-              const isBefore = psyDragState.isDragging && serverDropTarget?.idx === srvIdx && serverDropTarget.before;
-              const isAfter  = psyDragState.isDragging && serverDropTarget?.idx === srvIdx && !serverDropTarget.before;
+              const dropEdgeKind = isDragging ? dropEdge(srv.id) : null;
+              const isBefore = dropEdgeKind === 'before';
+              const isAfter  = dropEdgeKind === 'after';
               const serverSoftware = formatServerSoftware(auth.subsonicServerIdentityByServer[srv.id]);
               const serverIdentity = auth.subsonicServerIdentityByServer[srv.id];
               const resolvedAudiomuse = resolveFeatureForServer(srv.id, FEATURE_AUDIOMUSE_SIMILAR_TRACKS);
@@ -439,7 +394,7 @@ export function ServersTab({
               return (
                 <div
                   key={srv.id}
-                  data-server-idx={srvIdx}
+                  data-reorder-id={srv.id}
                   className="settings-card"
                   style={{
                     border: isActive ? '1px solid var(--accent)' : undefined,
@@ -457,7 +412,7 @@ export function ServersTab({
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.75rem' }}>
-                    <ServerGripHandle idx={srvIdx} label={serverListDisplayLabel(srv, auth.servers)} />
+                    <ReorderGripHandle id={srv.id} type="server_reorder" label={serverListDisplayLabel(srv, auth.servers)} />
                     <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2px', flexWrap: 'wrap' }}>

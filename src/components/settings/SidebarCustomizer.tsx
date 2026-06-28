@@ -1,44 +1,23 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { GripVertical } from 'lucide-react';
-import { useDragDrop, useDragSource } from '../../contexts/DragDropContext';
 import { useAuthStore } from '../../store/authStore';
 import { useSidebarStore, SidebarItemConfig, CONSERVED_SIDEBAR_NAV_IDS } from '../../store/sidebarStore';
 import { useLuckyMixAvailable } from '../../hooks/useLuckyMixAvailable';
 import { ALL_NAV_ITEMS } from '../../config/navItems';
 import { applySidebarReorderById } from '../../utils/componentHelpers/sidebarNavReorder';
+import { useListReorderDnd } from '../../hooks/useListReorderDnd';
+import type { ListReorderDropTarget } from '../../utils/componentHelpers/listReorder';
+import { ReorderGripHandle } from './ReorderGripHandle';
 import { SettingsGroup } from './SettingsGroup';
 import { SettingsToggle } from './SettingsToggle';
 
-type DropTarget = { id: string; before: boolean; section: 'library' | 'system' } | null;
-
-function SidebarGripHandle({ id, section, label }: { id: string; section: 'library' | 'system'; label: string }) {
-  const { t } = useTranslation();
-  const { onMouseDown } = useDragSource(() => ({
-    data: JSON.stringify({ type: 'sidebar_reorder', id, section }),
-    label,
-  }));
-  return (
-    <span
-      className="sidebar-customizer-grip"
-      data-tooltip={t('settings.sidebarDrag')}
-      data-tooltip-pos="right"
-      onMouseDown={onMouseDown}
-    >
-      <GripVertical size={16} />
-    </span>
-  );
-}
+const REORDER_TYPE = 'sidebar_reorder';
 
 export function SidebarCustomizer() {
   const { t } = useTranslation();
   const { items, setItems, toggleItem } = useSidebarStore();
-  const { isDragging: isPsyDragging } = useDragDrop();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [dropTarget, setDropTarget] = useState<DropTarget>(null);
-  const dropTargetRef = useRef<DropTarget>(null);
   const itemsRef = useRef(items);
-  // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
+  // React Compiler refs rule: ref kept in sync with the latest value for use in handlers; not render data.
   // eslint-disable-next-line react-hooks/refs
   itemsRef.current = items;
   const randomNavMode = useAuthStore(s => s.randomNavMode);
@@ -60,68 +39,32 @@ export function SidebarCustomizer() {
   });
   const systemItems  = items.filter(cfg => ALL_NAV_ITEMS[cfg.id]?.section === 'system');
 
-  useEffect(() => {
-    // React Compiler set-state-in-effect rule: local state synced with store/prop inputs when the effect’s dependencies change.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (!isPsyDragging) { dropTargetRef.current = null; setDropTarget(null); }
-  }, [isPsyDragging]);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const onPsyDrop = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (!detail?.data) return;
-      let parsed: { type?: string; id?: string; section?: string };
-      try { parsed = JSON.parse(detail.data); } catch { return; }
-      if (parsed.type !== 'sidebar_reorder' || !parsed.id || !parsed.section) return;
-
-      const draggedId = parsed.id;
-      const fromSection = parsed.section as 'library' | 'system';
-      const target = dropTargetRef.current;
-      dropTargetRef.current = null; setDropTarget(null);
-
-      const next = applySidebarReorderById(itemsRef.current, fromSection, draggedId, target);
-      if (next) setItems(next);
-    };
-    el.addEventListener('psy-drop', onPsyDrop);
-    return () => el.removeEventListener('psy-drop', onPsyDrop);
+  const apply = useCallback((draggedId: string, target: ListReorderDropTarget) => {
+    const section = ALL_NAV_ITEMS[draggedId]?.section;
+    if (section !== 'library' && section !== 'system') return;
+    const next = applySidebarReorderById(itemsRef.current, section, draggedId, target);
+    if (next) setItems(next);
   }, [setItems]);
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isPsyDragging || !containerRef.current) return;
-    const rows = containerRef.current.querySelectorAll<HTMLElement>('[data-sidebar-id]');
-    let target: DropTarget = null;
-    for (const row of rows) {
-      const rect = row.getBoundingClientRect();
-      const id = row.dataset.sidebarId;
-      const section = row.dataset.sidebarSection as 'library' | 'system';
-      if (!id) continue;
-      if (e.clientY < rect.top + rect.height / 2) { target = { id, before: true, section }; break; }
-      target = { id, before: false, section };
-    }
-    dropTargetRef.current = target;
-    setDropTarget(target);
-  };
+  const { isDragging, setContainer, onMouseMove, dropEdge } = useListReorderDnd({ type: REORDER_TYPE, apply });
 
   const renderRow = (cfg: SidebarItemConfig, section: 'library' | 'system') => {
     const meta = ALL_NAV_ITEMS[cfg.id];
     if (!meta) return null;
     const Icon = meta.icon;
-    const isBefore = isPsyDragging && dropTarget?.section === section && dropTarget.id === cfg.id && dropTarget.before;
-    const isAfter  = isPsyDragging && dropTarget?.section === section && dropTarget.id === cfg.id && !dropTarget.before;
+    const edge = isDragging ? dropEdge(cfg.id) : null;
     return (
       <div
         key={cfg.id}
-        data-sidebar-id={cfg.id}
-        data-sidebar-section={section}
+        data-reorder-id={cfg.id}
+        data-reorder-section={section}
         className="sidebar-customizer-row"
         style={{
-          borderTop:    isBefore ? '2px solid var(--accent)' : undefined,
-          borderBottom: isAfter  ? '2px solid var(--accent)' : undefined,
+          borderTop:    edge === 'before' ? '2px solid var(--accent)' : undefined,
+          borderBottom: edge === 'after'  ? '2px solid var(--accent)' : undefined,
         }}
       >
-        <SidebarGripHandle id={cfg.id} section={section} label={t(meta.labelKey)} />
+        <ReorderGripHandle id={cfg.id} type={REORDER_TYPE} section={section} label={t(meta.labelKey)} />
         <Icon size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
         <span style={{ flex: 1, fontSize: 14 }}>{t(meta.labelKey)}</span>
         <label className="toggle-switch" aria-label={t(meta.labelKey)}>
@@ -157,7 +100,7 @@ export function SidebarCustomizer() {
       </SettingsGroup>
 
       <SettingsGroup>
-        <div ref={containerRef} onMouseMove={handleMouseMove} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div ref={setContainer} onMouseMove={onMouseMove} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {/* Library block */}
           <div style={{ padding: '4px 0' }}>
             <div className="sidebar-customizer-block-label">{t('sidebar.library')}</div>

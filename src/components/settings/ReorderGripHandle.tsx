@@ -2,10 +2,16 @@ import { useTranslation } from 'react-i18next';
 import { GripVertical } from 'lucide-react';
 import { useDragSource } from '../../contexts/DragDropContext';
 
-export function ServerGripHandle({ idx, label }: { idx: number; label: string }) {
+/**
+ * Drag handle shared by the reorder customizers. Emits an id-based payload
+ * (`{ type, id, section? }`) consumed by `useListReorderDnd`.
+ */
+export function ReorderGripHandle({
+  id, type, section, label,
+}: { id: string; type: string; section?: string; label: string }) {
   const { t } = useTranslation();
   const { onMouseDown } = useDragSource(() => ({
-    data: JSON.stringify({ type: 'server_reorder', index: idx }),
+    data: JSON.stringify(section ? { type, id, section } : { type, id }),
     label,
   }));
   return (
