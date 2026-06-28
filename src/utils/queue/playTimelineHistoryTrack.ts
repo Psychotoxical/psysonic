@@ -1,18 +1,21 @@
 import { usePlayerStore } from '../../store/playerStore';
 import type { QueueItemRef } from '../../store/playerStoreTypes';
 import { getQueueTracksView, resolveQueueTrack } from '../library/queueTrackView';
+import { resolveBatch } from '../library/queueTrackResolver';
 import { sameQueueTrackId } from '../playback/queueIdentity';
 
 /**
  * Play a timeline history row without replacing the queue. Upcoming slots jump
  * in place; everything else inserts after the current track (play-now semantics).
  */
-export function playTimelineHistoryTrack(
+export async function playTimelineHistoryTrack(
   serverId: string,
   trackId: string,
   canonicalQueue?: QueueItemRef[],
-): void {
-  const track = resolveQueueTrack({ serverId, trackId });
+): Promise<void> {
+  const ref = { serverId, trackId };
+  await resolveBatch([ref]);
+  const track = resolveQueueTrack(ref);
   const state = usePlayerStore.getState();
   const { queueItems, queueIndex, currentTrack, playTrack } = state;
   const lookup = canonicalQueue ?? queueItems;

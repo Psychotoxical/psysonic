@@ -22,6 +22,21 @@ use completion::{
     completion_from_position, effective_duration_sec, MIN_LISTENED_SEC,
 };
 
+fn map_play_session_track_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<PlaySessionDayTrackDto> {
+    Ok(PlaySessionDayTrackDto {
+        server_id: row.get(0)?,
+        track_id: row.get(1)?,
+        title: row.get(2)?,
+        artist: row.get(3)?,
+        listened_sec: row.get(4)?,
+        completion: row.get(5)?,
+        started_at_ms: row.get(6)?,
+        album: row.get(7)?,
+        album_id: row.get(8)?,
+        cover_art_id: row.get(9)?,
+    })
+}
+
 struct DayAgg {
     total_listened_sec: f64,
     track_play_count: u32,
@@ -223,24 +238,15 @@ impl<'a> PlaySessionRepository<'a> {
 
                 let mut stmt = conn.prepare(
                     "SELECT ps.server_id, ps.track_id, t.title, t.artist, \
-                            ps.listened_sec, ps.completion, ps.started_at_ms \
+                            ps.listened_sec, ps.completion, ps.started_at_ms, \
+                            t.album, t.album_id, t.cover_art_id \
                      FROM play_session ps \
                      JOIN track t ON t.server_id = ps.server_id AND t.id = ps.track_id \
                      WHERE date(ps.started_at_ms / 1000, 'unixepoch', 'localtime') = ?1 \
                      ORDER BY ps.started_at_ms DESC",
                 )?;
                 let tracks = stmt
-                    .query_map(params![date_iso], |row| {
-                        Ok(PlaySessionDayTrackDto {
-                            server_id: row.get(0)?,
-                            track_id: row.get(1)?,
-                            title: row.get(2)?,
-                            artist: row.get(3)?,
-                            listened_sec: row.get(4)?,
-                            completion: row.get(5)?,
-                            started_at_ms: row.get(6)?,
-                        })
-                    })?
+                    .query_map(params![date_iso], map_play_session_track_row)?
                     .collect::<rusqlite::Result<Vec<_>>>()?;
 
                 let plays: Vec<PlaySpan> = tracks
@@ -358,7 +364,8 @@ impl<'a> PlaySessionRepository<'a> {
             .with_read_conn(|conn| {
                 let sql = if since_ms.is_some() {
                     "SELECT ps.server_id, ps.track_id, t.title, t.artist, \
-                            ps.listened_sec, ps.completion, ps.started_at_ms \
+                            ps.listened_sec, ps.completion, ps.started_at_ms, \
+                            t.album, t.album_id, t.cover_art_id \
                      FROM play_session ps \
                      INNER JOIN track t \
                        ON t.server_id = ps.server_id AND t.id = ps.track_id AND t.deleted = 0 \
@@ -367,7 +374,8 @@ impl<'a> PlaySessionRepository<'a> {
                      LIMIT ?1"
                 } else {
                     "SELECT ps.server_id, ps.track_id, t.title, t.artist, \
-                            ps.listened_sec, ps.completion, ps.started_at_ms \
+                            ps.listened_sec, ps.completion, ps.started_at_ms, \
+                            t.album, t.album_id, t.cover_art_id \
                      FROM play_session ps \
                      INNER JOIN track t \
                        ON t.server_id = ps.server_id AND t.id = ps.track_id AND t.deleted = 0 \
@@ -375,21 +383,10 @@ impl<'a> PlaySessionRepository<'a> {
                      LIMIT ?1"
                 };
                 let mut stmt = conn.prepare(sql)?;
-                let map_row = |row: &rusqlite::Row<'_>| {
-                    Ok(PlaySessionRecentTrackDto {
-                        server_id: row.get(0)?,
-                        track_id: row.get(1)?,
-                        title: row.get(2)?,
-                        artist: row.get(3)?,
-                        listened_sec: row.get(4)?,
-                        completion: row.get(5)?,
-                        started_at_ms: row.get(6)?,
-                    })
-                };
                 let rows = if let Some(since) = since_ms {
-                    stmt.query_map(params![limit, since], map_row)?
+                    stmt.query_map(params![limit, since], map_play_session_track_row)?
                 } else {
-                    stmt.query_map(params![limit], map_row)?
+                    stmt.query_map(params![limit], map_play_session_track_row)?
                 };
                 rows.collect::<rusqlite::Result<Vec<_>>>()
             })

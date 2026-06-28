@@ -346,6 +346,9 @@ pub struct PlaySessionDayTrackDto {
     pub listened_sec: f64,
     pub completion: String,
     pub started_at_ms: i64,
+    pub album: Option<String>,
+    pub album_id: Option<String>,
+    pub cover_art_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

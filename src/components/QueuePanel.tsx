@@ -33,7 +33,7 @@ import { QueueToolbar } from './queuePanel/QueueToolbar';
 import { QueueList } from './queuePanel/QueueList';
 import { QueueTabBar } from './queuePanel/QueueTabBar';
 import { useQueueAutoScroll } from '../hooks/useQueueAutoScroll';
-import { useTimelineBootstrapOnMode, useTimelinePlayHistory } from '../hooks/useTimelinePlayHistory';
+import { useTimelineBootstrapOnMode, useTimelineHistoryResolver, useTimelinePlayHistory } from '../hooks/useTimelinePlayHistory';
 import { buildTimelineDisplayRows } from '../utils/queue/buildTimelineDisplayRows';
 import { activeServerQueueTrackIds } from '../utils/playback/trackServerScope';
 
@@ -124,6 +124,7 @@ function QueuePanelHostOrSolo() {
   const setQueueDisplayMode = useAuthStore(s => s.setQueueDisplayMode);
   useTimelineBootstrapOnMode(queueDisplayMode === 'timeline');
   const timelineHistoryRefs = useTimelinePlayHistory();
+  useTimelineHistoryResolver(timelineHistoryRefs, queueDisplayMode === 'timeline');
   const timelineRows = useMemo(() => {
     if (queueDisplayMode !== 'timeline') return undefined;
     return buildTimelineDisplayRows({

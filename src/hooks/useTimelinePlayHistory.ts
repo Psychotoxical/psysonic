@@ -1,6 +1,6 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { libraryGetRecentPlaySessions, type PlaySessionRecentTrack } from '../api/library';
-import { seedQueueResolver } from '../utils/library/queueTrackResolver';
+import { seedQueueResolver, resolveBatch } from '../utils/library/queueTrackResolver';
 import {
   applyTimelineBootstrap,
   getTimelineSessionHistorySnapshot,
@@ -9,6 +9,10 @@ import {
   TIMELINE_HISTORY_BOOTSTRAP_LIMIT,
   type TimelinePlayedRef,
 } from '../store/timelineSessionHistory';
+import {
+  bootstrapTrackFromPlaySession,
+  timelineHistoryToQueueRefs,
+} from '../utils/queue/timelineHistoryRefs';
 
 function bootstrapRowToRef(row: PlaySessionRecentTrack): TimelinePlayedRef {
   return {
@@ -19,16 +23,15 @@ function bootstrapRowToRef(row: PlaySessionRecentTrack): TimelinePlayedRef {
 }
 
 function seedResolverFromBootstrap(rows: PlaySessionRecentTrack[]): void {
+  const byServer = new Map<string, ReturnType<typeof bootstrapTrackFromPlaySession>[]>();
   for (const row of rows) {
-    seedQueueResolver(row.serverId, [{
-      id: row.trackId,
-      title: row.title,
-      artist: row.artist ?? '',
-      album: '',
-      albumId: '',
-      duration: 0,
-      serverId: row.serverId,
-    }]);
+    const track = bootstrapTrackFromPlaySession(row);
+    const arr = byServer.get(row.serverId) ?? [];
+    arr.push(track);
+    byServer.set(row.serverId, arr);
+  }
+  for (const [serverId, tracks] of byServer) {
+    seedQueueResolver(serverId, tracks);
   }
 }
 
@@ -55,4 +58,19 @@ export function useTimelineBootstrapOnMode(isTimeline: boolean): void {
     if (!isTimeline) return;
     ensureTimelineBootstrap();
   }, [isTimeline]);
+}
+
+/** Prefetch full track metadata (incl. cover ids) for cross-server history rows. */
+export function useTimelineHistoryResolver(
+  historyRefs: TimelinePlayedRef[],
+  enabled: boolean,
+): void {
+  const refsKey = useMemo(
+    () => historyRefs.map(r => `${r.serverId}:${r.trackId}:${r.playedAtMs}`).join('\u0001'),
+    [historyRefs],
+  );
+  useEffect(() => {
+    if (!enabled || historyRefs.length === 0) return;
+    void resolveBatch(timelineHistoryToQueueRefs(historyRefs));
+  }, [enabled, refsKey, historyRefs]);
 }

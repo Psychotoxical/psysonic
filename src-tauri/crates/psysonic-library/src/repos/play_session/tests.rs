@@ -468,3 +468,53 @@ fn recent_plays_excludes_deleted_tracks() {
     let rows = repo.recent_plays(10, None).expect("recent");
     assert!(rows.is_empty());
 }
+
+#[test]
+fn recent_plays_includes_album_cover_metadata() {
+    let store = LibraryStore::open_in_memory();
+    TrackRepository::new(&store)
+        .upsert_batch(&[TrackRow {
+            server_id: "s1".into(),
+            id: "t1".into(),
+            title: "Song".into(),
+            title_sort: None,
+            artist: Some("Artist".into()),
+            artist_id: None,
+            album: "Album Name".into(),
+            album_id: Some("al-1".into()),
+            album_artist: None,
+            duration_sec: 200,
+            track_number: None,
+            disc_number: None,
+            year: None,
+            genre: None,
+            suffix: None,
+            bit_rate: None,
+            size_bytes: None,
+            cover_art_id: Some("al-1".into()),
+            starred_at: None,
+            user_rating: None,
+            play_count: None,
+            played_at: None,
+            server_path: None,
+            library_id: None,
+            isrc: None,
+            mbid_recording: None,
+            bpm: None,
+            replay_gain_track_db: None,
+            replay_gain_album_db: None,
+            content_hash: None,
+            server_updated_at: None,
+            server_created_at: None,
+            deleted: false,
+            synced_at: 1,
+            raw_json: "{}".into(),
+        }])
+        .expect("seed track");
+    let repo = PlaySessionRepository::new(&store);
+    repo.insert(&sample_input("s1", "t1")).expect("insert");
+    let rows = repo.recent_plays(1, None).expect("recent");
+    assert_eq!(rows[0].album.as_deref(), Some("Album Name"));
+    assert_eq!(rows[0].album_id.as_deref(), Some("al-1"));
+    assert_eq!(rows[0].cover_art_id.as_deref(), Some("al-1"));
+}

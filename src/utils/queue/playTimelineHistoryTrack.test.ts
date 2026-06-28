@@ -5,12 +5,20 @@ import { makeTrack, seedQueue } from '@/test/helpers/factories';
 import { seedQueueResolver } from '@/utils/library/queueTrackResolver';
 import { playTimelineHistoryTrack } from './playTimelineHistoryTrack';
 
+vi.mock('@/utils/library/queueTrackResolver', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/utils/library/queueTrackResolver')>();
+  return {
+    ...actual,
+    resolveBatch: vi.fn(async () => undefined),
+  };
+});
+
 describe('playTimelineHistoryTrack', () => {
   beforeEach(() => {
     resetPlayerStore();
   });
 
-  it('inserts after current when the track is not in the queue', () => {
+  it('inserts after current when the track is not in the queue', async () => {
     const a = makeTrack({ id: 'a' });
     const b = makeTrack({ id: 'b' });
     const c = makeTrack({ id: 'c' });
@@ -20,7 +28,7 @@ describe('playTimelineHistoryTrack', () => {
     const playTrack = vi.fn();
     usePlayerStore.setState({ playTrack });
 
-    playTimelineHistoryTrack('s1', 'h1');
+    await playTimelineHistoryTrack('s1', 'h1');
 
     expect(playTrack).toHaveBeenCalledTimes(1);
     const [track, queue, , , targetIdx] = playTrack.mock.calls[0]!;
@@ -29,7 +37,7 @@ describe('playTimelineHistoryTrack', () => {
     expect(targetIdx).toBe(2);
   });
 
-  it('jumps to an upcoming slot when the track is already queued ahead', () => {
+  it('jumps to an upcoming slot when the track is already queued ahead', async () => {
     const a = makeTrack({ id: 'a' });
     const b = makeTrack({ id: 'b' });
     const c = makeTrack({ id: 'c' });
@@ -37,7 +45,7 @@ describe('playTimelineHistoryTrack', () => {
     const playTrack = vi.fn();
     usePlayerStore.setState({ playTrack });
 
-    playTimelineHistoryTrack('s1', 'c');
+    await playTimelineHistoryTrack('s1', 'c');
 
     expect(playTrack).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'c' }),
@@ -48,14 +56,14 @@ describe('playTimelineHistoryTrack', () => {
     );
   });
 
-  it('does not replace the queue when replaying a track that was already played in-queue', () => {
+  it('does not replace the queue when replaying a track that was already played in-queue', async () => {
     const a = makeTrack({ id: 'a' });
     const b = makeTrack({ id: 'b' });
     seedQueue([a, b], { index: 1, currentTrack: b, serverId: 's1' });
     const playTrack = vi.fn();
     usePlayerStore.setState({ playTrack });
 
-    playTimelineHistoryTrack('s1', 'a');
+    await playTimelineHistoryTrack('s1', 'a');
 
     expect(playTrack).toHaveBeenCalledTimes(1);
     const [, queue] = playTrack.mock.calls[0]!;

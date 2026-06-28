@@ -845,6 +845,9 @@ export type PlaySessionRecentTrack = {
   trackId: string;
   title: string;
   artist: string | null;
+  album: string | null;
+  albumId: string | null;
+  coverArtId: string | null;
   startedAtMs: number;
   listenedSec: number;
   completion: 'partial' | 'full' | string;

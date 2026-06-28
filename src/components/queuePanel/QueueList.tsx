@@ -141,7 +141,7 @@ export function QueueList({
 
   const playHistoryRow = (serverId: string, trackId: string) => {
     suppressNextAutoScrollRef.current = true;
-    playTimelineHistoryTrack(serverId, trackId, canonicalQueue);
+    void playTimelineHistoryTrack(serverId, trackId, canonicalQueue);
   };
 
   const renderTrackRow = (args: {
