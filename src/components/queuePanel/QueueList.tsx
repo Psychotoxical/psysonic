@@ -120,10 +120,6 @@ export function QueueList({
       return pinToTop(0, `[data-queue-idx="${displayBaseIndex}"]`);
     }
 
-    if (queueDisplayMode === 'timeline') {
-      return;
-    }
-
     if (queueIndex < 0) return;
     const viewport = queueListRef.current;
     if (viewport) {
