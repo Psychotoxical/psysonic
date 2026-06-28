@@ -36,6 +36,7 @@ Some Psysonic features can communicate with external services, such as:
 - Last.fm
 - Bandsintown
 - Discord Rich Presence
+- Fanart.tv
 
 These integrations are optional and clearly presented as opt-in features. They are never required for using Psysonic.
 
