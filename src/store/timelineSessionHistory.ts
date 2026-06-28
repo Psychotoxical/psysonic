@@ -77,7 +77,7 @@ export function appendTimelineSessionPlay(ref: TimelinePlayedRef): void {
   ) {
     return;
   }
-  sessionPlays.push(ref);
+  sessionPlays = [...sessionPlays, ref];
   emit();
 }
 
