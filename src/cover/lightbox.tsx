@@ -2,8 +2,12 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import CoverLightbox from '../components/CoverLightbox';
 import { buildCoverArtFetchUrl } from './fetchUrl';
 import { coverImgSrc } from './imgSrc';
+import { getDiskSrcForGrid } from './diskSrcLookup';
 import { ensureCoverTierDiskSrc } from './resolveDisk';
 import type { CoverArtRef } from './types';
+
+/** Opening window: wait this long for the full-res 2000 tier before showing 800. */
+const LIGHTBOX_FULLRES_WINDOW_MS = 500;
 
 export function useCoverLightboxSrc(
   ref: CoverArtRef | null,
@@ -20,12 +24,22 @@ export function useCoverLightboxSrc(
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     void (async () => {
-      const diskSrc = await ensureCoverTierDiskSrc(ref, 2000);
+      // Kick the full-res (2000) ensure — Rust downloads + stores `2000.webp`. Do
+      // not block the open on it: race it against a short opening window. If the
+      // 2000 lands in time, show it; otherwise show the warm 800 tier now and let
+      // the 2000 finish + persist in the background, so the next open is full-res.
+      const fullSrc = ensureCoverTierDiskSrc(ref, 2000);
+      const winner = await Promise.race([
+        fullSrc,
+        new Promise<''>(resolve => {
+          setTimeout(() => resolve(''), LIGHTBOX_FULLRES_WINDOW_MS);
+        }),
+      ]);
       if (cancelled) return;
-      if (diskSrc) {
-        setSrc(diskSrc);
+      if (winner) {
+        setSrc(winner);
       } else {
-        setSrc(buildCoverArtFetchUrl(ref, 2000));
+        setSrc(getDiskSrcForGrid(ref, 800) || buildCoverArtFetchUrl(ref, 2000));
       }
       setLoading(false);
     })();
