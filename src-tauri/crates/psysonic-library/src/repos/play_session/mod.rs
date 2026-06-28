@@ -13,7 +13,7 @@ use rusqlite::{params, OptionalExtension};
 use crate::dto::{
     PlaySessionDayDetailDto, PlaySessionDayTrackDto, PlaySessionDayTotalsDto,
     PlaySessionHeatmapDayDto, PlaySessionInputDto, PlaySessionRecentDayDto,
-    PlaySessionYearBoundsDto, PlaySessionYearSummaryDto,
+    PlaySessionRecentTrackDto, PlaySessionYearBoundsDto, PlaySessionYearSummaryDto,
 };
 use crate::store::LibraryStore;
 
@@ -343,6 +343,55 @@ impl<'a> PlaySessionRepository<'a> {
                 out.sort_by(|a, b| b.date.cmp(&a.date));
                 out.truncate(limit as usize);
                 Ok(out)
+            })
+            .map_err(|e| e.to_string())
+    }
+
+    /// Most recent track plays across all servers (newest first). Used for timeline cold bootstrap.
+    pub fn recent_plays(
+        &self,
+        limit: u32,
+        since_ms: Option<i64>,
+    ) -> Result<Vec<PlaySessionRecentTrackDto>, String> {
+        let limit = limit.clamp(1, 200);
+        self.store
+            .with_read_conn(|conn| {
+                let sql = if since_ms.is_some() {
+                    "SELECT ps.server_id, ps.track_id, t.title, t.artist, \
+                            ps.listened_sec, ps.completion, ps.started_at_ms \
+                     FROM play_session ps \
+                     INNER JOIN track t \
+                       ON t.server_id = ps.server_id AND t.id = ps.track_id AND t.deleted = 0 \
+                     WHERE ps.started_at_ms >= ?2 \
+                     ORDER BY ps.started_at_ms DESC \
+                     LIMIT ?1"
+                } else {
+                    "SELECT ps.server_id, ps.track_id, t.title, t.artist, \
+                            ps.listened_sec, ps.completion, ps.started_at_ms \
+                     FROM play_session ps \
+                     INNER JOIN track t \
+                       ON t.server_id = ps.server_id AND t.id = ps.track_id AND t.deleted = 0 \
+                     ORDER BY ps.started_at_ms DESC \
+                     LIMIT ?1"
+                };
+                let mut stmt = conn.prepare(sql)?;
+                let map_row = |row: &rusqlite::Row<'_>| {
+                    Ok(PlaySessionRecentTrackDto {
+                        server_id: row.get(0)?,
+                        track_id: row.get(1)?,
+                        title: row.get(2)?,
+                        artist: row.get(3)?,
+                        listened_sec: row.get(4)?,
+                        completion: row.get(5)?,
+                        started_at_ms: row.get(6)?,
+                    })
+                };
+                let rows = if let Some(since) = since_ms {
+                    stmt.query_map(params![limit, since], map_row)?
+                } else {
+                    stmt.query_map(params![limit], map_row)?
+                };
+                rows.collect::<rusqlite::Result<Vec<_>>>()
             })
             .map_err(|e| e.to_string())
     }

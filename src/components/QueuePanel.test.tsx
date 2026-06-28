@@ -55,6 +55,7 @@ beforeEach(() => {
   onInvoke('audio_get_state', () => ({ playing: false }));
   onInvoke('audio_update_replay_gain', () => undefined);
   onInvoke('discord_update_presence', () => undefined);
+  onInvoke('library_get_recent_play_sessions', () => []);
 });
 
 describe('QueuePanel — render surface', () => {
@@ -154,13 +155,19 @@ describe('QueuePanel — display mode', () => {
   it('header mode-toggle button advances queueDisplayMode (default queue → timeline)', () => {
     seedQueue(makeTracks(3), { index: 0, currentTrack: makeTrack() });
     const { container } = renderWithProviders(<QueuePanel />);
-    // The mode toggle is the first .queue-action-btn in the header (the
-    // collapse chevron is the second). The toggle's label names its target;
-    // from the default 'queue' that is the next mode in the cycle, "Timeline".
     const toggle = container.querySelector<HTMLButtonElement>('.queue-header .queue-action-btn');
     expect(toggle?.getAttribute('aria-label')).toBe('Timeline');
     toggle!.click();
     expect(useAuthStore.getState().queueDisplayMode).toBe('timeline');
+  });
+
+  it('timeline mode: renders current + upcoming only (not played queue prefix)', () => {
+    const tracks = makeTracks(4);
+    useAuthStore.getState().setQueueDisplayMode('timeline');
+    seedQueue(tracks, { index: 1, currentTrack: tracks[1] });
+    const { container } = renderWithProviders(<QueuePanel />);
+    const idxs = [...container.querySelectorAll('[data-queue-idx]')].map(r => r.getAttribute('data-queue-idx'));
+    expect(idxs).toEqual(['1', '2', '3']);
   });
 });
 

@@ -424,3 +424,47 @@ fn purge_deletes_play_session_rows_for_server() {
     assert_eq!(s1_count, 0);
     assert_eq!(s2_count, 1);
 }
+
+#[test]
+fn recent_plays_returns_newest_first_and_respects_limit() {
+    let store = LibraryStore::open_in_memory();
+    seed_track(&store, "s1", "t1", 200);
+    seed_track(&store, "s1", "t2", 200);
+    seed_track(&store, "s2", "t3", 200);
+    let repo = PlaySessionRepository::new(&store);
+    for (sid, tid, ms) in [("s1", "t1", 1_000_i64), ("s1", "t2", 2_000), ("s2", "t3", 3_000)] {
+        repo.insert(&PlaySessionInputDto {
+            server_id: sid.into(),
+            track_id: tid.into(),
+            started_at_ms: ms,
+            listened_sec: 20.0,
+            position_max_sec: 15.0,
+            end_reason: "ended".into(),
+            duration_sec_hint: None,
+        })
+        .expect("insert");
+    }
+    let rows = repo.recent_plays(2, None).expect("recent");
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].track_id, "t3");
+    assert_eq!(rows[1].track_id, "t2");
+}
+
+#[test]
+fn recent_plays_excludes_deleted_tracks() {
+    let store = LibraryStore::open_in_memory();
+    seed_track(&store, "s1", "t1", 200);
+    let repo = PlaySessionRepository::new(&store);
+    repo.insert(&sample_input("s1", "t1")).expect("insert");
+    store
+        .with_conn_mut("test.soft_delete", |conn| {
+            conn.execute(
+                "UPDATE track SET deleted = 1 WHERE server_id = ?1 AND id = ?2",
+                rusqlite::params!["s1", "t1"],
+            )?;
+            Ok(())
+        })
+        .expect("soft delete");
+    let rows = repo.recent_plays(10, None).expect("recent");
+    assert!(rows.is_empty());
+}

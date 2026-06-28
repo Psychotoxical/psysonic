@@ -840,6 +840,31 @@ export function libraryGetPlayerStatsRecentDays(limit = 30): Promise<PlaySession
   return invoke<PlaySessionRecentDay[]>('library_get_player_stats_recent_days', { limit });
 }
 
+export type PlaySessionRecentTrack = {
+  serverId: string;
+  trackId: string;
+  title: string;
+  artist: string | null;
+  startedAtMs: number;
+  listenedSec: number;
+  completion: 'partial' | 'full' | string;
+};
+
+export function libraryGetRecentPlaySessions(args?: {
+  limit?: number;
+  sinceMs?: number;
+}): Promise<PlaySessionRecentTrack[]> {
+  return invoke<PlaySessionRecentTrack[]>('library_get_recent_play_sessions', {
+    limit: args?.limit,
+    sinceMs: args?.sinceMs,
+  }).then(rows =>
+    rows.map(row => ({
+      ...row,
+      serverId: mapServerIdFromIndexKey(row.serverId),
+    })),
+  );
+}
+
 // ── Event subscriptions ───────────────────────────────────────────────
 
 export interface LibrarySyncProgressPayload {

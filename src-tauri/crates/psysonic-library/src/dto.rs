@@ -355,6 +355,9 @@ pub struct PlaySessionDayDetailDto {
     pub tracks: Vec<PlaySessionDayTrackDto>,
 }
 
+/// One row from `library_get_recent_play_sessions` (timeline cold bootstrap).
+pub type PlaySessionRecentTrackDto = PlaySessionDayTrackDto;
+
 /// Summary for one day in the recent-days list (no track rows).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

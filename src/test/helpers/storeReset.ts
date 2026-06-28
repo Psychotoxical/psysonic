@@ -21,6 +21,7 @@
  *   beforeEach(resetAllStores);
  */
 import { _resetQueueUndoStacksForTest } from '@/store/queueUndo';
+import { _resetTimelineSessionHistoryForTest } from '@/store/timelineSessionHistory';
 import { usePlayerStore } from '@/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
 import { usePreviewStore } from '@/store/previewStore';
@@ -35,6 +36,7 @@ export function resetPlayerStore(): void {
   usePlayerStore.setState(INITIAL_PLAYER_STATE, true);
   // Module-scoped queue undo/redo stacks live outside the Zustand state.
   _resetQueueUndoStacksForTest();
+  _resetTimelineSessionHistoryForTest();
 }
 
 export function resetAuthStore(): void {

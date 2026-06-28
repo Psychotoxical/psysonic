@@ -66,6 +66,7 @@ import { promoteCompletedStreamToHotCache } from './promoteStreamCache';
 import { pushQueueOnPlaybackStart } from './queueSync';
 import { playListenSessionFinalize } from './playListenSession';
 import { pushQueueUndoFromGetter } from './queueUndo';
+import { appendTimelineLeaveTrack } from './timelineSessionHistory';
 import { stopRadio } from './radioPlayer';
 import { clearAllPlaybackScheduleTimers } from './scheduleTimers';
 import { clearSeekDebounce } from './seekDebounce';
@@ -184,7 +185,21 @@ export function runPlayTrack(
 
   void playListenSessionFinalize('skip');
 
-  const scopedTrack = stampTrackServerId(track);
+  const stateBeforeLeave = get();
+  const prevTrackForHistory = stateBeforeLeave.currentTrack;
+  const scopedTrackEarly = stampTrackServerId(track);
+  if (
+    prevTrackForHistory
+    && !sameQueueTrackId(prevTrackForHistory.id, scopedTrackEarly.id)
+  ) {
+    appendTimelineLeaveTrack(
+      prevTrackForHistory,
+      stateBeforeLeave.queueItems,
+      stateBeforeLeave.queueIndex,
+    );
+  }
+
+  const scopedTrack = scopedTrackEarly;
   const scopedQueue = queue ? stampTrackServerIds(queue) : queue;
 
   clearAllPlaybackScheduleTimers();
