@@ -897,7 +897,9 @@ pub async fn cover_cache_peek_batch(
             &item.cache_kind,
             &item.cache_entity_id,
         );
-        let path = peek_tier_path(&dir, item.tier);
+        // Plain-cover peek (no surface in the batch DTO): full-res is exact-only,
+        // so a 2000 request never returns a smaller tier to seed the grid cache.
+        let path = peek_plain_cover_tier(&dir, item.tier);
         if let Some(p) = path {
             out.insert(item.storage_key, p.to_string_lossy().into_owned());
         }
@@ -930,16 +932,26 @@ fn peek_tier_path(dir: &Path, want: u32) -> Option<PathBuf> {
     None
 }
 
-/// Peek used by the ensure path (not the pure disk `peek_batch`). Full-res
-/// (≥2000) plain-cover requests must resolve the EXACT tier: a smaller
+/// Disk peek for a plain (non-surface) cover request — shared by the ensure path
+/// AND `cover_cache_peek_batch`. Full-res (≥2000) is **exact-only**: a smaller
 /// peek-ladder fallback would both serve a downscaled image and short-circuit the
-/// download, so the 2000 tier would never be built or cached. External surfaces
-/// and the smaller display tiers keep the normal ladder peek.
-fn ensure_peek(dir: &Path, tier: u32, args: &CoverCacheEnsureArgs) -> Option<PathBuf> {
-    if tier >= 2000 && args.surface_kind.is_none() {
+/// download, and (via the frontend grid seeder) poison the full-res in-memory key
+/// for Hero / fullscreen / artist-hero surfaces, which peek 2000 before ensure.
+/// Smaller display tiers keep the normal ladder peek.
+fn peek_plain_cover_tier(dir: &Path, tier: u32) -> Option<PathBuf> {
+    if tier >= 2000 {
         return tier_exists(dir, tier);
     }
-    external_ensure::peek_cover_path(dir, tier, args)
+    peek_tier_path(dir, tier)
+}
+
+/// Peek used by the ensure path. External surfaces keep their own ladder; plain
+/// covers go through [`peek_plain_cover_tier`] (full-res exact).
+fn ensure_peek(dir: &Path, tier: u32, args: &CoverCacheEnsureArgs) -> Option<PathBuf> {
+    if args.surface_kind.is_some() {
+        return external_ensure::peek_cover_path(dir, tier, args);
+    }
+    peek_plain_cover_tier(dir, tier)
 }
 
 
@@ -1405,7 +1417,7 @@ mod tests {
     use super::disk::{cover_dir, tier_path};
     use super::{
         count_cached_cover_ids, ensure_peek, is_safe_index_key, merge_cover_bucket,
-        purge_external_files, rename_bucket_inner, CoverCacheEnsureArgs,
+        peek_plain_cover_tier, purge_external_files, rename_bucket_inner, CoverCacheEnsureArgs,
     };
     use psysonic_core::cover_cache_layout::CANONICAL_PROGRESS_TIER;
     use std::fs;
@@ -1665,6 +1677,25 @@ mod tests {
         // Once the exact tier exists it is a hit.
         fs::write(tier_path(&dir, 2000), b"y").unwrap();
         assert_eq!(ensure_peek(&dir, 2000, &args), Some(tier_path(&dir, 2000)));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn peek_plain_cover_fullres_is_exact_but_display_tiers_ladder() {
+        let root = fresh_tmpdir("peek-plain-fullres");
+        let dir = root.join("album").join("al-1");
+        fs::create_dir_all(&dir).unwrap();
+        // Only a smaller tier on disk (grid/hero load). A full-res (2000) peek —
+        // used by both ensure AND cover_cache_peek_batch — must NOT ladder down to
+        // it, or the frontend grid seeder writes the 512 path under the 2000 key
+        // and Hero/fullscreen surfaces show a downscaled image.
+        fs::write(tier_path(&dir, 512), b"x").unwrap();
+        assert!(peek_plain_cover_tier(&dir, 2000).is_none());
+        // A display tier still ladders to a larger warmed tier.
+        assert_eq!(peek_plain_cover_tier(&dir, 256), Some(tier_path(&dir, 512)));
+        // Exact full-res is a hit.
+        fs::write(tier_path(&dir, 2000), b"y").unwrap();
+        assert_eq!(peek_plain_cover_tier(&dir, 2000), Some(tier_path(&dir, 2000)));
         let _ = fs::remove_dir_all(&root);
     }
 

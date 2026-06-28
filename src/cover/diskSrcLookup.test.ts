@@ -55,3 +55,26 @@ describe('rememberDiskSrcLadder', () => {
     expect(keys).toContain('srv:cover:album:al-1:800');
   });
 });
+
+describe('full-res (2000) seed guard', () => {
+  beforeEach(() => {
+    vi.mocked(rememberDiskSrc).mockClear();
+    vi.mocked(rememberDiskSrc).mockReturnValue('asset://x');
+  });
+
+  it('never seeds the 2000 key from a smaller tier file', () => {
+    const ref = albumCoverRef('al-1', 'al-1');
+    rememberGridDiskSrc(ref, 2000, '/data/512.webp');
+    const keys = vi.mocked(rememberDiskSrc).mock.calls.map(c => c[0]);
+    expect(keys.some(k => k.endsWith(':2000'))).toBe(false);
+    // Smaller display keys are still seeded.
+    expect(keys.some(k => k.endsWith(':512'))).toBe(true);
+  });
+
+  it('seeds the 2000 key from a real 2000 file', () => {
+    const ref = albumCoverRef('al-1', 'al-1');
+    rememberGridDiskSrc(ref, 2000, '/data/2000.webp');
+    const keys = vi.mocked(rememberDiskSrc).mock.calls.map(c => c[0]);
+    expect(keys.some(k => k.endsWith(':2000'))).toBe(true);
+  });
+});

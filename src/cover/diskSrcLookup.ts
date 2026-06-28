@@ -3,6 +3,25 @@ import { hasCoverDiskReadyListeners, notifyCoverDiskReady } from './diskHandoff'
 import { coverStorageKeyFromRef } from './storageKeys';
 import type { CoverArtRef, CoverArtTier } from './types';
 
+/** Tier embedded in a cover file path (`…/512.webp`, `…/2000-fanart.webp`). */
+function coverPathTier(fsPath: string): number | null {
+  const m = /(\d+)(?:-[a-z0-9]+)?\.webp$/i.exec(fsPath);
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * Never seed the full-res (≥2000) key from a smaller tier's file. The grid lookup
+ * order intentionally cross-seeds smaller display keys, but pinning a downscaled
+ * image under the 2000 key would make Hero / fullscreen / the lightbox show a
+ * small cover (they read the 2000 key before running ensure). Mirrors the Rust
+ * `peek_plain_cover_tier` exact-only rule for full-res.
+ */
+function skipFullResSeedTier(tier: CoverArtTier, fsPath: string): boolean {
+  if (tier < 2000) return false;
+  const src = coverPathTier(fsPath);
+  return src == null || src < 2000;
+}
+
 /** Dense grids: prefer a larger on-disk tier (800) before tiny thumbs when the ideal tier is missing. */
 export function gridDiskSrcLookupOrder(want: CoverArtTier): CoverArtTier[] {
   const out: CoverArtTier[] = [want];
@@ -30,6 +49,7 @@ export function seedGridDiskSrcCache(ref: CoverArtRef, wantTier: CoverArtTier, f
   if (!fsPath) return false;
   let hit = false;
   for (const tier of gridDiskSrcLookupOrder(wantTier)) {
+    if (skipFullResSeedTier(tier, fsPath)) continue;
     if (rememberDiskSrc(coverStorageKeyFromRef(ref, tier), fsPath)) hit = true;
   }
   return hit;
@@ -58,6 +78,7 @@ export function rememberDiskSrcLadder(
   if (!serverIndexKey || !ref.cacheEntityId || !fsPath) return false;
   let hit = false;
   for (const tier of gridDiskSrcLookupOrder(wantTier)) {
+    if (skipFullResSeedTier(tier, fsPath)) continue;
     const key = `${serverIndexKey}:cover:${ref.cacheKind}:${ref.cacheEntityId}:${tier}`;
     if (rememberDiskSrc(key, fsPath)) hit = true;
   }
