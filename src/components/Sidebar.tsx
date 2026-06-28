@@ -147,11 +147,6 @@ export default function Sidebar({
   // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
   // eslint-disable-next-line react-hooks/refs
   sidebarItemsRef.current = sidebarItems;
-  const randomNavModeRef = useRef(randomNavMode);
-  // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
-  // eslint-disable-next-line react-hooks/refs
-  randomNavModeRef.current = randomNavMode;
-
   const {
     navDnd,
     navDndTrashHint,
@@ -161,7 +156,6 @@ export default function Sidebar({
   } = useSidebarNavDnd({
     isCollapsed,
     sidebarItemsRef,
-    randomNavModeRef,
     setSidebarItems,
   });
   const newReleasesUnreadCount = useSidebarNewReleasesUnread({
@@ -257,9 +251,7 @@ export default function Sidebar({
           musicFolders={musicFolders}
           pickLibrary={pickLibrary}
           visibleLibraryConfigs={visibleLibraryConfigs}
-          libraryItemsForReorder={libraryItemsForReorder}
           visibleSystemConfigs={visibleSystemConfigs}
-          systemItemsForReorder={systemItemsForReorder}
           playlistsExpanded={playlistsExpanded}
           setPlaylistsExpanded={setPlaylistsExpanded}
           playlists={playlists}

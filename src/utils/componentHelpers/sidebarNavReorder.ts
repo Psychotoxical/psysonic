@@ -4,10 +4,17 @@ import { CONSERVED_SIDEBAR_NAV_IDS, type SidebarItemConfig } from '../../store/s
 export type SidebarNavSection = 'library' | 'system';
 
 export type SidebarNavDropTarget = {
-  idx: number;
+  /** Stable id of the row the cursor is over — never a positional index. */
+  id: string;
   before: boolean;
   section: SidebarNavSection;
 };
+
+/** True when `id` is a real, non-conserved nav item that lives in `section`. */
+function itemBelongsToSection(id: string, section: SidebarNavSection): boolean {
+  if (CONSERVED_SIDEBAR_NAV_IDS.has(id)) return false;
+  return ALL_NAV_ITEMS[id]?.section === section;
+}
 
 export function getLibraryItemsForReorder(
   items: SidebarItemConfig[],
@@ -57,37 +64,44 @@ export function isSidebarNavItemUserHideable(id: string): boolean {
 }
 
 /**
- * Reorders one sidebar section (library or system) like the Settings customizer.
- * Returns a new `items` array, or null if nothing changes.
+ * Reorders one sidebar section by **stable item id**, not by positional index.
+ *
+ * The dragged row and the drop target are identified by id, and the move is
+ * applied directly to the canonical full `items` array. This deliberately has
+ * no shared index space with whatever filter decides which rows are *shown*:
+ * a render filter (visibility, luckyMix availability, randomNavMode gating, any
+ * future gate) can never desync the reorder, because indices are resolved here
+ * from ids against the same array that is mutated. Hidden/gated items keep their
+ * absolute slot and are never anchors.
+ *
+ * Returns a new `items` array, or `null` when nothing should change — unknown
+ * id, cross-section drop, dropping onto self, or a no-op edge (defensive guard
+ * against any payload the canonical list does not contain).
  */
-export function applySidebarDropReorder(
+export function applySidebarReorderById(
   allItems: SidebarItemConfig[],
   section: SidebarNavSection,
-  fromIdx: number,
+  draggedId: string,
   target: SidebarNavDropTarget | null,
-  randomNavMode: 'hub' | 'separate',
 ): SidebarItemConfig[] | null {
   if (!target || target.section !== section) return null;
+  const targetId = target.id;
+  if (draggedId === targetId) return null;
 
-  const sectionItems =
-    section === 'library'
-      ? [...getLibraryItemsForReorder(allItems, randomNavMode)]
-      : [...getSystemItemsForReorder(allItems)];
+  // Guard: both ids must be real, non-conserved items that belong to `section`.
+  if (!itemBelongsToSection(draggedId, section)) return null;
+  if (!itemBelongsToSection(targetId, section)) return null;
 
-  const insertBefore = target.before ? target.idx : target.idx + 1;
-  if (insertBefore === fromIdx || insertBefore === fromIdx + 1) return null;
+  const fromIdx = allItems.findIndex(c => c.id === draggedId);
+  if (fromIdx < 0) return null;
 
-  const [moved] = sectionItems.splice(fromIdx, 1);
-  sectionItems.splice(insertBefore > fromIdx ? insertBefore - 1 : insertBefore, 0, moved);
-
-  const visibleIds = new Set(sectionItems.map(c => c.id));
   const next = [...allItems];
-  const positions = next
-    .map((cfg, i) => ({ cfg, i }))
-    .filter(({ cfg }) => visibleIds.has(cfg.id))
-    .map(({ i }) => i);
-  positions.forEach((pos, i) => {
-    next[pos] = sectionItems[i];
-  });
+  const [moved] = next.splice(fromIdx, 1);
+  const anchor = next.findIndex(c => c.id === targetId);
+  if (anchor < 0) return null;
+  next.splice(target.before ? anchor : anchor + 1, 0, moved);
+
+  // No-op if the resulting order is identical (e.g. dropped on its own edge).
+  if (next.every((c, i) => c.id === allItems[i].id)) return null;
   return next;
 }

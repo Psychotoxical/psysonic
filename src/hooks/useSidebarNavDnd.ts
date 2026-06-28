@@ -1,9 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { SidebarItemConfig } from '../store/sidebarStore';
 import {
-  applySidebarDropReorder,
-  getLibraryItemsForReorder,
-  getSystemItemsForReorder,
+  applySidebarReorderById,
   isSidebarNavItemUserHideable,
   type SidebarNavDropTarget,
 } from '../utils/componentHelpers/sidebarNavReorder';
@@ -15,13 +13,12 @@ import {
 
 interface NavDndState {
   section: 'library' | 'system';
-  fromIdx: number;
+  draggedId: string;
 }
 
 interface Args {
   isCollapsed: boolean;
   sidebarItemsRef: React.MutableRefObject<SidebarItemConfig[]>;
-  randomNavModeRef: React.MutableRefObject<'hub' | 'separate'>;
   setSidebarItems: (items: SidebarItemConfig[]) => void;
 }
 
@@ -30,12 +27,12 @@ interface Result {
   navDropTarget: SidebarNavDropTarget | null;
   navDndTrashHint: { x: number; y: number } | null;
   suppressNavClickRef: React.MutableRefObject<boolean>;
-  handleNavRowPointerDown: (e: React.PointerEvent, section: 'library' | 'system', sectionIdx: number) => void;
-  navDndRowClass: (section: 'library' | 'system', sectionIdx: number) => string;
+  handleNavRowPointerDown: (e: React.PointerEvent, section: 'library' | 'system', id: string) => void;
+  navDndRowClass: (section: 'library' | 'system', id: string) => string;
 }
 
 export function useSidebarNavDnd({
-  isCollapsed, sidebarItemsRef, randomNavModeRef, setSidebarItems,
+  isCollapsed, sidebarItemsRef, setSidebarItems,
 }: Args): Result {
   const [navDnd, setNavDnd] = useState<NavDndState | null>(null);
   const [navDropTarget, setNavDropTarget] = useState<SidebarNavDropTarget | null>(null);
@@ -69,13 +66,13 @@ export function useSidebarNavDnd({
         const section = row.dataset.sidebarSection as 'library' | 'system' | undefined;
         if (section !== navDnd.section) continue;
         const rect = row.getBoundingClientRect();
-        const idx = Number(row.dataset.sidebarIdx);
-        if (Number.isNaN(idx)) continue;
+        const id = row.dataset.sidebarId;
+        if (!id) continue;
         if (clientY < rect.top + rect.height / 2) {
-          target = { idx, before: true, section };
+          target = { id, before: true, section };
           break;
         }
-        target = { idx, before: false, section };
+        target = { id, before: false, section };
       }
       navDropTargetRef.current = target;
       setNavDropTarget(target);
@@ -99,11 +96,7 @@ export function useSidebarNavDnd({
 
       const { x, y } = lastPointerDuringNavDndRef.current;
       if (isPointerOutsideAsideSidebar(x, y)) {
-        const sectionItems =
-          currentDnd.section === 'library'
-            ? getLibraryItemsForReorder(sidebarItemsRef.current, randomNavModeRef.current)
-            : getSystemItemsForReorder(sidebarItemsRef.current);
-        const id = sectionItems[currentDnd.fromIdx]?.id;
+        const id = currentDnd.draggedId;
         if (id && isSidebarNavItemUserHideable(id)) {
           const nextItems: SidebarItemConfig[] = sidebarItemsRef.current.map(i =>
             i.id === id ? { ...i, visible: false } : i,
@@ -114,12 +107,11 @@ export function useSidebarNavDnd({
         return;
       }
 
-      const next = applySidebarDropReorder(
+      const next = applySidebarReorderById(
         sidebarItemsRef.current,
         currentDnd.section,
-        currentDnd.fromIdx,
+        currentDnd.draggedId,
         drop,
-        randomNavModeRef.current,
       );
       if (next) {
         setSidebarItems(next);
@@ -132,11 +124,7 @@ export function useSidebarNavDnd({
       lastPointerDuringNavDndRef.current = { x: e.clientX, y: e.clientY };
 
       const outside = isPointerOutsideAsideSidebar(e.clientX, e.clientY);
-      const sectionItems =
-        navDnd.section === 'library'
-          ? getLibraryItemsForReorder(sidebarItemsRef.current, randomNavModeRef.current)
-          : getSystemItemsForReorder(sidebarItemsRef.current);
-      const draggedId = sectionItems[navDnd.fromIdx]?.id;
+      const draggedId = navDnd.draggedId;
       const canTrash = Boolean(draggedId && isSidebarNavItemUserHideable(draggedId));
       if (outside && canTrash) {
         setNavDndTrashHint({ x: e.clientX, y: e.clientY });
@@ -174,10 +162,10 @@ export function useSidebarNavDnd({
       document.body.style.userSelect = '';
       setNavDndTrashHint(null);
     };
-  }, [navDnd, setSidebarItems, sidebarItemsRef, randomNavModeRef]);
+  }, [navDnd, setSidebarItems, sidebarItemsRef]);
 
   const handleNavRowPointerDown = useCallback(
-    (e: React.PointerEvent, section: 'library' | 'system', sectionIdx: number) => {
+    (e: React.PointerEvent, section: 'library' | 'system', id: string) => {
       if (isCollapsed || navDnd) return;
       if (e.pointerType === 'mouse' && e.button !== 0) return;
 
@@ -217,9 +205,9 @@ export function useSidebarNavDnd({
         cleanupEarly();
         window.getSelection()?.removeAllRanges();
         lastPointerDuringNavDndRef.current = { x: sx, y: sy };
-        setNavDnd({ section, fromIdx: sectionIdx });
-        navDropTargetRef.current = { idx: sectionIdx, before: true, section };
-        setNavDropTarget({ idx: sectionIdx, before: true, section });
+        setNavDnd({ section, draggedId: id });
+        navDropTargetRef.current = { id, before: true, section };
+        setNavDropTarget({ id, before: true, section });
         try {
           (e.currentTarget as HTMLElement).setPointerCapture(pid);
         } catch {
@@ -236,14 +224,14 @@ export function useSidebarNavDnd({
   );
 
   const navDndRowClass = useCallback(
-    (section: 'library' | 'system', sectionIdx: number) => {
-      const dragging = navDnd?.section === section && navDnd.fromIdx === sectionIdx;
+    (section: 'library' | 'system', id: string) => {
+      const dragging = navDnd?.section === section && navDnd.draggedId === id;
       let drop = '';
       if (
         navDnd &&
         navDropTarget?.section === section &&
-        navDropTarget.idx === sectionIdx &&
-        !(navDnd.section === section && navDnd.fromIdx === sectionIdx)
+        navDropTarget.id === id &&
+        !(navDnd.section === section && navDnd.draggedId === id)
       ) {
         drop = navDropTarget.before
           ? 'sidebar-nav-dnd-row--drop-before'

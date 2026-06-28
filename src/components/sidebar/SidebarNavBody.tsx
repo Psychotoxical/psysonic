@@ -12,7 +12,7 @@ import SidebarActiveJobs from './SidebarActiveJobs';
 
 interface NavDndState {
   section: 'library' | 'system';
-  fromIdx: number;
+  draggedId: string;
 }
 
 interface MusicFolder { id: string; name: string }
@@ -29,17 +29,15 @@ interface Props {
   musicFolders: MusicFolder[];
   pickLibrary: (id: 'all' | string) => void;
   visibleLibraryConfigs: SidebarItemConfig[];
-  libraryItemsForReorder: SidebarItemConfig[];
   visibleSystemConfigs: SidebarItemConfig[];
-  systemItemsForReorder: SidebarItemConfig[];
   playlistsExpanded: boolean;
   setPlaylistsExpanded: (v: boolean) => void;
   playlists: { id: string; name: string }[];
   playlistsLoading: boolean;
   newReleasesUnreadCount: number;
   navDnd: NavDndState | null;
-  navDndRowClass: (section: 'library' | 'system', sectionIdx: number) => string;
-  handleNavRowPointerDown: (e: React.PointerEvent, section: 'library' | 'system', sectionIdx: number) => void;
+  navDndRowClass: (section: 'library' | 'system', id: string) => string;
+  handleNavRowPointerDown: (e: React.PointerEvent, section: 'library' | 'system', id: string) => void;
   isPlaying: boolean;
   hasNowPlayingTrack: boolean;
   nowPlayingAtTop: boolean;
@@ -60,8 +58,8 @@ export default function SidebarNavBody(props: Props) {
     isCollapsed, showLibraryPicker, filterId, selectedFolderName,
     libraryDropdownOpen, setLibraryDropdownOpen, dropdownRect, libraryTriggerRef,
     musicFolders, pickLibrary,
-    visibleLibraryConfigs, libraryItemsForReorder,
-    visibleSystemConfigs, systemItemsForReorder,
+    visibleLibraryConfigs,
+    visibleSystemConfigs,
     playlistsExpanded, setPlaylistsExpanded, playlists, playlistsLoading,
     newReleasesUnreadCount, navDnd, navDndRowClass, handleNavRowPointerDown,
     isPlaying, hasNowPlayingTrack, nowPlayingAtTop, hasOfflineContent,
@@ -107,16 +105,15 @@ export default function SidebarNavBody(props: Props) {
         {visibleLibraryConfigs.map(cfg => {
           const item = ALL_NAV_ITEMS[cfg.id];
           if (!item) return null;
-          const sectionIdx = libraryItemsForReorder.findIndex(x => x.id === cfg.id);
-          const dndRow = !isCollapsed && sectionIdx >= 0;
-          const rowClass = dndRow ? navDndRowClass('library', sectionIdx) : undefined;
+          const dndRow = !isCollapsed;
+          const rowClass = dndRow ? navDndRowClass('library', cfg.id) : undefined;
           const dndProps = dndRow
             ? {
                 'data-sidebar-nav-dnd-row': '',
                 'data-sidebar-section': 'library' as const,
-                'data-sidebar-idx': String(sectionIdx),
+                'data-sidebar-id': cfg.id,
                 onPointerDown: (e: React.PointerEvent) =>
-                  handleNavRowPointerDown(e, 'library', sectionIdx),
+                  handleNavRowPointerDown(e, 'library', cfg.id),
               }
             : {};
 
@@ -220,16 +217,15 @@ export default function SidebarNavBody(props: Props) {
         {visibleSystemConfigs.map(cfg => {
           const item = ALL_NAV_ITEMS[cfg.id];
           if (!item) return null;
-          const sectionIdx = systemItemsForReorder.findIndex(x => x.id === cfg.id);
-          const dndRow = !isCollapsed && sectionIdx >= 0;
-          const rowClass = dndRow ? navDndRowClass('system', sectionIdx) : undefined;
+          const dndRow = !isCollapsed;
+          const rowClass = dndRow ? navDndRowClass('system', cfg.id) : undefined;
           const dndProps = dndRow
             ? {
                 'data-sidebar-nav-dnd-row': '',
                 'data-sidebar-section': 'system' as const,
-                'data-sidebar-idx': String(sectionIdx),
+                'data-sidebar-id': cfg.id,
                 onPointerDown: (e: React.PointerEvent) =>
-                  handleNavRowPointerDown(e, 'system', sectionIdx),
+                  handleNavRowPointerDown(e, 'system', cfg.id),
               }
             : {};
 
