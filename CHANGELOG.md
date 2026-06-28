@@ -369,6 +369,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Pressing Play, Shuffle or Add to queue on a playlist no longer reloads the whole page with a spinner — it just starts playback. Editing the playlist (adding or removing songs) still refreshes the list as before.
 
+### Sidebar items jumped back when reordered
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1206](https://github.com/Psychotoxical/psysonic/pull/1206)**, reported by [@tummydummy](https://github.com/tummydummy)
+
+* In Settings → Personalization → Sidebar, dragging an item to a new position could snap it back or land it one place off, depending on which items were hidden. Reordering now tracks each item directly, so it stays exactly where you release it — both in the customizer and when long-pressing items in the sidebar itself.
+
 ## [1.48.1] - 2026-06-15
 
 ## Fixed
