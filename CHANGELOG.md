@@ -330,6 +330,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Strengthens the existing disconnect/recovery path: connection status is now shared across all `useConnectionStatus` hook instances, so a successful **Retry** on the offline banner clears offline-browse sidebar filtering in step with the header connection indicator (no app restart).
 
+### Album and artist covers — full resolution restored
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1205](https://github.com/Psychotoxical/psysonic/pull/1205)**
+
+* Album and artist covers — and the full-size view when you click a cover — could appear small and low-quality even though the source image was large, depending on how you reached the album. Root cause: the cache built its larger sizes from a smaller already-saved size instead of the full-resolution download, so they were stored downscaled. Covers are now built from the full-resolution image, and the full-size view opens at full resolution. The cover cache refreshes once on update. Reported by users on Discord.
+
 ## Under the Hood
 
 ### ESLint setup and a strict lint pass over the frontend
