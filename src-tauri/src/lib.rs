@@ -837,6 +837,7 @@ pub fn run() {
             psysonic_library::commands::library_get_player_stats_day_detail,
             psysonic_library::commands::library_get_player_stats_year_bounds,
             psysonic_library::commands::library_get_player_stats_recent_days,
+            psysonic_library::commands::library_get_recent_play_sessions,
             psysonic_library::commands::library_purge_server,
             psysonic_library::commands::library_migrate_server_index_keys,
             psysonic_library::commands::library_delete_server_data,

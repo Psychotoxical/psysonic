@@ -16,6 +16,7 @@ import {
   playListenSessionOnTrackSwitched,
   playListenSessionOpen,
 } from './playListenSession';
+import { appendTimelineLeaveTrack } from './timelineSessionHistory';
 import { getPerfProbeFlags } from '../utils/perf/perfFlags';
 import { bumpPerfCounter } from '../utils/perf/perfTelemetry';
 import {
@@ -477,6 +478,15 @@ export function handleAudioEnded(): void {
   // opens a fresh session via playbackReportStart.
   void playbackReportStopped();
 
+  const storeBeforeAdvance = usePlayerStore.getState();
+  if (storeBeforeAdvance.currentTrack && !storeBeforeAdvance.currentRadio) {
+    appendTimelineLeaveTrack(
+      storeBeforeAdvance.currentTrack,
+      storeBeforeAdvance.queueItems,
+      storeBeforeAdvance.queueIndex,
+    );
+  }
+
   // Radio stream disconnected — just stop; don't advance queue.
   if (usePlayerStore.getState().currentRadio) {
     setIsAudioPaused(false);
@@ -531,7 +541,10 @@ export function handleAudioTrackSwitched(_duration: number): void {
   if (store.currentTrack?.id) {
     useAuthStore.getState().clearSkipStarManualCountForTrack(store.currentTrack.id);
   }
-  const { queueItems, queueIndex, repeatMode } = store;
+  const { queueItems, queueIndex, repeatMode, currentTrack, currentRadio } = store;
+  if (currentTrack && !currentRadio) {
+    appendTimelineLeaveTrack(currentTrack, queueItems, queueIndex);
+  }
   const nextIdx = queueIndex + 1;
   let nextTrack: Track | null = null;
   let newIndex = queueIndex;

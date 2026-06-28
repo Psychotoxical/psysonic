@@ -24,6 +24,7 @@ import {
   clearQueueServerForPlayback,
   ensureQueueServerPinned,
 } from '../utils/playback/playbackServer';
+import { clearTimelineSessionHistory } from './timelineSessionHistory';
 
 type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
@@ -227,6 +228,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
       clearSeekDebounce(); clearSeekTarget();
       clearRadioSessionSeenIds();
       setCurrentRadioArtistId(null);
+      clearTimelineSessionHistory();
       clearQueueServerForPlayback();
       set({ queueItems: [], queueIndex: 0, currentTrack: null, isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
       syncUserQueueMutationToServer([], null, 0);

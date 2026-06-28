@@ -346,6 +346,9 @@ pub struct PlaySessionDayTrackDto {
     pub listened_sec: f64,
     pub completion: String,
     pub started_at_ms: i64,
+    pub album: Option<String>,
+    pub album_id: Option<String>,
+    pub cover_art_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -354,6 +357,9 @@ pub struct PlaySessionDayDetailDto {
     pub totals: PlaySessionDayTotalsDto,
     pub tracks: Vec<PlaySessionDayTrackDto>,
 }
+
+/// One row from `library_get_recent_play_sessions` (timeline cold bootstrap).
+pub type PlaySessionRecentTrackDto = PlaySessionDayTrackDto;
 
 /// Summary for one day in the recent-days list (no track rows).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

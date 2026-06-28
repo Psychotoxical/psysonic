@@ -446,7 +446,7 @@ export const settings = {
   queueModeTitle: 'Visningsmodus for kø',
   queueModeQueueSub: 'Viser bare kommende spor. Det gjeldende sporet blir i toppen og forsvinner fra listen når det er spilt.',
   queueModePlaylistSub: 'Beholder hele køen i listen med gjeldende spor uthevet øverst; avspilte spor blir værende.',
-  queueModeTimelineSub: 'Sentrer gjeldende spor, med avspilt historikk over og kommende spor (i shuffle-rekkefølge) under.',
+  queueModeTimelineSub: 'Hold gjeldende spor øverst i listen, med rullbar avspilt historikk over og kommende spor (i shuffle-rekkefølge) under.',
   queueToolbarTitle: 'Kø-verktøylinje',
   queueToolbarReset: 'Tilbakestill til standard',
   queueToolbarSeparator: 'Skilje',

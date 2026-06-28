@@ -13,7 +13,7 @@ use rusqlite::{params, OptionalExtension};
 use crate::dto::{
     PlaySessionDayDetailDto, PlaySessionDayTrackDto, PlaySessionDayTotalsDto,
     PlaySessionHeatmapDayDto, PlaySessionInputDto, PlaySessionRecentDayDto,
-    PlaySessionYearBoundsDto, PlaySessionYearSummaryDto,
+    PlaySessionRecentTrackDto, PlaySessionYearBoundsDto, PlaySessionYearSummaryDto,
 };
 use crate::store::LibraryStore;
 
@@ -21,6 +21,21 @@ use cluster::{count_listening_sessions, PlaySpan};
 use completion::{
     completion_from_position, effective_duration_sec, MIN_LISTENED_SEC,
 };
+
+fn map_play_session_track_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<PlaySessionDayTrackDto> {
+    Ok(PlaySessionDayTrackDto {
+        server_id: row.get(0)?,
+        track_id: row.get(1)?,
+        title: row.get(2)?,
+        artist: row.get(3)?,
+        listened_sec: row.get(4)?,
+        completion: row.get(5)?,
+        started_at_ms: row.get(6)?,
+        album: row.get(7)?,
+        album_id: row.get(8)?,
+        cover_art_id: row.get(9)?,
+    })
+}
 
 struct DayAgg {
     total_listened_sec: f64,
@@ -223,24 +238,15 @@ impl<'a> PlaySessionRepository<'a> {
 
                 let mut stmt = conn.prepare(
                     "SELECT ps.server_id, ps.track_id, t.title, t.artist, \
-                            ps.listened_sec, ps.completion, ps.started_at_ms \
+                            ps.listened_sec, ps.completion, ps.started_at_ms, \
+                            t.album, t.album_id, t.cover_art_id \
                      FROM play_session ps \
                      JOIN track t ON t.server_id = ps.server_id AND t.id = ps.track_id \
                      WHERE date(ps.started_at_ms / 1000, 'unixepoch', 'localtime') = ?1 \
                      ORDER BY ps.started_at_ms DESC",
                 )?;
                 let tracks = stmt
-                    .query_map(params![date_iso], |row| {
-                        Ok(PlaySessionDayTrackDto {
-                            server_id: row.get(0)?,
-                            track_id: row.get(1)?,
-                            title: row.get(2)?,
-                            artist: row.get(3)?,
-                            listened_sec: row.get(4)?,
-                            completion: row.get(5)?,
-                            started_at_ms: row.get(6)?,
-                        })
-                    })?
+                    .query_map(params![date_iso], map_play_session_track_row)?
                     .collect::<rusqlite::Result<Vec<_>>>()?;
 
                 let plays: Vec<PlaySpan> = tracks
@@ -343,6 +349,31 @@ impl<'a> PlaySessionRepository<'a> {
                 out.sort_by(|a, b| b.date.cmp(&a.date));
                 out.truncate(limit as usize);
                 Ok(out)
+            })
+            .map_err(|e| e.to_string())
+    }
+
+    /// Most recent track plays across all servers (newest first). Used for timeline cold bootstrap.
+    pub fn recent_plays(
+        &self,
+        limit: u32,
+        since_ms: Option<i64>,
+    ) -> Result<Vec<PlaySessionRecentTrackDto>, String> {
+        let limit = limit.clamp(1, 200);
+        self.store
+            .with_read_conn(|conn| {
+                let sql = "SELECT ps.server_id, ps.track_id, t.title, t.artist, \
+                            ps.listened_sec, ps.completion, ps.started_at_ms, \
+                            t.album, t.album_id, t.cover_art_id \
+                     FROM play_session ps \
+                     INNER JOIN track t \
+                       ON t.server_id = ps.server_id AND t.id = ps.track_id AND t.deleted = 0 \
+                     WHERE (?2 IS NULL OR ps.started_at_ms >= ?2) \
+                     ORDER BY ps.started_at_ms DESC \
+                     LIMIT ?1";
+                let mut stmt = conn.prepare(sql)?;
+                let rows = stmt.query_map(params![limit, since_ms], map_play_session_track_row)?;
+                rows.collect::<rusqlite::Result<Vec<_>>>()
             })
             .map_err(|e| e.to_string())
     }

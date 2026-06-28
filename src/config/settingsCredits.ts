@@ -177,6 +177,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Hi-Res transition blend rate — configurable 44.1/88.2/96 kHz resampling for crossfade, AutoDJ, and gapless when adjacent tracks differ in sample rate (PR #1171)',
       'AutoDJ overlap cap — Auto (12 s content cap) or Limit (2–30 s slider, default 15 s) in track-transition settings; Orbit sync + engine override up to 30 s (PR #1173)',
       'Connection recovery — shared connection status across hook instances so manual Retry clears offline sidebar gating with the header indicator (PR #1190)',
+      'Timeline play history — session buffer + play_session bootstrap across queue replace; pin current to top; history replay inserts in-place (PR #1204)',
     ],
   },
   {

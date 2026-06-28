@@ -33,6 +33,8 @@ import { QueueToolbar } from './queuePanel/QueueToolbar';
 import { QueueList } from './queuePanel/QueueList';
 import { QueueTabBar } from './queuePanel/QueueTabBar';
 import { useQueueAutoScroll } from '../hooks/useQueueAutoScroll';
+import { useTimelineBootstrapOnMode, useTimelineHistoryResolver, useTimelinePlayHistory } from '../hooks/useTimelinePlayHistory';
+import { buildTimelineDisplayRows } from '../utils/queue/buildTimelineDisplayRows';
 import { activeServerQueueTrackIds } from '../utils/playback/trackServerScope';
 
 export default function QueuePanel() {
@@ -120,6 +122,17 @@ function QueuePanelHostOrSolo() {
   const setIsNowPlayingCollapsed = useAuthStore(s => s.setQueueNowPlayingCollapsed);
   const queueDisplayMode = useAuthStore(s => s.queueDisplayMode);
   const setQueueDisplayMode = useAuthStore(s => s.setQueueDisplayMode);
+  useTimelineBootstrapOnMode(queueDisplayMode === 'timeline');
+  const timelineHistoryRefs = useTimelinePlayHistory();
+  useTimelineHistoryResolver(timelineHistoryRefs, queueDisplayMode === 'timeline');
+  const timelineRows = useMemo(() => {
+    if (queueDisplayMode !== 'timeline') return undefined;
+    return buildTimelineDisplayRows({
+      historyRefs: timelineHistoryRefs,
+      queueItems,
+      queueIndex,
+    });
+  }, [queueDisplayMode, timelineHistoryRefs, queueItems, queueIndex]);
   const toolbarButtons = useQueueToolbarStore(s => s.buttons);
   const durationMode = useAuthStore(s => s.queueDurationDisplayMode);
   const setDurationMode = useAuthStore(s => s.setQueueDurationDisplayMode);
@@ -221,11 +234,11 @@ function QueuePanelHostOrSolo() {
   // index for every index-based handler (play / remove / reorder / drag).
   const displayBaseIndex = queueDisplayMode === 'queue' ? Math.max(0, queueIndex + 1) : 0;
   const displayItems = displayBaseIndex > 0 ? queueItems.slice(displayBaseIndex) : queueItems;
-  // In queue mode the list can be empty while the queue still holds the
-  // now-playing (last) track — say "no upcoming" rather than "queue is empty".
-  const queueEmptyLabel = queueDisplayMode === 'queue' && queueItems.length > 0
-    ? t('queue.noUpcoming')
-    : t('queue.emptyQueue');
+  const queueEmptyLabel = queueDisplayMode === 'timeline'
+    ? (timelineRows && timelineRows.length > 0 ? '' : t('queue.emptyQueue'))
+    : queueDisplayMode === 'queue' && queueItems.length > 0
+      ? t('queue.noUpcoming')
+      : t('queue.emptyQueue');
 
   return (
     <aside
@@ -350,6 +363,8 @@ function QueuePanelHostOrSolo() {
 
       <QueueList
         queue={displayItems}
+        timelineRows={timelineRows}
+        canonicalQueue={queueItems}
         queueIndex={queueIndex}
         displayBaseIndex={displayBaseIndex}
         queueDisplayMode={queueDisplayMode}

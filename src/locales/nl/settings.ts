@@ -447,7 +447,7 @@ export const settings = {
   queueModeTitle: 'Weergavemodus wachtrij',
   queueModeQueueSub: 'Toont alleen komende nummers. Het huidige nummer blijft in de kop en verdwijnt uit de lijst zodra het is afgespeeld.',
   queueModePlaylistSub: 'Houdt de hele wachtrij in de lijst met het huidige nummer bovenaan gemarkeerd; afgespeelde nummers blijven staan.',
-  queueModeTimelineSub: 'Centreer de huidige track, met de afgespeelde geschiedenis erboven en de komende tracks (in shuffle-volgorde) eronder.',
+  queueModeTimelineSub: 'Houd de huidige track bovenaan de lijst, met scrollbare afgespeelde geschiedenis erboven en komende tracks (in shuffle-volgorde) eronder.',
   queueToolbarTitle: 'Wachtrij-werkbalk',
   queueToolbarReset: 'Standaard herstellen',
   queueToolbarSeparator: 'Scheiding',

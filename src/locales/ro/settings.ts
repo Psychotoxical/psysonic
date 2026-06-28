@@ -462,7 +462,7 @@ export const settings = {
   queueModeTitle: 'Mod de afișare a cozii',
   queueModeQueueSub: 'Arată doar piesele următoare. Piesa curentă rămâne în antet și iese din listă după ce a fost redată.',
   queueModePlaylistSub: 'Păstrează toată coada în listă, cu piesa curentă evidențiată sus; piesele redate rămân.',
-  queueModeTimelineSub: 'Centrează piesa curentă, cu istoricul redat deasupra și piesele următoare (în ordine aleatorie) dedesubt.',
+  queueModeTimelineSub: 'Păstrează piesa curentă sus în listă, cu istoricul redat derulabil deasupra și piesele următoare (în ordine aleatorie) dedesubt.',
   queueToolbarTitle: 'Toolbar Coadă',
   queueToolbarReset: 'Resetează la implicit',
   queueToolbarSeparator: 'Separator',

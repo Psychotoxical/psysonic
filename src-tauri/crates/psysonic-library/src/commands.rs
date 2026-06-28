@@ -24,7 +24,7 @@ use crate::dto::{
     FactInputDto, LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse,
     LibraryCrossServerSearchResponse, LibraryLiveSearchRequest, LibraryLiveSearchResponse, LibraryTrackDto,
     LibraryTracksEnvelope, OfflinePathDto, PlaySessionDayDetailDto, PlaySessionHeatmapDayDto,
-    PlaySessionInputDto, PlaySessionRecentDayDto, PlaySessionYearBoundsDto, PlaySessionYearSummaryDto, PurgeReportDto, SyncJobDto, SyncStateDto,
+    PlaySessionInputDto, PlaySessionRecentDayDto, PlaySessionRecentTrackDto, PlaySessionYearBoundsDto, PlaySessionYearSummaryDto, PurgeReportDto, SyncJobDto, SyncStateDto,
     TrackArtifactDto, TrackFactDto, TrackRefDto,
 };
 use crate::live_search;
@@ -1232,6 +1232,16 @@ pub fn library_get_player_stats_recent_days(
     limit: Option<u32>,
 ) -> Result<Vec<PlaySessionRecentDayDto>, String> {
     PlaySessionRepository::new(&runtime.store).recent_days(limit.unwrap_or(30))
+}
+
+#[tauri::command]
+pub fn library_get_recent_play_sessions(
+    runtime: State<'_, LibraryRuntime>,
+    limit: Option<u32>,
+    since_ms: Option<i64>,
+) -> Result<Vec<PlaySessionRecentTrackDto>, String> {
+    PlaySessionRepository::new(&runtime.store)
+        .recent_plays(limit.unwrap_or(50), since_ms)
 }
 
 #[tauri::command]

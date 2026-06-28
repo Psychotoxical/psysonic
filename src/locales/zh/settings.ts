@@ -446,7 +446,7 @@ export const settings = {
   queueModeTitle: '队列显示模式',
   queueModeQueueSub: '仅显示即将播放的曲目。当前曲目保留在标题栏中，播放完毕后从列表移除。',
   queueModePlaylistSub: '在列表中保留整个队列，当前曲目在顶部高亮显示；已播放的曲目保留。',
-  queueModeTimelineSub: '将当前曲目居中显示，已播放的历史在上方，即将播放的曲目（按随机顺序）在下方。',
+  queueModeTimelineSub: '当前曲目保持在列表顶部，上方可滚动查看播放历史，下方为即将播放的曲目（按随机顺序）。',
   queueToolbarTitle: '队列工具栏',
   queueToolbarReset: '重置为默认',
   queueToolbarSeparator: '分隔符',

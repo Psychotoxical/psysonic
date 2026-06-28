@@ -31,6 +31,10 @@ vi.mock('@/utils/orbitBulkGuard', () => ({
 }));
 
 import { usePlayerStore } from './playerStore';
+import {
+  appendTimelineSessionPlay,
+  getTimelineSessionHistorySnapshot,
+} from './timelineSessionHistory';
 import { onInvoke } from '@/test/mocks/tauri';
 import { resetPlayerStore } from '@/test/helpers/storeReset';
 import { makeTrack, makeTracks, seedQueue } from '@/test/helpers/factories';
@@ -180,6 +184,13 @@ describe('clearQueue', () => {
     seedQueue(makeTracks(2), { index: 0 });
     usePlayerStore.getState().clearQueue();
     expect(stop).toHaveBeenCalled();
+  });
+
+  it('clears timeline session history', () => {
+    appendTimelineSessionPlay({ serverId: 's1', trackId: 'a', playedAtMs: 1 });
+    seedQueue(makeTracks(2), { index: 0 });
+    usePlayerStore.getState().clearQueue();
+    expect(getTimelineSessionHistorySnapshot()).toEqual([]);
   });
 });
 

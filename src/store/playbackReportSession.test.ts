@@ -90,6 +90,25 @@ describe('playbackReportStart', () => {
     expect(reportPlaybackMock).not.toHaveBeenCalled();
     expect(reportNowPlayingMock).toHaveBeenCalledWith('t1', SID);
   });
+
+  it('stops the previous server before opening a cross-server session', async () => {
+    playbackReportStart('t1', SID);
+    await flush();
+    reportPlaybackMock.mockClear();
+
+    playbackReportStart('t2', 'srv-2');
+    expect(reportPlaybackMock).toHaveBeenCalledTimes(1);
+    expect(reportPlaybackMock.mock.calls[0][1]).toMatchObject({
+      mediaId: 't1',
+      state: 'stopped',
+    });
+    await flush();
+    expect(reportPlaybackMock.mock.calls[1][1]).toMatchObject({
+      mediaId: 't2',
+      state: 'starting',
+    });
+    expect(reportPlaybackMock.mock.calls[2][1].state).toBe('playing');
+  });
 });
 
 describe('FSM transitions on an open session', () => {

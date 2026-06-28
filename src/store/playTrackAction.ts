@@ -1,4 +1,4 @@
-import { playbackReportStart } from './playbackReportSession';
+import { playbackReportStart, playbackReportStopped } from './playbackReportSession';
 import { invoke } from '@tauri-apps/api/core';
 import { getMusicNetworkRuntimeOrNull } from '../music-network';
 import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
@@ -66,6 +66,7 @@ import { promoteCompletedStreamToHotCache } from './promoteStreamCache';
 import { pushQueueOnPlaybackStart } from './queueSync';
 import { playListenSessionFinalize } from './playListenSession';
 import { pushQueueUndoFromGetter } from './queueUndo';
+import { appendTimelineLeaveTrack } from './timelineSessionHistory';
 import { stopRadio } from './radioPlayer';
 import { clearAllPlaybackScheduleTimers } from './scheduleTimers';
 import { clearSeekDebounce } from './seekDebounce';
@@ -184,7 +185,21 @@ export function runPlayTrack(
 
   void playListenSessionFinalize('skip');
 
-  const scopedTrack = stampTrackServerId(track);
+  const stateBeforeLeave = get();
+  const prevTrackForHistory = stateBeforeLeave.currentTrack;
+  const scopedTrackEarly = stampTrackServerId(track);
+  if (
+    prevTrackForHistory
+    && !sameQueueTrackId(prevTrackForHistory.id, scopedTrackEarly.id)
+  ) {
+    appendTimelineLeaveTrack(
+      prevTrackForHistory,
+      stateBeforeLeave.queueItems,
+      stateBeforeLeave.queueIndex,
+    );
+  }
+
+  const scopedTrack = scopedTrackEarly;
   const scopedQueue = queue ? stampTrackServerIds(queue) : queue;
 
   clearAllPlaybackScheduleTimers();
@@ -247,6 +262,19 @@ export function runPlayTrack(
   const playIdx = idx >= 0 ? idx : 0;
   const playingRef = replacing ? undefined : state.queueItems[playIdx];
   const prevPlayingRef = replacing ? undefined : state.queueItems[state.queueIndex];
+  const prevPlaybackSid = prevTrack && prevPlayingRef
+    ? playbackProfileIdForTrack(prevTrack, prevPlayingRef) ?? ''
+    : '';
+  const nextPlaybackSid = playbackProfileIdForTrack(scopedTrack, playingRef) ?? '';
+  if (
+    prevTrack
+    && !sameQueueTrackId(prevTrack.id, scopedTrack.id)
+    && prevPlaybackSid
+    && nextPlaybackSid
+    && prevPlaybackSid !== nextPlaybackSid
+  ) {
+    void playbackReportStopped(skipFromTimeSec);
+  }
   // ±1 neighbours for replaygain normalization — resolve only these (not the
   // whole queue). On replace they come from the provided Track[]; on navigation
   // from the resolver cache (the bridge keeps that window warm).

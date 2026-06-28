@@ -459,7 +459,7 @@ export const settings = {
   queueModeTitle: 'Modo de visualización de la cola',
   queueModeQueueSub: 'Muestra solo las próximas pistas. La pista actual permanece en el encabezado y sale de la lista al reproducirse.',
   queueModePlaylistSub: 'Mantiene toda la cola en la lista, con la pista actual resaltada arriba; las reproducidas permanecen.',
-  queueModeTimelineSub: 'Centrar la pista actual, con el historial reproducido arriba y las próximas pistas (en orden aleatorio) debajo.',
+  queueModeTimelineSub: 'Mantener la pista actual arriba de la lista, con el historial reproducido desplazable arriba y las próximas pistas (en orden aleatorio) abajo.',
   queueToolbarTitle: 'Barra de herramientas de cola',
   queueToolbarReset: 'Restablecer a predeterminado',
   queueToolbarSeparator: 'Separador',
