@@ -337,6 +337,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Timeline mode now keeps a session play-history strip (plus cold bootstrap of the last 50 plays from statistics) when Play album/playlist replaces the queue; canonical queue sync is unchanged.
 * The current track stays pinned to the top of the list; clicking a history row inserts after the playing track instead of replacing the queue, and replayed tracks remain in the history strip.
 * History rows from other servers resolve album/cover metadata per server so Now Playing artwork loads when replaying cross-server plays.
+* Cross-server queue switches now send `playbackReport` **stopped** to the previous server so its Who is listening entry clears promptly.
 
 ## Under the Hood
 

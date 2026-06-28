@@ -1,4 +1,4 @@
-import { playbackReportStart } from './playbackReportSession';
+import { playbackReportStart, playbackReportStopped } from './playbackReportSession';
 import { invoke } from '@tauri-apps/api/core';
 import { getMusicNetworkRuntimeOrNull } from '../music-network';
 import { setDeferHotCachePrefetch } from '../utils/cache/hotCacheGate';
@@ -262,6 +262,19 @@ export function runPlayTrack(
   const playIdx = idx >= 0 ? idx : 0;
   const playingRef = replacing ? undefined : state.queueItems[playIdx];
   const prevPlayingRef = replacing ? undefined : state.queueItems[state.queueIndex];
+  const prevPlaybackSid = prevTrack && prevPlayingRef
+    ? playbackProfileIdForTrack(prevTrack, prevPlayingRef) ?? ''
+    : '';
+  const nextPlaybackSid = playbackProfileIdForTrack(scopedTrack, playingRef) ?? '';
+  if (
+    prevTrack
+    && !sameQueueTrackId(prevTrack.id, scopedTrack.id)
+    && prevPlaybackSid
+    && nextPlaybackSid
+    && prevPlaybackSid !== nextPlaybackSid
+  ) {
+    void playbackReportStopped(skipFromTimeSec);
+  }
   // ±1 neighbours for replaygain normalization — resolve only these (not the
   // whole queue). On replace they come from the provided Track[]; on navigation
   // from the resolver cache (the bridge keeps that window warm).

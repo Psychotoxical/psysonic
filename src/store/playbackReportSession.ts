@@ -65,6 +65,24 @@ function send(
   });
 }
 
+function stopExtensionSession(prev: ReportSession, explicitSec?: number): Promise<void> {
+  if (!extensionActive(prev.serverId)) return Promise.resolve();
+  return send(prev.serverId, prev.trackId, 'stopped', explicitSec);
+}
+
+function openExtensionSession(
+  serverId: string,
+  trackId: string,
+  isNewSession: boolean,
+): void {
+  session = { serverId, trackId };
+  if (isNewSession) {
+    void send(serverId, trackId, 'starting').then(() => send(serverId, trackId, 'playing'));
+  } else {
+    void send(serverId, trackId, 'playing');
+  }
+}
+
 /**
  * Track start / gapless switch / queue restore. Replaces the direct
  * `reportNowPlaying` presence call at those sites: the extension path opens the
@@ -72,17 +90,27 @@ function send(
  */
 export function playbackReportStart(trackId: string, serverId: string): void {
   if (!serverId || !nowPlayingEnabled()) return;
-  if (!extensionActive(serverId)) {
-    void reportNowPlaying(trackId, serverId);
+
+  const prev = session;
+  const isNewSession = !prev || prev.trackId !== trackId || prev.serverId !== serverId;
+  const serverChanged = prev != null && prev.serverId !== serverId;
+
+  const openNext = () => {
+    if (!extensionActive(serverId)) {
+      session = { serverId, trackId };
+      void reportNowPlaying(trackId, serverId);
+      return;
+    }
+    openExtensionSession(serverId, trackId, isNewSession);
+  };
+
+  if (serverChanged) {
+    session = null;
+    void stopExtensionSession(prev).then(openNext);
     return;
   }
-  const isNewSession = !session || session.trackId !== trackId || session.serverId !== serverId;
-  session = { serverId, trackId };
-  if (isNewSession) {
-    void send(serverId, trackId, 'starting').then(() => send(serverId, trackId, 'playing'));
-  } else {
-    void send(serverId, trackId, 'playing');
-  }
+
+  openNext();
 }
 
 /** Engine-confirmed playback / resume / heartbeat (extension path only). */
