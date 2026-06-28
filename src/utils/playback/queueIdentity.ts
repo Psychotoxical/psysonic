@@ -1,4 +1,5 @@
-import type { Track } from '../../store/playerStoreTypes';
+import type { QueueItemRef, Track } from '../../store/playerStoreTypes';
+
 /**
  * Strip the `stream:` prefix that some Rust events attach to track ids when
  * they're routed through the HTTP source. Both forms identify the same track,
@@ -16,6 +17,21 @@ export function sameQueueTrackId(a: string | undefined | null, b: string | undef
   const na = normalizeAnalysisTrackId(a) ?? a;
   const nb = normalizeAnalysisTrackId(b) ?? b;
   return na === nb;
+}
+
+/** Canonical queue ref identity — server + track id (mixed-server safe). */
+export function sameQueueItemRef(
+  a: Pick<QueueItemRef, 'serverId' | 'trackId'>,
+  b: Pick<QueueItemRef, 'serverId' | 'trackId'>,
+): boolean {
+  return a.serverId === b.serverId && sameQueueTrackId(a.trackId, b.trackId);
+}
+
+export function findQueueItemRefIndex(
+  items: QueueItemRef[],
+  ref: Pick<QueueItemRef, 'serverId' | 'trackId'>,
+): number {
+  return items.findIndex(r => sameQueueItemRef(r, ref));
 }
 
 /**

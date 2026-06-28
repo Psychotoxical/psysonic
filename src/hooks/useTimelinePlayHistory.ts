@@ -4,6 +4,7 @@ import { seedQueueResolver, resolveBatch } from '../utils/library/queueTrackReso
 import {
   applyTimelineBootstrap,
   getTimelineSessionHistorySnapshot,
+  isTimelineBootstrapAttempted,
   markTimelineBootstrapAttempted,
   subscribeTimelineSessionHistory,
   TIMELINE_HISTORY_BOOTSTRAP_LIMIT,
@@ -13,6 +14,11 @@ import {
   bootstrapTrackFromPlaySession,
   timelineHistoryToQueueRefs,
 } from '../utils/queue/timelineHistoryRefs';
+import { timelineBootstrapIndexReady } from '../utils/queue/timelineBootstrapReady';
+
+const BOOTSTRAP_RETRY_MS = 2_000;
+
+let bootstrapInFlight = false;
 
 function bootstrapRowToRef(row: PlaySessionRecentTrack): TimelinePlayedRef {
   return {
@@ -35,18 +41,32 @@ function seedResolverFromBootstrap(rows: PlaySessionRecentTrack[]): void {
   }
 }
 
-export function ensureTimelineBootstrap(): void {
-  if (!markTimelineBootstrapAttempted()) return;
+/** Test-only: reset in-flight bootstrap guard. */
+export function _resetTimelineBootstrapInFlightForTest(): void {
+  bootstrapInFlight = false;
+}
 
-  void libraryGetRecentPlaySessions({ limit: TIMELINE_HISTORY_BOOTSTRAP_LIMIT })
-    .then(rows => {
-      seedResolverFromBootstrap(rows);
-      const oldestFirst = [...rows].reverse().map(bootstrapRowToRef);
-      applyTimelineBootstrap(oldestFirst);
-    })
-    .catch(() => {
-      /* bootstrapAttempted stays true — no retry until next app launch */
-    });
+export async function ensureTimelineBootstrap(): Promise<void> {
+  if (isTimelineBootstrapAttempted() || bootstrapInFlight) return;
+
+  if (!(await timelineBootstrapIndexReady())) return;
+
+  bootstrapInFlight = true;
+  if (!markTimelineBootstrapAttempted()) {
+    bootstrapInFlight = false;
+    return;
+  }
+
+  try {
+    const rows = await libraryGetRecentPlaySessions({ limit: TIMELINE_HISTORY_BOOTSTRAP_LIMIT });
+    seedResolverFromBootstrap(rows);
+    const oldestFirst = [...rows].reverse().map(bootstrapRowToRef);
+    applyTimelineBootstrap(oldestFirst);
+  } catch {
+    /* bootstrapAttempted stays true — no retry until next app launch */
+  } finally {
+    bootstrapInFlight = false;
+  }
 }
 
 export function useTimelinePlayHistory(): TimelinePlayedRef[] {
@@ -56,7 +76,23 @@ export function useTimelinePlayHistory(): TimelinePlayedRef[] {
 export function useTimelineBootstrapOnMode(isTimeline: boolean): void {
   useEffect(() => {
     if (!isTimeline) return;
-    ensureTimelineBootstrap();
+
+    let cancelled = false;
+
+    const run = async () => {
+      while (!cancelled && !isTimelineBootstrapAttempted()) {
+        await ensureTimelineBootstrap();
+        if (cancelled || isTimelineBootstrapAttempted()) break;
+        await new Promise<void>(resolve => {
+          window.setTimeout(resolve, BOOTSTRAP_RETRY_MS);
+        });
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
   }, [isTimeline]);
 }
 

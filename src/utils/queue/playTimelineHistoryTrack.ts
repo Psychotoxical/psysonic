@@ -2,7 +2,7 @@ import { usePlayerStore } from '../../store/playerStore';
 import type { QueueItemRef } from '../../store/playerStoreTypes';
 import { getQueueTracksView, resolveQueueTrack } from '../library/queueTrackView';
 import { resolveBatch } from '../library/queueTrackResolver';
-import { sameQueueTrackId } from '../playback/queueIdentity';
+import { findQueueItemRefIndex, sameQueueItemRef } from '../playback/queueIdentity';
 
 /**
  * Play a timeline history row without replacing the queue. Upcoming slots jump
@@ -19,12 +19,14 @@ export async function playTimelineHistoryTrack(
   const state = usePlayerStore.getState();
   const { queueItems, queueIndex, currentTrack, playTrack } = state;
   const lookup = canonicalQueue ?? queueItems;
-  const absIdx = lookup.findIndex(r => sameQueueTrackId(r.trackId, trackId));
+  const absIdx = findQueueItemRefIndex(lookup, ref);
+  const currentRef = queueIndex >= 0 ? lookup[queueIndex] : undefined;
 
   if (
     absIdx === queueIndex
     && currentTrack
-    && sameQueueTrackId(currentTrack.id, trackId)
+    && currentRef
+    && sameQueueItemRef(currentRef, ref)
   ) {
     return;
   }

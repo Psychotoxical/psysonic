@@ -13,7 +13,7 @@ import {
   getQueueResolverVersion,
   subscribeQueueResolver,
 } from '../../utils/library/queueTrackResolver';
-import { sameQueueTrackId } from '../../utils/playback/queueIdentity';
+import { findQueueItemRefIndex } from '../../utils/playback/queueIdentity';
 import type { TimelineDisplayRow } from '../../utils/queue/buildTimelineDisplayRows';
 import { findTimelineScrollLocalIndex } from '../../utils/queue/buildTimelineDisplayRows';
 import { playTimelineHistoryTrack } from '../../utils/queue/playTimelineHistoryTrack';
@@ -263,8 +263,10 @@ export function QueueList({
               : row.ref;
             const track = resolveQueueTrack(base);
             const absIdx = row.kind === 'history'
-              ? (canonicalQueue ?? usePlayerStore.getState().queueItems)
-                .findIndex(r => sameQueueTrackId(r.trackId, row.ref.trackId))
+              ? findQueueItemRefIndex(
+                canonicalQueue ?? usePlayerStore.getState().queueItems,
+                row.ref,
+              )
               : row.queueIndex;
             const isPlaying = row.kind === 'current';
             const isPast = row.kind === 'history';
@@ -344,8 +346,7 @@ export function QueueList({
           const base = queue[idx];
           const track = resolveQueueTrack(base);
           const isPlaying = absIdx === queueIndex;
-          const isTimeline = queueDisplayMode === 'timeline';
-          const isPast = isTimeline && absIdx < queueIndex;
+          const isPast = false;
           const isFirstAutoAdded = base.autoAdded && (idx === 0 || !queue[idx - 1].autoAdded);
           const isFirstRadioAdded = base.radioAdded && (idx === 0 || !queue[idx - 1].radioAdded);
 
@@ -367,16 +368,6 @@ export function QueueList({
               ref={rowVirtualizer.measureElement}
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vi.start}px)` }}
             >
-            {isTimeline && idx === 0 && queueIndex > 0 && (
-              <div className="queue-divider" style={{ margin: '2px 0' }}>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)' }}>{t('queue.history')}</span>
-              </div>
-            )}
-            {isTimeline && absIdx === queueIndex + 1 && (
-              <div className="queue-divider" style={{ margin: '2px 0' }}>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)' }}>{t('queue.upNext')}</span>
-              </div>
-            )}
             {isFirstRadioAdded && (
               <div className="queue-divider" style={{ margin: '2px 0' }}>
                 <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)' }}>{t('queue.radioAdded')}</span>

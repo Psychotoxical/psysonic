@@ -69,4 +69,31 @@ describe('playTimelineHistoryTrack', () => {
     const [, queue] = playTrack.mock.calls[0]!;
     expect(queue?.map((t: { id: string }) => t.id)).toEqual(['a', 'b', 'a']);
   });
+
+  it('does not jump to the wrong server when track ids collide', async () => {
+    const b = makeTrack({ id: 'b' });
+    const s1Shared = makeTrack({ id: 'shared' });
+    const s2Shared = makeTrack({ id: 'shared', serverId: 's2' });
+    seedQueueResolver('s1', [s1Shared, b]);
+    seedQueueResolver('s2', [s2Shared]);
+    usePlayerStore.setState({
+      queueItems: [
+        { serverId: 's1', trackId: 'shared' },
+        { serverId: 's2', trackId: 'shared' },
+        { serverId: 's1', trackId: 'b' },
+      ],
+      queueIndex: 2,
+      currentTrack: b,
+      queueServerId: 's1',
+      playTrack: vi.fn(),
+    });
+    const playTrack = usePlayerStore.getState().playTrack as ReturnType<typeof vi.fn>;
+
+    await playTimelineHistoryTrack('s2', 'shared');
+
+    expect(playTrack).toHaveBeenCalledTimes(1);
+    const [, queue, , , targetIdx] = playTrack.mock.calls[0]!;
+    expect(targetIdx).toBe(3);
+    expect(queue?.map((t: { id: string }) => t.id)).toEqual(['shared', 'shared', 'b', 'shared']);
+  });
 });
