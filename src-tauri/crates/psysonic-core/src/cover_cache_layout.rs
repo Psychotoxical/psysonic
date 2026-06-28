@@ -17,7 +17,7 @@
 use std::path::{Path, PathBuf};
 
 /// Written to `{cover_root}/.storage-layout` — mismatch triggers cache reset.
-pub const LAYOUT_STAMP: &str = "canonical-segment-v4";
+pub const LAYOUT_STAMP: &str = "canonical-segment-v5";
 
 /// True for ids that are only valid as `getCoverArt` targets, not library entity keys.
 pub fn is_fetch_only_cover_id(id: &str) -> bool {

@@ -59,6 +59,12 @@ pub struct CoverCacheEnsureResult {
     pub tier: u32,
 }
 
+/// Result of the foreground tier-encode pass: whether the requested tier was
+/// written, the freshly written `(tier, path)` pairs, and the full-resolution
+/// decoded source kept for deriving the larger tiers (None on the bulk/quiet
+/// path, which writes every tier up front).
+type EncodeTiersOutcome = Result<(bool, Vec<(u32, PathBuf)>, Option<DynamicImage>), String>;
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CoverCacheStatsDto {
@@ -264,7 +270,7 @@ impl CoverCacheState {
     ) -> Result<CoverCacheEnsureResult, String> {
         let this = state.lock().await;
         let dir = cover_dir_for_args(&this.root, args);
-        if let Some(path) = external_ensure::peek_cover_path(&dir, args.tier, args) {
+        if let Some(path) = ensure_peek(&dir, args.tier, args) {
             return Ok(CoverCacheEnsureResult {
                 hit: true,
                 path: path.to_string_lossy().into_owned(),
@@ -362,7 +368,16 @@ impl CoverCacheState {
             Bytes(Vec<u8>),
         }
 
-        let source = if let Some(img) = load_image_from_disk(&dir) {
+        // Full-res must come from the network: the largest on-disk derive tier is
+        // 800, so reusing a disk tier as the source would store a `2000.webp` that
+        // is only 800px (resize never upscales). Smaller tiers may reuse a disk
+        // source.
+        let disk_source = if args.tier >= 2000 {
+            None
+        } else {
+            load_image_from_disk(&dir)
+        };
+        let source = if let Some(img) = disk_source {
             CoverSource::Image(img)
         } else {
             let http_registry = app
@@ -390,8 +405,8 @@ impl CoverCacheState {
             .acquire_owned()
             .await
             .map_err(|e| e.to_string())?;
-        let (mut wrote_requested, fresh_tiers) = tauri::async_runtime::spawn_blocking(
-            move || -> Result<(bool, Vec<(u32, PathBuf)>), String> {
+        let (mut wrote_requested, fresh_tiers, derive_source) = tauri::async_runtime::spawn_blocking(
+            move || -> EncodeTiersOutcome {
                 let _cpu_permit = cpu_permit;
                 let img = match source {
                     CoverSource::Image(i) => i,
@@ -403,23 +418,29 @@ impl CoverCacheState {
                 if quiet {
                     disk::write_derived_webp_tiers(&dir_bg, &img, requested)?;
                     wrote_requested = tier_exists(&dir_bg, requested).is_some();
-                } else {
-                    for tier in tiers_bg {
-                        if tier_exists(&dir_bg, tier).is_some() {
-                            if tier == requested {
-                                wrote_requested = true;
-                            }
-                            continue;
-                        }
-                        let path = tier_path(&dir_bg, tier);
-                        write_webp_tier(&img, tier, &path)?;
-                        fresh.push((tier, path));
+                    return Ok((wrote_requested, fresh, None));
+                }
+                for tier in tiers_bg {
+                    if tier_exists(&dir_bg, tier).is_some() {
                         if tier == requested {
                             wrote_requested = true;
                         }
+                        continue;
+                    }
+                    let path = tier_path(&dir_bg, tier);
+                    write_webp_tier(&img, tier, &path)?;
+                    fresh.push((tier, path));
+                    if tier == requested {
+                        wrote_requested = true;
                     }
                 }
-                Ok((wrote_requested, fresh))
+                // Hand the full-resolution decoded source back so the larger tiers
+                // are derived from it directly. Re-reading the largest tier off
+                // disk would pick the just-written `requested` tier (≤ requested);
+                // because `resize_tier` never upscales, deriving 512/800 from that
+                // smaller tier stored them at the small resolution — the
+                // "cover preview stays small" bug (e.g. an 800.webp that is 256×256).
+                Ok((wrote_requested, fresh, Some(img)))
             },
         )
         .await
@@ -442,7 +463,7 @@ impl CoverCacheState {
             // the Performance Probe "on-demand (ui)" throughput.
             note_ui_cover_produced(args);
             if !quiet {
-                if let Some(img) = load_image_from_disk(&dir) {
+                if let Some(img) = derive_source {
                     spawn_derive_remaining_tiers(
                         app.clone(),
                         state.clone(),
@@ -909,6 +930,18 @@ fn peek_tier_path(dir: &Path, want: u32) -> Option<PathBuf> {
     None
 }
 
+/// Peek used by the ensure path (not the pure disk `peek_batch`). Full-res
+/// (≥2000) plain-cover requests must resolve the EXACT tier: a smaller
+/// peek-ladder fallback would both serve a downscaled image and short-circuit the
+/// download, so the 2000 tier would never be built or cached. External surfaces
+/// and the smaller display tiers keep the normal ladder peek.
+fn ensure_peek(dir: &Path, tier: u32, args: &CoverCacheEnsureArgs) -> Option<PathBuf> {
+    if tier >= 2000 && args.surface_kind.is_none() {
+        return tier_exists(dir, tier);
+    }
+    external_ensure::peek_cover_path(dir, tier, args)
+}
+
 
 #[tauri::command]
 pub async fn cover_cache_ensure(
@@ -1371,8 +1404,8 @@ mod tests {
     use super::decode_image_bytes;
     use super::disk::{cover_dir, tier_path};
     use super::{
-        count_cached_cover_ids, is_safe_index_key, merge_cover_bucket, purge_external_files,
-        rename_bucket_inner,
+        count_cached_cover_ids, ensure_peek, is_safe_index_key, merge_cover_bucket,
+        purge_external_files, rename_bucket_inner, CoverCacheEnsureArgs,
     };
     use psysonic_core::cover_cache_layout::CANONICAL_PROGRESS_TIER;
     use std::fs;
@@ -1595,6 +1628,58 @@ mod tests {
         assert!(!entity.join("2000-banner.webp").exists());
         assert!(!entity.join(".miss-fanart").exists());
         assert!(!entity.join(".miss-banner").exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    fn test_ensure_args(tier: u32, surface_kind: Option<&str>) -> CoverCacheEnsureArgs {
+        CoverCacheEnsureArgs {
+            server_index_key: "srv".into(),
+            cache_kind: "album".into(),
+            cache_entity_id: "al-1".into(),
+            cover_art_id: "al-1".into(),
+            tier,
+            rest_base_url: "http://x".into(),
+            username: "u".into(),
+            password: "p".into(),
+            library_bulk: false,
+            library_server_id: None,
+            external_artwork_enabled: false,
+            surface_kind: surface_kind.map(String::from),
+            artist_name: None,
+            album_title: None,
+            external_artwork_byok: None,
+        }
+    }
+
+    #[test]
+    fn ensure_peek_fullres_requires_exact_tier() {
+        let root = fresh_tmpdir("ensure-peek-fullres");
+        let dir = root.join("album").join("al-1");
+        fs::create_dir_all(&dir).unwrap();
+        // A smaller tier is on disk (from a grid/hero load) but the full-res tier
+        // is not. A 2000 request must NOT accept the smaller fallback, or the
+        // download is skipped and the 2000 tier is never built/cached.
+        fs::write(tier_path(&dir, 512), b"x").unwrap();
+        let args = test_ensure_args(2000, None);
+        assert!(ensure_peek(&dir, 2000, &args).is_none());
+        // Once the exact tier exists it is a hit.
+        fs::write(tier_path(&dir, 2000), b"y").unwrap();
+        assert_eq!(ensure_peek(&dir, 2000, &args), Some(tier_path(&dir, 2000)));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn ensure_peek_display_tier_keeps_ladder_fallback() {
+        let root = fresh_tmpdir("ensure-peek-ladder");
+        let dir = root.join("album").join("al-1");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(tier_path(&dir, 800), b"x").unwrap();
+        // A 256 display request still accepts a larger warmed tier (grid behaviour
+        // is unchanged — only the full-res tier is exact-only).
+        assert_eq!(
+            ensure_peek(&dir, 256, &test_ensure_args(256, None)),
+            Some(tier_path(&dir, 800)),
+        );
         let _ = fs::remove_dir_all(&root);
     }
 }
