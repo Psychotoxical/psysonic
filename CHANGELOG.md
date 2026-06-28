@@ -330,6 +330,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Strengthens the existing disconnect/recovery path: connection status is now shared across all `useConnectionStatus` hook instances, so a successful **Retry** on the offline banner clears offline-browse sidebar filtering in step with the header connection indicator (no app restart).
 
+### Timeline play history disappeared on album/playlist play
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1204](https://github.com/Psychotoxical/psysonic/pull/1204)**, closes [#1096](https://github.com/Psychotoxical/psysonic/issues/1096)
+
+* Timeline mode now keeps a session play-history strip (plus cold bootstrap of the last 50 plays from statistics) when Play album/playlist replaces the queue; canonical queue sync is unchanged.
+* The current track stays pinned to the top of the list; clicking a history row inserts after the playing track instead of replacing the queue, and replayed tracks remain in the history strip.
+
 ## Under the Hood
 
 ### ESLint setup and a strict lint pass over the frontend
