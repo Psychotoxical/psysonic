@@ -14,11 +14,11 @@ Psysonic is built primarily for **Navidrome** and also works with **Gonic**, **A
 
 <a href="https://discord.gg/AMnDRErm4u"><img src="https://img.shields.io/badge/Discord-Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord Community"></a> <a href="https://t.me/+GLBx1_xeH28xYTJi"><img src="https://img.shields.io/badge/Telegram-Community-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Community"></a> <a href="https://ko-fi.com/psychotoxic"><img src="https://img.shields.io/badge/Ko--fi-Support%20Psysonic-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Support Psysonic on Ko-fi"></a>
 
-<a href="https://aur.archlinux.org/packages/psysonic"><img src="https://img.shields.io/badge/AUR-psysonic-1793d1?style=for-the-badge&logo=arch-linux&logoColor=white" alt="AUR psysonic"></a> <a href="https://aur.archlinux.org/packages/psysonic-bin"><img src="https://img.shields.io/badge/AUR-psysonic--bin-1793d1?style=for-the-badge&logo=arch-linux&logoColor=white" alt="AUR psysonic-bin"></a> <a href="https://psysonic.cachix.org"><img src="https://img.shields.io/badge/Cachix-psysonic.cachix.org-5277C3?style=for-the-badge&logo=nixos&logoColor=white" alt="Cachix"></a> <a href="https://github.com/microsoft/winget-pkgs/tree/master/manifests/p/Psychotoxical/Psysonic/1.47.0"><img src="https://img.shields.io/badge/WinGet-psysonic-blue?style=for-the-badge&logo=windows" alt="WinGet psysonic"></a>
+<a href="https://aur.archlinux.org/packages/psysonic"><img src="https://img.shields.io/badge/AUR-psysonic-1793d1?style=for-the-badge&logo=arch-linux&logoColor=white" alt="AUR psysonic"></a> <a href="https://aur.archlinux.org/packages/psysonic-bin"><img src="https://img.shields.io/badge/AUR-psysonic--bin-1793d1?style=for-the-badge&logo=arch-linux&logoColor=white" alt="AUR psysonic-bin"></a> <a href="https://psysonic.cachix.org"><img src="https://img.shields.io/badge/Cachix-psysonic.cachix.org-5277C3?style=for-the-badge&logo=nixos&logoColor=white" alt="Cachix"></a> <a href="https://github.com/microsoft/winget-pkgs/tree/master/manifests/p/Psychotoxical/Psysonic"><img src="https://img.shields.io/badge/WinGet-psysonic-blue?style=for-the-badge&logo=windows" alt="WinGet psysonic"></a>
 
 <br><br>
 
-**Available languages:** English, German, Spanish, French, Norwegian Bokmål, Dutch, Romanian, Russian, Chinese, Japanese and Hungarian.
+**Available languages:** English, German, Spanish, French, Norwegian Bokmål, Dutch, Romanian, Russian, Chinese, Japanese, Hungarian and Polish.
 
 More translations are added over time.
 
@@ -38,95 +38,142 @@ Psysonic is a desktop music client for self-hosted music libraries. It is design
 
 It is built with **Rust**, **Tauri v2** and **React**, with a strong focus on responsiveness, customization, practical music-library workflows and a user interface that does not require a manual before you can press play.
 
-Psysonic is **optimized first and foremost for Navidrome**. Other Subsonic-compatible servers can work well too, but advanced features may depend on server-side support.
+Psysonic is **optimized first and foremost for Navidrome**, and it leans into that on purpose: instead of being one more generic Subsonic client, it is **the Navidrome-first desktop client that does things no other client does.** Other Subsonic-compatible servers can work well too, but advanced features may depend on server-side support.
 
 ---
 
-# Highlights
+# ⭐ Key Features
 
-## Playback & Queue
+These are the things that set Psysonic apart. To our knowledge, no comparable self-hosted desktop client ships them.
 
-* Gapless playback
-* Crossfade
-* ReplayGain support
+## 🪐 Orbit — Shared Listening
+
+**Listen together, in sync, over your own server.**
+
+Orbit brings real-time synchronized group listening into Psysonic. Start a session, invite people with a link, and everyone hears the same thing at the same time — with host-controlled playback, a shared queue and guest song suggestions.
+
+The clever part: Orbit rides entirely on **your own Navidrome**. There is no external relay, no third-party service and no extra accounts. The session lives on your server, where it belongs. It is built for real-world music sharing without turning your self-hosted setup into a social-media circus.
+
+<div align="left">
+  <img src="public/orbit.png" alt="Orbit shared listening" width="520"/>
+</div>
+
+## ⚡ Local Library — Instant, and Almost Offline
+
+**A local index of your whole collection, so the app stays fast no matter what your connection does.**
+
+Psysonic keeps a local library of your collection's metadata right on your machine. Because the app already knows your tracks inside out, browsing, searching and starting playback are instant — even a 500 MB FLAC starts the moment you hit play, because nothing has to be fetched or parsed first.
+
+It also means the connection to your server stops being a bottleneck. Even on a slow, flaky or distant link, Psysonic stays responsive and **behaves almost like an offline player**, whatever the network is doing.
+
+And it's the foundation everything else is built on: the local library is what makes on-device analysis, smart audio and snappy navigation possible in the first place.
+
+## 🧠 On-Device Audio Analysis
+
+**One of the most powerful things Psysonic does — entirely on your own machine.**
+
+Built on top of the local library, Psysonic analyzes your tracks locally — **loudness, waveform and tempo** — with no cloud service and no required server-side plugin. That analysis is what powers content-aware AutoDJ transitions, LUFS-based loudness normalization and playback-speed control.
+
+This is a deep, genuinely useful layer that most clients simply don't have, and because it runs locally, it works exactly the same whether you're fully online or barely connected.
+
+## 🎧 AutoDJ — Content-Aware Crossfade
+
+**A DJ that listens to the music, not a stopwatch.**
+
+Most players do fixed-time crossfade: blend the last N seconds into the next N seconds, dead air and all. AutoDJ uses Psysonic's own audio analysis to **trim the silence at the edges of a track and blend out of the actual music** — for transitions that sound deliberate instead of mechanical. It is a standalone playback mode with smooth skip/interrupt handling and a configurable overlap.
+
+## 🔗 Navidrome-Native, Deeply
+
+**Not a generic Subsonic client wearing a Navidrome hat.**
+
+Psysonic binds Navidrome's native capabilities directly: server-side smart-playlist create/edit, playback reporting and OpenSubsonic capability probing. Most clients in this space stay Subsonic-generic. Psysonic goes deeper, so Navidrome users get the features their server can actually deliver.
+
+## 🎨 Community Theme Store
+
+**A real marketplace for themes — installable and schedulable.**
+
+Beyond a big set of built-in themes, Psysonic has a first-party theme registry: browse community themes, install them in-app, and let the **Theme Scheduler** switch looks automatically between day and night.
+
+---
+
+> ### Built to be trusted
+>
+> We take an enterprise-grade approach to development — continuously improving our automated testing and maintaining strict contracts between the backend and the frontend. Releases are cut from green CI, not vibes.
+
+---
+
+# ✨ More Highlights
+
+Features that go well beyond the basics. Not all of these are unique to Psysonic, but few clients bring this many together.
+
+## Audio & Loudness
+
 * LUFS-based Smart Loudness Normalization
-* [AudioMuse-AI](https://github.com/NeptuneHub/AudioMuse-AI) support
-* Infinite Queue
-* Smart Radio sessions
-* Fast and responsive playback handling
-* Low memory usage compared to heavy web-first clients
-
-## Audio Tools
-
-* 10-band Equalizer
-* Equalizer presets
+* ReplayGain support and loudness-aware playback
+* 10-band Equalizer with presets
 * AutoEQ headphone correction
-* Per-device optimization
-* Loudness-aware playback options
+* Per-device EQ and output optimization
+* Adjustable playback speed
 
-## Library Management
+## Lyrics & Listening
 
-* Fast search across large libraries
-* Albums, artists, tracks and genres
-* Ratings support
-* Multi-select bulk actions
-* Drag & drop playlist management
+* Synced lyrics with seek support, from multiple providers ([YouLy+](https://github.com/ibratabian17/YouLyPlus), LRCLIB, NetEase)
+* Auto-scrolling sidebar lyrics and a fullscreen lyric mode
+* Last.fm scrobbling, similar artists, loved tracks and listening stats
+* Smart Radio sessions and an Infinite Queue
+* [AudioMuse-AI](https://github.com/NeptuneHub/AudioMuse-AI) support for sonic-similarity discovery (requires an AudioMuse-AI server)
+
+## Artwork & Visuals
+
+* Optional external artist imagery via **fanart.tv** — opt-in, shown on the artist page, fullscreen player and home hero (Navidrome stays the canonical cover-art source)
+* Cover art surfaced across the app, OS media controls and Discord Rich Presence
+
+## Library & Playlists
+
 * Smart Playlists
-* Built for large self-hosted collections
+* Drag & drop playlist management
+* Multi-select bulk actions
 
-## Lyrics & Discovery
+## Sharing
 
-* Synced lyrics with seek support
-* Lyrics provider support: [YouLy+](https://github.com/ibratabian17/YouLyPlus), LRCLIB and NetEase
-* Auto-scrolling sidebar lyrics
-* Fullscreen lyric mode
-* Last.fm scrobbling
-* Similar artists
-* Loved tracks and listening stats
+* Magic Strings sharing for albums, artists and queues
+* Navidrome user-management helpers for fast account sharing
 
-## Sharing & Social Listening
+## Offline, Sync & Deployment
 
-* Magic Strings sharing:
-
-  * share albums, artists and queues
-  * Navidrome user management helpers
-  * fast account sharing
-* Orbit shared listening sessions:
-
-  * host-controlled synchronized playback
-  * session invites via link
-  * guest song suggestions
-  * real-time queue interaction
+* Offline playback and downloads
+* USB / portable sync
+* LAN / remote auto-switching
+* Custom HTTP headers for reverse-proxy-gated servers (e.g. Cloudflare Access, Pangolin)
+* Backup and restore settings
+* In-app auto updater
 
 ## Personalization & Accessibility
 
-* Large theme collection
-* Catppuccin and Nord inspired styles
-* Glassmorphism effects
-* Font customization
-* Zoom controls
+* Font customization and zoom controls
 * Keybind remapping
-* Theme Scheduler for automatic day/night switching
 * Colorblind-friendly theme options
 * Keyboard-friendly navigation
 
-## Power User Extras
+## Power-User Extras
 
 * CLI controls
-* USB / portable sync
-* Backup and restore settings
-* In-app auto updater
-* LAN / remote auto switching
 
 ---
 
-<div align="left">
-  <img src="public/orbit.png" alt="Shared listening feature banner" width="520"/>
-</div>
+# ✅ The Basics, Done Right
 
-Orbit brings synchronized shared listening sessions directly into Psysonic.
+The things you simply expect from a serious music player — and Psysonic does them well.
 
-Start a session, invite others with a link and listen together with host-controlled playback, shared queue interaction and guest song suggestions. It is built for real-world music sharing without turning your self-hosted setup into a social-media circus.
+* Gapless playback and crossfade
+* Fast search across large libraries
+* Browse albums, artists, tracks and genres
+* Ratings
+* Queue management
+* Keyboard navigation
+* Media key support
+* Low memory usage and native performance compared to heavy web-first clients
+* Built for large self-hosted collections
 
 ---
 
