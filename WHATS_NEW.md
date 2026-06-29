@@ -8,6 +8,15 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 `CHANGELOG.md` keeps strict PR order inside Added / Changed / Fixed.
 
 
+## [1.50.0]
+
+## Highlights
+
+### Square corners — a sharper, boxier look
+
+- New **Square Corners** toggle under **Settings → Appearance → Visual Options** strips the rounded corners off cards and cover art across the app — handy when a theme's rounding doesn't suit your album covers. Off by default; everything else stays the way your theme defines it.
+
+
 ## [1.49.0]
 
 ## Highlights

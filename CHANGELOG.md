@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 >
 
 
+## [1.50.0]
+
+## Added
+
+### Square corners — sharp-edged cards and covers
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1215](https://github.com/Psychotoxical/psysonic/pull/1215)**
+
+* New **Square Corners** toggle under **Settings → Appearance → Visual Options → Display** overrides the active theme to render cards and cover art with square, non-rounded corners. Covers album, playlist, artist and song cards, detail-page cover art, the Now Playing / Radio and fullscreen views, the cover lightbox, the queue cover, and the mini player. Off by default; buttons, inputs and dialogs keep the theme's corners.
+
+
 ## [1.49.0] - 2026-06-29
 
 ## Added
