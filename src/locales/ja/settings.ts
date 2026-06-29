@@ -758,6 +758,8 @@ export const settings = {
   showBitrateSub: 'トラック一覧に音声ビットレートを表示',
   floatingPlayerBar: 'フローティングプレイヤーバー',
   floatingPlayerBarSub: 'コンテンツの上にプレイヤーバーを浮かせて表示',
+  squareCorners: '角を四角に',
+  squareCornersSub: 'カードの角の丸みをなくして、シャープで角ばった見た目にする',
   uiScaleTitle: 'インターフェース倍率',
   uiScaleLabel: 'ズーム',
 };

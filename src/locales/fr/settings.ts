@@ -685,6 +685,8 @@ export const settings = {
   showBitrateSub: 'Afficher le débit audio dans les listes de pistes',
   floatingPlayerBar: 'Barre de Lecteur Flottante',
   floatingPlayerBarSub: 'Garder la barre du lecteur flottante au-dessus du contenu',
+  squareCorners: 'Coins carrés',
+  squareCornersSub: 'Supprimer les coins arrondis des cartes pour un rendu net et anguleux',
   uiScaleTitle: "Mise à l'échelle de l'interface",
   uiScaleLabel: 'Zoom',
   confirmDeleteServerLibrary: 'Supprimer aussi l’index local de bibliothèque de ce serveur ? Cliquez sur Annuler pour conserver la copie en cache pour un usage hors ligne.',

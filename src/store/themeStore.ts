@@ -83,6 +83,10 @@ interface ThemeState {
   setExpandReplayGain: (v: boolean) => void;
   floatingPlayerBar: boolean;
   setFloatingPlayerBar: (v: boolean) => void;
+  /** Strip rounded corners off all grid cards (and their covers), overriding the
+   *  active theme. Drives `html[data-square-corners]` in App.tsx. */
+  squareCorners: boolean;
+  setSquareCorners: (v: boolean) => void;
   /** Master toggle for external artist artwork (fanart.tv). Off by default (§20). */
   externalArtworkEnabled: boolean;
   setExternalArtworkEnabled: (v: boolean) => void;
@@ -149,6 +153,8 @@ export const useThemeStore = create<ThemeState>()(
       setExpandReplayGain: (v) => set({ expandReplayGain: v }),
       floatingPlayerBar: false,
       setFloatingPlayerBar: (v) => set({ floatingPlayerBar: v }),
+      squareCorners: false,
+      setSquareCorners: (v) => set({ squareCorners: v }),
       externalArtworkEnabled: false,
       setExternalArtworkEnabled: (v) => set({ externalArtworkEnabled: v }),
       externalArtworkByok: '',

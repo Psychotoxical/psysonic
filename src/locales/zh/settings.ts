@@ -684,6 +684,8 @@ export const settings = {
   showBitrateSub: '在曲目列表中显示音频比特率',
   floatingPlayerBar: '浮动播放栏',
   floatingPlayerBarSub: '保持播放栏悬浮在内容上方',
+  squareCorners: '直角边角',
+  squareCornersSub: '移除卡片的圆角，呈现利落的方正外观',
   uiScaleTitle: '界面缩放',
   uiScaleLabel: '缩放',
   confirmDeleteServerLibrary: '是否同时删除该服务器的本地库索引？点击“取消”可保留缓存副本以供离线使用。',

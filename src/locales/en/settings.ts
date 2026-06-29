@@ -765,6 +765,8 @@ export const settings = {
   showBitrateSub: 'Display audio bitrate in track listings',
   floatingPlayerBar: 'Floating Player Bar',
   floatingPlayerBarSub: 'Keep the player bar floating above content',
+  squareCorners: 'Square Corners',
+  squareCornersSub: 'Remove rounded corners from cards for a sharp, square look',
   uiScaleTitle: 'Interface Scale',
   uiScaleLabel: 'Zoom',
 };

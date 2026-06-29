@@ -700,6 +700,8 @@ export const settings = {
   showBitrateSub: 'Arată bitrate-ul audio în listările de piese',
   floatingPlayerBar: 'Bară Player plutitoare',
   floatingPlayerBarSub: 'Păstrează bara playerului plutind deasupra conținutului',
+  squareCorners: 'Colțuri drepte',
+  squareCornersSub: 'Elimină colțurile rotunjite ale cardurilor pentru un aspect clar, unghiular',
   uiScaleTitle: 'Scara interfaței',
   uiScaleLabel: 'Zoom',
   confirmDeleteServerLibrary: 'Ștergi și indexul local al bibliotecii pentru acest server? Apasă Anulează pentru a păstra copia din cache pentru utilizare offline.',

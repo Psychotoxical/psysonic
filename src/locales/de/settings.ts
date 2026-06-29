@@ -698,6 +698,8 @@ export const settings = {
   showBitrateSub: 'Audio-Bitrate in Track-Listen anzeigen',
   floatingPlayerBar: 'Schwebende Player-Leiste',
   floatingPlayerBarSub: 'Player-Leiste über dem Inhalt schweben lassen',
+  squareCorners: 'Eckige Ecken',
+  squareCornersSub: 'Abgerundete Ecken bei Karten entfernen – kantige, eckige Optik',
   uiScaleTitle: 'Interface-Skalierung',
   uiScaleLabel: 'Zoom',
   waveformCacheClearBtn: 'Waveform-Cache leeren',

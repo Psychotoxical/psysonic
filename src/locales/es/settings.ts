@@ -697,6 +697,8 @@ export const settings = {
   showBitrateSub: 'Mostrar bitrate de audio en las listas de pistas',
   floatingPlayerBar: 'Barra del Reproductor Flotante',
   floatingPlayerBarSub: 'Mantener la barra del reproductor flotando sobre el contenido',
+  squareCorners: 'Esquinas rectas',
+  squareCornersSub: 'Quitar las esquinas redondeadas de las tarjetas para un aspecto nítido y cuadrado',
   uiScaleTitle: 'Escala de Interfaz',
   uiScaleLabel: 'Zoom',
   confirmDeleteServerLibrary: '¿También quieres eliminar el índice local de biblioteca de este servidor? Pulsa Cancelar para conservar la copia en caché para uso sin conexión.',

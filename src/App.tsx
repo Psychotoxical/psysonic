@@ -86,6 +86,15 @@ export default function App() {
     document.documentElement.setAttribute('data-button-size', buttonSize);
   }, [buttonSize]);
 
+  // Strip rounded corners off grid cards when the user opts in — single CSS
+  // hook (`html[data-square-corners]`) overriding whatever radius the theme set.
+  const squareCorners = useThemeStore(s => s.squareCorners);
+  useEffect(() => {
+    const root = document.documentElement;
+    if (squareCorners) root.setAttribute('data-square-corners', '');
+    else root.removeAttribute('data-square-corners');
+  }, [squareCorners]);
+
   // Hide all inline track-preview buttons when the user opts out — single
   // CSS hook (`html[data-track-previews="off"]`) instead of conditional
   // rendering in every tracklist. Per-location toggles use additional

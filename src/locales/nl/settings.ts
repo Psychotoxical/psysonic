@@ -685,6 +685,8 @@ export const settings = {
   showBitrateSub: 'Toon audio bitrate in tracklijsten',
   floatingPlayerBar: 'Zwevende Spelerbalk',
   floatingPlayerBarSub: 'Houd de spelerbalk zwevend boven de inhoud',
+  squareCorners: 'Rechte hoeken',
+  squareCornersSub: 'Verwijder afgeronde hoeken van kaarten voor een strakke, hoekige look',
   uiScaleTitle: 'Interface schaal',
   uiScaleLabel: 'Zoom',
   confirmDeleteServerLibrary: 'Ook de lokale bibliotheekindex van deze server verwijderen? Klik op Annuleren om de gecachte kopie voor offline gebruik te behouden.',

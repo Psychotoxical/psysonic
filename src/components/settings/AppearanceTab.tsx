@@ -105,6 +105,13 @@ export function AppearanceTab() {
             />
             <div className="settings-section-divider" />
             <SettingsToggle
+              label={t('settings.squareCorners')}
+              desc={t('settings.squareCornersSub')}
+              checked={theme.squareCorners}
+              onChange={theme.setSquareCorners}
+            />
+            <div className="settings-section-divider" />
+            <SettingsToggle
               label={t('settings.showArtistImages')}
               desc={t('settings.showArtistImagesDesc')}
               checked={auth.showArtistImages}

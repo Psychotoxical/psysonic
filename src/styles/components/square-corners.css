@@ -1,0 +1,70 @@
+/* ── Square Corners override ──
+ *
+ *   Toggled by `html[data-square-corners]` (themeStore `squareCorners`, set in
+ *   App.tsx). A global, theme-independent override that strips the rounded
+ *   corners off the grid cards (album / playlist / artist / song / "because")
+ *   and their cover artwork, for users who prefer a sharp, boxy look.
+ *
+ *   Scope is deliberately limited to cards + their covers — buttons, inputs,
+ *   dialogs and the player bar keep whatever radius the active theme defines.
+ *   `!important` is required because some themes set card radii with their own
+ *   `!important` (see e.g. `.artist-card-avatar-initial`).
+ *
+ *   The fallback artist initials avatar (`.artist-card-avatar-initial`) stays a
+ *   circle on purpose — it is an avatar placeholder, not a card corner. */
+
+/* Grid cards + their covers. */
+html[data-square-corners] :is(
+  .card,
+  .album-card,
+  .artist-card,
+  .song-card,
+  .because-card,
+  .album-card-cover,
+  .because-card-cover-wrap,
+  .artist-card-avatar,
+  .album-card-cover img,
+  .artist-card-avatar img
+) {
+  border-radius: 0 !important;
+}
+
+/* Large cover art in the album / playlist / tracks detail headers (heros). */
+html[data-square-corners] :is(
+  .album-detail-cover,
+  .album-detail-cover-btn,
+  .hero-cover,
+  .playlist-hero-cover,
+  .tracks-hero-cover,
+  .tracks-hero-cover img
+) {
+  border-radius: 0 !important;
+}
+
+/* Now Playing / Radio full view cover art. */
+html[data-square-corners] :is(
+  .np-dash-hero-cover,
+  .np-cover
+) {
+  border-radius: 0 !important;
+}
+
+/* Fullscreen player, the cover lightbox, and the queue panel's current cover. */
+html[data-square-corners] :is(
+  .fsp-cover,
+  .cover-lightbox-img,
+  .queue-current-cover
+) {
+  border-radius: 0 !important;
+}
+
+/* Mini player cover. The mini player is a separate webview, but the
+ *  `data-square-corners` attribute is applied in both window kinds (the App.tsx
+ *  attribute effects run in each webview, and the mini player rehydrates the
+ *  theme store on the shared-localStorage `storage` event). */
+html[data-square-corners] :is(
+  .mp-cover,
+  .mp-album-cover
+) {
+  border-radius: 0 !important;
+}

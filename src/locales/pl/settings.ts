@@ -765,5 +765,7 @@ export const settings = {
   showBitrateSub: 'Wyświetlaj bitrate audio na listach utworów',
   floatingPlayerBar: 'Pasek odtwarzacza jako nakładka',
   floatingPlayerBarSub: 'Wyświetlaj pasek odtwarzacza jako nakładkę nad zawartością',
+  squareCorners: 'Proste rogi',
+  squareCornersSub: 'Usuń zaokrąglone rogi kart, aby uzyskać ostry, kanciasty wygląd',
   uiScaleTitle: 'Skala interfejsu',
   uiScaleLabel: 'Przybliżenie',};

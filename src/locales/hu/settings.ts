@@ -764,6 +764,8 @@ export const settings = {
   showBitrateSub: 'A hang bitrátájának megjelenítése a számlistákban',
   floatingPlayerBar: 'Lebegő lejátszósáv',
   floatingPlayerBarSub: 'A lejátszósáv lebegve tartása a tartalom felett',
+  squareCorners: 'Szögletes sarkok',
+  squareCornersSub: 'A kártyák lekerekített sarkainak eltávolítása éles, szögletes megjelenésért',
   uiScaleTitle: 'Felület méretezése',
   uiScaleLabel: 'Nagyítás',
 };

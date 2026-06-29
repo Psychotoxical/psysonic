@@ -684,6 +684,8 @@ export const settings = {
   showBitrateSub: 'Vis audio-bitrate i sporlister',
   floatingPlayerBar: 'Flytende Spillerlinje',
   floatingPlayerBarSub: 'Hold spillerlinjen flytende over innholdet',
+  squareCorners: 'Firkantede hjørner',
+  squareCornersSub: 'Fjern avrundede hjørner på kort for et skarpt, kantete utseende',
   uiScaleTitle: 'Grensesnittskala',
   uiScaleLabel: 'Zoom',
   confirmDeleteServerLibrary: 'Vil du også slette denne serverens lokale bibliotekindeks? Klikk Avbryt for å beholde den bufrede kopien for offline bruk.',
