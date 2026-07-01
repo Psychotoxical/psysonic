@@ -20,6 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * New **Square Corners** toggle under **Settings → Appearance → Visual Options → Display** overrides the active theme to render cards and cover art with square, non-rounded corners. Covers album, playlist, artist and song cards, detail-page cover art, the Now Playing / Radio and fullscreen views, the cover lightbox, the queue cover, and the mini player. Off by default; buttons, inputs and dialogs keep the theme's corners.
 
 
+## Changed
+
+### Frontend restructure — feature-folder architecture and hardening
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), with additional architecture by [@cucadmuh](https://github.com/cucadmuh), PR [#1225](https://github.com/Psychotoxical/psysonic/pull/1225)**
+
+* Reorganised the frontend into a feature-folder architecture with a CI-enforced layering guard, added unit + behavior-scenario + boot-smoke test coverage, and introduced a compile-time frontend/backend IPC contract via tauri-specta. Internal only — no change to how the app looks or behaves.
+
+
 ## [1.49.0] - 2026-06-29
 
 ## Added

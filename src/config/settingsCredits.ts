@@ -394,6 +394,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Playlist sort — sort a playlist by date added (newest/oldest) or any track column from a visible sort dropdown (PR #1191)',
       'Configurable artist backdrops — per-place source order + on/off (mainstage hero, artist page, fullscreen), with the mainstage hero showing the artist backdrop and prefetching upcoming ones (PR #1193)',
       'Themed window title bar on macOS — follows the active theme instead of the grey system bar, with the native window buttons floating over it (PR #1199)',
+      'Frontend feature-folder restructure — CI-enforced layering guard, added unit/behavior-scenario/boot-smoke tests, and a compile-time frontend/backend IPC contract via tauri-specta (PR #1225)',
     ],
   },
   {
