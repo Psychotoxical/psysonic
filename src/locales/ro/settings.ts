@@ -4,6 +4,7 @@ export const settings = {
   languageEn: 'Engleză',
   languageDe: 'Germană',
   languageFr: 'Franceză',
+  languageIt: 'Italiano',
   languageNl: 'Olandeză',
   languageZh: 'Chineză',
   languageNb: 'Norvegiană',

@@ -3,6 +3,7 @@ import { initReactI18next } from 'react-i18next';
 import { deTranslation } from '@/locales/de';
 import { enTranslation } from '@/locales/en';
 import { frTranslation } from '@/locales/fr';
+import { itTranslation } from '@/locales/it';
 import { zhTranslation } from '@/locales/zh';
 import { nbTranslation } from '@/locales/nb';
 import { ruTranslation } from '@/locales/ru';
@@ -24,6 +25,7 @@ i18n
       de: { translation: deTranslation },
       es: { translation: esTranslation },
       fr: { translation: frTranslation },
+      it: { translation: itTranslation },
       nl: { translation: nlTranslation },
       zh: { translation: zhTranslation },
       nb: { translation: nbTranslation },

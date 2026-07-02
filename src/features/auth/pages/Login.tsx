@@ -303,6 +303,7 @@ export default function Login() {
               { value: 'de', label: t('settings.languageDe') },
               { value: 'es', label: t('settings.languageEs') },
               { value: 'fr', label: t('settings.languageFr') },
+              { value: 'it', label: t('settings.languageIt') },
               { value: 'nl', label: t('settings.languageNl') },
               { value: 'nb', label: t('settings.languageNb') },
               { value: 'ru', label: t('settings.languageRu') },

@@ -1,0 +1,16 @@
+export const tracks = {
+  title: 'Tracks',
+  subtitle: 'Browse. Search. Discover.',
+  heroEyebrow: 'Track of the moment',
+  heroReroll: 'Pick another',
+  playSong: 'Play',
+  enqueueSong: 'Add to queue',
+  toAlbum: 'To album',
+  railRandom: 'Random Pick',
+  railHighlyRated: 'Highly Rated',
+  browseTitle: 'Browse all tracks',
+  browseUnsupported: "This server doesn't list the whole library at once. Use the search above to find specific tracks.",
+  searchPlaceholder: 'Find a track by title, artist or album…',
+  count_one: '{{count}} track',
+  count_other: '{{count}} tracks',
+};

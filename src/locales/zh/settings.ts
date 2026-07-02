@@ -5,6 +5,7 @@ export const settings = {
   languageDe: 'Deutsch',
   languageEs: 'Español',
   languageFr: 'Français',
+  languageIt: 'Italiano',
   languageNl: 'Nederlands',
   languageNb: 'Norsk',
   languageRu: 'Русский',
