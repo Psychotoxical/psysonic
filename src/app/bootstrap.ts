@@ -1,7 +1,7 @@
 import { installQueueUndoHotkey } from '@/features/playback/store/queueUndoHotkey';
 import { configureStartupSplash } from './startupSplash';
 import { setupMusicNetworkRuntime } from './musicNetworkBridge';
-import { invoke } from '@tauri-apps/api/core';
+import { setLoggingMode, setSubsonicWireUserAgent } from '@/lib/api/platformShell';
 import { getWindowKind } from './windowKind';
 import { migrateThemeSelection } from '@/lib/themes/themeMigration';
 import { getScheduledTheme, useThemeStore } from '../store/themeStore';
@@ -14,7 +14,7 @@ export function pushUserAgentToBackend(): void {
     if (getWindowKind() !== 'main') return;
     const ua = window.navigator.userAgent?.trim();
     if (ua) {
-      void invoke('set_subsonic_wire_user_agent', { userAgent: ua, windowLabel: 'main' });
+      void setSubsonicWireUserAgent({ userAgent: ua, windowLabel: 'main' }).catch(() => {});
     }
   } catch {
     // Ignore in non-Tauri runtimes.
@@ -34,7 +34,7 @@ export function pushLoggingModeToBackend(): void {
     const parsed = JSON.parse(raw) as { state?: { loggingMode?: string } };
     const mode = parsed.state?.loggingMode;
     if (mode === 'off' || mode === 'normal' || mode === 'debug') {
-      void invoke('set_logging_mode', { mode });
+      void setLoggingMode({ mode }).catch(() => {});
     }
   } catch {
     // Ignore parse / non-Tauri.

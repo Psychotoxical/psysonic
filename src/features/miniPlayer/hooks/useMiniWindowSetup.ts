@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { setLinuxWebkitSmoothScrolling } from '@/lib/api/platformShell';
 import { resizeMiniPlayer, setMiniPlayerAlwaysOnTop } from '@/lib/api/miniPlayer';
 import { useAuthStore } from '@/store/authStore';
 import { IS_LINUX } from '@/lib/util/platform';
@@ -19,7 +19,7 @@ export function useMiniWindowSetup(alwaysOnTop: boolean, initialQueueOpen: boole
   useEffect(() => {
     if (!IS_LINUX) return;
     const apply = () => {
-      invoke('set_linux_webkit_smooth_scrolling', {
+      setLinuxWebkitSmoothScrolling({
         enabled: useAuthStore.getState().linuxWebkitKineticScroll,
       }).catch(() => {});
     };
