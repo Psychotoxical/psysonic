@@ -1131,6 +1131,7 @@ pub fn run() {
             psysonic_syncfs::cache::offline::clear_offline_cancel,
             psysonic_syncfs::cache::offline::delete_offline_track,
             psysonic_syncfs::cache::offline::get_offline_cache_size,
+            psysonic_syncfs::cache::local::download_track_local,
             psysonic_syncfs::cache::local::probe_library_track_local,
             psysonic_syncfs::cache::local::discover_library_tier_on_disk,
             psysonic_syncfs::cache::local::prune_orphan_library_tier_files,
