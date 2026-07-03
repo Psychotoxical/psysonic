@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { invoke } from '@tauri-apps/api/core';
 import { Play, HardDriveDownload, Trash2, ListPlus, ListMusic, Heart } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useOfflineStore } from '@/features/offline/store/offlineStore';
@@ -35,6 +34,7 @@ import {
 import { showToast } from '@/lib/dom/toast';
 import { shuffleArray } from '@/lib/util/shuffleArray';
 import { getMediaDir } from '@/lib/media/mediaDir';
+import { getMediaTierSize } from '@/lib/api/syncfs';
 import { canonicalQueueServerKey, resolveIndexKey } from '@/lib/server/serverIndexKey';
 import { reconcileAllLibraryTiersFromDisk } from '@/features/offline/utils/libraryTierReconcile';
 import {
@@ -100,8 +100,8 @@ export default function OfflineLibrary() {
   const refreshOfflineDiskSizes = useCallback(async () => {
     const mediaDir = getMediaDir();
     const [library, favorites] = await Promise.all([
-      invoke<number>('get_media_tier_size', { tier: 'library', mediaDir }).catch(() => 0),
-      invoke<number>('get_media_tier_size', { tier: 'favorites', mediaDir }).catch(() => 0),
+      getMediaTierSize({ tier: 'library', mediaDir }).catch(() => 0),
+      getMediaTierSize({ tier: 'favorites', mediaDir }).catch(() => 0),
     ]);
     setOfflineDiskBytes({ library, favorites });
   }, []);

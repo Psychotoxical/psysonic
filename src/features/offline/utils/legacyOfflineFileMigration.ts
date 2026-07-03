@@ -6,6 +6,7 @@ import { useLocalPlaybackStore, type LocalPlaybackEntry, type PinSource } from '
 import { localPlaybackEntryKey } from '@/store/localPlaybackKeys';
 import { importLegacyLocalPlayback } from '@/store/localPlaybackMigration';
 import { getMediaDir } from '@/lib/media/mediaDir';
+import { migrateLegacyOfflineDisk } from '@/lib/api/syncfs';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import { resolveIndexKey } from '@/lib/server/serverIndexKey';
 
@@ -192,7 +193,7 @@ export async function runLegacyOfflineFileMigration(serverIndexKey?: string): Pr
   const customOfflineDir = useAuthStore.getState().offlineDownloadDir?.trim() || null;
   let relocated = 0;
   try {
-    const results = await invoke<LegacyOfflineMigrationResult[]>('migrate_legacy_offline_disk', {
+    const results = await migrateLegacyOfflineDisk({
       mediaDir: getMediaDir(),
       customOfflineDir,
       serverIndexKeyFilter: serverIndexKey ?? null,

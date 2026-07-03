@@ -3,8 +3,8 @@ import { create } from 'zustand';
 import type { HotCacheEntry } from '@/features/playback/store/hotCacheStoreTypes';
 import { useLocalPlaybackStore, type LocalPlaybackEntry } from '@/store/localPlaybackStore';
 import { entryBelongsToServer } from '@/store/localPlaybackResolve';
-import { invoke } from '@tauri-apps/api/core';
 import { getMediaDir } from '@/lib/media/mediaDir';
+import { deleteMediaFile } from '@/lib/api/syncfs';
 
 export type { HotCacheEntry } from '@/features/playback/store/hotCacheStoreTypes';
 /** @deprecated Use {@link LOCAL_PLAYBACK_PROTECT_AFTER_CURRENT}. */
@@ -89,9 +89,7 @@ export const useHotCacheStore = create<HotCacheState>()(() => ({
     const lp = useLocalPlaybackStore.getState();
     const e = lp.getEntry(trackId, serverId);
     if (e?.tier === 'ephemeral' && e.localPath) {
-      await invoke('delete_media_file', { localPath: e.localPath, mediaDir: getMediaDir() }).catch(
-        () => {},
-      );
+      await deleteMediaFile({ localPath: e.localPath, mediaDir: getMediaDir() }).catch(() => {});
       lp.removeEntry(trackId, serverId, 'hot-cache-shim');
     }
   },

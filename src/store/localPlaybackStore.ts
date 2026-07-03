@@ -2,6 +2,7 @@ import type { QueueItemRef } from '@/lib/media/trackTypes';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
+import { deleteMediaFile, pruneEmptyMediaTierDirs, purgeMediaTier } from '@/lib/api/syncfs';
 import { isHotCachePreviousTrackUnderGrace } from '@/lib/cache/hotCacheGate';
 import { emitAnalysisStorageChanged } from './analysisSync';
 import { useAuthStore } from './authStore';
@@ -173,7 +174,7 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
         );
         await Promise.all(
           targets.map(async e => {
-            await invoke('delete_media_file', { localPath: e.localPath, mediaDir }).catch(() => {});
+            await deleteMediaFile({ localPath: e.localPath, mediaDir }).catch(() => {});
             get().removeEntry(e.trackId, e.serverIndexKey, 'pin-group-delete');
           }),
         );
@@ -275,10 +276,7 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
           if (!meta || meta.tier !== 'ephemeral') continue;
           const parsed = parseLocalPlaybackEntryKey(cand.key);
           if (!parsed) continue;
-          await invoke('delete_media_file', {
-            localPath: meta.localPath,
-            mediaDir,
-          }).catch(() => {});
+          await deleteMediaFile({ localPath: meta.localPath, mediaDir }).catch(() => {});
           localPlaybackFrontendDebug({
             event: 'evict-remove',
             trackId: parsed.trackId,
@@ -300,11 +298,11 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
           await evictEphemeralOrphansToFit(maxBytes, mediaDir, keepPaths);
         }
 
-        await invoke('prune_empty_media_tier_dirs', { tier: 'ephemeral', mediaDir }).catch(() => {});
+        await pruneEmptyMediaTierDirs({ tier: 'ephemeral', mediaDir }).catch(() => {});
       },
 
       purgeEphemeralDisk: async (mediaDir) => {
-        await invoke('purge_media_tier', { tier: 'ephemeral', mediaDir }).catch(() => {});
+        await purgeMediaTier({ tier: 'ephemeral', mediaDir }).catch(() => {});
         set(s => {
           const entries = { ...s.entries };
           for (const [key, e] of Object.entries(entries)) {
@@ -316,7 +314,7 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
       },
 
       purgeLibraryDisk: async (mediaDir) => {
-        await invoke('purge_media_tier', { tier: 'library', mediaDir }).catch(() => {});
+        await purgeMediaTier({ tier: 'library', mediaDir }).catch(() => {});
         set(s => {
           const entries = { ...s.entries };
           for (const [key, e] of Object.entries(entries)) {
@@ -328,7 +326,7 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
       },
 
       purgeFavoriteAutoDisk: async (mediaDir) => {
-        await invoke('purge_media_tier', { tier: 'favorite-auto', mediaDir }).catch(() => {});
+        await purgeMediaTier({ tier: 'favorite-auto', mediaDir }).catch(() => {});
         set(s => {
           const entries = { ...s.entries };
           for (const [key, e] of Object.entries(entries)) {

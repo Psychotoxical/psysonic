@@ -1,10 +1,10 @@
 import { listen } from '@tauri-apps/api/event';
-import { invoke } from '@tauri-apps/api/core';
 import { libraryGetTrack } from '@/lib/api/library';
 import { useAuthStore } from './store/authStore';
 import { useLocalPlaybackStore } from './store/localPlaybackStore';
 import { layoutFingerprintFromLibraryTrack } from '@/lib/media/mediaLayout';
 import { getMediaDir } from '@/lib/media/mediaDir';
+import { deleteMediaFile } from '@/lib/api/syncfs';
 import { runLegacyOfflineFileMigration } from '@/features/offline';
 import { reconcileLibraryTierForServer } from '@/features/offline';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
@@ -22,14 +22,14 @@ async function invalidateEntriesForLibraryServer(libraryServerId: string): Promi
   for (const entry of targets) {
     const track = await libraryGetTrack(libraryServerId, entry.trackId).catch(() => null);
     if (!track) {
-      await invoke('delete_media_file', { localPath: entry.localPath, mediaDir }).catch(() => {});
+      await deleteMediaFile({ localPath: entry.localPath, mediaDir }).catch(() => {});
       store.removeEntry(entry.trackId, entry.serverIndexKey, 'sync-track-removed');
       continue;
     }
     if (!entry.layoutFingerprint) continue;
     const nextFp = layoutFingerprintFromLibraryTrack(track, entry.suffix);
     if (nextFp !== entry.layoutFingerprint) {
-      await invoke('delete_media_file', { localPath: entry.localPath, mediaDir }).catch(() => {});
+      await deleteMediaFile({ localPath: entry.localPath, mediaDir }).catch(() => {});
       store.removeEntry(entry.trackId, entry.serverIndexKey, 'sync-layout-changed');
     }
   }

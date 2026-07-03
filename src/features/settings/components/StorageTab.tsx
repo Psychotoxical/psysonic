@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { invoke } from '@tauri-apps/api/core';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { Download, FolderOpen, Trash2, X } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { countHotCacheTracks } from '@/features/playback/store/hotCacheStore';
 import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
+import { getMediaTierSize } from '@/lib/api/syncfs';
 import { formatBytes, snapHotCacheMb } from '@/lib/format/formatBytes';
 import SettingsSubSection from '@/features/settings/components/SettingsSubSection';
 import { SettingsGroup } from '@/features/settings/components/SettingsGroup';
@@ -29,7 +29,7 @@ export function StorageTab() {
   );
 
   const refreshHotCacheSize = useCallback(() => {
-    invoke<number>('get_media_tier_size', { tier: 'ephemeral', mediaDir })
+    getMediaTierSize({ tier: 'ephemeral', mediaDir })
       .then(setHotCacheBytes)
       .catch(() => setHotCacheBytes(0));
   }, [mediaDir]);

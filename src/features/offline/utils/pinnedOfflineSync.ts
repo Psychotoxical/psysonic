@@ -3,7 +3,6 @@ import { getAlbumForServer, filterSongsToServerLibrary } from '@/lib/api/subsoni
 import { getPlaylistForServer } from '@/lib/api/subsonicPlaylists';
 import { getArtistForServer } from '@/lib/api/subsonicArtists';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
-import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from '@/store/authStore';
 import type { PinSource } from '@/store/localPlaybackStore';
 import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
@@ -11,6 +10,7 @@ import { useOfflineStore } from '@/features/offline/store/offlineStore';
 import { usePlaylistStore } from '@/features/playlist';
 import { isSmartPlaylistName } from '@/lib/format/playlistDetailHelpers';
 import { getMediaDir } from '@/lib/media/mediaDir';
+import { deleteMediaFile } from '@/lib/api/syncfs';
 import {
   isActiveServerReachable,
   onActiveServerBecameReachable,
@@ -123,7 +123,7 @@ async function pruneRemovedPinTracks(
     if (!entry?.localPath || entry.tier !== 'library') continue;
     if (entry.pinSource?.kind !== kind || entry.pinSource.sourceId !== sourceId) continue;
 
-    await invoke('delete_media_file', { localPath: entry.localPath, mediaDir }).catch(() => {});
+    await deleteMediaFile({ localPath: entry.localPath, mediaDir }).catch(() => {});
     lp.removeEntry(trackId, entry.serverIndexKey, `${kind}-sync-prune`);
   }
 }
