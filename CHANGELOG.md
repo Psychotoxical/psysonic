@@ -57,6 +57,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Gapless auto-advance no longer leaves the playbar on the previous track; missed `audio:track_switched` is reconciled from engine position with seek guards so backward seek is not treated as a gapless switch.
 * Local library index stores `replayGainPeak` (migration 015) so anti-clipping peak is available on index-first paths without an extra network round-trip.
 
+### Connection — ignore spurious offline hint on desktop
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1234](https://github.com/Psychotoxical/psysonic/pull/1234)**
+
+* Desktop builds no longer get stuck showing "offline" when WebKitGTK leaves `navigator.onLine` stuck at `false` while the server is actually reachable — the app now confirms with a real server probe instead of trusting that hint, so browse and playback keep working. Web builds are unchanged.
+* Pending favorite/rating sync now flushes when the server actually becomes reachable again, rather than relying on a browser `online` event that may never fire on desktop.
+
 
 ## [1.49.0] - 2026-06-29
 
