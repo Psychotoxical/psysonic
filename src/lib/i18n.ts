@@ -12,6 +12,7 @@ import { roTranslation } from '@/locales/ro';
 import { jaTranslation } from '@/locales/ja';
 import { huTranslation } from '@/locales/hu';
 import { plTranslation } from '@/locales/pl';
+import { bgTranslation } from '@/locales/bg';
 
 const savedLanguage = localStorage.getItem('psysonic_language') || 'en';
 
@@ -31,6 +32,7 @@ i18n
       ja: { translation: jaTranslation },
       hu: { translation: huTranslation },
       pl: { translation: plTranslation },
+      bg: { translation: bgTranslation },
     },
     lng: savedLanguage,
     fallbackLng: 'en',

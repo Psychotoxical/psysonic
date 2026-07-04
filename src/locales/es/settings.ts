@@ -11,6 +11,7 @@ export const settings = {
   languageZh: '中文',
   languageRo: 'Română',
   languagePl: 'Polski',
+  languageBg: 'Български',
   languageJa: '日本語',
   languageHu: 'Magyar',
   font: 'Fuente',

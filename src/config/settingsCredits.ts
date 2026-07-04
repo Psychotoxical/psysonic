@@ -426,6 +426,13 @@ const CONTRIBUTOR_ENTRIES = [
       'Polish (pl) full UI translation (PR #1185)',
     ],
   },
+  {
+    github: 'akirichev',
+    since: '1.50.0',
+    contributions: [
+      'Bulgarian (bg) full UI translation (PR #1228)',
+    ],
+  },
 ] as const;
 
 // PR number of a contributor's first listed contribution, used as the

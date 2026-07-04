@@ -1,0 +1,15 @@
+export const genres = {
+  title: 'Жанрове',
+  genreCount: 'Жанрове',
+  albumCount_one: '{{count}} албум',
+  albumCount_other: '{{count}} албума',
+  loading: 'Зареждане на жанрове…',
+  empty: 'Не са намерени жанрове.',
+  albumsLoading: 'Зареждане на албуми…',
+  albumsEmpty: 'Не са намерени албуми за този жанр.',
+  loadMore: 'Зареди още',
+  back: 'Назад',
+  playTooltip: 'Пусни (задръж за разбъркване)',
+  shuffle: 'Разбъркай',
+  addToQueue: 'Добави в опашката',
+};

@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * New **Square Corners** toggle under **Settings → Appearance → Visual Options → Display** overrides the active theme to render cards and cover art with square, non-rounded corners. Covers album, playlist, artist and song cards, detail-page cover art, the Now Playing / Radio and fullscreen views, the cover lightbox, the queue cover, and the mini player. Off by default; buttons, inputs and dialogs keep the theme's corners.
 
+### Bulgarian translation
+
+**By [@akirichev](https://github.com/akirichev), PR [#1228](https://github.com/Psychotoxical/psysonic/pull/1228)**
+
+* Full Bulgarian (Български) UI translation — selectable from the language picker on the Settings and Login screens.
+
 
 ## Changed
 
