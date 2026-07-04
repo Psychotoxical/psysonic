@@ -181,6 +181,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Playback — ReplayGain index prefetch, gapless playbar sync, library replayGainPeak column, live RG refresh after sync (PR #1231)',
       'Artists browse — album vs track credit mode toggle, starred favorites in both modes, persisted credit mode, SQL letter-bucket filter (PR #1232)',
       'Connection — ignore spurious WebKitGTK navigator.onLine offline hint on desktop; confirm via server probe; flush pending favorite/rating sync on real reachability (report: mikmik on Psysonic Discord, PR #1234)',
+      'Playlists — batch playlist writes past the GET URL limit (add >341 tracks), in-memory membership cache for fast dedup, offline↔playlist layering detangle (PR #1235)',
     ],
   },
   {

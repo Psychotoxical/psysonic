@@ -64,6 +64,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Desktop builds no longer get stuck showing "offline" when WebKitGTK leaves `navigator.onLine` stuck at `false` while the server is actually reachable — the app now confirms with a real server probe instead of trusting that hint, so browse and playback keep working. Web builds are unchanged.
 * Pending favorite/rating sync now flushes when the server actually becomes reachable again, rather than relying on a browser `online` event that may never fire on desktop.
 
+### Playlists — add more than ~341 tracks; faster large-playlist edits
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1235](https://github.com/Psychotoxical/psysonic/pull/1235)**
+
+* Adding tracks to a playlist no longer fails past ~341 songs — writes are sent to the server in batches instead of one oversized request, so playlists of any size build correctly.
+* Adding and merging into large playlists is faster: playlist membership is cached in memory for de-duplication instead of re-fetching the whole playlist on every add.
+
 
 ## [1.49.0] - 2026-06-29
 
