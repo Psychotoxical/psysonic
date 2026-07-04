@@ -71,6 +71,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Adding tracks to a playlist no longer fails past ~341 songs — writes are sent to the server in batches instead of one oversized request, so playlists of any size build correctly.
 * Adding and merging into large playlists is faster: playlist membership is cached in memory for de-duplication instead of re-fetching the whole playlist on every add.
 
+### Queue — rows no longer stuck showing "…"
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1236](https://github.com/Psychotoxical/psysonic/pull/1236)**
+
+* Queue rows that were far from the currently playing track (e.g. after starting a large playlist from the middle, or scrolling the queue) no longer stay stuck on a "…" placeholder — the queue now loads track details for whatever you scroll to, in the desktop queue panel, the mobile queue drawer, and the fullscreen "up next" overlay.
+
 
 ## [1.49.0] - 2026-06-29
 
