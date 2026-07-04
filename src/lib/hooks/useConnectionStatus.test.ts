@@ -17,6 +17,11 @@ vi.mock('@/lib/perf/perfFlags', () => ({
   usePerfProbeFlags: () => ({ disableBackgroundPolling: false }),
 }));
 
+const isTauri = vi.fn(() => false);
+vi.mock('@tauri-apps/api/core', () => ({
+  isTauri: () => isTauri(),
+}));
+
 import { pingWithCredentialsForProfile } from '@/lib/api/subsonic';
 import { useDevOfflineBrowseStore } from '@/features/offline';
 import { resetActiveServerConnectionSnapshot, setConnectionStatus } from '@/lib/network/activeServerReachability';
@@ -27,6 +32,7 @@ beforeEach(() => {
   resetActiveServerConnectionSnapshot();
   invalidateReachableEndpointCache();
   useDevOfflineBrowseStore.getState().setForceOffline(false);
+  isTauri.mockReturnValue(false);
   vi.mocked(pingWithCredentialsForProfile).mockReset();
 });
 
@@ -187,6 +193,25 @@ describe('useConnectionStatus DEV offline toggle', () => {
     act(() => useDevOfflineBrowseStore.getState().setForceOffline(true));
     await waitFor(() => expect(result.current.status).toBe('disconnected'));
     expect(vi.mocked(pingWithCredentialsForProfile).mock.calls.length).toBe(callsBeforeToggle);
+  });
+});
+
+describe('useConnectionStatus navigator.onLine (Tauri)', () => {
+  it('probes the server when navigator.onLine is false inside Tauri', async () => {
+    isTauri.mockReturnValue(true);
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+
+    seedDualAddressServer();
+    vi.mocked(pingWithCredentialsForProfile).mockResolvedValue({
+      ok: true,
+      type: 'navidrome',
+      serverVersion: '0.62.0',
+      openSubsonic: true,
+    });
+
+    const { result } = renderHook(() => useConnectionStatus());
+    await waitFor(() => expect(result.current.status).toBe('connected'));
+    expect(vi.mocked(pingWithCredentialsForProfile).mock.calls.length).toBeGreaterThanOrEqual(1);
   });
 });
 

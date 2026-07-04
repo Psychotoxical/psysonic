@@ -1,4 +1,5 @@
 import { isDevOfflineBrowseForced } from '@/store/devOfflineBrowseStore';
+import { isNavigatorOfflineHint } from '@/lib/network/navigatorOnlineHint';
 
 export type ConnectionStatus = 'connected' | 'disconnected' | 'checking';
 
@@ -53,9 +54,9 @@ export function resetActiveServerConnectionSnapshot(): void {
   connectionStatus = 'checking';
 }
 
-/** True only when the browser is online and the last active-server probe succeeded. */
+/** True only when the browser offline hint applies and the last active-server probe succeeded. */
 export function isActiveServerReachable(): boolean {
   if (isDevOfflineBrowseForced()) return false;
-  if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
+  if (isNavigatorOfflineHint()) return false;
   return activeServerReachable === true;
 }

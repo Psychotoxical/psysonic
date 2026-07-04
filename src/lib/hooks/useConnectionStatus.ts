@@ -15,6 +15,7 @@ import {
   subscribeConnectionStatus,
   type ConnectionStatus,
 } from '@/lib/network/activeServerReachability';
+import { isNavigatorOfflineHint } from '@/lib/network/navigatorOnlineHint';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import {
   isDevOfflineBrowseForced,
@@ -52,7 +53,7 @@ export function useConnectionStatus() {
       return;
     }
 
-    if (!navigator.onLine) {
+    if (isNavigatorOfflineHint()) {
       setActiveServerReachable(false);
       setConnectionStatus('disconnected');
       return;
@@ -150,8 +151,14 @@ export function useConnectionStatus() {
       check();
     };
     const handleOffline = () => {
-      setActiveServerReachable(false);
-      setConnectionStatus('disconnected');
+      // WebKitGTK can spuriously fire `offline` while HTTP still works — re-probe
+      // on desktop instead of hard-disconnecting (see navigatorOnlineHint).
+      if (isNavigatorOfflineHint()) {
+        setActiveServerReachable(false);
+        setConnectionStatus('disconnected');
+        return;
+      }
+      void check();
     };
 
     window.addEventListener('online', handleOnline);

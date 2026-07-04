@@ -4,11 +4,12 @@ import {
 } from '@/store/devOfflineBrowseStore';
 import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus';
 import { isActiveServerReachable } from '@/lib/network/activeServerReachability';
+import { isNavigatorOfflineHint } from '@/lib/network/navigatorOnlineHint';
 
 /** True when browse/detail pages should use local-bytes-only data sources. */
 export function isOfflineBrowseActive(): boolean {
   if (isDevOfflineBrowseForced()) return true;
-  if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
+  if (isNavigatorOfflineHint()) return true;
   return !isActiveServerReachable();
 }
 
@@ -22,6 +23,6 @@ export function useOfflineBrowseActive(): boolean {
   useConnectionStatus();
 
   if (import.meta.env.DEV && devForceOffline) return true;
-  if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
+  if (isNavigatorOfflineHint()) return true;
   return !isActiveServerReachable();
 }

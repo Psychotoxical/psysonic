@@ -3,6 +3,7 @@ import { hasLocalPlaybackUrl } from '@/store/localPlaybackResolve';
 import { isDevOfflineBrowseForced } from '@/store/devOfflineBrowseStore';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import { isActiveServerReachable } from '@/lib/network/activeServerReachability';
+import { isNavigatorOfflineHint } from '@/lib/network/navigatorOnlineHint';
 
 function isSameServerProfile(a: string, b: string): boolean {
   if (!a || !b) return false;
@@ -18,7 +19,7 @@ function isSameServerProfile(a: string, b: string): boolean {
 export function isSubsonicServerReachable(serverId: string): boolean {
   if (!serverId) return false;
   if (isDevOfflineBrowseForced()) return false;
-  if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
+  if (isNavigatorOfflineHint()) return false;
   const activeId = useAuthStore.getState().activeServerId;
   if (!activeId || isSameServerProfile(serverId, activeId)) {
     return isActiveServerReachable();
@@ -34,7 +35,7 @@ export function isSubsonicServerReachable(serverId: string): boolean {
 export function shouldAttemptSubsonicForServer(serverId: string, trackId?: string): boolean {
   if (!serverId) return false;
   if (isDevOfflineBrowseForced()) return false;
-  if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
+  if (isNavigatorOfflineHint()) return false;
   if (trackId && hasLocalPlaybackUrl(trackId, serverId)) return false;
   return isSubsonicServerReachable(serverId);
 }
