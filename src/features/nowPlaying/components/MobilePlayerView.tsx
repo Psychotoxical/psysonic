@@ -21,6 +21,7 @@ import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';
 import {
   getQueueResolverVersion,
   subscribeQueueResolver,
+  resolveVisibleRange,
 } from '@/features/playback/store/queueTrackResolver';
 import { LyricsPane } from '@/features/lyrics';
 import { usePlaybackDelayPress } from '@/features/playback/hooks/usePlaybackDelayPress';
@@ -110,6 +111,18 @@ function QueueDrawer({ onClose }: { onClose: () => void }) {
   });
   const virtualItems = rowVirtualizer.getVirtualItems();
   const totalSize = rowVirtualizer.getTotalSize();
+
+  // Resolve the rows actually in view (queue thin-state). The resolver bridge only
+  // warms a window around the playing index, so scrolling the drawer would leave
+  // far-off rows stuck on the '…' placeholder. Drive resolution off the visible
+  // range; resolveVisibleRange dedups against cache/in-flight.
+  const firstVisible = virtualItems.length > 0 ? virtualItems[0]!.index : 0;
+  const lastVisible = virtualItems.length > 0 ? virtualItems[virtualItems.length - 1]!.index : 0;
+  useEffect(() => {
+    if (queue.length === 0) return;
+    resolveVisibleRange(queue, firstVisible, lastVisible);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstVisible, lastVisible, queue.length]);
 
   // Scroll the active track into view on open. Rows are uniform height, so the
   // virtualizer's estimate lands the centred index accurately.

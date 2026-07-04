@@ -1,4 +1,4 @@
-import { memo, useMemo, useSyncExternalStore } from 'react';
+import { memo, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
@@ -7,6 +7,7 @@ import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';
 import {
   getQueueResolverVersion,
   subscribeQueueResolver,
+  resolveBatch,
 } from '@/features/playback/store/queueTrackResolver';
 import { formatTrackTime } from '@/lib/format/formatDuration';
 
@@ -36,6 +37,19 @@ export const FsQueueModal = memo(function FsQueueModal({ onClose }: Props) {
     return out;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queueItems, queueIndex, version]);
+
+  // This overlay renders the whole "up next" list (not virtualized), but the
+  // resolver bridge only warms a window around the playing index — so rows past
+  // that window would show the '…' placeholder. Resolve every upcoming ref shown
+  // here; resolveBatch dedups against cache/in-flight.
+  useEffect(() => {
+    const refs = [];
+    for (let i = queueIndex + 1; i < queueItems.length; i++) {
+      const ref = queueItems[i];
+      if (ref) refs.push({ serverId: ref.serverId, trackId: ref.trackId });
+    }
+    if (refs.length > 0) void resolveBatch(refs);
+  }, [queueItems, queueIndex]);
 
   return (
     <div
