@@ -181,6 +181,9 @@ export type FilterOperator = 'eq' | 'gte' | 'lte' | 'between' | 'fts' | 'is_true
 
 export type SortDir = 'asc' | 'desc';
 
+/** Album-artist vs track-performer browse when querying artists (#1209). */
+export type ArtistCreditMode = 'album' | 'track';
+
 export interface LibraryFilterClause {
   field: string; // registry id, e.g. 'genre' | 'year' | 'bpm'
   op: FilterOperator;
@@ -209,6 +212,8 @@ export interface LibraryAdvancedSearchRequest {
   skipTotals?: boolean;
   /** Album text query matches title/name only (All Albums scoped browse). */
   queryAlbumTitleOnly?: boolean | null;
+  /** Artist browse credit semantics (#1209). Omitted/null → album artists. */
+  artistCreditMode?: ArtistCreditMode | null;
 }
 
 export interface LibraryAlbumDto {

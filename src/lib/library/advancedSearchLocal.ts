@@ -51,6 +51,8 @@ export interface LocalSearchOpts {
   resultType: AdvancedResultType;
   /** When searching albums, match album title only (not album artist). */
   albumTitleOnly?: boolean;
+  /** Artist browse credit mode (#1209). */
+  artistCreditMode?: 'album' | 'track';
 }
 
 export interface LocalAdvancedSearchPage {
@@ -148,6 +150,7 @@ function buildRequest(
     ...(opts.resultType === 'albums' && opts.albumTitleOnly
       ? { queryAlbumTitleOnly: true }
       : {}),
+    ...(opts.artistCreditMode ? { artistCreditMode: opts.artistCreditMode } : {}),
   };
 }
 

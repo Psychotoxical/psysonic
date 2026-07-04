@@ -15,7 +15,8 @@ use rusqlite::{params, OptionalExtension};
 use serde_json::Value;
 
 use crate::dto::{
-    LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse, LibraryAlbumDto, LibraryArtistDto,
+    ArtistCreditMode, LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse, LibraryAlbumDto,
+    LibraryArtistDto,
     LibraryFilterClause, LibrarySearchTotals, LibrarySortClause, LibraryTrackDto, SortDir,
 };
 use crate::filter::{self, EntityKind, FilterOp, SqlFragment};
@@ -480,6 +481,10 @@ fn build_album_from_tracks(
     )
 }
 
+fn album_artist_credit_mode(req: &LibraryAdvancedSearchRequest) -> bool {
+    !matches!(req.artist_credit_mode, Some(ArtistCreditMode::Track))
+}
+
 #[allow(clippy::too_many_arguments)]
 fn build_artist(
     store: &LibraryStore,
@@ -491,11 +496,9 @@ fn build_artist(
     skip_totals: bool,
     applied: &mut BTreeSet<String>,
 ) -> Result<(Vec<LibraryArtistDto>, u32), String> {
+    // #1209: browse uses a single `artist` table path — no FTS / track fallthrough.
     if !scalar_requires_track_derived_entities(scalar) {
-        let table = build_artist_from_table(store, req, text, scalar, limit, offset, skip_totals, applied)?;
-        if !table.0.is_empty() || table.1 > 0 {
-            return Ok(table);
-        }
+        return build_artist_from_table(store, req, text, scalar, limit, offset, skip_totals, applied);
     }
     if let Some(q) = text.and_then(|t| fts_column_prefix_query("artist", t)) {
         return build_artist_from_fts(store, req, &q, scalar, limit, offset, skip_totals, applied);
@@ -516,6 +519,9 @@ fn build_artist_from_table(
 ) -> Result<(Vec<LibraryArtistDto>, u32), String> {
     let mut w = WhereBuilder::new();
     w.push_param("ar.server_id = ?", SqlValue::Text(req.server_id.clone()));
+    if album_artist_credit_mode(req) {
+        w.push_raw("ar.album_count IS NOT NULL");
+    }
     if let Some(t) = text {
         w.push_param("ar.name LIKE ? ESCAPE '\\'", SqlValue::Text(like_contains(t)));
         applied.insert("text".to_string());
@@ -1461,15 +1467,7 @@ mod tests {
     }
 
     fn insert_artist(store: &LibraryStore, server: &str, id: &str, name: &str) {
-        store
-            .with_conn("misc", |c| {
-                c.execute(
-                    "INSERT INTO artist (server_id, id, name, synced_at, raw_json) \
-                     VALUES (?1, ?2, ?3, 1, '{}')",
-                    rusqlite::params![server, id, name],
-                )
-            })
-            .unwrap();
+        insert_artist_with_album_count(store, server, id, name, Some(1));
     }
 
     fn req(server: &str, entities: &[EntityKind]) -> LibraryAdvancedSearchRequest {
@@ -1486,7 +1484,26 @@ mod tests {
             limit: 50,
             offset: 0,
             skip_totals: false,
+            artist_credit_mode: None,
         }
+    }
+
+    fn insert_artist_with_album_count(
+        store: &LibraryStore,
+        server: &str,
+        id: &str,
+        name: &str,
+        album_count: Option<i64>,
+    ) {
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "INSERT INTO artist (server_id, id, name, album_count, synced_at, raw_json) \
+                     VALUES (?1, ?2, ?3, ?4, 1, '{}')",
+                    rusqlite::params![server, id, name, album_count],
+                )
+            })
+            .unwrap();
     }
 
     fn clause(field: &str, op: FilterOp, value: Option<Value>, value_to: Option<Value>) -> LibraryFilterClause {
@@ -1567,8 +1584,55 @@ mod tests {
         assert_eq!(resp.albums.len(), 1);
         assert_eq!(resp.albums[0].id, "al_Aurora Nights");
         assert_eq!(resp.albums[0].cover_art_id.as_deref(), Some("cv1"));
+        // Artist rows come from the `artist` table only (#1209) — not track fallthrough.
+        assert!(resp.artists.is_empty());
+    }
+
+    #[test]
+    fn artist_credit_album_mode_excludes_backfill_only_rows() {
+        let store = LibraryStore::open_in_memory();
+        insert_artist_with_album_count(&store, "s1", "ar_va", "Various Artists", Some(12));
+        insert_artist_with_album_count(&store, "s1", "ar_guest", "Soundtrack Guest", None);
+        let mut r = req("s1", &[EntityKind::Artist]);
+        r.artist_credit_mode = Some(ArtistCreditMode::Album);
+        let resp = run_advanced_search(&store, &r).unwrap();
         assert_eq!(resp.artists.len(), 1);
-        assert_eq!(resp.artists[0].id, "ar_Aurora Quartet");
+        assert_eq!(resp.artists[0].id, "ar_va");
+    }
+
+    #[test]
+    fn artist_credit_track_mode_includes_backfill_rows() {
+        let store = LibraryStore::open_in_memory();
+        insert_artist_with_album_count(&store, "s1", "ar_va", "Various Artists", Some(12));
+        insert_artist_with_album_count(&store, "s1", "ar_guest", "Soundtrack Guest", None);
+        let mut r = req("s1", &[EntityKind::Artist]);
+        r.artist_credit_mode = Some(ArtistCreditMode::Track);
+        r.sort = vec![LibrarySortClause {
+            field: "name".into(),
+            dir: SortDir::Asc,
+        }];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.artists.len(), 2);
+        assert_eq!(resp.artists[0].id, "ar_guest");
+        assert_eq!(resp.artists[1].id, "ar_va");
+    }
+
+    #[test]
+    fn artist_credit_album_mode_text_search_uses_artist_table_only() {
+        let store = LibraryStore::open_in_memory();
+        insert_artist_with_album_count(&store, "s1", "ar_va", "Various Artists", Some(12));
+        insert_artist_with_album_count(&store, "s1", "ar_guest", "Soundtrack Guest", None);
+        let mut r = req("s1", &[EntityKind::Artist]);
+        r.query = Some("guest".into());
+        r.artist_credit_mode = Some(ArtistCreditMode::Album);
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert!(resp.artists.is_empty());
+        let mut r2 = req("s1", &[EntityKind::Artist]);
+        r2.query = Some("guest".into());
+        r2.artist_credit_mode = Some(ArtistCreditMode::Track);
+        let resp2 = run_advanced_search(&store, &r2).unwrap();
+        assert_eq!(resp2.artists.len(), 1);
+        assert_eq!(resp2.artists[0].id, "ar_guest");
     }
 
     #[test]

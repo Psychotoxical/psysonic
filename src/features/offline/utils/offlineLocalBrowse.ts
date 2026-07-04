@@ -1,4 +1,4 @@
-import type { LibraryTrackDto } from '@/lib/api/library';
+import type { ArtistCreditMode, LibraryTrackDto } from '@/lib/api/library';
 import { libraryAdvancedSearch, libraryGetTracksBatchChunked, libraryGetTracksByAlbum } from '@/lib/api/library';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '@/lib/api/subsonicTypes';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
@@ -181,12 +181,44 @@ export async function fetchOfflineLocalStarredArtists(serverId: string): Promise
   return aggregateArtistsFromTracks(tracks, serverId);
 }
 
+async function fetchOfflineLocalArtistCatalogFromIndex(
+  serverId: string,
+  offset: number,
+  chunkSize: number,
+  creditMode: ArtistCreditMode,
+): Promise<{ artists: SubsonicArtist[]; hasMore: boolean } | null> {
+  try {
+    const resp = await libraryAdvancedSearch({
+      serverId,
+      entityTypes: ['artist'],
+      artistCreditMode: creditMode,
+      sort: [{ field: 'name', dir: 'asc' }],
+      limit: chunkSize,
+      offset,
+      skipTotals: true,
+    });
+    if (resp.source !== 'local') return null;
+    const artists = resp.artists.map(artistToArtist).map(a => ({ ...a, serverId }));
+    return { artists, hasMore: artists.length === chunkSize };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchOfflineLocalArtistCatalogChunk(
   serverId: string,
   offset: number,
   chunkSize: number,
+  creditMode: ArtistCreditMode = 'album',
 ): Promise<{ artists: SubsonicArtist[]; hasMore: boolean } | null> {
   if (!offlineLocalBrowseEnabled(serverId)) return null;
+  const fromIndex = await fetchOfflineLocalArtistCatalogFromIndex(
+    serverId,
+    offset,
+    chunkSize,
+    creditMode,
+  );
+  if (fromIndex) return fromIndex;
   const tracks = await fetchBrowsableLocalTrackDtos(serverId);
   const artists = aggregateArtistsFromTracks(tracks, serverId);
   const slice = artists.slice(offset, offset + chunkSize);
@@ -199,10 +231,30 @@ export async function fetchOfflineLocalArtistCatalogChunk(
 export async function searchOfflineLocalArtists(
   serverId: string,
   query: string,
+  creditMode: ArtistCreditMode = 'album',
 ): Promise<SubsonicArtist[] | null> {
   if (!offlineLocalBrowseEnabled(serverId)) return null;
   const q = query.trim().toLowerCase();
   if (!q) return [];
+  try {
+    const resp = await libraryAdvancedSearch({
+      serverId,
+      entityTypes: ['artist'],
+      artistCreditMode: creditMode,
+      query: q,
+      limit: 500,
+      offset: 0,
+      skipTotals: true,
+    });
+    if (resp.source === 'local') {
+      return resp.artists
+        .map(artistToArtist)
+        .map(a => ({ ...a, serverId }))
+        .filter(a => a.name.toLowerCase().includes(q));
+    }
+  } catch {
+    /* fall through */
+  }
   const tracks = await fetchBrowsableLocalTrackDtos(serverId);
   return aggregateArtistsFromTracks(tracks, serverId)
     .filter(a => a.name.toLowerCase().includes(q));

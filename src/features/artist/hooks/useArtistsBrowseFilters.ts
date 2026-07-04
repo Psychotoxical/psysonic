@@ -8,7 +8,9 @@ import {
   isArtistsBrowsePath,
   useArtistBrowseSessionStore,
 } from '@/features/artist/store/artistBrowseSessionStore';
+import type { ArtistCreditMode } from '@/lib/api/library';
 import { isArtistDetailPath } from '@/features/album';
+import { ALL_SENTINEL } from '@/features/artist/utils/artistsHelpers';
 import { shouldRestoreArtistBrowseSession } from '@/lib/navigation/albumDetailNavigation';
 import { useLiveSearchScopeStore } from '@/store/liveSearchScopeStore';
 
@@ -42,8 +44,11 @@ export function useArtistsBrowseFilters(
   const [letterFilter, setLetterFilter] = useState(
     () => returnStateForNavigation(serverId, navigationType, location.state).letterFilter,
   );
-  const [starredOnly, setStarredOnly] = useState(
+  const [starredOnly, setStarredOnlyRaw] = useState(
     () => returnStateForNavigation(serverId, navigationType, location.state).starredOnly,
+  );
+  const [creditMode, setCreditModeRaw] = useState<ArtistCreditMode>(
+    () => returnStateForNavigation(serverId, navigationType, location.state).creditMode,
   );
   const [viewMode, setViewMode] = useState<ArtistBrowseViewMode>(
     () => returnStateForNavigation(serverId, navigationType, location.state).viewMode,
@@ -59,8 +64,20 @@ export function useArtistsBrowseFilters(
     filter: useLiveSearchScopeStore.getState().query,
     letterFilter,
     starredOnly,
+    creditMode,
     viewMode,
     showArtistImages,
+  };
+
+  const setCreditMode = (next: ArtistCreditMode) => {
+    if (next === creditMode) return;
+    setCreditModeRaw(next);
+    setLetterFilter(ALL_SENTINEL);
+  };
+
+  const setStarredOnly = (next: boolean) => {
+    if (next) useLiveSearchScopeStore.getState().setQuery('');
+    setStarredOnlyRaw(next);
   };
 
   useEffect(() => {
@@ -78,7 +95,8 @@ export function useArtistsBrowseFilters(
         // React Compiler set-state-in-effect rule: local state synced with store/prop inputs when the effect’s dependencies change.
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setLetterFilter(restored.letterFilter);
-        setStarredOnly(restored.starredOnly);
+        setStarredOnlyRaw(restored.starredOnly);
+        setCreditModeRaw(restored.creditMode ?? 'album');
         setViewMode(restored.viewMode);
         setShowArtistImages(restored.showArtistImages);
       }
@@ -90,7 +108,8 @@ export function useArtistsBrowseFilters(
     useArtistBrowseSessionStore.getState().clearReturnStash(serverId);
     useLiveSearchScopeStore.getState().setQuery('');
     setLetterFilter(DEFAULT_ARTIST_BROWSE_RETURN_STATE.letterFilter);
-    setStarredOnly(false);
+    setStarredOnlyRaw(false);
+    setCreditModeRaw('album');
     setViewMode('grid');
   }, [serverId, navigationType, location.state, setShowArtistImages]);
 
@@ -119,6 +138,8 @@ export function useArtistsBrowseFilters(
     setLetterFilter,
     starredOnly,
     setStarredOnly,
+    creditMode,
+    setCreditMode,
     viewMode,
     setViewMode,
   };

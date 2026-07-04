@@ -2,6 +2,8 @@
  * Browse-page text search — local index vs network race (LiveSearch / SearchBrowsePage pattern).
  */
 import { getStarred } from '@/lib/api/subsonicStarRating';
+import { getArtists } from '@/lib/api/subsonicArtists';
+import type { ArtistCreditMode } from '@/lib/api/library';
 import { search, searchSongsPaged } from '@/lib/api/subsonicSearch';
 import type { SearchResults, SubsonicAlbum, SubsonicArtist, SubsonicSong } from '@/lib/api/subsonicTypes';
 import { libraryAdvancedSearch, libraryGetArtistLosslessBrowse, libraryListLosslessAlbums } from '@/lib/api/library';
@@ -177,7 +179,7 @@ export function browseRaceCountsFullSearch(result: unknown): LibrarySearchDebugE
 const ARTIST_BROWSE_LIMIT = 500;
 const ALBUM_BROWSE_LIMIT = 500;
 
-const emptyBrowseOpts = (query: string): LocalSearchOpts => ({
+const emptyBrowseOpts = (query: string, artistCreditMode?: ArtistCreditMode): LocalSearchOpts => ({
   query,
   genre: '',
   yearFrom: '',
@@ -186,6 +188,7 @@ const emptyBrowseOpts = (query: string): LocalSearchOpts => ({
   bpmTo: '',
   moodGroup: '',
   resultType: 'artists',
+  ...(artistCreditMode ? { artistCreditMode } : {}),
 });
 
 const albumBrowseOpts = (query: string, losslessOnly = false): LocalSearchOpts => ({
@@ -227,11 +230,12 @@ const fullSearchOpts = (query: string): LocalSearchOpts => ({
 export async function runLocalBrowseArtists(
   serverId: string | null | undefined,
   query: string,
+  creditMode: ArtistCreditMode = 'album',
   limit = ARTIST_BROWSE_LIMIT,
 ): Promise<SubsonicArtist[] | null> {
   const page = await runLocalAdvancedSearch(
     serverId,
-    emptyBrowseOpts(query),
+    emptyBrowseOpts(query, creditMode),
     limit,
     false,
     true,
@@ -244,13 +248,16 @@ export async function runLocalBrowseArtists(
 /** Network search3 artist slice for browse pages. */
 export async function runNetworkBrowseArtists(
   query: string,
+  creditMode: ArtistCreditMode = 'album',
   limit = ARTIST_BROWSE_LIMIT,
 ): Promise<SubsonicArtist[] | null> {
   const q = query.trim();
   if (!q) return null;
   try {
     const r = await search(q, { artistCount: limit, albumCount: 0, songCount: 0 });
-    return r.artists;
+    if (creditMode === 'track') return r.artists;
+    const indexIds = new Set((await getArtists()).map(a => a.id));
+    return r.artists.filter(a => indexIds.has(a.id));
   } catch {
     return null;
   }
@@ -561,6 +568,7 @@ export async function fetchLocalArtistCatalogChunk(
   serverId: string,
   offset: number,
   chunkSize: number,
+  creditMode: ArtistCreditMode = 'album',
 ): Promise<ArtistCatalogChunkResult | null> {
   if (!serverId || !(await libraryIsReady(serverId))) return null;
   try {
@@ -568,6 +576,7 @@ export async function fetchLocalArtistCatalogChunk(
       serverId,
       libraryScope: libraryScopeForServer(serverId) ?? undefined,
       entityTypes: ['artist'],
+      artistCreditMode: creditMode,
       sort: [{ field: 'name', dir: 'asc' }],
       limit: chunkSize,
       offset,

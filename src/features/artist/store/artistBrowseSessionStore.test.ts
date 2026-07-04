@@ -24,6 +24,7 @@ describe('artistBrowseSessionStore', () => {
       filter: 'mozart',
       letterFilter: 'M',
       starredOnly: false,
+      creditMode: 'album',
       viewMode: 'list',
       showArtistImages: true,
       scrollTop: 240,

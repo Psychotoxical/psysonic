@@ -36,6 +36,7 @@ import { useArtistsBrowseScrollRestore } from '@/features/artist/hooks/useArtist
 import { useArtistsBrowseScrollReset } from '@/features/artist/hooks/useArtistsBrowseScrollReset';
 import { useNavigateToArtist } from '@/features/artist/hooks/useNavigateToArtist';
 import { peekArtistBrowseScrollRestore } from '@/features/artist/store/artistBrowseSessionStore';
+import { nextArtistCreditMode } from '@/features/artist/utils/artistBrowseCreditMode';
 import { readArtistBrowseRestore } from '@/lib/navigation/albumDetailNavigation';
 
 import { useScopedBrowseSearchQuery } from '@/store/liveSearchScopeStore';
@@ -58,6 +59,8 @@ export default function Artists() {
     setLetterFilter,
     starredOnly,
     setStarredOnly,
+    creditMode,
+    setCreditMode,
     viewMode,
     setViewMode,
   } = useArtistsBrowseFilters(serverId, scrollSnapshotRef);
@@ -90,6 +93,7 @@ export default function Artists() {
     serverId,
     indexEnabled,
     starredOnly,
+    creditMode,
     musicLibraryFilterVersion,
   });
 
@@ -97,10 +101,13 @@ export default function Artists() {
     artistsSearchQuery,
     indexEnabled,
     serverId,
+    'artists_browse',
+    creditMode,
+    starredOnly,
   );
-  const artists = textSearchArtists ?? catalogArtists;
-  const loading = catalogLoading || textSearchLoading;
-  const textSearchActive = textSearchArtists != null;
+  const artists = starredOnly ? catalogArtists : (textSearchArtists ?? catalogArtists);
+  const loading = starredOnly ? catalogLoading : (catalogLoading || textSearchLoading);
+  const textSearchActive = !starredOnly && textSearchArtists != null;
   /** Scoped/plain text filter — canonical CSS grid, not row virtualization (small result sets). */
   const artistBrowsePlainLayout =
     perfFlags.disableMainstageVirtualLists
@@ -113,7 +120,7 @@ export default function Artists() {
     loadMore: sliceLoadMore,
   } = useClientSliceInfiniteScroll({
     pageSize: PAGE_SIZE,
-    resetDeps: [artistsSearchQuery, letterFilter, starredOnly, viewMode, musicLibraryFilterVersion, serverId],
+    resetDeps: [artistsSearchQuery, letterFilter, starredOnly, creditMode, viewMode, musicLibraryFilterVersion, serverId],
     getScrollRoot: getArtistsScrollRoot,
     scrollRootEl: artistsScrollBodyEl,
     restoreDisplayCount: restoreVisibleCountRef.current,
@@ -294,6 +301,7 @@ export default function Artists() {
     artistsSearchQuery,
     letterFilter,
     starredOnly,
+    creditMode,
     viewMode,
     serverId,
     musicLibraryFilterVersion,
@@ -331,7 +339,37 @@ export default function Artists() {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               {!(selectionMode && selectedIds.size > 0) && (<>
-                  <StarFilterButton size="compact" active={starredOnly} onChange={setStarredOnly} />
+                  <StarFilterButton
+                    size="compact"
+                    active={starredOnly}
+                    onChange={setStarredOnly}
+                  />
+                  <button
+                    type="button"
+                    className={`btn btn-surface${creditMode === 'track' ? ' btn-sort-active' : ''}`}
+                    onClick={() => setCreditMode(nextArtistCreditMode(creditMode))}
+                    data-tooltip={
+                      creditMode === 'album'
+                        ? t('artists.browse.creditMode.tooltipTrack')
+                        : t('artists.browse.creditMode.tooltipAlbum')
+                    }
+                    data-tooltip-wrap
+                    data-tooltip-pos="bottom"
+                    aria-label={
+                      creditMode === 'album'
+                        ? t('artists.browse.creditMode.tooltipTrack')
+                        : t('artists.browse.creditMode.tooltipAlbum')
+                    }
+                    style={
+                      creditMode === 'track'
+                        ? { background: 'var(--accent)', color: 'var(--text-on-accent)' }
+                        : undefined
+                    }
+                  >
+                    {creditMode === 'album'
+                      ? t('artists.browse.creditMode.track')
+                      : t('artists.browse.creditMode.album')}
+                  </button>
                   <button
                     className={`btn btn-surface`}
                     onClick={() => setShowArtistImages(!showArtistImages)}

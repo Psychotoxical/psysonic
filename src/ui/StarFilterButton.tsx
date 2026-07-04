@@ -5,28 +5,32 @@ import FilterQuickClear from '@/ui/FilterQuickClear';
 interface Props {
   active: boolean;
   onChange: (next: boolean) => void;
+  disabled?: boolean;
   /** 'default' = icon + label, regular padding (Albums toolbar).
    *  'compact' = icon-only, 0.5rem padding (Artists view-mode buttons).
    *  'small'   = icon + label, 4px/14px padding + 12px text (SearchBrowsePage tabs). */
   size?: 'default' | 'compact' | 'small';
 }
 
-export default function StarFilterButton({ active, onChange, size = 'default' }: Props) {
+export default function StarFilterButton({ active, onChange, disabled = false, size = 'default' }: Props) {
   const { t } = useTranslation();
   const tooltip = active ? t('common.favoritesTooltipOn') : t('common.favoritesTooltipOff');
-  const activeStyle = active ? { background: 'var(--accent)', color: 'var(--text-on-accent)' } : {};
+  const activeStyle = active && !disabled ? { background: 'var(--accent)', color: 'var(--text-on-accent)' } : {};
+  const disabledStyle = disabled ? { opacity: 0.45, cursor: 'not-allowed' } : {};
 
   if (size === 'compact') {
     return (
       <button
         type="button"
-        className={`btn btn-surface${active ? ' btn-sort-active' : ''}`}
-        onClick={() => onChange(!active)}
+        className={`btn btn-surface${active && !disabled ? ' btn-sort-active' : ''}`}
+        onClick={() => { if (!disabled) onChange(!active); }}
+        disabled={disabled}
         aria-pressed={active}
+        aria-disabled={disabled}
         aria-label={tooltip}
         data-tooltip={tooltip}
         data-tooltip-pos="bottom"
-        style={{ padding: '0.5rem', ...activeStyle }}
+        style={{ padding: '0.5rem', ...activeStyle, ...disabledStyle }}
       >
         <Star size={20} fill={active ? 'currentColor' : 'none'} />
       </button>
@@ -38,10 +42,12 @@ export default function StarFilterButton({ active, onChange, size = 'default' }:
       <button
         type="button"
         className={`btn ${active ? 'btn-primary' : 'btn-surface'}`}
-        onClick={() => onChange(!active)}
+        onClick={() => { if (!disabled) onChange(!active); }}
+        disabled={disabled}
         aria-pressed={active}
+        aria-disabled={disabled}
         data-tooltip={tooltip}
-        style={{ fontSize: 12, padding: '4px 14px', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+        style={{ fontSize: 12, padding: '4px 14px', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', ...disabledStyle }}
       >
         <Star size={12} fill={active ? 'currentColor' : 'none'} />
         {t('common.favorites')}
@@ -53,12 +59,14 @@ export default function StarFilterButton({ active, onChange, size = 'default' }:
     <button
       type="button"
       className={`btn btn-surface${active ? ' btn-sort-active' : ''}`}
-      onClick={() => onChange(!active)}
+      onClick={() => { if (!disabled) onChange(!active); }}
+      disabled={disabled}
       aria-pressed={active}
+      aria-disabled={disabled}
       data-tooltip={tooltip}
       data-tooltip-pos="bottom"
       style={{
-        display: 'flex', alignItems: 'center', gap: '0.4rem', ...activeStyle,
+        display: 'flex', alignItems: 'center', gap: '0.4rem', ...activeStyle, ...disabledStyle,
       }}
     >
       <Star size={14} fill={active ? 'currentColor' : 'none'} />

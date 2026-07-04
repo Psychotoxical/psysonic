@@ -1,4 +1,5 @@
 import type { SubsonicArtist } from '@/lib/api/subsonicTypes';
+import type { ArtistCreditMode } from '@/lib/api/library';
 import { useEffect, useRef, useState } from 'react';
 import {
   BROWSE_TEXT_DEBOUNCE_NETWORK_MS,
@@ -23,6 +24,8 @@ export function useBrowseArtistTextSearch(
   indexEnabled: boolean,
   serverId: string | null | undefined,
   surface: LibrarySearchSurface = 'artists_browse',
+  creditMode: ArtistCreditMode = 'album',
+  starredOnly = false,
 ) {
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const [debouncedFilter, setDebouncedFilter] = useState('');
@@ -38,7 +41,7 @@ export function useBrowseArtistTextSearch(
 
   useEffect(() => {
     const q = debouncedFilter;
-    if (!q || !indexEnabled || !serverId) {
+    if (starredOnly || !q || !indexEnabled || !serverId) {
       // React Compiler set-state-in-effect rule: state set from a timer/animation callback.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTextSearchArtists(null);
@@ -53,7 +56,7 @@ export function useBrowseArtistTextSearch(
     void (async () => {
       if (offlineBrowseActive) {
         const artists = offlineLocalBrowseEnabled(serverId)
-          ? await searchOfflineLocalArtists(serverId, q)
+          ? await searchOfflineLocalArtists(serverId, q, creditMode)
           : [];
         if (isStale()) return;
         setTextSearchArtists(artists);
@@ -62,8 +65,8 @@ export function useBrowseArtistTextSearch(
       }
       const outcome = await raceBrowseWithLocalFallback(
         isStale,
-        () => runLocalBrowseArtists(serverId, q),
-        () => runNetworkBrowseArtists(q),
+        () => runLocalBrowseArtists(serverId, q, creditMode),
+        () => runNetworkBrowseArtists(q, creditMode),
         {
           surface,
           query: q,
@@ -75,7 +78,7 @@ export function useBrowseArtistTextSearch(
       setTextSearchArtists(outcome?.result ?? null);
       setTextSearchLoading(false);
     })();
-  }, [debouncedFilter, indexEnabled, offlineBrowseActive, serverId, surface]);
+  }, [creditMode, debouncedFilter, indexEnabled, offlineBrowseActive, serverId, starredOnly, surface]);
 
   const effectiveFilter = textSearchArtists != null ? '' : filter;
   return { textSearchArtists, textSearchLoading, effectiveFilter };

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { ALL_SENTINEL } from '@/features/artist/utils/artistsHelpers';
+import type { ArtistCreditMode } from '@/lib/api/library';
 
 export type ArtistBrowseViewMode = 'grid' | 'list';
 
@@ -8,6 +9,7 @@ export interface ArtistBrowseReturnState {
   filter: string;
   letterFilter: string;
   starredOnly: boolean;
+  creditMode: ArtistCreditMode;
   viewMode: ArtistBrowseViewMode;
   showArtistImages: boolean;
   scrollTop?: number;
@@ -18,6 +20,7 @@ export const DEFAULT_ARTIST_BROWSE_RETURN_STATE: ArtistBrowseReturnState = {
   filter: '',
   letterFilter: ALL_SENTINEL,
   starredOnly: false,
+  creditMode: 'album',
   viewMode: 'grid',
   showArtistImages: true,
 };
@@ -41,6 +44,7 @@ export const useArtistBrowseSessionStore = create<ArtistBrowseSessionStore>((set
           filter: state.filter,
           letterFilter: state.letterFilter,
           starredOnly: state.starredOnly,
+          creditMode: state.creditMode,
           viewMode: state.viewMode,
           showArtistImages: state.showArtistImages,
           ...(typeof state.scrollTop === 'number' ? { scrollTop: state.scrollTop } : {}),
@@ -65,6 +69,7 @@ export const useArtistBrowseSessionStore = create<ArtistBrowseSessionStore>((set
       filter: stash.filter,
       letterFilter: stash.letterFilter,
       starredOnly: stash.starredOnly,
+      creditMode: stash.creditMode ?? 'album',
       viewMode: stash.viewMode,
       showArtistImages: stash.showArtistImages,
       ...(typeof stash.scrollTop === 'number' ? { scrollTop: stash.scrollTop } : {}),
