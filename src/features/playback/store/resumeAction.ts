@@ -1,5 +1,5 @@
 import { getSong } from '@/lib/api/subsonicLibrary';
-import { enrichTrackReplayGainMetadata } from '@/features/playback/utils/audio/enrichTrackReplayGainMetadata';
+import { enrichTrackPlaybackMetadata } from '@/features/playback/utils/audio/enrichTrackReplayGainMetadata';
 import { invoke } from '@tauri-apps/api/core';
 import { estimateLivePosition, orbitSnapshot } from '@/store/orbitRuntime';
 import { setDeferHotCachePrefetch } from '@/lib/cache/hotCacheGate';
@@ -162,7 +162,7 @@ export function runResume(set: SetState, get: GetState): void {
       let trackToPlay = currentTrack;
       try {
         if (coldServerId) {
-          trackToPlay = await enrichTrackReplayGainMetadata(currentTrack, coldServerId);
+          trackToPlay = await enrichTrackPlaybackMetadata(currentTrack, coldServerId);
         }
       } catch { /* keep currentTrack */ }
       if (getPlayGeneration() !== gen) return;

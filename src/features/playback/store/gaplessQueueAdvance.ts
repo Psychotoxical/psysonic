@@ -37,6 +37,8 @@ import { refreshWaveformForTrack } from '@/features/playback/store/waveformRefre
 import { syncQueueToServer } from '@/features/playback/store/queueSync';
 import { useAuthStore } from '@/store/authStore';
 import { setIsAudioPaused } from '@/features/playback/store/engineState';
+import { isSeekDebouncePending } from '@/features/playback/store/seekDebounce';
+import { getSeekTarget } from '@/features/playback/store/seekTargetState';
 import type { QueueItemRef, Track } from '@/lib/media/trackTypes';
 
 export type GaplessQueueAdvanceResult = {
@@ -208,15 +210,17 @@ export function maybeReconcileGaplessFromProgress(
   engineDuration: number,
 ): void {
   if (!useAuthStore.getState().gaplessEnabled) return;
+  if (isSeekDebouncePending() || getSeekTarget() !== null) return;
   const store = usePlayerStore.getState();
   if (!store.isPlaying || store.currentRadio || !store.currentTrack) return;
   if (Date.now() - getLastGaplessSwitchTime() < 400) return;
 
   const prevSec = lastEngineProgressSec;
-  lastEngineProgressSec = currentTime;
-
   const regressed = currentTime + 1.5 < prevSec && prevSec > 8;
-  if (!regressed) return;
+  if (!regressed) {
+    lastEngineProgressSec = currentTime;
+    return;
+  }
 
   const { nextTrack, newIndex } = resolveGaplessSuccessor(
     store.queueItems,
@@ -236,6 +240,7 @@ export function maybeReconcileGaplessFromProgress(
   markGaplessSwitch();
   clearPreloadingIds();
   setIsAudioPaused(false);
+  lastEngineProgressSec = currentTime;
 }
 
 export function noteEngineProgressForGapless(currentTime: number): void {

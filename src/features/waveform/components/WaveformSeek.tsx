@@ -147,6 +147,8 @@ export default function WaveformSeek({ trackId }: Props) {
     bufferedRef.current = 0;
     visualProgressRef.current = 0;
     visualTargetProgressRef.current = 0;
+    // React Compiler immutability rule: intentional imperative reset on track change.
+    // eslint-disable-next-line react-hooks/immutability
     progressAnchorRef.current = { progress: 0, atMs: performance.now() };
     const canvas = canvasRef.current;
     if (canvas) drawSeekbar(canvas, seekbarStyle, heightsRef.current, 0, 0);

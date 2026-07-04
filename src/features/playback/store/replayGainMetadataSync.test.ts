@@ -9,7 +9,6 @@ import {
 } from '@/features/playback/store/queueTrackResolver';
 import {
   maybeSyncCurrentTrackFromResolver,
-  maybeSyncReplayGainFromResolver,
   shouldSyncCurrentTrackMetadata,
   shouldUpgradeReplayGainMetadata,
 } from '@/features/playback/store/replayGainMetadataSync';
@@ -93,7 +92,7 @@ describe('maybeSyncCurrentTrackFromResolver', () => {
   it('upgrades currentTrack and pushes replay gain when the resolver cache fills', () => {
     seedQueueResolver('s1', [track('t1', { replayGainTrackDb: -7.2, replayGainPeak: 0.95 })]);
 
-    maybeSyncReplayGainFromResolver();
+    maybeSyncCurrentTrackFromResolver();
 
     const s = usePlayerStore.getState();
     expect(s.currentTrack?.replayGainTrackDb).toBe(-7.2);
@@ -104,7 +103,7 @@ describe('maybeSyncCurrentTrackFromResolver', () => {
     useAuthStore.setState({ normalizationEngine: 'off', replayGainEnabled: false });
     seedQueueResolver('s1', [track('t1', { title: 'Full title' })]);
 
-    maybeSyncReplayGainFromResolver();
+    maybeSyncCurrentTrackFromResolver();
 
     expect(usePlayerStore.getState().currentTrack?.title).toBe('Full title');
     expect(usePlayerStore.getState().currentTrack?.replayGainTrackDb).toBeUndefined();
@@ -130,10 +129,10 @@ describe('maybeSyncCurrentTrackFromResolver', () => {
     expect(s.currentTrack?.duration).toBe(220);
   });
 
-  it('maybeSyncReplayGainFromResolver alias behaves like maybeSyncCurrentTrackFromResolver', () => {
+  it('syncs ReplayGain tags from the resolver onto the live track', () => {
     seedQueueResolver('s1', [track('t1', { replayGainTrackDb: -7.2, replayGainPeak: 0.95 })]);
 
-    maybeSyncReplayGainFromResolver();
+    maybeSyncCurrentTrackFromResolver();
 
     expect(usePlayerStore.getState().currentTrack?.replayGainTrackDb).toBe(-7.2);
   });

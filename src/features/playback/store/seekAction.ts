@@ -15,6 +15,7 @@ import {
   setSeekFallbackTrackId,
   setSeekFallbackVisualTarget,
 } from '@/features/playback/store/seekFallbackState';
+import { noteEngineProgressForGapless } from '@/features/playback/store/gaplessQueueAdvance';
 import {
   clearSeekTarget,
   setSeekTarget,
@@ -66,6 +67,7 @@ export function runSeek(set: SetState, get: GetState, progress: number): void {
     invoke('audio_seek', { seconds: time }).then(() => {
       // Arm stale-progress guard only after backend acknowledged seek.
       setSeekTarget(time);
+      noteEngineProgressForGapless(time);
       setSeekFallbackVisualTarget(null);
       clearSeekFallbackRetry();
       // Seeking straight into the crossfade pre-buffer window must kick off the
@@ -99,6 +101,7 @@ export function runSeek(set: SetState, get: GetState, progress: number): void {
       // Keep stale progress ticks from snapping UI back to start while
       // recoverable seek retries are still in flight.
       setSeekTarget(time);
+      noteEngineProgressForGapless(time);
       if (msg.includes('not seekable') && !sameBurst) {
         setSeekFallbackTrackId(s.currentTrack.id);
         setSeekFallbackRestartAt(now);

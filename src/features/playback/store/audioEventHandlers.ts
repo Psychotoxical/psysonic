@@ -1,8 +1,6 @@
 import { scrobbleSong } from '@/lib/api/subsonicScrobble';
-import type { Track } from '@/lib/media/trackTypes';
 import {
   playbackReportPlaying,
-  playbackReportStart,
   playbackReportStopped,
 } from '@/features/playback/store/playbackReportSession';
 import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';
@@ -44,7 +42,6 @@ import {
   setBytePreloadingId,
 } from '@/features/playback/store/gaplessPreloadState';
 import { refreshLoudnessForTrack } from '@/features/playback/store/loudnessRefresh';
-import { emitNormalizationDebug } from '@/features/playback/store/normalizationDebug';
 import {
   emitPlaybackProgress,
   getPlaybackProgressSnapshot,
@@ -158,6 +155,7 @@ export function handleAudioProgress(
       clearSeekTarget();
     } else {
       clearSeekTarget();
+      noteEngineProgressForGapless(current_time);
     }
   }
 
@@ -369,67 +367,67 @@ export function handleAudioProgress(
       : (nextRef ? resolveQueueTrack(nextRef) : null);
 
     if (nextTrack && nextTrack.id !== track.id) {
-    // Gapless backup: keep next-track bytes ready even if chain/decode misses
-    // the boundary. Start earlier for larger files / slower conservative link.
-    const estBytes = (() => {
-      if (typeof nextTrack.size === 'number' && Number.isFinite(nextTrack.size) && nextTrack.size > 0) {
-        return nextTrack.size;
+      // Gapless backup: keep next-track bytes ready even if chain/decode misses
+      // the boundary. Start earlier for larger files / slower conservative link.
+      const estBytes = (() => {
+        if (typeof nextTrack.size === 'number' && Number.isFinite(nextTrack.size) && nextTrack.size > 0) {
+          return nextTrack.size;
+        }
+        const kbps = typeof nextTrack.bitRate === 'number' && Number.isFinite(nextTrack.bitRate) && nextTrack.bitRate > 0
+          ? nextTrack.bitRate
+          : 320;
+        return Math.max(256 * 1024, Math.ceil((nextTrack.duration || 240) * kbps * 1000 / 8));
+      })();
+      const conservativeBytesPerSec = 300 * 1024; // ~2.4 Mbps effective throughput
+      const estDownloadSecs = estBytes / conservativeBytesPerSec;
+      const gaplessBackupWindowSecs = Math.max(15, Math.min(60, Math.ceil(estDownloadSecs * 1.4 + 8)));
+      const shouldBytePreloadForGaplessBackup =
+        gaplessEnabled && remaining < gaplessBackupWindowSecs && remaining > 0;
+
+      const serverId = nextRef ? playbackCacheKeyForRef(nextRef) : getPlaybackCacheServerKey();
+      const analysisServerId = nextRef
+        ? playbackCacheKeyForRef(nextRef)
+        : getPlaybackIndexKey();
+      const nextUrl = resolvePlaybackUrl(nextTrack.id, serverId);
+
+      // Byte pre-download — gapless backup; runs early so bytes are ready by chain time.
+      if (
+        shouldBytePreloadForGaplessBackup
+        && nextTrack.id !== getBytePreloadingId()
+      ) {
+        setBytePreloadingId(nextTrack.id);
+        // Loudness cache only — do not call refreshWaveformForTrack(next): it writes global
+        // waveformBins and would replace the current track's seekbar while still playing it.
+        void refreshLoudnessForTrack(nextTrack.id, { syncPlayingEngine: false });
+        if (import.meta.env.DEV) {
+          console.info('[psysonic][preload-request]', {
+            nextTrackId: nextTrack.id,
+            nextUrl,
+            shouldBytePreloadForGaplessBackup,
+            remaining,
+            gaplessEnabled,
+          });
+        }
+        invoke('audio_preload', {
+          url: nextUrl,
+          durationHint: nextTrack.duration,
+          analysisTrackId: nextTrack.id,
+          serverId: analysisServerId || null,
+        }).catch(() => {});
       }
-      const kbps = typeof nextTrack.bitRate === 'number' && Number.isFinite(nextTrack.bitRate) && nextTrack.bitRate > 0
-        ? nextTrack.bitRate
-        : 320;
-      return Math.max(256 * 1024, Math.ceil((nextTrack.duration || 240) * kbps * 1000 / 8));
-    })();
-    const conservativeBytesPerSec = 300 * 1024; // ~2.4 Mbps effective throughput
-    const estDownloadSecs = estBytes / conservativeBytesPerSec;
-    const gaplessBackupWindowSecs = Math.max(15, Math.min(60, Math.ceil(estDownloadSecs * 1.4 + 8)));
-    const shouldBytePreloadForGaplessBackup =
-      gaplessEnabled && remaining < gaplessBackupWindowSecs && remaining > 0;
 
-    const serverId = nextRef ? playbackCacheKeyForRef(nextRef) : getPlaybackCacheServerKey();
-    const analysisServerId = nextRef
-      ? playbackCacheKeyForRef(nextRef)
-      : getPlaybackIndexKey();
-    const nextUrl = resolvePlaybackUrl(nextTrack.id, serverId);
-
-    // Byte pre-download — gapless backup; runs early so bytes are ready by chain time.
-    if (
-      shouldBytePreloadForGaplessBackup
-      && nextTrack.id !== getBytePreloadingId()
-    ) {
-      setBytePreloadingId(nextTrack.id);
-      // Loudness cache only — do not call refreshWaveformForTrack(next): it writes global
-      // waveformBins and would replace the current track's seekbar while still playing it.
-      void refreshLoudnessForTrack(nextTrack.id, { syncPlayingEngine: false });
-      if (import.meta.env.DEV) {
-        console.info('[psysonic][preload-request]', {
-          nextTrackId: nextTrack.id,
-          nextUrl,
-          shouldBytePreloadForGaplessBackup,
-          remaining,
-          gaplessEnabled,
+      // Gapless chain — decode + chain into Sink 30s before track boundary.
+      if (shouldChainGapless && nextTrack.id !== getGaplessPreloadingId()) {
+        requestGaplessChainPreload({
+          currentTrack: track,
+          nextTrack,
+          nextRef,
+          nextIdx,
+          queueItems,
+          repeatMode,
+          volume: store.volume,
         });
       }
-      invoke('audio_preload', {
-        url: nextUrl,
-        durationHint: nextTrack.duration,
-        analysisTrackId: nextTrack.id,
-        serverId: analysisServerId || null,
-      }).catch(() => {});
-    }
-
-    // Gapless chain — decode + chain into Sink 30s before track boundary.
-    if (shouldChainGapless && nextTrack.id !== getGaplessPreloadingId()) {
-      requestGaplessChainPreload({
-        currentTrack: track,
-        nextTrack,
-        nextRef,
-        nextIdx,
-        queueItems,
-        repeatMode,
-        volume: store.volume,
-      });
-    }
     }
   }
 }

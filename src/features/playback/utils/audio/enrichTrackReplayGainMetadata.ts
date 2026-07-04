@@ -1,3 +1,4 @@
+import { getSongForServer } from '@/lib/api/subsonicLibrary';
 import { resolveSongMetaIndexFirst } from '@/lib/library/resolveSongMetaIndexFirst';
 import { isReplayGainActive } from '@/features/playback/store/loudnessGainCache';
 import { songToTrack } from '@/lib/media/songToTrack';
@@ -12,7 +13,9 @@ export function trackNeedsReplayGainMetadataPrefetch(track: Track): boolean {
 /** True when index/getSong prefetch would improve a thin snapshot or ReplayGain tags. */
 export function trackNeedsPlaybackMetadataPrefetch(track: Track): boolean {
   if (track.title === '…' || track.duration === 0) return true;
-  return trackNeedsReplayGainMetadataPrefetch(track);
+  if (trackNeedsReplayGainMetadataPrefetch(track)) return true;
+  return isReplayGainActive() && track.replayGainPeak == null
+    && (track.replayGainTrackDb != null || track.replayGainAlbumDb != null);
 }
 
 /** Merge resolver/index metadata onto a thin playback snapshot without dropping queue flags. */
@@ -54,8 +57,17 @@ export async function enrichTrackPlaybackMetadata(
   if (!trackNeedsPlaybackMetadataPrefetch(track) || !serverId) return track;
   const song = await resolveSongMetaIndexFirst(serverId, track.id);
   if (!song) return track;
-  return mergePlaybackTrackMetadata(track, songToTrack(song));
+  let merged = mergePlaybackTrackMetadata(track, songToTrack(song));
+  if (
+    isReplayGainActive()
+    && merged.replayGainPeak == null
+    && (merged.replayGainTrackDb != null || merged.replayGainAlbumDb != null)
+  ) {
+    const networkSong = await getSongForServer(serverId, track.id);
+    const peak = networkSong?.replayGain?.trackPeak;
+    if (peak != null) {
+      merged = { ...merged, replayGainPeak: peak };
+    }
+  }
+  return merged;
 }
-
-/** @deprecated alias — use {@link enrichTrackPlaybackMetadata} */
-export const enrichTrackReplayGainMetadata = enrichTrackPlaybackMetadata;

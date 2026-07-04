@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import * as subsonicLibrary from '@/lib/api/subsonicLibrary';
 import { onInvoke } from '@/test/mocks/tauri';
 import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
@@ -67,8 +68,12 @@ describe('trackNeedsPlaybackMetadataPrefetch', () => {
     expect(trackNeedsPlaybackMetadataPrefetch(track({ duration: 0 }))).toBe(true);
   });
 
-  it('returns false when the snapshot is fully populated and RG is off', () => {
-    expect(trackNeedsPlaybackMetadataPrefetch(track())).toBe(false);
+  it('returns true when ReplayGain is on and peak is missing but gain tags exist', () => {
+    useAuthStore.setState({
+      normalizationEngine: 'replaygain',
+      replayGainEnabled: true,
+    });
+    expect(trackNeedsPlaybackMetadataPrefetch(track({ replayGainTrackDb: -6 }))).toBe(true);
   });
 });
 
@@ -102,5 +107,34 @@ describe('enrichTrackPlaybackMetadata', () => {
     const enriched = await enrichTrackPlaybackMetadata(track({ title: '…' }), 's1');
     expect(enriched.replayGainTrackDb).toBe(-8.1);
     expect(enriched.title).toBe('Indexed');
+  });
+
+  it('backfills replayGainPeak from getSong when the index lacks peak', async () => {
+    onInvoke('library_get_status', () => ({
+      serverId: 's1', libraryScope: '', syncPhase: 'ready',
+      capabilityFlags: 0, libraryTier: 'unknown', syncedAt: 0,
+    }));
+    onInvoke('library_get_track', () => ({
+      serverId: 's1',
+      id: 't1',
+      title: 'Indexed',
+      album: 'Album',
+      durationSec: 200,
+      replayGainTrackDb: -8.1,
+      syncedAt: 0,
+      rawJson: {},
+    }));
+    const spy = vi.spyOn(subsonicLibrary, 'getSongForServer').mockResolvedValue({
+      id: 't1',
+      title: 'Indexed',
+      replayGain: { trackGain: -8.1, trackPeak: 0.88 },
+    } as Awaited<ReturnType<typeof subsonicLibrary.getSongForServer>>);
+
+    const enriched = await enrichTrackPlaybackMetadata(
+      track({ replayGainTrackDb: -8.1 }),
+      's1',
+    );
+    expect(enriched.replayGainPeak).toBe(0.88);
+    expect(spy).toHaveBeenCalledWith('s1', 't1');
   });
 });

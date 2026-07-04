@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { onInvoke } from '@/test/mocks/tauri';
 import { useAuthStore } from '@/store/authStore';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
@@ -8,6 +8,7 @@ import {
   seedQueueResolver,
 } from '@/features/playback/store/queueTrackResolver';
 import { _resetGaplessPreloadStateForTest } from '@/features/playback/store/gaplessPreloadState';
+import { setSeekTarget, _resetSeekTargetStateForTest } from '@/features/playback/store/seekTargetState';
 import {
   _resetPlaybackProgressForTest,
   getPlaybackProgressSnapshot,
@@ -70,6 +71,7 @@ describe('maybeReconcileGaplessFromProgress', () => {
     _resetGaplessPreloadStateForTest();
     _resetPlaybackProgressForTest();
     _resetGaplessProgressTrackingForTest();
+    _resetSeekTargetStateForTest();
     onInvoke('audio_update_replay_gain', () => undefined);
     useAuthStore.setState({ gaplessEnabled: true });
     seedQueueResolver('s1', [track('t1'), track('t2', { title: 'Second' })]);
@@ -96,5 +98,14 @@ describe('maybeReconcileGaplessFromProgress', () => {
     maybeReconcileGaplessFromProgress(11, 200);
 
     expect(usePlayerStore.getState().currentTrack?.id).toBe('t1');
+  });
+
+  it('no-ops during an active seek guard', () => {
+    noteEngineProgressForGapless(100);
+    setSeekTarget(20);
+    maybeReconcileGaplessFromProgress(0.5, 200);
+
+    expect(usePlayerStore.getState().currentTrack?.id).toBe('t1');
+    expect(usePlayerStore.getState().queueIndex).toBe(0);
   });
 });

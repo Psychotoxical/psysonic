@@ -82,9 +82,6 @@ export function maybeSyncCurrentTrackFromResolver(): void {
   }
 }
 
-/** @deprecated alias — use {@link maybeSyncCurrentTrackFromResolver} */
-export const maybeSyncReplayGainFromResolver = maybeSyncCurrentTrackFromResolver;
-
 subscribeQueueResolver(() => {
   maybeSyncCurrentTrackFromResolver();
 });
