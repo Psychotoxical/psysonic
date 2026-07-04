@@ -38,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Playback — ReplayGain prefetch, gapless playbar sync, and library peak index
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1231](https://github.com/Psychotoxical/psysonic/pull/1231)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by Asra on the Psysonic Discord, PR [#1231](https://github.com/Psychotoxical/psysonic/pull/1231)**
 
 * ReplayGain applies when stream or queue metadata resolves late — index-first prefetch before bind, reactive sync when resolver tags land, and live refresh from the library index after sync when tags differ on the playing track.
 * Gapless auto-advance no longer leaves the playbar on the previous track; missed `audio:track_switched` is reconciled from engine position with seek guards so backward seek is not treated as a gapless switch.
