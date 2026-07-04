@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { frontendDebugLog } from '@/lib/api/debugLog';
 import { libraryGetTracksBatch } from '@/lib/api/library';
 import { useAuthStore } from '@/store/authStore';
 import { useOfflineStore, type OfflineAlbumMeta } from '@/features/offline/store/offlineStore';
@@ -45,10 +45,7 @@ function waitForStoreHydration(store: PersistCapableStore): Promise<void> {
 
 function migrationDebug(payload: Record<string, unknown>): void {
   if (useAuthStore.getState().loggingMode !== 'debug') return;
-  void invoke('frontend_debug_log', {
-    scope: 'legacy-offline-migration',
-    message: JSON.stringify(payload),
-  }).catch(() => {});
+  frontendDebugLog('legacy-offline-migration', JSON.stringify(payload));
 }
 
 function resolveIndexKeyForServerId(serverId: string): string {

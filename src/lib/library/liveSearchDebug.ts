@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { frontendDebugLog } from '@/lib/api/debugLog';
 import type { SearchResults } from '@/lib/api/subsonicTypes';
 import { useAuthStore } from '@/store/authStore';
 
@@ -20,8 +20,5 @@ export function searchResultSamples(result: SearchResults, max = 2) {
  */
 export function emitLiveSearchDebug(step: string, details?: Record<string, unknown>): void {
   if (useAuthStore.getState().loggingMode !== 'debug') return;
-  void invoke('frontend_debug_log', {
-    scope: 'live-search',
-    message: JSON.stringify({ step, details }),
-  }).catch(() => {});
+  frontendDebugLog('live-search', JSON.stringify({ step, details }));
 }

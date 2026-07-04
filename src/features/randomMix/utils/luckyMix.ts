@@ -3,7 +3,7 @@ import { filterSongsToActiveLibrary, getRandomSongs } from '@/lib/api/subsonicLi
 import type { SubsonicAlbum, SubsonicSong } from '@/lib/api/subsonicTypes';
 import type { QueueItemRef } from '@/lib/media/trackTypes';
 import { songToTrack } from '@/lib/media/songToTrack';
-import { invoke } from '@tauri-apps/api/core';
+import { frontendDebugLog } from '@/lib/api/debugLog';
 import i18n from '@/lib/i18n';
 import { useAuthStore } from '@/store/authStore';
 import { pushQueueUndoFromGetter } from '@/features/playback/store/queueUndo';
@@ -58,10 +58,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     const payload = { step, details };
     debugSteps.push(payload);
     console.debug('[psysonic][lucky-mix]', payload);
-    void invoke('frontend_debug_log', {
-      scope: 'lucky-mix',
-      message: JSON.stringify(payload),
-    }).catch(() => {});
+    frontendDebugLog('lucky-mix', JSON.stringify(payload));
   };
   const songDebug = (songs: SubsonicSong[]) =>
     songs.map(s => ({ id: s.id, title: s.title, artist: s.artist, rating: s.userRating ?? 0 }));
@@ -356,10 +353,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     logStep('done', { queueCount: finalQueueCount });
     if (debugEnabled) {
       console.debug('[psysonic][lucky-mix] full-steps', debugSteps);
-      void invoke('frontend_debug_log', {
-        scope: 'lucky-mix',
-        message: JSON.stringify({ step: 'full-steps', details: debugSteps }),
-      }).catch(() => {});
+      frontendDebugLog('lucky-mix', JSON.stringify({ step: 'full-steps', details: debugSteps }));
     }
   } catch (err) {
     // Cancellation is a user-initiated path, not an error. Silent teardown.
@@ -367,10 +361,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       logStep('cancelled');
       if (debugEnabled) {
         console.debug('[psysonic][lucky-mix] full-steps', debugSteps);
-        void invoke('frontend_debug_log', {
-          scope: 'lucky-mix',
-          message: JSON.stringify({ step: 'full-steps', details: debugSteps }),
-        }).catch(() => {});
+        frontendDebugLog('lucky-mix', JSON.stringify({ step: 'full-steps', details: debugSteps }));
       }
       return;
     }
@@ -378,10 +369,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     logStep('failed', { error: String(err) });
     if (debugEnabled) {
       console.debug('[psysonic][lucky-mix] full-steps', debugSteps);
-      void invoke('frontend_debug_log', {
-        scope: 'lucky-mix',
-        message: JSON.stringify({ step: 'full-steps', details: debugSteps }),
-      }).catch(() => {});
+      frontendDebugLog('lucky-mix', JSON.stringify({ step: 'full-steps', details: debugSteps }));
     }
     // If we failed before ever calling playTrack, the queue-prune we did up
     // front left the user with nothing. Restore the snapshot so they land

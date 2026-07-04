@@ -1,7 +1,7 @@
 import type { QueueItemRef } from '@/lib/media/trackTypes';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { invoke } from '@tauri-apps/api/core';
+import { frontendDebugLog } from '@/lib/api/debugLog';
 import { deleteMediaFile, pruneEmptyMediaTierDirs, purgeMediaTier } from '@/lib/api/syncfs';
 import { isHotCachePreviousTrackUnderGrace } from '@/lib/cache/hotCacheGate';
 import { emitAnalysisStorageChanged } from './analysisSync';
@@ -93,10 +93,7 @@ function evictionReasonForTier(tier: number): string {
 
 function localPlaybackFrontendDebug(payload: Record<string, unknown>): void {
   if (useAuthStore.getState().loggingMode !== 'debug') return;
-  void invoke('frontend_debug_log', {
-    scope: 'local-playback',
-    message: JSON.stringify(payload),
-  }).catch(() => {});
+  frontendDebugLog('local-playback', JSON.stringify(payload));
 }
 
 function pinGroupKey(serverIndexKey: string, pinSource: PinSource): string {

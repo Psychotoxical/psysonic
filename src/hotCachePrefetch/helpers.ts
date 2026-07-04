@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { frontendDebugLog } from '@/lib/api/debugLog';
 import type { QueueItemRef, Track } from '@/lib/media/trackTypes';
 import { useAuthStore } from '../store/authStore';
 import { HOT_CACHE_PROTECT_AFTER_CURRENT, type HotCacheEntry } from '@/features/playback/store/hotCacheStore';
@@ -6,10 +6,7 @@ import { HOT_CACHE_PROTECT_AFTER_CURRENT, type HotCacheEntry } from '@/features/
 /** Settings → Logging → Debug (`frontend_debug_log` → Rust stderr), same as normalization / lucky-mix. */
 export function hotCacheFrontendDebug(payload: Record<string, unknown>): void {
   if (useAuthStore.getState().loggingMode !== 'debug') return;
-  void invoke('frontend_debug_log', {
-    scope: 'hot-cache',
-    message: JSON.stringify(payload),
-  }).catch(() => {});
+  frontendDebugLog('hot-cache', JSON.stringify(payload));
 }
 
 /** How many upcoming queue tracks may be prefetched (only current + next are eviction-protected). */
