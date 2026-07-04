@@ -42,10 +42,10 @@ import {
   getPlayGeneration,
   setIsAudioPaused,
 } from '@/features/playback/store/engineState';
-import {
-  clearPreloadingIds,
+import { clearPreloadingIds,
   getLastGaplessSwitchTime,
 } from '@/features/playback/store/gaplessPreloadState';
+import { resetGaplessProgressTracking } from '@/features/playback/store/gaplessProgressTracking';
 import { touchHotCacheOnPlayback } from '@/features/playback/store/hotCacheTouch';
 import {
   isReplayGainActive,
@@ -379,6 +379,7 @@ export function runPlayTrack(
     const deferInterruptUi = shouldDeferInterruptHandoffUi(wantInterruptBlend, bReadyNow);
 
     const applyInterruptHandoffUi = () => {
+      resetGaplessProgressTracking();
       set({
         currentTrack: trackForPlay,
         waveformBins: null,
@@ -404,6 +405,7 @@ export function runPlayTrack(
         queueIndex: idx >= 0 ? idx : 0,
       });
     } else {
+      resetGaplessProgressTracking();
       set({
         currentTrack: trackForPlay,
         currentRadio: null,

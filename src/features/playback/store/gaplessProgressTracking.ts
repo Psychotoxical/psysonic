@@ -10,6 +10,11 @@ export function _resetGaplessProgressTrackingForTest(): void {
   lastEngineProgressSec = 0;
 }
 
+/** Clear stale position after a gapless or manual track switch. */
+export function resetGaplessProgressTracking(): void {
+  lastEngineProgressSec = 0;
+}
+
 export function getLastEngineProgressSec(): number {
   return lastEngineProgressSec;
 }

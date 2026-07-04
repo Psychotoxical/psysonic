@@ -110,4 +110,22 @@ describe('maybeReconcileGaplessFromProgress', () => {
     expect(usePlayerStore.getState().currentTrack?.id).toBe('t1');
     expect(usePlayerStore.getState().queueIndex).toBe(0);
   });
+
+  it('no-ops on mid-track position regressions (not a gapless boundary)', () => {
+    noteEngineProgressForGapless(170);
+    maybeReconcileGaplessFromProgress(100, 200);
+
+    expect(usePlayerStore.getState().currentTrack?.id).toBe('t1');
+    expect(usePlayerStore.getState().queueIndex).toBe(0);
+  });
+
+  it('does not double-advance after track_switched already moved the UI', () => {
+    noteEngineProgressForGapless(170);
+    applyGaplessQueueAdvance({ engineDurationHint: 210, source: 'track-switched' });
+    expect(usePlayerStore.getState().currentTrack?.id).toBe('t2');
+
+    maybeReconcileGaplessFromProgress(2, 210);
+    expect(usePlayerStore.getState().currentTrack?.id).toBe('t2');
+    expect(usePlayerStore.getState().queueIndex).toBe(1);
+  });
 });

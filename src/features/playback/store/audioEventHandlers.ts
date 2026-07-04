@@ -162,7 +162,9 @@ export function handleAudioProgress(
   const store = usePlayerStore.getState();
   const track = store.currentTrack;
   if (!track) return;
-  maybeReconcileGaplessFromProgress(current_time, duration);
+  if (!buffering) {
+    maybeReconcileGaplessFromProgress(current_time, duration);
+  }
   if (!store.currentRadio && store.isPlaybackBuffering !== buffering) {
     usePlayerStore.setState({ isPlaybackBuffering: buffering });
   }
@@ -191,7 +193,9 @@ export function handleAudioProgress(
   }
   const dur = duration > 0 ? duration : track.duration;
   if (dur <= 0) return;
-  noteEngineProgressForGapless(buffering ? 0 : current_time);
+  if (!buffering) {
+    noteEngineProgressForGapless(current_time);
+  }
   const progress = displayTime / dur;
   playListenSessionOnProgress(current_time, buffering, dur).catch(() => {});
   if (!progressUiDisabled) {

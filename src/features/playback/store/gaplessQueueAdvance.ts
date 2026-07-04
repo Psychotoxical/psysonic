@@ -40,6 +40,7 @@ import { setIsAudioPaused } from '@/features/playback/store/engineState';
 import {
   getLastEngineProgressSec,
   noteEngineProgressForGapless,
+  resetGaplessProgressTracking,
 } from '@/features/playback/store/gaplessProgressTracking';
 import { isSeekDebouncePending } from '@/features/playback/store/seekDebounce';
 import { getSeekTarget } from '@/features/playback/store/seekTargetState';
@@ -103,6 +104,7 @@ function applyGaplessSuccessorUi(
   ];
 
   resetProgressEmitThrottles();
+  resetGaplessProgressTracking();
   usePlayerStore.setState({
     currentTrack: nextTrack,
     waveformBins: null,
@@ -213,7 +215,10 @@ export function maybeReconcileGaplessFromProgress(
   if (Date.now() - getLastGaplessSwitchTime() < 400) return;
 
   const prevSec = getLastEngineProgressSec();
-  const regressed = currentTime + 1.5 < prevSec && prevSec > 8;
+  // Gapless transitions restart near 0 — mid-track regressions are usually
+  // buffering/seek glitches, not a decoder boundary without track_switched.
+  const nearStart = currentTime < 8;
+  const regressed = nearStart && currentTime + 1.5 < prevSec && prevSec > 8;
   if (!regressed) {
     noteEngineProgressForGapless(currentTime);
     return;
