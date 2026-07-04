@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 
 export interface ServerIndexMapping {
   legacyId: string;
@@ -43,14 +43,18 @@ export interface MigrationRunResult {
   backupRemoved: boolean;
 }
 
-export function migrationInspect(
+export async function migrationInspect(
   mappings: ServerIndexMapping[],
 ): Promise<MigrationInspectReport> {
-  return invoke<MigrationInspectReport>('migration_inspect', { mappings });
+  const res = await commands.migrationInspect(mappings);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
-export function migrationRun(
+export async function migrationRun(
   mappings: ServerIndexMapping[],
 ): Promise<MigrationRunResult> {
-  return invoke<MigrationRunResult>('migration_run', { mappings });
+  const res = await commands.migrationRun(mappings);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }

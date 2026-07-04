@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import {
+  isTilingWmCmd,
+  linuxWaylandTextRenderSettingsAvailable,
+  noCompositingMode,
+  setLinuxWaylandTextRenderProfile,
+  setLinuxWebkitSmoothScrolling,
+  setLoggingMode,
+  setWindowDecorations,
+} from '@/lib/api/platformShell';
 import { useAuthStore } from '@/store/authStore';
 import type { LinuxWaylandTextRenderProfile } from '@/store/authStoreTypes';
 import { IS_LINUX, IS_MACOS, IS_WINDOWS } from '@/lib/util/platform';
@@ -21,19 +29,19 @@ export function usePlatformShellSetup(): { isTilingWm: boolean } {
 
   useEffect(() => {
     if (!IS_LINUX) return;
-    invoke<boolean>('is_tiling_wm_cmd').then(setIsTilingWm).catch(() => {});
+    isTilingWmCmd().then(setIsTilingWm).catch(() => {});
   }, []);
 
   useEffect(() => {
     if (!IS_LINUX) return;
-    invoke<boolean>('no_compositing_mode').then(noComp => {
+    noCompositingMode().then(noComp => {
       if (noComp) document.documentElement.classList.add('no-compositing');
     }).catch(() => {});
   }, []);
 
   useEffect(() => {
     if (!IS_LINUX) return;
-    invoke<boolean>('linux_wayland_text_render_settings_available')
+    linuxWaylandTextRenderSettingsAvailable()
       .then(av => {
         setWaylandTextUi(av);
         if (av) {
@@ -63,7 +71,7 @@ export function usePlatformShellSetup(): { isTilingWm: boolean } {
 
     const apply = (profile: LinuxWaylandTextRenderProfile) => {
       document.documentElement.setAttribute('data-wayland-text-profile', profile);
-      invoke('set_linux_wayland_text_render_profile', { profile }).catch(() => {});
+      setLinuxWaylandTextRenderProfile({ profile }).catch(() => {});
     };
 
     apply(linuxWaylandTextRenderProfile);
@@ -84,12 +92,12 @@ export function usePlatformShellSetup(): { isTilingWm: boolean } {
   useEffect(() => {
     if (!IS_LINUX) return;
     const enabled = isTilingWm ? false : !useCustomTitlebar;
-    invoke('set_window_decorations', { enabled }).catch(() => {});
+    setWindowDecorations({ enabled }).catch(() => {});
   }, [useCustomTitlebar, isTilingWm]);
 
   useEffect(() => {
     if (!IS_LINUX) return;
-    invoke('set_linux_webkit_smooth_scrolling', { enabled: linuxWebkitKineticScroll }).catch(() => {});
+    setLinuxWebkitSmoothScrolling({ enabled: linuxWebkitKineticScroll }).catch(() => {});
   }, [linuxWebkitKineticScroll]);
 
   // Persist rehydrates after first paint — default store has kinetic scroll ON until localStorage merges.
@@ -97,7 +105,7 @@ export function usePlatformShellSetup(): { isTilingWm: boolean } {
   useEffect(() => {
     if (!IS_LINUX) return;
     const applySmoothFromStore = () => {
-      invoke('set_linux_webkit_smooth_scrolling', {
+      setLinuxWebkitSmoothScrolling({
         enabled: useAuthStore.getState().linuxWebkitKineticScroll,
       }).catch(() => {});
     };
@@ -110,7 +118,7 @@ export function usePlatformShellSetup(): { isTilingWm: boolean } {
   }, []);
 
   useEffect(() => {
-    invoke('set_logging_mode', { mode: loggingMode }).catch(() => {});
+    setLoggingMode({ mode: loggingMode }).catch(() => {});
   }, [loggingMode]);
 
   return { isTilingWm };

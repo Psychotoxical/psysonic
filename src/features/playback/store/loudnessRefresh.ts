@@ -1,5 +1,5 @@
 import { buildStreamUrl } from '@/lib/api/subsonicStreamUrl';
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { getPlaybackIndexKey } from '@/features/playback/utils/playback/playbackServer';
 import { redactSubsonicUrlForLog } from '@/lib/server/redactSubsonicUrl';
 import { useAuthStore } from '@/store/authStore';
@@ -72,11 +72,11 @@ async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean):
   try {
     const requestedTarget = useAuthStore.getState().loudnessTargetLufs;
     const serverId = getPlaybackIndexKey() || null;
-    const row = await invoke<LoudnessCachePayload | null>('analysis_get_loudness_for_track', {
-      trackId,
-      targetLufs: requestedTarget,
-      serverId,
-    });
+    const loudnessRes = await commands.analysisGetLoudnessForTrack(trackId, requestedTarget, serverId);
+    if (loudnessRes.status === 'error') throw new Error(loudnessRes.error);
+    // Boundary cast: the generated DTO widens `recommendedGainDb` to `number | null`;
+    // downstream relies on the FE type's non-null shape (guarded at runtime by Number.isFinite).
+    const row = loudnessRes.data as LoudnessCachePayload | null;
     if (useAuthStore.getState().loudnessTargetLufs !== requestedTarget) {
       emitNormalizationDebug('refresh:stale-target', { trackId, requestedTarget });
       void refreshLoudnessForTrack(trackId, { syncPlayingEngine: syncEngine });
@@ -113,8 +113,11 @@ async function runRefreshLoudnessForTrack(trackId: string, syncEngine: boolean):
           attempt: attempts + 1,
           priority,
         });
-        void invoke('analysis_enqueue_seed_from_url', { trackId, url, serverId, priority })
-          .then(() => emitNormalizationDebug('backfill:queued', { trackId, attempt: attempts + 1 }))
+        void commands.analysisEnqueueSeedFromUrl(trackId, url, null, serverId, priority)
+          .then((res) => {
+            if (res.status === 'error') throw new Error(res.error);
+            emitNormalizationDebug('backfill:queued', { trackId, attempt: attempts + 1 });
+          })
           .catch((e) => emitNormalizationDebug('backfill:error', { trackId, error: String(e) }))
           .finally(() => {
             clearBackfillInFlight(trackId);

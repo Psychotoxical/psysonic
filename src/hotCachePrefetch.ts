@@ -398,7 +398,10 @@ export function initHotCachePrefetch(): () => void {
   const maintenanceTimer = window.setInterval(() => {
     const auth = useAuthStore.getState();
     if (!auth.isLoggedIn || !auth.hotCacheEnabled) return;
-    void reconcileEphemeralCache();
+    void reconcileEphemeralCache({
+      entries: useLocalPlaybackStore.getState().entries,
+      removeEntry: useLocalPlaybackStore.getState().removeEntry,
+    });
   }, EPHEMERAL_MAINTENANCE_MS);
 
   return () => {

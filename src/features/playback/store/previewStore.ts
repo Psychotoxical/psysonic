@@ -2,7 +2,7 @@ import { buildStreamUrl } from '@/lib/api/subsonicStreamUrl';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import type { TrackPreviewLocation } from '@/store/authStoreTypes';
 import { create } from 'zustand';
-import { invoke } from '@tauri-apps/api/core';
+import { audioPreviewPlay, audioPreviewStop } from '@/lib/api/audio';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
 import { isOrbitPlaybackSyncActive } from '@/store/orbitRuntime';
@@ -136,7 +136,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     });
 
     try {
-      await invoke('audio_preview_play', {
+      await audioPreviewPlay({
         id: song.id,
         url,
         startSec,
@@ -156,7 +156,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   stopPreview: async () => {
     if (!get().previewingId) return;
     try {
-      await invoke('audio_preview_stop');
+      await audioPreviewStop();
     } catch {
       /* engine will emit preview-end anyway; clear locally as fallback */
       set({ previewingId: null, previewingTrack: null, elapsed: 0, audioStarted: false });

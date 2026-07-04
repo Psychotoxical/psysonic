@@ -1,6 +1,7 @@
 import { getSong } from '@/lib/api/subsonicLibrary';
 import { enrichTrackPlaybackMetadata } from '@/features/playback/utils/audio/enrichTrackReplayGainMetadata';
 import { invoke } from '@tauri-apps/api/core';
+import { audioResume, audioSeek } from '@/lib/api/audio';
 import { estimateLivePosition, orbitSnapshot } from '@/store/orbitRuntime';
 import { setDeferHotCachePrefetch } from '@/lib/cache/hotCacheGate';
 import {
@@ -90,7 +91,7 @@ export function runResume(set: SetState, get: GetState): void {
           // Bypasses this resume() branch re-entry via the early return below.
           get().seek(fraction);
           if (getIsAudioPaused()) {
-            invoke('audio_resume').catch(console.error);
+            audioResume().catch(console.error);
             setIsAudioPaused(false);
             set({ isPlaying: true });
             playbackReportPlaying(targetSec);
@@ -128,7 +129,7 @@ export function runResume(set: SetState, get: GetState): void {
 
   if (getIsAudioPaused()) {
     // Rust engine has audio loaded but paused — just resume it.
-    invoke('audio_resume').catch(console.error);
+    audioResume().catch(console.error);
     setIsAudioPaused(false);
     set({ isPlaying: true });
     // Mirror pause(): tell the server immediately, don't wait for `audio:playing`.
@@ -196,7 +197,7 @@ export function runResume(set: SetState, get: GetState): void {
         startPaused: false,
       }).then(() => {
         if (getPlayGeneration() === gen && currentTime > 1) {
-          invoke('audio_seek', { seconds: currentTime }).catch(console.error);
+          audioSeek({ seconds: currentTime }).catch(console.error);
         }
       }).catch((err: unknown) => {
         if (getPlayGeneration() !== gen) return;

@@ -1,5 +1,6 @@
+import { commands } from '@/generated/bindings';
 import { applyServerPlayQueue } from '@/features/playback/store/applyServerPlayQueue';
-import { invoke } from '@tauri-apps/api/core';
+import { audioSeek, audioSetVolume, audioStop } from '@/lib/api/audio';
 import i18n from '@/lib/i18n';
 import { showToast } from '@/lib/dom/toast';
 import { useAuthStore } from '@/store/authStore';
@@ -76,10 +77,10 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
       clearSeekFallbackRetry();
       clearSeekDebounce(); clearSeekTarget();
       // Stop Rust engine in case a regular track was playing.
-      invoke('audio_stop').catch(() => {});
+      audioStop().catch(() => {});
       // Resolve PLS/M3U playlist URLs to the actual stream URL before handing
       // to HTML5 <audio> — the browser cannot play playlist files directly.
-      const streamUrl = await invoke<string>('resolve_stream_url', { url: station.streamUrl })
+      const streamUrl = await commands.resolveStreamUrl(station.streamUrl)
         .catch(() => station.streamUrl);
       const { replayGainFallbackDb } = useAuthStore.getState();
       const fallbackFactor = replayGainFallbackDb !== 0 ? Math.pow(10, replayGainFallbackDb / 20) : 1;
@@ -119,7 +120,7 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
           get().playTrack(currentTrack, undefined, true);
           return;
         }
-        invoke('audio_seek', { seconds: 0 }).catch(console.error);
+        audioSeek({ seconds: 0 }).catch(console.error);
         set({ progress: 0, currentTime: 0 });
         return;
       }
@@ -133,7 +134,7 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
 
     setVolume: (v) => {
       const clamped = Math.max(0, Math.min(1, v));
-      invoke('audio_set_volume', { volume: clamped }).catch(console.error);
+      audioSetVolume({ volume: clamped }).catch(console.error);
       setRadioVolume(clamped);
       set({ volume: clamped });
     },

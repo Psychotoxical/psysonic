@@ -11,6 +11,7 @@ import { showToast } from '@/lib/dom/toast';
 import { useOfflineJobStore, cancelledDownloads } from '@/features/offline/store/offlineJobStore';
 import { useLocalPlaybackStore, type PinSource } from '@/store/localPlaybackStore';
 import { getMediaDir } from '@/lib/media/mediaDir';
+import { checkDirAccessible, clearOfflineCancel } from '@/lib/api/syncfs';
 import { findLocalPlaybackEntry } from '@/store/localPlaybackResolve';
 import {
   isOfflinePinComplete,
@@ -98,7 +99,7 @@ async function runOfflinePinDownload(task: OfflinePinTask): Promise<void> {
   const mediaDir = getMediaDir();
 
   if (mediaDir) {
-    const ok = await invoke<boolean>('check_dir_accessible', { path: mediaDir }).catch(() => false);
+    const ok = await checkDirAccessible({ path: mediaDir }).catch(() => false);
     if (!ok) {
       showToast('Speichermedium nicht gefunden. Bitte Verzeichnis in den Einstellungen prüfen.', 6000, 'error');
       return;
@@ -162,7 +163,7 @@ async function runOfflinePinDownload(task: OfflinePinTask): Promise<void> {
     if (cancelledDownloads.has(albumId)) {
       cancelledDownloads.delete(albumId);
       jobStore.setState(state => ({ jobs: state.jobs.filter(j => j.albumId !== albumId) }));
-      invoke('clear_offline_cancel', { downloadId }).catch(() => {});
+      clearOfflineCancel({ downloadId }).catch(() => {});
       return;
     }
 
@@ -241,7 +242,7 @@ async function runOfflinePinDownload(task: OfflinePinTask): Promise<void> {
     }));
   }
 
-  invoke('clear_offline_cancel', { downloadId }).catch(() => {});
+  clearOfflineCancel({ downloadId }).catch(() => {});
   setTimeout(() => {
     jobStore.setState(state => ({
       jobs: state.jobs.filter(

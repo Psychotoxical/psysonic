@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { setTrayMenuLabels } from '@/lib/api/tray';
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -11,7 +11,7 @@ export function useTrayMenuI18n(): void {
   const { t, i18n } = useTranslation();
   useEffect(() => {
     const apply = () => {
-      invoke('set_tray_menu_labels', {
+      setTrayMenuLabels({
         playPause: t('tray.playPause'),
         next: t('tray.nextTrack'),
         previous: t('tray.previousTrack'),

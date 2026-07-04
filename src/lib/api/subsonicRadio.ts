@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api/subsonicClient';
 import type { InternetRadioStation, RadioBrowserStation } from '@/lib/api/subsonicTypes';
@@ -41,14 +42,8 @@ export async function uploadRadioCoverArt(id: string, file: File): Promise<void>
   const baseUrl = getBaseUrl();
   const buffer = await file.arrayBuffer();
   const fileBytes = Array.from(new Uint8Array(buffer));
-  await invoke('upload_radio_cover', {
-    serverUrl: baseUrl,
-    radioId: id,
-    username: server?.username ?? '',
-    password: server?.password ?? '',
-    fileBytes,
-    mimeType: file.type || 'image/jpeg',
-  });
+  const res = await commands.uploadRadioCover(baseUrl, id, server?.username ?? '', server?.password ?? '', fileBytes, file.type || 'image/jpeg');
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 export async function deleteRadioCoverArt(id: string): Promise<void> {
@@ -56,26 +51,16 @@ export async function deleteRadioCoverArt(id: string): Promise<void> {
   const { getBaseUrl, getActiveServer } = useAuthStore.getState();
   const server = getActiveServer();
   const baseUrl = getBaseUrl();
-  await invoke('delete_radio_cover', {
-    serverUrl: baseUrl,
-    radioId: id,
-    username: server?.username ?? '',
-    password: server?.password ?? '',
-  });
+  const res = await commands.deleteRadioCover(baseUrl, id, server?.username ?? '', server?.password ?? '');
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 export async function uploadRadioCoverArtBytes(id: string, fileBytes: number[], mimeType: string): Promise<void> {
   const { getBaseUrl, getActiveServer } = useAuthStore.getState();
   const server = getActiveServer();
   const baseUrl = getBaseUrl();
-  await invoke('upload_radio_cover', {
-    serverUrl: baseUrl,
-    radioId: id,
-    username: server?.username ?? '',
-    password: server?.password ?? '',
-    fileBytes,
-    mimeType,
-  });
+  const res = await commands.uploadRadioCover(baseUrl, id, server?.username ?? '', server?.password ?? '', fileBytes, mimeType);
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 function parseRadioBrowserStations(raw: Array<Record<string, string>>): RadioBrowserStation[] {
@@ -99,5 +84,7 @@ export async function getTopRadioStations(offset = 0): Promise<RadioBrowserStati
 }
 
 export async function fetchUrlBytes(url: string): Promise<[number[], string]> {
-  return invoke<[number[], string]>('fetch_url_bytes', { url });
+  const res = await commands.fetchUrlBytes(url);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }

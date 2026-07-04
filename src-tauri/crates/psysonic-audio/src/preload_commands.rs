@@ -114,6 +114,7 @@ fn emit_preload_cancelled(app: &AppHandle, url: String, track_id: Option<String>
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn audio_preload(
     url: String,
     duration_hint: f64,

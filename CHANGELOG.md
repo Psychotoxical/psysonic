@@ -41,6 +41,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Reorganised the frontend into a feature-folder architecture with a CI-enforced layering guard, added unit + behavior-scenario + boot-smoke test coverage, and introduced a compile-time frontend/backend IPC contract via tauri-specta. Internal only — no change to how the app looks or behaves.
 
+### Typed-IPC contract — completed the tauri-specta cutover
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), with additional architecture by [@cucadmuh](https://github.com/cucadmuh), PR [#1230](https://github.com/Psychotoxical/psysonic/pull/1230)**
+
+* Completed the frontend/backend typed-IPC contract: the frontend now calls the generated tauri-specta command surface, with CI guards keeping the bindings fresh and every command registered in the handler. Internal only — no change to how the app looks or behaves.
+
 ## Fixed
 
 ### Playback — ReplayGain prefetch, gapless playbar sync, and library peak index

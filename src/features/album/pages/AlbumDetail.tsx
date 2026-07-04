@@ -8,7 +8,7 @@ import { songToTrack } from '@/lib/media/songToTrack';
 import { shuffleArray } from '@/lib/util/shuffleArray';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { invoke } from '@tauri-apps/api/core';
+import { downloadZip } from '@/lib/api/downloadZip';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
 import { useOrbitSongRowBehavior } from '@/features/orbit';
@@ -245,7 +245,7 @@ const handleShuffleAll = () => {
     const { start, complete, fail } = useZipDownloadStore.getState();
     start(downloadId, filename);
     try {
-      await invoke('download_zip', { id: downloadId, url, destPath });
+      await downloadZip({ id: downloadId, url, destPath });
       complete(downloadId);
     } catch (e) {
       fail(downloadId);

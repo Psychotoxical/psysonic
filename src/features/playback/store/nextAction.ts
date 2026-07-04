@@ -1,5 +1,5 @@
 import { getSimilarSongs2, getTopSongs } from '@/lib/api/subsonicArtists';
-import { invoke } from '@tauri-apps/api/core';
+import { audioStop } from '@/lib/api/audio';
 import { buildInfiniteQueueCandidates } from '@/features/playback/utils/playback/buildInfiniteQueueCandidates';
 import { songToTrack } from '@/lib/media/songToTrack';
 import { ensureQueueServerPinned } from '@/features/playback/utils/playback/playbackServer';
@@ -58,7 +58,7 @@ function stopAtNaturalQueueEnd(set: SetState, get: GetState): void {
   if (currentTrack && queueItems.length > 0) {
     void finalizePlayQueueAtTrackEnd(queueItems, currentTrack);
   }
-  invoke('audio_stop').catch(console.error);
+  audioStop().catch(console.error);
   setIsAudioPaused(false);
   set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
 }
@@ -208,7 +208,7 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
     // Covers any active orbit phase (`active` / `joining` / `starting`)
     // so a fetch scheduled mid-join doesn't slip through.
     if (isInOrbitSession()) {
-      invoke('audio_stop').catch(console.error);
+      audioStop().catch(console.error);
       setIsAudioPaused(false);
       set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
       return;
@@ -225,7 +225,7 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
             // The user may have joined an Orbit session while this
             // fetch was in flight — bail without touching the queue.
             if (isInOrbitSession()) {
-              invoke('audio_stop').catch(console.error);
+              audioStop().catch(console.error);
               setIsAudioPaused(false);
               set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
               return;
@@ -265,7 +265,7 @@ export function runNext(set: SetState, get: GetState, manual: boolean): void {
         // The user may have joined an Orbit session while this
         // fetch was in flight — bail without invoking playTrack.
         if (isInOrbitSession()) {
-          invoke('audio_stop').catch(console.error);
+          audioStop().catch(console.error);
           setIsAudioPaused(false);
           set({ isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
           return;

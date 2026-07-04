@@ -13,7 +13,7 @@ const DEFAULT_BATCH: u32 = 20;
 const MAX_BATCH: u32 = 50;
 const PROGRESS_SCAN_CHUNK: usize = 1000;
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryAnalysisBackfillBatchDto {
     pub track_ids: Vec<String>,
@@ -21,7 +21,7 @@ pub struct LibraryAnalysisBackfillBatchDto {
     pub exhausted: bool,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryAnalysisProgressDto {
     pub total_tracks: i64,

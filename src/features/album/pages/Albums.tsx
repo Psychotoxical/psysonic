@@ -18,7 +18,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useOfflineStore } from '@/features/offline';
 import { useDownloadModalStore } from '@/features/offline';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
-import { invoke } from '@tauri-apps/api/core';
+import { downloadZip } from '@/lib/api/downloadZip';
 import { join } from '@tauri-apps/api/path';
 import { showToast } from '@/lib/dom/toast';
 import { useZipDownloadStore } from '@/features/offline';
@@ -272,7 +272,7 @@ export default function Albums() {
       const url = buildDownloadUrl(album.id);
       start(downloadId, filename);
       try {
-        await invoke('download_zip', { id: downloadId, url, destPath });
+        await downloadZip({ id: downloadId, url, destPath });
         complete(downloadId);
       } catch (e) {
         fail(downloadId);

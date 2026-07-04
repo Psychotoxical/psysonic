@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { dirname } from '@tauri-apps/api/path';
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { useTranslation } from 'react-i18next';
 import { version as currentVersion } from '../../../../package.json';
 import { IS_LINUX, IS_MACOS, IS_WINDOWS } from '@/lib/util/platform';
@@ -50,7 +50,7 @@ export function useAppUpdater() {
         assets: data.assets ?? [],
       });
       if (IS_LINUX) {
-        const arch = await invoke<boolean>('check_arch_linux');
+        const arch = await commands.checkArchLinux();
         setIsArch(arch);
       }
     } catch {
@@ -172,10 +172,9 @@ export function useAppUpdater() {
     unlistenRef.current = unlisten;
 
     try {
-      const finalPath = await invoke<string>('download_update', {
-        url: asset.browser_download_url,
-        filename: asset.name,
-      });
+      const dlRes = await commands.downloadUpdate(asset.browser_download_url, asset.name);
+      if (dlRes.status === 'error') throw new Error(dlRes.error);
+      const finalPath = dlRes.data;
       unlisten();
       unlistenRef.current = null;
       setDlPath(finalPath);
@@ -192,7 +191,8 @@ export function useAppUpdater() {
     // tauri-plugin-shell's open() only allows https:// per capability scope —
     // local paths are blocked and fail silently. Delegate to Rust instead.
     const dir = await dirname(dlPath);
-    await invoke('open_folder', { path: dir });
+    const res = await commands.openFolder(dir);
+    if (res.status === 'error') throw new Error(res.error);
   };
 
   const showAurHint = IS_LINUX && isArch;

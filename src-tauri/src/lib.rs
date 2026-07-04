@@ -3,9 +3,9 @@
 
 pub mod cli;
 mod cover_cache;
-mod library_analysis_backfill;
+pub(crate) mod library_analysis_backfill;
 mod lib_commands;
-mod theme_import;
+pub(crate) mod theme_import;
 pub mod theme_animation;
 
 pub use psysonic_integration::discord;
@@ -86,10 +86,232 @@ fn set_app_user_model_id() {
 /// crate-by-crate (see the specta-contract plan).
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
+        // Map Rust `i64`/`u64`/`usize`/… to TS `number` globally. This is
+        // behaviour-preserving, NOT a change: Tauri already serialises these as
+        // JSON numbers and the hand-written FE DTOs already type them `number`
+        // (with the same >2^53 truncation JSON.parse does today). The flag only
+        // makes the generated types match that reality — it avoids ~200 per-field
+        // `#[specta(type = Number)]` casts across the DTOs. `enable_lossless_bigints`
+        // (→ TS `bigint`) is the real behaviour change and stays rejected.
+        //
+        // Bigint precision audit (Option-A guard, done 2026-07-02): every returned
+        // i64/u64 field across the collected DTOs is an epoch-ms timestamp (~1e13),
+        // a catalog/play count (~1e7), a byte size (~1e13 for a large library) or a
+        // tiny scalar (year, track/disc no., bpm, rating) — all well under 2^53
+        // (~9e15). No nanosecond timestamps, no integer-encoded hashes (content_hash
+        // is a String), no unbounded accumulators. If a future DTO adds one, model
+        // it as a String at the edge instead of relying on this cast.
+        .dangerously_cast_bigints_to_number()
         .commands(tauri_specta::collect_commands![
             crate::lib_commands::app_api::core::greet,
             psysonic_library::browse_support::library_get_catalog_year_bounds,
             psysonic_library::browse_support::library_get_genre_album_counts,
+            // psysonic-library — remaining typeable commands. Excluded (stay on
+            // generate_handler! only): the 10 search/browse/track reads whose envelopes
+            // carry LibraryTrack/Album/ArtistDto (each has `raw_json: Value`, dto.rs) +
+            // library_upsert_songs_from_api / library_patch_track (serde_json::Value args).
+            psysonic_library::browse_support::library_reconcile_album_stars,
+            psysonic_library::commands::library_resolve_cover_entry,
+            psysonic_library::commands::library_analysis_backfill_batch,
+            psysonic_library::commands::library_analysis_progress,
+            psysonic_library::commands::library_count_live_tracks,
+            psysonic_library::commands::library_get_status,
+            psysonic_library::commands::library_get_artifact,
+            psysonic_library::commands::library_get_facts,
+            psysonic_library::commands::library_get_offline_path,
+            psysonic_library::commands::library_genre_tags_inspect,
+            psysonic_library::commands::library_genre_tags_run,
+            psysonic_library::commands::library_sync_bind_session,
+            psysonic_library::commands::library_sync_clear_session,
+            psysonic_library::commands::library_set_playback_hint,
+            psysonic_library::commands::library_get_playback_hint,
+            psysonic_library::commands::library_sync_start,
+            psysonic_library::commands::library_sync_verify_integrity,
+            psysonic_library::commands::library_sync_cancel,
+            psysonic_library::commands::library_put_artifact,
+            psysonic_library::commands::library_put_fact,
+            psysonic_library::commands::library_record_play_session,
+            psysonic_library::commands::library_get_player_stats_year_summary,
+            psysonic_library::commands::library_get_player_stats_heatmap,
+            psysonic_library::commands::library_get_player_stats_day_detail,
+            psysonic_library::commands::library_get_player_stats_year_bounds,
+            psysonic_library::commands::library_get_player_stats_recent_days,
+            psysonic_library::commands::library_get_recent_play_sessions,
+            psysonic_library::commands::library_purge_server,
+            psysonic_library::commands::library_migrate_server_index_keys,
+            psysonic_library::commands::library_delete_server_data,
+            // psysonic-audio (audio_play + audio_chain_preload excluded: >10 args
+            // exceed specta's SpectaFn limit — see the note at their definitions)
+            audio::transport_commands::audio_pause,
+            audio::transport_commands::audio_resume,
+            audio::transport_commands::audio_stop,
+            audio::transport_commands::audio_seek,
+            audio::mix_commands::audio_set_volume,
+            audio::mix_commands::audio_update_replay_gain,
+            audio::mix_commands::audio_set_eq,
+            audio::mix_commands::audio_set_playback_rate,
+            audio::mix_commands::audio_set_crossfade,
+            audio::mix_commands::audio_set_gapless,
+            audio::mix_commands::audio_begin_outgoing_fade,
+            audio::mix_commands::audio_set_autodj_suppress,
+            audio::mix_commands::audio_set_normalization,
+            audio::autoeq_commands::autoeq_entries,
+            audio::autoeq_commands::autoeq_fetch_profile,
+            audio::preload_commands::audio_preload,
+            audio::radio_commands::audio_play_radio,
+            audio::preview::audio_preview_play,
+            audio::preview::audio_preview_stop,
+            audio::preview::audio_preview_stop_silent,
+            audio::preview::audio_preview_set_volume,
+            audio::device_commands::audio_list_devices,
+            audio::device_commands::audio_canonicalize_selected_device,
+            audio::device_commands::audio_default_output_device_name,
+            audio::device_commands::audio_set_device,
+            // psysonic-analysis (no Value / all ≤10 args — fully typeable)
+            psysonic_analysis::commands::analysis_get_waveform,
+            psysonic_analysis::commands::analysis_get_waveform_for_track,
+            psysonic_analysis::commands::analysis_get_loudness_for_track,
+            psysonic_analysis::commands::analysis_delete_loudness_for_track,
+            psysonic_analysis::commands::analysis_delete_waveform_for_track,
+            psysonic_analysis::commands::analysis_delete_all_waveforms,
+            psysonic_analysis::commands::analysis_delete_all_for_server,
+            psysonic_analysis::commands::analysis_get_failed_track_count,
+            psysonic_analysis::commands::analysis_list_failed_tracks,
+            psysonic_analysis::commands::analysis_clear_failed_tracks,
+            psysonic_analysis::commands::analysis_migrate_server_index_keys,
+            psysonic_analysis::commands::analysis_enqueue_seed_from_url,
+            psysonic_analysis::commands::analysis_set_playback_priority_hints,
+            psysonic_analysis::commands::analysis_set_pipeline_parallelism,
+            psysonic_analysis::commands::analysis_get_pipeline_queue_stats,
+            psysonic_analysis::commands::analysis_get_backfill_queue_stats,
+            psysonic_analysis::commands::analysis_prune_pending_to_track_ids,
+            // psysonic-syncfs (calculate_sync_payload + write/read_device_manifest excluded: serde_json::Value)
+            psysonic_syncfs::cache::offline::download_track_offline,
+            psysonic_syncfs::cache::offline::cancel_offline_downloads,
+            psysonic_syncfs::cache::offline::clear_offline_cancel,
+            psysonic_syncfs::cache::offline::delete_offline_track,
+            psysonic_syncfs::cache::offline::get_offline_cache_size,
+            psysonic_syncfs::cache::local::probe_library_track_local,
+            psysonic_syncfs::cache::local::discover_library_tier_on_disk,
+            psysonic_syncfs::cache::local::prune_orphan_library_tier_files,
+            psysonic_syncfs::cache::local::prune_orphan_ephemeral_cache_files,
+            psysonic_syncfs::cache::local::evict_ephemeral_cache_orphans_to_fit,
+            psysonic_syncfs::cache::local::probe_media_files,
+            psysonic_syncfs::cache::local::get_media_tier_size,
+            psysonic_syncfs::cache::local::purge_media_tier,
+            psysonic_syncfs::cache::local::delete_media_file,
+            psysonic_syncfs::cache::local::prune_empty_media_tier_dirs,
+            psysonic_syncfs::cache::local::promote_stream_cache_to_local,
+            psysonic_syncfs::cache::local::migrate_legacy_offline_disk,
+            psysonic_syncfs::cache::hot::download_track_hot_cache,
+            psysonic_syncfs::cache::hot::promote_stream_cache_to_hot_cache,
+            psysonic_syncfs::cache::hot::get_hot_cache_size,
+            psysonic_syncfs::cache::hot::delete_hot_cache_track,
+            psysonic_syncfs::cache::hot::purge_hot_cache,
+            psysonic_syncfs::sync::device::sync_track_to_device,
+            psysonic_syncfs::sync::batch::sync_batch_to_device,
+            psysonic_syncfs::sync::batch::cancel_device_sync,
+            psysonic_syncfs::sync::device::compute_sync_paths,
+            psysonic_syncfs::sync::batch::list_device_dir_files,
+            psysonic_syncfs::sync::batch::delete_device_file,
+            psysonic_syncfs::sync::batch::delete_device_files,
+            psysonic_syncfs::sync::device::get_removable_drives,
+            psysonic_syncfs::sync::device::write_playlist_m3u8,
+            psysonic_syncfs::sync::device::rename_device_files,
+            psysonic_syncfs::cache::downloads::download_zip,
+            psysonic_syncfs::cache::downloads::check_arch_linux,
+            psysonic_syncfs::cache::downloads::download_update,
+            psysonic_syncfs::cache::downloads::open_folder,
+            psysonic_syncfs::cache::downloads::get_embedded_lyrics,
+            psysonic_syncfs::cache::downloads::fetch_netease_lyrics,
+            // cover_cache (cover_revalidate_batch excluded: returns serde_json::Value)
+            cover_cache::cover_cache_peek_batch,
+            cover_cache::cover_cache_ensure,
+            cover_cache::cover_cache_ensure_batch,
+            cover_cache::cover_cache_stats,
+            cover_cache::cover_cache_evict_tick,
+            cover_cache::cover_cache_configure,
+            cover_cache::cover_cache_clear,
+            cover_cache::cover_cache_clear_server,
+            cover_cache::cover_cache_purge_external,
+            cover_cache::cover_cache_rename_server_bucket,
+            cover_cache::cover_cache_stats_server,
+            cover_cache::cover_cache_get_pipeline_queue_stats,
+            cover_cache::library_cover_backfill_batch,
+            cover_cache::library_cover_progress,
+            cover_cache::library_cover_catalog_size,
+            cover_cache::library_cover_clear_fetch_failures,
+            cover_cache::library_cover_backfill_configure,
+            cover_cache::library_cover_backfill_set_base_url,
+            cover_cache::library_cover_backfill_pulse,
+            cover_cache::library_cover_backfill_reset_cursor,
+            cover_cache::library_cover_backfill_set_ui_priority,
+            cover_cache::library_cover_backfill_set_parallel,
+            cover_cache::library_cover_backfill_run_full_pass,
+            cover_cache::cover_revalidate_enqueue,
+            cover_cache::cover_revalidate_tick,
+            // top crate shell commands (set_tray_menu_labels >10 args, backup_*_full/cli_publish_* are Value — all excluded)
+            crate::lib_commands::app_api::core::exit_app,
+            crate::lib_commands::app_api::core::set_logging_mode,
+            crate::lib_commands::app_api::core::get_logging_mode,
+            crate::lib_commands::app_api::core::tail_runtime_logs,
+            crate::lib_commands::app_api::core::export_runtime_logs,
+            crate::lib_commands::app_api::core::frontend_debug_log,
+            crate::lib_commands::app_api::core::set_subsonic_wire_user_agent,
+            crate::lib_commands::app_api::perf::performance_cpu_snapshot,
+            crate::lib_commands::app_api::platform::set_window_decorations,
+            crate::lib_commands::app_api::platform::set_linux_webkit_smooth_scrolling,
+            crate::lib_commands::app_api::platform::linux_wayland_gpu_font_tuning_active,
+            crate::lib_commands::app_api::platform::linux_wayland_text_render_settings_available,
+            crate::lib_commands::app_api::platform::set_linux_wayland_text_render_profile,
+            crate::lib_commands::app_api::platform::theme_animation_risk,
+            crate::lib_commands::app_api::migration::migration_inspect,
+            crate::lib_commands::app_api::migration::migration_run,
+            crate::lib_commands::app_api::network::resolve_host_addresses,
+            crate::lib_commands::app_api::network::server_http_context_clear,
+            crate::lib_commands::app_api::network::server_http_context_sync,
+            crate::lib_commands::app_api::network::server_http_context_sync_all,
+            crate::lib_commands::app_api::backup::backup_export_library_db,
+            crate::lib_commands::app_api::backup::backup_import_library_db,
+            crate::lib_commands::app_api::integration::register_global_shortcut,
+            crate::lib_commands::app_api::integration::unregister_global_shortcut,
+            crate::lib_commands::app_api::integration::mpris_set_metadata,
+            crate::lib_commands::app_api::integration::mpris_set_playback,
+            crate::lib_commands::app_api::integration::check_dir_accessible,
+            crate::lib_commands::ui::mini::open_mini_player,
+            crate::lib_commands::ui::mini::preload_mini_player,
+            crate::lib_commands::ui::mini::close_mini_player,
+            crate::lib_commands::ui::mini::set_mini_player_always_on_top,
+            crate::lib_commands::ui::mini::resize_mini_player,
+            crate::lib_commands::ui::mini::show_main_window,
+            crate::lib_commands::ui::mini::pause_rendering,
+            crate::lib_commands::ui::mini::resume_rendering,
+            crate::lib_commands::sync::tray::no_compositing_mode,
+            crate::lib_commands::sync::tray::linux_xdg_session_type,
+            crate::lib_commands::sync::tray::is_tiling_wm_cmd,
+            crate::lib_commands::sync::tray::toggle_tray_icon,
+            crate::lib_commands::sync::tray::set_tray_tooltip,
+            crate::lib_commands::sync::tray::set_tray_menu_labels,
+            crate::theme_import::import_theme_zip,
+            crate::library_analysis_backfill::library_analysis_backfill_configure,
+            // psysonic-integration — typeable subset. Excluded (stay on generate_handler!):
+            // the nd_list_*/nd_create_*/nd_update_* + scrobbler (audioscrobbler/listenbrainz/
+            // maloja) + radio-browser + fetch_json_url raw-JSON commands (serde_json::Value /
+            // passthrough), and discord_update_presence (>10 args) — noted at their defs.
+            psysonic_integration::bandsintown::fetch_bandsintown_events,
+            psysonic_integration::navidrome::covers::upload_playlist_cover,
+            psysonic_integration::navidrome::covers::upload_radio_cover,
+            psysonic_integration::navidrome::covers::upload_artist_image,
+            psysonic_integration::navidrome::covers::delete_radio_cover,
+            psysonic_integration::navidrome::playlists::nd_delete_playlist,
+            psysonic_integration::navidrome::queries::nd_set_user_libraries,
+            psysonic_integration::navidrome::queries::nd_get_song_path,
+            psysonic_integration::navidrome::users::navidrome_login,
+            psysonic_integration::navidrome::users::nd_delete_user,
+            psysonic_integration::remote::fetch_url_bytes,
+            psysonic_integration::remote::fetch_icy_metadata,
+            psysonic_integration::remote::resolve_stream_url,
+            psysonic_integration::discord::discord_clear_presence,
         ])
 }
 
@@ -949,6 +1171,32 @@ pub fn run() {
             psysonic_syncfs::cache::downloads::open_folder,
             psysonic_syncfs::cache::downloads::get_embedded_lyrics,
             psysonic_syncfs::cache::downloads::fetch_netease_lyrics,
+            // cover_cache (cover_revalidate_batch excluded: returns serde_json::Value)
+            cover_cache::cover_cache_peek_batch,
+            cover_cache::cover_cache_ensure,
+            cover_cache::cover_cache_ensure_batch,
+            cover_cache::cover_cache_stats,
+            cover_cache::cover_cache_evict_tick,
+            cover_cache::cover_cache_configure,
+            cover_cache::cover_cache_clear,
+            cover_cache::cover_cache_clear_server,
+            cover_cache::cover_cache_purge_external,
+            cover_cache::cover_cache_rename_server_bucket,
+            cover_cache::cover_cache_stats_server,
+            cover_cache::cover_cache_get_pipeline_queue_stats,
+            cover_cache::library_cover_backfill_batch,
+            cover_cache::library_cover_progress,
+            cover_cache::library_cover_catalog_size,
+            cover_cache::library_cover_clear_fetch_failures,
+            cover_cache::library_cover_backfill_configure,
+            cover_cache::library_cover_backfill_set_base_url,
+            cover_cache::library_cover_backfill_pulse,
+            cover_cache::library_cover_backfill_reset_cursor,
+            cover_cache::library_cover_backfill_set_ui_priority,
+            cover_cache::library_cover_backfill_set_parallel,
+            cover_cache::library_cover_backfill_run_full_pass,
+            cover_cache::cover_revalidate_enqueue,
+            cover_cache::cover_revalidate_tick,
             psysonic_integration::bandsintown::fetch_bandsintown_events,
             #[cfg(target_os = "windows")]
             taskbar_win::update_taskbar_icon,
@@ -959,12 +1207,339 @@ pub fn run() {
 
 #[cfg(test)]
 mod specta_export {
-    // Headless generator + freshness seed: runs the same export as a debug launch
-    // without a GUI, so `cargo test` regenerates `bindings.ts` and CI can diff it.
+    // Freshness gate. Exports to a throwaway temp path and asserts byte-equality
+    // with the committed `src/generated/bindings.ts`. A Rust command/DTO change
+    // that isn't regenerated diverges here → `cargo test` fails → CI catches the
+    // stale bindings. Crucially the test exports to a temp file, never the tracked
+    // one, so it neither dirties the working tree nor races other export tests.
+    // Regenerate the committed file headlessly with the `#[ignore]`d
+    // `regenerate_committed_bindings` below (or a `npm run tauri:dev` debug
+    // launch, which runs `export_specta_bindings()`), then commit the result.
     #[test]
-    fn bindings_are_exportable() {
+    fn committed_bindings_are_fresh() {
+        let committed_path = "../src/generated/bindings.ts";
+        let tmp = std::env::temp_dir().join(format!(
+            "psysonic-bindings-freshness-{}.ts",
+            std::process::id()
+        ));
+
         super::specta_builder()
-            .export(super::bindings_exporter(), "../src/generated/bindings.ts")
+            .export(super::bindings_exporter(), &tmp)
             .expect("failed to export typescript bindings");
+
+        let generated = std::fs::read_to_string(&tmp).expect("read freshly exported bindings");
+        let _ = std::fs::remove_file(&tmp);
+        let committed =
+            std::fs::read_to_string(committed_path).expect("read committed bindings.ts");
+
+        assert_eq!(
+            committed, generated,
+            "src/generated/bindings.ts is stale — regenerate it with \
+             `cargo test -p psysonic regenerate_committed_bindings -- --ignored` \
+             and commit the result"
+        );
+    }
+
+    // Headless regeneration of the committed bindings. `#[ignore]`d so it never
+    // runs in CI / default `cargo test` (which keeps the tracked file untouched
+    // and lets `committed_bindings_are_fresh` be the gate); run it explicitly to
+    // rewrite the file after annotating commands:
+    //   cargo test -p psysonic regenerate_committed_bindings -- --ignored
+    #[test]
+    #[ignore = "writes the tracked src/generated/bindings.ts; run explicitly to regenerate"]
+    fn regenerate_committed_bindings() {
+        // Export to a sibling temp file then atomically rename over the tracked
+        // one, so a concurrent reader (e.g. `committed_bindings_are_fresh` under
+        // `--include-ignored`) never observes a half-written/truncated file.
+        let target = "../src/generated/bindings.ts";
+        let tmp = "../src/generated/bindings.ts.regen.tmp";
+        super::specta_builder()
+            .export(super::bindings_exporter(), tmp)
+            .expect("failed to export typescript bindings");
+        std::fs::rename(tmp, target).expect("failed to move regenerated bindings into place");
+    }
+
+    // ── G-sync anti-drift guard (Option A) ──────────────────────────────────
+    // Every command registered in the live `generate_handler!` must EITHER be
+    // collected into `collect_commands!` (so the FE gets a typed binding) OR
+    // appear in `UNTYPEABLE` below with the reason it can't be typed under the
+    // pinned specta =2.0.0-rc.25. This fails if a new command lands in the
+    // handler without doing one or the other — so the typed IPC surface can't
+    // silently rot as commands are added. The allowlist is exact and can only
+    // shrink: making a command typeable (a `Value` return replaced by a DTO, an
+    // arg count dropping to ≤10) means collecting it AND removing it here.
+    //
+    // Under Option A `generate_handler!` stays the permanent live handler; this
+    // test — not a handler flip — is what keeps the two lists in sync.
+    #[test]
+    fn typeable_commands_are_all_collected() {
+        // Known-untypeable under specta =2.0.0-rc.25 (see the specta-contract
+        // plan). Three reasons only:
+        const UNTYPEABLE: &[&str] = &[
+            // (1) serde_json::Value / raw-JSON passthrough in the signature —
+            // rc.25 registers `Value` as inline-self-recursive and overflows the
+            // exporter. `raw_json`-carrying library DTO envelopes count too.
+            "audioscrobbler_request",
+            "listenbrainz_request",
+            "maloja_request",
+            "backup_export_full",
+            "backup_import_full",
+            "cli_publish_library_list",
+            "cli_publish_player_snapshot",
+            "cli_publish_search_results",
+            "cli_publish_server_list",
+            "calculate_sync_payload",
+            "read_device_manifest",
+            "write_device_manifest",
+            "cover_revalidate_batch",
+            "fetch_json_url",
+            "get_top_radio_stations",
+            "search_radio_browser",
+            "library_advanced_search",
+            "library_get_artist_lossless_browse",
+            "library_get_track",
+            "library_get_tracks_batch",
+            "library_get_tracks_by_album",
+            "library_list_albums_by_genre",
+            "library_list_lossless_albums",
+            "library_live_search",
+            "library_search",
+            "library_search_cross_server",
+            "library_patch_track",
+            "library_upsert_songs_from_api",
+            "nd_create_playlist",
+            "nd_get_playlist",
+            "nd_list_playlists",
+            "nd_update_playlist",
+            "nd_create_user",
+            "nd_list_users",
+            "nd_update_user",
+            "nd_list_albums_by_artist_role",
+            "nd_list_artists_by_role",
+            "nd_list_libraries",
+            "nd_list_songs",
+            // (2) >10 total params (State/AppHandle/Window included) exceed
+            // specta's SpectaFn arg cap. Typing needs the args bundled into a
+            // struct = an IPC arg-shape change, out of scope for Option A.
+            "audio_play",
+            "audio_chain_preload",
+            "discord_update_presence",
+            "download_track_local",
+            // (3) platform-gated — `#[cfg(target_os = "windows")]`, so absent
+            // from the Linux specta export the committed bindings are built from.
+            "update_taskbar_icon",
+        ];
+
+        let src = include_str!("lib.rs");
+        let handler = command_names(src, "generate_handler!");
+        let collected = command_names(src, "collect_commands!");
+        assert!(
+            handler.len() > 200 && collected.len() > 150,
+            "command-list parser found too few entries (handler={}, collected={}) \
+             — the macro formatting probably changed; fix `command_names`",
+            handler.len(),
+            collected.len()
+        );
+
+        let mut uncollected: Vec<&str> =
+            handler.iter().filter(|c| !collected.contains(*c)).map(String::as_str).collect();
+        uncollected.sort_unstable();
+
+        let unexplained: Vec<&str> =
+            uncollected.iter().copied().filter(|c| !UNTYPEABLE.contains(c)).collect();
+        assert!(
+            unexplained.is_empty(),
+            "these commands are in generate_handler! but neither collected into \
+             collect_commands! nor listed in UNTYPEABLE — annotate them with \
+             #[specta::specta] + add to collect_commands!, or add them to \
+             UNTYPEABLE with the reason: {unexplained:?}"
+        );
+
+        let stale: Vec<&str> =
+            UNTYPEABLE.iter().copied().filter(|c| !uncollected.contains(c)).collect();
+        assert!(
+            stale.is_empty(),
+            "these commands are in the UNTYPEABLE allowlist but are no longer \
+             uncollected (they got collected, or left generate_handler!) — remove \
+             them from UNTYPEABLE: {stale:?}"
+        );
+    }
+
+    /// Extract the last `::`-segment identifier of every entry inside a
+    /// `<macro>![ ... ]` invocation. Mirrors the Python worklist parser: one
+    /// command per line, skips `//` comments and `#[..]` attribute lines. Picks
+    /// the real invocation (a `[` follows the macro name), not a doc-comment
+    /// mention of the macro.
+    fn command_names(src: &str, macro_call: &str) -> std::collections::HashSet<String> {
+        let mut out = std::collections::HashSet::new();
+        let open = src.match_indices(macro_call).find_map(|(idx, _)| {
+            let rest = &src[idx + macro_call.len()..];
+            let trimmed = rest.trim_start();
+            trimmed
+                .starts_with('[')
+                .then(|| idx + macro_call.len() + (rest.len() - trimmed.len()))
+        });
+        let Some(open) = open else {
+            return out;
+        };
+
+        let bytes = src.as_bytes();
+        let (mut i, mut depth, mut close) = (open, 0i32, open);
+        while i < bytes.len() {
+            match bytes[i] {
+                b'[' => depth += 1,
+                b']' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        close = i;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+
+        for raw in src[open + 1..close].lines() {
+            let line = raw.trim();
+            if line.is_empty() || line.starts_with("//") || line.starts_with('#') {
+                continue;
+            }
+            let code = line.split("//").next().unwrap_or("").trim().trim_end_matches(',');
+            let seg = code.rsplit("::").next().unwrap_or("").trim();
+            let ok = seg.starts_with(|c: char| c.is_ascii_lowercase())
+                && seg.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+            if ok {
+                out.insert(seg.to_string());
+            }
+        }
+        out
+    }
+
+    // ── Reverse anti-drift guard ────────────────────────────────────────────
+    // The forward guard above catches a command that lands in `generate_handler!`
+    // without being collected. It cannot see a command that leaves the handler
+    // ENTIRELY — exactly how `download_track_local` silently became unregistered
+    // (offline caching went dead) when the specta annotation pass dropped it from
+    // `generate_handler!` and its >10-arg signature kept it out of
+    // `collect_commands!` too, so it fell through both lists. This test scans every
+    // `#[tauri::command]` fn in the workspace sources and asserts each is wired into
+    // `generate_handler!`, so a command can never fall out of the live IPC surface
+    // unnoticed.
+    #[test]
+    fn every_command_is_registered_in_the_handler() {
+        // Commands intentionally NOT in `generate_handler!` (invoked in-process,
+        // never over IPC). Empty by default — add one only with the reason it is
+        // internal-only; the stale-check below drops any entry that got registered.
+        const HANDLER_EXEMPT: &[&str] = &[];
+
+        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut command_fns = Vec::new();
+        for root in ["src", "crates"] {
+            collect_command_fns(&manifest.join(root), &mut command_fns);
+        }
+        assert!(
+            command_fns.len() > 200,
+            "command-fn scanner found too few #[tauri::command] fns ({}) — the \
+             attribute/fn layout probably changed; fix `collect_command_fns`",
+            command_fns.len()
+        );
+
+        // This guard compares handler↔command by BARE fn name, so two commands
+        // sharing a bare name across crates would be indistinguishable — one could
+        // drop out of the handler while its namesake keeps the check green. Fail
+        // loudly if that ever happens rather than silently trusting the name.
+        let mut counts = std::collections::HashMap::new();
+        for name in &command_fns {
+            *counts.entry(name.as_str()).or_insert(0) += 1;
+        }
+        let mut collisions: Vec<&str> =
+            counts.iter().filter(|(_, n)| **n > 1).map(|(name, _)| *name).collect();
+        collisions.sort_unstable();
+        assert!(
+            collisions.is_empty(),
+            "two #[tauri::command] fns share a bare name {collisions:?} — this guard \
+             can't tell them apart; disambiguate before the name-based check is trusted"
+        );
+
+        let handler = command_names(include_str!("lib.rs"), "generate_handler!");
+        let mut missing: Vec<&str> = command_fns
+            .iter()
+            .map(String::as_str)
+            .filter(|c| !handler.contains(*c) && !HANDLER_EXEMPT.contains(c))
+            .collect();
+        missing.sort_unstable();
+        missing.dedup();
+        assert!(
+            missing.is_empty(),
+            "these #[tauri::command] fns are defined but NOT registered in \
+             generate_handler! — they are dead over IPC (add them to the handler, \
+             or to HANDLER_EXEMPT if intentionally internal-only): {missing:?}"
+        );
+
+        let stale: Vec<&str> = HANDLER_EXEMPT
+            .iter()
+            .copied()
+            .filter(|c| command_fns.iter().any(|f| f == c) && handler.contains(*c))
+            .collect();
+        assert!(
+            stale.is_empty(),
+            "these commands are in HANDLER_EXEMPT but are actually registered in \
+             generate_handler! — remove them from HANDLER_EXEMPT: {stale:?}"
+        );
+    }
+
+    /// Recursively collect the name of every `#[tauri::command]` fn under `dir`.
+    /// Matches only a real attribute line (`#[tauri::command...`), never a
+    /// doc-comment *mention* of the macro (those start with `///`), then reads the
+    /// fn name from the next `fn` declaration, skipping intervening `#[..]`
+    /// attribute lines.
+    fn collect_command_fns(dir: &std::path::Path, out: &mut Vec<String>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if path.file_name().and_then(|n| n.to_str()) == Some("target") {
+                    continue;
+                }
+                collect_command_fns(&path, out);
+            } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+                let Ok(src) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
+                let lines: Vec<&str> = src.lines().collect();
+                for (i, raw) in lines.iter().enumerate() {
+                    if !raw.trim_start().starts_with("#[tauri::command") {
+                        continue;
+                    }
+                    for line in &lines[i + 1..] {
+                        let t = line.trim_start();
+                        if t.starts_with("#[") || t.starts_with("//") || t.is_empty() {
+                            continue;
+                        }
+                        if let Some(name) = fn_name(t) {
+                            out.push(name);
+                            break;
+                        }
+                        // A non-attribute, non-comment, non-blank line that is not a
+                        // fn decl is an attribute *continuation* (a multi-line
+                        // `#[tauri::command(\n  rename_all = ...\n)]`) — keep scanning
+                        // to the fn instead of giving up and dropping the command.
+                    }
+                }
+            }
+        }
+    }
+
+    /// Extract `name` from a `... fn name(...)` declaration line.
+    fn fn_name(line: &str) -> Option<String> {
+        let after = line.split(" fn ").nth(1).or_else(|| line.strip_prefix("fn "))?;
+        let name: String = after
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        (!name.is_empty()).then_some(name)
     }
 }

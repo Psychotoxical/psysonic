@@ -1,5 +1,5 @@
 import { buildStreamUrl } from '@/lib/api/subsonicStreamUrl';
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { getPlaybackIndexKey } from '@/features/playback/utils/playback/playbackServer';
 import { useAuthStore } from '@/store/authStore';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
@@ -45,24 +45,22 @@ export async function reseedLoudnessForTrackId(trackId: string): Promise<void> {
   });
   const serverId = getPlaybackIndexKey() || null;
   try {
-    await invoke('analysis_delete_waveform_for_track', { trackId, serverId });
+    const res = await commands.analysisDeleteWaveformForTrack(trackId, serverId);
+    if (res.status === 'error') throw new Error(res.error);
   } catch (e) {
     console.error('[psysonic] analysis_delete_waveform_for_track failed:', e);
   }
   try {
-    await invoke('analysis_delete_loudness_for_track', { trackId, serverId });
+    const res = await commands.analysisDeleteLoudnessForTrack(trackId, serverId);
+    if (res.status === 'error') throw new Error(res.error);
   } catch (e) {
     console.error('[psysonic] analysis_delete_loudness_for_track failed:', e);
   }
   usePlayerStore.getState().updateReplayGainForCurrentTrack();
   const url = buildStreamUrl(trackId);
   try {
-    await invoke('analysis_enqueue_seed_from_url', {
-      trackId,
-      url,
-      force: true,
-      serverId,
-    });
+    const res = await commands.analysisEnqueueSeedFromUrl(trackId, url, true, serverId, null);
+    if (res.status === 'error') throw new Error(res.error);
   } catch (e) {
     console.error('[psysonic] analysis_enqueue_seed_from_url (reseed) failed:', e);
   }

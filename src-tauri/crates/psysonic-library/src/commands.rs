@@ -57,7 +57,7 @@ where
 const TRACKS_BATCH_LIMIT: usize = 100;
 const ANALYSIS_PROGRESS_CACHE_TTL: Duration = Duration::from_secs(30);
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryServerKeyMigrationDto {
     pub legacy_id: String,
@@ -66,6 +66,7 @@ pub struct LibraryServerKeyMigrationDto {
 
 /// Resolve cover disk + fetch ids from the local library (`album` | `artist` | `track`).
 #[tauri::command]
+#[specta::specta]
 pub fn library_resolve_cover_entry(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
@@ -87,6 +88,7 @@ pub fn library_resolve_cover_entry(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_analysis_backfill_batch(
     app: AppHandle,
     runtime: State<'_, LibraryRuntime>,
@@ -106,6 +108,7 @@ pub fn library_analysis_backfill_batch(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_analysis_progress(
     app: AppHandle,
     runtime: State<'_, LibraryRuntime>,
@@ -156,6 +159,7 @@ pub fn library_analysis_progress(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_count_live_tracks(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
@@ -169,6 +173,7 @@ pub fn library_count_live_tracks(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn library_get_status(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
@@ -302,6 +307,7 @@ fn resolve_local_track_count(
     }
 }
 
+// NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn library_search(
     runtime: State<'_, LibraryRuntime>,
@@ -335,6 +341,7 @@ pub async fn library_search(
     Ok(LibraryTracksEnvelope { tracks, total })
 }
 
+// NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn library_get_track(
     runtime: State<'_, LibraryRuntime>,
@@ -374,6 +381,7 @@ pub async fn library_get_track(
     Ok(Some(dto))
 }
 
+// NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn library_get_tracks_batch(
     runtime: State<'_, LibraryRuntime>,
@@ -389,6 +397,7 @@ pub async fn library_get_tracks_batch(
     hydrate_refs(&runtime, &refs)
 }
 
+// NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn library_get_tracks_by_album(
     runtime: State<'_, LibraryRuntime>,
@@ -401,6 +410,7 @@ pub async fn library_get_tracks_by_album(
 
 /// Upsert Subsonic API song payloads into the library index so pin/download can
 /// build `media/library/…` paths before a full sync has ingested the rows.
+// NOT specta-collected: takes a serde_json::Value arg — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub fn library_upsert_songs_from_api(
     runtime: State<'_, LibraryRuntime>,
@@ -434,6 +444,7 @@ pub fn library_upsert_songs_from_api(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn library_get_artifact(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
@@ -456,6 +467,7 @@ pub async fn library_get_artifact(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn library_get_facts(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
@@ -472,6 +484,7 @@ pub async fn library_get_facts(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn library_get_offline_path(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
@@ -501,6 +514,7 @@ pub async fn library_get_offline_path(
 //  PR-5d — Advanced Search (§5.13) + cross-server search (§5.5B)
 // ──────────────────────────────────────────────────────────────────────
 
+// NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn library_advanced_search(
     runtime: State<'_, LibraryRuntime>,
@@ -510,6 +524,7 @@ pub async fn library_advanced_search(
     library_spawn_blocking(move || advanced_search::run_advanced_search(&store, &request)).await
 }
 
+// NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn library_list_lossless_albums(
     runtime: State<'_, LibraryRuntime>,
@@ -519,6 +534,7 @@ pub async fn library_list_lossless_albums(
     library_spawn_blocking(move || crate::lossless_albums::list_lossless_albums(&store, &request)).await
 }
 
+// NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn library_list_albums_by_genre(
     runtime: State<'_, LibraryRuntime>,
@@ -530,6 +546,7 @@ pub async fn library_list_albums_by_genre(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_genre_tags_inspect(
     runtime: State<'_, LibraryRuntime>,
 ) -> Result<crate::genre_tags_backfill::GenreTagsInspectDto, String> {
@@ -537,6 +554,7 @@ pub fn library_genre_tags_inspect(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn library_genre_tags_run(
     app: tauri::AppHandle,
     runtime: State<'_, LibraryRuntime>,
@@ -546,6 +564,7 @@ pub async fn library_genre_tags_run(
         .await
 }
 
+// NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn library_get_artist_lossless_browse(
     runtime: State<'_, LibraryRuntime>,
@@ -554,6 +573,7 @@ pub async fn library_get_artist_lossless_browse(
     crate::artist_lossless_browse::get_artist_lossless_browse(&runtime.store, &request)
 }
 
+// NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn library_live_search(
     runtime: State<'_, LibraryRuntime>,
@@ -589,6 +609,7 @@ pub async fn library_live_search(
     Ok(result)
 }
 
+// NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn library_search_cross_server(
     runtime: State<'_, LibraryRuntime>,
@@ -677,6 +698,7 @@ async fn navidrome_token_with_retry(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn library_sync_bind_session(
     runtime: State<'_, LibraryRuntime>,
     http_registry: State<'_, Arc<ServerHttpRegistry>>,
@@ -750,6 +772,7 @@ fn subsonic_base_url_from(runtime: &LibraryRuntime, server_id: &str) -> String {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_sync_clear_session(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
@@ -759,6 +782,7 @@ pub fn library_sync_clear_session(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_set_playback_hint(
     runtime: State<'_, LibraryRuntime>,
     hint: String,
@@ -774,6 +798,7 @@ pub fn library_set_playback_hint(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_get_playback_hint(runtime: State<'_, LibraryRuntime>) -> Result<String, String> {
     Ok(match runtime.current_playback_hint() {
         PlaybackHint::Idle => "idle".to_string(),
@@ -783,6 +808,7 @@ pub fn library_get_playback_hint(runtime: State<'_, LibraryRuntime>) -> Result<S
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn library_sync_start(
     app: AppHandle,
     runtime: State<'_, LibraryRuntime>,
@@ -1017,6 +1043,7 @@ async fn library_sync_start_inner(
 /// Mode A user-initiated full reconcile bypasses the threshold
 /// check.
 #[tauri::command]
+#[specta::specta]
 pub async fn library_sync_verify_integrity(
     app: AppHandle,
     runtime: State<'_, LibraryRuntime>,
@@ -1035,6 +1062,7 @@ pub async fn library_sync_verify_integrity(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_sync_cancel(
     runtime: State<'_, LibraryRuntime>,
     job_id: Option<String>,
@@ -1080,6 +1108,7 @@ pub fn patch_content_hash(
         .map_err(|e| e.to_string())
 }
 
+// NOT specta-collected: takes a serde_json::Value arg — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub fn library_patch_track(
     runtime: State<'_, LibraryRuntime>,
@@ -1160,6 +1189,7 @@ pub(crate) fn apply_track_patch(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_put_artifact(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
@@ -1176,6 +1206,7 @@ pub fn library_put_artifact(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_put_fact(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
@@ -1188,6 +1219,7 @@ pub fn library_put_fact(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_record_play_session(
     runtime: State<'_, LibraryRuntime>,
     input: PlaySessionInputDto,
@@ -1196,6 +1228,7 @@ pub fn library_record_play_session(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_get_player_stats_year_summary(
     runtime: State<'_, LibraryRuntime>,
     year: i32,
@@ -1204,6 +1237,7 @@ pub fn library_get_player_stats_year_summary(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_get_player_stats_heatmap(
     runtime: State<'_, LibraryRuntime>,
     year: i32,
@@ -1212,6 +1246,7 @@ pub fn library_get_player_stats_heatmap(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_get_player_stats_day_detail(
     runtime: State<'_, LibraryRuntime>,
     date_iso: String,
@@ -1220,6 +1255,7 @@ pub fn library_get_player_stats_day_detail(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_get_player_stats_year_bounds(
     runtime: State<'_, LibraryRuntime>,
 ) -> Result<PlaySessionYearBoundsDto, String> {
@@ -1227,6 +1263,7 @@ pub fn library_get_player_stats_year_bounds(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_get_player_stats_recent_days(
     runtime: State<'_, LibraryRuntime>,
     limit: Option<u32>,
@@ -1235,6 +1272,7 @@ pub fn library_get_player_stats_recent_days(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_get_recent_play_sessions(
     runtime: State<'_, LibraryRuntime>,
     limit: Option<u32>,
@@ -1245,6 +1283,7 @@ pub fn library_get_recent_play_sessions(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_purge_server(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
@@ -1359,6 +1398,7 @@ pub fn library_purge_server(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_migrate_server_index_keys(
     _runtime: State<'_, LibraryRuntime>,
     mappings: Vec<LibraryServerKeyMigrationDto>,
@@ -1370,6 +1410,7 @@ pub fn library_migrate_server_index_keys(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn library_delete_server_data(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,

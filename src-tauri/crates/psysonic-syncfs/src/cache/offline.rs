@@ -88,6 +88,7 @@ pub(crate) fn resolve_offline_cache_dir(
 /// Returns the absolute file path so TypeScript can store it and later
 /// construct a `psysonic-local://<path>` URL for the audio engine.
 #[tauri::command]
+#[specta::specta]
 #[allow(clippy::too_many_arguments)] // Tauri command surface — args map 1:1 to the JS call.
 pub async fn download_track_offline(
     track_id: String,
@@ -160,6 +161,7 @@ pub async fn download_track_offline(
 /// boundary; ones still parked on the download semaphore bail as soon as they
 /// acquire a slot. Mirrors `cancel_device_sync` for the device-sync side.
 #[tauri::command]
+#[specta::specta]
 pub fn cancel_offline_downloads(download_ids: Vec<String>) {
     if let Ok(mut flags) = offline_cancel_flags().lock() {
         for id in download_ids {
@@ -175,6 +177,7 @@ pub fn cancel_offline_downloads(download_ids: Vec<String>) {
 /// across a long session. The frontend calls this once an album/playlist
 /// download settles (completed or cancelled).
 #[tauri::command]
+#[specta::specta]
 pub fn clear_offline_cancel(download_id: String) {
     if let Ok(mut flags) = offline_cancel_flags().lock() {
         flags.remove(&download_id);
@@ -435,6 +438,7 @@ mod tests {
 
 /// Returns the total size in bytes of all files in the offline cache directory (and optional custom dir).
 #[tauri::command]
+#[specta::specta]
 pub async fn get_offline_cache_size(custom_dir: Option<String>, app: tauri::AppHandle) -> u64 {
     let default_dir = match app.path().app_data_dir() {
         Ok(d) => d.join("psysonic-offline"),
@@ -474,6 +478,7 @@ pub(crate) async fn delete_offline_track_with_boundary(
 /// After deleting the file, empty parent directories up to (but not including)
 /// `base_dir` are pruned using `remove_dir` (never `remove_dir_all`).
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_offline_track(
     local_path: String,
     base_dir: Option<String>,

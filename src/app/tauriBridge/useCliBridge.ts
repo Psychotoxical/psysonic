@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import { audioSetDevice } from '@/lib/api/audio';
 import type { NavigateFunction } from 'react-router-dom';
 import { getSimilarSongs } from '@/lib/api/subsonicArtists';
 import { getMusicFolders } from '@/lib/api/subsonicLibrary';
@@ -26,7 +27,7 @@ export function useCliBridge(navigate: NavigateFunction) {
       const raw = typeof e.payload === 'string' ? e.payload : '';
       const deviceName = raw.length > 0 ? raw : null;
       try {
-        await invoke('audio_set_device', { deviceName });
+        await audioSetDevice({ deviceName });
         useAuthStore.getState().setAudioOutputDevice(deviceName);
       } catch {
         /* device open failed — do not persist (same as Settings) */

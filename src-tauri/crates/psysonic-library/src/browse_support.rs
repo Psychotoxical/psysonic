@@ -9,7 +9,7 @@ use crate::runtime::LibraryRuntime;
 use crate::search::library_scope_equals_sql;
 use crate::store::LibraryStore;
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct StarredAlbumReconcileItem {
     pub id: String,
@@ -19,6 +19,7 @@ pub struct StarredAlbumReconcileItem {
 /// Align `album.starred_at` with server favorites: UPDATE existing rows only
 /// (no INSERT / stub rows). Clears local stars absent from `starred_albums`.
 #[tauri::command]
+#[specta::specta]
 pub fn library_reconcile_album_stars(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,

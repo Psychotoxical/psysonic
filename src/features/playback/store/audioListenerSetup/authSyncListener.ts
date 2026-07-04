@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { audioSetCrossfade, audioSetGapless } from '@/lib/api/audio';
 import { effectiveLoudnessPreAnalysisAttenuationDb } from '@/lib/audio/loudnessPreAnalysisSlider';
 import { useAuthStore } from '@/store/authStore';
 import { onAnalysisStorageChanged } from '@/store/analysisSync';
@@ -22,11 +22,11 @@ export function setupAuthSync(): () => void {
   let prevNormTarget = normCfg.loudnessTargetLufs;
   let prevPreAnalysis = normCfg.loudnessPreAnalysisAttenuationDb;
   const unsubAuth = useAuthStore.subscribe((state) => {
-    invoke('audio_set_crossfade', {
+    audioSetCrossfade({
       enabled: state.crossfadeEnabled,
       secs: state.crossfadeSecs,
     }).catch(() => {});
-    invoke('audio_set_gapless', { enabled: state.gaplessEnabled }).catch(() => {});
+    audioSetGapless({ enabled: state.gaplessEnabled }).catch(() => {});
     const normChanged =
       state.normalizationEngine !== prevNormEngine
       || state.loudnessTargetLufs !== prevNormTarget

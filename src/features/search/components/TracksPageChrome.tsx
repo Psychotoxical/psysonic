@@ -13,7 +13,7 @@ import { ndListSongs, ndInvalidateSongsCache } from '@/lib/api/navidromeBrowse';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import { useNavigateToAlbum } from '@/features/album';
 import { useNavigateToArtist } from '@/features/artist';
-import { OpenArtistRefInline } from '@/features/artist';
+import { OpenArtistRefInline } from '@/ui/OpenArtistRefInline';
 import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/trackArtistRefs';
 
 const RANDOM_RAIL_SIZE = 18;

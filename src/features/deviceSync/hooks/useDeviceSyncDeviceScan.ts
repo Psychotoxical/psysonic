@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listDeviceDirFiles } from '@/lib/api/syncfs';
 import type { TFunction } from 'i18next';
 import { useDeviceSyncStore, type DeviceSyncSource } from '@/features/deviceSync/store/deviceSyncStore';
 import { showToast } from '@/lib/dom/toast';
@@ -24,7 +25,7 @@ export function useDeviceSyncDeviceScan(
     }
     setScanning(true);
     try {
-      const files = await invoke<string[]>('list_device_dir_files', { dir: targetDir });
+      const files = await listDeviceDirFiles({ dir: targetDir });
       setDeviceFilePaths(files);
     } catch {
       setDeviceFilePaths([]);

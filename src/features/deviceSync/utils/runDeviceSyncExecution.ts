@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { computeSyncPaths, deleteDeviceFiles, syncBatchToDevice } from '@/lib/api/syncfs';
 import { buildDownloadUrl } from '@/lib/api/subsonicStreamUrl';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { useDeviceSyncStore, type DeviceSyncSource } from '@/features/deviceSync/store/deviceSyncStore';
@@ -68,6 +69,7 @@ export interface RunDeviceSyncExecuteDeps {
 
 export async function runDeviceSyncExecute(deps: RunDeviceSyncExecuteDeps): Promise<void> {
   const { targetDir, sources, pendingDeletion, syncDelta, t, setPreSyncOpen, removeSources, scanDevice } = deps;
+  if (!targetDir) return;
 
   setPreSyncOpen(false);
 
@@ -80,7 +82,7 @@ export async function runDeviceSyncExecute(deps: RunDeviceSyncExecuteDeps): Prom
       // folder (Playlists/{Name}/…) rather than from the album tree.
       for (const source of deletionSources) {
         const tracks = await fetchTracksForSource(source);
-        const paths = await invoke<string[]>('compute_sync_paths', {
+        const paths = await computeSyncPaths({
           tracks: tracks.map((tr, idx) => trackToSyncInfo(
             tr, '',
             source.type === 'playlist' ? { name: source.name, index: idx + 1 } : undefined,
@@ -90,7 +92,7 @@ export async function runDeviceSyncExecute(deps: RunDeviceSyncExecuteDeps): Prom
         allPaths.push(...paths);
       }
 
-      await invoke<number>('delete_device_files', { paths: allPaths });
+      await deleteDeviceFiles({ paths: allPaths });
       removeSources(deletionSources.map(s => s.id));
       // Update manifest so it stays in sync after deletions
       const remainingSources = useDeviceSyncStore.getState().sources;
@@ -130,16 +132,19 @@ export async function runDeviceSyncExecute(deps: RunDeviceSyncExecuteDeps): Prom
 
   showToast(t('deviceSync.syncInBackground'), 3000, 'info');
 
-  invoke('sync_batch_to_device', {
+  syncBatchToDevice({
     tracks: allTracks.map(track => trackToSyncInfo(track, buildDownloadUrl(track.id))),
     destDir: targetDir,
     jobId,
     expectedBytes: syncDelta.addBytes,
-  }).catch((err: string) => {
+  }).catch((err: unknown) => {
+    // The typed facade rejects with an Error whose message is the raw Rust error
+    // string (previously invoke rejected with the bare string).
+    const msg = err instanceof Error ? err.message : String(err);
     useDeviceSyncJobStore.getState().complete(0, 0, allTracks.length);
-    if (err.includes('NOT_ENOUGH_SPACE')) {
+    if (msg.includes('NOT_ENOUGH_SPACE')) {
       showToast(t('deviceSync.notEnoughSpace'), 5000, 'error');
-    } else if (err === 'NOT_MOUNTED_VOLUME') {
+    } else if (msg === 'NOT_MOUNTED_VOLUME') {
       showToast(t('deviceSync.notMountedVolume'), 5000, 'error');
     } else {
       showToast(t('deviceSync.fetchError'), 3000, 'error');

@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { useAuthStore } from '@/store/authStore';
 import { ndLogin } from '@/lib/api/navidromeAdmin';
 
@@ -125,5 +126,6 @@ export async function ndGetSmartPlaylist(id: string): Promise<NdSmartPlaylist> {
 
 export async function ndDeletePlaylist(id: string): Promise<void> {
   const { serverUrl, token } = await getNavidromeAuth();
-  await invoke('nd_delete_playlist', { serverUrl, token, id });
+  const res = await commands.ndDeletePlaylist(serverUrl, token, id);
+  if (res.status === 'error') throw new Error(res.error);
 }

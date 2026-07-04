@@ -9,13 +9,893 @@ export const commands = {
 	libraryGetCatalogYearBounds: (serverId: string) => typedError<CatalogYearBoundsDto, string>(__TAURI_INVOKE("library_get_catalog_year_bounds", { serverId })),
 	/**  Distinct album counts per track genre — same grouping as genre album browse. */
 	libraryGetGenreAlbumCounts: (serverId: string, libraryScope: string | null) => typedError<GenreAlbumCountDto[], string>(__TAURI_INVOKE("library_get_genre_album_counts", { serverId, libraryScope })),
+	/**
+	 *  Align `album.starred_at` with server favorites: UPDATE existing rows only
+	 *  (no INSERT / stub rows). Clears local stars absent from `starred_albums`.
+	 */
+	libraryReconcileAlbumStars: (serverId: string, starredAlbums: StarredAlbumReconcileItem[]) => typedError<null, string>(__TAURI_INVOKE("library_reconcile_album_stars", { serverId, starredAlbums })),
+	/**  Resolve cover disk + fetch ids from the local library (`album` | `artist` | `track`). */
+	libraryResolveCoverEntry: (serverId: string, entity: string, entityId: string) => typedError<{
+	cacheKind: string,
+	cacheEntityId: string,
+	fetchCoverArtId: string,
+} | null, string>(__TAURI_INVOKE("library_resolve_cover_entry", { serverId, entity, entityId })),
+	libraryAnalysisBackfillBatch: (serverId: string, cursor: string | null, limit: number | null) => typedError<LibraryAnalysisBackfillBatchDto, string>(__TAURI_INVOKE("library_analysis_backfill_batch", { serverId, cursor, limit })),
+	libraryAnalysisProgress: (serverId: string) => typedError<LibraryAnalysisProgressDto, string>(__TAURI_INVOKE("library_analysis_progress", { serverId })),
+	libraryCountLiveTracks: (serverId: string) => typedError<number, string>(__TAURI_INVOKE("library_count_live_tracks", { serverId })),
+	libraryGetStatus: (serverId: string, libraryScope: string | null) => typedError<SyncStateDto, string>(__TAURI_INVOKE("library_get_status", { serverId, libraryScope })),
+	libraryGetArtifact: (serverId: string, trackId: string, artifactKind: string, sourceKind: string | null, sourceId: string | null, format: string | null) => typedError<{
+	serverId: string,
+	trackId: string,
+	artifactKind: string,
+	format: string,
+	sourceKind: string,
+	sourceId: string,
+	language: string | null,
+	contentText: string | null,
+	contentBytes: number,
+	notFound: boolean,
+	contentHash: string | null,
+	fetchedAt: number,
+	expiresAt: number | null,
+} | null, string>(__TAURI_INVOKE("library_get_artifact", { serverId, trackId, artifactKind, sourceKind, sourceId, format })),
+	libraryGetFacts: (serverId: string, trackId: string, factKinds: string[] | null) => typedError<TrackFactDto[], string>(__TAURI_INVOKE("library_get_facts", { serverId, trackId, factKinds })),
+	libraryGetOfflinePath: (serverId: string, trackId: string) => typedError<OfflinePathDto, string>(__TAURI_INVOKE("library_get_offline_path", { serverId, trackId })),
+	libraryGenreTagsInspect: () => typedError<GenreTagsInspectDto, string>(__TAURI_INVOKE("library_genre_tags_inspect")),
+	libraryGenreTagsRun: () => typedError<null, string>(__TAURI_INVOKE("library_genre_tags_run")),
+	librarySyncBindSession: (serverId: string, baseUrl: string, username: string, password: string, libraryScope: string | null) => typedError<null, string>(__TAURI_INVOKE("library_sync_bind_session", { serverId, baseUrl, username, password, libraryScope })),
+	librarySyncClearSession: (serverId: string) => typedError<null, string>(__TAURI_INVOKE("library_sync_clear_session", { serverId })),
+	librarySetPlaybackHint: (hint: string) => typedError<null, string>(__TAURI_INVOKE("library_set_playback_hint", { hint })),
+	libraryGetPlaybackHint: () => typedError<string, string>(__TAURI_INVOKE("library_get_playback_hint")),
+	librarySyncStart: (serverId: string, mode: string, libraryScope: string | null) => typedError<SyncJobDto, string>(__TAURI_INVOKE("library_sync_start", { serverId, mode, libraryScope })),
+	/**
+	 *  Manual «Verify library integrity» — same dispatch shape as
+	 *  `library_sync_start { mode: 'delta' }` but always sets the full
+	 *  `DELTA_MISMATCH_CAP` tombstone budget regardless of the
+	 *  local/server count gap. Per PR-5b review §5 note 2: spec §6.7
+	 *  Mode A user-initiated full reconcile bypasses the threshold
+	 *  check.
+	 */
+	librarySyncVerifyIntegrity: (serverId: string, libraryScope: string | null) => typedError<SyncJobDto, string>(__TAURI_INVOKE("library_sync_verify_integrity", { serverId, libraryScope })),
+	librarySyncCancel: (jobId: string | null) => typedError<null, string>(__TAURI_INVOKE("library_sync_cancel", { jobId })),
+	libraryPutArtifact: (serverId: string, trackId: string, artifact: ArtifactInputDto) => typedError<null, string>(__TAURI_INVOKE("library_put_artifact", { serverId, trackId, artifact })),
+	libraryPutFact: (serverId: string, trackId: string, fact: FactInputDto) => typedError<null, string>(__TAURI_INVOKE("library_put_fact", { serverId, trackId, fact })),
+	libraryRecordPlaySession: (input: PlaySessionInputDto) => typedError<null, string>(__TAURI_INVOKE("library_record_play_session", { input })),
+	libraryGetPlayerStatsYearSummary: (year: number) => typedError<PlaySessionYearSummaryDto, string>(__TAURI_INVOKE("library_get_player_stats_year_summary", { year })),
+	libraryGetPlayerStatsHeatmap: (year: number) => typedError<PlaySessionHeatmapDayDto[], string>(__TAURI_INVOKE("library_get_player_stats_heatmap", { year })),
+	libraryGetPlayerStatsDayDetail: (dateIso: string) => typedError<PlaySessionDayDetailDto, string>(__TAURI_INVOKE("library_get_player_stats_day_detail", { dateIso })),
+	libraryGetPlayerStatsYearBounds: () => typedError<PlaySessionYearBoundsDto, string>(__TAURI_INVOKE("library_get_player_stats_year_bounds")),
+	libraryGetPlayerStatsRecentDays: (limit: number | null) => typedError<PlaySessionRecentDayDto[], string>(__TAURI_INVOKE("library_get_player_stats_recent_days", { limit })),
+	libraryGetRecentPlaySessions: (limit: number | null, sinceMs: number | null) => typedError<PlaySessionDayTrackDto[], string>(__TAURI_INVOKE("library_get_recent_play_sessions", { limit, sinceMs })),
+	libraryPurgeServer: (serverId: string, includeAnalysis: boolean | null, includeOffline: boolean | null) => typedError<PurgeReportDto, string>(__TAURI_INVOKE("library_purge_server", { serverId, includeAnalysis, includeOffline })),
+	libraryMigrateServerIndexKeys: (mappings: LibraryServerKeyMigrationDto[]) => typedError<null, string>(__TAURI_INVOKE("library_migrate_server_index_keys", { mappings })),
+	libraryDeleteServerData: (serverId: string) => typedError<null, string>(__TAURI_INVOKE("library_delete_server_data", { serverId })),
+	audioPause: () => __TAURI_INVOKE<void>("audio_pause"),
+	/**
+	 *  Resume playback.
+	 * 
+	 *  **Warm resume** (`is_hard_paused = false`): download task is still running,
+	 *  buffer has buffered audio.  `sink.play()` suffices.
+	 * 
+	 *  **Cold resume** (`is_hard_paused = true`): TCP was dropped.  A fresh 4 MB
+	 *  ring buffer is created, its consumer is sent to `AudioStreamReader` (which
+	 *  swaps it in on the next `read()`), and a new download task is spawned.
+	 */
+	audioResume: () => typedError<null, string>(__TAURI_INVOKE("audio_resume")),
+	audioStop: () => __TAURI_INVOKE<void>("audio_stop"),
+	audioSeek: (seconds: number | null) => typedError<null, string>(__TAURI_INVOKE("audio_seek", { seconds })),
+	audioSetVolume: (volume: number | null) => __TAURI_INVOKE<void>("audio_set_volume", { volume }),
+	audioUpdateReplayGain: (volume: number | null, replayGainDb: number | null, replayGainPeak: number | null, loudnessGainDb: number | null, preGainDb: number | null, fallbackDb: number | null) => __TAURI_INVOKE<void>("audio_update_replay_gain", { volume, replayGainDb, replayGainPeak, loudnessGainDb, preGainDb, fallbackDb }),
+	audioSetEq: (gains: [(number | null), (number | null), (number | null), (number | null), (number | null), (number | null), (number | null), (number | null), (number | null), (number | null)], enabled: boolean, preGain: number | null) => __TAURI_INVOKE<void>("audio_set_eq", { gains, enabled, preGain }),
+	audioSetPlaybackRate: (enabled: boolean, strategy: string, speed: number | null, pitchSemitones: number | null) => __TAURI_INVOKE<void>("audio_set_playback_rate", { enabled, strategy, speed, pitchSemitones }),
+	audioSetCrossfade: (enabled: boolean, secs: number | null) => __TAURI_INVOKE<void>("audio_set_crossfade", { enabled, secs }),
+	audioSetGapless: (enabled: boolean) => __TAURI_INVOKE<void>("audio_set_gapless", { enabled }),
+	/**
+	 *  Duck the current sink over `fade_secs` without exhausting its source (which
+	 *  would spuriously emit `audio:ended` before the interrupt handoff).
+	 */
+	audioBeginOutgoingFade: (fadeSecs: number | null) => __TAURI_INVOKE<void>("audio_begin_outgoing_fade", { fadeSecs }),
+	/**
+	 *  AutoDJ: when `true`, the progress task stops firing its autonomous
+	 *  crossfade `audio:ended` timer so the JS A-tail logic drives every advance
+	 *  (only when the next track is actually playable). When `false`, the engine's
+	 *  normal early crossfade trigger is restored (plain crossfade / loud→loud).
+	 */
+	audioSetAutodjSuppress: (enabled: boolean) => __TAURI_INVOKE<void>("audio_set_autodj_suppress", { enabled }),
+	audioSetNormalization: (engine: string, targetLufs: number | null, preAnalysisAttenuationDb: number | null) => __TAURI_INVOKE<void>("audio_set_normalization", { engine, targetLufs, preAnalysisAttenuationDb }),
+	/**  Proxy: fetches https://autoeq.app/entries via Rust to bypass WebView CORS restrictions. */
+	autoeqEntries: () => typedError<string, string>(__TAURI_INVOKE("autoeq_entries")),
+	/**  Fetches the AutoEQ FixedBandEQ profile for a specific headphone from GitHub raw content. */
+	autoeqFetchProfile: (name: string, source: string, rig: string | null, form: string) => typedError<string, string>(__TAURI_INVOKE("autoeq_fetch_profile", { name, source, rig, form })),
+	audioPreload: (url: string, durationHint: number | null, analysisTrackId: string | null, serverId: string | null, eager: boolean | null) => typedError<null, string>(__TAURI_INVOKE("audio_preload", { url, durationHint, analysisTrackId, serverId, eager })),
+	/**
+	 *  Play a live internet radio stream.
+	 * 
+	 *  Sends `Icy-MetaData: 1` to request inline ICY metadata.
+	 *  Emits `audio:playing` with `duration = 0.0` (sentinel for live stream)
+	 *  and `radio:metadata` whenever the StreamTitle changes.
+	 */
+	audioPlayRadio: (url: string, volume: number | null) => typedError<null, string>(__TAURI_INVOKE("audio_play_radio", { url, volume })),
+	audioPreviewPlay: (id: string, url: string, startSec: number | null, durationSec: number | null, volume: number | null, formatSuffix: string | null) => typedError<null, string>(__TAURI_INVOKE("audio_preview_play", { id, url, startSec, durationSec, volume, formatSuffix })),
+	audioPreviewStop: () => __TAURI_INVOKE<void>("audio_preview_stop"),
+	/**
+	 *  Like `audio_preview_stop` but leaves the main sink paused even if it had
+	 *  been paused by `preview_pause_main`. Used by the player-bar Stop button so
+	 *  "stop everything" actually goes silent — without this the engine would
+	 *  auto-resume main playback the moment the preview ends and the user perceives
+	 *  the click as having no effect.
+	 */
+	audioPreviewStopSilent: () => __TAURI_INVOKE<void>("audio_preview_stop_silent"),
+	/**
+	 *  Update the preview sink volume while a preview is in flight. Mirrors
+	 *  `audio_set_volume` for the main sink. The frontend already folds in any
+	 *  LUFS pre-analysis attenuation before calling, just like it does at preview
+	 *  start, so the engine just clamps and applies the master headroom. No-op
+	 *  when no preview is active.
+	 */
+	audioPreviewSetVolume: (volume: number | null) => __TAURI_INVOKE<void>("audio_preview_set_volume", { volume }),
+	/**
+	 *  Returns the names of all available audio output devices on the current host.
+	 *  On Linux, ALSA probes unavailable backends (JACK, OSS, dmix) and prints errors to
+	 *  stderr. We suppress fd 2 for the duration of enumeration to keep the terminal clean.
+	 * 
+	 *  The user-pinned device name is appended when cpal omits it (e.g. HDMI busy while
+	 *  streaming) so the Settings dropdown still matches `audioOutputDevice`.
+	 */
+	audioListDevices: () => __TAURI_INVOKE<string[]>("audio_list_devices"),
+	/**
+	 *  When the saved `selected_device` no longer literally matches any listed
+	 *  physical sink (e.g. suffix drift), rewrite `selected_device` to the listed form.
+	 */
+	audioCanonicalizeSelectedDevice: () => __TAURI_INVOKE<string | null>("audio_canonicalize_selected_device"),
+	/**  Device id string for the host default output (matches an entry from `audio_list_devices` when present). */
+	audioDefaultOutputDeviceName: () => __TAURI_INVOKE<string | null>("audio_default_output_device_name"),
+	/**
+	 *  Switch the audio output device. `device_name = null` → follow system default.
+	 *  Reopens the stream immediately; frontend must restart playback via audio:device-changed.
+	 */
+	audioSetDevice: (deviceName: string | null) => typedError<null, string>(__TAURI_INVOKE("audio_set_device", { deviceName })),
+	analysisGetWaveform: (trackId: string, md516kb: string, serverId: string | null) => typedError<{
+	bins: number[],
+	binCount: number,
+	isPartial: boolean,
+	knownUntilSec: number | null,
+	durationSec: number | null,
+	updatedAt: number,
+} | null, string>(__TAURI_INVOKE("analysis_get_waveform", { trackId, md516kb, serverId })),
+	analysisGetWaveformForTrack: (trackId: string, serverId: string | null) => typedError<{
+	bins: number[],
+	binCount: number,
+	isPartial: boolean,
+	knownUntilSec: number | null,
+	durationSec: number | null,
+	updatedAt: number,
+} | null, string>(__TAURI_INVOKE("analysis_get_waveform_for_track", { trackId, serverId })),
+	analysisGetLoudnessForTrack: (trackId: string, targetLufs: number | null, serverId: string | null) => typedError<{
+	integratedLufs: number | null,
+	truePeak: number | null,
+	recommendedGainDb: number | null,
+	targetLufs: number | null,
+	updatedAt: number,
+} | null, string>(__TAURI_INVOKE("analysis_get_loudness_for_track", { trackId, targetLufs, serverId })),
+	analysisDeleteLoudnessForTrack: (trackId: string, serverId: string | null) => typedError<number, string>(__TAURI_INVOKE("analysis_delete_loudness_for_track", { trackId, serverId })),
+	analysisDeleteWaveformForTrack: (trackId: string, serverId: string | null) => typedError<number, string>(__TAURI_INVOKE("analysis_delete_waveform_for_track", { trackId, serverId })),
+	analysisDeleteAllWaveforms: () => typedError<number, string>(__TAURI_INVOKE("analysis_delete_all_waveforms")),
+	analysisDeleteAllForServer: (serverId: string) => typedError<AnalysisDeleteServerReportDto, string>(__TAURI_INVOKE("analysis_delete_all_for_server", { serverId })),
+	analysisGetFailedTrackCount: (serverId: string) => typedError<number, string>(__TAURI_INVOKE("analysis_get_failed_track_count", { serverId })),
+	analysisListFailedTracks: (serverId: string, limit: number | null) => typedError<AnalysisFailedTrackDto[], string>(__TAURI_INVOKE("analysis_list_failed_tracks", { serverId, limit })),
+	analysisClearFailedTracks: (serverId: string, trackIds: string[] | null) => typedError<number, string>(__TAURI_INVOKE("analysis_clear_failed_tracks", { serverId, trackIds })),
+	analysisMigrateServerIndexKeys: (mappings: AnalysisServerKeyMigrationDto[]) => typedError<null, string>(__TAURI_INVOKE("analysis_migrate_server_index_keys", { mappings })),
+	analysisEnqueueSeedFromUrl: (trackId: string, url: string, force: boolean | null, serverId: string | null, priority: string | null) => typedError<null, string>(__TAURI_INVOKE("analysis_enqueue_seed_from_url", { trackId, url, force, serverId, priority })),
+	analysisSetPlaybackPriorityHints: (middleTrackRefs: AnalysisPriorityHintDto[]) => typedError<null, string>(__TAURI_INVOKE("analysis_set_playback_priority_hints", { middleTrackRefs })),
+	analysisSetPipelineParallelism: (workers: number) => typedError<null, string>(__TAURI_INVOKE("analysis_set_pipeline_parallelism", { workers })),
+	analysisGetPipelineQueueStats: () => typedError<AnalysisPipelineQueueStatsDto, string>(__TAURI_INVOKE("analysis_get_pipeline_queue_stats")),
+	analysisGetBackfillQueueStats: () => typedError<AnalysisBackfillQueueStatsDto, string>(__TAURI_INVOKE("analysis_get_backfill_queue_stats")),
+	/**
+	 *  Prunes pending analysis work for tracks no longer present in the playback queue.
+	 * 
+	 *  Keeps currently-running jobs untouched; only queued (not-yet-started) jobs are removed.
+	 */
+	analysisPrunePendingToTrackIds: (trackIds: string[], serverId: string) => typedError<AnalysisPrunePendingResult, string>(__TAURI_INVOKE("analysis_prune_pending_to_track_ids", { trackIds, serverId })),
+	/**
+	 *  Downloads a single track to the app's offline cache directory.
+	 *  Returns the absolute file path so TypeScript can store it and later
+	 *  construct a `psysonic-local://<path>` URL for the audio engine.
+	 */
+	downloadTrackOffline: (trackId: string, serverId: string, url: string, suffix: string, customDir: string | null, downloadId: string | null) => typedError<string, string>(__TAURI_INVOKE("download_track_offline", { trackId, serverId, url, suffix, customDir, downloadId })),
+	/**
+	 *  Marks the given offline-download ids as cancelled. In-flight
+	 *  `download_track_offline` calls abort their HTTP stream at the next chunk
+	 *  boundary; ones still parked on the download semaphore bail as soon as they
+	 *  acquire a slot. Mirrors `cancel_device_sync` for the device-sync side.
+	 */
+	cancelOfflineDownloads: (downloadIds: string[]) => __TAURI_INVOKE<void>("cancel_offline_downloads", { downloadIds }),
+	/**
+	 *  Drops a finished download's cancellation flag so the registry does not grow
+	 *  across a long session. The frontend calls this once an album/playlist
+	 *  download settles (completed or cancelled).
+	 */
+	clearOfflineCancel: (downloadId: string) => __TAURI_INVOKE<void>("clear_offline_cancel", { downloadId }),
+	/**
+	 *  Removes a cached track from the offline cache. Accepts the full local path
+	 *  (stored in OfflineTrackMeta) so it works regardless of which directory was used.
+	 *  After deleting the file, empty parent directories up to (but not including)
+	 *  `base_dir` are pruned using `remove_dir` (never `remove_dir_all`).
+	 */
+	deleteOfflineTrack: (localPath: string, baseDir: string | null) => typedError<null, string>(__TAURI_INVOKE("delete_offline_track", { localPath, baseDir })),
+	/**  Returns the total size in bytes of all files in the offline cache directory (and optional custom dir). */
+	getOfflineCacheSize: (customDir: string | null) => __TAURI_INVOKE<number>("get_offline_cache_size", { customDir }),
+	/**
+	 *  Resolve the canonical `library/` path for a track and report on-disk presence only
+	 *  (no download, no analysis seed).
+	 */
+	probeLibraryTrackLocal: (trackId: string, serverIndexKey: string, libraryServerId: string, suffix: string, mediaDir: string | null) => typedError<LibraryTrackProbeResult, string>(__TAURI_INVOKE("probe_library_track_local", { trackId, serverIndexKey, libraryServerId, suffix, mediaDir })),
+	/**
+	 *  Scan library-tier bytes on disk and match them to known candidates only
+	 *  (`track_offline.local_path` + canonical paths for `candidate_track_ids`).
+	 */
+	discoverLibraryTierOnDisk: (serverIndexKey: string, libraryServerId: string, candidateTrackIds: string[], mediaDir: string | null) => typedError<LibraryTierDiskHit[], string>(__TAURI_INVOKE("discover_library_tier_on_disk", { serverIndexKey, libraryServerId, candidateTrackIds, mediaDir })),
+	/**  Remove library-tier files under `{server_index_key}` that are not listed in `keep_paths`. */
+	pruneOrphanLibraryTierFiles: (serverIndexKey: string, keepPaths: string[], mediaDir: string | null) => typedError<string[], string>(__TAURI_INVOKE("prune_orphan_library_tier_files", { serverIndexKey, keepPaths, mediaDir })),
+	/**  Remove ephemeral-tier files under `{media}/cache/` not listed in `keep_paths`. */
+	pruneOrphanEphemeralCacheFiles: (keepPaths: string[], mediaDir: string | null) => typedError<string[], string>(__TAURI_INVOKE("prune_orphan_ephemeral_cache_files", { keepPaths, mediaDir })),
+	/**  Evict unindexed ephemeral cache files (oldest first) until tier size ≤ `max_bytes`. */
+	evictEphemeralCacheOrphansToFit: (keepPaths: string[], maxBytes: number, mediaDir: string | null) => typedError<string[], string>(__TAURI_INVOKE("evict_ephemeral_cache_orphans_to_fit", { keepPaths, maxBytes, mediaDir })),
+	/**  Batch existence probe for reconcile (index rows without on-disk bytes). */
+	probeMediaFiles: (localPaths: string[]) => __TAURI_INVOKE<boolean[]>("probe_media_files", { localPaths }),
+	/**  Recursive byte size under `{media}/{cache|library}/`. */
+	getMediaTierSize: (tier: string, mediaDir: string | null) => __TAURI_INVOKE<number>("get_media_tier_size", { tier, mediaDir }),
+	/**  Deletes the entire `{cache|library}/` subtree under the media root. */
+	purgeMediaTier: (tier: string, mediaDir: string | null) => typedError<null, string>(__TAURI_INVOKE("purge_media_tier", { tier, mediaDir })),
+	/**  Deletes one media file and prunes empty parents up to the tier root. */
+	deleteMediaFile: (localPath: string, mediaDir: string | null) => typedError<null, string>(__TAURI_INVOKE("delete_media_file", { localPath, mediaDir })),
+	/**  Removes empty directories under `{media}/{cache|library}/` (post-eviction sweep). */
+	pruneEmptyMediaTierDirs: (tier: string, mediaDir: string | null) => typedError<null, string>(__TAURI_INVOKE("prune_empty_media_tier_dirs", { tier, mediaDir })),
+	/**  Promotes stream-cache bytes into `{media}/cache/…` using library-index paths. */
+	promoteStreamCacheToLocal: (trackId: string, serverIndexKey: string, libraryServerId: string, url: string, suffix: string, mediaDir: string | null) => typedError<{
+	path: string,
+	size: number,
+	layoutFingerprint: string,
+} | null, string>(__TAURI_INVOKE("promote_stream_cache_to_local", { trackId, serverIndexKey, libraryServerId, url, suffix, mediaDir })),
+	/**
+	 *  Scan `psysonic-offline/{segment}/{trackId}.ext`, verify each id in the library
+	 *  index, and relocate live tracks into `{media}/library/…`.
+	 */
+	migrateLegacyOfflineDisk: (mediaDir: string | null, customOfflineDir: string | null, serverIndexKeyFilter: string | null) => typedError<LegacyOfflineMigrationResult[], string>(__TAURI_INVOKE("migrate_legacy_offline_disk", { mediaDir, customOfflineDir, serverIndexKeyFilter })),
+	downloadTrackHotCache: (trackId: string, serverId: string, url: string, suffix: string, customDir: string | null) => typedError<HotCacheDownloadResult, string>(__TAURI_INVOKE("download_track_hot_cache", { trackId, serverId, url, suffix, customDir })),
+	/**
+	 *  Promotes bytes captured by the manual streaming path into hot cache on disk.
+	 *  Returns `Ok(None)` when no completed stream cache is available for this URL.
+	 */
+	promoteStreamCacheToHotCache: (trackId: string, serverId: string, url: string, suffix: string, customDir: string | null) => typedError<{
+	path: string,
+	size: number,
+} | null, string>(__TAURI_INVOKE("promote_stream_cache_to_hot_cache", { trackId, serverId, url, suffix, customDir })),
+	getHotCacheSize: (customDir: string | null) => __TAURI_INVOKE<number>("get_hot_cache_size", { customDir }),
+	deleteHotCacheTrack: (localPath: string, customDir: string | null) => typedError<null, string>(__TAURI_INVOKE("delete_hot_cache_track", { localPath, customDir })),
+	/**  Removes the entire hot cache root (`psysonic-hot-cache` for the active location). */
+	purgeHotCache: (customDir: string | null) => typedError<null, string>(__TAURI_INVOKE("purge_hot_cache", { customDir })),
+	/**
+	 *  Downloads a single track to a USB/SD device using the configured filename template.
+	 *  Emits `device:sync:progress` events with `{ jobId, trackId, status, path? }`.
+	 */
+	syncTrackToDevice: (track: TrackSyncInfo, destDir: string, jobId: string) => typedError<SyncTrackResult, string>(__TAURI_INVOKE("sync_track_to_device", { track, destDir, jobId })),
+	/**
+	 *  Downloads a batch of tracks to a USB/SD device with controlled concurrency.
+	 *  At most 2 parallel writes run simultaneously to prevent I/O choking on USB.
+	 *  Emits throttled `device:sync:progress` events (max once per 500ms) and a
+	 *  final `device:sync:complete` event with the summary.
+	 */
+	syncBatchToDevice: (tracks: TrackSyncInfo[], destDir: string, jobId: string, expectedBytes: number) => typedError<SyncBatchResult, string>(__TAURI_INVOKE("sync_batch_to_device", { tracks, destDir, jobId, expectedBytes })),
+	/**  Signals a running `sync_batch_to_device` job to stop after its current tracks finish. */
+	cancelDeviceSync: (jobId: string) => __TAURI_INVOKE<void>("cancel_device_sync", { jobId }),
+	/**
+	 *  Computes the expected file paths for a batch of tracks under the fixed schema.
+	 *  Used by the cleanup flow to find orphans.
+	 */
+	computeSyncPaths: (tracks: TrackSyncInfo[], destDir: string) => __TAURI_INVOKE<string[]>("compute_sync_paths", { tracks, destDir }),
+	listDeviceDirFiles: (dir: string) => typedError<string[], string>(__TAURI_INVOKE("list_device_dir_files", { dir })),
+	/**
+	 *  Deletes a file from the device and prunes empty parent directories
+	 *  (up to 2 levels: album folder, then artist folder).
+	 */
+	deleteDeviceFile: (path: string) => typedError<null, string>(__TAURI_INVOKE("delete_device_file", { path })),
+	/**
+	 *  Deletes multiple files from the device in one call and prunes empty parent
+	 *  directories. Returns the number of files successfully deleted.
+	 */
+	deleteDeviceFiles: (paths: string[]) => typedError<number, string>(__TAURI_INVOKE("delete_device_files", { paths })),
+	/**
+	 *  Returns all currently mounted removable drives.
+	 *  On Linux these are typically USB sticks / SD cards under /media or /run/media.
+	 *  On macOS they appear under /Volumes. On Windows they are separate drive letters.
+	 */
+	getRemovableDrives: () => __TAURI_INVOKE<RemovableDrive[]>("get_removable_drives"),
+	/**
+	 *  Writes an Extended-M3U playlist at `{dest_dir}/Playlists/{name}/{name}.m3u8`.
+	 *  References are sibling filenames (just `01 - Artist - Title.ext`) so the
+	 *  playlist is self-contained — moving/copying the folder anywhere keeps it
+	 *  working. Tracks are expected to be in playlist order (index starts at 1).
+	 */
+	writePlaylistM3u8: (destDir: string, playlistName: string, tracks: TrackSyncInfo[]) => typedError<null, string>(__TAURI_INVOKE("write_playlist_m3u8", { destDir, playlistName, tracks })),
+	/**
+	 *  Atomically renames files on the device from their old path to the new fixed-
+	 *  schema path. Intended for the migration flow when switching away from the
+	 *  user-configurable template. All paths are relative to `target_dir`.
+	 * 
+	 *  After renaming, removes any directories left empty under `target_dir`
+	 *  (so stale `{OldArtist}/{OldAlbum}/` trees don't linger).
+	 * 
+	 *  Returns a per-entry result so the UI can show which renames succeeded
+	 *  and which failed. Does not roll back on partial failure — each `fs::rename`
+	 *  is atomic, so nothing can be half-renamed.
+	 */
+	renameDeviceFiles: (targetDir: string, pairs: ([string, string])[]) => typedError<RenameResult[], string>(__TAURI_INVOKE("rename_device_files", { targetDir, pairs })),
+	/**
+	 *  Downloads a server-generated ZIP (album/playlist) directly to disk via streaming.
+	 *  Emits `download:zip:progress` events every 500 ms so the frontend can show
+	 *  live MB-counter without holding any binary data in the WebView process.
+	 *  Returns the final destination path on success.
+	 */
+	downloadZip: (id: string, url: string, destPath: string) => typedError<string, string>(__TAURI_INVOKE("download_zip", { id, url, destPath })),
+	/**
+	 *  Returns true if the current Linux system is Arch-based
+	 *  (checks /etc/arch-release and /etc/os-release).
+	 */
+	checkArchLinux: () => __TAURI_INVOKE<boolean>("check_arch_linux"),
+	/**
+	 *  Downloads an update installer/package to the user's Downloads folder.
+	 *  Emits `update:download:progress` events with `{ bytes, total }` every 250 ms.
+	 *  Returns the final absolute file path on success.
+	 */
+	downloadUpdate: (url: string, filename: string) => typedError<string, string>(__TAURI_INVOKE("download_update", { url, filename })),
+	/**
+	 *  Opens a directory in the OS file manager (Explorer / Finder / Nautilus).
+	 *  Uses platform-specific process spawning — tauri-plugin-shell's open() only
+	 *  allows https:// URLs per the capability scope and fails silently for paths.
+	 */
+	openFolder: (path: string) => typedError<null, string>(__TAURI_INVOKE("open_folder", { path })),
+	/**
+	 *  Reads embedded synced / unsynced lyrics from a local audio file.
+	 * 
+	 *  Priority order:
+	 *    MP3  → ID3v2 SYLT (synchronized, ms timestamps) → ID3v2 USLT (plain)
+	 *    FLAC → Vorbis SYNCEDLYRICS (LRC string)          → Vorbis LYRICS (plain)
+	 * 
+	 *  Returns a standard LRC string (`[mm:ss.cc]line\n…`) for synced lyrics,
+	 *  or plain text for unsynced lyrics.  Returns `None` when no lyrics are found.
+	 *  Errors are silenced and mapped to `None` so the frontend falls through to the
+	 *  next lyrics source without crashing.
+	 */
+	getEmbeddedLyrics: (path: string) => __TAURI_INVOKE<string | null>("get_embedded_lyrics", { path }),
+	/**
+	 *  Fetches synced lyrics from Netease Cloud Music for a given artist + title.
+	 *  Performs a track search, then fetches the LRC string for the best match.
+	 *  Returns `None` if no match or no lyrics are found.
+	 */
+	fetchNeteaseLyrics: (artist: string, title: string) => typedError<string | null, string>(__TAURI_INVOKE("fetch_netease_lyrics", { artist, title })),
+	/**  Best-effort disk hit without network (exact tier, then largest tier on disk ≤ wanted). */
+	coverCachePeekBatch: (items: CoverCachePeekItem[]) => typedError<{ [key in string]: string }, string>(__TAURI_INVOKE("cover_cache_peek_batch", { items })),
+	coverCacheEnsure: (args: CoverCacheEnsureArgs) => typedError<CoverCacheEnsureResult, string>(__TAURI_INVOKE("cover_cache_ensure", { args })),
+	coverCacheEnsureBatch: (items: CoverCacheEnsureArgs[]) => typedError<null, string>(__TAURI_INVOKE("cover_cache_ensure_batch", { items })),
+	coverCacheStats: () => typedError<CoverCacheStatsDto, string>(__TAURI_INVOKE("cover_cache_stats")),
+	coverCacheEvictTick: () => typedError<number, string>(__TAURI_INVOKE("cover_cache_evict_tick")),
+	coverCacheConfigure: (maxMb: number, highWatermarkPct: number, resumeWatermarkPct: number) => typedError<null, string>(__TAURI_INVOKE("cover_cache_configure", { maxMb, highWatermarkPct, resumeWatermarkPct })),
+	coverCacheClear: () => typedError<null, string>(__TAURI_INVOKE("cover_cache_clear")),
+	coverCacheClearServer: (serverIndexKey: string) => typedError<null, string>(__TAURI_INVOKE("cover_cache_clear_server", { serverIndexKey })),
+	/**
+	 *  Opt-out purge (§9, §12, Appendix B.4): drop every external artwork artifact
+	 *  for a server — `{tier}-{provider}.webp`, `.miss-{provider}`, and the
+	 *  `artist_artwork_lookup` rows — while leaving the canonical Navidrome covers
+	 *  intact. Fired when the user turns the External Artwork toggle off. Unlike
+	 *  `cover_cache_clear_server`, Navidrome tiers survive.
+	 */
+	coverCachePurgeExternal: (serverIndexKey: string) => typedError<null, string>(__TAURI_INVOKE("cover_cache_purge_external", { serverIndexKey })),
+	/**
+	 *  Rename a server's cover-cache bucket on disk after the user edits the
+	 *  primary URL (and the derived index key changes). Used by the URL-change
+	 *  remigration pipeline (dual-server-address spec §8.3) so cached covers
+	 *  stay reachable under the new key.
+	 * 
+	 *  Sanitization: rejects path-separator characters and `..` components — keys
+	 *  flow from `serverIndexKeyFromUrl(url)` which strips schemes and trailing
+	 *  slashes, but defense in depth at the FS boundary is cheap.
+	 * 
+	 *  Behaviour:
+	 *  - `old_key == new_key` → no-op success.
+	 *  - Old bucket missing → no-op success (nothing to migrate).
+	 *  - New bucket missing → simple `rename` (fastest path).
+	 *  - Both exist → recursive merge, **prefer existing** in destination (the
+	 *    newer bucket wins on collision; the surviving file count goes up, never
+	 *    loses data).
+	 * 
+	 *  Always emits `cover:bucket-renamed` with `{oldKey, newKey}` on success so
+	 *  the frontend in-memory disk-src cache can invalidate stale entries.
+	 */
+	coverCacheRenameServerBucket: (oldKey: string, newKey: string) => typedError<null, string>(__TAURI_INVOKE("cover_cache_rename_server_bucket", { oldKey, newKey })),
+	coverCacheStatsServer: (serverIndexKey: string) => typedError<CoverCacheStatsDto, string>(__TAURI_INVOKE("cover_cache_stats_server", { serverIndexKey })),
+	coverCacheGetPipelineQueueStats: () => typedError<CoverPipelineQueueStatsDto, string>(__TAURI_INVOKE("cover_cache_get_pipeline_queue_stats")),
+	libraryCoverBackfillBatch: (serverIndexKey: string, libraryServerId: string, cursor: string | null, limit: number | null) => typedError<LibraryCoverBackfillBatchDto, string>(__TAURI_INVOKE("library_cover_backfill_batch", { serverIndexKey, libraryServerId, cursor, limit })),
+	libraryCoverProgress: (serverIndexKey: string, libraryServerId: string) => typedError<LibraryCoverProgressDto, string>(__TAURI_INVOKE("library_cover_progress", { serverIndexKey, libraryServerId })),
+	libraryCoverCatalogSize: (libraryServerId: string) => typedError<number, string>(__TAURI_INVOKE("library_cover_catalog_size", { libraryServerId })),
+	libraryCoverClearFetchFailures: (serverIndexKey: string) => typedError<number, string>(__TAURI_INVOKE("library_cover_clear_fetch_failures", { serverIndexKey })),
+	libraryCoverBackfillConfigure: (enabled: boolean, serverIndexKey: string, libraryServerId: string, restBaseUrl: string, username: string, password: string) => typedError<null, string>(__TAURI_INVOKE("library_cover_backfill_configure", { enabled, serverIndexKey, libraryServerId, restBaseUrl, username, password })),
+	/**
+	 *  Push the current reachable connect URL without rebuilding the backfill
+	 *  session. The worklist holds URL-agnostic items and each fetch reads this
+	 *  value live, so a LAN→public flip is honoured by the in-flight pass too.
+	 *  When the URL actually changes, the stale `.fetch-failed` backoff (covers that
+	 *  timed out against the old address) is cleared and a pass is kicked so they
+	 *  retry on the now-reachable endpoint.
+	 */
+	libraryCoverBackfillSetBaseUrl: (restBaseUrl: string) => typedError<null, string>(__TAURI_INVOKE("library_cover_backfill_set_base_url", { restBaseUrl })),
+	libraryCoverBackfillPulse: () => typedError<CoverBackfillPulseDto, string>(__TAURI_INVOKE("library_cover_backfill_pulse")),
+	libraryCoverBackfillResetCursor: () => typedError<null, string>(__TAURI_INVOKE("library_cover_backfill_reset_cursor")),
+	/**  Pause library backfill while the user navigates / visible covers load (Rust pass yields). */
+	libraryCoverBackfillSetUiPriority: (hold: boolean) => typedError<null, string>(__TAURI_INVOKE("library_cover_backfill_set_ui_priority", { hold })),
+	/**
+	 *  Perf-probe tuning knob: set how many threads cover backfill uses (download
+	 *  + encode pools move together). Not exposed in app Settings by design.
+	 *  Returns the clamped value actually applied.
+	 */
+	libraryCoverBackfillSetParallel: (threads: number) => typedError<number, string>(__TAURI_INVOKE("library_cover_backfill_set_parallel", { threads })),
+	libraryCoverBackfillRunFullPass: (force: boolean | null) => typedError<CoverBackfillRunDto, string>(__TAURI_INVOKE("library_cover_backfill_run_full_pass", { force })),
+	coverRevalidateEnqueue: () => typedError<null, string>(__TAURI_INVOKE("cover_revalidate_enqueue")),
+	coverRevalidateTick: (cycleDays: number | null) => typedError<number, string>(__TAURI_INVOKE("cover_revalidate_tick", { cycleDays })),
+	exitApp: () => __TAURI_INVOKE<void>("exit_app"),
+	setLoggingMode: (mode: string) => typedError<null, string>(__TAURI_INVOKE("set_logging_mode", { mode })),
+	getLoggingMode: () => __TAURI_INVOKE<string>("get_logging_mode"),
+	/**
+	 *  Incremental tail of the in-memory runtime log buffer for the PsyLab Logs tab.
+	 *  `after_seq` is the highest seq the UI already has (omit for
+	 *  the initial fetch of the most recent `max` lines).
+	 */
+	tailRuntimeLogs: (afterSeq: number | null, max: number | null) => __TAURI_INVOKE<LogTailDto>("tail_runtime_logs", { afterSeq, max }),
+	exportRuntimeLogs: (path: string) => typedError<number, string>(__TAURI_INVOKE("export_runtime_logs", { path })),
+	frontendDebugLog: (scope: string, message: string) => typedError<null, string>(__TAURI_INVOKE("frontend_debug_log", { scope, message })),
+	setSubsonicWireUserAgent: (userAgent: string, windowLabel: string) => typedError<null, string>(__TAURI_INVOKE("set_subsonic_wire_user_agent", { userAgent, windowLabel })),
+	performanceCpuSnapshot: (includeThreadGroups: boolean | null) => typedError<PerformanceCpuSnapshot, string>(__TAURI_INVOKE("performance_cpu_snapshot", { includeThreadGroups })),
+	setWindowDecorations: (enabled: boolean) => __TAURI_INVOKE<void>("set_window_decorations", { enabled }),
+	/**  Called from the frontend settings toggle (Linux); no-op on other platforms. */
+	setLinuxWebkitSmoothScrolling: (enabled: boolean) => typedError<null, string>(__TAURI_INVOKE("set_linux_webkit_smooth_scrolling", { enabled })),
+	/**
+	 *  True when [`linux_webkit_apply_wayland_gpu_font_tuning`] would change WebKit settings
+	 *  (Wayland + GPU compositing, user has not set `PSYSONIC_SKIP_WAYLAND_FONT_TUNING`).
+	 */
+	linuxWaylandGpuFontTuningActive: () => __TAURI_INVOKE<boolean>("linux_wayland_gpu_font_tuning_active"),
+	linuxWaylandTextRenderSettingsAvailable: () => __TAURI_INVOKE<boolean>("linux_wayland_text_render_settings_available"),
+	/**
+	 *  Persist the Wayland text profile for the next app start and for new mini-player webviews.
+	 *  Does **not** touch WebKit on existing windows (avoids WebKitGTK hangs when toggling policy live).
+	 */
+	setLinuxWaylandTextRenderProfile: (profile: string) => typedError<null, string>(__TAURI_INVOKE("set_linux_wayland_text_render_profile", { profile })),
+	/**
+	 *  Toggle native window decorations at runtime (Linux custom title bar opt-out).
+	 *  Tauri command: true when theme animations may be costly on this setup —
+	 *  Linux with the Nvidia WebKit quirk active (recorded once at startup) or
+	 *  compositing forced off. The frontend warns on animated themes when true.
+	 *  Always false off Linux.
+	 */
+	themeAnimationRisk: () => __TAURI_INVOKE<boolean>("theme_animation_risk"),
+	migrationInspect: (mappings: ServerIndexMapping[]) => typedError<MigrationInspectReport, string>(__TAURI_INVOKE("migration_inspect", { mappings })),
+	migrationRun: (mappings: ServerIndexMapping[]) => typedError<MigrationRunResult, string>(__TAURI_INVOKE("migration_run", { mappings })),
+	/**
+	 *  Resolve a hostname to a deduped list of IP address strings (IPv4 + IPv6).
+	 * 
+	 *  Strips a `host:port` suffix before lookup — the form only knows the host.
+	 *  Used by the add/edit-server form to hint whether the entered address
+	 *  classifies as LAN or public (a hostname that resolves to a private range
+	 *  IP suggests the user might want to add a public second address, and
+	 *  vice versa). **Never used for connect** — connect always goes through the
+	 *  existing `pingWithCredentials` path, which carries credentials.
+	 * 
+	 *  Returns an empty vec on lookup failure (the UI then shows no hint, by
+	 *  design: a transient DNS hiccup shouldn't block save).
+	 */
+	resolveHostAddresses: (hostname: string) => typedError<string[], string>(__TAURI_INVOKE("resolve_host_addresses", { hostname })),
+	serverHttpContextClear: (serverId: string, appServerId: string) => typedError<null, string>(__TAURI_INVOKE("server_http_context_clear", { serverId, appServerId })),
+	serverHttpContextSync: (wire: ServerHttpContextSyncWire) => typedError<null, string>(__TAURI_INVOKE("server_http_context_sync", { wire })),
+	serverHttpContextSyncAll: (entries: ServerHttpContextSyncWire[]) => typedError<null, string>(__TAURI_INVOKE("server_http_context_sync_all", { entries })),
+	backupExportLibraryDb: (destinationPath: string) => typedError<null, string>(__TAURI_INVOKE("backup_export_library_db", { destinationPath })),
+	backupImportLibraryDb: (sourcePath: string) => typedError<null, string>(__TAURI_INVOKE("backup_import_library_db", { sourcePath })),
+	registerGlobalShortcut: (shortcut: string, action: string) => typedError<null, string>(__TAURI_INVOKE("register_global_shortcut", { shortcut, action })),
+	unregisterGlobalShortcut: (shortcut: string) => typedError<null, string>(__TAURI_INVOKE("unregister_global_shortcut", { shortcut })),
+	mprisSetMetadata: (title: string | null, artist: string | null, album: string | null, coverUrl: string | null, durationSecs: number | null) => typedError<null, string>(__TAURI_INVOKE("mpris_set_metadata", { title, artist, album, coverUrl, durationSecs })),
+	mprisSetPlayback: (playing: boolean, positionSecs: number | null) => typedError<null, string>(__TAURI_INVOKE("mpris_set_playback", { playing, positionSecs })),
+	/**  Returns true if `path` is an accessible directory (used for pre-flight checks in the frontend). */
+	checkDirAccessible: (path: string) => __TAURI_INVOKE<boolean>("check_dir_accessible", { path }),
+	/**
+	 *  Open (or toggle) the mini player window. On platforms where the window
+	 *  was pre-created at startup (Windows), this is a pure show/hide. On
+	 *  other platforms the window is created lazily on first call.
+	 *  Opening the mini player minimizes the main window; hiding the mini
+	 *  player restores the main window.
+	 */
+	openMiniPlayer: () => typedError<null, string>(__TAURI_INVOKE("open_mini_player")),
+	/**
+	 *  Pre-build the mini player window hidden, so the first `open_mini_player`
+	 *  call becomes a pure show/hide and the user sees content instantly. On
+	 *  Windows this already happens unconditionally in `.setup()` as a hang
+	 *  workaround; this command is used by Linux/macOS when the user opts into
+	 *  the `preloadMiniPlayer` setting. Idempotent — no-op if the window exists.
+	 */
+	preloadMiniPlayer: () => typedError<null, string>(__TAURI_INVOKE("preload_mini_player")),
+	/**
+	 *  Hide the mini player window if it exists and restore the main window.
+	 *  Does not destroy the mini window so its state is preserved for next open.
+	 */
+	closeMiniPlayer: () => typedError<null, string>(__TAURI_INVOKE("close_mini_player")),
+	/**
+	 *  Toggle always-on-top on the mini player window.
+	 * 
+	 *  Some window managers (KWin, certain Mutter releases, GNOME-on-Wayland)
+	 *  silently ignore `set_always_on_top(true)` when the internal flag is
+	 *  already `true` — which happens whenever the window was hidden and
+	 *  re-shown, or focus was lost and the WM dropped the constraint. We
+	 *  always force a `false → true` cycle so the WM re-evaluates the layer.
+	 */
+	setMiniPlayerAlwaysOnTop: (onTop: boolean) => typedError<null, string>(__TAURI_INVOKE("set_mini_player_always_on_top", { onTop })),
+	/**
+	 *  Resize the mini player window (logical pixels). Used when toggling the
+	 *  queue panel to expand/collapse without a capability dance. Optional
+	 *  `minWidth` / `minHeight` adjust the window's resize floor so the user
+	 *  can't shrink past the layout's minimum (e.g. 2 visible queue rows when
+	 *  the queue panel is open).
+	 */
+	resizeMiniPlayer: (width: number | null, height: number | null, minWidth: number | null, minHeight: number | null) => typedError<null, string>(__TAURI_INVOKE("resize_mini_player", { width, height, minWidth, minHeight })),
+	/**
+	 *  Unminimize + show + focus the main window. Called from the mini player's
+	 *  "expand" button. Can't rely on a JS event bridge here because the main
+	 *  window's JS is paused while minimized on WebKitGTK. Also hides the mini
+	 *  window so the two don't sit on screen at the same time.
+	 */
+	showMainWindow: () => typedError<null, string>(__TAURI_INVOKE("show_main_window")),
+	/**  Inject the pause script into this webview (CSS @keyframes pause + `__psyHidden`). */
+	pauseRendering: () => typedError<null, string>(__TAURI_INVOKE("pause_rendering")),
+	/**
+	 *  Resume rendering work in the current webview. Called when the window
+	 *  becomes visible again.
+	 */
+	resumeRendering: () => typedError<null, string>(__TAURI_INVOKE("resume_rendering")),
+	/**
+	 *  Tauri command: returns true when WEBKIT_DISABLE_COMPOSITING_MODE=1 is set.
+	 *  The frontend uses this to apply a CSS class that swaps out GPU-only effects
+	 *  (backdrop-filter, CSS filter, mask-image) for software-friendly equivalents.
+	 */
+	noCompositingMode: () => __TAURI_INVOKE<boolean>("no_compositing_mode"),
+	/**
+	 *  Tauri command: `XDG_SESSION_TYPE` from the host environment (e.g. `wayland`, `x11`).
+	 *  Used for Linux-only UI tweaks such as font rasterisation hints; empty string when unset.
+	 */
+	linuxXdgSessionType: () => __TAURI_INVOKE<string>("linux_xdg_session_type"),
+	/**
+	 *  Tauri command: lets the frontend know whether we're running under a tiling
+	 *  WM so it can decide whether to render the custom TitleBar component.
+	 */
+	isTilingWmCmd: () => __TAURI_INVOKE<boolean>("is_tiling_wm_cmd"),
+	/**
+	 *  Show (`true`) or fully remove (`false`) the system-tray icon.
+	 * 
+	 *  The command is strictly idempotent:
+	 *  - `show=true`  when the icon is already present → no-op (prevents duplicate icons).
+	 *  - `show=false` when the icon is already absent  → no-op.
+	 * 
+	 *  For removal, `set_visible(false)` is called explicitly before the handle is
+	 *  dropped because some platforms (Windows notification area, certain Linux DEs)
+	 *  process the OS removal asynchronously — hiding first prevents a brief "ghost"
+	 *  icon from appearing alongside a freshly created one.
+	 */
+	toggleTrayIcon: (show: boolean) => typedError<null, string>(__TAURI_INVOKE("toggle_tray_icon", { show })),
+	/**
+	 *  Updates the system-tray icon tooltip with the currently playing track.
+	 * 
+	 *  `tooltip` should be a compact "Artist – Title" form (no app suffix needed —
+	 *  the tray icon itself identifies the app). An empty string resets to the
+	 *  default `"Psysonic"` tooltip.
+	 * 
+	 *  The text is truncated to 127 chars defensively to stay under the historical
+	 *  Windows `NOTIFYICONDATA.szTip` limit (128 bytes including the null terminator).
+	 *  On Linux the visibility depends on the desktop environment / panel —
+	 *  StatusNotifierItem-aware panels (KDE, Cinnamon, GNOME with AppIndicator
+	 *  extension) show it; pure-GNOME without the extension does not.
+	 */
+	setTrayTooltip: (tooltip: string, playbackState: string | null) => typedError<null, string>(__TAURI_INVOKE("set_tray_tooltip", { tooltip, playbackState })),
+	/**
+	 *  Pushes localized labels into the tray menu. Called from the frontend on
+	 *  startup and whenever the i18n language changes. Updates are applied
+	 *  immediately to live menu items via `set_text` (no tray rebuild required)
+	 *  and cached so the labels survive a tray hide/show cycle.
+	 */
+	setTrayMenuLabels: (playPause: string, next: string, previous: string, showHide: string, quit: string, nothingPlaying: string) => typedError<null, string>(__TAURI_INVOKE("set_tray_menu_labels", { playPause, next, previous, showHide, quit, nothingPlaying })),
+	importThemeZip: (path: string) => typedError<ImportedThemeFiles, string>(__TAURI_INVOKE("import_theme_zip", { path })),
+	libraryAnalysisBackfillConfigure: (enabled: boolean, serverIndexKey: string, libraryServerId: string, serverUrl: string, username: string, password: string, workers: number) => typedError<null, string>(__TAURI_INVOKE("library_analysis_backfill_configure", { enabled, serverIndexKey, libraryServerId, serverUrl, username, password, workers })),
+	/**
+	 *  Fetch upcoming Bandsintown events for an artist by name.
+	 *  Returns an empty list on any failure (404, network, parse) — the UI
+	 *  just hides the section in that case.
+	 */
+	fetchBandsintownEvents: (artistName: string) => typedError<BandsintownEvent[], string>(__TAURI_INVOKE("fetch_bandsintown_events", { artistName })),
+	uploadPlaylistCover: (serverUrl: string, playlistId: string, username: string, password: string, fileBytes: number[], mimeType: string) => typedError<null, string>(__TAURI_INVOKE("upload_playlist_cover", { serverUrl, playlistId, username, password, fileBytes, mimeType })),
+	uploadRadioCover: (serverUrl: string, radioId: string, username: string, password: string, fileBytes: number[], mimeType: string) => typedError<null, string>(__TAURI_INVOKE("upload_radio_cover", { serverUrl, radioId, username, password, fileBytes, mimeType })),
+	uploadArtistImage: (serverUrl: string, artistId: string, username: string, password: string, fileBytes: number[], mimeType: string) => typedError<null, string>(__TAURI_INVOKE("upload_artist_image", { serverUrl, artistId, username, password, fileBytes, mimeType })),
+	deleteRadioCover: (serverUrl: string, radioId: string, username: string, password: string) => typedError<null, string>(__TAURI_INVOKE("delete_radio_cover", { serverUrl, radioId, username, password })),
+	/**  DELETE `/api/playlist/{id}` — delete playlist. */
+	ndDeletePlaylist: (serverUrl: string, token: string, id: string) => typedError<null, string>(__TAURI_INVOKE("nd_delete_playlist", { serverUrl, token, id })),
+	/**
+	 *  PUT `/api/user/{id}/library` — assign libraries to a non-admin user.
+	 *  Admin users auto-receive all libraries; calling this for an admin returns HTTP 400.
+	 */
+	ndSetUserLibraries: (serverUrl: string, token: string, id: string, libraryIds: number[]) => typedError<null, string>(__TAURI_INVOKE("nd_set_user_libraries", { serverUrl, token, id, libraryIds })),
+	/**
+	 *  GET `/api/song/{id}` and return the absolute filesystem `path` field.
+	 * 
+	 *  Subsonic `getSong.view` returns at most a relative path (`Artist/Album/track.flac`),
+	 *  or nothing at all on Navidrome. The Navidrome native API exposes the absolute
+	 *  path the server stores the file at — same source Feishin and the Navidrome web
+	 *  client use for their "show file location" feature. Logs in fresh (no token
+	 *  cache yet); the call is occasional (Song Info modal open) so the extra
+	 *  roundtrip is acceptable.
+	 * 
+	 *  Returns `Ok(None)` when the response has no `path` field — Navidrome can omit
+	 *  it for non-admin users on some configurations.
+	 */
+	ndGetSongPath: (serverUrl: string, username: string, password: string, id: string) => typedError<string | null, string>(__TAURI_INVOKE("nd_get_song_path", { serverUrl, username, password, id })),
+	/**  Log in to Navidrome's native REST API. Returns a Bearer token and whether the user is admin. */
+	navidromeLogin: (serverUrl: string, username: string, password: string) => typedError<NdLoginResult, string>(__TAURI_INVOKE("navidrome_login", { serverUrl, username, password })),
+	/**  DELETE `/api/user/{id}`. */
+	ndDeleteUser: (serverUrl: string, token: string, id: string) => typedError<null, string>(__TAURI_INVOKE("nd_delete_user", { serverUrl, token, id })),
+	/**
+	 *  Fetch arbitrary URL bytes (e.g. radio station favicon) through Rust to bypass CORS.
+	 *  Returns (bytes, content_type).
+	 */
+	fetchUrlBytes: (url: string) => typedError<[number[], string], string>(__TAURI_INVOKE("fetch_url_bytes", { url })),
+	/**
+	 *  Fetch ICY in-stream metadata from a radio stream URL.
+	 * 
+	 *  Sends a GET request with `Icy-MetaData: 1` and reads just enough bytes
+	 *  (up to `icy-metaint` audio bytes plus the following metadata block) to
+	 *  extract the `StreamTitle`.  The connection is dropped as soon as the
+	 *  first metadata chunk has been parsed, so bandwidth usage is minimal.
+	 * 
+	 *  If `url` is a PLS or M3U playlist file it is resolved to the first direct
+	 *  stream URL before the ICY request is made.
+	 */
+	fetchIcyMetadata: (url: string) => typedError<IcyMetadata, string>(__TAURI_INVOKE("fetch_icy_metadata", { url })),
+	/**
+	 *  Resolve a PLS or M3U playlist URL to its first direct stream URL.
+	 *  Returns the original URL unchanged if it is not a recognised playlist format
+	 *  or if the playlist cannot be fetched/parsed.
+	 */
+	resolveStreamUrl: (url: string) => __TAURI_INVOKE<string>("resolve_stream_url", { url }),
+	/**  Clear the Discord Rich Presence activity (e.g. playback stopped). */
+	discordClearPresence: () => typedError<null, string>(__TAURI_INVOKE("discord_clear_presence")),
 };
 
 /* Types */
+export type AnalysisBackfillQueueStatsDto = {
+	queued: number,
+	inProgressCount: number,
+	inProgressTrackId: string | null,
+};
+
+export type AnalysisDeleteServerReportDto = {
+	analysisTracks: number,
+	waveforms: number,
+	loudness: number,
+};
+
+export type AnalysisFailedTrackDto = {
+	trackId: string,
+	md516kb: string,
+	updatedAt: number,
+};
+
+export type AnalysisPipelineQueueStatsDto = {
+	pipelineWorkers: number,
+	httpQueued: number,
+	httpQueuedHigh: number,
+	httpQueuedMiddle: number,
+	httpQueuedLow: number,
+	httpDownloadActive: number,
+	httpDownloadActiveHigh: number,
+	httpDownloadActiveMiddle: number,
+	httpDownloadActiveLow: number,
+	cpuQueued: number,
+	cpuQueuedHigh: number,
+	cpuQueuedMiddle: number,
+	cpuQueuedLow: number,
+	cpuDecodeActive: number,
+	cpuDecodeActiveHigh: number,
+	cpuDecodeActiveMiddle: number,
+	cpuDecodeActiveLow: number,
+};
+
+export type AnalysisPriorityHintDto = {
+	serverId: string,
+	trackId: string,
+};
+
+export type AnalysisPrunePendingResult = {
+	keepCount: number,
+	httpRemoved: number,
+	cpuRemovedJobs: number,
+	cpuRemovedWaiters: number,
+};
+
+export type AnalysisServerKeyMigrationDto = {
+	legacyId: string,
+	indexKey: string,
+};
+
+/**
+ *  Input to `library_put_artifact`. Same shape as `TrackArtifactDto`
+ *  minus the server-supplied `server_id` / `track_id` (provided as
+ *  command args) and `fetched_at` (stamped server-side from `now`).
+ */
+export type ArtifactInputDto = {
+	artifactKind: string,
+	format: string,
+	sourceKind: string,
+	sourceId: string,
+	language?: string | null,
+	contentText?: string | null,
+	contentBlob?: number[] | null,
+	contentBytes?: number,
+	notFound?: boolean,
+	contentHash?: string | null,
+	expiresAt?: number | null,
+};
+
+export type BandsintownEvent = {
+	datetime: string,
+	venue_name: string,
+	venue_city: string,
+	venue_region: string,
+	venue_country: string,
+	url: string,
+	on_sale_datetime: string,
+	lineup: string[],
+};
+
 /**  Min/max `year` from indexed tracks for a server (Albums year filter UI). */
 export type CatalogYearBoundsDto = {
 	minYear: number | null,
 	maxYear: number | null,
+};
+
+export type CoverBackfillItem = {
+	cacheKind: string,
+	cacheEntityId: string,
+	fetchCoverArtId: string,
+};
+
+export type CoverBackfillPulseDto = {
+	scheduled: number,
+	exhausted: boolean,
+	pending: number,
+	done: number,
+	total: number,
+	status: string,
+};
+
+export type CoverBackfillRunDto = {
+	started: boolean,
+};
+
+export type CoverCacheEnsureArgs = {
+	serverIndexKey: string,
+	/**  `album` or `artist` — with `cache_entity_id` selects the SHA-256 cache directory. */
+	cacheKind: string,
+	cacheEntityId: string,
+	/**  Navidrome / Subsonic `getCoverArt` id (`al-*`, `ar-*`, …). */
+	coverArtId: string,
+	tier: number,
+	restBaseUrl: string,
+	username: string,
+	password: string,
+	/**  Library backfill: all derived tiers, no `cover:tier-ready` floods to the webview. */
+	libraryBulk?: boolean,
+	/**
+	 *  Library server id (DB key) — set by backfill so a failed fetch can be logged
+	 *  with the album/artist name. On-demand UI ensures leave it `None`.
+	 */
+	libraryServerId?: string | null,
+	/**
+	 *  External artwork (§16): when true, an artist `fanart`/`banner` ensure may
+	 *  fetch from fanart.tv into `{tier}-{provider}.webp`. Gated by the master
+	 *  toggle (off by default); the project key is embedded (`FANART_PROJECT_KEY`).
+	 */
+	externalArtworkEnabled?: boolean,
+	/**
+	 *  Surface intent for external artwork — `fanart` for the 16:9 artist
+	 *  background. `None` on plain cover ensures.
+	 */
+	surfaceKind?: string | null,
+	/**
+	 *  Artist display name — context for the §19 name→MusicBrainz fallback when
+	 *  the artist carries no tag MBID. `None` skips that fallback.
+	 */
+	artistName?: string | null,
+	/**
+	 *  Album title currently in context (fullscreen playback) — disambiguates
+	 *  the name→MusicBrainz query (§19).
+	 */
+	albumTitle?: string | null,
+	/**
+	 *  Optional BYOK personal fanart.tv key from settings — sent in addition to
+	 *  the project key (§22). Falls back to the `PSYSONIC_FANART_CLIENT_KEY` env.
+	 */
+	externalArtworkByok?: string | null,
+};
+
+export type CoverCacheEnsureResult = {
+	hit: boolean,
+	path: string,
+	tier: number,
+};
+
+export type CoverCachePeekItem = {
+	serverIndexKey: string,
+	cacheKind: string,
+	cacheEntityId: string,
+	tier: number,
+	/**  Frontend `coverStorageKey` — echoed in the batch result map. */
+	storageKey: string,
+};
+
+export type CoverCacheStatsDto = {
+	bytes: number,
+	count: number,
+	pressure: string,
+	autoDownloadEnabled: boolean,
+	entryCount: number,
+};
+
+export type CoverEntryDto = {
+	cacheKind: string,
+	cacheEntityId: string,
+	fetchCoverArtId: string,
+};
+
+/**  Live cover HTTP / WebP-encode slots — mirrors analysis pipeline probe shape. */
+export type CoverPipelineQueueStatsDto = {
+	httpMax: number,
+	httpActive: number,
+	cpuUiMax: number,
+	cpuUiActive: number,
+	cpuBackfillMax: number,
+	cpuBackfillActive: number,
+	libraryBackfillHttpMax: number,
+	libraryBackfillHttpActive: number,
+	libraryBackfillPassRunning: boolean,
+	/**  Cumulative covers produced by on-demand (UI) ensures since process start. */
+	uiEnsuredTotal: number,
+};
+
+export type CustomHeaderEntryWire = {
+	name: string,
+	value: string,
+};
+
+export type CustomHeadersApplyTo = "local" | "public" | "both";
+
+export type EndpointKind = "local" | "public";
+
+/**
+ *  Input to `library_put_fact`. Shape matches `TrackFactDto` minus the
+ *  indices.
+ */
+export type FactInputDto = {
+	factKind: string,
+	valueReal?: number | null,
+	valueInt?: number | null,
+	valueText?: string | null,
+	unit?: string | null,
+	sourceKind: string,
+	sourceId: string,
+	confidence?: number | null,
+	contentHash?: string | null,
+	expiresAt?: number | null,
 };
 
 /**  Per-genre album/track totals from the local track catalog (Genres cloud + browse). */
@@ -23,6 +903,442 @@ export type GenreAlbumCountDto = {
 	value: string,
 	albumCount: number,
 	songCount: number,
+};
+
+export type GenreTagsInspectDto = {
+	needed: boolean,
+	totalTracks: number,
+	doneTracks: number,
+};
+
+export type HotCacheDownloadResult = {
+	path: string,
+	size: number,
+};
+
+/**  ICY metadata response returned to the frontend. */
+export type IcyMetadata = {
+	/**  The `StreamTitle` from the inline ICY metadata block in the stream (e.g. `"Artist - Title"`). */
+	stream_title: string | null,
+	/**  Value of the `icy-name` response header. */
+	icy_name: string | null,
+	/**  Value of the `icy-genre` response header. */
+	icy_genre: string | null,
+	/**  Value of the `icy-url` response header. */
+	icy_url: string | null,
+	/**  Value of the `icy-description` response header. */
+	icy_description: string | null,
+};
+
+export type ImportedThemeFiles = {
+	manifest: string,
+	css: string,
+};
+
+export type LegacyOfflineMigrationResult = {
+	trackId: string,
+	serverIndexKey: string,
+	path: string,
+	size: number,
+	layoutFingerprint: string,
+	relocated: boolean,
+	skippedReason: string | null,
+};
+
+export type LibraryAnalysisBackfillBatchDto = {
+	trackIds: string[],
+	nextCursor: string | null,
+	exhausted: boolean,
+};
+
+export type LibraryAnalysisProgressDto = {
+	totalTracks: number,
+	pendingTracks: number,
+	doneTracks: number,
+};
+
+export type LibraryCoverBackfillBatchDto = {
+	items: CoverBackfillItem[],
+	/**  Entity ids only — compatibility shim for older callers. */
+	coverIds: string[],
+	nextCursor: string | null,
+	exhausted: boolean,
+};
+
+export type LibraryCoverProgressDto = {
+	totalDistinct: number,
+	pending: number,
+	done: number,
+};
+
+export type LibraryServerKeyMigrationDto = {
+	legacyId: string,
+	indexKey: string,
+};
+
+export type LibraryTierDiskHit = {
+	trackId: string,
+	path: string,
+	size: number,
+	layoutFingerprint: string,
+	suffix: string,
+};
+
+export type LibraryTrackProbeResult = {
+	path: string,
+	size: number,
+	layoutFingerprint: string,
+	exists: boolean,
+};
+
+export type LocalTrackDownloadResult = {
+	path: string,
+	size: number,
+	layoutFingerprint: string,
+};
+
+export type LogLineDto = {
+	seq: number,
+	text: string,
+};
+
+export type LogTailDto = {
+	lines: LogLineDto[],
+	lastSeq: number,
+	dropped: boolean,
+};
+
+export type LoudnessCachePayload = {
+	integratedLufs: number | null,
+	truePeak: number | null,
+	recommendedGainDb: number | null,
+	targetLufs: number | null,
+	updatedAt: number,
+};
+
+export type MigrationInspectReport = {
+	needsMigration: boolean,
+	hasSkippedUnknownServerRows: boolean,
+	canRun: boolean,
+	warnings: string[],
+	unmappedEmptyBucket: boolean,
+	library: MigrationScopeInspect,
+	analysis: MigrationScopeInspect,
+	mappings: ServerIndexMapping[],
+};
+
+export type MigrationRunResult = {
+	library: MigrationRunScope,
+	analysis: MigrationRunScope,
+	hasSkippedUnknownServerRows: boolean,
+	switched: boolean,
+	backupRemoved: boolean,
+};
+
+export type MigrationRunScope = {
+	importedRows: number,
+	sourceRows: number,
+	skippedUnknownServerRows: number,
+};
+
+export type MigrationScopeInspect = {
+	totalLegacyRows: number,
+	skippedUnknownServerRows: number,
+	tables: { [key in string]: number },
+};
+
+/**  Payload returned by Navidrome's `/auth/login`. */
+export type NdLoginResult = {
+	token: string,
+	userId: string,
+	isAdmin: boolean,
+};
+
+/**
+ *  `library_get_offline_path` outcome — either a path string or a
+ *  `missing` flag so the frontend can show a hint without polling.
+ */
+export type OfflinePathDto = {
+	serverId: string,
+	trackId: string,
+	localPath: string | null,
+	missing: boolean,
+};
+
+export type PerfProcessMemory = {
+	label: string,
+	rss_kb: number,
+};
+
+export type PerfThreadCpuGroup = {
+	label: string,
+	thread_count: number,
+	jiffies: number,
+};
+
+export type PerformanceCpuSnapshot = {
+	supported: boolean,
+	total_jiffies: number,
+	app_jiffies: number,
+	webkit_jiffies: number,
+	logical_cpus: number,
+	memory: PerfProcessMemory[],
+	thread_cpu_groups: PerfThreadCpuGroup[],
+};
+
+export type PlaySessionDayDetailDto = {
+	totals: PlaySessionDayTotalsDto,
+	tracks: PlaySessionDayTrackDto[],
+};
+
+export type PlaySessionDayTotalsDto = {
+	totalListenedSec: number | null,
+	sessionCount: number,
+	trackPlayCount: number,
+	fullCount: number,
+	partialCount: number,
+};
+
+export type PlaySessionDayTrackDto = {
+	serverId: string,
+	trackId: string,
+	title: string,
+	artist: string | null,
+	listenedSec: number | null,
+	completion: string,
+	startedAtMs: number,
+	album: string | null,
+	albumId: string | null,
+	coverArtId: string | null,
+};
+
+export type PlaySessionHeatmapDayDto = {
+	date: string,
+	trackPlayCount: number,
+};
+
+/**  Input to `library_record_play_session`. */
+export type PlaySessionInputDto = {
+	serverId: string,
+	trackId: string,
+	startedAtMs: number,
+	listenedSec: number | null,
+	positionMaxSec: number | null,
+	endReason: string,
+	/**  Player-known duration when `track.duration_sec` in the index is missing/zero. */
+	durationSecHint?: number | null,
+};
+
+/**  Summary for one day in the recent-days list (no track rows). */
+export type PlaySessionRecentDayDto = {
+	date: string,
+	totalListenedSec: number | null,
+	sessionCount: number,
+	trackPlayCount: number,
+	fullCount: number,
+	partialCount: number,
+};
+
+/**  Earliest/latest calendar years with at least one session (local TZ). */
+export type PlaySessionYearBoundsDto = {
+	minYear: number | null,
+	maxYear: number | null,
+};
+
+/**  Cross-server year summary for the Player stats tab. */
+export type PlaySessionYearSummaryDto = {
+	totalListenedSec: number | null,
+	/**  Listening sessions (plays clustered by idle gap). */
+	sessionCount: number,
+	/**  Individual track plays (`COUNT(*)`). */
+	trackPlayCount: number,
+	/**  Distinct tracks heard at least once in the year. */
+	uniqueTrackCount: number,
+	/**  Calendar days with at least one recorded play. */
+	listeningDayCount: number,
+	fullCount: number,
+	partialCount: number,
+};
+
+/**  `library_purge_server` outcome. */
+export type PurgeReportDto = {
+	tracksDeleted: number,
+	albumsDeleted: number,
+	artistsDeleted: number,
+	offlineRowsDeleted: number,
+	/**  Total bytes freed across the purged scopes (best-effort). */
+	bytesFreed: number,
+};
+
+/**  Information about a single mounted removable drive. */
+export type RemovableDrive = {
+	name: string,
+	mount_point: string,
+	available_space: number,
+	total_space: number,
+	file_system: string,
+	is_removable: boolean,
+};
+
+/**  Per-entry result for `rename_device_files`. */
+export type RenameResult = {
+	oldPath: string,
+	newPath: string,
+	ok: boolean,
+	error: string | null,
+};
+
+export type ServerHttpContextSyncWire = {
+	serverId: string,
+	appServerId: string,
+	endpoints: ServerHttpEndpointWire[],
+	customHeaders?: CustomHeaderEntryWire[],
+	customHeadersApplyTo?: CustomHeadersApplyTo | null,
+};
+
+export type ServerHttpEndpointWire = {
+	url: string,
+	kind: EndpointKind,
+};
+
+export type ServerIndexMapping = {
+	legacyId: string,
+	indexKey: string,
+};
+
+export type StarredAlbumReconcileItem = {
+	id: string,
+	starredAt: number,
+};
+
+/**  Summary returned by `sync_batch_to_device` after all tracks are processed. */
+export type SyncBatchResult = {
+	done: number,
+	skipped: number,
+	failed: number,
+};
+
+/**  `library_sync_start` ack. */
+export type SyncJobDto = {
+	jobId: string,
+	serverId: string,
+	/**  `"initial_sync"` or `"delta_sync"`. */
+	kind: string,
+};
+
+/**
+ *  `library_get_status` payload — mirrors the `sync_state` row plus a
+ *  few derived counters from `track`.
+ */
+export type SyncStateDto = {
+	serverId: string,
+	libraryScope: string,
+	syncPhase?: string,
+	capabilityFlags?: number,
+	libraryTier?: string,
+	lastFullSyncAt: number | null,
+	lastDeltaSyncAt: number | null,
+	nextPollAt: number | null,
+	serverLastScanIso: string | null,
+	indexesLastModifiedMs: number | null,
+	artistsLastModifiedMs: number | null,
+	/**  Space-separated leading articles from the server's `getArtists` response. */
+	ignoredArticles: string | null,
+	localTrackCount: number | null,
+	serverTrackCount: number | null,
+	lastError: string | null,
+	/**
+	 *  `MAX(server_updated_at)` over local non-deleted tracks — the
+	 *  implicit "tracks watermark" the N1-delta uses.
+	 */
+	localTracksMaxUpdatedMs: number | null,
+	/**  Cheap `EXISTS` over `track` — avoids a full `COUNT(*)` on every status read. */
+	hasLocalTracks?: boolean,
+	/**  Active/resumed initial-sync ingest strategy (`n1` / `s1` / `s2`), if any. */
+	ingestStrategy?: string | null,
+	/**  Cursor phase during initial sync (`ingest`, `artist_pass`, …). */
+	ingestPhase?: string | null,
+	/**  Tracks ingested so far per persisted cursor (informational during IS-3). */
+	cursorIngestedCount?: number | null,
+	/**  Server flagged after N1 deep-offset failure — prefers S1/S2 on next run. */
+	n1BulkUnreliable?: boolean | null,
+};
+
+export type SyncTrackResult = {
+	path: string,
+	skipped: boolean,
+};
+
+/**  `library_get_artifact` payload — one row of `track_artifact`. */
+export type TrackArtifactDto = {
+	serverId: string,
+	trackId: string,
+	artifactKind: string,
+	format: string,
+	sourceKind: string,
+	sourceId: string,
+	language: string | null,
+	contentText: string | null,
+	contentBytes: number,
+	notFound: boolean,
+	contentHash: string | null,
+	fetchedAt: number,
+	expiresAt: number | null,
+};
+
+/**  `library_get_facts` row. */
+export type TrackFactDto = {
+	serverId: string,
+	trackId: string,
+	factKind: string,
+	valueReal: number | null,
+	valueInt: number | null,
+	valueText: string | null,
+	unit: string | null,
+	sourceKind: string,
+	sourceId: string,
+	confidence: number | null,
+	contentHash: string | null,
+	fetchedAt: number,
+	expiresAt: number | null,
+};
+
+export type TrackSyncInfo = {
+	id: string,
+	url: string,
+	suffix: string,
+	/**
+	 *  Track artist — used in Extended M3U (#EXTINF) entries so playlists display
+	 *  the actual performer rather than the album artist.
+	 */
+	artist: string,
+	/**
+	 *  Album artist — used for the top-level folder so compilation albums stay together.
+	 *  Falls back to `artist` in the frontend when the server has no albumArtist tag.
+	 */
+	albumArtist: string,
+	album: string,
+	title: string,
+	trackNumber: number | null,
+	/**  Duration in seconds — needed for Extended M3U (#EXTINF) playlist entries. */
+	duration?: number | null,
+	/**
+	 *  When set, the track belongs to a playlist source and is placed under
+	 *  `Playlists/{name}/` with `playlist_index` as its filename prefix.
+	 *  Same track synced from both an album and a playlist source ends up twice
+	 *  on the device — once in the album tree, once in the playlist folder.
+	 */
+	playlistName?: string | null,
+	playlistIndex?: number | null,
+};
+
+export type WaveformCachePayload = {
+	bins: number[],
+	binCount: number,
+	isPartial: boolean,
+	knownUntilSec: number | null,
+	durationSec: number | null,
+	updatedAt: number,
 };
 
 /* Tauri Specta runtime */

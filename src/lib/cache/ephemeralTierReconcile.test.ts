@@ -49,7 +49,10 @@ describe('reconcileEphemeralCache', () => {
       throw new Error(`unexpected invoke ${cmd}`);
     });
 
-    const result = await reconcileEphemeralCache();
+    const result = await reconcileEphemeralCache({
+      entries: useLocalPlaybackStore.getState().entries,
+      removeEntry: useLocalPlaybackStore.getState().removeEntry,
+    });
 
     expect(result).toEqual({ removedStaleIndex: 1 });
     expect(useLocalPlaybackStore.getState().entries['srv:keep']).toBeDefined();

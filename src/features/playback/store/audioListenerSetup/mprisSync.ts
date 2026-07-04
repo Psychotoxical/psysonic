@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { mprisSetMetadata, mprisSetPlayback } from '@/lib/api/mpris';
 import { resolvePlaybackCoverScope } from '@/cover/ref';
 import { resolveTrackCoverRefFromLibrary } from '@/cover/resolveEntryLibrary';
 import { coverArtUrlForMpris } from '@/cover/integrations/mpris';
@@ -39,7 +40,7 @@ export function setupMprisSync(): () => void {
         ).then(ref => {
           if (!ref) return;
           coverArtUrlForMpris(ref)
-            .then(coverUrl => invoke('mpris_set_metadata', {
+            .then(coverUrl => mprisSetMetadata({
               title,
               artist,
               album,
@@ -49,7 +50,7 @@ export function setupMprisSync(): () => void {
             .catch(() => {});
         });
       } else {
-        invoke('mpris_set_metadata', {
+        mprisSetMetadata({
           title,
           artist,
           album,
@@ -64,7 +65,7 @@ export function setupMprisSync(): () => void {
     if (currentRadio && currentRadio.id !== prevRadioId) {
       prevRadioId = currentRadio.id;
       prevTrackId = null;
-      invoke('mpris_set_metadata', {
+      mprisSetMetadata({
         title: currentRadio.name,
         artist: null,
         album: null,
@@ -80,7 +81,7 @@ export function setupMprisSync(): () => void {
       prevIsPlaying = isPlaying;
       lastMprisPositionUpdate = Date.now();
       const pos = getPlaybackProgressSnapshot().currentTime;
-      invoke('mpris_set_playback', {
+      mprisSetPlayback({
         playing: isPlaying,
         positionSecs: pos > 0 ? pos : null,
       }).catch(() => {});
@@ -93,7 +94,7 @@ export function setupMprisSync(): () => void {
     if (currentRadio || !isPlaying) return;
     if (Date.now() - lastMprisPositionUpdate < 1500) return;
     lastMprisPositionUpdate = Date.now();
-    invoke('mpris_set_playback', {
+    mprisSetPlayback({
       playing: true,
       positionSecs: currentTime,
     }).catch(() => {});

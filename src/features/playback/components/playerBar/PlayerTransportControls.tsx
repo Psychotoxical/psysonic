@@ -1,6 +1,6 @@
 import React from 'react';
 import { Blend, Moon, Pause, Play, Repeat, Repeat1, SkipBack, SkipForward, Square, Sunrise } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
+import { audioPreviewStop, audioPreviewStopSilent } from '@/lib/api/audio';
 import type { TFunction } from 'i18next';
 import type { PlayerState } from '@/features/playback/store/playerStoreTypes';
 import { useAutodjTransitionUi } from '@/features/playback/store/autodjTransitionUi';
@@ -44,7 +44,7 @@ export function PlayerTransportControls({
         onClick={() => {
           if (isPreviewing) {
             usePreviewStore.setState({ previewingId: null, previewingTrack: null, elapsed: 0 });
-            invoke('audio_preview_stop_silent').catch(() => {});
+            audioPreviewStopSilent().catch(() => {});
           } else {
             stop();
           }
@@ -86,7 +86,7 @@ export function PlayerTransportControls({
                 // button — preview ends, main playback auto-resumes if it was
                 // playing before. Use regular audio_preview_stop (not _silent).
                 usePreviewStore.setState({ previewingId: null, previewingTrack: null, elapsed: 0 });
-                invoke('audio_preview_stop').catch(() => {});
+                audioPreviewStop().catch(() => {});
               })
             : playPauseBind.onClick}
           aria-label={isPreviewing

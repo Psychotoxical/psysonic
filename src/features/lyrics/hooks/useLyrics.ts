@@ -3,7 +3,7 @@ import type { SubsonicStructuredLyrics } from '@/lib/api/subsonicTypes';
 import type { Track } from '@/lib/media/trackTypes';
 import { useEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { fetchLyrics, parseLrc, LrcLine } from '@/features/lyrics/api/lrclib';
 import { fetchNeteaselyrics } from '@/features/lyrics/api/netease';
 import { fetchLyricsPlus, hasWordSync } from '@/features/lyrics/api/lyricsplus';
@@ -158,7 +158,7 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
       if (!filePath) return false;
 
       try {
-        const lrcString = await invoke<string | null>('get_embedded_lyrics', { path: filePath });
+        const lrcString = await commands.getEmbeddedLyrics(filePath);
         if (!lrcString) return false;
 
         const lines = parseLrc(lrcString);

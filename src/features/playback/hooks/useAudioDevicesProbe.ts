@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import {
+  audioCanonicalizeSelectedDevice,
+  audioDefaultOutputDeviceName,
+  audioListDevices,
+} from '@/lib/api/audio';
 import type { TFunction } from 'i18next';
 import { useAuthStore } from '@/store/authStore';
 import { IS_MACOS } from '@/lib/util/platform';
@@ -35,23 +39,23 @@ export function useAudioDevicesProbe(t: TFunction): UseAudioDevicesProbeResult {
   const refreshAudioDevices = useCallback((opts?: { silent?: boolean }) => {
     const silent = !!opts?.silent;
     if (!silent) setDevicesLoading(true);
-    const listP = invoke<string[]>('audio_list_devices').catch((e) => {
+    const listP = audioListDevices().catch((e) => {
       console.error(e);
       showToast(t('settings.audioOutputDeviceListError'), 5000, 'error');
       return [] as string[];
     });
-    const defP = invoke<string | null>('audio_default_output_device_name').catch(() => null);
+    const defP = audioDefaultOutputDeviceName().catch(() => null);
     Promise.all([listP, defP])
       .then(async ([devices, osDefault]) => {
         let canon: string | null = null;
         try {
-          canon = await invoke<string | null>('audio_canonicalize_selected_device');
+          canon = await audioCanonicalizeSelectedDevice();
           if (canon) useAuthStore.getState().setAudioOutputDevice(canon);
         } catch {
           /* ignore */
         }
         const finalList = canon
-          ? await invoke<string[]>('audio_list_devices').catch(() => devices)
+          ? await audioListDevices().catch(() => devices)
           : devices;
         const defId = osDefault ?? null;
         setAudioDevices(sortAudioDeviceIds(finalList, defId));

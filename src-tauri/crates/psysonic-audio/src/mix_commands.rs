@@ -11,6 +11,7 @@ use super::helpers::*;
 use super::ipc::{maybe_emit_normalization_state, NormalizationStatePayload};
 
 #[tauri::command]
+#[specta::specta]
 pub fn audio_set_volume(volume: f32, state: State<'_, AudioEngine>) {
     let mut cur = state.current.lock().unwrap();
     cur.base_volume = volume.clamp(0.0, 1.0);
@@ -22,6 +23,7 @@ pub fn audio_set_volume(volume: f32, state: State<'_, AudioEngine>) {
 }
 
 #[tauri::command]
+#[specta::specta]
 #[allow(clippy::too_many_arguments)]
 pub fn audio_update_replay_gain(
     volume: f32,
@@ -132,6 +134,7 @@ pub fn audio_update_replay_gain(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn audio_set_eq(gains: [f32; 10], enabled: bool, pre_gain: f32, state: State<'_, AudioEngine>) {
     state.eq_enabled.store(enabled, Ordering::Relaxed);
     state.eq_pre_gain.store(pre_gain.clamp(-30.0, 6.0).to_bits(), Ordering::Relaxed);
@@ -141,12 +144,14 @@ pub fn audio_set_eq(gains: [f32; 10], enabled: bool, pre_gain: f32, state: State
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn audio_set_crossfade(enabled: bool, secs: f32, state: State<'_, AudioEngine>) {
     state.crossfade_enabled.store(enabled, Ordering::Relaxed);
     state.crossfade_secs.store(secs.clamp(0.1, 12.0).to_bits(), Ordering::Relaxed);
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn audio_set_gapless(enabled: bool, state: State<'_, AudioEngine>) {
     state.gapless_enabled.store(enabled, Ordering::Relaxed);
 }
@@ -154,6 +159,7 @@ pub fn audio_set_gapless(enabled: bool, state: State<'_, AudioEngine>) {
 /// Duck the current sink over `fade_secs` without exhausting its source (which
 /// would spuriously emit `audio:ended` before the interrupt handoff).
 #[tauri::command]
+#[specta::specta]
 pub fn audio_begin_outgoing_fade(fade_secs: f32, state: State<'_, AudioEngine>) {
     let fade_secs = fade_secs.clamp(0.1, 12.0);
     let cur = state.current.lock().unwrap();
@@ -173,6 +179,7 @@ pub fn audio_begin_outgoing_fade(fade_secs: f32, state: State<'_, AudioEngine>) 
 /// (only when the next track is actually playable). When `false`, the engine's
 /// normal early crossfade trigger is restored (plain crossfade / loud→loud).
 #[tauri::command]
+#[specta::specta]
 pub fn audio_set_autodj_suppress(enabled: bool, state: State<'_, AudioEngine>) {
     state
         .autodj_suppress_autocrossfade
@@ -180,6 +187,7 @@ pub fn audio_set_autodj_suppress(enabled: bool, state: State<'_, AudioEngine>) {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn audio_set_playback_rate(
     enabled: bool,
     strategy: String,
@@ -263,6 +271,7 @@ pub fn audio_set_playback_rate(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn audio_set_normalization(
     engine: String,
     target_lufs: f32,

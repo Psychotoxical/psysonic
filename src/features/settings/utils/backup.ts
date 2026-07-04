@@ -1,6 +1,7 @@
 import { save, open as openDialog } from '@tauri-apps/plugin-dialog';
 import { writeFile, readTextFile } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { version as appVersion } from '@/../package.json';
 
 const BACKUP_VERSION = 1;
@@ -77,7 +78,8 @@ export async function exportBackupToPath(mode: BackupExportMode, path: string): 
     return;
   }
   if (mode === 'library') {
-    await invoke('backup_export_library_db', { destinationPath: path });
+    const res = await commands.backupExportLibraryDb(path);
+    if (res.status === 'error') throw new Error(res.error);
     return;
   }
   const content = JSON.stringify(buildSettingsManifest(), null, 2);
@@ -119,7 +121,8 @@ export async function importAnyBackupFromPath(path: string): Promise<ImportedBac
     // Not a full backup archive, continue detection.
   }
 
-  await invoke('backup_import_library_db', { sourcePath: path });
+  const res = await commands.backupImportLibraryDb(path);
+  if (res.status === 'error') throw new Error(res.error);
   return 'databases';
 }
 
@@ -167,7 +170,8 @@ export async function importLibraryDatabaseBackup(): Promise<void> {
     title: 'Import Library Databases Archive',
   });
   if (!path || typeof path !== 'string') return;
-  await invoke('backup_import_library_db', { sourcePath: path });
+  const res = await commands.backupImportLibraryDb(path);
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 export async function exportFullBackup(): Promise<string | null> {

@@ -4,6 +4,7 @@
  * single `lib/api/library.ts`; re-exported via the `@/lib/api/library` barrel.
  */
 import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { serverIndexKeyForId } from './internal';
 import type {
   PlaybackHint,
@@ -14,7 +15,7 @@ import type {
   FactInputDto,
 } from './dto';
 
-export function librarySyncBindSession(args: {
+export async function librarySyncBindSession(args: {
   serverId: string;
   baseUrl: string;
   username: string;
@@ -22,44 +23,58 @@ export function librarySyncBindSession(args: {
   libraryScope?: string;
 }): Promise<void> {
   const indexKey = serverIndexKeyForId(args.serverId);
-  return invoke<void>('library_sync_bind_session', { ...args, serverId: indexKey });
+  const res = await commands.librarySyncBindSession(
+    indexKey,
+    args.baseUrl,
+    args.username,
+    args.password,
+    args.libraryScope ?? null,
+  );
+  if (res.status === 'error') throw new Error(res.error);
 }
 
-export function librarySyncClearSession(serverId: string): Promise<void> {
+export async function librarySyncClearSession(serverId: string): Promise<void> {
   const indexKey = serverIndexKeyForId(serverId);
-  return invoke<void>('library_sync_clear_session', { serverId: indexKey });
+  const res = await commands.librarySyncClearSession(indexKey);
+  if (res.status === 'error') throw new Error(res.error);
 }
 
-export function libraryGetPlaybackHint(): Promise<PlaybackHint> {
-  return invoke<PlaybackHint>('library_get_playback_hint');
+export async function libraryGetPlaybackHint(): Promise<PlaybackHint> {
+  const res = await commands.libraryGetPlaybackHint();
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data as PlaybackHint;
 }
 
-export function librarySetPlaybackHint(hint: PlaybackHint): Promise<void> {
-  return invoke<void>('library_set_playback_hint', { hint });
+export async function librarySetPlaybackHint(hint: PlaybackHint): Promise<void> {
+  const res = await commands.librarySetPlaybackHint(hint);
+  if (res.status === 'error') throw new Error(res.error);
 }
 
-export function librarySyncStart(args: {
+export async function librarySyncStart(args: {
   serverId: string;
   mode: SyncMode;
   libraryScope?: string;
 }): Promise<SyncJobDto> {
   const indexKey = serverIndexKeyForId(args.serverId);
-  return invoke<SyncJobDto>('library_sync_start', { ...args, serverId: indexKey })
-    .then(job => ({ ...job, serverId: args.serverId }));
+  const res = await commands.librarySyncStart(indexKey, args.mode, args.libraryScope ?? null);
+  if (res.status === 'error') throw new Error(res.error);
+  return { ...res.data, serverId: args.serverId };
 }
 
 /** Forced full-budget tombstone delta — Settings → «Verify integrity». */
-export function librarySyncVerifyIntegrity(args: {
+export async function librarySyncVerifyIntegrity(args: {
   serverId: string;
   libraryScope?: string;
 }): Promise<SyncJobDto> {
   const indexKey = serverIndexKeyForId(args.serverId);
-  return invoke<SyncJobDto>('library_sync_verify_integrity', { ...args, serverId: indexKey })
-    .then(job => ({ ...job, serverId: args.serverId }));
+  const res = await commands.librarySyncVerifyIntegrity(indexKey, args.libraryScope ?? null);
+  if (res.status === 'error') throw new Error(res.error);
+  return { ...res.data, serverId: args.serverId };
 }
 
-export function librarySyncCancel(jobId?: string): Promise<void> {
-  return invoke<void>('library_sync_cancel', { jobId });
+export async function librarySyncCancel(jobId?: string): Promise<void> {
+  const res = await commands.librarySyncCancel(jobId ?? null);
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 export function libraryPatchTrack(args: {
@@ -80,45 +95,55 @@ export function libraryPatchTrack(args: {
 }
 
 /** Server favorites → `album.starred_at` (UPDATE only, no stub rows). */
-export function libraryReconcileAlbumStars(args: {
+export async function libraryReconcileAlbumStars(args: {
   serverId: string;
   starredAlbums: Array<{ id: string; starredAt: number }>;
 }): Promise<void> {
   const indexKey = serverIndexKeyForId(args.serverId);
-  return invoke<void>('library_reconcile_album_stars', {
-    serverId: indexKey,
-    starredAlbums: args.starredAlbums.map(a => ({ id: a.id, starredAt: a.starredAt })),
-  });
+  const res = await commands.libraryReconcileAlbumStars(
+    indexKey,
+    args.starredAlbums.map(a => ({ id: a.id, starredAt: a.starredAt })),
+  );
+  if (res.status === 'error') throw new Error(res.error);
 }
 
-export function libraryPutArtifact(args: {
+export async function libraryPutArtifact(args: {
   serverId: string;
   trackId: string;
   artifact: ArtifactInputDto;
 }): Promise<void> {
   const indexKey = serverIndexKeyForId(args.serverId);
-  return invoke<void>('library_put_artifact', { ...args, serverId: indexKey });
+  const res = await commands.libraryPutArtifact(indexKey, args.trackId, args.artifact);
+  if (res.status === 'error') throw new Error(res.error);
 }
 
-export function libraryPutFact(args: {
+export async function libraryPutFact(args: {
   serverId: string;
   trackId: string;
   fact: FactInputDto;
 }): Promise<void> {
   const indexKey = serverIndexKeyForId(args.serverId);
-  return invoke<void>('library_put_fact', { ...args, serverId: indexKey });
+  const res = await commands.libraryPutFact(indexKey, args.trackId, args.fact);
+  if (res.status === 'error') throw new Error(res.error);
 }
 
-export function libraryPurgeServer(args: {
+export async function libraryPurgeServer(args: {
   serverId: string;
   includeAnalysis?: boolean;
   includeOffline?: boolean;
 }): Promise<PurgeReportDto> {
   const indexKey = serverIndexKeyForId(args.serverId);
-  return invoke<PurgeReportDto>('library_purge_server', { ...args, serverId: indexKey });
+  const res = await commands.libraryPurgeServer(
+    indexKey,
+    args.includeAnalysis ?? null,
+    args.includeOffline ?? null,
+  );
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
-export function libraryDeleteServerData(serverId: string): Promise<void> {
+export async function libraryDeleteServerData(serverId: string): Promise<void> {
   const indexKey = serverIndexKeyForId(serverId);
-  return invoke<void>('library_delete_server_data', { serverId: indexKey });
+  const res = await commands.libraryDeleteServerData(indexKey);
+  if (res.status === 'error') throw new Error(res.error);
 }

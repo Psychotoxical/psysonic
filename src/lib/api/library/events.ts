@@ -3,7 +3,7 @@
  * the genre-tags startup backfill commands. Split out of the former single
  * `lib/api/library.ts`; re-exported via the `@/lib/api/library` barrel.
  */
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
   LibrarySyncProgressPayload,
@@ -27,10 +27,13 @@ export function subscribeLibrarySyncIdle(
   );
 }
 
-export function libraryGenreTagsInspect(): Promise<GenreTagsInspectDto> {
-  return invoke<GenreTagsInspectDto>('library_genre_tags_inspect');
+export async function libraryGenreTagsInspect(): Promise<GenreTagsInspectDto> {
+  const res = await commands.libraryGenreTagsInspect();
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
-export function libraryGenreTagsRun(): Promise<void> {
-  return invoke<void>('library_genre_tags_run');
+export async function libraryGenreTagsRun(): Promise<void> {
+  const res = await commands.libraryGenreTagsRun();
+  if (res.status === 'error') throw new Error(res.error);
 }

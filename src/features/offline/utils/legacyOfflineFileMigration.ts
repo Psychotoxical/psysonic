@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { frontendDebugLog } from '@/lib/api/debugLog';
 import { libraryGetTracksBatch } from '@/lib/api/library';
 import { useAuthStore } from '@/store/authStore';
 import { useOfflineStore, type OfflineAlbumMeta } from '@/features/offline/store/offlineStore';
@@ -6,18 +6,10 @@ import { useLocalPlaybackStore, type LocalPlaybackEntry, type PinSource } from '
 import { localPlaybackEntryKey } from '@/store/localPlaybackKeys';
 import { importLegacyLocalPlayback } from '@/store/localPlaybackMigration';
 import { getMediaDir } from '@/lib/media/mediaDir';
+import { migrateLegacyOfflineDisk } from '@/lib/api/syncfs';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import { resolveIndexKey } from '@/lib/server/serverIndexKey';
-
-interface LegacyOfflineMigrationResult {
-  trackId: string;
-  serverIndexKey: string;
-  path: string;
-  size: number;
-  layoutFingerprint: string;
-  relocated: boolean;
-  skippedReason?: string | null;
-}
+import type { LegacyOfflineMigrationResult } from '@/generated/bindings';
 
 type PersistCapableStore = {
   persist: {
@@ -44,10 +36,7 @@ function waitForStoreHydration(store: PersistCapableStore): Promise<void> {
 
 function migrationDebug(payload: Record<string, unknown>): void {
   if (useAuthStore.getState().loggingMode !== 'debug') return;
-  void invoke('frontend_debug_log', {
-    scope: 'legacy-offline-migration',
-    message: JSON.stringify(payload),
-  }).catch(() => {});
+  frontendDebugLog('legacy-offline-migration', JSON.stringify(payload));
 }
 
 function resolveIndexKeyForServerId(serverId: string): string {
@@ -192,7 +181,7 @@ export async function runLegacyOfflineFileMigration(serverIndexKey?: string): Pr
   const customOfflineDir = useAuthStore.getState().offlineDownloadDir?.trim() || null;
   let relocated = 0;
   try {
-    const results = await invoke<LegacyOfflineMigrationResult[]>('migrate_legacy_offline_disk', {
+    const results = await migrateLegacyOfflineDisk({
       mediaDir: getMediaDir(),
       customOfflineDir,
       serverIndexKeyFilter: serverIndexKey ?? null,

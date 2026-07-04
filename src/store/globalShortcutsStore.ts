@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { MODIFIER_KEY_CODES, formatBinding } from './keybindingsStore';
 import { DEFAULT_GLOBAL_SHORTCUTS, isGlobalShortcutActionId, type GlobalAction } from '@/config/shortcutActions';
 
@@ -46,12 +46,13 @@ export const useGlobalShortcutsStore = create<GlobalShortcutsState>()(
       setShortcut: async (action, shortcut) => {
         const prev = get().shortcuts[action];
         if (GLOBAL_SHORTCUTS_OS_ENABLED && prev) {
-          try { await invoke('unregister_global_shortcut', { shortcut: prev }); } catch { /* ignore: best-effort */ }
+          await commands.unregisterGlobalShortcut(prev).catch(() => {});
         }
         if (shortcut) {
           if (GLOBAL_SHORTCUTS_OS_ENABLED) {
             try {
-              await invoke('register_global_shortcut', { shortcut, action });
+              const res = await commands.registerGlobalShortcut(shortcut, action);
+              if (res.status === 'error') throw new Error(res.error);
               set(s => ({ shortcuts: { ...s.shortcuts, [action]: shortcut } }));
             } catch (e) {
               console.warn('[GlobalShortcuts] Failed to register:', shortcut, e);
@@ -77,7 +78,8 @@ export const useGlobalShortcutsStore = create<GlobalShortcutsState>()(
           if (!isGlobalShortcutActionId(action)) continue;
           if (shortcut) {
             try {
-              await invoke('register_global_shortcut', { shortcut, action });
+              const res = await commands.registerGlobalShortcut(shortcut, action);
+              if (res.status === 'error') throw new Error(res.error);
             } catch (e) {
               console.warn('[GlobalShortcuts] Failed to re-register:', shortcut, e);
             }
@@ -90,7 +92,7 @@ export const useGlobalShortcutsStore = create<GlobalShortcutsState>()(
         if (GLOBAL_SHORTCUTS_OS_ENABLED) {
           for (const shortcut of Object.values(shortcuts)) {
             if (shortcut) {
-              try { await invoke('unregister_global_shortcut', { shortcut }); } catch { /* ignore: best-effort */ }
+              await commands.unregisterGlobalShortcut(shortcut).catch(() => {});
             }
           }
         }

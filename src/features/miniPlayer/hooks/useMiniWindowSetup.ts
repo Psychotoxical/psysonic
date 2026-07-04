@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { setLinuxWebkitSmoothScrolling } from '@/lib/api/platformShell';
+import { resizeMiniPlayer, setMiniPlayerAlwaysOnTop } from '@/lib/api/miniPlayer';
 import { useAuthStore } from '@/store/authStore';
 import { IS_LINUX } from '@/lib/util/platform';
 import {
@@ -18,7 +19,7 @@ export function useMiniWindowSetup(alwaysOnTop: boolean, initialQueueOpen: boole
   useEffect(() => {
     if (!IS_LINUX) return;
     const apply = () => {
-      invoke('set_linux_webkit_smooth_scrolling', {
+      setLinuxWebkitSmoothScrolling({
         enabled: useAuthStore.getState().linuxWebkitKineticScroll,
       }).catch(() => {});
     };
@@ -30,7 +31,7 @@ export function useMiniWindowSetup(alwaysOnTop: boolean, initialQueueOpen: boole
 
   useEffect(() => {
     if (!initialQueueOpen) return;
-    invoke('resize_mini_player', {
+    resizeMiniPlayer({
       width: EXPANDED_SIZE.w,
       height: readStoredExpandedHeight(),
       minWidth: EXPANDED_MIN.w,
@@ -40,10 +41,10 @@ export function useMiniWindowSetup(alwaysOnTop: boolean, initialQueueOpen: boole
   }, []);
 
   useEffect(() => {
-    invoke('set_mini_player_always_on_top', { onTop: alwaysOnTop }).catch(() => {});
+    setMiniPlayerAlwaysOnTop({ onTop: alwaysOnTop }).catch(() => {});
     const reapply = () => {
       if (alwaysOnTop) {
-        invoke('set_mini_player_always_on_top', { onTop: true }).catch(() => {});
+        setMiniPlayerAlwaysOnTop({ onTop: true }).catch(() => {});
       }
     };
     window.addEventListener('focus', reapply);

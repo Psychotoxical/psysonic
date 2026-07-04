@@ -2,7 +2,7 @@ import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
 import { usePlaybackTrackCoverRef } from '@/cover/useLibraryCoverRef';
 import { useEffect, useRef, useState } from 'react';
 import { emit } from '@tauri-apps/api/event';
-import { invoke } from '@tauri-apps/api/core';
+import { closeMiniPlayer, resizeMiniPlayer, setMiniPlayerAlwaysOnTop, showMainWindow } from '@/lib/api/miniPlayer';
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { registerQueueDragHitTest } from '@/lib/dnd/DragDropContext';
@@ -95,14 +95,14 @@ export default function MiniPlayer() {
   const toggleOnTop = async () => {
     const next = !alwaysOnTop;
     setAlwaysOnTop(next);
-    try { await invoke('set_mini_player_always_on_top', { onTop: next }); } catch { /* ignore: best-effort */ }
+    try { await setMiniPlayerAlwaysOnTop({ onTop: next }); } catch { /* ignore: best-effort */ }
   };
 
   const closeMini = async () => {
-    try { await invoke('close_mini_player'); } catch { /* ignore: best-effort */ }
+    try { await closeMiniPlayer(); } catch { /* ignore: best-effort */ }
   };
 
-  const showMain = () => invoke('show_main_window').catch(() => {});
+  const showMain = () => showMainWindow().catch(() => {});
 
   const toggleQueue = async () => {
     const next = !queueOpen;
@@ -121,7 +121,7 @@ export default function MiniPlayer() {
     const targetW = next ? EXPANDED_SIZE.w : COLLAPSED_SIZE.w;
     const min = next ? EXPANDED_MIN : COLLAPSED_MIN;
     try {
-      await invoke('resize_mini_player', {
+      await resizeMiniPlayer({
         width: targetW,
         height: targetH,
         minWidth: min.w,

@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { audioSeek } from '@/lib/api/audio';
 import { isRecoverableSeekError } from '@/features/playback/utils/audio/seekErrors';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { setSeekTarget } from '@/features/playback/store/seekTargetState';
@@ -69,7 +69,7 @@ export function scheduleSeekFallbackRetry(trackId: string, seconds: number): voi
       seekFallbackVisualTarget = null;
       return;
     }
-    invoke('audio_seek', { seconds: target.seconds }).then(() => {
+    audioSeek({ seconds: target.seconds }).then(() => {
       setSeekTarget(target.seconds);
       seekFallbackVisualTarget = null;
       clearSeekFallbackRetry();

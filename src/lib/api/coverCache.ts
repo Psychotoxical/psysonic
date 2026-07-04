@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { coverIndexKeyFromRef, coverStorageKeyFromRef } from '@/cover/storageKeys';
@@ -150,7 +150,9 @@ export async function coverCachePeekBatch(
     tier,
     storageKey: coverStorageKeyFromRef(ref, tier),
   }));
-  return invoke<Record<string, string>>('cover_cache_peek_batch', { items });
+  const res = await commands.coverCachePeekBatch(items);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
 export async function coverCacheEnsure(
@@ -159,9 +161,10 @@ export async function coverCacheEnsure(
   _priority?: string,
   opts?: CoverEnsureOpts,
 ): Promise<CoverCacheEnsureResult> {
-  return invoke<CoverCacheEnsureResult>('cover_cache_ensure', {
-    args: ensureArgsFromRef(ref, tier, opts),
-  });
+  const res = await commands.coverCacheEnsure(ensureArgsFromRef(ref, tier, opts));
+  if (res.status === 'error') throw new Error(res.error);
+  // Generated `tier` widens to number; local result keeps the CoverArtTier union.
+  return res.data as CoverCacheEnsureResult;
 }
 
 export async function coverCacheEnsureBatch(
@@ -171,22 +174,28 @@ export async function coverCacheEnsureBatch(
 ): Promise<void> {
   if (refs.length === 0) return;
   const items = refs.map(ref => ensureArgsFromRef(ref, tier));
-  await invoke('cover_cache_ensure_batch', { items });
+  const res = await commands.coverCacheEnsureBatch(items);
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 export async function coverCacheStats(): Promise<CoverCacheStats> {
-  const stats = await invoke<CoverCacheStats>('cover_cache_stats', {});
+  const res = await commands.coverCacheStats();
+  if (res.status === 'error') throw new Error(res.error);
+  // Generated `pressure` widens to string; local type keeps the union.
+  const stats = res.data as CoverCacheStats;
   setCoverCacheAutoDownloadEnabled(stats.autoDownloadEnabled);
   return stats;
 }
 
 /** Clears all servers (legacy). Prefer `coverCacheClearServer`. */
 export async function coverCacheClear(): Promise<void> {
-  return invoke('cover_cache_clear', {});
+  const res = await commands.coverCacheClear();
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 export async function coverCacheClearServer(serverIndexKey: string): Promise<void> {
-  return invoke('cover_cache_clear_server', { serverIndexKey });
+  const res = await commands.coverCacheClearServer(serverIndexKey);
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 /**
@@ -199,9 +208,7 @@ export async function purgeExternalArtworkAllServers(): Promise<void> {
   const { servers } = useAuthStore.getState();
   await Promise.all(
     servers.map(s =>
-      invoke('cover_cache_purge_external', {
-        serverIndexKey: serverIndexKeyForProfile(s),
-      }).catch(() => undefined),
+      commands.coverCachePurgeExternal(serverIndexKeyForProfile(s)).catch(() => undefined),
     ),
   );
 }
@@ -209,12 +216,15 @@ export async function purgeExternalArtworkAllServers(): Promise<void> {
 export async function coverCacheStatsServer(
   serverIndexKey: string,
 ): Promise<Pick<CoverCacheStats, 'bytes' | 'entryCount'>> {
-  const stats = await invoke<CoverCacheStats>('cover_cache_stats_server', { serverIndexKey });
-  return { bytes: stats.bytes, entryCount: stats.entryCount };
+  const res = await commands.coverCacheStatsServer(serverIndexKey);
+  if (res.status === 'error') throw new Error(res.error);
+  return { bytes: res.data.bytes, entryCount: res.data.entryCount };
 }
 
-export function coverGetPipelineQueueStats(): Promise<CoverPipelineQueueStatsDto> {
-  return invoke<CoverPipelineQueueStatsDto>('cover_cache_get_pipeline_queue_stats');
+export async function coverGetPipelineQueueStats(): Promise<CoverPipelineQueueStatsDto> {
+  const res = await commands.coverCacheGetPipelineQueueStats();
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
 export async function libraryCoverBackfillBatch(
@@ -225,12 +235,9 @@ export async function libraryCoverBackfillBatch(
 ): Promise<{ coverIds: string[]; nextCursor: string | null; exhausted: boolean }> {
   const sqlServerId = librarySqlServerId(libraryServerId);
   const diskKey = serverIndexKey || sqlServerId;
-  return invoke('library_cover_backfill_batch', {
-    serverIndexKey: diskKey,
-    libraryServerId: sqlServerId,
-    cursor,
-    limit,
-  });
+  const res = await commands.libraryCoverBackfillBatch(diskKey, sqlServerId, cursor ?? null, limit ?? null);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
 export async function libraryCoverProgress(
@@ -239,10 +246,9 @@ export async function libraryCoverProgress(
 ): Promise<{ totalDistinct: number; pending: number; done: number }> {
   const sqlServerId = librarySqlServerId(libraryServerId);
   const diskKey = serverIndexKey || sqlServerId;
-  return invoke('library_cover_progress', {
-    serverIndexKey: diskKey,
-    libraryServerId: sqlServerId,
-  });
+  const res = await commands.libraryCoverProgress(diskKey, sqlServerId);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
 export type LibraryCoverBackfillConfigureArgs = {
@@ -257,7 +263,15 @@ export type LibraryCoverBackfillConfigureArgs = {
 export async function libraryCoverBackfillConfigure(
   args: LibraryCoverBackfillConfigureArgs,
 ): Promise<void> {
-  return invoke('library_cover_backfill_configure', args);
+  const res = await commands.libraryCoverBackfillConfigure(
+    args.enabled,
+    args.serverIndexKey,
+    args.libraryServerId,
+    args.restBaseUrl,
+    args.username,
+    args.password,
+  );
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 /**
@@ -267,7 +281,8 @@ export async function libraryCoverBackfillConfigure(
  * change clears the stale fetch-failed backoff and kicks a retry pass.
  */
 export async function libraryCoverBackfillSetBaseUrl(restBaseUrl: string): Promise<void> {
-  return invoke('library_cover_backfill_set_base_url', { restBaseUrl });
+  const res = await commands.libraryCoverBackfillSetBaseUrl(restBaseUrl);
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 export type CoverBackfillPulseResult = {
@@ -281,7 +296,10 @@ export type CoverBackfillPulseResult = {
 
 /** One backfill step (legacy); prefer `libraryCoverBackfillRunFullPass`. */
 export async function libraryCoverBackfillPulse(): Promise<CoverBackfillPulseResult> {
-  return invoke<CoverBackfillPulseResult>('library_cover_backfill_pulse');
+  const res = await commands.libraryCoverBackfillPulse();
+  if (res.status === 'error') throw new Error(res.error);
+  // Generated `status` widens to string; local type keeps the union.
+  return res.data as CoverBackfillPulseResult;
 }
 
 /**
@@ -292,31 +310,39 @@ export async function libraryCoverBackfillPulse(): Promise<CoverBackfillPulseRes
 export async function libraryCoverBackfillRunFullPass(
   force = false,
 ): Promise<{ started: boolean }> {
-  return invoke<{ started: boolean }>('library_cover_backfill_run_full_pass', { force });
+  const res = await commands.libraryCoverBackfillRunFullPass(force);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
 export async function libraryCoverBackfillResetCursor(): Promise<void> {
-  return invoke('library_cover_backfill_reset_cursor');
+  const res = await commands.libraryCoverBackfillResetCursor();
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 /** Yield native library backfill while the user navigates (visible covers first). */
 export async function libraryCoverBackfillSetUiPriority(hold: boolean): Promise<void> {
-  return invoke('library_cover_backfill_set_ui_priority', { hold });
+  const res = await commands.libraryCoverBackfillSetUiPriority(hold);
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 /** Perf-probe only: retune cover backfill threads (download + encode). Returns the clamped value applied. */
 export async function libraryCoverBackfillSetParallel(threads: number): Promise<number> {
-  return invoke<number>('library_cover_backfill_set_parallel', { threads });
+  const res = await commands.libraryCoverBackfillSetParallel(threads);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
 export async function libraryCoverClearFetchFailures(serverIndexKey: string): Promise<number> {
-  return invoke<number>('library_cover_clear_fetch_failures', { serverIndexKey });
+  const res = await commands.libraryCoverClearFetchFailures(serverIndexKey);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
 export async function libraryCoverCatalogSize(libraryServerId: string): Promise<number> {
-  return invoke<number>('library_cover_catalog_size', {
-    libraryServerId: librarySqlServerId(libraryServerId),
-  });
+  const res = await commands.libraryCoverCatalogSize(librarySqlServerId(libraryServerId));
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
 export function coverCacheMayBackgroundDownload(): boolean {

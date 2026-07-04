@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { setTrayTooltip } from '@/lib/api/tray';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { Track } from '@/lib/media/trackTypes';
 
@@ -22,14 +22,14 @@ export function useNowPlayingTrayTitle(currentTrack: Track | null, isPlaying: bo
           const title = `${state} ${currentTrack.artist} - ${currentTrack.title} | Psysonic`;
           document.title = title;
           await appWindow.setTitle(title);
-          await invoke('set_tray_tooltip', {
+          await setTrayTooltip({
             tooltip: `${currentTrack.artist} – ${currentTrack.title}`,
             playbackState: isPlaying ? 'play' : 'pause',
           }).catch(() => {});
         } else {
           document.title = 'Psysonic';
           await appWindow.setTitle('Psysonic');
-          await invoke('set_tray_tooltip', {
+          await setTrayTooltip({
             tooltip: '',
             playbackState: 'stop',
           }).catch(() => {});

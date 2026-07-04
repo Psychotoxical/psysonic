@@ -21,6 +21,7 @@ struct FullBackupPayload {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) async fn backup_export_library_db(
     app: AppHandle,
     destination_path: String,
@@ -64,6 +65,7 @@ fn backup_export_library_db_blocking(app: &AppHandle, destination_path: String) 
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) async fn backup_import_library_db(app: AppHandle, source_path: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         backup_import_library_db_blocking(&app, source_path)

@@ -166,6 +166,7 @@ pub(crate) fn linux_webkit_disable_media_session(win: &tauri::WebviewWindow) -> 
 /// compositing forced off. The frontend warns on animated themes when true.
 /// Always false off Linux.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn theme_animation_risk() -> bool {
     #[cfg(target_os = "linux")]
     {
@@ -185,6 +186,7 @@ pub(crate) fn theme_animation_risk() -> bool {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn set_window_decorations(enabled: bool, app_handle: tauri::AppHandle) {
     if let Some(win) = app_handle.get_webview_window("main") {
         let _ = win.set_decorations(enabled);
@@ -210,6 +212,7 @@ pub(crate) fn linux_webkit_apply_smooth_scrolling(win: &tauri::WebviewWindow, en
 
 /// Called from the frontend settings toggle (Linux); no-op on other platforms.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn set_linux_webkit_smooth_scrolling(enabled: bool, app_handle: tauri::AppHandle) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
@@ -232,6 +235,7 @@ pub(crate) fn set_linux_webkit_smooth_scrolling(enabled: bool, app_handle: tauri
 /// True when [`linux_webkit_apply_wayland_gpu_font_tuning`] would change WebKit settings
 /// (Wayland + GPU compositing, user has not set `PSYSONIC_SKIP_WAYLAND_FONT_TUNING`).
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn linux_wayland_gpu_font_tuning_active() -> bool {
     #[cfg(target_os = "linux")]
     {
@@ -284,6 +288,7 @@ pub(crate) fn linux_webkit_apply_wayland_text_render_profile(
 /// Persist the Wayland text profile for the next app start and for new mini-player webviews.
 /// Does **not** touch WebKit on existing windows (avoids WebKitGTK hangs when toggling policy live).
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn set_linux_wayland_text_render_profile(
     profile: String,
     app_handle: tauri::AppHandle,
@@ -303,6 +308,7 @@ pub(crate) fn set_linux_wayland_text_render_profile(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn linux_wayland_text_render_settings_available() -> bool {
     #[cfg(target_os = "linux")]
     {

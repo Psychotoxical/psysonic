@@ -1,6 +1,6 @@
 import type { InternetRadioStation } from '@/lib/api/subsonicTypes';
 import { useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { commands, type IcyMetadata } from '@/generated/bindings';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import {
   guessAzuraCastApiUrl,
@@ -42,14 +42,6 @@ export interface RadioMetadata {
 }
 
 // ─── ICY metadata interface (matches Rust IcyMetadata struct) ─────────────────
-
-interface IcyMetadataResult {
-  stream_title?: string;
-  icy_name?: string;
-  icy_genre?: string;
-  icy_url?: string;
-  icy_description?: string;
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -177,13 +169,15 @@ export function useRadioMetadata(station: InternetRadioStation | null): RadioMet
       const currentStation = stationRef.current;
       if (!currentStation) return;
       try {
-        const result: IcyMetadataResult = await invoke('fetch_icy_metadata', { url: currentStation.streamUrl });
+        const res = await commands.fetchIcyMetadata(currentStation.streamUrl);
+        if (res.status === 'error') throw new Error(res.error);
+        const result: IcyMetadata = res.data;
         if (cancelled) return;
         if (result.stream_title || result.icy_name) {
           const parsed = result.stream_title ? parseIcyStreamTitle(result.stream_title) : null;
           setMetadata({
             source: 'icy',
-            stationName: result.icy_name,
+            stationName: result.icy_name ?? undefined,
             currentTitle: parsed?.title,
             currentArtist: parsed?.artist,
             history: [],

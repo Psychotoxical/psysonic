@@ -11,7 +11,7 @@ use crate::store::LibraryStore;
 
 /// `library_get_status` payload — mirrors the `sync_state` row plus a
 /// few derived counters from `track`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncStateDto {
     pub server_id: String,
@@ -177,7 +177,7 @@ pub struct LibraryTracksEnvelope {
 }
 
 /// `library_get_artifact` payload — one row of `track_artifact`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TrackArtifactDto {
     pub server_id: String,
@@ -196,7 +196,7 @@ pub struct TrackArtifactDto {
 }
 
 /// `library_get_facts` row.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TrackFactDto {
     pub server_id: String,
@@ -216,7 +216,7 @@ pub struct TrackFactDto {
 
 /// `library_get_offline_path` outcome — either a path string or a
 /// `missing` flag so the frontend can show a hint without polling.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OfflinePathDto {
     pub server_id: String,
@@ -238,7 +238,7 @@ pub struct TrackRefDto {
 /// Input to `library_put_artifact`. Same shape as `TrackArtifactDto`
 /// minus the server-supplied `server_id` / `track_id` (provided as
 /// command args) and `fetched_at` (stamped server-side from `now`).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ArtifactInputDto {
     pub artifact_kind: String,
@@ -263,7 +263,7 @@ pub struct ArtifactInputDto {
 
 /// Input to `library_put_fact`. Shape matches `TrackFactDto` minus the
 /// indices.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FactInputDto {
     pub fact_kind: String,
@@ -290,7 +290,7 @@ fn default_confidence() -> f64 {
 }
 
 /// Input to `library_record_play_session`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaySessionInputDto {
     pub server_id: String,
@@ -305,7 +305,7 @@ pub struct PlaySessionInputDto {
 }
 
 /// Cross-server year summary for the Player stats tab.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaySessionYearSummaryDto {
     pub total_listened_sec: f64,
@@ -321,14 +321,14 @@ pub struct PlaySessionYearSummaryDto {
     pub partial_count: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaySessionHeatmapDayDto {
     pub date: String,
     pub track_play_count: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaySessionDayTotalsDto {
     pub total_listened_sec: f64,
@@ -338,7 +338,7 @@ pub struct PlaySessionDayTotalsDto {
     pub partial_count: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaySessionDayTrackDto {
     pub server_id: String,
@@ -353,7 +353,7 @@ pub struct PlaySessionDayTrackDto {
     pub cover_art_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaySessionDayDetailDto {
     pub totals: PlaySessionDayTotalsDto,
@@ -364,7 +364,7 @@ pub struct PlaySessionDayDetailDto {
 pub type PlaySessionRecentTrackDto = PlaySessionDayTrackDto;
 
 /// Summary for one day in the recent-days list (no track rows).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaySessionRecentDayDto {
     pub date: String,
@@ -376,7 +376,7 @@ pub struct PlaySessionRecentDayDto {
 }
 
 /// Earliest/latest calendar years with at least one session (local TZ).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaySessionYearBoundsDto {
     pub min_year: Option<i32>,
@@ -433,7 +433,7 @@ pub struct LibraryGenreAlbumsResponse {
 }
 
 /// `library_purge_server` outcome.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PurgeReportDto {
     pub tracks_deleted: u32,
@@ -445,7 +445,7 @@ pub struct PurgeReportDto {
 }
 
 /// `library_sync_start` ack.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncJobDto {
     pub job_id: String,

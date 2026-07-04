@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 
 export interface NdLibrary {
   id: number;
@@ -29,7 +30,9 @@ export async function ndLogin(
   username: string,
   password: string,
 ): Promise<NdLoginResult> {
-  return invoke<NdLoginResult>('navidrome_login', { serverUrl, username, password });
+  const res = await commands.navidromeLogin(serverUrl, username, password);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
 function extractLibraryIds(o: Record<string, unknown>): number[] {
@@ -82,7 +85,8 @@ export async function ndSetUserLibraries(
   id: string,
   libraryIds: number[],
 ): Promise<void> {
-  await invoke('nd_set_user_libraries', { serverUrl, token, id, libraryIds });
+  const res = await commands.ndSetUserLibraries(serverUrl, token, id, libraryIds);
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 export async function ndCreateUser(
@@ -105,7 +109,8 @@ export async function ndUpdateUser(
 }
 
 export async function ndDeleteUser(serverUrl: string, token: string, id: string): Promise<void> {
-  await invoke('nd_delete_user', { serverUrl, token, id });
+  const res = await commands.ndDeleteUser(serverUrl, token, id);
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 /**
@@ -125,7 +130,9 @@ export async function ndGetSongPath(
   id: string,
 ): Promise<string | null> {
   try {
-    const raw = await invoke<string | null>('nd_get_song_path', { serverUrl, username, password, id });
+    const res = await commands.ndGetSongPath(serverUrl, username, password, id);
+    if (res.status === 'error') return null;
+    const raw = res.data;
     return raw && raw.length > 0 ? raw : null;
   } catch {
     return null;

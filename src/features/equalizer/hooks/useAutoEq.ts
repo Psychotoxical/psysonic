@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { useEqStore } from '@/store/eqStore';
 import { parseFixedBandEqString, type AutoEqVariant, type AutoEqResult } from '@/features/playback/utils/audio/autoEqParse';
 
@@ -26,7 +26,9 @@ export function useAutoEq() {
     setEntriesLoading(true);
     setAutoEqError(null);
     try {
-      const json = await invoke<string>('autoeq_entries');
+      const entriesRes = await commands.autoeqEntries();
+      if (entriesRes.status === 'error') throw new Error(entriesRes.error);
+      const json = entriesRes.data;
       entriesCacheRef.current = JSON.parse(json);
     } catch (e: unknown) {
       setAutoEqError(e instanceof Error ? e.message : t('settings.eqAutoEqError'));
@@ -56,12 +58,14 @@ export function useAutoEq() {
     setAutoEqLoading(true);
     setAutoEqError(null);
     try {
-      const text = await invoke<string>('autoeq_fetch_profile', {
-        name: result.name,
-        source: result.source,
-        rig: result.rig ?? null,
-        form: result.form,
-      });
+      const fetchRes = await commands.autoeqFetchProfile(
+        result.name,
+        result.source,
+        result.rig ?? null,
+        result.form,
+      );
+      if (fetchRes.status === 'error') throw new Error(fetchRes.error);
+      const text = fetchRes.data;
       if (!text) throw new Error(t('settings.eqAutoEqFetchError'));
       const { gains: newGains, preamp } = parseFixedBandEqString(text);
       applyAutoEq(result.name, newGains, preamp);

@@ -1,4 +1,4 @@
-mod mini;
+pub(crate) mod mini;
 
 pub(crate) use mini::{
     close_mini_player, open_mini_player, pause_rendering, persist_mini_pos_throttled,

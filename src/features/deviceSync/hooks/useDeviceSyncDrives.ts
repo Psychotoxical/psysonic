@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { getRemovableDrives } from '@/lib/api/syncfs';
 import type { RemovableDrive } from '@/features/deviceSync/utils/deviceSyncHelpers';
 
 export interface DeviceSyncDrivesResult {
@@ -17,7 +17,7 @@ export function useDeviceSyncDrives(targetDir: string | null): DeviceSyncDrivesR
   const refreshDrives = useCallback(async () => {
     setDrivesLoading(true);
     try {
-      const result = await invoke<RemovableDrive[]>('get_removable_drives');
+      const result = await getRemovableDrives();
       setDrives(result);
     } catch {
       setDrives([]);

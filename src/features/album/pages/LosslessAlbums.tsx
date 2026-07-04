@@ -16,7 +16,7 @@ import { useRangeSelection } from '@/lib/hooks/useRangeSelection';
 import { useMainstageInpageHeaderTight } from '@/lib/hooks/useMainstageInpageHeaderTight';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import { showToast } from '@/lib/dom/toast';
-import { invoke } from '@tauri-apps/api/core';
+import { downloadZip } from '@/lib/api/downloadZip';
 import { join } from '@tauri-apps/api/path';
 import { Download, HardDriveDownload, ListPlus } from 'lucide-react';
 import SelectionToggleButton from '@/ui/SelectionToggleButton';
@@ -280,7 +280,7 @@ export default function LosslessAlbums() {
       const url = buildDownloadUrl(album.id);
       start(downloadId, filename);
       try {
-        await invoke('download_zip', { id: downloadId, url, destPath });
+        await downloadZip({ id: downloadId, url, destPath });
         complete(downloadId);
       } catch (e) {
         fail(downloadId);

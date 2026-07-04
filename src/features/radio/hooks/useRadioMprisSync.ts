@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { mprisSetMetadata } from '@/lib/api/mpris';
 import type { InternetRadioStation } from '@/lib/api/subsonicTypes';
 import type { RadioMetadata } from '@/features/radio/hooks/useRadioMetadata';
 
@@ -62,7 +62,7 @@ export function useRadioMprisSync(
     }
 
     // Mirror to the souvlaki-backed controls for desktops that surface those.
-    invoke('mpris_set_metadata', {
+    mprisSetMetadata({
       title,
       artist,
       album: album ?? null,

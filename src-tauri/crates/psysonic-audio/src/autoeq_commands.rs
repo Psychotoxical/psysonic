@@ -40,6 +40,7 @@ pub(crate) fn autoeq_profile_url_candidates(
 
 /// Proxy: fetches https://autoeq.app/entries via Rust to bypass WebView CORS restrictions.
 #[tauri::command]
+#[specta::specta]
 pub async fn autoeq_entries(state: State<'_, AudioEngine>) -> Result<String, String> {
     audio_http_client(&state)
         .get("https://autoeq.app/entries")
@@ -49,6 +50,7 @@ pub async fn autoeq_entries(state: State<'_, AudioEngine>) -> Result<String, Str
 
 /// Fetches the AutoEQ FixedBandEQ profile for a specific headphone from GitHub raw content.
 #[tauri::command]
+#[specta::specta]
 pub async fn autoeq_fetch_profile(
     name: String,
     source: String,

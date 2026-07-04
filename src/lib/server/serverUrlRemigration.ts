@@ -27,7 +27,7 @@
  * the existing cover backfill on next access.
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import type { ServerProfile } from '@/store/authStoreTypes';
 import {
   migrationInspect,
@@ -107,10 +107,8 @@ export async function runIndexKeyRemigration(
   }
 
   try {
-    await invoke('cover_cache_rename_server_bucket', {
-      oldKey: remap.oldKey,
-      newKey: remap.newKey,
-    });
+    const res = await commands.coverCacheRenameServerBucket(remap.oldKey, remap.newKey);
+    if (res.status === 'error') throw new Error(res.error);
   } catch (e) {
     // Cover rename is the latest step and the most recoverable failure:
     // the disk bucket is still under oldKey, library + analysis already

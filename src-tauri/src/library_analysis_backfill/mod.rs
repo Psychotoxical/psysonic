@@ -20,6 +20,7 @@ pub fn init_library_analysis_backfill(app: &AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 #[allow(clippy::too_many_arguments)] // Tauri command surface — args map 1:1 to the JS call (like cover configure + workers).
 pub async fn library_analysis_backfill_configure(
     app: AppHandle,

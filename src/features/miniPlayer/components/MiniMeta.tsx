@@ -1,6 +1,6 @@
 import { emit } from '@tauri-apps/api/event';
 import CachedImage from '@/ui/CachedImage';
-import { OpenArtistRefInline } from '@/features/artist';
+import { OpenArtistRefInline } from '@/ui/OpenArtistRefInline';
 import type { MiniTrackInfo } from '@/features/miniPlayer/utils/miniPlayerBridge';
 
 interface Props {

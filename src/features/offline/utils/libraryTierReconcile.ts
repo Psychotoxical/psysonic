@@ -1,31 +1,24 @@
 import { libraryUpsertSongsFromApi } from '@/lib/api/library';
 import { librarySqlServerId } from '@/lib/api/coverCache';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
-import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from '@/store/authStore';
 import type { LocalPlaybackEntry, PinSource } from '@/store/localPlaybackStore';
 import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
 import { getMediaDir } from '@/lib/media/mediaDir';
+import { discoverLibraryTierOnDisk, pruneOrphanLibraryTierFiles } from '@/lib/api/syncfs';
 import { resolveIndexKey, serverIndexKeyForProfile } from '@/lib/server/serverIndexKey';
 import {
   entryBelongsToServer,
   findLocalPlaybackEntry,
   indexKeyBelongsToServer,
 } from '@/store/localPlaybackResolve';
+import type { LibraryTierDiskHit } from '@/generated/bindings';
 
 interface LibraryTrackProbeResult {
   path: string;
   size: number;
   layoutFingerprint: string;
   exists: boolean;
-}
-
-interface LibraryTierDiskHit {
-  trackId: string;
-  path: string;
-  size: number;
-  layoutFingerprint: string;
-  suffix: string;
 }
 
 export interface LibraryTierReconcileResult {
@@ -93,7 +86,7 @@ async function discoverLibraryTierHits(
   const serverIndexKey = serverIndexKeyForServerId(serverId);
   const libraryServerId = librarySqlServerId(serverId);
   try {
-    return await invoke<LibraryTierDiskHit[]>('discover_library_tier_on_disk', {
+    return await discoverLibraryTierOnDisk({
       serverIndexKey,
       libraryServerId,
       candidateTrackIds,
@@ -186,7 +179,7 @@ export async function reconcileLibraryTierForServer(
 
   let orphansRemoved: number;
   try {
-    const removed = await invoke<string[]>('prune_orphan_library_tier_files', {
+    const removed = await pruneOrphanLibraryTierFiles({
       serverIndexKey,
       keepPaths: [...keepPaths],
       mediaDir: getMediaDir(),
@@ -258,7 +251,7 @@ export async function reconcileLibraryTierForAlbum(
 
   let orphansRemoved: number;
   try {
-    const removed = await invoke<string[]>('prune_orphan_library_tier_files', {
+    const removed = await pruneOrphanLibraryTierFiles({
       serverIndexKey,
       keepPaths: [...keepPaths],
       mediaDir: getMediaDir(),

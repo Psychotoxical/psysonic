@@ -138,7 +138,7 @@ async function runOrchestrator(force = false): Promise<void> {
   })()
     .catch((error: unknown) => {
       if (!(error instanceof Error && error.message === 'genre_tags_incomplete')) {
-        useMigrationStore.getState().setError(String(error));
+        useMigrationStore.getState().setError(error instanceof Error ? error.message : String(error));
       }
       useMigrationStore.getState().setPhase('error');
     })
@@ -166,7 +166,7 @@ export function retryGenreTagsMigration(): void {
       state.setPhase('completed');
     } catch (error: unknown) {
       if (!(error instanceof Error && error.message === 'genre_tags_incomplete')) {
-        state.setError(String(error));
+        state.setError(error instanceof Error ? error.message : String(error));
       }
       state.setPhase('error');
     }

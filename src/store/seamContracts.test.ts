@@ -23,11 +23,20 @@ vi.mock('@/lib/api/subsonicLibrary', () => ({ getAlbumForServer }));
 vi.mock('@/lib/api/subsonicArtists', () => ({ getArtistForServer: vi.fn(async () => null) }));
 vi.mock('@/lib/api/subsonicPlaylists', () => ({ getPlaylistForServer: vi.fn(async () => null) }));
 
-import * as mediaResolver from '@/store/mediaResolver';
-import * as orbitRuntime from '@/store/orbitRuntime';
-import * as playbackEngineBridge from '@/store/playbackEngineBridge';
+// Re-import each seam from a fresh module registry per test so the
+// "unregistered default" case never depends on running before the "after
+// registerX" case: vi.resetModules() drops the registration a prior test
+// installed, making this file order-independent (robust to test reordering /
+// sequence.shuffle).
+let mediaResolver: typeof import('@/store/mediaResolver');
+let orbitRuntime: typeof import('@/store/orbitRuntime');
+let playbackEngineBridge: typeof import('@/store/playbackEngineBridge');
 
-beforeEach(() => {
+beforeEach(async () => {
+  vi.resetModules();
+  mediaResolver = await import('@/store/mediaResolver');
+  orbitRuntime = await import('@/store/orbitRuntime');
+  playbackEngineBridge = await import('@/store/playbackEngineBridge');
   getAlbumForServer.mockReset();
   getAlbumForServer.mockResolvedValue(resolvedAlbum('net-album'));
 });

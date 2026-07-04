@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { audioPreload } from '@/lib/api/audio';
 import { useAuthStore } from '@/store/authStore';
 import { autodjMaxOverlapCapSec } from '@/lib/audio/autodjOverlapCap';
 import { computeWaveformSilence, planCrossfadeTransition } from '@/lib/waveform/waveformSilence';
@@ -74,7 +74,7 @@ export function kickEagerCrossfadePreload(
   const url = resolvePlaybackUrl(track.id, serverId ?? undefined);
   setBytePreloadingId(track.id);
   void refreshLoudnessForTrack(track.id, { syncPlayingEngine: false });
-  invoke('audio_preload', {
+  audioPreload({
     url,
     durationHint: track.duration,
     analysisTrackId: track.id,
@@ -158,7 +158,7 @@ export function maybeCrossfadeBytePreload(currentTime: number, dur: number): voi
     // Loudness cache only — never refreshWaveformForTrack(next): it writes the
     // global waveformBins and would replace the current track's seekbar.
     void refreshLoudnessForTrack(nextTrack.id, { syncPlayingEngine: false });
-    invoke('audio_preload', {
+    audioPreload({
       url: nextUrl,
       durationHint: nextTrack.duration,
       analysisTrackId: nextTrack.id,

@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { mprisSetMetadata } from '@/lib/api/mpris';
 import { listen } from '@tauri-apps/api/event';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 
@@ -20,7 +20,7 @@ export function setupRadioMprisMetadata(): () => void {
     const artist = sep !== -1 ? payload.title.slice(0, sep).trim() : null;
     const title  = sep !== -1 ? payload.title.slice(sep + 3).trim() : payload.title;
 
-    invoke('mpris_set_metadata', {
+    mprisSetMetadata({
       title: title || currentRadio.name,
       artist: artist || currentRadio.name,
       album: null,

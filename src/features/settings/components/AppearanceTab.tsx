@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { invoke } from '@tauri-apps/api/core';
+import { isTilingWmCmd } from '@/lib/api/platformShell';
 import { LayoutGrid, Maximize2, Palette, Sliders, Type, ZoomIn } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import {
@@ -28,7 +28,7 @@ export function AppearanceTab() {
 
   useEffect(() => {
     if (!IS_LINUX) return;
-    invoke<boolean>('is_tiling_wm_cmd').then(setIsTilingWm).catch(() => {});
+    isTilingWmCmd().then(setIsTilingWm).catch(() => {});
   }, []);
 
   return (

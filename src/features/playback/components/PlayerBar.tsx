@@ -7,7 +7,7 @@ import {
   SlidersVertical, X,
   PictureInPicture2, Ellipsis,
 } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
+import { openMiniPlayer } from '@/lib/api/miniPlayer';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/store/authStore';
@@ -276,7 +276,7 @@ export default function PlayerBar() {
           {isLayoutVisible('miniPlayer') && (
             <button
               className="player-btn player-btn-sm"
-              onClick={() => invoke('open_mini_player').catch(() => {})}
+              onClick={() => openMiniPlayer().catch(() => {})}
               aria-label={t('player.miniPlayer')}
               data-tooltip={t('player.miniPlayer')}
             >

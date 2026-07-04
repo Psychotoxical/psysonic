@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { useAuthStore } from '@/store/authStore';
 import { api, apiForServer, libraryFilterParams, libraryFilterParamsForServer } from '@/lib/api/subsonicClient';
 import { filterSongsToServerLibrary } from '@/lib/api/subsonicLibrary';
@@ -166,12 +166,6 @@ export async function uploadArtistImage(id: string, file: File): Promise<void> {
   const baseUrl = getBaseUrl();
   const buffer = await file.arrayBuffer();
   const fileBytes = Array.from(new Uint8Array(buffer));
-  await invoke('upload_artist_image', {
-    serverUrl: baseUrl,
-    artistId: id,
-    username: server?.username ?? '',
-    password: server?.password ?? '',
-    fileBytes,
-    mimeType: file.type || 'image/jpeg',
-  });
+  const res = await commands.uploadArtistImage(baseUrl, id, server?.username ?? '', server?.password ?? '', fileBytes, file.type || 'image/jpeg');
+  if (res.status === 'error') throw new Error(res.error);
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { computeSyncPaths } from '@/lib/api/syncfs';
 import { fetchTracksForSource } from '@/features/playback/utils/playback/fetchTracksForSource';
 import { trackToSyncInfo, type SyncStatus } from '@/features/deviceSync/utils/deviceSyncHelpers';
 import type { DeviceSyncSource } from '@/features/deviceSync/store/deviceSyncStore';
@@ -34,7 +34,7 @@ export function useDeviceSyncSourceStatuses(
         if (cancelled) return;
         try {
           const tracks = await fetchTracksForSource(source);
-          const paths = await invoke<string[]>('compute_sync_paths', {
+          const paths = await computeSyncPaths({
             tracks: tracks.map((tr, idx) => trackToSyncInfo(
               tr, '',
               source.type === 'playlist' ? { name: source.name, index: idx + 1 } : undefined,

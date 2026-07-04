@@ -2,7 +2,7 @@ import { initAudioListeners } from '@/features/playback/store/initAudioListeners
 import '@/features/playback/store/playbackEngineBridgeRegister'; // installs the playback-engine bridge at boot
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import { invoke } from '@tauri-apps/api/core';
+import { preloadMiniPlayer as preloadMiniPlayerWindow } from '@/lib/api/miniPlayer';
 import { showToast } from '@/lib/dom/toast';
 import { WindowVisibilityProvider } from '@/lib/hooks/useWindowVisibility';
 import { DragDropProvider } from '@/lib/dnd/DragDropContext';
@@ -93,7 +93,7 @@ export default function MainApp() {
   const preloadMiniPlayer = useAuthStore(s => s.preloadMiniPlayer);
   useEffect(() => {
     if (!migrationReady || IS_WINDOWS || !preloadMiniPlayer) return;
-    invoke('preload_mini_player').catch(() => {});
+    preloadMiniPlayerWindow().catch(() => {});
   }, [preloadMiniPlayer, migrationReady]);
 
   useEffect(() => {
@@ -156,7 +156,7 @@ export default function MainApp() {
         showToast('📭 Keine Alben in diesem Zeitraum gefunden');
       }
     } catch (err) {
-      showToast(`❌ Export fehlgeschlagen: ${String(err).slice(0, 80)}`);
+      showToast(`❌ Export fehlgeschlagen: ${(err instanceof Error ? err.message : String(err)).slice(0, 80)}`);
       console.error('[easter egg] export failed:', err);
     }
   };

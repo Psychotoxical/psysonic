@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { downloadZip } from '@/lib/api/downloadZip';
 import { join } from '@tauri-apps/api/path';
 import { buildDownloadUrl } from '@/lib/api/subsonicStreamUrl';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
@@ -27,7 +27,7 @@ export async function runPlaylistZipDownload(deps: RunPlaylistZipDownloadDeps): 
   start(downloadId, filename);
   setZipDownloadId(downloadId);
   try {
-    await invoke('download_zip', { id: downloadId, url, destPath });
+    await downloadZip({ id: downloadId, url, destPath });
     complete(downloadId);
   } catch (e) {
     fail(downloadId);

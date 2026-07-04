@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 
 /**
  * Resolve a hostname (or `host:port`) to a deduped list of IP-address strings
@@ -17,7 +17,8 @@ export async function resolveHostAddresses(hostname: string): Promise<string[]> 
   const trimmed = hostname.trim();
   if (!trimmed) return [];
   try {
-    return await invoke<string[]>('resolve_host_addresses', { hostname: trimmed });
+    const res = await commands.resolveHostAddresses(trimmed);
+    return res.status === 'error' ? [] : res.data;
   } catch {
     return [];
   }

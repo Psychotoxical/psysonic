@@ -1,5 +1,5 @@
 import { join } from '@tauri-apps/api/path';
-import { invoke } from '@tauri-apps/api/core';
+import { downloadZip } from '@/lib/api/downloadZip';
 import { getSimilarSongs2, fetchSimilarTracksRouted, getTopSongs } from '@/lib/api/subsonicArtists';
 import { filterSongsForLuckyMixRatings, getMixMinRatingsConfigFromAuth } from '@/features/playback/utils/mixRatingFilter';
 import { buildDownloadUrl } from '@/lib/api/subsonicStreamUrl';
@@ -147,7 +147,7 @@ export async function downloadAlbum(albumName: string, albumId: string) {
   const { start, complete, fail } = useZipDownloadStore.getState();
   start(id, filename);
   try {
-    await invoke('download_zip', { id, url, destPath });
+    await downloadZip({ id, url, destPath });
     complete(id);
   } catch (e) {
     fail(id);

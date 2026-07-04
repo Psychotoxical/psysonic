@@ -6,7 +6,7 @@ use rusqlite::OptionalExtension;
 
 use crate::store::LibraryStore;
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CoverEntryDto {
     pub cache_kind: String,

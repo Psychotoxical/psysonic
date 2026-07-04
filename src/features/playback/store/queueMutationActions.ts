@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { audioStop } from '@/lib/api/audio';
 import { orbitBulkGuard } from '@/store/orbitRuntime';
 import { useAuthStore } from '@/store/authStore';
 import { setIsAudioPaused } from '@/features/playback/store/engineState';
@@ -223,7 +223,7 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
 
     clearQueue: () => {
       void playListenSessionFinalize('stop');
-      invoke('audio_stop').catch(console.error);
+      audioStop().catch(console.error);
       setIsAudioPaused(false);
       clearSeekFallbackRetry();
       clearSeekDebounce(); clearSeekTarget();

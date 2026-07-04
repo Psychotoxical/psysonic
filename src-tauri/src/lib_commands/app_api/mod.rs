@@ -1,12 +1,12 @@
-mod backup;
+pub(crate) mod backup;
 mod cli_bridge;
 // `pub(crate)` so tauri-specta's `collect_commands!` can reach the `#[specta::specta]`
 // helper macro by full path (a `pub use` of the fn does not carry the macro).
 pub(crate) mod core;
-mod integration;
-mod migration;
-mod network;
-mod perf;
+pub(crate) mod integration;
+pub(crate) mod migration;
+pub(crate) mod network;
+pub(crate) mod perf;
 pub(crate) mod platform;
 
 // Tauri commands re-exported for the lib.rs invoke_handler.

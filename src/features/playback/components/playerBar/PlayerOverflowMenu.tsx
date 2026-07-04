@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { PictureInPicture2, SlidersVertical } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
+import { openMiniPlayer } from '@/lib/api/miniPlayer';
 import type { TFunction } from 'i18next';
 import { PlayerVolume } from '@/features/playback/components/playerBar/PlayerVolume';
 import { PlayerPlaybackRateMenuSection } from '@/features/playback/components/playerBar/PlayerPlaybackRate';
@@ -65,7 +65,7 @@ export function PlayerOverflowMenu({
             <button
               className="player-overflow-menu-btn"
               onClick={() => {
-                invoke('open_mini_player').catch(() => {});
+                openMiniPlayer().catch(() => {});
                 closeMenu();
               }}
             >

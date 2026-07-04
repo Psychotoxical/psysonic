@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { themeAnimationRisk } from '@/lib/api/platformShell';
 import { IS_LINUX } from '@/lib/util/platform';
 
 /**
@@ -27,7 +27,7 @@ export function useThemeAnimationRisk(): boolean {
       return;
     }
     let alive = true;
-    const p = invoke<boolean>('theme_animation_risk');
+    const p = themeAnimationRisk();
     // Guard the mocked-in-tests case where invoke isn't a real promise.
     if (p && typeof (p as Promise<boolean>).then === 'function') {
       (p as Promise<boolean>)

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { invoke } from '@tauri-apps/api/core';
+import { cancelDeviceSync } from '@/lib/api/syncfs';
 import {
   AlertCircle, CheckCircle2, Clock, HardDriveUpload, Loader2,
   Trash2, Undo2,
@@ -200,7 +200,7 @@ export default function DeviceSyncDevicePanel({
             style={{ fontSize: 12, padding: '2px 10px' }}
             onClick={() => {
               const jobId = useDeviceSyncJobStore.getState().jobId;
-              if (jobId) invoke('cancel_device_sync', { jobId });
+              if (jobId) cancelDeviceSync({ jobId });
               useDeviceSyncJobStore.getState().cancel();
             }}
           >

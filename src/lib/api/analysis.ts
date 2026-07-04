@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { useAuthStore } from '@/store/authStore';
 import { serverIndexKeyFromUrl } from '@/lib/server/serverIndexKey';
 
@@ -36,7 +36,10 @@ export interface LibraryAnalysisProgressDto {
 
 export interface AnalysisFailedTrackDto {
   trackId: string;
-  md5_16kb: string;
+  // Wire truth from the specta contract: the Rust field `md5_16kb` under
+  // `#[serde(rename_all = "camelCase")]` serialises as `md516kb`. The former
+  // `md5_16kb` field here read `undefined` at runtime (latent since introduction).
+  md516kb: string;
   updatedAt: number;
 }
 
@@ -52,64 +55,75 @@ function serverIndexKeyForId(serverId: string): string {
   return serverIndexKeyFromUrl(server.url) || serverId;
 }
 
-export function analysisGetBackfillQueueStats(): Promise<AnalysisBackfillQueueStatsDto> {
-  return invoke<AnalysisBackfillQueueStatsDto>('analysis_get_backfill_queue_stats');
+export async function analysisGetBackfillQueueStats(): Promise<AnalysisBackfillQueueStatsDto> {
+  const res = await commands.analysisGetBackfillQueueStats();
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
-export function analysisGetPipelineQueueStats(): Promise<AnalysisPipelineQueueStatsDto> {
-  return invoke<AnalysisPipelineQueueStatsDto>('analysis_get_pipeline_queue_stats');
+export async function analysisGetPipelineQueueStats(): Promise<AnalysisPipelineQueueStatsDto> {
+  const res = await commands.analysisGetPipelineQueueStats();
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
-export function libraryAnalysisProgress(
+export async function libraryAnalysisProgress(
   serverId: string,
 ): Promise<LibraryAnalysisProgressDto> {
   const indexKey = serverIndexKeyForId(serverId);
-  return invoke<LibraryAnalysisProgressDto>('library_analysis_progress', { serverId: indexKey });
+  const res = await commands.libraryAnalysisProgress(indexKey);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
-export function libraryCountLiveTracks(serverId: string): Promise<number> {
+export async function libraryCountLiveTracks(serverId: string): Promise<number> {
   const indexKey = serverIndexKeyForId(serverId);
-  return invoke<number>('library_count_live_tracks', { serverId: indexKey });
+  const res = await commands.libraryCountLiveTracks(indexKey);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
-export function analysisDeleteAllForServer(
+export async function analysisDeleteAllForServer(
   serverId: string,
 ): Promise<AnalysisDeleteServerReportDto> {
   const indexKey = serverIndexKeyForId(serverId);
-  return invoke<AnalysisDeleteServerReportDto>('analysis_delete_all_for_server', { serverId: indexKey });
+  const res = await commands.analysisDeleteAllForServer(indexKey);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
-export function analysisGetFailedTrackCount(serverId: string): Promise<number> {
+export async function analysisGetFailedTrackCount(serverId: string): Promise<number> {
   const indexKey = serverIndexKeyForId(serverId);
-  return invoke<number>('analysis_get_failed_track_count', { serverId: indexKey });
+  const res = await commands.analysisGetFailedTrackCount(indexKey);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
-export function analysisListFailedTracks(
+export async function analysisListFailedTracks(
   serverId: string,
   limit?: number,
 ): Promise<AnalysisFailedTrackDto[]> {
   const indexKey = serverIndexKeyForId(serverId);
-  return invoke<AnalysisFailedTrackDto[]>('analysis_list_failed_tracks', {
-    serverId: indexKey,
-    limit: limit ?? null,
-  });
+  const res = await commands.analysisListFailedTracks(indexKey, limit ?? null);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
-export function analysisClearFailedTracks(
+export async function analysisClearFailedTracks(
   serverId: string,
   trackIds?: string[],
 ): Promise<number> {
   const indexKey = serverIndexKeyForId(serverId);
-  return invoke<number>('analysis_clear_failed_tracks', {
-    serverId: indexKey,
-    trackIds: trackIds ?? null,
-  });
+  const res = await commands.analysisClearFailedTracks(indexKey, trackIds ?? null);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
 export type AnalysisBackfillPriority = 'high' | 'middle' | 'low';
 
-export function analysisSetPipelineParallelism(workers: number): Promise<void> {
-  return invoke('analysis_set_pipeline_parallelism', { workers });
+export async function analysisSetPipelineParallelism(workers: number): Promise<void> {
+  const res = await commands.analysisSetPipelineParallelism(workers);
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 export type AnalysisPriorityHintDto = {
@@ -117,24 +131,28 @@ export type AnalysisPriorityHintDto = {
   trackId: string;
 };
 
-export function analysisSetPlaybackPriorityHints(
+export async function analysisSetPlaybackPriorityHints(
   middleTrackRefs: AnalysisPriorityHintDto[],
 ): Promise<void> {
   const remapped = middleTrackRefs.map(ref => ({
     ...ref,
     serverId: serverIndexKeyForId(ref.serverId),
   }));
-  return invoke('analysis_set_playback_priority_hints', { middleTrackRefs: remapped });
+  const res = await commands.analysisSetPlaybackPriorityHints(remapped);
+  if (res.status === 'error') throw new Error(res.error);
 }
 
-export function analysisEnqueueSeedFromUrl(
+export async function analysisEnqueueSeedFromUrl(
   trackId: string,
   url: string,
   serverId: string,
   priority: AnalysisBackfillPriority = 'low',
 ): Promise<void> {
   const indexKey = serverIndexKeyForId(serverId);
-  return invoke('analysis_enqueue_seed_from_url', { trackId, url, serverId: indexKey, priority });
+  // Generated signature threads an extra `force` flag (default off) between
+  // `url` and `serverId`; the FE has never forced re-seed → pass null.
+  const res = await commands.analysisEnqueueSeedFromUrl(trackId, url, null, indexKey, priority);
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 export type LibraryAnalysisBackfillConfigureArgs = {
@@ -148,9 +166,17 @@ export type LibraryAnalysisBackfillConfigureArgs = {
 };
 
 /** Start/stop native library analysis backfill (advanced strategy only). */
-export function libraryAnalysisBackfillConfigure(
+export async function libraryAnalysisBackfillConfigure(
   args: LibraryAnalysisBackfillConfigureArgs,
 ): Promise<void> {
-  // Flat payload — same as `library_cover_backfill_configure` (not `{ args: … }`).
-  return invoke('library_analysis_backfill_configure', args);
+  const res = await commands.libraryAnalysisBackfillConfigure(
+    args.enabled,
+    args.serverIndexKey,
+    args.libraryServerId,
+    args.serverUrl,
+    args.username,
+    args.password,
+    args.workers,
+  );
+  if (res.status === 'error') throw new Error(res.error);
 }

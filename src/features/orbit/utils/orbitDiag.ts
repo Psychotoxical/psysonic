@@ -10,7 +10,7 @@
  * logging on in Settings, so the same data lands in `psysonic-logs-*.log`
  * for power users who want a persistent file.
  */
-import { invoke } from '@tauri-apps/api/core';
+import { frontendDebugLog } from '@/lib/api/debugLog';
 import { useAuthStore } from '@/store/authStore';
 
 /** Hard cap so a long session doesn't spend memory unbounded. ~200 entries. */
@@ -54,10 +54,7 @@ export function pushOrbitEvent(scope: string, message: string | Record<string, u
   // Bridge to the existing Rust log buffer when Debug mode is on, so
   // Settings → Debug → Export still works for the same data.
   if (useAuthStore.getState().loggingMode === 'debug') {
-    void invoke('frontend_debug_log', {
-      scope: `orbit:${scope}`,
-      message: text,
-    }).catch(() => { /* best-effort */ });
+    frontendDebugLog(`orbit:${scope}`, text);
   }
 }
 

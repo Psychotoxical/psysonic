@@ -44,7 +44,7 @@ pub fn nd_apply_request(
 }
 
 /// Payload returned by Navidrome's `/auth/login`.
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 pub struct NdLoginResult {
     pub(super) token: String,
     #[serde(rename = "userId")]

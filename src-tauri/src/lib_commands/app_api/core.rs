@@ -11,6 +11,7 @@ pub(crate) fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn exit_app(app_handle: tauri::AppHandle) {
     if let Some(cache) = app_handle.try_state::<analysis_cache::AnalysisCache>() {
         let _ = cache.checkpoint_wal("exit");
@@ -21,28 +22,31 @@ pub(crate) fn exit_app(app_handle: tauri::AppHandle) {
 
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn set_logging_mode(mode: String) -> Result<(), String> {
     crate::logging::set_logging_mode_from_str(&mode)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn get_logging_mode() -> String {
     crate::logging::current_mode_str().to_string()
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn export_runtime_logs(path: String) -> Result<usize, String> {
     crate::logging::export_logs_to_file(&path)
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LogLineDto {
     pub seq: u64,
     pub text: String,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LogTailDto {
     pub lines: Vec<LogLineDto>,
@@ -54,6 +58,7 @@ pub(crate) struct LogTailDto {
 /// `after_seq` is the highest seq the UI already has (omit for
 /// the initial fetch of the most recent `max` lines).
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn tail_runtime_logs(after_seq: Option<u64>, max: Option<usize>) -> LogTailDto {
     let tail = crate::logging::tail_logs(after_seq, max.unwrap_or(2000));
     LogTailDto {
@@ -68,12 +73,14 @@ pub(crate) fn tail_runtime_logs(after_seq: Option<u64>, max: Option<usize>) -> L
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn frontend_debug_log(scope: String, message: String) -> Result<(), String> {
     crate::app_deprintln!("[frontend][{}] {}", scope, message);
     Ok(())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn set_subsonic_wire_user_agent(
     user_agent: String,
     window_label: String,

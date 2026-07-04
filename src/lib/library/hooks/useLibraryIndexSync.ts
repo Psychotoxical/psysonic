@@ -222,7 +222,7 @@ export function useLibraryIndexSync() {
       await enqueueLibrarySync({ serverId: key, kind });
     } catch (e) {
       setBusyServerId(null);
-      showToast(t('settings.libraryIndexSyncError', { error: String(e) }), 5000, 'error');
+      showToast(t('settings.libraryIndexSyncError', { error: e instanceof Error ? e.message : String(e) }), 5000, 'error');
     }
   }, [statusByServer, t]);
 

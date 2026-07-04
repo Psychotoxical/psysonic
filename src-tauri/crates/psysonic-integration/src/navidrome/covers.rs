@@ -10,6 +10,7 @@ use tauri::State;
 use super::client::{navidrome_token_with_registry, nd_apply_request, nd_http_client};
 
 #[tauri::command]
+#[specta::specta]
 pub async fn upload_playlist_cover(
     http_registry: State<'_, Arc<ServerHttpRegistry>>,
     server_url: String,
@@ -45,6 +46,7 @@ pub async fn upload_playlist_cover(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn upload_radio_cover(
     http_registry: State<'_, Arc<ServerHttpRegistry>>,
     server_url: String,
@@ -80,6 +82,7 @@ pub async fn upload_radio_cover(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn upload_artist_image(
     http_registry: State<'_, Arc<ServerHttpRegistry>>,
     server_url: String,
@@ -115,6 +118,7 @@ pub async fn upload_artist_image(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_radio_cover(
     http_registry: State<'_, Arc<ServerHttpRegistry>>,
     server_url: String,

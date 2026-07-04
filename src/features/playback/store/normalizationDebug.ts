@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { frontendDebugLog } from '@/lib/api/debugLog';
 import { useAuthStore } from '@/store/authStore';
 
 /**
@@ -12,8 +12,5 @@ import { useAuthStore } from '@/store/authStore';
  */
 export function emitNormalizationDebug(step: string, details?: Record<string, unknown>): void {
   if (useAuthStore.getState().loggingMode !== 'debug') return;
-  void invoke('frontend_debug_log', {
-    scope: 'normalization',
-    message: JSON.stringify({ step, details }),
-  }).catch(() => {});
+  frontendDebugLog('normalization', JSON.stringify({ step, details }));
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { audioSetDevice } from '@/lib/api/audio';
 import { AudioLines, RotateCcw } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import CustomSelect from '@/ui/CustomSelect';
@@ -61,7 +61,7 @@ export function AudioOutputDeviceSection({
                 const device = val || null;
                 setDeviceSwitching(true);
                 try {
-                  await invoke('audio_set_device', { deviceName: device });
+                  await audioSetDevice({ deviceName: device });
                   setAudioOutputDevice(device);
                 } catch { /* device open failed — don't persist */ }
                 setDeviceSwitching(false);

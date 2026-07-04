@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { useAuthStore } from '@/store/authStore';
 import { shouldAttemptSubsonicForServer } from '@/lib/network/subsonicNetworkGuard';
 import { api, apiForServer } from '@/lib/api/subsonicClient';
@@ -78,14 +78,8 @@ export async function uploadPlaylistCoverArt(id: string, file: File): Promise<vo
   const baseUrl = getBaseUrl();
   const buffer = await file.arrayBuffer();
   const fileBytes = Array.from(new Uint8Array(buffer));
-  await invoke('upload_playlist_cover', {
-    serverUrl: baseUrl,
-    playlistId: id,
-    username: server?.username ?? '',
-    password: server?.password ?? '',
-    fileBytes,
-    mimeType: file.type || 'image/jpeg',
-  });
+  const res = await commands.uploadPlaylistCover(baseUrl, id, server?.username ?? '', server?.password ?? '', fileBytes, file.type || 'image/jpeg');
+  if (res.status === 'error') throw new Error(res.error);
 }
 
 export async function deletePlaylist(id: string): Promise<void> {

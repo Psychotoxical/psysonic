@@ -1,4 +1,5 @@
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
+import type { TrackSyncInfo } from '@/generated/bindings';
 
 export type SourceTab = 'playlists' | 'albums' | 'artists';
 
@@ -6,14 +7,7 @@ export function uuid(): string { return crypto.randomUUID(); }
 
 export type SyncStatus = 'synced' | 'pending' | 'deletion';
 
-export interface RemovableDrive {
-  name: string;
-  mount_point: string;
-  available_space: number;
-  total_space: number;
-  file_system: string;
-  is_removable: boolean;
-}
+export type { RemovableDrive } from '@/generated/bindings';
 
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -32,7 +26,7 @@ export function trackToSyncInfo(
   track: SyncTrackMaybePlaylist,
   url: string,
   playlistCtx?: { name: string; index: number },
-) {
+): TrackSyncInfo {
   // Fall back to track artist when the file has no albumArtist tag — not every
   // library is tagged with it. Treat empty strings as missing (some Subsonic
   // servers return "" rather than omitting the field).
@@ -44,7 +38,7 @@ export function trackToSyncInfo(
     albumArtist,
     album: track.album ?? '',
     title: track.title ?? '',
-    trackNumber: track.track,
+    trackNumber: track.track ?? null,
     duration: track.duration,
     playlistName: playlistCtx?.name ?? track._playlistName,
     playlistIndex: playlistCtx?.index ?? track._playlistIndex,

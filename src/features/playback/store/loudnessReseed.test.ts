@@ -95,6 +95,8 @@ describe('reseedLoudnessForTrackId', () => {
       url: 'https://mock/stream/t1',
       force: true,
       serverId: null,
+      // Typed binding threads the (unused) priority arg through; null = default (behaviour-equivalent).
+      priority: null,
     });
   });
 

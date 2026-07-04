@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { audioSeek } from '@/lib/api/audio';
 import { playbackReportSeek } from '@/features/playback/store/playbackReportSession';
 import { isRecoverableSeekError } from '@/features/playback/utils/audio/seekErrors';
 import { getPlaybackServerId } from '@/features/playback/utils/playback/playbackServer';
@@ -64,7 +64,7 @@ export function runSeek(set: SetState, get: GetState, progress: number): void {
       s0.playTrack(s0.currentTrack, undefined, true);
       return;
     }
-    invoke('audio_seek', { seconds: time }).then(() => {
+    audioSeek({ seconds: time }).then(() => {
       // Arm stale-progress guard only after backend acknowledged seek.
       setSeekTarget(time);
       noteEngineProgressForGapless(time);

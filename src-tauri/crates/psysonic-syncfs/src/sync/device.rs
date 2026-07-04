@@ -5,7 +5,7 @@ use crate::file_transfer::{apply_server_http_get, finalize_streamed_download, su
 // ─── Device Sync ─────────────────────────────────────────────────────────────
 
 /// Information about a single mounted removable drive.
-#[derive(Clone, serde::Serialize)]
+#[derive(Clone, serde::Serialize, specta::Type)]
 pub struct RemovableDrive {
     pub name: String,
     pub mount_point: String,
@@ -19,6 +19,7 @@ pub struct RemovableDrive {
 /// On Linux these are typically USB sticks / SD cards under /media or /run/media.
 /// On macOS they appear under /Volumes. On Windows they are separate drive letters.
 #[tauri::command]
+#[specta::specta]
 pub fn get_removable_drives() -> Vec<RemovableDrive> {
     use sysinfo::Disks;
     let disks = Disks::new_with_refreshed_list();
@@ -64,7 +65,7 @@ pub fn read_device_manifest(dest_dir: String) -> Option<serde_json::Value> {
 }
 
 /// Per-entry result for `rename_device_files`.
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 pub struct RenameResult {
     #[serde(rename = "oldPath")]
     old_path: String,
@@ -85,6 +86,7 @@ pub struct RenameResult {
 /// and which failed. Does not roll back on partial failure — each `fs::rename`
 /// is atomic, so nothing can be half-renamed.
 #[tauri::command]
+#[specta::specta]
 pub fn rename_device_files(
     target_dir: String,
     pairs: Vec<(String, String)>,
@@ -170,6 +172,7 @@ pub fn rename_device_files(
 /// playlist is self-contained — moving/copying the folder anywhere keeps it
 /// working. Tracks are expected to be in playlist order (index starts at 1).
 #[tauri::command]
+#[specta::specta]
 pub fn write_playlist_m3u8(
     dest_dir: String,
     playlist_name: String,
@@ -231,7 +234,7 @@ pub fn is_path_on_mounted_volume(path: &std::path::Path) -> bool {
     best_len > 0
 }
 
-#[derive(serde::Deserialize, Clone)]
+#[derive(serde::Deserialize, Clone, specta::Type)]
 pub struct TrackSyncInfo {
     pub id: String,
     pub url: String,
@@ -261,14 +264,14 @@ pub struct TrackSyncInfo {
 }
 
 /// Summary returned by `sync_batch_to_device` after all tracks are processed.
-#[derive(Clone, serde::Serialize)]
+#[derive(Clone, serde::Serialize, specta::Type)]
 pub struct SyncBatchResult {
     pub done: u32,
     pub skipped: u32,
     pub failed: u32,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 pub struct SyncTrackResult {
     pub path: String,
     pub skipped: bool,
@@ -359,6 +362,7 @@ pub(crate) async fn sync_download_one_track(
 /// Downloads a single track to a USB/SD device using the configured filename template.
 /// Emits `device:sync:progress` events with `{ jobId, trackId, status, path? }`.
 #[tauri::command]
+#[specta::specta]
 pub async fn sync_track_to_device(
     track: TrackSyncInfo,
     dest_dir: String,
@@ -408,6 +412,7 @@ pub async fn sync_track_to_device(
 /// Computes the expected file paths for a batch of tracks under the fixed schema.
 /// Used by the cleanup flow to find orphans.
 #[tauri::command]
+#[specta::specta]
 pub fn compute_sync_paths(tracks: Vec<TrackSyncInfo>, dest_dir: String) -> Vec<String> {
     tracks.iter().map(|track| {
         let relative = build_track_path(track);

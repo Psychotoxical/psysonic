@@ -37,7 +37,7 @@ impl AnalysisTierCounts {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisPipelineQueueStatsDto {
     pub pipeline_workers: u32,

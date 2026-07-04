@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { exitApp, pauseRendering } from '@/lib/api/platformShell';
 import type { NavigateFunction } from 'react-router-dom';
 import { flushPlayQueuePosition } from '@/features/playback/store/queueSync';
 import { playListenSessionFinalize } from '@/features/playback/store/playListenSession';
@@ -130,14 +130,14 @@ export function useMediaAndWindowBridge(navigate: NavigateFunction) {
             new Promise(r => setTimeout(r, 1500)),
           ]);
         }
-        await invoke('exit_app');
+        await exitApp();
       };
 
       // window:close-requested is emitted by Rust (prevent_close + emit) on
       // the X-button. JS decides: minimize to tray or exit.
       const u = await listen('window:close-requested', async () => {
         if (useAuthStore.getState().minimizeToTray) {
-          await invoke('pause_rendering').catch(() => {});
+          await pauseRendering().catch(() => {});
           await getCurrentWindow().hide();
         } else {
           await performExit();

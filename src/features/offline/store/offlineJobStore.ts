@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { invoke } from '@tauri-apps/api/core';
+import { cancelOfflineDownloads } from '@/lib/api/syncfs';
 
 export interface DownloadJob {
   trackId: string;
@@ -40,7 +40,7 @@ export const cancelledDownloads = new Set<string>();
 function abortDownloadsInRust(jobs: DownloadJob[]) {
   const downloadIds = [...new Set(jobs.map(j => j.downloadId).filter(Boolean))];
   if (downloadIds.length > 0) {
-    invoke('cancel_offline_downloads', { downloadIds }).catch(() => {});
+    cancelOfflineDownloads({ downloadIds }).catch(() => {});
   }
 }
 

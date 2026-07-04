@@ -4,6 +4,7 @@
  * the `@/lib/api/library` barrel.
  */
 import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { serverIndexKeyForId, mapServerIdFromIndexKey, mapTracksServerId } from './internal';
 import type {
   SyncStateDto,
@@ -24,13 +25,14 @@ import type {
   OfflinePathDto,
 } from './dto';
 
-export function libraryGetStatus(
+export async function libraryGetStatus(
   serverId: string,
   libraryScope?: string,
 ): Promise<SyncStateDto> {
   const indexKey = serverIndexKeyForId(serverId);
-  return invoke<SyncStateDto>('library_get_status', { serverId: indexKey, libraryScope })
-    .then(status => ({ ...status, serverId }));
+  const res = await commands.libraryGetStatus(indexKey, libraryScope ?? null);
+  if (res.status === 'error') throw new Error(res.error);
+  return { ...res.data, serverId } as SyncStateDto;
 }
 
 export function librarySearch(
@@ -210,38 +212,43 @@ export function libraryGetTracksByAlbum(
     .then(tracks => mapTracksServerId(tracks, serverId));
 }
 
-export function libraryGetArtifact(
+export async function libraryGetArtifact(
   serverId: string,
   trackId: string,
   artifactKind: string,
   options?: { sourceKind?: string; sourceId?: string; format?: string },
 ): Promise<TrackArtifactDto | null> {
   const indexKey = serverIndexKeyForId(serverId);
-  return invoke<TrackArtifactDto | null>('library_get_artifact', {
-    serverId: indexKey,
+  const res = await commands.libraryGetArtifact(
+    indexKey,
     trackId,
     artifactKind,
-    sourceKind: options?.sourceKind,
-    sourceId: options?.sourceId,
-    format: options?.format,
-  }).then(artifact => (artifact ? { ...artifact, serverId } : artifact));
+    options?.sourceKind ?? null,
+    options?.sourceId ?? null,
+    options?.format ?? null,
+  );
+  if (res.status === 'error') throw new Error(res.error);
+  const artifact = res.data;
+  return artifact ? ({ ...artifact, serverId } as TrackArtifactDto) : artifact;
 }
 
-export function libraryGetFacts(
+export async function libraryGetFacts(
   serverId: string,
   trackId: string,
   factKinds?: string[],
 ): Promise<TrackFactDto[]> {
   const indexKey = serverIndexKeyForId(serverId);
-  return invoke<TrackFactDto[]>('library_get_facts', { serverId: indexKey, trackId, factKinds })
-    .then(facts => facts.map(fact => ({ ...fact, serverId })));
+  const res = await commands.libraryGetFacts(indexKey, trackId, factKinds ?? null);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data.map(fact => ({ ...fact, serverId })) as TrackFactDto[];
 }
 
-export function libraryGetOfflinePath(
+export async function libraryGetOfflinePath(
   serverId: string,
   trackId: string,
 ): Promise<OfflinePathDto> {
   const indexKey = serverIndexKeyForId(serverId);
-  return invoke<OfflinePathDto>('library_get_offline_path', { serverId: indexKey, trackId })
-    .then(path => ({ ...path, serverId }));
+  const res = await commands.libraryGetOfflinePath(indexKey, trackId);
+  if (res.status === 'error') throw new Error(res.error);
+  return { ...res.data, serverId };
 }

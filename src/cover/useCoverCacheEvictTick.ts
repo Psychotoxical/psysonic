@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 
 const EVICT_TICK_MS = 45_000;
 
@@ -8,7 +8,7 @@ export function useCoverCacheEvictTick(enabled = true): void {
   useEffect(() => {
     if (!enabled) return;
     const tick = () => {
-      void invoke<number>('cover_cache_evict_tick', {}).catch(() => {});
+      void commands.coverCacheEvictTick().catch(() => {});
     };
     tick();
     const id = window.setInterval(tick, EVICT_TICK_MS);

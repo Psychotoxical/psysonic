@@ -1,5 +1,5 @@
 import { playbackReportStart } from '@/features/playback/store/playbackReportSession';
-import { invoke } from '@tauri-apps/api/core';
+import { audioStop } from '@/lib/api/audio';
 import { getPlaybackServerId } from '@/features/playback/utils/playback/playbackServer';
 import { getPlaybackSourceKind } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import {
@@ -208,7 +208,7 @@ export function applyQueueHistorySnapshot(
   });
 
   if (!nextTrack) {
-    invoke('audio_stop').catch(console.error);
+    audioStop().catch(console.error);
     setIsAudioPaused(false);
     syncUserQueueMutationToServer(nextItems, null, 0);
     if (typeof snap.queueListScrollTop === 'number' && Number.isFinite(snap.queueListScrollTop)) {

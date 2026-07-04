@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Upload, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useInstalledThemesStore } from '@/store/installedThemesStore';
 import { validateThemePackage, type ValidatedTheme } from '@/lib/themes/validateThemePackage';
@@ -39,7 +39,9 @@ export function ThemeImportSection() {
 
     setImporting(true);
     try {
-      const files = await invoke<{ manifest: string; css: string }>('import_theme_zip', { path: selected });
+      const res = await commands.importThemeZip(selected);
+      if (res.status === 'error') throw new Error(res.error);
+      const files = res.data;
       const result = validateThemePackage(files.manifest, files.css);
       if (!result.ok) {
         setImportErrors(result.errors);

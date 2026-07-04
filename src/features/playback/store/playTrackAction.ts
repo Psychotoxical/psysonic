@@ -1,5 +1,6 @@
 import { playbackReportStart, playbackReportStopped } from '@/features/playback/store/playbackReportSession';
 import { invoke } from '@tauri-apps/api/core';
+import { audioSeek } from '@/lib/api/audio';
 import { getMusicNetworkRuntimeOrNull } from '@/music-network';
 import { setDeferHotCachePrefetch } from '@/lib/cache/hotCacheGate';
 import { orbitBulkGuard, orbitSnapshot } from '@/store/orbitRuntime';
@@ -524,7 +525,7 @@ export function runPlayTrack(
           const canSeekAfterPlay =
             seekTo > 0.05 && (durSeek == null || seekTo < durSeek - 0.05);
           if (canSeekAfterPlay) {
-            void invoke('audio_seek', { seconds: seekTo })
+            void audioSeek({ seconds: seekTo })
               .then(() => {
                 if (getPlayGeneration() !== gen) return;
                 setSeekTarget(seekTo);

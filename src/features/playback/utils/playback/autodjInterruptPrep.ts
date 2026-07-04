@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { audioBeginOutgoingFade } from '@/lib/api/audio';
 import type { Track } from '@/lib/media/trackTypes';
 import {
   INTERRUPT_BLEND_PREP_FADE_SEC,
@@ -53,7 +53,7 @@ export async function runInterruptBlendPrep(
   isStale: () => boolean,
 ): Promise<InterruptBlendPrepResult> {
   kickEagerCrossfadePreload(track, profileId, cacheKey);
-  void invoke('audio_begin_outgoing_fade', { fadeSecs: INTERRUPT_BLEND_PREP_FADE_SEC }).catch(() => {});
+  void audioBeginOutgoingFade({ fadeSecs: INTERRUPT_BLEND_PREP_FADE_SEC }).catch(() => {});
 
   const prepMs = Math.round(INTERRUPT_BLEND_PREP_FADE_SEC * 1000);
   await Promise.all([

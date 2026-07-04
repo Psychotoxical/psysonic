@@ -63,49 +63,57 @@ export function libraryListAlbumsByGenre(
   }));
 }
 
-export function libraryRecordPlaySession(input: PlaySessionInput): Promise<void> {
+export async function libraryRecordPlaySession(input: PlaySessionInput): Promise<void> {
   const indexKey = serverIndexKeyForId(input.serverId);
-  return invoke<void>('library_record_play_session', { input: { ...input, serverId: indexKey } });
+  const res = await commands.libraryRecordPlaySession({ ...input, serverId: indexKey });
+  if (res.status === 'error') throw new Error(res.error);
 }
 
-export function libraryGetPlayerStatsYearSummary(year: number): Promise<PlaySessionYearSummary> {
-  return invoke<PlaySessionYearSummary>('library_get_player_stats_year_summary', { year });
+export async function libraryGetPlayerStatsYearSummary(year: number): Promise<PlaySessionYearSummary> {
+  const res = await commands.libraryGetPlayerStatsYearSummary(year);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data as PlaySessionYearSummary;
 }
 
-export function libraryGetPlayerStatsHeatmap(year: number): Promise<PlaySessionHeatmapDay[]> {
-  return invoke<PlaySessionHeatmapDay[]>('library_get_player_stats_heatmap', { year });
+export async function libraryGetPlayerStatsHeatmap(year: number): Promise<PlaySessionHeatmapDay[]> {
+  const res = await commands.libraryGetPlayerStatsHeatmap(year);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
-export function libraryGetPlayerStatsDayDetail(dateIso: string): Promise<PlaySessionDayDetail> {
-  return invoke<PlaySessionDayDetail>('library_get_player_stats_day_detail', { dateIso })
-    .then(detail => ({
-      ...detail,
-      tracks: detail.tracks.map(track => ({
-        ...track,
-        serverId: mapServerIdFromIndexKey(track.serverId),
-      })),
-    }));
+export async function libraryGetPlayerStatsDayDetail(dateIso: string): Promise<PlaySessionDayDetail> {
+  const res = await commands.libraryGetPlayerStatsDayDetail(dateIso);
+  if (res.status === 'error') throw new Error(res.error);
+  const detail = res.data;
+  return {
+    ...detail,
+    tracks: detail.tracks.map(track => ({
+      ...track,
+      serverId: mapServerIdFromIndexKey(track.serverId),
+    })),
+  } as PlaySessionDayDetail;
 }
 
-export function libraryGetPlayerStatsYearBounds(): Promise<PlaySessionYearBounds> {
-  return invoke<PlaySessionYearBounds>('library_get_player_stats_year_bounds');
+export async function libraryGetPlayerStatsYearBounds(): Promise<PlaySessionYearBounds> {
+  const res = await commands.libraryGetPlayerStatsYearBounds();
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
 
-export function libraryGetPlayerStatsRecentDays(limit = 30): Promise<PlaySessionRecentDay[]> {
-  return invoke<PlaySessionRecentDay[]>('library_get_player_stats_recent_days', { limit });
+export async function libraryGetPlayerStatsRecentDays(limit = 30): Promise<PlaySessionRecentDay[]> {
+  const res = await commands.libraryGetPlayerStatsRecentDays(limit);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data as PlaySessionRecentDay[];
 }
 
-export function libraryGetRecentPlaySessions(args?: {
+export async function libraryGetRecentPlaySessions(args?: {
   limit?: number;
   sinceMs?: number;
 }): Promise<PlaySessionRecentTrack[]> {
-  return invoke<PlaySessionRecentTrack[]>('library_get_recent_play_sessions', {
-    limit: args?.limit,
-    sinceMs: args?.sinceMs,
-  }).then(rows =>
-    rows.map(row => ({
-      ...row,
-      serverId: mapServerIdFromIndexKey(row.serverId),
-    })),
-  );
+  const res = await commands.libraryGetRecentPlaySessions(args?.limit ?? null, args?.sinceMs ?? null);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data.map(row => ({
+    ...row,
+    serverId: mapServerIdFromIndexKey(row.serverId),
+  })) as PlaySessionRecentTrack[];
 }

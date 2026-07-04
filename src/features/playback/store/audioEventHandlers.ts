@@ -4,7 +4,7 @@ import {
   playbackReportStopped,
 } from '@/features/playback/store/playbackReportSession';
 import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';
-import { invoke } from '@tauri-apps/api/core';
+import { audioPreload, audioSetAutodjSuppress } from '@/lib/api/audio';
 import { getMusicNetworkRuntimeOrNull } from '@/music-network';
 import { setDeferHotCachePrefetch } from '@/lib/cache/hotCacheGate';
 import { notifyLibraryPlaybackHint } from '@/features/playback/store/libraryPlaybackHint';
@@ -106,7 +106,7 @@ let autodjSuppressSent: boolean | null = null;
 function syncAutodjSuppress(want: boolean): void {
   if (autodjSuppressSent === want) return;
   autodjSuppressSent = want;
-  invoke('audio_set_autodj_suppress', { enabled: want }).catch(() => {});
+  audioSetAutodjSuppress({ enabled: want }).catch(() => {});
 }
 
 /** Rust-side `audio:normalization-state` event payload. */
@@ -412,7 +412,7 @@ export function handleAudioProgress(
             gaplessEnabled,
           });
         }
-        invoke('audio_preload', {
+        audioPreload({
           url: nextUrl,
           durationHint: nextTrack.duration,
           analysisTrackId: nextTrack.id,

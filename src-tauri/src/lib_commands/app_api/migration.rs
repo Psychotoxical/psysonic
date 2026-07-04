@@ -27,14 +27,14 @@ fn migration_lock() -> &'static Mutex<()> {
     LOCK.get_or_init(|| Mutex::new(()))
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerIndexMapping {
     pub legacy_id: String,
     pub index_key: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MigrationScopeInspect {
     pub total_legacy_rows: u64,
@@ -42,7 +42,7 @@ pub struct MigrationScopeInspect {
     pub tables: HashMap<String, u64>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MigrationInspectReport {
     pub needs_migration: bool,
@@ -64,7 +64,7 @@ pub struct MigrationProgressEvent {
     pub total: u64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MigrationRunScope {
     pub imported_rows: u64,
@@ -72,7 +72,7 @@ pub struct MigrationRunScope {
     pub skipped_unknown_server_rows: u64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MigrationRunResult {
     pub library: MigrationRunScope,
@@ -83,6 +83,7 @@ pub struct MigrationRunResult {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn migration_inspect(
     app: AppHandle,
     mappings: Vec<ServerIndexMapping>,
@@ -91,6 +92,7 @@ pub fn migration_inspect(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn migration_run(
     app: AppHandle,
     mappings: Vec<ServerIndexMapping>,

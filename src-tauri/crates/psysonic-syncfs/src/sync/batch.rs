@@ -12,6 +12,7 @@ use super::device::{
 };
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_device_dir_files(dir: String) -> Result<Vec<String>, String> {
     let root = std::path::PathBuf::from(&dir);
     if !root.exists() {
@@ -45,6 +46,7 @@ pub async fn list_device_dir_files(dir: String) -> Result<Vec<String>, String> {
 /// Deletes a file from the device and prunes empty parent directories
 /// (up to 2 levels: album folder, then artist folder).
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_device_file(path: String) -> Result<(), String> {
     let p = std::path::PathBuf::from(&path);
     if p.exists() {
@@ -391,6 +393,7 @@ pub async fn calculate_sync_payload(
 
 /// Signals a running `sync_batch_to_device` job to stop after its current tracks finish.
 #[tauri::command]
+#[specta::specta]
 pub fn cancel_device_sync(job_id: String, app: tauri::AppHandle) {
     if let Ok(flags) = sync_cancel_flags().lock() {
         if let Some(flag) = flags.get(&job_id) {
@@ -405,6 +408,7 @@ pub fn cancel_device_sync(job_id: String, app: tauri::AppHandle) {
 /// Emits throttled `device:sync:progress` events (max once per 500ms) and a
 /// final `device:sync:complete` event with the summary.
 #[tauri::command]
+#[specta::specta]
 pub async fn sync_batch_to_device(
     tracks: Vec<TrackSyncInfo>,
     dest_dir: String,
@@ -599,6 +603,7 @@ pub async fn sync_batch_to_device(
 /// Deletes multiple files from the device in one call and prunes empty parent
 /// directories. Returns the number of files successfully deleted.
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_device_files(paths: Vec<String>) -> Result<u32, String> {
     let mut deleted: u32 = 0;
     for path in &paths {

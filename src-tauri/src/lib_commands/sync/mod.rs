@@ -1,4 +1,4 @@
-mod tray;
+pub(crate) mod tray;
 
 pub(crate) use tray::{
     is_tiling_wm_cmd, linux_xdg_session_type, no_compositing_mode, set_tray_menu_labels, set_tray_tooltip,

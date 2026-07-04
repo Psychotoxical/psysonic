@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { audioSetCrossfade, audioSetDevice, audioSetGapless, audioSetVolume } from '@/lib/api/audio';
 import { effectiveLoudnessPreAnalysisAttenuationDb } from '@/lib/audio/loudnessPreAnalysisSlider';
 import { useAuthStore } from '@/store/authStore';
 import { emitNormalizationDebug } from '@/features/playback/store/normalizationDebug';
@@ -18,9 +18,9 @@ export function runInitialAudioSync(): void {
   // Initial sync of audio settings to Rust engine on startup.
   const { crossfadeEnabled, crossfadeSecs, gaplessEnabled, audioOutputDevice } = useAuthStore.getState();
   const { volume } = usePlayerStore.getState();
-  invoke('audio_set_volume', { volume }).catch(() => {});
-  invoke('audio_set_crossfade', { enabled: crossfadeEnabled, secs: crossfadeSecs }).catch(() => {});
-  invoke('audio_set_gapless', { enabled: gaplessEnabled }).catch(() => {});
+  audioSetVolume({ volume }).catch(() => {});
+  audioSetCrossfade({ enabled: crossfadeEnabled, secs: crossfadeSecs }).catch(() => {});
+  audioSetGapless({ enabled: gaplessEnabled }).catch(() => {});
   const normCfg = useAuthStore.getState();
   usePlayerStore.setState({
     normalizationEngineLive: normCfg.normalizationEngine,
@@ -54,6 +54,6 @@ export function runInitialAudioSync(): void {
     }
   }
   if (audioOutputDevice) {
-    invoke('audio_set_device', { deviceName: audioOutputDevice }).catch(() => {});
+    audioSetDevice({ deviceName: audioOutputDevice }).catch(() => {});
   }
 }

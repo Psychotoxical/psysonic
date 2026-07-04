@@ -542,7 +542,7 @@ export default function AnalyticsStrategySection() {
                 >
                   {(failedTracksByServer[failedModalTarget.indexKey] ?? []).map(track => (
                     <div
-                      key={`${track.trackId}:${track.md5_16kb}:${track.updatedAt}`}
+                      key={`${track.trackId}:${track.md516kb}:${track.updatedAt}`}
                       style={{
                         padding: '8px 10px',
                         borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.06))',

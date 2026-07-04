@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import type { LoggingMode } from '@/store/authStoreTypes';
 
 export interface RuntimeLogLine {
@@ -23,14 +23,11 @@ export async function tailRuntimeLogs(
   afterSeq: number | null,
   max: number,
 ): Promise<RuntimeLogTail> {
-  return invoke<RuntimeLogTail>('tail_runtime_logs', {
-    afterSeq: afterSeq ?? null,
-    max,
-  });
+  return commands.tailRuntimeLogs(afterSeq ?? null, max);
 }
 
 /** Read the current backend logging mode (off | normal | debug). */
 export async function getLoggingMode(): Promise<LoggingMode> {
-  const mode = await invoke<string>('get_logging_mode');
+  const mode = await commands.getLoggingMode();
   return (mode === 'off' || mode === 'debug') ? mode : 'normal';
 }

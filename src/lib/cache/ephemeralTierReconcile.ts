@@ -1,15 +1,30 @@
-import { invoke } from '@tauri-apps/api/core';
-import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
 import { parseLocalPlaybackEntryKey } from '@/store/localPlaybackKeys';
 import { getMediaDir } from '@/lib/media/mediaDir';
+import {
+  evictEphemeralCacheOrphansToFit,
+  getMediaTierSize,
+  probeMediaFiles,
+  pruneEmptyMediaTierDirs,
+} from '@/lib/api/syncfs';
 
 export interface EphemeralReconcileResult {
   removedStaleIndex: number;
 }
 
+/**
+ * Injected local-playback state so this lib-floor module never imports the
+ * `@/store/localPlaybackStore` value (which would form a runtime cycle:
+ * store → ephemeralTierReconcile → store). The caller — always the store or a
+ * store-aware module — passes its own `entries` + `removeEntry`.
+ */
+export interface EphemeralReconcileDeps {
+  entries: Record<string, { tier: string; localPath: string }>;
+  removeEntry: (trackId: string, serverIndexKey: string, reason?: string) => void;
+}
+
 /** On-disk byte total under `{media}/cache/` (all instances sharing the media dir). */
 export async function getEphemeralDiskBytes(mediaDir: string | null): Promise<number> {
-  return invoke<number>('get_media_tier_size', { tier: 'ephemeral', mediaDir }).catch(() => 0);
+  return getMediaTierSize({ tier: 'ephemeral', mediaDir }).catch(() => 0);
 }
 
 /**
@@ -21,11 +36,7 @@ export async function evictEphemeralOrphansToFit(
   mediaDir: string | null,
   keepPaths: string[],
 ): Promise<string[]> {
-  return invoke<string[]>('evict_ephemeral_cache_orphans_to_fit', {
-    keepPaths,
-    maxBytes,
-    mediaDir,
-  }).catch(() => []);
+  return evictEphemeralCacheOrphansToFit({ keepPaths, maxBytes, mediaDir }).catch(() => []);
 }
 
 /**
@@ -35,17 +46,16 @@ export async function evictEphemeralOrphansToFit(
  *
  * Unindexed on-disk files are removed only from `evictEphemeralToFit` when over budget.
  */
-export async function reconcileEphemeralCache(): Promise<EphemeralReconcileResult> {
-  const lp = useLocalPlaybackStore.getState();
+export async function reconcileEphemeralCache(
+  deps: EphemeralReconcileDeps,
+): Promise<EphemeralReconcileResult> {
   const mediaDir = getMediaDir();
-  const ephemeral = Object.entries(lp.entries).filter(([, e]) => e.tier === 'ephemeral');
+  const ephemeral = Object.entries(deps.entries).filter(([, e]) => e.tier === 'ephemeral');
 
   const paths = ephemeral.map(([, e]) => e.localPath);
   const existsFlags =
     paths.length > 0
-      ? await invoke<boolean[]>('probe_media_files', { localPaths: paths }).catch(() =>
-          paths.map(() => false),
-        )
+      ? await probeMediaFiles({ localPaths: paths }).catch(() => paths.map(() => false))
       : [];
 
   let removedStaleIndex = 0;
@@ -56,12 +66,12 @@ export async function reconcileEphemeralCache(): Promise<EphemeralReconcileResul
     }
     const parsed = parseLocalPlaybackEntryKey(key);
     if (parsed) {
-      lp.removeEntry(parsed.trackId, parsed.serverIndexKey, 'reconcile-missing-bytes');
+      deps.removeEntry(parsed.trackId, parsed.serverIndexKey, 'reconcile-missing-bytes');
       removedStaleIndex += 1;
     }
   });
 
-  await invoke('prune_empty_media_tier_dirs', { tier: 'ephemeral', mediaDir }).catch(() => {});
+  await pruneEmptyMediaTierDirs({ tier: 'ephemeral', mediaDir }).catch(() => {});
 
   return { removedStaleIndex };
 }

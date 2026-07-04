@@ -336,6 +336,7 @@ async fn open_preview_decoder(
 }
 
 #[tauri::command]
+#[specta::specta]
 #[allow(clippy::too_many_arguments)] // Tauri IPC — args map 1:1 to the JS invoke payload.
 pub async fn audio_preview_play(
     id: String,
@@ -532,6 +533,7 @@ mod tests {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn audio_preview_stop(app: AppHandle, state: State<'_, AudioEngine>) {
     preview_stop_inner(&app, &state, true);
 }
@@ -542,6 +544,7 @@ pub fn audio_preview_stop(app: AppHandle, state: State<'_, AudioEngine>) {
 /// auto-resume main playback the moment the preview ends and the user perceives
 /// the click as having no effect.
 #[tauri::command]
+#[specta::specta]
 pub fn audio_preview_stop_silent(app: AppHandle, state: State<'_, AudioEngine>) {
     preview_stop_inner(&app, &state, false);
 }
@@ -552,6 +555,7 @@ pub fn audio_preview_stop_silent(app: AppHandle, state: State<'_, AudioEngine>) 
 /// start, so the engine just clamps and applies the master headroom. No-op
 /// when no preview is active.
 #[tauri::command]
+#[specta::specta]
 pub fn audio_preview_set_volume(volume: f32, state: State<'_, AudioEngine>) {
     if let Some(sink) = state.preview_sink.lock().unwrap().as_ref() {
         sink.set_volume((volume.clamp(0.0, 1.0) * MASTER_HEADROOM).clamp(0.0, 1.0));

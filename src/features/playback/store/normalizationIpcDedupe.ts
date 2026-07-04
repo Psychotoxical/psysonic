@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { audioSetNormalization, audioUpdateReplayGain } from '@/lib/api/audio';
 import { useAuthStore } from '@/store/authStore';
 import { effectiveLoudnessPreAnalysisAttenuationDb } from '@/lib/audio/loudnessPreAnalysisSlider';
 
@@ -33,7 +33,7 @@ export function invokeAudioSetNormalizationDeduped(payload: {
   }
   lastNormAudioInvokeKey = key;
   lastNormAudioInvokeAtMs = now;
-  void invoke('audio_set_normalization', payload).catch(() => {});
+  void audioSetNormalization(payload).catch(() => {});
 }
 
 let lastRgInvokeKey = '';
@@ -80,7 +80,7 @@ export function invokeAudioUpdateReplayGainDeduped(payload: {
   }
   lastRgInvokeKey = key;
   lastRgInvokeAtMs = now;
-  invoke('audio_update_replay_gain', payload).catch(console.error);
+  audioUpdateReplayGain(payload).catch(console.error);
 }
 
 /** Test-only: clear the cached dedupe state so each spec starts fresh. */

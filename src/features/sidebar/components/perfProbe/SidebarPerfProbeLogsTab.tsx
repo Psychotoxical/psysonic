@@ -12,7 +12,7 @@ import { createPortal } from 'react-dom';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { getLoggingMode, tailRuntimeLogs, type RuntimeLogLine } from '@/lib/api/runtimeLogs';
-import { invoke } from '@tauri-apps/api/core';
+import { setLoggingMode as setBackendLoggingMode } from '@/lib/api/platformShell';
 import { useAuthStore } from '@/store/authStore';
 import type { LoggingMode } from '@/store/authStoreTypes';
 import CustomSelect from '@/ui/CustomSelect';
@@ -182,7 +182,7 @@ export default function SidebarPerfProbeLogsTab() {
 
   const changeDepth = (mode: LoggingMode) => {
     setLoggingMode(mode);
-    void invoke('set_logging_mode', { mode }).catch(() => {});
+    void setBackendLoggingMode({ mode }).catch(() => {});
   };
 
   const clear = () => {

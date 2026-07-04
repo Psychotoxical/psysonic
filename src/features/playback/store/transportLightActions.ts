@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { audioPause, audioStop } from '@/lib/api/audio';
 import { setIsAudioPaused } from '@/features/playback/store/engineState';
 import type { PlayerState } from '@/features/playback/store/playerStoreTypes';
 import { flushQueueSyncToServer } from '@/features/playback/store/queueSync';
@@ -43,7 +43,7 @@ export function createTransportLightActions(set: SetState, get: GetState): Pick<
       if (wasRadio) {
         stopRadio();
       } else {
-        invoke('audio_stop').catch(console.error);
+        audioStop().catch(console.error);
       }
       setIsAudioPaused(false);
       clearSeekFallbackRetry();
@@ -80,7 +80,7 @@ export function createTransportLightActions(set: SetState, get: GetState): Pick<
       if (get().currentRadio) {
         pauseRadio();
       } else {
-        invoke('audio_pause').catch(console.error);
+        audioPause().catch(console.error);
         setIsAudioPaused(true);
         playbackReportPaused(get().currentTime);
         // Flush position so a quick close after pause still leaves the

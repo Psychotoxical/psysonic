@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { invoke } from '@tauri-apps/api/core';
+import { audioSetPlaybackRate } from '@/lib/api/audio';
 import {
   clampPlaybackPitch,
   clampPlaybackSpeed,
@@ -32,7 +32,7 @@ interface PlaybackRateState extends PlaybackRateSnapshot {
 function syncPlaybackRate(state: PlaybackRateSnapshot, prev?: PlaybackRateSnapshot) {
   // Orbit sync assumes 1.0× wall-clock playback; suppress DSP without mutating prefs.
   const effectiveEnabled = state.enabled && !isOrbitPlaybackSyncActive();
-  invoke('audio_set_playback_rate', {
+  audioSetPlaybackRate({
     enabled: effectiveEnabled,
     strategy: engineStrategy(state.strategy),
     speed: state.speed,

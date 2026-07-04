@@ -1,16 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
-
-/** Snake_case payload from the Rust `fetch_bandsintown_events` command. */
-interface RawBandsintownEvent {
-  datetime: string;
-  venue_name: string;
-  venue_city: string;
-  venue_region: string;
-  venue_country: string;
-  url: string;
-  on_sale_datetime: string;
-  lineup: string[];
-}
+import { commands } from '@/generated/bindings';
 
 export interface BandsintownEvent {
   datetime: string;
@@ -45,10 +33,12 @@ export async function fetchBandsintownEvents(artistName: string): Promise<Bandsi
 
   const promise = (async () => {
     try {
-      const raw = await invoke<RawBandsintownEvent[]>('fetch_bandsintown_events', {
-        artistName,
-      });
-      const events: BandsintownEvent[] = (raw ?? []).map(r => ({
+      const res = await commands.fetchBandsintownEvents(artistName);
+      if (res.status === 'error') {
+        cache.set(key, []);
+        return [];
+      }
+      const events: BandsintownEvent[] = res.data.map(r => ({
         datetime: r.datetime,
         venueName: r.venue_name,
         venueCity: r.venue_city,

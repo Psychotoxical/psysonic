@@ -1,5 +1,6 @@
 import type { Track } from '@/lib/media/trackTypes';
 import { invoke } from '@tauri-apps/api/core';
+import { audioPause, audioSeek } from '@/lib/api/audio';
 import { setDeferHotCachePrefetch } from '@/lib/cache/hotCacheGate';
 import {
   getPlaybackIndexKey,
@@ -75,7 +76,7 @@ export function engineLoadTrackAtPosition(opts: {
         if (getPlayGeneration() !== generation) return;
         if (!wantPlaying) {
           if (!startPaused) {
-            invoke('audio_pause').catch(console.error);
+            audioPause().catch(console.error);
           }
           setIsAudioPaused(true);
           usePlayerStore.setState({ isPlaying: false });
@@ -84,7 +85,7 @@ export function engineLoadTrackAtPosition(opts: {
         }
       };
       if (canSeek) {
-        void invoke('audio_seek', { seconds: seekTo }).then(afterSeek).catch(afterSeek);
+        void audioSeek({ seconds: seekTo }).then(afterSeek).catch(afterSeek);
       } else {
         afterSeek();
       }
