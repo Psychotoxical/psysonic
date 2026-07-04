@@ -4,6 +4,57 @@ import { shouldAttemptSubsonicForServer } from '@/lib/network/subsonicNetworkGua
 import { api, apiForServer } from '@/lib/api/subsonicClient';
 import type { SubsonicPlaylist, SubsonicSong } from '@/lib/api/subsonicTypes';
 
+/** Max song-id params per Subsonic GET call (auth + ~8 KiB URL ceiling). */
+export const PLAYLIST_SONG_ID_GET_BATCH = 150;
+
+export function chunkIndicesForSubsonicGet(count: number, batchSize = PLAYLIST_SONG_ID_GET_BATCH): number[][] {
+  if (count <= 0) return [];
+  const batches: number[][] = [];
+  let remaining = count;
+  while (remaining > 0) {
+    const size = Math.min(batchSize, remaining);
+    const start = remaining - size;
+    batches.push(Array.from({ length: size }, (_, i) => start + i));
+    remaining -= size;
+  }
+  return batches;
+}
+
+export function chunkSongIdsForSubsonicGet(ids: string[], batchSize = PLAYLIST_SONG_ID_GET_BATCH): string[][] {
+  if (ids.length === 0) return [];
+  const batches: string[][] = [];
+  for (let i = 0; i < ids.length; i += batchSize) {
+    batches.push(ids.slice(i, i + batchSize));
+  }
+  return batches;
+}
+
+/** Batch arbitrary removal indices high-to-low so earlier positions stay valid between calls. */
+export function chunkRemovalIndicesForSubsonicGet(
+  indices: number[],
+  batchSize = PLAYLIST_SONG_ID_GET_BATCH,
+): number[][] {
+  if (indices.length === 0) return [];
+  const sorted = [...indices].sort((a, b) => b - a);
+  const batches: number[][] = [];
+  for (let i = 0; i < sorted.length; i += batchSize) {
+    batches.push(sorted.slice(i, i + batchSize));
+  }
+  return batches;
+}
+
+function schedulePinnedPlaylistSync(playlistId: string): void {
+  void import('@/features/offline')
+    .then(m => m.schedulePinnedPlaylistSync(playlistId))
+    .catch(() => {});
+}
+
+async function clearPlaylistSongs(id: string, prevCount: number): Promise<void> {
+  for (const indices of chunkIndicesForSubsonicGet(prevCount)) {
+    await api('updatePlaylist.view', { playlistId: id, songIndexToRemove: indices });
+  }
+}
+
 export async function getPlaylists(includeOrbit = false): Promise<SubsonicPlaylist[]> {
   const data = await api<{ playlists: { playlist: SubsonicPlaylist[] } }>('getPlaylists.view', { _t: Date.now() });
   const all = data.playlists?.playlist ?? [];
@@ -45,21 +96,44 @@ export async function createPlaylist(name: string, songIds?: string[]): Promise<
   return data.playlist;
 }
 
+/** Append tracks without re-sending the full playlist (avoids GET URL length limits). */
+export async function addSongsToPlaylist(id: string, songIdsToAdd: string[]): Promise<void> {
+  if (songIdsToAdd.length === 0) return;
+  for (const batch of chunkSongIdsForSubsonicGet(songIdsToAdd)) {
+    await api('updatePlaylist.view', { playlistId: id, songIdToAdd: batch });
+  }
+  schedulePinnedPlaylistSync(id);
+}
+
+/** Remove tracks by 0-based playlist indices (batched for large playlists). */
+export async function removePlaylistSongsAtIndices(id: string, indices: number[]): Promise<void> {
+  if (indices.length === 0) return;
+  for (const batch of chunkRemovalIndicesForSubsonicGet(indices)) {
+    await api('updatePlaylist.view', { playlistId: id, songIndexToRemove: batch });
+  }
+  schedulePinnedPlaylistSync(id);
+}
+
 export async function updatePlaylist(id: string, songIds: string[], prevCount = 0): Promise<void> {
   if (songIds.length > 0) {
-    // createPlaylist with playlistId replaces the existing playlist's songs (Subsonic API 1.14+)
-    await api('createPlaylist.view', { playlistId: id, songId: songIds });
+    if (songIds.length <= PLAYLIST_SONG_ID_GET_BATCH) {
+      // createPlaylist with playlistId replaces the existing playlist's songs (Subsonic API 1.14+)
+      await api('createPlaylist.view', { playlistId: id, songId: songIds });
+    } else {
+      let priorCount = prevCount;
+      if (priorCount <= 0) {
+        const { songs } = await getPlaylist(id);
+        priorCount = songs.length;
+      }
+      if (priorCount > 0) {
+        await clearPlaylistSongs(id, priorCount);
+      }
+      await addSongsToPlaylist(id, songIds);
+    }
   } else if (prevCount > 0) {
-    // Axios serialises empty arrays as no params — createPlaylist.view would leave songs unchanged.
-    // Use updatePlaylist.view with explicit index removal to clear the list instead.
-    await api('updatePlaylist.view', {
-      playlistId: id,
-      songIndexToRemove: Array.from({ length: prevCount }, (_, i) => i),
-    });
+    await clearPlaylistSongs(id, prevCount);
   }
-  void import('@/features/offline')
-    .then(m => m.schedulePinnedPlaylistSync(id))
-    .catch(() => {});
+  schedulePinnedPlaylistSync(id);
 }
 
 export async function updatePlaylistMeta(

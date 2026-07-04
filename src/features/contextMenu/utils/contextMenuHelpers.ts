@@ -1,5 +1,3 @@
-import { useConfirmModalStore } from '@/store/confirmModalStore';
-
 /** Psysonic smart playlists (Navidrome); not valid targets for manual add-to-playlist. */
 export const SMART_PLAYLIST_PREFIX = 'psy-smart-';
 
@@ -25,18 +23,3 @@ export function shuffleArray<T>(arr: T[]): T[] {
   return result;
 }
 
-/** Ask user before re-adding songs to a playlist when *all* selected ids are
- *  already present. Returns true → caller should append them as duplicates,
- *  false → caller should keep today's silent-skip toast behavior. */
-export async function confirmAddAllDuplicates(
-  playlistName: string,
-  count: number,
-  t: (key: string, opts?: Record<string, unknown>) => string,
-): Promise<boolean> {
-  return useConfirmModalStore.getState().request({
-    title: t('playlists.duplicateConfirmTitle'),
-    message: t('playlists.duplicateConfirmMessage', { count, playlist: playlistName }),
-    confirmLabel: t('playlists.duplicateConfirmAction'),
-    cancelLabel: t('common.cancel'),
-  });
-}

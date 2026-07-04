@@ -1,14 +1,11 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListMusic, Plus } from 'lucide-react';
-import { getPlaylist, updatePlaylist } from '@/lib/api/subsonicPlaylists';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
 import { usePlaylistStore } from '@/features/playlist';
+import { addTracksToPlaylistWithDedup, showAddTracksDedupToast } from '@/features/playlist';
 import { showToast } from '@/lib/dom/toast';
-import {
-  confirmAddAllDuplicates,
-  isSmartPlaylistName,
-} from '@/features/contextMenu/utils/contextMenuHelpers';
+import { isSmartPlaylistName } from '@/features/contextMenu/utils/contextMenuHelpers';
 
 interface Props {
   songIds: string[];
@@ -74,23 +71,9 @@ export function AddToPlaylistSubmenu({ songIds, resolveSongIds, onDone, dropDown
     const ids = idsForAction();
     setAdding(pl.id);
     try {
-      const { songs } = await getPlaylist(pl.id);
-      const existingIds = new Set(songs.map((s) => s.id));
-      const newIds = ids.filter((id) => !existingIds.has(id));
-      if (newIds.length > 0) {
-        await updatePlaylist(pl.id, [...songs.map((s) => s.id), ...newIds]);
-        showToast(t('playlists.addSuccess', { count: newIds.length, playlist: pl.name }));
-        touchPlaylist(pl.id);
-      } else {
-        const accepted = await confirmAddAllDuplicates(pl.name, ids.length, t);
-        if (accepted) {
-          await updatePlaylist(pl.id, [...songs.map((s) => s.id), ...ids]);
-          showToast(t('playlists.addedAsDuplicates', { count: ids.length, playlist: pl.name }), 3000, 'info');
-          touchPlaylist(pl.id);
-        } else {
-          showToast(t('playlists.addAllSkipped', { count: ids.length, playlist: pl.name }), 3000, 'info');
-        }
-      }
+      const result = await addTracksToPlaylistWithDedup(pl.id, pl.name, ids, t);
+      showAddTracksDedupToast(t, pl.name, result);
+      if (result.outcome !== 'skipped') touchPlaylist(pl.id);
     } catch {
       showToast(t('playlists.addError'), 3000, 'error');
     }

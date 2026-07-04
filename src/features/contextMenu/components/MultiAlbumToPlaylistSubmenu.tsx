@@ -1,14 +1,12 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListMusic, Plus } from 'lucide-react';
-import { resolveAlbum, resolveMediaServerId, resolvePlaylist } from '@/features/offline';
+import { resolveAlbum, resolveMediaServerId } from '@/features/offline';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
 import { usePlaylistStore } from '@/features/playlist';
+import { addTracksToPlaylistWithDedup, showAddTracksDedupToast } from '@/features/playlist';
 import { showToast } from '@/lib/dom/toast';
-import {
-  confirmAddAllDuplicates,
-  isSmartPlaylistName,
-} from '@/features/contextMenu/utils/contextMenuHelpers';
+import { isSmartPlaylistName } from '@/features/contextMenu/utils/contextMenuHelpers';
 
 interface Props {
   albumIds: string[];
@@ -39,46 +37,12 @@ export function MultiAlbumToPlaylistSubmenu({ albumIds, onDone, triggerId: _trig
   }, [albumIds]);
 
   const handleAddWithToast = async (pl: SubsonicPlaylist, songIds: string[]) => {
-    const { updatePlaylist } = await import('@/lib/api/subsonicPlaylists');
     const touchPlaylist = usePlaylistStore.getState().touchPlaylist;
 
     try {
-      const serverId = resolveMediaServerId();
-      if (!serverId) return;
-      const resolved = await resolvePlaylist(serverId, pl.id);
-      if (!resolved) return;
-      const { songs: existingSongs } = resolved;
-      const existingIds = new Set(existingSongs.map((s) => s.id));
-
-      const newIds: string[] = [];
-      const duplicateIds: string[] = [];
-
-      for (const id of songIds) {
-        if (existingIds.has(id)) duplicateIds.push(id);
-        else newIds.push(id);
-      }
-
-      const addedCount = newIds.length;
-      const duplicateCount = duplicateIds.length;
-
-      if (addedCount > 0) {
-        await updatePlaylist(pl.id, [...existingSongs.map((s) => s.id), ...newIds]);
-        touchPlaylist(pl.id);
-        if (duplicateCount > 0) {
-          showToast(t('playlists.addPartial', { added: addedCount, skipped: duplicateCount, playlist: pl.name }), 4000, 'info');
-        } else {
-          showToast(t('playlists.addSuccess', { count: addedCount, playlist: pl.name }), 3000, 'info');
-        }
-      } else if (duplicateCount > 0) {
-        const accepted = await confirmAddAllDuplicates(pl.name, duplicateCount, t);
-        if (accepted) {
-          await updatePlaylist(pl.id, [...existingSongs.map((s) => s.id), ...songIds]);
-          touchPlaylist(pl.id);
-          showToast(t('playlists.addedAsDuplicates', { count: duplicateCount, playlist: pl.name }), 3000, 'info');
-        } else {
-          showToast(t('playlists.addAllSkipped', { count: duplicateCount, playlist: pl.name }), 4000, 'info');
-        }
-      }
+      const result = await addTracksToPlaylistWithDedup(pl.id, pl.name, songIds, t);
+      showAddTracksDedupToast(t, pl.name, result);
+      if (result.outcome !== 'skipped') touchPlaylist(pl.id);
     } catch {
       showToast(t('playlists.addError'), 4000, 'error');
     }

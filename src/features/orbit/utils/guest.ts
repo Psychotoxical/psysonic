@@ -1,7 +1,8 @@
-import { createPlaylist, deletePlaylist, getPlaylist, getPlaylists, updatePlaylist } from '@/lib/api/subsonicPlaylists';
+import { createPlaylist, deletePlaylist, getPlaylist, getPlaylists, addSongsToPlaylist } from '@/lib/api/subsonicPlaylists';
 import { getSong } from '@/lib/api/subsonicLibrary';
 import { songToTrack } from '@/lib/media/songToTrack';
 import { useAuthStore } from '@/store/authStore';
+import { usePlaylistMembershipStore } from '@/store/playlistMembershipStore';
 import { useOrbitStore } from '@/features/orbit/store/orbitStore';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import {
@@ -189,15 +190,16 @@ export async function suggestOrbitTrack(trackId: string): Promise<void> {
 
 /**
  * Append a track to an outbox playlist unless it's already there. Subsonic's
- * playlist update replaces the song list wholesale, so we carry the existing
- * ids along. Shared by the initial suggest and the guest tick's lost-update
- * re-send (where a no-op append means the host already cleared + recorded it).
+ * playlist update replaces the song list wholesale on sweep, so we read the
+ * current server list before append. A no-op when the track is already present
+ * means the host already cleared + recorded it (lost-update re-send path).
  */
 export async function ensureTrackInOutbox(outboxPlaylistId: string, trackId: string): Promise<void> {
   const { songs } = await getPlaylist(outboxPlaylistId);
   const ids = songs.map(s => s.id);
   if (ids.includes(trackId)) return;
-  await updatePlaylist(outboxPlaylistId, [...ids, trackId], ids.length);
+  await addSongsToPlaylist(outboxPlaylistId, [trackId]);
+  usePlaylistMembershipStore.getState().setPlaylistSongIds(outboxPlaylistId, [...ids, trackId]);
 }
 
 /**

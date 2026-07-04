@@ -1,8 +1,10 @@
 import type React from 'react';
 import type { TFunction } from 'i18next';
-import { deletePlaylist, getPlaylist, updatePlaylist } from '@/lib/api/subsonicPlaylists';
+import { deletePlaylist, addSongsToPlaylist } from '@/lib/api/subsonicPlaylists';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
 import { usePlaylistStore } from '@/features/playlist/store/playlistStore';
+import { usePlaylistMembershipStore } from '@/store/playlistMembershipStore';
+import { collectMergeSongIds } from '@/features/playlist/utils/addTracksToPlaylistWithDedup';
 import { showToast } from '@/lib/dom/toast';
 
 export interface RunPlaylistDeleteDeps {
@@ -82,29 +84,22 @@ export async function runPlaylistMergeSelected(deps: RunPlaylistMergeSelectedDep
   const { targetPlaylist, selectedPlaylists, touchPlaylist, clearSelection, t } = deps;
   if (selectedPlaylists.length === 0) return;
   try {
-    const { songs: targetSongs } = await getPlaylist(targetPlaylist.id);
-    const targetIds = new Set(targetSongs.map(s => s.id));
-    let totalAdded = 0;
+    const sourceIds = selectedPlaylists
+      .filter(pl => pl.id !== targetPlaylist.id)
+      .map(pl => pl.id);
+    const idsToAdd = await collectMergeSongIds(targetPlaylist.id, sourceIds);
 
-    for (const pl of selectedPlaylists) {
-      if (pl.id === targetPlaylist.id) continue;
-      const { songs } = await getPlaylist(pl.id);
-      const newSongs = songs.filter(s => !targetIds.has(s.id));
-      if (newSongs.length > 0) {
-        newSongs.forEach(s => targetIds.add(s.id));
-        totalAdded += newSongs.length;
-      }
-    }
-
-    if (totalAdded > 0) {
-      await updatePlaylist(targetPlaylist.id, Array.from(targetIds));
+    if (idsToAdd.length > 0) {
+      await addSongsToPlaylist(targetPlaylist.id, idsToAdd);
+      usePlaylistMembershipStore.getState().appendPlaylistSongIds(targetPlaylist.id, idsToAdd);
       touchPlaylist(targetPlaylist.id);
-      showToast(t('playlists.mergeSuccess', { count: totalAdded, playlist: targetPlaylist.name }), 3000, 'info');
+      showToast(t('playlists.mergeSuccess', { count: idsToAdd.length, playlist: targetPlaylist.name }), 3000, 'info');
     } else {
       showToast(t('playlists.mergeNoNewSongs'), 3000, 'info');
     }
     clearSelection();
   } catch {
+    usePlaylistMembershipStore.getState().invalidatePlaylistSongIds(targetPlaylist.id);
     showToast(t('playlists.mergeError'), 4000, 'error');
   }
 }

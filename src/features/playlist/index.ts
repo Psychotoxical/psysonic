@@ -25,6 +25,7 @@ export * from './hooks/usePlaylistSuggestions';
 export * from './store/playlistFolderStore';
 export * from './store/playlistLayoutStore';
 export * from './store/playlistStore';
+export * from './utils/addTracksToPlaylistWithDedup';
 export * from './utils/playlistBulkPlayActions';
 export * from './utils/playlistDisplayedSongs';
 export * from './utils/playlistFolders';

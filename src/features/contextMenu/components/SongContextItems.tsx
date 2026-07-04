@@ -2,12 +2,13 @@ import { useTranslation } from 'react-i18next';
 import { Play, ListPlus, Radio, Heart, ChevronRight, ChevronsRight, User, Disc3, ListMusic, Info, Sparkles, Star, Trash2, HeartCrack, Share2, Orbit as OrbitIcon } from 'lucide-react';
 import { useNavigateToAlbum } from '@/features/album';
 import { useNavigateToArtist } from '@/features/artist';
-import { resolveAlbum, resolveMediaServerId, resolvePlaylist } from '@/features/offline';
+import { resolveAlbum, resolveMediaServerId } from '@/features/offline';
 import { queueSongStar } from '@/features/playback/store/pendingStarSync';
 import { getMusicNetworkRuntime, useEnrichmentPrimary } from '@/music-network';
 import type { Track } from '@/lib/media/trackTypes';
 import { useAuthStore } from '@/store/authStore';
 import { usePlaylistStore } from '@/features/playlist';
+import { usePlaylistMembershipStore } from '@/store/playlistMembershipStore';
 import { songToTrack } from '@/lib/media/songToTrack';
 import { showToast } from '@/lib/dom/toast';
 import { suggestOrbitTrack, hostEnqueueToOrbit, evaluateOrbitSuggestGate, OrbitSuggestBlockedError } from '@/features/orbit';
@@ -178,21 +179,17 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
               </div>
               {offlinePolicy.canEditPlaylist && playlistId && playlistSongIndex !== undefined && (
                 <div className="context-menu-item" style={{ color: 'var(--danger)' }} onClick={() => handleAction(async () => {
-                  const { updatePlaylist } = await import('@/lib/api/subsonicPlaylists');
+                  const { removePlaylistSongsAtIndices } = await import('@/lib/api/subsonicPlaylists');
                   const { showToast } = await import('@/lib/dom/toast');
-                  const touchPlaylist = usePlaylistStore.getState().touchPlaylist;
+                  const { touchPlaylist } = usePlaylistStore.getState();
+                  const membership = usePlaylistMembershipStore.getState();
                   try {
-                    const serverId = resolveMediaServerId();
-                    if (!serverId) return;
-                    const resolved = await resolvePlaylist(serverId, playlistId);
-                    if (!resolved) return;
-                    const { songs } = resolved;
-                    const prevCount = songs.length;
-                    const updatedIds = songs.filter((_, i) => i !== playlistSongIndex).map(s => s.id);
-                    await updatePlaylist(playlistId, updatedIds, prevCount);
+                    await removePlaylistSongsAtIndices(playlistId, [playlistSongIndex]);
+                    membership.removePlaylistSongIdsAtIndices(playlistId, [playlistSongIndex]);
                     touchPlaylist(playlistId);
                     showToast(t('playlists.removeSuccess'), 3000, 'info');
                   } catch {
+                    membership.invalidatePlaylistSongIds(playlistId);
                     showToast(t('playlists.removeError'), 4000, 'error');
                   }
                 })}>

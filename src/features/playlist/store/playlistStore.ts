@@ -1,11 +1,11 @@
-import { getPlaylists } from '@/lib/api/subsonicPlaylists';
+import { getPlaylists, createPlaylist as apiCreatePlaylist } from '@/lib/api/subsonicPlaylists';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { createPlaylist as apiCreatePlaylist } from '@/lib/api/subsonicPlaylists';
 import { useAuthStore } from '@/store/authStore';
-import { isOfflineBrowseActive } from '@/features/offline';
-import { fetchOfflineBrowsablePlaylists } from '@/features/offline';
+import { isOfflineBrowseActive, fetchOfflineBrowsablePlaylists } from '@/features/offline';
+import { usePlaylistMembershipStore } from '@/store/playlistMembershipStore';
+
 interface PlaylistStore {
   recentIds: string[];
   playlists: SubsonicPlaylist[];
@@ -30,10 +30,13 @@ export const usePlaylistStore = create<PlaylistStore>()(
           recentIds: [id, ...s.recentIds.filter((x) => x !== id)].slice(0, 50),
           lastModified: { ...s.lastModified, [id]: Date.now() },
         })),
-      removeId: (id) =>
-        set((s) => ({ recentIds: s.recentIds.filter((x) => x !== id) })),
+      removeId: (id) => {
+        usePlaylistMembershipStore.getState().invalidatePlaylistSongIds(id);
+        set((s) => ({ recentIds: s.recentIds.filter((x) => x !== id) }));
+      },
       fetchPlaylists: async () => {
         set({ playlistsLoading: true });
+        usePlaylistMembershipStore.getState().clearAllPlaylistSongIds();
         try {
           const serverId = useAuthStore.getState().activeServerId;
           if (isOfflineBrowseActive() && serverId) {
@@ -54,6 +57,7 @@ export const usePlaylistStore = create<PlaylistStore>()(
             playlists: [...s.playlists, playlist],
             recentIds: [playlist.id, ...s.recentIds.filter((x) => x !== playlist.id)].slice(0, 50),
           }));
+          usePlaylistMembershipStore.getState().setPlaylistSongIds(playlist.id, songIds ?? []);
           return playlist;
         } catch {
           return null;
@@ -65,6 +69,13 @@ export const usePlaylistStore = create<PlaylistStore>()(
         }));
       },
     }),
-    { name: 'psysonic_playlists_recent' }
-  )
+    {
+      name: 'psysonic_playlists_recent',
+      partialize: (state) => ({
+        recentIds: state.recentIds,
+        playlists: state.playlists,
+        lastModified: state.lastModified,
+      }),
+    },
+  ),
 );

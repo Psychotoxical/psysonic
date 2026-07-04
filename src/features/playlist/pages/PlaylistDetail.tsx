@@ -6,6 +6,7 @@ import { useTracklistColumns, type ColDef } from '@/lib/hooks/useTracklistColumn
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { usePlaylistStore } from '@/features/playlist/store/playlistStore';
+import { usePlaylistMembershipStore } from '@/store/playlistMembershipStore';
 import { useOfflineStore } from '@/features/offline';
 import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
 import { useAlbumOfflineState } from '@/features/album';
@@ -117,8 +118,11 @@ export default function PlaylistDetail() {
     setSaving(true);
     try {
       await updatePlaylist(id, updatedSongs.map(s => s.id), prevCount);
-      if (id) touchPlaylist(id);
-    } catch { /* ignore: best-effort */ }
+      usePlaylistMembershipStore.getState().replacePlaylistSongIds(id, updatedSongs.map(s => s.id));
+      touchPlaylist(id);
+    } catch {
+      usePlaylistMembershipStore.getState().invalidatePlaylistSongIds(id);
+    }
     setSaving(false);
   }, [id, touchPlaylist]);
 

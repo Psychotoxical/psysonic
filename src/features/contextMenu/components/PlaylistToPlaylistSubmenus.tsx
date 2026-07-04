@@ -1,7 +1,13 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListMusic, Plus } from 'lucide-react';
-import { usePlaylistStore } from '@/features/playlist';
+import {
+  usePlaylistStore,
+  addTracksToPlaylistWithDedup,
+  collectMergeSongIds,
+  resolvePlaylistSongIds,
+} from '@/features/playlist';
+import { usePlaylistMembershipStore } from '@/store/playlistMembershipStore';
 import { showToast } from '@/lib/dom/toast';
 import { isSmartPlaylistName } from '@/features/contextMenu/utils/contextMenuHelpers';
 
@@ -41,7 +47,7 @@ export function SinglePlaylistToPlaylistSubmenu({ playlist, onDone, triggerId }:
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
-    const { createPlaylist } = await import('@/lib/api/subsonicPlaylists');
+    const createPlaylist = usePlaylistStore.getState().createPlaylist;
     try {
       const newPl = await createPlaylist(newName.trim(), []);
       if (newPl?.id) {
@@ -55,15 +61,20 @@ export function SinglePlaylistToPlaylistSubmenu({ playlist, onDone, triggerId }:
   };
 
   const handleAddToNewPlaylist = async (targetId: string, targetName: string) => {
-    const { getPlaylist, updatePlaylist } = await import('@/lib/api/subsonicPlaylists');
     const touchPlaylist = usePlaylistStore.getState().touchPlaylist;
 
     try {
-      const { songs: sourceSongs } = await getPlaylist(playlist.id);
-      if (sourceSongs.length > 0) {
-        await updatePlaylist(targetId, sourceSongs.map((s: { id: string }) => s.id));
-        touchPlaylist(targetId);
-        showToast(t('playlists.createAndAddSuccess', { count: sourceSongs.length, playlist: targetName }), 3000, 'info');
+      const { getPlaylist } = await import('@/lib/api/subsonicPlaylists');
+      const sourceIds = await resolvePlaylistSongIds(playlist.id, async () => {
+        const { songs } = await getPlaylist(playlist.id);
+        return songs.map(s => s.id);
+      });
+      if (sourceIds.length > 0) {
+        const result = await addTracksToPlaylistWithDedup(targetId, targetName, sourceIds, t);
+        if (result.addedCount > 0) {
+          showToast(t('playlists.createAndAddSuccess', { count: result.addedCount, playlist: targetName }), 3000, 'info');
+          touchPlaylist(targetId);
+        }
       }
       onDone();
     } catch {
@@ -73,22 +84,20 @@ export function SinglePlaylistToPlaylistSubmenu({ playlist, onDone, triggerId }:
   };
 
   const handleAdd = async (targetId: string, targetName: string) => {
-    const { getPlaylist, updatePlaylist } = await import('@/lib/api/subsonicPlaylists');
     const touchPlaylist = usePlaylistStore.getState().touchPlaylist;
 
     try {
-      const { songs: targetSongs } = await getPlaylist(targetId);
-      const targetIds = new Set(targetSongs.map((s: { id: string }) => s.id));
-      const { songs: sourceSongs } = await getPlaylist(playlist.id);
-      const newSongs = sourceSongs.filter((s: { id: string }) => !targetIds.has(s.id));
-
-      if (newSongs.length > 0) {
-        newSongs.forEach((s: { id: string }) => targetIds.add(s.id));
-        await updatePlaylist(targetId, Array.from(targetIds));
-        touchPlaylist(targetId);
-        showToast(t('playlists.addToPlaylistSuccess', { count: newSongs.length, playlist: targetName }), 3000, 'info');
-      } else {
+      const { getPlaylist } = await import('@/lib/api/subsonicPlaylists');
+      const sourceIds = await resolvePlaylistSongIds(playlist.id, async () => {
+        const { songs } = await getPlaylist(playlist.id);
+        return songs.map(s => s.id);
+      });
+      const result = await addTracksToPlaylistWithDedup(targetId, targetName, sourceIds, t);
+      if (result.outcome === 'skipped') {
         showToast(t('playlists.addToPlaylistNoNew', { playlist: targetName }), 3000, 'info');
+      } else {
+        showToast(t('playlists.addToPlaylistSuccess', { count: result.addedCount, playlist: targetName }), 3000, 'info');
+        touchPlaylist(targetId);
       }
       onDone();
     } catch {
@@ -180,7 +189,7 @@ export function MultiPlaylistToPlaylistSubmenu({ playlists, onDone, triggerId }:
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
-    const { createPlaylist } = await import('@/lib/api/subsonicPlaylists');
+    const createPlaylist = usePlaylistStore.getState().createPlaylist;
     try {
       const newPl = await createPlaylist(newName.trim(), []);
       if (newPl?.id) {
@@ -194,61 +203,44 @@ export function MultiPlaylistToPlaylistSubmenu({ playlists, onDone, triggerId }:
   };
 
   const handleMergeToNewPlaylist = async (targetId: string, targetName: string) => {
-    const { getPlaylist, updatePlaylist } = await import('@/lib/api/subsonicPlaylists');
+    const { addSongsToPlaylist } = await import('@/lib/api/subsonicPlaylists');
     const touchPlaylist = usePlaylistStore.getState().touchPlaylist;
+    const membership = usePlaylistMembershipStore.getState();
 
     try {
-      const targetIds = new Set<string>();
-      let totalAdded = 0;
-
-      for (const pl of playlists) {
-        const { songs } = await getPlaylist(pl.id);
-        const newSongs = songs.filter((s: { id: string }) => !targetIds.has(s.id));
-        if (newSongs.length > 0) {
-          newSongs.forEach((s: { id: string }) => targetIds.add(s.id));
-          totalAdded += newSongs.length;
-        }
-      }
-
-      if (totalAdded > 0) {
-        await updatePlaylist(targetId, Array.from(targetIds));
+      const idsToAdd = await collectMergeSongIds(targetId, playlists.map(p => p.id));
+      if (idsToAdd.length > 0) {
+        await addSongsToPlaylist(targetId, idsToAdd);
+        membership.appendPlaylistSongIds(targetId, idsToAdd);
         touchPlaylist(targetId);
-        showToast(t('playlists.createAndAddSuccess', { count: totalAdded, playlist: targetName }), 3000, 'info');
+        showToast(t('playlists.createAndAddSuccess', { count: idsToAdd.length, playlist: targetName }), 3000, 'info');
       }
       onDone();
     } catch {
+      membership.invalidatePlaylistSongIds(targetId);
       showToast(t('playlists.mergeError'), 4000, 'error');
       onDone();
     }
   };
 
   const handleMerge = async (targetId: string, targetName: string) => {
-    const { getPlaylist, updatePlaylist } = await import('@/lib/api/subsonicPlaylists');
+    const { addSongsToPlaylist } = await import('@/lib/api/subsonicPlaylists');
     const touchPlaylist = usePlaylistStore.getState().touchPlaylist;
+    const membership = usePlaylistMembershipStore.getState();
 
     try {
-      const { songs: targetSongs } = await getPlaylist(targetId);
-      const targetIds = new Set(targetSongs.map((s: { id: string }) => s.id));
-      let totalAdded = 0;
-
-      for (const pl of playlists) {
-        const { songs } = await getPlaylist(pl.id);
-        const newSongs = songs.filter((s: { id: string }) => !targetIds.has(s.id));
-        if (newSongs.length > 0) {
-          newSongs.forEach((s: { id: string }) => targetIds.add(s.id));
-          totalAdded += newSongs.length;
-        }
-      }
-
-      if (totalAdded > 0) {
-        await updatePlaylist(targetId, Array.from(targetIds));
+      const idsToAdd = await collectMergeSongIds(targetId, playlists.map(p => p.id));
+      if (idsToAdd.length > 0) {
+        await addSongsToPlaylist(targetId, idsToAdd);
+        membership.appendPlaylistSongIds(targetId, idsToAdd);
         touchPlaylist(targetId);
-        showToast(t('playlists.mergeSuccess', { count: totalAdded, playlist: targetName }), 3000, 'info');
+        showToast(t('playlists.mergeSuccess', { count: idsToAdd.length, playlist: targetName }), 3000, 'info');
       } else {
         showToast(t('playlists.mergeNoNewSongs'), 3000, 'info');
       }
       onDone();
     } catch {
+      membership.invalidatePlaylistSongIds(targetId);
       showToast(t('playlists.mergeError'), 4000, 'error');
       onDone();
     }

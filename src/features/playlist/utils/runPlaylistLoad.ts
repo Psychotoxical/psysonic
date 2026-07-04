@@ -4,6 +4,7 @@ import { filterSongsToActiveLibrary } from '@/lib/api/subsonicLibrary';
 import type { SubsonicPlaylist, SubsonicSong } from '@/lib/api/subsonicTypes';
 import { useAuthStore } from '@/store/authStore';
 import { usePlaylistStore } from '@/features/playlist/store/playlistStore';
+import { usePlaylistMembershipStore } from '@/store/playlistMembershipStore';
 import { isOfflineBrowseActive } from '@/features/offline';
 import { resolvePlaylist } from '@/features/offline';
 
@@ -34,6 +35,7 @@ function applyLoadedPlaylist(
   });
   setRatings(init);
   setStarredSongs(starred);
+  usePlaylistMembershipStore.getState().setPlaylistSongIds(deps.id, songs.map(s => s.id));
 }
 
 export async function runPlaylistLoad(deps: RunPlaylistLoadDeps): Promise<void> {

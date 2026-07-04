@@ -7,7 +7,6 @@ import { useAuthStore } from '@/store/authStore';
 import type { PinSource } from '@/store/localPlaybackStore';
 import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
 import { useOfflineStore } from '@/features/offline/store/offlineStore';
-import { usePlaylistStore } from '@/features/playlist';
 import { isSmartPlaylistName } from '@/lib/format/playlistDetailHelpers';
 import { getMediaDir } from '@/lib/media/mediaDir';
 import { deleteMediaFile } from '@/lib/api/syncfs';
@@ -58,8 +57,11 @@ function offlineMeta(sourceId: string, serverId: string) {
 }
 
 function resolvePlaylistName(playlistId: string, serverId: string): string | undefined {
-  return offlineMeta(playlistId, serverId)?.name
-    ?? usePlaylistStore.getState().playlists.find(p => p.id === playlistId)?.name;
+  // Only pinned playlists reach the nameless internal callers (all gated by
+  // isSourcePinnedOffline), so offline meta always carries the name here; external
+  // callers pass `name` explicitly. Avoid importing the playlist feature barrel —
+  // that edge closes offline↔playlist import cycles (see 2026-07 detangle task).
+  return offlineMeta(playlistId, serverId)?.name;
 }
 
 /** Smart playlists refresh from server rules — not eligible for manual offline cache/sync. */
