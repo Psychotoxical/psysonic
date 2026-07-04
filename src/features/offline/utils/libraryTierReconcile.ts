@@ -12,20 +12,13 @@ import {
   findLocalPlaybackEntry,
   indexKeyBelongsToServer,
 } from '@/store/localPlaybackResolve';
+import type { LibraryTierDiskHit } from '@/generated/bindings';
 
 interface LibraryTrackProbeResult {
   path: string;
   size: number;
   layoutFingerprint: string;
   exists: boolean;
-}
-
-interface LibraryTierDiskHit {
-  trackId: string;
-  path: string;
-  size: number;
-  layoutFingerprint: string;
-  suffix: string;
 }
 
 export interface LibraryTierReconcileResult {

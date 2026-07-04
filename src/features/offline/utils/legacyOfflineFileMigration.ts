@@ -9,16 +9,7 @@ import { getMediaDir } from '@/lib/media/mediaDir';
 import { migrateLegacyOfflineDisk } from '@/lib/api/syncfs';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import { resolveIndexKey } from '@/lib/server/serverIndexKey';
-
-interface LegacyOfflineMigrationResult {
-  trackId: string;
-  serverIndexKey: string;
-  path: string;
-  size: number;
-  layoutFingerprint: string;
-  relocated: boolean;
-  skippedReason?: string | null;
-}
+import type { LegacyOfflineMigrationResult } from '@/generated/bindings';
 
 type PersistCapableStore = {
   persist: {

@@ -7,14 +7,7 @@ export function uuid(): string { return crypto.randomUUID(); }
 
 export type SyncStatus = 'synced' | 'pending' | 'deletion';
 
-export interface RemovableDrive {
-  name: string;
-  mount_point: string;
-  available_space: number;
-  total_space: number;
-  file_system: string;
-  is_removable: boolean;
-}
+export type { RemovableDrive } from '@/generated/bindings';
 
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
