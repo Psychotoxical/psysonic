@@ -19,7 +19,7 @@ vi.mock('@/features/album/hooks/useAlbumDetailBack', () => ({ useAlbumDetailBack
 vi.mock('@/lib/hooks/useIsMobile', () => ({ useIsMobile: () => false }));
 vi.mock('@/store/themeStore', () => ({ useThemeStore: () => false }));
 vi.mock('@/ui/StarRating', () => ({ default: () => null }));
-vi.mock('@/features/artist', () => ({ OpenArtistRefInline: () => null }));
+vi.mock('@/ui/OpenArtistRefInline', () => ({ OpenArtistRefInline: () => null }));
 vi.mock('@/cover/CoverArtImage', () => ({ CoverArtImage: () => null }));
 
 function baseProps() {

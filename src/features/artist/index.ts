@@ -2,9 +2,10 @@
  * Artist feature — the Artists overview + ArtistDetail (both lazy via their deep
  * `pages/*` paths, not re-exported), artist cards/rows/avatars, the detail hero +
  * similar-artists + top-tracks UI, the artist Subsonic API, browse catalog/
- * filter/scroll hooks, per-artist offline status, and the open-artist-ref nav
- * cluster. `sortArtistAlbums` moved in from `lib/library/` (artist-only sort,
- * not the shared index query engine).
+ * filter/scroll hooks, and per-artist offline status. `sortArtistAlbums` moved
+ * in from `lib/library/` (artist-only sort, not the shared index query engine).
+ * `OpenArtistRefInline` moved out to `ui/` (a shared presentational primitive,
+ * consumed by ~10 features) to break the album ⇄ artist import cycle.
  *
  * Stays OUT (other owners): `deriveAlbumHeaderArtistRefs` (album header),
  * `playArtistShuffled` + `trackArtistRefs` (playback/track helpers), the
@@ -30,7 +31,6 @@ export * from './utils/artistsHelpers';
 export * from './utils/runArtistDetailActions';
 export * from './utils/runArtistDetailPlay';
 export * from './utils/sortArtistAlbums';
-export { OpenArtistRefInline } from './components/OpenArtistRefInline';
 export { default as ArtistCardLocal } from './components/ArtistCardLocal';
 export { default as ArtistDetailHero } from './components/ArtistDetailHero';
 export { default as ArtistDetailSimilarArtists } from './components/ArtistDetailSimilarArtists';

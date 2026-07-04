@@ -8,7 +8,7 @@ import { formatLastSeen } from '@/lib/format/userMgmtHelpers';
 import i18n from '@/lib/i18n';
 import { formatTrackTime } from '@/lib/format/formatDuration';
 import StarRating from '@/ui/StarRating';
-import { OpenArtistRefInline } from '@/features/artist';
+import { OpenArtistRefInline } from '@/ui/OpenArtistRefInline';
 import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/trackArtistRefs';
 
 export interface FavoriteSongRowCallbacks {
