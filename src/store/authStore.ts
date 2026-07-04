@@ -66,6 +66,7 @@ export const useAuthStore = create<AuthState>()(
       infiniteQueueEnabled: false,
       preservePlayNextOrder: false,
       showArtistImages: false,
+      artistBrowseCreditMode: 'album',
       libraryGridMaxColumns: DEFAULT_LIBRARY_GRID_MAX_COLUMNS,
       showTrayIcon: true,
       minimizeToTray: false,

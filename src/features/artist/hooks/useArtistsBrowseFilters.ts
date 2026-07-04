@@ -40,15 +40,14 @@ export function useArtistsBrowseFilters(
   const navigationType = useNavigationType();
   const location = useLocation();
   const setShowArtistImages = useAuthStore(s => s.setShowArtistImages);
+  const creditMode = useAuthStore(s => s.artistBrowseCreditMode);
+  const setArtistBrowseCreditMode = useAuthStore(s => s.setArtistBrowseCreditMode);
 
   const [letterFilter, setLetterFilter] = useState(
     () => returnStateForNavigation(serverId, navigationType, location.state).letterFilter,
   );
   const [starredOnly, setStarredOnlyRaw] = useState(
     () => returnStateForNavigation(serverId, navigationType, location.state).starredOnly,
-  );
-  const [creditMode, setCreditModeRaw] = useState<ArtistCreditMode>(
-    () => returnStateForNavigation(serverId, navigationType, location.state).creditMode,
   );
   const [viewMode, setViewMode] = useState<ArtistBrowseViewMode>(
     () => returnStateForNavigation(serverId, navigationType, location.state).viewMode,
@@ -71,7 +70,7 @@ export function useArtistsBrowseFilters(
 
   const setCreditMode = (next: ArtistCreditMode) => {
     if (next === creditMode) return;
-    setCreditModeRaw(next);
+    setArtistBrowseCreditMode(next);
     setLetterFilter(ALL_SENTINEL);
   };
 
@@ -96,7 +95,7 @@ export function useArtistsBrowseFilters(
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setLetterFilter(restored.letterFilter);
         setStarredOnlyRaw(restored.starredOnly);
-        setCreditModeRaw(restored.creditMode ?? 'album');
+        setArtistBrowseCreditMode(restored.creditMode ?? 'album');
         setViewMode(restored.viewMode);
         setShowArtistImages(restored.showArtistImages);
       }
@@ -109,9 +108,8 @@ export function useArtistsBrowseFilters(
     useLiveSearchScopeStore.getState().setQuery('');
     setLetterFilter(DEFAULT_ARTIST_BROWSE_RETURN_STATE.letterFilter);
     setStarredOnlyRaw(false);
-    setCreditModeRaw('album');
     setViewMode('grid');
-  }, [serverId, navigationType, location.state, setShowArtistImages]);
+  }, [serverId, navigationType, location.state, setShowArtistImages, setArtistBrowseCreditMode]);
 
   useEffect(() => {
     return () => {

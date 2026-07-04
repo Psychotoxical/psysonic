@@ -13,6 +13,7 @@ type SetState = (
 export function createUiAppearanceActions(set: SetState): Pick<
   AuthState,
   | 'setShowArtistImages'
+  | 'setArtistBrowseCreditMode'
   | 'setLibraryGridMaxColumns'
   | 'setShowTrayIcon'
   | 'setMinimizeToTray'
@@ -37,6 +38,7 @@ export function createUiAppearanceActions(set: SetState): Pick<
 > {
   return {
     setShowArtistImages: (v) => set({ showArtistImages: v }),
+    setArtistBrowseCreditMode: (v) => set({ artistBrowseCreditMode: v === 'track' ? 'track' : 'album' }),
     setLibraryGridMaxColumns: (v) => set({ libraryGridMaxColumns: clampLibraryGridMaxColumns(v) }),
     setShowTrayIcon: (v) => set({ showTrayIcon: v }),
     setMinimizeToTray: (v) => set({ minimizeToTray: v }),

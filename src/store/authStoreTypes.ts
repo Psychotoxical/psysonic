@@ -1,4 +1,5 @@
 import type { HiResCrossfadeResampleHz } from '@/lib/audio/hiResCrossfadeResample';
+import type { ArtistCreditMode } from '@/lib/api/library';
 import type { EntityRatingSupportLevel } from '@/lib/api/subsonicTypes';
 import type {
   AudiomusePluginProbeResult,
@@ -170,6 +171,8 @@ export interface AuthState {
   infiniteQueueEnabled: boolean;
   preservePlayNextOrder: boolean;
   showArtistImages: boolean;
+  /** Artists browse: album artists vs track performers (#1209). Persisted across sessions. */
+  artistBrowseCreditMode: ArtistCreditMode;
   /**
    * Max columns for album/artist/playlist-style card grids (Settings → Library).
    * Clamped 4…12; higher values mean more tiles per row and more layout/paint work.
@@ -391,6 +394,7 @@ export interface AuthState {
   setInfiniteQueueEnabled: (v: boolean) => void;
   setPreservePlayNextOrder: (v: boolean) => void;
   setShowArtistImages: (v: boolean) => void;
+  setArtistBrowseCreditMode: (v: ArtistCreditMode) => void;
   setLibraryGridMaxColumns: (v: number) => void;
   setShowTrayIcon: (v: boolean) => void;
   setMinimizeToTray: (v: boolean) => void;

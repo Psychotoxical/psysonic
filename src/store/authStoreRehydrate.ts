@@ -26,6 +26,7 @@ import type {
   SeekbarStyle,
   WindowButtonStyle,
 } from './authStoreTypes';
+import type { ArtistCreditMode } from '@/lib/api/library';
 import { migrateLegacyLastfm, sanitizeAccounts } from '../music-network';
 
 /**
@@ -128,6 +129,13 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
   )
     ? {}
     : { queueDisplayMode: 'queue' as QueueDisplayMode };
+
+  const VALID_ARTIST_BROWSE_CREDIT_MODES = new Set<string>(['album', 'track']);
+  const artistBrowseCreditModeMigrated = VALID_ARTIST_BROWSE_CREDIT_MODES.has(
+    (state as { artistBrowseCreditMode?: unknown }).artistBrowseCreditMode as string,
+  )
+    ? {}
+    : { artistBrowseCreditMode: 'album' as ArtistCreditMode };
 
   const VALID_WAYLAND_TEXT_PROFILE = new Set<string>(['balanced', 'sharp', 'gpu', 'minimal']);
   const rawWaylandProfile = (state as { linuxWaylandTextRenderProfile?: unknown }).linuxWaylandTextRenderProfile;
@@ -265,6 +273,7 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     ...windowButtonStyleMigrated,
     ...queueDurationDisplayModeMigrated,
     ...queueDisplayModeMigrated,
+    ...artistBrowseCreditModeMigrated,
     ...linuxWaylandTextRenderProfileMigrated,
     ...discordCoverSourceMigrated,
     ...maxCacheMbMigrated,

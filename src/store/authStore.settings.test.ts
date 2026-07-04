@@ -51,6 +51,7 @@ describe('trivial pass-through setters', () => {
     ['setInfiniteQueueEnabled', 'infiniteQueueEnabled', true],
     ['setPreservePlayNextOrder', 'preservePlayNextOrder', true],
     ['setShowArtistImages', 'showArtistImages', true],
+    ['setArtistBrowseCreditMode', 'artistBrowseCreditMode', 'track'],
     ['setShowTrayIcon', 'showTrayIcon', false],
     ['setMinimizeToTray', 'minimizeToTray', true],
     ['setClockFormat', 'clockFormat', '24h'],
