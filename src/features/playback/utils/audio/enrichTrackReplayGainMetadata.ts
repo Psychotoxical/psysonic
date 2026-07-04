@@ -48,12 +48,22 @@ export function mergePlaybackTrackMetadata(base: Track, resolved: Track): Track 
 /**
  * Prefetch playback metadata (thin fields + ReplayGain) via index → getSong
  * before binding the engine on stream / gapless paths.
+ *
+ * When ReplayGain is on, always index-read so recalculated tags on an already
+ * populated snapshot are picked up before bind.
  */
 export async function enrichTrackPlaybackMetadata(
   track: Track,
   serverId: string,
 ): Promise<Track> {
-  if (!trackNeedsPlaybackMetadataPrefetch(track) || !serverId) return track;
+  if (!serverId) return track;
+  const needsPrefetch = trackNeedsPlaybackMetadataPrefetch(track);
+  const rgRecheck = isReplayGainActive()
+    && !needsPrefetch
+    && (track.replayGainTrackDb != null
+      || track.replayGainAlbumDb != null
+      || track.replayGainPeak != null);
+  if (!needsPrefetch && !rgRecheck) return track;
   const song = await resolveSongMetaIndexFirst(serverId, track.id);
   if (!song) return track;
   return mergePlaybackTrackMetadata(track, songToTrack(song));

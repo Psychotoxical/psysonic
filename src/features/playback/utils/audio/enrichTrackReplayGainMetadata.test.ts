@@ -147,4 +147,29 @@ describe('enrichTrackPlaybackMetadata', () => {
     expect(enriched.replayGainPeak).toBe(0.88);
     expect(networkSpy).not.toHaveBeenCalled();
   });
+
+  it('refreshes recalculated ReplayGain from the index when tags already exist', async () => {
+    onInvoke('library_get_status', () => ({
+      serverId: 's1', libraryScope: '', syncPhase: 'ready',
+      capabilityFlags: 0, libraryTier: 'unknown', syncedAt: 0,
+    }));
+    onInvoke('library_get_track', () => ({
+      serverId: 's1',
+      id: 't1',
+      title: 'Indexed',
+      album: 'Album',
+      durationSec: 200,
+      replayGainTrackDb: -8.5,
+      replayGainPeak: 0.91,
+      syncedAt: 0,
+      rawJson: {},
+    }));
+
+    const enriched = await enrichTrackPlaybackMetadata(
+      track({ replayGainTrackDb: -6.0, replayGainPeak: 0.8 }),
+      's1',
+    );
+    expect(enriched.replayGainTrackDb).toBe(-8.5);
+    expect(enriched.replayGainPeak).toBe(0.91);
+  });
 });

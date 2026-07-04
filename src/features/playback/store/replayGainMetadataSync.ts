@@ -4,13 +4,27 @@
  * The queue resolver fetches full metadata asynchronously — this side-effect
  * upgrades `currentTrack` and pushes fresh gain to the engine once tags land,
  * mirroring the loudness cache refresh path (`refreshLoudnessForTrack`).
+ *
+ * After library sync, {@link maybeRefreshCurrentTrackMetadataFromIndex} re-reads
+ * index-first metadata for the live slot so recalculated ReplayGain tags apply
+ * without re-starting playback.
  */
+import { listen } from '@tauri-apps/api/event';
+import type { LibrarySyncIdlePayload } from '@/lib/api/library/dto';
+import { resolveSongMetaIndexFirst } from '@/lib/library/resolveSongMetaIndexFirst';
 import { mergePlaybackTrackMetadata } from '@/features/playback/utils/audio/enrichTrackReplayGainMetadata';
 import { resolveReplayGainDb } from '@/features/playback/utils/audio/resolveReplayGainDb';
 import { isReplayGainActive } from '@/features/playback/store/loudnessGainCache';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';
-import { subscribeQueueResolver } from '@/features/playback/store/queueTrackResolver';
+import {
+  patchCachedTrack,
+  subscribeQueueResolver,
+} from '@/features/playback/store/queueTrackResolver';
+import { playbackCacheKeyForRef } from '@/features/playback/utils/playback/playbackServer';
+import { songToTrack } from '@/lib/media/songToTrack';
+import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
+import { canonicalQueueServerKey } from '@/lib/server/serverIndexKey';
 import { useAuthStore } from '@/store/authStore';
 import type { QueueItemRef, Track } from '@/lib/media/trackTypes';
 
@@ -61,6 +75,45 @@ export function shouldSyncCurrentTrackMetadata(
   return shouldUpgradeReplayGainMetadata(prev, next, queueItems, queueIndex);
 }
 
+function applyCurrentTrackMetadataUpgrade(
+  prev: Track,
+  merged: Track,
+  queueItems: QueueItemRef[],
+  queueIndex: number,
+): void {
+  if (!shouldSyncCurrentTrackMetadata(prev, merged, queueItems, queueIndex)) return;
+
+  usePlayerStore.setState({ currentTrack: merged });
+  patchCachedTrack(prev.id, {
+    title: merged.title,
+    duration: merged.duration,
+    replayGainTrackDb: merged.replayGainTrackDb,
+    replayGainAlbumDb: merged.replayGainAlbumDb,
+    replayGainPeak: merged.replayGainPeak,
+  });
+  if (
+    isReplayGainActive()
+    && shouldUpgradeReplayGainMetadata(prev, merged, queueItems, queueIndex)
+  ) {
+    usePlayerStore.getState().updateReplayGainForCurrentTrack();
+  }
+}
+
+/** True when a library sync-idle event applies to this queue ref's server. */
+export function syncIdleAppliesToQueueRef(syncServerId: string, ref: QueueItemRef): boolean {
+  const scopeId = syncServerId.trim();
+  if (!scopeId) return false;
+  const profileId = resolveServerIdForIndexKey(scopeId) || scopeId;
+  const refCanonical = canonicalQueueServerKey(ref.serverId);
+  const refProfile = resolveServerIdForIndexKey(ref.serverId) || ref.serverId;
+  return ref.serverId === scopeId
+    || ref.serverId === profileId
+    || refCanonical === scopeId
+    || refCanonical === profileId
+    || refProfile === scopeId
+    || refProfile === profileId;
+}
+
 /** Push resolver-fetched metadata onto the live track; upgrade engine gain when needed. */
 export function maybeSyncCurrentTrackFromResolver(): void {
   const state = usePlayerStore.getState();
@@ -71,17 +124,60 @@ export function maybeSyncCurrentTrackFromResolver(): void {
 
   const resolved = resolveQueueTrack(ref, currentTrack);
   const merged = mergePlaybackTrackMetadata(currentTrack, resolved);
-  if (!shouldSyncCurrentTrackMetadata(currentTrack, merged, queueItems, queueIndex)) return;
+  applyCurrentTrackMetadataUpgrade(currentTrack, merged, queueItems, queueIndex);
+}
 
-  usePlayerStore.setState({ currentTrack: merged });
-  if (
-    isReplayGainActive()
-    && shouldUpgradeReplayGainMetadata(currentTrack, merged, queueItems, queueIndex)
-  ) {
-    usePlayerStore.getState().updateReplayGainForCurrentTrack();
-  }
+/**
+ * Re-read index-first metadata for the playing slot and upgrade ReplayGain when
+ * library tags differ from the live snapshot (post-sync recalc, new tags, peak).
+ */
+export async function maybeRefreshCurrentTrackMetadataFromIndex(): Promise<void> {
+  const state = usePlayerStore.getState();
+  const { currentTrack, queueItems, queueIndex, isPlaying, currentRadio } = state;
+  if (!currentTrack || !isPlaying || currentRadio) return;
+  const ref = queueItems[queueIndex];
+  if (!ref || ref.trackId !== currentTrack.id) return;
+
+  const serverId = playbackCacheKeyForRef(ref);
+  if (!serverId) return;
+
+  const song = await resolveSongMetaIndexFirst(serverId, currentTrack.id);
+  if (!song) return;
+
+  const merged = mergePlaybackTrackMetadata(currentTrack, songToTrack(song));
+  applyCurrentTrackMetadataUpgrade(currentTrack, merged, queueItems, queueIndex);
+}
+
+let indexRefreshInflight: Promise<void> | null = null;
+
+export function scheduleCurrentTrackMetadataRefreshFromIndex(): void {
+  if (indexRefreshInflight) return;
+  indexRefreshInflight = maybeRefreshCurrentTrackMetadataFromIndex()
+    .catch(() => {})
+    .finally(() => {
+      indexRefreshInflight = null;
+    });
+}
+
+/** Test-only: drop coalesced index refresh state. */
+export function _resetIndexRefreshInflightForTest(): void {
+  indexRefreshInflight = null;
+}
+
+function scheduleIndexRefreshAfterSyncIdle(payload: LibrarySyncIdlePayload): void {
+  if (!payload.ok) return;
+  const state = usePlayerStore.getState();
+  if (!state.isPlaying || state.currentRadio || !state.currentTrack) return;
+  const ref = state.queueItems[state.queueIndex];
+  if (!ref || ref.trackId !== state.currentTrack.id) return;
+  if (!syncIdleAppliesToQueueRef(payload.serverId, ref)) return;
+  scheduleCurrentTrackMetadataRefreshFromIndex();
 }
 
 subscribeQueueResolver(() => {
   maybeSyncCurrentTrackFromResolver();
+});
+
+void listen<LibrarySyncIdlePayload>('library:sync-idle', ({ payload }) => {
+  scheduleIndexRefreshAfterSyncIdle(payload);
 });

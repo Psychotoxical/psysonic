@@ -8,10 +8,14 @@ import {
   seedQueueResolver,
 } from '@/features/playback/store/queueTrackResolver';
 import {
+  _resetIndexRefreshInflightForTest,
+  maybeRefreshCurrentTrackMetadataFromIndex,
   maybeSyncCurrentTrackFromResolver,
   shouldSyncCurrentTrackMetadata,
   shouldUpgradeReplayGainMetadata,
+  syncIdleAppliesToQueueRef,
 } from '@/features/playback/store/replayGainMetadataSync';
+import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 
 const ref = (trackId: string): QueueItemRef => ({ serverId: 's1', trackId });
 
@@ -50,6 +54,12 @@ describe('shouldUpgradeReplayGainMetadata', () => {
     const base = track('t1', { replayGainTrackDb: -6 });
     const withPeak = { ...base, replayGainPeak: 0.98 };
     expect(shouldUpgradeReplayGainMetadata(base, withPeak, [ref('t1')], 0)).toBe(true);
+  });
+
+  it('returns true when track gain was recalculated on the server', () => {
+    const prev = track('t1', { replayGainTrackDb: -6.0 });
+    const next = track('t1', { replayGainTrackDb: -8.5 });
+    expect(shouldUpgradeReplayGainMetadata(prev, next, [ref('t1')], 0)).toBe(true);
   });
 });
 
@@ -135,5 +145,60 @@ describe('maybeSyncCurrentTrackFromResolver', () => {
     maybeSyncCurrentTrackFromResolver();
 
     expect(usePlayerStore.getState().currentTrack?.replayGainTrackDb).toBe(-7.2);
+  });
+});
+
+describe('maybeRefreshCurrentTrackMetadataFromIndex', () => {
+  beforeEach(() => {
+    _resetQueueResolverForTest();
+    _resetIndexRefreshInflightForTest();
+    onInvoke('audio_update_replay_gain', () => undefined);
+    useAuthStore.setState({
+      normalizationEngine: 'replaygain',
+      replayGainEnabled: true,
+      replayGainMode: 'track',
+      replayGainPreGainDb: 0,
+      replayGainFallbackDb: -6,
+    });
+    useLibraryIndexStore.setState({ masterEnabled: true });
+    usePlayerStore.setState({
+      currentTrack: track('t1', { replayGainTrackDb: -6.0, replayGainPeak: 0.8 }),
+      queueItems: [ref('t1')],
+      queueIndex: 0,
+      isPlaying: true,
+      currentRadio: null,
+      volume: 0.8,
+    });
+  });
+
+  it('upgrades recalculated ReplayGain from the library index', async () => {
+    onInvoke('library_get_status', () => ({
+      serverId: 's1', libraryScope: '', syncPhase: 'ready',
+      capabilityFlags: 0, libraryTier: 'unknown', syncedAt: 0,
+    }));
+    onInvoke('library_get_track', () => ({
+      serverId: 's1',
+      id: 't1',
+      title: 'Track t1',
+      album: 'Album',
+      durationSec: 200,
+      replayGainTrackDb: -8.5,
+      replayGainPeak: 0.91,
+      syncedAt: 0,
+      rawJson: {},
+    }));
+
+    await maybeRefreshCurrentTrackMetadataFromIndex();
+
+    const s = usePlayerStore.getState();
+    expect(s.currentTrack?.replayGainTrackDb).toBe(-8.5);
+    expect(s.currentTrack?.replayGainPeak).toBe(0.91);
+  });
+});
+
+describe('syncIdleAppliesToQueueRef', () => {
+  it('matches profile id to index key on the ref', () => {
+    expect(syncIdleAppliesToQueueRef('profile-uuid', { serverId: 'profile-uuid', trackId: 't1' }))
+      .toBe(true);
   });
 });
