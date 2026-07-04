@@ -156,7 +156,7 @@ export default function MainApp() {
         showToast('📭 Keine Alben in diesem Zeitraum gefunden');
       }
     } catch (err) {
-      showToast(`❌ Export fehlgeschlagen: ${String(err).slice(0, 80)}`);
+      showToast(`❌ Export fehlgeschlagen: ${(err instanceof Error ? err.message : String(err)).slice(0, 80)}`);
       console.error('[easter egg] export failed:', err);
     }
   };
