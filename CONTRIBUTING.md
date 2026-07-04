@@ -84,7 +84,7 @@ If you use **Nix**, `nix develop` (see [`flake.nix`](flake.nix)) provides the pi
 
 1. **One pull request, one coherent goal.** Easier review, easier revert, fewer merge conflicts.
 2. **Match existing style** in touched files (naming, module layout, comment density). Avoid drive-by refactors unrelated to the task.
-3. **Linting and formatting:** ESLint (strict `eslint.config.mjs`) runs in CI on frontend paths; run `npm run lint` locally before opening a frontend PR. `tsc --noEmit` is also required. For Rust, `cargo clippy --workspace --all-targets -- -D warnings` is the lint gate; `cargo fmt` is not currently required but won't hurt.
+3. **Linting and formatting:** ESLint (strict `eslint.config.mjs`) and **`npm run dep:check`** (dependency-cruiser layering/cycle guard) run in CI on frontend paths; run both locally before opening a frontend PR. `tsc --noEmit` is also required. For Rust, `cargo clippy --workspace --all-targets -- -D warnings` is the lint gate; `cargo fmt` is not currently required but won't hurt.
 4. **Commit messages:** a short **human-readable** summary of what changed and why; Conventional Commits-style prefixes (`feat:`, `fix:`, ...) are fine if you prefer them. Do not include meta references (IDEs, assistants, or how the message was produced) — only what matters for project history.
 5. **License:** new code must remain compatible with the project's GPLv3.
 6. **Tests:** when you change behaviour users rely on, add or update tests next to the code (see [`src/test/README.md`](src/test/README.md)). Purely visual tweaks may not need tests, but behavioural regressions should be covered where the suite can catch them.
@@ -114,7 +114,7 @@ PRs must target `main`. `next` and `release` are maintainer-driven promotion bra
 
 Workflows are path-filtered (see the YAML for exact `paths` / `paths-ignore`):
 
-- **Frontend** (`src/**`, lockfile, Vitest/Vite/tsconfig, ESLint config, etc.): `npm run lint` (ESLint strict), `npm test` (Vitest), `npx tsc --noEmit`, then a coverage run.
+- **Frontend** (`src/**`, lockfile, Vitest/Vite/tsconfig, ESLint config, dependency-cruiser config, etc.): `npm run lint`, **`npm run dep:check`** (layering + cycle guard), `npm test` (Vitest), `npx tsc --noEmit`, then a coverage run.
 - **Rust** (`src-tauri/**`): `cargo test --workspace --all-targets`, `cargo clippy --workspace --all-targets -- -D warnings`, then coverage.
 
 The **`ci-ok`** job in [`ci-main.yml`](.github/workflows/ci-main.yml) is the merge gate: it waits for every required job above whose path filter matched the PR, and fails if any of them failed or did not finish in time.
@@ -132,7 +132,9 @@ Assume the repository root is `psysonic/` (for example after `git clone https://
 ```bash
 npm ci
 npm run lint
+npm run dep:check
 npm test
+npm run prebuild:release-notes
 npx tsc --noEmit
 npm run test:coverage
 bash scripts/check-frontend-hot-path-coverage.sh

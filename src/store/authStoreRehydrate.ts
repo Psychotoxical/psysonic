@@ -19,6 +19,7 @@ import {
 } from './authStoreHelpers';
 import type {
   AuthState,
+  ArtistBrowseCreditMode,
   DiscordCoverSource,
   DurationMode,
   LyricsSourceConfig,
@@ -26,7 +27,6 @@ import type {
   SeekbarStyle,
   WindowButtonStyle,
 } from './authStoreTypes';
-import type { ArtistCreditMode } from '@/lib/api/library';
 import { migrateLegacyLastfm, sanitizeAccounts } from '../music-network';
 
 /**
@@ -135,7 +135,7 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     (state as { artistBrowseCreditMode?: unknown }).artistBrowseCreditMode as string,
   )
     ? {}
-    : { artistBrowseCreditMode: 'album' as ArtistCreditMode };
+    : { artistBrowseCreditMode: 'album' as ArtistBrowseCreditMode };
 
   const VALID_WAYLAND_TEXT_PROFILE = new Set<string>(['balanced', 'sharp', 'gpu', 'minimal']);
   const rawWaylandProfile = (state as { linuxWaylandTextRenderProfile?: unknown }).linuxWaylandTextRenderProfile;
