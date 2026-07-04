@@ -8,7 +8,9 @@ import {
   seedQueueResolver,
 } from '@/features/playback/store/queueTrackResolver';
 import {
+  maybeSyncCurrentTrackFromResolver,
   maybeSyncReplayGainFromResolver,
+  shouldSyncCurrentTrackMetadata,
   shouldUpgradeReplayGainMetadata,
 } from '@/features/playback/store/replayGainMetadataSync';
 
@@ -52,7 +54,21 @@ describe('shouldUpgradeReplayGainMetadata', () => {
   });
 });
 
-describe('maybeSyncReplayGainFromResolver', () => {
+describe('shouldSyncCurrentTrackMetadata', () => {
+  it('returns true when placeholder title resolves', () => {
+    const prev = track('t1', { title: '…' });
+    const next = track('t1', { title: 'Resolved title' });
+    expect(shouldSyncCurrentTrackMetadata(prev, next, [ref('t1')], 0)).toBe(true);
+  });
+
+  it('returns true when duration arrives on a thin snapshot', () => {
+    const prev = track('t1', { duration: 0 });
+    const next = track('t1', { duration: 240 });
+    expect(shouldSyncCurrentTrackMetadata(prev, next, [ref('t1')], 0)).toBe(true);
+  });
+});
+
+describe('maybeSyncCurrentTrackFromResolver', () => {
   beforeEach(() => {
     _resetQueueResolverForTest();
     onInvoke('audio_update_replay_gain', () => undefined);
@@ -84,21 +100,41 @@ describe('maybeSyncReplayGainFromResolver', () => {
     expect(s.currentTrack?.replayGainPeak).toBe(0.95);
   });
 
-  it('no-ops when ReplayGain mode is off', () => {
+  it('no-ops engine gain when ReplayGain mode is off but still syncs thin title', () => {
     useAuthStore.setState({ normalizationEngine: 'off', replayGainEnabled: false });
-    seedQueueResolver('s1', [track('t1', { replayGainTrackDb: -7.2 })]);
+    seedQueueResolver('s1', [track('t1', { title: 'Full title' })]);
 
     maybeSyncReplayGainFromResolver();
 
+    expect(usePlayerStore.getState().currentTrack?.title).toBe('Full title');
     expect(usePlayerStore.getState().currentTrack?.replayGainTrackDb).toBeUndefined();
   });
 
   it('no-ops when transport is idle', () => {
     usePlayerStore.setState({ isPlaying: false });
-    seedQueueResolver('s1', [track('t1', { replayGainTrackDb: -7.2 })]);
+    seedQueueResolver('s1', [track('t1', { title: 'Full title', duration: 220 })]);
+
+    maybeSyncCurrentTrackFromResolver();
+
+    expect(usePlayerStore.getState().currentTrack?.title).toBe('…');
+  });
+
+  it('upgrades placeholder title without ReplayGain when normalization is off', () => {
+    useAuthStore.setState({ normalizationEngine: 'off', replayGainEnabled: false });
+    seedQueueResolver('s1', [track('t1', { title: 'Full title', duration: 220 })]);
+
+    maybeSyncCurrentTrackFromResolver();
+
+    const s = usePlayerStore.getState();
+    expect(s.currentTrack?.title).toBe('Full title');
+    expect(s.currentTrack?.duration).toBe(220);
+  });
+
+  it('maybeSyncReplayGainFromResolver alias behaves like maybeSyncCurrentTrackFromResolver', () => {
+    seedQueueResolver('s1', [track('t1', { replayGainTrackDb: -7.2, replayGainPeak: 0.95 })]);
 
     maybeSyncReplayGainFromResolver();
 
-    expect(usePlayerStore.getState().currentTrack?.replayGainTrackDb).toBeUndefined();
+    expect(usePlayerStore.getState().currentTrack?.replayGainTrackDb).toBe(-7.2);
   });
 });

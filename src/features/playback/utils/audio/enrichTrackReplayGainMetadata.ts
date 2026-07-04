@@ -9,6 +9,12 @@ export function trackNeedsReplayGainMetadataPrefetch(track: Track): boolean {
   return track.replayGainTrackDb == null && track.replayGainAlbumDb == null;
 }
 
+/** True when index/getSong prefetch would improve a thin snapshot or ReplayGain tags. */
+export function trackNeedsPlaybackMetadataPrefetch(track: Track): boolean {
+  if (track.title === '…' || track.duration === 0) return true;
+  return trackNeedsReplayGainMetadataPrefetch(track);
+}
+
 /** Merge resolver/index metadata onto a thin playback snapshot without dropping queue flags. */
 export function mergePlaybackTrackMetadata(base: Track, resolved: Track): Track {
   const thin = base.title === '…' || base.duration === 0;
@@ -38,15 +44,18 @@ export function mergePlaybackTrackMetadata(base: Track, resolved: Track): Track 
 }
 
 /**
- * Prefetch ReplayGain (and thin placeholder fields) via index → getSong before
- * binding gain on stream playback.
+ * Prefetch playback metadata (thin fields + ReplayGain) via index → getSong
+ * before binding the engine on stream / gapless paths.
  */
-export async function enrichTrackReplayGainMetadata(
+export async function enrichTrackPlaybackMetadata(
   track: Track,
   serverId: string,
 ): Promise<Track> {
-  if (!trackNeedsReplayGainMetadataPrefetch(track) || !serverId) return track;
+  if (!trackNeedsPlaybackMetadataPrefetch(track) || !serverId) return track;
   const song = await resolveSongMetaIndexFirst(serverId, track.id);
   if (!song) return track;
   return mergePlaybackTrackMetadata(track, songToTrack(song));
 }
+
+/** @deprecated alias — use {@link enrichTrackPlaybackMetadata} */
+export const enrichTrackReplayGainMetadata = enrichTrackPlaybackMetadata;

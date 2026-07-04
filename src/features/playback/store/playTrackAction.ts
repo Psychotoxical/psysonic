@@ -33,7 +33,7 @@ import {
 } from '@/store/localPlaybackResolve';
 import { resolvePlaybackUrl } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '@/features/playback/utils/audio/resolveReplayGainDb';
-import { enrichTrackReplayGainMetadata } from '@/features/playback/utils/audio/enrichTrackReplayGainMetadata';
+import { enrichTrackPlaybackMetadata } from '@/features/playback/utils/audio/enrichTrackReplayGainMetadata';
 import { audioPlayHiResBlendArgs } from '@/lib/audio/hiResCrossfadeResample';
 import { useAuthStore } from '@/store/authStore';
 import { consumeCrossfadeDynamicOverlap, getCrossfadeTransition, peekArmedCrossfadeDynamicOverlap } from '@/features/playback/store/crossfadeTrimCache';
@@ -645,7 +645,7 @@ export function runPlayTrack(
         || getPlaybackIndexKey()
         || '';
       if (metadataSid) {
-        trackForPlay = await enrichTrackReplayGainMetadata(scopedTrack, metadataSid);
+        trackForPlay = await enrichTrackPlaybackMetadata(scopedTrack, metadataSid);
       }
       if (getPlayGeneration() !== gen) return;
       runPlayTrackBody(trackForPlay);

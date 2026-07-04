@@ -5,6 +5,7 @@
  * upgrades `currentTrack` and pushes fresh gain to the engine once tags land,
  * mirroring the loudness cache refresh path (`refreshLoudnessForTrack`).
  */
+import { mergePlaybackTrackMetadata } from '@/features/playback/utils/audio/enrichTrackReplayGainMetadata';
 import { resolveReplayGainDb } from '@/features/playback/utils/audio/resolveReplayGainDb';
 import { isReplayGainActive } from '@/features/playback/store/loudnessGainCache';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
@@ -48,9 +49,20 @@ export function shouldUpgradeReplayGainMetadata(
     !== resolvedReplayGainDb(next, queueItems, queueIndex);
 }
 
-/** Push resolver-fetched ReplayGain tags onto the live track + engine when they arrive late. */
-export function maybeSyncReplayGainFromResolver(): void {
-  if (!isReplayGainActive()) return;
+/** True when resolver metadata would improve the live player-bar snapshot. */
+export function shouldSyncCurrentTrackMetadata(
+  prev: Track,
+  next: Track,
+  queueItems: QueueItemRef[],
+  queueIndex: number,
+): boolean {
+  if (prev.title === '…' && next.title && next.title !== '…') return true;
+  if (prev.duration === 0 && next.duration > 0) return true;
+  return shouldUpgradeReplayGainMetadata(prev, next, queueItems, queueIndex);
+}
+
+/** Push resolver-fetched metadata onto the live track; upgrade engine gain when needed. */
+export function maybeSyncCurrentTrackFromResolver(): void {
   const state = usePlayerStore.getState();
   const { currentTrack, queueItems, queueIndex, isPlaying, currentRadio } = state;
   if (!currentTrack || !isPlaying || currentRadio) return;
@@ -58,12 +70,21 @@ export function maybeSyncReplayGainFromResolver(): void {
   if (!ref || ref.trackId !== currentTrack.id) return;
 
   const resolved = resolveQueueTrack(ref, currentTrack);
-  if (!shouldUpgradeReplayGainMetadata(currentTrack, resolved, queueItems, queueIndex)) return;
+  const merged = mergePlaybackTrackMetadata(currentTrack, resolved);
+  if (!shouldSyncCurrentTrackMetadata(currentTrack, merged, queueItems, queueIndex)) return;
 
-  usePlayerStore.setState({ currentTrack: resolved });
-  usePlayerStore.getState().updateReplayGainForCurrentTrack();
+  usePlayerStore.setState({ currentTrack: merged });
+  if (
+    isReplayGainActive()
+    && shouldUpgradeReplayGainMetadata(currentTrack, merged, queueItems, queueIndex)
+  ) {
+    usePlayerStore.getState().updateReplayGainForCurrentTrack();
+  }
 }
 
+/** @deprecated alias — use {@link maybeSyncCurrentTrackFromResolver} */
+export const maybeSyncReplayGainFromResolver = maybeSyncCurrentTrackFromResolver;
+
 subscribeQueueResolver(() => {
-  maybeSyncReplayGainFromResolver();
+  maybeSyncCurrentTrackFromResolver();
 });

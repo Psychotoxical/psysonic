@@ -4,8 +4,9 @@ import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import type { Track } from '@/lib/media/trackTypes';
 import {
-  enrichTrackReplayGainMetadata,
+  enrichTrackPlaybackMetadata,
   mergePlaybackTrackMetadata,
+  trackNeedsPlaybackMetadataPrefetch,
   trackNeedsReplayGainMetadataPrefetch,
 } from '@/features/playback/utils/audio/enrichTrackReplayGainMetadata';
 
@@ -53,7 +54,25 @@ describe('mergePlaybackTrackMetadata', () => {
   });
 });
 
-describe('enrichTrackReplayGainMetadata', () => {
+describe('trackNeedsPlaybackMetadataPrefetch', () => {
+  beforeEach(() => {
+    useAuthStore.setState({
+      normalizationEngine: 'off',
+      replayGainEnabled: false,
+    });
+  });
+
+  it('returns true for thin placeholder snapshots even when ReplayGain is off', () => {
+    expect(trackNeedsPlaybackMetadataPrefetch(track({ title: '…' }))).toBe(true);
+    expect(trackNeedsPlaybackMetadataPrefetch(track({ duration: 0 }))).toBe(true);
+  });
+
+  it('returns false when the snapshot is fully populated and RG is off', () => {
+    expect(trackNeedsPlaybackMetadataPrefetch(track())).toBe(false);
+  });
+});
+
+describe('enrichTrackPlaybackMetadata', () => {
   beforeEach(() => {
     useAuthStore.setState({
       normalizationEngine: 'replaygain',
@@ -80,7 +99,7 @@ describe('enrichTrackReplayGainMetadata', () => {
       rawJson: {},
     }));
 
-    const enriched = await enrichTrackReplayGainMetadata(track({ title: '…' }), 's1');
+    const enriched = await enrichTrackPlaybackMetadata(track({ title: '…' }), 's1');
     expect(enriched.replayGainTrackDb).toBe(-8.1);
     expect(enriched.title).toBe('Indexed');
   });

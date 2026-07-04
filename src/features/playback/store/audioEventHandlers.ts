@@ -27,8 +27,7 @@ import {
   playbackProfileIdForTrack,
 } from '@/features/playback/utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '@/features/playback/utils/playback/resolvePlaybackUrl';
-import { resolveReplayGainDb } from '@/features/playback/utils/audio/resolveReplayGainDb';
-import { audioPlayHiResBlendArgs } from '@/lib/audio/hiResCrossfadeResample';
+import { requestGaplessChainPreload } from '@/features/playback/store/gaplessChainPreload';
 import { showToast } from '@/lib/dom/toast';
 import { useAuthStore } from '@/store/authStore';
 import { getPlayGeneration, setIsAudioPaused } from '@/features/playback/store/engineState';
@@ -39,13 +38,8 @@ import {
   getLastGaplessSwitchTime,
   markGaplessSwitch,
   setBytePreloadingId,
-  setGaplessPreloadingId,
 } from '@/features/playback/store/gaplessPreloadState';
 import { touchHotCacheOnPlayback } from '@/features/playback/store/hotCacheTouch';
-import {
-  isReplayGainActive,
-  loudnessGainDbForEngineBind,
-} from '@/features/playback/store/loudnessGainCache';
 import { refreshLoudnessForTrack } from '@/features/playback/store/loudnessRefresh';
 import { deriveNormalizationSnapshot } from '@/features/playback/store/normalizationSnapshot';
 import { emitNormalizationDebug } from '@/features/playback/store/normalizationDebug';
@@ -427,37 +421,15 @@ export function handleAudioProgress(
 
     // Gapless chain — decode + chain into Sink 30s before track boundary.
     if (shouldChainGapless && nextTrack.id !== getGaplessPreloadingId()) {
-      setGaplessPreloadingId(nextTrack.id);
-      // Ensure loudness gain is already cached for the chained request payload.
-      void refreshLoudnessForTrack(nextTrack.id, { syncPlayingEngine: false });
-      const authState = useAuthStore.getState();
-      // Auto-mode neighbours for the *next* track: current track on its left,
-      // queueItems[nextIdx+1] on its right (resolved; placeholder on a cold miss
-      // — only its replaygain tags matter, which a placeholder lacks → fallback).
-      const nextNeighbourRef = nextIdx + 1 < queueItems.length
-        ? queueItems[nextIdx + 1]
-        : (repeatMode === 'all' && queueItems.length > 0 ? queueItems[0] : null);
-      const nextNeighbour = nextNeighbourRef ? resolveQueueTrack(nextNeighbourRef) : null;
-      const replayGainDb = resolveReplayGainDb(
-        nextTrack, track, nextNeighbour,
-        isReplayGainActive(), authState.replayGainMode,
-      );
-      const replayGainPeak = isReplayGainActive()
-        ? (nextTrack.replayGainPeak ?? null)
-        : null;
-      invoke('audio_chain_preload', {
-        url: nextUrl,
+      requestGaplessChainPreload({
+        currentTrack: track,
+        nextTrack,
+        nextRef,
+        nextIdx,
+        queueItems,
+        repeatMode,
         volume: store.volume,
-        durationHint: nextTrack.duration,
-        replayGainDb,
-        replayGainPeak,
-        loudnessGainDb: loudnessGainDbForEngineBind(nextTrack.id),
-        preGainDb: authState.replayGainPreGainDb,
-        fallbackDb: authState.replayGainFallbackDb,
-        ...audioPlayHiResBlendArgs(authState),
-        analysisTrackId: nextTrack.id,
-        serverId: analysisServerId || null,
-      }).catch(() => {});
+      });
     }
   }
 }
