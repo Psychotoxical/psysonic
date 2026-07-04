@@ -34,6 +34,7 @@ fn seed_track(store: &LibraryStore, server_id: &str, track_id: &str, duration_se
             bpm: None,
             replay_gain_track_db: None,
             replay_gain_album_db: None,
+            replay_gain_peak: None,
             content_hash: None,
             server_updated_at: None,
             server_created_at: None,
@@ -79,6 +80,7 @@ fn row_with_id_hash(server: &str, id: &str, hash: &str, path: &str) -> TrackRow 
         bpm: None,
         replay_gain_track_db: None,
         replay_gain_album_db: None,
+        replay_gain_peak: None,
         content_hash: if hash.is_empty() {
             None
         } else {
@@ -503,6 +505,7 @@ fn recent_plays_includes_album_cover_metadata() {
             bpm: None,
             replay_gain_track_db: None,
             replay_gain_album_db: None,
+            replay_gain_peak: None,
             content_hash: None,
             server_updated_at: None,
             server_created_at: None,

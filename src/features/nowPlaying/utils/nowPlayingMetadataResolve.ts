@@ -16,9 +16,10 @@
  * `artistInfo` (bio / similar) has no index source and stays network-only — it
  * is intentionally absent here.
  */
-import { libraryGetTrack, libraryGetTracksByAlbum } from '@/lib/api/library';
+import { libraryGetTracksByAlbum } from '@/lib/api/library';
 import { getArtistForServer, getTopSongsForServer } from '@/lib/api/subsonicArtists';
-import { getAlbumForServer, getSongForServer } from '@/lib/api/subsonicLibrary';
+import { getAlbumForServer } from '@/lib/api/subsonicLibrary';
+import { resolveSongMetaIndexFirst } from '@/lib/library/resolveSongMetaIndexFirst';
 import type { SubsonicAlbum, SubsonicSong } from '@/lib/api/subsonicTypes';
 import { shouldAttemptSubsonicForServer } from '@/lib/network/subsonicNetworkGuard';
 import { loadAlbumFromLibraryIndex, loadArtistFromLibraryIndex } from '@/features/offline';
@@ -96,13 +97,5 @@ export async function resolveNpSongMeta(
   serverId: string,
   songId: string,
 ): Promise<SubsonicSong | null> {
-  if (await libraryIsReady(serverId)) {
-    try {
-      const dto = await libraryGetTrack(serverId, songId);
-      if (dto) return trackToSong(dto);
-    } catch { /* index error → network fallback */ }
-  }
-  // Network arm keeps its own byte-style guard (`shouldAttemptSubsonicForServer`
-  // with the trackId + psysonic-local:// skip) — unchanged from #1042.
-  return getSongForServer(serverId, songId);
+  return resolveSongMetaIndexFirst(serverId, songId);
 }

@@ -61,6 +61,9 @@ vi.mock('@/features/playback/store/playerStore', () => ({
     setState: hoisted.playerSetStateMock,
   },
 }));
+vi.mock('@/features/playback/utils/audio/prepareTrackForEngineBind', () => ({
+  prepareTrackForEngineBind: vi.fn(async (track: Track) => track),
+}));
 
 import { queueUndoRestoreAudioEngine } from '@/features/playback/store/queueUndoAudioRestore';
 
@@ -90,12 +93,14 @@ describe('queueUndoRestoreAudioEngine', () => {
       atSeconds: 0,
       wantPlaying: true,
     });
-    expect(hoisted.invokeMock).toHaveBeenCalledWith('audio_play', expect.objectContaining({
-      url: 'https://mock/t1',
-      durationHint: 100,
-      manual: false,
-      analysisTrackId: 't1',
-    }));
+    await vi.waitFor(() => {
+      expect(hoisted.invokeMock).toHaveBeenCalledWith('audio_play', expect.objectContaining({
+        url: 'https://mock/t1',
+        durationHint: 100,
+        manual: false,
+        analysisTrackId: 't1',
+      }));
+    });
     expect(hoisted.recordEnginePlayUrlMock).toHaveBeenCalledWith('t1', 'https://mock/t1');
     expect(hoisted.setDeferHotCachePrefetchMock).toHaveBeenCalledWith(true);
     expect(hoisted.touchHotCacheOnPlaybackMock).toHaveBeenCalledWith('t1', 'srv');
@@ -110,9 +115,9 @@ describe('queueUndoRestoreAudioEngine', () => {
       atSeconds: 30,
       wantPlaying: true,
     });
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(hoisted.invokeMock).toHaveBeenCalledWith('audio_seek', { seconds: 30 });
+    await vi.waitFor(() => {
+      expect(hoisted.invokeMock).toHaveBeenCalledWith('audio_seek', { seconds: 30 });
+    });
   });
 
   it('skips audio_seek when atSeconds is near zero', async () => {
@@ -124,7 +129,9 @@ describe('queueUndoRestoreAudioEngine', () => {
       atSeconds: 0,
       wantPlaying: true,
     });
-    await Promise.resolve();
+    await vi.waitFor(() => {
+      expect(hoisted.invokeMock).toHaveBeenCalledWith('audio_play', expect.anything());
+    });
     await Promise.resolve();
     const seekCall = hoisted.invokeMock.mock.calls.find(c => c[0] === 'audio_seek');
     expect(seekCall).toBeUndefined();
@@ -139,17 +146,17 @@ describe('queueUndoRestoreAudioEngine', () => {
       atSeconds: 0,
       wantPlaying: false,
     });
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(hoisted.invokeMock).toHaveBeenCalledWith('audio_play', expect.objectContaining({
-      startPaused: true,
-    }));
+    await vi.waitFor(() => {
+      expect(hoisted.invokeMock).toHaveBeenCalledWith('audio_play', expect.objectContaining({
+        startPaused: true,
+      }));
+    });
     const pauseCall = hoisted.invokeMock.mock.calls.find(c => c[0] === 'audio_pause');
     expect(pauseCall).toBeUndefined();
     expect(hoisted.setIsAudioPausedMock).toHaveBeenCalledWith(true);
   });
 
-  it('bails out of the .then chain when generation has moved on', async () => {
+  it('bails out before audio_play when generation has moved on during prepare', async () => {
     hoisted.getPlayGeneration.mockReturnValue(2); // user navigated, new gen
     queueUndoRestoreAudioEngine({
       generation: 1,
@@ -159,9 +166,9 @@ describe('queueUndoRestoreAudioEngine', () => {
       atSeconds: 30,
       wantPlaying: false,
     });
-    await Promise.resolve();
-    await Promise.resolve();
-    // Should NOT have called audio_seek or audio_pause — gen moved on.
+    await vi.waitFor(() => {
+      expect(hoisted.invokeMock.mock.calls.length).toBe(0);
+    });
     const seekCall = hoisted.invokeMock.mock.calls.find(c => c[0] === 'audio_seek');
     const pauseCall = hoisted.invokeMock.mock.calls.find(c => c[0] === 'audio_pause');
     expect(seekCall).toBeUndefined();
@@ -178,7 +185,9 @@ describe('queueUndoRestoreAudioEngine', () => {
       atSeconds: 0,
       wantPlaying: true,
     });
-    await Promise.resolve();
+    await vi.waitFor(() => {
+      expect(hoisted.invokeMock).toHaveBeenCalledWith('audio_play', expect.anything());
+    });
     await Promise.resolve();
     await Promise.resolve();
     expect(hoisted.setDeferHotCachePrefetchMock).toHaveBeenCalledWith(false);

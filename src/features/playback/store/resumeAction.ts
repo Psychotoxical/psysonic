@@ -1,4 +1,5 @@
 import { getSong } from '@/lib/api/subsonicLibrary';
+import { enrichTrackPlaybackMetadata } from '@/features/playback/utils/audio/enrichTrackReplayGainMetadata';
 import { invoke } from '@tauri-apps/api/core';
 import { audioResume, audioSeek } from '@/lib/api/audio';
 import { estimateLivePosition, orbitSnapshot } from '@/store/orbitRuntime';
@@ -58,10 +59,9 @@ type GetState = () => PlayerState;
  *      `audio_resume` is enough.
  *    - **Cold**: engine has no loaded stream (app relaunch, or track
  *      ended and user hit play again). Promote any
- *      `stream_completed_cache` to hot disk, refetch the song from
- *      Navidrome for fresh ReplayGain metadata, call `audio_play`,
- *      then seek to the persisted `currentTime`. A `getSong` failure
- *      falls back to the in-memory `currentTrack`.
+ *      `stream_completed_cache` to hot disk, prefetch ReplayGain metadata
+ *      (index → getSong), call `audio_play`, then seek to the persisted
+ *      `currentTime`.
  */
 export function runResume(set: SetState, get: GetState): void {
   clearAllPlaybackScheduleTimers();
@@ -157,88 +157,55 @@ export function runResume(set: SetState, get: GetState): void {
       }
       if (getPlayGeneration() !== gen) return;
 
-      // Fetch fresh track data from server to get replay gain metadata
-      getSong(currentTrack.id).then(freshSong => {
+      if (getPlayGeneration() !== gen) return;
+
+      const coldServerId = getPlaybackIndexKey();
+      let trackToPlay = currentTrack;
+      try {
+        if (coldServerId) {
+          trackToPlay = await enrichTrackPlaybackMetadata(currentTrack, coldServerId);
+        }
+      } catch { /* keep currentTrack */ }
+      if (getPlayGeneration() !== gen) return;
+      if (trackToPlay !== currentTrack) set({ currentTrack: trackToPlay });
+
+      const authStateCold = useAuthStore.getState();
+      const replayGainDbCold = resolveReplayGainDb(
+        trackToPlay, coldPrev, coldNext,
+        isReplayGainActive(), authStateCold.replayGainMode,
+      );
+      const replayGainPeakCold = isReplayGainActive() ? (trackToPlay.replayGainPeak ?? null) : null;
+      setDeferHotCachePrefetch(true);
+      const coldUrl = resolvePlaybackUrl(trackToPlay.id, coldServerId);
+      set({ currentPlaybackSource: playbackSourceHintForResolvedUrl(trackToPlay.id, coldServerId, coldUrl) });
+      recordEnginePlayUrl(trackToPlay.id, coldUrl);
+      touchHotCacheOnPlayback(trackToPlay.id, coldServerId);
+      invoke('audio_play', {
+        url: coldUrl,
+        volume: vol,
+        durationHint: trackToPlay.duration,
+        replayGainDb: replayGainDbCold,
+        replayGainPeak: replayGainPeakCold,
+        loudnessGainDb: loudnessGainDbForEngineBind(trackToPlay.id),
+        preGainDb: authStateCold.replayGainPreGainDb,
+        fallbackDb: authStateCold.replayGainFallbackDb,
+        manual: false,
+        ...audioPlayHiResBlendArgs(useAuthStore.getState()),
+        analysisTrackId: trackToPlay.id,
+        serverId: coldServerId || null,
+        streamFormatSuffix: trackToPlay.suffix ?? null,
+        startPaused: false,
+      }).then(() => {
+        if (getPlayGeneration() === gen && currentTime > 1) {
+          audioSeek({ seconds: currentTime }).catch(console.error);
+        }
+      }).catch((err: unknown) => {
         if (getPlayGeneration() !== gen) return;
-        const trackToPlay = freshSong ? songToTrack(freshSong) : currentTrack;
-        // Update store with fresh track data if available
-        if (freshSong) set({ currentTrack: trackToPlay });
-        const authStateCold = useAuthStore.getState();
-        const replayGainDbCold = resolveReplayGainDb(
-          trackToPlay, coldPrev, coldNext,
-          isReplayGainActive(), authStateCold.replayGainMode,
-        );
-        const replayGainPeakCold = isReplayGainActive() ? (trackToPlay.replayGainPeak ?? null) : null;
-        const coldServerId = getPlaybackIndexKey();
-        setDeferHotCachePrefetch(true);
-        const coldUrl = resolvePlaybackUrl(trackToPlay.id, coldServerId);
-        set({ currentPlaybackSource: playbackSourceHintForResolvedUrl(trackToPlay.id, coldServerId, coldUrl) });
-        recordEnginePlayUrl(trackToPlay.id, coldUrl);
-        touchHotCacheOnPlayback(trackToPlay.id, coldServerId);
-        invoke('audio_play', {
-          url: coldUrl,
-          volume: vol,
-          durationHint: trackToPlay.duration,
-          replayGainDb: replayGainDbCold,
-          replayGainPeak: replayGainPeakCold,
-          loudnessGainDb: loudnessGainDbForEngineBind(trackToPlay.id),
-          preGainDb: authStateCold.replayGainPreGainDb,
-          fallbackDb: authStateCold.replayGainFallbackDb,
-          manual: false,
-          ...audioPlayHiResBlendArgs(useAuthStore.getState()),
-          analysisTrackId: trackToPlay.id,
-          serverId: coldServerId || null,
-          streamFormatSuffix: trackToPlay.suffix ?? null,
-          startPaused: false,
-        }).then(() => {
-          if (getPlayGeneration() === gen && currentTime > 1) {
-            audioSeek({ seconds: currentTime }).catch(console.error);
-          }
-        }).catch((err: unknown) => {
-          if (getPlayGeneration() !== gen) return;
-          setDeferHotCachePrefetch(false);
-          console.error('[psysonic] audio_play (cold resume) failed:', err);
-          set({ isPlaying: false });
-        });
-        pushQueueOnPlaybackStart(queueItems, trackToPlay, currentTime);
-      }).catch(() => {
-        if (getPlayGeneration() !== gen) return;
-        // Fallback to currentTrack if fetch fails
-        const authStateCold = useAuthStore.getState();
-        const replayGainDbCold = resolveReplayGainDb(
-          currentTrack, coldPrev, coldNext,
-          isReplayGainActive(), authStateCold.replayGainMode,
-        );
-        const replayGainPeakCold = isReplayGainActive() ? (currentTrack.replayGainPeak ?? null) : null;
-        const coldServerId = getPlaybackIndexKey();
-        setDeferHotCachePrefetch(true);
-        const coldUrl = resolvePlaybackUrl(currentTrack.id, coldServerId);
-        set({ currentPlaybackSource: playbackSourceHintForResolvedUrl(currentTrack.id, coldServerId, coldUrl) });
-        recordEnginePlayUrl(currentTrack.id, coldUrl);
-        touchHotCacheOnPlayback(currentTrack.id, coldServerId);
-        invoke('audio_play', {
-          url: coldUrl,
-          volume: vol,
-          durationHint: currentTrack.duration,
-          replayGainDb: replayGainDbCold,
-          replayGainPeak: replayGainPeakCold,
-          loudnessGainDb: loudnessGainDbForEngineBind(currentTrack.id),
-          preGainDb: authStateCold.replayGainPreGainDb,
-          fallbackDb: authStateCold.replayGainFallbackDb,
-          manual: false,
-          ...audioPlayHiResBlendArgs(useAuthStore.getState()),
-          analysisTrackId: currentTrack.id,
-          serverId: coldServerId || null,
-          streamFormatSuffix: currentTrack.suffix ?? null,
-          startPaused: false,
-        }).catch((err: unknown) => {
-          if (getPlayGeneration() !== gen) return;
-          setDeferHotCachePrefetch(false);
-          console.error('[psysonic] audio_play (cold resume) failed:', err);
-          set({ isPlaying: false });
-        });
-        pushQueueOnPlaybackStart(queueItems, currentTrack, currentTime);
+        setDeferHotCachePrefetch(false);
+        console.error('[psysonic] audio_play (cold resume) failed:', err);
+        set({ isPlaying: false });
       });
+      pushQueueOnPlaybackStart(queueItems, trackToPlay, currentTime);
     })();
   }
 }

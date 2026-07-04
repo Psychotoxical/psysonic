@@ -54,6 +54,10 @@ vi.mock('@/features/playback/store/queueTrackView', () => ({
 }));
 vi.mock('@/features/playback/utils/playback/playbackServer', () => ({
   getPlaybackCacheServerKey: () => 'srv-key',
+  playbackCacheKeyForTrack: () => 'srv-key',
+}));
+vi.mock('@/features/playback/utils/audio/prepareTrackForEngineBind', () => ({
+  prepareTrackForEngineBind: vi.fn(async (track: Track) => track),
 }));
 
 import {

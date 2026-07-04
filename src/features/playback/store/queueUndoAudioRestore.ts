@@ -1,5 +1,11 @@
 import type { Track } from '@/lib/media/trackTypes';
+import {
+  getPlaybackIndexKey,
+  playbackCacheKeyForTrack,
+} from '@/features/playback/utils/playback/playbackServer';
+import { getPlayGeneration } from '@/features/playback/store/engineState';
 import { engineLoadTrackAtPosition } from '@/features/playback/store/engineLoadTrackAtPosition';
+import { prepareTrackForEngineBind } from '@/features/playback/utils/audio/prepareTrackForEngineBind';
 
 /**
  * Reload the Rust audio engine to match a queue-undo snapshot. Zustand
@@ -20,5 +26,15 @@ export function queueUndoRestoreAudioEngine(opts: {
   atSeconds: number;
   wantPlaying: boolean;
 }): void {
-  engineLoadTrackAtPosition(opts);
+  void (async () => {
+    const serverId =
+      playbackCacheKeyForTrack(opts.track)
+      || getPlaybackIndexKey()
+      || '';
+    const track = serverId
+      ? await prepareTrackForEngineBind(opts.track, serverId)
+      : opts.track;
+    if (getPlayGeneration() !== opts.generation) return;
+    engineLoadTrackAtPosition({ ...opts, track });
+  })();
 }

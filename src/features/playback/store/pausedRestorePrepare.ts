@@ -1,7 +1,8 @@
 import type { QueueItemRef, Track } from '@/lib/media/trackTypes';
 import { getQueueTracksView } from '@/features/playback/store/queueTrackView';
 import { scheduleHotCachePrefetchForTrack } from '@/hotCachePrefetch';
-import { getPlaybackCacheServerKey } from '@/features/playback/utils/playback/playbackServer';
+import { getPlaybackCacheServerKey, playbackCacheKeyForTrack } from '@/features/playback/utils/playback/playbackServer';
+import { prepareTrackForEngineBind } from '@/features/playback/utils/audio/prepareTrackForEngineBind';
 import { useAuthStore } from '@/store/authStore';
 import { bumpPlayGeneration, getPlayGeneration } from '@/features/playback/store/engineState';
 import { engineLoadTrackAtPosition } from '@/features/playback/store/engineLoadTrackAtPosition';
@@ -62,10 +63,20 @@ export function preparePausedRestoreOnStartup(
     if (getPlayGeneration() !== generation) return;
     if (usePlayerStore.getState().isPlaying) return;
 
-    const queue = getQueueTracksView(queueItems, [track]);
+    const metadataSid =
+      playbackCacheKeyForTrack(track)
+      || getPlaybackCacheServerKey()
+      || '';
+    const trackForEngine = metadataSid
+      ? await prepareTrackForEngineBind(track, metadataSid)
+      : track;
+    if (getPlayGeneration() !== generation) return;
+    if (usePlayerStore.getState().isPlaying) return;
+
+    const queue = getQueueTracksView(queueItems, [trackForEngine]);
     engineLoadTrackAtPosition({
       generation,
-      track,
+      track: trackForEngine,
       queue,
       queueIndex,
       atSeconds,
