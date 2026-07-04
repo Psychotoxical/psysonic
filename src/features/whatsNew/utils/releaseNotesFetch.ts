@@ -1,4 +1,5 @@
-import { invoke, isTauri } from '@tauri-apps/api/core';
+import { isTauri } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 
 export const RELEASE_NOTES_REPO = 'Psychotoxical/psysonic';
 
@@ -19,7 +20,9 @@ export function whatsNewDownloadUrl(version: string): string {
  * (same as radio favicons and other non-CORS endpoints).
  */
 async function fetchBytesViaRust(url: string): Promise<Uint8Array> {
-  const [bytes] = await invoke<[number[], string]>('fetch_url_bytes', { url });
+  const res = await commands.fetchUrlBytes(url);
+  if (res.status === 'error') throw new Error(res.error);
+  const [bytes] = res.data;
   return new Uint8Array(bytes);
 }
 

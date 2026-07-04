@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { resolvePlaybackCoverScope } from '@/cover/ref';
 import { resolveTrackCoverRefFromLibrary } from '@/cover/resolveEntryLibrary';
 import { coverArtUrlForDiscord } from '@/cover/integrations/discord';
@@ -42,7 +43,7 @@ export function setupDiscordPresence(): () => void {
         discordPrevTemplateState = null;
         discordPrevTemplateLargeText = null;
         discordPrevTemplateName = null;
-        invoke('discord_clear_presence').catch(() => {});
+        commands.discordClearPresence().catch(() => {});
       }
       return;
     }

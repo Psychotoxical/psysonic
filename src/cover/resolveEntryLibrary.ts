@@ -3,7 +3,7 @@
  * when the album/artist/track row exists in SQLite.
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { librarySqlServerId } from '@/lib/api/coverCache';
 import { useAuthStore } from '../store/authStore';
 import { COVER_SCOPE_ACTIVE, type CoverArtRef, CoverCacheKind, CoverServerScope } from './types';
@@ -101,11 +101,9 @@ export async function libraryResolveCoverEntry(
 
   const promise = runLibraryResolveLimited(async () => {
     try {
-      const dto = await invoke<LibraryCoverEntryDto | null>('library_resolve_cover_entry', {
-        serverId: librarySqlServerId(serverId),
-        entity,
-        entityId: id,
-      });
+      const res = await commands.libraryResolveCoverEntry(librarySqlServerId(serverId), entity, id);
+      if (res.status === 'error') throw new Error(res.error);
+      const dto = res.data as LibraryCoverEntryDto | null;
       const entry = dto ? dtoToEntry(dto) : null;
       resolvedEntryCache.set(key, entry);
       trimResolvedEntryCache();

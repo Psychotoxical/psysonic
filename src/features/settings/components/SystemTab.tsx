@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { linuxWaylandTextRenderSettingsAvailable } from '@/lib/api/platformShell';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
@@ -44,8 +44,9 @@ export function SystemTab() {
     });
     if (!selected || Array.isArray(selected)) return;
     try {
-      const lines = await invoke<number>('export_runtime_logs', { path: selected });
-      showToast(t('settings.loggingExportSuccess', { count: lines }), 3500, 'info');
+      const res = await commands.exportRuntimeLogs(selected);
+      if (res.status === 'error') throw new Error(res.error);
+      showToast(t('settings.loggingExportSuccess', { count: res.data }), 3500, 'info');
     } catch (e) {
       console.error(e);
       showToast(t('settings.loggingExportError'), 4500, 'error');

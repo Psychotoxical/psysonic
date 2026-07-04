@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { clearPerfLiveHistory, syncPerfLiveHistoryFromPoll } from '@/lib/perf/perfLiveHistory';
 import { getAnalysisTracksPerMinute } from '@/lib/perf/analysisPerfStore';
 import { getCoverCachedPerMinute, getCoverUiPerMinute, getCoverPerfState } from '@/lib/perf/coverPerfStore';
@@ -240,7 +240,9 @@ async function pollOnce(): Promise<void> {
   }
 
   try {
-    const snap = await invoke<ProcSnapshot>('performance_cpu_snapshot', buildPerfCpuSnapshotRequest());
+    const res = await commands.performanceCpuSnapshot(buildPerfCpuSnapshotRequest().includeThreadGroups);
+    if (res.status === 'error') throw new Error(res.error);
+    const snap: ProcSnapshot = res.data;
     if (generation !== pollGeneration) return;
 
     const completedAt = Date.now();

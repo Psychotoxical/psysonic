@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { applyServerPlayQueue } from '@/features/playback/store/applyServerPlayQueue';
 import { audioSeek, audioSetVolume, audioStop } from '@/lib/api/audio';
 import i18n from '@/lib/i18n';
@@ -80,7 +80,7 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
       audioStop().catch(() => {});
       // Resolve PLS/M3U playlist URLs to the actual stream URL before handing
       // to HTML5 <audio> — the browser cannot play playlist files directly.
-      const streamUrl = await invoke<string>('resolve_stream_url', { url: station.streamUrl })
+      const streamUrl = await commands.resolveStreamUrl(station.streamUrl)
         .catch(() => station.streamUrl);
       const { replayGainFallbackDb } = useAuthStore.getState();
       const fallbackFactor = replayGainFallbackDb !== 0 ? Math.pow(10, replayGainFallbackDb / 20) : 1;

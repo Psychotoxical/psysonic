@@ -84,5 +84,7 @@ export async function getTopRadioStations(offset = 0): Promise<RadioBrowserStati
 }
 
 export async function fetchUrlBytes(url: string): Promise<[number[], string]> {
-  return invoke<[number[], string]>('fetch_url_bytes', { url });
+  const res = await commands.fetchUrlBytes(url);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
 }
