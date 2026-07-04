@@ -59,7 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Connection — ignore spurious offline hint on desktop
 
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1234](https://github.com/Psychotoxical/psysonic/pull/1234)**
+**By [@cucadmuh](https://github.com/cucadmuh), reported by mikmik on the Psysonic Discord, PR [#1234](https://github.com/Psychotoxical/psysonic/pull/1234)**
 
 * Desktop builds no longer get stuck showing "offline" when WebKitGTK leaves `navigator.onLine` stuck at `false` while the server is actually reachable — the app now confirms with a real server probe instead of trusting that hint, so browse and playback keep working. Web builds are unchanged.
 * Pending favorite/rating sync now flushes when the server actually becomes reachable again, rather than relying on a browser `online` event that may never fire on desktop.

@@ -180,7 +180,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Timeline play history — session buffer + play_session bootstrap across queue replace; pin current to top; history replay inserts in-place (PR #1204)',
       'Playback — ReplayGain index prefetch, gapless playbar sync, library replayGainPeak column, live RG refresh after sync (PR #1231)',
       'Artists browse — album vs track credit mode toggle, starred favorites in both modes, persisted credit mode, SQL letter-bucket filter (PR #1232)',
-      'Connection — ignore spurious WebKitGTK navigator.onLine offline hint on desktop; confirm via server probe; flush pending favorite/rating sync on real reachability (PR #1234)',
+      'Connection — ignore spurious WebKitGTK navigator.onLine offline hint on desktop; confirm via server probe; flush pending favorite/rating sync on real reachability (report: mikmik on Psysonic Discord, PR #1234)',
     ],
   },
   {
