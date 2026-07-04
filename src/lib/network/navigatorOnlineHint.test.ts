@@ -23,7 +23,7 @@ describe('isNavigatorOfflineHint', () => {
     expect(isNavigatorOfflineHint()).toBe(false);
   });
 
-  it('returns true in non-Tauri when navigator.onLine is false', () => {
+  it('returns true in non-Tauri when navigator.onLine is false (offline hint applies)', () => {
     vi.stubGlobal('navigator', { onLine: false });
     expect(isNavigatorOfflineHint()).toBe(true);
   });

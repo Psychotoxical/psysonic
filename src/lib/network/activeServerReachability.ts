@@ -54,7 +54,7 @@ export function resetActiveServerConnectionSnapshot(): void {
   connectionStatus = 'checking';
 }
 
-/** True only when the browser offline hint applies and the last active-server probe succeeded. */
+/** True only when no navigator offline hint applies and the last active-server probe succeeded. */
 export function isActiveServerReachable(): boolean {
   if (isDevOfflineBrowseForced()) return false;
   if (isNavigatorOfflineHint()) return false;

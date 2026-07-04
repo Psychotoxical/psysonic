@@ -1,11 +1,12 @@
 import { isTauri } from '@tauri-apps/api/core';
 
 /**
- * Whether the host reports the browser as offline via `navigator.onLine`.
+ * Whether callers should treat `navigator.onLine === false` as an offline signal.
  *
+ * Returns `true` only in non-Tauri hosts when `navigator.onLine` is false.
  * WebKitGTK inside Tauri often leaves `navigator.onLine === false` even when
  * HTTP to the user's Subsonic/Navidrome server works (ping, search, playback).
- * Desktop builds must not treat that as offline — use Subsonic probes instead.
+ * Desktop builds must not trust that hint — use Subsonic probes instead.
  *
  * @see https://github.com/orgs/tauri-apps/discussions/9269
  */

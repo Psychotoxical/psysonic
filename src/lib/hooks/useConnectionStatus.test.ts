@@ -213,6 +213,32 @@ describe('useConnectionStatus navigator.onLine (Tauri)', () => {
     await waitFor(() => expect(result.current.status).toBe('connected'));
     expect(vi.mocked(pingWithCredentialsForProfile).mock.calls.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('re-probes on offline event in Tauri instead of disconnecting', async () => {
+    isTauri.mockReturnValue(true);
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+
+    seedDualAddressServer();
+    vi.mocked(pingWithCredentialsForProfile).mockResolvedValue({
+      ok: true,
+      type: 'navidrome',
+      serverVersion: '0.62.0',
+      openSubsonic: true,
+    });
+
+    const { result } = renderHook(() => useConnectionStatus());
+    await waitFor(() => expect(result.current.status).toBe('connected'));
+    const callsAfterMount = vi.mocked(pingWithCredentialsForProfile).mock.calls.length;
+
+    await act(async () => {
+      window.dispatchEvent(new Event('offline'));
+    });
+
+    await waitFor(() =>
+      expect(vi.mocked(pingWithCredentialsForProfile).mock.calls.length).toBeGreaterThan(callsAfterMount),
+    );
+    expect(result.current.status).toBe('connected');
+  });
 });
 
 describe('useConnectionStatus shared status', () => {
