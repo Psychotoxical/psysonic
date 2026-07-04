@@ -11,6 +11,10 @@ vi.mock('@/lib/api/subsonicStarRating', () => ({
 
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import type { Track } from '@/lib/media/trackTypes';
+import {
+  resetActiveServerConnectionSnapshot,
+  setActiveServerReachable,
+} from '@/lib/network/activeServerReachability';
 import { queueSongStar, queueSongRating, _resetPendingStarSyncForTest } from '@/features/playback/store/pendingStarSync';
 import {
   getCachedTrack,
@@ -26,6 +30,8 @@ const track = (id: string): Track => ({
 describe('pendingStarSync', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    resetActiveServerConnectionSnapshot();
+    setActiveServerReachable(true);
     starMock.mockReset().mockResolvedValue(undefined);
     unstarMock.mockReset().mockResolvedValue(undefined);
     setRatingMock.mockReset().mockResolvedValue(undefined);
@@ -73,6 +79,19 @@ describe('pendingStarSync', () => {
 
     expect(starMock.mock.calls.length).toBeGreaterThanOrEqual(2); // retried
     expect(usePlayerStore.getState().starredOverrides.t1).toBe(true); // override survives (no rollback)
+  });
+
+  it('flushes pending stars when the active server becomes reachable', async () => {
+    starMock.mockRejectedValue(new Error('offline'));
+    queueSongStar('t1', true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(starMock).toHaveBeenCalledTimes(1);
+
+    setActiveServerReachable(false);
+    setActiveServerReachable(true);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(starMock.mock.calls.length).toBeGreaterThan(1);
   });
 
   it('passes serverId through to star/unstar for cross-server favorites', async () => {

@@ -1,6 +1,7 @@
 import { setRating, star, unstar } from '@/lib/api/subsonicStarRating';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { patchCachedTrack } from '@/features/playback/store/queueTrackResolver';
+import { onActiveServerBecameReachable } from '@/lib/network/activeServerReachability';
 
 /**
  * F4 — pending-sync for **song** star + rating (spec §6.5 / R7-18).
@@ -11,7 +12,8 @@ import { patchCachedTrack } from '@/features/playback/store/queueTrackResolver';
  *
  * 1. Set the override optimistically (instant UI).
  * 2. Retry the Subsonic API (`star` / `unstar` / `setRating`) with exponential
- *    backoff; flush immediately on `online` / window focus.
+ *    backoff; flush immediately when the active server becomes reachable again
+ *    (`onActiveServerBecameReachable`) or on window focus.
  * 3. On **star** success: KEEP the override — list views read it — and patch
  *    the in-memory `Track`. F3 index patch-on-use runs in the API layer.
  *    (Ratings clear on success; see `onRatingSuccess`.)
@@ -42,8 +44,8 @@ function armListeners(): void {
   const flushAll = () => {
     for (const k of pending.keys()) schedule(k, 0);
   };
-  window.addEventListener('online', flushAll);
   window.addEventListener('focus', flushAll);
+  onActiveServerBecameReachable(flushAll);
 }
 
 function schedule(k: string, delayMs: number): void {
