@@ -143,8 +143,13 @@ export default function WaveformSeek({ trackId }: Props) {
   // Initial draw for static styles when style, track, or waveform payload changes.
   useEffect(() => {
     if (ANIMATED_STYLES.has(seekbarStyle)) return;
+    progressRef.current = 0;
+    bufferedRef.current = 0;
+    visualProgressRef.current = 0;
+    visualTargetProgressRef.current = 0;
+    progressAnchorRef.current = { progress: 0, atMs: performance.now() };
     const canvas = canvasRef.current;
-    if (canvas) drawSeekbar(canvas, seekbarStyle, heightsRef.current, progressRef.current, bufferedRef.current);
+    if (canvas) drawSeekbar(canvas, seekbarStyle, heightsRef.current, 0, 0);
   }, [
     seekbarStyle,
     trackId,

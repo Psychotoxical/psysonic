@@ -13,7 +13,6 @@ import { notifyLibraryPlaybackHint } from '@/features/playback/store/libraryPlay
 import {
   playListenSessionFinalize,
   playListenSessionOnProgress,
-  playListenSessionOnTrackSwitched,
   playListenSessionOpen,
 } from '@/features/playback/store/playListenSession';
 import { appendTimelineLeaveTrack } from '@/features/playback/store/timelineSessionHistory';
@@ -28,6 +27,11 @@ import {
 } from '@/features/playback/utils/playback/playbackServer';
 import { resolvePlaybackUrl } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import { requestGaplessChainPreload } from '@/features/playback/store/gaplessChainPreload';
+import {
+  applyGaplessQueueAdvance,
+  maybeReconcileGaplessFromProgress,
+  noteEngineProgressForGapless,
+} from '@/features/playback/store/gaplessQueueAdvance';
 import { showToast } from '@/lib/dom/toast';
 import { useAuthStore } from '@/store/authStore';
 import { getPlayGeneration, setIsAudioPaused } from '@/features/playback/store/engineState';
@@ -39,9 +43,7 @@ import {
   markGaplessSwitch,
   setBytePreloadingId,
 } from '@/features/playback/store/gaplessPreloadState';
-import { touchHotCacheOnPlayback } from '@/features/playback/store/hotCacheTouch';
 import { refreshLoudnessForTrack } from '@/features/playback/store/loudnessRefresh';
-import { deriveNormalizationSnapshot } from '@/features/playback/store/normalizationSnapshot';
 import { emitNormalizationDebug } from '@/features/playback/store/normalizationDebug';
 import {
   emitPlaybackProgress,
@@ -58,15 +60,11 @@ import {
   markStoreProgressCommit,
   resetProgressEmitThrottles,
 } from '@/features/playback/store/playbackThrottles';
-import {
-  playbackSourceHintForResolvedUrl,
-} from '@/features/playback/store/playbackUrlRouting';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { promoteCompletedStreamToHotCache } from '@/features/playback/store/promoteStreamCache';
 import {
-  flushQueueSyncToServer,
   getLastQueueHeartbeatAt,
-  syncQueueToServer,
+  flushQueueSyncToServer,
 } from '@/features/playback/store/queueSync';
 import { clearQueueNaturallyEnded } from '@/features/playback/store/queuePlaybackIdle';
 import { isSeekDebouncePending } from '@/features/playback/store/seekDebounce';
@@ -81,7 +79,6 @@ import {
   getSeekTarget,
   getSeekTargetSetAt,
 } from '@/features/playback/store/seekTargetState';
-import { refreshWaveformForTrack } from '@/features/playback/store/waveformRefresh';
 import { analyzeBoundary, computeWaveformSilence } from '@/lib/waveform/waveformSilence';
 import { autodjMaxOverlapCapSec } from '@/lib/audio/autodjOverlapCap';
 import {
@@ -167,6 +164,7 @@ export function handleAudioProgress(
   const store = usePlayerStore.getState();
   const track = store.currentTrack;
   if (!track) return;
+  maybeReconcileGaplessFromProgress(current_time, duration);
   if (!store.currentRadio && store.isPlaybackBuffering !== buffering) {
     usePlayerStore.setState({ isPlaybackBuffering: buffering });
   }
@@ -195,6 +193,7 @@ export function handleAudioProgress(
   }
   const dur = duration > 0 ? duration : track.duration;
   if (dur <= 0) return;
+  noteEngineProgressForGapless(buffering ? 0 : current_time);
   const progress = displayTime / dur;
   playListenSessionOnProgress(current_time, buffering, dur).catch(() => {});
   if (!progressUiDisabled) {
@@ -368,8 +367,8 @@ export function handleAudioProgress(
     const nextTrack = repeatMode === 'one'
       ? track
       : (nextRef ? resolveQueueTrack(nextRef) : null);
-    if (!nextTrack || nextTrack.id === track.id) return;
 
+    if (nextTrack && nextTrack.id !== track.id) {
     // Gapless backup: keep next-track bytes ready even if chain/decode misses
     // the boundary. Start earlier for larger files / slower conservative link.
     const estBytes = (() => {
@@ -430,6 +429,7 @@ export function handleAudioProgress(
         repeatMode,
         volume: store.volume,
       });
+    }
     }
   }
 }
@@ -504,104 +504,20 @@ export function handleAudioEnded(): void {
  * next source sample-accurately. We just need to update the UI state without
  * touching the audio stream (no playTrack() call!).
  */
-export function handleAudioTrackSwitched(_duration: number): void {
+export function handleAudioTrackSwitched(duration: number): void {
   markGaplessSwitch();
-  clearPreloadingIds(); // allow preloading for the track after this one
+  clearPreloadingIds();
   setIsAudioPaused(false);
 
   const store = usePlayerStore.getState();
   if (store.currentTrack?.id) {
     useAuthStore.getState().clearSkipStarManualCountForTrack(store.currentTrack.id);
   }
-  const { queueItems, queueIndex, repeatMode, currentTrack, currentRadio } = store;
-  if (currentTrack && !currentRadio) {
-    appendTimelineLeaveTrack(currentTrack, queueItems, queueIndex);
-  }
-  const nextIdx = queueIndex + 1;
-  let nextTrack: Track | null = null;
-  let newIndex = queueIndex;
 
-  if (repeatMode === 'one' && store.currentTrack) {
-    nextTrack = store.currentTrack;
-    // queueIndex stays the same
-  } else if (nextIdx < queueItems.length) {
-    // The Rust engine already chained this source sample-accurately, so it must
-    // have been preloaded — meaning the resolver had it cached. resolveQueueTrack
-    // returns the full Track from cache (placeholder only on an unexpected miss).
-    nextTrack = resolveQueueTrack(queueItems[nextIdx]);
-    newIndex = nextIdx;
-  } else if (repeatMode === 'all' && queueItems.length > 0) {
-    nextTrack = resolveQueueTrack(queueItems[0]);
-    newIndex = 0;
-  }
-
-  if (!nextTrack) return;
-
-  void playListenSessionOnTrackSwitched(nextTrack);
-
-  const switchRef = queueItems[newIndex];
-  const switchServerId = playbackCacheKeyForRef(switchRef);
-  const switchResolvedUrl = resolvePlaybackUrl(nextTrack.id, switchServerId);
-  const switchPlaybackSource = playbackSourceHintForResolvedUrl(nextTrack.id, switchServerId, switchResolvedUrl);
-
-  // Neighbour window for normalization (replaygain album-mode reads prev/next).
-  // current track on the left, the track after `nextTrack` on the right.
-  const switchPrev = store.currentTrack;
-  const switchNextNextRef = newIndex + 1 < queueItems.length ? queueItems[newIndex + 1] : null;
-  const switchNeighbourWindow: Track[] = [
-    switchPrev ?? nextTrack,
-    nextTrack,
-    ...(switchNextNextRef ? [resolveQueueTrack(switchNextNextRef)] : []),
-  ];
-
-  usePlayerStore.setState({
-    currentTrack: nextTrack,
-    waveformBins: null,
-    ...deriveNormalizationSnapshot(nextTrack, switchNeighbourWindow, 1),
-    normalizationDbgSource: 'track-switched',
-    normalizationDbgTrackId: nextTrack.id,
-    queueIndex: newIndex,
-    isPlaying: true,
-    isPlaybackBuffering: switchPlaybackSource === 'stream',
-    progress: 0,
-    currentTime: 0,
-    buffered: 0,
-    scrobbled: false,
-    networkLoved: false,
-    currentPlaybackSource: switchPlaybackSource,
+  applyGaplessQueueAdvance({
+    engineDurationHint: duration,
+    source: 'track-switched',
   });
-  emitNormalizationDebug('track-switched', {
-    trackId: nextTrack.id,
-    queueIndex: newIndex,
-    engineRequested: useAuthStore.getState().normalizationEngine,
-  });
-  void refreshWaveformForTrack(nextTrack.id);
-  void refreshLoudnessForTrack(nextTrack.id);
-  usePlayerStore.getState().updateReplayGainForCurrentTrack();
-
-  // Subsonic-server now-playing follows nowPlayingEnabled; Music Network
-  // now-playing follows scrobbling, as Last.fm now-playing did (the runtime gates
-  // on the master toggle, per-account enable and the nowPlaying capability
-  // internally). playbackReportStart opens the FSM on extension-capable servers
-  // and falls back to the legacy presence call otherwise (gating is internal).
-  playbackReportStart(nextTrack.id, playbackProfileIdForTrack(nextTrack, switchRef));
-  const runtime = getMusicNetworkRuntimeOrNull();
-  void runtime?.dispatchNowPlaying({
-    title: nextTrack.title,
-    artist: nextTrack.artist,
-    album: nextTrack.album,
-    duration: nextTrack.duration,
-    timestamp: Date.now(),
-  });
-  if (runtime?.getEnrichmentPrimaryId()) {
-    void runtime
-      .isTrackLoved({ title: nextTrack.title, artist: nextTrack.artist })
-      .then(loved => {
-        usePlayerStore.getState().setNetworkLoved(loved);
-      });
-  }
-  syncQueueToServer(queueItems, nextTrack, 0);
-  touchHotCacheOnPlayback(nextTrack.id, switchServerId);
 }
 
 export function handleAudioError(message: string): void {
