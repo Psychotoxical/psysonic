@@ -37,6 +37,9 @@ export async function addTracksToPlaylistWithDedup(
     return { outcome: 'skipped', addedCount: 0, skippedCount: 0 };
   }
 
+  // Dedup reads the membership snapshot, awaits the write, then appends. Concurrent
+  // adds to the same playlist could interleave on this read-modify-append; the risk is
+  // a rare missed dedup, self-healing on the next full load. Acceptable for a UI action.
   const store = usePlaylistMembershipStore.getState();
   const existingIds = new Set(
     await resolvePlaylistSongIds(playlistId, async () => {

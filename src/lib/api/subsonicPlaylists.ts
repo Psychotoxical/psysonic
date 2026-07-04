@@ -120,6 +120,11 @@ export async function updatePlaylist(id: string, songIds: string[], prevCount = 
       // createPlaylist with playlistId replaces the existing playlist's songs (Subsonic API 1.14+)
       await api('createPlaylist.view', { playlistId: id, songId: songIds });
     } else {
+      // Lists over the GET batch cap can't replace atomically (URL length limit),
+      // so we clear then re-append. A failure between the two steps leaves the
+      // server playlist truncated; the caller invalidates the membership cache so
+      // the client re-reads truth on next load. This is the unavoidable trade-off
+      // for supporting playlists larger than one request can carry.
       let priorCount = prevCount;
       if (priorCount <= 0) {
         const { songs } = await getPlaylist(id);
