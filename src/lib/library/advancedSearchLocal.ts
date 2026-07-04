@@ -205,11 +205,12 @@ export function trackToSong(t: LibraryTrackDto): SubsonicSong {
   if (t.bpmSource === 'analysis' || t.bpmSource === 'tag') {
     merged.localBpmSource = t.bpmSource;
   }
-  if (t.replayGainTrackDb != null || t.replayGainAlbumDb != null) {
+  if (t.replayGainTrackDb != null || t.replayGainAlbumDb != null || t.replayGainPeak != null) {
     merged.replayGain = {
       ...merged.replayGain,
       trackGain: t.replayGainTrackDb ?? merged.replayGain?.trackGain,
       albumGain: t.replayGainAlbumDb ?? merged.replayGain?.albumGain,
+      trackPeak: t.replayGainPeak ?? merged.replayGain?.trackPeak,
     };
   }
   if (t.serverId) merged.serverId = t.serverId;

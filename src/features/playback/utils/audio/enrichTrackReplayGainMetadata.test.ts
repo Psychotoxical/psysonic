@@ -75,6 +75,17 @@ describe('trackNeedsPlaybackMetadataPrefetch', () => {
     });
     expect(trackNeedsPlaybackMetadataPrefetch(track({ replayGainTrackDb: -6 }))).toBe(true);
   });
+
+  it('returns false when ReplayGain tags and peak are present', () => {
+    useAuthStore.setState({
+      normalizationEngine: 'replaygain',
+      replayGainEnabled: true,
+    });
+    expect(trackNeedsPlaybackMetadataPrefetch(track({
+      replayGainTrackDb: -6,
+      replayGainPeak: 0.88,
+    }))).toBe(false);
+  });
 });
 
 describe('enrichTrackPlaybackMetadata', () => {
@@ -103,13 +114,15 @@ describe('enrichTrackPlaybackMetadata', () => {
       syncedAt: 0,
       rawJson: {},
     }));
+    const networkSpy = vi.spyOn(subsonicLibrary, 'getSongForServer');
 
     const enriched = await enrichTrackPlaybackMetadata(track({ title: '…' }), 's1');
     expect(enriched.replayGainTrackDb).toBe(-8.1);
     expect(enriched.title).toBe('Indexed');
+    expect(networkSpy).not.toHaveBeenCalled();
   });
 
-  it('backfills replayGainPeak from getSong when the index lacks peak', async () => {
+  it('reads replayGainPeak from the local index without network', async () => {
     onInvoke('library_get_status', () => ({
       serverId: 's1', libraryScope: '', syncPhase: 'ready',
       capabilityFlags: 0, libraryTier: 'unknown', syncedAt: 0,
@@ -121,20 +134,17 @@ describe('enrichTrackPlaybackMetadata', () => {
       album: 'Album',
       durationSec: 200,
       replayGainTrackDb: -8.1,
+      replayGainPeak: 0.88,
       syncedAt: 0,
       rawJson: {},
     }));
-    const spy = vi.spyOn(subsonicLibrary, 'getSongForServer').mockResolvedValue({
-      id: 't1',
-      title: 'Indexed',
-      replayGain: { trackGain: -8.1, trackPeak: 0.88 },
-    } as Awaited<ReturnType<typeof subsonicLibrary.getSongForServer>>);
+    const networkSpy = vi.spyOn(subsonicLibrary, 'getSongForServer');
 
     const enriched = await enrichTrackPlaybackMetadata(
       track({ replayGainTrackDb: -8.1 }),
       's1',
     );
     expect(enriched.replayGainPeak).toBe(0.88);
-    expect(spy).toHaveBeenCalledWith('s1', 't1');
+    expect(networkSpy).not.toHaveBeenCalled();
   });
 });

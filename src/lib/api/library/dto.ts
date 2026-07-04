@@ -52,6 +52,7 @@ export interface LibraryTrackDto {
   bpmSource?: string | null;
   replayGainTrackDb?: number | null;
   replayGainAlbumDb?: number | null;
+  replayGainPeak?: number | null;
   serverUpdatedAt?: number | null;
   serverCreatedAt?: number | null;
   syncedAt: number;

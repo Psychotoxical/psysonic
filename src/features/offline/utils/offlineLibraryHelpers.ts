@@ -105,6 +105,7 @@ export function libraryDtoToTrack(dto: LibraryTrackDto): Track {
     genre: song.genre,
     replayGainTrackDb: dto.replayGainTrackDb ?? undefined,
     replayGainAlbumDb: dto.replayGainAlbumDb ?? undefined,
+    replayGainPeak: dto.replayGainPeak ?? undefined,
     size: song.size,
     serverId: dto.serverId,
   };

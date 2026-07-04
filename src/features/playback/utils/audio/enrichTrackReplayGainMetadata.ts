@@ -1,4 +1,3 @@
-import { getSongForServer } from '@/lib/api/subsonicLibrary';
 import { resolveSongMetaIndexFirst } from '@/lib/library/resolveSongMetaIndexFirst';
 import { isReplayGainActive } from '@/features/playback/store/loudnessGainCache';
 import { songToTrack } from '@/lib/media/songToTrack';
@@ -57,17 +56,5 @@ export async function enrichTrackPlaybackMetadata(
   if (!trackNeedsPlaybackMetadataPrefetch(track) || !serverId) return track;
   const song = await resolveSongMetaIndexFirst(serverId, track.id);
   if (!song) return track;
-  let merged = mergePlaybackTrackMetadata(track, songToTrack(song));
-  if (
-    isReplayGainActive()
-    && merged.replayGainPeak == null
-    && (merged.replayGainTrackDb != null || merged.replayGainAlbumDb != null)
-  ) {
-    const networkSong = await getSongForServer(serverId, track.id);
-    const peak = networkSong?.replayGain?.trackPeak;
-    if (peak != null) {
-      merged = { ...merged, replayGainPeak: peak };
-    }
-  }
-  return merged;
+  return mergePlaybackTrackMetadata(track, songToTrack(song));
 }

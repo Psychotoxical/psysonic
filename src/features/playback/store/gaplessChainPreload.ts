@@ -129,7 +129,7 @@ export function requestGaplessChainPreload(ctx: GaplessChainPreloadContext): voi
     } finally {
       gaplessChainPrepareInflight.delete(nextTrack.id);
     }
-  })();
+  })().catch(() => {});
   gaplessChainPrepareInflight.set(nextTrack.id, job);
 }
 
