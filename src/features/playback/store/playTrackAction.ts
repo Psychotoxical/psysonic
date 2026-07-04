@@ -33,6 +33,7 @@ import {
 } from '@/store/localPlaybackResolve';
 import { resolvePlaybackUrl } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '@/features/playback/utils/audio/resolveReplayGainDb';
+import { enrichTrackReplayGainMetadata } from '@/features/playback/utils/audio/enrichTrackReplayGainMetadata';
 import { audioPlayHiResBlendArgs } from '@/lib/audio/hiResCrossfadeResample';
 import { useAuthStore } from '@/store/authStore';
 import { consumeCrossfadeDynamicOverlap, getCrossfadeTransition, peekArmedCrossfadeDynamicOverlap } from '@/features/playback/store/crossfadeTrimCache';
@@ -325,25 +326,26 @@ export function runPlayTrack(
       && getPlaybackCacheServerKey(),
     );
 
-  const runPlayTrackBody = () => {
+  const runPlayTrackBody = (trackForPlay: Track) => {
+    const playNormWindow = normWindow.map((t, i) => (i === normIdx ? trackForPlay : t));
     const authStateNow = useAuthStore.getState();
-    const playbackSid = playbackProfileIdForTrack(scopedTrack, playingRef);
-    const playbackCacheSid = playbackCacheKeyForTrack(scopedTrack, playingRef);
+    const playbackSid = playbackProfileIdForTrack(trackForPlay, playingRef);
+    const playbackCacheSid = playbackCacheKeyForTrack(trackForPlay, playingRef);
     const url = libraryLocalUrl
-      ?? findLocalPlaybackUrl(scopedTrack.id, playbackSid, 'library')
-      ?? findLocalPlaybackUrl(scopedTrack.id, playbackSid, 'favorite-auto')
-      ?? resolvePlaybackUrl(scopedTrack.id, playbackCacheSid);
-    recordEnginePlayUrl(scopedTrack.id, url);
+      ?? findLocalPlaybackUrl(trackForPlay.id, playbackSid, 'library')
+      ?? findLocalPlaybackUrl(trackForPlay.id, playbackSid, 'favorite-auto')
+      ?? resolvePlaybackUrl(trackForPlay.id, playbackCacheSid);
+    recordEnginePlayUrl(trackForPlay.id, url);
     const preloadedTrackId = get().enginePreloadedTrackId;
-    const keepPreloadHint = preloadedTrackId === scopedTrack.id;
+    const keepPreloadHint = preloadedTrackId === trackForPlay.id;
     const playbackSourceHint = playbackSourceHintForResolvedUrl(
-      scopedTrack.id,
+      trackForPlay.id,
       playbackCacheSid,
       url,
     );
     if (import.meta.env.DEV) {
       console.info('[psysonic][playTrack-source]', {
-        trackId: scopedTrack.id,
+        trackId: trackForPlay.id,
         resolvedUrl: url,
         preloadedTrackId,
         keepPreloadHint,
@@ -363,24 +365,24 @@ export function runPlayTrack(
         if (sid) seedQueueResolver(sid, [t]);
       }
     } else if (queueSid) {
-      seedQueueResolver(queueSid, [scopedTrack]);
+      seedQueueResolver(queueSid, [trackForPlay]);
     }
 
-    const hasJsAutoHandoff = !manual && peekArmedCrossfadeDynamicOverlap(scopedTrack.id);
+    const hasJsAutoHandoff = !manual && peekArmedCrossfadeDynamicOverlap(trackForPlay.id);
     const wantInterruptBlend = Boolean(
       shouldAutodjInterruptBlend(wasPlayingBeforeSkip, hasJsAutoHandoff)
       && prevTrack
-      && !sameQueueTrackId(prevTrack.id, scopedTrack.id),
+      && !sameQueueTrackId(prevTrack.id, trackForPlay.id),
     );
-    const bReadyNow = isCrossfadeNextReady(scopedTrack.id, playbackSid, playbackCacheSid);
+    const bReadyNow = isCrossfadeNextReady(trackForPlay.id, playbackSid, playbackCacheSid);
     /** Cold interrupt: engine still on A — don't swap player-bar metadata until handoff. */
     const deferInterruptUi = shouldDeferInterruptHandoffUi(wantInterruptBlend, bReadyNow);
 
     const applyInterruptHandoffUi = () => {
       set({
-        currentTrack: scopedTrack,
+        currentTrack: trackForPlay,
         waveformBins: null,
-        ...deriveNormalizationSnapshot(scopedTrack, normWindow, normIdx),
+        ...deriveNormalizationSnapshot(trackForPlay, playNormWindow, normIdx),
         progress: initialProgress,
         buffered: 0,
         currentTime: initialTime,
@@ -389,10 +391,10 @@ export function runPlayTrack(
         isPlaying: playbackSourceHint !== 'stream',
         isPlaybackBuffering: playbackSourceHint === 'stream',
         currentPlaybackSource: playbackSourceHint,
-        enginePreloadedTrackId: keepPreloadHint ? scopedTrack.id : null,
+        enginePreloadedTrackId: keepPreloadHint ? trackForPlay.id : null,
       });
-      void refreshWaveformForTrack(scopedTrack.id);
-      void refreshLoudnessForTrack(scopedTrack.id, { syncPlayingEngine: false });
+      void refreshWaveformForTrack(trackForPlay.id);
+      void refreshLoudnessForTrack(trackForPlay.id, { syncPlayingEngine: false });
     };
 
     if (deferInterruptUi) {
@@ -403,10 +405,10 @@ export function runPlayTrack(
       });
     } else {
       set({
-        currentTrack: scopedTrack,
+        currentTrack: trackForPlay,
         currentRadio: null,
         waveformBins: null,
-        ...deriveNormalizationSnapshot(scopedTrack, normWindow, normIdx),
+        ...deriveNormalizationSnapshot(trackForPlay, playNormWindow, normIdx),
         // Only a replace rewrites the queue; navigation keeps the canonical refs.
         ...(replacing ? { queueItems: toQueueItemRefs(queueSid, scopedQueue) } : {}),
         queueIndex: idx >= 0 ? idx : 0,
@@ -423,11 +425,11 @@ export function runPlayTrack(
           ? false
           : playbackSourceHint === 'stream',
         currentPlaybackSource: playbackSourceHint,
-        enginePreloadedTrackId: keepPreloadHint ? scopedTrack.id : null,
+        enginePreloadedTrackId: keepPreloadHint ? trackForPlay.id : null,
       });
-      void refreshWaveformForTrack(scopedTrack.id);
+      void refreshWaveformForTrack(trackForPlay.id);
       void refreshLoudnessForTrack(
-        scopedTrack.id,
+        trackForPlay.id,
         wantInterruptBlend ? { syncPlayingEngine: false } : undefined,
       );
     }
@@ -435,7 +437,7 @@ export function runPlayTrack(
     setDeferHotCachePrefetch(true);
     if (
       prevTrack
-      && !sameQueueTrackId(prevTrack.id, scopedTrack.id)
+      && !sameQueueTrackId(prevTrack.id, trackForPlay.id)
       && authStateNow.hotCacheEnabled
     ) {
       const prevPromoteSid = playbackCacheKeyForTrack(prevTrack, prevPlayingRef);
@@ -448,10 +450,10 @@ export function runPlayTrack(
       }
     }
     const replayGainDb = resolveReplayGainDb(
-      scopedTrack, prevTrack, nextNeighbour,
+      trackForPlay, prevTrack, nextNeighbour,
       isReplayGainActive(), authStateNow.replayGainMode,
     );
-    const replayGainPeak = isReplayGainActive() ? (scopedTrack.replayGainPeak ?? null) : null;
+    const replayGainPeak = isReplayGainActive() ? (trackForPlay.replayGainPeak ?? null) : null;
 
     const invokeAudioPlay = (manualBlend: CrossfadeTransitionPlan | null) => {
       // Silence-aware crossfade (B-head + dynamic overlap): on a fresh auto-advance
@@ -467,8 +469,8 @@ export function runPlayTrack(
         && initialTime <= 0.05;
       const useManualBlend = manualBlend !== null;
 
-      const crossfadePlan = useTrimAuto ? getCrossfadeTransition(scopedTrack.id) : null;
-      const armedOverlap = useTrimAuto ? consumeCrossfadeDynamicOverlap(scopedTrack.id) : null;
+      const crossfadePlan = useTrimAuto ? getCrossfadeTransition(trackForPlay.id) : null;
+      const armedOverlap = useTrimAuto ? consumeCrossfadeDynamicOverlap(trackForPlay.id) : null;
       const crossfadeStartSecs = useManualBlend
         ? manualBlend.bStartSec
         : (crossfadePlan?.bStartSec ?? 0);
@@ -490,17 +492,17 @@ export function runPlayTrack(
       invoke('audio_play', {
         url,
         volume: state.volume,
-        durationHint: scopedTrack.duration,
+        durationHint: trackForPlay.duration,
         replayGainDb,
         replayGainPeak,
-        loudnessGainDb: loudnessGainDbForEngineBind(scopedTrack.id),
+        loudnessGainDb: loudnessGainDbForEngineBind(trackForPlay.id),
         preGainDb: authStateNow.replayGainPreGainDb,
         fallbackDb: authStateNow.replayGainFallbackDb,
         manual,
         ...audioPlayHiResBlendArgs(authStateNow),
-        analysisTrackId: scopedTrack.id,
+        analysisTrackId: trackForPlay.id,
         serverId: getPlaybackIndexKey() || null,
-        streamFormatSuffix: scopedTrack.suffix ?? null,
+        streamFormatSuffix: trackForPlay.suffix ?? null,
         startPaused: false,
         startSecs: crossfadeStartSecs > 0.05 ? crossfadeStartSecs : null,
         crossfadeSecsOverride,
@@ -515,7 +517,7 @@ export function runPlayTrack(
           if (keepPreloadHint) {
             set({ enginePreloadedTrackId: null });
           }
-          const durSeek = scopedTrack.duration && scopedTrack.duration > 0 ? scopedTrack.duration : null;
+          const durSeek = trackForPlay.duration && trackForPlay.duration > 0 ? trackForPlay.duration : null;
           const seekTo = initialTime;
           const canSeekAfterPlay =
             seekTo > 0.05 && (durSeek == null || seekTo < durSeek - 0.05);
@@ -524,12 +526,12 @@ export function runPlayTrack(
               .then(() => {
                 if (getPlayGeneration() !== gen) return;
                 setSeekTarget(seekTo);
-                if (getSeekFallbackVisualTarget()?.trackId === scopedTrack.id) {
+                if (getSeekFallbackVisualTarget()?.trackId === trackForPlay.id) {
                   setSeekFallbackVisualTarget(null);
                 }
               })
               .catch(() => {
-                if (getSeekFallbackVisualTarget()?.trackId === scopedTrack.id) {
+                if (getSeekFallbackVisualTarget()?.trackId === trackForPlay.id) {
                   setSeekFallbackVisualTarget(null);
                 }
               });
@@ -552,28 +554,28 @@ export function runPlayTrack(
       // now-playing follows scrobbling, as Last.fm now-playing did (runtime gates
       // internally). playbackReportStart opens the live FSM on extension-capable
       // servers and falls back to the legacy presence call otherwise.
-      playbackReportStart(scopedTrack.id, playbackSid);
+      playbackReportStart(trackForPlay.id, playbackSid);
       const runtime = getMusicNetworkRuntimeOrNull();
       void runtime?.dispatchNowPlaying({
-        title: scopedTrack.title,
-        artist: scopedTrack.artist,
-        album: scopedTrack.album,
-        duration: scopedTrack.duration,
+        title: trackForPlay.title,
+        artist: trackForPlay.artist,
+        album: trackForPlay.album,
+        duration: trackForPlay.duration,
         timestamp: Date.now(),
       });
       if (runtime?.getEnrichmentPrimaryId()) {
         void runtime
-          .isTrackLoved({ title: scopedTrack.title, artist: scopedTrack.artist })
+          .isTrackLoved({ title: trackForPlay.title, artist: trackForPlay.artist })
           .then(loved => {
-            const cacheKey = `${scopedTrack.title}::${scopedTrack.artist}`;
+            const cacheKey = `${trackForPlay.title}::${trackForPlay.artist}`;
             set(s => ({
               networkLoved: loved,
               networkLovedCache: { ...s.networkLovedCache, [cacheKey]: loved },
             }));
           });
       }
-      pushQueueOnPlaybackStart(get().queueItems, scopedTrack, initialTime);
-      touchHotCacheOnPlayback(scopedTrack.id, playbackCacheSid);
+      pushQueueOnPlaybackStart(get().queueItems, trackForPlay, initialTime);
+      touchHotCacheOnPlayback(trackForPlay.id, playbackCacheSid);
     };
 
     const startAudio = (manualBlend: CrossfadeTransitionPlan | null) => {
@@ -593,12 +595,12 @@ export function runPlayTrack(
             bReadyNow
               ? Promise.resolve({ ready: true })
               : runInterruptBlendPrep(
-                scopedTrack,
+                trackForPlay,
                 playbackSid,
                 playbackCacheSid,
                 () => getPlayGeneration() !== gen,
               ),
-            fetchWaveformBins(scopedTrack.id, playbackCacheSid || null),
+            fetchWaveformBins(trackForPlay.id, playbackCacheSid || null),
           ]);
           if (getPlayGeneration() !== gen) {
             clearInterruptHandoff();
@@ -610,7 +612,7 @@ export function runPlayTrack(
               aDur,
               skipFromTimeSec,
               bBins,
-              scopedTrack.duration || 0,
+              trackForPlay.duration || 0,
             )
             : null;
           startAudio(blend
@@ -634,6 +636,22 @@ export function runPlayTrack(
     startAudio(null);
   };
 
+  const launchPlayTrackBody = () => {
+    void (async () => {
+      let trackForPlay = scopedTrack;
+      const metadataSid =
+        playbackCacheKeyForTrack(scopedTrack, playingRef)
+        || get().queueServerId
+        || getPlaybackIndexKey()
+        || '';
+      if (metadataSid) {
+        trackForPlay = await enrichTrackReplayGainMetadata(scopedTrack, metadataSid);
+      }
+      if (getPlayGeneration() !== gen) return;
+      runPlayTrackBody(trackForPlay);
+    })();
+  };
+
   const hotPromoteSid = getPlaybackCacheServerKey();
   if (needSameTrackHotPromote && hotPromoteSid) {
     void promoteCompletedStreamToHotCache(
@@ -643,7 +661,7 @@ export function runPlayTrack(
     )
       .then(() => {
         if (getPlayGeneration() !== gen) return;
-        runPlayTrackBody();
+        launchPlayTrackBody();
       })
       .catch((err: unknown) => {
         if (getPlayGeneration() !== gen) return;
@@ -652,6 +670,6 @@ export function runPlayTrack(
         set({ isPlaying: false });
       });
   } else {
-    runPlayTrackBody();
+    launchPlayTrackBody();
   }
 }

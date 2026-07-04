@@ -205,6 +205,13 @@ export function trackToSong(t: LibraryTrackDto): SubsonicSong {
   if (t.bpmSource === 'analysis' || t.bpmSource === 'tag') {
     merged.localBpmSource = t.bpmSource;
   }
+  if (t.replayGainTrackDb != null || t.replayGainAlbumDb != null) {
+    merged.replayGain = {
+      ...merged.replayGain,
+      trackGain: t.replayGainTrackDb ?? merged.replayGain?.trackGain,
+      albumGain: t.replayGainAlbumDb ?? merged.replayGain?.albumGain,
+    };
+  }
   if (t.serverId) merged.serverId = t.serverId;
   return merged;
 }
