@@ -179,6 +179,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Connection recovery — shared connection status across hook instances so manual Retry clears offline sidebar gating with the header indicator (PR #1190)',
       'Timeline play history — session buffer + play_session bootstrap across queue replace; pin current to top; history replay inserts in-place (PR #1204)',
       'Playback — ReplayGain index prefetch, gapless playbar sync, library replayGainPeak column, live RG refresh after sync (PR #1231)',
+      'Artists browse — album vs track credit mode toggle, starred favorites in both modes, persisted credit mode, SQL letter-bucket filter (PR #1232)',
     ],
   },
   {

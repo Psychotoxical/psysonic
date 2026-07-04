@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 
+### Artists browse — album vs track credit mode
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1232](https://github.com/Psychotoxical/psysonic/pull/1232)**
+
+* Toggle **Album artists** vs **Track artists** on the Artists page — album mode lists indexed album artists; track mode includes performers from the local artist index (featured/guest credits). Star filter works in both modes; the choice persists across app restarts like **Show artist images**.
+* Letter bucket filter (`A`–`Z`, `#`, `OTHER`) runs in local SQL instead of scanning catalog chunks client-side, so late-alphabet picks load promptly on large libraries.
+
 ### Square corners — sharp-edged cards and covers
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1215](https://github.com/Psychotoxical/psysonic/pull/1215)**
