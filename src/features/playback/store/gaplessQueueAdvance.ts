@@ -37,6 +37,10 @@ import { refreshWaveformForTrack } from '@/features/playback/store/waveformRefre
 import { syncQueueToServer } from '@/features/playback/store/queueSync';
 import { useAuthStore } from '@/store/authStore';
 import { setIsAudioPaused } from '@/features/playback/store/engineState';
+import {
+  getLastEngineProgressSec,
+  noteEngineProgressForGapless,
+} from '@/features/playback/store/gaplessProgressTracking';
 import { isSeekDebouncePending } from '@/features/playback/store/seekDebounce';
 import { getSeekTarget } from '@/features/playback/store/seekTargetState';
 import type { QueueItemRef, Track } from '@/lib/media/trackTypes';
@@ -194,13 +198,6 @@ export function applyGaplessQueueAdvance(opts?: {
   return { advanced: true, nextTrack, newIndex };
 }
 
-/** Last `audio:progress` position — used to detect a gapless rewind without IPC. */
-let lastEngineProgressSec = 0;
-
-export function _resetGaplessProgressTrackingForTest(): void {
-  lastEngineProgressSec = 0;
-}
-
 /**
  * When gapless is on and the engine position jumps backward mid-playback, the
  * Rust side likely switched sources without delivering `audio:track_switched`.
@@ -215,10 +212,10 @@ export function maybeReconcileGaplessFromProgress(
   if (!store.isPlaying || store.currentRadio || !store.currentTrack) return;
   if (Date.now() - getLastGaplessSwitchTime() < 400) return;
 
-  const prevSec = lastEngineProgressSec;
+  const prevSec = getLastEngineProgressSec();
   const regressed = currentTime + 1.5 < prevSec && prevSec > 8;
   if (!regressed) {
-    lastEngineProgressSec = currentTime;
+    noteEngineProgressForGapless(currentTime);
     return;
   }
 
@@ -240,9 +237,5 @@ export function maybeReconcileGaplessFromProgress(
   markGaplessSwitch();
   clearPreloadingIds();
   setIsAudioPaused(false);
-  lastEngineProgressSec = currentTime;
-}
-
-export function noteEngineProgressForGapless(currentTime: number): void {
-  lastEngineProgressSec = currentTime;
+  noteEngineProgressForGapless(currentTime);
 }

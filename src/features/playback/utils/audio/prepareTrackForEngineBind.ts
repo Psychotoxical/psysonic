@@ -1,18 +1,16 @@
 import type { Track } from '@/lib/media/trackTypes';
 import { enrichTrackPlaybackMetadata } from '@/features/playback/utils/audio/enrichTrackReplayGainMetadata';
-import { refreshLoudnessForTrack } from '@/features/playback/store/loudnessRefresh';
 
 /**
- * Index-first metadata + loudness cache before `audio_play` / `audio_chain_preload`.
- * Awaits loudness refresh so normalization gain is ready for the bind payload.
+ * Index-first metadata before `audio_play` / `audio_chain_preload`.
+ * Callers in the playback store should await {@link refreshLoudnessForTrack}
+ * separately so dependency-cruiser does not route utils → store → utils cycles.
  */
 export async function prepareTrackForEngineBind(
   track: Track,
   serverId: string,
 ): Promise<Track> {
-  const enriched = serverId
-    ? await enrichTrackPlaybackMetadata(track, serverId)
+  return serverId
+    ? enrichTrackPlaybackMetadata(track, serverId)
     : track;
-  await refreshLoudnessForTrack(enriched.id, { syncPlayingEngine: false });
-  return enriched;
 }

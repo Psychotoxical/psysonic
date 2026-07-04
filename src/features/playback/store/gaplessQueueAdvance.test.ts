@@ -15,9 +15,11 @@ import {
 } from '@/features/playback/store/playbackProgress';
 import {
   _resetGaplessProgressTrackingForTest,
+  noteEngineProgressForGapless,
+} from '@/features/playback/store/gaplessProgressTracking';
+import {
   applyGaplessQueueAdvance,
   maybeReconcileGaplessFromProgress,
-  noteEngineProgressForGapless,
 } from '@/features/playback/store/gaplessQueueAdvance';
 
 const ref = (trackId: string): QueueItemRef => ({ serverId: 's1', trackId });

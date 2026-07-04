@@ -18,6 +18,7 @@ import {
   isReplayGainActive,
   loudnessGainDbForEngineBind,
 } from '@/features/playback/store/loudnessGainCache';
+import { refreshLoudnessForTrack } from '@/features/playback/store/loudnessRefresh';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
 
@@ -106,6 +107,9 @@ export function requestGaplessChainPreload(ctx: GaplessChainPreloadContext): voi
       const prepared = serverId
         ? await prepareTrackForEngineBind(nextTrack, serverId)
         : nextTrack;
+      if (serverId) {
+        await refreshLoudnessForTrack(prepared.id, { syncPlayingEngine: false });
+      }
 
       const store = usePlayerStore.getState();
       if (!store.isPlaying || store.currentRadio) return;

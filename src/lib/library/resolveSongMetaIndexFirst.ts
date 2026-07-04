@@ -1,7 +1,7 @@
 import { libraryGetTrack } from '@/lib/api/library';
 import { getSongForServer } from '@/lib/api/subsonicLibrary';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
-import { trackToSong } from '@/lib/library/advancedSearchLocal';
+import { trackToSong } from '@/lib/library/trackDtoMapping';
 import { libraryIsReady } from '@/lib/library/libraryReady';
 
 /**

@@ -15,7 +15,7 @@ import {
   setSeekFallbackTrackId,
   setSeekFallbackVisualTarget,
 } from '@/features/playback/store/seekFallbackState';
-import { noteEngineProgressForGapless } from '@/features/playback/store/gaplessQueueAdvance';
+import { noteEngineProgressForGapless } from '@/features/playback/store/gaplessProgressTracking';
 import {
   clearSeekTarget,
   setSeekTarget,

@@ -1,7 +1,22 @@
-import { resolveSongMetaIndexFirst } from '@/lib/library/resolveSongMetaIndexFirst';
+import { libraryGetTrack } from '@/lib/api/library';
+import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { isReplayGainActive } from '@/features/playback/store/loudnessGainCache';
+import { trackToSong } from '@/lib/library/trackDtoMapping';
+import { libraryIsReady } from '@/lib/library/libraryReady';
 import { songToTrack } from '@/lib/media/songToTrack';
 import type { Track } from '@/lib/media/trackTypes';
+
+async function resolveSongMetaFromIndexForPlaybackEnrich(
+  serverId: string,
+  songId: string,
+): Promise<SubsonicSong | null> {
+  if (!await libraryIsReady(serverId)) return null;
+  try {
+    const dto = await libraryGetTrack(serverId, songId);
+    if (dto) return trackToSong(dto);
+  } catch { /* index unavailable */ }
+  return null;
+}
 
 /** True when ReplayGain is on and the track snapshot has no gain tags yet. */
 export function trackNeedsReplayGainMetadataPrefetch(track: Track): boolean {
@@ -46,11 +61,9 @@ export function mergePlaybackTrackMetadata(base: Track, resolved: Track): Track 
 }
 
 /**
- * Prefetch playback metadata (thin fields + ReplayGain) via index → getSong
- * before binding the engine on stream / gapless paths.
- *
- * When ReplayGain is on, always index-read so recalculated tags on an already
- * populated snapshot are picked up before bind.
+ * Prefetch playback metadata (thin fields + ReplayGain) from the local index
+ * before binding the engine on stream / gapless paths. Network fallback stays
+ * in the queue resolver / {@link resolveSongMetaIndexFirst} path.
  */
 export async function enrichTrackPlaybackMetadata(
   track: Track,
@@ -64,7 +77,7 @@ export async function enrichTrackPlaybackMetadata(
       || track.replayGainAlbumDb != null
       || track.replayGainPeak != null);
   if (!needsPrefetch && !rgRecheck) return track;
-  const song = await resolveSongMetaIndexFirst(serverId, track.id);
+  const song = await resolveSongMetaFromIndexForPlaybackEnrich(serverId, track.id);
   if (!song) return track;
   return mergePlaybackTrackMetadata(track, songToTrack(song));
 }

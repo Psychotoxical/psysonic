@@ -28,8 +28,8 @@ import { requestGaplessChainPreload } from '@/features/playback/store/gaplessCha
 import {
   applyGaplessQueueAdvance,
   maybeReconcileGaplessFromProgress,
-  noteEngineProgressForGapless,
 } from '@/features/playback/store/gaplessQueueAdvance';
+import { noteEngineProgressForGapless } from '@/features/playback/store/gaplessProgressTracking';
 import { showToast } from '@/lib/dom/toast';
 import { useAuthStore } from '@/store/authStore';
 import { getPlayGeneration, setIsAudioPaused } from '@/features/playback/store/engineState';
