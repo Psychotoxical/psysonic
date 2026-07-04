@@ -485,6 +485,41 @@ fn album_artist_credit_mode(req: &LibraryAdvancedSearchRequest) -> bool {
     !matches!(req.artist_credit_mode, Some(ArtistCreditMode::Track))
 }
 
+/// Letter bucket filter on `name_sort` (articles already stripped in column).
+fn push_artist_letter_bucket(w: &mut WhereBuilder, bucket: &str, applied: &mut BTreeSet<String>) {
+    if bucket.is_empty() || bucket.eq_ignore_ascii_case("ALL") {
+        return;
+    }
+    let col = "COALESCE(ar.name_sort, ar.name)";
+    match bucket {
+        "#" => {
+            w.push_raw(&format!("SUBSTR({col}, 1, 1) GLOB '[0-9]'"));
+        }
+        "OTHER" => {
+            w.push_raw(&format!(
+                "LENGTH({col}) > 0 \
+                 AND SUBSTR({col}, 1, 1) NOT GLOB '[0-9]' \
+                 AND LOWER(SUBSTR({col}, 1, 1)) NOT GLOB '[a-z]'"
+            ));
+        }
+        letter if letter.len() == 1 => {
+            let Some(ch) = letter.chars().next() else {
+                return;
+            };
+            if !ch.is_ascii_alphabetic() {
+                return;
+            }
+            let lower = ch.to_ascii_lowercase().to_string();
+            w.push_param(
+                &format!("LOWER(SUBSTR({col}, 1, 1)) = ?"),
+                SqlValue::Text(lower),
+            );
+        }
+        _ => return,
+    }
+    applied.insert("letter".to_string());
+}
+
 #[allow(clippy::too_many_arguments)]
 fn build_artist(
     store: &LibraryStore,
@@ -521,6 +556,9 @@ fn build_artist_from_table(
     w.push_param("ar.server_id = ?", SqlValue::Text(req.server_id.clone()));
     if album_artist_credit_mode(req) {
         w.push_raw("ar.album_count IS NOT NULL");
+    }
+    if let Some(bucket) = req.artist_letter_bucket.as_deref() {
+        push_artist_letter_bucket(&mut w, bucket, applied);
     }
     if let Some(t) = text {
         w.push_param("ar.name LIKE ? ESCAPE '\\'", SqlValue::Text(like_contains(t)));
@@ -1485,6 +1523,7 @@ mod tests {
             offset: 0,
             skip_totals: false,
             artist_credit_mode: None,
+            artist_letter_bucket: None,
         }
     }
 
@@ -1633,6 +1672,30 @@ mod tests {
         let resp2 = run_advanced_search(&store, &r2).unwrap();
         assert_eq!(resp2.artists.len(), 1);
         assert_eq!(resp2.artists[0].id, "ar_guest");
+    }
+
+    #[test]
+    fn artist_letter_bucket_filters_by_name_sort_prefix() {
+        let store = LibraryStore::open_in_memory();
+        insert_artist_with_album_count(&store, "s1", "ar_a", "Alpha", Some(1));
+        insert_artist_with_album_count(&store, "s1", "ar_m", "Mike", Some(1));
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "UPDATE artist SET name_sort = 'alpha' WHERE id = 'ar_a'",
+                    [],
+                )?;
+                c.execute(
+                    "UPDATE artist SET name_sort = 'mike' WHERE id = 'ar_m'",
+                    [],
+                )
+            })
+            .unwrap();
+        let mut r = req("s1", &[EntityKind::Artist]);
+        r.artist_letter_bucket = Some("M".into());
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.artists.len(), 1);
+        assert_eq!(resp.artists[0].id, "ar_m");
     }
 
     #[test]

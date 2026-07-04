@@ -569,14 +569,17 @@ export async function fetchLocalArtistCatalogChunk(
   offset: number,
   chunkSize: number,
   creditMode: ArtistCreditMode = 'album',
+  letterBucket?: string | null,
 ): Promise<ArtistCatalogChunkResult | null> {
   if (!serverId || !(await libraryIsReady(serverId))) return null;
+  const bucket = letterBucket && letterBucket !== 'ALL' ? letterBucket : undefined;
   try {
     const resp = await libraryAdvancedSearch({
       serverId,
       libraryScope: libraryScopeForServer(serverId) ?? undefined,
       entityTypes: ['artist'],
       artistCreditMode: creditMode,
+      ...(bucket ? { artistLetterBucket: bucket } : {}),
       sort: [{ field: 'name', dir: 'asc' }],
       limit: chunkSize,
       offset,

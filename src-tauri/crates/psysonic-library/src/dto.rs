@@ -568,6 +568,9 @@ pub struct LibraryAdvancedSearchRequest {
     /// `None` is treated as [`ArtistCreditMode::Album`].
     #[serde(default)]
     pub artist_credit_mode: Option<ArtistCreditMode>,
+    /// A–Z / `#` / `OTHER` / omit or `ALL` — letter bucket on `name_sort` (#1209 browse).
+    #[serde(default)]
+    pub artist_letter_bucket: Option<String>,
 }
 
 /// Per-entity result counts (full match count, not page size).

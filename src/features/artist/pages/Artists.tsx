@@ -94,6 +94,7 @@ export default function Artists() {
     indexEnabled,
     starredOnly,
     creditMode,
+    letterFilter,
     musicLibraryFilterVersion,
   });
 

@@ -27,6 +27,7 @@ export type UseArtistsBrowseCatalogArgs = {
   indexEnabled: boolean;
   starredOnly: boolean;
   creditMode: ArtistCreditMode;
+  letterFilter: string;
   musicLibraryFilterVersion: number;
 };
 
@@ -35,6 +36,7 @@ export function useArtistsBrowseCatalog({
   indexEnabled,
   starredOnly,
   creditMode,
+  letterFilter,
   musicLibraryFilterVersion,
 }: UseArtistsBrowseCatalogArgs) {
   const offlineBrowseActive = useOfflineBrowseContext().active;
@@ -62,6 +64,7 @@ export function useArtistsBrowseCatalog({
           catalogOffsetRef.current,
           ARTIST_CATALOG_CHUNK_SIZE,
           creditMode,
+          letterFilter,
         );
         if (generation !== loadGenerationRef.current) return;
         if (chunk == null) {
@@ -86,6 +89,7 @@ export function useArtistsBrowseCatalog({
         catalogOffsetRef.current,
         ARTIST_CATALOG_CHUNK_SIZE,
         creditMode,
+        letterFilter,
       );
       if (generation !== loadGenerationRef.current) return;
       if (chunk == null) {
@@ -110,7 +114,7 @@ export function useArtistsBrowseCatalog({
         setCatalogLoadingMore(false);
       }
     }
-  }, [creditMode, offlineBrowseActive, serverId]);
+  }, [creditMode, letterFilter, offlineBrowseActive, serverId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,6 +147,7 @@ export function useArtistsBrowseCatalog({
                 0,
                 ARTIST_CATALOG_CHUNK_SIZE,
                 creditMode,
+                letterFilter,
               );
               setCatalogArtists(first?.artists ?? []);
               catalogOffsetRef.current = first?.artists.length ?? 0;
@@ -171,6 +176,7 @@ export function useArtistsBrowseCatalog({
             0,
             ARTIST_CATALOG_CHUNK_SIZE,
             creditMode,
+            letterFilter,
           );
           if (cancelled || generation !== loadGenerationRef.current) return;
           if (first != null) {
@@ -196,7 +202,7 @@ export function useArtistsBrowseCatalog({
     return () => {
       cancelled = true;
     };
-  }, [creditMode, musicLibraryFilterVersion, indexEnabled, offlineBrowseActive, offlineBrowseReloadTs, serverId, starredOnly]);
+  }, [creditMode, letterFilter, musicLibraryFilterVersion, indexEnabled, offlineBrowseActive, offlineBrowseReloadTs, serverId, starredOnly]);
 
   return {
     catalogArtists,

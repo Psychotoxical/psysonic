@@ -186,12 +186,15 @@ async function fetchOfflineLocalArtistCatalogFromIndex(
   offset: number,
   chunkSize: number,
   creditMode: ArtistCreditMode,
+  letterBucket?: string | null,
 ): Promise<{ artists: SubsonicArtist[]; hasMore: boolean } | null> {
+  const bucket = letterBucket && letterBucket !== 'ALL' ? letterBucket : undefined;
   try {
     const resp = await libraryAdvancedSearch({
       serverId,
       entityTypes: ['artist'],
       artistCreditMode: creditMode,
+      ...(bucket ? { artistLetterBucket: bucket } : {}),
       sort: [{ field: 'name', dir: 'asc' }],
       limit: chunkSize,
       offset,
@@ -210,6 +213,7 @@ export async function fetchOfflineLocalArtistCatalogChunk(
   offset: number,
   chunkSize: number,
   creditMode: ArtistCreditMode = 'album',
+  letterBucket?: string | null,
 ): Promise<{ artists: SubsonicArtist[]; hasMore: boolean } | null> {
   if (!offlineLocalBrowseEnabled(serverId)) return null;
   const fromIndex = await fetchOfflineLocalArtistCatalogFromIndex(
@@ -217,6 +221,7 @@ export async function fetchOfflineLocalArtistCatalogChunk(
     offset,
     chunkSize,
     creditMode,
+    letterBucket,
   );
   if (fromIndex) return fromIndex;
   const tracks = await fetchBrowsableLocalTrackDtos(serverId);

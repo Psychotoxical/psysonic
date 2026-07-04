@@ -214,6 +214,8 @@ export interface LibraryAdvancedSearchRequest {
   queryAlbumTitleOnly?: boolean | null;
   /** Artist browse credit semantics (#1209). Omitted/null → album artists. */
   artistCreditMode?: ArtistCreditMode | null;
+  /** A–Z, `#`, `OTHER`, or omit/`ALL` — letter bucket on local artist browse. */
+  artistLetterBucket?: string | null;
 }
 
 export interface LibraryAlbumDto {
