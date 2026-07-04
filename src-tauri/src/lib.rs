@@ -1324,6 +1324,7 @@ mod specta_export {
             "audio_play",
             "audio_chain_preload",
             "discord_update_presence",
+            "download_track_local",
             // (3) platform-gated — `#[cfg(target_os = "windows")]`, so absent
             // from the Linux specta export the committed bindings are built from.
             "update_taskbar_icon",
@@ -1413,5 +1414,109 @@ mod specta_export {
             }
         }
         out
+    }
+
+    // ── Reverse anti-drift guard ────────────────────────────────────────────
+    // The forward guard above catches a command that lands in `generate_handler!`
+    // without being collected. It cannot see a command that leaves the handler
+    // ENTIRELY — exactly how `download_track_local` silently became unregistered
+    // (offline caching went dead) when the specta annotation pass dropped it from
+    // `generate_handler!` and its >10-arg signature kept it out of
+    // `collect_commands!` too, so it fell through both lists. This test scans every
+    // `#[tauri::command]` fn in the workspace sources and asserts each is wired into
+    // `generate_handler!`, so a command can never fall out of the live IPC surface
+    // unnoticed.
+    #[test]
+    fn every_command_is_registered_in_the_handler() {
+        // Commands intentionally NOT in `generate_handler!` (invoked internally,
+        // never over IPC). Exact + documented; it can only shrink.
+        const HANDLER_EXEMPT: &[&str] = &[];
+
+        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut command_fns = std::collections::HashSet::new();
+        for root in ["src", "crates"] {
+            collect_command_fns(&manifest.join(root), &mut command_fns);
+        }
+        assert!(
+            command_fns.len() > 200,
+            "command-fn scanner found too few #[tauri::command] fns ({}) — the \
+             attribute/fn layout probably changed; fix `collect_command_fns`",
+            command_fns.len()
+        );
+
+        let handler = command_names(include_str!("lib.rs"), "generate_handler!");
+        let mut missing: Vec<&str> = command_fns
+            .iter()
+            .map(String::as_str)
+            .filter(|c| !handler.contains(*c) && !HANDLER_EXEMPT.contains(c))
+            .collect();
+        missing.sort_unstable();
+        assert!(
+            missing.is_empty(),
+            "these #[tauri::command] fns are defined but NOT registered in \
+             generate_handler! — they are dead over IPC (add them to the handler, \
+             or to HANDLER_EXEMPT if intentionally internal-only): {missing:?}"
+        );
+
+        let stale: Vec<&str> = HANDLER_EXEMPT
+            .iter()
+            .copied()
+            .filter(|c| command_fns.contains(*c) && handler.contains(*c))
+            .collect();
+        assert!(
+            stale.is_empty(),
+            "these commands are in HANDLER_EXEMPT but are actually registered in \
+             generate_handler! — remove them from HANDLER_EXEMPT: {stale:?}"
+        );
+    }
+
+    /// Recursively collect the name of every `#[tauri::command]` fn under `dir`.
+    /// Matches only a real attribute line (`#[tauri::command...`), never a
+    /// doc-comment *mention* of the macro (those start with `///`), then reads the
+    /// fn name from the next `fn` declaration, skipping intervening `#[..]`
+    /// attribute lines.
+    fn collect_command_fns(dir: &std::path::Path, out: &mut std::collections::HashSet<String>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if path.file_name().and_then(|n| n.to_str()) == Some("target") {
+                    continue;
+                }
+                collect_command_fns(&path, out);
+            } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+                let Ok(src) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
+                let lines: Vec<&str> = src.lines().collect();
+                for (i, raw) in lines.iter().enumerate() {
+                    if !raw.trim_start().starts_with("#[tauri::command") {
+                        continue;
+                    }
+                    for line in &lines[i + 1..] {
+                        let t = line.trim_start();
+                        if t.starts_with("#[") || t.starts_with("//") || t.is_empty() {
+                            continue;
+                        }
+                        if let Some(name) = fn_name(t) {
+                            out.insert(name);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Extract `name` from a `... fn name(...)` declaration line.
+    fn fn_name(line: &str) -> Option<String> {
+        let after = line.split(" fn ").nth(1).or_else(|| line.strip_prefix("fn "))?;
+        let name: String = after
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        (!name.is_empty()).then_some(name)
     }
 }
