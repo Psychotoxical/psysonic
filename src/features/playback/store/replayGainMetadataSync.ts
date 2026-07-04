@@ -141,11 +141,17 @@ export async function maybeRefreshCurrentTrackMetadataFromIndex(): Promise<void>
   const serverId = playbackCacheKeyForRef(ref);
   if (!serverId) return;
 
-  const song = await resolveSongMetaIndexFirst(serverId, currentTrack.id);
+  const trackId = currentTrack.id;
+  const song = await resolveSongMetaIndexFirst(serverId, trackId);
   if (!song) return;
 
-  const merged = mergePlaybackTrackMetadata(currentTrack, songToTrack(song));
-  applyCurrentTrackMetadataUpgrade(currentTrack, merged, queueItems, queueIndex);
+  const live = usePlayerStore.getState();
+  if (!live.isPlaying || live.currentRadio || !live.currentTrack) return;
+  const liveRef = live.queueItems[live.queueIndex];
+  if (live.currentTrack.id !== trackId || liveRef?.trackId !== trackId) return;
+
+  const merged = mergePlaybackTrackMetadata(live.currentTrack, songToTrack(song));
+  applyCurrentTrackMetadataUpgrade(live.currentTrack, merged, live.queueItems, live.queueIndex);
 }
 
 let indexRefreshInflight: Promise<void> | null = null;

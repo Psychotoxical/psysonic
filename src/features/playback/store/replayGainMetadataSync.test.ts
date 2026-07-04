@@ -7,6 +7,7 @@ import {
   _resetQueueResolverForTest,
   seedQueueResolver,
 } from '@/features/playback/store/queueTrackResolver';
+import * as resolveSongMetaIndexFirst from '@/lib/library/resolveSongMetaIndexFirst';
 import {
   _resetIndexRefreshInflightForTest,
   maybeRefreshCurrentTrackMetadataFromIndex,
@@ -152,6 +153,7 @@ describe('maybeRefreshCurrentTrackMetadataFromIndex', () => {
   beforeEach(() => {
     _resetQueueResolverForTest();
     _resetIndexRefreshInflightForTest();
+    vi.restoreAllMocks();
     onInvoke('audio_update_replay_gain', () => undefined);
     useAuthStore.setState({
       normalizationEngine: 'replaygain',
@@ -193,6 +195,29 @@ describe('maybeRefreshCurrentTrackMetadataFromIndex', () => {
     const s = usePlayerStore.getState();
     expect(s.currentTrack?.replayGainTrackDb).toBe(-8.5);
     expect(s.currentTrack?.replayGainPeak).toBe(0.91);
+  });
+
+  it('no-ops when the playing slot changed during index fetch', async () => {
+    vi.spyOn(resolveSongMetaIndexFirst, 'resolveSongMetaIndexFirst').mockImplementation(async () => {
+      usePlayerStore.setState({
+        currentTrack: track('t2', { replayGainTrackDb: -3.0 }),
+        queueItems: [ref('t1'), ref('t2')],
+        queueIndex: 1,
+      });
+      return {
+        id: 't1',
+        title: 'Track t1',
+        album: 'Album',
+        duration: 200,
+        replayGain: { trackGain: -8.5, trackPeak: 0.91 },
+      } as Awaited<ReturnType<typeof resolveSongMetaIndexFirst.resolveSongMetaIndexFirst>>;
+    });
+
+    await maybeRefreshCurrentTrackMetadataFromIndex();
+
+    const s = usePlayerStore.getState();
+    expect(s.currentTrack?.id).toBe('t2');
+    expect(s.currentTrack?.replayGainTrackDb).toBe(-3.0);
   });
 });
 
