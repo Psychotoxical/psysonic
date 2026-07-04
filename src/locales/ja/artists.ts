@@ -16,4 +16,12 @@ export const artists = {
   startSelect: '複数選択を有効化',
   cancelSelect: 'キャンセル',
   addToPlaylist: 'プレイリストに追加',
+  browse: {
+    creditMode: {
+      album: 'アルバムアーティスト',
+      track: 'トラックアーティスト',
+      tooltipAlbum: 'アルバムアーティストのみ表示（デフォルトのライブラリ索引）',
+      tooltipTrack: 'コンピレーションのゲストを含むすべてのトラック出演者を表示',
+    },
+  },
 };

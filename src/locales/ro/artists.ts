@@ -16,4 +16,12 @@ export const artists = {
   startSelect: 'Activează multi-selecția',
   cancelSelect: 'Anulează',
   addToPlaylist: 'Adaugă la Playlist',
+  browse: {
+    creditMode: {
+      album: 'Artiști de album',
+      track: 'Artiști de piesă',
+      tooltipAlbum: 'Afișează doar artiștii de album (index bibliotecă implicit)',
+      tooltipTrack: 'Afișează toți interpreții pieselor, inclusiv invitați pe compilații',
+    },
+  },
 };

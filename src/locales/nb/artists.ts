@@ -16,4 +16,12 @@ export const artists = {
   startSelect: 'Aktiver multivalg',
   cancelSelect: 'Avbryt',
   addToPlaylist: 'Legg til i spilleliste',
+  browse: {
+    creditMode: {
+      album: 'Albumartister',
+      track: 'Sporartister',
+      tooltipAlbum: 'Vis kun albumartister (standard biblioteksindeks)',
+      tooltipTrack: 'Vis alle sporutøvere, inkludert gjester på samlinger',
+    },
+  },
 };
