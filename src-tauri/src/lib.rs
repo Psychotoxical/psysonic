@@ -1428,12 +1428,13 @@ mod specta_export {
     // unnoticed.
     #[test]
     fn every_command_is_registered_in_the_handler() {
-        // Commands intentionally NOT in `generate_handler!` (invoked internally,
-        // never over IPC). Exact + documented; it can only shrink.
+        // Commands intentionally NOT in `generate_handler!` (invoked in-process,
+        // never over IPC). Empty by default — add one only with the reason it is
+        // internal-only; the stale-check below drops any entry that got registered.
         const HANDLER_EXEMPT: &[&str] = &[];
 
         let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        let mut command_fns = std::collections::HashSet::new();
+        let mut command_fns = Vec::new();
         for root in ["src", "crates"] {
             collect_command_fns(&manifest.join(root), &mut command_fns);
         }
@@ -1444,6 +1445,23 @@ mod specta_export {
             command_fns.len()
         );
 
+        // This guard compares handler↔command by BARE fn name, so two commands
+        // sharing a bare name across crates would be indistinguishable — one could
+        // drop out of the handler while its namesake keeps the check green. Fail
+        // loudly if that ever happens rather than silently trusting the name.
+        let mut counts = std::collections::HashMap::new();
+        for name in &command_fns {
+            *counts.entry(name.as_str()).or_insert(0) += 1;
+        }
+        let mut collisions: Vec<&str> =
+            counts.iter().filter(|(_, n)| **n > 1).map(|(name, _)| *name).collect();
+        collisions.sort_unstable();
+        assert!(
+            collisions.is_empty(),
+            "two #[tauri::command] fns share a bare name {collisions:?} — this guard \
+             can't tell them apart; disambiguate before the name-based check is trusted"
+        );
+
         let handler = command_names(include_str!("lib.rs"), "generate_handler!");
         let mut missing: Vec<&str> = command_fns
             .iter()
@@ -1451,6 +1469,7 @@ mod specta_export {
             .filter(|c| !handler.contains(*c) && !HANDLER_EXEMPT.contains(c))
             .collect();
         missing.sort_unstable();
+        missing.dedup();
         assert!(
             missing.is_empty(),
             "these #[tauri::command] fns are defined but NOT registered in \
@@ -1461,7 +1480,7 @@ mod specta_export {
         let stale: Vec<&str> = HANDLER_EXEMPT
             .iter()
             .copied()
-            .filter(|c| command_fns.contains(*c) && handler.contains(*c))
+            .filter(|c| command_fns.iter().any(|f| f == c) && handler.contains(*c))
             .collect();
         assert!(
             stale.is_empty(),
@@ -1475,7 +1494,7 @@ mod specta_export {
     /// doc-comment *mention* of the macro (those start with `///`), then reads the
     /// fn name from the next `fn` declaration, skipping intervening `#[..]`
     /// attribute lines.
-    fn collect_command_fns(dir: &std::path::Path, out: &mut std::collections::HashSet<String>) {
+    fn collect_command_fns(dir: &std::path::Path, out: &mut Vec<String>) {
         let Ok(entries) = std::fs::read_dir(dir) else {
             return;
         };
@@ -1501,9 +1520,13 @@ mod specta_export {
                             continue;
                         }
                         if let Some(name) = fn_name(t) {
-                            out.insert(name);
+                            out.push(name);
+                            break;
                         }
-                        break;
+                        // A non-attribute, non-comment, non-blank line that is not a
+                        // fn decl is an attribute *continuation* (a multi-line
+                        // `#[tauri::command(\n  rename_all = ...\n)]`) — keep scanning
+                        // to the fn instead of giving up and dropping the command.
                     }
                 }
             }
