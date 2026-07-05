@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -149,6 +150,16 @@ export function useAlbumBrowseData({
     starredOnly,
     compFilter,
   }), [sort, yearFilterActive, yearFilterBounds, losslessOnly, starredOnly, compFilter]);
+
+  const catalogLoadKey = useMemo(
+    () => albumBrowseInitialLoadKey(
+      serverId,
+      musicLibraryFilterVersion,
+      browseQuery,
+      offlineBrowseActive,
+    ),
+    [serverId, musicLibraryFilterVersion, browseQuery, offlineBrowseActive],
+  );
 
   const compFilterActive = compFilter !== 'all';
   const compFilterClientOnly = albumBrowseCompFilterClientOnly(compFilter, browseMode);
@@ -345,31 +356,28 @@ export function useAlbumBrowseData({
     }
   }, [indexEnabled, serverId]);
 
+  useLayoutEffect(() => {
+    const cached = readAlbumBrowseCatalogCache(catalogLoadKey);
+    if (!cached) return;
+    pageRef.current = 0;
+    catalogOffsetRef.current = cached.albums.length;
+    loadPendingRef.current = false;
+    catalogLoadingRef.current = false;
+    setPage(0);
+    setBrowseMode('slice');
+    setAlbums(cached.albums);
+    setHasMore(true);
+    setCatalogHasMore(cached.hasMore);
+    setCatalogLoadingMore(false);
+    setLoading(false);
+    emitAlbumBrowseDebug('load_effect_cache_hit', { albumCount: cached.albums.length, sync: true });
+  }, [catalogLoadKey]);
+
   useEffect(() => {
     let cancelled = false;
-    const loadKey = albumBrowseInitialLoadKey(
-      serverId,
-      musicLibraryFilterVersion,
-      browseQuery,
-      offlineBrowseActive,
-    );
+    const loadKey = catalogLoadKey;
 
-    const cached = readAlbumBrowseCatalogCache(loadKey);
-    if (cached) {
-      pageRef.current = 0;
-      catalogOffsetRef.current = cached.albums.length;
-      loadPendingRef.current = false;
-      catalogLoadingRef.current = false;
-      // React Compiler set-state-in-effect rule: hydrate from module cache after Strict Mode remount.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPage(0);
-      setBrowseMode('slice');
-      setAlbums(cached.albums);
-      setHasMore(true);
-      setCatalogHasMore(cached.hasMore);
-      setCatalogLoadingMore(false);
-      setLoading(false);
-      emitAlbumBrowseDebug('load_effect_cache_hit', { albumCount: cached.albums.length });
+    if (readAlbumBrowseCatalogCache(loadKey)) {
       return () => {
         cancelled = true;
       };
@@ -593,7 +601,7 @@ export function useAlbumBrowseData({
     // starredOverrides is read to seed star state during the load, but the browse
     // list must not reload on every star toggle — it is intentionally excluded.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [browseQuery, indexEnabled, offlineBrowseActive, offlineBrowseReloadTs, serverId, loadBrowse, musicLibraryFilterVersion]);
+  }, [catalogLoadKey, browseQuery, indexEnabled, offlineBrowseActive, offlineBrowseReloadTs, serverId, loadBrowse, musicLibraryFilterVersion]);
 
   useEffect(() => {
     if (!genreCatalogActive) {
