@@ -19,6 +19,7 @@ use crate::dto::{
     LibraryArtistDto,
     LibraryFilterClause, LibrarySearchTotals, LibrarySortClause, LibraryTrackDto, SortDir,
     LibraryScopePair, multi_library_merge_enabled, ordered_library_scope_pairs,
+    scoped_layer1_eligible,
 };
 use crate::filter::{self, EntityKind, FilterOp, SqlFragment};
 use crate::repos;
@@ -177,6 +178,18 @@ pub fn run_advanced_search(
         req.library_scope.as_deref(),
         req.library_scopes.as_deref(),
     );
+    if scoped_layer1_eligible(&scope_pairs) {
+        return run_advanced_search_layer1_scope(
+            store,
+            req,
+            &scope_pairs,
+            text_input,
+            scalar,
+            limit,
+            offset,
+            skip_totals,
+        );
+    }
     if multi_library_merge_enabled(&scope_pairs) {
         crate::identity::ensure_cluster_keys_built(store, &req.server_id)?;
         return run_advanced_search_multi_scope(
@@ -230,6 +243,185 @@ pub fn run_advanced_search(
         applied_filters: applied.into_iter().collect(),
         source: "local".to_string(),
     })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_advanced_search_layer1_scope(
+    store: &LibraryStore,
+    req: &LibraryAdvancedSearchRequest,
+    scopes: &[LibraryScopePair],
+    text_input: Option<String>,
+    scalar: Vec<&LibraryFilterClause>,
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+) -> Result<LibraryAdvancedSearchResponse, String> {
+    let text = text_input.as_deref();
+    let want = |k: EntityKind| req.entity_types.contains(&k);
+    let mut applied: BTreeSet<String> = BTreeSet::new();
+
+    let (artists, artists_total) = if want(EntityKind::Artist) {
+        build_layer1_scope_artist(
+            store, req, scopes, text, &scalar, limit, offset, skip_totals, &mut applied,
+        )?
+    } else {
+        (Vec::new(), 0)
+    };
+    let (albums, albums_total) = if want(EntityKind::Album) {
+        build_layer1_scope_album(
+            store, req, scopes, text, &scalar, limit, offset, skip_totals, &mut applied,
+        )?
+    } else {
+        (Vec::new(), 0)
+    };
+    let (tracks, tracks_total) = if want(EntityKind::Track) {
+        build_layer1_scope_track(
+            store, req, scopes, text, &scalar, limit, offset, skip_totals, &mut applied,
+        )?
+    } else {
+        (Vec::new(), 0)
+    };
+
+    Ok(LibraryAdvancedSearchResponse {
+        artists,
+        albums,
+        tracks,
+        totals: LibrarySearchTotals {
+            artists: artists_total,
+            albums: albums_total,
+            tracks: tracks_total,
+        },
+        applied_filters: applied.into_iter().collect(),
+        source: "local".to_string(),
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_layer1_scope_album(
+    store: &LibraryStore,
+    req: &LibraryAdvancedSearchRequest,
+    scopes: &[LibraryScopePair],
+    text: Option<&str>,
+    scalar: &[&LibraryFilterClause],
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+    applied: &mut BTreeSet<String>,
+) -> Result<(Vec<LibraryAlbumDto>, u32), String> {
+    let (extra_where, extra_params) = multi_scope_track_filter_sql(
+        store,
+        req,
+        scopes,
+        text,
+        scalar,
+        None,
+        applied,
+    )?;
+    let order = deduped_album_order_sql(&req.sort);
+    let fast_browse = scopes.len() > 1 && skip_totals && extra_where.trim().is_empty();
+    scope_merge::list_albums_layer1_filtered(
+        store,
+        scopes,
+        &extra_where,
+        &extra_params,
+        &order,
+        limit,
+        offset,
+        skip_totals,
+        !fast_browse,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_layer1_scope_artist(
+    store: &LibraryStore,
+    req: &LibraryAdvancedSearchRequest,
+    scopes: &[LibraryScopePair],
+    text: Option<&str>,
+    scalar: &[&LibraryFilterClause],
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+    applied: &mut BTreeSet<String>,
+) -> Result<(Vec<LibraryArtistDto>, u32), String> {
+    let (extra_where, extra_params) = multi_scope_track_filter_sql(
+        store,
+        req,
+        scopes,
+        text,
+        scalar,
+        Some(EntityKind::Artist),
+        applied,
+    )?;
+    let order = deduped_artist_order_sql(&req.sort);
+    scope_merge::list_artists_layer1_filtered(
+        store,
+        scopes,
+        &extra_where,
+        &extra_params,
+        &order,
+        limit,
+        offset,
+        skip_totals,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_layer1_scope_track(
+    store: &LibraryStore,
+    req: &LibraryAdvancedSearchRequest,
+    scopes: &[LibraryScopePair],
+    text: Option<&str>,
+    scalar: &[&LibraryFilterClause],
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+    applied: &mut BTreeSet<String>,
+) -> Result<(Vec<LibraryTrackDto>, u32), String> {
+    if let Some(q) = text.and_then(fts_track_prefix_match_query) {
+        applied.insert("text".to_string());
+        let (extra_where, extra_params) = multi_scope_track_filter_sql(
+            store,
+            req,
+            scopes,
+            None,
+            scalar,
+            None,
+            applied,
+        )?;
+        return scope_merge::search_tracks_filtered(
+            store,
+            scopes,
+            &q,
+            &extra_where,
+            &extra_params,
+            limit,
+            skip_totals,
+        );
+    }
+    let (extra_where, extra_params) = multi_scope_track_filter_sql(
+        store,
+        req,
+        scopes,
+        text,
+        scalar,
+        None,
+        applied,
+    )?;
+    let order = order_clause(&req.sort, EntityKind::Track)
+        .unwrap_or_else(|| "ORDER BY t.title COLLATE NOCASE ASC, t.id ASC".to_string());
+    let bpm_resolved = scalar.iter().any(|c| c.field == "bpm");
+    scope_merge::list_tracks_layer1_filtered(
+        store,
+        scopes,
+        &extra_where,
+        &extra_params,
+        &order,
+        limit,
+        offset,
+        skip_totals,
+        bpm_resolved,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2834,12 +3026,12 @@ mod tests {
     }
 
     #[test]
-    fn library_scope_artist_browse_reads_library_id_from_raw_json_when_column_null() {
+    fn library_scope_artist_browse_uses_sargable_library_id_column() {
         let store = LibraryStore::open_in_memory();
         insert_artist(&store, "s1", "a1", "Alpha");
         let mut t = track("s1", "t1", "Song", "Alpha", "Alb");
         t.artist_id = Some("a1".into());
-        t.raw_json = serde_json::json!({"libraryId": 3}).to_string();
+        t.library_id = Some("3".into());
         TrackRepository::new(&store).upsert_batch(&[t]).unwrap();
         let mut r = req("s1", &[EntityKind::Artist]);
         r.library_scope = Some("3".into());
@@ -2864,10 +3056,10 @@ mod tests {
     }
 
     #[test]
-    fn library_scope_reads_library_id_from_raw_json_when_column_null() {
+    fn library_scope_track_browse_uses_sargable_library_id_column() {
         let store = LibraryStore::open_in_memory();
         let mut a = track("s1", "t1", "A", "X", "Alb");
-        a.raw_json = serde_json::json!({"libraryId": 3}).to_string();
+        a.library_id = Some("3".into());
         TrackRepository::new(&store).upsert_batch(&[a]).unwrap();
         let mut r = req("s1", &[EntityKind::Track]);
         r.library_scope = Some("3".into());

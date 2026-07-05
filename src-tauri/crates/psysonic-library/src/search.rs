@@ -291,6 +291,11 @@ pub(crate) fn library_scope_equals_sql(table_alias: &str) -> String {
     format!("{} = ?", library_scope_match_sql(table_alias))
 }
 
+/// Hot-path scoped filter on the backfilled `library_id` column (spec §4).
+pub(crate) fn library_scope_sargable_equals_sql(table_alias: &str) -> String {
+    format!("{table_alias}.library_id = ?")
+}
+
 /// Sargable multi-library filter on the hot `library_id` column (WO-1 backfill).
 pub(crate) fn library_scope_in_sql(table_alias: &str, count: usize) -> String {
     let placeholders = (0..count).map(|_| "?").collect::<Vec<_>>().join(", ");

@@ -723,6 +723,16 @@ pub(crate) fn multi_library_merge_enabled(scopes: &[LibraryScopePair]) -> bool {
     scopes.len() > 1
 }
 
+/// Layer-1 scoped browse (sargable `library_id`, no cluster join) for one server.
+pub(crate) fn scoped_layer1_eligible(scopes: &[LibraryScopePair]) -> bool {
+    let Some(first) = scopes.first() else {
+        return false;
+    };
+    scopes
+        .iter()
+        .all(|p| p.server_id == first.server_id && !p.library_id.trim().is_empty())
+}
+
 /// Paginated album/artist browse over an ordered multi-library scope.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

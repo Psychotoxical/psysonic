@@ -75,6 +75,12 @@ pub(crate) fn scope_cte_sql(scopes: &[LibraryScopePair]) -> (String, Vec<SqlValu
     (sql, binds)
 }
 
+fn scoped_track_join_layer1() -> &'static str {
+    "FROM scope s \
+     CROSS JOIN track t ON t.server_id = s.server_id AND t.library_id = s.library_id \
+     WHERE t.deleted = 0"
+}
+
 fn scoped_track_join() -> &'static str {
     // Drive from the tiny `scope` VALUES table and CROSS JOIN so SQLite cannot
     // reorder to a full `track` scan: each scope row seeks its library's tracks
@@ -204,9 +210,23 @@ pub fn list_albums(
     request: &LibraryScopeListRequest,
 ) -> Result<Vec<LibraryAlbumDto>, String> {
     let scopes = non_empty_scopes(&request.scopes)?;
+    let order = album_order_sql(request.sort.as_deref());
     let limit = clamp_limit(request.limit);
     let offset = clamp_offset(request.offset);
-    let order = album_order_sql(request.sort.as_deref());
+    if crate::dto::scoped_layer1_eligible(scopes) {
+        let (albums, _) = list_albums_layer1_filtered(
+            store,
+            scopes,
+            "",
+            &[],
+            &order,
+            limit,
+            offset,
+            true,
+            true,
+        )?;
+        return Ok(albums);
+    }
 
     let (cte, mut binds) = scope_cte_sql(scopes);
     let sql = format!(
@@ -300,6 +320,347 @@ pub fn list_artists(
             .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(rows.into_iter().map(artist_row_to_dto).collect())
     })
+}
+
+/// Layer-1 scoped album browse: sargable `library_id` join, no cluster on single-library
+/// scopes; two-stage per-library → `album_key` merge when multiple libraries share a server.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn list_albums_layer1_filtered(
+    store: &LibraryStore,
+    scopes: &[LibraryScopePair],
+    extra_where: &str,
+    extra_params: &[SqlValue],
+    order_sql: &str,
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+    merge_by_album_key: bool,
+) -> Result<(Vec<LibraryAlbumDto>, u32), String> {
+    let scopes = non_empty_scopes(scopes)?;
+    if scopes.len() == 1 {
+        let pair = &scopes[0];
+        let mut where_parts = vec![
+            "t.deleted = 0".to_string(),
+            "t.server_id = ?".to_string(),
+            "t.library_id = ?".to_string(),
+            "t.album_id IS NOT NULL AND t.album_id != ''".to_string(),
+        ];
+        if !extra_where.trim().is_empty() {
+            where_parts.push(extra_where.to_string());
+        }
+        let where_sql = where_parts.join(" AND ");
+        let mut params = vec![
+            SqlValue::Text(pair.server_id.clone()),
+            SqlValue::Text(pair.library_id.clone()),
+        ];
+        params.extend_from_slice(extra_params);
+
+        let count_sql = format!("SELECT COUNT(DISTINCT t.album_id) FROM track t WHERE {where_sql}");
+        let sql = format!(
+            "SELECT t.server_id, t.album_id, MAX(t.album), MAX(t.artist), MAX(t.artist_id), \
+                    MAX(t.album_artist), COUNT(*), SUM(t.duration_sec), MAX(t.year), MAX(t.genre), \
+                    MAX(t.cover_art_id), MAX(t.starred_at), MAX(t.synced_at) \
+             FROM track t WHERE {where_sql} \
+             GROUP BY t.album_id \
+             {order_sql} \
+             LIMIT ? OFFSET ?"
+        );
+        let total = if skip_totals {
+            0u32
+        } else {
+            store.with_read_conn(|conn| {
+                let n: i64 = conn.query_row(
+                    &count_sql,
+                    params_from_iter(params.iter()),
+                    |r| r.get(0),
+                )?;
+                Ok(n.max(0) as u32)
+            })?
+        };
+        params.push(SqlValue::Integer(i64::from(limit)));
+        params.push(SqlValue::Integer(i64::from(offset)));
+        let albums = store.with_read_conn(|conn| {
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt
+                .query_map(params_from_iter(params.iter()), map_album_list_row)?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(rows.into_iter().map(album_row_to_dto).collect())
+        })?;
+        return Ok((albums, total));
+    }
+
+    if !merge_by_album_key && extra_where.trim().is_empty() {
+        let server_id = &scopes[0].server_id;
+        if scopes.iter().all(|p| &p.server_id == server_id) {
+            let in_clause = scopes
+                .iter()
+                .map(|_| "?")
+                .collect::<Vec<_>>()
+                .join(", ");
+            let where_sql = format!(
+                "t.deleted = 0 AND t.server_id = ? AND t.library_id IN ({in_clause}) \
+                 AND t.album_id IS NOT NULL AND t.album_id != ''"
+            );
+            let mut params = vec![SqlValue::Text(server_id.clone())];
+            for p in scopes {
+                params.push(SqlValue::Text(p.library_id.clone()));
+            }
+            let count_sql = format!("SELECT COUNT(DISTINCT t.album_id) FROM track t WHERE {where_sql}");
+            let sql = format!(
+                "SELECT t.server_id, t.album_id, MAX(t.album), MAX(t.artist), MAX(t.artist_id), \
+                        MAX(t.album_artist), COUNT(*), SUM(t.duration_sec), MAX(t.year), MAX(t.genre), \
+                        MAX(t.cover_art_id), MAX(t.starred_at), MAX(t.synced_at) \
+                 FROM track t WHERE {where_sql} \
+                 GROUP BY t.album_id \
+                 {order_sql} \
+                 LIMIT ? OFFSET ?"
+            );
+            let total = if skip_totals {
+                0u32
+            } else {
+                store.with_read_conn(|conn| {
+                    let n: i64 = conn.query_row(
+                        &count_sql,
+                        params_from_iter(params.iter()),
+                        |r| r.get(0),
+                    )?;
+                    Ok(n.max(0) as u32)
+                })?
+            };
+            params.push(SqlValue::Integer(i64::from(limit)));
+            params.push(SqlValue::Integer(i64::from(offset)));
+            let albums = store.with_read_conn(|conn| {
+                let mut stmt = conn.prepare(&sql)?;
+                let rows = stmt
+                    .query_map(params_from_iter(params.iter()), map_album_list_row)?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                Ok(rows.into_iter().map(album_row_to_dto).collect())
+            })?;
+            return Ok((albums, total));
+        }
+    }
+
+    let (cte, scope_binds) = scope_cte_sql(scopes);
+    let scoped = scoped_track_join();
+    let base_where = append_extra_where(
+        &format!("{scoped} AND t.album_id IS NOT NULL AND t.album_id != ''"),
+        extra_where,
+    );
+    let mut binds = merge_binds(scope_binds, extra_params);
+
+    let (count_sql, sql) = (
+        format!(
+            "{cte}, \
+             per_lib AS ( \
+               SELECT t.server_id, t.album_id, s.pr, {ALBUM_DEDUP_KEY} AS album_dedup, \
+                      MIN({ALBUM_PICK_KEY}) AS _pick \
+               {base_where} \
+               GROUP BY album_dedup, t.server_id, t.album_id, s.pr \
+             ) \
+             SELECT COUNT(DISTINCT album_dedup) FROM per_lib"
+        ),
+        format!(
+            "{cte}, \
+             per_lib AS ( \
+               SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
+                      t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, \
+                      COUNT(*) AS song_count, SUM(t.duration_sec) AS duration_total, \
+                      s.pr, {ALBUM_DEDUP_KEY} AS album_dedup, \
+                      MIN({ALBUM_PICK_KEY}) AS _pick \
+               {base_where} \
+               GROUP BY album_dedup, t.server_id, t.album_id, s.pr \
+             ) \
+             SELECT server_id, album_id, album, artist, artist_id, album_artist, \
+                    song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at \
+             FROM ( \
+               SELECT server_id, album_id, album, artist, artist_id, album_artist, \
+                      year, genre, cover_art_id, starred_at, synced_at, \
+                      SUM(song_count) AS song_count, SUM(duration_total) AS duration_total, \
+                      MIN(_pick) AS _pick \
+               FROM per_lib GROUP BY album_dedup \
+             ) \
+             {order_sql} \
+             LIMIT ? OFFSET ?"
+        ),
+    );
+
+    let total = if skip_totals {
+        0u32
+    } else {
+        store.with_read_conn(|conn| {
+            let n: i64 = conn.query_row(
+                &count_sql,
+                params_from_iter(binds.iter()),
+                |r| r.get(0),
+            )?;
+            Ok(n.max(0) as u32)
+        })?
+    };
+
+    binds.push(SqlValue::Integer(i64::from(limit)));
+    binds.push(SqlValue::Integer(i64::from(offset)));
+
+    let albums = store.with_read_conn(|conn| {
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt
+            .query_map(params_from_iter(binds.iter()), map_album_list_row)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows.into_iter().map(album_row_to_dto).collect())
+    })?;
+    Ok((albums, total))
+}
+
+/// Layer-1 scoped artist browse — sargable scope join; two-stage merge when `scopes.len() > 1`.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn list_artists_layer1_filtered(
+    store: &LibraryStore,
+    scopes: &[LibraryScopePair],
+    extra_where: &str,
+    extra_params: &[SqlValue],
+    order_sql: &str,
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+) -> Result<(Vec<LibraryArtistDto>, u32), String> {
+    let scopes = non_empty_scopes(scopes)?;
+    let (cte, scope_binds) = scope_cte_sql(scopes);
+    let scoped = if scopes.len() == 1 {
+        scoped_track_join_layer1()
+    } else {
+        scoped_track_join()
+    };
+    let base_where = append_extra_where(
+        &format!("{scoped} AND t.artist_id IS NOT NULL AND t.artist_id != ''"),
+        extra_where,
+    );
+    let mut binds = merge_binds(scope_binds, extra_params);
+
+    let (count_sql, sql) = if scopes.len() == 1 {
+        (
+            format!("{cte} SELECT COUNT(DISTINCT t.artist_id) {base_where}"),
+            format!(
+                "{cte} \
+                 SELECT t.server_id, t.artist_id, MAX(t.artist), COUNT(DISTINCT t.album_id), MAX(t.synced_at) \
+                 {base_where} \
+                 GROUP BY t.artist_id \
+                 {order_sql} \
+                 LIMIT ? OFFSET ?"
+            ),
+        )
+    } else {
+        (
+            format!(
+                "{cte}, \
+                 per_lib AS ( \
+                   SELECT t.server_id, t.artist_id, s.pr, {ARTIST_DEDUP_KEY} AS artist_dedup, \
+                          MIN({ARTIST_PICK_KEY}) AS _pick \
+                   {base_where} \
+                   GROUP BY artist_dedup, t.server_id, t.artist_id, s.pr \
+                 ) \
+                 SELECT COUNT(DISTINCT artist_dedup) FROM per_lib"
+            ),
+            format!(
+                "{cte}, \
+                 per_lib AS ( \
+                   SELECT t.server_id, t.artist_id, t.artist, t.album_id, t.synced_at, s.pr, \
+                          {ARTIST_DEDUP_KEY} AS artist_dedup, MIN({ARTIST_PICK_KEY}) AS _pick \
+                   {base_where} \
+                   GROUP BY artist_dedup, t.server_id, t.artist_id, s.pr \
+                 ) \
+                 SELECT server_id, artist_id, artist, album_count, synced_at \
+                 FROM ( \
+                   SELECT server_id, artist_id, artist, synced_at, \
+                          COUNT(DISTINCT album_id) AS album_count, MIN(_pick) AS _pick \
+                   FROM per_lib GROUP BY artist_dedup \
+                 ) \
+                 {order_sql} \
+                 LIMIT ? OFFSET ?"
+            ),
+        )
+    };
+
+    let total = if skip_totals {
+        0u32
+    } else {
+        store.with_read_conn(|conn| {
+            let n: i64 = conn.query_row(
+                &count_sql,
+                params_from_iter(binds.iter()),
+                |r| r.get(0),
+            )?;
+            Ok(n.max(0) as u32)
+        })?
+    };
+
+    binds.push(SqlValue::Integer(i64::from(limit)));
+    binds.push(SqlValue::Integer(i64::from(offset)));
+
+    let artists = store.with_read_conn(|conn| {
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt
+            .query_map(params_from_iter(binds.iter()), map_artist_list_row)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows.into_iter().map(artist_row_to_dto).collect())
+    })?;
+    Ok((artists, total))
+}
+
+/// Layer-1 scoped track browse — sargable join, no cross-library dedup window.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn list_tracks_layer1_filtered(
+    store: &LibraryStore,
+    scopes: &[LibraryScopePair],
+    extra_where: &str,
+    extra_params: &[SqlValue],
+    order_sql: &str,
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+    bpm_resolved: bool,
+) -> Result<(Vec<LibraryTrackDto>, u32), String> {
+    let scopes = non_empty_scopes(scopes)?;
+    let (cte, scope_binds) = scope_cte_sql(scopes);
+    let base_where = append_extra_where(scoped_track_join_layer1(), extra_where);
+    let mut binds = merge_binds(scope_binds, extra_params);
+
+    let cols = if bpm_resolved {
+        crate::search::aliased_track_columns_resolved_bpm("t")
+    } else {
+        aliased_track_columns("t")
+    };
+
+    let total = if skip_totals {
+        0u32
+    } else {
+        let count_sql = format!("{cte} SELECT COUNT(*) {base_where}");
+        store.with_read_conn(|conn| {
+            let n: i64 = conn.query_row(
+                &count_sql,
+                params_from_iter(binds.iter()),
+                |r| r.get(0),
+            )?;
+            Ok(n.max(0) as u32)
+        })?
+    };
+
+    let sql = format!("{cte} SELECT {cols} {base_where} {order_sql} LIMIT ? OFFSET ?");
+    binds.push(SqlValue::Integer(i64::from(limit)));
+    binds.push(SqlValue::Integer(i64::from(offset)));
+
+    let tracks = store.with_read_conn(|conn| {
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt
+            .query_map(params_from_iter(binds.iter()), |r| {
+                if bpm_resolved {
+                    crate::search::row_to_track_dto_resolved_bpm(r)
+                } else {
+                    row_to_track_row(r).map(|tr| LibraryTrackDto::from_row(&tr))
+                }
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    })?;
+    Ok((tracks, total))
 }
 
 /// Multi-scope album browse with track-level filters (advanced search / genre).
@@ -1837,5 +2198,101 @@ mod tests {
         for step in plan {
             println!("  {step}");
         }
+    }
+
+    /// Local benchmark on a real library DB:
+    /// `PSYSONIC_LIBRARY_DB=~/.local/share/.../library.sqlite cargo test --workspace perf_probe_stellmacher_db -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn perf_probe_stellmacher_db() {
+        use std::path::PathBuf;
+        use std::time::Instant;
+
+        let db = std::env::var("PSYSONIC_LIBRARY_DB").unwrap_or_else(|_| {
+            format!(
+                "{}/.local/share/dev.psysonic.player/databases/library/library.sqlite",
+                std::env::var("HOME").unwrap_or_default()
+            )
+        });
+        let path = PathBuf::from(&db);
+        if !path.exists() {
+            println!("skip: DB not found at {db}");
+            return;
+        }
+        let store = LibraryStore::open_path_for_test(&path).expect("open db");
+        let server_id: String = std::env::var("PSYSONIC_LIBRARY_SERVER").unwrap_or_else(|_| {
+            store
+                .with_read_conn(|c| {
+                    c.query_row(
+                        "SELECT server_id FROM track WHERE deleted = 0 \
+                         GROUP BY server_id ORDER BY COUNT(*) DESC LIMIT 1",
+                        [],
+                        |r| r.get(0),
+                    )
+                })
+                .expect("server id")
+        });
+        let libs: Vec<(String, i64)> = store
+            .with_read_conn(|c| {
+                let mut stmt = c.prepare(
+                    "SELECT library_id, COUNT(*) FROM track \
+                     WHERE deleted = 0 AND server_id = ?1 AND COALESCE(library_id, '') != '' \
+                     GROUP BY library_id ORDER BY 2 DESC LIMIT 5",
+                )?;
+                let rows = stmt
+                    .query_map([&server_id], |r| Ok((r.get::<_, String>(0)?, r.get(1)?)))?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                Ok(rows)
+            })
+            .expect("libs");
+        println!("server={server_id} libs={libs:?}");
+        if libs.len() < 2 {
+            println!("need at least 2 tagged libraries");
+            return;
+        }
+        let scopes: Vec<LibraryScopePair> = libs[..2]
+            .iter()
+            .map(|(lib, _)| scope_pair(&server_id, lib))
+            .collect();
+        let order = "ORDER BY album COLLATE NOCASE ASC, album_id ASC".to_string();
+
+        let bench = |label: &str, scopes: &[LibraryScopePair]| {
+            let _ = list_albums_layer1_filtered(&store, scopes, "", &[], &order, 100, 0, true, false);
+            let start = Instant::now();
+            let (rows, _) = list_albums_layer1_filtered(
+                &store, scopes, "", &[], &order, 100, 0, true, false,
+            )
+            .unwrap();
+            println!("  {label}: {:?} ({} albums)", start.elapsed(), rows.len());
+        };
+
+        let bench_all_libs = || {
+            let sql = "SELECT t.album_id FROM track t \
+                WHERE t.deleted = 0 AND t.server_id = ?1 AND t.album_id IS NOT NULL AND t.album_id != '' \
+                GROUP BY t.album_id ORDER BY MAX(t.album) COLLATE NOCASE ASC LIMIT 100";
+            let _ = store.with_read_conn(|c| {
+                let mut s = c.prepare(sql)?;
+                let rows = s
+                    .query_map([&server_id], |r| r.get::<_, String>(0))?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                Ok(rows.len())
+            });
+            let start = Instant::now();
+            let n = store
+                .with_read_conn(|c| {
+                    let mut s = c.prepare(sql)?;
+                    let rows = s
+                        .query_map([&server_id], |r| r.get::<_, String>(0))?
+                        .collect::<rusqlite::Result<Vec<_>>>()?;
+                    Ok(rows.len())
+                })
+                .unwrap();
+            println!("  all libs (legacy GROUP BY): {:?} ({n} albums)", start.elapsed());
+        };
+
+        println!("--- layer1 album browse (real DB) ---");
+        bench_all_libs();
+        bench("1 lib", &[scopes[0].clone()]);
+        bench("2 libs", &scopes);
     }
 }

@@ -6,9 +6,10 @@
 use crate::dto::{
     LibraryAlbumDto, LibraryGenreAlbumsRequest, LibraryGenreAlbumsResponse, LibraryScopePair,
     LibrarySortClause, SortDir, multi_library_merge_enabled, ordered_library_scope_pairs,
+    scoped_layer1_eligible,
 };
 use crate::scope_merge;
-use crate::search::library_scope_equals_sql;
+use crate::search::library_scope_sargable_equals_sql;
 use crate::store::LibraryStore;
 use rusqlite::types::Value as SqlValue;
 use serde_json::Value;
@@ -114,6 +115,9 @@ pub fn list_albums_by_genre(
         req.library_scope.as_deref(),
         req.library_scopes.as_deref(),
     );
+    if scoped_layer1_eligible(&scope_pairs) {
+        return list_albums_by_genre_layer1_scope(store, req, &scope_pairs, genre, limit, offset);
+    }
     if multi_library_merge_enabled(&scope_pairs) {
         crate::identity::ensure_cluster_keys_built(store, &req.server_id)?;
         return list_albums_by_genre_multi_scope(store, req, &scope_pairs, genre, limit, offset);
@@ -140,7 +144,7 @@ pub fn list_albums_by_genre(
 
     let library_scoped = trimmed_nonempty(legacy.library_scope.as_deref()).is_some();
     if let Some(scope) = trimmed_nonempty(legacy.library_scope.as_deref()) {
-        where_clauses.push(library_scope_equals_sql("t"));
+        where_clauses.push(library_scope_sargable_equals_sql("t"));
         params.push(SqlValue::Text(scope));
     }
 
@@ -232,6 +236,43 @@ fn genre_multi_scope_order_sql(sort: &[LibrarySortClause]) -> String {
     }
     keys.push("album_id ASC".to_string());
     format!("ORDER BY {}", keys.join(", "))
+}
+
+fn list_albums_by_genre_layer1_scope(
+    store: &LibraryStore,
+    req: &LibraryGenreAlbumsRequest,
+    scopes: &[LibraryScopePair],
+    genre: &str,
+    limit: u32,
+    offset: u32,
+) -> Result<LibraryGenreAlbumsResponse, String> {
+    let extra_where = "EXISTS (SELECT 1 FROM track_genre tg \
+         WHERE tg.server_id = t.server_id AND tg.track_id = t.id \
+           AND tg.genre = ? COLLATE NOCASE)";
+    let extra_params = vec![SqlValue::Text(genre.to_string())];
+    let order = genre_multi_scope_order_sql(&req.sort);
+    let (albums, total_count) = scope_merge::list_albums_layer1_filtered(
+        store,
+        scopes,
+        extra_where,
+        &extra_params,
+        &order,
+        limit,
+        offset,
+        !req.include_total,
+        true,
+    )?;
+    let total = if req.include_total {
+        Some(total_count)
+    } else {
+        None
+    };
+    Ok(LibraryGenreAlbumsResponse {
+        albums: albums.clone(),
+        has_more: albums.len() as u32 == limit,
+        total,
+        source: "local".to_string(),
+    })
 }
 
 fn list_albums_by_genre_multi_scope(

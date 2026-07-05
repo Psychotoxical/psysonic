@@ -67,6 +67,7 @@ async function loadLocalGenreCatalogRowsMulti(serverId: string): Promise<Subsoni
     countGenresFromAlbums(page.albums).map(({ genre, count }) => ({
       value: genre,
       albumCount: count,
+      songCount: 0,
     })),
   );
 }

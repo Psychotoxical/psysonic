@@ -126,6 +126,12 @@ impl LibraryStore {
         })
     }
 
+    /// Open a production library DB file (read/write) — for local perf probes in tests.
+    #[cfg(test)]
+    pub fn open_path_for_test(db_path: &std::path::Path) -> Result<Self, String> {
+        Self::open_file(db_path)
+    }
+
     /// Build an in-memory DB with the production schema applied.
     pub fn open_in_memory() -> Self {
         let uri = in_memory_uri();
