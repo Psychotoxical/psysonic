@@ -57,6 +57,7 @@ import { AppShellQueueResizerSeam } from '@/app/AppShellQueueResizerSeam';
 import { IS_LINUX, IS_MACOS } from '@/lib/util/platform';
 import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus';
 import { useIdlePlayQueuePull } from '@/app/hooks/useIdlePlayQueuePull';
+import { DiscordBanner, useAccumulatedUsage } from '@/features/discordBanner';
 import { useAuthStore } from '../store/authStore';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import '@/features/playback/store/previewPlayerVolumeSync';
@@ -92,6 +93,7 @@ export function AppShell() {
   usePlaybackRateOrbitSync();
   useTrayMenuI18n();
   useServerCapabilitiesProbe();
+  useAccumulatedUsage();
   const isFullscreenOpen = usePlayerStore(s => s.isFullscreenOpen);
   const toggleFullscreen = usePlayerStore(s => s.toggleFullscreen);
   const isQueueVisible = usePlayerStore(s => s.isQueueVisible);
@@ -282,6 +284,7 @@ export function AppShell() {
           )}
         </header>
         <OrbitSessionBar />
+        <DiscordBanner/>
         {connStatus === 'disconnected' && (
           <OfflineBanner onRetry={connRetry} isChecking={connRetrying} showSettingsLink={!hasOfflineBrowse} serverName={serverName} />
         )}
