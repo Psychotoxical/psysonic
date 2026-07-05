@@ -1,12 +1,22 @@
 import { useState, type CSSProperties } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { setPerfProbeFlag, type PerfProbeFlags } from '@/lib/perf/perfFlags';
-import type { PerfToggleEngineLeaf, PerfToggleLeaf, PerfToggleNode } from '@/lib/perf/perfProbeToggleTree';
+import type {
+  PerfToggleDebugTraceLeaf,
+  PerfToggleEngineLeaf,
+  PerfToggleLeaf,
+  PerfToggleNode,
+} from '@/lib/perf/perfProbeToggleTree';
 import {
+  isPerfToggleDebugTraceLeaf,
   isPerfToggleEngineLeaf,
   isPerfToggleGroup,
   PERF_PROBE_TOGGLE_TREE,
 } from '@/lib/perf/perfProbeToggleTree';
+import {
+  setPsyLabDebugTrace,
+  type PsyLabDebugTraces,
+} from '@/lib/perf/psyLabDebugTraces';
 
 interface EngineProps {
   hotCacheEnabled: boolean;
@@ -19,17 +29,38 @@ interface EngineProps {
 
 interface Props extends EngineProps {
   perfFlags: PerfProbeFlags;
+  psyLabTraces: PsyLabDebugTraces;
 }
 
 function ToggleLeaf({
   node,
   perfFlags,
   engineProps,
+  psyLabTraces,
 }: {
-  node: PerfToggleLeaf | PerfToggleEngineLeaf;
+  node: PerfToggleLeaf | PerfToggleEngineLeaf | PerfToggleDebugTraceLeaf;
   perfFlags: PerfProbeFlags;
   engineProps: EngineProps;
+  psyLabTraces: PsyLabDebugTraces;
 }) {
+  if (isPerfToggleDebugTraceLeaf(node)) {
+    return (
+      <label className="perf-tree-leaf">
+        <input
+          type="checkbox"
+          checked={psyLabTraces[node.trace]}
+          onChange={e => setPsyLabDebugTrace(node.trace, e.target.checked)}
+        />
+        <span className="perf-tree-leaf__text">
+          <span className="perf-tree-leaf__label">{node.label}</span>
+          {node.description && (
+            <span className="perf-tree-leaf__desc">{node.description}</span>
+          )}
+        </span>
+      </label>
+    );
+  }
+
   if (isPerfToggleEngineLeaf(node)) {
     const checked = node.engine === 'hotCache'
       ? !engineProps.hotCacheEnabled
@@ -84,11 +115,13 @@ function ToggleTreeNode({
   depth,
   perfFlags,
   engineProps,
+  psyLabTraces,
 }: {
   node: PerfToggleNode;
   depth: number;
   perfFlags: PerfProbeFlags;
   engineProps: EngineProps;
+  psyLabTraces: PsyLabDebugTraces;
 }) {
   const [open, setOpen] = useState(depth < 1);
 
@@ -113,6 +146,7 @@ function ToggleTreeNode({
                 depth={depth + 1}
                 perfFlags={perfFlags}
                 engineProps={engineProps}
+                psyLabTraces={psyLabTraces}
               />
             ))}
           </div>
@@ -123,7 +157,12 @@ function ToggleTreeNode({
 
   return (
     <div className="perf-tree-leaf-wrap" style={{ '--perf-tree-depth': depth } as CSSProperties}>
-      <ToggleLeaf node={node} perfFlags={perfFlags} engineProps={engineProps} />
+      <ToggleLeaf
+        node={node}
+        perfFlags={perfFlags}
+        engineProps={engineProps}
+        psyLabTraces={psyLabTraces}
+      />
     </div>
   );
 }
@@ -136,6 +175,7 @@ export default function SidebarPerfProbeTogglesTab({
   setNormalizationEngine,
   loggingMode,
   setLoggingMode,
+  psyLabTraces,
 }: Props) {
   const engineProps: EngineProps = {
     hotCacheEnabled,
@@ -158,6 +198,7 @@ export default function SidebarPerfProbeTogglesTab({
           depth={0}
           perfFlags={perfFlags}
           engineProps={engineProps}
+          psyLabTraces={psyLabTraces}
         />
       ))}
     </div>

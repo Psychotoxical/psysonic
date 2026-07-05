@@ -108,7 +108,7 @@ pub fn library_get_catalog_year_bounds(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
 ) -> Result<CatalogYearBoundsDto, String> {
-    let trace = psysonic_core::logging::should_log_debug();
+    let trace = psysonic_core::logging::should_log_albums_browse_trace();
     let t0 = std::time::Instant::now();
     let result = catalog_year_bounds_for_server(&runtime.store, &server_id);
     if trace {
@@ -191,7 +191,7 @@ pub fn library_get_genre_album_counts(
     library_scope: Option<String>,
     library_scopes: Option<Vec<String>>,
 ) -> Result<Vec<GenreAlbumCountDto>, String> {
-    let trace = psysonic_core::logging::should_log_debug();
+    let trace = psysonic_core::logging::should_log_albums_browse_trace();
     let scopes = if let Some(scopes) = library_scopes {
         normalized_library_scopes(&scopes)
     } else if let Some(scope) = library_scope.as_deref().filter(|s| !s.trim().is_empty()) {

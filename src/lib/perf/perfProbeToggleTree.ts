@@ -1,4 +1,5 @@
 import type { PerfProbeFlags } from '@/lib/perf/perfFlags';
+import type { PsyLabDebugTraceId } from '@/lib/perf/psyLabDebugTraces';
 
 export type PerfToggleLeaf = {
   id: string;
@@ -14,13 +15,24 @@ export type PerfToggleEngineLeaf = {
   engine: 'hotCache' | 'normalization' | 'logging';
 };
 
+export type PerfToggleDebugTraceLeaf = {
+  id: string;
+  label: string;
+  description?: string;
+  trace: PsyLabDebugTraceId;
+};
+
 export type PerfToggleGroup = {
   id: string;
   label: string;
   children: PerfToggleNode[];
 };
 
-export type PerfToggleNode = PerfToggleLeaf | PerfToggleEngineLeaf | PerfToggleGroup;
+export type PerfToggleNode =
+  | PerfToggleLeaf
+  | PerfToggleEngineLeaf
+  | PerfToggleDebugTraceLeaf
+  | PerfToggleGroup;
 
 export function isPerfToggleGroup(node: PerfToggleNode): node is PerfToggleGroup {
   return 'children' in node;
@@ -28,6 +40,10 @@ export function isPerfToggleGroup(node: PerfToggleNode): node is PerfToggleGroup
 
 export function isPerfToggleEngineLeaf(node: PerfToggleNode): node is PerfToggleEngineLeaf {
   return 'engine' in node;
+}
+
+export function isPerfToggleDebugTraceLeaf(node: PerfToggleNode): node is PerfToggleDebugTraceLeaf {
+  return 'trace' in node;
 }
 
 /** Diagnostic disable toggles as a navigable tree (replaces flat “phases”). */
@@ -285,6 +301,19 @@ export const PERF_PROBE_TOGGLE_TREE: PerfToggleGroup[] = [
             label: 'Album card grid',
             description: 'Disable `AlbumCard` list',
             flag: 'disableMainstageGridCards',
+          },
+          {
+            id: 'albums-debug-traces',
+            label: 'Debug traces',
+            children: [
+              {
+                id: 'albumsBrowseTrace',
+                label: 'Browse perf trace',
+                description:
+                  'Step timing for nav → SQL → paint (`albums-browse` scope). Requires PsyLab → Logs → Debug.',
+                trace: 'albumsBrowse',
+              },
+            ],
           },
         ],
       },

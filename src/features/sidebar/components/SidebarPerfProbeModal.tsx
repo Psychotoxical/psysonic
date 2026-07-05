@@ -7,6 +7,7 @@ import SidebarPerfProbeTuningTab from '@/features/sidebar/components/perfProbe/S
 import SidebarPerfProbeLogsTab from '@/features/sidebar/components/perfProbe/SidebarPerfProbeLogsTab';
 import SidebarPerfProbeConnectionsTab from '@/features/sidebar/components/perfProbe/SidebarPerfProbeConnectionsTab';
 import { resetPerfProbeFlags, type PerfProbeFlags } from '@/lib/perf/perfFlags';
+import { resetPsyLabDebugTraces, usePsyLabDebugTraces } from '@/lib/perf/psyLabDebugTraces';
 import { clearPerfLiveOverlayPins } from '@/lib/perf/perfOverlayPins';
 import { resetPerfOverlayAppearance } from '@/lib/perf/perfOverlayAppearance';
 import { resetPerfOverlayMode } from '@/lib/perf/perfOverlayMode';
@@ -37,11 +38,13 @@ export default function SidebarPerfProbeModal({
   setLoggingMode,
 }: Props) {
   const [tab, setTab] = useState<TabId>('monitor');
+  const psyLabTraces = usePsyLabDebugTraces();
 
   if (!open) return null;
 
   const resetAll = () => {
     resetPerfProbeFlags();
+    resetPsyLabDebugTraces();
     clearPerfLiveOverlayPins();
     resetPerfOverlayAppearance();
     resetPerfOverlayMode();
@@ -136,6 +139,7 @@ export default function SidebarPerfProbeModal({
               setNormalizationEngine={setNormalizationEngine}
               loggingMode={loggingMode}
               setLoggingMode={setLoggingMode}
+              psyLabTraces={psyLabTraces}
             />
           )}
           {tab === 'logs' && <SidebarPerfProbeLogsTab />}

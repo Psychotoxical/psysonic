@@ -529,7 +529,7 @@ pub async fn library_advanced_search(
     request: LibraryAdvancedSearchRequest,
 ) -> Result<LibraryAdvancedSearchResponse, String> {
     let store = Arc::clone(&runtime.store);
-    let trace_album_browse = psysonic_core::logging::should_log_debug()
+    let trace_album_browse = psysonic_core::logging::should_log_albums_browse_trace()
         && request.entity_types.len() == 1
         && request.entity_types[0] == crate::filter::EntityKind::Album
         && request
@@ -591,7 +591,7 @@ pub async fn library_list_albums_by_genre(
     request: crate::dto::LibraryGenreAlbumsRequest,
 ) -> Result<crate::dto::LibraryGenreAlbumsResponse, String> {
     let store = Arc::clone(&runtime.store);
-    let trace = psysonic_core::logging::should_log_debug();
+    let trace = psysonic_core::logging::should_log_albums_browse_trace();
     let trace_genre = request.genre.clone();
     let trace_offset = request.offset;
     let trace_limit = request.limit;

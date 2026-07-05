@@ -1,15 +1,21 @@
 import { frontendDebugLog } from '@/lib/api/debugLog';
+import { isPsyLabDebugTraceEnabled } from '@/lib/perf/psyLabDebugTraces';
 import { useAuthStore } from '@/store/authStore';
 
 let sessionT0 = 0;
 let navT0 = 0;
 
+function albumsBrowseTraceActive(): boolean {
+  return useAuthStore.getState().loggingMode === 'debug'
+    && isPsyLabDebugTraceEnabled('albumsBrowse');
+}
+
 /**
- * Settings → System → Logging → **Debug** → terminal + `psysonic-logs-*.log`
- * (`frontend_debug_log` / `app_deprintln!`). Same transport as live-search / orbit.
+ * PsyLab → Toggles → Albums → **Browse perf trace** (plus Logs → Debug).
+ * Terminal + `psysonic-logs-*.log` via `frontend_debug_log` / `app_deprintln!`.
  */
 export function markAlbumBrowseNavIntent(source: string): void {
-  if (useAuthStore.getState().loggingMode !== 'debug') return;
+  if (!albumsBrowseTraceActive()) return;
   navT0 = performance.now();
   emitAlbumBrowseNav('nav_intent', { source });
 }
@@ -19,7 +25,7 @@ export function emitAlbumBrowseNav(
   step: string,
   details?: Record<string, unknown>,
 ): void {
-  if (useAuthStore.getState().loggingMode !== 'debug') return;
+  if (!albumsBrowseTraceActive()) return;
   frontendDebugLog(
     'albums-browse',
     JSON.stringify({
@@ -46,7 +52,7 @@ export function emitAlbumBrowseDebug(
   step: string,
   details?: Record<string, unknown>,
 ): void {
-  if (useAuthStore.getState().loggingMode !== 'debug') return;
+  if (!albumsBrowseTraceActive()) return;
   frontendDebugLog(
     'albums-browse',
     JSON.stringify({
@@ -62,7 +68,7 @@ export async function albumBrowseTimed<T>(
   fn: () => Promise<T>,
   details?: Record<string, unknown>,
 ): Promise<T> {
-  if (useAuthStore.getState().loggingMode !== 'debug') return fn();
+  if (!albumsBrowseTraceActive()) return fn();
   const t0 = performance.now();
   emitAlbumBrowseDebug(`${step}_start`, details);
   try {

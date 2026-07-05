@@ -254,6 +254,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             // top crate shell commands (set_tray_menu_labels >10 args, backup_*_full/cli_publish_* are Value — all excluded)
             crate::lib_commands::app_api::core::exit_app,
             crate::lib_commands::app_api::core::set_logging_mode,
+            crate::lib_commands::app_api::core::set_psylab_albums_browse_trace,
             crate::lib_commands::app_api::core::get_logging_mode,
             crate::lib_commands::app_api::core::tail_runtime_logs,
             crate::lib_commands::app_api::core::export_runtime_logs,
@@ -943,6 +944,7 @@ pub fn run() {
             linux_wayland_text_render_settings_available,
             set_linux_wayland_text_render_profile,
             set_logging_mode,
+            set_psylab_albums_browse_trace,
             get_logging_mode,
             tail_runtime_logs,
             export_runtime_logs,
