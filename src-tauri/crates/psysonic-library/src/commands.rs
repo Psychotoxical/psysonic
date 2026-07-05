@@ -667,6 +667,7 @@ pub async fn library_live_search(
         &request.server_id,
         &request.query,
         request.library_scope.as_deref(),
+        request.library_scopes.as_deref(),
         request.artist_limit.unwrap_or(5),
         request.album_limit.unwrap_or(5),
         request.song_limit.unwrap_or(10),

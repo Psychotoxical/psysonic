@@ -4,9 +4,10 @@
 //! LIMIT/OFFSET on grouped rows) instead of the heavier Advanced Search builder.
 
 use crate::dto::{
-    LibraryAlbumDto, LibraryGenreAlbumsRequest, LibraryGenreAlbumsResponse, LibrarySortClause,
-    SortDir,
+    LibraryAlbumDto, LibraryGenreAlbumsRequest, LibraryGenreAlbumsResponse, LibraryScopePair,
+    LibrarySortClause, SortDir, multi_library_merge_enabled, ordered_library_scope_pairs,
 };
+use crate::scope_merge;
 use crate::search::library_scope_equals_sql;
 use crate::store::LibraryStore;
 use rusqlite::types::Value as SqlValue;
@@ -107,7 +108,24 @@ pub fn list_albums_by_genre(
 
     let limit = req.limit.max(1);
     let offset = req.offset;
-    let order_sql = genre_album_order_sql(&req.sort);
+
+    let scope_pairs = ordered_library_scope_pairs(
+        &req.server_id,
+        req.library_scope.as_deref(),
+        req.library_scopes.as_deref(),
+    );
+    if multi_library_merge_enabled(&scope_pairs) {
+        return list_albums_by_genre_multi_scope(store, req, &scope_pairs, genre, limit, offset);
+    }
+
+    let mut legacy = req.clone();
+    if legacy.library_scope.is_none() {
+        if let Some(pair) = scope_pairs.first() {
+            legacy.library_scope = Some(pair.library_id.clone());
+        }
+    }
+
+    let order_sql = genre_album_order_sql(&legacy.sort);
 
     let mut where_clauses = vec![
         "tg.server_id = ?1".to_string(),
@@ -115,12 +133,12 @@ pub fn list_albums_by_genre(
         "tg.genre = ?2 COLLATE NOCASE".to_string(),
     ];
     let mut params: Vec<SqlValue> = vec![
-        SqlValue::Text(req.server_id.clone()),
+        SqlValue::Text(legacy.server_id.clone()),
         SqlValue::Text(genre.to_string()),
     ];
 
-    let library_scoped = trimmed_nonempty(req.library_scope.as_deref()).is_some();
-    if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
+    let library_scoped = trimmed_nonempty(legacy.library_scope.as_deref()).is_some();
+    if let Some(scope) = trimmed_nonempty(legacy.library_scope.as_deref()) {
         where_clauses.push(library_scope_equals_sql("t"));
         params.push(SqlValue::Text(scope));
     }
@@ -173,7 +191,7 @@ pub fn list_albums_by_genre(
     params.push(SqlValue::Integer(offset as i64));
 
     store.with_read_conn(|conn| {
-        let total = if req.include_total {
+        let total = if legacy.include_total {
             Some(count_genre_albums(conn, &where_sql, &count_params, library_scoped)?)
         } else {
             None
@@ -190,6 +208,64 @@ pub fn list_albums_by_genre(
             total,
             source: "local".to_string(),
         })
+    })
+}
+
+fn genre_multi_scope_order_sql(sort: &[LibrarySortClause]) -> String {
+    let mut keys: Vec<String> = Vec::new();
+    for s in sort {
+        let col = match s.field.as_str() {
+            "name" => "album COLLATE NOCASE".to_string(),
+            "artist" => "artist COLLATE NOCASE".to_string(),
+            "year" => "year".to_string(),
+            _ => continue,
+        };
+        let dir = match s.dir {
+            SortDir::Asc => "ASC",
+            SortDir::Desc => "DESC",
+        };
+        keys.push(format!("{col} {dir}"));
+    }
+    if keys.is_empty() {
+        keys.push("album COLLATE NOCASE ASC".to_string());
+    }
+    keys.push("album_id ASC".to_string());
+    format!("ORDER BY {}", keys.join(", "))
+}
+
+fn list_albums_by_genre_multi_scope(
+    store: &LibraryStore,
+    req: &LibraryGenreAlbumsRequest,
+    scopes: &[LibraryScopePair],
+    genre: &str,
+    limit: u32,
+    offset: u32,
+) -> Result<LibraryGenreAlbumsResponse, String> {
+    let extra_where = "EXISTS (SELECT 1 FROM track_genre tg \
+         WHERE tg.server_id = t.server_id AND tg.track_id = t.id \
+           AND tg.genre = ? COLLATE NOCASE)";
+    let extra_params = vec![SqlValue::Text(genre.to_string())];
+    let order = genre_multi_scope_order_sql(&req.sort);
+    let (albums, total_count) = scope_merge::list_albums_filtered(
+        store,
+        scopes,
+        extra_where,
+        &extra_params,
+        &order,
+        limit,
+        offset,
+        !req.include_total,
+    )?;
+    let has_more = albums.len() as u32 == limit;
+    Ok(LibraryGenreAlbumsResponse {
+        albums,
+        has_more,
+        total: if req.include_total {
+            Some(total_count)
+        } else {
+            None
+        },
+        source: "local".to_string(),
     })
 }
 
@@ -261,6 +337,7 @@ mod tests {
                 server_id: "s1".into(),
                 genre: "Rock".into(),
                 library_scope: Some("lib1".into()),
+                library_scopes: None,
                 sort: vec![LibrarySortClause {
                     field: "name".into(),
                     dir: SortDir::Asc,
@@ -280,6 +357,7 @@ mod tests {
                 server_id: "s1".into(),
                 genre: "Rock".into(),
                 library_scope: None,
+                library_scopes: None,
                 sort: vec![],
                 limit: 1,
                 offset: 0,
@@ -309,6 +387,7 @@ mod tests {
                 server_id: "s1".into(),
                 genre: "Dark Ambient".into(),
                 library_scope: None,
+                library_scopes: None,
                 sort: vec![],
                 limit: 10,
                 offset: 0,
@@ -326,6 +405,7 @@ mod tests {
                 server_id: "s1".into(),
                 genre: "Noise Metal".into(),
                 library_scope: None,
+                library_scopes: None,
                 sort: vec![],
                 limit: 10,
                 offset: 0,

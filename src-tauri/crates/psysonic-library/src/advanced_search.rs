@@ -18,9 +18,11 @@ use crate::dto::{
     ArtistCreditMode, LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse, LibraryAlbumDto,
     LibraryArtistDto,
     LibraryFilterClause, LibrarySearchTotals, LibrarySortClause, LibraryTrackDto, SortDir,
+    LibraryScopePair, multi_library_merge_enabled, ordered_library_scope_pairs,
 };
 use crate::filter::{self, EntityKind, FilterOp, SqlFragment};
 use crate::repos;
+use crate::scope_merge::{self, collect_scope_fts_rowids};
 use crate::search::{
     aliased_track_columns, aliased_track_columns_resolved_bpm, bpm_resolved_expr,
     fts_album_prefix_match_query, fts_album_title_prefix_match_query, fts_column_prefix_query, fts_query_meets_min_len,
@@ -170,22 +172,47 @@ pub fn run_advanced_search(
     let limit = req.limit.clamp(1, PAGE_LIMIT_MAX);
     let offset = req.offset;
     let skip_totals = req.skip_totals;
+    let scope_pairs = ordered_library_scope_pairs(
+        &req.server_id,
+        req.library_scope.as_deref(),
+        req.library_scopes.as_deref(),
+    );
+    if multi_library_merge_enabled(&scope_pairs) {
+        return run_advanced_search_multi_scope(
+            store,
+            req,
+            &scope_pairs,
+            text_input,
+            scalar,
+            limit,
+            offset,
+            skip_totals,
+        );
+    }
+
+    let mut legacy = req.clone();
+    if legacy.library_scope.is_none() {
+        if let Some(pair) = scope_pairs.first() {
+            legacy.library_scope = Some(pair.library_id.clone());
+        }
+    }
+
     let text = text_input.as_deref();
-    let want = |k: EntityKind| req.entity_types.contains(&k);
+    let want = |k: EntityKind| legacy.entity_types.contains(&k);
     let mut applied: BTreeSet<String> = BTreeSet::new();
 
     let (artists, artists_total) = if want(EntityKind::Artist) {
-        build_artist(store, req, text, &scalar, limit, offset, skip_totals, &mut applied)?
+        build_artist(store, &legacy, text, &scalar, limit, offset, skip_totals, &mut applied)?
     } else {
         (Vec::new(), 0)
     };
     let (albums, albums_total) = if want(EntityKind::Album) {
-        build_album(store, req, text, &scalar, limit, offset, skip_totals, &mut applied)?
+        build_album(store, &legacy, text, &scalar, limit, offset, skip_totals, &mut applied)?
     } else {
         (Vec::new(), 0)
     };
     let (tracks, tracks_total) = if want(EntityKind::Track) {
-        build_track(store, req, text, &scalar, limit, offset, skip_totals, &mut applied)?
+        build_track(store, &legacy, text, &scalar, limit, offset, skip_totals, &mut applied)?
     } else {
         (Vec::new(), 0)
     };
@@ -202,6 +229,275 @@ pub fn run_advanced_search(
         applied_filters: applied.into_iter().collect(),
         source: "local".to_string(),
     })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_advanced_search_multi_scope(
+    store: &LibraryStore,
+    req: &LibraryAdvancedSearchRequest,
+    scopes: &[LibraryScopePair],
+    text_input: Option<String>,
+    scalar: Vec<&LibraryFilterClause>,
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+) -> Result<LibraryAdvancedSearchResponse, String> {
+    let text = text_input.as_deref();
+    let want = |k: EntityKind| req.entity_types.contains(&k);
+    let mut applied: BTreeSet<String> = BTreeSet::new();
+
+    let (artists, artists_total) = if want(EntityKind::Artist) {
+        build_multi_scope_artist(
+            store, req, scopes, text, &scalar, limit, offset, skip_totals, &mut applied,
+        )?
+    } else {
+        (Vec::new(), 0)
+    };
+    let (albums, albums_total) = if want(EntityKind::Album) {
+        build_multi_scope_album(
+            store, req, scopes, text, &scalar, limit, offset, skip_totals, &mut applied,
+        )?
+    } else {
+        (Vec::new(), 0)
+    };
+    let (tracks, tracks_total) = if want(EntityKind::Track) {
+        build_multi_scope_track(
+            store, req, scopes, text, &scalar, limit, offset, skip_totals, &mut applied,
+        )?
+    } else {
+        (Vec::new(), 0)
+    };
+
+    Ok(LibraryAdvancedSearchResponse {
+        artists,
+        albums,
+        tracks,
+        totals: LibrarySearchTotals {
+            artists: artists_total,
+            albums: albums_total,
+            tracks: tracks_total,
+        },
+        applied_filters: applied.into_iter().collect(),
+        source: "local".to_string(),
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_multi_scope_album(
+    store: &LibraryStore,
+    req: &LibraryAdvancedSearchRequest,
+    scopes: &[LibraryScopePair],
+    text: Option<&str>,
+    scalar: &[&LibraryFilterClause],
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+    applied: &mut BTreeSet<String>,
+) -> Result<(Vec<LibraryAlbumDto>, u32), String> {
+    let (extra_where, extra_params) = multi_scope_track_filter_sql(
+        store,
+        req,
+        scopes,
+        text,
+        scalar,
+        None,
+        applied,
+    )?;
+    let order = deduped_album_order_sql(&req.sort);
+    scope_merge::list_albums_filtered(
+        store,
+        scopes,
+        &extra_where,
+        &extra_params,
+        &order,
+        limit,
+        offset,
+        skip_totals,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_multi_scope_artist(
+    store: &LibraryStore,
+    req: &LibraryAdvancedSearchRequest,
+    scopes: &[LibraryScopePair],
+    text: Option<&str>,
+    scalar: &[&LibraryFilterClause],
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+    applied: &mut BTreeSet<String>,
+) -> Result<(Vec<LibraryArtistDto>, u32), String> {
+    let (extra_where, extra_params) = multi_scope_track_filter_sql(
+        store,
+        req,
+        scopes,
+        text,
+        scalar,
+        Some(EntityKind::Artist),
+        applied,
+    )?;
+    let order = deduped_artist_order_sql(&req.sort);
+    scope_merge::list_artists_filtered(
+        store,
+        scopes,
+        &extra_where,
+        &extra_params,
+        &order,
+        limit,
+        offset,
+        skip_totals,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_multi_scope_track(
+    store: &LibraryStore,
+    req: &LibraryAdvancedSearchRequest,
+    scopes: &[LibraryScopePair],
+    text: Option<&str>,
+    scalar: &[&LibraryFilterClause],
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+    applied: &mut BTreeSet<String>,
+) -> Result<(Vec<LibraryTrackDto>, u32), String> {
+    let bpm_resolved = scalar.iter().any(|c| c.field == "bpm");
+    if let Some(q) = text.and_then(fts_track_prefix_match_query) {
+        applied.insert("text".to_string());
+        let (extra_where, extra_params) = multi_scope_track_filter_sql(
+            store,
+            req,
+            scopes,
+            None,
+            scalar,
+            None,
+            applied,
+        )?;
+        return scope_merge::search_tracks_filtered(
+            store,
+            scopes,
+            &q,
+            &extra_where,
+            &extra_params,
+            limit,
+            skip_totals,
+        );
+    }
+    let (extra_where, extra_params) = multi_scope_track_filter_sql(
+        store,
+        req,
+        scopes,
+        text,
+        scalar,
+        None,
+        applied,
+    )?;
+    let order = deduped_track_order_sql(&req.sort);
+    scope_merge::list_tracks_filtered(
+        store,
+        scopes,
+        &extra_where,
+        &extra_params,
+        &order,
+        limit,
+        offset,
+        skip_totals,
+        bpm_resolved,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn multi_scope_track_filter_sql(
+    store: &LibraryStore,
+    req: &LibraryAdvancedSearchRequest,
+    scopes: &[LibraryScopePair],
+    text: Option<&str>,
+    scalar: &[&LibraryFilterClause],
+    text_entity: Option<EntityKind>,
+    applied: &mut BTreeSet<String>,
+) -> Result<(String, Vec<SqlValue>), String> {
+    let mut w = WhereBuilder::new();
+    if let Some(t) = text {
+        match text_entity {
+            Some(EntityKind::Artist) => {
+                w.push_param(
+                    "t.artist LIKE ? ESCAPE '\\'",
+                    SqlValue::Text(like_contains_folded(t)),
+                );
+                applied.insert("text".to_string());
+            }
+            Some(EntityKind::Album) | None => {
+                if let Some(fts) = fts_album_text_match_query(req, t) {
+                    let pool = fts_candidate_pool_size(req.limit, req.offset);
+                    let rowids = store.with_read_conn(|conn| {
+                        collect_scope_fts_rowids(conn, &fts, scopes, pool)
+                    })?;
+                    if rowids.is_empty() {
+                        w.push_raw("1 = 0");
+                    } else {
+                        let placeholders = std::iter::repeat_n("?", rowids.len())
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        w.push_params(
+                            &format!("t.rowid IN ({placeholders})"),
+                            rowids.into_iter().map(SqlValue::Integer).collect(),
+                        );
+                    }
+                    applied.insert("text".to_string());
+                } else {
+                    w.push_param(
+                        "t.album LIKE ? ESCAPE '\\'",
+                        SqlValue::Text(like_contains(t)),
+                    );
+                    applied.insert("text".to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+    for c in scalar {
+        if let Some(frag) = resolve_clause(c, EntityKind::Track)? {
+            applied.insert(c.field.clone());
+            w.push(frag);
+        }
+    }
+    if req.starred_only == Some(true) {
+        w.push_raw("t.starred_at IS NOT NULL");
+        applied.insert("starred".to_string());
+    }
+    push_album_id_allowlist(
+        &mut w,
+        "t.album_id",
+        req.restrict_album_ids.as_deref(),
+        applied,
+    );
+    Ok((w.where_sql(), w.params().to_vec()))
+}
+
+pub(crate) fn deduped_album_order_sql(sort: &[LibrarySortClause]) -> String {
+    album_order_from_track_groups(sort)
+        .map(|s| {
+            s.replace("MAX(t.album)", "album")
+                .replace("MAX(t.artist)", "artist")
+                .replace("MAX(t.year)", "year")
+        })
+        .unwrap_or_else(|| "ORDER BY album COLLATE NOCASE ASC, album_id ASC".to_string())
+}
+
+pub(crate) fn deduped_artist_order_sql(sort: &[LibrarySortClause]) -> String {
+    order_clause(sort, EntityKind::Artist)
+        .map(|s| {
+            s.replace("COALESCE(ar.name_sort, ar.name)", "artist")
+                .replace("ar.id", "artist_id")
+        })
+        .unwrap_or_else(|| "ORDER BY artist COLLATE NOCASE ASC, artist_id ASC".to_string())
+}
+
+pub(crate) fn deduped_track_order_sql(sort: &[LibrarySortClause]) -> String {
+    order_clause(sort, EntityKind::Track)
+        .map(|s| s.replace("t.", ""))
+        .unwrap_or_else(|| "ORDER BY title COLLATE NOCASE ASC, id ASC".to_string())
 }
 
 // ── per-entity builders ────────────────────────────────────────────────
@@ -900,7 +1196,7 @@ fn scalar_requires_lossless_track_grouping(scalar: &[&LibraryFilterClause]) -> b
 
 /// Resolve one scalar clause to a WHERE fragment for `entity`. `Ok(None)`
 /// means the field is known but doesn't route to this entity (§5.13.3 skip).
-fn resolve_clause(
+pub(crate) fn resolve_clause(
     c: &LibraryFilterClause,
     entity: EntityKind,
 ) -> Result<Option<SqlFragment>, String> {
@@ -1035,7 +1331,7 @@ fn count_matching_rows(
 }
 
 /// Restrict album browse to an explicit id set (server favorites ∩ local filters).
-fn push_album_id_allowlist(
+pub(crate) fn push_album_id_allowlist(
     w: &mut WhereBuilder,
     column: &str,
     ids: Option<&[String]>,
@@ -1060,35 +1356,38 @@ fn push_album_id_allowlist(
 
 /// Accumulates `AND`-joined WHERE clauses and their positional params in
 /// lockstep so anonymous `?` placeholders bind left-to-right.
-struct WhereBuilder {
+pub(crate) struct WhereBuilder {
     clauses: Vec<String>,
     params: Vec<SqlValue>,
 }
 
 impl WhereBuilder {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             clauses: Vec::new(),
             params: Vec::new(),
         }
     }
-    fn push(&mut self, frag: SqlFragment) {
+    pub(crate) fn push(&mut self, frag: SqlFragment) {
         self.clauses.push(frag.sql);
         self.params.extend(frag.params);
     }
-    fn push_raw(&mut self, sql: &str) {
+    pub(crate) fn push_raw(&mut self, sql: &str) {
         self.clauses.push(sql.to_string());
     }
-    fn push_param(&mut self, sql: &str, param: SqlValue) {
+    pub(crate) fn push_param(&mut self, sql: &str, param: SqlValue) {
         self.clauses.push(sql.to_string());
         self.params.push(param);
     }
-    fn push_params(&mut self, sql: &str, params: Vec<SqlValue>) {
+    pub(crate) fn push_params(&mut self, sql: &str, params: Vec<SqlValue>) {
         self.clauses.push(sql.to_string());
         self.params.extend(params);
     }
-    fn where_sql(&self) -> String {
+    pub(crate) fn where_sql(&self) -> String {
         self.clauses.join(" AND ")
+    }
+    pub(crate) fn params(&self) -> &[SqlValue] {
+        &self.params
     }
 }
 
@@ -1296,11 +1595,11 @@ fn parse_raw_json(raw: Option<String>) -> Value {
 
 // ── small helpers ──────────────────────────────────────────────────────
 
-fn trimmed_nonempty(s: Option<&str>) -> Option<String> {
+pub(crate) fn trimmed_nonempty(s: Option<&str>) -> Option<String> {
     s.map(str::trim).filter(|s| !s.is_empty()).map(String::from)
 }
 
-fn order_clause(sort: &[LibrarySortClause], entity: EntityKind) -> Option<String> {
+pub(crate) fn order_clause(sort: &[LibrarySortClause], entity: EntityKind) -> Option<String> {
     let mut keys: Vec<String> = Vec::new();
     for s in sort {
         if let Some(col) = sort_column(&s.field, entity) {
@@ -1320,7 +1619,7 @@ fn order_clause(sort: &[LibrarySortClause], entity: EntityKind) -> Option<String
 
 /// Sort for album rows aggregated from `track t` (`GROUP BY t.album_id`).
 /// Must not reference `album a` — that alias is absent in this query shape.
-fn album_order_from_track_groups(sort: &[LibrarySortClause]) -> Option<String> {
+pub(crate) fn album_order_from_track_groups(sort: &[LibrarySortClause]) -> Option<String> {
     let mut keys: Vec<String> = Vec::new();
     for s in sort {
         let col = match s.field.as_str() {
@@ -1345,7 +1644,7 @@ fn album_order_from_track_groups(sort: &[LibrarySortClause]) -> Option<String> {
 
 /// Allowlist of sortable fields per entity → trusted column expression.
 /// Unknown sort fields are ignored (fall back to the default order).
-fn sort_column(field: &str, entity: EntityKind) -> Option<&'static str> {
+pub(crate) fn sort_column(field: &str, entity: EntityKind) -> Option<&'static str> {
     match (field, entity) {
         ("title", EntityKind::Track) => Some("t.title COLLATE NOCASE"),
         ("year", EntityKind::Track) => Some("t.year"),
@@ -1521,6 +1820,7 @@ mod tests {
         LibraryAdvancedSearchRequest {
             server_id: server.into(),
             library_scope: None,
+            library_scopes: None,
             query: None,
             entity_types: entities.to_vec(),
             filters: Vec::new(),
@@ -2452,5 +2752,300 @@ mod tests {
         let resp = run_advanced_search(&store, &r).unwrap();
         let ids: Vec<&str> = resp.tracks.iter().map(|t| t.id.as_str()).collect();
         assert_eq!(ids, vec!["t2", "t1"]);
+    }
+
+    // ── multi-library scope (WO-4b) ─────────────────────────────────────
+
+    fn scope_pair(server: &str, lib: &str) -> crate::dto::LibraryScopePair {
+        crate::dto::LibraryScopePair {
+            server_id: server.into(),
+            library_id: lib.into(),
+        }
+    }
+
+    fn scoped_track(
+        server: &str,
+        id: &str,
+        title: &str,
+        artist: &str,
+        album: &str,
+        album_id: &str,
+        library_id: &str,
+        genre: Option<&str>,
+        year: Option<i64>,
+        starred_at: Option<i64>,
+    ) -> TrackRow {
+        let mut t = track(server, id, title, artist, album);
+        t.album_id = Some(album_id.into());
+        t.library_id = Some(library_id.into());
+        t.genre = genre.map(str::to_string);
+        t.year = year;
+        t.starred_at = starred_at;
+        t
+    }
+
+    fn seed_and_rebuild(store: &LibraryStore, rows: &[TrackRow]) {
+        TrackRepository::new(store).upsert_batch(rows).unwrap();
+        crate::identity::rebuild_cluster_keys(store, None).unwrap();
+    }
+
+    #[test]
+    fn multi_scope_genre_filter_dedupes_albums() {
+        let store = LibraryStore::open_in_memory();
+        seed_and_rebuild(
+            &store,
+            &[
+                scoped_track(
+                    "s1",
+                    "t-a",
+                    "Song",
+                    "Artist",
+                    "Album",
+                    "alb-a",
+                    "lib-a",
+                    Some("Rock"),
+                    Some(2001),
+                    None,
+                ),
+                scoped_track(
+                    "s1",
+                    "t-b",
+                    "Song",
+                    "Artist",
+                    "Album",
+                    "alb-b",
+                    "lib-b",
+                    Some("Rock"),
+                    Some(1999),
+                    None,
+                ),
+            ],
+        );
+        let mut r = req("s1", &[EntityKind::Album]);
+        r.library_scopes = Some(vec![scope_pair("s1", "lib-a"), scope_pair("s1", "lib-b")]);
+        r.filters = vec![clause("genre", FilterOp::Eq, Some(json!("Rock")), None)];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.albums.len(), 1);
+        assert_eq!(resp.albums[0].id, "alb-a");
+    }
+
+    #[test]
+    fn multi_scope_year_between_dedupes_albums() {
+        let store = LibraryStore::open_in_memory();
+        seed_and_rebuild(
+            &store,
+            &[
+                scoped_track(
+                    "s1",
+                    "t-a",
+                    "Song",
+                    "Artist",
+                    "Album",
+                    "alb-a",
+                    "lib-a",
+                    None,
+                    Some(2022),
+                    None,
+                ),
+                scoped_track(
+                    "s1",
+                    "t-b",
+                    "Song",
+                    "Artist",
+                    "Album",
+                    "alb-b",
+                    "lib-b",
+                    None,
+                    Some(1990),
+                    None,
+                ),
+            ],
+        );
+        let mut r = req("s1", &[EntityKind::Album]);
+        r.library_scopes = Some(vec![scope_pair("s1", "lib-a"), scope_pair("s1", "lib-b")]);
+        r.filters = vec![clause(
+            "year",
+            FilterOp::Between,
+            Some(json!(2020)),
+            Some(json!(2024)),
+        )];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.albums.len(), 1);
+        assert_eq!(resp.albums[0].year, Some(2022));
+    }
+
+    #[test]
+    fn multi_scope_text_fts_dedupes_tracks() {
+        let store = LibraryStore::open_in_memory();
+        seed_and_rebuild(
+            &store,
+            &[
+                scoped_track(
+                    "s1",
+                    "t-a",
+                    "Aurora",
+                    "Anna",
+                    "Skylines",
+                    "alb-a",
+                    "lib-a",
+                    None,
+                    None,
+                    None,
+                ),
+                scoped_track(
+                    "s1",
+                    "t-b",
+                    "Aurora",
+                    "Anna",
+                    "Skylines",
+                    "alb-b",
+                    "lib-b",
+                    None,
+                    None,
+                    None,
+                ),
+            ],
+        );
+        let mut r = req("s1", &[EntityKind::Track]);
+        r.library_scopes = Some(vec![scope_pair("s1", "lib-a"), scope_pair("s1", "lib-b")]);
+        r.query = Some("aurora".into());
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.tracks.len(), 1);
+        assert_eq!(resp.tracks[0].id, "t-a");
+    }
+
+    #[test]
+    fn multi_scope_starred_only_dedupes_albums() {
+        let store = LibraryStore::open_in_memory();
+        seed_and_rebuild(
+            &store,
+            &[
+                scoped_track(
+                    "s1",
+                    "t-a",
+                    "Song",
+                    "Artist",
+                    "Album",
+                    "alb-a",
+                    "lib-a",
+                    None,
+                    None,
+                    Some(1),
+                ),
+                scoped_track(
+                    "s1",
+                    "t-b",
+                    "Song",
+                    "Artist",
+                    "Album",
+                    "alb-b",
+                    "lib-b",
+                    None,
+                    None,
+                    None,
+                ),
+            ],
+        );
+        let mut r = req("s1", &[EntityKind::Album]);
+        r.library_scopes = Some(vec![scope_pair("s1", "lib-a"), scope_pair("s1", "lib-b")]);
+        r.starred_only = Some(true);
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.albums.len(), 1);
+        assert_eq!(resp.albums[0].id, "alb-a");
+    }
+
+    #[test]
+    fn multi_scope_totals_count_distinct_merged_groups() {
+        let store = LibraryStore::open_in_memory();
+        seed_and_rebuild(
+            &store,
+            &[
+                scoped_track(
+                    "s1",
+                    "t-a1",
+                    "One",
+                    "Artist",
+                    "Album",
+                    "alb-a",
+                    "lib-a",
+                    None,
+                    None,
+                    None,
+                ),
+                scoped_track(
+                    "s1",
+                    "t-b1",
+                    "Two",
+                    "Artist",
+                    "Album",
+                    "alb-b",
+                    "lib-b",
+                    None,
+                    None,
+                    None,
+                ),
+                scoped_track(
+                    "s1",
+                    "t-a2",
+                    "Three",
+                    "Other",
+                    "Solo",
+                    "alb-solo",
+                    "lib-a",
+                    None,
+                    None,
+                    None,
+                ),
+            ],
+        );
+        let mut r = req("s1", &[EntityKind::Album]);
+        r.library_scopes = Some(vec![scope_pair("s1", "lib-a"), scope_pair("s1", "lib-b")]);
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.albums.len(), 2);
+        assert_eq!(resp.totals.albums, 2);
+    }
+
+    #[test]
+    fn single_pair_library_scopes_matches_legacy_library_scope() {
+        let store = LibraryStore::open_in_memory();
+        seed_and_rebuild(
+            &store,
+            &[
+                scoped_track(
+                    "s1",
+                    "t1",
+                    "Only",
+                    "A",
+                    "Solo",
+                    "alb-solo",
+                    "lib-a",
+                    None,
+                    None,
+                    None,
+                ),
+                scoped_track(
+                    "s1",
+                    "t2",
+                    "Other",
+                    "B",
+                    "Other",
+                    "alb-other",
+                    "lib-b",
+                    None,
+                    None,
+                    None,
+                ),
+            ],
+        );
+        let mut legacy = req("s1", &[EntityKind::Album]);
+        legacy.library_scope = Some("lib-a".into());
+        let legacy_resp = run_advanced_search(&store, &legacy).unwrap();
+
+        let mut scoped = req("s1", &[EntityKind::Album]);
+        scoped.library_scopes = Some(vec![scope_pair("s1", "lib-a")]);
+        let scoped_resp = run_advanced_search(&store, &scoped).unwrap();
+
+        assert_eq!(legacy_resp.albums, scoped_resp.albums);
+        assert_eq!(legacy_resp.totals, scoped_resp.totals);
     }
 }

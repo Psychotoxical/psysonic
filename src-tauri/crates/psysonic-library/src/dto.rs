@@ -408,6 +408,9 @@ pub struct LibraryGenreAlbumsRequest {
     pub genre: String,
     #[serde(default)]
     pub library_scope: Option<String>,
+    /// Ordered multi-library scope; merge runs only when more than one pair is set.
+    #[serde(default)]
+    pub library_scopes: Option<Vec<LibraryScopePair>>,
     #[serde(default)]
     pub sort: Vec<LibrarySortClause>,
     #[serde(default = "default_genre_album_limit")]
@@ -541,6 +544,9 @@ pub struct LibraryAdvancedSearchRequest {
     pub server_id: String,
     #[serde(default)]
     pub library_scope: Option<String>,
+    /// Ordered multi-library scope; merge runs only when more than one pair is set.
+    #[serde(default)]
+    pub library_scopes: Option<Vec<LibraryScopePair>>,
     #[serde(default)]
     pub query: Option<String>,
     pub entity_types: Vec<EntityKind>,
@@ -606,6 +612,9 @@ pub struct LibraryLiveSearchRequest {
     pub query: String,
     #[serde(default)]
     pub library_scope: Option<String>,
+    /// Ordered multi-library scope; merge runs only when more than one pair is set.
+    #[serde(default)]
+    pub library_scopes: Option<Vec<LibraryScopePair>>,
     #[serde(default)]
     pub artist_limit: Option<u32>,
     #[serde(default)]
@@ -681,6 +690,37 @@ pub struct LibraryArtistLosslessBrowseResponse {
 pub struct LibraryScopePair {
     pub server_id: String,
     pub library_id: String,
+}
+
+/// Derive ordered `(server_id, library_id)` pairs from request fields.
+/// List order is merge priority (index 0 wins). Empty = all libraries on the server.
+pub(crate) fn ordered_library_scope_pairs(
+    server_id: &str,
+    library_scope: Option<&str>,
+    library_scopes: Option<&[LibraryScopePair]>,
+) -> Vec<LibraryScopePair> {
+    if let Some(scopes) = library_scopes {
+        let pairs: Vec<LibraryScopePair> = scopes
+            .iter()
+            .filter(|p| !p.server_id.trim().is_empty() && !p.library_id.trim().is_empty())
+            .cloned()
+            .collect();
+        if !pairs.is_empty() {
+            return pairs;
+        }
+    }
+    if let Some(scope) = library_scope.map(str::trim).filter(|s| !s.is_empty()) {
+        return vec![LibraryScopePair {
+            server_id: server_id.to_string(),
+            library_id: scope.to_string(),
+        }];
+    }
+    Vec::new()
+}
+
+/// Layer-2 dedup runs only when the ordered scope has more than one pair.
+pub(crate) fn multi_library_merge_enabled(scopes: &[LibraryScopePair]) -> bool {
+    scopes.len() > 1
 }
 
 /// Paginated album/artist browse over an ordered multi-library scope.

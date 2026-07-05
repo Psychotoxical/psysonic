@@ -51,7 +51,7 @@ fn clamp_offset(offset: Option<u32>) -> u32 {
 }
 
 /// `WITH scope(server_id, library_id, pr) AS (VALUES …)` — filters and yields priority.
-fn scope_cte_sql(scopes: &[LibraryScopePair]) -> (String, Vec<SqlValue>) {
+pub(crate) fn scope_cte_sql(scopes: &[LibraryScopePair]) -> (String, Vec<SqlValue>) {
     let values = scopes
         .iter()
         .enumerate()
@@ -72,6 +72,19 @@ fn scoped_track_join() -> &'static str {
      INNER JOIN scope s ON t.server_id = s.server_id AND t.library_id = s.library_id \
      INNER JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
      WHERE t.deleted = 0"
+}
+
+fn append_extra_where(base: &str, extra: &str) -> String {
+    if extra.trim().is_empty() {
+        base.to_string()
+    } else {
+        format!("{base} AND {extra}")
+    }
+}
+
+fn merge_binds(mut scope_binds: Vec<SqlValue>, extra: &[SqlValue]) -> Vec<SqlValue> {
+    scope_binds.extend_from_slice(extra);
+    scope_binds
 }
 
 fn plain_track_columns_sql() -> &'static str {
@@ -285,7 +298,241 @@ pub fn list_artists(
     })
 }
 
-fn collect_scope_fts_rowids(
+/// Multi-scope album browse with track-level filters (advanced search / genre).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn list_albums_filtered(
+    store: &LibraryStore,
+    scopes: &[LibraryScopePair],
+    extra_where: &str,
+    extra_params: &[SqlValue],
+    order_sql: &str,
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+) -> Result<(Vec<LibraryAlbumDto>, u32), String> {
+    let scopes = non_empty_scopes(scopes)?;
+    let (cte, scope_binds) = scope_cte_sql(scopes);
+    let base_where = append_extra_where(
+        &format!(
+            "{scoped} AND t.album_id IS NOT NULL AND t.album_id != ''",
+            scoped = scoped_track_join()
+        ),
+        extra_where,
+    );
+    let mut binds = merge_binds(scope_binds, extra_params);
+
+    let total = if skip_totals {
+        0u32
+    } else {
+        let count_sql = format!(
+            "{cte} \
+             SELECT COUNT(DISTINCT {ALBUM_DEDUP_KEY}) \
+             {base_where}"
+        );
+        store.with_read_conn(|conn| {
+            let n: i64 = conn.query_row(
+                &count_sql,
+                params_from_iter(binds.iter()),
+                |r| r.get(0),
+            )?;
+            Ok(n.max(0) as u32)
+        })?
+    };
+
+    let sql = format!(
+        "{cte}, \
+         base AS ( \
+           SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
+                  t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.duration_sec, t.id, \
+                  s.pr, {ALBUM_DEDUP_KEY} AS album_dedup, {TRACK_DEDUP_KEY} AS track_dedup \
+           {base_where} \
+         ), \
+         deduped_tracks AS ( \
+           SELECT *, ROW_NUMBER() OVER (PARTITION BY track_dedup ORDER BY pr ASC, id ASC) AS trn \
+           FROM base \
+         ), \
+         album_stats AS ( \
+           SELECT album_dedup, COUNT(*) AS song_count, SUM(duration_sec) AS duration_total \
+           FROM deduped_tracks WHERE trn = 1 GROUP BY album_dedup \
+         ), \
+         album_pick AS ( \
+           SELECT b.server_id, b.album_id, b.album, b.artist, b.artist_id, b.album_artist, \
+                  b.year, b.genre, b.cover_art_id, b.starred_at, b.synced_at, b.album_dedup, \
+                  ROW_NUMBER() OVER (PARTITION BY b.album_dedup ORDER BY b.pr ASC, b.album_id ASC, b.id ASC) AS rn \
+           FROM base b \
+         ) \
+         SELECT p.server_id, p.album_id, p.album, p.artist, p.artist_id, p.album_artist, \
+                st.song_count, st.duration_total, p.year, p.genre, p.cover_art_id, p.starred_at, p.synced_at \
+         FROM album_pick p \
+         INNER JOIN album_stats st ON p.album_dedup = st.album_dedup \
+         WHERE p.rn = 1 \
+         {order_sql} \
+         LIMIT ? OFFSET ?",
+    );
+    binds.push(SqlValue::Integer(i64::from(limit)));
+    binds.push(SqlValue::Integer(i64::from(offset)));
+
+    let albums = store.with_read_conn(|conn| {
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt
+            .query_map(params_from_iter(binds.iter()), map_album_list_row)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows.into_iter().map(album_row_to_dto).collect())
+    })?;
+    Ok((albums, total))
+}
+
+/// Multi-scope artist browse with track-level filters (advanced search).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn list_artists_filtered(
+    store: &LibraryStore,
+    scopes: &[LibraryScopePair],
+    extra_where: &str,
+    extra_params: &[SqlValue],
+    order_sql: &str,
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+) -> Result<(Vec<LibraryArtistDto>, u32), String> {
+    let scopes = non_empty_scopes(scopes)?;
+    let (cte, scope_binds) = scope_cte_sql(scopes);
+    let base_where = append_extra_where(
+        &format!(
+            "{scoped} AND t.artist_id IS NOT NULL AND t.artist_id != ''",
+            scoped = scoped_track_join()
+        ),
+        extra_where,
+    );
+    let mut binds = merge_binds(scope_binds, extra_params);
+
+    let total = if skip_totals {
+        0u32
+    } else {
+        let count_sql = format!(
+            "{cte} \
+             SELECT COUNT(DISTINCT {ARTIST_DEDUP_KEY}) \
+             {base_where}"
+        );
+        store.with_read_conn(|conn| {
+            let n: i64 = conn.query_row(
+                &count_sql,
+                params_from_iter(binds.iter()),
+                |r| r.get(0),
+            )?;
+            Ok(n.max(0) as u32)
+        })?
+    };
+
+    let sql = format!(
+        "{cte}, \
+         base AS ( \
+           SELECT t.server_id, t.artist_id, t.artist, t.album_id, t.synced_at, s.pr, \
+                  {ARTIST_DEDUP_KEY} AS artist_dedup \
+           {base_where} \
+         ), \
+         artist_stats AS ( \
+           SELECT artist_dedup, COUNT(DISTINCT album_id) AS album_count, MAX(synced_at) AS synced_at \
+           FROM base GROUP BY artist_dedup \
+         ), \
+         artist_pick AS ( \
+           SELECT b.server_id, b.artist_id, b.artist, b.artist_dedup, \
+                  ROW_NUMBER() OVER (PARTITION BY b.artist_dedup ORDER BY b.pr ASC, b.artist_id ASC) AS rn \
+           FROM base b \
+         ) \
+         SELECT p.server_id, p.artist_id, p.artist, st.album_count, st.synced_at \
+         FROM artist_pick p \
+         INNER JOIN artist_stats st ON p.artist_dedup = st.artist_dedup \
+         WHERE p.rn = 1 \
+         {order_sql} \
+         LIMIT ? OFFSET ?",
+    );
+    binds.push(SqlValue::Integer(i64::from(limit)));
+    binds.push(SqlValue::Integer(i64::from(offset)));
+
+    let artists = store.with_read_conn(|conn| {
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt
+            .query_map(params_from_iter(binds.iter()), map_artist_list_row)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows.into_iter().map(artist_row_to_dto).collect())
+    })?;
+    Ok((artists, total))
+}
+
+/// Multi-scope track browse (no FTS) with track-level filters.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn list_tracks_filtered(
+    store: &LibraryStore,
+    scopes: &[LibraryScopePair],
+    extra_where: &str,
+    extra_params: &[SqlValue],
+    order_sql: &str,
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+    bpm_resolved: bool,
+) -> Result<(Vec<LibraryTrackDto>, u32), String> {
+    let scopes = non_empty_scopes(scopes)?;
+    let (cte, scope_binds) = scope_cte_sql(scopes);
+    let base_where = append_extra_where(scoped_track_join(), extra_where);
+    let mut binds = merge_binds(scope_binds, extra_params);
+
+    let cols = if bpm_resolved {
+        crate::search::aliased_track_columns_resolved_bpm("t")
+    } else {
+        aliased_track_columns("t")
+    };
+    let plain_cols = plain_track_columns_sql();
+
+    let total = if skip_totals {
+        0u32
+    } else {
+        let count_sql = format!(
+            "{cte} \
+             SELECT COUNT(DISTINCT {TRACK_DEDUP_KEY}) \
+             {base_where}"
+        );
+        store.with_read_conn(|conn| {
+            let n: i64 = conn.query_row(
+                &count_sql,
+                params_from_iter(binds.iter()),
+                |r| r.get(0),
+            )?;
+            Ok(n.max(0) as u32)
+        })?
+    };
+
+    let sql = format!(
+        "{cte}, \
+         ranked AS ( \
+           SELECT {cols}, s.pr, {TRACK_DEDUP_KEY} AS track_dedup, \
+                  ROW_NUMBER() OVER (PARTITION BY {TRACK_DEDUP_KEY} ORDER BY s.pr ASC, t.id ASC) AS rn \
+           {base_where} \
+         ) \
+         SELECT {plain_cols} FROM ranked WHERE rn = 1 \
+         {order_sql} \
+         LIMIT ? OFFSET ?",
+    );
+    binds.push(SqlValue::Integer(i64::from(limit)));
+    binds.push(SqlValue::Integer(i64::from(offset)));
+
+    let tracks = store.with_read_conn(|conn| {
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt
+            .query_map(params_from_iter(binds.iter()), |r| {
+                if bpm_resolved {
+                    crate::search::row_to_track_dto_resolved_bpm(r)
+                } else {
+                    row_to_track_row(r).map(|tr| LibraryTrackDto::from_row(&tr))
+                }
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    })?;
+    Ok((tracks, total))
+}
+
+pub(crate) fn collect_scope_fts_rowids(
     conn: &rusqlite::Connection,
     fts: &str,
     scopes: &[LibraryScopePair],
@@ -358,6 +605,8 @@ fn fetch_deduped_tracks_by_rowids(
     conn: &rusqlite::Connection,
     rowids: &[i64],
     scopes: &[LibraryScopePair],
+    extra_where: &str,
+    extra_params: &[SqlValue],
 ) -> rusqlite::Result<Vec<LibraryTrackDto>> {
     if rowids.is_empty() {
         return Ok(Vec::new());
@@ -366,18 +615,25 @@ fn fetch_deduped_tracks_by_rowids(
     let (cte, scope_binds) = scope_cte_sql(scopes);
     let cols = aliased_track_columns("t");
     let plain_cols = plain_track_columns_sql();
+    let base_where = append_extra_where(
+        &format!(
+            "{scoped} AND t.rowid IN ({placeholders})",
+            scoped = scoped_track_join()
+        ),
+        extra_where,
+    );
     let sql = format!(
         "{cte}, \
          ranked AS ( \
            SELECT t.rowid AS fts_rowid, {cols}, s.pr, {TRACK_DEDUP_KEY} AS track_dedup, \
                   ROW_NUMBER() OVER (PARTITION BY {TRACK_DEDUP_KEY} ORDER BY s.pr ASC, t.id ASC) AS rn \
-           {scoped} AND t.rowid IN ({placeholders}) \
+           {base_where} \
          ) \
          SELECT fts_rowid, {plain_cols} FROM ranked WHERE rn = 1",
-        scoped = scoped_track_join(),
     );
     let mut binds: Vec<SqlValue> = scope_binds;
     binds.extend(rowids.iter().copied().map(SqlValue::Integer));
+    binds.extend_from_slice(extra_params);
 
     let mut stmt = conn.prepare(&sql)?;
     let mut by_rowid: std::collections::HashMap<i64, LibraryTrackDto> = std::collections::HashMap::new();
@@ -389,11 +645,200 @@ fn fetch_deduped_tracks_by_rowids(
         let (rowid, dto) = row?;
         by_rowid.insert(rowid, dto);
     }
-    // Preserve FTS bm25 order from the rowid list.
     Ok(rowids
         .iter()
         .filter_map(|rid| by_rowid.get(rid).cloned())
         .collect())
+}
+
+/// FTS-first multi-scope track search with optional scalar filters.
+pub(crate) fn search_tracks_filtered(
+    store: &LibraryStore,
+    scopes: &[LibraryScopePair],
+    fts_match: &str,
+    extra_where: &str,
+    extra_params: &[SqlValue],
+    limit: u32,
+    skip_totals: bool,
+) -> Result<(Vec<LibraryTrackDto>, u32), String> {
+    let scopes = non_empty_scopes(scopes)?;
+    let pool = (i64::from(limit) * 4).clamp(64, i64::from(PAGE_LIMIT_MAX) * 4);
+
+    store.with_read_conn(|conn| {
+        let rowids = collect_scope_fts_rowids(conn, fts_match, scopes, pool)?;
+        let mut tracks =
+            fetch_deduped_tracks_by_rowids(conn, &rowids, scopes, extra_where, extra_params)?;
+        let total = if skip_totals {
+            0u32
+        } else {
+            tracks.len() as u32
+        };
+        tracks.truncate(limit as usize);
+        Ok((tracks, total))
+    })
+}
+
+/// Live-search songs over multi-scope with dedup + bm25 order preserved.
+pub(crate) fn live_search_songs(
+    store: &LibraryStore,
+    scopes: &[LibraryScopePair],
+    fts_match: &str,
+    limit: u32,
+) -> Result<Vec<LibraryTrackDto>, String> {
+    let scopes = non_empty_scopes(scopes)?;
+    let pool = i64::from(limit.max(4));
+    store.with_read_conn(|conn| {
+        let rowids = collect_scope_fts_rowids(conn, fts_match, scopes, pool)?;
+        let mut tracks = fetch_deduped_tracks_by_rowids(conn, &rowids, scopes, "", &[])?;
+        tracks.truncate(limit as usize);
+        Ok(tracks)
+    })
+}
+
+/// Live-search albums over multi-scope — dedup by `album_key`, priority winner metadata.
+pub(crate) fn live_search_albums(
+    store: &LibraryStore,
+    scopes: &[LibraryScopePair],
+    fts_match: &str,
+    limit: u32,
+) -> Result<Vec<LibraryAlbumDto>, String> {
+    let scopes = non_empty_scopes(scopes)?;
+    let (cte, mut binds) = scope_cte_sql(scopes);
+    let sql = format!(
+        "{cte}, \
+         fts_hits AS ( \
+           SELECT f.rowid, {TRACK_FTS_BM25_RANK} AS rank \
+           FROM track_fts f \
+           WHERE track_fts MATCH ? \
+             AND EXISTS ( \
+               SELECT 1 FROM track c \
+               INNER JOIN scope sc ON c.server_id = sc.server_id AND c.library_id = sc.library_id \
+               WHERE c.rowid = f.rowid AND c.deleted = 0 \
+                 AND c.album_id IS NOT NULL AND c.album_id != '' \
+             ) \
+           ORDER BY rank \
+           LIMIT ? \
+         ), \
+         base AS ( \
+           SELECT t.server_id, t.album_id, t.album, t.artist, t.album_artist, t.artist_id, \
+                  t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, s.pr, \
+                  MIN(h.rank) AS best_rank, {ALBUM_DEDUP_KEY} AS album_dedup \
+           FROM fts_hits h \
+           INNER JOIN track t ON t.rowid = h.rowid \
+           INNER JOIN scope s ON t.server_id = s.server_id AND t.library_id = s.library_id \
+           INNER JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
+           WHERE t.deleted = 0 \
+           GROUP BY album_dedup, t.server_id, t.album_id, s.pr \
+         ), \
+         album_pick AS ( \
+           SELECT server_id, album_id, album, artist, album_artist, artist_id, year, genre, \
+                  cover_art_id, starred_at, synced_at, best_rank, album_dedup, \
+                  ROW_NUMBER() OVER (PARTITION BY album_dedup ORDER BY pr ASC, best_rank ASC, album_id ASC) AS rn \
+           FROM base \
+         ) \
+         SELECT server_id, album_id, album, artist, album_artist, artist_id, year, genre, \
+                cover_art_id, starred_at, synced_at, best_rank \
+         FROM album_pick WHERE rn = 1 \
+         ORDER BY best_rank \
+         LIMIT ?",
+    );
+    binds.push(SqlValue::Text(fts_match.to_string()));
+    binds.push(SqlValue::Integer(crate::live_search::LIVE_SEARCH_FTS_CANDIDATE_CAP));
+    binds.push(SqlValue::Integer(i64::from(limit)));
+
+    store.with_read_conn(|conn| {
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt
+            .query_map(params_from_iter(binds.iter()), |r| {
+                let track_artist: Option<String> = r.get(3)?;
+                let album_artist: Option<String> = r.get(4)?;
+                Ok(LibraryAlbumDto {
+                    server_id: r.get(0)?,
+                    id: r.get(1)?,
+                    name: r.get(2)?,
+                    artist: pick_album_group_artist(track_artist, album_artist),
+                    artist_id: r.get(5)?,
+                    song_count: None,
+                    duration_sec: None,
+                    year: r.get(6)?,
+                    genre: r.get(7)?,
+                    cover_art_id: r.get(8)?,
+                    starred_at: r.get(9)?,
+                    synced_at: r.get(10)?,
+                    raw_json: Value::Null,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    })
+    .map_err(|e| e.to_string())
+}
+
+/// Live-search artists over multi-scope — dedup by `artist_key`, priority winner metadata.
+pub(crate) fn live_search_artists(
+    store: &LibraryStore,
+    scopes: &[LibraryScopePair],
+    fts_match: &str,
+    limit: u32,
+) -> Result<Vec<LibraryArtistDto>, String> {
+    let scopes = non_empty_scopes(scopes)?;
+    let (cte, mut binds) = scope_cte_sql(scopes);
+    let sql = format!(
+        "{cte}, \
+         fts_hits AS ( \
+           SELECT f.rowid, {TRACK_FTS_BM25_RANK} AS rank \
+           FROM track_fts f \
+           WHERE track_fts MATCH ? \
+             AND EXISTS ( \
+               SELECT 1 FROM track c \
+               INNER JOIN scope sc ON c.server_id = sc.server_id AND c.library_id = sc.library_id \
+               WHERE c.rowid = f.rowid AND c.deleted = 0 \
+                 AND c.artist_id IS NOT NULL AND c.artist_id != '' \
+             ) \
+           ORDER BY rank \
+           LIMIT ? \
+         ), \
+         base AS ( \
+           SELECT t.server_id, t.artist_id, t.artist, t.synced_at, s.pr, \
+                  MIN(h.rank) AS best_rank, {ARTIST_DEDUP_KEY} AS artist_dedup \
+           FROM fts_hits h \
+           INNER JOIN track t ON t.rowid = h.rowid \
+           INNER JOIN scope s ON t.server_id = s.server_id AND t.library_id = s.library_id \
+           INNER JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
+           WHERE t.deleted = 0 \
+           GROUP BY t.server_id, t.artist_id, t.artist, t.synced_at, s.pr, artist_dedup \
+         ), \
+         artist_pick AS ( \
+           SELECT *, ROW_NUMBER() OVER (PARTITION BY artist_dedup ORDER BY pr ASC, best_rank ASC, artist_id ASC) AS rn \
+           FROM base \
+         ) \
+         SELECT server_id, artist_id, artist, synced_at, best_rank \
+         FROM artist_pick WHERE rn = 1 \
+         ORDER BY best_rank \
+         LIMIT ?",
+    );
+    binds.push(SqlValue::Text(fts_match.to_string()));
+    binds.push(SqlValue::Integer(crate::live_search::LIVE_SEARCH_FTS_CANDIDATE_CAP));
+    binds.push(SqlValue::Integer(i64::from(limit)));
+
+    store.with_read_conn(|conn| {
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt
+            .query_map(params_from_iter(binds.iter()), |r| {
+                let name: String = r.get::<_, Option<String>>(2)?.unwrap_or_default();
+                Ok(LibraryArtistDto {
+                    server_id: r.get(0)?,
+                    id: r.get(1)?,
+                    name: name.clone(),
+                    name_sort: Some(sort_key_for_display_name(&name, DEFAULT_IGNORED_ARTICLES)),
+                    album_count: None,
+                    synced_at: r.get(3)?,
+                    raw_json: Value::Null,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    })
 }
 
 /// `library_scope_search_tracks` — FTS-first `EXISTS`, then scope dedup.
@@ -413,7 +858,7 @@ pub fn search_tracks(
 
     store.with_read_conn(|conn| {
         let rowids = collect_scope_fts_rowids(conn, &fts, scopes, pool)?;
-        let mut tracks = fetch_deduped_tracks_by_rowids(conn, &rowids, scopes)?;
+        let mut tracks = fetch_deduped_tracks_by_rowids(conn, &rowids, scopes, "", &[])?;
         tracks.truncate(limit as usize);
         Ok(tracks)
     })
