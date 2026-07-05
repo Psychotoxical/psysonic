@@ -5,15 +5,34 @@ use crate::dto::{
     LibraryTrackDto,
 };
 use crate::lossless_formats::track_is_lossless_sql;
-use crate::search::{aliased_track_columns, library_scope_equals_sql};
+use crate::search::{
+    aliased_track_columns, combined_scope_library_ids, library_scope_in_sql,
+    library_scope_sargable_equals_sql,
+};
 use crate::store::LibraryStore;
 use rusqlite::types::Value as SqlValue;
 use serde_json::Value;
 
-fn trimmed_nonempty(s: Option<&str>) -> Option<String> {
-    s.map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(String::from)
+/// Push a sargable `library_id` filter (single or multi scope) matching the
+/// migrated browse/search paths. Empty scope means all libraries.
+fn push_library_scope_filter(
+    where_clauses: &mut Vec<String>,
+    params: &mut Vec<SqlValue>,
+    scope_ids: &[String],
+) {
+    match scope_ids.len() {
+        0 => {}
+        1 => {
+            where_clauses.push(library_scope_sargable_equals_sql("t"));
+            params.push(SqlValue::Text(scope_ids[0].clone()));
+        }
+        n => {
+            where_clauses.push(library_scope_in_sql("t", n));
+            for id in scope_ids {
+                params.push(SqlValue::Text(id.clone()));
+            }
+        }
+    }
 }
 
 pub fn get_artist_lossless_browse(
@@ -36,11 +55,9 @@ pub fn get_artist_lossless_browse(
         SqlValue::Text(req.artist_id.clone()),
     ];
 
-    if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
-        let clause = library_scope_equals_sql("t");
-        track_where.push(clause);
-        track_params.push(SqlValue::Text(scope));
-    }
+    let scope_ids =
+        combined_scope_library_ids(req.library_scope.as_deref(), req.library_scopes.as_deref());
+    push_library_scope_filter(&mut track_where, &mut track_params, &scope_ids);
 
     let track_where_sql = track_where.join(" AND ");
     let track_cols = aliased_track_columns("t");
@@ -74,11 +91,7 @@ pub fn get_artist_lossless_browse(
         SqlValue::Text(req.server_id.clone()),
         SqlValue::Text(req.artist_id.clone()),
     ];
-    if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
-        let clause = library_scope_equals_sql("t");
-        album_where.push(clause);
-        album_params.push(SqlValue::Text(scope));
-    }
+    push_library_scope_filter(&mut album_where, &mut album_params, &scope_ids);
     let album_where_sql = album_where.join(" AND ");
 
     let la_artist = crate::album_compilation_filter::sql_track_group_display_artist("la");
@@ -242,6 +255,7 @@ mod tests {
                 server_id: "s1".into(),
                 artist_id: "ar1".into(),
                 library_scope: None,
+                library_scopes: None,
             },
         )
         .unwrap();

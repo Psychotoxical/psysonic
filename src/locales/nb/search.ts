@@ -15,6 +15,7 @@ export const search = {
   networkSearchBadge: 'Serversøk',
   networkSearchBadgeTooltip: 'Resultater fra live søk på tilkoblet server',
   liveSearchFailed: 'Søket mislyktes — prøv igjen',
+  indexIncompleteBanner: 'Indeksen bygges fortsatt — resultatene kan være ufullstendige',
   advancedSearchTerm: 'Søkeord',
   advancedSearchPlaceholder: 'Tittel, album, artist…',
   advancedGenre: 'Sjanger',

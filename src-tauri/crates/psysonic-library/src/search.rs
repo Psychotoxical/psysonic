@@ -273,24 +273,6 @@ pub(crate) fn fts_track_match_query(raw: &str) -> Option<String> {
     })
 }
 
-/// Project the `track` hot columns prefixed with `alias` (e.g. `t.title`),
-/// in `repos::row_to_track_row`'s positional order so the Advanced Search /
-/// cross-server builders can reuse the shared row mapper.
-/// Effective library id for scoped search — hot column first, then common
-/// OpenSubsonic / Navidrome keys in `raw_json` (legacy rows may only have JSON).
-pub(crate) fn library_scope_match_sql(table_alias: &str) -> String {
-    format!(
-        "COALESCE(NULLIF({table_alias}.library_id, ''), \
-         CAST(json_extract({table_alias}.raw_json, '$.libraryId') AS TEXT), \
-         CAST(json_extract({table_alias}.raw_json, '$.library_id') AS TEXT), \
-         CAST(json_extract({table_alias}.raw_json, '$.musicFolderId') AS TEXT))"
-    )
-}
-
-pub(crate) fn library_scope_equals_sql(table_alias: &str) -> String {
-    format!("{} = ?", library_scope_match_sql(table_alias))
-}
-
 /// Hot-path scoped filter on the backfilled `library_id` column (spec §4).
 pub(crate) fn library_scope_sargable_equals_sql(table_alias: &str) -> String {
     format!("{table_alias}.library_id = ?")
@@ -300,6 +282,26 @@ pub(crate) fn library_scope_sargable_equals_sql(table_alias: &str) -> String {
 pub(crate) fn library_scope_in_sql(table_alias: &str, count: usize) -> String {
     let placeholders = (0..count).map(|_| "?").collect::<Vec<_>>().join(", ");
     format!("{table_alias}.library_id IN ({placeholders})")
+}
+
+/// Combine the legacy single `library_scope` with an ordered `library_scopes`
+/// list into a normalized set of library ids. The multi-select list wins when
+/// present; empty result means "all libraries" (no filter).
+pub(crate) fn combined_scope_library_ids(
+    library_scope: Option<&str>,
+    library_scopes: Option<&[String]>,
+) -> Vec<String> {
+    if let Some(multi) = library_scopes {
+        let norm = normalized_library_scopes(multi);
+        if !norm.is_empty() {
+            return norm;
+        }
+    }
+    library_scope
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| vec![s.to_string()])
+        .unwrap_or_default()
 }
 
 /// Non-empty trimmed ids; empty input means no library filter (all libraries).
@@ -326,6 +328,9 @@ pub(crate) fn push_library_scope_binds(
     }
 }
 
+/// Project the `track` hot columns prefixed with `alias` (e.g. `t.title`),
+/// in `repos::row_to_track_row`'s positional order so the Advanced Search /
+/// cross-server builders can reuse the shared row mapper.
 pub(crate) fn aliased_track_columns(alias: &str) -> String {
     crate::repos::track_columns()
         .split(',')

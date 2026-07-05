@@ -10,8 +10,6 @@ use super::attach::CLUSTER_SCHEMA;
 use super::keys::build_track_cluster_keys;
 use super::norm::NORM_VERSION;
 
-const REBUILD_BATCH_SIZE: usize = 500;
-
 const UPSERT_CLUSTER_KEY_SQL: &str = "
 INSERT INTO cluster.track_cluster_key (
   server_id, library_id, track_id, cluster_key, album_key, artist_key, duration_sec
@@ -89,40 +87,38 @@ pub fn rebuild_cluster_keys(
         if server_id.is_some() {
             select.push_str(" AND server_id = ?1");
         }
+        // Stream rows straight from the `track` SELECT into the sidecar UPSERT
+        // (both statements borrow the same tx; the SELECT reads `track`, the
+        // UPSERT writes the attached `cluster` table, so they don't contend).
+        // Avoids materializing the whole track table (~60–70 MB on 212k rows)
+        // before writing.
+        let filter_params: Vec<&str> = server_id.into_iter().collect();
         let mut stmt = tx.prepare(&select)?;
-        let rows: Vec<SourceTrackRow> = if let Some(sid) = server_id {
-            stmt.query_map(params![sid], map_source_track_row)?
-                .collect::<rusqlite::Result<Vec<_>>>()?
-        } else {
-            stmt.query_map([], map_source_track_row)?
-                .collect::<rusqlite::Result<Vec<_>>>()?
-        };
-        drop(stmt);
-
         let mut upsert = tx.prepare_cached(UPSERT_CLUSTER_KEY_SQL)?;
         let mut upserted = 0u64;
-        for chunk in rows.chunks(REBUILD_BATCH_SIZE) {
-            for (server_id, library_id, track_id, artist, title, album_artist, album, duration_sec) in
-                chunk
-            {
-                let keys = build_track_cluster_keys(
-                    artist.as_deref(),
-                    title,
-                    album,
-                    album_artist.as_deref(),
-                );
-                upsert.execute(params![
-                    server_id,
-                    library_id,
-                    track_id,
-                    keys.cluster_key,
-                    keys.album_key,
-                    keys.artist_key,
-                    duration_sec,
-                ])?;
-                upserted = upserted.saturating_add(1);
-            }
+        let mut rows = stmt.query(rusqlite::params_from_iter(filter_params.iter()))?;
+        while let Some(row) = rows.next()? {
+            let (server_id, library_id, track_id, artist, title, album_artist, album, duration_sec) =
+                map_source_track_row(row)?;
+            let keys = build_track_cluster_keys(
+                artist.as_deref(),
+                &title,
+                &album,
+                album_artist.as_deref(),
+            );
+            upsert.execute(params![
+                server_id,
+                library_id,
+                track_id,
+                keys.cluster_key,
+                keys.album_key,
+                keys.artist_key,
+                duration_sec,
+            ])?;
+            upserted = upserted.saturating_add(1);
         }
+        drop(rows);
+        drop(stmt);
         drop(upsert);
         set_cluster_meta(&tx)?;
         tx.commit()?;

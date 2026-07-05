@@ -298,6 +298,8 @@ export interface LibraryLiveSearchRequest {
 export interface LibraryLosslessAlbumsRequest {
   serverId: string;
   libraryScope?: string | null;
+  /** Ordered library ids for a multi-library selection; wins over `libraryScope`. */
+  libraryScopes?: string[] | null;
   limit?: number;
   offset?: number;
 }
@@ -312,6 +314,8 @@ export interface LibraryArtistLosslessBrowseRequest {
   serverId: string;
   artistId: string;
   libraryScope?: string | null;
+  /** Ordered library ids for a multi-library selection; wins over `libraryScope`. */
+  libraryScopes?: string[] | null;
 }
 
 export interface LibraryArtistLosslessBrowseResponse {

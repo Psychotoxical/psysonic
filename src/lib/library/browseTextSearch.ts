@@ -7,7 +7,11 @@ import type { ArtistCreditMode } from '@/lib/api/library';
 import { search, searchSongsPaged } from '@/lib/api/subsonicSearch';
 import type { SearchResults, SubsonicAlbum, SubsonicArtist, SubsonicSong } from '@/lib/api/subsonicTypes';
 import { libraryAdvancedSearch, libraryGetArtistLosslessBrowse, libraryListLosslessAlbums } from '@/lib/api/library';
-import { libraryScopeForServer, libraryScopePairsForServer } from '@/lib/api/subsonicClient';
+import {
+  libraryScopeForServer,
+  libraryScopePairsForServer,
+  librarySelectionForServer,
+} from '@/lib/api/subsonicClient';
 import {
   LIVE_SEARCH_DEBOUNCE_NETWORK_MS,
   LIVE_SEARCH_DEBOUNCE_RACE_MS,
@@ -443,6 +447,7 @@ export async function runLocalLosslessAlbums(
     const resp = await libraryListLosslessAlbums({
       serverId,
       libraryScope: libraryScopeForServer(serverId) ?? undefined,
+      libraryScopes: librarySelectionForServer(serverId),
       limit,
       offset,
     });
@@ -467,6 +472,7 @@ export async function runLocalArtistLosslessBrowse(
       serverId,
       artistId,
       libraryScope: libraryScopeForServer(serverId) ?? undefined,
+      libraryScopes: librarySelectionForServer(serverId),
     });
     if (resp.source !== 'local') return null;
     return {

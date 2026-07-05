@@ -4,15 +4,32 @@
 
 use crate::dto::{LibraryAlbumDto, LibraryLosslessAlbumsRequest, LibraryLosslessAlbumsResponse};
 use crate::lossless_formats::track_is_lossless_sql;
-use crate::search::library_scope_equals_sql;
+use crate::search::{combined_scope_library_ids, library_scope_in_sql, library_scope_sargable_equals_sql};
 use crate::store::LibraryStore;
 use rusqlite::types::Value as SqlValue;
 use serde_json::Value;
 
-fn trimmed_nonempty(s: Option<&str>) -> Option<String> {
-    s.map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(String::from)
+/// Push a sargable `library_id` filter (hot column, matching the rest of the
+/// migrated browse/search paths) for a single or multi-library scope. Empty
+/// scope means all libraries.
+fn push_library_scope_filter(
+    where_clauses: &mut Vec<String>,
+    params: &mut Vec<SqlValue>,
+    scope_ids: &[String],
+) {
+    match scope_ids.len() {
+        0 => {}
+        1 => {
+            where_clauses.push(library_scope_sargable_equals_sql("t"));
+            params.push(SqlValue::Text(scope_ids[0].clone()));
+        }
+        n => {
+            where_clauses.push(library_scope_in_sql("t", n));
+            for id in scope_ids {
+                params.push(SqlValue::Text(id.clone()));
+            }
+        }
+    }
 }
 
 /// Paginated lossless albums for one server. Returns empty when the index has
@@ -37,11 +54,9 @@ pub fn list_lossless_albums(
     ];
     let mut params: Vec<SqlValue> = vec![SqlValue::Text(req.server_id.clone())];
 
-    if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
-        let clause = library_scope_equals_sql("t");
-        where_clauses.push(clause);
-        params.push(SqlValue::Text(scope));
-    }
+    let scope_ids =
+        combined_scope_library_ids(req.library_scope.as_deref(), req.library_scopes.as_deref());
+    push_library_scope_filter(&mut where_clauses, &mut params, &scope_ids);
 
     let where_sql = where_clauses.join(" AND ");
     let la_artist = crate::album_compilation_filter::sql_track_group_display_artist("la");
@@ -206,6 +221,7 @@ mod tests {
         LibraryLosslessAlbumsRequest {
             server_id: server.into(),
             library_scope: None,
+            library_scopes: None,
             limit,
             offset,
         }
@@ -272,6 +288,27 @@ mod tests {
         let resp = list_lossless_albums(&store, &scoped).unwrap();
         assert_eq!(resp.albums.len(), 1);
         assert_eq!(resp.albums[0].id, "al1");
+    }
+
+    #[test]
+    fn multi_library_scope_includes_every_selected_library() {
+        let store = LibraryStore::open_in_memory();
+        let mut a = track_with_suffix("s1", "t1", "al1", "A", "flac", 16);
+        a.library_id = Some("lib1".into());
+        let mut b = track_with_suffix("s1", "t2", "al2", "B", "flac", 16);
+        b.library_id = Some("lib2".into());
+        let mut c = track_with_suffix("s1", "t3", "al3", "C", "flac", 16);
+        c.library_id = Some("lib3".into());
+        TrackRepository::new(&store)
+            .upsert_batch(&[a, b, c])
+            .unwrap();
+
+        let mut scoped = req("s1", 50, 0);
+        scoped.library_scopes = Some(vec!["lib1".into(), "lib2".into()]);
+        let resp = list_lossless_albums(&store, &scoped).unwrap();
+        let mut ids: Vec<_> = resp.albums.iter().map(|a| a.id.clone()).collect();
+        ids.sort();
+        assert_eq!(ids, vec!["al1".to_string(), "al2".to_string()]);
     }
 
     #[test]

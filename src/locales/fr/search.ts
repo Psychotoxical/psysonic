@@ -15,6 +15,7 @@ export const search = {
   networkSearchBadge: 'Recherche serveur',
   networkSearchBadgeTooltip: 'Résultats de la recherche en direct sur le serveur connecté',
   liveSearchFailed: 'Échec de la recherche — réessayez',
+  indexIncompleteBanner: 'Index en cours de création — les résultats peuvent être incomplets',
   advancedSearchTerm: 'Terme de recherche',
   advancedSearchPlaceholder: 'Titre, album, artiste…',
   advancedGenre: 'Genre',

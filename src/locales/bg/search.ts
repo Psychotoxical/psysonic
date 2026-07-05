@@ -15,6 +15,7 @@ export const search = {
   networkSearchBadge: 'Търсене в сървъра',
   networkSearchBadgeTooltip: 'Резултати от търсене на живо в свързания сървър',
   liveSearchFailed: 'Търсенето се провали — опитайте отново',
+  indexIncompleteBanner: 'Индексът все още се изгражда — резултатите може да са непълни',
   advancedSearchTerm: 'Дума за търсене',
   advancedSearchPlaceholder: 'Заглавие, албум, изпълнител…',
   advancedGenre: 'Жанр',

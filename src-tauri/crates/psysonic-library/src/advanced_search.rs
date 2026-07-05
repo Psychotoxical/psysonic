@@ -188,6 +188,12 @@ pub fn run_advanced_search(
         req.library_scope.as_deref(),
         req.library_scopes.as_deref(),
     );
+    // Any >1-library scope dedups album/artist rows via cluster keys, including
+    // the Layer-1 same-server path — build keys first so dedup works on a cold
+    // index (idempotent; only rebuilds when needed).
+    if multi_library_merge_enabled(&scope_pairs) {
+        crate::identity::ensure_cluster_keys_built(store, &req.server_id)?;
+    }
     if scoped_layer1_eligible(&scope_pairs) {
         return run_advanced_search_layer1_scope(
             store,
@@ -201,7 +207,6 @@ pub fn run_advanced_search(
         );
     }
     if multi_library_merge_enabled(&scope_pairs) {
-        crate::identity::ensure_cluster_keys_built(store, &req.server_id)?;
         return run_advanced_search_multi_scope(
             store,
             req,

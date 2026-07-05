@@ -15,6 +15,7 @@ export const search = {
   networkSearchBadge: 'サーバー検索',
   networkSearchBadgeTooltip: '接続中サーバーのライブ検索からの結果',
   liveSearchFailed: '検索に失敗しました。もう一度お試しください',
+  indexIncompleteBanner: 'インデックスを構築中です — 結果が不完全な場合があります',
   advancedSearchTerm: '検索語',
   advancedSearchPlaceholder: 'タイトル、アルバム、アーティスト…',
   advancedGenre: 'ジャンル',

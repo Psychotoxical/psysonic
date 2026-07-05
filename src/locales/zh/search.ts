@@ -15,6 +15,7 @@ export const search = {
   networkSearchBadge: '服务器搜索',
   networkSearchBadgeTooltip: '来自已连接服务器实时搜索的结果',
   liveSearchFailed: '搜索失败 — 请重试',
+  indexIncompleteBanner: '索引仍在构建中 — 结果可能不完整',
   advancedSearchTerm: '搜索词',
   advancedSearchPlaceholder: '标题、专辑、艺术家…',
   advancedGenre: '流派',

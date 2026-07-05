@@ -15,6 +15,7 @@ export const search = {
   networkSearchBadge: 'Wyszukiwanie na serwerze',
   networkSearchBadgeTooltip: 'Wyniki z wyszukiwania na żywo na połączonym serwerze',
   liveSearchFailed: 'Wyszukiwanie nie powiodło się — spróbuj ponownie',
+  indexIncompleteBanner: 'Indeks wciąż się buduje — wyniki mogą być niekompletne',
   advancedSearchTerm: 'Wyszukaj frazę',
   advancedSearchPlaceholder: 'Tytuł, album, wykonawca…',
   advancedGenre: 'Gatunek',

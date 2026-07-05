@@ -112,6 +112,7 @@ export function libraryListLosslessAlbums(
     request: {
       serverId: indexKey,
       libraryScope: request.libraryScope ?? undefined,
+      libraryScopes: request.libraryScopes ?? undefined,
       limit: request.limit,
       offset: request.offset,
     },
@@ -134,6 +135,7 @@ export function libraryGetArtistLosslessBrowse(
       serverId: indexKey,
       artistId: request.artistId,
       libraryScope: request.libraryScope ?? undefined,
+      libraryScopes: request.libraryScopes ?? undefined,
     },
   }).then(response => ({
     ...response,

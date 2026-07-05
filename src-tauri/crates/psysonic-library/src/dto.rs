@@ -642,6 +642,10 @@ pub struct LibraryLosslessAlbumsRequest {
     pub server_id: String,
     #[serde(default)]
     pub library_scope: Option<String>,
+    /// Ordered library ids for a multi-library selection; takes precedence over
+    /// the legacy single `library_scope` when present.
+    #[serde(default)]
+    pub library_scopes: Option<Vec<String>>,
     #[serde(default = "default_lossless_limit")]
     pub limit: u32,
     #[serde(default)]
@@ -669,6 +673,10 @@ pub struct LibraryArtistLosslessBrowseRequest {
     pub artist_id: String,
     #[serde(default)]
     pub library_scope: Option<String>,
+    /// Ordered library ids for a multi-library selection; takes precedence over
+    /// the legacy single `library_scope` when present.
+    #[serde(default)]
+    pub library_scopes: Option<Vec<String>>,
 }
 
 /// Lossless albums + tracks for one artist (local index).

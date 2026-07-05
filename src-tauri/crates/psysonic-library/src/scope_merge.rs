@@ -28,7 +28,12 @@ const ALBUM_DEDUP_KEY: &str = "CASE WHEN ck.album_key IS NOT NULL THEN ck.album_
 const ARTIST_DEDUP_KEY: &str = "CASE WHEN ck.artist_key IS NOT NULL THEN ck.artist_key \
     ELSE ('null:' || t.server_id || ':' || COALESCE(NULLIF(t.artist_id, ''), t.id)) END";
 
-/// Track dedup: `cluster_key` + 5-second duration bucket (`duration_sec / 5`).
+/// Track dedup: `cluster_key` + a fixed 5-second duration bucket (`duration_sec / 5`).
+/// This is a bucket, not a symmetric ±5 s window: two rips whose durations straddle
+/// a bucket edge (e.g. 314 s → bucket 62, 316 s → bucket 63) stay separate, while
+/// two up to ~4 s apart inside a bucket merge. Kept as a single GROUP BY key for
+/// speed; a true tolerance window would need a self-join. Encoder-padding drift at
+/// boundaries is the known trade-off.
 const TRACK_DEDUP_KEY: &str = "CASE WHEN ck.cluster_key IS NOT NULL \
     THEN ck.cluster_key || ':' || CAST((ck.duration_sec / 5) AS TEXT) \
     ELSE ('null:' || t.server_id || ':' || t.id) END";
@@ -205,11 +210,33 @@ fn album_row_to_dto(row: AlbumListRow) -> LibraryAlbumDto {
 /// selected libraries. The album-list duration is not surfaced in the grid (detail and
 /// now-playing recompute from the real track list), so this trade buys a ~2x browse
 /// speedup on large multi-library scopes without a user-visible effect.
+/// Build cluster identity keys for every server in a >1-library scope before a
+/// browse that dedups via `cluster.track_cluster_key`. Without this the album/
+/// artist dedup keys are uniformly NULL on a cold index (no prior search / sync
+/// rebuild) and cross-library duplicates are not merged.
+fn ensure_cluster_keys_for_scopes(
+    store: &LibraryStore,
+    scopes: &[LibraryScopePair],
+) -> Result<(), String> {
+    if !crate::dto::multi_library_merge_enabled(scopes) {
+        return Ok(());
+    }
+    let mut seen: Vec<&str> = Vec::new();
+    for pair in scopes {
+        if !seen.contains(&pair.server_id.as_str()) {
+            seen.push(pair.server_id.as_str());
+            crate::identity::ensure_cluster_keys_built(store, &pair.server_id)?;
+        }
+    }
+    Ok(())
+}
+
 pub fn list_albums(
     store: &LibraryStore,
     request: &LibraryScopeListRequest,
 ) -> Result<Vec<LibraryAlbumDto>, String> {
     let scopes = non_empty_scopes(&request.scopes)?;
+    ensure_cluster_keys_for_scopes(store, scopes)?;
     let order = album_order_sql(request.sort.as_deref());
     let limit = clamp_limit(request.limit);
     let offset = clamp_offset(request.offset);
@@ -287,6 +314,7 @@ pub fn list_artists(
     request: &LibraryScopeListRequest,
 ) -> Result<Vec<LibraryArtistDto>, String> {
     let scopes = non_empty_scopes(&request.scopes)?;
+    ensure_cluster_keys_for_scopes(store, scopes)?;
     let limit = clamp_limit(request.limit);
     let offset = clamp_offset(request.offset);
     let order = artist_order_sql(request.sort.as_deref());
@@ -1323,9 +1351,13 @@ fn lookup_album_key(
          INNER JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
          WHERE t.server_id = ? AND t.album_id = ? AND t.deleted = 0 LIMIT 1",
         rusqlite::params![server_id, album_id],
-        |r| r.get(0),
+        // The row exists but `album_key` is SQL NULL by design (any empty name
+        // part → NULL key). Read it as `Option` so a NULL key yields `None`
+        // instead of an `InvalidColumnType` error that would fail detail open.
+        |r| r.get::<_, Option<String>>(0),
     )
     .optional()
+    .map(Option::flatten)
 }
 
 fn lookup_artist_key(
@@ -1338,9 +1370,12 @@ fn lookup_artist_key(
          INNER JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
          WHERE t.server_id = ? AND t.artist_id = ? AND t.deleted = 0 LIMIT 1",
         rusqlite::params![server_id, artist_id],
-        |r| r.get(0),
+        // NULL artist_key is by design (empty artist → NULL); read as Option so
+        // artist detail for such an entity opens un-merged instead of erroring.
+        |r| r.get::<_, Option<String>>(0),
     )
     .optional()
+    .map(Option::flatten)
 }
 
 /// Caller must pre-sort `candidates` by scope priority (lowest index first).

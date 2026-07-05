@@ -15,6 +15,7 @@ export const search = {
   networkSearchBadge: 'Поиск на сервере',
   networkSearchBadgeTooltip: 'Результаты живого поиска на подключённом сервере',
   liveSearchFailed: 'Поиск не удался — попробуйте снова',
+  indexIncompleteBanner: 'Индекс ещё строится — результаты могут быть неполными',
   advancedSearchTerm: 'Поисковый запрос',
   advancedSearchPlaceholder: 'Название, альбом, исполнитель…',
   advancedGenre: 'Жанр',

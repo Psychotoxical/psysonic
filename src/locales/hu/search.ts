@@ -15,6 +15,7 @@ export const search = {
   networkSearchBadge: 'Szerverkeresés',
   networkSearchBadgeTooltip: 'Találatok a csatlakoztatott szerver élő kereséséből',
   liveSearchFailed: 'A keresés nem sikerült — próbáld újra',
+  indexIncompleteBanner: 'Az index még épül — az eredmények hiányosak lehetnek',
   advancedSearchTerm: 'Keresési kifejezés',
   advancedSearchPlaceholder: 'Cím, album, előadó…',
   advancedGenre: 'Műfaj',

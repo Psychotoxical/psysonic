@@ -15,6 +15,7 @@ export const search = {
   networkSearchBadge: 'Căutare pe server',
   networkSearchBadgeTooltip: 'Rezultate din căutarea live pe serverul conectat',
   liveSearchFailed: 'Căutarea a eșuat — încercați din nou',
+  indexIncompleteBanner: 'Indexul se construiește încă — rezultatele pot fi incomplete',
   advancedSearchTerm: 'Termen de căutare',
   advancedSearchPlaceholder: 'Titlu, album, artist…',
   advancedGenre: 'Gen',

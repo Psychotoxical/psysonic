@@ -318,6 +318,13 @@ impl LibraryStore {
         drop(read_conn);
         drop(write_conn);
 
+        // The freshly-installed library file has different track ids; the
+        // fixed-name identity sidecar in this dir is now stale (its norm_version
+        // + key count still satisfy the rebuild gate, so nothing else triggers a
+        // rebuild). Delete it so the reopen recreates it empty and keys rebuild
+        // lazily against the new content.
+        crate::identity::remove_cluster_files_for_library(active_path);
+
         let reopen = open_database_connections(active_path);
 
         let mut write_conn = self.write_conn.lock().map_err(|_| {
@@ -380,6 +387,10 @@ impl LibraryStore {
 
         drop(read_conn);
         drop(write_conn);
+
+        // Restored library file → the fixed-name identity sidecar is stale; drop
+        // it so keys rebuild lazily against the restored content (see swap).
+        crate::identity::remove_cluster_files_for_library(active_path);
 
         let (reopened_write, reopened_read) =
             open_database_connections(active_path).map_err(|e| e.to_string())?;
@@ -613,12 +624,20 @@ fn open_database_connections(db_path: &Path) -> rusqlite::Result<(Connection, Co
     let write_conn = Connection::open(db_path)?;
     configure_write_connection(&write_conn)?;
     prepare_write_connection_for_open(&write_conn)?;
-    crate::identity::attach_cluster_write_file(&write_conn, db_path)?;
 
     let read_conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
     configure_read_connection(&read_conn)?;
-    // Read-only attach after write side created `library-cluster.db` + schema.
-    crate::identity::attach_cluster_read_file(&read_conn, db_path)?;
+
+    // The identity sidecar is fully rebuildable; a corrupt/unwritable
+    // `library-cluster.db` must never prevent the library itself from opening.
+    // `attach_cluster_pair_file` deletes-and-recreates on failure; if even that
+    // fails we log and continue — multi-library dedup degrades until a later
+    // successful open, but single-library browse/search is unaffected.
+    if let Err(e) = crate::identity::attach_cluster_pair_file(&write_conn, &read_conn, db_path) {
+        crate::app_eprintln!(
+            "[library-db] identity sidecar unavailable, multi-library dedup disabled: {e}"
+        );
+    }
     Ok((write_conn, read_conn))
 }
 
@@ -858,7 +877,10 @@ fn repair_library_id_from_raw_json(conn: &Connection) -> rusqlite::Result<()> {
            ) IS NOT NULL",
         [],
     )?;
-    conn.execute_batch("ANALYZE;")?;
+    // Only `track` (and its indexes) changed here, so a table-scoped ANALYZE is
+    // enough to refresh the planner stats — cheaper than a whole-DB ANALYZE on a
+    // large library at first open.
+    conn.execute_batch("ANALYZE track;")?;
     Ok(())
 }
 
