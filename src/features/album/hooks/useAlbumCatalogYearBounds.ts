@@ -12,10 +12,12 @@ export function useAlbumCatalogYearBounds(
   serverId: string,
   indexEnabled: boolean,
   libraryFilterVersion: number,
+  defer = false,
 ): AlbumCatalogYearRange {
   const [bounds, setBounds] = useState(DEFAULT);
 
   useEffect(() => {
+    if (defer) return;
     let cancelled = false;
     void fetchAlbumCatalogYearBounds(serverId, indexEnabled).then(next => {
       if (!cancelled) setBounds(next);
@@ -23,7 +25,7 @@ export function useAlbumCatalogYearBounds(
     return () => {
       cancelled = true;
     };
-  }, [serverId, indexEnabled, libraryFilterVersion]);
+  }, [serverId, indexEnabled, libraryFilterVersion, defer]);
 
   return bounds;
 }

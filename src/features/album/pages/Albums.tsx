@@ -3,6 +3,7 @@ import { resolveAlbum } from '@/features/offline';
 import { songToTrack } from '@/lib/media/songToTrack';
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import AlbumCard from '@/features/album/components/AlbumCard';
+import AlbumBrowseGridSkeleton from '@/features/album/components/AlbumBrowseGridSkeleton';
 import { albumGridWarmCovers, coverDisplayCssPxForAlbumGrid } from '@/cover/layoutSizes';
 import { useLibraryCoverPrefetch } from '@/cover/useLibraryCoverPrefetch';
 import { useAuthStore } from '@/store/authStore';
@@ -84,7 +85,6 @@ export default function Albums() {
     return () => emitAlbumBrowseDebug('page_unmount');
   }, [serverId, indexEnabled, musicLibraryFilterVersion]);
 
-  const catalogYears = useAlbumCatalogYearBounds(serverId, indexEnabled, musicLibraryFilterVersion);
   const downloadAlbum = useOfflineStore(s => s.downloadAlbum);
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
 
@@ -193,6 +193,13 @@ export default function Albums() {
   const pendingClientFilterMatch = textSearchActive ? false : browseData.pendingClientFilterMatch;
   const bindLoadMoreSentinel = browseData.bindLoadMoreSentinel;
   const loadMore = browseData.loadMore;
+
+  const catalogYears = useAlbumCatalogYearBounds(
+    serverId,
+    indexEnabled,
+    musicLibraryFilterVersion,
+    loading && albums.length === 0,
+  );
 
   const prevLoadingRef = useRef(loading);
   useEffect(() => {
@@ -515,9 +522,7 @@ export default function Albums() {
         ]}
       >
         {loading && albums.length === 0 ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
-            <div className="spinner" />
-          </div>
+          <AlbumBrowseGridSkeleton slotCount={Math.max(albumGridCols * 3, 12)} />
         ) : !loading && albums.length === 0 && !serverFilterActive && !compFilterActive ? (
           <div className="empty-state" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
             {t('common.libraryEmpty')}

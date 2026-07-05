@@ -33,9 +33,14 @@ export async function libraryGetCatalogYearBounds(args: {
 export async function libraryGetGenreAlbumCounts(args: {
   serverId: string;
   libraryScope?: string;
+  libraryScopes?: string[];
 }): Promise<GenreAlbumCountRow[]> {
   const indexKey = serverIndexKeyForId(args.serverId);
-  const res = await commands.libraryGetGenreAlbumCounts(indexKey, args.libraryScope ?? null);
+  const res = await commands.libraryGetGenreAlbumCounts(
+    indexKey,
+    args.libraryScope ?? null,
+    args.libraryScopes ?? null,
+  );
   if (res.status === 'error') throw new Error(res.error);
   return res.data;
 }

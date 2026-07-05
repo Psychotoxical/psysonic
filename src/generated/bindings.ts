@@ -8,7 +8,7 @@ export const commands = {
 	/**  Min/max album years from the local track catalog (for Albums browse filter spinners). */
 	libraryGetCatalogYearBounds: (serverId: string) => typedError<CatalogYearBoundsDto, string>(__TAURI_INVOKE("library_get_catalog_year_bounds", { serverId })),
 	/**  Distinct album counts per track genre — same grouping as genre album browse. */
-	libraryGetGenreAlbumCounts: (serverId: string, libraryScope: string | null) => typedError<GenreAlbumCountDto[], string>(__TAURI_INVOKE("library_get_genre_album_counts", { serverId, libraryScope })),
+	libraryGetGenreAlbumCounts: (serverId: string, libraryScope: string | null, libraryScopes: string[] | null) => typedError<GenreAlbumCountDto[], string>(__TAURI_INVOKE("library_get_genre_album_counts", { serverId, libraryScope, libraryScopes })),
 	/**
 	 *  Align `album.starred_at` with server favorites: UPDATE existing rows only
 	 *  (no INSERT / stub rows). Clears local stars absent from `starred_albums`.

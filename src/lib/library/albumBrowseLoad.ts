@@ -22,7 +22,6 @@ import { albumBrowseHasServerFilters, countGenresFromAlbums, filterAlbumsByCompi
 import { runLocalAlbumBrowse } from './albumBrowseLocal';
 import { fetchAlbumBrowseNetwork } from './albumBrowseNetwork';
 import { fetchStarredAlbumBrowse } from './albumBrowseStarredFetch';
-import { libraryGetGenreAlbumCounts } from '@/lib/api/library';
 import { librarySelectionForServer } from '@/lib/api/subsonicClient';
 import { libraryIsReady } from './libraryReady';
 import type {
@@ -33,6 +32,7 @@ import type {
 } from './albumBrowseTypes';
 import { GENRE_ALBUM_FETCH_LIMIT } from './albumBrowseTypes';
 import { albumBrowseTimed, emitAlbumBrowseDebug } from './albumBrowseDebug';
+import { fetchGenreAlbumCountsDeduped } from './albumBrowseGenreCountsCache';
 
 /** Unfiltered browse: paint a small SQL page first, then grow the catalog buffer. */
 export function albumBrowseBootstrapEligible(query: AlbumBrowseQuery): boolean {
@@ -83,25 +83,17 @@ export async function fetchAlbumBrowseGenreOptions(
       if (selection.length === 1) {
         const rows = await albumBrowseTimed(
           'genre_album_counts',
-          () => libraryGetGenreAlbumCounts({ serverId, libraryScope: selection[0] }),
+          () => fetchGenreAlbumCountsDeduped({ serverId, libraryScope: selection[0] }),
           { libraryCount: 1 },
         );
         return rows.map(row => ({ genre: row.value, count: row.albumCount }));
       }
-      const perLibrary = await albumBrowseTimed(
+      const rows = await albumBrowseTimed(
         'genre_album_counts_multi',
-        () => Promise.all(
-          selection.map(libraryScope => libraryGetGenreAlbumCounts({ serverId, libraryScope })),
-        ),
+        () => fetchGenreAlbumCountsDeduped({ serverId, libraryScopes: selection }),
         { libraryCount: selection.length },
       );
-      const merged = new Map<string, number>();
-      for (const rows of perLibrary) {
-        for (const row of rows) {
-          merged.set(row.value, (merged.get(row.value) ?? 0) + row.albumCount);
-        }
-      }
-      return Array.from(merged, ([genre, count]) => ({ genre, count })).sort(
+      return rows.map(row => ({ genre: row.value, count: row.albumCount })).sort(
         (a, b) => b.count - a.count || a.genre.localeCompare(b.genre),
       );
     } catch {

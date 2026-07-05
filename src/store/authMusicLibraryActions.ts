@@ -1,4 +1,5 @@
 import type { AuthState } from './authStoreTypes';
+import { prefetchAlbumBrowseCatalogAfterFilterChange } from '@/lib/library/albumBrowseCatalogPrefetch';
 
 type SetState = (
   partial: Partial<AuthState> | ((state: AuthState) => Partial<AuthState>),
@@ -65,6 +66,7 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
         musicLibraryFilterByServer: { ...s.musicLibraryFilterByServer, [sid]: folderId },
         musicLibraryFilterVersion: s.musicLibraryFilterVersion + 1,
       }));
+      prefetchAlbumBrowseCatalogAfterFilterChange(sid, get().musicLibraryFilterVersion);
     },
 
     setMusicLibrarySelection: (libraryIds) => {
@@ -81,6 +83,7 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
         },
         musicLibraryFilterVersion: s.musicLibraryFilterVersion + 1,
       }));
+      prefetchAlbumBrowseCatalogAfterFilterChange(sid, get().musicLibraryFilterVersion);
     },
   };
 }

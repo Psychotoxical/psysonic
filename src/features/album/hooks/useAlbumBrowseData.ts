@@ -46,6 +46,7 @@ import {
   albumBrowseTimed,
   emitAlbumBrowseDebug,
 } from '@/lib/library/albumBrowseDebug';
+import { scheduleAlbumBrowseBackgroundWork } from '@/lib/library/albumBrowseBackground';
 import {
   ALBUM_BROWSE_BOOTSTRAP_CHUNK,
   albumBrowseCatalogCacheKey,
@@ -504,49 +505,51 @@ export function useAlbumBrowseData({
               if (needsTail) {
                 const tailOffset = preview.albums.length;
                 const tailSize = CATALOG_CHUNK_SIZE - tailOffset;
-                void (async () => {
-                  catalogLoadingRef.current = true;
-                  setCatalogLoadingMore(true);
-                  try {
-                    const tail = await fetchAlbumBrowseCatalogDeduped(loadKey, () =>
-                      albumBrowseTimed(
-                        'local_catalog_tail',
-                        () => fetchLocalAlbumCatalogChunk(
-                          serverId,
-                          indexEnabled,
-                          browseQuery,
-                          tailOffset,
-                          tailSize,
+                scheduleAlbumBrowseBackgroundWork(() => {
+                  void (async () => {
+                    catalogLoadingRef.current = true;
+                    setCatalogLoadingMore(true);
+                    try {
+                      const tail = await fetchAlbumBrowseCatalogDeduped(loadKey, () =>
+                        albumBrowseTimed(
+                          'local_catalog_tail',
+                          () => fetchLocalAlbumCatalogChunk(
+                            serverId,
+                            indexEnabled,
+                            browseQuery,
+                            tailOffset,
+                            tailSize,
+                          ),
+                          { offset: tailOffset, chunkSize: tailSize },
                         ),
-                        { offset: tailOffset, chunkSize: tailSize },
-                      ),
-                    );
-                    if (
-                      cancelled
-                      || generation !== loadGenerationRef.current
-                      || tail == null
-                    ) return;
-                    setAlbums(prev => {
-                      const merged = dedupeById([...prev, ...tail.albums]);
-                      catalogOffsetRef.current = merged.length;
-                      storeAlbumBrowseCatalogCache(loadKey, {
-                        albums: merged,
-                        hasMore: tail.hasMore,
+                      );
+                      if (
+                        cancelled
+                        || generation !== loadGenerationRef.current
+                        || tail == null
+                      ) return;
+                      setAlbums(prev => {
+                        const merged = dedupeById([...prev, ...tail.albums]);
+                        catalogOffsetRef.current = merged.length;
+                        storeAlbumBrowseCatalogCache(loadKey, {
+                          albums: merged,
+                          hasMore: tail.hasMore,
+                        });
+                        return merged;
                       });
-                      return merged;
-                    });
-                    setCatalogHasMore(tail.hasMore);
-                    emitAlbumBrowseDebug('catalog_tail_done', {
-                      albumCount: tail.albums.length,
-                      totalOffset: tailOffset + tail.albums.length,
-                    });
-                  } finally {
-                    catalogLoadingRef.current = false;
-                    if (generation === loadGenerationRef.current) {
-                      setCatalogLoadingMore(false);
+                      setCatalogHasMore(tail.hasMore);
+                      emitAlbumBrowseDebug('catalog_tail_done', {
+                        albumCount: tail.albums.length,
+                        totalOffset: tailOffset + tail.albums.length,
+                      });
+                    } finally {
+                      catalogLoadingRef.current = false;
+                      if (generation === loadGenerationRef.current) {
+                        setCatalogLoadingMore(false);
+                      }
                     }
-                  }
-                })();
+                  })();
+                });
               } else {
                 storeAlbumBrowseCatalogCache(loadKey, preview);
               }
