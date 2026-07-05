@@ -13,25 +13,29 @@
 # OUTSIDE the gate until their tests grow. Add them as Phase 1–4 coverage
 # work lands.
 #
+# Paths follow the feature-folder layout (`src/features/**`, `src/lib/**`,
+# `src/cover/**`) after the frontend restructure; the files below moved out
+# of the old `src/utils/**` tree but their contents are unchanged.
+#
 # Deferred from the gate, with current coverage shown for reference:
-#   - src/store/playerStore.ts           (40 % — F1 closed under the 50 % floor; further coverage TBD)
+#   - src/features/playback/store/playerStore.ts  (40 % — F1 closed under the 50 % floor; further coverage TBD)
 #   - src/store/authStore.ts             (79 % — F2 cleared 60 % floor; staying out one or two PRs to verify stability)
-#   - src/api/subsonic.ts                (13 % — F3 covered the URL-builder + parser surface; async API endpoints need axios mocking, deferred)
+#   - src/lib/api/subsonic.ts            (13 % — F3 covered the URL-builder + parser surface; async API endpoints need axios mocking, deferred)
 
-# ── utils (already at or above threshold) ────────────────────────────
-src/utils/cover/coverArtRegisteredSizes.ts
-src/utils/server/serverDisplayName.ts
-src/utils/server/serverMagicString.ts
-src/utils/share/shareLink.ts
-src/utils/ui/dynamicColors.ts
-src/utils/playback/resolvePlaybackUrl.ts
-src/utils/share/copyEntityShareLink.ts
+# ── extracted helpers (already at or above threshold) ────────────────
+src/cover/coverArtRegisteredSizes.ts
+src/lib/server/serverDisplayName.ts
+src/lib/server/serverMagicString.ts
+src/lib/share/shareLink.ts
+src/lib/dom/dynamicColors.ts
+src/features/playback/utils/playback/resolvePlaybackUrl.ts
+src/lib/share/copyEntityShareLink.ts
 
 # ── M0: pure helpers extracted from playerStore.ts (2026-05-12) ──────
-src/utils/playback/shuffleArray.ts
-src/utils/audio/resolveReplayGainDb.ts
-src/utils/playback/songToTrack.ts
-src/utils/playback/buildInfiniteQueueCandidates.ts
+src/lib/util/shuffleArray.ts
+src/features/playback/utils/audio/resolveReplayGainDb.ts
+src/lib/media/songToTrack.ts
+src/features/playback/utils/playback/buildInfiniteQueueCandidates.ts
 
 # ── Phase B.1: pre-React bootstrap + window-kind detector (2026-05-12) ──
 src/app/windowKind.ts
@@ -41,4 +45,4 @@ src/app/bootstrap.ts
 src/app/MiniPlayerApp.tsx
 
 # ── stores (added as their tests grew past the floor) ────────────────
-src/store/previewStore.ts
+src/features/playback/store/previewStore.ts
