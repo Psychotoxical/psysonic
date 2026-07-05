@@ -567,6 +567,20 @@ pub async fn library_genre_tags_run(
         .await
 }
 
+/// Rebuild precomputed cluster identity keys (`library-cluster.db` attach).
+#[tauri::command]
+#[specta::specta]
+pub fn library_cluster_rebuild(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: Option<String>,
+) -> Result<u64, String> {
+    let server_id = server_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    crate::identity::rebuild_cluster_keys(&runtime.store, server_id)
+}
+
 // NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn library_get_artist_lossless_browse(

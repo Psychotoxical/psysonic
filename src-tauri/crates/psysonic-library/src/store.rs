@@ -78,10 +78,17 @@ pub(crate) enum MigrationOutcome {
 
 /// In-memory tests share one DB across the read/write pair in a single store.
 static IN_MEMORY_DB_COUNTER: AtomicU64 = AtomicU64::new(0);
+/// Shared-cache URI for the attached identity DB (mirrors [`in_memory_uri`]).
+static IN_MEMORY_CLUSTER_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn in_memory_uri() -> String {
     let n = IN_MEMORY_DB_COUNTER.fetch_add(1, Ordering::Relaxed);
     format!("file:psysonic_library_mem_{n}?mode=memory&cache=shared")
+}
+
+fn in_memory_cluster_uri() -> String {
+    let n = IN_MEMORY_CLUSTER_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("file:psysonic_cluster_mem_{n}?mode=memory&cache=shared")
 }
 
 pub struct LibraryStore {
@@ -106,11 +113,8 @@ impl LibraryStore {
     }
 
     fn open_file(db_path: &Path) -> Result<Self, String> {
-        let write_conn = Connection::open(db_path).map_err(|e| e.to_string())?;
-        prepare_write_connection_for_open(&write_conn).map_err(|e| e.to_string())?;
-        let read_conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .map_err(|e| e.to_string())?;
-        configure_read_connection(&read_conn).map_err(|e| e.to_string())?;
+        let (write_conn, read_conn) =
+            open_database_connections(db_path).map_err(|e| e.to_string())?;
         Ok(Self {
             write_conn: Mutex::new(write_conn),
             read_conn: Mutex::new(read_conn),
@@ -122,11 +126,17 @@ impl LibraryStore {
     /// Build an in-memory DB with the production schema applied.
     pub fn open_in_memory() -> Self {
         let uri = in_memory_uri();
+        let cluster_uri = in_memory_cluster_uri();
         let write_conn = Connection::open(&uri).expect("in-memory write connection");
         configure_write_connection(&write_conn).expect("write pragmas");
         prepare_write_connection_for_open(&write_conn).expect("schema migration");
+        crate::identity::attach_cluster_write_memory(&write_conn, &cluster_uri)
+            .expect("cluster attach write");
         let read_conn = Connection::open(&uri).expect("in-memory read connection");
         configure_read_connection(&read_conn).expect("read pragmas");
+        // Shared-cache identity DB: write connection created schema first.
+        crate::identity::attach_cluster_read_memory(&read_conn, &cluster_uri)
+            .expect("cluster attach read");
         Self {
             write_conn: Mutex::new(write_conn),
             read_conn: Mutex::new(read_conn),
@@ -588,13 +598,18 @@ fn checkpoint_wal_conn(conn: &Connection, op: &str) -> rusqlite::Result<()> {
     Ok(())
 }
 
-/// Open write + read handles after migrations, one-time repairs, and WAL checkpoint.
+/// Open write + read handles after migrations, one-time repairs, WAL checkpoint,
+/// and cluster identity DB attach.
 fn open_database_connections(db_path: &Path) -> rusqlite::Result<(Connection, Connection)> {
     let write_conn = Connection::open(db_path)?;
     configure_write_connection(&write_conn)?;
     prepare_write_connection_for_open(&write_conn)?;
+    crate::identity::attach_cluster_write_file(&write_conn, db_path)?;
+
     let read_conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
     configure_read_connection(&read_conn)?;
+    // Read-only attach after write side created `library-cluster.db` + schema.
+    crate::identity::attach_cluster_read_file(&read_conn, db_path)?;
     Ok((write_conn, read_conn))
 }
 

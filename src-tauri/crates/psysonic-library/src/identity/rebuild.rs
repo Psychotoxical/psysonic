@@ -1,0 +1,373 @@
+//! Batch rebuild of `cluster.track_cluster_key` from live `track` rows.
+
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use rusqlite::{params, Connection, OptionalExtension};
+
+use crate::store::LibraryStore;
+
+use super::attach::CLUSTER_SCHEMA;
+use super::keys::build_track_cluster_keys;
+use super::norm::NORM_VERSION;
+
+const REBUILD_BATCH_SIZE: usize = 500;
+
+const UPSERT_CLUSTER_KEY_SQL: &str = "
+INSERT INTO cluster.track_cluster_key (
+  server_id, library_id, track_id, cluster_key, album_key, artist_key, duration_sec
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+ON CONFLICT(server_id, track_id) DO UPDATE SET
+  library_id   = excluded.library_id,
+  cluster_key  = excluded.cluster_key,
+  album_key    = excluded.album_key,
+  artist_key   = excluded.artist_key,
+  duration_sec = excluded.duration_sec
+";
+
+fn now_unix() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+/// `true` when `cluster_meta.norm_version` is missing or differs from [`NORM_VERSION`].
+pub fn cluster_rebuild_needed(conn: &Connection) -> rusqlite::Result<bool> {
+    let stored: Option<String> = conn
+        .query_row(
+            &format!(
+                "SELECT value FROM {CLUSTER_SCHEMA}.cluster_meta WHERE key = 'norm_version'"
+            ),
+            [],
+            |r| r.get(0),
+        )
+        .optional()?;
+    Ok(stored.as_deref() != Some(NORM_VERSION))
+}
+
+fn set_cluster_meta(conn: &Connection) -> rusqlite::Result<()> {
+    let now = now_unix().to_string();
+    conn.execute(
+        &format!(
+            "INSERT INTO {CLUSTER_SCHEMA}.cluster_meta(key, value) VALUES ('norm_version', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+        ),
+        params![NORM_VERSION],
+    )?;
+    conn.execute(
+        &format!(
+            "INSERT INTO {CLUSTER_SCHEMA}.cluster_meta(key, value) VALUES ('build_at', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+        ),
+        params![now],
+    )?;
+    Ok(())
+}
+
+type SourceTrackRow = (
+    String,
+    String,
+    String,
+    Option<String>,
+    String,
+    Option<String>,
+    String,
+    i64,
+);
+
+/// Rebuild identity keys for one server or all servers. Returns rows upserted.
+pub fn rebuild_cluster_keys(
+    store: &LibraryStore,
+    server_id: Option<&str>,
+) -> Result<u64, String> {
+    store.with_conn_mut("identity.rebuild_cluster_keys", |conn| {
+        let tx = conn.transaction()?;
+        let mut select = String::from(
+            "SELECT server_id, COALESCE(library_id, ''), id, artist, title, album_artist, album, duration_sec \
+             FROM track WHERE deleted = 0",
+        );
+        if server_id.is_some() {
+            select.push_str(" AND server_id = ?1");
+        }
+        let mut stmt = tx.prepare(&select)?;
+        let rows: Vec<SourceTrackRow> = if let Some(sid) = server_id {
+            stmt.query_map(params![sid], map_source_track_row)?
+                .collect::<rusqlite::Result<Vec<_>>>()?
+        } else {
+            stmt.query_map([], map_source_track_row)?
+                .collect::<rusqlite::Result<Vec<_>>>()?
+        };
+        drop(stmt);
+
+        let mut upsert = tx.prepare_cached(UPSERT_CLUSTER_KEY_SQL)?;
+        let mut upserted = 0u64;
+        for chunk in rows.chunks(REBUILD_BATCH_SIZE) {
+            for (server_id, library_id, track_id, artist, title, album_artist, album, duration_sec) in
+                chunk
+            {
+                let keys = build_track_cluster_keys(
+                    artist.as_deref(),
+                    title,
+                    album,
+                    album_artist.as_deref(),
+                );
+                upsert.execute(params![
+                    server_id,
+                    library_id,
+                    track_id,
+                    keys.cluster_key,
+                    keys.album_key,
+                    keys.artist_key,
+                    duration_sec,
+                ])?;
+                upserted = upserted.saturating_add(1);
+            }
+        }
+        drop(upsert);
+        set_cluster_meta(&tx)?;
+        tx.commit()?;
+        Ok(upserted)
+    })
+}
+
+fn map_source_track_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SourceTrackRow> {
+    Ok((
+        row.get(0)?,
+        row.get(1)?,
+        row.get(2)?,
+        row.get(3)?,
+        row.get(4)?,
+        row.get(5)?,
+        row.get(6)?,
+        row.get(7)?,
+    ))
+}
+
+/// Test helper: read one row from the attached `cluster` schema on any connection.
+#[cfg(test)]
+pub(crate) fn read_cluster_row(
+    conn: &Connection,
+    server_id: &str,
+    track_id: &str,
+) -> rusqlite::Result<Option<(Option<String>, Option<String>, Option<String>, i64)>> {
+    conn.query_row(
+        "SELECT cluster_key, album_key, artist_key, duration_sec \
+         FROM cluster.track_cluster_key WHERE server_id = ?1 AND track_id = ?2",
+        params![server_id, track_id],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+    )
+    .optional()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::identity::norm::{norm_part, NORM_VERSION};
+    use crate::repos::track::{TrackRepository, TrackRow};
+    use crate::store::LibraryStore;
+
+    fn track_row(
+        server: &str,
+        id: &str,
+        title: &str,
+        artist: Option<&str>,
+        album: &str,
+        album_artist: Option<&str>,
+        duration: i64,
+        library_id: &str,
+    ) -> TrackRow {
+        TrackRow {
+            server_id: server.into(),
+            id: id.into(),
+            title: title.into(),
+            title_sort: None,
+            artist: artist.map(str::to_string),
+            artist_id: None,
+            album: album.into(),
+            album_id: None,
+            album_artist: album_artist.map(str::to_string),
+            duration_sec: duration,
+            track_number: None,
+            disc_number: None,
+            year: None,
+            genre: None,
+            suffix: None,
+            bit_rate: None,
+            size_bytes: None,
+            cover_art_id: None,
+            starred_at: None,
+            user_rating: None,
+            play_count: None,
+            played_at: None,
+            server_path: None,
+            library_id: Some(library_id.into()),
+            isrc: None,
+            mbid_recording: None,
+            bpm: None,
+            replay_gain_track_db: None,
+            replay_gain_album_db: None,
+            replay_gain_peak: None,
+            content_hash: None,
+            server_updated_at: None,
+            server_created_at: None,
+            deleted: false,
+            synced_at: 1,
+            raw_json: "{}".into(),
+        }
+    }
+
+    #[test]
+    fn rebuild_populates_keys_and_duration() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                track_row(
+                    "s1",
+                    "t1",
+                    "Café Song",
+                    Some("Björk"),
+                    "Homogenic",
+                    Some("Björk"),
+                    312,
+                    "lib-a",
+                ),
+                track_row("s1", "t2", "No Artist", None, "Al", None, 100, "lib-a"),
+            ])
+            .unwrap();
+
+        let n = rebuild_cluster_keys(&store, Some("s1")).unwrap();
+        assert_eq!(n, 2);
+
+        let row = store
+            .with_read_conn(|conn| read_cluster_row(conn, "s1", "t1"))
+            .unwrap()
+            .unwrap();
+        let (cluster_key, album_key, artist_key, duration) = row;
+        assert_eq!(duration, 312);
+        assert_eq!(artist_key.as_deref(), norm_part("Björk").as_deref());
+        assert!(cluster_key.is_some());
+        assert!(album_key.is_some());
+
+        let empty_artist = store
+            .with_read_conn(|conn| read_cluster_row(conn, "s1", "t2"))
+            .unwrap()
+            .unwrap();
+        assert!(empty_artist.0.is_none());
+        assert!(empty_artist.2.is_none());
+    }
+
+    #[test]
+    fn rebuild_is_idempotent() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[track_row(
+                "s1",
+                "t1",
+                "Title",
+                Some("Artist"),
+                "Album",
+                None,
+                200,
+                "lib",
+            )])
+            .unwrap();
+
+        rebuild_cluster_keys(&store, None).unwrap();
+        let first = store
+            .with_read_conn(|conn| read_cluster_row(conn, "s1", "t1"))
+            .unwrap();
+
+        rebuild_cluster_keys(&store, None).unwrap();
+        let second = store
+            .with_read_conn(|conn| read_cluster_row(conn, "s1", "t1"))
+            .unwrap();
+
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn norm_version_gate_and_bump() {
+        let store = LibraryStore::open_in_memory();
+        assert!(
+            store
+                .with_conn("misc", cluster_rebuild_needed)
+                .unwrap(),
+            "fresh attach should need rebuild"
+        );
+
+        TrackRepository::new(&store)
+            .upsert_batch(&[track_row(
+                "s1",
+                "t1",
+                "T",
+                Some("A"),
+                "Al",
+                None,
+                1,
+                "lib",
+            )])
+            .unwrap();
+        rebuild_cluster_keys(&store, None).unwrap();
+
+        assert!(
+            !store
+                .with_conn("misc", cluster_rebuild_needed)
+                .unwrap()
+        );
+
+        store
+            .with_conn_mut("test.stale_norm", |conn| {
+                conn.execute(
+                    "UPDATE cluster.cluster_meta SET value = '0' WHERE key = 'norm_version'",
+                    [],
+                )
+            })
+            .unwrap();
+        assert!(
+            store
+                .with_conn("misc", cluster_rebuild_needed)
+                .unwrap()
+        );
+
+        rebuild_cluster_keys(&store, None).unwrap();
+        let version: String = store
+            .with_conn("misc", |conn| {
+                conn.query_row(
+                    "SELECT value FROM cluster.cluster_meta WHERE key = 'norm_version'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(version, NORM_VERSION);
+    }
+
+    #[test]
+    fn cluster_attach_visible_on_read_connection() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[track_row(
+                "s1",
+                "t1",
+                "T",
+                Some("A"),
+                "Al",
+                None,
+                42,
+                "lib",
+            )])
+            .unwrap();
+        rebuild_cluster_keys(&store, None).unwrap();
+
+        let count: i64 = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT COUNT(*) FROM cluster.track_cluster_key WHERE server_id = 's1'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+}
