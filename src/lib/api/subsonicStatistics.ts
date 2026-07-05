@@ -1,13 +1,13 @@
 import { useAuthStore } from '@/store/authStore';
 import { genreTagsFor } from '@/lib/library/genreTags';
-import { getArtists } from '@/lib/api/subsonicArtists';
+import { getArtists, getArtistsAcrossLibraries } from '@/lib/api/subsonicArtists';
 import { getAlbumList, getRandomSongs } from '@/lib/api/subsonicLibrary';
+import { libraryScopeCacheKeyForServer, librarySelectionForServer } from '@/lib/api/subsonicClient';
 import type {
   StatisticsFormatSample,
   StatisticsLibraryAggregates,
   StatisticsOverviewData,
   SubsonicAlbum,
-  SubsonicArtist,
   SubsonicGenre,
   SubsonicSong,
 } from '@/lib/api/subsonicTypes';
@@ -16,13 +16,11 @@ import type {
  *  the rating prefetch cache in subsonicRatings.ts. */
 const STATS_CACHE_TTL = 7 * 60 * 1000;
 
-/** Key `prefix:serverId:folder` — Statistics caches share scope with `libraryFilterParams()`. */
-function statisticsPageCacheKey(prefix: string): string | null {
-  const { activeServerId, musicLibraryFilterByServer } = useAuthStore.getState();
+/** Key `prefix:serverId:scope` — Statistics caches share scope with `libraryFilterParams()`. */
+export function statisticsPageCacheKey(prefix: string): string | null {
+  const { activeServerId } = useAuthStore.getState();
   if (!activeServerId) return null;
-  const folder = musicLibraryFilterByServer[activeServerId] ?? 'all';
-  const folderPart = folder === 'all' ? 'all' : folder;
-  return `${prefix}:${activeServerId}:${folderPart}`;
+  return `${prefix}:${activeServerId}:${libraryScopeCacheKeyForServer(activeServerId)}`;
 }
 
 const statisticsAggregatesCache = new Map<string, { value: StatisticsLibraryAggregates; expiresAt: number }>();
@@ -46,11 +44,19 @@ export async function fetchStatisticsLibraryAggregates(): Promise<StatisticsLibr
   const pageSize = 500;
   const capped = false;
   let offset = 0;
+  const activeServerId = useAuthStore.getState().activeServerId;
+  const dedupeAlbumIds =
+    activeServerId != null && librarySelectionForServer(activeServerId).length > 1;
+  const seenAlbumIds = dedupeAlbumIds ? new Set<string>() : null;
   let nextPage = getAlbumList('alphabeticalByName', pageSize, 0);
   for (;;) {
     try {
       const albums = await nextPage;
       for (const a of albums) {
+        if (seenAlbumIds) {
+          if (seenAlbumIds.has(a.id)) continue;
+          seenAlbumIds.add(a.id);
+        }
         playtimeSec += a.duration ?? 0;
         albumsCounted += 1;
         const sc = a.songCount ?? 0;
@@ -105,18 +111,28 @@ export async function fetchStatisticsOverview(): Promise<StatisticsOverviewData>
     getAlbumList('recent', 20).catch(() => [] as SubsonicAlbum[]),
     getAlbumList('frequent', 12).catch(() => [] as SubsonicAlbum[]),
     getAlbumList('highest', 12).catch(() => [] as SubsonicAlbum[]),
-    getArtists().catch(() => [] as SubsonicArtist[]),
+    fetchStatisticsArtistCount().catch(() => 0),
   ]);
   const result: StatisticsOverviewData = {
     recent,
     frequent,
     highest,
-    artistCount: artists.length,
+    artistCount: artists,
   };
   if (key) {
     statisticsOverviewCache.set(key, { value: result, expiresAt: Date.now() + STATS_CACHE_TTL });
   }
   return result;
+}
+
+async function fetchStatisticsArtistCount(): Promise<number> {
+  const { activeServerId } = useAuthStore.getState();
+  if (!activeServerId) return 0;
+  const selection = librarySelectionForServer(activeServerId);
+  if (selection.length <= 1) {
+    return (await getArtists()).length;
+  }
+  return (await getArtistsAcrossLibraries(selection)).length;
 }
 
 /** Format (suffix) histogram from a random sample for Statistics. */
