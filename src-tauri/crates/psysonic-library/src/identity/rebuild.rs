@@ -130,8 +130,20 @@ pub fn rebuild_cluster_keys(
     })
 }
 
-/// Build cluster keys on first multi-library read when the index has tracks but no keys yet.
+/// Build cluster keys before a multi-library read. Rebuilds when either:
+/// - the stored `norm_version` differs from [`NORM_VERSION`] (normalization rules
+///   changed) — then **all** servers are rebuilt, because [`rebuild_cluster_keys`]
+///   stamps a single global `norm_version`; a per-server rebuild would flip the
+///   gate and strand every other server's stale keys; or
+/// - this server has tracks but no keys yet (fresh index / newly synced server).
 pub fn ensure_cluster_keys_built(store: &LibraryStore, server_id: &str) -> Result<(), String> {
+    let rebuild_all = store
+        .with_read_conn(cluster_rebuild_needed)
+        .map_err(|e| e.to_string())?;
+    if rebuild_all {
+        rebuild_cluster_keys(store, None)?;
+        return Ok(());
+    }
     let needs_rebuild = store
         .with_read_conn(|conn| {
             let track_count: i64 = conn.query_row(
@@ -368,6 +380,48 @@ mod tests {
             })
             .unwrap();
         assert_eq!(version, NORM_VERSION);
+    }
+
+    #[test]
+    fn ensure_cluster_keys_built_rebuilds_on_norm_version_mismatch() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                track_row("s1", "t1", "T", Some("A"), "Al", None, 1, "lib"),
+                track_row("s2", "t2", "T2", Some("A2"), "Al2", None, 2, "lib"),
+            ])
+            .unwrap();
+        // Build once (stamps the current NORM_VERSION), then simulate keys left
+        // over from an older normalization by rewinding the stored version.
+        rebuild_cluster_keys(&store, None).unwrap();
+        store
+            .with_conn_mut("test.stale_norm", |conn| {
+                conn.execute(
+                    "UPDATE cluster.cluster_meta SET value = 'stale' WHERE key = 'norm_version'",
+                    [],
+                )
+            })
+            .unwrap();
+        assert!(store.with_conn("misc", cluster_rebuild_needed).unwrap());
+
+        // The read path must notice the mismatch and rebuild even though keys exist.
+        ensure_cluster_keys_built(&store, "s1").unwrap();
+
+        assert!(
+            !store.with_conn("misc", cluster_rebuild_needed).unwrap(),
+            "version mismatch must be reconciled by the read path"
+        );
+        // All servers rebuilt, not just the one requested (single global stamp).
+        let s2_keys: i64 = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT COUNT(*) FROM cluster.track_cluster_key WHERE server_id = 's2'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(s2_keys, 1);
     }
 
     #[test]

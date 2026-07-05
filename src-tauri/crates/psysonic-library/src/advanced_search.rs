@@ -27,7 +27,8 @@ use crate::scope_merge::{self, collect_scope_fts_rowids};
 use crate::search::{
     aliased_track_columns, aliased_track_columns_resolved_bpm, bpm_resolved_expr,
     fts_album_prefix_match_query, fts_album_title_prefix_match_query, fts_column_prefix_query, fts_query_meets_min_len,
-    fts_track_prefix_match_query, library_scope_equals_sql, library_scope_in_sql, like_contains, like_contains_folded,
+    fts_track_prefix_match_query, library_scope_in_sql, library_scope_sargable_equals_sql, like_contains,
+    like_contains_folded,
     PAGE_LIMIT_MAX,
 };
 use crate::store::LibraryStore;
@@ -68,37 +69,46 @@ fn fts_candidate_pool_size(limit: u32, offset: u32) -> i64 {
 }
 
 /// FTS rowid pick scoped to the active server (and optional library folder).
+/// FTS-first `EXISTS` (never `JOIN track … ORDER BY bm25`), matching the fast
+/// single-server path in `search.rs`: FTS stays the driving table and the
+/// server/scope predicates are a correlated existence check on the hot
+/// (backfilled) `library_id` column — no row widening before the bm25 sort.
 fn scoped_fts_rowid_subquery_sql(pool: i64, library_scope: Option<&str>) -> String {
     let alias = "t_fts";
-    let mut sql = format!(
-        "SELECT f.rowid FROM track_fts f \
-         JOIN track {alias} ON {alias}.rowid = f.rowid \
-         WHERE track_fts MATCH ? \
-           AND {alias}.server_id = ? \
-           AND {alias}.deleted = 0"
-    );
+    let mut scope_sql = String::new();
     if library_scope.is_some() {
-        sql.push_str(" AND ");
-        sql.push_str(&library_scope_equals_sql(alias));
+        scope_sql = format!(" AND {}", library_scope_sargable_equals_sql(alias));
     }
-    sql.push_str(&format!(" ORDER BY bm25(track_fts) LIMIT {pool}"));
-    sql
+    format!(
+        "SELECT f.rowid FROM track_fts f \
+         WHERE track_fts MATCH ? \
+           AND EXISTS (\
+             SELECT 1 FROM track {alias} \
+             WHERE {alias}.rowid = f.rowid \
+               AND {alias}.server_id = ? \
+               AND {alias}.deleted = 0{scope_sql}\
+           ) \
+         ORDER BY bm25(track_fts) LIMIT {pool}"
+    )
 }
 
 fn scoped_fts_pick_join_sql(pool: i64, library_scope: Option<&str>) -> String {
     let alias = "t_fts";
     let mut scope_sql = String::new();
     if library_scope.is_some() {
-        scope_sql = format!(" AND {}", library_scope_equals_sql(alias));
+        scope_sql = format!(" AND {}", library_scope_sargable_equals_sql(alias));
     }
     format!(
         "track t INNER JOIN (\
            SELECT f.rowid, bm25(track_fts) AS fts_rank \
            FROM track_fts f \
-           JOIN track {alias} ON {alias}.rowid = f.rowid \
            WHERE track_fts MATCH ? \
-             AND {alias}.server_id = ? \
-             AND {alias}.deleted = 0{scope_sql} \
+             AND EXISTS (\
+               SELECT 1 FROM track {alias} \
+               WHERE {alias}.rowid = f.rowid \
+                 AND {alias}.server_id = ? \
+                 AND {alias}.deleted = 0{scope_sql}\
+             ) \
            ORDER BY fts_rank \
            LIMIT {pool}\
          ) fts_pick ON t.rowid = fts_pick.rowid"
@@ -787,7 +797,7 @@ fn build_track(
     w.push_raw("t.deleted = 0");
     w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
     if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
-        let clause = library_scope_equals_sql("t");
+        let clause = library_scope_sargable_equals_sql("t");
         w.push_param(&clause, SqlValue::Text(scope));
     }
     for c in scalar {
@@ -1004,7 +1014,7 @@ fn build_album_from_tracks(
         );
     }
     if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
-        let clause = library_scope_equals_sql("t");
+        let clause = library_scope_sargable_equals_sql("t");
         w.push_param(&clause, SqlValue::Text(scope));
     }
     if let Some(t) = text {
@@ -1106,7 +1116,7 @@ fn push_artist_library_scope_pairs(
     let exists_prefix = "EXISTS (SELECT 1 FROM track t WHERE t.server_id = ar.server_id \
         AND t.deleted = 0 AND t.artist_id = ar.id AND ";
     if scoped.len() == 1 {
-        let clause = library_scope_equals_sql("t");
+        let clause = library_scope_sargable_equals_sql("t");
         w.push_params(
             &format!("{exists_prefix}{clause})"),
             vec![SqlValue::Text(scoped[0].library_id.clone())],
@@ -1176,7 +1186,7 @@ fn build_artist_from_tracks_scoped(
     w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
     w.push_raw("t.artist_id IS NOT NULL AND t.artist_id != ''");
     if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
-        let clause = library_scope_equals_sql("t");
+        let clause = library_scope_sargable_equals_sql("t");
         w.push_param(&clause, SqlValue::Text(scope));
         applied.insert("library_scope".to_string());
     }
@@ -1346,7 +1356,7 @@ fn build_artist_from_tracks(
         "NOT EXISTS (SELECT 1 FROM artist ar WHERE ar.server_id = t.server_id AND ar.id = t.artist_id)",
     );
     if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
-        let clause = library_scope_equals_sql("t");
+        let clause = library_scope_sargable_equals_sql("t");
         w.push_param(&clause, SqlValue::Text(scope));
     }
     if let Some(t) = text {
@@ -1415,7 +1425,7 @@ fn build_album_from_fts(
     w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
     w.push_raw("t.album_id IS NOT NULL AND t.album_id != ''");
     if let Some(scope) = scope {
-        let clause = library_scope_equals_sql("t");
+        let clause = library_scope_sargable_equals_sql("t");
         w.push_param(&clause, SqlValue::Text(scope));
     }
     for c in scalar {
@@ -1552,7 +1562,7 @@ fn build_artist_from_fts(
     w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
     w.push_raw("t.artist_id IS NOT NULL AND t.artist_id != ''");
     if let Some(scope) = scope {
-        let clause = library_scope_equals_sql("t");
+        let clause = library_scope_sargable_equals_sql("t");
         w.push_param(&clause, SqlValue::Text(scope));
     }
     for c in scalar {
@@ -3163,6 +3173,36 @@ mod tests {
         let resp = run_advanced_search(&store, &r).unwrap();
         assert_eq!(resp.tracks.len(), 1);
         assert_eq!(resp.tracks[0].id, "t1");
+    }
+
+    #[test]
+    fn library_scope_narrows_fts_track_search() {
+        let store = LibraryStore::open_in_memory();
+        let mut a = track("s1", "t1", "Aurora", "X", "Alb");
+        a.library_id = Some("lib1".into());
+        let mut b = track("s1", "t2", "Aurora", "X", "Alb");
+        b.library_id = Some("lib2".into());
+        TrackRepository::new(&store).upsert_batch(&[a, b]).unwrap();
+        let mut r = req("s1", &[EntityKind::Track]);
+        r.query = Some("aurora".into());
+        r.library_scope = Some("lib1".into());
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.tracks.len(), 1, "FTS search must honor the library scope");
+        assert_eq!(resp.tracks[0].id, "t1");
+    }
+
+    #[test]
+    fn scoped_fts_sql_is_fts_first_exists_and_sargable() {
+        let sql = scoped_fts_rowid_subquery_sql(256, Some("lib1"));
+        assert!(sql.contains("EXISTS (SELECT 1 FROM track"), "FTS-first EXISTS: {sql}");
+        assert!(!sql.contains("JOIN track"), "must not JOIN track before bm25: {sql}");
+        assert!(sql.contains("t_fts.library_id = ?"), "sargable scope: {sql}");
+        assert!(sql.contains("ORDER BY bm25(track_fts)"));
+
+        let pick = scoped_fts_pick_join_sql(256, Some("lib1"));
+        assert!(pick.contains("EXISTS (SELECT 1 FROM track"), "FTS-first EXISTS: {pick}");
+        assert!(!pick.contains("JOIN track t_fts"), "inner must not JOIN track: {pick}");
+        assert!(pick.contains("t_fts.library_id = ?"), "sargable scope: {pick}");
     }
 
     #[test]
