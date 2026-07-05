@@ -1,8 +1,6 @@
-//! FTS5-backed track search. Skeleton landed in PR-1a — the multi-server +
-//! libraryScope + bm25 ranking shape from spec §5.9 will be filled in by the
-//! sync / search PRs.
+//! FTS5-backed track search — FTS-first `EXISTS` (never `JOIN track … ORDER BY bm25`).
 
-use rusqlite::params;
+use std::collections::HashMap;
 
 use crate::store::LibraryStore;
 
@@ -16,44 +14,111 @@ pub struct TrackHit {
 }
 
 /// Run a single-server FTS5 match against `track_fts`, returning rows in
-/// bm25 order. `query` is passed straight to FTS5 — callers are expected to
-/// sanitise / quote user input (see §5.13.5: parameterised only).
+/// bm25 order. `library_scopes` empty = all libraries on the server.
 pub fn search_tracks(
     store: &LibraryStore,
     server_id: &str,
     query: &str,
     limit: i64,
+    library_scopes: &[String],
 ) -> Result<Vec<TrackHit>, String> {
     if !fts_query_meets_min_len(query) {
         return Ok(Vec::new());
     }
     let fts = fts_track_match_query(query).ok_or_else(|| "empty query".to_string())?;
+    let scopes = normalized_library_scopes(library_scopes);
     store.with_read_conn(|conn| {
-        let mut stmt = conn.prepare(
-            r#"
-            SELECT t.server_id, t.id, t.title, t.artist, t.album
-              FROM track_fts f
-              JOIN track t ON t.rowid = f.rowid
-             WHERE track_fts MATCH ?1
-               AND t.server_id = ?2
-               AND t.deleted = 0
-             ORDER BY bm25(track_fts)
-             LIMIT ?3
-            "#,
-        )?;
-        let rows = stmt
-            .query_map(params![fts, server_id, limit], |r| {
-                Ok(TrackHit {
-                    server_id: r.get(0)?,
-                    id: r.get(1)?,
-                    title: r.get(2)?,
-                    artist: r.get(3)?,
-                    album: r.get(4)?,
-                })
-            })?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        Ok(rows)
+        let rowids = collect_search_fts_rowids(conn, &fts, server_id, &scopes, limit)?;
+        fetch_track_hits_by_rowids(conn, &rowids, server_id, &scopes)
     })
+}
+
+/// FTS rowids for a single-server track search — bm25 inside the FTS subquery.
+fn collect_search_fts_rowids(
+    conn: &rusqlite::Connection,
+    fts: &str,
+    server_id: &str,
+    library_scopes: &[String],
+    limit: i64,
+) -> rusqlite::Result<Vec<i64>> {
+    let mut scope_sql = String::new();
+    if !library_scopes.is_empty() {
+        scope_sql = format!(" AND {}", library_scope_in_sql("c", library_scopes.len()));
+    }
+    let sql = format!(
+        "SELECT f.rowid FROM track_fts f \
+         WHERE track_fts MATCH ? \
+           AND EXISTS (\
+             SELECT 1 FROM track c \
+             WHERE c.rowid = f.rowid \
+               AND c.server_id = ? \
+               AND c.deleted = 0{scope_sql}\
+           ) \
+         ORDER BY bm25(track_fts) LIMIT ?",
+    );
+    let mut bind: Vec<rusqlite::types::Value> = vec![
+        rusqlite::types::Value::Text(fts.to_string()),
+        rusqlite::types::Value::Text(server_id.to_string()),
+    ];
+    push_library_scope_binds(&mut bind, library_scopes);
+    bind.push(rusqlite::types::Value::Integer(limit));
+    let mut stmt = conn.prepare(&sql)?;
+    let collected: rusqlite::Result<Vec<i64>> = stmt
+        .query_map(rusqlite::params_from_iter(bind.iter()), |r| r.get(0))?
+        .collect();
+    collected
+}
+
+fn fetch_track_hits_by_rowids(
+    conn: &rusqlite::Connection,
+    rowids: &[i64],
+    server_id: &str,
+    library_scopes: &[String],
+) -> rusqlite::Result<Vec<TrackHit>> {
+    if rowids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let placeholders = (0..rowids.len()).map(|_| "?").collect::<Vec<_>>().join(", ");
+    let mut scope_sql = String::new();
+    if !library_scopes.is_empty() {
+        scope_sql = format!(" AND {}", library_scope_in_sql("t", library_scopes.len()));
+    }
+    let sql = format!(
+        "SELECT t.rowid, t.server_id, t.id, t.title, t.artist, t.album \
+         FROM track t \
+         WHERE t.rowid IN ({placeholders}) \
+           AND t.server_id = ? \
+           AND t.deleted = 0{scope_sql}",
+    );
+    let mut bind: Vec<rusqlite::types::Value> = rowids
+        .iter()
+        .copied()
+        .map(rusqlite::types::Value::Integer)
+        .collect();
+    bind.push(rusqlite::types::Value::Text(server_id.to_string()));
+    push_library_scope_binds(&mut bind, library_scopes);
+    let mut stmt = conn.prepare(&sql)?;
+    let mut by_rowid: HashMap<i64, TrackHit> = HashMap::new();
+    for row in stmt.query_map(rusqlite::params_from_iter(bind.iter()), |r| {
+        let rowid: i64 = r.get(0)?;
+        Ok((
+            rowid,
+            TrackHit {
+                server_id: r.get(1)?,
+                id: r.get(2)?,
+                title: r.get(3)?,
+                artist: r.get(4)?,
+                album: r.get(5)?,
+            },
+        ))
+    })? {
+        let (rowid, hit) = row?;
+        by_rowid.insert(rowid, hit);
+    }
+    Ok(rowids
+        .iter()
+        .filter_map(|rid| by_rowid.get(rid).cloned())
+        .collect())
 }
 
 // ── shared search SQL helpers (Advanced Search §5.13 + cross-server §5.5B) ──
@@ -226,6 +291,36 @@ pub(crate) fn library_scope_equals_sql(table_alias: &str) -> String {
     format!("{} = ?", library_scope_match_sql(table_alias))
 }
 
+/// Sargable multi-library filter on the hot `library_id` column (WO-1 backfill).
+pub(crate) fn library_scope_in_sql(table_alias: &str, count: usize) -> String {
+    let placeholders = (0..count).map(|_| "?").collect::<Vec<_>>().join(", ");
+    format!("{table_alias}.library_id IN ({placeholders})")
+}
+
+/// Non-empty trimmed ids; empty input means no library filter (all libraries).
+pub(crate) fn normalized_library_scopes(scopes: &[String]) -> Vec<String> {
+    scopes
+        .iter()
+        .filter_map(|s| {
+            let t = s.trim();
+            if t.is_empty() {
+                None
+            } else {
+                Some(t.to_string())
+            }
+        })
+        .collect()
+}
+
+pub(crate) fn push_library_scope_binds(
+    params: &mut Vec<rusqlite::types::Value>,
+    scopes: &[String],
+) {
+    for s in scopes {
+        params.push(rusqlite::types::Value::Text(s.clone()));
+    }
+}
+
 pub(crate) fn aliased_track_columns(alias: &str) -> String {
     crate::repos::track_columns()
         .split(',')
@@ -331,6 +426,7 @@ pub(crate) fn like_contains_folded(raw: &str) -> String {
 mod tests {
     use super::*;
     use crate::repos::{TrackRepository, TrackRow};
+    use std::collections::HashSet;
 
     fn row(server: &str, id: &str, title: &str, artist: &str, album: &str) -> TrackRow {
         TrackRow {
@@ -373,6 +469,19 @@ mod tests {
         }
     }
 
+    fn row_with_lib(
+        server: &str,
+        id: &str,
+        title: &str,
+        artist: &str,
+        album: &str,
+        library_id: Option<&str>,
+    ) -> TrackRow {
+        let mut r = row(server, id, title, artist, album);
+        r.library_id = library_id.map(str::to_string);
+        r
+    }
+
     #[test]
     fn match_finds_track_by_title() {
         let store = LibraryStore::open_in_memory();
@@ -382,7 +491,7 @@ mod tests {
                 row("s1", "t2", "Sunset", "Beth", "Skylines"),
             ])
             .unwrap();
-        let hits = search_tracks(&store, "s1", "aurora", 10).unwrap();
+        let hits = search_tracks(&store, "s1", "aurora", 10, &[]).unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].id, "t1");
     }
@@ -396,7 +505,7 @@ mod tests {
                 row("s2", "t1", "Aurora", "Anna", "Skylines"),
             ])
             .unwrap();
-        let hits = search_tracks(&store, "s2", "aurora", 10).unwrap();
+        let hits = search_tracks(&store, "s2", "aurora", 10, &[]).unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].server_id, "s2");
     }
@@ -410,8 +519,73 @@ mod tests {
         let mut gone = row("s1", "t1", "Aurora", "Anna", "Skylines");
         gone.deleted = true;
         repo.upsert_batch(&[gone]).unwrap();
-        let hits = search_tracks(&store, "s1", "aurora", 10).unwrap();
+        let hits = search_tracks(&store, "s1", "aurora", 10, &[]).unwrap();
         assert!(hits.is_empty());
+    }
+
+    #[test]
+    fn match_library_scope_narrows_single_id() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                row_with_lib("s1", "t1", "Scoped Song", "A", "Al1", Some("lib1")),
+                row_with_lib("s1", "t2", "Scoped Song", "B", "Al2", Some("lib2")),
+            ])
+            .unwrap();
+        let hits = search_tracks(&store, "s1", "scoped", 10, &["lib1".into()]).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].id, "t1");
+    }
+
+    #[test]
+    fn match_library_scope_narrows_multi_id() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                row_with_lib("s1", "t1", "Scoped Song", "A", "Al1", Some("lib1")),
+                row_with_lib("s1", "t2", "Scoped Song", "B", "Al2", Some("lib2")),
+                row_with_lib("s1", "t3", "Scoped Song", "C", "Al3", Some("lib3")),
+            ])
+            .unwrap();
+        let hits = search_tracks(
+            &store,
+            "s1",
+            "scoped",
+            10,
+            &["lib1".into(), "lib3".into()],
+        )
+        .unwrap();
+        assert_eq!(hits.len(), 2);
+        let ids: HashSet<_> = hits.iter().map(|h| h.id.as_str()).collect();
+        assert_eq!(ids, HashSet::from(["t1", "t3"]));
+    }
+
+    #[test]
+    fn match_fts_first_returns_correct_hit_on_large_fixture() {
+        let store = LibraryStore::open_in_memory();
+        let mut batch = Vec::new();
+        for i in 0..80 {
+            batch.push(row(
+                "s1",
+                &format!("t_noise_{i}"),
+                "Noise Track",
+                "Filler Artist",
+                "Filler Album",
+            ));
+        }
+        batch.push(row("s1", "t_target", "Unique Aurora Title", "Target Artist", "Target Album"));
+        TrackRepository::new(&store).upsert_batch(&batch).unwrap();
+        let hits = search_tracks(&store, "s1", "aurora", 10, &[]).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].id, "t_target");
+    }
+
+    #[test]
+    fn library_scope_in_sql_produces_sargable_in_clause() {
+        assert_eq!(
+            library_scope_in_sql("t", 2),
+            "t.library_id IN (?, ?)"
+        );
     }
 
     #[test]

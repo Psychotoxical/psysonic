@@ -316,15 +316,18 @@ pub async fn library_search(
     limit: Option<u32>,
     offset: Option<u32>,
     library_scope: Option<String>,
+    library_scopes: Option<Vec<String>>,
 ) -> Result<LibraryTracksEnvelope, String> {
-    let _ = library_scope; // PR-5a accepts the arg for forward-compat; filter is wired in §5.13
+    let scopes = effective_library_scopes(library_scope.as_deref(), library_scopes.as_deref());
     let limit = limit.unwrap_or(100).clamp(1, 500);
     let offset = offset.unwrap_or(0);
-    // `search_tracks` returns lean `TrackHit` rows for FTS; PR-5a
-    // re-fetches the full `TrackRow` per hit so the DTO carries every
-    // hot column. Acceptable for `limit ≤ 100`; PR-5d wires a single-
-    // statement SQL builder via the FilterRegistry.
-    let hits = search_tracks(&runtime.store, &server_id, &query, limit as i64 + offset as i64)?;
+    let hits = search_tracks(
+        &runtime.store,
+        &server_id,
+        &query,
+        limit as i64 + offset as i64,
+        &scopes,
+    )?;
     let mut paged: Vec<TrackRefDto> = hits
         .into_iter()
         .skip(offset as usize)
@@ -618,10 +621,27 @@ pub async fn library_search_cross_server(
     servers: Option<Vec<String>>,
 ) -> Result<LibraryCrossServerSearchResponse, String> {
     let limit = limit.unwrap_or(100);
-    cross_server::run_cross_server_search(&runtime.store, &query, limit, servers.as_deref())
+    cross_server::run_cross_server_search(&runtime.store, &query, limit, servers.as_deref(), None)
 }
 
 // ── helpers ──────────────────────────────────────────────────────────
+
+/// Ordered multi-scope wins; else single `library_scope`; empty = all libraries.
+fn effective_library_scopes(
+    library_scope: Option<&str>,
+    library_scopes: Option<&[String]>,
+) -> Vec<String> {
+    if let Some(list) = library_scopes {
+        return crate::search::normalized_library_scopes(list);
+    }
+    crate::search::normalized_library_scopes(
+        &library_scope
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| vec![s.to_string()])
+            .unwrap_or_default(),
+    )
+}
 
 fn hydrate_refs(
     runtime: &LibraryRuntime,

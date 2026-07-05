@@ -8,7 +8,8 @@ use std::collections::{HashMap, HashSet};
 use crate::dto::{LibraryAlbumDto, LibraryArtistDto, LibraryLiveSearchResponse, LibraryTrackDto};
 use crate::search::{
     fts_album_prefix_any_token_match_query, fts_artist_prefix_any_token_match_query,
-    fts_query_meets_min_len, fts_track_prefix_any_token_match_query, library_scope_equals_sql,
+    fts_query_meets_min_len, fts_track_prefix_any_token_match_query, library_scope_in_sql,
+    normalized_library_scopes, push_library_scope_binds,
 };
 use crate::store::LibraryStore;
 
@@ -40,11 +41,11 @@ pub fn run_live_search(
     }
 
     store.with_read_conn(|conn| {
-        let scope = trimmed_scope(library_scope);
+        let scopes = scopes_from_option(library_scope);
         // Songs first — smallest FTS cap; warms the page cache for follow-up queries.
-        let songs = query_songs(conn, query, server_id, scope.as_deref(), song_limit)?;
-        let artists = query_artists(conn, query, server_id, scope.as_deref(), artist_limit)?;
-        let albums = query_albums(conn, query, server_id, scope.as_deref(), album_limit)?;
+        let songs = query_songs(conn, query, server_id, &scopes, song_limit)?;
+        let artists = query_artists(conn, query, server_id, &scopes, artist_limit)?;
+        let albums = query_albums(conn, query, server_id, &scopes, album_limit)?;
         Ok(LibraryLiveSearchResponse {
             artists,
             albums,
@@ -54,19 +55,28 @@ pub fn run_live_search(
     })
 }
 
+fn scopes_from_option(library_scope: Option<&str>) -> Vec<String> {
+    normalized_library_scopes(
+        &library_scope
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| vec![s.to_string()])
+            .unwrap_or_default(),
+    )
+}
+
 /// Top FTS rowids for column-scoped MATCH, scoped to `server_id` (multi-server safe).
 fn collect_fts_rowids(
     conn: &rusqlite::Connection,
     match_queries: &[String],
     server_id: &str,
-    library_scope: Option<&str>,
+    library_scopes: &[String],
     per_query_limit: i64,
     total_limit: usize,
 ) -> rusqlite::Result<Vec<i64>> {
-    let scope = trimmed_scope(library_scope);
     let mut scope_sql = String::new();
-    if scope.is_some() {
-        scope_sql = format!(" AND {}", library_scope_equals_sql("c"));
+    if !library_scopes.is_empty() {
+        scope_sql = format!(" AND {}", library_scope_in_sql("c", library_scopes.len()));
     }
     let sql = format!(
         "SELECT f.rowid FROM track_fts f \
@@ -87,9 +97,7 @@ fn collect_fts_rowids(
             rusqlite::types::Value::Text(mq.clone()),
             rusqlite::types::Value::Text(server_id.to_string()),
         ];
-        if let Some(ref s) = scope {
-            bind.push(rusqlite::types::Value::Text(s.clone()));
-        }
+        push_library_scope_binds(&mut bind, library_scopes);
         bind.push(rusqlite::types::Value::Integer(per_query_limit));
         let rows = stmt.query_map(rusqlite::params_from_iter(bind.iter()), |r| r.get(0))?;
         for rowid in rows {
@@ -105,29 +113,22 @@ fn collect_fts_rowids(
     Ok(rowids)
 }
 
-fn trimmed_scope(scope: Option<&str>) -> Option<String> {
-    scope
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(str::to_string)
-}
-
 fn append_library_scope(
     sql: &mut String,
     params: &mut Vec<rusqlite::types::Value>,
-    library_scope: Option<&str>,
+    library_scopes: &[String],
 ) {
-    if let Some(scope) = library_scope.filter(|s| !s.trim().is_empty()) {
+    if !library_scopes.is_empty() {
         sql.push_str(" AND ");
-        sql.push_str(&library_scope_equals_sql("t"));
-        params.push(rusqlite::types::Value::Text(scope.to_string()));
+        sql.push_str(&library_scope_in_sql("t", library_scopes.len()));
+        push_library_scope_binds(params, library_scopes);
     }
 }
 
-fn scoped_exists_sql(library_scope: Option<&str>, extra: &str) -> String {
+fn scoped_exists_sql(library_scopes: &[String], extra: &str) -> String {
     let mut scope_sql = String::new();
-    if library_scope.is_some() {
-        scope_sql = format!(" AND {}", library_scope_equals_sql("c"));
+    if !library_scopes.is_empty() {
+        scope_sql = format!(" AND {}", library_scope_in_sql("c", library_scopes.len()));
     }
     format!(
         "EXISTS (\
@@ -139,24 +140,18 @@ fn scoped_exists_sql(library_scope: Option<&str>, extra: &str) -> String {
     )
 }
 
-fn push_scope_bind(params: &mut Vec<rusqlite::types::Value>, library_scope: Option<&str>) {
-    if let Some(scope) = library_scope.filter(|s| !s.trim().is_empty()) {
-        params.push(rusqlite::types::Value::Text(scope.to_string()));
-    }
-}
-
 fn query_artists(
     conn: &rusqlite::Connection,
     query: &str,
     server_id: &str,
-    library_scope: Option<&str>,
+    library_scopes: &[String],
     limit: u32,
 ) -> rusqlite::Result<Vec<LibraryArtistDto>> {
     let Some(artist_fts) = fts_artist_prefix_any_token_match_query(query) else {
         return Ok(Vec::new());
     };
     let exists = scoped_exists_sql(
-        library_scope,
+        library_scopes,
         " AND c.artist_id IS NOT NULL AND c.artist_id != ''",
     );
     let sql = format!(
@@ -180,10 +175,10 @@ fn query_artists(
         rusqlite::types::Value::Text(artist_fts),
         rusqlite::types::Value::Text(server_id.to_string()),
     ];
-    push_scope_bind(&mut params, library_scope);
+    push_library_scope_binds(&mut params, library_scopes);
     params.push(rusqlite::types::Value::Integer(LIVE_SEARCH_FTS_CANDIDATE_CAP));
     params.push(rusqlite::types::Value::Text(server_id.to_string()));
-    append_library_scope(&mut sql, &mut params, library_scope);
+    append_library_scope(&mut sql, &mut params, library_scopes);
     sql.push_str(" GROUP BY t.artist_id ORDER BY best_rank LIMIT ?");
     params.push(rusqlite::types::Value::Integer(i64::from(limit)));
     let mut stmt = conn.prepare(&sql)?;
@@ -208,32 +203,32 @@ fn query_songs(
     conn: &rusqlite::Connection,
     query: &str,
     server_id: &str,
-    library_scope: Option<&str>,
+    library_scopes: &[String],
     limit: u32,
 ) -> rusqlite::Result<Vec<LibraryTrackDto>> {
     let Some(song_fts) = fts_track_prefix_any_token_match_query(query) else {
         return Ok(Vec::new());
     };
     let per_col = i64::from(limit.max(4));
-    let rowids = collect_fts_rowids(conn, &[song_fts], server_id, library_scope, per_col, limit as usize)?;
+    let rowids = collect_fts_rowids(conn, &[song_fts], server_id, library_scopes, per_col, limit as usize)?;
     if rowids.is_empty() {
         return Ok(Vec::new());
     }
-    fetch_tracks_by_rowids(conn, &rowids, server_id, library_scope)
+    fetch_tracks_by_rowids(conn, &rowids, server_id, library_scopes)
 }
 
 fn query_albums(
     conn: &rusqlite::Connection,
     query: &str,
     server_id: &str,
-    library_scope: Option<&str>,
+    library_scopes: &[String],
     limit: u32,
 ) -> rusqlite::Result<Vec<LibraryAlbumDto>> {
     let Some(album_fts) = fts_album_prefix_any_token_match_query(query) else {
         return Ok(Vec::new());
     };
     let exists = scoped_exists_sql(
-        library_scope,
+        library_scopes,
         " AND c.album_id IS NOT NULL AND c.album_id != ''",
     );
     let sql = format!(
@@ -259,10 +254,10 @@ fn query_albums(
         rusqlite::types::Value::Text(album_fts),
         rusqlite::types::Value::Text(server_id.to_string()),
     ];
-    push_scope_bind(&mut params, library_scope);
+    push_library_scope_binds(&mut params, library_scopes);
     params.push(rusqlite::types::Value::Integer(LIVE_SEARCH_FTS_CANDIDATE_CAP));
     params.push(rusqlite::types::Value::Text(server_id.to_string()));
-    append_library_scope(&mut sql, &mut params, library_scope);
+    append_library_scope(&mut sql, &mut params, library_scopes);
     sql.push_str(" GROUP BY t.server_id, t.album_id ORDER BY best_rank LIMIT ?");
     params.push(rusqlite::types::Value::Integer(i64::from(limit)));
     let mut stmt = conn.prepare(&sql)?;
@@ -302,7 +297,7 @@ fn fetch_tracks_by_rowids(
     conn: &rusqlite::Connection,
     rowids: &[i64],
     server_id: &str,
-    library_scope: Option<&str>,
+    library_scopes: &[String],
 ) -> rusqlite::Result<Vec<LibraryTrackDto>> {
     let placeholders = rowid_placeholders(rowids.len());
     let sql = format!(
@@ -324,7 +319,7 @@ fn fetch_tracks_by_rowids(
         .collect();
     params.push(rusqlite::types::Value::Text(server_id.to_string()));
     let mut sql = sql;
-    append_library_scope(&mut sql, &mut params, library_scope);
+    append_library_scope(&mut sql, &mut params, library_scopes);
     let mut stmt = conn.prepare(&sql)?;
     let mut by_rowid: HashMap<i64, LibraryTrackDto> = HashMap::new();
     for row in stmt.query_map(rusqlite::params_from_iter(params.iter()), |r| {
@@ -389,7 +384,6 @@ fn map_live_hit_row(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<
 mod tests {
     use super::*;
     use crate::repos::{TrackRepository, TrackRow};
-    use serde_json::json;
 
     fn track(
         server: &str,
@@ -576,9 +570,9 @@ mod tests {
     }
 
     #[test]
-    fn live_search_library_scope_matches_raw_json_when_column_null() {
+    fn live_search_library_scope_narrows_multi_id() {
         let store = LibraryStore::open_in_memory();
-        let mut row = track(
+        let mut in_lib1 = track(
             "s1",
             "t1",
             "Scoped Song",
@@ -587,9 +581,31 @@ mod tests {
             "al1",
             "ar1",
         );
-        row.raw_json = json!({"libraryId": 3}).to_string();
-        TrackRepository::new(&store).upsert_batch(&[row]).unwrap();
-        let resp = run_live_search(&store, "s1", "scoped", Some("3"), 5, 5, 10).unwrap();
+        in_lib1.library_id = Some("lib1".into());
+        let mut in_lib2 = track(
+            "s1",
+            "t2",
+            "Scoped Song",
+            "Other Artist",
+            "Other Album",
+            "al2",
+            "ar2",
+        );
+        in_lib2.library_id = Some("lib2".into());
+        let mut in_lib3 = track(
+            "s1",
+            "t3",
+            "Scoped Song",
+            "Third Artist",
+            "Third Album",
+            "al3",
+            "ar3",
+        );
+        in_lib3.library_id = Some("lib3".into());
+        TrackRepository::new(&store)
+            .upsert_batch(&[in_lib1, in_lib2, in_lib3])
+            .unwrap();
+        let resp = run_live_search(&store, "s1", "scoped", Some("lib1"), 5, 5, 10).unwrap();
         assert_eq!(resp.tracks.len(), 1);
         assert_eq!(resp.tracks[0].id, "t1");
     }
@@ -784,11 +800,11 @@ mod tests {
 
         for q in ["manowar", "metallica", "arch enemy", "metal", "meta"] {
             let t0 = Instant::now();
-            let songs = query_songs(&conn, q, &server_id, None, 10).unwrap();
+            let songs = query_songs(&conn, q, &server_id, &[], 10).unwrap();
             let t1 = Instant::now();
-            let artists = query_artists(&conn, q, &server_id, None, 5).unwrap();
+            let artists = query_artists(&conn, q, &server_id, &[], 5).unwrap();
             let t2 = Instant::now();
-            let albums = query_albums(&conn, q, &server_id, None, 5).unwrap();
+            let albums = query_albums(&conn, q, &server_id, &[], 5).unwrap();
             let t3 = Instant::now();
             eprintln!(
                 "{q:?}: songs={} ({:.1}ms) artists={} ({:.1}ms) albums={} ({:.1}ms) total={:.1}ms",
