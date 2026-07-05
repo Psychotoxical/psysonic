@@ -12,13 +12,16 @@ use tauri::Manager;
 ///
 /// Migration checklist (wiring, data backfill, open/swap path):
 /// psysonic-workdocs `ai/agent-rules/08-library-db-migrations.md`.
-pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 15;
+pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 16;
 
 /// One-time data repair after migration 014 (`artist.name_sort`).
 pub(crate) const ARTIST_NAME_SORT_RECONCILE_ID: &str = "artist_name_sort_reconcile_v1";
 
 /// One-time backfill after migration 015 (`track.replay_gain_peak`).
 pub(crate) const REPLAY_GAIN_PEAK_RECONCILE_ID: &str = "replay_gain_peak_reconcile_v1";
+
+/// One-time backfill after migration 016 (`track.library_id` from `raw_json`).
+pub(crate) const LIBRARY_ID_BACKFILL_RECONCILE_ID: &str = "library_id_backfill_reconcile_v1";
 
 /// Lowest applied schema version the current code can advance from purely
 /// additively. If a DB carries a version below this, the breaking-bump hook
@@ -43,6 +46,8 @@ pub(crate) const MIGRATION_014_ARTIST_NAME_SORT: &str =
     include_str!("../migrations/014_artist_name_sort.sql");
 pub(crate) const MIGRATION_015_REPLAY_GAIN_PEAK: &str =
     include_str!("../migrations/015_replay_gain_peak.sql");
+pub(crate) const MIGRATION_016_MULTI_LIBRARY_SCOPE: &str =
+    include_str!("../migrations/016_multi_library_scope.sql");
 
 /// Embedded migrations. Ordered ascending by `version`; the runner sorts
 /// defensively before applying so the source order can stay readable.
@@ -52,6 +57,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (13, MIGRATION_013_ARTIST_ARTWORK_LOOKUP),
     (14, MIGRATION_014_ARTIST_NAME_SORT),
     (15, MIGRATION_015_REPLAY_GAIN_PEAK),
+    (16, MIGRATION_016_MULTI_LIBRARY_SCOPE),
 ];
 
 /// Idempotent repair — also runs after the migration runner on every open so
@@ -596,6 +602,7 @@ fn prepare_write_connection_for_open(conn: &Connection) -> rusqlite::Result<()> 
     run_migrations(conn)?;
     maybe_reconcile_artist_name_sort(conn)?;
     maybe_reconcile_replay_gain_peak(conn)?;
+    maybe_reconcile_library_id_backfill(conn)?;
     ensure_genre_tags_schema(conn)?;
     checkpoint_wal_conn(conn, "open")?;
     Ok(())
@@ -787,6 +794,57 @@ fn maybe_reconcile_replay_gain_peak(conn: &Connection) -> rusqlite::Result<()> {
     }
     repair_replay_gain_peak_from_raw_json(conn)?;
     mark_replay_gain_peak_reconcile_completed(conn)?;
+    Ok(())
+}
+
+fn library_id_backfill_reconcile_completed(conn: &Connection) -> rusqlite::Result<bool> {
+    let completed: Option<Option<i64>> = conn
+        .query_row(
+            "SELECT completed_at FROM library_data_migration WHERE id = ?1",
+            params![LIBRARY_ID_BACKFILL_RECONCILE_ID],
+            |row| row.get(0),
+        )
+        .optional()?;
+    Ok(completed.flatten().is_some())
+}
+
+fn mark_library_id_backfill_reconcile_completed(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO library_data_migration (id, cursor_rowid, started_at, completed_at) \
+         VALUES (?1, 0, strftime('%s','now'), strftime('%s','now')) \
+         ON CONFLICT(id) DO UPDATE SET completed_at = excluded.completed_at",
+        params![LIBRARY_ID_BACKFILL_RECONCILE_ID],
+    )?;
+    Ok(())
+}
+
+/// One-time backfill after schema 016 — project `library_id` from stored `raw_json`.
+fn repair_library_id_from_raw_json(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE track SET library_id = COALESCE( \
+           CAST(json_extract(raw_json, '$.libraryId') AS TEXT), \
+           CAST(json_extract(raw_json, '$.library_id') AS TEXT), \
+           CAST(json_extract(raw_json, '$.musicFolderId') AS TEXT) \
+         ) \
+         WHERE (library_id IS NULL OR library_id = '') \
+           AND COALESCE( \
+             CAST(json_extract(raw_json, '$.libraryId') AS TEXT), \
+             CAST(json_extract(raw_json, '$.library_id') AS TEXT), \
+             CAST(json_extract(raw_json, '$.musicFolderId') AS TEXT) \
+           ) IS NOT NULL",
+        [],
+    )?;
+    conn.execute_batch("ANALYZE;")?;
+    Ok(())
+}
+
+/// One-time reconcile after schema 016 — not on every open.
+fn maybe_reconcile_library_id_backfill(conn: &Connection) -> rusqlite::Result<()> {
+    if library_id_backfill_reconcile_completed(conn)? {
+        return Ok(());
+    }
+    repair_library_id_from_raw_json(conn)?;
+    mark_library_id_backfill_reconcile_completed(conn)?;
     Ok(())
 }
 
@@ -1255,6 +1313,176 @@ mod tests {
             )
             .expect("count migration after");
         assert_eq!(recorded_after, 1);
+    }
+
+    const LIBRARY_SCOPE_INDEXES: [&str; 4] = [
+        "idx_track_library_album",
+        "idx_track_library_artist",
+        "idx_track_library_title",
+        "idx_track_library_genre",
+    ];
+
+    #[test]
+    fn migration_016_creates_library_scope_indexes() {
+        let store = LibraryStore::open_in_memory();
+        for index_name in LIBRARY_SCOPE_INDEXES {
+            let exists: i64 = store
+                .with_conn("misc", |c| {
+                    c.query_row(
+                        "SELECT COUNT(*) FROM sqlite_master \
+                         WHERE type = 'index' AND name = ?1",
+                        params![index_name],
+                        |r| r.get(0),
+                    )
+                })
+                .unwrap();
+            assert_eq!(exists, 1, "missing index {index_name}");
+        }
+        let stat_rows: i64 = store
+            .with_conn("misc", |c| c.query_row("SELECT COUNT(*) FROM sqlite_stat1", [], |r| r.get(0)))
+            .unwrap();
+        assert!(stat_rows > 0, "ANALYZE should populate sqlite_stat1");
+    }
+
+    #[test]
+    fn library_id_backfill_reconcile_populates_from_raw_json() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn_mut("test.seed_tracks", |conn| {
+                conn.execute(
+                    "DELETE FROM library_data_migration WHERE id = ?1",
+                    params![LIBRARY_ID_BACKFILL_RECONCILE_ID],
+                )?;
+                conn.execute(
+                    "INSERT INTO track (server_id, id, title, album, duration_sec, deleted, synced_at, raw_json, library_id) \
+                     VALUES ('s1', 't1', 'A', 'Al', 1, 0, 1, '{\"libraryId\":\"lib-a\"}', '')",
+                    [],
+                )?;
+                conn.execute(
+                    "INSERT INTO track (server_id, id, title, album, duration_sec, deleted, synced_at, raw_json, library_id) \
+                     VALUES ('s1', 't2', 'B', 'Al', 1, 0, 1, '{\"library_id\":\"lib-b\"}', NULL)",
+                    [],
+                )?;
+                conn.execute(
+                    "INSERT INTO track (server_id, id, title, album, duration_sec, deleted, synced_at, raw_json, library_id) \
+                     VALUES ('s1', 't3', 'C', 'Al', 1, 0, 1, '{\"musicFolderId\":\"lib-c\"}', '')",
+                    [],
+                )?;
+                conn.execute(
+                    "INSERT INTO track (server_id, id, title, album, duration_sec, deleted, synced_at, raw_json, library_id) \
+                     VALUES ('s1', 't4', 'D', 'Al', 1, 0, 1, '{}', 'already-set')",
+                    [],
+                )?;
+                Ok(())
+            })
+            .expect("seed tracks");
+
+        store
+            .with_conn("test.reconcile", maybe_reconcile_library_id_backfill)
+            .expect("reconcile");
+
+        let lib_a: String = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT library_id FROM track WHERE server_id = 's1' AND id = 't1'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .expect("t1 library_id");
+        assert_eq!(lib_a, "lib-a");
+
+        let lib_b: String = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT library_id FROM track WHERE server_id = 's1' AND id = 't2'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .expect("t2 library_id");
+        assert_eq!(lib_b, "lib-b");
+
+        let lib_c: String = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT library_id FROM track WHERE server_id = 's1' AND id = 't3'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .expect("t3 library_id");
+        assert_eq!(lib_c, "lib-c");
+
+        let unchanged: String = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT library_id FROM track WHERE server_id = 's1' AND id = 't4'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .expect("t4 library_id");
+        assert_eq!(unchanged, "already-set");
+    }
+
+    #[test]
+    fn library_id_backfill_reconcile_is_idempotent() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn_mut("test.seed_track", |conn| {
+                conn.execute(
+                    "DELETE FROM library_data_migration WHERE id = ?1",
+                    params![LIBRARY_ID_BACKFILL_RECONCILE_ID],
+                )?;
+                conn.execute(
+                    "INSERT INTO track (server_id, id, title, album, duration_sec, deleted, synced_at, raw_json, library_id) \
+                     VALUES ('s1', 't1', 'A', 'Al', 1, 0, 1, '{\"libraryId\":\"lib-a\"}', '')",
+                    [],
+                )?;
+                Ok(())
+            })
+            .expect("seed track");
+
+        store
+            .with_conn("test.reconcile", maybe_reconcile_library_id_backfill)
+            .expect("reconcile");
+
+        let completed_before: i64 = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT completed_at FROM library_data_migration WHERE id = ?1",
+                    params![LIBRARY_ID_BACKFILL_RECONCILE_ID],
+                    |r| r.get(0),
+                )
+            })
+            .expect("reconcile marker");
+        assert!(completed_before > 0);
+
+        store
+            .with_conn_mut("test.clear_library_id", |conn| {
+                conn.execute(
+                    "UPDATE track SET library_id = '' WHERE server_id = 's1' AND id = 't1'",
+                    [],
+                )?;
+                Ok(())
+            })
+            .expect("clear library_id");
+
+        store
+            .with_conn("test.reconcile_again", maybe_reconcile_library_id_backfill)
+            .expect("reconcile again");
+
+        let library_id_after: String = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT library_id FROM track WHERE server_id = 's1' AND id = 't1'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .expect("library_id after second reconcile");
+        assert_eq!(library_id_after, "");
     }
 
     #[test]
