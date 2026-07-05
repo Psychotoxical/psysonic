@@ -1,5 +1,6 @@
 import type { AuthState } from './authStoreTypes';
 import { prefetchAlbumBrowseCatalogAfterFilterChange } from '@/lib/library/albumBrowseCatalogPrefetch';
+import { clearArtistBrowseCatalogCache } from '@/lib/library/artistBrowseInflight';
 import { prefetchArtistBrowseCatalogAfterFilterChange } from '@/lib/library/artistBrowseCatalogPrefetch';
 import { scheduleMusicLibraryFilterVersionBump } from './musicLibraryFilterNotify';
 
@@ -74,6 +75,7 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
     setMusicLibraryFilter: (folderId) => {
       const sid = get().activeServerId;
       if (!sid) return;
+      clearArtistBrowseCatalogCache();
       set(s => ({
         musicLibraryFilterByServer: { ...s.musicLibraryFilterByServer, [sid]: folderId },
       }));
@@ -83,6 +85,7 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
     setMusicLibrarySelection: (libraryIds) => {
       const sid = get().activeServerId;
       if (!sid) return;
+      clearArtistBrowseCatalogCache();
       set(s => ({
         musicLibrarySelectionByServer: {
           ...s.musicLibrarySelectionByServer,

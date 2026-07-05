@@ -16,7 +16,7 @@ import {
   fetchOfflineLocalStarredArtists,
   offlineLocalBrowseEnabled,
 } from '@/features/offline';
-import { librarySelectionForServer } from '@/lib/api/subsonicClient';
+import { librarySelectionForServer, libraryScopeCacheKeyForServer } from '@/lib/api/subsonicClient';
 import { scheduleAlbumBrowseBackgroundWork } from '@/lib/library/albumBrowseBackground';
 import {
   artistBrowseTimed,
@@ -45,6 +45,7 @@ export type UseArtistsBrowseCatalogArgs = {
   creditMode: ArtistCreditMode;
   letterFilter: string;
   musicLibraryFilterVersion: number;
+  libraryScopeKey: string;
 };
 
 export function useArtistsBrowseCatalog({
@@ -54,6 +55,7 @@ export function useArtistsBrowseCatalog({
   creditMode,
   letterFilter,
   musicLibraryFilterVersion,
+  libraryScopeKey,
 }: UseArtistsBrowseCatalogArgs) {
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const offlineBrowseReloadTs = useOfflineBrowseReloadToken();
@@ -72,12 +74,13 @@ export function useArtistsBrowseCatalog({
     return artistBrowseInitialLoadKey(
       serverId,
       musicLibraryFilterVersion,
+      libraryScopeKey,
       creditMode,
       letterFilter,
       starredOnly,
       offlineBrowseActive,
     );
-  }, [serverId, musicLibraryFilterVersion, creditMode, letterFilter, starredOnly, offlineBrowseActive]);
+  }, [serverId, musicLibraryFilterVersion, libraryScopeKey, creditMode, letterFilter, starredOnly, offlineBrowseActive]);
 
   useLayoutEffect(() => {
     const cached = readArtistBrowseCatalogCache(catalogLoadKey);
@@ -200,17 +203,16 @@ export function useArtistsBrowseCatalog({
       artistBrowseCatalogInflight(loadKey)
       || (artistBrowseBootstrapEligible(letterFilter, starredOnly)
         && artistBrowseCatalogInflight(bootKey));
-    if (!joinInflight) {
-      catalogOffsetRef.current = 0;
-      catalogLoadingRef.current = false;
-      // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCatalogArtists([]);
-      setCatalogHasMore(false);
-      setCatalogLoadingMore(false);
-      setBrowseMode('network');
-      setLoading(true);
-    } else {
+    catalogOffsetRef.current = 0;
+    catalogLoadingRef.current = false;
+    // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCatalogArtists([]);
+    setCatalogHasMore(false);
+    setCatalogLoadingMore(false);
+    setBrowseMode('network');
+    setLoading(true);
+    if (joinInflight) {
       emitArtistsBrowseDebug('load_effect_join_inflight', {});
     }
 

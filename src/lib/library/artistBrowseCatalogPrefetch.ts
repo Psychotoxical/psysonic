@@ -1,4 +1,4 @@
-import { librarySelectionForServer } from '@/lib/api/subsonicClient';
+import { libraryScopeCacheKeyForServer, librarySelectionForServer } from '@/lib/api/subsonicClient';
 import type { ArtistCreditMode } from '@/lib/api/library';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { fetchLocalArtistCatalogChunk } from './browseTextSearch';
@@ -30,6 +30,7 @@ export function prefetchArtistBrowseCatalogAfterFilterChange(
   const loadKey = artistBrowseInitialLoadKey(
     serverId,
     libraryFilterVersion,
+    libraryScopeCacheKeyForServer(serverId),
     DEFAULT_CREDIT_MODE,
     DEFAULT_LETTER_FILTER,
     false,

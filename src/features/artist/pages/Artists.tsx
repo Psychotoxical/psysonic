@@ -42,6 +42,7 @@ import { readArtistBrowseRestore } from '@/lib/navigation/albumDetailNavigation'
 import { useScopedBrowseSearchQuery } from '@/store/liveSearchScopeStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { librarySelectionForServer } from '@/lib/api/subsonicClient';
+import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import {
   beginArtistsBrowseTrace,
   emitArtistsBrowseDebug,
@@ -52,6 +53,17 @@ export default function Artists() {
   const { t } = useTranslation();
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const serverId = useAuthStore(s => s.activeServerId ?? '');
+  const libraryScopeKey = useAuthStore(s => {
+    if (!serverId) return 'all';
+    const resolved = resolveServerIdForIndexKey(serverId);
+    const selection = s.musicLibrarySelectionByServer[resolved];
+    if (selection !== undefined) {
+      return selection.length === 0 ? 'all' : selection.join(',');
+    }
+    const legacy = s.musicLibraryFilterByServer[resolved];
+    if (legacy === undefined || legacy === 'all') return 'all';
+    return legacy;
+  });
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
 
   const scrollSnapshotRef = useRef<ArtistBrowseScrollSnapshot>({ scrollTop: 0, visibleCount: 0 });
@@ -114,6 +126,7 @@ export default function Artists() {
     creditMode,
     letterFilter,
     musicLibraryFilterVersion,
+    libraryScopeKey,
   });
 
   const { textSearchArtists, textSearchLoading, effectiveFilter } = useBrowseArtistTextSearch(

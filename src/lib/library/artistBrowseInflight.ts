@@ -4,6 +4,7 @@ import type { ArtistCatalogChunkResult } from '@/lib/library/browseTextSearch';
 export function artistBrowseInitialLoadKey(
   serverId: string,
   libraryFilterVersion: number,
+  libraryScopeKey: string,
   creditMode: string,
   letterFilter: string,
   starredOnly: boolean,
@@ -12,11 +13,17 @@ export function artistBrowseInitialLoadKey(
   return [
     serverId,
     String(libraryFilterVersion),
+    libraryScopeKey,
     offlineBrowseActive ? 'offline' : 'online',
     creditMode,
     letterFilter,
     String(starredOnly),
   ].join('|');
+}
+
+export function clearArtistBrowseCatalogCache(): void {
+  inflight.clear();
+  cache.clear();
 }
 
 const inflight = new Map<string, Promise<ArtistCatalogChunkResult | null>>();

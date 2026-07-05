@@ -605,6 +605,106 @@ pub(crate) fn list_artists_layer1_filtered(
     Ok((artists, total))
 }
 
+/// Layer-1 scoped browse over the `artist` table (#1209) — drive from the scoped
+/// track set (sargable `scope` CTE join), then join `artist` rows. Avoids a
+/// correlated EXISTS over the full server-wide `artist` table.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn list_index_artists_layer1_filtered(
+    store: &LibraryStore,
+    server_id: &str,
+    scopes: &[LibraryScopePair],
+    album_artists_only: bool,
+    extra_where: &str,
+    extra_params: &[SqlValue],
+    order_sql: &str,
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+) -> Result<(Vec<LibraryArtistDto>, u32), String> {
+    let scopes = non_empty_scopes(scopes)?;
+    let (cte, scope_binds) = scope_cte_sql(scopes);
+    let scoped_from = "FROM scope s \
+         CROSS JOIN track t ON t.server_id = s.server_id AND t.library_id = s.library_id";
+    let credited_cte = if album_artists_only {
+        // #1209: album credit = one row per album-level credit in scope, not every
+        // track performer with a server-wide `album_count` index row.
+        format!(
+            "{cte}, \
+             album_scoped AS ( \
+               SELECT t.album_id, \
+                      lower(trim(COALESCE(NULLIF(MAX(trim(t.album_artist)), ''), MIN(t.artist)))) \
+                        AS credit_name \
+               {scoped_from} \
+               WHERE t.deleted = 0 AND t.album_id IS NOT NULL AND t.album_id != '' \
+               GROUP BY t.album_id \
+             ), \
+             scoped_ids AS ( \
+               SELECT DISTINCT ar.id \
+               FROM album_scoped ac \
+               INNER JOIN artist ar ON ar.server_id = ? AND ar.album_count IS NOT NULL \
+                 AND lower(trim(coalesce(ar.name, ''))) = ac.credit_name \
+             )"
+        )
+    } else {
+        format!(
+            "{cte}, \
+             scoped_ids AS ( \
+               SELECT DISTINCT t.artist_id AS id \
+               {scoped_from} \
+               WHERE t.deleted = 0 AND t.artist_id IS NOT NULL AND t.artist_id != '' \
+             )"
+        )
+    };
+    let mut ar_where = "FROM artist ar \
+         INNER JOIN scoped_ids si ON si.id = ar.id \
+         WHERE ar.server_id = ?"
+        .to_string();
+    if album_artists_only {
+        ar_where.push_str(" AND ar.album_count IS NOT NULL");
+    }
+    if !extra_where.trim().is_empty() {
+        ar_where = append_extra_where(&ar_where, extra_where);
+    }
+
+    let count_sql = format!("{credited_cte} SELECT COUNT(*) {ar_where}");
+    let select_sql = format!(
+        "{credited_cte} SELECT ar.server_id, ar.id, ar.name, ar.album_count, ar.synced_at \
+         {ar_where} {order_sql} LIMIT ? OFFSET ?"
+    );
+
+    let mut binds = scope_binds;
+    if album_artists_only {
+        binds.push(SqlValue::Text(server_id.to_string()));
+    }
+    binds.push(SqlValue::Text(server_id.to_string()));
+    binds.extend_from_slice(extra_params);
+
+    let total = if skip_totals {
+        0u32
+    } else {
+        store.with_read_conn(|conn| {
+            let n: i64 = conn.query_row(
+                &count_sql,
+                params_from_iter(binds.iter()),
+                |r| r.get(0),
+            )?;
+            Ok(n.max(0) as u32)
+        })?
+    };
+
+    binds.push(SqlValue::Integer(i64::from(limit)));
+    binds.push(SqlValue::Integer(i64::from(offset)));
+
+    let artists = store.with_read_conn(|conn| {
+        let mut stmt = conn.prepare(&select_sql)?;
+        let rows = stmt
+            .query_map(params_from_iter(binds.iter()), map_artist_list_row)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows.into_iter().map(artist_row_to_dto).collect())
+    })?;
+    Ok((artists, total))
+}
+
 /// Layer-1 scoped track browse — sargable join, no cross-library dedup window.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn list_tracks_layer1_filtered(
