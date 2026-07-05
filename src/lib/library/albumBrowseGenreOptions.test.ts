@@ -60,6 +60,30 @@ describe('fetchAlbumBrowseGenreOptions', () => {
     expect(runLocalAlbumBrowse).not.toHaveBeenCalled();
   });
 
+  it('merges per-library genre counts for a multi-library selection', async () => {
+    librarySelectionForServer.mockReturnValue(['lib-a', 'lib-b']);
+    libraryGetGenreAlbumCounts
+      .mockResolvedValueOnce([
+        { value: 'Rock', albumCount: 10, songCount: 30 },
+        { value: 'Jazz', albumCount: 2, songCount: 6 },
+      ])
+      .mockResolvedValueOnce([
+        { value: 'Rock', albumCount: 5, songCount: 15 },
+        { value: 'Pop', albumCount: 4, songCount: 12 },
+      ]);
+
+    await expect(fetchAlbumBrowseGenreOptions('srv-1', true, baseQuery)).resolves.toEqual([
+      { genre: 'Rock', count: 15 },
+      { genre: 'Pop', count: 4 },
+      { genre: 'Jazz', count: 2 },
+    ]);
+
+    expect(libraryGetGenreAlbumCounts).toHaveBeenCalledTimes(2);
+    expect(libraryGetGenreAlbumCounts).toHaveBeenCalledWith({ serverId: 'srv-1', libraryScope: 'lib-a' });
+    expect(libraryGetGenreAlbumCounts).toHaveBeenCalledWith({ serverId: 'srv-1', libraryScope: 'lib-b' });
+    expect(runLocalAlbumBrowse).not.toHaveBeenCalled();
+  });
+
   it('derives genres from filtered albums when combined filters are active', async () => {
     runLocalAlbumBrowse.mockResolvedValue({
       albums: [

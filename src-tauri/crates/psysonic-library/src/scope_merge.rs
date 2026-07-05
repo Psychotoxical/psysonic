@@ -33,6 +33,14 @@ const TRACK_DEDUP_KEY: &str = "CASE WHEN ck.cluster_key IS NOT NULL \
     THEN ck.cluster_key || ':' || CAST((ck.duration_sec / 5) AS TEXT) \
     ELSE ('null:' || t.server_id || ':' || t.id) END";
 
+/// Sortable representative key so a single `MIN()` (SQLite bare-column rule) picks the
+/// priority winner per album group without a second window pass: (pr ASC, album_id ASC, id ASC).
+/// `pr` is zero-padded so lexical order matches numeric order.
+const ALBUM_PICK_KEY: &str = "printf('%08d|%s|%s', pr, album_id, id)";
+
+/// Same representative trick for artist groups: (pr ASC, artist_id ASC).
+const ARTIST_PICK_KEY: &str = "printf('%08d|%s', pr, artist_id)";
+
 const TRACK_FTS_BM25_RANK: &str = "bm25(track_fts, 10.0, 3.0, 5.0, 3.0, 0.0)";
 
 fn non_empty_scopes(scopes: &[LibraryScopePair]) -> Result<&[LibraryScopePair], String> {
@@ -197,25 +205,20 @@ pub fn list_albums(
                   s.pr, {ALBUM_DEDUP_KEY} AS album_dedup, {TRACK_DEDUP_KEY} AS track_dedup \
            {scoped} AND t.album_id IS NOT NULL AND t.album_id != '' \
          ), \
-         deduped_tracks AS ( \
-           SELECT *, ROW_NUMBER() OVER (PARTITION BY track_dedup ORDER BY pr ASC, id ASC) AS trn \
+         deduped AS ( \
+           SELECT *, \
+                  ROW_NUMBER() OVER (PARTITION BY track_dedup ORDER BY pr ASC, id ASC) AS trn \
            FROM base \
-         ), \
-         album_stats AS ( \
-           SELECT album_dedup, COUNT(*) AS song_count, SUM(duration_sec) AS duration_total \
-           FROM deduped_tracks WHERE trn = 1 GROUP BY album_dedup \
-         ), \
-         album_pick AS ( \
-           SELECT b.server_id, b.album_id, b.album, b.artist, b.artist_id, b.album_artist, \
-                  b.year, b.genre, b.cover_art_id, b.starred_at, b.synced_at, b.album_dedup, \
-                  ROW_NUMBER() OVER (PARTITION BY b.album_dedup ORDER BY b.pr ASC, b.album_id ASC, b.id ASC) AS rn \
-           FROM base b \
          ) \
-         SELECT p.server_id, p.album_id, p.album, p.artist, p.artist_id, p.album_artist, \
-                st.song_count, st.duration_total, p.year, p.genre, p.cover_art_id, p.starred_at, p.synced_at \
-         FROM album_pick p \
-         INNER JOIN album_stats st ON p.album_dedup = st.album_dedup \
-         WHERE p.rn = 1 \
+         SELECT server_id, album_id, album, artist, artist_id, album_artist, \
+                song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at \
+         FROM ( \
+           SELECT server_id, album_id, album, artist, artist_id, album_artist, \
+                  year, genre, cover_art_id, starred_at, synced_at, \
+                  COUNT(*) AS song_count, SUM(duration_sec) AS duration_total, \
+                  MIN({ALBUM_PICK_KEY}) AS _pick \
+           FROM deduped WHERE trn = 1 GROUP BY album_dedup \
+         ) \
          {order} \
          LIMIT ? OFFSET ?",
         scoped = scoped_track_join(),
@@ -268,20 +271,14 @@ pub fn list_artists(
            SELECT t.server_id, t.artist_id, t.artist, t.album_id, t.synced_at, s.pr, \
                   {ARTIST_DEDUP_KEY} AS artist_dedup \
            {scoped} AND t.artist_id IS NOT NULL AND t.artist_id != '' \
-         ), \
-         artist_stats AS ( \
-           SELECT artist_dedup, COUNT(DISTINCT album_id) AS album_count, MAX(synced_at) AS synced_at \
-           FROM base GROUP BY artist_dedup \
-         ), \
-         artist_pick AS ( \
-           SELECT b.server_id, b.artist_id, b.artist, b.artist_dedup, \
-                  ROW_NUMBER() OVER (PARTITION BY b.artist_dedup ORDER BY b.pr ASC, b.artist_id ASC) AS rn \
-           FROM base b \
          ) \
-         SELECT p.server_id, p.artist_id, p.artist, st.album_count, st.synced_at \
-         FROM artist_pick p \
-         INNER JOIN artist_stats st ON p.artist_dedup = st.artist_dedup \
-         WHERE p.rn = 1 \
+         SELECT server_id, artist_id, artist, album_count, synced_at \
+         FROM ( \
+           SELECT server_id, artist_id, artist, synced_at, \
+                  COUNT(DISTINCT album_id) AS album_count, \
+                  MIN({ARTIST_PICK_KEY}) AS _pick \
+           FROM base GROUP BY artist_dedup \
+         ) \
          {order} \
          LIMIT ? OFFSET ?",
         scoped = scoped_track_join(),
@@ -347,25 +344,20 @@ pub(crate) fn list_albums_filtered(
                   s.pr, {ALBUM_DEDUP_KEY} AS album_dedup, {TRACK_DEDUP_KEY} AS track_dedup \
            {base_where} \
          ), \
-         deduped_tracks AS ( \
-           SELECT *, ROW_NUMBER() OVER (PARTITION BY track_dedup ORDER BY pr ASC, id ASC) AS trn \
+         deduped AS ( \
+           SELECT *, \
+                  ROW_NUMBER() OVER (PARTITION BY track_dedup ORDER BY pr ASC, id ASC) AS trn \
            FROM base \
-         ), \
-         album_stats AS ( \
-           SELECT album_dedup, COUNT(*) AS song_count, SUM(duration_sec) AS duration_total \
-           FROM deduped_tracks WHERE trn = 1 GROUP BY album_dedup \
-         ), \
-         album_pick AS ( \
-           SELECT b.server_id, b.album_id, b.album, b.artist, b.artist_id, b.album_artist, \
-                  b.year, b.genre, b.cover_art_id, b.starred_at, b.synced_at, b.album_dedup, \
-                  ROW_NUMBER() OVER (PARTITION BY b.album_dedup ORDER BY b.pr ASC, b.album_id ASC, b.id ASC) AS rn \
-           FROM base b \
          ) \
-         SELECT p.server_id, p.album_id, p.album, p.artist, p.artist_id, p.album_artist, \
-                st.song_count, st.duration_total, p.year, p.genre, p.cover_art_id, p.starred_at, p.synced_at \
-         FROM album_pick p \
-         INNER JOIN album_stats st ON p.album_dedup = st.album_dedup \
-         WHERE p.rn = 1 \
+         SELECT server_id, album_id, album, artist, artist_id, album_artist, \
+                song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at \
+         FROM ( \
+           SELECT server_id, album_id, album, artist, artist_id, album_artist, \
+                  year, genre, cover_art_id, starred_at, synced_at, \
+                  COUNT(*) AS song_count, SUM(duration_sec) AS duration_total, \
+                  MIN({ALBUM_PICK_KEY}) AS _pick \
+           FROM deduped WHERE trn = 1 GROUP BY album_dedup \
+         ) \
          {order_sql} \
          LIMIT ? OFFSET ?",
     );
@@ -429,20 +421,14 @@ pub(crate) fn list_artists_filtered(
            SELECT t.server_id, t.artist_id, t.artist, t.album_id, t.synced_at, s.pr, \
                   {ARTIST_DEDUP_KEY} AS artist_dedup \
            {base_where} \
-         ), \
-         artist_stats AS ( \
-           SELECT artist_dedup, COUNT(DISTINCT album_id) AS album_count, MAX(synced_at) AS synced_at \
-           FROM base GROUP BY artist_dedup \
-         ), \
-         artist_pick AS ( \
-           SELECT b.server_id, b.artist_id, b.artist, b.artist_dedup, \
-                  ROW_NUMBER() OVER (PARTITION BY b.artist_dedup ORDER BY b.pr ASC, b.artist_id ASC) AS rn \
-           FROM base b \
          ) \
-         SELECT p.server_id, p.artist_id, p.artist, st.album_count, st.synced_at \
-         FROM artist_pick p \
-         INNER JOIN artist_stats st ON p.artist_dedup = st.artist_dedup \
-         WHERE p.rn = 1 \
+         SELECT server_id, artist_id, artist, album_count, synced_at \
+         FROM ( \
+           SELECT server_id, artist_id, artist, synced_at, \
+                  COUNT(DISTINCT album_id) AS album_count, \
+                  MIN({ARTIST_PICK_KEY}) AS _pick \
+           FROM base GROUP BY artist_dedup \
+         ) \
          {order_sql} \
          LIMIT ? OFFSET ?",
     );
@@ -1720,5 +1706,79 @@ mod tests {
         let artists = list_artists(&store, &req).unwrap();
         assert_eq!(artists.len(), 1);
         assert_eq!(artists[0].name, "Shared");
+    }
+
+    /// Manual perf probe:
+    /// `cargo test --workspace scope_merge::tests::perf_probe_album_browse -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn perf_probe_album_browse() {
+        use std::time::Instant;
+
+        let store = LibraryStore::open_in_memory();
+        // Small-ish, realistic multi-library set: 400 albums × 10 tracks over 2 libs.
+        let albums = 400usize;
+        let tracks_per_album = 10usize;
+        let mut rows = Vec::with_capacity(albums * tracks_per_album);
+        for a in 0..albums {
+            let lib = if a % 2 == 0 { "lib-a" } else { "lib-b" };
+            for t in 0..tracks_per_album {
+                rows.push(track(
+                    "s1",
+                    &format!("t-{a}-{t}"),
+                    &format!("Song {t}"),
+                    Some(&format!("Artist {}", a % 50)),
+                    &format!("Album {a:04}"),
+                    &format!("alb-{a:04}"),
+                    Some(&format!("ar-{}", a % 50)),
+                    180 + t as i64,
+                    lib,
+                    Some(1990 + (a % 30) as i64),
+                    Some("Rock"),
+                    Some(&format!("cov-{a:04}")),
+                ));
+            }
+        }
+        seed_and_rebuild(&store, &rows);
+        let scopes = vec![scope_pair("s1", "lib-a"), scope_pair("s1", "lib-b")];
+
+        // Timing: first page vs deep page. If pagination doesn't reduce work,
+        // deep offset costs ~the same as offset 0 (whole set re-scanned + sorted).
+        let time_page = |offset: u32| {
+            let req = LibraryScopeListRequest {
+                scopes: scopes.clone(),
+                sort: None,
+                limit: Some(50),
+                offset: Some(offset),
+            };
+            let start = Instant::now();
+            let n = list_albums(&store, &req).unwrap().len();
+            (start.elapsed(), n)
+        };
+        // Warm caches.
+        let _ = time_page(0);
+        let (t_first, n_first) = time_page(0);
+        let (t_deep, n_deep) = time_page(350);
+        println!("--- list_albums timings (400 albums, 4000 tracks, 2 libs) ---");
+        println!("  offset 0   -> {:?} ({n_first} rows)", t_first);
+        println!("  offset 350 -> {:?} ({n_deep} rows)", t_deep);
+
+        let time_artists = |offset: u32| {
+            let req = LibraryScopeListRequest {
+                scopes: scopes.clone(),
+                sort: None,
+                limit: Some(50),
+                offset: Some(offset),
+            };
+            let start = Instant::now();
+            let n = list_artists(&store, &req).unwrap().len();
+            (start.elapsed(), n)
+        };
+        let _ = time_artists(0);
+        let (a_first, an_first) = time_artists(0);
+        let (a_deep, an_deep) = time_artists(0);
+        println!("--- list_artists timings (50 artists, 4000 tracks, 2 libs) ---");
+        println!("  run 1 -> {:?} ({an_first} rows)", a_first);
+        println!("  run 2 -> {:?} ({an_deep} rows)", a_deep);
     }
 }

@@ -23,7 +23,7 @@ import { runLocalAlbumBrowse } from './albumBrowseLocal';
 import { fetchAlbumBrowseNetwork } from './albumBrowseNetwork';
 import { fetchStarredAlbumBrowse } from './albumBrowseStarredFetch';
 import { libraryGetGenreAlbumCounts } from '@/lib/api/library';
-import { libraryScopeForServer, librarySelectionForServer } from '@/lib/api/subsonicClient';
+import { librarySelectionForServer } from '@/lib/api/subsonicClient';
 import { libraryIsReady } from './libraryReady';
 import type {
   AlbumBrowseFetchCallbacks,
@@ -64,19 +64,32 @@ export async function fetchAlbumBrowseGenreOptions(
 ): Promise<GenreFilterOption[]> {
   const withoutGenre: AlbumBrowseQuery = { ...query, genres: [] };
   const selection = librarySelectionForServer(serverId);
-  const scope = libraryScopeForServer(serverId);
   const hasCombinedFilters =
     albumBrowseHasServerFilters(withoutGenre) || query.compFilter !== 'all';
 
-  // Sidebar library scope only: use the full scoped genre catalog from the local
-  // index instead of getGenres() (server-wide) or a 500-album sample.
-  if (indexEnabled && serverId && selection.length === 1 && scope && !hasCombinedFilters && (await libraryIsReady(serverId))) {
+  // Sidebar library scope only: build the genre catalog from the light per-library
+  // `track_genre` index query instead of getGenres() (server-wide) or a 500-album
+  // multi-scope CTE sample. For multi-library selection we sum counts per library —
+  // cross-library album duplicates are counted once per library (a cosmetic hint),
+  // but the genre set stays correct and each query is an indexed GROUP BY.
+  if (indexEnabled && serverId && selection.length >= 1 && !hasCombinedFilters && (await libraryIsReady(serverId))) {
     try {
-      const rows = await libraryGetGenreAlbumCounts({
-        serverId,
-        libraryScope: scope,
-      });
-      return rows.map(row => ({ genre: row.value, count: row.albumCount }));
+      if (selection.length === 1) {
+        const rows = await libraryGetGenreAlbumCounts({ serverId, libraryScope: selection[0] });
+        return rows.map(row => ({ genre: row.value, count: row.albumCount }));
+      }
+      const perLibrary = await Promise.all(
+        selection.map(libraryScope => libraryGetGenreAlbumCounts({ serverId, libraryScope })),
+      );
+      const merged = new Map<string, number>();
+      for (const rows of perLibrary) {
+        for (const row of rows) {
+          merged.set(row.value, (merged.get(row.value) ?? 0) + row.albumCount);
+        }
+      }
+      return Array.from(merged, ([genre, count]) => ({ genre, count })).sort(
+        (a, b) => b.count - a.count || a.genre.localeCompare(b.genre),
+      );
     } catch {
       /* fall through to album-derived options */
     }
