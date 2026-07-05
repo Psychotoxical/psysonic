@@ -123,6 +123,7 @@ export const useAuthStore = create<AuthState>()(
       nowPlayingAtTop: false,
       musicFolders: [],
       musicLibraryFilterByServer: {},
+      musicLibrarySelectionByServer: {},
       musicLibraryFilterVersion: 0,
       entityRatingSupportByServer: {},
       audiomuseNavidromeByServer: {},

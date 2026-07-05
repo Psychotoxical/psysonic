@@ -300,10 +300,15 @@ export interface AuthState {
   musicFolders: Array<{ id: string; name: string }>;
   /**
    * Per server: `all` = no musicFolderId param; otherwise a single folder id.
-   * Only one library or all — no multi-folder merge.
+   * Legacy single-select; kept in sync with `musicLibrarySelectionByServer` for old readers.
    */
   musicLibraryFilterByServer: Record<string, 'all' | string>;
-  /** Bumps when `setMusicLibraryFilter` runs so pages refetch catalog data. */
+  /**
+   * Per server: ordered library folder ids (index 0 = highest priority).
+   * Empty array or absent key = all libraries on that server.
+   */
+  musicLibrarySelectionByServer: Record<string, string[]>;
+  /** Bumps when the music library filter/selection changes so pages refetch catalog data. */
   musicLibraryFilterVersion: number;
 
   /**
@@ -451,6 +456,8 @@ export interface AuthState {
   setShowLuckyMixMenu: (v: boolean) => void;
   setMusicFolders: (folders: Array<{ id: string; name: string }>) => void;
   setMusicLibraryFilter: (folderId: 'all' | string) => void;
+  /** Ordered multi-library selection for the active server; array order is priority. */
+  setMusicLibrarySelection: (libraryIds: string[]) => void;
 
   /** Navigation style for Mix pages: single hub ('hub') or separate sidebar entries ('separate'). */
   randomNavMode: 'hub' | 'separate';

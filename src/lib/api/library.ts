@@ -10,6 +10,7 @@
  */
 export * from './library/dto';
 export * from './library/reads';
+export * from './library/scopeReads';
 export * from './library/sync';
 export * from './library/stats';
 export * from './library/events';

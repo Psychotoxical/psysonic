@@ -5,6 +5,11 @@ type SetState = (
 ) => void;
 type GetState = () => AuthState;
 
+function legacyFilterFromSelection(libraryIds: string[]): 'all' | string {
+  if (libraryIds.length === 0) return 'all';
+  return libraryIds[0];
+}
+
 /**
  * Per-server music-folder selection. `setMusicFolders` is called
  * after login / server change with the fresh Subsonic folder list;
@@ -18,20 +23,38 @@ type GetState = () => AuthState;
  */
 export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
   AuthState,
-  'setMusicFolders' | 'setMusicLibraryFilter'
+  'setMusicFolders' | 'setMusicLibraryFilter' | 'setMusicLibrarySelection'
 > {
   return {
     setMusicFolders: (folders) => {
       const sid = get().activeServerId;
       set(s => {
-        const f = sid ? s.musicLibraryFilterByServer[sid] : undefined;
-        const invalidFilter = f && f !== 'all' && !folders.some(x => x.id === f);
-        return {
-          musicFolders: folders,
-          ...(sid && invalidFilter
-            ? { musicLibraryFilterByServer: { ...s.musicLibraryFilterByServer, [sid]: 'all' } }
-            : {}),
-        };
+        const folderIds = new Set(folders.map(x => x.id));
+        const updates: Partial<AuthState> = { musicFolders: folders };
+        if (!sid) return updates;
+
+        const f = s.musicLibraryFilterByServer[sid];
+        const invalidFilter = f && f !== 'all' && !folderIds.has(f);
+        if (invalidFilter) {
+          updates.musicLibraryFilterByServer = { ...s.musicLibraryFilterByServer, [sid]: 'all' };
+        }
+
+        const selection = s.musicLibrarySelectionByServer[sid];
+        if (selection && selection.length > 0) {
+          const pruned = selection.filter(id => folderIds.has(id));
+          if (pruned.length !== selection.length) {
+            updates.musicLibrarySelectionByServer = {
+              ...s.musicLibrarySelectionByServer,
+              [sid]: pruned,
+            };
+            updates.musicLibraryFilterByServer = {
+              ...(updates.musicLibraryFilterByServer ?? s.musicLibraryFilterByServer),
+              [sid]: legacyFilterFromSelection(pruned),
+            };
+          }
+        }
+
+        return updates;
       });
     },
 
@@ -40,6 +63,22 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
       if (!sid) return;
       set(s => ({
         musicLibraryFilterByServer: { ...s.musicLibraryFilterByServer, [sid]: folderId },
+        musicLibraryFilterVersion: s.musicLibraryFilterVersion + 1,
+      }));
+    },
+
+    setMusicLibrarySelection: (libraryIds) => {
+      const sid = get().activeServerId;
+      if (!sid) return;
+      set(s => ({
+        musicLibrarySelectionByServer: {
+          ...s.musicLibrarySelectionByServer,
+          [sid]: libraryIds,
+        },
+        musicLibraryFilterByServer: {
+          ...s.musicLibraryFilterByServer,
+          [sid]: legacyFilterFromSelection(libraryIds),
+        },
         musicLibraryFilterVersion: s.musicLibraryFilterVersion + 1,
       }));
     },

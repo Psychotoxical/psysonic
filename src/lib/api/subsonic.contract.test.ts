@@ -20,7 +20,7 @@ import {
 } from '@/lib/api/subsonicStreamUrl';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { parseSubsonicEntityStarRating } from '@/lib/api/subsonicRatings';
-import { getClient, libraryFilterParams, libraryScopeForServer } from '@/lib/api/subsonicClient';
+import { getClient, libraryFilterParams, libraryFilterParamsForServer, libraryScopeForServer, librarySelectionForServer } from '@/lib/api/subsonicClient';
 import { useAuthStore } from '@/store/authStore';
 import { resetAuthStore } from '@/test/helpers/storeReset';
 
@@ -75,6 +75,41 @@ describe('libraryFilterParams', () => {
       musicLibraryFilterByServer: { [serverId]: 'mf-7' },
     });
     expect(libraryFilterParams()).toEqual({ musicFolderId: 'mf-7' });
+  });
+
+  it('returns repeated musicFolderId values for multi-library selection', () => {
+    const serverId = setUpServer();
+    useAuthStore.getState().setMusicLibrarySelection(['mf-2', 'mf-7']);
+    expect(libraryFilterParams()).toEqual({ musicFolderId: ['mf-2', 'mf-7'] });
+    expect(libraryFilterParamsForServer(serverId)).toEqual({ musicFolderId: ['mf-2', 'mf-7'] });
+  });
+});
+
+describe('librarySelectionForServer', () => {
+  it('migrates legacy all or absent to empty array', () => {
+    const serverId = setUpServer();
+    expect(librarySelectionForServer(serverId)).toEqual([]);
+    useAuthStore.setState({
+      musicLibraryFilterByServer: { [serverId]: 'all' },
+    });
+    expect(librarySelectionForServer(serverId)).toEqual([]);
+  });
+
+  it('migrates legacy single id to one-element array', () => {
+    const serverId = setUpServer();
+    useAuthStore.setState({
+      musicLibraryFilterByServer: { [serverId]: 'mf-7' },
+    });
+    expect(librarySelectionForServer(serverId)).toEqual(['mf-7']);
+  });
+
+  it('returns ordered selection when the new map has an entry', () => {
+    const serverId = setUpServer();
+    useAuthStore.setState({
+      musicLibrarySelectionByServer: { [serverId]: ['lib-b', 'lib-a'] },
+      musicLibraryFilterByServer: { [serverId]: 'lib-b' },
+    });
+    expect(librarySelectionForServer(serverId)).toEqual(['lib-b', 'lib-a']);
   });
 });
 
