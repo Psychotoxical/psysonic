@@ -37,6 +37,41 @@ where
     })
 }
 
+/// Required id field — Subsonic/Navidrome may send string or number.
+pub(crate) fn de_id_string_or_number<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    match value {
+        serde_json::Value::String(s) => Ok(s),
+        serde_json::Value::Number(n) => Ok(n.to_string()),
+        other => Err(serde::de::Error::custom(format!(
+            "expected string or number for id, got {other}"
+        ))),
+    }
+}
+
+/// `musicFolder` may be a single object or an array on the wire.
+pub(crate) fn de_music_folder_one_or_many<'de, D>(
+    deserializer: D,
+) -> Result<Vec<MusicFolder>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    match value {
+        None => Ok(Vec::new()),
+        Some(serde_json::Value::Array(arr)) => arr
+            .into_iter()
+            .map(|v| serde_json::from_value(v).map_err(serde::de::Error::custom))
+            .collect(),
+        Some(obj) => serde_json::from_value(obj)
+            .map(|one: MusicFolder| vec![one])
+            .map_err(serde::de::Error::custom),
+    }
+}
+
 /// First usable value in a multi-valued array: a string element, or an
 /// object element's `name` (the OpenSubsonic `[{ "name": … }]` shape).
 fn first_tag_value(arr: &[serde_json::Value]) -> Option<String> {
@@ -114,6 +149,15 @@ pub struct ArtistRef {
     pub album_count: Option<i64>,
     #[serde(rename = "coverArt", default)]
     pub cover_art: Option<String>,
+}
+
+/// `#getMusicFolders` — top-level music libraries / folders on the server.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct MusicFolder {
+    #[serde(deserialize_with = "de_id_string_or_number")]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
 }
 
 /// `#getAlbumList2` — page of album summaries (no song list).

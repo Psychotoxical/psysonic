@@ -11,7 +11,7 @@ use serde::Deserialize;
 
 use super::auth::SubsonicCredentials;
 use super::error::{flatten_reqwest_error, SubsonicError};
-use super::types::{Album, AlbumSummary, ArtistIndex, ScanStatus, SearchResult, ServerInfo, Song};
+use super::types::{Album, AlbumSummary, ArtistIndex, MusicFolder, ScanStatus, SearchResult, ServerInfo, Song};
 use psysonic_core::server_http::{apply_server_headers, ServerHttpContext};
 
 /// Protocol level we advertise — pre-OpenSubsonic Subsonic baseline that
@@ -187,6 +187,15 @@ impl SubsonicClient {
         self.fetch("getArtists", &params, "artists").await
     }
 
+    /// B2 — `getMusicFolders()`. Returns the server's music libraries /
+    /// folders. Used by the library-tagging pass to scope `getAlbumList2`
+    /// without re-ingesting tracks.
+    pub async fn get_music_folders(&self) -> Result<Vec<MusicFolder>, SubsonicError> {
+        let wrapped: MusicFoldersWrapper =
+            self.fetch("getMusicFolders", &[], "musicFolders").await?;
+        Ok(wrapped.music_folder)
+    }
+
     /// B3a — `getAlbumList2(type, size, offset, musicFolderId?)`. Returns
     /// just the album summaries; the caller follows up with `get_album`
     /// per id to enumerate songs.
@@ -349,6 +358,16 @@ impl SubsonicClient {
 struct AlbumListWrapper {
     #[serde(default)]
     album: Vec<AlbumSummary>,
+}
+
+#[derive(Deserialize)]
+struct MusicFoldersWrapper {
+    #[serde(
+        rename = "musicFolder",
+        default,
+        deserialize_with = "crate::subsonic::types::de_music_folder_one_or_many"
+    )]
+    music_folder: Vec<MusicFolder>,
 }
 
 fn default_http_client() -> reqwest::Client {
@@ -812,6 +831,54 @@ mod tests {
             .unwrap();
         assert_eq!(albums.len(), 2);
         assert_eq!(albums[1].id, "al_2");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn get_music_folders_handles_array_and_numeric_ids() {
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getMusicFolders.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "musicFolders": {
+                        "musicFolder": [
+                            { "id": 1, "name": "Music Library" },
+                            { "id": "2", "name": "Podcasts" }
+                        ]
+                    }
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let folders = test_client(&server.uri()).get_music_folders().await.unwrap();
+        assert_eq!(folders.len(), 2);
+        assert_eq!(folders[0].id, "1");
+        assert_eq!(folders[0].name, "Music Library");
+        assert_eq!(folders[1].id, "2");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn get_music_folders_handles_single_object() {
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getMusicFolders.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "musicFolders": {
+                        "musicFolder": { "id": 3, "name": "Only" }
+                    }
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let folders = test_client(&server.uri()).get_music_folders().await.unwrap();
+        assert_eq!(folders.len(), 1);
+        assert_eq!(folders[0].id, "3");
+        assert_eq!(folders[0].name, "Only");
     }
 
     #[tokio::test(flavor = "multi_thread")]

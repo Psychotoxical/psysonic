@@ -12,7 +12,7 @@ use tauri::Manager;
 ///
 /// Migration checklist (wiring, data backfill, open/swap path):
 /// psysonic-workdocs `ai/agent-rules/08-library-db-migrations.md`.
-pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 16;
+pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 17;
 
 /// One-time data repair after migration 014 (`artist.name_sort`).
 pub(crate) const ARTIST_NAME_SORT_RECONCILE_ID: &str = "artist_name_sort_reconcile_v1";
@@ -48,6 +48,8 @@ pub(crate) const MIGRATION_015_REPLAY_GAIN_PEAK: &str =
     include_str!("../migrations/015_replay_gain_peak.sql");
 pub(crate) const MIGRATION_016_MULTI_LIBRARY_SCOPE: &str =
     include_str!("../migrations/016_multi_library_scope.sql");
+pub(crate) const MIGRATION_017_LIBRARY_TAG_STATE: &str =
+    include_str!("../migrations/017_library_tag_state.sql");
 
 /// Embedded migrations. Ordered ascending by `version`; the runner sorts
 /// defensively before applying so the source order can stay readable.
@@ -58,6 +60,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (14, MIGRATION_014_ARTIST_NAME_SORT),
     (15, MIGRATION_015_REPLAY_GAIN_PEAK),
     (16, MIGRATION_016_MULTI_LIBRARY_SCOPE),
+    (17, MIGRATION_017_LIBRARY_TAG_STATE),
 ];
 
 /// Idempotent repair — also runs after the migration runner on every open so

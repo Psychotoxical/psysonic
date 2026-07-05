@@ -16,6 +16,6 @@ pub use client::{
 pub use stream_url::{build_stream_view_url, rest_base_from_url};
 pub use error::SubsonicError;
 pub use types::{
-    Album, AlbumSummary, ArtistIndex, ArtistRef, IndexBucket, ScanStatus, SearchResult, ServerInfo,
-    Song,
+    Album, AlbumSummary, ArtistIndex, ArtistRef, IndexBucket, MusicFolder, ScanStatus,
+    SearchResult, ServerInfo, Song,
 };
