@@ -179,6 +179,13 @@ export function browseRaceCountsFullSearch(result: unknown): LibrarySearchDebugE
 const ARTIST_BROWSE_LIMIT = 500;
 const ALBUM_BROWSE_LIMIT = 500;
 
+/** Case-insensitive substring match on artist display names (Unicode). */
+export function filterBrowseArtistsByNameQuery(artists: SubsonicArtist[], query: string): SubsonicArtist[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return artists;
+  return artists.filter(a => (a.name ?? '').toLowerCase().includes(needle));
+}
+
 const emptyBrowseOpts = (query: string, artistCreditMode?: ArtistCreditMode): LocalSearchOpts => ({
   query,
   genre: '',
@@ -242,7 +249,7 @@ export async function runLocalBrowseArtists(
     true,
   );
   if (!page) return null;
-  return page.artists;
+  return filterBrowseArtistsByNameQuery(page.artists, query);
 }
 
 /** Network search3 artist slice for browse pages. */
@@ -255,9 +262,9 @@ export async function runNetworkBrowseArtists(
   if (!q) return null;
   try {
     const r = await search(q, { artistCount: limit, albumCount: 0, songCount: 0 });
-    if (creditMode === 'track') return r.artists;
     const indexIds = new Set((await getArtists()).map(a => a.id));
-    return r.artists.filter(a => indexIds.has(a.id));
+    const raw = creditMode === 'track' ? r.artists : r.artists.filter(a => indexIds.has(a.id));
+    return filterBrowseArtistsByNameQuery(raw, q);
   } catch {
     return null;
   }

@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { browseRaceCountsArtists, raceBrowseWithLocalFallback } from './browseTextSearch';
+import { browseRaceCountsArtists, filterBrowseArtistsByNameQuery, raceBrowseWithLocalFallback } from './browseTextSearch';
+
+describe('filterBrowseArtistsByNameQuery', () => {
+  it('matches Cyrillic names regardless of query case', () => {
+    const artists = [{ id: '1', name: 'Кино' }];
+    expect(filterBrowseArtistsByNameQuery(artists, 'кин')).toHaveLength(1);
+    expect(filterBrowseArtistsByNameQuery(artists, 'КИН')).toHaveLength(1);
+  });
+});
 
 describe('raceBrowseWithLocalFallback', () => {
   it('returns local when network throws and local has data', async () => {

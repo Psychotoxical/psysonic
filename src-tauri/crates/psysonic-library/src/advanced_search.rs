@@ -24,7 +24,8 @@ use crate::repos;
 use crate::search::{
     aliased_track_columns, aliased_track_columns_resolved_bpm, bpm_resolved_expr,
     fts_album_prefix_match_query, fts_album_title_prefix_match_query, fts_column_prefix_query, fts_query_meets_min_len,
-    fts_track_prefix_match_query, library_scope_equals_sql, like_contains, PAGE_LIMIT_MAX,
+    fts_track_prefix_match_query, library_scope_equals_sql, like_contains, like_contains_folded,
+    PAGE_LIMIT_MAX,
 };
 use crate::store::LibraryStore;
 
@@ -561,7 +562,12 @@ fn build_artist_from_table(
         push_artist_letter_bucket(&mut w, bucket, applied);
     }
     if let Some(t) = text {
-        w.push_param("ar.name LIKE ? ESCAPE '\\'", SqlValue::Text(like_contains(t)));
+        // Match `name_sort` (Unicode lowercase from sync) so Cyrillic and other
+        // non-ASCII names are case-insensitive; COALESCE covers pre-014 rows.
+        w.push_param(
+            "COALESCE(ar.name_sort, ar.name) LIKE ? ESCAPE '\\'",
+            SqlValue::Text(like_contains_folded(t)),
+        );
         applied.insert("text".to_string());
     }
     for c in scalar {
@@ -610,7 +616,10 @@ fn build_artist_from_tracks(
         w.push_param(&clause, SqlValue::Text(scope));
     }
     if let Some(t) = text {
-        w.push_param("t.artist LIKE ? ESCAPE '\\'", SqlValue::Text(like_contains(t)));
+        w.push_param(
+            "t.artist LIKE ? ESCAPE '\\'",
+            SqlValue::Text(like_contains_folded(t)),
+        );
         applied.insert("text".to_string());
     }
     for c in scalar {
@@ -1602,6 +1611,36 @@ mod tests {
         let resp = run_advanced_search(&store, &r).unwrap();
         assert_eq!(resp.albums.len(), 1);
         assert_eq!(resp.albums[0].id, "al1");
+        assert_eq!(resp.artists.len(), 1);
+        assert_eq!(resp.artists[0].id, "ar1");
+    }
+
+    #[test]
+    fn artist_text_query_is_case_insensitive_for_cyrillic_name_sort() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "INSERT INTO artist (server_id, id, name, name_sort, album_count, synced_at, raw_json) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, 1, '{}')",
+                    rusqlite::params!["s1", "ar_kino", "Кино", "кино", 3_i64],
+                )
+            })
+            .unwrap();
+        let mut r = req("s1", &[EntityKind::Artist]);
+        r.query = Some("КИН".into());
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.artists.len(), 1);
+        assert_eq!(resp.artists[0].id, "ar_kino");
+    }
+
+    #[test]
+    fn artist_text_query_is_case_insensitive_for_latin_display_name() {
+        let store = LibraryStore::open_in_memory();
+        insert_artist(&store, "s1", "ar1", "Metallica");
+        let mut r = req("s1", &[EntityKind::Artist]);
+        r.query = Some("METAL".into());
+        let resp = run_advanced_search(&store, &r).unwrap();
         assert_eq!(resp.artists.len(), 1);
         assert_eq!(resp.artists[0].id, "ar1");
     }
