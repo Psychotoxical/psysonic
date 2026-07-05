@@ -403,6 +403,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Themed window title bar on macOS — follows the active theme instead of the grey system bar, with the native window buttons floating over it (PR #1199)',
       'Frontend feature-folder restructure — CI-enforced layering guard, added unit/behavior-scenario/boot-smoke tests, and a compile-time frontend/backend IPC contract via tauri-specta (PR #1225)',
       'Completed the tauri-specta typed-IPC cutover — CI guards for bindings freshness and full command registration (PR #1230)',
+      'Theme Store: per-theme changelogs shown as an expandable "What\'s new" on each card, plus installed themes with an available update pinned to the top of the list (PR #1240)',
     ],
   },
   {

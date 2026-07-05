@@ -47,6 +47,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * A dismissible banner inviting you to join the Psysonic community on Discord appears after 20 hours of accumulated app use. **Join** opens the invite; dismiss it for the session, or choose **Never show again** to hide it permanently.
 
 
+### Theme Store — per-theme changelogs and pinned updates
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1240](https://github.com/Psychotoxical/psysonic/pull/1240)**
+
+* Each theme card now has an expandable **What's new** with per-version release notes, so you can see what a theme update changed — including non-visual fixes. Provided by theme authors; themes without notes just don't show the section.
+* Installed themes with an available update now appear at the top of the store list instead of wherever the sort placed them, so you don't have to hunt for them.
+
+
 ## Changed
 
 ### Frontend restructure — feature-folder architecture and hardening
