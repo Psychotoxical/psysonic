@@ -782,7 +782,11 @@ ON CONFLICT(server_id, id) DO UPDATE SET
   play_count           = excluded.play_count,
   played_at            = excluded.played_at,
   server_path          = excluded.server_path,
-  library_id           = excluded.library_id,
+  -- P20: never let a sync path that omits library membership (OpenSubsonic
+  -- whole-server search3/getAlbumList2 carry no libraryId) clobber a library_id
+  -- previously captured by a scoped / Navidrome-native sync back to NULL —
+  -- that silently erases multi-library scope tagging. A non-empty incoming id wins.
+  library_id           = COALESCE(NULLIF(excluded.library_id, ''), track.library_id),
   isrc                 = excluded.isrc,
   mbid_recording       = excluded.mbid_recording,
   bpm                  = excluded.bpm,
@@ -835,7 +839,8 @@ ON CONFLICT(server_id, id) DO UPDATE SET
   play_count           = excluded.play_count,
   played_at            = excluded.played_at,
   server_path          = excluded.server_path,
-  library_id           = excluded.library_id,
+  -- P20: preserve prior library_id when a sync path omits it (see UPSERT above).
+  library_id           = COALESCE(NULLIF(excluded.library_id, ''), track.library_id),
   isrc                 = excluded.isrc,
   mbid_recording       = excluded.mbid_recording,
   bpm                  = excluded.bpm,
@@ -989,6 +994,49 @@ mod tests {
         with_hash.content_hash = Some("server-hash".into());
         repo.upsert_batch(&[with_hash]).unwrap();
         assert_eq!(read(&store).as_deref(), Some("server-hash"));
+    }
+
+    #[test]
+    fn resync_does_not_clobber_library_id_when_incoming_is_empty() {
+        // P20: a Navidrome-native / scoped sync tags a track with library_id, then
+        // a whole-server OpenSubsonic resync (no libraryId) must not wipe it — that
+        // is what silently emptied multi-library scope on large servers.
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+
+        let mut tagged = row("s1", "t1", "First");
+        tagged.library_id = Some("1".into());
+        repo.upsert_batch(&[tagged]).unwrap();
+
+        let read = |store: &LibraryStore| -> Option<String> {
+            store
+                .with_conn("misc", |c| {
+                    c.query_row(
+                        "SELECT library_id FROM track WHERE server_id='s1' AND id='t1'",
+                        [],
+                        |r| r.get(0),
+                    )
+                })
+                .unwrap()
+        };
+
+        // OpenSubsonic resync carries no library membership.
+        let mut none_scope = row("s1", "t1", "First (resynced, no lib)");
+        none_scope.library_id = None;
+        repo.upsert_batch(&[none_scope]).unwrap();
+        assert_eq!(read(&store).as_deref(), Some("1"));
+
+        // Empty-string is treated the same as NULL.
+        let mut empty_scope = row("s1", "t1", "First (resynced, empty lib)");
+        empty_scope.library_id = Some(String::new());
+        repo.upsert_batch(&[empty_scope]).unwrap();
+        assert_eq!(read(&store).as_deref(), Some("1"));
+
+        // A genuine library move (non-empty id) still wins.
+        let mut moved = row("s1", "t1", "First");
+        moved.library_id = Some("2".into());
+        repo.upsert_batch(&[moved]).unwrap();
+        assert_eq!(read(&store).as_deref(), Some("2"));
     }
 
     #[test]
