@@ -13,7 +13,9 @@ import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';
 import {
   getQueueResolverVersion,
   subscribeQueueResolver,
+  resolveBatch,
 } from '@/features/playback/store/queueTrackResolver';
+import { collectQueueResolveRefs } from '@/features/queue/utils/collectQueueResolveRefs';
 import { findQueueItemRefIndex } from '@/features/playback/utils/playback/queueIdentity';
 import type { TimelineDisplayRow } from '@/features/playback/utils/buildTimelineDisplayRows';
 import { findTimelineScrollLocalIndex } from '@/features/playback/utils/buildTimelineDisplayRows';
@@ -76,6 +78,22 @@ export function QueueList({
   });
   const virtualItems = rowVirtualizer.getVirtualItems();
   const totalSize = rowVirtualizer.getTotalSize();
+
+  // Resolve the rows the user is actually looking at (queue thin-state). The
+  // queueResolverBridge only warms a window around the *playing* index; scrolling
+  // the queue independently would otherwise leave rows stuck on the '…'
+  // placeholder (cache miss / evicted from the bounded LRU). Drive resolution off
+  // the virtualizer's visible range so any scrolled-to row fetches on demand.
+  const firstVisible = virtualItems.length > 0 ? virtualItems[0]!.index : 0;
+  const lastVisible = virtualItems.length > 0 ? virtualItems[virtualItems.length - 1]!.index : 0;
+  useEffect(() => {
+    if (rowCount === 0) return;
+    const refs = collectQueueResolveRefs({ usingTimeline, timelineRows, queue, firstVisible, lastVisible });
+    if (refs.length > 0) void resolveBatch(refs);
+  // Keyed on the visible range + mode; the resolver dedups against cache/in-flight,
+  // so re-running on scroll is cheap. Queue-content changes are covered by the bridge.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstVisible, lastVisible, rowCount, usingTimeline]);
 
   useEffect(() => {
     if (suppressNextAutoScrollRef.current) {
