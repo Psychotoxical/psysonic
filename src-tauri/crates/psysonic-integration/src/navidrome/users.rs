@@ -11,6 +11,7 @@ use super::client::{nd_apply_request, nd_err, nd_http_client, nd_retry, NdLoginR
 
 /// Log in to Navidrome's native REST API. Returns a Bearer token and whether the user is admin.
 #[tauri::command]
+#[specta::specta]
 pub async fn navidrome_login(
     http_registry: State<'_, Arc<ServerHttpRegistry>>,
     server_url: String,
@@ -50,6 +51,7 @@ pub async fn navidrome_login(
 }
 
 /// GET `/api/user` — admin only. Returns the raw JSON array verbatim so the frontend can pick fields.
+// NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn nd_list_users(
     http_registry: State<'_, Arc<ServerHttpRegistry>>,
@@ -83,6 +85,7 @@ pub async fn nd_list_users(
 }
 
 /// POST `/api/user` — create a user.
+// NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn nd_create_user(
@@ -133,6 +136,7 @@ pub async fn nd_create_user(
 }
 
 /// PUT `/api/user/{id}` — update a user. Pass an empty `password` to leave it unchanged.
+// NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn nd_update_user(
@@ -188,6 +192,7 @@ pub async fn nd_update_user(
 
 /// DELETE `/api/user/{id}`.
 #[tauri::command]
+#[specta::specta]
 pub async fn nd_delete_user(
     http_registry: State<'_, Arc<ServerHttpRegistry>>,
     server_url: String,

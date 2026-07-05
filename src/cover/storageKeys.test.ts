@@ -26,7 +26,7 @@ vi.mock('../store/authStore', () => ({
   useAuthStore: { getState: () => mockState },
 }));
 
-vi.mock('../utils/playback/playbackServer', () => ({
+vi.mock('@/features/playback/utils/playback/playbackServer', () => ({
   getPlaybackServerId: () => null,
 }));
 

@@ -12,6 +12,10 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 
 ## Highlights
 
+### Bulgarian — now in your language
+
+- Psysonic is now available in **Bulgarian (Български)** — pick it from the language menu on the **Settings** and **Login** screens.
+
 ### Square corners — a sharper, boxier look
 
 - New **Square Corners** toggle under **Settings → Appearance → Visual Options** strips the rounded corners off cards and cover art across the app — handy when a theme's rounding doesn't suit your album covers. Off by default; everything else stays the way your theme defines it.

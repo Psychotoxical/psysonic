@@ -26,6 +26,7 @@ pub fn resolve_hot_cache_root(
 /// Returns true if the current Linux system is Arch-based
 /// (checks /etc/arch-release and /etc/os-release).
 #[tauri::command]
+#[specta::specta]
 pub fn check_arch_linux() -> bool {
     #[cfg(target_os = "linux")]
     {
@@ -57,6 +58,7 @@ pub struct UpdateDownloadProgress {
 /// Emits `update:download:progress` events with `{ bytes, total }` every 250 ms.
 /// Returns the final absolute file path on success.
 #[tauri::command]
+#[specta::specta]
 pub async fn download_update(url: String, filename: String, app: tauri::AppHandle) -> Result<String, String> {
     use futures_util::StreamExt;
     use std::time::{Duration, Instant};
@@ -130,6 +132,7 @@ pub async fn download_update(url: String, filename: String, app: tauri::AppHandl
 /// Performs a track search, then fetches the LRC string for the best match.
 /// Returns `None` if no match or no lyrics are found.
 #[tauri::command]
+#[specta::specta]
 pub async fn fetch_netease_lyrics(artist: String, title: String) -> Result<Option<String>, String> {
     let client = reqwest::Client::builder()
         .user_agent(subsonic_wire_user_agent())
@@ -183,6 +186,7 @@ pub async fn fetch_netease_lyrics(artist: String, title: String) -> Result<Optio
 /// Errors are silenced and mapped to `None` so the frontend falls through to the
 /// next lyrics source without crashing.
 #[tauri::command]
+#[specta::specta]
 pub fn get_embedded_lyrics(path: String) -> Option<String> {
     use lofty::file::FileType;
     use lofty::prelude::*;
@@ -282,6 +286,7 @@ pub fn get_embedded_lyrics(path: String) -> Option<String> {
 /// Uses platform-specific process spawning — tauri-plugin-shell's open() only
 /// allows https:// URLs per the capability scope and fails silently for paths.
 #[tauri::command]
+#[specta::specta]
 pub fn open_folder(path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
@@ -323,6 +328,7 @@ pub struct ZipProgress {
 /// live MB-counter without holding any binary data in the WebView process.
 /// Returns the final destination path on success.
 #[tauri::command]
+#[specta::specta]
 pub async fn download_zip(
     id: String,
     url: String,
@@ -409,7 +415,7 @@ pub async fn download_zip(
     }
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct HotCacheDownloadResult {
     pub path: String,

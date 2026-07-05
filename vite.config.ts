@@ -1,6 +1,7 @@
 /// <reference types="node" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import path from "node:path";
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -16,6 +17,14 @@ const optimizeDepsEntries = [
 
 export default defineConfig({
   plugins: [react()],
+  // `@/* → src/*` — must mirror vitest.config.ts + tsconfig paths. The dev and
+  // build resolvers differ: tsconfig `paths` covers tsc + `vite build`, but
+  // `vite dev` needs this explicit alias or `@/` imports fail to resolve.
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
   clearScreen: false,
   optimizeDeps: {
     entries: optimizeDepsEntries,

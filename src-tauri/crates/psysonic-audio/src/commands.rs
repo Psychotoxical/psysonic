@@ -40,6 +40,10 @@ use super::state::{ChainedInfo, PreloadedTrack};
 /// `stream_format_suffix`: Subsonic `song.suffix` (e.g. m4a); `stream.view` URLs have no
 /// file extension, so this helps pick a Symphonia `format_hint` for ranged HTTP.
 #[tauri::command]
+// NOTE: excluded from tauri-specta collect_commands! — specta's SpectaFn is only
+// implemented up to 10 args and this has 24. Typing it needs the args bundled into
+// a struct (a behaviour/contract change), tracked for the D4 flip; stays on
+// generate_handler! for now.
 #[allow(clippy::too_many_arguments)]
 pub async fn audio_play(
     url: String,
@@ -602,6 +606,9 @@ pub async fn audio_play(
 /// audio_play() checks chained_info.url on arrival: if it matches, it returns
 /// immediately without touching the Sink (pure no-op on the audio path).
 #[tauri::command]
+// NOTE: excluded from tauri-specta collect_commands! — 13 args exceed specta's
+// 10-arg SpectaFn limit; needs arg-bundling for the D4 flip. Stays on
+// generate_handler! for now.
 #[allow(clippy::too_many_arguments)]
 pub async fn audio_chain_preload(
     url: String,

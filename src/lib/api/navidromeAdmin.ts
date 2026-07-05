@@ -1,0 +1,140 @@
+import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
+
+export interface NdLibrary {
+  id: number;
+  name: string;
+}
+
+export interface NdUser {
+  id: string;
+  userName: string;
+  name: string;
+  email: string;
+  isAdmin: boolean;
+  libraryIds: number[];
+  lastLoginAt?: string | null;
+  lastAccessAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface NdLoginResult {
+  token: string;
+  userId: string;
+  isAdmin: boolean;
+}
+
+export async function ndLogin(
+  serverUrl: string,
+  username: string,
+  password: string,
+): Promise<NdLoginResult> {
+  const res = await commands.navidromeLogin(serverUrl, username, password);
+  if (res.status === 'error') throw new Error(res.error);
+  return res.data;
+}
+
+function extractLibraryIds(o: Record<string, unknown>): number[] {
+  const libs = o.libraries;
+  if (!Array.isArray(libs)) return [];
+  const ids: number[] = [];
+  for (const l of libs) {
+    const id = (l as Record<string, unknown>)?.id;
+    if (typeof id === 'number') ids.push(id);
+    else if (typeof id === 'string' && /^\d+$/.test(id)) ids.push(Number(id));
+  }
+  return ids;
+}
+
+export async function ndListUsers(serverUrl: string, token: string): Promise<NdUser[]> {
+  const raw = await invoke<unknown>('nd_list_users', { serverUrl, token });
+  if (!Array.isArray(raw)) return [];
+  return raw.map(u => {
+    const o = u as Record<string, unknown>;
+    return {
+      id: String(o.id ?? ''),
+      userName: String(o.userName ?? ''),
+      name: String(o.name ?? ''),
+      email: String(o.email ?? ''),
+      isAdmin: !!o.isAdmin,
+      libraryIds: extractLibraryIds(o),
+      lastLoginAt: (o.lastLoginAt as string | null | undefined) ?? null,
+      lastAccessAt: (o.lastAccessAt as string | null | undefined) ?? null,
+      createdAt: o.createdAt as string | undefined,
+      updatedAt: o.updatedAt as string | undefined,
+    };
+  });
+}
+
+export async function ndListLibraries(serverUrl: string, token: string): Promise<NdLibrary[]> {
+  const raw = await invoke<unknown>('nd_list_libraries', { serverUrl, token });
+  if (!Array.isArray(raw)) return [];
+  return raw.map(l => {
+    const o = l as Record<string, unknown>;
+    const id = typeof o.id === 'number'
+      ? o.id
+      : typeof o.id === 'string' && /^\d+$/.test(o.id) ? Number(o.id) : 0;
+    return { id, name: String(o.name ?? '') };
+  }).filter(l => l.id > 0);
+}
+
+export async function ndSetUserLibraries(
+  serverUrl: string,
+  token: string,
+  id: string,
+  libraryIds: number[],
+): Promise<void> {
+  const res = await commands.ndSetUserLibraries(serverUrl, token, id, libraryIds);
+  if (res.status === 'error') throw new Error(res.error);
+}
+
+export async function ndCreateUser(
+  serverUrl: string,
+  token: string,
+  data: { userName: string; name: string; email: string; password: string; isAdmin: boolean },
+): Promise<{ id: string }> {
+  const raw = await invoke<unknown>('nd_create_user', { serverUrl, token, ...data });
+  const o = (raw as Record<string, unknown> | null) ?? {};
+  return { id: String(o.id ?? '') };
+}
+
+export async function ndUpdateUser(
+  serverUrl: string,
+  token: string,
+  id: string,
+  data: { userName: string; name: string; email: string; password: string; isAdmin: boolean },
+): Promise<void> {
+  await invoke('nd_update_user', { serverUrl, token, id, ...data });
+}
+
+export async function ndDeleteUser(serverUrl: string, token: string, id: string): Promise<void> {
+  const res = await commands.ndDeleteUser(serverUrl, token, id);
+  if (res.status === 'error') throw new Error(res.error);
+}
+
+/**
+ * Fetch the absolute filesystem path of a song from Navidrome's native API.
+ * Subsonic `getSong.view` only returns a relative path (or none on Navidrome);
+ * the native `/api/song/:id` endpoint returns the absolute path the server
+ * stores the file at, the same way Feishin and the Navidrome web client get it.
+ *
+ * Returns `null` when the server doesn't expose the field (non-admin on some
+ * Navidrome configurations) or when the call fails — the Song Info modal then
+ * falls back to whatever the Subsonic response had.
+ */
+export async function ndGetSongPath(
+  serverUrl: string,
+  username: string,
+  password: string,
+  id: string,
+): Promise<string | null> {
+  try {
+    const res = await commands.ndGetSongPath(serverUrl, username, password, id);
+    if (res.status === 'error') return null;
+    const raw = res.data;
+    return raw && raw.length > 0 ? raw : null;
+  } catch {
+    return null;
+  }
+}

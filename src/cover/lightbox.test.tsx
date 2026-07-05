@@ -6,7 +6,7 @@ vi.mock('./resolveDisk', () => ({ ensureCoverTierDiskSrc: vi.fn() }));
 vi.mock('./diskSrcLookup', () => ({ getDiskSrcForGrid: vi.fn(() => '') }));
 vi.mock('./fetchUrl', () => ({ buildCoverArtFetchUrl: vi.fn(() => 'net://2000') }));
 vi.mock('./imgSrc', () => ({ coverImgSrc: (s: string) => s }));
-vi.mock('../components/CoverLightbox', () => ({ default: () => null }));
+vi.mock('@/ui/CoverLightbox', () => ({ default: () => null }));
 
 import { useCoverLightboxSrc } from './lightbox';
 import { ensureCoverTierDiskSrc } from './resolveDisk';

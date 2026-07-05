@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
-import type { SubsonicSong } from '../api/subsonicTypes';
+import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { useAuthStore } from '../store/authStore';
-import { usePlayerStore } from '../store/playerStore';
+import { usePlayerStore } from '@/features/playback/store/playerStore';
 import {
   albumCoverRef,
   albumCoverRefForPlayback,
@@ -11,8 +11,8 @@ import {
   resolvePlaybackCoverScope,
 } from './ref';
 import { coverServerScopeForServerId } from './serverScope';
-import { resolveServerIdForIndexKey } from '../utils/server/serverLookup';
-import { sameQueueTrackId } from '../utils/playback/queueIdentity';
+import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
+import { sameQueueTrackId } from '@/features/playback/utils/playback/queueIdentity';
 import {
   resolveAlbumCoverRefFromLibrary,
   resolveArtistCoverRefFromLibrary,

@@ -21,13 +21,14 @@ const MAX_ARCHIVE_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_MANIFEST_BYTES: usize = 64 * 1024;
 const MAX_CSS_BYTES: usize = 256 * 1024;
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 pub struct ImportedThemeFiles {
     pub manifest: String,
     pub css: String,
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn import_theme_zip(path: String) -> Result<ImportedThemeFiles, String> {
     let file = std::fs::File::open(&path).map_err(|e| format!("cannot open file: {e}"))?;
     let len = file

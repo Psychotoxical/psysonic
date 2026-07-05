@@ -70,6 +70,10 @@ pub fn subsonic_song_to_track_row(
             .get("replayGain")
             .and_then(|rg| rg.get("albumGain"))
             .and_then(|v| v.as_f64()),
+        replay_gain_peak: raw_value
+            .get("replayGain")
+            .and_then(|rg| rg.get("trackPeak"))
+            .and_then(|v| v.as_f64()),
         content_hash: None,
         server_updated_at: None,
         server_created_at: None,
@@ -134,6 +138,7 @@ pub fn navidrome_song_to_track_row(
         bpm: raw.get("bpm").and_then(|v| v.as_i64()),
         replay_gain_track_db: raw.get("rgTrackGain").and_then(|v| v.as_f64()),
         replay_gain_album_db: raw.get("rgAlbumGain").and_then(|v| v.as_f64()),
+        replay_gain_peak: raw.get("rgTrackPeak").and_then(|v| v.as_f64()),
         content_hash: None,
         server_updated_at,
         server_created_at: raw
@@ -258,7 +263,7 @@ mod tests {
             "track": 3,
             "year": 2024,
             "musicBrainzId": "mb-1",
-            "replayGain": { "trackGain": -1.2, "albumGain": -0.8 }
+            "replayGain": { "trackGain": -1.2, "albumGain": -0.8, "trackPeak": 0.91 }
         });
         let song: Song = serde_json::from_value(raw.clone()).unwrap();
         let row = subsonic_song_to_track_row("s1", &song, &raw, 1_000, Some("lib-fb"));
@@ -268,6 +273,7 @@ mod tests {
         assert_eq!(row.mbid_recording.as_deref(), Some("mb-1"));
         assert_eq!(row.replay_gain_track_db, Some(-1.2));
         assert_eq!(row.replay_gain_album_db, Some(-0.8));
+        assert_eq!(row.replay_gain_peak, Some(0.91));
         // Fallback library_id kicks in when the song didn't ship one.
         assert_eq!(row.library_id.as_deref(), Some("lib-fb"));
         assert!(row.raw_json.contains("replayGain"));

@@ -15,6 +15,7 @@ use super::engine::AudioEngine;
 /// When the saved `selected_device` no longer literally matches any listed
 /// physical sink (e.g. suffix drift), rewrite `selected_device` to the listed form.
 #[tauri::command]
+#[specta::specta]
 pub fn audio_canonicalize_selected_device(state: State<'_, AudioEngine>) -> Option<String> {
     let pinned = state.selected_device.lock().unwrap().clone()?;
     if pinned.is_empty() {
@@ -50,12 +51,14 @@ pub fn audio_list_devices_for_engine(engine: &AudioEngine) -> Vec<String> {
 /// The user-pinned device name is appended when cpal omits it (e.g. HDMI busy while
 /// streaming) so the Settings dropdown still matches `audioOutputDevice`.
 #[tauri::command]
+#[specta::specta]
 pub fn audio_list_devices(state: State<'_, AudioEngine>) -> Vec<String> {
     audio_list_devices_for_engine(&state)
 }
 
 /// Device id string for the host default output (matches an entry from `audio_list_devices` when present).
 #[tauri::command]
+#[specta::specta]
 pub fn audio_default_output_device_name() -> Option<String> {
     use rodio::cpal::traits::{DeviceTrait, HostTrait};
     with_suppressed_alsa_stderr(|| {
@@ -68,6 +71,7 @@ pub fn audio_default_output_device_name() -> Option<String> {
 /// Switch the audio output device. `device_name = null` → follow system default.
 /// Reopens the stream immediately; frontend must restart playback via audio:device-changed.
 #[tauri::command]
+#[specta::specta]
 pub async fn audio_set_device(
     device_name: Option<String>,
     state: State<'_, AudioEngine>,

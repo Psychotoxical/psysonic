@@ -3,9 +3,9 @@ import { useAnalysisStrategyStore } from '../../store/analysisStrategyStore';
 import { useCoverStrategyStore } from '../../store/coverStrategyStore';
 import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
 import { useLibraryIndexStore } from '../../store/libraryIndexStore';
-import { useOfflineStore } from '../../store/offlineStore';
-import { usePlayerStore } from '../../store/playerStore';
-import { serverIndexKeyFromUrl } from './serverIndexKey';
+import { useOfflineStore } from '@/features/offline';
+import { usePlayerStore } from '@/features/playback/store/playerStore';
+import { serverIndexKeyFromUrl } from '@/lib/server/serverIndexKey';
 
 /**
  * One `legacyId → indexKey` rewrite step. `legacyId` is whatever the keys

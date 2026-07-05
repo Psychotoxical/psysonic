@@ -1,4 +1,4 @@
-import { isNewer } from '../utils/componentHelpers/appUpdaterHelpers';
+import { isNewer } from '@/lib/util/appUpdaterHelpers';
 
 // Credits list rendered on the Settings → System tab. Update via PR when adding a contributor.
 const CONTRIBUTOR_ENTRIES = [
@@ -178,6 +178,13 @@ const CONTRIBUTOR_ENTRIES = [
       'AutoDJ overlap cap — Auto (12 s content cap) or Limit (2–30 s slider, default 15 s) in track-transition settings; Orbit sync + engine override up to 30 s (PR #1173)',
       'Connection recovery — shared connection status across hook instances so manual Retry clears offline sidebar gating with the header indicator (PR #1190)',
       'Timeline play history — session buffer + play_session bootstrap across queue replace; pin current to top; history replay inserts in-place (PR #1204)',
+      'Playback — ReplayGain index prefetch, gapless playbar sync, library replayGainPeak column, live RG refresh after sync (PR #1231)',
+      'Artists browse — album vs track credit mode toggle, starred favorites in both modes, persisted credit mode, SQL letter-bucket filter (PR #1232)',
+      'Connection — ignore spurious WebKitGTK navigator.onLine offline hint on desktop; confirm via server probe; flush pending favorite/rating sync on real reachability (report: mikmik on Psysonic Discord, PR #1234)',
+      'Playlists — batch playlist writes past the GET URL limit (add >341 tracks), in-memory membership cache for fast dedup, offline↔playlist layering detangle (PR #1235)',
+      'Queue — resolve thin-state rows off the visible range so off-window items stop rendering as "…" placeholders (desktop panel, mobile drawer, fullscreen up-next) (PR #1236)',
+      'Artists browse — case-insensitive Cyrillic/non-ASCII name search when local index is enabled (PR #1237)',
+      'CLI — relative volume via signed `volume` argument (+/− percent delta); suppress WebKit NVIDIA stderr notes on CLI argv; faster Linux CLI forward before WebKit init (PR #1238)',
     ],
   },
   {
@@ -394,6 +401,8 @@ const CONTRIBUTOR_ENTRIES = [
       'Playlist sort — sort a playlist by date added (newest/oldest) or any track column from a visible sort dropdown (PR #1191)',
       'Configurable artist backdrops — per-place source order + on/off (mainstage hero, artist page, fullscreen), with the mainstage hero showing the artist backdrop and prefetching upcoming ones (PR #1193)',
       'Themed window title bar on macOS — follows the active theme instead of the grey system bar, with the native window buttons floating over it (PR #1199)',
+      'Frontend feature-folder restructure — CI-enforced layering guard, added unit/behavior-scenario/boot-smoke tests, and a compile-time frontend/backend IPC contract via tauri-specta (PR #1225)',
+      'Completed the tauri-specta typed-IPC cutover — CI guards for bindings freshness and full command registration (PR #1230)',
     ],
   },
   {
@@ -423,6 +432,13 @@ const CONTRIBUTOR_ENTRIES = [
     since: '1.49.0',
     contributions: [
       'Polish (pl) full UI translation (PR #1185)',
+    ],
+  },
+  {
+    github: 'akirichev',
+    since: '1.50.0',
+    contributions: [
+      'Bulgarian (bg) full UI translation (PR #1228)',
     ],
   },
 ] as const;

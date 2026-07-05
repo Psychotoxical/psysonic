@@ -1,14 +1,15 @@
-import { queueSongStar } from '../store/pendingStarSync';
-import { getSong } from '../api/subsonicLibrary';
-import { songToTrack } from '../utils/playback/songToTrack';
-import { invoke } from '@tauri-apps/api/core';
+import { queueSongStar } from '@/features/playback/store/pendingStarSync';
+import { getSong } from '@/lib/api/subsonicLibrary';
+import { songToTrack } from '@/lib/media/songToTrack';
+import { openMiniPlayer } from '@/lib/api/miniPlayer';
+import { audioStop } from '@/lib/api/audio';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import i18n from '../i18n';
-import { usePlayerStore } from '../store/playerStore';
-import { usePreviewStore } from '../store/previewStore';
+import i18n from '@/lib/i18n';
+import { usePlayerStore } from '@/features/playback/store/playerStore';
+import { usePreviewStore } from '@/features/playback/store/previewStore';
 import { useLyricsStore } from '../store/lyricsStore';
-import { showToast } from '../utils/ui/toast';
-import type { ActionContext, ShortcutSlot, ShortcutActionMeta } from './shortcutTypes';
+import { showToast } from '@/lib/dom/toast';
+import type { ActionContext, ShortcutSlot, ShortcutActionMeta } from '@/config/shortcutTypes';
 
 let cliPremuteVolume: number | null = null;
 
@@ -170,7 +171,7 @@ export const SHORTCUT_ACTION_REGISTRY = {
     inApp: { defaultBinding: null },
     runInMiniWindow: true,
     run: () => {
-      invoke('open_mini_player').catch(() => {});
+      openMiniPlayer().catch(() => {});
     },
   },
   'start-search': {
@@ -334,7 +335,7 @@ export const SHORTCUT_ACTION_REGISTRY = {
       const { currentTrack, stop, resetAudioPause, playTrack, initializeFromServerQueue } = store;
       stop();
       resetAudioPause();
-      invoke('audio_stop')
+      audioStop()
         .catch(() => {})
         .then(async () => {
           if (currentTrack) {

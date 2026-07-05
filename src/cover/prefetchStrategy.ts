@@ -1,8 +1,8 @@
-import type { CoverCacheStrategy } from '../utils/library/coverStrategy';
+import type { CoverCacheStrategy } from '@/lib/library/coverStrategy';
 import {
   coverStrategyAllowsLibraryBackfill,
   coverStrategyAllowsRoutePrefetch,
-} from '../utils/library/coverStrategy';
+} from '@/lib/library/coverStrategy';
 
 /** @deprecated Use `coverStrategyAllowsRoutePrefetch` */
 export function coverPrefetchStrategyAllowsRoutePrefetch(

@@ -1,19 +1,19 @@
-import { buildStreamUrlForServer } from './api/subsonicStreamUrl';
-import { getPlaybackCacheServerKey } from './utils/playback/playbackServer';
-import type { QueueItemRef } from './store/playerStoreTypes';
-import { resolveQueueTrack } from './utils/library/queueTrackView';
+import { buildStreamUrlForServer } from '@/lib/api/subsonicStreamUrl';
+import { getPlaybackCacheServerKey } from '@/features/playback/utils/playback/playbackServer';
+import type { QueueItemRef } from '@/lib/media/trackTypes';
+import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';
 import { invoke } from '@tauri-apps/api/core';
 import { useAuthStore } from './store/authStore';
-import { selectHotCacheEntries, useHotCacheStore } from './store/hotCacheStore';
+import { selectHotCacheEntries, useHotCacheStore } from '@/features/playback/store/hotCacheStore';
 import { useLocalPlaybackStore } from './store/localPlaybackStore';
-import { getMediaDir } from './utils/media/mediaDir';
-import { librarySqlServerId } from './api/coverCache';
-import { usePlayerStore } from './store/playerStore';
+import { getMediaDir } from '@/lib/media/mediaDir';
+import { librarySqlServerId } from '@/lib/api/coverCache';
+import { usePlayerStore } from '@/features/playback/store/playerStore';
 import {
   bumpHotCachePreviousTrackGrace,
   clearHotCachePreviousGrace,
   getDeferHotCachePrefetch,
-} from './utils/cache/hotCacheGate';
+} from '@/lib/cache/hotCacheGate';
 import {
   PREFETCH_AHEAD,
   type PrefetchJob,
@@ -27,8 +27,8 @@ import {
   scheduleAnalysisQueuePruneFromPlaybackQueue,
   resetAnalysisPruneState,
 } from './hotCachePrefetch/analysisPrune';
-import { reconcileEphemeralCache } from './utils/cache/ephemeralTierReconcile';
-import { hasLocalPersistentPlaybackBytes } from './utils/offline/offlineLibraryHelpers';
+import { reconcileEphemeralCache } from '@/lib/cache/ephemeralTierReconcile';
+import { hasLocalPersistentPlaybackBytes } from '@/store/localPlaybackResolve';
 
 /** Periodic index↔disk sync (stale rows + empty dirs); unindexed files evicted only on budget pressure. */
 const EPHEMERAL_MAINTENANCE_MS = 10 * 60 * 1000;
@@ -398,7 +398,10 @@ export function initHotCachePrefetch(): () => void {
   const maintenanceTimer = window.setInterval(() => {
     const auth = useAuthStore.getState();
     if (!auth.isLoggedIn || !auth.hotCacheEnabled) return;
-    void reconcileEphemeralCache();
+    void reconcileEphemeralCache({
+      entries: useLocalPlaybackStore.getState().entries,
+      removeEntry: useLocalPlaybackStore.getState().removeEntry,
+    });
   }, EPHEMERAL_MAINTENANCE_MS);
 
   return () => {

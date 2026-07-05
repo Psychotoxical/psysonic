@@ -1,8 +1,7 @@
 import type { AuthState } from './authStoreTypes';
 import { generateId } from './authStoreHelpers';
-import { usePlayerStore } from './playerStore';
-import { clearQueueServerForPlayback } from '../utils/playback/playbackServer';
-import { resolveServerIdForIndexKey } from '../utils/server/serverLookup';
+import { getQueueServerId, clearQueueServerForPlayback } from './playbackEngineBridge';
+import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 
 type SetState = (
   partial: Partial<AuthState> | ((state: AuthState) => Partial<AuthState>),
@@ -44,7 +43,7 @@ export function createServerProfileActions(set: SetState): Pick<
       // queueServerId is the canonical index key (B1); resolve the
       // canonical id back to a server UUID before comparing so a profile
       // delete still clears the matching queue binding.
-      const queueSid = usePlayerStore.getState().queueServerId;
+      const queueSid = getQueueServerId();
       if (queueSid && resolveServerIdForIndexKey(queueSid) === id) {
         clearQueueServerForPlayback();
       }

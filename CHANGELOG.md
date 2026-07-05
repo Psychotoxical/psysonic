@@ -13,12 +13,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 
+### Artists browse — album vs track credit mode
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1232](https://github.com/Psychotoxical/psysonic/pull/1232)**
+
+* Toggle **Album artists** vs **Track artists** on the Artists page — album mode lists indexed album artists; track mode includes performers from the local artist index (featured/guest credits). Star filter works in both modes; the choice persists across app restarts like **Show artist images**.
+* Letter bucket filter (`A`–`Z`, `#`, `OTHER`) runs in local SQL instead of scanning catalog chunks client-side, so late-alphabet picks load promptly on large libraries.
+
+### CLI — relative volume and quieter scripting output
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1238](https://github.com/Psychotoxical/psysonic/pull/1238)**
+
+* `psysonic --player volume +5` / `volume -10` adjust the current level by that many percent; `volume 80` still sets an absolute level (use `-q` before `--player` when the delta is negative so it is not parsed as a flag).
+* CLI invocations no longer print WebKit/NVIDIA workaround notes on stderr; on Linux, remote `--player` forwarding runs before WebKit startup so helper processes exit with less noise.
+
 ### Square corners — sharp-edged cards and covers
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1215](https://github.com/Psychotoxical/psysonic/pull/1215)**
 
 * New **Square Corners** toggle under **Settings → Appearance → Visual Options → Display** overrides the active theme to render cards and cover art with square, non-rounded corners. Covers album, playlist, artist and song cards, detail-page cover art, the Now Playing / Radio and fullscreen views, the cover lightbox, the queue cover, and the mini player. Off by default; buttons, inputs and dialogs keep the theme's corners.
 
+### Bulgarian translation
+
+**By [@akirichev](https://github.com/akirichev), PR [#1228](https://github.com/Psychotoxical/psysonic/pull/1228)**
+
+* Full Bulgarian (Български) UI translation — selectable from the language picker on the Settings and Login screens.
+
+
+## Changed
+
+### Frontend restructure — feature-folder architecture and hardening
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), with additional architecture by [@cucadmuh](https://github.com/cucadmuh), PR [#1225](https://github.com/Psychotoxical/psysonic/pull/1225)**
+
+* Reorganised the frontend into a feature-folder architecture with a CI-enforced layering guard, added unit + behavior-scenario + boot-smoke test coverage, and introduced a compile-time frontend/backend IPC contract via tauri-specta. Internal only — no change to how the app looks or behaves.
+
+### Typed-IPC contract — completed the tauri-specta cutover
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), with additional architecture by [@cucadmuh](https://github.com/cucadmuh), PR [#1230](https://github.com/Psychotoxical/psysonic/pull/1230)**
+
+* Completed the frontend/backend typed-IPC contract: the frontend now calls the generated tauri-specta command surface, with CI guards keeping the bindings fresh and every command registered in the handler. Internal only — no change to how the app looks or behaves.
 
 ## Fixed
 
@@ -27,6 +61,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1218](https://github.com/Psychotoxical/psysonic/pull/1218)**, reported by The Cup Slammer on Discord
 
 * Playing a song from a playlist could show the song's own cover art in Now Playing instead of its album cover, while playing the same song from its album page showed the album cover. Now Playing now consistently uses the album cover, matching album-page playback. Albums with genuine per-disc artwork are unaffected.
+
+### Playback — ReplayGain prefetch, gapless playbar sync, and library peak index
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by Asra on the Psysonic Discord, PR [#1231](https://github.com/Psychotoxical/psysonic/pull/1231)**
+
+* ReplayGain applies when stream or queue metadata resolves late — index-first prefetch before bind, reactive sync when resolver tags land, and live refresh from the library index after sync when tags differ on the playing track.
+* Gapless auto-advance no longer leaves the playbar on the previous track; missed `audio:track_switched` is reconciled from engine position with seek guards so backward seek is not treated as a gapless switch.
+* Local library index stores `replayGainPeak` (migration 015) so anti-clipping peak is available on index-first paths without an extra network round-trip.
+
+### Connection — ignore spurious offline hint on desktop
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by mikmik on the Psysonic Discord, PR [#1234](https://github.com/Psychotoxical/psysonic/pull/1234)**
+
+* Desktop builds no longer get stuck showing "offline" when WebKitGTK leaves `navigator.onLine` stuck at `false` while the server is actually reachable — the app now confirms with a real server probe instead of trusting that hint, so browse and playback keep working. Web builds are unchanged.
+* Pending favorite/rating sync now flushes when the server actually becomes reachable again, rather than relying on a browser `online` event that may never fire on desktop.
+
+### Playlists — add more than ~341 tracks; faster large-playlist edits
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1235](https://github.com/Psychotoxical/psysonic/pull/1235)**
+
+* Adding tracks to a playlist no longer fails past ~341 songs — writes are sent to the server in batches instead of one oversized request, so playlists of any size build correctly.
+* Adding and merging into large playlists is faster: playlist membership is cached in memory for de-duplication instead of re-fetching the whole playlist on every add.
+
+### Queue — rows no longer stuck showing "…"
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1236](https://github.com/Psychotoxical/psysonic/pull/1236)**
+
+* Queue rows that were far from the currently playing track (e.g. after starting a large playlist from the middle, or scrolling the queue) no longer stay stuck on a "…" placeholder — the queue now loads track details for whatever you scroll to, in the desktop queue panel, the mobile queue drawer, and the fullscreen "up next" overlay.
+
+### Artists browse — case-insensitive search for Cyrillic names
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1237](https://github.com/Psychotoxical/psysonic/pull/1237)**
+
+* Artist name search on the Artists page no longer depends on query letter case for Cyrillic (and other non-ASCII) names when the local library index is enabled — matching uses the indexed `name_sort` key with Unicode case folding instead of SQLite `LIKE` on the display name alone.
 
 
 ## [1.49.0] - 2026-06-29

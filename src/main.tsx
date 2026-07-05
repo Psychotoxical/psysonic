@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { runPreReactBootstrap } from './app/bootstrap';
 import { scheduleStartupSplashDismiss } from './app/startupSplash';
-import './i18n';
+import '@/lib/i18n';
 import './styles/themes/index.css';
 import './styles/layout/index.css';
 import './styles/components/index.css';

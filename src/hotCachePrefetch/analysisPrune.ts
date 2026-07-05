@@ -1,22 +1,15 @@
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { useAuthStore } from '../store/authStore';
-import { usePlayerStore } from '../store/playerStore';
-import { collectPlaybackMiddlePriorityTrackIds } from '../store/loudnessBackfillWindow';
-import { getPlaybackServerId } from '../utils/playback/playbackServer';
-import { analysisSetPlaybackPriorityHints } from '../api/analysis';
-import { serverIndexKeyFromUrl } from '../utils/server/serverIndexKey';
+import { usePlayerStore } from '@/features/playback/store/playerStore';
+import { collectPlaybackMiddlePriorityTrackIds } from '@/features/playback/store/loudnessBackfillWindow';
+import { getPlaybackServerId } from '@/features/playback/utils/playback/playbackServer';
+import { analysisSetPlaybackPriorityHints } from '@/lib/api/analysis';
+import { serverIndexKeyFromUrl } from '@/lib/server/serverIndexKey';
 import { hotCacheFrontendDebug } from './helpers';
 
 let analysisPruneTimer: ReturnType<typeof setTimeout> | null = null;
 let lastAnalysisPruneSig = '';
 const ANALYSIS_PRUNE_DEBOUNCE_MS = 1200;
-
-type AnalysisPrunePendingResult = {
-  keepCount: number;
-  httpRemoved: number;
-  cpuRemovedJobs: number;
-  cpuRemovedWaiters: number;
-};
 
 export function scheduleAnalysisQueuePruneFromPlaybackQueue(): void {
   const { queueItems, currentTrack, queueIndex } = usePlayerStore.getState();
@@ -53,11 +46,10 @@ export function scheduleAnalysisQueuePruneFromPlaybackQueue(): void {
     analysisPruneTimer = null;
     const middleTrackRefs = middleTrackIds.map(trackId => ({ serverId, trackId }));
     void analysisSetPlaybackPriorityHints(middleTrackRefs).catch(() => {});
-    void invoke<AnalysisPrunePendingResult>('analysis_prune_pending_to_track_ids', {
-      trackIds: keepTrackIds,
-      serverId,
-    })
-      .then(result => {
+    void commands.analysisPrunePendingToTrackIds(keepTrackIds, serverId)
+      .then(res => {
+        if (res.status === 'error') return;
+        const result = res.data;
         if (!result) return;
         hotCacheFrontendDebug({
           event: 'analysis-prune',

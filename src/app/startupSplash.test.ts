@@ -9,7 +9,7 @@ vi.mock('./windowKind', () => ({
   getWindowKind: vi.fn(() => 'main'),
 }));
 
-vi.mock('../utils/themes/startupThemeAppearance', () => ({
+vi.mock('@/lib/themes/startupThemeAppearance', () => ({
   applyStartupSplashThemeFromStorage: vi.fn(() => 'mocha'),
 }));
 
@@ -18,7 +18,7 @@ vi.mock('@tauri-apps/api/webviewWindow', () => ({
 }));
 
 import { getWindowKind } from './windowKind';
-import { applyStartupSplashThemeFromStorage } from '../utils/themes/startupThemeAppearance';
+import { applyStartupSplashThemeFromStorage } from '@/lib/themes/startupThemeAppearance';
 
 describe('startupSplash', () => {
   beforeEach(() => {

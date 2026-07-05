@@ -117,7 +117,8 @@ pub fn print_help(program: &str) {
     eprintln!("  Global flags (place before --player when needed):");
     eprintln!("    --quiet | -q     Suppress \"OK: …\" lines (stderr errors are always shown).");
     eprintln!("    --json           With `audio-device list`, `library list`, `server list`, or `search`: JSON on stdout.");
-    eprintln!("    Use  {program} -q --player seek -5  so the seek delta is not parsed as a flag.\n");
+    eprintln!("    Use  {program} -q --player seek -5  so the seek delta is not parsed as a flag.");
+    eprintln!("         Same for relative volume:  {program} -q --player volume -5\n");
     eprintln!("  Playback");
     eprintln!("    {program} [--quiet|-q] --player <action>");
     for entry in cli_action_registry_entries() {
@@ -129,6 +130,7 @@ pub fn print_help(program: &str) {
     eprintln!("    {program} [--quiet|-q] --player play <id>   Track, album, or artist id (artist → shuffled library).");
     eprintln!("    {program} [--quiet|-q] --player seek <seconds>      Integer delta, e.g. 15 or -10");
     eprintln!("    {program} [--quiet|-q] --player volume <0-100>     Absolute volume percent.");
+    eprintln!("    {program} [--quiet|-q] --player volume <±N>       Relative change in percent, e.g. +5 or -10.");
     eprintln!("    {program} [--quiet|-q] --player repeat off|all|one");
     eprintln!("    {program} [--quiet|-q] --player rating <0-5>     Set song rating (0 clears).");
     eprintln!();
@@ -457,6 +459,7 @@ pub fn describe_player_cli_cmd(cmd: &PlayerCliCmd) -> String {
         PlayerCliCmd::PlayOpaqueId(id) => format!("play {id}"),
         PlayerCliCmd::Seek { delta_secs } => format!("seek {delta_secs:+} s"),
         PlayerCliCmd::Volume { percent } => format!("volume {percent}%"),
+        PlayerCliCmd::VolumeRelative { delta_percent } => format!("volume {delta_percent:+}%"),
         PlayerCliCmd::Repeat(m) => match m {
             RepeatCliMode::Off => "repeat off".into(),
             RepeatCliMode::All => "repeat all".into(),
@@ -507,6 +510,15 @@ pub fn emit_player_cli_cmd<R: Runtime>(app: &AppHandle<R>, cmd: PlayerCliCmd) {
                 serde_json::json!({
                     "command": "set-volume",
                     "percent": percent
+                }),
+            );
+        }
+        PlayerCliCmd::VolumeRelative { delta_percent } => {
+            emit_cli_player_command(
+                app,
+                serde_json::json!({
+                    "command": "volume-relative",
+                    "deltaPercent": delta_percent
                 }),
             );
         }

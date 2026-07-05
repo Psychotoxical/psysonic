@@ -1,4 +1,4 @@
-import { coverCacheMayBackgroundDownload as ipcMayDownload } from '../api/coverCache';
+import { coverCacheMayBackgroundDownload as ipcMayDownload } from '@/lib/api/coverCache';
 import { coverIndexKeyFromRef } from './storageKeys';
 import { coverServerReachable } from './reachability';
 import type { CoverArtRef, CoverArtTier, CoverPrefetchPriority, CoverSurfaceKind } from './types';

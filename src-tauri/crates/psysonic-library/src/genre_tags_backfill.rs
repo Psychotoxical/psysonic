@@ -26,7 +26,7 @@ fn ensure_genre_tags_tables(conn: &mut Connection) -> rusqlite::Result<()> {
     crate::store::ensure_genre_tags_schema(conn)
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GenreTagsInspectDto {
     pub needed: bool,
@@ -288,6 +288,7 @@ mod tests {
             bpm: None,
             replay_gain_track_db: None,
             replay_gain_album_db: None,
+            replay_gain_peak: None,
             content_hash: None,
             server_updated_at: None,
             server_created_at: None,

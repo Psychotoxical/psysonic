@@ -57,3 +57,15 @@ export {
   coverIndexKeyFromScope,
   coverIndexKeyFromRef,
 } from './storageKeys';
+export {
+  acquireUrl,
+  releaseUrl,
+  getCachedBlob,
+  getImageCacheSize,
+  subscribeCoverUpgraded,
+  invalidateCacheKey,
+  invalidateCoverArt,
+  clearImageCache,
+} from './imageCache';
+export { STORE_NAME } from './imageCache/constants';
+export { openDB } from './imageCache/idbStore';

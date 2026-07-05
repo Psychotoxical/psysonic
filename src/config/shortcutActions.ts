@@ -32,7 +32,7 @@
 //   • cli?     — exposes the action to `psysonic --player <verb>`. No-arg CLI
 //                verbs are auto-collected and dispatched by
 //                `executeCliPlayerCommand`; arg-carrying commands (play-id,
-//                seek-relative, set-volume, set-repeat, set-rating-current)
+//                seek-relative, set-volume, volume-relative, set-repeat, set-rating-current)
 //                are handled explicitly there.
 //   • run(ctx) — the handler. `ctx.previewPolicy` ('stop' | 'ignore') decides
 //                whether an active track-preview is interrupted: media keys
@@ -48,14 +48,14 @@ export type {
   ActionContext,
   CliContext,
   ShortcutActionMeta,
-} from './shortcutTypes';
+} from '@/config/shortcutTypes';
 
 export {
   SHORTCUT_ACTION_REGISTRY,
   type ShortcutAction,
   type KeyAction,
   type GlobalAction,
-} from './shortcutActionRegistry';
+} from '@/config/shortcutActionRegistry';
 
 export {
   isShortcutAction,
@@ -64,11 +64,11 @@ export {
   executeRuntimeAction,
   executeCliPlayerCommand,
   type RuntimeAction,
-} from './shortcutDispatch';
+} from '@/config/shortcutDispatch';
 
 export {
   IN_APP_SHORTCUT_ACTIONS,
   GLOBAL_SHORTCUT_ACTIONS,
   DEFAULT_IN_APP_BINDINGS,
   DEFAULT_GLOBAL_SHORTCUTS,
-} from './shortcutBindings';
+} from '@/config/shortcutBindings';

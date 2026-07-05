@@ -5,12 +5,12 @@
  * the fields the test cares about. Keeps tests focused on behaviour rather
  * than on assembling boilerplate.
  */
-import type { SubsonicSong } from '@/api/subsonicTypes';
+import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import type { ServerProfile } from '@/store/authStoreTypes';
-import type { Track } from '@/store/playerStoreTypes';
-import { usePlayerStore } from '@/store/playerStore';
-import { toQueueItemRefs } from '@/utils/library/queueItemRef';
-import { seedQueueResolver } from '@/utils/library/queueTrackResolver';
+import type { Track } from '@/lib/media/trackTypes';
+import { usePlayerStore } from '@/features/playback/store/playerStore';
+import { toQueueItemRefs } from '@/features/playback/store/queueItemRef';
+import { seedQueueResolver } from '@/features/playback/store/queueTrackResolver';
 let trackCounter = 0;
 let songCounter = 0;
 let serverCounter = 0;

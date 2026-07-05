@@ -13,6 +13,7 @@ export const settings = {
   languageJa: '日本語',
   languageHu: 'Magyar',
   languagePl: 'Polski',
+  languageBg: 'Български',
   font: 'Police',
   fontHintOpenDyslexic: 'Adapté à la dyslexie · sans prise en charge du chinois',
   theme: 'Thème',

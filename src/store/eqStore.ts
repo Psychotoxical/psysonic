@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { invoke } from '@tauri-apps/api/core';
+import { audioSetEq } from '@/lib/api/audio';
 
 export const EQ_BANDS = [
   { freq: 31,    label: '31' },
@@ -71,7 +71,7 @@ interface EqState {
 }
 
 function syncEq(gains: number[], enabled: boolean, preGain: number) {
-  invoke('audio_set_eq', { gains: gains.map(g => g), enabled, preGain }).catch(() => {});
+  audioSetEq({ gains: gains.map(g => g), enabled, preGain }).catch(() => {});
 }
 
 export const useEqStore = create<EqState>()(

@@ -1,0 +1,16 @@
+export const tracks = {
+  title: 'Песни',
+  subtitle: 'Разглеждай. Търси. Откривай.',
+  heroEyebrow: 'Песен на момента',
+  heroReroll: 'Избери друга',
+  playSong: 'Пусни',
+  enqueueSong: 'Добави в опашката',
+  toAlbum: 'Към албум',
+  railRandom: 'Случаен избор',
+  railHighlyRated: 'Високо оценени',
+  browseTitle: 'Разгледай всички песни',
+  browseUnsupported: 'Този сървър не изброява цялата библиотека наведнъж. Използвайте търсенето по-горе, за да намерите конкретни песни.',
+  searchPlaceholder: 'Намерете песен по заглавие, изпълнител или албум…',
+  count_one: '{{count}} песен',
+  count_other: '{{count}} песни',
+};

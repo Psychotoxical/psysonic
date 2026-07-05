@@ -35,7 +35,7 @@ export const albumDetail = {
   trackAlbum: 'Album',
   trackArtist: 'Wykonawca',
   trackGenre: 'Gatunek',
-  trackPlayCount: 'Pdtworzenia',
+  trackPlayCount: 'Powtórzenia',
   trackLastPlayed: 'Ostatnio odtworzono',
   trackBpm: 'BPM',
   trackFormat: 'Format',

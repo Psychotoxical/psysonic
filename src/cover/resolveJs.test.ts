@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ensureCoverTierJs } from './resolveJs';
 import type { CoverArtRef } from './types';
 
-vi.mock('../utils/imageCache', () => ({
+vi.mock('./imageCache', () => ({
   getCachedBlob: vi.fn(async () => new Blob(['x'], { type: 'image/jpeg' })),
 }));
 
-vi.mock('../utils/imageCache/coverSiblings', () => ({
+vi.mock('./imageCache/coverSiblings', () => ({
   parseCoverCacheKey: (key: string) => {
     const m = key.match(/^(.+):cover:(.+):(.+):(\d+)$/);
     if (!m) return null;
@@ -18,14 +18,14 @@ vi.mock('../utils/imageCache/coverSiblings', () => ({
 }));
 
 const { blobMap } = vi.hoisted(() => ({ blobMap: new Map<string, Blob>() }));
-vi.mock('../utils/imageCache/blobCache', () => ({
+vi.mock('./imageCache/blobCache', () => ({
   blobCache: blobMap,
   rememberBlob: (key: string, blob: Blob) => {
     blobMap.set(key, blob);
   },
 }));
 
-vi.mock('../utils/imageCache/idbStore', () => ({
+vi.mock('./imageCache/idbStore', () => ({
   putBlob: vi.fn(),
 }));
 
@@ -54,7 +54,7 @@ describe('ensureCoverTierJs', () => {
   });
 
   it('fetches via getCachedBlob on cold path', async () => {
-    const { getCachedBlob } = await import('../utils/imageCache');
+    const { getCachedBlob } = await import('./imageCache');
     vi.mocked(getCachedBlob).mockImplementation(async (_url, key) => {
       const b = new Blob(['x'], { type: 'image/jpeg' });
       blobMap.set(key, b);

@@ -37,8 +37,12 @@ src-tauri/lcov.info
 # Frontend test coverage
 coverage/
 
-# Generated at build/test/dev time (scripts/generate-release-notes-bundle.mjs)
-src/generated/
+# Generated at build/test/dev time (scripts/generate-release-notes-bundle.mjs).
+# Ignore the contents (not the dir) so the committed tauri-specta FE↔BE contract
+# snapshot below can be re-included — a `!` exception cannot escape an ignored dir.
+src/generated/*
+# ...except the committed tauri-specta contract snapshot, so CI diffs catch drift.
+!src/generated/bindings.ts
 
 # Documentation
 CLAUDE.md

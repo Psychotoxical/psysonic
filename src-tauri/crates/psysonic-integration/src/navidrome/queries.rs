@@ -54,6 +54,7 @@ pub async fn nd_list_songs_internal(
 
 /// Tauri-visible variant — owned-String arguments to keep the IPC
 /// surface unchanged for existing call sites in the WebView.
+// NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn nd_list_songs(
     http_registry: State<'_, Arc<ServerHttpRegistry>>,
@@ -98,6 +99,7 @@ fn nd_build_filters(seed: serde_json::Map<String, serde_json::Value>, library_id
 /// — paginated list of artists that have at least one credit in the given role.
 /// Navidrome 0.55.0+ (uses `library_artist.stats` JSON aggregate). Available to any
 /// authenticated user. Returns raw JSON array.
+// NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn nd_list_artists_by_role(
@@ -158,6 +160,7 @@ pub async fn nd_list_artists_by_role(
 /// Subsonic `getArtist.view` only walks AlbumArtist relations, so composer-only
 /// (or conductor-only, lyricist-only, …) credits are unreachable there. Navidrome
 /// generates `role_<role>_id` filters dynamically from `model.AllRoles`.
+// NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn nd_list_albums_by_artist_role(
@@ -216,6 +219,7 @@ pub async fn nd_list_albums_by_artist_role(
 }
 
 /// GET `/api/library` — list all libraries (admin only). Returns the raw JSON array.
+// NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn nd_list_libraries(
     http_registry: State<'_, Arc<ServerHttpRegistry>>,
@@ -249,6 +253,7 @@ pub async fn nd_list_libraries(
 /// PUT `/api/user/{id}/library` — assign libraries to a non-admin user.
 /// Admin users auto-receive all libraries; calling this for an admin returns HTTP 400.
 #[tauri::command]
+#[specta::specta]
 pub async fn nd_set_user_libraries(
     http_registry: State<'_, Arc<ServerHttpRegistry>>,
     server_url: String,
@@ -299,6 +304,7 @@ pub async fn nd_set_user_libraries(
 /// Returns `Ok(None)` when the response has no `path` field — Navidrome can omit
 /// it for non-admin users on some configurations.
 #[tauri::command]
+#[specta::specta]
 pub async fn nd_get_song_path(
     http_registry: State<'_, Arc<ServerHttpRegistry>>,
     server_url: String,

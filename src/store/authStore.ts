@@ -20,10 +20,10 @@ import {
   DEFAULT_LIBRARY_GRID_MAX_COLUMNS,
 } from './authStoreDefaults';
 import { computeAuthStoreRehydration } from './authStoreRehydrate';
-import { syncAllServerHttpContexts } from '../utils/server/syncServerHttpContext';
+import { syncAllServerHttpContexts } from '@/lib/server/syncServerHttpContext';
 import type { AuthState } from './authStoreTypes';
-import { getCachedConnectBaseUrl } from '../utils/server/serverEndpoint';
-import { serverProfileBaseUrl } from '../utils/server/serverBaseUrl';
+import { getCachedConnectBaseUrl } from '@/lib/server/serverEndpoint';
+import { serverProfileBaseUrl } from '@/lib/server/serverBaseUrl';
 
 
 
@@ -66,6 +66,7 @@ export const useAuthStore = create<AuthState>()(
       infiniteQueueEnabled: false,
       preservePlayNextOrder: false,
       showArtistImages: false,
+      artistBrowseCreditMode: 'album',
       libraryGridMaxColumns: DEFAULT_LIBRARY_GRID_MAX_COLUMNS,
       showTrayIcon: true,
       minimizeToTray: false,

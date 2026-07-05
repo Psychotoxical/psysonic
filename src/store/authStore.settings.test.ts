@@ -10,7 +10,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/api/subsonic', () => ({
+vi.mock('@/lib/api/subsonic', () => ({
   savePlayQueue: vi.fn(async () => undefined),
   getPlayQueue: vi.fn(async () => ({ songs: [], current: undefined, position: 0 })),
   buildStreamUrl: vi.fn((id: string) => `https://mock/stream/${id}`),
@@ -51,6 +51,7 @@ describe('trivial pass-through setters', () => {
     ['setInfiniteQueueEnabled', 'infiniteQueueEnabled', true],
     ['setPreservePlayNextOrder', 'preservePlayNextOrder', true],
     ['setShowArtistImages', 'showArtistImages', true],
+    ['setArtistBrowseCreditMode', 'artistBrowseCreditMode', 'track'],
     ['setShowTrayIcon', 'showTrayIcon', false],
     ['setMinimizeToTray', 'minimizeToTray', true],
     ['setClockFormat', 'clockFormat', '24h'],

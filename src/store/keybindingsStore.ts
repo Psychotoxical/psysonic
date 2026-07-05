@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { DEFAULT_IN_APP_BINDINGS, type KeyAction } from '../config/shortcutActions';
+import { DEFAULT_IN_APP_BINDINGS, type KeyAction } from '@/config/shortcutActions';
 
 /** Physical keys only — ignore for binding capture */
 export const MODIFIER_KEY_CODES = [
@@ -12,7 +12,7 @@ export const MODIFIER_KEY_CODES = [
 export type Bindings = Record<KeyAction, string | null>;
 
 export const DEFAULT_BINDINGS: Bindings = { ...DEFAULT_IN_APP_BINDINGS };
-export type { KeyAction } from '../config/shortcutActions';
+export type { KeyAction } from '@/config/shortcutActions';
 
 function normalizeBindings(
   bindings: Partial<Record<KeyAction, string | null>> | undefined

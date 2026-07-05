@@ -1,0 +1,21 @@
+export const home = {
+  hero: 'Препоръчано',
+  starred: 'Лични любими',
+  mostPlayed: 'Най-слушани',
+  recentlyPlayed: 'Наскоро пуснати',
+  losslessAlbums: 'Lossless албуми',
+  discover: 'Открий',
+  discoverSongs: 'Открий песни',
+  loadMore: 'Зареди още',
+  discoverMore: 'Открий още',
+  discoverArtists: 'Открий изпълнители',
+  discoverArtistsMore: 'Всички изпълнители',
+  becauseYouLike: 'Защото слушахте…',
+  becauseYouLikeFor: 'Защото слушахте {{artist}}',
+  similarTo: 'Подобно на {{artist}}',
+  becauseYouLikeTracks_one: '{{count}} песен',
+  becauseYouLikeTracks_other: '{{count}} песни',
+  mainstageEmptyTitle: 'Вашата главна сцена е празна',
+  mainstageEmptyBody: 'Всички секции са изключени. Включете секции обратно или скрийте главната сцена от страничната лента.',
+  mainstageEmptyCta: 'Отвори настройките за персонализация'
+};

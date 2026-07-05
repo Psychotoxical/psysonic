@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import CoverLightbox from '../components/CoverLightbox';
+import CoverLightbox from '@/ui/CoverLightbox';
 import { buildCoverArtFetchUrl } from './fetchUrl';
 import { coverImgSrc } from './imgSrc';
 import { getDiskSrcForGrid } from './diskSrcLookup';

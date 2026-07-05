@@ -31,6 +31,7 @@ use super::stream::{
 /// Emits `audio:playing` with `duration = 0.0` (sentinel for live stream)
 /// and `radio:metadata` whenever the StreamTitle changes.
 #[tauri::command]
+#[specta::specta]
 pub async fn audio_play_radio(
     url: String,
     volume: f32,

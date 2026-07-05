@@ -11,7 +11,7 @@ use crate::analysis_runtime::{
     prune_analysis_queues, AnalysisBackfillPriority, PlaybackPriorityHints,
 };
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WaveformCachePayload {
     pub bins: Vec<u8>,
@@ -35,7 +35,7 @@ impl From<analysis_cache::WaveformEntry> for WaveformCachePayload {
     }
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LoudnessCachePayload {
     pub integrated_lufs: f64,
@@ -45,7 +45,7 @@ pub struct LoudnessCachePayload {
     pub updated_at: i64,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisDeleteServerReportDto {
     pub analysis_tracks: u64,
@@ -53,7 +53,7 @@ pub struct AnalysisDeleteServerReportDto {
     pub loudness: u64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisFailedTrackDto {
     pub track_id: String,
@@ -81,7 +81,7 @@ impl From<analysis_cache::FailedTrackEntry> for AnalysisFailedTrackDto {
     }
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisServerKeyMigrationDto {
     pub legacy_id: String,
@@ -148,6 +148,7 @@ pub fn get_loudness_payload_for_track(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn analysis_get_waveform(
     track_id: String,
     md5_16kb: String,
@@ -172,6 +173,7 @@ pub fn analysis_get_waveform(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn analysis_get_waveform_for_track(
     track_id: String,
     server_id: Option<String>,
@@ -192,6 +194,7 @@ pub fn analysis_get_waveform_for_track(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn analysis_get_loudness_for_track(
     track_id: String,
     target_lufs: Option<f64>,
@@ -203,6 +206,7 @@ pub fn analysis_get_loudness_for_track(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn analysis_delete_loudness_for_track(
     track_id: String,
     server_id: Option<String>,
@@ -212,6 +216,7 @@ pub fn analysis_delete_loudness_for_track(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn analysis_delete_waveform_for_track(
     track_id: String,
     server_id: Option<String>,
@@ -221,6 +226,7 @@ pub fn analysis_delete_waveform_for_track(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn analysis_delete_all_waveforms(
     cache: tauri::State<'_, analysis_cache::AnalysisCache>,
 ) -> Result<u64, String> {
@@ -228,6 +234,7 @@ pub fn analysis_delete_all_waveforms(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn analysis_delete_all_for_server(
     server_id: String,
     cache: tauri::State<'_, analysis_cache::AnalysisCache>,
@@ -240,6 +247,7 @@ pub fn analysis_delete_all_for_server(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn analysis_get_failed_track_count(
     server_id: String,
     cache: tauri::State<'_, analysis_cache::AnalysisCache>,
@@ -252,6 +260,7 @@ pub fn analysis_get_failed_track_count(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn analysis_list_failed_tracks(
     server_id: String,
     limit: Option<u32>,
@@ -269,6 +278,7 @@ pub fn analysis_list_failed_tracks(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn analysis_clear_failed_tracks(
     server_id: String,
     track_ids: Option<Vec<String>>,
@@ -288,6 +298,7 @@ pub fn analysis_clear_failed_tracks(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn analysis_migrate_server_index_keys(
     mappings: Vec<AnalysisServerKeyMigrationDto>,
     _cache: tauri::State<'_, analysis_cache::AnalysisCache>,
@@ -299,6 +310,7 @@ pub fn analysis_migrate_server_index_keys(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn analysis_enqueue_seed_from_url(
     track_id: String,
     url: String,
@@ -318,7 +330,7 @@ pub fn analysis_enqueue_seed_from_url(
     )
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisPriorityHintDto {
     pub server_id: String,
@@ -326,6 +338,7 @@ pub struct AnalysisPriorityHintDto {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn analysis_set_playback_priority_hints(
     middle_track_refs: Vec<AnalysisPriorityHintDto>,
     hints: tauri::State<'_, PlaybackPriorityHints>,
@@ -337,7 +350,7 @@ pub fn analysis_set_playback_priority_hints(
     Ok(())
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisBackfillQueueStatsDto {
     pub queued: usize,
@@ -346,17 +359,20 @@ pub struct AnalysisBackfillQueueStatsDto {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn analysis_set_pipeline_parallelism(workers: u32) -> Result<(), String> {
     crate::analysis_runtime::analysis_set_pipeline_parallelism(workers as usize);
     Ok(())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn analysis_get_pipeline_queue_stats() -> Result<crate::analysis_runtime::AnalysisPipelineQueueStatsDto, String> {
     Ok(analysis_pipeline_queue_stats())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn analysis_get_backfill_queue_stats() -> Result<AnalysisBackfillQueueStatsDto, String> {
     let (queued, in_progress_count, in_progress_track_id) =
         analysis_backfill_queue_stats();
@@ -367,7 +383,7 @@ pub fn analysis_get_backfill_queue_stats() -> Result<AnalysisBackfillQueueStatsD
     })
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisPrunePendingResult {
     pub keep_count: usize,
@@ -380,6 +396,7 @@ pub struct AnalysisPrunePendingResult {
 ///
 /// Keeps currently-running jobs untouched; only queued (not-yet-started) jobs are removed.
 #[tauri::command]
+#[specta::specta]
 pub fn analysis_prune_pending_to_track_ids(
     track_ids: Vec<String>,
     server_id: String,

@@ -13,6 +13,7 @@
     "tauri:build": "npm run prebuild:release-notes && tauri build",
     "lint": "eslint -c eslint.config.mjs src",
     "lint:gradual": "eslint -c eslint.config.gradual.mjs src",
+    "dep:check": "depcruise src --config .dependency-cruiser.cjs --ignore-known",
     "test": "npm run prebuild:release-notes && vitest run && node --test scripts/extract-release-section.test.mjs && npm run check:css-imports",
     "test:watch": "vitest",
     "test:coverage": "npm run prebuild:release-notes && vitest run --coverage && npm run check:css-imports"
@@ -67,6 +68,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
     "@vitest/coverage-v8": "^4.1.8",
+    "dependency-cruiser": "^18.0.0",
     "esbuild": "^0.28.1",
     "eslint": "^10.5.0",
     "eslint-plugin-react-hooks": "^7.1.1",

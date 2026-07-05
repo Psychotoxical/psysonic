@@ -1,6 +1,6 @@
 export const favorites = {
   title: 'Ulubione',
-  empty: "Nie masz jeszcze żadnych ulubionych.",
+  empty: "Nie dodałeś jeszcze nic do ulubionych.",
   artists: 'Wykonawcy',
   albums: 'Albumy',
   songs: 'Utwory',

@@ -1,13 +1,13 @@
-import { IS_LINUX } from '../utils/platform';
-import { sanitizeHiResCrossfadeResampleHz } from '../utils/audio/hiResCrossfadeResample';
+import { IS_LINUX } from '@/lib/util/platform';
+import { sanitizeHiResCrossfadeResampleHz } from '@/lib/audio/hiResCrossfadeResample';
 import {
   sanitizeAutodjOverlapCapMode,
   sanitizeAutodjOverlapCapSec,
-} from '../utils/playback/autodjOverlapCap';
+} from '@/lib/audio/autodjOverlapCap';
 import {
   LOUDNESS_PRE_ANALYSIS_REF_TARGET_LUFS,
   clampStoredLoudnessPreAnalysisAttenuationRefDb,
-} from '../utils/audio/loudnessPreAnalysisSlider';
+} from '@/lib/audio/loudnessPreAnalysisSlider';
 import { DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB } from './authStoreDefaults';
 import {
   clampMixFilterMinStars,
@@ -19,6 +19,7 @@ import {
 } from './authStoreHelpers';
 import type {
   AuthState,
+  ArtistBrowseCreditMode,
   DiscordCoverSource,
   DurationMode,
   LyricsSourceConfig,
@@ -128,6 +129,13 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
   )
     ? {}
     : { queueDisplayMode: 'queue' as QueueDisplayMode };
+
+  const VALID_ARTIST_BROWSE_CREDIT_MODES = new Set<string>(['album', 'track']);
+  const artistBrowseCreditModeMigrated = VALID_ARTIST_BROWSE_CREDIT_MODES.has(
+    (state as { artistBrowseCreditMode?: unknown }).artistBrowseCreditMode as string,
+  )
+    ? {}
+    : { artistBrowseCreditMode: 'album' as ArtistBrowseCreditMode };
 
   const VALID_WAYLAND_TEXT_PROFILE = new Set<string>(['balanced', 'sharp', 'gpu', 'minimal']);
   const rawWaylandProfile = (state as { linuxWaylandTextRenderProfile?: unknown }).linuxWaylandTextRenderProfile;
@@ -265,6 +273,7 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     ...windowButtonStyleMigrated,
     ...queueDurationDisplayModeMigrated,
     ...queueDisplayModeMigrated,
+    ...artistBrowseCreditModeMigrated,
     ...linuxWaylandTextRenderProfileMigrated,
     ...discordCoverSourceMigrated,
     ...maxCacheMbMigrated,

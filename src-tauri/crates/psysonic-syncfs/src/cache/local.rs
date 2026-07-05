@@ -44,7 +44,7 @@ pub fn resolve_media_dir(custom_media_dir: Option<&str>, app: &AppHandle) -> Res
     }
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalTrackDownloadResult {
     pub path: String,
@@ -52,7 +52,7 @@ pub struct LocalTrackDownloadResult {
     pub layout_fingerprint: String,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryTrackProbeResult {
     pub path: String,
@@ -61,7 +61,7 @@ pub struct LibraryTrackProbeResult {
     pub exists: bool,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryTierDiskHit {
     pub track_id: String,
@@ -230,6 +230,7 @@ async fn local_track_hit_if_exists(
 /// `TRACK_NOT_INDEXED` when the row is missing. Disk scope uses `server_index_key`;
 /// SQL lookup uses `library_server_id`.
 #[tauri::command]
+#[specta::specta]
 #[allow(clippy::too_many_arguments)]
 pub async fn download_track_local(
     tier: String,
@@ -409,6 +410,7 @@ pub async fn download_track_local(
 /// Scan library-tier bytes on disk and match them to known candidates only
 /// (`track_offline.local_path` + canonical paths for `candidate_track_ids`).
 #[tauri::command]
+#[specta::specta]
 pub async fn discover_library_tier_on_disk(
     server_index_key: String,
     library_server_id: String,
@@ -517,6 +519,7 @@ pub async fn discover_library_tier_on_disk(
 /// Resolve the canonical `library/` path for a track and report on-disk presence only
 /// (no download, no analysis seed).
 #[tauri::command]
+#[specta::specta]
 #[allow(clippy::too_many_arguments)]
 pub async fn probe_library_track_local(
     track_id: String,
@@ -580,6 +583,7 @@ async fn prune_orphan_files_under_root(root: &Path, keep_paths: &[String]) -> Ve
 
 /// Remove library-tier files under `{server_index_key}` that are not listed in `keep_paths`.
 #[tauri::command]
+#[specta::specta]
 pub async fn prune_orphan_library_tier_files(
     server_index_key: String,
     keep_paths: Vec<String>,
@@ -654,6 +658,7 @@ async fn evict_orphan_files_under_root_to_fit(
 
 /// Evict unindexed ephemeral cache files (oldest first) until tier size ≤ `max_bytes`.
 #[tauri::command]
+#[specta::specta]
 pub async fn evict_ephemeral_cache_orphans_to_fit(
     keep_paths: Vec<String>,
     max_bytes: u64,
@@ -667,6 +672,7 @@ pub async fn evict_ephemeral_cache_orphans_to_fit(
 
 /// Remove ephemeral-tier files under `{media}/cache/` not listed in `keep_paths`.
 #[tauri::command]
+#[specta::specta]
 pub async fn prune_orphan_ephemeral_cache_files(
     keep_paths: Vec<String>,
     media_dir: Option<String>,
@@ -679,6 +685,7 @@ pub async fn prune_orphan_ephemeral_cache_files(
 
 /// Batch existence probe for reconcile (index rows without on-disk bytes).
 #[tauri::command]
+#[specta::specta]
 pub fn probe_media_files(local_paths: Vec<String>) -> Vec<bool> {
     local_paths
         .iter()
@@ -696,6 +703,7 @@ fn resolve_media_tier_root(
 
 /// Recursive byte size under `{media}/{cache|library}/`.
 #[tauri::command]
+#[specta::specta]
 pub async fn get_media_tier_size(
     tier: String,
     media_dir: Option<String>,
@@ -712,6 +720,7 @@ pub async fn get_media_tier_size(
 
 /// Deletes the entire `{cache|library}/` subtree under the media root.
 #[tauri::command]
+#[specta::specta]
 pub async fn purge_media_tier(
     tier: String,
     media_dir: Option<String>,
@@ -749,6 +758,7 @@ fn prune_parents_after_media_file_delete(
 
 /// Deletes one media file and prunes empty parents up to the tier root.
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_media_file(
     local_path: String,
     media_dir: Option<String>,
@@ -766,6 +776,7 @@ pub async fn delete_media_file(
 
 /// Removes empty directories under `{media}/{cache|library}/` (post-eviction sweep).
 #[tauri::command]
+#[specta::specta]
 pub async fn prune_empty_media_tier_dirs(
     tier: String,
     media_dir: Option<String>,
@@ -780,6 +791,7 @@ pub async fn prune_empty_media_tier_dirs(
 
 /// Promotes stream-cache bytes into `{media}/cache/…` using library-index paths.
 #[tauri::command]
+#[specta::specta]
 #[allow(clippy::too_many_arguments)]
 pub async fn promote_stream_cache_to_local(
     track_id: String,
@@ -905,7 +917,7 @@ pub async fn promote_stream_cache_to_local(
     }))
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LegacyOfflineMigrationResult {
     pub track_id: String,
@@ -1228,6 +1240,7 @@ async fn relocate_legacy_track_file(
 /// Scan `psysonic-offline/{segment}/{trackId}.ext`, verify each id in the library
 /// index, and relocate live tracks into `{media}/library/…`.
 #[tauri::command]
+#[specta::specta]
 pub async fn migrate_legacy_offline_disk(
     media_dir: Option<String>,
     custom_offline_dir: Option<String>,

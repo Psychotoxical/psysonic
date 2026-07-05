@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { GenreTagsInspectDto } from '../api/library';
-import type { MigrationInspectReport, MigrationProgressEvent } from '../api/migration';
+import type { GenreTagsInspectDto } from '@/lib/api/library';
+import type { MigrationInspectReport, MigrationProgressEvent } from '@/lib/api/migration';
 
 export type MigrationPhase = 'idle' | 'inspecting' | 'running' | 'completed' | 'error';
 export type MigrationStep = 'serverIndex' | 'genreTags';

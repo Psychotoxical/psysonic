@@ -1,16 +1,16 @@
 import type { ServerProfile } from '../../store/authStoreTypes';
-import { scheduleInstantMixProbeForServer } from '../../api/subsonic';
+import { scheduleInstantMixProbeForServer } from '@/lib/api/subsonic';
 import {
   coverTrafficBeginServerSwitch,
   coverTrafficEndServerSwitch,
 } from '../../cover/coverTraffic';
 import { useAuthStore } from '../../store/authStore';
-import { useOrbitStore } from '../../store/orbitStore';
-import { flushPlayQueueForServer } from '../../store/queueSync';
-import { markQueueHandoffPending } from '../../store/queueSyncUiState';
-import { endOrbitSession, leaveOrbitSession } from '../orbit';
-import { ensureConnectUrlResolved } from './serverEndpoint';
-import { syncServerHttpContextForProfile } from './syncServerHttpContext';
+import { useOrbitStore } from '@/features/orbit';
+import { flushPlayQueueForServer } from '@/features/playback/store/queueSync';
+import { markQueueHandoffPending } from '@/features/playback/store/queueSyncUiState';
+import { endOrbitSession, leaveOrbitSession } from '@/features/orbit';
+import { ensureConnectUrlResolved } from '@/lib/server/serverEndpoint';
+import { syncServerHttpContextForProfile } from '@/lib/server/syncServerHttpContext';
 
 export async function switchActiveServer(server: ServerProfile): Promise<boolean> {
   coverTrafficBeginServerSwitch();

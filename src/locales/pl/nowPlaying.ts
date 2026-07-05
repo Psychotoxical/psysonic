@@ -13,7 +13,7 @@ export const nowPlaying = {
   fromAlbum: 'Z tego albumu',
   viewAlbum: 'Zobacz album',
   goToArtist: 'Idź do wykonawcy',
-  readMore: 'Czytaj więcej',
+  readMore: 'Pokaż więcej',
   showLess: 'Pokaż mniej',
   genreInfo: 'Gatunek',
   trackInfo: 'Informacje o utworze',

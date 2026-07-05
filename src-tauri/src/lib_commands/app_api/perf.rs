@@ -14,20 +14,20 @@ use std::fs;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 const CHILD_RESCAN_EVERY: u8 = 8;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub(crate) struct PerfProcessMemory {
     pub label: String,
     pub rss_kb: u64,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub(crate) struct PerfThreadCpuGroup {
     pub label: String,
     pub thread_count: u32,
     pub jiffies: u64,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub(crate) struct PerformanceCpuSnapshot {
     pub supported: bool,
     pub total_jiffies: u64,
@@ -503,6 +503,7 @@ mod macos {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) async fn performance_cpu_snapshot(
     include_thread_groups: Option<bool>,
 ) -> Result<PerformanceCpuSnapshot, String> {

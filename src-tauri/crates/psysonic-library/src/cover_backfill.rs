@@ -23,7 +23,7 @@ const MAX_BATCH: u32 = 256;
 const SCAN_PAGE: i64 = 256;
 const MAX_SCAN_PAGES: usize = 16;
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CoverBackfillItem {
     pub cache_kind: String,
@@ -31,7 +31,7 @@ pub struct CoverBackfillItem {
     pub fetch_cover_art_id: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryCoverBackfillBatchDto {
     pub items: Vec<CoverBackfillItem>,
@@ -41,7 +41,7 @@ pub struct LibraryCoverBackfillBatchDto {
     pub exhausted: bool,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryCoverProgressDto {
     pub total_distinct: i64,

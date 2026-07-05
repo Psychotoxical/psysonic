@@ -1,11 +1,11 @@
-import { getPlaybackServerId } from '../utils/playback/playbackServer';
+import { getPlaybackServerId } from '@/features/playback/utils/playback/playbackServer';
 import { useAuthStore } from '../store/authStore';
-import { findServerByIdOrIndexKey } from '../utils/server/serverLookup';
+import { findServerByIdOrIndexKey } from '@/lib/server/serverLookup';
 import {
   resolveIndexKey,
   serverIndexKeyForProfile,
   serverIndexKeyFromUrl,
-} from '../utils/server/serverIndexKey';
+} from '@/lib/server/serverIndexKey';
 import type { CoverArtRef, CoverArtTier, CoverServerScope } from './types';
 
 /**

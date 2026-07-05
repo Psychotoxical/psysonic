@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ImgHTMLAttributes } from 'react';
-import type { SubsonicArtistInfo } from '../api/subsonicTypes';
-import { isRealArtistImage } from '../utils/componentHelpers/nowPlayingHelpers';
+import type { SubsonicArtistInfo } from '@/lib/api/subsonicTypes';
+import { isRealArtistImage } from './isRealArtistImage';
 import { CoverArtImage } from './CoverArtImage';
 import type { CoverArtRef, CoverSurfaceKind } from './types';
 

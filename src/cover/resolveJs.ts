@@ -1,16 +1,16 @@
 import { isTauri } from '@tauri-apps/api/core';
-import { getCachedBlob } from '../utils/imageCache';
+import { getCachedBlob } from './imageCache';
 import { ensureCoverTierDiskBlob } from './resolveDisk';
 import {
   parseCoverCacheKey,
   probeSiblingCoverBlobFromIDB,
   probeSiblingCoverBlobInMemory,
   scheduleSiblingVersusNetworkRace,
-} from '../utils/imageCache/coverSiblings';
-import { blobCache } from '../utils/imageCache/blobCache';
-import { downscaleCoverBlob } from '../utils/cover/coverBlobDownscale';
-import { rememberBlob } from '../utils/imageCache/blobCache';
-import { putBlob } from '../utils/imageCache/idbStore';
+} from './imageCache/coverSiblings';
+import { blobCache } from './imageCache/blobCache';
+import { downscaleCoverBlob } from '@/cover/coverBlobDownscale';
+import { rememberBlob } from './imageCache/blobCache';
+import { putBlob } from './imageCache/idbStore';
 import { buildCoverArtFetchUrl } from './fetchUrl';
 import { coverServerReachable } from './reachability';
 import { coverStorageKeyFromRef } from './storageKeys';

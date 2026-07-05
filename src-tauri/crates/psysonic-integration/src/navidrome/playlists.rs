@@ -10,6 +10,7 @@ use tauri::State;
 use super::client::{nd_apply_request, nd_err, nd_http_client, nd_retry};
 
 /// GET `/api/playlist` — list playlists; pass `smart=true` to filter smart playlists.
+// NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn nd_list_playlists(
     http_registry: State<'_, Arc<ServerHttpRegistry>>,
@@ -46,6 +47,7 @@ pub async fn nd_list_playlists(
 }
 
 /// POST `/api/playlist` — create playlist (supports smart rules payload).
+// NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn nd_create_playlist(
     http_registry: State<'_, Arc<ServerHttpRegistry>>,
@@ -84,6 +86,7 @@ pub async fn nd_create_playlist(
 }
 
 /// PUT `/api/playlist/{id}` — update playlist (supports smart rules payload).
+// NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn nd_update_playlist(
     http_registry: State<'_, Arc<ServerHttpRegistry>>,
@@ -123,6 +126,7 @@ pub async fn nd_update_playlist(
 }
 
 /// GET `/api/playlist/{id}` — get a single playlist (includes smart rules if available).
+// NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn nd_get_playlist(
     http_registry: State<'_, Arc<ServerHttpRegistry>>,
@@ -160,6 +164,7 @@ pub async fn nd_get_playlist(
 
 /// DELETE `/api/playlist/{id}` — delete playlist.
 #[tauri::command]
+#[specta::specta]
 pub async fn nd_delete_playlist(
     http_registry: State<'_, Arc<ServerHttpRegistry>>,
     server_url: String,

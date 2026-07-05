@@ -18,6 +18,7 @@ use super::preview::preview_clear_for_new_main_playback;
 use super::stream::{radio_download_task, RADIO_BUF_CAPACITY};
 
 #[tauri::command]
+#[specta::specta]
 pub fn audio_pause(state: State<'_, AudioEngine>) {
     let mut cur = state.current.lock().unwrap();
     if let Some(sink) = &cur.sink {
@@ -49,6 +50,7 @@ pub fn audio_pause(state: State<'_, AudioEngine>) {
 /// ring buffer is created, its consumer is sent to `AudioStreamReader` (which
 /// swaps it in on the next `read()`), and a new download task is spawned.
 #[tauri::command]
+#[specta::specta]
 pub async fn audio_resume(state: State<'_, AudioEngine>, app: AppHandle) -> Result<(), String> {
     // If a preview is running, cancel it first — otherwise sink.play() on the
     // main sink would mix on top of the preview sink.
@@ -112,6 +114,7 @@ pub async fn audio_resume(state: State<'_, AudioEngine>, app: AppHandle) -> Resu
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn audio_stop(state: State<'_, AudioEngine>, app: AppHandle) {
     preview_clear_for_new_main_playback(&state, &app);
     state.generation.fetch_add(1, Ordering::SeqCst);
@@ -135,6 +138,7 @@ pub fn audio_stop(state: State<'_, AudioEngine>, app: AppHandle) {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn audio_seek(seconds: f64, state: State<'_, AudioEngine>) -> Result<(), String> {
     let state = state.inner();
     const AUDIO_SEEK_TIMEOUT_MS: u64 = 700;

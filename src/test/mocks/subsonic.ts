@@ -1,12 +1,12 @@
 /**
  * Subsonic API mock fixtures.
  *
- * `vi.mock('@/api/subsonic')` is hoisted in the test file itself (vitest
+ * `vi.mock('@/lib/api/subsonic')` is hoisted in the test file itself (vitest
  * limitation — factory functions can't reach helper modules at hoist time).
  * This module supplies the *data* the test injects into those mocks:
  *
  *   // In the test:
- *   vi.mock('@/api/subsonic');
+ *   vi.mock('@/lib/api/subsonic');
  *    *   import { sampleAlbumWithSongs, mockStreamUrl } from '@/test/mocks/subsonic';
  *
  *   beforeEach(() => {
@@ -17,7 +17,7 @@
  * Realistic shape matters more than perfect coverage — these fixtures
  * mirror what Navidrome actually returns for common queries.
  */
-import type { SubsonicSong, SubsonicAlbum, SubsonicPlaylist } from '@/api/subsonicTypes';
+import type { SubsonicSong, SubsonicAlbum, SubsonicPlaylist } from '@/lib/api/subsonicTypes';
 import { makeSubsonicSong } from '@/test/helpers/factories';
 
 export const sampleSubsonicSong: SubsonicSong = makeSubsonicSong({

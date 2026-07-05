@@ -1,9 +1,9 @@
-import { queueSongRating } from '../store/pendingStarSync';
-import i18n from '../i18n';
-import { usePlayerStore } from '../store/playerStore';
-import { showToast } from '../utils/ui/toast';
-import { playByOpaqueId } from '../utils/playback/playByOpaqueId';
-import type { ActionContext, CliContext } from './shortcutTypes';
+import { queueSongRating } from '@/features/playback/store/pendingStarSync';
+import i18n from '@/lib/i18n';
+import { usePlayerStore } from '@/features/playback/store/playerStore';
+import { showToast } from '@/lib/dom/toast';
+import { playByOpaqueId } from '@/features/playback/utils/playback/playByOpaqueId';
+import type { ActionContext, CliContext } from '@/config/shortcutTypes';
 import {
   SHORTCUT_ACTION_REGISTRY,
   type ShortcutAction,
@@ -74,6 +74,13 @@ export function executeCliPlayerCommand(ctx: CliContext): void | Promise<void> {
     const p = Number(ctx.payload.percent);
     if (!Number.isFinite(p)) return;
     usePlayerStore.getState().setVolume(Math.min(1, Math.max(0, p / 100)));
+    return;
+  }
+  if (command === 'volume-relative') {
+    const delta = Number(ctx.payload.deltaPercent);
+    if (!Number.isFinite(delta)) return;
+    const state = usePlayerStore.getState();
+    state.setVolume(Math.min(1, Math.max(0, state.volume + delta / 100)));
     return;
   }
   if (command === 'set-repeat') {

@@ -7,7 +7,10 @@ import tseslint from 'typescript-eslint';
 export default tseslint.config(
   // `scripts/` (Node CI helpers) is intentionally ignored — this config targets the
   // browser `src/` tree. See `npm run lint:scripts` if scripts ever need a Node-globals lint pass.
-  { ignores: ['dist', 'coverage', 'src-tauri', 'research', 'scripts'] },
+  // `src/generated` holds machine-generated output (release-notes bundle,
+  // tauri-specta `bindings.ts`) — not linted. `bindings.ts` is still type-checked
+  // by tsc (the FE↔BE contract); its generated runtime helper uses `any`.
+  { ignores: ['dist', 'coverage', 'src-tauri', 'research', 'scripts', 'src/generated'] },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {

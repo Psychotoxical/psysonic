@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../api/coverCache', () => ({
+vi.mock('@/lib/api/coverCache', () => ({
   libraryCoverBackfillConfigure: vi.fn(async () => {}),
   libraryCoverBackfillSetUiPriority: vi.fn(async () => {}),
 }));
 
-import { libraryCoverBackfillSetUiPriority } from '../api/coverCache';
+import { libraryCoverBackfillSetUiPriority } from '@/lib/api/coverCache';
 import {
   __test_resetCoverTraffic,
   coverTrafficBackgroundPaused,

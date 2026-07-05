@@ -1,4 +1,4 @@
-import { coverCachePeekBatch } from '../api/coverCache';
+import { coverCachePeekBatch } from '@/lib/api/coverCache';
 import { getDiskSrc } from './diskSrcCache';
 import { getDiskSrcForGrid } from './diskSrcLookup';
 import { coverTrafficServerSwitchPaused } from './coverTraffic';

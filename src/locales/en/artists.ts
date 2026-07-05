@@ -16,4 +16,12 @@ export const artists = {
   startSelect: 'Enable multi-select',
   cancelSelect: 'Cancel',
   addToPlaylist: 'Add to Playlist',
+  browse: {
+    creditMode: {
+      album: 'Album artists',
+      track: 'Track artists',
+      tooltipAlbum: 'Show album artists only (default library index)',
+      tooltipTrack: 'Show all track performers, including guests on compilations',
+    },
+  },
 };

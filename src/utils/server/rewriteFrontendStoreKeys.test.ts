@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { useAnalysisStrategyStore } from '../../store/analysisStrategyStore';
 import { useCoverStrategyStore } from '../../store/coverStrategyStore';
 import { useLocalPlaybackStore } from '../../store/localPlaybackStore';
-import { useOfflineStore } from '../../store/offlineStore';
-import { usePlayerStore } from '../../store/playerStore';
+import { useOfflineStore } from '@/features/offline';
+import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { rewriteFrontendStoreKeysForRemap } from './rewriteFrontendStoreKeys';
 
 describe('rewriteFrontendStoreKeysForRemap', () => {

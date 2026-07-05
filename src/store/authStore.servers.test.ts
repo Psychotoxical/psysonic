@@ -12,7 +12,8 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useAuthStore } from './authStore';
-import { usePlayerStore } from './playerStore';
+import { usePlayerStore } from '@/features/playback/store/playerStore';
+import '@/features/playback/store/playbackEngineBridgeRegister'; // wire removeServer's queue-clear through the real engine bridge
 import { resetAuthStore } from '@/test/helpers/storeReset';
 import { resetPlayerStore } from '@/test/helpers/storeReset';
 

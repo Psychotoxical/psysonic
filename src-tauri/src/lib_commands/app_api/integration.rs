@@ -4,6 +4,7 @@ use tauri::Emitter;
 use crate::{MprisControls, ShortcutMap};
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn register_global_shortcut(
     app: tauri::AppHandle,
     shortcut_map: tauri::State<ShortcutMap>,
@@ -49,6 +50,7 @@ pub(crate) fn register_global_shortcut(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn unregister_global_shortcut(
     app: tauri::AppHandle,
     shortcut_map: tauri::State<ShortcutMap>,
@@ -70,6 +72,7 @@ pub(crate) fn unregister_global_shortcut(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn mpris_set_metadata(
     controls: tauri::State<MprisControls>,
     title: Option<String>,
@@ -146,6 +149,7 @@ fn webp_file_to_temp_png(webp_path: &str) -> Result<String, String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn mpris_set_playback(
     controls: tauri::State<MprisControls>,
     playing: bool,
@@ -168,6 +172,7 @@ pub(crate) fn mpris_set_playback(
 
 /// Returns true if `path` is an accessible directory (used for pre-flight checks in the frontend).
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn check_dir_accessible(path: String) -> bool {
     std::path::Path::new(&path).is_dir()
 }

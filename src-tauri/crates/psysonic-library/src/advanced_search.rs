@@ -15,7 +15,8 @@ use rusqlite::{params, OptionalExtension};
 use serde_json::Value;
 
 use crate::dto::{
-    LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse, LibraryAlbumDto, LibraryArtistDto,
+    ArtistCreditMode, LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse, LibraryAlbumDto,
+    LibraryArtistDto,
     LibraryFilterClause, LibrarySearchTotals, LibrarySortClause, LibraryTrackDto, SortDir,
 };
 use crate::filter::{self, EntityKind, FilterOp, SqlFragment};
@@ -23,7 +24,8 @@ use crate::repos;
 use crate::search::{
     aliased_track_columns, aliased_track_columns_resolved_bpm, bpm_resolved_expr,
     fts_album_prefix_match_query, fts_album_title_prefix_match_query, fts_column_prefix_query, fts_query_meets_min_len,
-    fts_track_prefix_match_query, library_scope_equals_sql, like_contains, PAGE_LIMIT_MAX,
+    fts_track_prefix_match_query, library_scope_equals_sql, like_contains, like_contains_folded,
+    PAGE_LIMIT_MAX,
 };
 use crate::store::LibraryStore;
 
@@ -480,6 +482,45 @@ fn build_album_from_tracks(
     )
 }
 
+fn album_artist_credit_mode(req: &LibraryAdvancedSearchRequest) -> bool {
+    !matches!(req.artist_credit_mode, Some(ArtistCreditMode::Track))
+}
+
+/// Letter bucket filter on `name_sort` (articles already stripped in column).
+fn push_artist_letter_bucket(w: &mut WhereBuilder, bucket: &str, applied: &mut BTreeSet<String>) {
+    if bucket.is_empty() || bucket.eq_ignore_ascii_case("ALL") {
+        return;
+    }
+    let col = "COALESCE(ar.name_sort, ar.name)";
+    match bucket {
+        "#" => {
+            w.push_raw(&format!("SUBSTR({col}, 1, 1) GLOB '[0-9]'"));
+        }
+        "OTHER" => {
+            w.push_raw(&format!(
+                "LENGTH({col}) > 0 \
+                 AND SUBSTR({col}, 1, 1) NOT GLOB '[0-9]' \
+                 AND LOWER(SUBSTR({col}, 1, 1)) NOT GLOB '[a-z]'"
+            ));
+        }
+        letter if letter.len() == 1 => {
+            let Some(ch) = letter.chars().next() else {
+                return;
+            };
+            if !ch.is_ascii_alphabetic() {
+                return;
+            }
+            let lower = ch.to_ascii_lowercase().to_string();
+            w.push_param(
+                &format!("LOWER(SUBSTR({col}, 1, 1)) = ?"),
+                SqlValue::Text(lower),
+            );
+        }
+        _ => return,
+    }
+    applied.insert("letter".to_string());
+}
+
 #[allow(clippy::too_many_arguments)]
 fn build_artist(
     store: &LibraryStore,
@@ -491,11 +532,9 @@ fn build_artist(
     skip_totals: bool,
     applied: &mut BTreeSet<String>,
 ) -> Result<(Vec<LibraryArtistDto>, u32), String> {
+    // #1209: browse uses a single `artist` table path — no FTS / track fallthrough.
     if !scalar_requires_track_derived_entities(scalar) {
-        let table = build_artist_from_table(store, req, text, scalar, limit, offset, skip_totals, applied)?;
-        if !table.0.is_empty() || table.1 > 0 {
-            return Ok(table);
-        }
+        return build_artist_from_table(store, req, text, scalar, limit, offset, skip_totals, applied);
     }
     if let Some(q) = text.and_then(|t| fts_column_prefix_query("artist", t)) {
         return build_artist_from_fts(store, req, &q, scalar, limit, offset, skip_totals, applied);
@@ -516,8 +555,19 @@ fn build_artist_from_table(
 ) -> Result<(Vec<LibraryArtistDto>, u32), String> {
     let mut w = WhereBuilder::new();
     w.push_param("ar.server_id = ?", SqlValue::Text(req.server_id.clone()));
+    if album_artist_credit_mode(req) {
+        w.push_raw("ar.album_count IS NOT NULL");
+    }
+    if let Some(bucket) = req.artist_letter_bucket.as_deref() {
+        push_artist_letter_bucket(&mut w, bucket, applied);
+    }
     if let Some(t) = text {
-        w.push_param("ar.name LIKE ? ESCAPE '\\'", SqlValue::Text(like_contains(t)));
+        // Match `name_sort` (Unicode lowercase from sync) so Cyrillic and other
+        // non-ASCII names are case-insensitive; COALESCE covers pre-014 rows.
+        w.push_param(
+            "COALESCE(ar.name_sort, ar.name) LIKE ? ESCAPE '\\'",
+            SqlValue::Text(like_contains_folded(t)),
+        );
         applied.insert("text".to_string());
     }
     for c in scalar {
@@ -566,7 +616,10 @@ fn build_artist_from_tracks(
         w.push_param(&clause, SqlValue::Text(scope));
     }
     if let Some(t) = text {
-        w.push_param("t.artist LIKE ? ESCAPE '\\'", SqlValue::Text(like_contains(t)));
+        w.push_param(
+            "t.artist LIKE ? ESCAPE '\\'",
+            SqlValue::Text(like_contains_folded(t)),
+        );
         applied.insert("text".to_string());
     }
     for c in scalar {
@@ -1438,6 +1491,7 @@ mod tests {
             bpm: None,
             replay_gain_track_db: None,
             replay_gain_album_db: None,
+            replay_gain_peak: None,
             content_hash: None,
             server_updated_at: None,
             server_created_at: None,
@@ -1460,15 +1514,7 @@ mod tests {
     }
 
     fn insert_artist(store: &LibraryStore, server: &str, id: &str, name: &str) {
-        store
-            .with_conn("misc", |c| {
-                c.execute(
-                    "INSERT INTO artist (server_id, id, name, synced_at, raw_json) \
-                     VALUES (?1, ?2, ?3, 1, '{}')",
-                    rusqlite::params![server, id, name],
-                )
-            })
-            .unwrap();
+        insert_artist_with_album_count(store, server, id, name, Some(1));
     }
 
     fn req(server: &str, entities: &[EntityKind]) -> LibraryAdvancedSearchRequest {
@@ -1485,7 +1531,27 @@ mod tests {
             limit: 50,
             offset: 0,
             skip_totals: false,
+            artist_credit_mode: None,
+            artist_letter_bucket: None,
         }
+    }
+
+    fn insert_artist_with_album_count(
+        store: &LibraryStore,
+        server: &str,
+        id: &str,
+        name: &str,
+        album_count: Option<i64>,
+    ) {
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "INSERT INTO artist (server_id, id, name, album_count, synced_at, raw_json) \
+                     VALUES (?1, ?2, ?3, ?4, 1, '{}')",
+                    rusqlite::params![server, id, name, album_count],
+                )
+            })
+            .unwrap();
     }
 
     fn clause(field: &str, op: FilterOp, value: Option<Value>, value_to: Option<Value>) -> LibraryFilterClause {
@@ -1550,6 +1616,36 @@ mod tests {
     }
 
     #[test]
+    fn artist_text_query_is_case_insensitive_for_cyrillic_name_sort() {
+        let store = LibraryStore::open_in_memory();
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "INSERT INTO artist (server_id, id, name, name_sort, album_count, synced_at, raw_json) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, 1, '{}')",
+                    rusqlite::params!["s1", "ar_kino", "Кино", "кино", 3_i64],
+                )
+            })
+            .unwrap();
+        let mut r = req("s1", &[EntityKind::Artist]);
+        r.query = Some("КИН".into());
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.artists.len(), 1);
+        assert_eq!(resp.artists[0].id, "ar_kino");
+    }
+
+    #[test]
+    fn artist_text_query_is_case_insensitive_for_latin_display_name() {
+        let store = LibraryStore::open_in_memory();
+        insert_artist(&store, "s1", "ar1", "Metallica");
+        let mut r = req("s1", &[EntityKind::Artist]);
+        r.query = Some("METAL".into());
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.artists.len(), 1);
+        assert_eq!(resp.artists[0].id, "ar1");
+    }
+
+    #[test]
     fn text_query_derives_album_and_artist_from_tracks_when_tables_empty() {
         let store = LibraryStore::open_in_memory();
         let mut t1 = track("s1", "t1", "Song One", "Aurora Quartet", "Aurora Nights");
@@ -1566,8 +1662,79 @@ mod tests {
         assert_eq!(resp.albums.len(), 1);
         assert_eq!(resp.albums[0].id, "al_Aurora Nights");
         assert_eq!(resp.albums[0].cover_art_id.as_deref(), Some("cv1"));
+        // Artist rows come from the `artist` table only (#1209) — not track fallthrough.
+        assert!(resp.artists.is_empty());
+    }
+
+    #[test]
+    fn artist_credit_album_mode_excludes_backfill_only_rows() {
+        let store = LibraryStore::open_in_memory();
+        insert_artist_with_album_count(&store, "s1", "ar_va", "Various Artists", Some(12));
+        insert_artist_with_album_count(&store, "s1", "ar_guest", "Soundtrack Guest", None);
+        let mut r = req("s1", &[EntityKind::Artist]);
+        r.artist_credit_mode = Some(ArtistCreditMode::Album);
+        let resp = run_advanced_search(&store, &r).unwrap();
         assert_eq!(resp.artists.len(), 1);
-        assert_eq!(resp.artists[0].id, "ar_Aurora Quartet");
+        assert_eq!(resp.artists[0].id, "ar_va");
+    }
+
+    #[test]
+    fn artist_credit_track_mode_includes_backfill_rows() {
+        let store = LibraryStore::open_in_memory();
+        insert_artist_with_album_count(&store, "s1", "ar_va", "Various Artists", Some(12));
+        insert_artist_with_album_count(&store, "s1", "ar_guest", "Soundtrack Guest", None);
+        let mut r = req("s1", &[EntityKind::Artist]);
+        r.artist_credit_mode = Some(ArtistCreditMode::Track);
+        r.sort = vec![LibrarySortClause {
+            field: "name".into(),
+            dir: SortDir::Asc,
+        }];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.artists.len(), 2);
+        assert_eq!(resp.artists[0].id, "ar_guest");
+        assert_eq!(resp.artists[1].id, "ar_va");
+    }
+
+    #[test]
+    fn artist_credit_album_mode_text_search_uses_artist_table_only() {
+        let store = LibraryStore::open_in_memory();
+        insert_artist_with_album_count(&store, "s1", "ar_va", "Various Artists", Some(12));
+        insert_artist_with_album_count(&store, "s1", "ar_guest", "Soundtrack Guest", None);
+        let mut r = req("s1", &[EntityKind::Artist]);
+        r.query = Some("guest".into());
+        r.artist_credit_mode = Some(ArtistCreditMode::Album);
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert!(resp.artists.is_empty());
+        let mut r2 = req("s1", &[EntityKind::Artist]);
+        r2.query = Some("guest".into());
+        r2.artist_credit_mode = Some(ArtistCreditMode::Track);
+        let resp2 = run_advanced_search(&store, &r2).unwrap();
+        assert_eq!(resp2.artists.len(), 1);
+        assert_eq!(resp2.artists[0].id, "ar_guest");
+    }
+
+    #[test]
+    fn artist_letter_bucket_filters_by_name_sort_prefix() {
+        let store = LibraryStore::open_in_memory();
+        insert_artist_with_album_count(&store, "s1", "ar_a", "Alpha", Some(1));
+        insert_artist_with_album_count(&store, "s1", "ar_m", "Mike", Some(1));
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "UPDATE artist SET name_sort = 'alpha' WHERE id = 'ar_a'",
+                    [],
+                )?;
+                c.execute(
+                    "UPDATE artist SET name_sort = 'mike' WHERE id = 'ar_m'",
+                    [],
+                )
+            })
+            .unwrap();
+        let mut r = req("s1", &[EntityKind::Artist]);
+        r.artist_letter_bucket = Some("M".into());
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.artists.len(), 1);
+        assert_eq!(resp.artists[0].id, "ar_m");
     }
 
     #[test]

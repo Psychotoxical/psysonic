@@ -9,7 +9,7 @@ use crate::runtime::LibraryRuntime;
 use crate::search::library_scope_equals_sql;
 use crate::store::LibraryStore;
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct StarredAlbumReconcileItem {
     pub id: String,
@@ -19,6 +19,7 @@ pub struct StarredAlbumReconcileItem {
 /// Align `album.starred_at` with server favorites: UPDATE existing rows only
 /// (no INSERT / stub rows). Clears local stars absent from `starred_albums`.
 #[tauri::command]
+#[specta::specta]
 pub fn library_reconcile_album_stars(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
@@ -99,6 +100,7 @@ pub(crate) fn catalog_year_bounds_for_server(
 
 /// Min/max album years from the local track catalog (for Albums browse filter spinners).
 #[tauri::command]
+#[specta::specta]
 pub fn library_get_catalog_year_bounds(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
@@ -150,6 +152,7 @@ pub(crate) fn genre_album_counts_for_server(
 
 /// Distinct album counts per track genre — same grouping as genre album browse.
 #[tauri::command]
+#[specta::specta]
 pub fn library_get_genre_album_counts(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
@@ -206,6 +209,7 @@ mod tests {
             bpm: None,
             replay_gain_track_db: None,
             replay_gain_album_db: None,
+            replay_gain_peak: None,
             content_hash: None,
             server_updated_at: None,
             server_created_at: None,

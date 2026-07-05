@@ -1,4 +1,4 @@
-import type { SubsonicSong } from '../api/subsonicTypes';
+import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { CoverArtImage, type CoverArtImageProps } from './CoverArtImage';
 import { useTrackCoverRef } from './useLibraryCoverRef';
 import { COVER_SCOPE_ACTIVE, type CoverServerScope } from './types';

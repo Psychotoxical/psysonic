@@ -20,12 +20,12 @@
  *   // or for cross-store tests:
  *   beforeEach(resetAllStores);
  */
-import { _resetQueueUndoStacksForTest } from '@/store/queueUndo';
-import { _resetTimelineSessionHistoryForTest } from '@/store/timelineSessionHistory';
-import { usePlayerStore } from '@/store/playerStore';
+import { _resetQueueUndoStacksForTest } from '@/features/playback/store/queueUndo';
+import { _resetTimelineSessionHistoryForTest } from '@/features/playback/store/timelineSessionHistory';
+import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
-import { usePreviewStore } from '@/store/previewStore';
-import { useOrbitStore } from '@/store/orbitStore';
+import { usePreviewStore } from '@/features/playback/store/previewStore';
+import { useOrbitStore } from '@/features/orbit';
 
 const INITIAL_PLAYER_STATE = usePlayerStore.getState();
 const INITIAL_AUTH_STATE = useAuthStore.getState();

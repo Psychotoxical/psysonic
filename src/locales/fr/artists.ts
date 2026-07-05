@@ -16,4 +16,12 @@ export const artists = {
   startSelect: 'Activer la sélection multiple',
   cancelSelect: 'Annuler',
   addToPlaylist: 'Ajouter à la playlist',
+  browse: {
+    creditMode: {
+      album: 'Artistes d’album',
+      track: 'Artistes de piste',
+      tooltipAlbum: 'Afficher uniquement les artistes d’album (index bibliothèque par défaut)',
+      tooltipTrack: 'Afficher tous les interprètes, y compris les invités sur les compilations',
+    },
+  },
 };

@@ -1,14 +1,14 @@
 import { useNavigate } from 'react-router-dom';
-import { useZipDownloadBridge } from '../hooks/tauriBridge/useZipDownloadBridge';
-import { usePreviewBridge } from '../hooks/tauriBridge/usePreviewBridge';
-import { useAudioDeviceBridge } from '../hooks/tauriBridge/useAudioDeviceBridge';
-import { useCliBridge } from '../hooks/tauriBridge/useCliBridge';
-import { useTrayIconSync } from '../hooks/tauriBridge/useTrayIconSync';
-import { useInAppKeybindings } from '../hooks/tauriBridge/useInAppKeybindings';
-import { useMediaAndWindowBridge } from '../hooks/tauriBridge/useMediaAndWindowBridge';
-import { usePlayerSnapshotPublisher } from '../hooks/tauriBridge/usePlayerSnapshotPublisher';
-import { useLibraryDevSyncLog } from '../hooks/tauriBridge/useLibraryDevSyncLog';
-import { useCoverArtBridge } from '../hooks/tauriBridge/useCoverArtBridge';
+import { useZipDownloadBridge } from '@/features/offline';
+import { usePreviewBridge } from '@/app/tauriBridge/usePreviewBridge';
+import { useAudioDeviceBridge } from '@/app/tauriBridge/useAudioDeviceBridge';
+import { useCliBridge } from '@/app/tauriBridge/useCliBridge';
+import { useTrayIconSync } from '@/app/tauriBridge/useTrayIconSync';
+import { useInAppKeybindings } from '@/app/tauriBridge/useInAppKeybindings';
+import { useMediaAndWindowBridge } from '@/app/tauriBridge/useMediaAndWindowBridge';
+import { usePlayerSnapshotPublisher } from '@/app/tauriBridge/usePlayerSnapshotPublisher';
+import { useLibraryDevSyncLog } from '@/app/tauriBridge/useLibraryDevSyncLog';
+import { useCoverArtBridge } from '@/app/tauriBridge/useCoverArtBridge';
 
 /**
  * Single mount point for everything that bridges Rust ↔ React in the main

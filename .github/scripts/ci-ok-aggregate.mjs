@@ -4,7 +4,7 @@
  */
 
 const FRONTEND_PATH_RE =
-  /^(src\/|package\.json$|package-lock\.json$|vitest\.config\.ts$|vite\.config\.ts$|tsconfig\.json$|eslint\.config\.mjs$|\.github\/workflows\/frontend-tests\.yml$|\.github\/workflows\/eslint\.yml$|\.github\/frontend-hot-path-files\.txt$|scripts\/check-frontend-hot-path-coverage\.sh$|scripts\/check-css-import-graph\.mjs$)/;
+  /^(src\/|package\.json$|package-lock\.json$|vitest\.config\.ts$|vite\.config\.ts$|tsconfig\.json$|eslint\.config\.mjs$|\.dependency-cruiser\.cjs$|\.dependency-cruiser-known-violations\.json$|\.github\/workflows\/frontend-tests\.yml$|\.github\/workflows\/eslint\.yml$|\.github\/frontend-hot-path-files\.txt$|scripts\/check-frontend-hot-path-coverage\.sh$|scripts\/check-css-import-graph\.mjs$)/;
 
 const RUST_PATH_RE = /^(src-tauri\/|\.github\/workflows\/rust-tests\.yml$)/;
 
@@ -13,6 +13,7 @@ const FRONTEND_JOBS = [
   'tsc --noEmit',
   'vitest --coverage (baseline + hot-path file gate)',
   'eslint',
+  'dependency-cruiser',
 ];
 
 const RUST_JOBS = [

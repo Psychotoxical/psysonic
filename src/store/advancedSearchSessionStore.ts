@@ -1,6 +1,6 @@
-import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '../api/subsonicTypes';
+import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '@/lib/api/subsonicTypes';
 import { create } from 'zustand';
-import type { AdvancedSearchLeaveSnapshot } from '../utils/navigation/advancedSearchScrollSnapshot';
+import type { AdvancedSearchLeaveSnapshot } from '@/lib/navigation/advancedSearchScrollSnapshot';
 
 export type AdvancedSearchResultType = 'all' | 'artists' | 'albums' | 'songs';
 

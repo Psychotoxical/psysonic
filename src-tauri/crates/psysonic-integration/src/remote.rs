@@ -3,6 +3,7 @@ use psysonic_core::user_agent::subsonic_wire_user_agent;
 pub const RADIO_PAGE_SIZE: u32 = 25;
 
 /// Search the radio-browser.info directory (needs User-Agent header — CORS would block WebView).
+// NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn search_radio_browser(query: String, offset: u32) -> Result<Vec<serde_json::Value>, String> {
     let client = reqwest::Client::new();
@@ -26,6 +27,7 @@ pub async fn search_radio_browser(query: String, offset: u32) -> Result<Vec<serd
 }
 
 /// Fetch top-voted stations from radio-browser.info for initial suggestions.
+// NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn get_top_radio_stations(offset: u32) -> Result<Vec<serde_json::Value>, String> {
     let client = reqwest::Client::new();
@@ -46,6 +48,7 @@ pub async fn get_top_radio_stations(offset: u32) -> Result<Vec<serde_json::Value
 /// Fetch arbitrary URL bytes (e.g. radio station favicon) through Rust to bypass CORS.
 /// Returns (bytes, content_type).
 #[tauri::command]
+#[specta::specta]
 pub async fn fetch_url_bytes(url: String) -> Result<(Vec<u8>, String), String> {
     let client = reqwest::Client::builder()
         .user_agent(subsonic_wire_user_agent())
@@ -75,6 +78,7 @@ pub async fn fetch_url_bytes(url: String) -> Result<(Vec<u8>, String), String> {
 
 /// Fetch a JSON API endpoint through Rust to bypass CORS/WebView networking restrictions.
 /// Returns the response body as a UTF-8 string for parsing on the JS side.
+// NOT specta-collected: raw-JSON passthrough (FE JSON.parses the string) — kept hand-written on generate_handler! with the scrobbler/fetch family.
 #[tauri::command]
 pub async fn fetch_json_url(url: String) -> Result<String, String> {
     let client = reqwest::Client::builder()
@@ -95,7 +99,7 @@ pub async fn fetch_json_url(url: String) -> Result<String, String> {
 }
 
 /// ICY metadata response returned to the frontend.
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 pub struct IcyMetadata {
     /// The `StreamTitle` from the inline ICY metadata block in the stream (e.g. `"Artist - Title"`).
     stream_title: Option<String>,
@@ -173,6 +177,7 @@ pub async fn resolve_playlist_url(client: &reqwest::Client, url: &str) -> Option
 /// If `url` is a PLS or M3U playlist file it is resolved to the first direct
 /// stream URL before the ICY request is made.
 #[tauri::command]
+#[specta::specta]
 pub async fn fetch_icy_metadata(url: String) -> Result<IcyMetadata, String> {
     use futures_util::StreamExt;
 
@@ -277,6 +282,7 @@ pub async fn fetch_icy_metadata(url: String) -> Result<IcyMetadata, String> {
 /// Returns the original URL unchanged if it is not a recognised playlist format
 /// or if the playlist cannot be fetched/parsed.
 #[tauri::command]
+#[specta::specta]
 pub async fn resolve_stream_url(url: String) -> String {
     let Ok(client) = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
@@ -309,6 +315,7 @@ fn provider_http_client() -> Result<reqwest::Client, String> {
 /// `params` is a list of [key, value] pairs (method must be included). If `sign`
 /// is true an `api_sig` is computed (MD5 of sorted params + secret). If `get` is
 /// true a GET request is made, otherwise a form POST.
+// NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn audioscrobbler_request(
     base_url: String,
@@ -371,6 +378,7 @@ pub async fn audioscrobbler_request(
 ///
 /// `path` is appended to `base_url` (e.g. `/1/submit-listens`). When `json_body`
 /// is present the request is a POST with that body; otherwise a GET.
+// NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn listenbrainz_request(
     base_url: String,
@@ -410,6 +418,7 @@ pub async fn listenbrainz_request(
 ///
 /// `path` is appended to `base_url`. When `json_body` is present the request is a
 /// POST with that body; otherwise a GET with `query` pairs.
+// NOT specta-collected: serde_json::Value in the command signature — specta rc.25 can't export it. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn maloja_request(
     base_url: String,

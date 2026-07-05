@@ -1,0 +1,89 @@
+import { effectiveLoudnessPreAnalysisAttenuationDb } from '@/lib/audio/loudnessPreAnalysisSlider';
+import { loudnessGainPlaceholderUntilCacheDb } from '@/features/playback/utils/audio/loudnessPlaceholder';
+import { resolveReplayGainDb } from '@/features/playback/utils/audio/resolveReplayGainDb';
+import { useAuthStore } from '@/store/authStore';
+import {
+  getCachedLoudnessGain,
+  hasStableLoudness,
+  isReplayGainActive,
+} from '@/features/playback/store/loudnessGainCache';
+import { deriveNormalizationSnapshot } from '@/features/playback/store/normalizationSnapshot';
+import { invokeAudioUpdateReplayGainDeduped } from '@/features/playback/store/normalizationIpcDedupe';
+import type { PlayerState } from '@/features/playback/store/playerStoreTypes';
+import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';
+
+type SetState = (
+  partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
+) => void;
+type GetState = () => PlayerState;
+
+/**
+ * Recompute and push fresh ReplayGain + loudness state to the engine
+ * for the currently-playing track. Called when ReplayGain mode /
+ * pre-gain / fallback toggles change while a track is mid-playback,
+ * or when the loudness cache for the current track resolves later
+ * than the initial play.
+ *
+ * - Re-derives the normalization snapshot (target LUFS, engine-live
+ *   mode) from the current queue context.
+ * - Picks a placeholder loudness gain when in loudness mode and the
+ *   real cached gain isn't ready yet, so the UI's "now playing -X dB"
+ *   readout doesn't drop to zero between the cache miss and the
+ *   eventual cache fill.
+ * - Pushes the new audio parameters to the Rust engine via the
+ *   deduplicated IPC channel.
+ */
+export function runUpdateReplayGainForCurrentTrack(set: SetState, get: GetState): void {
+  const { currentTrack, queueItems, queueIndex, volume } = get();
+  if (!currentTrack || !currentTrack.id) return;
+  const authState = useAuthStore.getState();
+  // ReplayGain album-mode neighbours, resolved from refs (cache → placeholder).
+  const prev = queueIndex > 0 && queueItems[queueIndex - 1]
+    ? resolveQueueTrack(queueItems[queueIndex - 1]) : null;
+  const next = queueIndex + 1 < queueItems.length && queueItems[queueIndex + 1]
+    ? resolveQueueTrack(queueItems[queueIndex + 1]) : null;
+  const replayGainDb = resolveReplayGainDb(
+    currentTrack, prev, next,
+    isReplayGainActive(), authState.replayGainMode,
+  );
+  const replayGainPeak = isReplayGainActive()
+    ? (currentTrack.replayGainPeak ?? null)
+    : null;
+
+  // Neighbour window for the normalization snapshot: prev, current, next.
+  const normWindow = [prev ?? currentTrack, currentTrack, ...(next ? [next] : [])];
+  const normalization = deriveNormalizationSnapshot(currentTrack, normWindow, prev ? 1 : 0);
+  const cachedLoud = getCachedLoudnessGain(currentTrack.id);
+  const cachedLoudDb = Number.isFinite(cachedLoud) ? cachedLoud! : null;
+  const haveStableLoud = hasStableLoudness(currentTrack.id);
+  const preEffForNorm = effectiveLoudnessPreAnalysisAttenuationDb(
+    authState.loudnessPreAnalysisAttenuationDb,
+    authState.loudnessTargetLufs,
+  );
+  const preAnalysisPlaceholderDb =
+    normalization.normalizationEngineLive === 'loudness'
+    && cachedLoudDb == null
+    && !haveStableLoud
+    && Number.isFinite(preEffForNorm)
+      ? loudnessGainPlaceholderUntilCacheDb(
+          authState.loudnessTargetLufs,
+          preEffForNorm,
+        )
+      : null;
+  set(prevState => ({
+    normalizationNowDb:
+      normalization.normalizationEngineLive === 'loudness'
+        ? (cachedLoudDb ?? preAnalysisPlaceholderDb ?? prevState.normalizationNowDb)
+        : normalization.normalizationNowDb,
+    normalizationTargetLufs: normalization.normalizationTargetLufs,
+    normalizationEngineLive: normalization.normalizationEngineLive,
+  }));
+  invokeAudioUpdateReplayGainDeduped({
+    volume,
+    replayGainDb,
+    replayGainPeak,
+    loudnessGainDb: getCachedLoudnessGain(currentTrack.id) ?? null,
+    preGainDb: authState.replayGainPreGainDb,
+    fallbackDb: authState.replayGainFallbackDb,
+  });
+}

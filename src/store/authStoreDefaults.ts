@@ -42,7 +42,13 @@ export const MIX_MIN_RATING_FILTER_MAX_STARS = 3;
 
 export const RANDOM_MIX_SIZE_OPTIONS: readonly number[] = [50, 75, 100, 125, 150];
 
-/** Default max columns for album/artist/playlist card grids (Settings → Library). */
-export const DEFAULT_LIBRARY_GRID_MAX_COLUMNS = 6;
-export const LIBRARY_GRID_MAX_COLUMNS_MIN = 4;
-export const LIBRARY_GRID_MAX_COLUMNS_MAX = 12;
+/**
+ * Default + clamp bounds for album/artist/playlist card grids (Settings → Library).
+ * Defined in lib/util/cardGridLayout (store-free layout math) and re-exported here
+ * so the auth-store settings clamp/default and all existing consumers are unchanged.
+ */
+export {
+  DEFAULT_LIBRARY_GRID_MAX_COLUMNS,
+  LIBRARY_GRID_MAX_COLUMNS_MIN,
+  LIBRARY_GRID_MAX_COLUMNS_MAX,
+} from '@/lib/util/cardGridLayout';

@@ -1,4 +1,4 @@
-import { clampStoredLoudnessPreAnalysisAttenuationRefDb } from '../utils/audio/loudnessPreAnalysisSlider';
+import { clampStoredLoudnessPreAnalysisAttenuationRefDb } from '@/lib/audio/loudnessPreAnalysisSlider';
 import {
   DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB,
   DEFAULT_LIBRARY_GRID_MAX_COLUMNS,

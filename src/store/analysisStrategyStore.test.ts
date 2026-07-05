@@ -3,7 +3,7 @@ import { useAnalysisStrategyStore } from './analysisStrategyStore';
 import {
   DEFAULT_ADVANCED_PARALLELISM,
   DEFAULT_ANALYTICS_STRATEGY,
-} from '../utils/library/analysisStrategy';
+} from '@/lib/library/analysisStrategy';
 
 describe('analysisStrategyStore', () => {
   beforeEach(() => {

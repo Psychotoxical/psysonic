@@ -4,7 +4,7 @@
 // `js_app_id` is the ID their own embeddable widget uses and is broadly accepted.
 pub const BANDSINTOWN_APP_ID: &str = "js_app_id";
 
-#[derive(serde::Serialize, Default)]
+#[derive(serde::Serialize, Default, specta::Type)]
 pub struct BandsintownEvent {
     datetime: String,        // ISO 8601 (e.g. "2026-04-23T20:30:00")
     venue_name: String,
@@ -20,6 +20,7 @@ pub struct BandsintownEvent {
 /// Returns an empty list on any failure (404, network, parse) — the UI
 /// just hides the section in that case.
 #[tauri::command]
+#[specta::specta]
 pub async fn fetch_bandsintown_events(artist_name: String) -> Result<Vec<BandsintownEvent>, String> {
     let trimmed = artist_name.trim();
     if trimmed.is_empty() {

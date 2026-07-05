@@ -97,7 +97,7 @@ pub struct CoverBackfillWorker {
     rerun_pending: AtomicBool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CoverBackfillPulseDto {
     pub scheduled: u32,
@@ -108,7 +108,7 @@ pub struct CoverBackfillPulseDto {
     pub status: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CoverBackfillRunDto {
     pub started: bool,

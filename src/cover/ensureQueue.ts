@@ -1,4 +1,4 @@
-import { coverCacheEnsure, type CoverEnsureOpts } from '../api/coverCache';
+import { coverCacheEnsure, type CoverEnsureOpts } from '@/lib/api/coverCache';
 import { getDiskSrc } from './diskSrcCache';
 import { getDiskSrcForGrid } from './diskSrcLookup';
 import { coverIndexKeyFromRef } from './storageKeys';

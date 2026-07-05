@@ -16,4 +16,12 @@ export const artists = {
   startSelect: 'Többszörös kijelölés bekapcsolása',
   cancelSelect: 'Mégse',
   addToPlaylist: 'Hozzáadás lejátszási listához',
+  browse: {
+    creditMode: {
+      album: 'Album előadók',
+      track: 'Szám előadók',
+      tooltipAlbum: 'Csak album előadók megjelenítése (alapértelmezett könyvtárindex)',
+      tooltipTrack: 'Minden szám előadó megjelenítése, beleértve a vendégeket válogatásokon',
+    },
+  },
 };

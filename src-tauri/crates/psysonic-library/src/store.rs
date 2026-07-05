@@ -12,10 +12,13 @@ use tauri::Manager;
 ///
 /// Migration checklist (wiring, data backfill, open/swap path):
 /// psysonic-workdocs `ai/agent-rules/08-library-db-migrations.md`.
-pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 14;
+pub const LIBRARY_DB_SCHEMA_VERSION: i64 = 15;
 
 /// One-time data repair after migration 014 (`artist.name_sort`).
 pub(crate) const ARTIST_NAME_SORT_RECONCILE_ID: &str = "artist_name_sort_reconcile_v1";
+
+/// One-time backfill after migration 015 (`track.replay_gain_peak`).
+pub(crate) const REPLAY_GAIN_PEAK_RECONCILE_ID: &str = "replay_gain_peak_reconcile_v1";
 
 /// Lowest applied schema version the current code can advance from purely
 /// additively. If a DB carries a version below this, the breaking-bump hook
@@ -38,6 +41,8 @@ pub(crate) const MIGRATION_013_ARTIST_ARTWORK_LOOKUP: &str =
     include_str!("../migrations/013_artist_artwork_lookup.sql");
 pub(crate) const MIGRATION_014_ARTIST_NAME_SORT: &str =
     include_str!("../migrations/014_artist_name_sort.sql");
+pub(crate) const MIGRATION_015_REPLAY_GAIN_PEAK: &str =
+    include_str!("../migrations/015_replay_gain_peak.sql");
 
 /// Embedded migrations. Ordered ascending by `version`; the runner sorts
 /// defensively before applying so the source order can stay readable.
@@ -46,6 +51,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (12, MIGRATION_012_TRACK_GENRE_LEGACY),
     (13, MIGRATION_013_ARTIST_ARTWORK_LOOKUP),
     (14, MIGRATION_014_ARTIST_NAME_SORT),
+    (15, MIGRATION_015_REPLAY_GAIN_PEAK),
 ];
 
 /// Idempotent repair — also runs after the migration runner on every open so
@@ -589,6 +595,7 @@ fn open_database_connections(db_path: &Path) -> rusqlite::Result<(Connection, Co
 fn prepare_write_connection_for_open(conn: &Connection) -> rusqlite::Result<()> {
     run_migrations(conn)?;
     maybe_reconcile_artist_name_sort(conn)?;
+    maybe_reconcile_replay_gain_peak(conn)?;
     ensure_genre_tags_schema(conn)?;
     checkpoint_wal_conn(conn, "open")?;
     Ok(())
@@ -718,6 +725,68 @@ fn repair_artist_name_sort_keys(conn: &Connection) -> rusqlite::Result<()> {
         }
     }
     tx.commit()?;
+    Ok(())
+}
+
+fn replay_gain_peak_column_exists(conn: &Connection) -> rusqlite::Result<bool> {
+    let column_exists: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('track') WHERE name = 'replay_gain_peak'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+    Ok(column_exists > 0)
+}
+
+fn replay_gain_peak_reconcile_completed(conn: &Connection) -> rusqlite::Result<bool> {
+    let completed: Option<Option<i64>> = conn
+        .query_row(
+            "SELECT completed_at FROM library_data_migration WHERE id = ?1",
+            params![REPLAY_GAIN_PEAK_RECONCILE_ID],
+            |row| row.get(0),
+        )
+        .optional()?;
+    Ok(completed.flatten().is_some())
+}
+
+fn mark_replay_gain_peak_reconcile_completed(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO library_data_migration (id, cursor_rowid, started_at, completed_at) \
+         VALUES (?1, 0, strftime('%s','now'), strftime('%s','now')) \
+         ON CONFLICT(id) DO UPDATE SET completed_at = excluded.completed_at",
+        params![REPLAY_GAIN_PEAK_RECONCILE_ID],
+    )?;
+    Ok(())
+}
+
+/// One-time backfill after schema 015 — project peak from stored `raw_json`.
+fn repair_replay_gain_peak_from_raw_json(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE track SET replay_gain_peak = json_extract(raw_json, '$.replayGain.trackPeak') \
+         WHERE replay_gain_peak IS NULL \
+           AND json_type(json_extract(raw_json, '$.replayGain.trackPeak')) = 'real'",
+        [],
+    )?;
+    conn.execute(
+        "UPDATE track SET replay_gain_peak = json_extract(raw_json, '$.rgTrackPeak') \
+         WHERE replay_gain_peak IS NULL \
+           AND json_type(json_extract(raw_json, '$.rgTrackPeak')) = 'real'",
+        [],
+    )?;
+    Ok(())
+}
+
+/// One-time reconcile after schema 015 — not on every open.
+fn maybe_reconcile_replay_gain_peak(conn: &Connection) -> rusqlite::Result<()> {
+    if !replay_gain_peak_column_exists(conn)? {
+        return Ok(());
+    }
+    if replay_gain_peak_reconcile_completed(conn)? {
+        return Ok(());
+    }
+    repair_replay_gain_peak_from_raw_json(conn)?;
+    mark_replay_gain_peak_reconcile_completed(conn)?;
     Ok(())
 }
 

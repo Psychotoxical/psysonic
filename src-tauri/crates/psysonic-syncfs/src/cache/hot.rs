@@ -10,6 +10,7 @@ use super::downloads::{resolve_hot_cache_root, HotCacheDownloadResult};
 use super::offline::enqueue_analysis_seed_from_file;
 
 #[tauri::command]
+#[specta::specta]
 pub async fn download_track_hot_cache(
     track_id: String,
     server_id: String,
@@ -129,6 +130,7 @@ pub async fn download_track_hot_cache(
 /// Promotes bytes captured by the manual streaming path into hot cache on disk.
 /// Returns `Ok(None)` when no completed stream cache is available for this URL.
 #[tauri::command]
+#[specta::specta]
 pub async fn promote_stream_cache_to_hot_cache(
     track_id: String,
     server_id: String,
@@ -244,6 +246,7 @@ pub async fn promote_stream_cache_to_hot_cache(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_hot_cache_size(custom_dir: Option<String>, app: tauri::AppHandle) -> u64 {
     resolve_hot_cache_root(custom_dir, &app)
         .map(|root| super::fs_utils::dir_size_recursive(&root))
@@ -251,6 +254,7 @@ pub async fn get_hot_cache_size(custom_dir: Option<String>, app: tauri::AppHandl
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_hot_cache_track(
     local_path: String,
     custom_dir: Option<String>,
@@ -282,6 +286,7 @@ pub async fn delete_hot_cache_track(
 
 /// Removes the entire hot cache root (`psysonic-hot-cache` for the active location).
 #[tauri::command]
+#[specta::specta]
 pub async fn purge_hot_cache(custom_dir: Option<String>, app: tauri::AppHandle) -> Result<(), String> {
     let root = resolve_hot_cache_root(custom_dir, &app)?;
     if !root.exists() {

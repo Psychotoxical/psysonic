@@ -7,7 +7,7 @@ export const nowPlayingInfo = {
   noTourEvents: 'Żadnych nadchodzących koncertów',
   tourLoading: 'Ładowanie…',
   poweredByBandsintown: 'Dane o koncertach przez Bandsintown',
-  bioReadMore: 'Czytaj więcej',
+  bioReadMore: 'Pokaż więcej',
   bioReadLess: 'Pokaż mniej',
   showMoreTours_one: 'Pokaż jeszcze {{count}}',
   showMoreTours_other: 'Pokaż jeszcze {{count}}',

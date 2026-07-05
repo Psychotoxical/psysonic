@@ -271,6 +271,7 @@ pub(crate) fn build_mini_player_window(
 /// workaround; this command is used by Linux/macOS when the user opts into
 /// the `preloadMiniPlayer` setting. Idempotent — no-op if the window exists.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn preload_mini_player(app: tauri::AppHandle) -> Result<(), String> {
     if app.get_webview_window("mini").is_some() {
         return Ok(());
@@ -284,6 +285,7 @@ pub(crate) fn preload_mini_player(app: tauri::AppHandle) -> Result<(), String> {
 /// Opening the mini player minimizes the main window; hiding the mini
 /// player restores the main window.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn open_mini_player(app: tauri::AppHandle) -> Result<(), String> {
     let win = match app.get_webview_window("mini") {
         Some(w) => w,
@@ -332,6 +334,7 @@ pub(crate) fn open_mini_player(app: tauri::AppHandle) -> Result<(), String> {
 /// Hide the mini player window if it exists and restore the main window.
 /// Does not destroy the mini window so its state is preserved for next open.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn close_mini_player(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("mini") {
         let _ = win.eval(PAUSE_RENDERING_JS);
@@ -350,6 +353,7 @@ pub(crate) fn close_mini_player(app: tauri::AppHandle) -> Result<(), String> {
 /// window's JS is paused while minimized on WebKitGTK. Also hides the mini
 /// window so the two don't sit on screen at the same time.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(mini) = app.get_webview_window("mini") {
         let _ = mini.eval(PAUSE_RENDERING_JS);
@@ -366,6 +370,7 @@ pub(crate) fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
 
 /// Inject the pause script into this webview (CSS @keyframes pause + `__psyHidden`).
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn pause_rendering(window: tauri::WebviewWindow) -> Result<(), String> {
     window.eval(PAUSE_RENDERING_JS).map_err(|e| e.to_string())
 }
@@ -373,6 +378,7 @@ pub(crate) fn pause_rendering(window: tauri::WebviewWindow) -> Result<(), String
 /// Resume rendering work in the current webview. Called when the window
 /// becomes visible again.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn resume_rendering(window: tauri::WebviewWindow) -> Result<(), String> {
     window.eval(RESUME_RENDERING_JS).map_err(|e| e.to_string())
 }
@@ -385,6 +391,7 @@ pub(crate) fn resume_rendering(window: tauri::WebviewWindow) -> Result<(), Strin
 /// re-shown, or focus was lost and the WM dropped the constraint. We
 /// always force a `false → true` cycle so the WM re-evaluates the layer.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn set_mini_player_always_on_top(app: tauri::AppHandle, on_top: bool) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("mini") {
         if on_top {
@@ -401,6 +408,7 @@ pub(crate) fn set_mini_player_always_on_top(app: tauri::AppHandle, on_top: bool)
 /// can't shrink past the layout's minimum (e.g. 2 visible queue rows when
 /// the queue panel is open).
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn resize_mini_player(
     app: tauri::AppHandle,
     width: f64,

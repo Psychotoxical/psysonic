@@ -8,7 +8,7 @@
  * stay in sync with `resolve_album_cover` / `resolve_artist_cover` there.
  */
 
-import type { SubsonicAlbum, SubsonicSong } from '../api/subsonicTypes';
+import type { SubsonicAlbum, SubsonicSong } from '@/lib/api/subsonicTypes';
 import type { CoverArtRef, CoverCacheKind, CoverServerScope } from './types';
 
 /** Resolved cover identity — maps 1:1 to Rust `CoverEntry`. */

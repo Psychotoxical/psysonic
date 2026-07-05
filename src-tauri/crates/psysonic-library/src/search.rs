@@ -320,6 +320,13 @@ pub(crate) fn like_contains(raw: &str) -> String {
     format!("%{escaped}%")
 }
 
+/// `like_contains` with Unicode case folding on the needle. Use when matching
+/// against `name_sort` (already lowercase) or when SQLite `LIKE` would treat
+/// non-ASCII letters as case-sensitive.
+pub(crate) fn like_contains_folded(raw: &str) -> String {
+    like_contains(&raw.to_lowercase())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -356,6 +363,7 @@ mod tests {
             bpm: None,
             replay_gain_track_db: None,
             replay_gain_album_db: None,
+            replay_gain_peak: None,
             content_hash: None,
             server_updated_at: None,
             server_created_at: None,

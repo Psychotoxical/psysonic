@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { retryBlockingMigration } from '../hooks/useMigrationOrchestrator';
+import { retryBlockingMigration } from '@/app/hooks/useMigrationOrchestrator';
 import { useMigrationStore } from '../store/migrationStore';
 
 function MigrationModal() {

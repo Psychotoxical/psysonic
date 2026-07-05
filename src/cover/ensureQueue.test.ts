@@ -9,7 +9,7 @@ const { ensureImpl } = vi.hoisted(() => ({
   ),
 }));
 
-vi.mock('../api/coverCache', () => ({
+vi.mock('@/lib/api/coverCache', () => ({
   coverCacheEnsure: ensureImpl,
   libraryCoverBackfillConfigure: vi.fn(async () => {}),
   libraryCoverBackfillSetUiPriority: vi.fn(async () => {}),

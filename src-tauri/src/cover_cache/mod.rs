@@ -51,7 +51,7 @@ use std::time::Duration;
 use tokio::sync::{Mutex, Semaphore};
 use tauri::{AppHandle, Emitter, Manager};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CoverCacheEnsureResult {
     pub hit: bool,
@@ -65,7 +65,7 @@ pub struct CoverCacheEnsureResult {
 /// path, which writes every tier up front).
 type EncodeTiersOutcome = Result<(bool, Vec<(u32, PathBuf)>, Option<DynamicImage>), String>;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CoverCacheStatsDto {
     pub bytes: u64,
@@ -76,7 +76,7 @@ pub struct CoverCacheStatsDto {
 }
 
 /// Live cover HTTP / WebP-encode slots — mirrors analysis pipeline probe shape.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CoverPipelineQueueStatsDto {
     pub http_max: u32,
@@ -121,7 +121,7 @@ pub(crate) fn cover_pipeline_queue_stats(
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CoverCacheEnsureArgs {
     pub server_index_key: String,
@@ -752,6 +752,7 @@ pub fn init_cover_cache(app: &AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn library_cover_backfill_run_full_pass(
     app: AppHandle,
     force: Option<bool>,
@@ -762,6 +763,7 @@ pub async fn library_cover_backfill_run_full_pass(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn library_cover_backfill_pulse(app: AppHandle) -> Result<CoverBackfillPulseDto, String> {
     let worker = app
         .try_state::<Arc<CoverBackfillWorker>>()
@@ -770,6 +772,7 @@ pub async fn library_cover_backfill_pulse(app: AppHandle) -> Result<CoverBackfil
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn library_cover_backfill_reset_cursor(app: AppHandle) -> Result<(), String> {
     let worker = app
         .try_state::<Arc<CoverBackfillWorker>>()
@@ -780,6 +783,7 @@ pub async fn library_cover_backfill_reset_cursor(app: AppHandle) -> Result<(), S
 
 /// Pause library backfill while the user navigates / visible covers load (Rust pass yields).
 #[tauri::command]
+#[specta::specta]
 pub async fn library_cover_backfill_set_ui_priority(
     app: AppHandle,
     hold: bool,
@@ -795,6 +799,7 @@ pub async fn library_cover_backfill_set_ui_priority(
 /// + encode pools move together). Not exposed in app Settings by design.
 /// Returns the clamped value actually applied.
 #[tauri::command]
+#[specta::specta]
 pub async fn library_cover_backfill_set_parallel(
     app: AppHandle,
     threads: usize,
@@ -810,6 +815,7 @@ pub async fn library_cover_backfill_set_parallel(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn library_cover_backfill_configure(
     app: AppHandle,
     enabled: bool,
@@ -848,6 +854,7 @@ pub async fn library_cover_backfill_configure(
 /// timed out against the old address) is cleared and a pass is kicked so they
 /// retry on the now-reachable endpoint.
 #[tauri::command]
+#[specta::specta]
 pub async fn library_cover_backfill_set_base_url(
     app: AppHandle,
     rest_base_url: String,
@@ -867,7 +874,7 @@ pub async fn library_cover_backfill_set_base_url(
     Ok(())
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CoverCachePeekItem {
     pub server_index_key: String,
@@ -880,6 +887,7 @@ pub struct CoverCachePeekItem {
 
 /// Best-effort disk hit without network (exact tier, then largest tier on disk ≤ wanted).
 #[tauri::command]
+#[specta::specta]
 pub async fn cover_cache_peek_batch(
     app: AppHandle,
     items: Vec<CoverCachePeekItem>,
@@ -956,6 +964,7 @@ fn ensure_peek(dir: &Path, tier: u32, args: &CoverCacheEnsureArgs) -> Option<Pat
 
 
 #[tauri::command]
+#[specta::specta]
 pub async fn cover_cache_ensure(
     app: AppHandle,
     args: CoverCacheEnsureArgs,
@@ -965,6 +974,7 @@ pub async fn cover_cache_ensure(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn cover_cache_ensure_batch(
     app: AppHandle,
     items: Vec<CoverCacheEnsureArgs>,
@@ -984,6 +994,7 @@ pub async fn cover_cache_ensure_batch(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn cover_cache_stats(app: AppHandle) -> Result<CoverCacheStatsDto, String> {
     let st = state(&app)?;
     let root = {
@@ -1006,11 +1017,13 @@ pub async fn cover_cache_stats(app: AppHandle) -> Result<CoverCacheStatsDto, Str
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn cover_cache_evict_tick(_app: AppHandle) -> Result<u32, String> {
     Ok(0)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn cover_cache_stats_server(
     app: AppHandle,
     server_index_key: String,
@@ -1029,6 +1042,7 @@ pub async fn cover_cache_stats_server(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn cover_cache_get_pipeline_queue_stats(
     app: AppHandle,
 ) -> Result<CoverPipelineQueueStatsDto, String> {
@@ -1042,6 +1056,7 @@ pub async fn cover_cache_get_pipeline_queue_stats(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn cover_cache_clear_server(
     app: AppHandle,
     server_index_key: String,
@@ -1113,6 +1128,7 @@ fn purge_external_files(server_dir: &Path) -> usize {
 /// intact. Fired when the user turns the External Artwork toggle off. Unlike
 /// `cover_cache_clear_server`, Navidrome tiers survive.
 #[tauri::command]
+#[specta::specta]
 pub async fn cover_cache_purge_external(
     app: AppHandle,
     server_index_key: String,
@@ -1156,6 +1172,7 @@ pub async fn cover_cache_purge_external(
 /// Always emits `cover:bucket-renamed` with `{oldKey, newKey}` on success so
 /// the frontend in-memory disk-src cache can invalidate stale entries.
 #[tauri::command]
+#[specta::specta]
 pub async fn cover_cache_rename_server_bucket(
     app: AppHandle,
     old_key: String,
@@ -1259,6 +1276,7 @@ fn merge_cover_bucket(old_dir: &std::path::Path, new_dir: &std::path::Path) -> R
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn cover_cache_configure(
     app: AppHandle,
     max_mb: u64,
@@ -1274,6 +1292,7 @@ pub async fn cover_cache_configure(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn cover_cache_clear(app: AppHandle) -> Result<(), String> {
     let st = state(&app)?;
     let guard = st.lock().await;
@@ -1302,6 +1321,7 @@ pub async fn cover_cache_clear(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn library_cover_backfill_batch(
     app: AppHandle,
     server_index_key: String,
@@ -1333,6 +1353,7 @@ pub async fn library_cover_backfill_batch(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn library_cover_progress(
     app: AppHandle,
     server_index_key: String,
@@ -1363,6 +1384,7 @@ pub async fn library_cover_progress(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn library_cover_clear_fetch_failures(
     app: AppHandle,
     server_index_key: String,
@@ -1373,6 +1395,7 @@ pub async fn library_cover_clear_fetch_failures(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn library_cover_catalog_size(
     app: AppHandle,
     library_server_id: String,
@@ -1389,11 +1412,13 @@ pub async fn library_cover_catalog_size(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn cover_revalidate_enqueue() -> Result<(), String> {
     Ok(())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn cover_revalidate_tick(_cycle_days: Option<u32>) -> Result<u32, String> {
     Ok(0)
 }

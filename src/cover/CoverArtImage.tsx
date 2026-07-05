@@ -1,8 +1,8 @@
 import type { ImgHTMLAttributes } from 'react';
 import type React from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { DEFAULT_CACHED_IMAGE_PREPARE_MARGIN } from '../components/CachedImage';
-import { resolveIntersectionScrollRoot } from '../utils/ui/resolveIntersectionScrollRoot';
+import { DEFAULT_CACHED_IMAGE_PREPARE_MARGIN } from '@/ui/CachedImage';
+import { resolveIntersectionScrollRoot } from '@/lib/dom/resolveIntersectionScrollRoot';
 import { coverEnsureQueued, coverEnsureReprioritize } from './ensureQueue';
 import { coverPrefetchBumpPriority } from './prefetchRegistry';
 import { coverServerReachable } from './reachability';

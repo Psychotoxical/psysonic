@@ -11,6 +11,7 @@ psysonic-core = { path = "../psysonic-core" }
 psysonic-integration = { path = "../psysonic-integration" }
 
 tauri = { version = "2" }
+specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rusqlite = { version = "0.40", features = ["bundled"] }

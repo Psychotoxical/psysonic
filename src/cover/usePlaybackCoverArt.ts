@@ -3,7 +3,7 @@ import { resolvePlaybackCoverScope } from './ref';
 import type { CoverArtHandle, CoverArtRef } from './types';
 import { useCoverArt } from './useCoverArt';
 import { useAuthStore } from '../store/authStore';
-import { usePlayerStore } from '../store/playerStore';
+import { usePlayerStore } from '@/features/playback/store/playerStore';
 
 /** Cover art for playback queue — uses queue server when it differs from browsed server. */
 export function usePlaybackCoverArt(

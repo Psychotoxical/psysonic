@@ -1,4 +1,4 @@
-import { coverCacheEnsure } from '../../api/coverCache';
+import { coverCacheEnsure } from '@/lib/api/coverCache';
 import { buildCoverArtFetchUrl } from '../fetchUrl';
 import type { CoverArtRef } from '../types';
 

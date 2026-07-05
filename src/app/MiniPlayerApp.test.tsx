@@ -22,23 +22,23 @@ vi.mock('../store/fontStore', () => ({
 vi.mock('../store/keybindingsStore', () => ({
   useKeybindingsStore: { persist: { rehydrate: keybindingsRehydrate } },
 }));
-vi.mock('../utils/perf/perfFlags', () => ({
+vi.mock('@/lib/perf/perfFlags', () => ({
   usePerfProbeFlags: () => ({ disableTooltipPortal: true }),
 }));
-vi.mock('../i18n', () => ({
+vi.mock('@/lib/i18n', () => ({
   default: { changeLanguage: vi.fn() },
 }));
-vi.mock('../components/MiniPlayer', () => ({ default: () => <div data-testid="mini-player" /> }));
-vi.mock('../components/GlobalConfirmModal', () => ({ default: () => <div data-testid="confirm-modal" /> }));
-vi.mock('../components/TooltipPortal', () => ({ default: () => <div data-testid="tooltip-portal" /> }));
-vi.mock('../components/FpsOverlay', () => ({ default: () => <div data-testid="fps-overlay" /> }));
-vi.mock('../contexts/DragDropContext', () => ({
+vi.mock('@/features/miniPlayer', () => ({ default: () => <div data-testid="mini-player" /> }));
+vi.mock('@/ui/GlobalConfirmModal', () => ({ default: () => <div data-testid="confirm-modal" /> }));
+vi.mock('@/ui/TooltipPortal', () => ({ default: () => <div data-testid="tooltip-portal" /> }));
+vi.mock('@/app/FpsOverlay', () => ({ default: () => <div data-testid="fps-overlay" /> }));
+vi.mock('@/lib/dnd/DragDropContext', () => ({
   DragDropProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 import { render, cleanup } from '@testing-library/react';
 import MiniPlayerApp from './MiniPlayerApp';
-import i18n from '../i18n';
+import i18n from '@/lib/i18n';
 
 beforeEach(() => {
   themeRehydrate.mockClear();

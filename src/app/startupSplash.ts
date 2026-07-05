@@ -1,5 +1,5 @@
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { applyStartupSplashThemeFromStorage } from '../utils/themes/startupThemeAppearance';
+import { applyStartupSplashThemeFromStorage } from '@/lib/themes/startupThemeAppearance';
 import { getWindowKind } from './windowKind';
 
 export const STARTUP_SPLASH_ID = 'app-startup-splash';

@@ -12,6 +12,8 @@ export const settings = {
   languageRo: 'Română',
   languageJa: '日本語',
   languageHu: 'Magyar',
+  languagePl: 'Polski',
+  languageBg: 'Български',
   font: 'フォント',
   fontHintOpenDyslexic: 'ディスレクシアに配慮 · 中国語非対応',
   theme: 'テーマ',

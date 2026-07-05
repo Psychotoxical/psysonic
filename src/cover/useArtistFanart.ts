@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { artistCoverRef } from './ref';
 import { coverDiskUrl } from './diskSrcCache';
-import { coverCacheEnsure } from '../api/coverCache';
+import { coverCacheEnsure } from '@/lib/api/coverCache';
 import { useThemeStore } from '../store/themeStore';
 
 /**

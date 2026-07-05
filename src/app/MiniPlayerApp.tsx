@@ -1,14 +1,14 @@
 import { useEffect } from 'react';
-import { DragDropProvider } from '../contexts/DragDropContext';
-import MiniPlayer from '../components/MiniPlayer';
-import GlobalConfirmModal from '../components/GlobalConfirmModal';
-import TooltipPortal from '../components/TooltipPortal';
-import FpsOverlay from '../components/FpsOverlay';
+import { DragDropProvider } from '@/lib/dnd/DragDropContext';
+import MiniPlayer from '@/features/miniPlayer';
+import GlobalConfirmModal from '@/ui/GlobalConfirmModal';
+import TooltipPortal from '@/ui/TooltipPortal';
+import FpsOverlay from '@/app/FpsOverlay';
 import { useThemeStore } from '../store/themeStore';
 import { useFontStore } from '../store/fontStore';
 import { useKeybindingsStore } from '../store/keybindingsStore';
-import { usePerfProbeFlags } from '../utils/perf/perfFlags';
-import i18n from '../i18n';
+import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
+import i18n from '@/lib/i18n';
 
 /**
  * Mini-player webview tree. Rendered in the secondary Tauri window labelled

@@ -18,4 +18,12 @@ export const artists = {
   startSelect: 'Включить множественный выбор',
   cancelSelect: 'Отмена',
   addToPlaylist: 'В плейлист',
+  browse: {
+    creditMode: {
+      album: 'Альбомные артисты',
+      track: 'Артисты треков',
+      tooltipAlbum: 'Только album artist из индекса библиотеки (по умолчанию)',
+      tooltipTrack: 'Все исполнители треков, включая гостей на сборниках',
+    },
+  },
 };

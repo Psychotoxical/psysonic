@@ -1,10 +1,10 @@
-import { clampStoredLoudnessPreAnalysisAttenuationRefDb } from '../utils/audio/loudnessPreAnalysisSlider';
+import { clampStoredLoudnessPreAnalysisAttenuationRefDb } from '@/lib/audio/loudnessPreAnalysisSlider';
 import {
   sanitizeAutodjOverlapCapMode,
   sanitizeAutodjOverlapCapSec,
-} from '../utils/playback/autodjOverlapCap';
+} from '@/lib/audio/autodjOverlapCap';
 import { DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB } from './authStoreDefaults';
-import { usePlayerStore } from './playerStore';
+import { updateReplayGainForCurrentTrack } from './playbackEngineBridge';
 import type { AuthState } from './authStoreTypes';
 
 type SetState = (
@@ -43,15 +43,15 @@ export function createAudioSettingsActions(set: SetState): Pick<
   return {
     setReplayGainEnabled: (v) => {
       set({ replayGainEnabled: v });
-      usePlayerStore.getState().updateReplayGainForCurrentTrack();
+      updateReplayGainForCurrentTrack();
     },
     setNormalizationEngine: (v) => {
       set({ normalizationEngine: v });
-      usePlayerStore.getState().updateReplayGainForCurrentTrack();
+      updateReplayGainForCurrentTrack();
     },
     setLoudnessTargetLufs: (v) => {
       set({ loudnessTargetLufs: v });
-      usePlayerStore.getState().updateReplayGainForCurrentTrack();
+      updateReplayGainForCurrentTrack();
     },
     setLoudnessPreAnalysisAttenuationDb: (v) => {
       const n = typeof v === 'number' ? v : Number(v);
@@ -60,19 +60,19 @@ export function createAudioSettingsActions(set: SetState): Pick<
     },
     resetLoudnessPreAnalysisAttenuationDbDefault: () => {
       set({ loudnessPreAnalysisAttenuationDb: DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB });
-      usePlayerStore.getState().updateReplayGainForCurrentTrack();
+      updateReplayGainForCurrentTrack();
     },
     setReplayGainMode: (v) => {
       set({ replayGainMode: v });
-      usePlayerStore.getState().updateReplayGainForCurrentTrack();
+      updateReplayGainForCurrentTrack();
     },
     setReplayGainPreGainDb: (v) => {
       set({ replayGainPreGainDb: v });
-      usePlayerStore.getState().updateReplayGainForCurrentTrack();
+      updateReplayGainForCurrentTrack();
     },
     setReplayGainFallbackDb: (v) => {
       set({ replayGainFallbackDb: v });
-      usePlayerStore.getState().updateReplayGainForCurrentTrack();
+      updateReplayGainForCurrentTrack();
     },
     setCrossfadeEnabled: (v) => set({ crossfadeEnabled: v }),
     setCrossfadeSecs: (v) => set({ crossfadeSecs: v }),

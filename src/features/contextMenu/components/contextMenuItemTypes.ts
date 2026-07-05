@@ -1,0 +1,61 @@
+import type React from 'react';
+import type { SubsonicAlbum, SubsonicArtist } from '@/lib/api/subsonicTypes';
+import type { QueueItemRef, Track } from '@/lib/media/trackTypes';
+import type { EntityShareKind } from '@/lib/share/shareLink';
+import type { OfflineActionPolicy } from '@/features/offline';
+
+export type RatingKind = 'song' | 'album' | 'artist';
+
+export interface KeyboardRating {
+  kind: RatingKind;
+  id: string;
+  value: number;
+}
+
+export interface ContextMenuItemsProps {
+  type: string | null;
+  item: unknown;
+  queueIndex?: number;
+  playlistId?: string;
+  playlistSongIndex?: number;
+  shareKindOverride?: EntityShareKind;
+  playTrack: (track: Track, queue?: Track[], manual?: boolean, orbitConfirmed?: boolean, targetQueueIndex?: number) => void;
+  playNext: (tracks: Track[]) => void;
+  enqueue: (tracks: Track[]) => void;
+  removeTrack: (idx: number) => void;
+  /** Thin-state: the canonical queue refs. The queue-item "Play now" action uses
+   *  the row's `queueIndex` to jump in place — no full Track[] needed. */
+  queue: QueueItemRef[];
+  currentTrack: Track | null;
+  closeContextMenu: () => void;
+  starredOverrides: Record<string, boolean>;
+  setStarredOverride: (id: string, starred: boolean) => void;
+  networkLovedCache: Record<string, boolean>;
+  setNetworkLovedForSong: (title: string, artist: string, loved: boolean) => void;
+  openSongInfo: (id: string) => void;
+  userRatingOverrides: Record<string, number>;
+  setKeyboardRating: React.Dispatch<React.SetStateAction<KeyboardRating | null>>;
+  keyboardRating: KeyboardRating | null;
+  playlistSubmenuOpen: boolean;
+  setPlaylistSubmenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  cancelPlaylistSubmenuCloseTimer: () => void;
+  onPlaylistSubmenuTriggerMouseLeave: (e: React.MouseEvent<HTMLElement>) => void;
+  playlistSongIds: string[];
+  setPlaylistSongIds: React.Dispatch<React.SetStateAction<string[]>>;
+  orbitRole: 'host' | 'guest' | null;
+  entityRatingSupport: 'full' | 'track_only' | 'unknown';
+  audiomuseNavidromeEnabled: boolean;
+  applySongRating: (id: string, rating: number) => void;
+  applyAlbumRating: (album: SubsonicAlbum, rating: number) => void;
+  applyArtistRating: (artist: SubsonicArtist, rating: number) => void;
+  handleAction: (action: () => void | Promise<void>) => Promise<void>;
+  startRadio: (artistId: string, artistName: string, seedTrack?: Track) => void;
+  startInstantMix: (song: Track) => void;
+  downloadAlbum: (albumName: string, albumId: string) => Promise<void>;
+  copyShareLink: (kind: EntityShareKind, id: string) => void;
+  isStarred: (id: string, itemStarred?: string) => boolean;
+  /** When true, album/artist links switch to the queue server before routing. */
+  pinToPlaybackServer: boolean;
+  navigateLibrary: (path: string) => void | Promise<void>;
+  offlinePolicy: OfflineActionPolicy;
+}

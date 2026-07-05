@@ -1,43 +1,44 @@
-import { initAudioListeners } from '../store/initAudioListeners';
+import { initAudioListeners } from '@/features/playback/store/initAudioListeners';
+import '@/features/playback/store/playbackEngineBridgeRegister'; // installs the playback-engine bridge at boot
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import { invoke } from '@tauri-apps/api/core';
-import { showToast } from '../utils/ui/toast';
-import { WindowVisibilityProvider } from '../hooks/useWindowVisibility';
-import { DragDropProvider } from '../contexts/DragDropContext';
-import PasteClipboardHandler from '../components/PasteClipboardHandler';
-import ExportPickerModal from '../components/ExportPickerModal';
-import ZipDownloadOverlay from '../components/ZipDownloadOverlay';
-import FpsOverlay from '../components/FpsOverlay';
+import { preloadMiniPlayer as preloadMiniPlayerWindow } from '@/lib/api/miniPlayer';
+import { showToast } from '@/lib/dom/toast';
+import { WindowVisibilityProvider } from '@/lib/hooks/useWindowVisibility';
+import { DragDropProvider } from '@/lib/dnd/DragDropContext';
+import PasteClipboardHandler from '@/features/share/components/PasteClipboardHandler';
+import ExportPickerModal from '@/ui/ExportPickerModal';
+import { ZipDownloadOverlay } from '@/features/offline';
+import FpsOverlay from '@/app/FpsOverlay';
 import { useAuthStore } from '../store/authStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useGlobalShortcutsStore } from '../store/globalShortcutsStore';
 import { initHotCachePrefetch } from '../hotCachePrefetch';
 import { initLocalPlaybackInvalidation } from '../localPlaybackInvalidation';
-import { initFavoritesOfflineSync } from '../utils/offline/favoritesOfflineSync';
-import { initPinnedOfflineSync } from '../utils/offline/pinnedOfflineSync';
-import { initResumeIncompleteOfflinePins, scheduleResumeIncompleteOfflinePins } from '../utils/offline/resumeIncompleteOfflinePins';
-import { runLegacyOfflineFileMigration } from '../utils/migrations/legacyOfflineFileMigration';
-import { reconcileLibraryTierForServer } from '../utils/offline/libraryTierReconcile';
-import { initMiniPlayerBridgeOnMain } from '../utils/miniPlayerBridge';
-import { runAdvancedModeMigration } from '../utils/migrations/advancedModeMigration';
-import { bootstrapAllIndexedServers } from '../utils/library/librarySession';
-import { hydrateQueueFromIndex } from '../utils/library/queueRestore';
-import { useLibraryAnalysisBackfill } from '../hooks/useLibraryAnalysisBackfill';
+import { initFavoritesOfflineSync } from '@/features/offline';
+import { initPinnedOfflineSync } from '@/features/offline';
+import { initResumeIncompleteOfflinePins, scheduleResumeIncompleteOfflinePins } from '@/features/offline';
+import { runLegacyOfflineFileMigration } from '@/features/offline';
+import { reconcileLibraryTierForServer } from '@/features/offline';
+import { initMiniPlayerBridgeOnMain } from '@/features/miniPlayer';
+import { runAdvancedModeMigration } from '@/app/migrations/advancedModeMigration';
+import { bootstrapAllIndexedServers } from '@/lib/library/librarySession';
+import { hydrateQueueFromIndex } from '@/features/playback/store/queueRestore';
+import { useLibraryAnalysisBackfill } from '@/lib/library/hooks/useLibraryAnalysisBackfill';
 import { useCoverArtPrefetch } from '../cover/useCoverArtPrefetch';
-import { useLibraryCoverBackfill } from '../hooks/useLibraryCoverBackfill';
+import { useLibraryCoverBackfill } from '@/cover/useLibraryCoverBackfill';
 import { useCoverRevalidateScheduler } from '../cover/useCoverRevalidateScheduler';
-import { runCoverIdbUpgradeMigration } from '../utils/migrations/coverIdbUpgradeMigration';
-import { useMigrationOrchestrator } from '../hooks/useMigrationOrchestrator';
-import { IS_WINDOWS } from '../utils/platform';
+import { runCoverIdbUpgradeMigration } from '@/app/migrations/coverIdbUpgradeMigration';
+import { useMigrationOrchestrator } from '@/app/hooks/useMigrationOrchestrator';
+import { IS_WINDOWS } from '@/lib/util/platform';
 import TauriEventBridge from './TauriEventBridge';
 import AppShell from './AppShell';
-import ErrorBoundary from '../components/ErrorBoundary';
+import ErrorBoundary from '@/app/ErrorBoundary';
 import BlockingMigrationGate from './BlockingMigrationGate';
 import RequireAuth from './RequireAuth';
 import { useMigrationStore } from '../store/migrationStore';
 
-const Login = lazy(() => import('../pages/Login'));
+const Login = lazy(() => import('@/features/auth/pages/Login'));
 
 /**
  * Main webview tree. Hosts the router, the application shell (sidebar /
@@ -92,7 +93,7 @@ export default function MainApp() {
   const preloadMiniPlayer = useAuthStore(s => s.preloadMiniPlayer);
   useEffect(() => {
     if (!migrationReady || IS_WINDOWS || !preloadMiniPlayer) return;
-    invoke('preload_mini_player').catch(() => {});
+    preloadMiniPlayerWindow().catch(() => {});
   }, [preloadMiniPlayer, migrationReady]);
 
   useEffect(() => {
@@ -146,7 +147,7 @@ export default function MainApp() {
   const handleExport = async (since: number) => {
     setExportPickerOpen(false);
     try {
-      const { exportNewAlbumsImage } = await import('../utils/export/exportNewAlbums');
+      const { exportNewAlbumsImage } = await import('@/features/album');
       const result = await exportNewAlbumsImage(since);
       if (result) {
         const files = result.paths.length > 1 ? ` (${result.paths.length} Dateien)` : '';
@@ -155,7 +156,7 @@ export default function MainApp() {
         showToast('📭 Keine Alben in diesem Zeitraum gefunden');
       }
     } catch (err) {
-      showToast(`❌ Export fehlgeschlagen: ${String(err).slice(0, 80)}`);
+      showToast(`❌ Export fehlgeschlagen: ${(err instanceof Error ? err.message : String(err)).slice(0, 80)}`);
       console.error('[easter egg] export failed:', err);
     }
   };

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { commands } from '@/generated/bindings';
 import { useAuthStore } from '../store/authStore';
-import { usePlayerStore } from '../store/playerStore';
+import { usePlayerStore } from '@/features/playback/store/playerStore';
 
 const TICK_MS = 60_000;
 
@@ -15,7 +15,7 @@ export function useCoverRevalidateScheduler(enabled = true): void {
     let cancelled = false;
     const tick = () => {
       if (cancelled || usePlayerStore.getState().isPlaying) return;
-      void invoke<number>('cover_revalidate_tick', { cycleDays }).catch(() => {});
+      void commands.coverRevalidateTick(cycleDays).catch(() => {});
     };
     tick();
     const id = window.setInterval(tick, TICK_MS);

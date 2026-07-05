@@ -16,4 +16,12 @@ export const artists = {
   startSelect: '启用多选',
   cancelSelect: '取消',
   addToPlaylist: '添加到播放列表',
+  browse: {
+    creditMode: {
+      album: '专辑艺术家',
+      track: '曲目艺术家',
+      tooltipAlbum: '仅显示专辑艺术家（默认库索引）',
+      tooltipTrack: '显示所有曲目表演者，包括合辑中的客串艺术家',
+    },
+  },
 };

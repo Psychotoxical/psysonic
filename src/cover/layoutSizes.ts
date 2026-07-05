@@ -1,4 +1,4 @@
-import { computeCardGridColumnCount, computeCellWidthPx } from '../utils/cardGridLayout';
+import { computeCardGridColumnCount, computeCellWidthPx } from '@/lib/util/cardGridLayout';
 
 export const COVER_DENSE_SEARCH_CSS_PX = 40;
 /** Artist detail top-track thumb (32×32 CSS px). */

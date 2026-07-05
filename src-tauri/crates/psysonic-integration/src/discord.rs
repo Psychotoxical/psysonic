@@ -326,6 +326,7 @@ pub(crate) fn compute_discord_start_timestamp(elapsed_secs: f64, now_unix_secs: 
 ///   user list (e.g. "🎵 Bohemian Rhapsody" instead of "🎵 Psysonic"). Default: "{title}".
 ///   Empty string falls back to the registered Discord application name.
 ///   Supported placeholders: {title}, {artist}, {album}
+// NOT specta-collected: >10 total params exceed specta's SpectaFn arg cap. Stays hand-written on generate_handler!.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn discord_update_presence(
@@ -448,6 +449,7 @@ pub async fn discord_update_presence(
 
 /// Clear the Discord Rich Presence activity (e.g. playback stopped).
 #[tauri::command]
+#[specta::specta]
 pub fn discord_clear_presence(state: tauri::State<DiscordState>) -> Result<(), String> {
     let mut guard = state.client.lock().unwrap();
     if let Some(client) = guard.as_mut() {

@@ -1,10 +1,10 @@
 import {
   buildCoverArtUrl,
   buildCoverArtUrlForServer,
-} from '../api/subsonicStreamUrl';
-import { getPlaybackServerId } from '../utils/playback/playbackServer';
+} from '@/lib/api/subsonicStreamUrl';
+import { getPlaybackServerId } from '@/features/playback/utils/playback/playbackServer';
 import { useAuthStore } from '../store/authStore';
-import { connectBaseUrlForServer } from '../utils/server/serverEndpoint';
+import { connectBaseUrlForServer } from '@/lib/server/serverEndpoint';
 import type { CoverArtRef, CoverArtTier } from './types';
 
 /** Builds ephemeral getCoverArt URL — NOT a cache key */

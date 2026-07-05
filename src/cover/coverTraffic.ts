@@ -1,7 +1,7 @@
 import {
   libraryCoverBackfillConfigure,
   libraryCoverBackfillSetUiPriority,
-} from '../api/coverCache';
+} from '@/lib/api/coverCache';
 import { coverEnsureCancelPending } from './ensureQueue';
 import { coverPeekCancelPending } from './peekQueue';
 import { coverPrefetchClearRegistry } from './prefetchRegistry';

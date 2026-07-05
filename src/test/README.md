@@ -97,8 +97,10 @@ from `mocks/subsonic.ts`:
 
 ```ts
 import { vi, describe, it, beforeEach, expect } from 'vitest';
-vi.mock('@/api/subsonic');
-import { getAlbum, buildStreamUrl } from '@/api/subsonic';
+vi.mock('@/lib/api/subsonicLibrary');
+vi.mock('@/lib/api/subsonicStreamUrl');
+import { getAlbum } from '@/lib/api/subsonicLibrary';
+import { buildStreamUrl } from '@/lib/api/subsonicStreamUrl';
 import { sampleAlbumWithSongs, mockStreamUrl } from '@/test/mocks/subsonic';
 
 beforeEach(() => {
@@ -152,7 +154,7 @@ red on a contributor's machine.
 
 ### Pure utilities
 
-Direct import + assert (see `src/utils/dynamicColors.test.ts`). No setup
+Direct import + assert (see `src/utils/ui/dynamicColors.test.ts`). No setup
 needed beyond `import { describe, it, expect } from 'vitest'`.
 
 ### Zustand stores
@@ -162,7 +164,7 @@ needed beyond `import { describe, it, expect } from 'vitest'`.
 - Stub Tauri side effects via `onInvoke()`.
 - Use `emitTauriEvent()` to drive event-driven state transitions.
 
-See `src/store/previewStore.test.ts` for the reference pattern.
+See `src/features/playback/store/previewStore.test.ts` for the reference pattern.
 
 ### Components
 

@@ -259,6 +259,7 @@ pub(crate) fn try_build_tray_icon(app: &tauri::AppHandle) -> Option<TrayIcon> {
 /// StatusNotifierItem-aware panels (KDE, Cinnamon, GNOME with AppIndicator
 /// extension) show it; pure-GNOME without the extension does not.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn set_tray_tooltip(
     app: tauri::AppHandle,
     tray_state: tauri::State<TrayState>,
@@ -323,6 +324,7 @@ pub(crate) fn set_tray_tooltip(
 /// immediately to live menu items via `set_text` (no tray rebuild required)
 /// and cached so the labels survive a tray hide/show cycle.
 #[tauri::command]
+#[specta::specta]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn set_tray_menu_labels(
     app: tauri::AppHandle,
@@ -385,6 +387,7 @@ pub(crate) fn set_tray_menu_labels(
 /// process the OS removal asynchronously — hiding first prevents a brief "ghost"
 /// icon from appearing alongside a freshly created one.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn toggle_tray_icon(
     app: tauri::AppHandle,
     tray_state: tauri::State<TrayState>,
@@ -453,6 +456,7 @@ pub(crate) fn is_tiling_wm() -> bool {
 /// The frontend uses this to apply a CSS class that swaps out GPU-only effects
 /// (backdrop-filter, CSS filter, mask-image) for software-friendly equivalents.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn no_compositing_mode() -> bool {
     std::env::var("WEBKIT_DISABLE_COMPOSITING_MODE")
         .map(|v| v == "1")
@@ -462,6 +466,7 @@ pub(crate) fn no_compositing_mode() -> bool {
 /// Tauri command: `XDG_SESSION_TYPE` from the host environment (e.g. `wayland`, `x11`).
 /// Used for Linux-only UI tweaks such as font rasterisation hints; empty string when unset.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn linux_xdg_session_type() -> String {
     #[cfg(target_os = "linux")]
     {
@@ -481,6 +486,7 @@ pub(crate) fn is_tiling_wm() -> bool {
 /// Tauri command: lets the frontend know whether we're running under a tiling
 /// WM so it can decide whether to render the custom TitleBar component.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn is_tiling_wm_cmd() -> bool {
     is_tiling_wm()
 }

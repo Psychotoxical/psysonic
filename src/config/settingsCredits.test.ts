@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { CONTRIBUTORS } from './settingsCredits';
-import { isNewer } from '../utils/componentHelpers/appUpdaterHelpers';
+import { isNewer } from '@/lib/util/appUpdaterHelpers';
 
 describe('CONTRIBUTORS ordering', () => {
   it('is sorted ascending by the `since` app version', () => {

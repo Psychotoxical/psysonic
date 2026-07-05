@@ -1,5 +1,5 @@
-import { coverCachePeekBatch } from '../api/coverCache';
-import type { SubsonicAlbum } from '../api/subsonicTypes';
+import { coverCachePeekBatch } from '@/lib/api/coverCache';
+import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import { coverEnsureQueued, ensureArtistBackdropQueued } from './ensureQueue';
 import { getDiskSrcForGrid, rememberGridDiskSrc } from './diskSrcLookup';
 import { albumCoverRef, artistCoverRef } from './ref';
@@ -9,7 +9,7 @@ import { coverStorageKeyFromRef } from './storageKeys';
 import { resolveCoverDisplayTier } from './tiers';
 import type { CoverArtRef, CoverArtTier, CoverPrefetchPriority, CoverSurfaceKind } from './types';
 import { useThemeStore } from '../store/themeStore';
-import { deriveAlbumArtistRefs } from '../utils/album/deriveAlbumHeaderArtistRefs';
+import { deriveAlbumArtistRefs } from '@/features/album';
 import { getHeroBackdropUpgrade, recordHeroBackdropUpgrade } from './heroBackdropMemory';
 
 export type CoverWarmItem = {

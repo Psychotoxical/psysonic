@@ -11,7 +11,7 @@ export const sidebar = {
   favorites: 'Ulubione',
   nowPlaying: 'Teraz odtwarzane',
   system: 'System',
-  statistics: 'Statistyki',
+  statistics: 'Statystyki',
   settings: 'Ustawienia',
   help: 'Pomoc',
   expand: 'Rozwiń pasek boczny',

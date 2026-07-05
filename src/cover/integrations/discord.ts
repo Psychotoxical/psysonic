@@ -1,5 +1,5 @@
-import { buildCoverArtUrlForServer } from '../../api/subsonicStreamUrl';
-import { serverShareBaseUrl } from '../../utils/server/serverEndpoint';
+import { buildCoverArtUrlForServer } from '@/lib/api/subsonicStreamUrl';
+import { serverShareBaseUrl } from '@/lib/server/serverEndpoint';
 import { useAuthStore } from '../../store/authStore';
 import type { CoverArtRef } from '../types';
 
