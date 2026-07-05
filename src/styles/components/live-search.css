@@ -200,6 +200,14 @@
   animation: fadeIn 150ms ease both;
 }
 
+.live-search-index-incomplete {
+  padding: 8px var(--space-4);
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
 .live-search-source {
   display: flex;
   align-items: center;

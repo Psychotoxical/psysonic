@@ -17,6 +17,7 @@ import { initHotCachePrefetch } from '../hotCachePrefetch';
 import { initLocalPlaybackInvalidation } from '../localPlaybackInvalidation';
 import { initFavoritesOfflineSync } from '@/features/offline';
 import { initPinnedOfflineSync } from '@/features/offline';
+import { initClusterRebuildOnSync } from '@/lib/library/clusterRebuildOnSync';
 import { initResumeIncompleteOfflinePins, scheduleResumeIncompleteOfflinePins } from '@/features/offline';
 import { runLegacyOfflineFileMigration } from '@/features/offline';
 import { reconcileLibraryTierForServer } from '@/features/offline';
@@ -119,11 +120,13 @@ export default function MainApp() {
     const stopInvalidation = initLocalPlaybackInvalidation();
     const stopFavoritesSync = initFavoritesOfflineSync();
     const stopPinnedOfflineSync = initPinnedOfflineSync();
+    const stopClusterRebuild = initClusterRebuildOnSync();
     const stopOfflineResume = initResumeIncompleteOfflinePins();
     return () => {
       stopInvalidation();
       stopFavoritesSync();
       stopPinnedOfflineSync();
+      stopClusterRebuild();
       stopOfflineResume();
     };
   }, [migrationReady, serverIdsKey]);

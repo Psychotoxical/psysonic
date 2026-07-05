@@ -24,6 +24,7 @@ interface LiveSearchDropdownProps {
   searchSource: LiveSearchSource | null;
   activeIndex: number;
   loading: boolean;
+  indexIncomplete: boolean;
   share: ReturnType<typeof useShareSearch>;
   setOpen: (open: boolean) => void;
 }
@@ -35,6 +36,7 @@ export default function LiveSearchDropdown({
   searchSource,
   activeIndex,
   loading,
+  indexIncomplete,
   share,
   setOpen,
 }: LiveSearchDropdownProps) {
@@ -53,8 +55,16 @@ export default function LiveSearchDropdown({
     !!share.shareMatch ||
     (results && (results.artists.length || results.albums.length || results.songs.length));
 
+  const showIndexIncompleteBanner =
+    indexIncomplete && !!query.trim() && (hasResults || loading);
+
   return (
     <div className="live-search-dropdown" id="search-results" role="listbox" ref={dropdownRef}>
+      {showIndexIncompleteBanner && (
+        <div className="live-search-index-incomplete" role="status" aria-live="polite">
+          {t('search.indexIncompleteBanner')}
+        </div>
+      )}
       {searchSource && !share.shareMatch && (
         <div
           className={`live-search-source live-search-source--${searchSource}`}

@@ -1,6 +1,6 @@
-import { useRef, useEffect, useCallback, type Dispatch, type SetStateAction, type MutableRefObject } from 'react';
+import { useRef, useEffect, useCallback, useState, type Dispatch, type SetStateAction, type MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { subscribeLibrarySyncIdle, subscribeLibrarySyncProgress } from '@/lib/api/library';
+import { libraryGetStatus, subscribeLibrarySyncIdle, subscribeLibrarySyncProgress } from '@/lib/api/library';
 import type { SearchResults } from '@/lib/api/subsonicTypes';
 import {
   LIVE_SEARCH_DEBOUNCE_NETWORK_MS,
@@ -12,7 +12,7 @@ import {
   runNetworkLiveSearch,
 } from '@/lib/library/liveSearchLocal';
 import { raceLiveSearch } from '@/lib/library/searchRace';
-import { libraryIsReady } from '@/lib/library/libraryReady';
+import { libraryStatusIsReady } from '@/lib/library/libraryReady';
 import {
   emitLiveSearchDebug,
   searchHitCounts,
@@ -62,18 +62,30 @@ export function useLiveSearchQuery({
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const localReadyRef = useRef(false);
+  const [indexIncomplete, setIndexIncomplete] = useState(false);
 
-  const refreshLocalReady = useCallback(async () => {
+  const refreshIndexStatus = useCallback(async () => {
     if (!serverId || !indexEnabled) {
       localReadyRef.current = false;
+      setIndexIncomplete(false);
       return;
     }
-    localReadyRef.current = await libraryIsReady(serverId);
+    try {
+      const status = await libraryGetStatus(serverId);
+      const ready = libraryStatusIsReady(status);
+      localReadyRef.current = ready;
+      setIndexIncomplete(!ready);
+    } catch {
+      localReadyRef.current = false;
+      setIndexIncomplete(false);
+    }
   }, [serverId, indexEnabled]);
 
   useEffect(() => {
-    void refreshLocalReady();
-  }, [refreshLocalReady, musicLibraryFilterVersion]);
+    // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void refreshIndexStatus();
+  }, [refreshIndexStatus, musicLibraryFilterVersion]);
 
   useEffect(() => {
     if (!indexEnabled || !serverId) return;
@@ -81,12 +93,12 @@ export function useLiveSearchQuery({
     let unlistenIdle: (() => void) | undefined;
     const indexKey = resolveIndexKey(serverId);
     void subscribeLibrarySyncIdle(payload => {
-      if (payload.serverId === indexKey) void refreshLocalReady();
+      if (payload.serverId === indexKey) void refreshIndexStatus();
     }).then(fn => {
       unlistenIdle = fn;
     });
     void subscribeLibrarySyncProgress(p => {
-      if (p.serverId === indexKey && p.kind === 'phase_changed') void refreshLocalReady();
+      if (p.serverId === indexKey && p.kind === 'phase_changed') void refreshIndexStatus();
     }).then(fn => {
       unlistenProgress = fn;
     });
@@ -94,7 +106,7 @@ export function useLiveSearchQuery({
       unlistenIdle?.();
       unlistenProgress?.();
     };
-  }, [indexEnabled, serverId, refreshLocalReady]);
+  }, [indexEnabled, serverId, refreshIndexStatus]);
 
   useEffect(() => {
     if (isLiveSearchDropdownBlocked(scope)) {
@@ -267,4 +279,6 @@ export function useLiveSearchQuery({
     query, scope, shareMatch, serverId, indexEnabled, musicLibraryFilterVersion, t,
     liveSearchGenRef, setResults, setOpen, setLoading, setSearchSource, setActiveIndex,
   ]);
+
+  return { indexIncomplete };
 }

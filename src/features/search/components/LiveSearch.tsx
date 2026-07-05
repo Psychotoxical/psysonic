@@ -93,7 +93,7 @@ export default function LiveSearch() {
 
   const share = useShareSearch(query, closeSearch);
 
-  useLiveSearchQuery({
+  const { indexIncomplete } = useLiveSearchQuery({
     query,
     scope,
     shareMatch: share.shareMatch,
@@ -296,6 +296,7 @@ export default function LiveSearch() {
           searchSource={searchSource}
           activeIndex={activeIndex}
           loading={loading}
+          indexIncomplete={indexIncomplete}
           share={share}
           setOpen={setOpen}
         />
