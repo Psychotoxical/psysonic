@@ -817,6 +817,21 @@ fn push_artist_letter_bucket(w: &mut WhereBuilder, bucket: &str, applied: &mut B
     applied.insert("letter".to_string());
 }
 
+/// `artist` rows are server-wide; narrow to artists with tracks in the active library scope.
+fn push_artist_library_scope(w: &mut WhereBuilder, req: &LibraryAdvancedSearchRequest, applied: &mut BTreeSet<String>) {
+    if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
+        let clause = library_scope_equals_sql("t");
+        w.push_params(
+            &format!(
+                "EXISTS (SELECT 1 FROM track t WHERE t.server_id = ar.server_id \
+                 AND t.deleted = 0 AND t.artist_id = ar.id AND {clause})"
+            ),
+            vec![SqlValue::Text(scope)],
+        );
+        applied.insert("library_scope".to_string());
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn build_artist(
     store: &LibraryStore,
@@ -851,6 +866,7 @@ fn build_artist_from_table(
 ) -> Result<(Vec<LibraryArtistDto>, u32), String> {
     let mut w = WhereBuilder::new();
     w.push_param("ar.server_id = ?", SqlValue::Text(req.server_id.clone()));
+    push_artist_library_scope(&mut w, req, applied);
     if album_artist_credit_mode(req) {
         w.push_raw("ar.album_count IS NOT NULL");
     }
@@ -2664,6 +2680,25 @@ mod tests {
     }
 
     // ── scope / pagination / totals ────────────────────────────────────
+
+    #[test]
+    fn library_scope_narrows_artist_table_browse() {
+        let store = LibraryStore::open_in_memory();
+        insert_artist(&store, "s1", "a1", "Alpha");
+        insert_artist(&store, "s1", "a2", "Beta");
+        let mut in_scope = track("s1", "t1", "Song", "Alpha", "Alb");
+        in_scope.artist_id = Some("a1".into());
+        in_scope.library_id = Some("lib1".into());
+        let mut out_scope = track("s1", "t2", "Song", "Beta", "Alb");
+        out_scope.artist_id = Some("a2".into());
+        out_scope.library_id = Some("lib2".into());
+        TrackRepository::new(&store).upsert_batch(&[in_scope, out_scope]).unwrap();
+        let mut r = req("s1", &[EntityKind::Artist]);
+        r.library_scope = Some("lib1".into());
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.artists.len(), 1);
+        assert_eq!(resp.artists[0].id, "a1");
+    }
 
     #[test]
     fn library_scope_narrows_track_results() {
