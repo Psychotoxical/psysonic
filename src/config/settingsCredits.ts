@@ -184,6 +184,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Playlists — batch playlist writes past the GET URL limit (add >341 tracks), in-memory membership cache for fast dedup, offline↔playlist layering detangle (PR #1235)',
       'Queue — resolve thin-state rows off the visible range so off-window items stop rendering as "…" placeholders (desktop panel, mobile drawer, fullscreen up-next) (PR #1236)',
       'Artists browse — case-insensitive Cyrillic/non-ASCII name search when local index is enabled (PR #1237)',
+      'CLI — relative volume via signed `volume` argument (+/− percent delta); suppress WebKit NVIDIA stderr notes on CLI argv; faster Linux CLI forward before WebKit init (PR #1238)',
     ],
   },
   {

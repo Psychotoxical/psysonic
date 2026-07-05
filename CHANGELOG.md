@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Toggle **Album artists** vs **Track artists** on the Artists page — album mode lists indexed album artists; track mode includes performers from the local artist index (featured/guest credits). Star filter works in both modes; the choice persists across app restarts like **Show artist images**.
 * Letter bucket filter (`A`–`Z`, `#`, `OTHER`) runs in local SQL instead of scanning catalog chunks client-side, so late-alphabet picks load promptly on large libraries.
 
+### CLI — relative volume and quieter scripting output
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1238](https://github.com/Psychotoxical/psysonic/pull/1238)**
+
+* `psysonic --player volume +5` / `volume -10` adjust the current level by that many percent; `volume 80` still sets an absolute level (use `-q` before `--player` when the delta is negative so it is not parsed as a flag).
+* CLI invocations no longer print WebKit/NVIDIA workaround notes on stderr; on Linux, remote `--player` forwarding runs before WebKit startup so helper processes exit with less noise.
+
 ### Square corners — sharp-edged cards and covers
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1215](https://github.com/Psychotoxical/psysonic/pull/1215)**
