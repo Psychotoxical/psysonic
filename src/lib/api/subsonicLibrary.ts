@@ -249,7 +249,10 @@ export async function getAlbum(id: string): Promise<{ album: SubsonicAlbum; song
   if (!shouldAttemptSubsonicForActiveServer()) {
     throw new Error('Subsonic unavailable');
   }
-  const data = await api<{ album: SubsonicAlbum & { song: SubsonicSong[] } }>('getAlbum.view', { id });
+  const data = await api<{ album: SubsonicAlbum & { song: SubsonicSong[] } }>('getAlbum.view', {
+    id,
+    ...libraryFilterParams(),
+  });
   const { song, ...album } = data.album;
   return { album, songs: song ?? [] };
 }
@@ -261,7 +264,11 @@ export async function getAlbumForServer(
   if (!shouldAttemptSubsonicForServer(serverId)) {
     throw new Error('Subsonic unavailable');
   }
-  const data = await apiForServer<{ album: SubsonicAlbum & { song: SubsonicSong[] } }>(serverId, 'getAlbum.view', { id });
+  const data = await apiForServer<{ album: SubsonicAlbum & { song: SubsonicSong[] } }>(
+    serverId,
+    'getAlbum.view',
+    { id, ...libraryFilterParamsForServer(serverId) },
+  );
   const { song, ...album } = data.album;
   return { album, songs: song ?? [] };
 }

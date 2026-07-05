@@ -6,8 +6,8 @@ import { albumToAlbum, trackToSong } from '@/lib/library/advancedSearchLocal';
 import type { ResolvedAlbum } from '@/features/offline';
 
 /**
- * Load priority-deduped album detail across the user's selected libraries.
- * Returns null on IPC failure or when the merged album anchor is missing.
+ * Load priority-deduped album detail across the user's selected libraries
+ * (one or more). Returns null on IPC failure or when the merged album anchor is missing.
  */
 export async function tryLoadAlbumDetailMultiScope(
   serverId: string,

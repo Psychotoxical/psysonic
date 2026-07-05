@@ -32,7 +32,10 @@ export async function getArtists(): Promise<SubsonicArtist[]> {
 }
 
 export async function getArtist(id: string): Promise<{ artist: SubsonicArtist; albums: SubsonicAlbum[] }> {
-  const data = await api<{ artist: SubsonicArtist & { album: SubsonicAlbum[] } }>('getArtist.view', { id });
+  const data = await api<{ artist: SubsonicArtist & { album: SubsonicAlbum[] } }>('getArtist.view', {
+    id,
+    ...libraryFilterParams(),
+  });
   const { album, ...artist } = data.artist;
   return { artist, albums: album ?? [] };
 }
@@ -41,7 +44,11 @@ export async function getArtistForServer(
   serverId: string,
   id: string,
 ): Promise<{ artist: SubsonicArtist; albums: SubsonicAlbum[] }> {
-  const data = await apiForServer<{ artist: SubsonicArtist & { album: SubsonicAlbum[] } }>(serverId, 'getArtist.view', { id });
+  const data = await apiForServer<{ artist: SubsonicArtist & { album: SubsonicAlbum[] } }>(
+    serverId,
+    'getArtist.view',
+    { id, ...libraryFilterParamsForServer(serverId) },
+  );
   const { album, ...artist } = data.artist;
   return { artist, albums: album ?? [] };
 }

@@ -80,7 +80,23 @@ describe('useArtistDetailData — multi-library selection', () => {
     expect(result.current.topSongs.map(s => s.id)).toEqual(['trk-high', 'trk-low']);
   });
 
-  it('does not call tryLoadArtistDetailMultiScope when at most one library is selected', async () => {
+  it('loads via tryLoadArtistDetailMultiScope when one library is selected', async () => {
+    librarySelectionForServerMock.mockReturnValue(['sampler']);
+    tryLoadArtistDetailMultiScopeMock.mockResolvedValue({
+      artist: { id: 'art-1', name: 'Scoped' },
+      albums: [{ id: 'alb-1', name: 'Sampler Album' }],
+      topSongs: [],
+    });
+
+    const { result } = renderHook(() => useArtistDetailData('art-1'), { wrapper: routerWrapper });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(tryLoadArtistDetailMultiScopeMock).toHaveBeenCalledWith('srv-1', 'art-1');
+    expect(getArtistForServer).not.toHaveBeenCalled();
+    expect(result.current.albums).toHaveLength(1);
+  });
+
+  it('does not call tryLoadArtistDetailMultiScope when all libraries are selected', async () => {
     librarySelectionForServerMock.mockReturnValue([]);
     vi.mocked(getArtistForServer).mockResolvedValue({
       artist: { id: 'art-1', name: 'Network' },

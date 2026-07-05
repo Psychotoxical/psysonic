@@ -1,4 +1,5 @@
 import { libraryAdvancedSearch, libraryGetTracksByAlbum } from '@/lib/api/library';
+import { libraryScopeForServer, libraryScopePairsForServer } from '@/lib/api/subsonicClient';
 import type {
   SubsonicAlbum,
   SubsonicArtist,
@@ -63,6 +64,8 @@ export async function loadArtistFromLibraryIndex(
 ): Promise<{ artist: SubsonicArtist; albums: SubsonicAlbum[] } | null> {
   const response = await libraryAdvancedSearch({
     serverId,
+    libraryScope: libraryScopeForServer(serverId) ?? undefined,
+    libraryScopes: libraryScopePairsForServer(serverId),
     entityTypes: ['album', 'artist'],
     limit: 10_000,
   });

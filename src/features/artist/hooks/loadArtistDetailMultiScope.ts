@@ -12,8 +12,8 @@ export interface ArtistDetailMultiScopePayload {
 }
 
 /**
- * Load priority-deduped artist detail across the user's selected libraries.
- * Returns null on IPC failure or when the merged artist anchor is missing.
+ * Load priority-deduped artist detail across the user's selected libraries
+ * (one or more). Returns null on IPC failure or when the merged artist anchor is missing.
  */
 export async function tryLoadArtistDetailMultiScope(
   serverId: string,

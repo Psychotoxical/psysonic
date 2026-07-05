@@ -118,7 +118,7 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
         return;
       }
 
-      if (detailServerId && librarySelectionForServer(detailServerId).length > 1) {
+      if (detailServerId && librarySelectionForServer(detailServerId).length > 0) {
         const multi = await tryLoadAlbumDetailMultiScope(detailServerId, id);
         if (multi) {
           applyAlbumPayload(multi);

@@ -94,7 +94,7 @@ export function useArtistDetailData(
           setLoading(false);
           return;
         }
-        if (serverId && librarySelectionForServer(serverId).length > 1) {
+        if (serverId && librarySelectionForServer(serverId).length > 0) {
           const multi = await tryLoadArtistDetailMultiScope(serverId, id);
           if (cancelled) return;
           if (multi) {
