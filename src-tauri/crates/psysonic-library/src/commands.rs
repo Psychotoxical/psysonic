@@ -22,7 +22,10 @@ use crate::cross_server;
 use crate::dto::{
     count_local_tracks, local_tracks_max_updated_ms, track_index_nonempty, ArtifactInputDto,
     FactInputDto, LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse,
-    LibraryCrossServerSearchResponse, LibraryLiveSearchRequest, LibraryLiveSearchResponse, LibraryTrackDto,
+    LibraryCrossServerSearchResponse, LibraryLiveSearchRequest, LibraryLiveSearchResponse,
+    LibraryScopeAlbumDetailRequest, LibraryScopeAlbumDetailResponse, LibraryScopeArtistDetailRequest,
+    LibraryScopeArtistDetailResponse, LibraryScopeListRequest, LibraryScopeSearchRequest,
+    LibraryTrackDto,
     LibraryTracksEnvelope, OfflinePathDto, PlaySessionDayDetailDto, PlaySessionHeatmapDayDto,
     PlaySessionInputDto, PlaySessionRecentDayDto, PlaySessionRecentTrackDto, PlaySessionYearBoundsDto, PlaySessionYearSummaryDto, PurgeReportDto, SyncJobDto, SyncStateDto,
     TrackArtifactDto, TrackFactDto, TrackRefDto,
@@ -31,6 +34,7 @@ use crate::live_search;
 use crate::payload::LibrarySyncProgressPayload;
 use crate::repos::{PlaySessionRepository, SyncStateRepository, TrackRepository};
 use crate::runtime::{CurrentJob, LibraryRuntime, SyncSession};
+use crate::scope_merge;
 use crate::search::search_tracks;
 use crate::store::LibraryStore;
 use crate::sync::bandwidth::PlaybackHint;
@@ -579,6 +583,56 @@ pub fn library_cluster_rebuild(
         .map(str::trim)
         .filter(|s| !s.is_empty());
     crate::identity::rebuild_cluster_keys(&runtime.store, server_id)
+}
+
+// NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.
+#[tauri::command]
+pub async fn library_scope_list_albums(
+    runtime: State<'_, LibraryRuntime>,
+    request: LibraryScopeListRequest,
+) -> Result<Vec<crate::dto::LibraryAlbumDto>, String> {
+    let store = Arc::clone(&runtime.store);
+    library_spawn_blocking(move || scope_merge::list_albums(&store, &request)).await
+}
+
+// NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.
+#[tauri::command]
+pub async fn library_scope_list_artists(
+    runtime: State<'_, LibraryRuntime>,
+    request: LibraryScopeListRequest,
+) -> Result<Vec<crate::dto::LibraryArtistDto>, String> {
+    let store = Arc::clone(&runtime.store);
+    library_spawn_blocking(move || scope_merge::list_artists(&store, &request)).await
+}
+
+// NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.
+#[tauri::command]
+pub async fn library_scope_search_tracks(
+    runtime: State<'_, LibraryRuntime>,
+    request: LibraryScopeSearchRequest,
+) -> Result<Vec<LibraryTrackDto>, String> {
+    let store = Arc::clone(&runtime.store);
+    library_spawn_blocking(move || scope_merge::search_tracks(&store, &request)).await
+}
+
+// NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.
+#[tauri::command]
+pub async fn library_scope_album_detail(
+    runtime: State<'_, LibraryRuntime>,
+    request: LibraryScopeAlbumDetailRequest,
+) -> Result<LibraryScopeAlbumDetailResponse, String> {
+    let store = Arc::clone(&runtime.store);
+    library_spawn_blocking(move || scope_merge::album_detail(&store, &request)).await
+}
+
+// NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.
+#[tauri::command]
+pub async fn library_scope_artist_detail(
+    runtime: State<'_, LibraryRuntime>,
+    request: LibraryScopeArtistDetailRequest,
+) -> Result<LibraryScopeArtistDetailResponse, String> {
+    let store = Arc::clone(&runtime.store);
+    library_spawn_blocking(move || scope_merge::artist_detail(&store, &request)).await
 }
 
 // NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.

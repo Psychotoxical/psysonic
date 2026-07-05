@@ -671,6 +671,76 @@ pub struct LibraryArtistLosslessBrowseResponse {
     pub source: String,
 }
 
+// ──────────────────────────────────────────────────────────────────────
+//  Multi-library scope merge (WO-4)
+// ──────────────────────────────────────────────────────────────────────
+
+/// One `(server_id, library_id)` pair in priority order (index 0 = highest).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryScopePair {
+    pub server_id: String,
+    pub library_id: String,
+}
+
+/// Paginated album/artist browse over an ordered multi-library scope.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryScopeListRequest {
+    pub scopes: Vec<LibraryScopePair>,
+    #[serde(default)]
+    pub sort: Option<String>,
+    #[serde(default)]
+    pub limit: Option<u32>,
+    #[serde(default)]
+    pub offset: Option<u32>,
+}
+
+/// FTS track search over an ordered multi-library scope.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryScopeSearchRequest {
+    pub scopes: Vec<LibraryScopePair>,
+    pub query: String,
+    #[serde(default)]
+    pub limit: Option<u32>,
+}
+
+/// Aggregated album detail — anchor entity id on one server, scope for union.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryScopeAlbumDetailRequest {
+    pub scopes: Vec<LibraryScopePair>,
+    pub album_id: String,
+    pub server_id: String,
+}
+
+/// Aggregated artist detail — anchor entity id on one server, scope for union.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryScopeArtistDetailRequest {
+    pub scopes: Vec<LibraryScopePair>,
+    pub artist_id: String,
+    pub server_id: String,
+}
+
+/// `library_scope_album_detail` response.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryScopeAlbumDetailResponse {
+    pub album: LibraryAlbumDto,
+    pub tracks: Vec<LibraryTrackDto>,
+}
+
+/// `library_scope_artist_detail` response.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryScopeArtistDetailResponse {
+    pub artist: LibraryArtistDto,
+    pub albums: Vec<LibraryAlbumDto>,
+    pub tracks: Vec<LibraryTrackDto>,
+}
+
 /// `library_search_cross_server` response (§5.5B / §5.9).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

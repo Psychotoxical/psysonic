@@ -37,6 +37,7 @@ pub mod lossless_formats;
 pub mod payload;
 pub mod repos;
 pub mod runtime;
+pub mod scope_merge;
 pub mod search;
 pub mod store;
 pub mod sync;
