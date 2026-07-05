@@ -8,6 +8,10 @@ export const NEW_RELEASES_RESET_DELAY_MS = 5_000;
 /** Max album ids persisted per server/scope; cap must not drop the latest "newest" batch when marking read. */
 export const NEW_RELEASES_SEEN_MAX_IDS = 500;
 
+export function newReleasesSeenStorageKey(serverId: string, libraryScopeKey: string): string {
+  return `${NEW_RELEASES_UNREAD_STORAGE_PREFIX}:${serverId || 'no-server'}:${libraryScopeKey || 'all'}`;
+}
+
 /** Merge previous seen IDs with the current `getAlbumList(newest)` sample: newest batch is kept in full first, then older seen until `maxIds` (localStorage budget). */
 export function mergeSeenNewReleaseIdsCap(prevSeen: string[], newestBatch: string[], maxIds: number): string[] {
   const out: string[] = [];

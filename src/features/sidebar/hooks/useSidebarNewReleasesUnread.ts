@@ -6,29 +6,34 @@ import {
   NEW_RELEASES_SEEN_MAX_IDS,
   NEW_RELEASES_UNREAD_POLL_MS,
   NEW_RELEASES_UNREAD_SAMPLE_SIZE,
-  NEW_RELEASES_UNREAD_STORAGE_PREFIX,
   mergeSeenNewReleaseIdsCap,
+  newReleasesSeenStorageKey as buildNewReleasesSeenStorageKey,
 } from '@/features/sidebar/utils/sidebarHelpers';
 
 interface Args {
   serverId: string;
-  filterId: string;
+  libraryScopeKey: string;
   isLoggedIn: boolean;
   pathname: string;
 }
 
-export function useSidebarNewReleasesUnread({ serverId, filterId, isLoggedIn, pathname }: Args): number {
+export function useSidebarNewReleasesUnread({
+  serverId,
+  libraryScopeKey,
+  isLoggedIn,
+  pathname,
+}: Args): number {
   const [newReleasesUnreadCount, setNewReleasesUnreadCount] = useState(0);
   const newReleasesRefreshSeqRef = useRef(0);
   const newReleasesPageEnteredAtRef = useRef<number | null>(null);
   const newReleasesResetTimerRef = useRef<number | null>(null);
 
-  const newReleasesSeenStorageKey = useMemo(
-    () => `${NEW_RELEASES_UNREAD_STORAGE_PREFIX}:${serverId || 'no-server'}:${filterId || 'all'}`,
-    [serverId, filterId],
+  const scopedSeenStorageKey = useMemo(
+    () => buildNewReleasesSeenStorageKey(serverId, libraryScopeKey),
+    [serverId, libraryScopeKey],
   );
   const newReleasesSeenAllScopeStorageKey = useMemo(
-    () => `${NEW_RELEASES_UNREAD_STORAGE_PREFIX}:${serverId || 'no-server'}:all`,
+    () => buildNewReleasesSeenStorageKey(serverId, 'all'),
     [serverId],
   );
 
@@ -45,8 +50,8 @@ export function useSidebarNewReleasesUnread({ serverId, filterId, isLoggedIn, pa
   }, []);
 
   const readSeenNewReleaseIds = useCallback(
-    () => readSeenNewReleaseIdsByKey(newReleasesSeenStorageKey),
-    [newReleasesSeenStorageKey, readSeenNewReleaseIdsByKey],
+    () => readSeenNewReleaseIdsByKey(scopedSeenStorageKey),
+    [scopedSeenStorageKey, readSeenNewReleaseIdsByKey],
   );
 
   const writeSeenNewReleaseIdsByKey = useCallback((key: string, ids: string[]) => {
@@ -55,8 +60,8 @@ export function useSidebarNewReleasesUnread({ serverId, filterId, isLoggedIn, pa
   }, []);
 
   const writeSeenNewReleaseIds = useCallback(
-    (ids: string[]) => writeSeenNewReleaseIdsByKey(newReleasesSeenStorageKey, ids),
-    [newReleasesSeenStorageKey, writeSeenNewReleaseIdsByKey],
+    (ids: string[]) => writeSeenNewReleaseIdsByKey(scopedSeenStorageKey, ids),
+    [scopedSeenStorageKey, writeSeenNewReleaseIdsByKey],
   );
 
   const refreshNewReleasesUnread = useCallback(async (markAsSeen = false) => {
@@ -75,11 +80,11 @@ export function useSidebarNewReleasesUnread({ serverId, filterId, isLoggedIn, pa
 
       // For a concrete library scope, bootstrap from the server-wide "all libraries"
       // baseline when available, so switching scope doesn't hide existing unread.
-      if (seenIds.length === 0 && filterId !== 'all') {
+      if (seenIds.length === 0 && libraryScopeKey !== 'all') {
         const allScopeSeen = readSeenNewReleaseIdsByKey(newReleasesSeenAllScopeStorageKey);
         if (allScopeSeen.length > 0) {
           seenIds = allScopeSeen;
-          writeSeenNewReleaseIdsByKey(newReleasesSeenStorageKey, allScopeSeen);
+          writeSeenNewReleaseIdsByKey(scopedSeenStorageKey, allScopeSeen);
         }
       }
 
@@ -113,10 +118,10 @@ export function useSidebarNewReleasesUnread({ serverId, filterId, isLoggedIn, pa
       // Keep previous value on transient network/API errors.
     }
   }, [
-    filterId,
+    libraryScopeKey,
     isLoggedIn,
     newReleasesSeenAllScopeStorageKey,
-    newReleasesSeenStorageKey,
+    scopedSeenStorageKey,
     readSeenNewReleaseIds,
     readSeenNewReleaseIdsByKey,
     serverId,

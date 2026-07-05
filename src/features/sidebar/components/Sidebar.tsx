@@ -30,6 +30,7 @@ import { useSidebarPerfProbe } from '@/features/sidebar/hooks/useSidebarPerfProb
 import SidebarPerfProbeModal from '@/features/sidebar/components/SidebarPerfProbeModal';
 import SidebarNavBody from '@/features/sidebar/components/SidebarNavBody';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
+import { libraryScopeCacheKeyForServer } from '@/lib/api/subsonicClient';
 
 const EMPTY_LIBRARY_IDS: string[] = [];
 
@@ -100,7 +101,7 @@ export default function Sidebar({
   const isSidebarScrolling = useSidebarScrollVisible(sidebarViewportEl);
   const showLibraryPicker = !isCollapsed && isLoggedIn && musicFolders.length > 1 && !isServerOffline;
 
-  const filterId = serverId ? (musicLibraryFilterByServer[serverId] ?? 'all') : 'all';
+  const libraryScopeKey = serverId ? libraryScopeCacheKeyForServer(serverId) : 'all';
   const selectedLibraryIds = useMemo(() => {
     if (!serverId) return EMPTY_LIBRARY_IDS;
     const resolved = resolveServerIdForIndexKey(serverId);
@@ -178,7 +179,7 @@ export default function Sidebar({
   });
   const newReleasesUnreadCount = useSidebarNewReleasesUnread({
     serverId,
-    filterId,
+    libraryScopeKey,
     isLoggedIn,
     pathname: location.pathname,
   });
@@ -248,7 +249,7 @@ export default function Sidebar({
             playlists.length,
             isLoggedIn,
             randomNavMode,
-            filterId,
+            libraryScopeKey,
             selectedLibraryIds.length,
             hasOfflineContent,
             activeJobs.length,
