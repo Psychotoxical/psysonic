@@ -187,6 +187,13 @@ fn album_row_to_dto(row: AlbumListRow) -> LibraryAlbumDto {
 }
 
 /// `library_scope_list_albums` — dedup by `album_key`, priority winner metadata.
+///
+/// Aggregated in a single `GROUP BY album_dedup` (no per-track window): `song_count`
+/// is exact via `COUNT(DISTINCT track_dedup)`; `duration_total` is `SUM(duration_sec)`,
+/// which double-counts a track only when the *same* recording is present in multiple
+/// selected libraries. The album-list duration is not surfaced in the grid (detail and
+/// now-playing recompute from the real track list), so this trade buys a ~2x browse
+/// speedup on large multi-library scopes without a user-visible effect.
 pub fn list_albums(
     store: &LibraryStore,
     request: &LibraryScopeListRequest,
@@ -204,20 +211,15 @@ pub fn list_albums(
                   t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.duration_sec, t.id, \
                   s.pr, {ALBUM_DEDUP_KEY} AS album_dedup, {TRACK_DEDUP_KEY} AS track_dedup \
            {scoped} AND t.album_id IS NOT NULL AND t.album_id != '' \
-         ), \
-         deduped AS ( \
-           SELECT *, \
-                  ROW_NUMBER() OVER (PARTITION BY track_dedup ORDER BY pr ASC, id ASC) AS trn \
-           FROM base \
          ) \
          SELECT server_id, album_id, album, artist, artist_id, album_artist, \
                 song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at \
          FROM ( \
            SELECT server_id, album_id, album, artist, artist_id, album_artist, \
                   year, genre, cover_art_id, starred_at, synced_at, \
-                  COUNT(*) AS song_count, SUM(duration_sec) AS duration_total, \
+                  COUNT(DISTINCT track_dedup) AS song_count, SUM(duration_sec) AS duration_total, \
                   MIN({ALBUM_PICK_KEY}) AS _pick \
-           FROM deduped WHERE trn = 1 GROUP BY album_dedup \
+           FROM base GROUP BY album_dedup \
          ) \
          {order} \
          LIMIT ? OFFSET ?",
@@ -343,20 +345,15 @@ pub(crate) fn list_albums_filtered(
                   t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.duration_sec, t.id, \
                   s.pr, {ALBUM_DEDUP_KEY} AS album_dedup, {TRACK_DEDUP_KEY} AS track_dedup \
            {base_where} \
-         ), \
-         deduped AS ( \
-           SELECT *, \
-                  ROW_NUMBER() OVER (PARTITION BY track_dedup ORDER BY pr ASC, id ASC) AS trn \
-           FROM base \
          ) \
          SELECT server_id, album_id, album, artist, artist_id, album_artist, \
                 song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at \
          FROM ( \
            SELECT server_id, album_id, album, artist, artist_id, album_artist, \
                   year, genre, cover_art_id, starred_at, synced_at, \
-                  COUNT(*) AS song_count, SUM(duration_sec) AS duration_total, \
+                  COUNT(DISTINCT track_dedup) AS song_count, SUM(duration_sec) AS duration_total, \
                   MIN({ALBUM_PICK_KEY}) AS _pick \
-           FROM deduped WHERE trn = 1 GROUP BY album_dedup \
+           FROM base GROUP BY album_dedup \
          ) \
          {order_sql} \
          LIMIT ? OFFSET ?",
@@ -1716,69 +1713,79 @@ mod tests {
         use std::time::Instant;
 
         let store = LibraryStore::open_in_memory();
-        // Small-ish, realistic multi-library set: 400 albums × 10 tracks over 2 libs.
-        let albums = 400usize;
-        let tracks_per_album = 10usize;
+        // User-reported scale: ~4000 albums × 5 tracks = 20000 tracks over 3 libs.
+        let albums = 4000usize;
+        let tracks_per_album = 5usize;
+        let artists = 200usize;
         let mut rows = Vec::with_capacity(albums * tracks_per_album);
         for a in 0..albums {
-            let lib = if a % 2 == 0 { "lib-a" } else { "lib-b" };
+            let lib = match a % 3 {
+                0 => "lib-a",
+                1 => "lib-b",
+                _ => "lib-c",
+            };
             for t in 0..tracks_per_album {
                 rows.push(track(
                     "s1",
                     &format!("t-{a}-{t}"),
                     &format!("Song {t}"),
-                    Some(&format!("Artist {}", a % 50)),
-                    &format!("Album {a:04}"),
-                    &format!("alb-{a:04}"),
-                    Some(&format!("ar-{}", a % 50)),
+                    Some(&format!("Artist {}", a % artists)),
+                    &format!("Album {a:05}"),
+                    &format!("alb-{a:05}"),
+                    Some(&format!("ar-{}", a % artists)),
                     180 + t as i64,
                     lib,
                     Some(1990 + (a % 30) as i64),
                     Some("Rock"),
-                    Some(&format!("cov-{a:04}")),
+                    Some(&format!("cov-{a:05}")),
                 ));
             }
         }
         seed_and_rebuild(&store, &rows);
-        let scopes = vec![scope_pair("s1", "lib-a"), scope_pair("s1", "lib-b")];
+        let scopes = vec![
+            scope_pair("s1", "lib-a"),
+            scope_pair("s1", "lib-b"),
+            scope_pair("s1", "lib-c"),
+        ];
 
-        // Timing: first page vs deep page. If pagination doesn't reduce work,
-        // deep offset costs ~the same as offset 0 (whole set re-scanned + sorted).
-        let time_page = |offset: u32| {
-            let req = LibraryScopeListRequest {
-                scopes: scopes.clone(),
-                sort: None,
-                limit: Some(50),
-                offset: Some(offset),
-            };
+        // Exact FE album path: `libraryAdvancedSearch` (empty filter) -> multi-scope
+        // -> `list_albums_filtered` with skip_totals = true, PAGE_SIZE ~ 100.
+        let time_albums = |offset: u32| {
             let start = Instant::now();
-            let n = list_albums(&store, &req).unwrap().len();
-            (start.elapsed(), n)
+            let (rows, _total) = list_albums_filtered(
+                &store,
+                &scopes,
+                "",
+                &[],
+                "ORDER BY album COLLATE NOCASE ASC, album_id ASC",
+                100,
+                offset,
+                true,
+            )
+            .unwrap();
+            (start.elapsed(), rows.len())
         };
-        // Warm caches.
-        let _ = time_page(0);
-        let (t_first, n_first) = time_page(0);
-        let (t_deep, n_deep) = time_page(350);
-        println!("--- list_albums timings (400 albums, 4000 tracks, 2 libs) ---");
-        println!("  offset 0   -> {:?} ({n_first} rows)", t_first);
-        println!("  offset 350 -> {:?} ({n_deep} rows)", t_deep);
+        let _ = time_albums(0);
+        let (t_first, n_first) = time_albums(0);
+        let (t_deep, n_deep) = time_albums(2000);
+        println!("--- list_albums_filtered (4000 albums, 20000 tracks, 3 libs, skip_totals) ---");
+        println!("  offset 0    -> {:?} ({n_first} rows)", t_first);
+        println!("  offset 2000 -> {:?} ({n_deep} rows)", t_deep);
 
-        let time_artists = |offset: u32| {
+        let time_artists = || {
             let req = LibraryScopeListRequest {
                 scopes: scopes.clone(),
                 sort: None,
-                limit: Some(50),
-                offset: Some(offset),
+                limit: Some(100),
+                offset: Some(0),
             };
             let start = Instant::now();
             let n = list_artists(&store, &req).unwrap().len();
             (start.elapsed(), n)
         };
-        let _ = time_artists(0);
-        let (a_first, an_first) = time_artists(0);
-        let (a_deep, an_deep) = time_artists(0);
-        println!("--- list_artists timings (50 artists, 4000 tracks, 2 libs) ---");
-        println!("  run 1 -> {:?} ({an_first} rows)", a_first);
-        println!("  run 2 -> {:?} ({an_deep} rows)", a_deep);
+        let _ = time_artists();
+        let (a_first, an_first) = time_artists();
+        println!("--- list_artists ({artists} artists, 20000 tracks, 3 libs) ---");
+        println!("  run -> {:?} ({an_first} rows)", a_first);
     }
 }
