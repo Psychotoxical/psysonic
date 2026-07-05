@@ -25,12 +25,13 @@ import type { AuthState } from './authStoreTypes';
 import { getCachedConnectBaseUrl } from '@/lib/server/serverEndpoint';
 import { serverProfileBaseUrl } from '@/lib/server/serverBaseUrl';
 import { setDebugLoggingModeSource } from '@/lib/perf/debugLoggingMode';
-
-
+import { createDiscordBannerActions } from './authDiscordBannerActions';
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
+      discordBannerDismissed: false,
+      discordBannerAccumulatedUsageMs: 0,
       servers: [],
       activeServerId: null,
       musicNetworkAccounts: [],
@@ -150,6 +151,7 @@ export const useAuthStore = create<AuthState>()(
       ...createSkipStarActions(set, get),
       ...createMusicLibraryActions(set, get),
       ...createPerServerCapabilityActions(set),
+      ...createDiscordBannerActions(set),
 
       getBaseUrl: () => {
         const s = get();

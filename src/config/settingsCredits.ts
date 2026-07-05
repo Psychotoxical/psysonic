@@ -411,6 +411,7 @@ const CONTRIBUTOR_ENTRIES = [
     contributions: [
       'Long-press album Play to shuffle with hold progress animation (PR #888)',
       'WinGet release automation — GitHub Actions workflow that opens manifest PRs on each release (PR #1077)',
+      'Dismissible Discord community banner (PR #1222)',
     ],
   },
   {

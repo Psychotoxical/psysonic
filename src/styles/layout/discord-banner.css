@@ -1,0 +1,93 @@
+/* src/styles/layout/discord-banner.css */
+
+.discord-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px;
+  height: 36px;
+  background: #5865f2;
+  color: #fff;
+  font-size: 13px;
+  flex-shrink: 0;
+  z-index: 50;
+}
+
+.discord-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.discord-banner-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.discord-banner-join {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 12px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.discord-banner-join:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.discord-banner-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.discord-banner-never {
+  padding: 2px 10px;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, background 0.15s;
+}
+
+.discord-banner-never:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.discord-banner-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.discord-banner-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+}

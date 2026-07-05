@@ -41529,6 +41529,60 @@
   },
   {
     "type": "cycle",
+    "from": "src/store/authDiscordBannerActions.ts",
+    "to": "src/store/authStoreTypes.ts",
+    "unresolvedTo": "./authStoreTypes",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/store/authStoreTypes.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/music-network/index.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/music-network/ui/useEnrichmentPrimary.ts",
+        "dependencyTypes": [
+          "local",
+          "export"
+        ]
+      },
+      {
+        "name": "src/store/authStore.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/store/authDiscordBannerActions.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
     "from": "src/store/authDiscordSettingsActions.ts",
     "to": "src/store/authStoreTypes.ts",
     "unresolvedTo": "./authStoreTypes",

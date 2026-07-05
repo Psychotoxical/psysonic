@@ -44,6 +44,7 @@ import { orbit } from './orbit';
 import { tray } from './tray';
 import { licenses } from './licenses';
 import { migration } from './migration';
+import { discordBanner } from './discordBanner';
 
 export const deTranslation = {
   sidebar,
@@ -92,4 +93,5 @@ export const deTranslation = {
   tray,
   licenses,
   migration,
+  discordBanner,
 };

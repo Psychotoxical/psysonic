@@ -109,6 +109,12 @@ export type TrackPreviewLocation =
 export type TrackPreviewLocations = Record<TrackPreviewLocation, boolean>;
 
 export interface AuthState {
+  // DiscordBanner
+  discordBannerDismissed: boolean;
+  discordBannerAccumulatedUsageMs: number;
+  dismissDiscordBanner: () => void;
+  addDiscordBannerUsageMs: (deltaMs: number) => void;
+  
   // Multi-server
   servers: ServerProfile[];
   activeServerId: string | null;

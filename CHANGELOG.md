@@ -40,6 +40,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Full Bulgarian (Български) UI translation — selectable from the language picker on the Settings and Login screens.
 
 
+### Discord community banner
+
+**By [@ImAsra](https://github.com/ImAsra), PR [#1222](https://github.com/Psychotoxical/psysonic/pull/1222)**
+
+* A dismissible banner inviting you to join the Psysonic community on Discord appears after 20 hours of accumulated app use. **Join** opens the invite; dismiss it for the session, or choose **Never show again** to hide it permanently.
+
+
 ## Changed
 
 ### Frontend restructure — feature-folder architecture and hardening
