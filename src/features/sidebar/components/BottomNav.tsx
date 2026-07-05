@@ -5,6 +5,7 @@ import { Disc3, Search, Music4, AudioLines, MoreHorizontal } from 'lucide-react'
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { MobileSearchOverlay } from '@/features/search';
 import MobileMoreOverlay from '@/features/sidebar/components/MobileMoreOverlay';
+import { albumsBrowseNavHandlers } from '@/lib/library/albumBrowseRoutePrefetch';
 
 const NAV_ITEMS = [
   { to: '/',            end: true,  icon: Disc3,      labelKey: 'sidebar.mainstage' },
@@ -28,6 +29,7 @@ export default function BottomNav() {
             to={to}
             end={end}
             className={({ isActive }) => `bottom-nav-item${isActive ? ' active' : ''}`}
+            {...albumsBrowseNavHandlers(to, 'bottom_nav_click')}
           >
             <span className="bottom-nav-icon-wrap">
               <Icon size={22} />

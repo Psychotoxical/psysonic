@@ -81,7 +81,6 @@ export default function Albums() {
       libraryFilterVersion: musicLibraryFilterVersion,
       libraryScopeCount: librarySelectionForServer(serverId).length,
     });
-    emitAlbumBrowseDebug('page_mount');
     return () => emitAlbumBrowseDebug('page_unmount');
   }, [serverId, indexEnabled, musicLibraryFilterVersion]);
 

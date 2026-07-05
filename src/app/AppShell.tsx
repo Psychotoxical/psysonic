@@ -68,6 +68,7 @@ import { useEqStore } from '../store/eqStore';
 import { usePlaybackRateStore } from '@/features/playback/store/playbackRateStore';
 import { usePlaybackRateOrbitSync } from '@/features/orbit';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
+import { emitAlbumBrowseNav } from '@/lib/library/albumBrowseDebug';
 import {
   persistSidebarCollapsed,
   readInitialSidebarCollapsed,
@@ -138,6 +139,12 @@ export function AppShell() {
     if (shouldSkipMainScrollResetOnRouteChange(location.pathname, location.state)) return;
     document.getElementById(APP_MAIN_SCROLL_VIEWPORT_ID)?.scrollTo({ top: 0 });
   }, [location.pathname, location.state]);
+
+  useEffect(() => {
+    if (location.pathname === '/albums') {
+      emitAlbumBrowseNav('route_active', { pathname: location.pathname });
+    }
+  }, [location.pathname]);
 
   useOfflineAutoNav(connStatus, offlineNav, location, navigate);
   useOfflineLibraryFilterSuspend();

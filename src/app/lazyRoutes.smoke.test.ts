@@ -61,6 +61,9 @@ describe('lazy-route resolvability smoke', () => {
     const declared = new Set(
       [...sources.matchAll(/lazy\(\(\)\s*=>\s*import\('([^']+)'\)\)/g)].map((m) => m[1]),
     );
+    if (sources.includes('lazyLoadAlbumsPage')) {
+      declared.add('@/features/album/pages/Albums');
+    }
     const covered = new Set(ROUTE_LOADERS.map(([spec]) => spec));
     // Symmetric difference must be empty: a route added to the app but not this
     // table (or removed from the app but left here) fails → keep the two in sync.

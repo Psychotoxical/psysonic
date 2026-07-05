@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { AudioLines, ChevronRight, HardDriveDownload, Settings } from 'lucide-react';
 import type { SidebarItemConfig } from '@/features/sidebar/store/sidebarStore';
 import { ALL_NAV_ITEMS } from '@/config/navItems';
+import { albumsBrowseNavHandlers } from '@/lib/library/albumBrowseRoutePrefetch';
 import WhatsNewBanner from '@/features/whatsNew/components/WhatsNewBanner';
 import ThemeUpdateBanner from '@/features/settings/components/ThemeUpdateBanner';
 import SidebarLibraryPicker from '@/features/sidebar/components/SidebarLibraryPicker';
@@ -154,6 +155,7 @@ export default function SidebarNavBody(props: Props) {
               className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
               data-tooltip={isCollapsed ? t(item.labelKey) : undefined}
               data-tooltip-pos="bottom"
+              {...albumsBrowseNavHandlers(item.to)}
             >
               <item.icon size={isCollapsed ? 22 : 18} />
               {item.to === '/new-releases' && newReleasesUnreadCount > 0 && (
@@ -176,6 +178,7 @@ export default function SidebarNavBody(props: Props) {
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 data-tooltip={isCollapsed ? t(item.labelKey) : undefined}
                 data-tooltip-pos="bottom"
+                {...albumsBrowseNavHandlers(item.to)}
               >
                 <item.icon size={isCollapsed ? 22 : 18} />
                 {!isCollapsed && <span>{t(item.labelKey)}</span>}
