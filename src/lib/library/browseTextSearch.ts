@@ -29,6 +29,7 @@ import {
   type LibrarySearchSurface,
 } from './libraryDevLog';
 import { libraryIsReady } from './libraryReady';
+import { artistBrowseTimed, emitArtistsBrowseDebug } from './artistBrowseDebug';
 import { raceSearchSources, type SearchRaceWinner } from './searchRace';
 
 export type { LibrarySearchSurface };
@@ -582,21 +583,34 @@ export async function fetchLocalArtistCatalogChunk(
   creditMode: ArtistCreditMode = 'album',
   letterBucket?: string | null,
 ): Promise<ArtistCatalogChunkResult | null> {
-  if (!serverId || !(await libraryIsReady(serverId))) return null;
+  if (!serverId) return null;
+  const ready = await artistBrowseTimed(
+    'library_ready',
+    () => libraryIsReady(serverId),
+    { serverId },
+  );
+  if (!ready) {
+    emitArtistsBrowseDebug('library_not_ready', { serverId, offset, chunkSize });
+    return null;
+  }
   const bucket = letterBucket && letterBucket !== 'ALL' ? letterBucket : undefined;
   try {
-    const resp = await libraryAdvancedSearch({
-      serverId,
-      libraryScope: libraryScopeForServer(serverId) ?? undefined,
-      libraryScopes: libraryScopePairsForServer(serverId),
-      entityTypes: ['artist'],
-      artistCreditMode: creditMode,
-      ...(bucket ? { artistLetterBucket: bucket } : {}),
-      sort: [{ field: 'name', dir: 'asc' }],
-      limit: chunkSize,
-      offset,
-      skipTotals: true,
-    });
+    const resp = await artistBrowseTimed(
+      'rust_advanced_search',
+      () => libraryAdvancedSearch({
+        serverId,
+        libraryScope: libraryScopeForServer(serverId) ?? undefined,
+        libraryScopes: libraryScopePairsForServer(serverId),
+        entityTypes: ['artist'],
+        artistCreditMode: creditMode,
+        ...(bucket ? { artistLetterBucket: bucket } : {}),
+        sort: [{ field: 'name', dir: 'asc' }],
+        limit: chunkSize,
+        offset,
+        skipTotals: true,
+      }),
+      { offset, chunkSize, creditMode, letterBucket: bucket },
+    );
     if (resp.source !== 'local') return null;
     const artists = resp.artists.map(artistToArtist);
     return { artists, hasMore: artists.length === chunkSize };

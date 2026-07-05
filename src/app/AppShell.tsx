@@ -69,6 +69,7 @@ import { usePlaybackRateStore } from '@/features/playback/store/playbackRateStor
 import { usePlaybackRateOrbitSync } from '@/features/orbit';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import { emitAlbumBrowseNav } from '@/lib/library/albumBrowseDebug';
+import { emitArtistsBrowseNav } from '@/lib/library/artistBrowseDebug';
 import {
   persistSidebarCollapsed,
   readInitialSidebarCollapsed,
@@ -143,6 +144,9 @@ export function AppShell() {
   useEffect(() => {
     if (location.pathname === '/albums') {
       emitAlbumBrowseNav('route_active', { pathname: location.pathname });
+    }
+    if (location.pathname === '/artists') {
+      emitArtistsBrowseNav('route_active', { pathname: location.pathname });
     }
   }, [location.pathname]);
 

@@ -2,51 +2,50 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import { onInvoke } from '@/test/mocks/tauri';
 import { useAuthStore } from '@/store/authStore';
 import { setPsyLabDebugTrace } from '@/lib/perf/psyLabDebugTraces';
-import { beginAlbumBrowseTrace, emitAlbumBrowseDebug } from './albumBrowseDebug';
+import { beginArtistsBrowseTrace, emitArtistsBrowseDebug } from './artistBrowseDebug';
 
-describe('albumBrowseDebug', () => {
+describe('artistBrowseDebug', () => {
   beforeEach(() => {
     useAuthStore.setState({ loggingMode: 'normal' });
-    onInvoke('set_psylab_albums_browse_trace', () => undefined);
     onInvoke('set_psylab_artists_browse_trace', () => undefined);
-    setPsyLabDebugTrace('albumsBrowse', false);
+    setPsyLabDebugTrace('artistsBrowse', false);
   });
 
   it('forwards JSON to frontend_debug_log when debug mode and PsyLab trace are on', () => {
     useAuthStore.setState({ loggingMode: 'debug' });
-    setPsyLabDebugTrace('albumsBrowse', true);
+    setPsyLabDebugTrace('artistsBrowse', true);
     let captured: unknown;
     onInvoke('frontend_debug_log', args => {
       captured = args;
       return undefined;
     });
-    beginAlbumBrowseTrace({ serverId: 'srv' });
-    emitAlbumBrowseDebug('catalog_chunk_done', { albums: 200 });
+    beginArtistsBrowseTrace({ serverId: 'srv' });
+    emitArtistsBrowseDebug('catalog_chunk_done', { artists: 200 });
     expect(captured).toEqual({
-      scope: 'albums-browse',
+      scope: 'artists-browse',
       message: expect.stringContaining('"step":"catalog_chunk_done"'),
     });
   });
 
   it('is a no-op when logging mode is not debug', () => {
-    setPsyLabDebugTrace('albumsBrowse', true);
+    setPsyLabDebugTrace('artistsBrowse', true);
     let invoked = false;
     onInvoke('frontend_debug_log', () => {
       invoked = true;
       return undefined;
     });
-    emitAlbumBrowseDebug('page_mount');
+    emitArtistsBrowseDebug('page_mount');
     expect(invoked).toBe(false);
   });
 
-  it('is a no-op when PsyLab albums browse trace is off', () => {
+  it('is a no-op when PsyLab artists browse trace is off', () => {
     useAuthStore.setState({ loggingMode: 'debug' });
     let invoked = false;
     onInvoke('frontend_debug_log', () => {
       invoked = true;
       return undefined;
     });
-    emitAlbumBrowseDebug('page_mount');
+    emitArtistsBrowseDebug('page_mount');
     expect(invoked).toBe(false);
   });
 });

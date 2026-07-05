@@ -20,6 +20,7 @@ pub enum LoggingMode {
 
 static LOGGING_MODE: AtomicU8 = AtomicU8::new(LoggingMode::Normal as u8);
 static PSYLAB_ALBUMS_BROWSE_TRACE: AtomicBool = AtomicBool::new(false);
+static PSYLAB_ARTISTS_BROWSE_TRACE: AtomicBool = AtomicBool::new(false);
 const LOG_BUFFER_MAX_LINES: usize = 20_000;
 
 /// Monotonic sequence assigned to each appended line; lets the UI tail
@@ -108,6 +109,15 @@ pub fn set_psylab_albums_browse_trace(enabled: bool) {
 
 pub fn should_log_albums_browse_trace() -> bool {
     should_log_debug() && PSYLAB_ALBUMS_BROWSE_TRACE.load(Ordering::Relaxed)
+}
+
+/// PsyLab → Toggles → Artists → Browse perf trace (frontend syncs via IPC).
+pub fn set_psylab_artists_browse_trace(enabled: bool) {
+    PSYLAB_ARTISTS_BROWSE_TRACE.store(enabled, Ordering::Relaxed);
+}
+
+pub fn should_log_artists_browse_trace() -> bool {
+    should_log_debug() && PSYLAB_ARTISTS_BROWSE_TRACE.load(Ordering::Relaxed)
 }
 
 pub fn append_log_line(line: String) {

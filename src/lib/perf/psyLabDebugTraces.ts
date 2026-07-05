@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { commands } from '@/generated/bindings';
 
 /** Per-page debug trace toggles (PsyLab → Toggles). Extend as more pages get traces. */
-export type PsyLabDebugTraceId = 'albumsBrowse';
+export type PsyLabDebugTraceId = 'albumsBrowse' | 'artistsBrowse';
 
 export type PsyLabDebugTraces = Record<PsyLabDebugTraceId, boolean>;
 
@@ -10,6 +10,7 @@ const STORAGE_KEY = 'psysonic_psylab_debug_traces_v1';
 
 const DEFAULT_TRACES: PsyLabDebugTraces = {
   albumsBrowse: false,
+  artistsBrowse: false,
 };
 
 let traces: PsyLabDebugTraces = { ...DEFAULT_TRACES };
@@ -31,6 +32,8 @@ function persistTraces(next: PsyLabDebugTraces): void {
 function syncTraceToBackend(id: PsyLabDebugTraceId, enabled: boolean): void {
   if (id === 'albumsBrowse') {
     void commands.setPsylabAlbumsBrowseTrace(enabled).catch(() => {});
+  } else if (id === 'artistsBrowse') {
+    void commands.setPsylabArtistsBrowseTrace(enabled).catch(() => {});
   }
 }
 

@@ -538,6 +538,15 @@ pub async fn library_advanced_search(
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .is_none();
+    let trace_artists_browse = psysonic_core::logging::should_log_artists_browse_trace()
+        && request.entity_types.len() == 1
+        && request.entity_types[0] == crate::filter::EntityKind::Artist
+        && request
+            .query
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .is_none();
     let trace_offset = request.offset;
     let trace_limit = request.limit;
     let trace_filter_count = request.filters.len();
@@ -564,6 +573,28 @@ pub async fn library_advanced_search(
                         "limit": trace_limit,
                         "filterCount": trace_filter_count,
                         "scopeCount": trace_scope_count,
+                        "ok": result.is_ok(),
+                    }
+                })
+            );
+        }
+        if trace_artists_browse {
+            let step_ms = t0.elapsed().as_millis();
+            let artist_count = result.as_ref().map(|r| r.artists.len()).unwrap_or(0);
+            crate::app_deprintln!(
+                "[frontend][artists-browse] {}",
+                serde_json::json!({
+                    "step": "rust_advanced_search",
+                    "elapsedMs": 0,
+                    "details": {
+                        "stepMs": step_ms,
+                        "artists": artist_count,
+                        "offset": trace_offset,
+                        "limit": trace_limit,
+                        "filterCount": trace_filter_count,
+                        "scopeCount": trace_scope_count,
+                        "creditMode": request.artist_credit_mode,
+                        "letterBucket": request.artist_letter_bucket,
                         "ok": result.is_ok(),
                     }
                 })

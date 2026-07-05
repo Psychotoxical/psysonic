@@ -12,6 +12,10 @@ import {
 } from '@/lib/library/browseTextSearch';
 import { useOfflineBrowseContext } from '@/features/offline';
 import { offlineLocalBrowseEnabled, searchOfflineLocalArtists } from '@/features/offline';
+import {
+  artistBrowseTimed,
+  emitArtistsBrowseDebug,
+} from '@/lib/library/artistBrowseDebug';
 
 /**
  * Debounced artist/composer name search with local-vs-network race when the
@@ -52,31 +56,45 @@ export function useBrowseArtistTextSearch(
     const gen = ++searchGenRef.current;
     const isStale = () => gen !== searchGenRef.current;
     setTextSearchLoading(true);
+    emitArtistsBrowseDebug('text_search_start', { query: q, creditMode, surface });
 
     void (async () => {
       if (offlineBrowseActive) {
         const artists = offlineLocalBrowseEnabled(serverId)
-          ? await searchOfflineLocalArtists(serverId, q, creditMode)
+          ? await artistBrowseTimed(
+            'text_search_offline',
+            () => searchOfflineLocalArtists(serverId, q, creditMode),
+            { query: q },
+          )
           : [];
         if (isStale()) return;
         setTextSearchArtists(artists);
         setTextSearchLoading(false);
+        emitArtistsBrowseDebug('text_search_done', { source: 'offline', artistCount: artists?.length ?? 0 });
         return;
       }
-      const outcome = await raceBrowseWithLocalFallback(
-        isStale,
-        () => runLocalBrowseArtists(serverId, q, creditMode),
-        () => runNetworkBrowseArtists(q, creditMode),
-        {
-          surface,
-          query: q,
-          indexEnabled,
-          counts: browseRaceCountsArtists,
-        },
+      const outcome = await artistBrowseTimed(
+        'text_search_race',
+        () => raceBrowseWithLocalFallback(
+          isStale,
+          () => runLocalBrowseArtists(serverId, q, creditMode),
+          () => runNetworkBrowseArtists(q, creditMode),
+          {
+            surface,
+            query: q,
+            indexEnabled,
+            counts: browseRaceCountsArtists,
+          },
+        ),
+        { query: q, creditMode },
       );
       if (isStale()) return;
       setTextSearchArtists(outcome?.result ?? null);
       setTextSearchLoading(false);
+      emitArtistsBrowseDebug('text_search_done', {
+        source: outcome?.source ?? 'none',
+        artistCount: outcome?.result?.length ?? 0,
+      });
     })();
   }, [creditMode, debouncedFilter, indexEnabled, offlineBrowseActive, serverId, starredOnly, surface]);
 

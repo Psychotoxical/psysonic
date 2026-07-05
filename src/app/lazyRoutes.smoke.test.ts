@@ -23,7 +23,7 @@ const ROUTE_LOADERS: Array<[string, () => Promise<{ default: unknown }>]> = [
   ['@/features/album/pages/LosslessAlbums', () => import('@/features/album/pages/LosslessAlbums')],
   ['@/features/album/pages/RandomAlbums', () => import('@/features/album/pages/RandomAlbums')],
   ['@/features/album/pages/LabelAlbums', () => import('@/features/album/pages/LabelAlbums')],
-  ['@/features/artist/pages/Artists', () => import('@/features/artist/pages/Artists')],
+  ['@/features/artist/pages/Artists', () => import('@/lib/library/artistBrowseRoutePrefetch').then(m => m.lazyLoadArtistsPage())],
   ['@/features/artist/pages/ArtistDetail', () => import('@/features/artist/pages/ArtistDetail')],
   ['@/features/composers/pages/Composers', () => import('@/features/composers/pages/Composers')],
   ['@/features/composers/pages/ComposerDetail', () => import('@/features/composers/pages/ComposerDetail')],
@@ -63,6 +63,9 @@ describe('lazy-route resolvability smoke', () => {
     );
     if (sources.includes('lazyLoadAlbumsPage')) {
       declared.add('@/features/album/pages/Albums');
+    }
+    if (sources.includes('lazyLoadArtistsPage')) {
+      declared.add('@/features/artist/pages/Artists');
     }
     const covered = new Set(ROUTE_LOADERS.map(([spec]) => spec));
     // Symmetric difference must be empty: a route added to the app but not this

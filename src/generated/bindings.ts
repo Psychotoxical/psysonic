@@ -447,6 +447,7 @@ export const commands = {
 	exitApp: () => __TAURI_INVOKE<void>("exit_app"),
 	setLoggingMode: (mode: string) => typedError<null, string>(__TAURI_INVOKE("set_logging_mode", { mode })),
 	setPsylabAlbumsBrowseTrace: (enabled: boolean) => typedError<null, string>(__TAURI_INVOKE("set_psylab_albums_browse_trace", { enabled })),
+	setPsylabArtistsBrowseTrace: (enabled: boolean) => typedError<null, string>(__TAURI_INVOKE("set_psylab_artists_browse_trace", { enabled })),
 	getLoggingMode: () => __TAURI_INVOKE<string>("get_logging_mode"),
 	/**
 	 *  Incremental tail of the in-memory runtime log buffer for the PsyLab Logs tab.

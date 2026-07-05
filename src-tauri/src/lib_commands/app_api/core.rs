@@ -36,6 +36,13 @@ pub(crate) fn set_psylab_albums_browse_trace(enabled: bool) -> Result<(), String
 
 #[tauri::command]
 #[specta::specta]
+pub(crate) fn set_psylab_artists_browse_trace(enabled: bool) -> Result<(), String> {
+    psysonic_core::logging::set_psylab_artists_browse_trace(enabled);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub(crate) fn get_logging_mode() -> String {
     crate::logging::current_mode_str().to_string()
 }

@@ -317,6 +317,37 @@ export const PERF_PROBE_TOGGLE_TREE: PerfToggleGroup[] = [
           },
         ],
       },
+      {
+        id: 'mainstage-artists',
+        label: 'Artists (`/artists`)',
+        children: [
+          {
+            id: 'disableMainstageGridCards-artists',
+            label: 'Artist card grid',
+            description: 'Disable `ArtistsGridView`',
+            flag: 'disableMainstageGridCards',
+          },
+          {
+            id: 'disableMainstageVirtualLists-artists',
+            label: 'Virtual list view',
+            description: 'Disable row virtualization in list mode',
+            flag: 'disableMainstageVirtualLists',
+          },
+          {
+            id: 'artists-debug-traces',
+            label: 'Debug traces',
+            children: [
+              {
+                id: 'artistsBrowseTrace',
+                label: 'Browse perf trace',
+                description:
+                  'Step timing for nav → SQL → paint (`artists-browse` scope). Requires PsyLab → Logs → Debug.',
+                trace: 'artistsBrowse',
+              },
+            ],
+          },
+        ],
+      },
     ],
   },
 ];

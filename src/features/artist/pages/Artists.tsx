@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { LayoutGrid, List, Images } from 'lucide-react';
 import SelectionToggleButton from '@/ui/SelectionToggleButton';
@@ -41,6 +41,11 @@ import { readArtistBrowseRestore } from '@/lib/navigation/albumDetailNavigation'
 
 import { useScopedBrowseSearchQuery } from '@/store/liveSearchScopeStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
+import { librarySelectionForServer } from '@/lib/api/subsonicClient';
+import {
+  beginArtistsBrowseTrace,
+  emitArtistsBrowseDebug,
+} from '@/lib/library/artistBrowseDebug';
 
 export default function Artists() {
   const perfFlags = usePerfProbeFlags();
@@ -64,6 +69,19 @@ export default function Artists() {
     viewMode,
     setViewMode,
   } = useArtistsBrowseFilters(serverId, scrollSnapshotRef);
+
+  useLayoutEffect(() => {
+    beginArtistsBrowseTrace({
+      serverId,
+      indexEnabled,
+      libraryFilterVersion: musicLibraryFilterVersion,
+      libraryScopeCount: librarySelectionForServer(serverId).length,
+      creditMode,
+      letterFilter,
+      viewMode,
+    });
+    return () => emitArtistsBrowseDebug('page_unmount');
+  }, [serverId, indexEnabled, musicLibraryFilterVersion, creditMode, letterFilter, viewMode]);
 
   const artistsSearchQuery = useScopedBrowseSearchQuery('artists');
 
@@ -164,6 +182,30 @@ export default function Artists() {
     hasMore
     || (browseMode === 'slice' && !textSearchActive && !starredOnly && catalogHasMore);
   const gridLoadingMore = sliceLoadingMore || catalogLoadingMore;
+
+  const prevLoadingRef = useRef(loading);
+  useEffect(() => {
+    if (prevLoadingRef.current && !loading) {
+      emitArtistsBrowseDebug('ui_loading_false', {
+        visibleCount: visible.length,
+        artistCount: artists.length,
+        viewMode,
+        textSearchActive,
+      });
+    }
+    prevLoadingRef.current = loading;
+  }, [loading, visible.length, artists.length, viewMode, textSearchActive]);
+
+  useLayoutEffect(() => {
+    if (!loading && visible.length > 0) {
+      emitArtistsBrowseDebug('browse_first_paint', {
+        visibleCount: visible.length,
+        viewMode,
+        textSearchActive,
+        letterFilter,
+      });
+    }
+  }, [loading, visible.length, viewMode, textSearchActive, letterFilter]);
 
   const loadMoreRef = useRef<() => void>(() => {});
   const sentinelIntersectingRef = useRef(false);

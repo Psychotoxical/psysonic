@@ -1,6 +1,7 @@
 import { lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { lazyLoadAlbumsPage } from '@/lib/library/albumBrowseRoutePrefetch';
+import { lazyLoadArtistsPage } from '@/lib/library/artistBrowseRoutePrefetch';
 import MobilePlayerView from '@/features/nowPlaying/components/MobilePlayerView';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { useSidebarStore } from '@/features/sidebar';
@@ -12,7 +13,7 @@ import { resolveStartRoute } from '@/features/sidebar';
 // the entry chunk; each page is fetched when its route is first visited.
 const Home = lazy(() => import('@/features/home/pages/Home'));
 const Albums = lazy(() => lazyLoadAlbumsPage());
-const Artists = lazy(() => import('@/features/artist/pages/Artists'));
+const Artists = lazy(() => lazyLoadArtistsPage());
 const ArtistDetail = lazy(() => import('@/features/artist/pages/ArtistDetail'));
 const Composers = lazy(() => import('@/features/composers/pages/Composers'));
 const ComposerDetail = lazy(() => import('@/features/composers/pages/ComposerDetail'));
