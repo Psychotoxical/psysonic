@@ -48,6 +48,7 @@ pub fn run_live_search(
 
     let scope_pairs = ordered_library_scope_pairs(server_id, library_scope, library_scopes);
     if multi_library_merge_enabled(&scope_pairs) {
+        crate::identity::ensure_cluster_keys_built(store, server_id)?;
         return run_live_search_multi_scope(
             store,
             &scope_pairs,

@@ -8,7 +8,7 @@ import { subscribeLibrarySyncIdle } from '@/lib/api/library';
 import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { fetchGenreCatalog, filterGenresWithContent } from '@/features/playback/utils/playback/genreBrowsePlayback';
-import { libraryScopeForServer } from '@/lib/api/subsonicClient';
+import { libraryScopeCacheKeyForServer } from '@/lib/api/subsonicClient';
 import { peekGenreCatalogCache } from '@/lib/library/genreCatalogCountsCache';
 import { resolveIndexKey } from '@/lib/server/serverIndexKey';
 import { genreColor } from '@/lib/library/genreColor';
@@ -23,15 +23,15 @@ export default function Genres() {
   const serverId = useAuthStore(s => s.activeServerId ?? '');
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
-  const libraryScope = libraryScopeForServer(serverId);
-  const cachedGenres = serverId ? peekGenreCatalogCache(serverId, libraryScope, true) : null;
+  const libraryScopeKey = libraryScopeCacheKeyForServer(serverId);
+  const cachedGenres = serverId ? peekGenreCatalogCache(serverId, libraryScopeKey, true) : null;
   const [rawGenres, setRawGenres] = useState<SubsonicGenre[]>(cachedGenres ?? []);
   const [loading, setLoading] = useState(!cachedGenres);
 
   useEffect(() => {
     let cancelled = false;
-    const scope = libraryScopeForServer(serverId);
-    const cached = serverId ? peekGenreCatalogCache(serverId, scope, true) : null;
+    const scopeKey = libraryScopeCacheKeyForServer(serverId);
+    const cached = serverId ? peekGenreCatalogCache(serverId, scopeKey, true) : null;
     if (cached) {
       // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
       // eslint-disable-next-line react-hooks/set-state-in-effect

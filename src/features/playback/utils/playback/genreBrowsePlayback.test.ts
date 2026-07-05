@@ -21,6 +21,8 @@ vi.mock('@/lib/api/subsonicGenres', () => ({
 vi.mock('@/lib/api/subsonicClient', () => ({
   libraryScopeForServer: vi.fn(() => 'music'),
   libraryScopePairsForServer: vi.fn(() => [{ serverId: 'srv-1', libraryId: 'music' }]),
+  libraryScopeCacheKeyForServer: vi.fn(() => 'music'),
+  librarySelectionForServer: vi.fn(() => ['music']),
 }));
 
 vi.mock('@/lib/library/libraryReady', () => ({

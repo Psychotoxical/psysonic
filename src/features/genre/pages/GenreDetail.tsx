@@ -24,7 +24,7 @@ import {
   fetchGenreTracksForPlayback,
 } from '@/features/playback/utils/playback/genreBrowsePlayback';
 import { lookupGenreAlbumCount } from '@/lib/library/genreCatalogCountsCache';
-import { libraryScopeForServer } from '@/lib/api/subsonicClient';
+import { libraryScopeCacheKeyForServer } from '@/lib/api/subsonicClient';
 import {
   readAlbumBrowseRestore,
   readAlbumDetailReturnTo,
@@ -97,7 +97,7 @@ export default function GenreDetail() {
 
   useEffect(() => {
     if (!genre || !serverId) return;
-    const cached = lookupGenreAlbumCount(serverId, genre, libraryScopeForServer(serverId));
+    const cached = lookupGenreAlbumCount(serverId, genre, libraryScopeCacheKeyForServer(serverId));
     // React Compiler set-state-in-effect rule: state set from a timer/animation callback.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (cached != null) setAlbumCount(cached);
@@ -105,7 +105,7 @@ export default function GenreDetail() {
 
   useEffect(() => {
     if (!genre || loading) return;
-    const cached = lookupGenreAlbumCount(serverId, genre, libraryScopeForServer(serverId));
+    const cached = lookupGenreAlbumCount(serverId, genre, libraryScopeCacheKeyForServer(serverId));
     if (cached != null) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {

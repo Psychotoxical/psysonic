@@ -145,10 +145,20 @@ export function libraryScopePairsForServer(serverId: string): { serverId: string
 
 /** Navidrome/Subsonic music folder id for the local library index, or undefined for all libraries. */
 export function libraryScopeForServer(serverId: string): string | undefined {
-  const resolved = resolveServerIdForIndexKey(serverId);
-  const f = useAuthStore.getState().musicLibraryFilterByServer[resolved];
-  if (f === undefined || f === 'all') return undefined;
-  return f;
+  const selection = librarySelectionForServer(serverId);
+  return selection.length === 1 ? selection[0] : undefined;
+}
+
+/** True when the user narrowed browsing to one or more libraries (not "all"). */
+export function libraryScopeIsActive(serverId: string): boolean {
+  return librarySelectionForServer(serverId).length > 0;
+}
+
+/** Stable cache-key segment for scoped reads (`all` or comma-joined library ids). */
+export function libraryScopeCacheKeyForServer(serverId: string): string {
+  const selection = librarySelectionForServer(serverId);
+  if (selection.length === 0) return 'all';
+  return selection.join(',');
 }
 
 /** Library folder filter for an explicit saved server (e.g. Now Playing while browsing another). */

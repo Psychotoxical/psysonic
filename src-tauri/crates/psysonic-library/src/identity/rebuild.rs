@@ -130,6 +130,32 @@ pub fn rebuild_cluster_keys(
     })
 }
 
+/// Build cluster keys on first multi-library read when the index has tracks but no keys yet.
+pub fn ensure_cluster_keys_built(store: &LibraryStore, server_id: &str) -> Result<(), String> {
+    let needs_rebuild = store
+        .with_read_conn(|conn| {
+            let track_count: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM track WHERE server_id = ?1 AND deleted = 0",
+                [server_id],
+                |r| r.get(0),
+            )?;
+            if track_count == 0 {
+                return Ok(false);
+            }
+            let key_count: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM cluster.track_cluster_key WHERE server_id = ?1",
+                [server_id],
+                |r| r.get(0),
+            )?;
+            Ok(key_count == 0)
+        })
+        .map_err(|e| e.to_string())?;
+    if needs_rebuild {
+        rebuild_cluster_keys(store, Some(server_id))?;
+    }
+    Ok(())
+}
+
 fn map_source_track_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SourceTrackRow> {
     Ok((
         row.get(0)?,

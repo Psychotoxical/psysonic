@@ -4,6 +4,7 @@ import type { AlbumBrowseQuery } from './albumBrowseTypes';
 const libraryGetGenreAlbumCounts = vi.fn();
 const libraryIsReady = vi.fn();
 const libraryScopeForServer = vi.fn();
+const librarySelectionForServer = vi.fn();
 const runLocalAlbumBrowse = vi.fn();
 
 vi.mock('@/lib/api/library', () => ({
@@ -16,6 +17,7 @@ vi.mock('./libraryReady', () => ({
 
 vi.mock('@/lib/api/subsonicClient', () => ({
   libraryScopeForServer: (...args: unknown[]) => libraryScopeForServer(...args),
+  librarySelectionForServer: (...args: unknown[]) => librarySelectionForServer(...args),
 }));
 
 vi.mock('./albumBrowseLocal', () => ({
@@ -36,6 +38,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   libraryIsReady.mockResolvedValue(true);
   libraryScopeForServer.mockReturnValue('lib-a');
+  librarySelectionForServer.mockReturnValue(['lib-a']);
 });
 
 describe('fetchAlbumBrowseGenreOptions', () => {

@@ -10,6 +10,6 @@ pub use attach::{
     attach_cluster_write_memory, cluster_db_path_for_library, CLUSTER_DB_FILENAME, CLUSTER_SCHEMA,
 };
 pub use norm::NORM_VERSION;
-pub use rebuild::{cluster_rebuild_needed, rebuild_cluster_keys};
+pub use rebuild::{cluster_rebuild_needed, ensure_cluster_keys_built, rebuild_cluster_keys};
 
 pub use keys::{build_track_cluster_keys, TrackClusterKeys};

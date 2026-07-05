@@ -4,11 +4,18 @@
 import { libraryAdvancedSearch, libraryGetGenreAlbumCounts, type LibrarySortClause } from '@/lib/api/library';
 import { fetchAllSongsByGenre, getGenres } from '@/lib/api/subsonicGenres';
 import type { SubsonicGenre } from '@/lib/api/subsonicTypes';
-import { libraryScopeForServer, libraryScopePairsForServer } from '@/lib/api/subsonicClient';
+import {
+  libraryScopeCacheKeyForServer,
+  libraryScopeForServer,
+  libraryScopePairsForServer,
+  librarySelectionForServer,
+} from '@/lib/api/subsonicClient';
 import type { Track } from '@/lib/media/trackTypes';
 import { songToTrack } from '@/lib/media/songToTrack';
 import { shuffleArray } from '@/lib/util/shuffleArray';
 import { trackToSong } from '@/lib/library/advancedSearchLocal';
+import { runLocalAlbumBrowse } from '@/lib/library/albumBrowseLocal';
+import { countGenresFromAlbums } from '@/lib/library/albumBrowseFilters';
 import { type AlbumBrowseSort } from '@/lib/library/albumBrowseSort';
 import {
   genreCatalogCacheKey,
@@ -28,7 +35,7 @@ export function filterGenresWithContent(genres: SubsonicGenre[]): SubsonicGenre[
 
 async function loadLocalGenreCatalogRows(
   serverId: string,
-  libraryScope: string | undefined,
+  libraryScope: string,
 ): Promise<SubsonicGenre[]> {
   const rows = await libraryGetGenreAlbumCounts({
     serverId,
@@ -41,12 +48,38 @@ async function loadLocalGenreCatalogRows(
   })));
 }
 
+/** Multi-library genre cloud from scoped album browse (no single-scope SQL fast path). */
+async function loadLocalGenreCatalogRowsMulti(serverId: string): Promise<SubsonicGenre[]> {
+  const page = await runLocalAlbumBrowse(
+    serverId,
+    {
+      sort: 'alphabeticalByName',
+      genres: [],
+      losslessOnly: false,
+      starredOnly: false,
+      compFilter: 'all',
+    },
+    0,
+    2000,
+  );
+  if (!page) return [];
+  return filterGenresWithContent(
+    countGenresFromAlbums(page.albums).map(({ genre, count }) => ({
+      value: genre,
+      albumCount: count,
+    })),
+  );
+}
+
 async function fetchLocalGenreCatalog(
   serverId: string,
-  libraryScope: string | undefined,
+  scopeKey: string,
 ): Promise<SubsonicGenre[]> {
-  const genres = await loadLocalGenreCatalogRows(serverId, libraryScope);
-  writeGenreCatalogCache(serverId, libraryScope, genres);
+  const selection = librarySelectionForServer(serverId);
+  const genres = selection.length === 1
+    ? await loadLocalGenreCatalogRows(serverId, selection[0])
+    : await loadLocalGenreCatalogRowsMulti(serverId);
+  writeGenreCatalogCache(serverId, scopeKey, genres);
   return genres;
 }
 
@@ -110,10 +143,10 @@ export async function fetchGenreAlbumCount(
 ): Promise<number | null> {
   if (!genre.trim()) return null;
   if (indexEnabled && serverId) {
-    const scope = libraryScopeForServer(serverId);
-    const cached = lookupGenreAlbumCount(serverId, genre, scope);
+    const scopeKey = libraryScopeCacheKeyForServer(serverId);
+    const cached = lookupGenreAlbumCount(serverId, genre, scopeKey);
     if (cached != null) return cached;
-    const inflight = getInflightGenreCatalog(genreCatalogCacheKey(serverId, scope));
+    const inflight = getInflightGenreCatalog(genreCatalogCacheKey(serverId, scopeKey));
     if (inflight) {
       const catalog = await inflight;
       const match = catalog.find(g => g.value.localeCompare(genre, undefined, { sensitivity: 'accent' }) === 0);
@@ -139,12 +172,12 @@ export async function fetchGenreCatalog(
 ): Promise<SubsonicGenre[]> {
   if (!serverId) return getGenres();
 
-  const scope = libraryScopeForServer(serverId);
-  const cacheKey = genreCatalogCacheKey(serverId, scope);
-  const fresh = peekGenreCatalogCache(serverId, scope, false);
+  const scopeKey = libraryScopeCacheKeyForServer(serverId);
+  const cacheKey = genreCatalogCacheKey(serverId, scopeKey);
+  const fresh = peekGenreCatalogCache(serverId, scopeKey, false);
   if (fresh) return fresh;
 
-  const stale = peekGenreCatalogCache(serverId, scope, true);
+  const stale = peekGenreCatalogCache(serverId, scopeKey, true);
   const inflight = getInflightGenreCatalog(cacheKey);
   if (inflight) {
     if (stale) return stale;
@@ -154,13 +187,13 @@ export async function fetchGenreCatalog(
   const load = async (): Promise<SubsonicGenre[]> => {
     if (indexEnabled && (await libraryIsReady(serverId))) {
       try {
-        return await fetchLocalGenreCatalog(serverId, scope);
+        return await fetchLocalGenreCatalog(serverId, scopeKey);
       } catch {
         /* network fallback */
       }
     }
     const genres = filterGenresWithContent(await getGenres());
-    writeGenreCatalogCache(serverId, scope, genres);
+    writeGenreCatalogCache(serverId, scopeKey, genres);
     return genres;
   };
 

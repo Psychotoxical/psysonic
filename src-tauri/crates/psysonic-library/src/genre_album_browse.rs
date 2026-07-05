@@ -115,6 +115,7 @@ pub fn list_albums_by_genre(
         req.library_scopes.as_deref(),
     );
     if multi_library_merge_enabled(&scope_pairs) {
+        crate::identity::ensure_cluster_keys_built(store, &req.server_id)?;
         return list_albums_by_genre_multi_scope(store, req, &scope_pairs, genre, limit, offset);
     }
 
