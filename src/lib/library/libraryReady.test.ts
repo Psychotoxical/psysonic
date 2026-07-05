@@ -56,6 +56,14 @@ describe('libraryStatusIsReady', () => {
     ).toBe(true);
   });
 
+  it('accepts empty syncPhase when hasLocalTracks is set (no sync_state row)', () => {
+    expect(
+      libraryStatusIsReady(
+        status({ syncPhase: '', hasLocalTracks: true, localTrackCount: 0 }),
+      ),
+    ).toBe(true);
+  });
+
   it('rejects idle without a prior full sync', () => {
     expect(libraryStatusIsReady(status({ syncPhase: 'idle', localTrackCount: 0 }))).toBe(false);
   });

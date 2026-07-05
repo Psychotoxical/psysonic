@@ -28,7 +28,7 @@ import {
   type LibrarySearchDebugEntry,
   type LibrarySearchSurface,
 } from './libraryDevLog';
-import { libraryIsReady } from './libraryReady';
+import { libraryIsReady, waitForLibraryBrowseReady } from './libraryReady';
 import { artistBrowseTimed, emitArtistsBrowseDebug } from './artistBrowseDebug';
 import { raceSearchSources, type SearchRaceWinner } from './searchRace';
 
@@ -584,13 +584,13 @@ export async function fetchLocalArtistCatalogChunk(
   letterBucket?: string | null,
 ): Promise<ArtistCatalogChunkResult | null> {
   if (!serverId) return null;
-  const ready = await artistBrowseTimed(
+  const { ready, waitedMs } = await artistBrowseTimed(
     'library_ready',
-    () => libraryIsReady(serverId),
+    () => waitForLibraryBrowseReady(serverId),
     { serverId },
   );
   if (!ready) {
-    emitArtistsBrowseDebug('library_not_ready', { serverId, offset, chunkSize });
+    emitArtistsBrowseDebug('library_not_ready', { serverId, offset, chunkSize, waitedMs });
     return null;
   }
   const bucket = letterBucket && letterBucket !== 'ALL' ? letterBucket : undefined;

@@ -1,6 +1,6 @@
 import type { SubsonicArtist } from '@/lib/api/subsonicTypes';
 import type { ArtistCreditMode } from '@/lib/api/library';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { dedupeById } from '@/lib/util/dedupeById';
 import {
   fetchLocalArtistCatalogChunk,
@@ -17,10 +17,21 @@ import {
   offlineLocalBrowseEnabled,
 } from '@/features/offline';
 import { librarySelectionForServer } from '@/lib/api/subsonicClient';
+import { scheduleAlbumBrowseBackgroundWork } from '@/lib/library/albumBrowseBackground';
 import {
   artistBrowseTimed,
   emitArtistsBrowseDebug,
 } from '@/lib/library/artistBrowseDebug';
+import {
+  ARTIST_BROWSE_BOOTSTRAP_CHUNK,
+  artistBrowseBootstrapEligible,
+  artistBrowseCatalogCacheKey,
+  artistBrowseCatalogInflight,
+  artistBrowseInitialLoadKey,
+  fetchArtistBrowseCatalogDeduped,
+  readArtistBrowseCatalogCache,
+  storeArtistBrowseCatalogCache,
+} from '@/lib/library/artistBrowseInflight';
 
 /** Local-index artist catalog buffer grows by this many rows per background SQL chunk. */
 export const ARTIST_CATALOG_CHUNK_SIZE = 200;
@@ -55,6 +66,34 @@ export function useArtistsBrowseCatalog({
   const loadGenerationRef = useRef(0);
   const catalogOffsetRef = useRef(0);
   const catalogLoadingRef = useRef(false);
+
+  const catalogLoadKey = useMemo(() => {
+    if (!serverId) return '';
+    return artistBrowseInitialLoadKey(
+      serverId,
+      musicLibraryFilterVersion,
+      creditMode,
+      letterFilter,
+      starredOnly,
+      offlineBrowseActive,
+    );
+  }, [serverId, musicLibraryFilterVersion, creditMode, letterFilter, starredOnly, offlineBrowseActive]);
+
+  useLayoutEffect(() => {
+    const cached = readArtistBrowseCatalogCache(catalogLoadKey);
+    if (!cached) return;
+    catalogOffsetRef.current = cached.artists.length;
+    catalogLoadingRef.current = false;
+    setBrowseMode('slice');
+    setCatalogArtists(cached.artists);
+    setCatalogHasMore(cached.hasMore);
+    setCatalogLoadingMore(false);
+    setLoading(false);
+    emitArtistsBrowseDebug('load_effect_cache_hit', {
+      artistCount: cached.artists.length,
+      sync: true,
+    });
+  }, [catalogLoadKey]);
 
   const loadCatalogChunk = useCallback(async (append: boolean) => {
     if (!serverId || catalogLoadingRef.current) return;
@@ -144,16 +183,38 @@ export function useArtistsBrowseCatalog({
 
   useEffect(() => {
     let cancelled = false;
+    const loadKey = catalogLoadKey;
+
+    if (readArtistBrowseCatalogCache(loadKey)) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const bootKey = artistBrowseCatalogCacheKey(
+      loadKey,
+      ARTIST_BROWSE_BOOTSTRAP_CHUNK,
+      ARTIST_CATALOG_CHUNK_SIZE,
+    );
+    const joinInflight =
+      artistBrowseCatalogInflight(loadKey)
+      || (artistBrowseBootstrapEligible(letterFilter, starredOnly)
+        && artistBrowseCatalogInflight(bootKey));
+    if (!joinInflight) {
+      catalogOffsetRef.current = 0;
+      catalogLoadingRef.current = false;
+      // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCatalogArtists([]);
+      setCatalogHasMore(false);
+      setCatalogLoadingMore(false);
+      setBrowseMode('network');
+      setLoading(true);
+    } else {
+      emitArtistsBrowseDebug('load_effect_join_inflight', {});
+    }
+
     const generation = ++loadGenerationRef.current;
-    catalogOffsetRef.current = 0;
-    catalogLoadingRef.current = false;
-    // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCatalogArtists([]);
-    setCatalogHasMore(false);
-    setCatalogLoadingMore(false);
-    setBrowseMode('network');
-    setLoading(true);
 
     emitArtistsBrowseDebug('load_effect_start', {
       serverId,
@@ -164,6 +225,7 @@ export function useArtistsBrowseCatalog({
       starredOnly,
       creditMode,
       letterFilter,
+      joinInflight,
     });
 
     void (async () => {
@@ -233,19 +295,99 @@ export function useArtistsBrowseCatalog({
         }
         if (indexEnabled && serverId) {
           emitArtistsBrowseDebug('load_branch', { mode: 'slice_try' });
-          const first = await artistBrowseTimed(
-            'local_catalog_initial',
-            () => fetchLocalArtistCatalogChunk(
-              serverId,
-              0,
-              ARTIST_CATALOG_CHUNK_SIZE,
-              creditMode,
-              letterFilter,
+          const bootstrap = artistBrowseBootstrapEligible(letterFilter, starredOnly);
+          if (bootstrap) {
+            const preview = await fetchArtistBrowseCatalogDeduped(bootKey, () =>
+              artistBrowseTimed(
+                'local_catalog_bootstrap',
+                () => fetchLocalArtistCatalogChunk(
+                  serverId,
+                  0,
+                  ARTIST_BROWSE_BOOTSTRAP_CHUNK,
+                  creditMode,
+                  letterFilter,
+                ),
+                { creditMode, letterFilter, chunkSize: ARTIST_BROWSE_BOOTSTRAP_CHUNK },
+              ),
+            );
+            if (cancelled || generation !== loadGenerationRef.current) return;
+            if (preview != null && preview.artists.length > 0) {
+              setBrowseMode('slice');
+              setCatalogArtists(preview.artists);
+              catalogOffsetRef.current = preview.artists.length;
+              const needsTail =
+                preview.hasMore && preview.artists.length < ARTIST_CATALOG_CHUNK_SIZE;
+              setCatalogHasMore(needsTail || preview.hasMore);
+              setLoading(false);
+              emitArtistsBrowseDebug('loading_false', {
+                source: 'slice_bootstrap',
+                artistCount: preview.artists.length,
+              });
+              emitArtistsBrowseDebug('load_effect_done', {
+                browseMode: 'slice',
+                bootstrap: true,
+                artistCount: preview.artists.length,
+                hasMore: preview.hasMore,
+              });
+              if (needsTail) {
+                const tailOffset = preview.artists.length;
+                const tailSize = ARTIST_CATALOG_CHUNK_SIZE - tailOffset;
+                scheduleAlbumBrowseBackgroundWork(() => {
+                  void (async () => {
+                    catalogLoadingRef.current = true;
+                    try {
+                      const tail = await fetchArtistBrowseCatalogDeduped(loadKey, () =>
+                        artistBrowseTimed(
+                          'local_catalog_tail',
+                          () => fetchLocalArtistCatalogChunk(
+                            serverId,
+                            tailOffset,
+                            tailSize,
+                            creditMode,
+                            letterFilter,
+                          ),
+                          { creditMode, letterFilter, chunkSize: tailSize, offset: tailOffset },
+                        ),
+                      );
+                      if (generation !== loadGenerationRef.current || tail == null) return;
+                      storeArtistBrowseCatalogCache(loadKey, {
+                        artists: dedupeById([...preview.artists, ...tail.artists]),
+                        hasMore: tail.hasMore,
+                      });
+                      setCatalogArtists(prev => dedupeById([...prev, ...tail.artists]));
+                      catalogOffsetRef.current = preview.artists.length + tail.artists.length;
+                      setCatalogHasMore(tail.hasMore);
+                      emitArtistsBrowseDebug('catalog_tail_done', {
+                        artistCount: tail.artists.length,
+                        hasMore: tail.hasMore,
+                      });
+                    } finally {
+                      catalogLoadingRef.current = false;
+                    }
+                  })();
+                });
+              } else {
+                storeArtistBrowseCatalogCache(loadKey, preview);
+              }
+              return;
+            }
+          }
+          const first = await fetchArtistBrowseCatalogDeduped(loadKey, () =>
+            artistBrowseTimed(
+              'local_catalog_initial',
+              () => fetchLocalArtistCatalogChunk(
+                serverId,
+                0,
+                ARTIST_CATALOG_CHUNK_SIZE,
+                creditMode,
+                letterFilter,
+              ),
+              { creditMode, letterFilter, chunkSize: ARTIST_CATALOG_CHUNK_SIZE },
             ),
-            { creditMode, letterFilter, chunkSize: ARTIST_CATALOG_CHUNK_SIZE },
           );
           if (cancelled || generation !== loadGenerationRef.current) return;
           if (first != null) {
+            storeArtistBrowseCatalogCache(loadKey, first);
             setBrowseMode('slice');
             setCatalogArtists(first.artists);
             catalogOffsetRef.current = first.artists.length;
@@ -259,7 +401,7 @@ export function useArtistsBrowseCatalog({
           }
           emitArtistsBrowseDebug('slice_fallback', { reason: 'local_chunk_null' });
         }
-        if (!cancelled && generation === loadGenerationRef.current) {
+        if (!cancelled && generation === loadGenerationRef.current && !indexEnabled) {
           emitArtistsBrowseDebug('load_branch', { mode: 'network' });
           const network = await artistBrowseTimed(
             'network_catalog',
@@ -267,9 +409,23 @@ export function useArtistsBrowseCatalog({
             { creditMode },
           );
           setCatalogArtists(network);
+          setBrowseMode('network');
           emitArtistsBrowseDebug('load_effect_done', {
             browseMode: 'network',
             artistCount: network.length,
+          });
+        } else if (
+          !cancelled
+          && generation === loadGenerationRef.current
+          && indexEnabled
+        ) {
+          setBrowseMode('slice');
+          setCatalogArtists([]);
+          setCatalogHasMore(false);
+          emitArtistsBrowseDebug('load_effect_done', {
+            browseMode: 'slice',
+            artistCount: 0,
+            localUnavailable: true,
           });
         }
       } catch {
@@ -287,7 +443,7 @@ export function useArtistsBrowseCatalog({
     return () => {
       cancelled = true;
     };
-  }, [creditMode, letterFilter, musicLibraryFilterVersion, indexEnabled, offlineBrowseActive, offlineBrowseReloadTs, serverId, starredOnly]);
+  }, [catalogLoadKey, creditMode, letterFilter, musicLibraryFilterVersion, indexEnabled, offlineBrowseActive, offlineBrowseReloadTs, serverId, starredOnly]);
 
   return {
     catalogArtists,

@@ -27,7 +27,7 @@ use crate::scope_merge::{self, collect_scope_fts_rowids};
 use crate::search::{
     aliased_track_columns, aliased_track_columns_resolved_bpm, bpm_resolved_expr,
     fts_album_prefix_match_query, fts_album_title_prefix_match_query, fts_column_prefix_query, fts_query_meets_min_len,
-    fts_track_prefix_match_query, library_scope_equals_sql, like_contains, like_contains_folded,
+    fts_track_prefix_match_query, library_scope_equals_sql, library_scope_in_sql, like_contains, like_contains_folded,
     PAGE_LIMIT_MAX,
 };
 use crate::store::LibraryStore;
@@ -344,6 +344,12 @@ fn build_layer1_scope_artist(
     skip_totals: bool,
     applied: &mut BTreeSet<String>,
 ) -> Result<(Vec<LibraryArtistDto>, u32), String> {
+    // #1209: album/track credit modes browse the `artist` table — not track GROUP BY.
+    if !scalar_requires_track_derived_entities(scalar) {
+        return build_artist_from_table(
+            store, req, text, scalar, limit, offset, skip_totals, applied,
+        );
+    }
     let (extra_where, extra_params) = multi_scope_track_filter_sql(
         store,
         req,
@@ -1057,19 +1063,35 @@ fn push_artist_letter_bucket(w: &mut WhereBuilder, bucket: &str, applied: &mut B
     applied.insert("letter".to_string());
 }
 
-/// `artist` rows are server-wide; narrow to artists with tracks in the active library scope.
+/// `artist` rows are server-wide; narrow to artists with tracks in the active scope.
 fn push_artist_library_scope(w: &mut WhereBuilder, req: &LibraryAdvancedSearchRequest, applied: &mut BTreeSet<String>) {
-    if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
+    let pairs = ordered_library_scope_pairs(
+        &req.server_id,
+        req.library_scope.as_deref(),
+        req.library_scopes.as_deref(),
+    );
+    if pairs.is_empty() {
+        return;
+    }
+    let exists_prefix = "EXISTS (SELECT 1 FROM track t WHERE t.server_id = ar.server_id \
+        AND t.deleted = 0 AND t.artist_id = ar.id AND ";
+    if pairs.len() == 1 {
         let clause = library_scope_equals_sql("t");
         w.push_params(
-            &format!(
-                "EXISTS (SELECT 1 FROM track t WHERE t.server_id = ar.server_id \
-                 AND t.deleted = 0 AND t.artist_id = ar.id AND {clause})"
-            ),
-            vec![SqlValue::Text(scope)],
+            &format!("{exists_prefix}{clause})"),
+            vec![SqlValue::Text(pairs[0].library_id.clone())],
         );
-        applied.insert("library_scope".to_string());
+    } else {
+        let in_clause = library_scope_in_sql("t", pairs.len());
+        w.push_params(
+            &format!("{exists_prefix}{in_clause})"),
+            pairs
+                .iter()
+                .map(|p| SqlValue::Text(p.library_id.clone()))
+                .collect(),
+        );
     }
+    applied.insert("library_scope".to_string());
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1083,18 +1105,7 @@ fn build_artist(
     skip_totals: bool,
     applied: &mut BTreeSet<String>,
 ) -> Result<(Vec<LibraryArtistDto>, u32), String> {
-    // Single-library scope: derive the catalog from in-scope tracks (same idea as
-    // album browse via `build_album_from_tracks`). The `artist` table + EXISTS
-    // path misses rows when `library_id` is empty on bulk-ingested tracks and is
-    // slower even when populated.
-    if trimmed_nonempty(req.library_scope.as_deref()).is_some()
-        && !scalar_requires_track_derived_entities(scalar)
-    {
-        return build_artist_from_tracks_scoped(
-            store, req, text, scalar, limit, offset, skip_totals, applied,
-        );
-    }
-    // #1209: browse uses a single `artist` table path — no FTS / track fallthrough.
+    // #1209: album/track credit modes browse the `artist` table — not track GROUP BY.
     if !scalar_requires_track_derived_entities(scalar) {
         return build_artist_from_table(store, req, text, scalar, limit, offset, skip_totals, applied);
     }
@@ -1107,6 +1118,7 @@ fn build_artist(
 /// Artist browse for a single scoped library — one `GROUP BY artist_id` over
 /// in-scope tracks (COALESCE/json `library_id` match), with `artist` table
 /// metadata when present.
+#[allow(dead_code)]
 #[allow(clippy::too_many_arguments)]
 fn build_artist_from_tracks_scoped(
     store: &LibraryStore,
@@ -3162,6 +3174,51 @@ mod tests {
     fn seed_and_rebuild(store: &LibraryStore, rows: &[TrackRow]) {
         TrackRepository::new(store).upsert_batch(rows).unwrap();
         crate::identity::rebuild_cluster_keys(store, None).unwrap();
+    }
+
+    #[test]
+    fn album_credit_mode_layer1_scope_excludes_backfill_track_performers() {
+        let store = LibraryStore::open_in_memory();
+        insert_artist_with_album_count(&store, "s1", "ar_real", "Real Band", Some(2));
+        insert_artist_with_album_count(&store, "s1", "ar_guest", "Sampler Guest", None);
+        let mut t_guest = scoped_track(
+            "s1",
+            "t-va",
+            "Track One",
+            "Sampler Guest",
+            "VA Sampler",
+            "alb-va",
+            "sampler",
+            None,
+            None,
+            None,
+        );
+        t_guest.artist_id = Some("ar_guest".into());
+        t_guest.album_artist = Some("Various Artists".into());
+        let mut t_real = scoped_track(
+            "s1",
+            "t-real",
+            "Song",
+            "Real Band",
+            "Real Album",
+            "alb-real",
+            "sampler",
+            None,
+            None,
+            None,
+        );
+        t_real.artist_id = Some("ar_real".into());
+        TrackRepository::new(&store).upsert_batch(&[t_guest, t_real]).unwrap();
+        let mut r = req("s1", &[EntityKind::Artist]);
+        r.library_scopes = Some(vec![scope_pair("s1", "sampler")]);
+        r.artist_credit_mode = Some(ArtistCreditMode::Album);
+        let resp = run_advanced_search(&store, &r).unwrap();
+        let ids: Vec<&str> = resp.artists.iter().map(|a| a.id.as_str()).collect();
+        assert!(
+            !ids.contains(&"ar_guest"),
+            "backfill performer must not appear in album mode"
+        );
+        assert!(ids.contains(&"ar_real"));
     }
 
     #[test]

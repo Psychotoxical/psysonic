@@ -1,5 +1,6 @@
 import type { AuthState } from './authStoreTypes';
 import { prefetchAlbumBrowseCatalogAfterFilterChange } from '@/lib/library/albumBrowseCatalogPrefetch';
+import { prefetchArtistBrowseCatalogAfterFilterChange } from '@/lib/library/artistBrowseCatalogPrefetch';
 import { scheduleMusicLibraryFilterVersionBump } from './musicLibraryFilterNotify';
 
 type SetState = (
@@ -18,6 +19,7 @@ function deferMusicLibraryCatalogReload(get: GetState, set: SetState, serverId: 
       musicLibraryFilterVersion: s.musicLibraryFilterVersion + 1,
     }));
     prefetchAlbumBrowseCatalogAfterFilterChange(serverId, get().musicLibraryFilterVersion);
+    prefetchArtistBrowseCatalogAfterFilterChange(serverId, get().musicLibraryFilterVersion);
   });
 }
 

@@ -15,9 +15,9 @@ export function libraryStatusIsReady(status: SyncStateDto): boolean {
     const server = status.serverTrackCount ?? 0;
     if (server > 0 && local / server >= 0.95) return true;
   }
-  // Re-bind resets sync_phase to `idle` while SQLite data stays — treat a
-  // completed full sync (or live rows) as ready for local reads.
-  if (status.syncPhase === 'idle') {
+  // Missing `sync_state` row (`""`) or post-bind `idle` — mirror Rust
+  // `library_server_is_ready` when phase is absent or idle.
+  if (status.syncPhase === '' || status.syncPhase === 'idle') {
     if (status.hasLocalTracks) return true;
     if (status.lastFullSyncAt != null) return true;
     if ((status.localTracksMaxUpdatedMs ?? 0) > 0) return true;
@@ -62,4 +62,39 @@ export async function libraryIsReady(serverId: string | null | undefined): Promi
   } catch {
     return false;
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => {
+    setTimeout(resolve, ms);
+  });
+}
+
+export type LibraryBrowseReadyResult = {
+  ready: boolean;
+  waitedMs: number;
+};
+
+/** Poll until the local index is readable for browse (short wait for sync-idle races). */
+export async function waitForLibraryBrowseReady(
+  serverId: string,
+  options?: { maxWaitMs?: number; pollIntervalMs?: number },
+): Promise<LibraryBrowseReadyResult> {
+  if (!serverId) return { ready: false, waitedMs: 0 };
+  if (!useLibraryIndexStore.getState().isIndexEnabled(serverId)) {
+    return { ready: false, waitedMs: 0 };
+  }
+  const maxWaitMs = options?.maxWaitMs ?? 4_000;
+  const pollIntervalMs = options?.pollIntervalMs ?? 80;
+  const start = Date.now();
+  if (await libraryIsReady(serverId)) {
+    return { ready: true, waitedMs: 0 };
+  }
+  while (Date.now() - start < maxWaitMs) {
+    await sleep(pollIntervalMs);
+    if (await libraryIsReady(serverId)) {
+      return { ready: true, waitedMs: Date.now() - start };
+    }
+  }
+  return { ready: false, waitedMs: Date.now() - start };
 }
