@@ -20,14 +20,14 @@ interface MusicFolder { id: string; name: string }
 interface Props {
   isCollapsed: boolean;
   showLibraryPicker: boolean;
-  filterId: string;
-  selectedFolderName: string | null;
+  selectedLibraryIds: string[];
+  selectionSummary: string | null;
   libraryDropdownOpen: boolean;
   setLibraryDropdownOpen: (open: boolean) => void;
   dropdownRect: { top: number; left: number; width: number };
   libraryTriggerRef: React.RefObject<HTMLButtonElement | null>;
   musicFolders: MusicFolder[];
-  pickLibrary: (id: 'all' | string) => void;
+  onLibrarySelectionChange: (libraryIds: string[]) => void;
   visibleLibraryConfigs: SidebarItemConfig[];
   visibleSystemConfigs: SidebarItemConfig[];
   playlistsExpanded: boolean;
@@ -55,9 +55,9 @@ interface Props {
 
 export default function SidebarNavBody(props: Props) {
   const {
-    isCollapsed, showLibraryPicker, filterId, selectedFolderName,
+    isCollapsed, showLibraryPicker, selectedLibraryIds, selectionSummary,
     libraryDropdownOpen, setLibraryDropdownOpen, dropdownRect, libraryTriggerRef,
-    musicFolders, pickLibrary,
+    musicFolders, onLibrarySelectionChange,
     visibleLibraryConfigs,
     visibleSystemConfigs,
     playlistsExpanded, setPlaylistsExpanded, playlists, playlistsLoading,
@@ -90,14 +90,14 @@ export default function SidebarNavBody(props: Props) {
         {nowPlayingAtTop && nowPlayingLink}
         {!isCollapsed && (showLibraryPicker ? (
           <SidebarLibraryPicker
-            filterId={filterId}
-            selectedFolderName={selectedFolderName}
+            selectedLibraryIds={selectedLibraryIds}
+            selectionSummary={selectionSummary}
             libraryDropdownOpen={libraryDropdownOpen}
             setLibraryDropdownOpen={setLibraryDropdownOpen}
             dropdownRect={dropdownRect}
             libraryTriggerRef={libraryTriggerRef}
             musicFolders={musicFolders}
-            pickLibrary={pickLibrary}
+            onSelectionChange={onLibrarySelectionChange}
           />
         ) : (
           <span className="nav-section-label">{t('sidebar.library')}</span>
