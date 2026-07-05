@@ -171,6 +171,7 @@ fn map_source_track_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SourceTrack
 
 /// Test helper: read one row from the attached `cluster` schema on any connection.
 #[cfg(test)]
+#[allow(clippy::type_complexity)]
 pub(crate) fn read_cluster_row(
     conn: &Connection,
     server_id: &str,
@@ -192,6 +193,7 @@ mod tests {
     use crate::repos::track::{TrackRepository, TrackRow};
     use crate::store::LibraryStore;
 
+    #[allow(clippy::too_many_arguments)]
     fn track_row(
         server: &str,
         id: &str,

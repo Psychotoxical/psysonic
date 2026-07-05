@@ -2,12 +2,26 @@
 //!
 //! `norm(s)`: Unicode NFD → drop combining marks → lowercase → letters/digits only.
 //! Empty after normalization → `None` (key is NULL; track never merges).
+//!
+//! Diacritic folding is driven by an in-crate decomposition table (dependency-free),
+//! so it must be kept in step with the languages the app actually ships as UI
+//! locales (`src/locales/*`). The table currently covers the Latin scripts
+//! (incl. German ß→ss, Norwegian/Danish æ→ae, French œ→oe, Romanian comma-below
+//! ș/ț) and the Cyrillic folds (ru/bg: ё→е, й→и). CJK locales (ja, zh) are left
+//! intact on purpose — Han/Kana are kept verbatim and Japanese dakuten are
+//! phonemic, so they must NOT be stripped.
+//!
+//! WHEN ADDING A NEW UI LOCALE: audit this table for that language's letters and
+//! extend it if any diacritic/ligature would otherwise not fold (then bump
+//! `NORM_VERSION` so existing cluster keys rebuild). See the i18n locale-adding
+//! guide for the checklist entry that points here.
 
 /// Separator for composite keys — U+001F cannot appear in normalized output.
 pub(crate) const KEY_SEP: char = '\u{001f}';
 
 /// Bump when normalization rules change; stored in `cluster.cluster_meta.norm_version`.
-pub const NORM_VERSION: &str = "1";
+/// v2: locale-aware folding (ß→ss, æ→ae, œ→oe, Romanian ș/ț, Cyrillic ё/й).
+pub const NORM_VERSION: &str = "2";
 
 /// Normalize one identity field. Returns `None` when input is empty/whitespace-only
 /// or when normalization strips everything (punctuation-only, etc.).
@@ -79,7 +93,9 @@ fn decompose_canonical(chars: impl IntoIterator<Item = char>) -> Vec<char> {
     work
 }
 
-/// Canonical single-char decomposition (Latin-focused; unmapped chars pass through).
+/// Canonical single-char decomposition for the shipped UI-locale scripts
+/// (Latin incl. ligatures + Romanian comma-below, and Cyrillic ё/й). Unmapped
+/// chars — notably CJK — pass through untouched. Keep in sync with `src/locales/*`.
 fn canonical_decomposition(c: char) -> Option<Vec<char>> {
     let cp = c as u32;
     let (base, mark) = match cp {
@@ -89,8 +105,8 @@ fn canonical_decomposition(c: char) -> Option<Vec<char>> {
         0x00C3 | 0x00E3 => ('A', '\u{0303}'),
         0x00C4 | 0x00E4 => ('A', '\u{0308}'),
         0x00C5 | 0x00E5 => ('A', '\u{030A}'),
-        0x00C6 => ('A', '\u{0306}'),
-        0x00E6 => ('a', '\u{0306}'),
+        0x00C6 => return Some(vec!['A', 'E']),
+        0x00E6 => return Some(vec!['a', 'e']),
         0x00C7 | 0x00E7 => ('C', '\u{0327}'),
         0x00C8 | 0x00E8 => ('E', '\u{0300}'),
         0x00C9 | 0x00E9 => ('E', '\u{0301}'),
@@ -114,7 +130,7 @@ fn canonical_decomposition(c: char) -> Option<Vec<char>> {
         0x00DB | 0x00FB => ('U', '\u{0302}'),
         0x00DC | 0x00FC => ('U', '\u{0308}'),
         0x00DD | 0x00FD => ('Y', '\u{0301}'),
-        0x00DF => return Some(vec!['s', '\u{0308}']),
+        0x00DF => return Some(vec!['s', 's']),
         0x0100 | 0x0101 => ('A', '\u{0304}'),
         0x0102 | 0x0103 => ('A', '\u{0306}'),
         0x0104 | 0x0105 => ('A', '\u{0328}'),
@@ -178,6 +194,18 @@ fn canonical_decomposition(c: char) -> Option<Vec<char>> {
         0x017B | 0x017C => ('Z', '\u{0307}'),
         0x017D | 0x017E => ('Z', '\u{030C}'),
         0x017F => return Some(vec!['s']),
+        // French ligature œ (æ/ß handled above). Fold to the two-letter form.
+        0x0152 => return Some(vec!['O', 'E']),
+        0x0153 => return Some(vec!['o', 'e']),
+        // Romanian comma-below (Latin Extended-B): Ș/ș, Ț/ț. Fold like the
+        // cedilla forms above (U+0326 is dropped as a combining mark).
+        0x0218 | 0x0219 => ('S', '\u{0326}'),
+        0x021A | 0x021B => ('T', '\u{0326}'),
+        // Cyrillic (ru, bg) canonical decompositions: Ё→Е (+diaeresis), Й→И
+        // (+breve). The mark is dropped, so ё/е and й/и fold together — the
+        // same diacritic-folding contract the Latin rows above provide.
+        0x0401 | 0x0451 => ('\u{0415}', '\u{0308}'),
+        0x0419 | 0x0439 => ('\u{0418}', '\u{0306}'),
         _ => return None,
     };
     let base_out = if c.is_uppercase() {
@@ -197,6 +225,39 @@ mod tests {
         assert_eq!(norm_part("Café"), Some("cafe".into()));
         assert_eq!(norm_part("AC/DC"), Some("acdc".into()));
         assert_eq!(norm_part("  Björk  "), Some("bjork".into()));
+    }
+
+    #[test]
+    fn norm_folds_locale_ligatures() {
+        // German ß → ss, Norwegian/Danish æ → ae, French œ → oe.
+        assert_eq!(norm_part("Straße"), Some("strasse".into()));
+        assert_eq!(norm_part("Blæst"), Some("blaest".into()));
+        assert_eq!(norm_part("Cœur"), Some("coeur".into()));
+    }
+
+    #[test]
+    fn norm_folds_romanian_comma_below() {
+        assert_eq!(norm_part("Ștefan"), Some("stefan".into()));
+        assert_eq!(norm_part("București"), Some("bucuresti".into()));
+        assert_eq!(norm_part("Constanța"), Some("constanta".into()));
+    }
+
+    #[test]
+    fn norm_folds_cyrillic_diacritics_but_keeps_base_letters() {
+        // ё/й fold to е/и; other Cyrillic letters survive as lowercase.
+        assert_eq!(norm_part("Фёдор"), norm_part("Федор"));
+        assert_eq!(norm_part("Фёдор"), Some("федор".into()));
+        assert_eq!(norm_part("Й"), Some("и".into()));
+        assert_eq!(norm_part("Пётр Ильич"), Some("петрильич".into()));
+    }
+
+    #[test]
+    fn norm_keeps_cjk_and_phonemic_kana() {
+        // Han/Kanji kept verbatim (no wrongful folding).
+        assert_eq!(norm_part("周杰倫"), Some("周杰倫".into()));
+        assert_eq!(norm_part("久石譲"), Some("久石譲".into()));
+        // Japanese dakuten is phonemic: が (ga) must NOT fold to か (ka).
+        assert_ne!(norm_part("が"), norm_part("か"));
     }
 
     #[test]

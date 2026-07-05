@@ -89,6 +89,7 @@ If you use **Nix**, `nix develop` (see [`flake.nix`](flake.nix)) provides the pi
 5. **License:** new code must remain compatible with the project's GPLv3.
 6. **Tests:** when you change behaviour users rely on, add or update tests next to the code (see [`src/test/README.md`](src/test/README.md)). Purely visual tweaks may not need tests, but behavioural regressions should be covered where the suite can catch them.
 7. **i18n:** user-visible strings live in `src/locales/*.ts` (one TypeScript module per language) and are wired up in `src/i18n.ts`. English (`en.ts`) is the baseline — always add the key there. Other locales may be left for follow-up translation PRs if you don't speak the language, but keep the object shape consistent so missing keys are obvious.
+   - **Adding a new language (not just keys):** the Rust cluster-key normalizer (`src-tauri/crates/psysonic-library/src/identity/norm.rs`) folds diacritics/ligatures per shipped locale so library items match across servers. When a locale introduces a script or letters it does not yet cover, extend its decomposition table for that language and **bump `NORM_VERSION`** (existing `library-cluster.db` keys rebuild automatically). CJK locales are intentionally left verbatim. The module header carries the same checklist.
 
 ---
 

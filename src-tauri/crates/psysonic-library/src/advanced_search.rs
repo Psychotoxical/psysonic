@@ -3235,6 +3235,7 @@ mod tests {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn scoped_track(
         server: &str,
         id: &str,
