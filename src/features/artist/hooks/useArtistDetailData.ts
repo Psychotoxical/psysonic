@@ -13,6 +13,8 @@ import { loadArtistFromLocalPlayback, offlineLocalBrowseEnabled } from '@/featur
 import { readDetailServerId } from '@/lib/navigation/detailServerScope';
 import { runLocalArtistLosslessBrowse } from '@/lib/library/browseTextSearch';
 import { isLosslessSuffix } from '@/lib/library/losslessFormats';
+import { librarySelectionForServer } from '@/lib/api/subsonicClient';
+import { tryLoadArtistDetailMultiScope } from '@/features/artist/hooks/loadArtistDetailMultiScope';
 
 export interface UseArtistDetailDataOptions {
   /** When true, albums and top tracks are limited to lossless containers (local index preferred). */
@@ -60,6 +62,7 @@ export function useArtistDetailData(
     s => !!(serverId && s.audiomuseNavidromeByServer[serverId]),
   );
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const musicLibrarySelectionByServer = useAuthStore(s => s.musicLibrarySelectionByServer);
   const offlineBrowseActive = useOfflineBrowseContext().active && !!serverId;
   const preferLocalBytesOnly = offlineBrowseActive && offlineLocalBrowseEnabled(serverId);
   const preferLocalArtist = preferLocalBytesOnly
@@ -90,6 +93,18 @@ export function useArtistDetailData(
         if (offlineBrowseActive && !preferLocalBytesOnly) {
           setLoading(false);
           return;
+        }
+        if (serverId && librarySelectionForServer(serverId).length > 1) {
+          const multi = await tryLoadArtistDetailMultiScope(serverId, id);
+          if (cancelled) return;
+          if (multi) {
+            setArtist(multi.artist);
+            setIsStarred(!!multi.artist.starred);
+            setAlbums(multi.albums);
+            setTopSongs(multi.topSongs);
+            setLoading(false);
+            return;
+          }
         }
         if (preferLocalArtist && serverId && id) {
           const local = preferLocalBytesOnly
@@ -171,7 +186,17 @@ export function useArtistDetailData(
     })();
 
     return () => { cancelled = true; };
-  }, [id, losslessOnly, serverId, offlineBrowseActive, preferLocalArtist, preferLocalBytesOnly, searchParams]);
+  }, [
+    id,
+    losslessOnly,
+    musicLibraryFilterVersion,
+    musicLibrarySelectionByServer,
+    offlineBrowseActive,
+    preferLocalArtist,
+    preferLocalBytesOnly,
+    searchParams,
+    serverId,
+  ]);
 
   useEffect(() => {
     if (!id || preferLocalArtist) return;

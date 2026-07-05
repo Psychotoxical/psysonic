@@ -22,6 +22,8 @@ import {
   shouldAttemptSubsonicForActiveServer,
   shouldAttemptSubsonicForServer,
 } from '@/lib/network/subsonicNetworkGuard';
+import { librarySelectionForServer } from '@/lib/api/subsonicClient';
+import { tryLoadAlbumDetailMultiScope } from '@/features/album/hooks/loadAlbumDetailMultiScope';
 
 type AlbumPayload = ResolvedAlbum;
 
@@ -49,6 +51,8 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
   const [starredSongs, setStarredSongs] = useState<Set<string>>(new Set());
   const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
   const activeServerId = useAuthStore(s => s.activeServerId);
+  const musicLibrarySelectionByServer = useAuthStore(s => s.musicLibrarySelectionByServer);
+  const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const [searchParams] = useSearchParams();
   const detailServerId = readDetailServerId(searchParams, activeServerId);
   const offlineBrowseActive = useOfflineBrowseContext().active && !!detailServerId;
@@ -114,6 +118,15 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
         return;
       }
 
+      if (detailServerId && librarySelectionForServer(detailServerId).length > 1) {
+        const multi = await tryLoadAlbumDetailMultiScope(detailServerId, id);
+        if (multi) {
+          applyAlbumPayload(multi);
+          await loadRelatedAlbums(detailServerId, multi.album.artistId, true, false);
+          return;
+        }
+      }
+
       // Index-first when the local SQLite index is ready, not only when the
       // favorites-offline toggle is on — album detail then opens from SQLite
       // (and offline) with the same genres genre browse derives.
@@ -177,7 +190,16 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
         setLoading(false);
       }
     })();
-  }, [activeServerId, detailServerId, favoritesOfflineEnabled, id, offlineBrowseActive, searchParams]);
+  }, [
+    activeServerId,
+    detailServerId,
+    favoritesOfflineEnabled,
+    id,
+    musicLibraryFilterVersion,
+    musicLibrarySelectionByServer,
+    offlineBrowseActive,
+    searchParams,
+  ]);
 
   return { album, setAlbum, relatedAlbums, loading, isStarred, setIsStarred, starredSongs, setStarredSongs };
 }
