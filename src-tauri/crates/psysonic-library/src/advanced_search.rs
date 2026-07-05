@@ -782,12 +782,8 @@ fn build_album_from_tracks(
         );
     }
     if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
-        // Sargable filter on the hot `library_id` column (backfilled from raw_json at
-        // schema 016, set on every sync) so the grouped album scan can seek via
-        // `idx_track_library_album` instead of full-scanning + running json_extract
-        // per row. The non-sargable COALESCE form defeated the index and made a single
-        // large library ~10x slower than "all libraries" browse.
-        w.push_param("t.library_id = ?", SqlValue::Text(scope));
+        let clause = library_scope_equals_sql("t");
+        w.push_param(&clause, SqlValue::Text(scope));
     }
     if let Some(t) = text {
         w.push_param("t.album LIKE ? ESCAPE '\\'", SqlValue::Text(like_contains(t)));
@@ -3246,77 +3242,5 @@ mod tests {
 
         assert_eq!(legacy_resp.albums, scoped_resp.albums);
         assert_eq!(legacy_resp.totals, scoped_resp.totals);
-    }
-
-    /// Manual probe: `cargo test --workspace advanced_search::tests::perf_probe_single_library_albums -- --ignored --nocapture`
-    #[test]
-    #[ignore]
-    fn perf_probe_single_library_albums() {
-        use std::time::Instant;
-        let store = LibraryStore::open_in_memory();
-        let albums = 4000usize;
-        let tracks_per_album = 5usize;
-        let mut rows = Vec::with_capacity(albums * tracks_per_album);
-        for a in 0..albums {
-            let lib = match a % 3 {
-                0 => "lib-a",
-                1 => "lib-b",
-                _ => "lib-c",
-            };
-            for t in 0..tracks_per_album {
-                rows.push(scoped_track(
-                    "s1",
-                    &format!("t-{a}-{t}"),
-                    &format!("Song {t}"),
-                    "Artist",
-                    &format!("Album {a:05}"),
-                    &format!("alb-{a:05}"),
-                    lib,
-                    Some("Rock"),
-                    Some(1990),
-                    None,
-                ));
-            }
-        }
-        TrackRepository::new(&store).upsert_batch(&rows).unwrap();
-        store
-            .with_read_conn(|c| c.execute_batch("ANALYZE;"))
-            .unwrap();
-
-        let run = |scope: Option<&str>, offset: u32| {
-            let mut r = req("s1", &[EntityKind::Album]);
-            r.library_scope = scope.map(String::from);
-            r.limit = 100;
-            r.offset = offset;
-            r.skip_totals = true;
-            let start = Instant::now();
-            let resp = run_advanced_search(&store, &r).unwrap();
-            (start.elapsed(), resp.albums.len())
-        };
-        let _ = run(Some("lib-a"), 0);
-        let _ = run(None, 0);
-        let (all0, an) = run(None, 0);
-        let (one0, on) = run(Some("lib-a"), 0);
-        let (one_deep, odn) = run(Some("lib-a"), 500);
-        println!("--- build_album_from_tracks (4000 albums, 20000 tracks, 3 libs) ---");
-        println!("  all libraries  offset 0   -> {all0:?} ({an} rows)");
-        println!("  single library offset 0   -> {one0:?} ({on} rows)");
-        println!("  single library offset 500 -> {one_deep:?} ({odn} rows)");
-
-        let plan: Vec<String> = store
-            .with_read_conn(|c| {
-                let mut stmt = c.prepare(
-                    "EXPLAIN QUERY PLAN SELECT t.album_id FROM track t \
-                     WHERE t.deleted = 0 AND t.server_id = ? AND t.album_id IS NOT NULL \
-                       AND t.album_id != '' AND t.library_id = ? \
-                     GROUP BY t.album_id ORDER BY MAX(t.album) COLLATE NOCASE ASC LIMIT 100",
-                )?;
-                let rows = stmt
-                    .query_map(["s1", "lib-a"], |r| r.get::<_, String>(3))?
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok(rows)
-            })
-            .unwrap();
-        println!("  query plan: {plan:?}");
     }
 }
