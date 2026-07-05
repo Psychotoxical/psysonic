@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getLuckyMixLibraryScopeOverride } from '@/lib/library/luckyMixScopeOverride';
 import md5 from 'md5';
 import { version } from '@/../package.json';
 import { useAuthStore } from '@/store/authStore';
@@ -165,6 +166,9 @@ export function libraryScopeCacheKeyForServer(serverId: string): string {
 export function libraryFilterParamsForServer(
   serverId: string,
 ): Record<string, string | number | string[]> {
+  const luckyMixScope = getLuckyMixLibraryScopeOverride();
+  if (luckyMixScope) return { musicFolderId: luckyMixScope };
+
   const scopes = libraryScopesForServer(serverId);
   if (scopes.length === 0) return {};
   if (scopes.length === 1) return { musicFolderId: scopes[0] };

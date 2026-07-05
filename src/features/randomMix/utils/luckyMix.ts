@@ -5,6 +5,8 @@ import type { QueueItemRef } from '@/lib/media/trackTypes';
 import { songToTrack } from '@/lib/media/songToTrack';
 import { frontendDebugLog } from '@/lib/api/debugLog';
 import i18n from '@/lib/i18n';
+import { librarySelectionForServer } from '@/lib/api/subsonicClient';
+import { runWithLuckyMixLibraryScope } from '@/lib/library/luckyMixScopeOverride';
 import { useAuthStore } from '@/store/authStore';
 import { pushQueueUndoFromGetter } from '@/features/playback/store/queueUndo';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
@@ -34,6 +36,10 @@ import {
   pickSongsForAlbum,
   pickGoodRatedSongs,
 } from '@/features/randomMix/utils/luckyMixHelpers';
+import {
+  isPartialMultiLibrarySelection,
+  pickLuckyMixTargetLibrary,
+} from '@/features/randomMix/utils/luckyMixLibraryPick';
 
 /**
  * Sentinel thrown inside the build loop when `useLuckyMixStore.cancelRequested`
@@ -120,7 +126,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       usePlayerStore.getState().pruneUpcomingToCurrent(true);
     }
     let startedPlayback = false;
-    try {
+    const runBuild = async () => {
       let allSeedSongs: SubsonicSong[] = [];
 
     const mixQueueSize = () => usePlayerStore.getState().queueItems.length;
@@ -355,6 +361,16 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       console.debug('[psysonic][lucky-mix] full-steps', debugSteps);
       frontendDebugLog('lucky-mix', JSON.stringify({ step: 'full-steps', details: debugSteps }));
     }
+    };
+
+    if (activeServerId && isPartialMultiLibrarySelection(activeServerId)) {
+      const candidates = librarySelectionForServer(activeServerId);
+      const targetLibraryId = await pickLuckyMixTargetLibrary(activeServerId, candidates);
+      logStep('library_scope_pick', { candidates, targetLibraryId });
+      await runWithLuckyMixLibraryScope(targetLibraryId, runBuild);
+    } else {
+      await runBuild();
+    }
   } catch (err) {
     // Cancellation is a user-initiated path, not an error. Silent teardown.
     if (err instanceof LuckyMixCancelled) {
@@ -387,7 +403,6 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       });
     }
     showToast(i18n.t('luckyMix.failed'), 5000, 'error');
-  }
   } finally {
     if (unsubPlayer) { try { unsubPlayer(); } catch { /* noop */ } }
     useLuckyMixStore.getState().stop();
