@@ -43,6 +43,32 @@ describe('setMusicLibrarySelection', () => {
     useAuthStore.getState().setMusicLibrarySelection(['lib-1']);
     expect(useAuthStore.getState().musicLibraryFilterByServer[serverId]).toBe('lib-1');
   });
+
+  it('collapses to all when the selection covers every folder', () => {
+    const serverId = setUpActiveServer();
+    useAuthStore.setState({
+      musicFolders: [
+        { id: 'lib-a', name: 'A' },
+        { id: 'lib-b', name: 'B' },
+      ],
+    });
+    useAuthStore.getState().setMusicLibrarySelection(['lib-a', 'lib-b']);
+    const state = useAuthStore.getState();
+    expect(state.musicLibrarySelectionByServer[serverId]).toEqual([]);
+    expect(state.musicLibraryFilterByServer[serverId]).toBe('all');
+  });
+
+  it('keeps a partial selection when not all folders are covered', () => {
+    const serverId = setUpActiveServer();
+    useAuthStore.setState({
+      musicFolders: [
+        { id: 'lib-a', name: 'A' },
+        { id: 'lib-b', name: 'B' },
+      ],
+    });
+    useAuthStore.getState().setMusicLibrarySelection(['lib-a']);
+    expect(useAuthStore.getState().musicLibrarySelectionByServer[serverId]).toEqual(['lib-a']);
+  });
 });
 
 describe('setMusicFolders', () => {

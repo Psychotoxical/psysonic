@@ -15,6 +15,20 @@ function legacyFilterFromSelection(libraryIds: string[]): 'all' | string {
   return libraryIds[0];
 }
 
+/**
+ * Selecting every library one-by-one is the same as "All libraries": normalize
+ * such a selection to the empty/all scope so the picker shows the All-libraries
+ * option and future libraries are included automatically. `musicFolders` is the
+ * active server's folder list, so this only applies once it has loaded.
+ */
+function collapseFullSelection(state: AuthState, libraryIds: string[]): string[] {
+  if (libraryIds.length === 0) return libraryIds;
+  const folders = state.musicFolders;
+  if (folders.length === 0 || libraryIds.length < folders.length) return libraryIds;
+  const selected = new Set(libraryIds);
+  return folders.every(folder => selected.has(folder.id)) ? [] : libraryIds;
+}
+
 function deferMusicLibraryCatalogReload(get: GetState, set: SetState, serverId: string): void {
   // `indexEnabled` is read here in the store layer and handed to the registered
   // catalog-reload handler so the store never imports `src/lib/library` browse
@@ -110,14 +124,15 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
     setMusicLibrarySelection: (libraryIds) => {
       const sid = get().activeServerId;
       if (!sid) return;
+      const selection = collapseFullSelection(get(), libraryIds);
       set(s => ({
         musicLibrarySelectionByServer: {
           ...s.musicLibrarySelectionByServer,
-          [sid]: libraryIds,
+          [sid]: selection,
         },
         musicLibraryFilterByServer: {
           ...s.musicLibraryFilterByServer,
-          [sid]: legacyFilterFromSelection(libraryIds),
+          [sid]: legacyFilterFromSelection(selection),
         },
       }));
       deferMusicLibraryCatalogReload(get, set, sid);
