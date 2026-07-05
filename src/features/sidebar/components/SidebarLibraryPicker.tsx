@@ -1,36 +1,9 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronDown, ChevronUp, GripVertical, Music2 } from 'lucide-react';
-import { useDragSource } from '@/lib/dnd/DragDropContext';
-import { useListReorderDnd } from '@/lib/hooks/useListReorderDnd';
-import { applyListReorderById } from '@/lib/util/listReorder';
-import type { ListReorderDropTarget } from '@/lib/util/listReorder';
+import { Check, ChevronDown, Music2 } from 'lucide-react';
 
 interface MusicFolder { id: string; name: string }
-
-const REORDER_TYPE = 'library_selection_reorder';
-
-function LibrarySelectionGrip({ id, label }: { id: string; label: string }) {
-  const { t } = useTranslation();
-  const { onMouseDown } = useDragSource(() => ({
-    data: JSON.stringify({ type: REORDER_TYPE, id }),
-    label,
-  }));
-
-  return (
-    <span
-      className="nav-library-dropdown-grip"
-      data-tooltip={t('sidebar.librarySelectionDrag')}
-      data-tooltip-pos="right"
-      onMouseDown={onMouseDown}
-      onClick={e => e.stopPropagation()}
-      aria-hidden
-    >
-      <GripVertical size={16} />
-    </span>
-  );
-}
 
 interface Props {
   selectedLibraryIds: string[];
@@ -54,124 +27,64 @@ export default function SidebarLibraryPicker({
   onSelectionChange,
 }: Props) {
   const { t } = useTranslation();
-  const allLibraries = selectedLibraryIds.length === 0;
-  const libraryTriggerPlain = allLibraries;
+  const allLibrariesSelected = selectedLibraryIds.length === 0;
+  const libraryTriggerPlain = allLibrariesSelected;
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [panelWidth, setPanelWidth] = useState<number | null>(null);
+  const allLibrariesLabel = t('sidebar.allLibraries');
 
-  const folderById = useMemo(
-    () => new Map(musicFolders.map(f => [f.id, f])),
-    [musicFolders],
-  );
-
-  const selectedFolders = useMemo(
-    () =>
-      selectedLibraryIds
-        .map(id => folderById.get(id))
-        .filter((f): f is MusicFolder => f != null),
-    [selectedLibraryIds, folderById],
-  );
-
-  const unselectedFolders = useMemo(
-    () => musicFolders.filter(f => !selectedLibraryIds.includes(f.id)),
-    [musicFolders, selectedLibraryIds],
-  );
-
-  const applyReorder = useCallback((draggedId: string, target: ListReorderDropTarget) => {
-    const items = selectedLibraryIds.map(id => ({ id }));
-    const next = applyListReorderById(items, draggedId, target);
-    if (next) onSelectionChange(next.map(x => x.id));
-  }, [selectedLibraryIds, onSelectionChange]);
-
-  const { isDragging, setContainer, onMouseMove, dropEdge } = useListReorderDnd({
-    type: REORDER_TYPE,
-    apply: applyReorder,
-  });
+  useLayoutEffect(() => {
+    if (!libraryDropdownOpen) {
+      // React Compiler set-state-in-effect rule: panel width is measured from layout after open.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPanelWidth(null);
+      return;
+    }
+    const measure = () => {
+      const panel = panelRef.current;
+      if (!panel) return;
+      const minW = dropdownRect.width;
+      const maxW = Math.max(minW, window.innerWidth - dropdownRect.left - 8);
+      panel.dataset.measure = 'true';
+      panel.style.width = 'max-content';
+      panel.style.minWidth = `${minW}px`;
+      const measured = panel.offsetWidth;
+      delete panel.dataset.measure;
+      panel.style.width = '';
+      panel.style.minWidth = '';
+      setPanelWidth(Math.min(Math.max(minW, measured), maxW));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [
+    libraryDropdownOpen,
+    dropdownRect.left,
+    dropdownRect.width,
+    musicFolders,
+    allLibrariesLabel,
+  ]);
 
   const selectAllLibraries = () => {
     onSelectionChange([]);
+    setLibraryDropdownOpen(false);
+  };
+
+  const exclusiveSelect = (id: string) => {
+    onSelectionChange([id]);
+    setLibraryDropdownOpen(false);
   };
 
   const toggleFolder = (id: string) => {
+    if (allLibrariesSelected) {
+      onSelectionChange([id]);
+      return;
+    }
     if (selectedLibraryIds.includes(id)) {
       onSelectionChange(selectedLibraryIds.filter(x => x !== id));
       return;
     }
     onSelectionChange([...selectedLibraryIds, id]);
-  };
-
-  const moveInSelection = (id: string, direction: -1 | 1) => {
-    const idx = selectedLibraryIds.indexOf(id);
-    if (idx < 0) return;
-    const newIdx = idx + direction;
-    if (newIdx < 0 || newIdx >= selectedLibraryIds.length) return;
-    const next = [...selectedLibraryIds];
-    [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
-    onSelectionChange(next);
-  };
-
-  const renderFolderToggle = (folder: MusicFolder, opts: { priority?: boolean }) => {
-    const checked = selectedLibraryIds.includes(folder.id);
-    const priority = opts.priority === true;
-    const idx = priority ? selectedLibraryIds.indexOf(folder.id) : -1;
-    const edge = priority && isDragging ? dropEdge(folder.id) : null;
-
-    return (
-      <div
-        key={folder.id}
-        data-reorder-id={priority ? folder.id : undefined}
-        className={[
-          'nav-library-dropdown-item',
-          checked ? 'nav-library-dropdown-item--selected' : '',
-          priority ? 'nav-library-dropdown-item--priority' : '',
-        ].filter(Boolean).join(' ')}
-        style={{
-          borderTop: edge === 'before' ? '2px solid var(--accent)' : undefined,
-          borderBottom: edge === 'after' ? '2px solid var(--accent)' : undefined,
-        }}
-      >
-        {priority ? (
-          <LibrarySelectionGrip id={folder.id} label={folder.name} />
-        ) : (
-          <span className="nav-library-dropdown-grip-spacer" aria-hidden />
-        )}
-        <label className="nav-library-dropdown-toggle">
-          <input
-            type="checkbox"
-            checked={checked}
-            onChange={() => toggleFolder(folder.id)}
-            aria-label={
-              checked
-                ? t('sidebar.librarySelectionExclude', { name: folder.name })
-                : t('sidebar.librarySelectionInclude', { name: folder.name })
-            }
-          />
-          <span className="nav-library-dropdown-item-label">{folder.name}</span>
-        </label>
-        {priority ? (
-          <span className="nav-library-dropdown-priority-actions">
-            <button
-              type="button"
-              className="nav-library-dropdown-move"
-              disabled={idx <= 0}
-              aria-label={t('sidebar.librarySelectionMoveUp', { name: folder.name })}
-              onClick={() => moveInSelection(folder.id, -1)}
-            >
-              <ChevronUp size={15} strokeWidth={2.25} aria-hidden />
-            </button>
-            <button
-              type="button"
-              className="nav-library-dropdown-move"
-              disabled={idx < 0 || idx >= selectedLibraryIds.length - 1}
-              aria-label={t('sidebar.librarySelectionMoveDown', { name: folder.name })}
-              onClick={() => moveInSelection(folder.id, 1)}
-            >
-              <ChevronDown size={15} strokeWidth={2.25} aria-hidden />
-            </button>
-          </span>
-        ) : (
-          <span className="nav-library-dropdown-check-spacer" aria-hidden />
-        )}
-      </div>
-    );
   };
 
   return (
@@ -183,7 +96,7 @@ export default function SidebarLibraryPicker({
         onClick={() => setLibraryDropdownOpen(!libraryDropdownOpen)}
         aria-label={t('sidebar.libraryScope')}
         aria-expanded={libraryDropdownOpen}
-        aria-haspopup="dialog"
+        aria-haspopup="listbox"
         data-tooltip={libraryDropdownOpen ? undefined : t('sidebar.libraryScope')}
         data-tooltip-pos="bottom"
       >
@@ -203,52 +116,77 @@ export default function SidebarLibraryPicker({
       {libraryDropdownOpen &&
         createPortal(
           <div
+            ref={panelRef}
             className={`nav-library-dropdown-panel${musicFolders.length > 10 ? ' nav-library-dropdown-panel--many-libraries' : ''}`}
-            role="dialog"
+            role="listbox"
             aria-label={t('sidebar.libraryScope')}
             style={{
               position: 'fixed',
               top: dropdownRect.top,
               left: dropdownRect.left,
-              width: dropdownRect.width,
               minWidth: dropdownRect.width,
-              maxWidth: dropdownRect.width,
+              width: panelWidth ?? 'max-content',
               boxSizing: 'border-box',
             }}
           >
-            <button
-              type="button"
-              aria-pressed={allLibraries}
-              className={`nav-library-dropdown-item ${allLibraries ? 'nav-library-dropdown-item--selected' : ''}`}
-              onClick={selectAllLibraries}
+            <div
+              role="option"
+              aria-selected={allLibrariesSelected}
+              className={`nav-library-dropdown-item ${allLibrariesSelected ? 'nav-library-dropdown-item--selected' : ''}`}
             >
-              <span className="nav-library-dropdown-item-label">{t('sidebar.allLibraries')}</span>
-              {allLibraries ? (
-                <Check size={16} className="nav-library-dropdown-check" strokeWidth={2.5} aria-hidden />
-              ) : (
-                <span className="nav-library-dropdown-check-spacer" aria-hidden />
-              )}
-            </button>
-            {selectedFolders.length > 0 ? (
-              <div
-                ref={setContainer}
-                className="nav-library-dropdown-priority-group"
-                role="group"
-                aria-label={t('sidebar.librarySelectionPriority')}
-                onMouseMove={onMouseMove}
+              <button
+                type="button"
+                className="nav-library-dropdown-item-main"
+                onClick={selectAllLibraries}
               >
-                {selectedFolders.map(folder => renderFolderToggle(folder, { priority: true }))}
-              </div>
-            ) : null}
-            {unselectedFolders.length > 0 ? (
-              <div
-                className="nav-library-dropdown-available-group"
-                role="group"
-                aria-label={t('sidebar.librarySelectionAvailable')}
+                <span className="nav-library-dropdown-item-label">{allLibrariesLabel}</span>
+              </button>
+              <span
+                className={`nav-library-dropdown-item-toggle ${allLibrariesSelected ? 'nav-library-dropdown-item-toggle--on' : 'nav-library-dropdown-item-toggle--align-only'}`}
+                aria-hidden
               >
-                {unselectedFolders.map(folder => renderFolderToggle(folder, {}))}
-              </div>
-            ) : null}
+                {allLibrariesSelected ? <Check size={16} strokeWidth={2.5} /> : null}
+              </span>
+            </div>
+            {musicFolders.map(folder => {
+              const selected = selectedLibraryIds.includes(folder.id);
+              return (
+                <div
+                  key={folder.id}
+                  role="option"
+                  aria-selected={selected}
+                  className={`nav-library-dropdown-item ${selected ? 'nav-library-dropdown-item--selected' : ''}`}
+                >
+                  <button
+                    type="button"
+                    className="nav-library-dropdown-item-main"
+                    onClick={() => exclusiveSelect(folder.id)}
+                  >
+                    <span className="nav-library-dropdown-item-label">{folder.name}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`nav-library-dropdown-item-toggle ${selected ? 'nav-library-dropdown-item-toggle--on' : ''}`}
+                    aria-label={
+                      selected
+                        ? t('sidebar.libraryDeselect', { name: folder.name })
+                        : t('sidebar.librarySelect', { name: folder.name })
+                    }
+                    aria-pressed={selected}
+                    onClick={e => {
+                      e.stopPropagation();
+                      toggleFolder(folder.id);
+                    }}
+                  >
+                    {selected ? (
+                      <Check size={16} strokeWidth={2.5} />
+                    ) : (
+                      <span className="nav-library-dropdown-item-toggle-box" aria-hidden />
+                    )}
+                  </button>
+                </div>
+              );
+            })}
           </div>,
           document.body,
         )}

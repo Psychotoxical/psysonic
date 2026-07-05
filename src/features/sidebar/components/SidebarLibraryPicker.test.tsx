@@ -4,7 +4,6 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createRef } from 'react';
 import { renderWithProviders } from '@/test/helpers/renderWithProviders';
-import { DragDropProvider } from '@/lib/dnd/DragDropContext';
 import SidebarLibraryPicker from '@/features/sidebar/components/SidebarLibraryPicker';
 
 const folders = [
@@ -30,11 +29,7 @@ function renderPicker(
     ...over,
   };
 
-  renderWithProviders(
-    <DragDropProvider>
-      <SidebarLibraryPicker {...props} />
-    </DragDropProvider>,
-  );
+  renderWithProviders(<SidebarLibraryPicker {...props} />);
 
   return { onSelectionChange, setLibraryDropdownOpen, props };
 }
@@ -62,19 +57,46 @@ describe('SidebarLibraryPicker', () => {
 
   it('clears the selection when All libraries is chosen', async () => {
     const user = userEvent.setup();
-    const { onSelectionChange } = renderPicker({ selectedLibraryIds: ['lib-a'] });
+    const { onSelectionChange, setLibraryDropdownOpen } = renderPicker({
+      selectedLibraryIds: ['lib-a'],
+    });
 
-    await user.click(screen.getByRole('button', { name: 'All libraries' }));
+    const panel = screen.getByRole('listbox', { name: 'Library scope' });
+    await user.click(within(panel).getByRole('button', { name: 'All libraries' }));
 
     expect(onSelectionChange).toHaveBeenCalledWith([]);
+    expect(setLibraryDropdownOpen).toHaveBeenCalledWith(false);
+  });
+
+  it('exclusive-selects one library when its label is clicked', async () => {
+    const user = userEvent.setup();
+    const { onSelectionChange, setLibraryDropdownOpen } = renderPicker({
+      selectedLibraryIds: ['lib-a', 'lib-b'],
+    });
+
+    const panel = screen.getByRole('listbox', { name: 'Library scope' });
+    await user.click(within(panel).getByRole('button', { name: 'Classical' }));
+
+    expect(onSelectionChange).toHaveBeenCalledWith(['lib-c']);
+    expect(setLibraryDropdownOpen).toHaveBeenCalledWith(false);
+  });
+
+  it('toggles a library on from the all-libraries state', async () => {
+    const user = userEvent.setup();
+    const { onSelectionChange } = renderPicker({ selectedLibraryIds: [] });
+
+    const panel = screen.getByRole('listbox', { name: 'Library scope' });
+    await user.click(within(panel).getByRole('button', { name: 'Include Jazz' }));
+
+    expect(onSelectionChange).toHaveBeenCalledWith(['lib-b']);
   });
 
   it('appends a toggled-on library to the ordered selection', async () => {
     const user = userEvent.setup();
     const { onSelectionChange } = renderPicker({ selectedLibraryIds: ['lib-a'] });
 
-    const panel = screen.getByRole('dialog', { name: 'Library scope' });
-    await user.click(within(panel).getByRole('checkbox', { name: 'Include Jazz' }));
+    const panel = screen.getByRole('listbox', { name: 'Library scope' });
+    await user.click(within(panel).getByRole('button', { name: 'Include Jazz' }));
 
     expect(onSelectionChange).toHaveBeenCalledWith(['lib-a', 'lib-b']);
   });
@@ -83,29 +105,9 @@ describe('SidebarLibraryPicker', () => {
     const user = userEvent.setup();
     const { onSelectionChange } = renderPicker({ selectedLibraryIds: ['lib-a', 'lib-b'] });
 
-    const panel = screen.getByRole('dialog', { name: 'Library scope' });
-    await user.click(within(panel).getByRole('checkbox', { name: 'Exclude Rock' }));
+    const panel = screen.getByRole('listbox', { name: 'Library scope' });
+    await user.click(within(panel).getByRole('button', { name: 'Exclude Rock' }));
 
     expect(onSelectionChange).toHaveBeenCalledWith(['lib-b']);
-  });
-
-  it('moves a selected library up in priority order', async () => {
-    const user = userEvent.setup();
-    const { onSelectionChange } = renderPicker({ selectedLibraryIds: ['lib-a', 'lib-b'] });
-
-    const panel = screen.getByRole('dialog', { name: 'Library scope' });
-    await user.click(within(panel).getByRole('button', { name: 'Move up: Jazz' }));
-
-    expect(onSelectionChange).toHaveBeenCalledWith(['lib-b', 'lib-a']);
-  });
-
-  it('moves a selected library down in priority order', async () => {
-    const user = userEvent.setup();
-    const { onSelectionChange } = renderPicker({ selectedLibraryIds: ['lib-a', 'lib-b'] });
-
-    const panel = screen.getByRole('dialog', { name: 'Library scope' });
-    await user.click(within(panel).getByRole('button', { name: 'Move down: Rock' }));
-
-    expect(onSelectionChange).toHaveBeenCalledWith(['lib-b', 'lib-a']);
   });
 });

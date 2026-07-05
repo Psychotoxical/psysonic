@@ -34,6 +34,8 @@ export const sidebar = {
   deviceSync: 'Device Sync',
   libraryScope: 'Library scope',
   allLibraries: 'All libraries',
+  librarySelect: 'Include {{name}}',
+  libraryDeselect: 'Exclude {{name}}',
   librarySelectionCount: '{{count}} libraries',
   librarySelectionPriority: 'Selected libraries (priority order)',
   librarySelectionAvailable: 'More libraries',
