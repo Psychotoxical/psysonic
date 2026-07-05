@@ -123,15 +123,47 @@ export function libraryFilterParams(): Record<string, string | number | string[]
   return activeServerId ? libraryFilterParamsForServer(activeServerId) : {};
 }
 
-/** Ordered library folder ids for a server; empty = all libraries. */
-export function librarySelectionForServer(serverId: string): string[] {
-  const resolved = resolveServerIdForIndexKey(serverId);
-  const state = useAuthStore.getState();
+type AuthSnapshot = ReturnType<typeof useAuthStore.getState>;
+
+function rawLibrarySelection(state: AuthSnapshot, resolved: string): string[] {
   const selection = state.musicLibrarySelectionByServer[resolved];
   if (selection !== undefined) return selection;
   const legacy = state.musicLibraryFilterByServer[resolved];
   if (legacy === undefined || legacy === 'all') return [];
   return [legacy];
+}
+
+/**
+ * True when `selection` already covers every library of the active server, so it
+ * is equivalent to "All libraries". Only checked for the active server, since
+ * `musicFolders` is the folder list of that server.
+ */
+function selectionCoversAllLibraries(
+  state: AuthSnapshot,
+  resolved: string,
+  selection: string[],
+): boolean {
+  if (resolved !== state.activeServerId) return false;
+  const folders = state.musicFolders;
+  if (folders.length === 0 || selection.length < folders.length) return false;
+  const selected = new Set(selection);
+  return folders.every(folder => selected.has(folder.id));
+}
+
+/** Ordered library folder ids for a server; empty = all libraries. */
+export function librarySelectionForServer(serverId: string): string[] {
+  const resolved = resolveServerIdForIndexKey(serverId);
+  const state = useAuthStore.getState();
+  const selection = rawLibrarySelection(state, resolved);
+  // Selecting every library one-by-one is the same as "All libraries": collapse
+  // to the empty/all scope so browse and search take the faster unscoped path
+  // (no per-library `IN` filter, no cross-library merge) and share the "all"
+  // cache — identical to picking the All-libraries option. The sidebar picker
+  // reads raw state, so its per-library checkmarks are unaffected.
+  if (selection.length > 0 && selectionCoversAllLibraries(state, resolved, selection)) {
+    return [];
+  }
+  return selection;
 }
 
 /** Ordered, resolved library folder ids for Subsonic / local index scope. */

@@ -173,6 +173,44 @@ describe('libraryScopePairsForServer', () => {
   });
 });
 
+describe('librarySelectionForServer — collapse when all libraries selected', () => {
+  it('collapses to the all-libraries scope when every folder is selected', () => {
+    const serverId = setUpServer();
+    useAuthStore.setState({
+      musicFolders: [
+        { id: 'mf-1', name: 'A' },
+        { id: 'mf-2', name: 'B' },
+      ],
+    });
+    useAuthStore.getState().setMusicLibrarySelection(['mf-1', 'mf-2']);
+    expect(librarySelectionForServer(serverId)).toEqual([]);
+    expect(libraryScopeIsActive(serverId)).toBe(false);
+    expect(libraryScopeCacheKeyForServer(serverId)).toBe('all');
+    expect(libraryScopePairsForServer(serverId)).toEqual([]);
+    expect(libraryFilterParamsForServer(serverId)).toEqual({});
+  });
+
+  it('keeps the scope when only a subset is selected', () => {
+    const serverId = setUpServer();
+    useAuthStore.setState({
+      musicFolders: [
+        { id: 'mf-1', name: 'A' },
+        { id: 'mf-2', name: 'B' },
+      ],
+    });
+    useAuthStore.getState().setMusicLibrarySelection(['mf-1']);
+    expect(librarySelectionForServer(serverId)).toEqual(['mf-1']);
+    expect(libraryScopeIsActive(serverId)).toBe(true);
+    expect(libraryScopeCacheKeyForServer(serverId)).toBe('mf-1');
+  });
+
+  it('does not collapse when the folder list is not yet loaded', () => {
+    const serverId = setUpServer();
+    useAuthStore.getState().setMusicLibrarySelection(['mf-1', 'mf-2']);
+    expect(librarySelectionForServer(serverId)).toEqual(['mf-1', 'mf-2']);
+  });
+});
+
 describe('getClient', () => {
   it('throws when no server is configured', () => {
     expect(() => getClient()).toThrow(/no server configured/i);
