@@ -46,6 +46,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * A dismissible banner inviting you to join the Psysonic community on Discord appears after 20 hours of accumulated app use. **Join** opens the invite; dismiss it for the session, or choose **Never show again** to hide it permanently.
 
+### Multi-library filter — browse and search across selected libraries
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1241](https://github.com/Psychotoxical/psysonic/pull/1241)**
+
+* The sidebar library picker now supports **multi-select with priority ordering**: browse, search, genre and album/artist detail views aggregate across the chosen libraries and de-duplicate shared items by priority. Built for large libraries — scoped SQL uses the hot `library_id` column with covering indexes and FTS-first matching.
+* Identity matching that powers cross-library de-duplication now normalises names per shipped locale (folds German ß, Norwegian æ, French œ, Romanian ș/ț, and Cyrillic ё/й); CJK titles are matched as-is.
+
 
 ## Changed
 
