@@ -891,6 +891,17 @@ fn build_artist(
     skip_totals: bool,
     applied: &mut BTreeSet<String>,
 ) -> Result<(Vec<LibraryArtistDto>, u32), String> {
+    // Single-library scope: derive the catalog from in-scope tracks (same idea as
+    // album browse via `build_album_from_tracks`). The `artist` table + EXISTS
+    // path misses rows when `library_id` is empty on bulk-ingested tracks and is
+    // slower even when populated.
+    if trimmed_nonempty(req.library_scope.as_deref()).is_some()
+        && !scalar_requires_track_derived_entities(scalar)
+    {
+        return build_artist_from_tracks_scoped(
+            store, req, text, scalar, limit, offset, skip_totals, applied,
+        );
+    }
     // #1209: browse uses a single `artist` table path — no FTS / track fallthrough.
     if !scalar_requires_track_derived_entities(scalar) {
         return build_artist_from_table(store, req, text, scalar, limit, offset, skip_totals, applied);
@@ -899,6 +910,80 @@ fn build_artist(
         return build_artist_from_fts(store, req, &q, scalar, limit, offset, skip_totals, applied);
     }
     build_artist_from_tracks(store, req, text, scalar, limit, offset, skip_totals, applied)
+}
+
+/// Artist browse for a single scoped library — one `GROUP BY artist_id` over
+/// in-scope tracks (COALESCE/json `library_id` match), with `artist` table
+/// metadata when present.
+#[allow(clippy::too_many_arguments)]
+fn build_artist_from_tracks_scoped(
+    store: &LibraryStore,
+    req: &LibraryAdvancedSearchRequest,
+    text: Option<&str>,
+    scalar: &[&LibraryFilterClause],
+    limit: u32,
+    offset: u32,
+    skip_totals: bool,
+    applied: &mut BTreeSet<String>,
+) -> Result<(Vec<LibraryArtistDto>, u32), String> {
+    let mut w = WhereBuilder::new();
+    w.push_raw("t.deleted = 0");
+    w.push_param("t.server_id = ?", SqlValue::Text(req.server_id.clone()));
+    w.push_raw("t.artist_id IS NOT NULL AND t.artist_id != ''");
+    if let Some(scope) = trimmed_nonempty(req.library_scope.as_deref()) {
+        let clause = library_scope_equals_sql("t");
+        w.push_param(&clause, SqlValue::Text(scope));
+        applied.insert("library_scope".to_string());
+    }
+    if album_artist_credit_mode(req) {
+        w.push_raw(
+            "EXISTS (SELECT 1 FROM artist ar WHERE ar.server_id = t.server_id \
+             AND ar.id = t.artist_id AND ar.album_count IS NOT NULL)",
+        );
+        applied.insert("artist_credit_mode".to_string());
+    }
+    if let Some(bucket) = req.artist_letter_bucket.as_deref() {
+        push_artist_track_letter_bucket(&mut w, bucket, applied);
+    }
+    if let Some(t) = text {
+        w.push_param(
+            "t.artist LIKE ? ESCAPE '\\'",
+            SqlValue::Text(like_contains_folded(t)),
+        );
+        applied.insert("text".to_string());
+    }
+    for c in scalar {
+        if let Some(frag) = resolve_clause(c, EntityKind::Track)? {
+            applied.insert(c.field.clone());
+            w.push(frag);
+        }
+    }
+
+    let artist_name = "MAX(COALESCE((SELECT ar.name FROM artist ar \
+        WHERE ar.server_id = t.server_id AND ar.id = t.artist_id), t.artist))";
+    let select = format!(
+        "t.server_id, t.artist_id, {artist_name}, COUNT(DISTINCT t.album_id), MAX(t.synced_at)"
+    );
+    let order = order_clause(&req.sort, EntityKind::Artist)
+        .map(|s| {
+            s.replace("COALESCE(ar.name_sort, ar.name)", artist_name)
+                .replace("ar.id", "t.artist_id")
+        })
+        .unwrap_or_else(|| {
+            format!("ORDER BY {artist_name} COLLATE NOCASE ASC, t.artist_id ASC")
+        });
+    query_grouped_rows(
+        store,
+        &select,
+        "track t",
+        &w,
+        "GROUP BY t.artist_id",
+        &order,
+        limit,
+        offset,
+        skip_totals,
+        map_artist_from_tracks,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2743,6 +2828,21 @@ mod tests {
         TrackRepository::new(&store).upsert_batch(&[in_scope, out_scope]).unwrap();
         let mut r = req("s1", &[EntityKind::Artist]);
         r.library_scope = Some("lib1".into());
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.artists.len(), 1);
+        assert_eq!(resp.artists[0].id, "a1");
+    }
+
+    #[test]
+    fn library_scope_artist_browse_reads_library_id_from_raw_json_when_column_null() {
+        let store = LibraryStore::open_in_memory();
+        insert_artist(&store, "s1", "a1", "Alpha");
+        let mut t = track("s1", "t1", "Song", "Alpha", "Alb");
+        t.artist_id = Some("a1".into());
+        t.raw_json = serde_json::json!({"libraryId": 3}).to_string();
+        TrackRepository::new(&store).upsert_batch(&[t]).unwrap();
+        let mut r = req("s1", &[EntityKind::Artist]);
+        r.library_scope = Some("3".into());
         let resp = run_advanced_search(&store, &r).unwrap();
         assert_eq!(resp.artists.len(), 1);
         assert_eq!(resp.artists[0].id, "a1");
