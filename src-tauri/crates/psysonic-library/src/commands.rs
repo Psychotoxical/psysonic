@@ -529,7 +529,49 @@ pub async fn library_advanced_search(
     request: LibraryAdvancedSearchRequest,
 ) -> Result<LibraryAdvancedSearchResponse, String> {
     let store = Arc::clone(&runtime.store);
-    library_spawn_blocking(move || advanced_search::run_advanced_search(&store, &request)).await
+    let trace_album_browse = psysonic_core::logging::should_log_debug()
+        && request.entity_types.len() == 1
+        && request.entity_types[0] == crate::filter::EntityKind::Album
+        && request
+            .query
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .is_none();
+    let trace_offset = request.offset;
+    let trace_limit = request.limit;
+    let trace_filter_count = request.filters.len();
+    let trace_scope_count = request
+        .library_scopes
+        .as_ref()
+        .map(|scopes| scopes.len())
+        .unwrap_or(if request.library_scope.is_some() { 1 } else { 0 });
+    library_spawn_blocking(move || {
+        let t0 = std::time::Instant::now();
+        let result = advanced_search::run_advanced_search(&store, &request);
+        if trace_album_browse {
+            let step_ms = t0.elapsed().as_millis();
+            let album_count = result.as_ref().map(|r| r.albums.len()).unwrap_or(0);
+            crate::app_deprintln!(
+                "[frontend][albums-browse] {}",
+                serde_json::json!({
+                    "step": "rust_advanced_search",
+                    "elapsedMs": 0,
+                    "details": {
+                        "stepMs": step_ms,
+                        "albums": album_count,
+                        "offset": trace_offset,
+                        "limit": trace_limit,
+                        "filterCount": trace_filter_count,
+                        "scopeCount": trace_scope_count,
+                        "ok": result.is_ok(),
+                    }
+                })
+            );
+        }
+        result
+    })
+    .await
 }
 
 // NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.
@@ -549,7 +591,34 @@ pub async fn library_list_albums_by_genre(
     request: crate::dto::LibraryGenreAlbumsRequest,
 ) -> Result<crate::dto::LibraryGenreAlbumsResponse, String> {
     let store = Arc::clone(&runtime.store);
-    library_spawn_blocking(move || crate::genre_album_browse::list_albums_by_genre(&store, &request))
+    let trace = psysonic_core::logging::should_log_debug();
+    let trace_genre = request.genre.clone();
+    let trace_offset = request.offset;
+    let trace_limit = request.limit;
+    library_spawn_blocking(move || {
+        let t0 = std::time::Instant::now();
+        let result = crate::genre_album_browse::list_albums_by_genre(&store, &request);
+        if trace {
+            let step_ms = t0.elapsed().as_millis();
+            let album_count = result.as_ref().map(|r| r.albums.len()).unwrap_or(0);
+            crate::app_deprintln!(
+                "[frontend][albums-browse] {}",
+                serde_json::json!({
+                    "step": "rust_list_albums_by_genre",
+                    "elapsedMs": 0,
+                    "details": {
+                        "stepMs": step_ms,
+                        "albums": album_count,
+                        "genre": trace_genre,
+                        "offset": trace_offset,
+                        "limit": trace_limit,
+                        "ok": result.is_ok(),
+                    }
+                })
+            );
+        }
+        result
+    })
         .await
 }
 

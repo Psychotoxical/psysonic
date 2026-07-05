@@ -8,6 +8,7 @@ import { albumSortClauses, sortSubsonicAlbums } from './albumBrowseSort';
 import { libraryIsReady } from './libraryReady';
 import type { AlbumBrowsePageResult, AlbumBrowseQuery } from './albumBrowseTypes';
 import { GENRE_ALBUM_FETCH_LIMIT } from './albumBrowseTypes';
+import { albumBrowseTimed, emitAlbumBrowseDebug } from './albumBrowseDebug';
 
 function markServerStarredAlbums(albums: SubsonicAlbum[]) {
   return albums.map(a => ({ ...a, starred: a.starred ?? 'true' }));
@@ -21,7 +22,16 @@ export async function runLocalAlbumBrowse(
   pageSize: number,
   restrictAlbumIds?: string[],
 ): Promise<AlbumBrowsePageResult | null> {
-  if (!serverId || !(await libraryIsReady(serverId))) return null;
+  if (!serverId) return null;
+  const ready = await albumBrowseTimed(
+    'library_is_ready',
+    () => libraryIsReady(serverId),
+    { serverId, offset, pageSize },
+  );
+  if (!ready) {
+    emitAlbumBrowseDebug('library_not_ready', { serverId, offset, pageSize });
+    return null;
+  }
 
   const scope = libraryScopeForServer(serverId) ?? undefined;
   const libraryScopes = libraryScopePairsForServer(serverId);
@@ -34,15 +44,19 @@ export async function runLocalAlbumBrowse(
       // Genre-only fast path; combined filters (year / lossless / compilation) need advanced search.
       if (shared.length === 0) {
         try {
-          const resp = await libraryListAlbumsByGenre({
-            serverId,
-            genre: query.genres[0],
-            libraryScope: scope,
-            libraryScopes,
-            sort: albumSortClauses(query.sort),
-            limit: pageSize,
-            offset,
-          });
+          const resp = await albumBrowseTimed(
+            'list_albums_by_genre',
+            () => libraryListAlbumsByGenre({
+              serverId,
+              genre: query.genres[0],
+              libraryScope: scope,
+              libraryScopes,
+              sort: albumSortClauses(query.sort),
+              limit: pageSize,
+              offset,
+            }),
+            { genre: query.genres[0], offset, pageSize },
+          );
           if (resp.source !== 'local') return null;
           let albums = resp.albums.map(albumToAlbum);
           if (useServerStarredIds) albums = markServerStarredAlbums(albums);
@@ -52,19 +66,23 @@ export async function runLocalAlbumBrowse(
         }
       }
       try {
-        const resp = await libraryAdvancedSearch({
-          serverId,
-          libraryScope: scope,
-          libraryScopes,
-          entityTypes: ['album'],
-          filters: [{ field: 'genre', op: 'eq', value: query.genres[0] }, ...shared],
-          starredOnly,
-          restrictAlbumIds: useServerStarredIds ? restrictAlbumIds : undefined,
-          sort: albumSortClauses(query.sort),
-          limit: pageSize,
-          offset,
-          skipTotals: true,
-        });
+        const resp = await albumBrowseTimed(
+          'advanced_search',
+          () => libraryAdvancedSearch({
+            serverId,
+            libraryScope: scope,
+            libraryScopes,
+            entityTypes: ['album'],
+            filters: [{ field: 'genre', op: 'eq', value: query.genres[0] }, ...shared],
+            starredOnly,
+            restrictAlbumIds: useServerStarredIds ? restrictAlbumIds : undefined,
+            sort: albumSortClauses(query.sort),
+            limit: pageSize,
+            offset,
+            skipTotals: true,
+          }),
+          { genre: query.genres[0], offset, pageSize, filterCount: shared.length + 1 },
+        );
         if (resp.source !== 'local') return null;
         let albums = resp.albums.map(albumToAlbum);
         if (useServerStarredIds) albums = markServerStarredAlbums(albums);
@@ -105,19 +123,28 @@ export async function runLocalAlbumBrowse(
   }
 
   try {
-    const resp = await libraryAdvancedSearch({
-      serverId,
-      libraryScope: scope,
-      libraryScopes,
-      entityTypes: ['album'],
-      filters: shared,
-      starredOnly,
-      restrictAlbumIds: useServerStarredIds ? restrictAlbumIds : undefined,
-      sort: albumSortClauses(query.sort),
-      limit: pageSize,
-      offset,
-      skipTotals: true,
-    });
+    const resp = await albumBrowseTimed(
+      'advanced_search',
+      () => libraryAdvancedSearch({
+        serverId,
+        libraryScope: scope,
+        libraryScopes,
+        entityTypes: ['album'],
+        filters: shared,
+        starredOnly,
+        restrictAlbumIds: useServerStarredIds ? restrictAlbumIds : undefined,
+        sort: albumSortClauses(query.sort),
+        limit: pageSize,
+        offset,
+        skipTotals: true,
+      }),
+      {
+        offset,
+        pageSize,
+        filterCount: shared.length,
+        scopeCount: libraryScopes?.length ?? (scope ? 1 : 0),
+      },
+    );
     if (resp.source !== 'local') return null;
     let albums = resp.albums.map(albumToAlbum);
     if (useServerStarredIds) albums = markServerStarredAlbums(albums);

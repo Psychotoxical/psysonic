@@ -53,6 +53,11 @@ import {
   filterAlbumsByYearBounds,
 } from '@/lib/library/albumBrowseFilters';
 import { useScopedBrowseSearchQuery } from '@/store/liveSearchScopeStore';
+import {
+  beginAlbumBrowseTrace,
+  emitAlbumBrowseDebug,
+} from '@/lib/library/albumBrowseDebug';
+import { librarySelectionForServer } from '@/lib/api/subsonicClient';
 
 type SortType = AlbumBrowseSort;
 
@@ -68,6 +73,18 @@ export default function Albums() {
   const auth = useAuthStore();
   const serverId = useAuthStore(s => s.activeServerId ?? '');
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
+
+  useLayoutEffect(() => {
+    beginAlbumBrowseTrace({
+      serverId,
+      indexEnabled,
+      libraryFilterVersion: musicLibraryFilterVersion,
+      libraryScopeCount: librarySelectionForServer(serverId).length,
+    });
+    emitAlbumBrowseDebug('page_mount');
+    return () => emitAlbumBrowseDebug('page_unmount');
+  }, [serverId, indexEnabled, musicLibraryFilterVersion]);
+
   const catalogYears = useAlbumCatalogYearBounds(serverId, indexEnabled, musicLibraryFilterVersion);
   const downloadAlbum = useOfflineStore(s => s.downloadAlbum);
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
@@ -178,6 +195,18 @@ export default function Albums() {
   const bindLoadMoreSentinel = browseData.bindLoadMoreSentinel;
   const loadMore = browseData.loadMore;
 
+  const prevLoadingRef = useRef(loading);
+  useEffect(() => {
+    if (prevLoadingRef.current && !loading) {
+      emitAlbumBrowseDebug('ui_loading_false', {
+        displayAlbumCount: displayAlbums.length,
+        albumCount: albums.length,
+        textSearchActive,
+      });
+    }
+    prevLoadingRef.current = loading;
+  }, [loading, displayAlbums.length, albums.length, textSearchActive]);
+
   useAlbumBrowseScrollSnapshotSync(scrollSnapshotRef, scrollBodyEl, displayAlbums.length);
 
   const { isScrollRestorePending } = useAlbumBrowseScrollRestore({
@@ -218,6 +247,16 @@ export default function Albums() {
   const maxGridCols = useAuthStore(s => clampLibraryGridMaxColumns(s.libraryGridMaxColumns));
   const [albumCellDisplayCssPx, setAlbumCellDisplayCssPx] = useState(140);
   const [albumGridCols, setAlbumGridCols] = useState(4);
+
+  useLayoutEffect(() => {
+    if (!loading && displayAlbums.length > 0) {
+      emitAlbumBrowseDebug('grid_first_paint', {
+        displayAlbumCount: displayAlbums.length,
+        albumGridCols,
+        textSearchActive,
+      });
+    }
+  }, [loading, displayAlbums.length, albumGridCols, textSearchActive]);
 
   // ── Multi-selection ──────────────────────────────────────────────────────
   // `displayAlbums` — visible grid slice (local index) or loaded SQL pages (network).

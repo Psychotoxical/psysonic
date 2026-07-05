@@ -32,6 +32,12 @@ import type {
   GenreFilterOption,
 } from './albumBrowseTypes';
 import { GENRE_ALBUM_FETCH_LIMIT } from './albumBrowseTypes';
+import { albumBrowseTimed, emitAlbumBrowseDebug } from './albumBrowseDebug';
+
+/** Unfiltered browse: paint a small SQL page first, then grow the catalog buffer. */
+export function albumBrowseBootstrapEligible(query: AlbumBrowseQuery): boolean {
+  return !albumBrowseHasServerFilters(query) && query.compFilter === 'all';
+}
 
 /** One local-index chunk for lazy catalog loading (All Albums slice mode). */
 export async function fetchLocalAlbumCatalogChunk(
@@ -75,11 +81,19 @@ export async function fetchAlbumBrowseGenreOptions(
   if (indexEnabled && serverId && selection.length >= 1 && !hasCombinedFilters && (await libraryIsReady(serverId))) {
     try {
       if (selection.length === 1) {
-        const rows = await libraryGetGenreAlbumCounts({ serverId, libraryScope: selection[0] });
+        const rows = await albumBrowseTimed(
+          'genre_album_counts',
+          () => libraryGetGenreAlbumCounts({ serverId, libraryScope: selection[0] }),
+          { libraryCount: 1 },
+        );
         return rows.map(row => ({ genre: row.value, count: row.albumCount }));
       }
-      const perLibrary = await Promise.all(
-        selection.map(libraryScope => libraryGetGenreAlbumCounts({ serverId, libraryScope })),
+      const perLibrary = await albumBrowseTimed(
+        'genre_album_counts_multi',
+        () => Promise.all(
+          selection.map(libraryScope => libraryGetGenreAlbumCounts({ serverId, libraryScope })),
+        ),
+        { libraryCount: selection.length },
       );
       const merged = new Map<string, number>();
       for (const rows of perLibrary) {
@@ -91,16 +105,21 @@ export async function fetchAlbumBrowseGenreOptions(
         (a, b) => b.count - a.count || a.genre.localeCompare(b.genre),
       );
     } catch {
+      emitAlbumBrowseDebug('genre_album_counts_fallback', { reason: 'error' });
       /* fall through to album-derived options */
     }
   }
 
-  const page = await fetchAlbumBrowsePage(
-    serverId,
-    indexEnabled,
-    withoutGenre,
-    0,
-    GENRE_ALBUM_FETCH_LIMIT,
+  const page = await albumBrowseTimed(
+    'genre_options_album_page',
+    () => fetchAlbumBrowsePage(
+      serverId,
+      indexEnabled,
+      withoutGenre,
+      0,
+      GENRE_ALBUM_FETCH_LIMIT,
+    ),
+    { limit: GENRE_ALBUM_FETCH_LIMIT },
   );
   return countGenresFromAlbums(filterAlbumsByCompilation(page.albums, query.compFilter));
 }

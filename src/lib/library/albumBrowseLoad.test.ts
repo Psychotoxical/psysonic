@@ -12,6 +12,7 @@ import {
   filterAlbumsByYearBounds,
 } from './albumBrowseFilters';
 import type { AlbumBrowseQuery } from './albumBrowseTypes';
+import { albumBrowseBootstrapEligible } from './albumBrowseLoad';
 
 describe('albumBrowseLoad', () => {
   const base: AlbumBrowseQuery = {
@@ -36,6 +37,12 @@ describe('albumBrowseLoad', () => {
         losslessOnly: true,
       }),
     ).toBe(true);
+  });
+
+  it('allows bootstrap paint only on unfiltered browse', () => {
+    expect(albumBrowseBootstrapEligible(base)).toBe(true);
+    expect(albumBrowseBootstrapEligible({ ...base, genres: ['Rock'] })).toBe(false);
+    expect(albumBrowseBootstrapEligible({ ...base, compFilter: 'only' })).toBe(false);
   });
 
   it('genre filter disables pagination path', () => {
