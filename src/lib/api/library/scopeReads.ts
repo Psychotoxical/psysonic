@@ -9,12 +9,14 @@ import {
   mapTracksServerId,
   serverIndexKeyForId,
 } from './internal';
-import type { LibraryAlbumDto, LibraryArtistDto, LibraryTrackDto } from './dto';
+import type {
+  LibraryAlbumDto,
+  LibraryArtistDto,
+  LibraryScopePair,
+  LibraryTrackDto,
+} from './dto';
 
-export interface LibraryScopePair {
-  serverId: string;
-  libraryId: string;
-}
+export type { LibraryScopePair };
 
 export interface LibraryScopeListRequest {
   scopes: LibraryScopePair[];
@@ -60,7 +62,7 @@ function mapScopePairServerId(pair: LibraryScopePair, profileServerId: string): 
   return { serverId: serverIndexKeyForId(pair.serverId), libraryId: pair.libraryId };
 }
 
-function mapScopePairs(scopes: LibraryScopePair[], profileServerId: string): LibraryScopePair[] {
+export function mapScopePairs(scopes: LibraryScopePair[], profileServerId: string): LibraryScopePair[] {
   return scopes.map(pair => mapScopePairServerId(pair, profileServerId));
 }
 

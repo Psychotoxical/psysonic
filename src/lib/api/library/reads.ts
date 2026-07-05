@@ -6,6 +6,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { commands } from '@/generated/bindings';
 import { serverIndexKeyForId, mapServerIdFromIndexKey, mapTracksServerId } from './internal';
+import { mapScopePairs } from './scopeReads';
 import type {
   SyncStateDto,
   LibraryTracksEnvelope,
@@ -62,8 +63,11 @@ export function libraryAdvancedSearch(
   request: LibraryAdvancedSearchRequest,
 ): Promise<LibraryAdvancedSearchResponse> {
   const indexKey = serverIndexKeyForId(request.serverId);
+  const libraryScopes = request.libraryScopes
+    ? mapScopePairs(request.libraryScopes, request.serverId)
+    : undefined;
   return invoke<LibraryAdvancedSearchResponse>('library_advanced_search', {
-    request: { ...request, serverId: indexKey },
+    request: { ...request, serverId: indexKey, libraryScopes },
   }).then(response => ({
     ...response,
     artists: response.artists.map(artist => ({
@@ -80,8 +84,11 @@ export function libraryAdvancedSearch(
 
 export function libraryLiveSearch(request: LibraryLiveSearchRequest): Promise<LibraryLiveSearchResponse> {
   const indexKey = serverIndexKeyForId(request.serverId);
+  const libraryScopes = request.libraryScopes
+    ? mapScopePairs(request.libraryScopes, request.serverId)
+    : undefined;
   return invoke<LibraryLiveSearchResponse>('library_live_search', {
-    request: { ...request, serverId: indexKey },
+    request: { ...request, serverId: indexKey, libraryScopes },
   }).then(response => ({
     ...response,
     artists: response.artists.map(artist => ({

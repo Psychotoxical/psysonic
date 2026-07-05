@@ -20,6 +20,7 @@ vi.mock('@/lib/api/subsonicGenres', () => ({
 
 vi.mock('@/lib/api/subsonicClient', () => ({
   libraryScopeForServer: vi.fn(() => 'music'),
+  libraryScopePairsForServer: vi.fn(() => [{ serverId: 'srv-1', libraryId: 'music' }]),
 }));
 
 vi.mock('@/lib/library/libraryReady', () => ({
@@ -82,6 +83,7 @@ describe('genreBrowsePlayback', () => {
       sort: [{ field: 'random', dir: 'asc' }],
       limit: 100,
       skipTotals: true,
+      libraryScopes: [{ serverId: 'srv-1', libraryId: 'music' }],
     }));
   });
 

@@ -20,7 +20,7 @@ import {
 } from '@/lib/api/subsonicStreamUrl';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { parseSubsonicEntityStarRating } from '@/lib/api/subsonicRatings';
-import { getClient, libraryFilterParams, libraryFilterParamsForServer, libraryScopeForServer, librarySelectionForServer } from '@/lib/api/subsonicClient';
+import { getClient, libraryFilterParams, libraryFilterParamsForServer, libraryScopeForServer, libraryScopePairsForServer, librarySelectionForServer } from '@/lib/api/subsonicClient';
 import { useAuthStore } from '@/store/authStore';
 import { resetAuthStore } from '@/test/helpers/storeReset';
 
@@ -129,6 +129,39 @@ describe('libraryScopeForServer', () => {
       musicLibraryFilterByServer: { [serverId]: 'mf-7' },
     });
     expect(libraryScopeForServer(serverId)).toBe('mf-7');
+  });
+});
+
+describe('libraryScopePairsForServer', () => {
+  it('returns empty array when all libraries or unset', () => {
+    const serverId = setUpServer();
+    expect(libraryScopePairsForServer(serverId)).toEqual([]);
+    useAuthStore.setState({
+      musicLibraryFilterByServer: { [serverId]: 'all' },
+    });
+    expect(libraryScopePairsForServer(serverId)).toEqual([]);
+  });
+
+  it('returns one ordered pair for legacy single-library filter', () => {
+    const serverId = setUpServer();
+    useAuthStore.setState({
+      musicLibraryFilterByServer: { [serverId]: 'mf-7' },
+    });
+    expect(libraryScopePairsForServer(serverId)).toEqual([
+      { serverId, libraryId: 'mf-7' },
+    ]);
+  });
+
+  it('returns ordered pairs from multi-library selection', () => {
+    const serverId = setUpServer();
+    useAuthStore.setState({
+      musicLibrarySelectionByServer: { [serverId]: ['lib-b', 'lib-a'] },
+      musicLibraryFilterByServer: { [serverId]: 'lib-b' },
+    });
+    expect(libraryScopePairsForServer(serverId)).toEqual([
+      { serverId, libraryId: 'lib-b' },
+      { serverId, libraryId: 'lib-a' },
+    ]);
   });
 });
 

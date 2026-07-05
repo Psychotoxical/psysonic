@@ -67,7 +67,40 @@ describe('runLocalAdvancedSearch', () => {
       };
     });
     await runLocalAdvancedSearch('s1', opts({ query: 'x' }), 100);
-    expect(captured).toMatchObject({ request: { libraryScope: 'lib7' } });
+    expect(captured).toMatchObject({
+      request: {
+        libraryScope: 'lib7',
+        libraryScopes: [{ serverId: 's1', libraryId: 'lib7' }],
+      },
+    });
+  });
+
+  it('passes ordered libraryScopes for multi-library selection', async () => {
+    useAuthStore.setState({
+      musicLibrarySelectionByServer: { s1: ['lib-b', 'lib-a'] },
+      musicLibraryFilterByServer: { s1: 'lib-b' },
+    });
+    ready();
+    let captured: unknown;
+    onInvoke('library_advanced_search', (args) => {
+      captured = args;
+      return {
+        artists: [],
+        albums: [],
+        tracks: [],
+        totals: { artists: 0, albums: 0, tracks: 0 },
+        source: 'local',
+      };
+    });
+    await runLocalAdvancedSearch('s1', opts({ query: 'x' }), 100);
+    expect(captured).toMatchObject({
+      request: {
+        libraryScopes: [
+          { serverId: 's1', libraryId: 'lib-b' },
+          { serverId: 's1', libraryId: 'lib-a' },
+        ],
+      },
+    });
   });
 
   it('passes lossless is_true filter to library_advanced_search', async () => {

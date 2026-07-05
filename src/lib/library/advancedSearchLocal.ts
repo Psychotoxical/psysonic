@@ -21,7 +21,7 @@ import {
 } from '@/lib/api/library';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '@/lib/api/subsonicTypes';
 import { search } from '@/lib/api/subsonicSearch';
-import { libraryScopeForServer } from '@/lib/api/subsonicClient';
+import { libraryScopeForServer, libraryScopePairsForServer } from '@/lib/api/subsonicClient';
 import { fetchAlbumBrowseNetwork } from './albumBrowseNetwork';
 import type { AlbumBrowseQuery } from './albumBrowseTypes';
 import { resolveAlbumYearBounds } from './albumYearFilter';
@@ -138,9 +138,11 @@ function buildRequest(
 ): LibraryAdvancedSearchRequest {
   const q = opts.query.trim();
   const libraryScope = libraryScopeForServer(serverId);
+  const libraryScopes = libraryScopePairsForServer(serverId);
   return {
     serverId,
     libraryScope: libraryScope ?? undefined,
+    libraryScopes,
     query: q || undefined,
     entityTypes,
     filters: buildFilters(opts),
@@ -328,6 +330,7 @@ export async function runLocalSongBrowse(
     const resp = await libraryAdvancedSearch({
       serverId,
       libraryScope: libraryScopeForServer(serverId),
+      libraryScopes: libraryScopePairsForServer(serverId),
       query: undefined,
       entityTypes: ['track'],
       limit: pageSize,

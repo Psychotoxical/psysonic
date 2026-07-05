@@ -1,6 +1,6 @@
 import { getAlbumsByGenre } from '@/lib/api/subsonicGenres';
 import { libraryListAlbumsByGenre } from '@/lib/api/library';
-import { libraryScopeForServer } from '@/lib/api/subsonicClient';
+import { libraryScopeForServer, libraryScopePairsForServer } from '@/lib/api/subsonicClient';
 import { albumToAlbum } from './advancedSearchLocal';
 import { albumSortClauses, sortSubsonicAlbums, type AlbumBrowseSort } from './albumBrowseSort';
 import type { AlbumBrowsePageResult } from './albumBrowseTypes';
@@ -19,12 +19,14 @@ async function fetchLocalGenreAlbumPage(
   sort: AlbumBrowseSort,
 ): Promise<AlbumBrowsePageResult | null> {
   const scope = libraryScopeForServer(serverId) ?? undefined;
+  const libraryScopes = libraryScopePairsForServer(serverId);
   if (!(await libraryIsReady(serverId))) return null;
   try {
     const resp = await libraryListAlbumsByGenre({
       serverId,
       genre,
       libraryScope: scope,
+      libraryScopes,
       sort: albumSortClauses(sort),
       limit: pageSize,
       offset,
@@ -86,11 +88,13 @@ export async function fetchGenreAlbumTotal(
   if (!genre.trim()) return null;
   if (indexEnabled && serverId && (await libraryIsReady(serverId))) {
     const scope = libraryScopeForServer(serverId) ?? undefined;
+    const libraryScopes = libraryScopePairsForServer(serverId);
     try {
       const resp = await libraryListAlbumsByGenre({
         serverId,
         genre,
         libraryScope: scope,
+        libraryScopes,
         sort: albumSortClauses(sort),
         limit: 1,
         offset: 0,

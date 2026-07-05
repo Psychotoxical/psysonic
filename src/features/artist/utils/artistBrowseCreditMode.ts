@@ -3,7 +3,7 @@ import { getStarred } from '@/lib/api/subsonicStarRating';
 import type { SubsonicArtist } from '@/lib/api/subsonicTypes';
 import { libraryAdvancedSearch } from '@/lib/api/library';
 import type { ArtistCreditMode } from '@/lib/api/library';
-import { libraryScopeForServer } from '@/lib/api/subsonicClient';
+import { libraryScopeForServer, libraryScopePairsForServer } from '@/lib/api/subsonicClient';
 import { libraryIsReady } from '@/lib/library/libraryReady';
 import { ndListArtistsByRole } from '@/lib/api/navidromeBrowse';
 
@@ -31,6 +31,7 @@ async function fetchLocalArtistIdsForMode(
     const resp = await libraryAdvancedSearch({
       serverId,
       libraryScope: libraryScopeForServer(serverId) ?? undefined,
+      libraryScopes: libraryScopePairsForServer(serverId),
       entityTypes: ['artist'],
       artistCreditMode: creditMode,
       limit: 100_000,

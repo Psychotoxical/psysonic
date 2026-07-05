@@ -1,6 +1,6 @@
 import { libraryAdvancedSearch, libraryListAlbumsByGenre } from '@/lib/api/library';
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
-import { libraryScopeForServer } from '@/lib/api/subsonicClient';
+import { libraryScopeForServer, libraryScopePairsForServer } from '@/lib/api/subsonicClient';
 import { dedupeById } from '@/lib/util/dedupeById';
 import { albumToAlbum } from './advancedSearchLocal';
 import { sharedServerFilters } from './albumBrowseFilters';
@@ -24,6 +24,7 @@ export async function runLocalAlbumBrowse(
   if (!serverId || !(await libraryIsReady(serverId))) return null;
 
   const scope = libraryScopeForServer(serverId) ?? undefined;
+  const libraryScopes = libraryScopePairsForServer(serverId);
   const useServerStarredIds = restrictAlbumIds != null;
   const shared = sharedServerFilters(query, useServerStarredIds);
   const starredOnly = useServerStarredIds ? undefined : (query.starredOnly || undefined);
@@ -37,6 +38,7 @@ export async function runLocalAlbumBrowse(
             serverId,
             genre: query.genres[0],
             libraryScope: scope,
+            libraryScopes,
             sort: albumSortClauses(query.sort),
             limit: pageSize,
             offset,
@@ -53,6 +55,7 @@ export async function runLocalAlbumBrowse(
         const resp = await libraryAdvancedSearch({
           serverId,
           libraryScope: scope,
+          libraryScopes,
           entityTypes: ['album'],
           filters: [{ field: 'genre', op: 'eq', value: query.genres[0] }, ...shared],
           starredOnly,
@@ -77,6 +80,7 @@ export async function runLocalAlbumBrowse(
           libraryAdvancedSearch({
             serverId,
             libraryScope: scope,
+            libraryScopes,
             entityTypes: ['album'],
             filters: [{ field: 'genre', op: 'eq', value: genre }, ...shared],
             starredOnly,
@@ -104,6 +108,7 @@ export async function runLocalAlbumBrowse(
     const resp = await libraryAdvancedSearch({
       serverId,
       libraryScope: scope,
+      libraryScopes,
       entityTypes: ['album'],
       filters: shared,
       starredOnly,

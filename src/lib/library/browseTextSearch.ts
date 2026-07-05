@@ -7,7 +7,7 @@ import type { ArtistCreditMode } from '@/lib/api/library';
 import { search, searchSongsPaged } from '@/lib/api/subsonicSearch';
 import type { SearchResults, SubsonicAlbum, SubsonicArtist, SubsonicSong } from '@/lib/api/subsonicTypes';
 import { libraryAdvancedSearch, libraryGetArtistLosslessBrowse, libraryListLosslessAlbums } from '@/lib/api/library';
-import { libraryScopeForServer } from '@/lib/api/subsonicClient';
+import { libraryScopeForServer, libraryScopePairsForServer } from '@/lib/api/subsonicClient';
 import {
   LIVE_SEARCH_DEBOUNCE_NETWORK_MS,
   LIVE_SEARCH_DEBOUNCE_RACE_MS,
@@ -318,6 +318,7 @@ export async function runLocalBrowseSongPage(
     const resp = await libraryAdvancedSearch({
       serverId,
       libraryScope: libraryScopeForServer(serverId) ?? undefined,
+      libraryScopes: libraryScopePairsForServer(serverId),
       query: q,
       entityTypes: ['track'],
       limit: pageSize,
@@ -416,6 +417,7 @@ export async function runLocalRandomSongs(
     const resp = await libraryAdvancedSearch({
       serverId,
       libraryScope: libraryScopeForServer(serverId) ?? undefined,
+      libraryScopes: libraryScopePairsForServer(serverId),
       entityTypes: ['track'],
       sort: [{ field: 'random', dir: 'asc' }],
       limit,
@@ -488,6 +490,7 @@ export async function runLocalRandomAlbums(
     const resp = await libraryAdvancedSearch({
       serverId,
       libraryScope: libraryScopeForServer(serverId) ?? undefined,
+      libraryScopes: libraryScopePairsForServer(serverId),
       entityTypes: ['album'],
       sort: [{ field: 'random', dir: 'asc' }],
       limit,
@@ -553,6 +556,7 @@ export async function runLocalBrowseAllArtists(
     const resp = await libraryAdvancedSearch({
       serverId,
       libraryScope: libraryScopeForServer(serverId) ?? undefined,
+      libraryScopes: libraryScopePairsForServer(serverId),
       entityTypes: ['artist'],
       limit,
       offset: 0,
@@ -584,6 +588,7 @@ export async function fetchLocalArtistCatalogChunk(
     const resp = await libraryAdvancedSearch({
       serverId,
       libraryScope: libraryScopeForServer(serverId) ?? undefined,
+      libraryScopes: libraryScopePairsForServer(serverId),
       entityTypes: ['artist'],
       artistCreditMode: creditMode,
       ...(bucket ? { artistLetterBucket: bucket } : {}),

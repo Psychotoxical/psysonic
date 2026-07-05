@@ -138,6 +138,11 @@ export function libraryScopesForServer(serverId: string): string[] {
   return librarySelectionForServer(serverId);
 }
 
+/** Ordered scope pairs for local index reads — profile `serverId` space; empty when all libraries. */
+export function libraryScopePairsForServer(serverId: string): { serverId: string; libraryId: string }[] {
+  return librarySelectionForServer(serverId).map(libraryId => ({ serverId, libraryId }));
+}
+
 /** Navidrome/Subsonic music folder id for the local library index, or undefined for all libraries. */
 export function libraryScopeForServer(serverId: string): string | undefined {
   const resolved = resolveServerIdForIndexKey(serverId);

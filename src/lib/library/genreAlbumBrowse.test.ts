@@ -11,6 +11,7 @@ vi.mock('@/lib/api/subsonicGenres', () => ({
 
 vi.mock('@/lib/api/subsonicClient', () => ({
   libraryScopeForServer: vi.fn(() => 'lib-a'),
+  libraryScopePairsForServer: vi.fn(() => [{ serverId: 'srv-1', libraryId: 'lib-a' }]),
 }));
 
 vi.mock('./libraryReady', () => ({
@@ -52,6 +53,7 @@ describe('genreAlbumBrowse', () => {
       serverId: 'srv-1',
       genre: 'Rock',
       libraryScope: 'lib-a',
+      libraryScopes: [{ serverId: 'srv-1', libraryId: 'lib-a' }],
       offset: 0,
       limit: 60,
     }));
