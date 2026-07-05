@@ -70,7 +70,7 @@ pub(crate) fn scope_cte_sql(scopes: &[LibraryScopePair]) -> (String, Vec<SqlValu
 fn scoped_track_join() -> &'static str {
     "FROM track t \
      INNER JOIN scope s ON t.server_id = s.server_id AND t.library_id = s.library_id \
-     INNER JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
+     LEFT JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
      WHERE t.deleted = 0"
 }
 
@@ -726,7 +726,7 @@ pub(crate) fn live_search_albums(
            FROM fts_hits h \
            INNER JOIN track t ON t.rowid = h.rowid \
            INNER JOIN scope s ON t.server_id = s.server_id AND t.library_id = s.library_id \
-           INNER JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
+           LEFT JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
            WHERE t.deleted = 0 \
            GROUP BY album_dedup, t.server_id, t.album_id, s.pr \
          ), \
@@ -804,7 +804,7 @@ pub(crate) fn live_search_artists(
            FROM fts_hits h \
            INNER JOIN track t ON t.rowid = h.rowid \
            INNER JOIN scope s ON t.server_id = s.server_id AND t.library_id = s.library_id \
-           INNER JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
+           LEFT JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
            WHERE t.deleted = 0 \
            GROUP BY t.server_id, t.artist_id, t.artist, t.synced_at, s.pr, artist_dedup \
          ), \

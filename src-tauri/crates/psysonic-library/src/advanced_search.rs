@@ -178,6 +178,7 @@ pub fn run_advanced_search(
         req.library_scopes.as_deref(),
     );
     if multi_library_merge_enabled(&scope_pairs) {
+        ensure_cluster_keys_built(store, &req.server_id)?;
         return run_advanced_search_multi_scope(
             store,
             req,
@@ -229,6 +230,31 @@ pub fn run_advanced_search(
         applied_filters: applied.into_iter().collect(),
         source: "local".to_string(),
     })
+}
+
+fn ensure_cluster_keys_built(store: &LibraryStore, server_id: &str) -> Result<(), String> {
+    let needs_rebuild = store
+        .with_read_conn(|conn| {
+            let track_count: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM track WHERE server_id = ?1 AND deleted = 0",
+                [server_id],
+                |r| r.get(0),
+            )?;
+            if track_count == 0 {
+                return Ok(false);
+            }
+            let key_count: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM cluster.track_cluster_key WHERE server_id = ?1",
+                [server_id],
+                |r| r.get(0),
+            )?;
+            Ok(key_count == 0)
+        })
+        .map_err(|e| e.to_string())?;
+    if needs_rebuild {
+        crate::identity::rebuild_cluster_keys(store, Some(server_id))?;
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -407,6 +433,41 @@ fn build_multi_scope_track(
     )
 }
 
+/// Letter bucket filter on track performer name (multi-scope artist browse).
+fn push_artist_track_letter_bucket(w: &mut WhereBuilder, bucket: &str, applied: &mut BTreeSet<String>) {
+    if bucket.is_empty() || bucket.eq_ignore_ascii_case("ALL") {
+        return;
+    }
+    let col = "t.artist";
+    match bucket {
+        "#" => {
+            w.push_raw(&format!("SUBSTR({col}, 1, 1) GLOB '[0-9]'"));
+        }
+        "OTHER" => {
+            w.push_raw(&format!(
+                "LENGTH({col}) > 0 \
+                 AND SUBSTR({col}, 1, 1) NOT GLOB '[0-9]' \
+                 AND LOWER(SUBSTR({col}, 1, 1)) NOT GLOB '[a-z]'"
+            ));
+        }
+        letter if letter.len() == 1 => {
+            let Some(ch) = letter.chars().next() else {
+                return;
+            };
+            if !ch.is_ascii_alphabetic() {
+                return;
+            }
+            let lower = ch.to_ascii_lowercase().to_string();
+            w.push_param(
+                &format!("LOWER(SUBSTR({col}, 1, 1)) = ?"),
+                SqlValue::Text(lower),
+            );
+        }
+        _ => return,
+    }
+    applied.insert("letter".to_string());
+}
+
 #[allow(clippy::too_many_arguments)]
 fn multi_scope_track_filter_sql(
     store: &LibraryStore,
@@ -418,6 +479,18 @@ fn multi_scope_track_filter_sql(
     applied: &mut BTreeSet<String>,
 ) -> Result<(String, Vec<SqlValue>), String> {
     let mut w = WhereBuilder::new();
+    if text_entity == Some(EntityKind::Artist) {
+        if album_artist_credit_mode(req) {
+            w.push_raw(
+                "EXISTS (SELECT 1 FROM artist ar \
+                 WHERE ar.server_id = t.server_id AND ar.id = t.artist_id AND ar.album_count IS NOT NULL)",
+            );
+            applied.insert("artist_credit_mode".to_string());
+        }
+        if let Some(bucket) = req.artist_letter_bucket.as_deref() {
+            push_artist_track_letter_bucket(&mut w, bucket, applied);
+        }
+    }
     if let Some(t) = text {
         match text_entity {
             Some(EntityKind::Artist) => {
@@ -2822,6 +2895,45 @@ mod tests {
     fn seed_and_rebuild(store: &LibraryStore, rows: &[TrackRow]) {
         TrackRepository::new(store).upsert_batch(rows).unwrap();
         crate::identity::rebuild_cluster_keys(store, None).unwrap();
+    }
+
+    #[test]
+    fn multi_scope_artist_browse_without_cluster_keys_returns_scoped_artists() {
+        let store = LibraryStore::open_in_memory();
+        insert_artist_with_album_count(&store, "s1", "ar_Alpha", "Alpha", Some(1));
+        insert_artist_with_album_count(&store, "s1", "ar_Beta", "Beta", Some(1));
+        let mut t1 = scoped_track(
+            "s1",
+            "t-a",
+            "Song",
+            "Alpha",
+            "Alb",
+            "alb-a",
+            "lib-a",
+            None,
+            None,
+            None,
+        );
+        t1.artist_id = Some("ar_Alpha".into());
+        let mut t2 = scoped_track(
+            "s1",
+            "t-b",
+            "Song",
+            "Beta",
+            "Alb2",
+            "alb-b",
+            "lib-b",
+            None,
+            None,
+            None,
+        );
+        t2.artist_id = Some("ar_Beta".into());
+        TrackRepository::new(&store).upsert_batch(&[t1, t2]).unwrap();
+        let mut r = req("s1", &[EntityKind::Artist]);
+        r.library_scopes = Some(vec![scope_pair("s1", "lib-a"), scope_pair("s1", "lib-b")]);
+        r.artist_credit_mode = Some(ArtistCreditMode::Album);
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.artists.len(), 2);
     }
 
     #[test]
