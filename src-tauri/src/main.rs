@@ -8,7 +8,20 @@ use webkit2gtk_nvidia_quirk::{
 };
 
 #[cfg(target_os = "linux")]
-fn apply_linux_webkit_nvidia_quirk() {
+fn apply_nv_workaround_kind_silent(kind: WorkaroundKind) {
+    match kind {
+        WorkaroundKind::None => {}
+        WorkaroundKind::DisableWebkitDmabufRenderer => {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
+        WorkaroundKind::DisableNvExplicitSync => {
+            std::env::set_var("__NV_DISABLE_EXPLICIT_SYNC", "1");
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn apply_linux_webkit_nvidia_quirk(silent: bool) {
     if std::env::var("PSYSONIC_WEBKIT_GPU_ACCEL").is_ok() {
         return;
     }
@@ -25,7 +38,19 @@ fn apply_linux_webkit_nvidia_quirk() {
     let forced_x11_gdk = std::env::var("GDK_BACKEND").ok().is_some_and(|s| {
         matches!(s.split(',').next().map(str::trim), Some("x11"))
     });
-    if forced_x11_gdk {
+    if silent {
+        if forced_x11_gdk {
+            match kind {
+                WorkaroundKind::None => {}
+                WorkaroundKind::DisableWebkitDmabufRenderer
+                | WorkaroundKind::DisableNvExplicitSync => {
+                    std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+                }
+            }
+        } else {
+            apply_nv_workaround_kind_silent(kind);
+        }
+    } else if forced_x11_gdk {
         match kind {
             WorkaroundKind::None => {}
             WorkaroundKind::DisableWebkitDmabufRenderer | WorkaroundKind::DisableNvExplicitSync => {
@@ -51,18 +76,26 @@ fn apply_pipewire_latency() {
     }
 }
 
+#[cfg(target_os = "linux")]
+fn try_forward_linux_cli_player_argv(args: &[String]) {
+    use psysonic_lib::cli::{linux_try_forward_player_cli_secondary, parse_cli_command, LinuxPlayerForwardResult};
+
+    if parse_cli_command(args).is_none() {
+        return;
+    }
+    match linux_try_forward_player_cli_secondary(args) {
+        Ok(LinuxPlayerForwardResult::Forwarded) => std::process::exit(0),
+        Ok(LinuxPlayerForwardResult::ContinueStartup) => {}
+        Err(msg) => {
+            psysonic_lib::app_eprintln!("NOT OK: {msg}");
+            std::process::exit(1);
+        }
+    }
+}
+
 fn main() {
-    // Linux audio: cap the pipewire-alsa client latency so play/pause/seek/volume
-    // respond promptly (issue #862). Must run before any audio stream is opened.
-    #[cfg(target_os = "linux")]
-    apply_pipewire_latency();
-
-    // Linux GTK/WebKit: `webkit2gtk-nvidia-quirk` (skipped when `PSYSONIC_WEBKIT_GPU_ACCEL` is set).
-    // Forced `GDK_BACKEND=x11` uses the X11-only mitigation path — see `apply_linux_webkit_nvidia_quirk`.
-    #[cfg(target_os = "linux")]
-    apply_linux_webkit_nvidia_quirk();
-
     let args: Vec<String> = std::env::args().collect();
+
     if psysonic_lib::cli::wants_version(&args) {
         psysonic_lib::cli::print_version();
         return;
@@ -86,6 +119,20 @@ fn main() {
         eprintln!("NOT OK: --tail is only valid with --logs");
         std::process::exit(2);
     }
+
+    #[cfg(target_os = "linux")]
+    try_forward_linux_cli_player_argv(&args);
+
+    // Linux audio: cap the pipewire-alsa client latency so play/pause/seek/volume
+    // respond promptly (issue #862). Must run before any audio stream is opened.
+    #[cfg(target_os = "linux")]
+    apply_pipewire_latency();
+
+    // Linux GTK/WebKit: `webkit2gtk-nvidia-quirk` (skipped when `PSYSONIC_WEBKIT_GPU_ACCEL` is set).
+    // Forced `GDK_BACKEND=x11` uses the X11-only mitigation path — see `apply_linux_webkit_nvidia_quirk`.
+    // Skip the crate's stderr notes when argv is a CLI invocation (scripting noise).
+    #[cfg(target_os = "linux")]
+    apply_linux_webkit_nvidia_quirk(psysonic_lib::cli::wants_cli_argv(&args));
 
     psysonic_lib::run();
 }

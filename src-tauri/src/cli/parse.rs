@@ -20,6 +20,7 @@ pub enum PlayerCliCmd {
     PlayOpaqueId(String),
     Seek { delta_secs: i32 },
     Volume { percent: u8 },
+    VolumeRelative { delta_percent: i32 },
     Repeat(RepeatCliMode),
     Rating { stars: u8 },
 }
@@ -172,6 +173,17 @@ pub fn wants_logs(args: &[String]) -> bool {
     args.iter().skip(1).any(|a| a == "--logs")
 }
 
+/// True when argv uses any CLI surface (`--player`, `--info`, `--help`, …), not a plain GUI launch.
+pub fn wants_cli_argv(args: &[String]) -> bool {
+    wants_version(args)
+        || wants_help(args)
+        || args.get(1).is_some_and(|a| a == "completions")
+        || wants_info(args)
+        || wants_logs(args)
+        || wants_tail(args)
+        || parse_cli_command(args).is_some()
+}
+
 pub fn wants_follow(args: &[String]) -> bool {
     args.iter().skip(1).any(|a| a == "-f" || a == "--follow")
 }
@@ -219,6 +231,24 @@ fn parse_repeat_mode(arg: &str) -> Option<RepeatCliMode> {
     }
 }
 
+fn parse_volume_cli_arg(raw: &str) -> Option<PlayerCliCmd> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if trimmed.starts_with('+') || trimmed.starts_with('-') {
+        let delta_percent: i32 = trimmed.parse().ok()?;
+        return Some(PlayerCliCmd::VolumeRelative { delta_percent });
+    }
+    let v: i64 = trimmed.parse().ok()?;
+    if !(0..=100).contains(&v) {
+        return None;
+    }
+    Some(PlayerCliCmd::Volume {
+        percent: v as u8,
+    })
+}
+
 fn parse_player_cli_at(args: &[String], pos: usize) -> Option<PlayerCliCmd> {
     let verb = args.get(pos + 1)?.as_str();
     if let Some(entry) = cli_registry_entry_by_verb(verb).filter(|entry| entry.command == "play") {
@@ -251,16 +281,7 @@ fn parse_player_cli_at(args: &[String], pos: usize) -> Option<PlayerCliCmd> {
             let delta_secs: i32 = raw.parse().ok()?;
             Some(PlayerCliCmd::Seek { delta_secs })
         }
-        "volume" => {
-            let raw = args.get(pos + 2)?;
-            let v: i64 = raw.parse().ok()?;
-            if !(0..=100).contains(&v) {
-                return None;
-            }
-            Some(PlayerCliCmd::Volume {
-                percent: v as u8,
-            })
-        }
+        "volume" => parse_volume_cli_arg(args.get(pos + 2)?),
         _ => cli_registry_entry_by_verb(verb)
             .map(|entry| PlayerCliCmd::NoArgCommand(entry.command.clone())),
     }
@@ -336,5 +357,46 @@ pub fn parse_cli_command(args: &[String]) -> Option<CliCommand> {
             Some(CliCommand::Search { scope, query })
         }
         _ => parse_player_cli_at(args, pos).map(CliCommand::Player),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_player(args: &[&str]) -> Option<PlayerCliCmd> {
+        let argv: Vec<String> = std::iter::once("psysonic")
+            .chain(args.iter().copied())
+            .map(String::from)
+            .collect();
+        match parse_cli_command(&argv) {
+            Some(CliCommand::Player(cmd)) => Some(cmd),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn volume_absolute_without_sign() {
+        assert_eq!(
+            parse_player(&["--player", "volume", "50"]),
+            Some(PlayerCliCmd::Volume { percent: 50 })
+        );
+    }
+
+    #[test]
+    fn volume_relative_with_sign() {
+        assert_eq!(
+            parse_player(&["--player", "volume", "+5"]),
+            Some(PlayerCliCmd::VolumeRelative { delta_percent: 5 })
+        );
+        assert_eq!(
+            parse_player(&["-q", "--player", "volume", "-10"]),
+            Some(PlayerCliCmd::VolumeRelative { delta_percent: -10 })
+        );
+    }
+
+    #[test]
+    fn volume_rejects_out_of_range_absolute() {
+        assert_eq!(parse_player(&["--player", "volume", "101"]), None);
     }
 }

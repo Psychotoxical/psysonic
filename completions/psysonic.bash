@@ -165,10 +165,15 @@ _psysonic_complete() {
     rating)
       (( n == 1 )) && _psysonic_compreply_from_compgen '0 1 2 3 4 5' "$cur"
       ;;
-    seek|volume)
+    seek)
       if (( n == 1 )); then
         _psysonic_compopt -o default
         COMPREPLY=()
+      fi
+      ;;
+    volume)
+      if (( n == 1 )); then
+        _psysonic_compreply_from_compgen '+5 +10 -5 -10 50' "$cur"
       fi
       ;;
     play)

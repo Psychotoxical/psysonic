@@ -76,6 +76,13 @@ export function executeCliPlayerCommand(ctx: CliContext): void | Promise<void> {
     usePlayerStore.getState().setVolume(Math.min(1, Math.max(0, p / 100)));
     return;
   }
+  if (command === 'volume-relative') {
+    const delta = Number(ctx.payload.deltaPercent);
+    if (!Number.isFinite(delta)) return;
+    const state = usePlayerStore.getState();
+    state.setVolume(Math.min(1, Math.max(0, state.volume + delta / 100)));
+    return;
+  }
   if (command === 'set-repeat') {
     const modeRaw = typeof ctx.payload.mode === 'string' ? ctx.payload.mode : '';
     const mode = modeRaw === 'all' ? 'all' : modeRaw === 'one' ? 'one' : 'off';

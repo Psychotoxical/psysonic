@@ -32,7 +32,7 @@
 //   • cli?     — exposes the action to `psysonic --player <verb>`. No-arg CLI
 //                verbs are auto-collected and dispatched by
 //                `executeCliPlayerCommand`; arg-carrying commands (play-id,
-//                seek-relative, set-volume, set-repeat, set-rating-current)
+//                seek-relative, set-volume, volume-relative, set-repeat, set-rating-current)
 //                are handled explicitly there.
 //   • run(ctx) — the handler. `ctx.previewPolicy` ('stop' | 'ignore') decides
 //                whether an active track-preview is interrupted: media keys

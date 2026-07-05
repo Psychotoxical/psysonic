@@ -149,7 +149,7 @@ case ${sub[1]} in
     (( n == 1 )) && _message -e descriptions 'integer delta (seconds, e.g. -5)'
     ;;
   volume)
-    (( n == 1 )) && _message -e descriptions 'percent 0–100'
+    (( n == 1 )) && _message -e descriptions 'percent 0–100, or ±N for relative change'
     ;;
   play)
     (( n == 1 )) && _message -e descriptions 'Subsonic id (song, album, or artist)'

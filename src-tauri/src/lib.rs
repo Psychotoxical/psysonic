@@ -342,22 +342,6 @@ pub fn run() {
     #[cfg(target_os = "windows")]
     set_app_user_model_id();
 
-    // Linux: second `psysonic --player …` forwards over D-Bus before heavy startup.
-    #[cfg(target_os = "linux")]
-    {
-        let argv: Vec<String> = std::env::args().collect();
-        if crate::cli::parse_cli_command(&argv).is_some() {
-            match crate::cli::linux_try_forward_player_cli_secondary(&argv) {
-                Ok(crate::cli::LinuxPlayerForwardResult::Forwarded) => std::process::exit(0),
-                Ok(crate::cli::LinuxPlayerForwardResult::ContinueStartup) => {}
-                Err(msg) => {
-                    crate::app_eprintln!("NOT OK: {msg}");
-                    std::process::exit(1);
-                }
-            }
-        }
-    }
-
     let (audio_engine, _audio_thread) = audio::create_engine();
 
     let builder = tauri::Builder::default()
