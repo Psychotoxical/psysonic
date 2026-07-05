@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { emitAlbumBrowseNav, markAlbumBrowseNavIntent } from './albumBrowseDebug';
+import { emitAlbumBrowseNav, markAlbumBrowseNavIntent } from '@/lib/library/albumBrowseDebug';
 
 type AlbumsPageModule = { default: ComponentType };
 

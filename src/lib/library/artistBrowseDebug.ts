@@ -1,13 +1,12 @@
 import { frontendDebugLog } from '@/lib/api/debugLog';
+import { isDebugLoggingModeActive } from '@/lib/perf/debugLoggingMode';
 import { isPsyLabDebugTraceEnabled } from '@/lib/perf/psyLabDebugTraces';
-import { useAuthStore } from '@/store/authStore';
 
 let sessionT0 = 0;
 let navT0 = 0;
 
 function artistsBrowseTraceActive(): boolean {
-  return useAuthStore.getState().loggingMode === 'debug'
-    && isPsyLabDebugTraceEnabled('artistsBrowse');
+  return isDebugLoggingModeActive() && isPsyLabDebugTraceEnabled('artistsBrowse');
 }
 
 /**

@@ -113,7 +113,12 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
   // batches must not each push (QUEUE_UNDO_MAX would drop this snapshot).
   pushQueueUndoFromGetter(() => usePlayerStore.getState());
 
-  let unsubPlayer: (() => void) | null = null;
+  // Holder (not a bare `let`): the unsubscribe is only assigned inside the
+  // nested `startImmediatePlayback` closure, and TS's control-flow analysis
+  // would otherwise narrow a closure-only-assigned `let` to `never` at the
+  // `finally` call site. A ref-style object sidesteps that narrowing quirk.
+  const unsubPlayer: { current: (() => void) | null } = { current: null };
+  let startedPlayback = false;
   try {
     // Browsed server ≠ queue server: stop A's stream so Now Playing does not call
     // ensurePlaybackServerActive() and revert the UI mid-build.
@@ -125,7 +130,6 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       // tracks while the mix is still building (first playTrack may be delayed).
       usePlayerStore.getState().pruneUpcomingToCurrent(true);
     }
-    let startedPlayback = false;
     const runBuild = async () => {
       let allSeedSongs: SubsonicSong[] = [];
 
@@ -154,8 +158,8 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
       // Auto-cancel: once we're playing, watch the player store. If the
       // current track switches to something the user picked themselves (not
       // in the mix queue), treat that as "user moved on" and cancel the build.
-      if (!unsubPlayer) {
-        unsubPlayer = usePlayerStore.subscribe((state, prev) => {
+      if (!unsubPlayer.current) {
+        unsubPlayer.current = usePlayerStore.subscribe((state, prev) => {
           const prevId = prev.currentTrack?.id ?? null;
           const nextId = state.currentTrack?.id ?? null;
           if (nextId === prevId) return;
@@ -404,7 +408,7 @@ export async function buildAndPlayLuckyMix(): Promise<void> {
     }
     showToast(i18n.t('luckyMix.failed'), 5000, 'error');
   } finally {
-    if (unsubPlayer) { try { unsubPlayer(); } catch { /* noop */ } }
+    if (unsubPlayer.current) { try { unsubPlayer.current(); } catch { /* noop */ } }
     useLuckyMixStore.getState().stop();
   }
 }

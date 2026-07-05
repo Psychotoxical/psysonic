@@ -440,8 +440,9 @@ mod tests {
         )
         .unwrap();
         assert_eq!(counts.len(), 2);
-        assert_eq!(counts[0].value, "Rock");
-        assert_eq!(counts[1].value, "Pop");
+        // Equal album_count → ORDER BY tg.genre COLLATE NOCASE ASC: "Pop" before "Rock".
+        assert_eq!(counts[0].value, "Pop");
+        assert_eq!(counts[1].value, "Rock");
     }
 
     #[test]

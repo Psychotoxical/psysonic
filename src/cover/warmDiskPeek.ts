@@ -9,7 +9,7 @@ import { coverStorageKeyFromRef } from './storageKeys';
 import { resolveCoverDisplayTier } from './tiers';
 import type { CoverArtRef, CoverArtTier, CoverPrefetchPriority, CoverSurfaceKind } from './types';
 import { useThemeStore } from '../store/themeStore';
-import { deriveAlbumArtistRefs } from '@/features/album';
+import { deriveAlbumArtistRefs } from '@/features/album/utils/deriveAlbumHeaderArtistRefs';
 import { getHeroBackdropUpgrade, recordHeroBackdropUpgrade } from './heroBackdropMemory';
 
 export type CoverWarmItem = {

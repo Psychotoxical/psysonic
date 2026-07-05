@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { emitArtistsBrowseNav, markArtistsBrowseNavIntent } from './artistBrowseDebug';
+import { emitArtistsBrowseNav, markArtistsBrowseNavIntent } from '@/lib/library/artistBrowseDebug';
 
 type ArtistsPageModule = { default: ComponentType };
 

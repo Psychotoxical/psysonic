@@ -1,7 +1,7 @@
 import { lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { lazyLoadAlbumsPage } from '@/lib/library/albumBrowseRoutePrefetch';
-import { lazyLoadArtistsPage } from '@/lib/library/artistBrowseRoutePrefetch';
+import { lazyLoadAlbumsPage } from '@/features/album/utils/albumBrowseRoutePrefetch';
+import { lazyLoadArtistsPage } from '@/features/artist/utils/artistBrowseRoutePrefetch';
 import MobilePlayerView from '@/features/nowPlaying/components/MobilePlayerView';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { useSidebarStore } from '@/features/sidebar';

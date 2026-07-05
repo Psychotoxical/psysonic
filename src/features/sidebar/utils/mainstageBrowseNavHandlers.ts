@@ -1,5 +1,5 @@
-import { albumsBrowseNavHandlers } from './albumBrowseRoutePrefetch';
-import { artistsBrowseNavHandlers } from './artistBrowseRoutePrefetch';
+import { albumsBrowseNavHandlers } from '@/features/album';
+import { artistsBrowseNavHandlers } from '@/features/artist';
 
 /** Sidebar / bottom-nav hover + click hooks for instrumented mainstage browse routes. */
 export function mainstageBrowseNavHandlers(

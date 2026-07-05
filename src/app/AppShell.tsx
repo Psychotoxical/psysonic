@@ -62,6 +62,7 @@ import { usePlayerStore } from '@/features/playback/store/playerStore';
 import '@/features/playback/store/previewPlayerVolumeSync';
 import '@/features/playback/store/queueResolverBridge';
 import '@/features/playback/store/replayGainMetadataSync';
+import '@/app/musicLibraryCatalogReloadBridge';
 import { useThemeStore } from '../store/themeStore';
 import { useFontStore } from '../store/fontStore';
 import { useEqStore } from '../store/eqStore';

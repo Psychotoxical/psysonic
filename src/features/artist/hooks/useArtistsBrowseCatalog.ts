@@ -16,7 +16,7 @@ import {
   fetchOfflineLocalStarredArtists,
   offlineLocalBrowseEnabled,
 } from '@/features/offline';
-import { librarySelectionForServer, libraryScopeCacheKeyForServer } from '@/lib/api/subsonicClient';
+import { librarySelectionForServer } from '@/lib/api/subsonicClient';
 import { scheduleAlbumBrowseBackgroundWork } from '@/lib/library/albumBrowseBackground';
 import {
   artistBrowseTimed,
@@ -87,6 +87,8 @@ export function useArtistsBrowseCatalog({
     if (!cached) return;
     catalogOffsetRef.current = cached.artists.length;
     catalogLoadingRef.current = false;
+    // React Compiler set-state-in-effect rule: local state synced from the catalog cache before paint.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setBrowseMode('slice');
     setCatalogArtists(cached.artists);
     setCatalogHasMore(cached.hasMore);

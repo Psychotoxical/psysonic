@@ -27,6 +27,7 @@ export * from './hooks/useNavigateToArtist';
 export * from './store/artistAlbumYearSortStore';
 export * from './store/artistBrowseSessionStore';
 export * from './store/artistLayoutStore';
+export * from './utils/artistBrowseRoutePrefetch';
 export * from './utils/artistsHelpers';
 export * from './utils/runArtistDetailActions';
 export * from './utils/runArtistDetailPlay';

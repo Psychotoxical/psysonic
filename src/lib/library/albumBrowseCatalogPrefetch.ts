@@ -1,5 +1,4 @@
 import { librarySelectionForServer } from '@/lib/api/subsonicClient';
-import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { albumBrowseBootstrapEligible, fetchLocalAlbumCatalogChunk } from './albumBrowseLoad';
 import type { AlbumBrowseQuery } from './albumBrowseTypes';
 import { scheduleAlbumBrowseBackgroundWork } from './albumBrowseBackground';
@@ -25,9 +24,9 @@ const DEFAULT_PREFETCH_QUERY: AlbumBrowseQuery = {
 export function prefetchAlbumBrowseCatalogAfterFilterChange(
   serverId: string,
   libraryFilterVersion: number,
+  indexEnabled: boolean,
 ): void {
   if (!serverId) return;
-  const indexEnabled = useLibraryIndexStore.getState().isIndexEnabled(serverId);
   if (!indexEnabled) return;
 
   const query = DEFAULT_PREFETCH_QUERY;

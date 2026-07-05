@@ -1,6 +1,5 @@
 import { libraryScopeCacheKeyForServer, librarySelectionForServer } from '@/lib/api/subsonicClient';
 import type { ArtistCreditMode } from '@/lib/api/library';
-import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { fetchLocalArtistCatalogChunk } from './browseTextSearch';
 import { scheduleAlbumBrowseBackgroundWork } from './albumBrowseBackground';
 import { emitArtistsBrowseDebug } from './artistBrowseDebug';
@@ -21,9 +20,9 @@ const DEFAULT_LETTER_FILTER = 'ALL';
 export function prefetchArtistBrowseCatalogAfterFilterChange(
   serverId: string,
   libraryFilterVersion: number,
+  indexEnabled: boolean,
 ): void {
   if (!serverId) return;
-  const indexEnabled = useLibraryIndexStore.getState().isIndexEnabled(serverId);
   if (!indexEnabled) return;
   if (!artistBrowseBootstrapEligible(DEFAULT_LETTER_FILTER, false)) return;
 

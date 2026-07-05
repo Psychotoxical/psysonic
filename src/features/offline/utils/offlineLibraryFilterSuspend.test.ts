@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useAuthStore } from '@/store/authStore';
+import { flushMusicLibraryFilterVersionBumpForTests } from '@/store/musicLibraryFilterNotify';
 import {
   resetOfflineLibraryFilterSuspendState,
   restoreMusicLibraryFiltersAfterOffline,
@@ -18,13 +19,17 @@ describe('offlineLibraryFilterSuspend', () => {
 
   it('suspend saves scoped filter and resets active server to all', () => {
     suspendMusicLibraryFiltersForOffline();
+    // Catalog-version bump is deferred (see musicLibraryFilterNotify); flush it.
+    flushMusicLibraryFilterVersionBumpForTests();
     expect(useAuthStore.getState().musicLibraryFilterByServer['srv-a']).toBe('all');
     expect(useAuthStore.getState().musicLibraryFilterVersion).toBe(1);
   });
 
   it('restore brings back the saved filter after reconnect', () => {
     suspendMusicLibraryFiltersForOffline();
+    flushMusicLibraryFilterVersionBumpForTests();
     restoreMusicLibraryFiltersAfterOffline();
+    flushMusicLibraryFilterVersionBumpForTests();
     expect(useAuthStore.getState().musicLibraryFilterByServer['srv-a']).toBe('lib-1');
     expect(useAuthStore.getState().musicLibraryFilterVersion).toBe(2);
   });

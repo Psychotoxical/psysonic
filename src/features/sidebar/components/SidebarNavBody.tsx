@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { AudioLines, ChevronRight, HardDriveDownload, Settings } from 'lucide-react';
 import type { SidebarItemConfig } from '@/features/sidebar/store/sidebarStore';
 import { ALL_NAV_ITEMS } from '@/config/navItems';
-import { mainstageBrowseNavHandlers } from '@/lib/library/mainstageBrowseNavHandlers';
+import { mainstageBrowseNavHandlers } from '@/features/sidebar/utils/mainstageBrowseNavHandlers';
 import WhatsNewBanner from '@/features/whatsNew/components/WhatsNewBanner';
 import ThemeUpdateBanner from '@/features/settings/components/ThemeUpdateBanner';
 import SidebarLibraryPicker from '@/features/sidebar/components/SidebarLibraryPicker';

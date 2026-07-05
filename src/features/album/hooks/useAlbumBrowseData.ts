@@ -364,6 +364,8 @@ export function useAlbumBrowseData({
     catalogOffsetRef.current = cached.albums.length;
     loadPendingRef.current = false;
     catalogLoadingRef.current = false;
+    // React Compiler set-state-in-effect rule: local state synced from the catalog cache before paint.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(0);
     setBrowseMode('slice');
     setAlbums(cached.albums);

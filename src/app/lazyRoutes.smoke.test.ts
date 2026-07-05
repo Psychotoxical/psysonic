@@ -23,7 +23,7 @@ const ROUTE_LOADERS: Array<[string, () => Promise<{ default: unknown }>]> = [
   ['@/features/album/pages/LosslessAlbums', () => import('@/features/album/pages/LosslessAlbums')],
   ['@/features/album/pages/RandomAlbums', () => import('@/features/album/pages/RandomAlbums')],
   ['@/features/album/pages/LabelAlbums', () => import('@/features/album/pages/LabelAlbums')],
-  ['@/features/artist/pages/Artists', () => import('@/lib/library/artistBrowseRoutePrefetch').then(m => m.lazyLoadArtistsPage())],
+  ['@/features/artist/pages/Artists', () => import('@/features/artist/utils/artistBrowseRoutePrefetch').then(m => m.lazyLoadArtistsPage())],
   ['@/features/artist/pages/ArtistDetail', () => import('@/features/artist/pages/ArtistDetail')],
   ['@/features/composers/pages/Composers', () => import('@/features/composers/pages/Composers')],
   ['@/features/composers/pages/ComposerDetail', () => import('@/features/composers/pages/ComposerDetail')],
@@ -49,10 +49,14 @@ const ROUTE_LOADERS: Array<[string, () => Promise<{ default: unknown }>]> = [
 ];
 
 describe('lazy-route resolvability smoke', () => {
+  // Each case cold-imports a real page's full module graph; the heaviest pages
+  // (e.g. Home) can exceed the 5s default when the whole suite is transforming
+  // in parallel on a cold cache. This is an import-resolvability check, not a
+  // perf assertion, so allow a generous timeout to keep it deterministic.
   it.each(ROUTE_LOADERS)('resolves %s to a component', async (_spec, load) => {
     const mod = await load();
     expect(typeof mod.default).toBe('function');
-  });
+  }, 30000);
 
   it('covers every lazy page route declared in the app (drift guard)', () => {
     const sources = ['src/app/AppRoutes.tsx', 'src/app/MainApp.tsx']
