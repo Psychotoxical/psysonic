@@ -43,7 +43,7 @@ use crate::sync::capability::{probe_and_persist, CapabilityFlags, NavidromeProbe
 use crate::sync::delta::DeltaSyncRunner;
 use crate::sync::error::SyncError;
 use crate::sync::initial::InitialSyncRunner;
-use crate::sync::library_tag::tag_library_membership;
+use crate::sync::library_tag::run_tag_pass_best_effort;
 use crate::sync::progress::{ChannelProgress, Progress, ProgressEvent};
 use crate::sync::tombstone::should_auto_reconcile;
 
@@ -921,44 +921,6 @@ fn sync_outcome_to_result<T>(r: Result<T, SyncError>) -> Result<(), String> {
     }
 }
 
-/// Post-sync library tagging — best-effort; never fails the sync job.
-async fn run_library_tag_pass_best_effort(
-    store: &LibraryStore,
-    subsonic: &psysonic_integration::subsonic::SubsonicClient,
-    server_id: &str,
-    cancel: Arc<AtomicBool>,
-    progress: Arc<dyn Progress + Send + Sync>,
-    require_untagged: bool,
-) {
-    match tag_library_membership(
-        store,
-        subsonic,
-        server_id,
-        Some(cancel),
-        progress,
-        require_untagged,
-    )
-    .await
-    {
-        Ok(report) if !report.skipped => {
-            crate::app_eprintln!(
-                "[library-tag] server `{server_id}`: tagged {} tracks across {} folders ({} albums), {} untagged left",
-                report.tracks_tagged,
-                report.folders_processed,
-                report.albums_processed,
-                report.untagged_remaining,
-            );
-        }
-        Ok(_) => {}
-        Err(SyncError::Cancelled) => {}
-        Err(e) => {
-            crate::app_eprintln!(
-                "[library-tag] server `{server_id}`: best-effort pass failed: {e}"
-            );
-        }
-    }
-}
-
 async fn library_sync_start_inner(
     app: AppHandle,
     runtime: State<'_, LibraryRuntime>,
@@ -1075,11 +1037,11 @@ async fn library_sync_start_inner(
             }
             let run = sync_outcome_to_result(runner.run().await);
             if run.is_ok() {
-                run_library_tag_pass_best_effort(
+                run_tag_pass_best_effort(
                     &store,
                     &subsonic,
                     &session_clone.server_id,
-                    Arc::clone(&cancel_for_task),
+                    Some(Arc::clone(&cancel_for_task)),
                     Arc::clone(&progress),
                     false,
                 )
@@ -1115,11 +1077,11 @@ async fn library_sync_start_inner(
             }
             let run = sync_outcome_to_result(runner.run().await);
             if run.is_ok() {
-                run_library_tag_pass_best_effort(
+                run_tag_pass_best_effort(
                     &store,
                     &subsonic,
                     &session_clone.server_id,
-                    Arc::clone(&cancel_for_task),
+                    Some(Arc::clone(&cancel_for_task)),
                     Arc::clone(&progress),
                     true,
                 )

@@ -33,7 +33,7 @@ pub use cursor::{CursorPhase, InitialSyncCursor, StrategyState};
 pub use delta::{DeltaSyncReport, DeltaSyncRunner};
 pub use error::SyncError;
 pub use initial::{InitialSyncReport, InitialSyncRunner};
-pub use library_tag::{tag_library_membership, TagReport};
+pub use library_tag::{run_tag_pass_best_effort, tag_library_membership, TagReport};
 pub use mapping::{navidrome_song_to_track_row, subsonic_song_to_track_row};
 pub use poll_stats::{classify_tier, next_interval_ms, LibraryTier, PollStats};
 pub use progress::{ChannelProgress, NoopProgress, Progress, ProgressEvent};

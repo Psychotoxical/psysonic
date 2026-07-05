@@ -244,6 +244,18 @@ impl<'a> BackgroundScheduler<'a> {
         }
         let delta_report = runner.run().await?;
 
+        // Tag empty `library_id` rows after background delta — new bulk-ingested
+        // tracks arrive without folder metadata until this pass runs.
+        super::library_tag::run_tag_pass_best_effort(
+            self.store,
+            self.subsonic,
+            &self.server_id,
+            self.cancel.clone(),
+            Arc::clone(&self.progress),
+            true,
+        )
+        .await;
+
         // Update poll_stats: nothing measured per-request yet in
         // PR-3d2 (PR-5 will plumb byte/duration via a custom HTTP
         // wrapper). For now the tier signal updates from artist_count

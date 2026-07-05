@@ -225,6 +225,45 @@ pub async fn tag_library_membership(
     })
 }
 
+/// Post-sync library tagging — best-effort; never fails the caller (sync job
+/// or background scheduler tick).
+pub async fn run_tag_pass_best_effort(
+    store: &LibraryStore,
+    subsonic: &SubsonicClient,
+    server_id: &str,
+    cancel: Option<Arc<AtomicBool>>,
+    progress: Arc<dyn Progress + Send + Sync>,
+    require_untagged: bool,
+) {
+    match tag_library_membership(
+        store,
+        subsonic,
+        server_id,
+        cancel,
+        progress,
+        require_untagged,
+    )
+    .await
+    {
+        Ok(report) if !report.skipped => {
+            crate::app_eprintln!(
+                "[library-tag] server `{server_id}`: tagged {} tracks across {} folders ({} albums), {} untagged left",
+                report.tracks_tagged,
+                report.folders_processed,
+                report.albums_processed,
+                report.untagged_remaining,
+            );
+        }
+        Ok(_) => {}
+        Err(SyncError::Cancelled) => {}
+        Err(e) => {
+            crate::app_eprintln!(
+                "[library-tag] server `{server_id}`: best-effort pass failed: {e}"
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
