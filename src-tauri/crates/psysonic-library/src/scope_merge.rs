@@ -76,8 +76,13 @@ pub(crate) fn scope_cte_sql(scopes: &[LibraryScopePair]) -> (String, Vec<SqlValu
 }
 
 fn scoped_track_join() -> &'static str {
-    "FROM track t \
-     INNER JOIN scope s ON t.server_id = s.server_id AND t.library_id = s.library_id \
+    // Drive from the tiny `scope` VALUES table and CROSS JOIN so SQLite cannot
+    // reorder to a full `track` scan: each scope row seeks its library's tracks
+    // via idx_track_library_* instead of scanning all tracks and probing scope.
+    // This only visits tracks in the selected libraries, so a subset of libraries
+    // is proportionally cheaper than the whole server.
+    "FROM scope s \
+     CROSS JOIN track t ON t.server_id = s.server_id AND t.library_id = s.library_id \
      LEFT JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
      WHERE t.deleted = 0"
 }
@@ -1772,6 +1777,26 @@ mod tests {
         println!("  offset 0    -> {:?} ({n_first} rows)", t_first);
         println!("  offset 2000 -> {:?} ({n_deep} rows)", t_deep);
 
+        let two = vec![scope_pair("s1", "lib-a"), scope_pair("s1", "lib-b")];
+        let time_two = || {
+            let start = Instant::now();
+            let (rows, _t) = list_albums_filtered(
+                &store,
+                &two,
+                "",
+                &[],
+                "ORDER BY album COLLATE NOCASE ASC, album_id ASC",
+                100,
+                0,
+                true,
+            )
+            .unwrap();
+            (start.elapsed(), rows.len())
+        };
+        let _ = time_two();
+        let (t_two, n_two) = time_two();
+        println!("  2-lib subset offset 0 -> {t_two:?} ({n_two} rows)");
+
         let time_artists = || {
             let req = LibraryScopeListRequest {
                 scopes: scopes.clone(),
@@ -1787,5 +1812,30 @@ mod tests {
         let (a_first, an_first) = time_artists();
         println!("--- list_artists ({artists} artists, 20000 tracks, 3 libs) ---");
         println!("  run -> {:?} ({an_first} rows)", a_first);
+
+        let (cte, _b) = scope_cte_sql(&scopes);
+        let plan_sql = format!(
+            "EXPLAIN QUERY PLAN {cte}, base AS ( \
+               SELECT t.album_id, t.duration_sec, t.id, s.pr, \
+                      {ALBUM_DEDUP_KEY} AS album_dedup, {TRACK_DEDUP_KEY} AS track_dedup \
+               {join} AND t.album_id IS NOT NULL AND t.album_id != '' \
+             ) SELECT album_dedup FROM base GROUP BY album_dedup LIMIT 100",
+            join = scoped_track_join(),
+        );
+        let plan: Vec<String> = store
+            .with_read_conn(|c| {
+                let mut stmt = c.prepare(&plan_sql)?;
+                let rows = stmt
+                    .query_map(["s1", "lib-a", "s1", "lib-b", "s1", "lib-c"], |r| {
+                        r.get::<_, String>(3)
+                    })?
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(rows)
+            })
+            .unwrap();
+        println!("--- multi-scope album query plan ---");
+        for step in plan {
+            println!("  {step}");
+        }
     }
 }
