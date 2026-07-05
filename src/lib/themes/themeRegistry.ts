@@ -30,6 +30,12 @@ export interface RegistryTheme {
   thumbnail: string;
   /** ISO date of the last commit touching the theme in the registry repo. */
   updatedAt?: string;
+  /**
+   * Optional per-version release notes, keyed by `X.Y.Z`. Rendered as the
+   * expandable "What's new" on the theme card. Author-provided in the manifest;
+   * absent for themes that don't ship one.
+   */
+  changelog?: Record<string, string[]>;
 }
 
 export interface Registry {

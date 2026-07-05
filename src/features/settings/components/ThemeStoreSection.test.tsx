@@ -3,6 +3,7 @@ import { screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '@/test/helpers/renderWithProviders';
 import { ThemeStoreSection } from '@/features/settings/components/ThemeStoreSection';
+import { useInstalledThemesStore } from '@/store/installedThemesStore';
 import type { FetchRegistryResult, Registry, RegistryTheme } from '@/lib/themes/themeRegistry';
 
 // Control the registry the store browses so pagination/refresh are deterministic.
@@ -75,6 +76,7 @@ async function selectSort(
 describe('ThemeStoreSection — pagination & refresh', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useInstalledThemesStore.setState({ themes: [] });
     // jsdom has no layout engine; goToPage() scrolls the list back up.
     Element.prototype.scrollIntoView = vi.fn();
   });
@@ -220,5 +222,68 @@ describe('ThemeStoreSection — pagination & refresh', () => {
     expect(screen.getByText('Theme 25')).toBeInTheDocument();
     expect(screen.queryByText('Theme 01')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '3', current: 'page' })).toBeInTheDocument();
+  });
+
+  it('shows an expandable changelog only for themes that ship one, newest version first', async () => {
+    const themes = [
+      mkTheme('with', 'With Log', {
+        changelog: { '1.0.0': ['First release'], '1.2.0': ['Newer note', 'Another newer note'] },
+      }),
+      mkTheme('without', 'No Log'),
+    ];
+    fetchRegistryMock.mockResolvedValue({ registry: registryOf(themes), stale: false });
+    const { container } = renderWithProviders(<ThemeStoreSection />);
+    const user = userEvent.setup();
+
+    await screen.findByText('With Log');
+
+    // Exactly one row (the one shipping a changelog) exposes the toggle.
+    const toggles = screen.getAllByRole('button', { name: "What's new" });
+    expect(toggles).toHaveLength(1);
+
+    // Collapsed by default — entry text is not rendered yet.
+    const toggle = toggles[0];
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Newer note')).not.toBeInTheDocument();
+
+    // Expanding lists every version, newest first (1.2.0 before 1.0.0).
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const panel = container.querySelector('#theme-changelog-with') as HTMLElement;
+    expect(panel).not.toBeNull();
+    expect(panel.textContent).toContain('Newer note');
+    const i120 = panel.textContent!.indexOf('v1.2.0');
+    const i100 = panel.textContent!.indexOf('v1.0.0');
+    expect(i120).toBeGreaterThanOrEqual(0);
+    expect(i100).toBeGreaterThan(i120);
+  });
+
+  it('floats installed themes with a pending update to the top of the list', async () => {
+    // Alpha is the newest by date and would normally lead; Zulu is older but has
+    // an installed copy on an earlier version, so it should be pinned first.
+    const themes = [
+      mkTheme('alpha', 'Alpha', { updatedAt: '2026-06-10T00:00:00Z', version: '1.0.0' }),
+      mkTheme('zulu', 'Zulu', { updatedAt: '2026-06-01T00:00:00Z', version: '2.0.0' }),
+    ];
+    useInstalledThemesStore.setState({
+      themes: [
+        {
+          id: 'zulu',
+          name: 'Zulu',
+          author: 'Tester',
+          version: '1.0.0', // installed older than registry 2.0.0 → update available
+          description: '',
+          mode: 'dark',
+          css: 'x',
+          installedAt: 0,
+        },
+      ],
+    });
+    fetchRegistryMock.mockResolvedValue({ registry: registryOf(themes), stale: false });
+    const { container } = renderWithProviders(<ThemeStoreSection />);
+
+    await screen.findByText('Zulu');
+    // Without the pin, newest-first would order Alpha (06-10) before Zulu (06-01).
+    expect(rowNames(container)).toEqual(['Zulu', 'Alpha']);
   });
 });

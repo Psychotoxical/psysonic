@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronLeft, ChevronRight, Download, RefreshCw, Trash2, WifiOff } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, RefreshCw, Trash2, WifiOff } from 'lucide-react';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
 import CoverLightbox from '@/ui/CoverLightbox';
 import { useThemeAnimationRisk } from '@/features/settings/hooks/useThemeAnimationRisk';
@@ -26,6 +26,11 @@ const THEMES_REPO_URL = 'https://github.com/Psysonic/psysonic-themes';
 
 /** Themes shown per page — the catalogue is large enough to paginate. */
 const PAGE_SIZE = 12;
+
+/** A theme's changelog as `[version, lines]` pairs, newest version first. */
+function sortedChangelog(changelog: Record<string, string[]>): [string, string[]][] {
+  return Object.entries(changelog).sort(([a], [b]) => (isNewer(a, b) ? -1 : isNewer(b, a) ? 1 : 0));
+}
 
 /** Page numbers for the pager: all of them when there are few, otherwise the
  *  first and last page plus a window around the current one, with gaps. */
@@ -67,7 +72,16 @@ export function ThemeStoreSection() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [failedId, setFailedId] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ src: string; name: string } | null>(null);
+  const [openChangelogIds, setOpenChangelogIds] = useState<Set<string>>(() => new Set());
   const topRef = useRef<HTMLDivElement>(null);
+
+  const toggleChangelog = (id: string) =>
+    setOpenChangelogIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   // A manual refresh must not unmount the list: blanking it collapses the
   // scroll viewport's content height, which clamps scrollTop to 0 — i.e. the
@@ -119,9 +133,19 @@ export function ThemeStoreSection() {
     // Name is the stable tie-breaker — keeps ordering deterministic when many
     // themes share the same last-modified date.
     const byName = (a: RegistryTheme, b: RegistryTheme) => a.name.localeCompare(b.name);
-    if (sortMode === 'name') return matched.sort(byName);
-    return matched.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || '') || byName(a, b));
-  }, [themes, query, mode, sortMode, animFilter]);
+    const bySort =
+      sortMode === 'name'
+        ? byName
+        : (a: RegistryTheme, b: RegistryTheme) =>
+            (b.updatedAt || '').localeCompare(a.updatedAt || '') || byName(a, b);
+    // Installed themes with a pending update float to the top (in either sort
+    // mode) so the user finds them instead of hunting through the catalogue.
+    const hasUpdate = (th: RegistryTheme) => {
+      const inst = installedMap.get(th.id);
+      return inst ? isNewer(th.version, inst.version) : false;
+    };
+    return matched.sort((a, b) => Number(hasUpdate(b)) - Number(hasUpdate(a)) || bySort(a, b));
+  }, [themes, query, mode, sortMode, animFilter, installedMap]);
 
   // A changed filter can shrink the result set below the current page; reset to
   // the first page whenever the query or mode filter changes.
@@ -308,6 +332,8 @@ export function ThemeStoreSection() {
             const updateAvailable = isInstalled && isNewer(th.version, inst!.version);
             const isActive = activeTheme === th.id;
             const busy = busyId === th.id;
+            const changelogEntries = th.changelog ? sortedChangelog(th.changelog) : [];
+            const changelogOpen = openChangelogIds.has(th.id);
             return (
               <div
                 key={th.id}
@@ -368,6 +394,43 @@ export function ThemeStoreSection() {
                   {th.updatedAt && (
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
                       {t('settings.themeStoreLastChanged')}: {formatRelativeTime(th.updatedAt, i18n.language)}
+                    </div>
+                  )}
+                  {changelogEntries.length > 0 && (
+                    <div style={{ marginTop: 10 }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        aria-expanded={changelogOpen}
+                        aria-controls={`theme-changelog-${th.id}`}
+                        onClick={() => toggleChangelog(th.id)}
+                        style={{ fontSize: 12, padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                      >
+                        <ChevronDown
+                          size={14}
+                          style={{ transform: changelogOpen ? 'rotate(180deg)' : 'none', transition: 'transform 120ms' }}
+                        />
+                        {t('settings.themeStoreWhatsNew')}
+                      </button>
+                      {changelogOpen && (
+                        <div
+                          id={`theme-changelog-${th.id}`}
+                          style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}
+                        >
+                          {changelogEntries.map(([version, lines]) => (
+                            <div key={version}>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                v{version}
+                              </div>
+                              <ul style={{ margin: '2px 0 0', paddingInlineStart: 18, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                                {lines.map((line, i) => (
+                                  <li key={i}>{line}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
