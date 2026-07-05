@@ -463,6 +463,7 @@ export const settings = {
   themeStoreAnimStatic: 'Statikus',
   themeStoreByAuthor: 'készítette: {{author}}',
   themeStoreLastChanged: 'Utoljára módosítva',
+  themeStoreWhatsNew: 'Újdonságok',
   themeMigrationNoticeTitle: 'A téma átkerült a Boltba',
   themeMigrationNoticeBody: 'A(z) {{themes}} már nincs az alkalmazáshoz csomagolva. Újratelepítheted a Témaboltból (Beállítások → Témák), vagy válassz másik témát.',
   themeMigrationNoticeOpen: 'Témabolt megnyitása',

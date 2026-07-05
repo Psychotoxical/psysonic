@@ -463,6 +463,7 @@ export const settings = {
   themeStoreAnimStatic: 'Static',
   themeStoreByAuthor: 'by {{author}}',
   themeStoreLastChanged: 'Last changed',
+  themeStoreWhatsNew: "What's new",
   themeMigrationNoticeTitle: 'Theme moved to the Store',
   themeMigrationNoticeBody: '{{themes}} is no longer bundled with the app. You can reinstall it from the Theme Store (Settings → Themes), or pick another theme.',
   themeMigrationNoticeOpen: 'Open Theme Store',

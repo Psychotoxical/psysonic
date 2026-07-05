@@ -405,6 +405,7 @@ export const settings = {
   themeStoreAnimStatic: 'Statiques',
   themeStoreByAuthor: 'par {{author}}',
   themeStoreLastChanged: 'Dernière modification',
+  themeStoreWhatsNew: 'Nouveautés',
   themeMigrationNoticeTitle: 'Thème déplacé vers la boutique',
   themeMigrationNoticeBody: "{{themes}} n'est plus inclus dans l'application. Vous pouvez le réinstaller depuis la boutique de thèmes (Paramètres → Thèmes) ou choisir un autre thème.",
   themeMigrationNoticeOpen: 'Ouvrir la boutique de thèmes',

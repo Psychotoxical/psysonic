@@ -463,6 +463,7 @@ export const settings = {
   themeStoreAnimStatic: 'Statyczny',
   themeStoreByAuthor: 'autorstwa {{author}}',
   themeStoreLastChanged: 'Ostatnio zmieniony',
+  themeStoreWhatsNew: 'Co nowego',
   themeMigrationNoticeTitle: 'Motyw przeniesiony do sklepu',
   themeMigrationNoticeBody: 'Motyw {{themes}} nie jest już dołączany do aplikacji. Możesz zainstalować go ponownie ze Sklepu motywów (Ustawienia → Motywy) albo wybrać inny motyw.',
   themeMigrationNoticeOpen: 'Otwórz sklep motywów',

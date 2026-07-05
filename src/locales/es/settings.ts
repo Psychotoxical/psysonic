@@ -417,6 +417,7 @@ export const settings = {
   themeStoreAnimStatic: 'Estáticos',
   themeStoreByAuthor: 'por {{author}}',
   themeStoreLastChanged: 'Última modificación',
+  themeStoreWhatsNew: 'Novedades',
   themeMigrationNoticeTitle: 'Tema movido a la tienda',
   themeMigrationNoticeBody: '{{themes}} ya no viene incluido en la app. Puedes reinstalarlo desde la Tienda de Temas (Ajustes → Temas) o elegir otro tema.',
   themeMigrationNoticeOpen: 'Abrir Tienda de Temas',

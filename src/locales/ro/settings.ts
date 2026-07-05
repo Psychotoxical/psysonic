@@ -421,6 +421,7 @@ export const settings = {
   themeStoreAnimStatic: 'Statice',
   themeStoreByAuthor: 'de {{author}}',
   themeStoreLastChanged: 'Ultima modificare',
+  themeStoreWhatsNew: 'Noutăți',
   themeMigrationNoticeTitle: 'Tema a fost mutată în magazin',
   themeMigrationNoticeBody: '{{themes}} nu mai este inclusă în aplicație. O poți reinstala din Magazinul de Teme (Setări → Teme) sau poți alege altă temă.',
   themeMigrationNoticeOpen: 'Deschide Magazinul de Teme',

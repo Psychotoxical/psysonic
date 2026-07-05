@@ -473,6 +473,7 @@ export const settings = {
   themeStoreAnimStatic: 'Статичные',
   themeStoreByAuthor: 'от {{author}}',
   themeStoreLastChanged: 'Изменён',
+  themeStoreWhatsNew: 'Что нового',
   themeMigrationNoticeTitle: 'Тема перенесена в магазин',
   themeMigrationNoticeBody: '{{themes}} больше не входит в приложение. Вы можете переустановить её из магазина тем (Настройки → Темы) или выбрать другую тему.',
   themeMigrationNoticeOpen: 'Открыть магазин тем',

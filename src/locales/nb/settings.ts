@@ -408,6 +408,7 @@ export const settings = {
   themeStoreAnimStatic: 'Statiske',
   themeStoreByAuthor: 'av {{author}}',
   themeStoreLastChanged: 'Sist endret',
+  themeStoreWhatsNew: 'Hva er nytt',
   themeMigrationNoticeTitle: 'Temaet er flyttet til butikken',
   themeMigrationNoticeBody: '{{themes}} følger ikke lenger med appen. Du kan installere det på nytt fra temabutikken (Innstillinger → Temaer), eller velge et annet tema.',
   themeMigrationNoticeOpen: 'Åpne temabutikken',

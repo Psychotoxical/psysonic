@@ -457,6 +457,7 @@ export const settings = {
   themeStoreAnimStatic: '静的',
   themeStoreByAuthor: '{{author}} 作',
   themeStoreLastChanged: '最終変更',
+  themeStoreWhatsNew: '新着情報',
   themeMigrationNoticeTitle: 'テーマはストアへ移動しました',
   themeMigrationNoticeBody: '{{themes}} はアプリに同梱されなくなりました。テーマストア (設定 → テーマ) から再インストールするか、別のテーマを選んでください。',
   themeMigrationNoticeOpen: 'テーマストアを開く',

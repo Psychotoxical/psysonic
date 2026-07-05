@@ -404,6 +404,7 @@ export const settings = {
   themeStoreAnimStatic: '静态',
   themeStoreByAuthor: '作者：{{author}}',
   themeStoreLastChanged: '最后更新',
+  themeStoreWhatsNew: '更新内容',
   themeMigrationNoticeTitle: '主题已移至商店',
   themeMigrationNoticeBody: '{{themes}} 不再内置于应用中。你可以在主题商店（设置 → 主题）重新安装，或选择其他主题。',
   themeMigrationNoticeOpen: '打开主题商店',

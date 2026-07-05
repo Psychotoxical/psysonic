@@ -463,6 +463,7 @@ export const settings = {
   themeStoreAnimStatic: 'Статични',
   themeStoreByAuthor: 'от {{author}}',
   themeStoreLastChanged: 'Последна промяна',
+  themeStoreWhatsNew: 'Какво ново',
   themeMigrationNoticeTitle: 'Темата беше преместена в Магазина',
   themeMigrationNoticeBody: '{{themes}} вече не се доставя вградено с приложението. Можеш да я преинсталираш от Магазина за теми (Настройки → Теми) или да избереш друга тема.',
   themeMigrationNoticeOpen: 'Отвори Магазина за теми',
