@@ -1,5 +1,6 @@
 import type { AuthState } from './authStoreTypes';
 import { prefetchAlbumBrowseCatalogAfterFilterChange } from '@/lib/library/albumBrowseCatalogPrefetch';
+import { scheduleMusicLibraryFilterVersionBump } from './musicLibraryFilterNotify';
 
 type SetState = (
   partial: Partial<AuthState> | ((state: AuthState) => Partial<AuthState>),
@@ -9,6 +10,15 @@ type GetState = () => AuthState;
 function legacyFilterFromSelection(libraryIds: string[]): 'all' | string {
   if (libraryIds.length === 0) return 'all';
   return libraryIds[0];
+}
+
+function deferMusicLibraryCatalogReload(get: GetState, set: SetState, serverId: string): void {
+  scheduleMusicLibraryFilterVersionBump(() => {
+    set(s => ({
+      musicLibraryFilterVersion: s.musicLibraryFilterVersion + 1,
+    }));
+    prefetchAlbumBrowseCatalogAfterFilterChange(serverId, get().musicLibraryFilterVersion);
+  });
 }
 
 /**
@@ -64,9 +74,8 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
       if (!sid) return;
       set(s => ({
         musicLibraryFilterByServer: { ...s.musicLibraryFilterByServer, [sid]: folderId },
-        musicLibraryFilterVersion: s.musicLibraryFilterVersion + 1,
       }));
-      prefetchAlbumBrowseCatalogAfterFilterChange(sid, get().musicLibraryFilterVersion);
+      deferMusicLibraryCatalogReload(get, set, sid);
     },
 
     setMusicLibrarySelection: (libraryIds) => {
@@ -81,9 +90,8 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
           ...s.musicLibraryFilterByServer,
           [sid]: legacyFilterFromSelection(libraryIds),
         },
-        musicLibraryFilterVersion: s.musicLibraryFilterVersion + 1,
       }));
-      prefetchAlbumBrowseCatalogAfterFilterChange(sid, get().musicLibraryFilterVersion);
+      deferMusicLibraryCatalogReload(get, set, sid);
     },
   };
 }

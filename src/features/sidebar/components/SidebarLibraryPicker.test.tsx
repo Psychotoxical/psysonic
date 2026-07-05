@@ -12,6 +12,10 @@ const folders = [
   { id: 'lib-c', name: 'Classical' },
 ];
 
+async function flushAnimationFrame(): Promise<void> {
+  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+}
+
 function renderPicker(
   over: Partial<ComponentProps<typeof SidebarLibraryPicker>> = {},
 ) {
@@ -63,6 +67,7 @@ describe('SidebarLibraryPicker', () => {
 
     const panel = screen.getByRole('listbox', { name: 'Library scope' });
     await user.click(within(panel).getByRole('button', { name: 'All libraries' }));
+    await flushAnimationFrame();
 
     expect(onSelectionChange).toHaveBeenCalledWith([]);
     expect(setLibraryDropdownOpen).toHaveBeenCalledWith(false);
@@ -76,6 +81,7 @@ describe('SidebarLibraryPicker', () => {
 
     const panel = screen.getByRole('listbox', { name: 'Library scope' });
     await user.click(within(panel).getByRole('button', { name: 'Classical' }));
+    await flushAnimationFrame();
 
     expect(onSelectionChange).toHaveBeenCalledWith(['lib-c']);
     expect(setLibraryDropdownOpen).toHaveBeenCalledWith(false);

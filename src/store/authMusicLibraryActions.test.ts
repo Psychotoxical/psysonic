@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useAuthStore } from '@/store/authStore';
 import { resetAuthStore } from '@/test/helpers/storeReset';
+import { flushMusicLibraryFilterVersionBumpForTests } from '@/store/musicLibraryFilterNotify';
 
 function setUpActiveServer(): string {
   const id = useAuthStore.getState().addServer({
@@ -18,13 +19,15 @@ beforeEach(() => {
 });
 
 describe('setMusicLibrarySelection', () => {
-  it('writes ordered selection, mirrors legacy, and bumps version', () => {
+  it('writes ordered selection, mirrors legacy, and bumps version after defer', () => {
     const serverId = setUpActiveServer();
     useAuthStore.getState().setMusicLibrarySelection(['lib-b', 'lib-a']);
     const state = useAuthStore.getState();
     expect(state.musicLibrarySelectionByServer[serverId]).toEqual(['lib-b', 'lib-a']);
     expect(state.musicLibraryFilterByServer[serverId]).toBe('lib-b');
-    expect(state.musicLibraryFilterVersion).toBe(1);
+    expect(state.musicLibraryFilterVersion).toBe(0);
+    flushMusicLibraryFilterVersionBumpForTests();
+    expect(useAuthStore.getState().musicLibraryFilterVersion).toBe(1);
   });
 
   it('maps empty selection to legacy all', () => {

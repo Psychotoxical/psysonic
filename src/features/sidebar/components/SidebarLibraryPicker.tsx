@@ -66,13 +66,13 @@ export default function SidebarLibraryPicker({
   ]);
 
   const selectAllLibraries = () => {
-    onSelectionChange([]);
     setLibraryDropdownOpen(false);
+    requestAnimationFrame(() => onSelectionChange([]));
   };
 
   const exclusiveSelect = (id: string) => {
-    onSelectionChange([id]);
     setLibraryDropdownOpen(false);
+    requestAnimationFrame(() => onSelectionChange([id]));
   };
 
   const toggleFolder = (id: string) => {
