@@ -128,6 +128,7 @@ export const FsLyricsApple = memo(function FsLyricsApple({ currentTrack }: { cur
               ref={el => { lineRefs.current[i] = el; }}
               className={`fsa-lyric-line${i === activeIdx ? ' fsal-active' : i < activeIdx ? ' fsal-past' : ''}`}
               data-time={line.time}
+              style={{ '--fsa-dist': activeIdx < 0 ? 0 : i - activeIdx } as React.CSSProperties}
             >
               {line.words.length > 0
                 ? line.words.map((w, j) => (
@@ -146,6 +147,7 @@ export const FsLyricsApple = memo(function FsLyricsApple({ currentTrack }: { cur
               ref={el => { lineRefs.current[i] = el; }}
               className={`fsa-lyric-line${i === activeIdx ? ' fsal-active' : i < activeIdx ? ' fsal-past' : ''}`}
               data-time={line.time}
+              style={{ '--fsa-dist': activeIdx < 0 ? 0 : i - activeIdx } as React.CSSProperties}
             >
               {line.text || ' '}
             </div>

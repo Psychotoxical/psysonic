@@ -50,6 +50,19 @@
   padding-right: 40px;
 }
 
+/* Upcoming lines get a progressive blur (sharp active line → hazier ahead) via
+   the per-line --fsa-dist (distance from the active line; past lines are ≤0). */
+.fsp2-lyrics-panel .fsa-lyric-line {
+  filter: blur(clamp(0px, calc(max(var(--fsa-dist, 0), 0) * 0.9px), 5px));
+  transition: filter 320ms ease, color 320ms ease;
+}
+/* Active line takes on the cover accent — like the progress bar. */
+.fsp2-lyrics-panel .fsa-lyric-line.fsal-active,
+.fsp2-lyrics-panel .fsa-lyric-line.fsal-active .fsa-lyric-word.played,
+.fsp2-lyrics-panel .fsa-lyric-line.fsal-active .fsa-lyric-word.active {
+  color: var(--dynamic-fs-accent, var(--accent));
+}
+
 /* ── Bottom bar ────────────────────────────────────────────────────────────── */
 /* Outer bar — a wide translucent glass strip holding the whole control row.
    Transport (left) and utilities (right) sit bare inside it; the now-playing
