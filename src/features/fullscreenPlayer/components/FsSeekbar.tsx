@@ -1,61 +1,35 @@
-import React, { memo, useCallback, useEffect, useRef } from 'react';
-import { usePlayerStore, getPlaybackProgressSnapshot, subscribePlaybackProgress } from '@/features/playback';
+import { memo, useCallback, useRef } from 'react';
+import { usePlayerStore, type PlaybackProgressSnapshot } from '@/features/playback';
 import { formatTrackTime } from '@/lib/format/formatDuration';
+import { useImperativeSeek } from '@/features/fullscreenPlayer/hooks/useImperativeSeek';
 
 // Full-width seekbar — imperative DOM updates, zero React re-renders on tick.
 export const FsSeekbar = memo(function FsSeekbar({ duration }: { duration: number }) {
-  const seek        = usePlayerStore(s => s.seek);
   const timeRef     = useRef<HTMLSpanElement>(null);
   const playedRef   = useRef<HTMLDivElement>(null);
   const bufRef      = useRef<HTMLDivElement>(null);
   const inputRef    = useRef<HTMLInputElement>(null);
-  const isDraggingRef = useRef(false);
-  const pendingSeekRef = useRef<number | null>(null);
 
-  const previewSeek = useCallback((progress: number) => {
-    const s = usePlayerStore.getState();
-    const p = Math.max(0, Math.min(1, progress));
-    pendingSeekRef.current = p;
-    if (timeRef.current) {
-      const previewTime = duration > 0 ? p * duration : s.currentTime;
-      timeRef.current.textContent = formatTrackTime(previewTime);
-    }
-    if (playedRef.current) playedRef.current.style.width = `${p * 100}%`;
-    if (bufRef.current) bufRef.current.style.width = `${Math.max(p * 100, s.buffered * 100)}%`;
-    if (inputRef.current) inputRef.current.value = String(p);
-  }, [duration]);
-
-  const commitSeek = useCallback(() => {
-    const pending = pendingSeekRef.current;
-    if (pending === null) return;
-    pendingSeekRef.current = null;
-    seek(pending);
-  }, [seek]);
-
-  useEffect(() => {
-    const s = getPlaybackProgressSnapshot();
+  const paint = useCallback((s: PlaybackProgressSnapshot) => {
     const pct = s.progress * 100;
     if (timeRef.current)   timeRef.current.textContent  = formatTrackTime(s.currentTime);
     if (playedRef.current) playedRef.current.style.width = `${pct}%`;
     if (bufRef.current)    bufRef.current.style.width    = `${Math.max(pct, s.buffered * 100)}%`;
     if (inputRef.current)  inputRef.current.value        = String(s.progress);
-
-    return subscribePlaybackProgress(state => {
-      if (isDraggingRef.current) return;
-      const p = state.progress * 100;
-      if (timeRef.current)   timeRef.current.textContent  = formatTrackTime(state.currentTime);
-      if (playedRef.current) playedRef.current.style.width = `${p}%`;
-      if (bufRef.current)    bufRef.current.style.width    = `${Math.max(p, state.buffered * 100)}%`;
-      if (inputRef.current)  inputRef.current.value        = String(state.progress);
-    });
   }, []);
 
-  const handleSeek = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      previewSeek(parseFloat(e.target.value));
-    },
-    [previewSeek]
-  );
+  const previewPaint = useCallback((p: number) => {
+    const s = usePlayerStore.getState();
+    if (timeRef.current) {
+      const previewTime = duration > 0 ? p * duration : s.currentTime;
+      timeRef.current.textContent = formatTrackTime(previewTime);
+    }
+    if (playedRef.current) playedRef.current.style.width = `${p * 100}%`;
+    if (bufRef.current)    bufRef.current.style.width    = `${Math.max(p * 100, s.buffered * 100)}%`;
+    if (inputRef.current)  inputRef.current.value        = String(p);
+  }, [duration]);
+
+  const seekHandlers = useImperativeSeek({ paint, previewPaint });
 
   return (
     <div className="fs-seekbar-wrap">
@@ -71,17 +45,8 @@ export const FsSeekbar = memo(function FsSeekbar({ duration }: { duration: numbe
           ref={inputRef}
           type="range" min={0} max={1} step={0.001}
           defaultValue={0}
-          onChange={handleSeek}
-          onMouseDown={() => { isDraggingRef.current = true; }}
-          onMouseUp={() => { isDraggingRef.current = false; commitSeek(); }}
-          onTouchStart={() => { isDraggingRef.current = true; }}
-          onTouchEnd={() => { isDraggingRef.current = false; commitSeek(); }}
-          onPointerDown={() => { isDraggingRef.current = true; }}
-          onPointerUp={() => { isDraggingRef.current = false; commitSeek(); }}
-          onKeyDown={() => { isDraggingRef.current = true; }}
-          onKeyUp={() => { isDraggingRef.current = false; commitSeek(); }}
-          onBlur={() => { isDraggingRef.current = false; commitSeek(); }}
           aria-label="Seek"
+          {...seekHandlers}
         />
       </div>
     </div>

@@ -1,65 +1,33 @@
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
+import React, { memo, useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   SkipBack, SkipForward, Play, Pause, Repeat, Repeat1,
   Volume2, VolumeX, ListMusic, MessageSquare, Shrink,
 } from 'lucide-react';
-import {
-  usePlayerStore, getPlaybackProgressSnapshot, subscribePlaybackProgress,
-} from '@/features/playback';
-import { useThemeStore } from '@/store/themeStore';
-import { useArtistFanart } from '@/cover/useArtistFanart';
-import { backdropFromConfig } from '@/cover/artistBackdrop';
-import { useAlbumCoverRef, useArtistCoverRef } from '@/cover/useLibraryCoverRef';
+import { usePlayerStore, useVolumeToggle, type PlaybackProgressSnapshot } from '@/features/playback';
+import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
-import { useCachedUrl } from '@/ui/CachedImage';
-import { formatTrackTime } from '@/lib/format/formatDuration';
+import { useFsArtistBackdrop } from '@/features/fullscreenPlayer/hooks/useFsArtistBackdrop';
+import { useImperativeSeek } from '@/features/fullscreenPlayer/hooks/useImperativeSeek';
 import { useFsDynamicAccent } from '@/features/fullscreenPlayer/hooks/useFsDynamicAccent';
 import { useFsIdleFade } from '@/features/fullscreenPlayer/hooks/useFsIdleFade';
+import { FsTimeReadout } from './FsTimeReadout';
 import { FsLyricsApple } from './FsLyricsApple';
 import { FsQueueModal } from './FsQueueModal';
 
-/** Elapsed / −remaining readout (e.g. `1:35 / -2:42`), imperative — no re-render per tick. */
-const PrismTime = memo(function PrismTime({ duration }: { duration: number }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    const paint = (currentTime: number) => {
-      if (!ref.current) return;
-      const remaining = duration > 0 ? Math.max(0, duration - currentTime) : 0;
-      ref.current.textContent = `${formatTrackTime(currentTime)} / -${formatTrackTime(remaining)}`;
-    };
-    paint(getPlaybackProgressSnapshot().currentTime);
-    return subscribePlaybackProgress(s => paint(s.currentTime));
-  }, [duration]);
-  return <span className="fsp2-time" ref={ref} />;
-});
-
-/** The now-playing pill's integrated progress line — imperative width + click/drag seek. */
-const PrismProgress = memo(function PrismProgress({ duration }: { duration: number }) {
-  const seek = usePlayerStore(s => s.seek);
+/** The now-playing pill's integrated progress line — imperative width + scrub seek. */
+const PrismProgress = memo(function PrismProgress() {
   const playedRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const draggingRef = useRef(false);
-  const pendingRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    const paint = (progress: number) => {
-      if (playedRef.current) playedRef.current.style.width = `${progress * 100}%`;
-      if (inputRef.current) inputRef.current.value = String(progress);
-    };
-    paint(getPlaybackProgressSnapshot().progress);
-    return subscribePlaybackProgress(s => { if (!draggingRef.current) paint(s.progress); });
+  const paint = useCallback((s: PlaybackProgressSnapshot) => {
+    if (playedRef.current) playedRef.current.style.width = `${s.progress * 100}%`;
+    if (inputRef.current) inputRef.current.value = String(s.progress);
   }, []);
-
-  const preview = useCallback((p: number) => {
-    const v = Math.max(0, Math.min(1, p));
-    pendingRef.current = v;
-    if (playedRef.current) playedRef.current.style.width = `${v * 100}%`;
+  const previewPaint = useCallback((p: number) => {
+    if (playedRef.current) playedRef.current.style.width = `${p * 100}%`;
   }, []);
-  const commit = useCallback(() => {
-    draggingRef.current = false;
-    if (pendingRef.current !== null) { seek(pendingRef.current); pendingRef.current = null; }
-  }, [seek]);
+  const seekHandlers = useImperativeSeek({ paint, previewPaint });
 
   return (
     <div className="fsp2-progress">
@@ -67,14 +35,8 @@ const PrismProgress = memo(function PrismProgress({ duration }: { duration: numb
       <input
         ref={inputRef}
         type="range" min={0} max={1} step={0.001} defaultValue={0}
-        onChange={e => preview(parseFloat(e.target.value))}
-        onMouseDown={() => { draggingRef.current = true; }}
-        onMouseUp={commit}
-        onKeyDown={() => { draggingRef.current = true; }}
-        onKeyUp={commit}
-        onBlur={commit}
         aria-label="Seek"
-        aria-valuetext={duration > 0 ? undefined : ''}
+        {...seekHandlers}
       />
     </div>
   );
@@ -83,19 +45,13 @@ const PrismProgress = memo(function PrismProgress({ duration }: { duration: numb
 /** Compact volume — icon toggles mute, hover reveals the slider. */
 const PrismVolume = memo(function PrismVolume() {
   const { t } = useTranslation();
-  const volume = usePlayerStore(s => s.volume);
-  const setVolume = usePlayerStore(s => s.setVolume);
-  const prevRef = useRef(volume || 1);
-  const muted = volume <= 0;
+  const { volume, setVolume, muted, toggleMute } = useVolumeToggle();
   return (
     <div className="fsp2-volume">
       <button
         className="fsp2-btn"
-        aria-label={t('player.volume')}
-        onClick={() => {
-          if (muted) { setVolume(prevRef.current || 1); }
-          else { prevRef.current = volume; setVolume(0); }
-        }}
+        aria-label={muted ? t('player.unmute') : t('player.mute')}
+        onClick={toggleMute}
       >
         {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
       </button>
@@ -121,19 +77,8 @@ export default function FullscreenPlayerPrism({ onClose }: { onClose: () => void
   const previous     = usePlayerStore(s => s.previous);
   const toggleRepeat = usePlayerStore(s => s.toggleRepeat);
 
-  // Full-bleed backdrop — same resolution the Minimal/Immersive players use.
-  const fsBackdropCfg = useThemeStore(s => s.backdrops.fullscreenPlayer);
-  const fanart = useArtistFanart(currentTrack?.artistId, {
-    artistName: currentTrack?.artist,
-    albumTitle: currentTrack?.album,
-  });
-  const artistCoverRef =
-    useArtistCoverRef(currentTrack?.artistId, undefined, undefined, { libraryResolve: false }) ?? undefined;
-  const artistImage = usePlaybackCoverArt(artistCoverRef, 2000, { fullRes: true });
-  const artistImgUrl = useCachedUrl(artistImage.src, artistImage.cacheKey, true);
-  const bgUrl = fsBackdropCfg.enabled
-    ? backdropFromConfig(fsBackdropCfg.sources, { fanart, navidrome: artistImgUrl }).url
-    : '';
+  // Full-bleed backdrop — the same shared resolution all three FS players use.
+  const bgUrl = useFsArtistBackdrop(currentTrack);
 
   // Cover-derived accent (album-keyed so it stays stable within an album).
   const albumRef =
@@ -183,7 +128,7 @@ export default function FullscreenPlayerPrism({ onClose }: { onClose: () => void
           >
             {repeatIcon}
           </button>
-          <PrismTime duration={duration} />
+          <FsTimeReadout duration={duration} remaining className="fsp2-time" />
         </div>
 
         {/* Now-playing pill with integrated progress */}
@@ -194,7 +139,7 @@ export default function FullscreenPlayerPrism({ onClose }: { onClose: () => void
               {[currentTrack?.album, currentTrack?.artist].filter(Boolean).join(' · ')}
             </span>
           </div>
-          <PrismProgress duration={duration} />
+          <PrismProgress />
         </div>
 
         {/* Utilities */}

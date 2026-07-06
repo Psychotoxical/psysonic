@@ -6,12 +6,10 @@ import {
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { queueSongStar, queueSongRating } from '@/features/playback/store/pendingStarSync';
-import { useAlbumCoverRef, useArtistCoverRef } from '@/cover/useLibraryCoverRef';
+import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
 import { useCachedUrl } from '@/ui/CachedImage';
-import { useArtistFanart } from '@/cover/useArtistFanart';
-import { backdropFromConfig } from '@/cover/artistBackdrop';
-import { useThemeStore } from '@/store/themeStore';
+import { useFsArtistBackdrop } from '@/features/fullscreenPlayer/hooks/useFsArtistBackdrop';
 import { useFsIdleFade } from '@/features/fullscreenPlayer/hooks/useFsIdleFade';
 import { useQueueTrackAt } from '@/features/queue';
 import { WaveformSeek } from '@/features/waveform';
@@ -96,23 +94,13 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
   const thumbUrl = coverUrl;
   // Background (§28). The album cover is deliberately NOT a background source —
   // it only ever feeds the foreground thumbnail. The user-configurable source
-  // list (fanart / Navidrome artist image, no banner) drives the rest: with the
-  // scraper on and fanart first, the fanart.tv 16:9 image is the background and
-  // while it resolves the background stays empty (no album/artist flash), then
-  // falls back per the list; with the scraper off the fanart source reports a
-  // non-pending miss, so the chain steps straight to the Navidrome artist image.
-  const fsBackdropCfg = useThemeStore((s) => s.backdrops.fullscreenPlayer);
-  const fanart = useArtistFanart(currentTrack?.artistId, {
-    artistName: currentTrack?.artist,
-    albumTitle: currentTrack?.album,
-  });
-  const artistCoverRef =
-    useArtistCoverRef(currentTrack?.artistId, undefined, undefined, { libraryResolve: false }) ??
-    undefined;
-  const artistImage = usePlaybackCoverArt(artistCoverRef, 2000, { fullRes: true });
-  const artistImgUrl = useCachedUrl(artistImage.src, artistImage.cacheKey, true);
-  const fsBackdrop = backdropFromConfig(fsBackdropCfg.sources, { fanart, navidrome: artistImgUrl });
-  const bgUrl = fsBackdropCfg.enabled ? fsBackdrop.url : '';
+  // list (fanart / Navidrome artist image, no banner) drives the rest, resolved
+  // through the shared fullscreen backdrop hook: with the scraper on and fanart
+  // first, the fanart.tv 16:9 image is the background and while it resolves the
+  // background stays empty (no album/artist flash), then falls back per the list;
+  // with the scraper off the fanart source reports a non-pending miss, so the
+  // chain steps straight to the Navidrome artist image.
+  const bgUrl = useFsArtistBackdrop(currentTrack);
 
   const nextTrack = useQueueTrackAt(queueIndex + 1);
 
