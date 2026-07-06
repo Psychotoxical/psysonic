@@ -124,6 +124,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The Genres page and album browse genre filter no longer miss genres on large libraries when **All libraries** is selected — both now use the indexed `track_genre` SQL aggregate instead of sampling the first page of albums (regression from multi-library scope routing in PR #1241).
 
+### Offline browse — on-disk-only Artists, Albums, Tracks, and Genres
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1243](https://github.com/Psychotoxical/psysonic/pull/1243)**
+
+* When browsing offline, Artists, Albums, Tracks, and Genres now list only content with on-disk bytes — library pins, favorites-auto saves, and hot-cache playback — instead of the full server or local index catalog.
+* Sidebar and shell gates react when hot-cache rows appear; browse pages reload after hot-cache growth and library sync without leaving the page.
+* Album vs track artist credit mode, starred artists, genre filters, and Tracks discovery rails respect the on-disk scope; album artist grouping follows indexed `album_artist` parity.
+
 
 ## [1.49.0] - 2026-06-29
 
