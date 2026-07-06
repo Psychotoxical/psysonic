@@ -186,6 +186,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Artists browse — case-insensitive Cyrillic/non-ASCII name search when local index is enabled (PR #1237)',
       'CLI — relative volume via signed `volume` argument (+/− percent delta); suppress WebKit NVIDIA stderr notes on CLI argv; faster Linux CLI forward before WebKit init (PR #1238)',
       'Multi-library filter — priority-ordered multi-select scope across browse/search/detail, sargable library_id + FTS-first SQL, rebuildable library-cluster.db identity keys, locale-aware name normalization (PR #1241)',
+      'Genres — full catalog via indexed SQL when All libraries is selected; no longer samples first album page on large libraries (PR #1242)',
     ],
   },
   {

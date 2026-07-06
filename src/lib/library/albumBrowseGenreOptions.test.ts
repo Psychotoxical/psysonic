@@ -60,6 +60,22 @@ describe('fetchAlbumBrowseGenreOptions', () => {
     expect(runLocalAlbumBrowse).not.toHaveBeenCalled();
   });
 
+  it('uses unscoped SQL for all libraries instead of an album sample', async () => {
+    librarySelectionForServer.mockReturnValue([]);
+    libraryGetGenreAlbumCounts.mockResolvedValue([
+      { value: 'Ambient', albumCount: 3, songCount: 12 },
+      { value: 'Rock', albumCount: 42, songCount: 900 },
+    ]);
+
+    await expect(fetchAlbumBrowseGenreOptions('srv-1', true, baseQuery)).resolves.toEqual([
+      { genre: 'Ambient', count: 3 },
+      { genre: 'Rock', count: 42 },
+    ]);
+
+    expect(libraryGetGenreAlbumCounts).toHaveBeenCalledWith({ serverId: 'srv-1' });
+    expect(runLocalAlbumBrowse).not.toHaveBeenCalled();
+  });
+
   it('uses one scoped SQL query for a multi-library selection', async () => {
     librarySelectionForServer.mockReturnValue(['lib-a', 'lib-b']);
     libraryGetGenreAlbumCounts.mockResolvedValue([

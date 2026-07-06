@@ -78,8 +78,16 @@ export async function fetchAlbumBrowseGenreOptions(
   // multi-scope CTE sample. For multi-library selection we sum counts per library —
   // cross-library album duplicates are counted once per library (a cosmetic hint),
   // but the genre set stays correct and each query is an indexed GROUP BY.
-  if (indexEnabled && serverId && selection.length >= 1 && !hasCombinedFilters && (await libraryIsReady(serverId))) {
+  if (indexEnabled && serverId && !hasCombinedFilters && (await libraryIsReady(serverId))) {
     try {
+      if (selection.length === 0) {
+        const rows = await albumBrowseTimed(
+          'genre_album_counts',
+          () => fetchGenreAlbumCountsDeduped({ serverId }),
+          { libraryCount: 0 },
+        );
+        return rows.map(row => ({ genre: row.value, count: row.albumCount }));
+      }
       if (selection.length === 1) {
         const rows = await albumBrowseTimed(
           'genre_album_counts',
