@@ -244,7 +244,7 @@ export interface AuthState {
   fsLyricsStyle: 'rail' | 'apple';
   showFsArtistPortrait: boolean;
   fsPortraitDim: number;
-  fullscreenPlayerStyle: 'minimal' | 'immersive';
+  fullscreenPlayerStyle: 'minimal' | 'immersive' | 'prism';
   showChangelogOnUpdate: boolean;
   lastSeenChangelogVersion: string;
   /** Signature of the installed-theme updates last dismissed in the sidebar
@@ -444,7 +444,7 @@ export interface AuthState {
   setFsLyricsStyle: (v: 'rail' | 'apple') => void;
   setShowFsArtistPortrait: (v: boolean) => void;
   setFsPortraitDim: (v: number) => void;
-  setFullscreenPlayerStyle: (v: 'minimal' | 'immersive') => void;
+  setFullscreenPlayerStyle: (v: 'minimal' | 'immersive' | 'prism') => void;
   setShowChangelogOnUpdate: (v: boolean) => void;
   setLastSeenChangelogVersion: (v: string) => void;
   setLastDismissedThemeUpdateSig: (v: string) => void;

@@ -26,9 +26,10 @@ export function AppearanceTab() {
   const fontStore = useFontStore();
   const [isTilingWm, setIsTilingWm] = useState(false);
 
-  const fullscreenPlayerStyleOptions: SegmentedOption<'minimal' | 'immersive'>[] = [
+  const fullscreenPlayerStyleOptions: SegmentedOption<'minimal' | 'immersive' | 'prism'>[] = [
     { id: 'minimal', label: t('settings.fullscreenPlayerMinimal') },
     { id: 'immersive', label: t('settings.fullscreenPlayerImmersive') },
+    { id: 'prism', label: t('settings.fullscreenPlayerPrism') },
   ];
 
   useEffect(() => {

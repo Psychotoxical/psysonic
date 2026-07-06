@@ -647,6 +647,7 @@ export const settings = {
   fullscreenPlayerStyleDesc: 'Velg hvordan fullskjermsvisningen ser ut.',
   fullscreenPlayerMinimal: 'Minimal',
   fullscreenPlayerImmersive: 'Oppslukende',
+  fullscreenPlayerPrism: 'Prism',
   fsShowArtistPortrait: 'Vis artistbilde',
   fsShowArtistPortraitDesc: 'Vis artistbilde (eller albumomslag) på høyre side av fullskjermspilleren.',
   fsPortraitDim: 'Mørklegging av bilde',

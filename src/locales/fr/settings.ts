@@ -648,6 +648,7 @@ export const settings = {
   fullscreenPlayerStyleDesc: 'Choisissez l’apparence de la vue plein écran en cours de lecture.',
   fullscreenPlayerMinimal: 'Minimal',
   fullscreenPlayerImmersive: 'Immersif',
+  fullscreenPlayerPrism: 'Prism',
   fsShowArtistPortrait: 'Afficher la photo de l\'artiste',
   fsShowArtistPortraitDesc: 'Afficher la photo de l\'artiste (ou la pochette) sur le côté droit du lecteur plein écran.',
   fsPortraitDim: 'Assombrissement de la photo',

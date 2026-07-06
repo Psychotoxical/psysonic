@@ -722,6 +722,7 @@ export const settings = {
   fullscreenPlayerStyleDesc: 'フルスクリーン再生画面の見た目を選びます。',
   fullscreenPlayerMinimal: 'ミニマル',
   fullscreenPlayerImmersive: '没入型',
+  fullscreenPlayerPrism: 'Prism',
   fsShowArtistPortrait: 'アーティスト写真を表示',
   fsShowArtistPortraitDesc: 'フルスクリーンプレーヤーの右側にアーティスト写真（またはアルバムアート）を表示します。',
   fsPortraitDim: '写真の暗さ',

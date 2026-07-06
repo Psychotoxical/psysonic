@@ -1,0 +1,179 @@
+/* Prism fullscreen player — full-bleed backdrop, a floating right-side lyrics
+   panel, and a glassy bottom control bar (transport · now-playing pill · utils).
+   Cover-derived accent drives the progress + active states via --dynamic-fs-accent. */
+
+.fsp2-player {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  overflow: hidden;
+  background: #05060a;
+  animation: fsp2-fade-in 220ms ease;
+}
+
+@keyframes fsp2-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── Full-bleed backdrop + legibility tint ─────────────────────────────────── */
+.fsp2-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center 30%;
+}
+.fsp2-bg-tint {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 90% at 30% 20%, transparent 40%, rgba(5, 6, 10, 0.55) 100%),
+    linear-gradient(to top, rgba(5, 6, 10, 0.82) 0%, rgba(5, 6, 10, 0.25) 26%, transparent 46%);
+}
+
+/* ── Right-side lyrics panel (glass) ───────────────────────────────────────── */
+.fsp2-lyrics-panel {
+  position: absolute;
+  right: 3vw;
+  top: 8vh;
+  bottom: 12vh;
+  width: min(46%, 720px);
+  border-radius: 26px;
+  overflow: hidden;
+  background: rgba(10, 14, 18, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(28px) saturate(1.1);
+  -webkit-backdrop-filter: blur(28px) saturate(1.1);
+}
+/* The reused FsLyricsApple container fills the panel; give it inner breathing room. */
+.fsp2-lyrics-panel .fsa-lyrics-container {
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+/* ── Bottom bar ────────────────────────────────────────────────────────────── */
+.fsp2-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 26px calc(20px + env(safe-area-inset-bottom, 0px));
+  transition: opacity 300ms ease;
+}
+.fsp2-player[data-idle='true'] .fsp2-bar { opacity: 0; }
+
+.fsp2-bar-left,
+.fsp2-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 16px;
+  background: rgba(12, 14, 20, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.fsp2-bar-left { gap: 4px; }
+
+.fsp2-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.82);
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+.fsp2-btn:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.fsp2-btn-play { color: #fff; }
+.fsp2-btn-active {
+  color: var(--dynamic-fs-accent, var(--accent));
+  background: color-mix(in srgb, var(--dynamic-fs-accent, var(--accent)) 16%, transparent);
+}
+
+.fsp2-time {
+  margin-left: 8px;
+  padding-right: 6px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+}
+
+/* ── Now-playing pill ──────────────────────────────────────────────────────── */
+.fsp2-pill {
+  position: relative;
+  flex: 0 1 420px;
+  min-width: 220px;
+  padding: 8px 18px 12px;
+  border-radius: 16px;
+  background: rgba(8, 10, 16, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  overflow: hidden;
+}
+.fsp2-pill-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fsp2-pill-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fsp2-pill-sub {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.58);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Integrated progress line at the pill's bottom edge; the range input is a
+   transparent full-cover overlay so the whole pill scrubs. */
+.fsp2-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; }
+.fsp2-progress-played {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  background: var(--dynamic-fs-accent, var(--accent));
+  box-shadow: 0 0 10px var(--dynamic-fs-accent, var(--accent));
+}
+.fsp2-progress input[type='range'] {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 16px; /* generous hit target above the visual line */
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* ── Volume ────────────────────────────────────────────────────────────────── */
+.fsp2-volume { display: flex; align-items: center; gap: 2px; }
+.fsp2-volume-slider {
+  width: 0;
+  opacity: 0;
+  transition: width 160ms ease, opacity 160ms ease;
+  accent-color: var(--dynamic-fs-accent, var(--accent));
+  cursor: pointer;
+}
+.fsp2-volume:hover .fsp2-volume-slider,
+.fsp2-volume:focus-within .fsp2-volume-slider { width: 84px; opacity: 1; }
+
+@media (max-width: 900px) {
+  .fsp2-lyrics-panel { left: 3vw; width: auto; }
+  .fsp2-pill { display: none; }
+}

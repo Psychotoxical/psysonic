@@ -647,6 +647,7 @@ export const settings = {
   fullscreenPlayerStyleDesc: '选择全屏播放视图的外观。',
   fullscreenPlayerMinimal: '简约',
   fullscreenPlayerImmersive: '沉浸式',
+  fullscreenPlayerPrism: 'Prism',
   fsShowArtistPortrait: '显示艺术家照片',
   fsShowArtistPortraitDesc: '在全屏播放器右侧显示艺术家照片（或专辑封面）。',
   fsPortraitDim: '照片暗化',

@@ -661,6 +661,7 @@ export const settings = {
   fullscreenPlayerStyleDesc: 'Wähle, wie die Vollbild-Wiedergabeansicht aussieht.',
   fullscreenPlayerMinimal: 'Minimal',
   fullscreenPlayerImmersive: 'Immersiv',
+  fullscreenPlayerPrism: 'Prism',
   fsShowArtistPortrait: 'Künstlerfoto anzeigen',
   fsShowArtistPortraitDesc: 'Künstlerfoto (oder Albumcover) auf der rechten Seite des Vollbild-Players anzeigen.',
   fsPortraitDim: 'Abdunkelung des Fotos',

@@ -750,6 +750,7 @@ export const settings = {
   fullscreenPlayerStyleDesc: 'Выберите вид полноэкранного экрана воспроизведения.',
   fullscreenPlayerMinimal: 'Минимальный',
   fullscreenPlayerImmersive: 'Иммерсивный',
+  fullscreenPlayerPrism: 'Prism',
   fsShowArtistPortrait: 'Отображать фото артиста',
   fsShowArtistPortraitDesc: 'Показывать фото артиста (или обложку альбома) в правой части полноэкранного плеера.',
   fsPortraitDim: 'Затемнение фото',

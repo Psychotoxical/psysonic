@@ -14,7 +14,7 @@ import DevNetworkModeToggle from '@/app/DevNetworkModeToggle';
 import { NowPlayingDropdown } from '@/features/nowPlaying';
 import QueuePanel from '@/features/queue';
 import AppRoutes from './AppRoutes';
-import FullscreenPlayer, { FullscreenPlayerImmersive } from '@/features/fullscreenPlayer';
+import FullscreenPlayer, { FullscreenPlayerImmersive, FullscreenPlayerPrism } from '@/features/fullscreenPlayer';
 import ContextMenu from '@/features/contextMenu/components/ContextMenu';
 import SongInfoModal from '@/features/playback/components/SongInfoModal';
 import { DownloadFolderModal } from '@/features/offline';
@@ -341,7 +341,9 @@ export function AppShell() {
       {isFullscreenOpen && (
         fullscreenPlayerStyle === 'immersive'
           ? <FullscreenPlayerImmersive onClose={toggleFullscreen} />
-          : <FullscreenPlayer onClose={toggleFullscreen} />
+          : fullscreenPlayerStyle === 'prism'
+            ? <FullscreenPlayerPrism onClose={toggleFullscreen} />
+            : <FullscreenPlayer onClose={toggleFullscreen} />
       )}
       <ContextMenu />
       <SongInfoModal />

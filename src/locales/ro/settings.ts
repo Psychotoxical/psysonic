@@ -663,6 +663,7 @@ export const settings = {
   fullscreenPlayerStyleDesc: 'Alege cum arată vizualizarea de redare pe ecran complet.',
   fullscreenPlayerMinimal: 'Minimal',
   fullscreenPlayerImmersive: 'Imersiv',
+  fullscreenPlayerPrism: 'Prism',
   fsShowArtistPortrait: 'Arată poza artistului',
   fsShowArtistPortraitDesc: 'Arată poza artistului (sau arta albumului) în partea dreaptă a playerului pe ecran complet.',
   fsPortraitDim: 'Estomparea fotografiei',

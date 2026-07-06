@@ -728,6 +728,7 @@ export const settings = {
   fullscreenPlayerStyleDesc: 'Choose how the fullscreen now-playing view looks.',
   fullscreenPlayerMinimal: 'Minimal',
   fullscreenPlayerImmersive: 'Immersive',
+  fullscreenPlayerPrism: 'Prism',
   fsShowArtistPortrait: 'Show artist photo',
   fsShowArtistPortraitDesc: 'Display the artist photo (or album art) on the right side of the fullscreen player.',
   fsPortraitDim: 'Photo dimming',

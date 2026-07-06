@@ -648,6 +648,7 @@ export const settings = {
   fullscreenPlayerStyleDesc: 'Kies hoe de volledig scherm-weergave eruitziet.',
   fullscreenPlayerMinimal: 'Minimaal',
   fullscreenPlayerImmersive: 'Meeslepend',
+  fullscreenPlayerPrism: 'Prism',
   fsShowArtistPortrait: 'Artiestfoto tonen',
   fsShowArtistPortraitDesc: 'Artiestfoto (of albumhoes) weergeven aan de rechterkant van de volledigschermspeler.',
   fsPortraitDim: 'Verduistering foto',

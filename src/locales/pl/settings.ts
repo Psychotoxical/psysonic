@@ -728,6 +728,7 @@ export const settings = {
   fullscreenPlayerStyleDesc: 'Wybierz wygląd pełnoekranowego widoku odtwarzania.',
   fullscreenPlayerMinimal: 'Minimalistyczny',
   fullscreenPlayerImmersive: 'Immersyjny',
+  fullscreenPlayerPrism: 'Prism',
   fsShowArtistPortrait: 'Pokaż zdjęcie artysty',
   fsShowArtistPortraitDesc: 'Wyświetlaj zdjęcie artysty (lub okładkę albumu) po prawej stronie odtwarzacza pełnoekranowego.',
   fsPortraitDim: 'Przyciemnienie zdjęcia',

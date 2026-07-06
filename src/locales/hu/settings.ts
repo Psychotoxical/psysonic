@@ -728,6 +728,7 @@ export const settings = {
   fullscreenPlayerStyleDesc: 'Válaszd ki, hogyan nézzen ki a teljes képernyős lejátszási nézet.',
   fullscreenPlayerMinimal: 'Minimál',
   fullscreenPlayerImmersive: 'Magával ragadó',
+  fullscreenPlayerPrism: 'Prism',
   fsShowArtistPortrait: 'Előadó fotójának megjelenítése',
   fsShowArtistPortraitDesc: 'Az előadó fotójának (vagy az albumborítónak) megjelenítése a teljes képernyős lejátszó jobb oldalán.',
   fsPortraitDim: 'Fotó sötétítése',
