@@ -8,7 +8,7 @@ export const connection = {
   offlineTitle: 'Nessuna connessione al server',
   offlineSubtitle: 'Impossibile raggiungere {{server}}. Verifica la tua connessione o il server.',
   offlineModeBanner: 'Modalità Offline — riproduzione dalla cache locale',
-  offlineNoCacheBanner: 'Nessuna connessione — Imppossibile raggiungere {{server}}',
+  offlineNoCacheBanner: 'Nessuna connessione — Impossibile raggiungere {{server}}',
   offlineLibraryTitle: 'Libreria Offline',
   offlineLibraryDiskLabel: 'Sul disco',
   offlineLibraryDiskUsage: 'sul disco: {{size}}',

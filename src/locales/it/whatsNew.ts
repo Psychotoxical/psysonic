@@ -1,7 +1,7 @@
 export const whatsNew = {
   title: "Novità",
   changelogTitle: 'Changelog',
-  viewTabsLabel: 'vista release notes',
+  viewTabsLabel: 'release notes',
   viewHighlights: 'Punti salienti',
   viewChangelog: 'Changelog',
   empty: 'Non c\'è ancora nessun changelog per questa versione',

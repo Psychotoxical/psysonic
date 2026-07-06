@@ -8,7 +8,7 @@ export const tracks = {
   toAlbum: 'Vai all\'album',
   railRandom: 'Casuali',
   railHighlyRated: 'Molto apprezzate',
-  browseTitle: 'Soglia tutti i brani',
+  browseTitle: 'Sfoglia tutti i brani',
   browseUnsupported: "Questo server non mostra l\'intero catalogo in una volta sola. Usa la funzione di ricerca qui sopra per trovare brani specifici.",
   searchPlaceholder: 'Cerca un brano per titolo, artista o album…',
   count_one: '{{count}} brano',

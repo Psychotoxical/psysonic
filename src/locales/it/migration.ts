@@ -8,8 +8,8 @@ export const migration = {
   retry: 'Riprova',
   copyDetails: 'Copia dettagli',
   complete: 'Aggiornamento completato',
-  completeRows: '{{count}} righe micrate',
+  completeRows: '{{count}} righe migrate',
   genreTagsTitle: 'Aggiornamento indice generi…',
   genreTagsBody: 'Indicizzazione dei generi per la navigazione e i filtri. Questa operazione viene eseguita una sola volta dopo l\'aggiornamento.',
-  genreTagsFailed: 'Agggionamento indice generi fallito',
+  genreTagsFailed: 'Aggionamento indice generi fallito',
 };

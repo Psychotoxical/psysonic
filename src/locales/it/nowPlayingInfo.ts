@@ -9,7 +9,7 @@ export const nowPlayingInfo = {
   poweredByBandsintown: 'Informazioni sul tour tramite Bandsintown',
   bioReadMore: 'Leggi altro',
   bioReadLess: 'Mostra meno',
-  showMoreTours_one: 'Mostra altro {{count}} ',
+  showMoreTours_one: 'Mostra altro {{count}}',
   showMoreTours_other: 'Mostra altri {{count}}',
   showLessTours: 'Mostra meno',
   enableBandsintownPrompt: 'Vuoi vedere le prossime date dei tour?',
