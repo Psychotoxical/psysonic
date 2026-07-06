@@ -1,9 +1,9 @@
 export const randomLanding = {
-  title: 'Build a Mix',
-  mixByTracks: 'Mix by Tracks',
-  mixByTracksDesc: 'Random selection of tracks from your entire library',
-  mixByAlbums: 'Mix by Albums',
-  mixByAlbumsDesc: 'Random album picks for your next discovery',
-  mixByLucky: 'Lucky Mix',
-  mixByLuckyDesc: 'Smart instant mix from your top artists, albums, and ratings',
+  title: 'Crea un Mix',
+  mixByTracks: 'Mix per Brani',
+  mixByTracksDesc: 'Selezione casuale di brani da tutta la libreria',
+  mixByAlbums: 'Mix per Album',
+  mixByAlbumsDesc: 'Scelta casuale di album per la tua prossima scoperta',
+  mixByLucky: 'Mix Fortunato',
+  mixByLuckyDesc: 'Mix intelligente istantaneo dai tuoi artisti, album e valutazioni migliori',
 };

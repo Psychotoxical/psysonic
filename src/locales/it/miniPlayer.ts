@@ -1,9 +1,9 @@
 export const miniPlayer = {
-  showQueue: 'Show queue',
-  hideQueue: 'Hide queue',
-  pinOnTop: 'Pin on top',
-  pinOff: 'Unpin',
-  openMainWindow: 'Open main window',
-  close: 'Close',
-  emptyQueue: 'Queue is empty',
+  showQueue: 'Mostra coda',
+  hideQueue: 'Nascondi coda',
+  pinOnTop: 'Fissa in alto',
+  pinOff: 'Rimuovi',
+  openMainWindow: 'Apri finestra principale',
+  close: 'Chiudi',
+  emptyQueue: 'La coda è vuota',
 };
