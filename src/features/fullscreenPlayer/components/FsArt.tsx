@@ -21,7 +21,12 @@ export const FsArt = memo(function FsArt({ fetchUrl, cacheKey }: { fetchUrl: str
   const cleanupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!blobUrl) return;
+    if (!blobUrl) {
+      // New track has no cover → drop the old layer so the placeholder shows,
+      // instead of leaving the previous track's art on screen.
+      setLayers(prev => (prev.length ? [] : prev));
+      return;
+    }
     const id = ++counter.current;
     setLayers(prev => [...prev, { src: blobUrl, id, vis: false }]);
   }, [blobUrl]);

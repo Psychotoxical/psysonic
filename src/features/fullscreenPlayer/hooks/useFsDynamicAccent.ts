@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { extractCoverColors } from '@/lib/dom/dynamicColors';
 
 // Module-level cache: artKey → accent color string.
@@ -6,15 +6,17 @@ import { extractCoverColors } from '@/lib/dom/dynamicColors';
 const coverAccentCache = new Map<string, string>();
 
 /** Extract a dominant accent color from the current cover art and cache it by
- *  artKey. Cache hits resolve synchronously during render; cache misses fetch
- *  the cover blob, run extractCoverColors, then cache + apply the result. The
- *  previously extracted color stays visible until extraction completes so the
- *  UI doesn't flash to default. */
+ *  artKey. Cache hits resolve synchronously during render; a miss fetches the
+ *  cover blob, runs extractCoverColors, writes the cache and forces a re-render.
+ *  While a new album's color is in flight the LAST shown color stays visible
+ *  (via a ref) so the accent never flashes to default. */
 export function useFsDynamicAccent(artUrl: string, artKey: string): string | null {
-  // Cache hit (or no art) is a pure render-time derivation — no synchronous
-  // setState in an effect (react-hooks/set-state-in-effect).
+  // The module cache is the source of truth (the async callback writes it, so a
+  // completed extraction shows up here on the next render). `bump` only forces
+  // that re-render — no synchronous setState in the effect body.
   const cached = artKey && artUrl ? coverAccentCache.get(artKey) ?? null : null;
-  const [extracted, setExtracted] = useState<string | null>(null);
+  const [, bump] = useState(0);
+  const lastShown = useRef<string | null>(null);
 
   useEffect(() => {
     if (!artKey || !artUrl || coverAccentCache.has(artKey)) return;
@@ -31,7 +33,7 @@ export function useFsDynamicAccent(artUrl: string, artKey: string): string | nul
         if (cancelled) return;
         if (colors.accent) {
           coverAccentCache.set(artKey, colors.accent);
-          setExtracted(colors.accent);
+          bump(n => n + 1);
         }
       } catch { /* ignore */ } finally {
         if (blobUrl) URL.revokeObjectURL(blobUrl);
@@ -41,6 +43,13 @@ export function useFsDynamicAccent(artUrl: string, artKey: string): string | nul
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [artKey]);
 
-  if (!artKey || !artUrl) return null;
-  return cached ?? extracted;
+  if (!artKey || !artUrl) {
+    lastShown.current = null;
+    return null;
+  }
+  // Cached hit/resolved wins; otherwise hold the last shown color for THIS
+  // session (not a stale one keyed to some earlier album) until extraction lands.
+  const value = cached ?? lastShown.current;
+  if (cached) lastShown.current = cached;
+  return value;
 }

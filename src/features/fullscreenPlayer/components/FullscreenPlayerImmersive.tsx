@@ -1,6 +1,6 @@
 import { queueSongStar, playbackCoverArtForAlbum, usePlayerStore } from '@/features/playback';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
-import { usePlaybackTrackCoverRef, useArtistCoverRef } from '@/cover/useLibraryCoverRef';
+import { useAlbumCoverRef, useArtistCoverRef } from '@/cover/useLibraryCoverRef';
 import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import {
   SkipBack, SkipForward,
@@ -46,12 +46,16 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
 
   const toggleStar = useCallback(() => {
     if (!currentTrack) return;
-    queueSongStar(currentTrack.id, !isStarred);
+    queueSongStar(currentTrack.id, !isStarred, currentTrack.serverId);
   }, [currentTrack, isStarred]);
 
   const duration = currentTrack?.duration ?? 0;
 
-  const playbackCoverRef = usePlaybackTrackCoverRef(currentTrack ?? undefined);
+  // Album-keyed cover ref so the cover stays stable across track changes within
+  // the same album — a per-track ref re-keys on `mf-<trackId>` coverArt and
+  // reloads/flickers the cover on every song advance (same fix as the Minimal player).
+  const playbackCoverRef =
+    useAlbumCoverRef(currentTrack?.albumId, undefined, undefined, { libraryResolve: false }) ?? undefined;
 
   const artCover = usePlaybackCoverArt(playbackCoverRef, 300);
   const artUrl = artCover.src;
@@ -81,7 +85,9 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
     undefined;
   const artistImage = usePlaybackCoverArt(artistCoverRef, 2000, { fullRes: true });
   const artistImgUrl = useCachedUrl(artistImage.src, artistImage.cacheKey, true);
-  const artistBgUrl = backdropFromConfig(fsBackdropCfg.sources, { fanart, navidrome: artistImgUrl }).url;
+  const artistBgUrl = fsBackdropCfg.enabled
+    ? backdropFromConfig(fsBackdropCfg.sources, { fanart, navidrome: artistImgUrl }).url
+    : '';
   const portraitUrl = artistBgUrl || resolvedCoverUrl;
   const showFullscreenLyrics   = useAuthStore(s => s.showFullscreenLyrics);
   const fsLyricsStyle          = useAuthStore(s => s.fsLyricsStyle);
@@ -153,8 +159,10 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
         />
       )}
 
-      {/* Layer 1 — artist portrait, right half; hidden in lyrics mode */}
-      {showFsArtistPortrait && <FsPortrait url={portraitUrl} />}
+      {/* Layer 1 — artist portrait, right half. Not mounted in Apple mode: the
+          full-screen backdrop above already shows the image, so rendering the
+          (CSS-hidden) portrait too would load/decode the same image twice. */}
+      {showFsArtistPortrait && !isAppleMode && <FsPortrait url={portraitUrl} />}
 
       {/* Layer 2 — horizontal scrim: dark left → transparent right */}
       <div className="fs-scrim" aria-hidden="true" />
@@ -198,7 +206,7 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
 
         {/* Controls */}
         <div className="fs-controls" ref={fsControlsRef}>
-          <button className="fs-btn fs-btn-sm" onClick={stop} aria-label="Stop" data-tooltip={t('player.stop')}>
+          <button className="fs-btn fs-btn-sm" onClick={stop} aria-label={t('player.stop')} data-tooltip={t('player.stop')}>
             <Square size={13} fill="currentColor" />
           </button>
           <button className="fs-btn" onClick={() => previous()} aria-label={t('player.prev')} data-tooltip={t('player.prev')}>

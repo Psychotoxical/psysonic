@@ -259,6 +259,12 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     libraryGridMaxColumns: clampLibraryGridMaxColumns(
       (state as { libraryGridMaxColumns?: unknown }).libraryGridMaxColumns,
     ),
+    // Immersive fullscreen-player portrait dim (0–80%). Guard against a legacy
+    // or malformed persisted value so `--fs-portrait-dim` never becomes NaN.
+    fsPortraitDim: (() => {
+      const v = (state as { fsPortraitDim?: unknown }).fsPortraitDim;
+      return typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(80, Math.round(v))) : 28;
+    })(),
     skipStarManualSkipCountsByKey: sanitizeSkipStarCounts(
       (state as { skipStarManualSkipCountsByKey?: unknown }).skipStarManualSkipCountsByKey,
     ),

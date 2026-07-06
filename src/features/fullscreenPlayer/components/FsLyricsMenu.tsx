@@ -23,18 +23,25 @@ export const FsLyricsMenu = memo(function FsLyricsMenu({ open, onClose, accentCo
   // instead of outside-handler closing + click re-opening.
   useEffect(() => {
     if (!open) return;
-    const onKey   = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    // Capture phase + stopPropagation so Escape closes only the popover, not the
+    // whole player: the player's own Escape handler (useFsIdleFade) listens in the
+    // bubble phase, so stopping propagation here keeps it from firing too.
+    const onKey   = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      onClose();
+    };
     const onMouse = (e: MouseEvent) => {
       const target = e.target as Node;
       if (panelRef.current?.contains(target)) return;
       if (triggerRef?.current?.contains(target)) return;
       onClose();
     };
-    window.addEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
     const t = setTimeout(() => window.addEventListener('mousedown', onMouse), 0);
     return () => {
       clearTimeout(t);
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('mousedown', onMouse);
     };
   }, [open, onClose, triggerRef]);

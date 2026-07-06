@@ -78,9 +78,10 @@ export const FsSeekbar = memo(function FsSeekbar({ duration }: { duration: numbe
           onTouchEnd={() => { isDraggingRef.current = false; commitSeek(); }}
           onPointerDown={() => { isDraggingRef.current = true; }}
           onPointerUp={() => { isDraggingRef.current = false; commitSeek(); }}
-          onKeyUp={commitSeek}
+          onKeyDown={() => { isDraggingRef.current = true; }}
+          onKeyUp={() => { isDraggingRef.current = false; commitSeek(); }}
           onBlur={() => { isDraggingRef.current = false; commitSeek(); }}
-          aria-label="seek"
+          aria-label="Seek"
         />
       </div>
     </div>
