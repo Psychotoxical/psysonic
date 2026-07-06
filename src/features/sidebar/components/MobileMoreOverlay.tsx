@@ -7,7 +7,7 @@ import { useAuthStore } from '@/store/authStore';
 import { ALL_NAV_ITEMS } from '@/config/navItems';
 import { useLuckyMixAvailable } from '@/features/randomMix';
 import { isOfflineSidebarNavAllowed } from '@/features/offline';
-import { useOfflineBrowseContext } from '@/features/offline';
+import { useReactiveOfflineBrowseContext } from '@/features/sidebar/hooks/useReactiveOfflineBrowseContext';
 import { offlineBrowseNavFlags } from '@/features/offline';
 
 const BOTTOM_NAV_ROUTES = new Set(['/', '/albums', '/now-playing']);
@@ -16,7 +16,7 @@ export default function MobileMoreOverlay({ onClose }: { onClose: () => void }) 
   const { t } = useTranslation();
   const sidebarItems = useSidebarStore(s => s.items);
   const randomNavMode = useAuthStore(s => s.randomNavMode);
-  const offlineCtx = useOfflineBrowseContext();
+  const offlineCtx = useReactiveOfflineBrowseContext();
   const offlineNav = offlineBrowseNavFlags(offlineCtx.capabilities);
   const isServerOffline = offlineCtx.active;
   const hasOfflineContent = offlineCtx.capabilities.manualPins;

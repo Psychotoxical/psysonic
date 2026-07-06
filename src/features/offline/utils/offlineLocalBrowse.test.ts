@@ -653,4 +653,83 @@ describe('offlineLocalBrowse', () => {
     expect(detail?.albums).toHaveLength(1);
   });
 
+  it('loadArtistFromLocalPlayback falls back to album credit when track mode misses album artist id', async () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/media/cache/a.test/t1.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+        'a.test:t2': {
+          serverIndexKey: 'a.test',
+          trackId: 't2',
+          localPath: '/media/cache/a.test/t2.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+      },
+    });
+    libraryGetTracksBatchChunkedMock.mockResolvedValue([
+      {
+        id: 't1', title: 'Feat', artist: 'Guest', artistId: 'art-guest',
+        albumArtist: 'Headliner', album: 'Al', albumId: 'al-1',
+        durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+      {
+        id: 't2', title: 'Title', artist: 'Headliner', artistId: 'art-head',
+        albumArtist: 'Headliner', album: 'Al', albumId: 'al-1',
+        durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+    ]);
+
+    const detail = await loadArtistFromLocalPlayback('srv-a', 'art-head', 'track');
+    expect(detail?.artist.name).toBe('Headliner');
+    expect(detail?.albums).toHaveLength(1);
+  });
+
+  it('offlineLocalBrowseRevision bumps when hot-cache rows are added', async () => {
+    const { offlineLocalBrowseRevision } = await import('@/store/localPlaybackBrowseRevision');
+    useLocalPlaybackStore.setState({ entries: {} });
+    expect(offlineLocalBrowseRevision('srv-a', {})).toBe('');
+
+    const entries = {
+      'a.test:t1': {
+        serverIndexKey: 'a.test',
+        trackId: 't1',
+        localPath: '/media/cache/a.test/t1.flac',
+        layoutFingerprint: 'fp',
+        sizeBytes: 1,
+        tier: 'ephemeral' as const,
+        cachedAt: 1,
+        suffix: 'flac',
+      },
+    };
+    const first = offlineLocalBrowseRevision('srv-a', entries);
+    expect(first).toBe('t1:ephemeral:1');
+
+    const second = offlineLocalBrowseRevision('srv-a', {
+      ...entries,
+      'a.test:t2': {
+        serverIndexKey: 'a.test',
+        trackId: 't2',
+        localPath: '/media/cache/a.test/t2.flac',
+        layoutFingerprint: 'fp',
+        sizeBytes: 1,
+        tier: 'ephemeral' as const,
+        cachedAt: 2,
+        suffix: 'flac',
+      },
+    });
+    expect(second).not.toBe(first);
+  });
+
 });

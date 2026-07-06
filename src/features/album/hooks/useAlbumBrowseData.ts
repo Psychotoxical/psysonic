@@ -32,18 +32,19 @@ import {
   ALBUM_YEAR_FILTER_DEBOUNCE_MS,
   resolveAlbumYearBounds,
 } from '@/lib/library/albumYearFilter';
-import { loadOfflineAlbumBrowseInitial } from '@/features/offline';
-import { useOfflineBrowseReloadToken } from '@/features/offline';
 import {
   fetchOfflineLocalAlbumGenreOptions,
   invalidateBrowsableLocalTrackCache,
+  loadOfflineAlbumBrowseInitial,
   offlineLocalBrowseEnabled,
+  useOfflineBrowseContext,
+  useOfflineBrowseReloadToken,
 } from '@/features/offline';
+import { useOfflineLocalBrowseRevision } from '@/store/localPlaybackBrowseRevision';
 import {
   fetchAlbumBrowseCatalogChunk,
   mergeAlbumCatalogChunk,
 } from '@/features/album/utils/albumBrowseCatalogChunk';
-import { useOfflineBrowseContext } from '@/features/offline';
 import { useClientSliceInfiniteScroll } from '@/lib/hooks/useClientSliceInfiniteScroll';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 import { useInpageScrollSentinel } from '@/lib/hooks/useInpageScrollSentinel';
@@ -121,6 +122,9 @@ export function useAlbumBrowseData({
 }: UseAlbumBrowseDataArgs) {
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const offlineBrowseReloadTs = useOfflineBrowseReloadToken();
+  const offlineLocalBrowseRevision = useOfflineLocalBrowseRevision(
+    offlineBrowseActive ? serverId : null,
+  );
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -158,13 +162,17 @@ export function useAlbumBrowseData({
   }), [sort, yearFilterActive, yearFilterBounds, losslessOnly, starredOnly, compFilter]);
 
   const catalogLoadKey = useMemo(
-    () => albumBrowseInitialLoadKey(
-      serverId,
-      musicLibraryFilterVersion,
-      browseQuery,
-      offlineBrowseActive,
-    ),
-    [serverId, musicLibraryFilterVersion, browseQuery, offlineBrowseActive],
+    () => {
+      const base = albumBrowseInitialLoadKey(
+        serverId,
+        musicLibraryFilterVersion,
+        browseQuery,
+        offlineBrowseActive,
+      );
+      if (!offlineBrowseActive) return base;
+      return `${base}\0${offlineLocalBrowseRevision}`;
+    },
+    [serverId, musicLibraryFilterVersion, browseQuery, offlineBrowseActive, offlineLocalBrowseRevision],
   );
 
   const compFilterActive = compFilter !== 'all';
@@ -439,7 +447,7 @@ export function useAlbumBrowseData({
     void (async () => {
       if (offlineBrowseActive) {
         emitAlbumBrowseDebug('load_branch', { mode: 'offline' });
-        if (offlineBrowseReloadTs && serverId) {
+        if (serverId) {
           invalidateBrowsableLocalTrackCache(serverId);
         }
         if (cancelled || generation !== loadGenerationRef.current) return;

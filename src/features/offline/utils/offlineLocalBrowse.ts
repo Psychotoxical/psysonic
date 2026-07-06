@@ -33,23 +33,33 @@ function sortBrowsableSongs(songs: SubsonicSong[]): SubsonicSong[] {
   return [...songs].sort((a, b) => a.title.localeCompare(b.title));
 }
 
-function listBrowsableEntries(serverId: string): LocalPlaybackEntry[] {
-  return Object.values(useLocalPlaybackStore.getState().entries).filter(
+
+function listBrowsableEntries(
+  serverId: string,
+  entries: Record<string, LocalPlaybackEntry> = useLocalPlaybackStore.getState().entries,
+): LocalPlaybackEntry[] {
+  return Object.values(entries).filter(
     e => (e.tier === 'library' || e.tier === 'favorite-auto' || e.tier === 'ephemeral')
       && !!e.localPath
       && entryBelongsToServer(e, serverId),
   );
 }
 
-export function countLocalBrowsableTracks(serverId: string): number {
-  return listBrowsableEntries(serverId).length;
+export function countLocalBrowsableTracks(
+  serverId: string,
+  entries?: Record<string, LocalPlaybackEntry>,
+): number {
+  return listBrowsableEntries(serverId, entries).length;
 }
 
 /** Local library index + at least one on-disk library, favorites-auto, or hot-cache track. */
-export function offlineLocalBrowseEnabled(serverId: string | null | undefined): boolean {
+export function offlineLocalBrowseEnabled(
+  serverId: string | null | undefined,
+  entries?: Record<string, LocalPlaybackEntry>,
+): boolean {
   if (!serverId) return false;
   if (!useLibraryIndexStore.getState().isIndexEnabled(serverId)) return false;
-  return countLocalBrowsableTracks(serverId) > 0;
+  return countLocalBrowsableTracks(serverId, entries) > 0;
 }
 
 function browsableEntriesRevision(serverId: string): string {
@@ -284,6 +294,25 @@ function localTracksForArtist(
   return tracks.filter(t => t.albumId && albumIds.has(t.albumId));
 }
 
+function resolveLocalArtistTracks(
+  allTracks: LibraryTrackDto[],
+  artistId: string,
+  serverId: string,
+  creditMode?: ArtistCreditMode,
+): { tracks: LibraryTrackDto[]; creditMode: ArtistCreditMode } {
+  const preferred = creditMode ?? useAuthStore.getState().artistBrowseCreditMode;
+  let tracks = localTracksForArtist(allTracks, artistId, serverId, preferred);
+  if (tracks.length > 0) {
+    return { tracks, creditMode: preferred };
+  }
+  const alternate: ArtistCreditMode = preferred === 'album' ? 'track' : 'album';
+  tracks = localTracksForArtist(allTracks, artistId, serverId, alternate);
+  if (tracks.length > 0) {
+    return { tracks, creditMode: alternate };
+  }
+  return { tracks: [], creditMode: preferred };
+}
+
 function applyAlbumBrowseQuery(
   albums: SubsonicAlbum[],
   query: AlbumBrowseQuery,
@@ -501,18 +530,25 @@ export async function loadAlbumFromLocalPlayback(
 export async function loadArtistFromLocalPlayback(
   serverId: string,
   artistId: string,
-  creditMode: ArtistCreditMode = useAuthStore.getState().artistBrowseCreditMode,
+  creditMode?: ArtistCreditMode,
 ): Promise<{ artist: SubsonicArtist; albums: SubsonicAlbum[] } | null> {
   if (!offlineLocalBrowseEnabled(serverId)) return null;
   const localIds = new Set(listBrowsableEntries(serverId).map(e => e.trackId));
   const allTracks = (await fetchBrowsableLocalTrackDtos(serverId)).filter(t => localIds.has(t.id));
-  const tracks = localTracksForArtist(allTracks, artistId, serverId, creditMode);
+  const { tracks, creditMode: effectiveCreditMode } = resolveLocalArtistTracks(
+    allTracks,
+    artistId,
+    serverId,
+    creditMode,
+  );
   if (tracks.length === 0) return null;
 
   const albums = aggregateAlbumsFromTracks(tracks, serverId)
     .sort((a, b) => a.name.localeCompare(b.name));
-  const catalogMatch = aggregateArtistsFromTracksForCreditMode(allTracks, serverId, creditMode)
-    .find(a => a.id === artistId);
+  const catalogMatch = aggregateArtistsFromTracksForCreditMode(allTracks, serverId, effectiveCreditMode)
+    .find(a => a.id === artistId)
+    ?? aggregateArtistsFromTracksForCreditMode(allTracks, serverId, effectiveCreditMode === 'album' ? 'track' : 'album')
+      .find(a => a.id === artistId);
   const fallback = tracks[0];
 
   const artist: SubsonicArtist = catalogMatch

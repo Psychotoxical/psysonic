@@ -9,8 +9,8 @@ import {
   fetchNetworkArtistCatalog,
   fetchStarredArtistsForBrowse,
 } from '@/features/artist/utils/artistBrowseCreditMode';
-import { useOfflineBrowseContext } from '@/features/offline';
-import { useOfflineBrowseReloadToken } from '@/features/offline';
+import { useOfflineBrowseContext, useOfflineBrowseReloadToken } from '@/features/offline';
+import { useOfflineLocalBrowseRevision } from '@/store/localPlaybackBrowseRevision';
 import {
   fetchOfflineLocalArtistCatalogChunk,
   fetchOfflineLocalStarredArtists,
@@ -63,6 +63,9 @@ export function useArtistsBrowseCatalog({
 }: UseArtistsBrowseCatalogArgs) {
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const offlineBrowseReloadTs = useOfflineBrowseReloadToken();
+  const offlineLocalBrowseRevision = useOfflineLocalBrowseRevision(
+    offlineBrowseActive ? serverId : null,
+  );
   const [catalogArtists, setCatalogArtists] = useState<SubsonicArtist[]>([]);
   const [loading, setLoading] = useState(true);
   const [catalogHasMore, setCatalogHasMore] = useState(false);
@@ -75,7 +78,7 @@ export function useArtistsBrowseCatalog({
 
   const catalogLoadKey = useMemo(() => {
     if (!serverId) return '';
-    return artistBrowseInitialLoadKey(
+    const base = artistBrowseInitialLoadKey(
       serverId,
       musicLibraryFilterVersion,
       libraryScopeKey,
@@ -84,7 +87,9 @@ export function useArtistsBrowseCatalog({
       starredOnly,
       offlineBrowseActive,
     );
-  }, [serverId, musicLibraryFilterVersion, libraryScopeKey, creditMode, letterFilter, starredOnly, offlineBrowseActive]);
+    if (!offlineBrowseActive) return base;
+    return `${base}\0${offlineLocalBrowseRevision}`;
+  }, [serverId, musicLibraryFilterVersion, libraryScopeKey, creditMode, letterFilter, starredOnly, offlineBrowseActive, offlineLocalBrowseRevision]);
 
   useLayoutEffect(() => {
     const cached = readArtistBrowseCatalogCache(catalogLoadKey);
@@ -241,7 +246,7 @@ export function useArtistsBrowseCatalog({
       try {
         if (offlineBrowseActive) {
           emitArtistsBrowseDebug('load_branch', { mode: 'offline' });
-          if (offlineBrowseReloadTs && serverId) {
+          if (serverId) {
             invalidateBrowsableLocalTrackCache(serverId);
           }
           if (!cancelled && generation === loadGenerationRef.current) {
