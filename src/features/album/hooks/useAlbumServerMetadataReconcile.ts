@@ -4,6 +4,7 @@ import { shouldAttemptSubsonicForServer } from '@/lib/network/subsonicNetworkGua
 import {
   applyAlbumServerMetadataPatch,
   fetchAlbumServerMetadataPatch,
+  patchAlbumStarToIndexFromReconcile,
 } from '@/lib/library/albumServerMetadataReconcile';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import type { ResolvedAlbum } from '@/store/mediaResolver';
@@ -62,6 +63,8 @@ export function useAlbumServerMetadataReconcile({
             ? { ...prev, album: applyAlbumServerMetadataPatch(prev.album, patch) }
             : prev,
         );
+
+        patchAlbumStarToIndexFromReconcile(serverId, albumId, patch);
 
         usePlayerStore.setState(s => {
           const starredOverrides = { ...s.starredOverrides };

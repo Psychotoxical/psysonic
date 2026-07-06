@@ -1,6 +1,7 @@
 import { getAlbumForServer } from '@/lib/api/subsonicLibrary';
 import { parseSubsonicEntityStarRating } from '@/lib/api/subsonicRatings';
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
+import { patchLibraryAlbumOnUse } from '@/lib/library/patchOnUse';
 
 export type AlbumServerMetadataPatch = {
   userRating: number;
@@ -40,6 +41,22 @@ export function applyAlbumServerMetadataPatch(
     userRating: patch.userRating > 0 ? patch.userRating : undefined,
     starred: patch.starred,
   };
+}
+
+/** Persist reconciled album favorite into the index (reconcile skips getAlbum mirror). */
+export function patchAlbumStarToIndexFromReconcile(
+  serverId: string,
+  albumId: string,
+  patch: AlbumServerMetadataPatch,
+): void {
+  if (!patch.starred) {
+    patchLibraryAlbumOnUse(serverId, albumId, { starredAt: null });
+    return;
+  }
+  const parsed = Date.parse(patch.starred);
+  patchLibraryAlbumOnUse(serverId, albumId, {
+    starredAt: Number.isFinite(parsed) ? parsed : Date.now(),
+  });
 }
 
 /**

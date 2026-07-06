@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach } from 'vitest';
+import { onInvoke, invokeMock } from '@/test/mocks/tauri';
+import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import {
   applyAlbumServerMetadataPatch,
   diffAlbumServerMetadata,
+  patchAlbumStarToIndexFromReconcile,
 } from './albumServerMetadataReconcile';
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 
@@ -37,5 +40,25 @@ describe('albumServerMetadataReconcile', () => {
     );
     expect(patched.userRating).toBeUndefined();
     expect(patched.starred).toBeUndefined();
+  });
+});
+
+describe('patchAlbumStarToIndexFromReconcile', () => {
+  beforeEach(() => {
+    useLibraryIndexStore.setState({ masterEnabled: true });
+    onInvoke('library_patch_album', () => undefined);
+  });
+
+  it('mirrors reconciled star into the index', async () => {
+    patchAlbumStarToIndexFromReconcile('s1', 'al1', {
+      userRating: 0,
+      starred: '2024-01-01T00:00:00Z',
+    });
+    await Promise.resolve();
+    expect(invokeMock).toHaveBeenCalledWith('library_patch_album', {
+      serverId: 's1',
+      albumId: 'al1',
+      patch: { starredAt: Date.parse('2024-01-01T00:00:00Z') },
+    });
   });
 });
