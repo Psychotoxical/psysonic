@@ -62,7 +62,7 @@ export const FsLyricsMenu = memo(function FsLyricsMenu({ open, onClose, accentCo
           <button
             key={style}
             className={`fslm-style-btn${lyricsStyle === style ? ' fslm-style-active' : ''}`}
-            onClick={() => setStyle(style)}
+            onClick={() => { setStyle(style); onClose(); }}
             style={lyricsStyle === style ? { borderColor: accent, color: accent, background: `color-mix(in srgb, ${accent} 14%, transparent)` } : undefined}
           >
             <span className="fslm-style-name">{t(`settings.fsLyricsStyle${style.charAt(0).toUpperCase() + style.slice(1)}` as any)}</span>
