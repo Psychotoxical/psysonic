@@ -132,6 +132,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Sidebar and shell gates react when hot-cache rows appear; browse pages reload after hot-cache growth and library sync without leaving the page.
 * Album vs track artist credit mode, starred artists, genre filters, and Tracks discovery rails respect the on-disk scope; album artist grouping follows indexed `album_artist` parity.
 
+### All Albums — year filter keyboard entry
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1244](https://github.com/Psychotoxical/psysonic/pull/1244)**
+
+* The year filter on All Albums no longer clamps on every keystroke while typing a four-digit year — drafts commit on blur, Enter, or outside click; incomplete input reverts to the last applied value. Wheel and spinner controls are unchanged.
+
 
 ## [1.49.0] - 2026-06-29
 
