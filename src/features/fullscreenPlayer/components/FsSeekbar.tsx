@@ -1,6 +1,5 @@
 import React, { memo, useCallback, useEffect, useRef } from 'react';
-import { usePlayerStore } from '@/features/playback/store/playerStore';
-import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '@/features/playback/store/playbackProgress';
+import { usePlayerStore, getPlaybackProgressSnapshot, subscribePlaybackProgress } from '@/features/playback';
 import { formatTrackTime } from '@/lib/format/formatDuration';
 
 // Full-width seekbar — imperative DOM updates, zero React re-renders on tick.

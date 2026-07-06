@@ -1,9 +1,8 @@
 import React, { memo, useCallback, useEffect, useRef } from 'react';
-import { usePlayerStore } from '@/features/playback/store/playerStore';
+import { usePlayerStore } from '@/features/playback';
 import { useAuthStore } from '@/store/authStore';
-import { useLyrics, type WordLyricsLine } from '@/features/lyrics/hooks/useLyrics';
-import { useWordLyricsSync } from '@/features/lyrics/hooks/useWordLyricsSync';
-import type { LrcLine } from '@/features/lyrics/api/lrclib';
+import { useLyrics, type WordLyricsLine, useWordLyricsSync } from '@/features/lyrics';
+import type { LrcLine } from '@/features/lyrics';
 import type { Track } from '@/lib/media/trackTypes';
 
 // Classic 5-line rail lyrics (original "Rail" style).

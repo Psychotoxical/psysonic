@@ -1,13 +1,11 @@
-import { queueSongStar } from '@/features/playback/store/pendingStarSync';
+import { queueSongStar, playbackCoverArtForAlbum, usePlayerStore } from '@/features/playback';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
 import { usePlaybackTrackCoverRef, useArtistCoverRef } from '@/cover/useLibraryCoverRef';
-import { playbackCoverArtForAlbum } from '@/features/playback/utils/playback/playbackServer';
 import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import {
   SkipBack, SkipForward,
   ChevronDown, Repeat, Repeat1, Square, Heart, MicVocal,
 } from 'lucide-react';
-import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useCachedUrl } from '@/ui/CachedImage';
 import { getCachedBlob } from '@/cover/imageCache';
 import { useTranslation } from 'react-i18next';
@@ -24,7 +22,7 @@ import { FsLyricsMenu } from './FsLyricsMenu';
 import { FsPlayBtn } from './FsPlayBtn';
 import { useFsDynamicAccent } from '@/features/fullscreenPlayer/hooks/useFsDynamicAccent';
 import { useFsIdleFade } from '@/features/fullscreenPlayer/hooks/useFsIdleFade';
-import { useQueueTrackAt } from '@/features/queue/hooks/useQueueTracks';
+import { useQueueTrackAt } from '@/features/queue';
 
 interface FullscreenPlayerProps {
   onClose: () => void;
