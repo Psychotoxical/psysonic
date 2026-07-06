@@ -34,6 +34,14 @@ describe('albumGroupArtist', () => {
     expect(pickAlbumGroupArtistFromTrackDtos(tracks)).toBe('Alpha');
   });
 
+  it('pickAlbumGroupArtistFromTrackDtos uses MAX(albumArtist) when present on any track', () => {
+    const tracks = [
+      track({ id: 't1', albumArtist: 'Alpha', artist: 'A' }),
+      track({ id: 't2', albumArtist: 'Zulu', artist: 'B' }),
+    ];
+    expect(pickAlbumGroupArtistFromTrackDtos(tracks)).toBe('Zulu');
+  });
+
   it('resolveAlbumCreditArtistId prefers performer row matching credit name', () => {
     const tracks = [
       track({ id: 't1', artist: 'Guest', artistId: 'art-guest', albumArtist: 'Headliner' }),

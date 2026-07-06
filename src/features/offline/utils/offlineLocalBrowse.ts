@@ -1,5 +1,6 @@
 import type { ArtistCreditMode, LibraryTrackDto } from '@/lib/api/library';
 import { libraryAdvancedSearch, libraryGetTracksBatchChunked, libraryGetTracksByAlbum } from '@/lib/api/library';
+import { subscribeLibrarySyncIdle } from '@/lib/api/library/events';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicGenre, SubsonicSong } from '@/lib/api/subsonicTypes';
 import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
@@ -52,10 +53,12 @@ export function offlineLocalBrowseEnabled(serverId: string | null | undefined): 
 }
 
 function browsableEntriesRevision(serverId: string): string {
-  return listBrowsableEntries(serverId)
-    .map(e => e.trackId)
+  const filterVer = useAuthStore.getState().musicLibraryFilterVersion;
+  const entries = listBrowsableEntries(serverId)
+    .map(e => `${e.trackId}:${e.cachedAt}`)
     .sort()
     .join('\0');
+  return `${filterVer}\0${entries}`;
 }
 
 type BrowsableTrackCache = {
@@ -65,6 +68,26 @@ type BrowsableTrackCache = {
 };
 
 let browsableTrackCache: BrowsableTrackCache | null = null;
+let browsableTrackCacheSyncHookRegistered = false;
+
+function ensureBrowsableTrackCacheSyncInvalidation(): void {
+  if (browsableTrackCacheSyncHookRegistered) return;
+  browsableTrackCacheSyncHookRegistered = true;
+  if (typeof subscribeLibrarySyncIdle !== 'function') return;
+  void subscribeLibrarySyncIdle(payload => {
+    if (payload.ok) {
+      invalidateBrowsableLocalTrackCache(payload.serverId);
+    }
+  });
+}
+
+/** Drop cached on-disk track DTOs after library resync or pin set changes. */
+export function invalidateBrowsableLocalTrackCache(serverId?: string): void {
+  if (!browsableTrackCache) return;
+  if (!serverId || browsableTrackCache.serverId === serverId) {
+    browsableTrackCache = null;
+  }
+}
 
 /** Test-only reset. */
 export function resetBrowsableLocalTrackCacheForTests(): void {
@@ -73,6 +96,7 @@ export function resetBrowsableLocalTrackCacheForTests(): void {
 
 /** Track DTOs for every library/favorite-auto entry with on-disk bytes for this server. */
 export async function fetchBrowsableLocalTrackDtos(serverId: string): Promise<LibraryTrackDto[]> {
+  ensureBrowsableTrackCacheSyncInvalidation();
   const revision = browsableEntriesRevision(serverId);
   if (
     browsableTrackCache?.serverId === serverId
@@ -195,6 +219,54 @@ function aggregateArtistsFromTracksForCreditMode(
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function starredIsoFromTrackTimestamps(timestamps: number[]): string {
+  const max = timestamps.length > 0 ? Math.max(...timestamps) : Date.now();
+  return new Date(max).toISOString();
+}
+
+function attachStarredFromTracks(
+  artists: SubsonicArtist[],
+  tracks: LibraryTrackDto[],
+  creditMode: ArtistCreditMode,
+): SubsonicArtist[] {
+  const starredAtByArtistId = new Map<string, number[]>();
+  if (creditMode === 'track') {
+    for (const track of tracks) {
+      if (!track.artistId || track.starredAt == null) continue;
+      const list = starredAtByArtistId.get(track.artistId) ?? [];
+      list.push(track.starredAt);
+      starredAtByArtistId.set(track.artistId, list);
+    }
+  } else {
+    const byAlbum = new Map<string, LibraryTrackDto[]>();
+    for (const track of tracks) {
+      const albumId = track.albumId;
+      if (!albumId) continue;
+      const list = byAlbum.get(albumId) ?? [];
+      list.push(track);
+      byAlbum.set(albumId, list);
+    }
+    for (const albumTracks of byAlbum.values()) {
+      const artistId = resolveAlbumCreditArtistId(
+        albumTracks,
+        pickAlbumGroupArtistFromTrackDtos(albumTracks),
+      );
+      if (!artistId) continue;
+      const starredTs = albumTracks
+        .map(t => t.starredAt)
+        .filter((v): v is number => v != null);
+      if (starredTs.length === 0) continue;
+      const list = starredAtByArtistId.get(artistId) ?? [];
+      list.push(...starredTs);
+      starredAtByArtistId.set(artistId, list);
+    }
+  }
+  return artists.map(artist => ({
+    ...artist,
+    starred: starredIsoFromTrackTimestamps(starredAtByArtistId.get(artist.id) ?? []),
+  }));
+}
+
 function localTracksForArtist(
   tracks: LibraryTrackDto[],
   artistId: string,
@@ -274,7 +346,11 @@ export async function fetchOfflineLocalStarredArtists(
 ): Promise<SubsonicArtist[] | null> {
   if (!offlineLocalBrowseEnabled(serverId)) return null;
   const tracks = (await fetchBrowsableLocalTrackDtos(serverId)).filter(t => t.starredAt != null);
-  return aggregateArtistsFromTracksForCreditMode(tracks, serverId, creditMode);
+  return attachStarredFromTracks(
+    aggregateArtistsFromTracksForCreditMode(tracks, serverId, creditMode),
+    tracks,
+    creditMode,
+  );
 }
 
 function filterArtistsByLetterBucket(

@@ -12,9 +12,12 @@ export function pickAlbumGroupArtist(
 
 /** Album credit name from grouped local tracks (`MAX(album_artist)` else `MIN(artist)` parity). */
 export function pickAlbumGroupArtistFromTrackDtos(tracks: LibraryTrackDto[]): string {
-  for (const t of tracks) {
-    const aa = t.albumArtist?.trim();
-    if (aa) return aa;
+  const albumArtists = tracks
+    .map(t => t.albumArtist?.trim())
+    .filter((name): name is string => !!name);
+  if (albumArtists.length > 0) {
+    const sorted = [...albumArtists].sort((a, b) => a.localeCompare(b));
+    return sorted[sorted.length - 1]!;
   }
   const performers = tracks
     .map(t => t.artist?.trim())

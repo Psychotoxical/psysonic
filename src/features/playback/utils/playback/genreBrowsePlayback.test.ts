@@ -30,8 +30,8 @@ vi.mock('@/lib/library/libraryReady', () => ({
 }));
 
 const isOfflineBrowseActiveMock = vi.fn(() => false);
-const offlineLocalBrowseEnabledMock = vi.fn(() => false);
-const fetchOfflineLocalGenreCatalogMock = vi.fn(async () => [
+const offlineLocalBrowseEnabledMock = vi.fn((_serverId?: string) => false);
+const fetchOfflineLocalGenreCatalogMock = vi.fn(async (_serverId?: string) => [
   { value: 'CachedLocal', albumCount: 2, songCount: 0 },
 ]);
 

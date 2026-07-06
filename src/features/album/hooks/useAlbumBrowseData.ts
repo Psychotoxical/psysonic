@@ -36,6 +36,7 @@ import { loadOfflineAlbumBrowseInitial } from '@/features/offline';
 import { useOfflineBrowseReloadToken } from '@/features/offline';
 import {
   fetchOfflineLocalAlbumGenreOptions,
+  invalidateBrowsableLocalTrackCache,
   offlineLocalBrowseEnabled,
 } from '@/features/offline';
 import {
@@ -438,6 +439,9 @@ export function useAlbumBrowseData({
     void (async () => {
       if (offlineBrowseActive) {
         emitAlbumBrowseDebug('load_branch', { mode: 'offline' });
+        if (offlineBrowseReloadTs && serverId) {
+          invalidateBrowsableLocalTrackCache(serverId);
+        }
         if (cancelled || generation !== loadGenerationRef.current) return;
         setBrowseMode('slice');
         try {

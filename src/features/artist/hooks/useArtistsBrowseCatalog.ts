@@ -14,6 +14,7 @@ import { useOfflineBrowseReloadToken } from '@/features/offline';
 import {
   fetchOfflineLocalArtistCatalogChunk,
   fetchOfflineLocalStarredArtists,
+  invalidateBrowsableLocalTrackCache,
   offlineLocalBrowseEnabled,
 } from '@/features/offline';
 import { librarySelectionForServer } from '@/lib/api/subsonicClient';
@@ -240,6 +241,9 @@ export function useArtistsBrowseCatalog({
       try {
         if (offlineBrowseActive) {
           emitArtistsBrowseDebug('load_branch', { mode: 'offline' });
+          if (offlineBrowseReloadTs && serverId) {
+            invalidateBrowsableLocalTrackCache(serverId);
+          }
           if (!cancelled && generation === loadGenerationRef.current) {
             if (serverId && starredOnly && offlineLocalBrowseEnabled(serverId)) {
               setCatalogArtists(
