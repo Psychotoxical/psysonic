@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { extractCoverColors } from '@/lib/dom/dynamicColors';
+import { getCachedBlob } from '@/cover/imageCache';
 
 // Module-level cache: artKey → accent color string.
 // Survives track changes so same-album songs reuse the extracted color instantly.
@@ -24,10 +25,10 @@ export function useFsDynamicAccent(artUrl: string, artKey: string): string | nul
     let blobUrl = '';
     (async () => {
       try {
-        const resp = await fetch(artUrl);
-        if (cancelled) return;
-        const blob = await resp.blob();
-        if (cancelled) return;
+        // Route through the cover cache (mem + IDB) rather than a raw fetch —
+        // the cover is already cached by FsArt, so this is usually a cache hit.
+        const blob = await getCachedBlob(artUrl, artKey);
+        if (cancelled || !blob) return;
         blobUrl = URL.createObjectURL(blob);
         const colors = await extractCoverColors(blobUrl);
         if (cancelled) return;
