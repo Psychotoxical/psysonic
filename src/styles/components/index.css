@@ -34,6 +34,7 @@
 @import './loading-empty.css';
 @import './fullscreen-player-adaptive-portrait.css';
 @import './fullscreen-player-static.css';
+@import './fullscreen-player-immersive.css';
 @import './context-menu.css';
 @import './css-tooltips.css';
 @import './playlists-page.css';

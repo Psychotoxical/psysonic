@@ -31,6 +31,11 @@ export function createUiAppearanceActions(set: SetState): Pick<
   | 'setQueueDurationDisplayMode'
   | 'setQueueDisplayMode'
   | 'setSidebarLyricsStyle'
+  | 'setShowFullscreenLyrics'
+  | 'setFsLyricsStyle'
+  | 'setShowFsArtistPortrait'
+  | 'setFsPortraitDim'
+  | 'setFullscreenPlayerStyle'
   | 'setShowChangelogOnUpdate'
   | 'setLastSeenChangelogVersion'
   | 'setLastDismissedThemeUpdateSig'
@@ -56,6 +61,11 @@ export function createUiAppearanceActions(set: SetState): Pick<
     setQueueDurationDisplayMode: (v) => set({ queueDurationDisplayMode: v }),
     setQueueDisplayMode: (v) => set({ queueDisplayMode: v }),
     setSidebarLyricsStyle: (v) => set({ sidebarLyricsStyle: v }),
+    setShowFullscreenLyrics: (v) => set({ showFullscreenLyrics: v }),
+    setFsLyricsStyle: (v) => set({ fsLyricsStyle: v }),
+    setShowFsArtistPortrait: (v) => set({ showFsArtistPortrait: v }),
+    setFsPortraitDim: (v) => set({ fsPortraitDim: v }),
+    setFullscreenPlayerStyle: (v) => set({ fullscreenPlayerStyle: v }),
     setShowChangelogOnUpdate: (v) => set({ showChangelogOnUpdate: v }),
     setLastSeenChangelogVersion: (v) => set({ lastSeenChangelogVersion: v }),
     setLastDismissedThemeUpdateSig: (v) => set({ lastDismissedThemeUpdateSig: v }),

@@ -240,6 +240,11 @@ export interface AuthState {
   lyricsStaticOnly: boolean;
   /** Sidebar lyrics scroll style: 'classic' = scrollIntoView center; 'apple' = scroll to 35% */
   sidebarLyricsStyle: 'classic' | 'apple';
+  showFullscreenLyrics: boolean;
+  fsLyricsStyle: 'rail' | 'apple';
+  showFsArtistPortrait: boolean;
+  fsPortraitDim: number;
+  fullscreenPlayerStyle: 'minimal' | 'immersive';
   showChangelogOnUpdate: boolean;
   lastSeenChangelogVersion: string;
   /** Signature of the installed-theme updates last dismissed in the sidebar
@@ -435,6 +440,11 @@ export interface AuthState {
   setYouLyPlusEnabled: (v: boolean) => void;
   setLyricsStaticOnly: (v: boolean) => void;
   setSidebarLyricsStyle: (v: 'classic' | 'apple') => void;
+  setShowFullscreenLyrics: (v: boolean) => void;
+  setFsLyricsStyle: (v: 'rail' | 'apple') => void;
+  setShowFsArtistPortrait: (v: boolean) => void;
+  setFsPortraitDim: (v: number) => void;
+  setFullscreenPlayerStyle: (v: 'minimal' | 'immersive') => void;
   setShowChangelogOnUpdate: (v: boolean) => void;
   setLastSeenChangelogVersion: (v: string) => void;
   setLastDismissedThemeUpdateSig: (v: string) => void;
