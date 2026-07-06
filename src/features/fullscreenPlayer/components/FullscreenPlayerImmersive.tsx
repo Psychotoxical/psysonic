@@ -143,6 +143,16 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
         <div className="fs-mesh-blob fs-mesh-blob-b" />
       </div>
 
+      {/* Apple/scrolling lyrics fill the width and hide the right-half portrait,
+          so the artist image renders as a dimmed full-screen backdrop instead. */}
+      {isAppleMode && showFsArtistPortrait && portraitUrl && (
+        <div
+          className="fs-apple-backdrop"
+          style={{ backgroundImage: `url("${portraitUrl}")` }}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Layer 1 — artist portrait, right half; hidden in lyrics mode */}
       {showFsArtistPortrait && <FsPortrait url={portraitUrl} />}
 

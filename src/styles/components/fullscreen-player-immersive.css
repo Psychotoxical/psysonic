@@ -467,6 +467,22 @@
   display: none;
 }
 
+/* Apple/scrolling mode: artist image as a dimmed full-screen backdrop behind the
+   lyrics (sits above the mesh at z-index 1, below the lyrics/fades/cluster). */
+.fs-apple-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background-size: cover;
+  background-position: center 30%;
+}
+.fs-apple-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 6, 14, 0.62);
+}
+
 /* ── Lyrics settings popover (above mic button) ─────────────────────────────── */
 
 /* The panel itself — floated above the mic button.
