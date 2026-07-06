@@ -27,6 +27,7 @@ import {
 } from '@/lib/library/albumGroupArtist';
 import { artistLetterBucket } from '@/lib/library/artistLetterBucket';
 import { isLosslessSuffix } from '@/lib/library/losslessFormats';
+import { resolveIndexKey } from '@/lib/server/serverIndexKey';
 import { entryBelongsToServer } from '@/store/localPlaybackResolve';
 
 function sortBrowsableSongs(songs: SubsonicSong[]): SubsonicSong[] {
@@ -94,7 +95,16 @@ function ensureBrowsableTrackCacheSyncInvalidation(): void {
 /** Drop cached on-disk track DTOs after library resync or pin set changes. */
 export function invalidateBrowsableLocalTrackCache(serverId?: string): void {
   if (!browsableTrackCache) return;
-  if (!serverId || browsableTrackCache.serverId === serverId) {
+  if (!serverId) {
+    browsableTrackCache = null;
+    return;
+  }
+  const cachedId = browsableTrackCache.serverId;
+  if (
+    cachedId === serverId
+    || resolveIndexKey(cachedId) === serverId
+    || resolveIndexKey(serverId) === cachedId
+  ) {
     browsableTrackCache = null;
   }
 }

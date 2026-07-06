@@ -12,7 +12,9 @@ import { libraryScopeCacheKeyForServer } from '@/lib/api/subsonicClient';
 import { peekGenreCatalogCache } from '@/lib/library/genreCatalogCountsCache';
 import { resolveIndexKey } from '@/lib/server/serverIndexKey';
 import { genreColor } from '@/lib/library/genreColor';
-import { useOfflineBrowseContext, offlineLocalBrowseEnabled } from '@/features/offline';
+import { useOfflineBrowseContext, invalidateBrowsableLocalTrackCache, offlineLocalBrowseEnabled } from '@/features/offline';
+import { useOfflineLocalBrowseRevision } from '@/store/localPlaybackBrowseRevision';
+import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
 
 const SCROLL_KEY = 'genres-scroll';
 const FONT_MIN_REM = 0.78;
@@ -26,7 +28,12 @@ export default function Genres() {
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const libraryScopeKey = libraryScopeCacheKeyForServer(serverId);
   const offlineBrowseActive = useOfflineBrowseContext().active;
-  const skipGenreCatalogCache = offlineBrowseActive && offlineLocalBrowseEnabled(serverId);
+  const localPlaybackEntries = useLocalPlaybackStore(s => s.entries);
+  const offlineLocalBrowseRevision = useOfflineLocalBrowseRevision(
+    offlineBrowseActive && serverId ? serverId : null,
+  );
+  const skipGenreCatalogCache = offlineBrowseActive
+    && offlineLocalBrowseEnabled(serverId, localPlaybackEntries);
   const cachedGenres = serverId && !skipGenreCatalogCache
     ? peekGenreCatalogCache(serverId, libraryScopeKey, true)
     : null;
@@ -39,6 +46,9 @@ export default function Genres() {
     const cached = serverId && !skipGenreCatalogCache
       ? peekGenreCatalogCache(serverId, scopeKey, true)
       : null;
+    if (skipGenreCatalogCache && serverId) {
+      invalidateBrowsableLocalTrackCache(serverId);
+    }
     if (cached) {
       // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -57,7 +67,7 @@ export default function Genres() {
     return () => {
       cancelled = true;
     };
-  }, [serverId, indexEnabled, musicLibraryFilterVersion, offlineBrowseActive, skipGenreCatalogCache]);
+  }, [serverId, indexEnabled, musicLibraryFilterVersion, offlineBrowseActive, skipGenreCatalogCache, offlineLocalBrowseRevision]);
 
   const genres = useMemo(
     () => filterGenresWithContent([...rawGenres]).sort((a, b) => b.albumCount - a.albumCount),

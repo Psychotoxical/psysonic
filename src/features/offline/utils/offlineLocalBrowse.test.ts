@@ -523,6 +523,43 @@ describe('offlineLocalBrowse', () => {
     expect(libraryGetTracksBatchChunkedMock).toHaveBeenCalledTimes(2);
   });
 
+  it('invalidateBrowsableLocalTrackCache matches library index key from sync-idle', async () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/media/cache/a.test/t1.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+      },
+    });
+    libraryGetTracksBatchChunkedMock
+      .mockResolvedValueOnce([
+        {
+          id: 't1', title: 'Old', artist: 'A', artistId: 'art-a', album: 'Al', albumId: 'al-1',
+          genre: 'Rock', durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 't1', title: 'New', artist: 'A', artistId: 'art-a', album: 'Al', albumId: 'al-1',
+          genre: 'Jazz', durationSec: 1, serverId: 'srv-a', syncedAt: 2, rawJson: {},
+        },
+      ]);
+
+    await fetchOfflineLocalArtistCatalogChunk('srv-a', 0, 10);
+    invalidateBrowsableLocalTrackCache('a.test');
+    await expect(searchOfflineLocalBrowsableSongs('srv-a', 'new', 0, 10)).resolves.toEqual([
+      expect.objectContaining({ title: 'New' }),
+    ]);
+    expect(libraryGetTracksBatchChunkedMock).toHaveBeenCalledTimes(2);
+  });
+
   it('fetchOfflineLocalAlbumCatalogChunk pages filtered local albums', async () => {
     useLocalPlaybackStore.setState({
       entries: {
