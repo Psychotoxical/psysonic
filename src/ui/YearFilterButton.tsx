@@ -155,7 +155,9 @@ export default function YearFilterButton({
       if (
         !triggerRef.current?.contains(e.target as Node) &&
         !popRef.current?.contains(e.target as Node)
-      ) setOpen(false);
+      ) {
+        applyDraftsAndClose();
+      }
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -184,7 +186,7 @@ export default function YearFilterButton({
 
   const handleToChange = (raw: string) => {
     const sanitized = sanitizeAlbumYearTypingInput(raw);
-    const spinnerTick = !to.trim()
+    const spinnerTick = !draftTo.trim()
       && sanitized === String(yMin)
       && yMin !== yMax
       && sanitized.length === 4;
