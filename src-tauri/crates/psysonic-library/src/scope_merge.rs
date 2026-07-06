@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use crate::album_compilation_filter::pick_album_group_artist;
 use crate::artist_sort::{sort_key_for_display_name, DEFAULT_IGNORED_ARTICLES};
-use crate::browse_support::read_album_starred_at;
+use crate::browse_support::{overlay_album_starred_at_rows, read_album_starred_at};
 use crate::dto::{
     LibraryAlbumDto, LibraryArtistDto, LibraryScopeAlbumDetailRequest,
     LibraryScopeAlbumDetailResponse, LibraryScopeArtistDetailRequest,
@@ -215,6 +215,30 @@ fn album_row_to_dto(row: AlbumListRow) -> LibraryAlbumDto {
 /// browse that dedups via `cluster.track_cluster_key`. Without this the album/
 /// artist dedup keys are uniformly NULL on a cold index (no prior search / sync
 /// rebuild) and cross-library duplicates are not merged.
+fn overlay_scope_album_stars(
+    store: &LibraryStore,
+    albums: &mut [LibraryAlbumDto],
+) -> Result<(), String> {
+    if albums.is_empty() {
+        return Ok(());
+    }
+    store
+        .with_read_conn(|conn| {
+            overlay_album_starred_at_rows(conn, albums);
+            Ok(())
+        })
+        .map_err(|e| e.to_string())
+}
+
+fn finish_scope_album_list(
+    store: &LibraryStore,
+    mut albums: Vec<LibraryAlbumDto>,
+    total: u32,
+) -> Result<(Vec<LibraryAlbumDto>, u32), String> {
+    overlay_scope_album_stars(store, &mut albums)?;
+    Ok((albums, total))
+}
+
 fn ensure_cluster_keys_for_scopes(
     store: &LibraryStore,
     scopes: &[LibraryScopePair],
@@ -286,7 +310,9 @@ pub fn list_albums(
         let rows = stmt
             .query_map(params_from_iter(binds.iter()), map_album_list_row)?
             .collect::<rusqlite::Result<Vec<_>>>()?;
-        Ok(rows.into_iter().map(album_row_to_dto).collect())
+        let mut albums: Vec<LibraryAlbumDto> = rows.into_iter().map(album_row_to_dto).collect();
+        overlay_album_starred_at_rows(conn, &mut albums);
+        Ok(albums)
     })
 }
 
@@ -415,7 +441,7 @@ pub(crate) fn list_albums_layer1_filtered(
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             Ok(rows.into_iter().map(album_row_to_dto).collect())
         })?;
-        return Ok((albums, total));
+        return finish_scope_album_list(store, albums, total);
     }
 
     if !merge_by_album_key && extra_where.trim().is_empty() {
@@ -465,7 +491,7 @@ pub(crate) fn list_albums_layer1_filtered(
                     .collect::<rusqlite::Result<Vec<_>>>()?;
                 Ok(rows.into_iter().map(album_row_to_dto).collect())
             })?;
-            return Ok((albums, total));
+            return finish_scope_album_list(store, albums, total);
         }
     }
 
@@ -536,7 +562,7 @@ pub(crate) fn list_albums_layer1_filtered(
             .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(rows.into_iter().map(album_row_to_dto).collect())
     })?;
-    Ok((albums, total))
+    finish_scope_album_list(store, albums, total)
 }
 
 /// Layer-1 scoped artist browse — sargable scope join; two-stage merge when `scopes.len() > 1`.
@@ -863,7 +889,7 @@ pub(crate) fn list_albums_filtered(
             .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(rows.into_iter().map(album_row_to_dto).collect())
     })?;
-    Ok((albums, total))
+    finish_scope_album_list(store, albums, total)
 }
 
 /// Multi-scope artist browse with track-level filters (advanced search).
@@ -1586,7 +1612,7 @@ pub fn album_detail(
         });
         let mut album = merge_album_by_priority(&albums);
         album.starred_at =
-            read_album_starred_at(conn, server_id, &album.id).unwrap_or(None);
+            read_album_starred_at(conn, server_id, album_id).unwrap_or(None);
         let tracks = fetch_scope_deduped_tracks_for_album_key(
             conn,
             scopes,
@@ -2161,6 +2187,122 @@ mod tests {
         assert_eq!(detail.album.genre.as_deref(), Some("Jazz"));
         assert_eq!(detail.album.cover_art_id.as_deref(), Some("cov-b"));
         assert_eq!(detail.tracks.len(), 1);
+    }
+
+    #[test]
+    fn scope_list_album_star_uses_album_row_not_track_aggregate() {
+        let store = LibraryStore::open_in_memory();
+        seed_and_rebuild(
+            &store,
+            &[track(
+                "s1",
+                "t1",
+                "Song",
+                Some("Artist"),
+                "Album",
+                "alb1",
+                Some("art1"),
+                200,
+                "lib-a",
+                None,
+                None,
+                None,
+            )],
+        );
+        store
+            .with_conn("test", |c| {
+                c.execute(
+                    "UPDATE track SET starred_at = 999 WHERE server_id = 's1' AND id = 't1'",
+                    [],
+                )?;
+                c.execute(
+                    "INSERT INTO album (server_id, id, name, starred_at, synced_at, raw_json) \
+                     VALUES ('s1', 'alb1', 'Album', 1700, 1, '{}')",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let req = LibraryScopeListRequest {
+            scopes: vec![scope_pair("s1", "lib-a")],
+            sort: None,
+            limit: Some(10),
+            offset: None,
+        };
+        let albums = list_albums(&store, &req).unwrap();
+        assert_eq!(albums.len(), 1);
+        assert_eq!(albums[0].starred_at, Some(1700));
+
+        store
+            .with_conn("test", |c| {
+                c.execute(
+                    "UPDATE album SET starred_at = NULL WHERE server_id = 's1' AND id = 'alb1'",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let albums = list_albums(&store, &req).unwrap();
+        assert_eq!(albums[0].starred_at, None);
+    }
+
+    #[test]
+    fn album_detail_star_reads_anchor_album_id() {
+        let store = LibraryStore::open_in_memory();
+        seed_and_rebuild(
+            &store,
+            &[
+                track(
+                    "s1",
+                    "t-a1",
+                    "Song",
+                    Some("Artist"),
+                    "Album",
+                    "alb-a",
+                    Some("art1"),
+                    200,
+                    "lib-a",
+                    None,
+                    None,
+                    None,
+                ),
+                track(
+                    "s1",
+                    "t-b1",
+                    "Song",
+                    Some("Artist"),
+                    "Album",
+                    "alb-b",
+                    Some("art1"),
+                    200,
+                    "lib-b",
+                    None,
+                    None,
+                    None,
+                ),
+            ],
+        );
+        store
+            .with_conn("test", |c| {
+                c.execute(
+                    "INSERT INTO album (server_id, id, name, starred_at, synced_at, raw_json) \
+                     VALUES ('s1', 'alb-a', 'Album', 1111, 1, '{}'), \
+                            ('s1', 'alb-b', 'Album', 2222, 1, '{}')",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let detail = album_detail(
+            &store,
+            &LibraryScopeAlbumDetailRequest {
+                scopes: vec![scope_pair("s1", "lib-a"), scope_pair("s1", "lib-b")],
+                album_id: "alb-a".into(),
+                server_id: "s1".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(detail.album.starred_at, Some(1111));
     }
 
     #[test]

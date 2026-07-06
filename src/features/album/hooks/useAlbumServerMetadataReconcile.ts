@@ -32,9 +32,11 @@ export function useAlbumServerMetadataReconcile({
   userMutationInFlightRef,
 }: Args): void {
   const reconciledKeyRef = useRef<string | null>(null);
+  const inFlightKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     reconciledKeyRef.current = null;
+    inFlightKeyRef.current = null;
   }, [serverId, albumId]);
 
   useEffect(() => {
@@ -43,8 +45,9 @@ export function useAlbumServerMetadataReconcile({
 
     const reconcileKey = `${serverId}:${albumId}`;
     if (reconciledKeyRef.current === reconcileKey) return;
-    reconciledKeyRef.current = reconcileKey;
+    if (inFlightKeyRef.current === reconcileKey) return;
 
+    inFlightKeyRef.current = reconcileKey;
     const snapshot = album;
     let cancelled = false;
 
@@ -66,8 +69,13 @@ export function useAlbumServerMetadataReconcile({
           delete userRatingOverrides[albumId];
           return { starredOverrides, userRatingOverrides };
         });
+        reconciledKeyRef.current = reconcileKey;
       } catch {
-        /* offline / transient — keep local */
+        /* offline / transient — keep local; allow retry */
+      } finally {
+        if (inFlightKeyRef.current === reconcileKey) {
+          inFlightKeyRef.current = null;
+        }
       }
     })();
 

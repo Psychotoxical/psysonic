@@ -48,6 +48,17 @@ pub(crate) fn read_album_starred_at(
     .map(|row| row.flatten())
 }
 
+/// Replace track-aggregated stars with `album.starred_at` per row (multi-server safe).
+pub(crate) fn overlay_album_starred_at_rows(
+    conn: &rusqlite::Connection,
+    albums: &mut [LibraryAlbumDto],
+) {
+    for album in albums.iter_mut() {
+        album.starred_at =
+            read_album_starred_at(conn, &album.server_id, &album.id).unwrap_or(None);
+    }
+}
+
 /// Album browse/detail: `starred_at` reflects album favorites only (`album.starred_at`).
 pub(crate) fn overlay_album_level_starred_at(
     store: &LibraryStore,
