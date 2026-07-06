@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { extractCoverColors } from '@/lib/dom/dynamicColors';
 import { getCachedBlob } from '@/cover/imageCache';
 
@@ -7,17 +7,15 @@ import { getCachedBlob } from '@/cover/imageCache';
 const coverAccentCache = new Map<string, string>();
 
 /** Extract a dominant accent color from the current cover art and cache it by
- *  artKey. Cache hits resolve synchronously during render; a miss fetches the
- *  cover blob, runs extractCoverColors, writes the cache and forces a re-render.
- *  While a new album's color is in flight the LAST shown color stays visible
- *  (via a ref) so the accent never flashes to default. */
+ *  artKey. Cache hits resolve synchronously during render (same-album songs are
+ *  instant); a miss fetches the cached cover blob, runs extractCoverColors,
+ *  writes the cache and forces a re-render. */
 export function useFsDynamicAccent(artUrl: string, artKey: string): string | null {
-  // The module cache is the source of truth (the async callback writes it, so a
-  // completed extraction shows up here on the next render). `bump` only forces
-  // that re-render — no synchronous setState in the effect body.
+  // The module cache is the source of truth — the async callback writes it, so a
+  // completed extraction shows up here on the next render. `bump` only forces
+  // that re-render (no synchronous setState in the effect body).
   const cached = artKey && artUrl ? coverAccentCache.get(artKey) ?? null : null;
   const [, bump] = useState(0);
-  const lastShown = useRef<string | null>(null);
 
   useEffect(() => {
     if (!artKey || !artUrl || coverAccentCache.has(artKey)) return;
@@ -47,13 +45,5 @@ export function useFsDynamicAccent(artUrl: string, artKey: string): string | nul
     // later src rotation from re-extracting an already-cached cover.
   }, [artKey, artUrl]);
 
-  if (!artKey || !artUrl) {
-    lastShown.current = null;
-    return null;
-  }
-  // Cached hit/resolved wins; otherwise hold the last shown color for THIS
-  // session (not a stale one keyed to some earlier album) until extraction lands.
-  const value = cached ?? lastShown.current;
-  if (cached) lastShown.current = cached;
-  return value;
+  return cached;
 }

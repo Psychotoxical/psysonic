@@ -72,8 +72,8 @@ export const FsLyricsMenu = memo(function FsLyricsMenu({ open, onClose, accentCo
             onClick={() => { setStyle(style); onClose(); }}
             style={lyricsStyle === style ? { borderColor: accent, color: accent, background: `color-mix(in srgb, ${accent} 14%, transparent)` } : undefined}
           >
-            <span className="fslm-style-name">{t(`settings.fsLyricsStyle${style.charAt(0).toUpperCase() + style.slice(1)}` as any)}</span>
-            <span className="fslm-style-desc">{t(`settings.fsLyricsStyle${style.charAt(0).toUpperCase() + style.slice(1)}Desc` as any)}</span>
+            <span className="fslm-style-name">{t(`settings.fsLyricsStyle${style.charAt(0).toUpperCase() + style.slice(1)}`)}</span>
+            <span className="fslm-style-desc">{t(`settings.fsLyricsStyle${style.charAt(0).toUpperCase() + style.slice(1)}Desc`)}</span>
           </button>
         ))}
       </div>
