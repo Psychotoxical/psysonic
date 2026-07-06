@@ -1,8 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
 import { commands } from '@/generated/bindings';
-import { resolvePlaybackCoverScope } from '@/cover/ref';
-import { resolveTrackCoverRefFromLibrary } from '@/cover/resolveEntryLibrary';
-import { coverArtUrlForDiscord } from '@/cover/integrations/discord';
 import { useAuthStore } from '@/store/authStore';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { getPlaybackProgressSnapshot } from '@/features/playback/store/playbackProgress';
@@ -20,7 +17,6 @@ export function setupDiscordPresence(): () => void {
   let discordPrevTemplateLargeText: string | null = null;
   let discordPrevTemplateName: string | null = null;
   let discordPrevCoverSource: string | null = null;
-  const discordServerCoverCache = new Map<string, string | null>();
 
   function syncDiscord() {
     const { currentTrack, isPlaying } = usePlayerStore.getState();
@@ -81,39 +77,12 @@ export function setupDiscordPresence(): () => void {
       }).catch(() => {});
     };
 
-    if (discordCoverSource === 'server' && currentTrack.coverArt) {
-      const cacheKey = currentTrack.coverArt;
-      const cached = discordServerCoverCache.get(cacheKey);
-      if (cached !== undefined) {
-        sendPresence(cached);
-      } else {
-        void resolveTrackCoverRefFromLibrary(
-          {
-            id: currentTrack.id,
-            albumId: currentTrack.albumId,
-            coverArt: currentTrack.coverArt,
-            discNumber: (currentTrack as { discNumber?: number }).discNumber,
-          },
-          resolvePlaybackCoverScope(),
-        ).then(ref => {
-          if (!ref) {
-            sendPresence(null);
-            return;
-          }
-          return coverArtUrlForDiscord(ref)
-            .then(url => {
-              discordServerCoverCache.set(cacheKey, url);
-              sendPresence(url);
-            })
-            .catch(() => {
-              discordServerCoverCache.set(cacheKey, null);
-              sendPresence(null);
-            });
-        });
-      }
-    } else {
-      sendPresence(null);
-    }
+    // Cover art is resolved Rust-side: 'apple' triggers the iTunes lookup via
+    // the fetchItunesCovers flag above; 'none' shows just the app icon. The
+    // frontend never builds a cover URL for Discord — the removed 'server'
+    // source leaked the authenticated Subsonic getCoverArt URL (u/t/s) through
+    // Discord's public external image proxy.
+    sendPresence(null);
   }
 
   const unsubDiscordPlayer = usePlayerStore.subscribe(syncDiscord);

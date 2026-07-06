@@ -274,7 +274,6 @@ export const settings = {
   discordCoverTitle: 'Bron albumhoes',
   discordCoverDesc: 'Waar de albumhoes op je Discord-profiel vandaan komt.',
   discordCoverNone: 'Geen (alleen app-icoon)',
-  discordCoverServer: 'Server (via albuminfo)',
   discordCoverApple: 'Apple Music',
   discordOptions: 'Geavanceerde Discord-opties',
   discordTemplates: 'Aangepaste tekstsjablonen',

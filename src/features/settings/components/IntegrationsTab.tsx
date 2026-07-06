@@ -5,7 +5,9 @@ import { useThemeStore } from '@/store/themeStore';
 import SettingsSubSection from '@/features/settings/components/SettingsSubSection';
 import { SettingsGroup } from '@/features/settings/components/SettingsGroup';
 import { SettingsToggle } from '@/features/settings/components/SettingsToggle';
+import { SettingsSegmented, type SegmentedOption } from '@/features/settings/components/SettingsSegmented';
 import { SettingsSubCard, SettingsField } from '@/features/settings/components/SettingsSubCard';
+import type { DiscordCoverSource } from '@/store/authStoreTypes';
 import { BackdropSourceList } from '@/features/settings/components/BackdropSourceList';
 import type { BackdropSurface } from '@/store/themeStore';
 import type { BackdropSource } from '@/cover/artistBackdrop';
@@ -21,6 +23,10 @@ export function IntegrationsTab() {
     { key: 'mainstageHero', label: t('settings.backdropSurfaceMainstage') },
     { key: 'artistDetailHero', label: t('settings.backdropSurfaceArtistDetail') },
     { key: 'fullscreenPlayer', label: t('settings.backdropSurfaceFullscreen') },
+  ];
+  const discordCoverOptions: SegmentedOption<DiscordCoverSource>[] = [
+    { id: 'none', label: t('settings.discordCoverNone') },
+    { id: 'apple', label: t('settings.discordCoverApple') },
   ];
   const backdropSourceLabel = (s: BackdropSource): string =>
     s === 'banner'
@@ -73,22 +79,10 @@ export function IntegrationsTab() {
           {auth.discordRichPresence && (
             <>
               <SettingsGroup title={t('settings.discordCoverTitle')} desc={t('settings.discordCoverDesc')}>
-                <SettingsToggle
-                  label={t('settings.discordCoverNone')}
-                  checked={auth.discordCoverSource === 'none'}
-                  onChange={c => auth.setDiscordCoverSource(c ? 'none' : 'server')}
-                />
-                <div className="settings-section-divider" />
-                <SettingsToggle
-                  label={t('settings.discordCoverServer')}
-                  checked={auth.discordCoverSource === 'server'}
-                  onChange={c => auth.setDiscordCoverSource(c ? 'server' : 'none')}
-                />
-                <div className="settings-section-divider" />
-                <SettingsToggle
-                  label={t('settings.discordCoverApple')}
-                  checked={auth.discordCoverSource === 'apple'}
-                  onChange={c => auth.setDiscordCoverSource(c ? 'apple' : 'none')}
+                <SettingsSegmented
+                  options={discordCoverOptions}
+                  value={auth.discordCoverSource}
+                  onChange={auth.setDiscordCoverSource}
                 />
               </SettingsGroup>
 

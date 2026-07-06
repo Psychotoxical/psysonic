@@ -287,7 +287,6 @@ export const settings = {
   discordCoverTitle: 'Cover-Quelle',
   discordCoverDesc: 'Woher das Cover auf deinem Discord-Profil stammt.',
   discordCoverNone: 'Keine (nur App-Symbol)',
-  discordCoverServer: 'Server (über Album-Info)',
   discordCoverApple: 'Apple Music',
   discordOptions: 'Erweiterte Discord-Optionen',
   discordTemplates: 'Benutzerdefinierte Textvorlagen',

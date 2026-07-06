@@ -290,7 +290,6 @@ export const settings = {
   discordCoverTitle: 'Cover art source',
   discordCoverDesc: 'Where the album artwork on your Discord profile comes from.',
   discordCoverNone: 'None (app icon only)',
-  discordCoverServer: 'Server (via album info)',
   discordCoverApple: 'Apple Music',
   discordOptions: 'Advanced Discord options',
   discordTemplates: 'Custom text templates',

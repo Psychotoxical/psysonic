@@ -175,6 +175,14 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
   if (legacyAppleCovers === true && (!state.discordCoverSource || state.discordCoverSource === 'none')) {
     discordCoverSourceMigrated = { discordCoverSource: 'apple' };
   }
+  // The 'server' cover source was removed: it built an authenticated Subsonic
+  // getCoverArt URL (carrying u/t/s) and handed it to Discord, whose external
+  // image proxy exposes the full URL to anyone viewing the presence. Migrate any
+  // persisted 'server' → 'none' (no external request, no cover) — the least
+  // surprising landing that doesn't silently start hitting a third party.
+  if ((state as { discordCoverSource?: unknown }).discordCoverSource === 'server') {
+    discordCoverSourceMigrated = { discordCoverSource: 'none' };
+  }
 
   // One-time: legacy unified `maxCacheMb` cap removed from Settings (offline + IDB covers).
   const maxCacheMbMigrationKey = 'psysonic-max-cache-mb-removed-v1';

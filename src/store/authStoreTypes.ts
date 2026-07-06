@@ -88,7 +88,7 @@ export type LoggingMode = 'off' | 'normal' | 'debug';
  */
 export type ClockFormat = 'auto' | '24h' | '12h';
 export type NormalizationEngine = 'off' | 'replaygain' | 'loudness';
-export type DiscordCoverSource = 'none' | 'apple' | 'server';
+export type DiscordCoverSource = 'none' | 'apple';
 /** Wayland + WebKit text/GPU profile (Settings → System, Linux only when available). */
 export type LinuxWaylandTextRenderProfile = 'balanced' | 'sharp' | 'gpu' | 'minimal';
 

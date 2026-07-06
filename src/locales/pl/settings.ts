@@ -290,7 +290,6 @@ export const settings = {
   discordCoverTitle: 'Źródło okładki',
   discordCoverDesc: 'Skąd pochodzi okładka albumu wyświetlana na Twoim profilu Discord.',
   discordCoverNone: 'Żadna (tylko ikona aplikacji)',
-  discordCoverServer: 'Serwer (przez info albumu)',
   discordCoverApple: 'Apple Music',
   discordOptions: 'Zaawansowane ustawienia Discord',
   discordTemplates: 'Niestandardowe szablony tekstowe',

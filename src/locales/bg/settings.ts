@@ -290,7 +290,6 @@ export const settings = {
   discordCoverTitle: 'Източник на корица',
   discordCoverDesc: 'Откъде идва обложката на албума в профила ти в Discord.',
   discordCoverNone: 'Няма (само икона на приложението)',
-  discordCoverServer: 'Сървър (чрез информация за албума)',
   discordCoverApple: 'Apple Music',
   discordOptions: 'Разширени настройки за Discord',
   discordTemplates: 'Персонализирани текстови шаблони',
