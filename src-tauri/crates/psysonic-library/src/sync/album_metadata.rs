@@ -12,7 +12,7 @@ use super::mapping::parse_iso_ms_str;
 use crate::store::LibraryStore;
 
 fn album_starred_at_from_raw(raw_album: &Value) -> Option<Option<i64>> {
-    if !raw_album.get("starred").is_some() {
+    if raw_album.get("starred").is_none() {
         return None;
     }
     Some(
@@ -38,7 +38,7 @@ pub(crate) fn upsert_album_from_get_album(
     let raw_json = raw_album.to_string();
     let song_count = album
         .song_count
-        .or_else(|| Some(album.song.len() as i64));
+        .or(Some(album.song.len() as i64));
     store
         .with_conn_mut("sync.upsert_album_metadata", |conn| {
             conn.execute(

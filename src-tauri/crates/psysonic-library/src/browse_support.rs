@@ -476,7 +476,7 @@ mod tests {
                 )
             })
             .unwrap();
-        let parsed: Value = serde_json::from_str(&raw).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
         assert!(parsed.get("starred").is_none());
     }
 
