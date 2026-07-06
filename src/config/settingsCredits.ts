@@ -449,6 +449,13 @@ const CONTRIBUTOR_ENTRIES = [
       'Bulgarian (bg) full UI translation (PR #1228)',
     ],
   },
+  {
+    github: 'daquino94',
+    since: '1.50.0',
+    contributions: [
+      'Italian (it) full UI translation (PR #1250)',
+    ],
+  },
 ] as const;
 
 // PR number of a contributor's first listed contribution, used as the

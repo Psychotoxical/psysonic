@@ -81,6 +81,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * A third **Fullscreen player style**, **Prism** — a full-bleed artist backdrop with a floating glass lyrics panel on the right and a single glass control bar at the bottom (transport, a centred now-playing pill with an integrated progress line, and utilities). The cover-derived accent colour drives the progress fill and the active lyric line, and upcoming lyric lines fade out with a progressive blur.
 
+### Italian translation
+
+**By [@daquino94](https://github.com/daquino94), PR [#1250](https://github.com/Psychotoxical/psysonic/pull/1250)**
+
+* Full Italian (Italiano) UI translation — selectable from the language picker on the Settings and Login screens.
+
 
 ## Changed
 

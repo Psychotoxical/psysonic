@@ -11,5 +11,5 @@ export const migration = {
   completeRows: '{{count}} righe migrate',
   genreTagsTitle: 'Aggiornamento indice generi…',
   genreTagsBody: 'Indicizzazione dei generi per la navigazione e i filtri. Questa operazione viene eseguita una sola volta dopo l\'aggiornamento.',
-  genreTagsFailed: 'Aggionamento indice generi fallito',
+  genreTagsFailed: 'Aggiornamento indice generi fallito',
 };

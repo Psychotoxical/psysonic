@@ -9,7 +9,7 @@ export const tracks = {
   railRandom: 'Casuali',
   railHighlyRated: 'Molto apprezzate',
   browseTitle: 'Sfoglia tutti i brani',
-  browseUnsupported: "Questo server non mostra l\'intero catalogo in una volta sola. Usa la funzione di ricerca qui sopra per trovare brani specifici.",
+  browseUnsupported: "Questo server non mostra l'intero catalogo in una volta sola. Usa la funzione di ricerca qui sopra per trovare brani specifici.",
   searchPlaceholder: 'Cerca un brano per titolo, artista o album…',
   count_one: '{{count}} brano',
   count_other: '{{count}} brani',
