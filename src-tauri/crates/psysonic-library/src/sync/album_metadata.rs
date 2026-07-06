@@ -12,15 +12,8 @@ use super::mapping::parse_iso_ms_str;
 use crate::store::LibraryStore;
 
 fn album_starred_at_from_raw(raw_album: &Value) -> Option<Option<i64>> {
-    if raw_album.get("starred").is_none() {
-        return None;
-    }
-    Some(
-        raw_album
-            .get("starred")
-            .and_then(|v| v.as_str())
-            .and_then(parse_iso_ms_str),
-    )
+    let starred = raw_album.get("starred")?;
+    Some(starred.as_str().and_then(parse_iso_ms_str))
 }
 
 /// Upsert `album` row metadata from a `#getAlbum` response. When `starred` is
