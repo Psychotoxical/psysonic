@@ -4,15 +4,20 @@ import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
 import {
+  buildAlbumFromTracks,
   countLocalBrowsableTracks,
+  fetchOfflineLocalAlbumCatalogChunk,
   fetchOfflineLocalArtistCatalogChunk,
   fetchOfflineLocalAlbumGenreOptions,
   fetchOfflineLocalGenreCatalog,
   fetchOfflineLocalBrowsableSongPage,
+  fetchOfflineLocalStarredArtists,
   loadArtistFromLocalPlayback,
   offlineLocalBrowseEnabled,
   resetBrowsableLocalTrackCacheForTests,
+  searchOfflineLocalAlbums,
   searchOfflineLocalArtists,
+  searchOfflineLocalBrowsableSongs,
 } from '@/features/offline/utils/offlineLocalBrowse';
 
 const { libraryGetTracksBatchChunkedMock, libraryAdvancedSearchMock } = vi.hoisted(() => ({
@@ -378,6 +383,229 @@ describe('offlineLocalBrowse', () => {
     await expect(fetchOfflineLocalGenreCatalog('srv-a')).resolves.toEqual([
       { value: 'Rock', albumCount: 1, songCount: 0 },
     ]);
+  });
+
+  it('buildAlbumFromTracks derives album artist credit from grouped tracks', () => {
+    const album = buildAlbumFromTracks('al-1', [
+      {
+        id: 't1', title: 'Feat', artist: 'Guest', artistId: 'art-guest',
+        albumArtist: 'Headliner', album: 'Mix', albumId: 'al-1',
+        durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+      {
+        id: 't2', title: 'Title', artist: 'Headliner', artistId: 'art-head',
+        albumArtist: 'Headliner', album: 'Mix', albumId: 'al-1',
+        durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+    ], 'srv-a');
+    expect(album.artist).toBe('Headliner');
+    expect(album.artistId).toBe('art-head');
+  });
+
+  it('fetchOfflineLocalArtistCatalogChunk filters letter buckets with ignoredArticles', async () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/media/cache/a.test/t1.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+      },
+    });
+    libraryGetTracksBatchChunkedMock.mockResolvedValue([
+      {
+        id: 't1', title: 'Song', artist: 'The Kinks', artistId: 'art-kinks',
+        album: 'Al', albumId: 'al-1', durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+    ]);
+
+    const bucketK = await fetchOfflineLocalArtistCatalogChunk(
+      'srv-a', 0, 50, 'track', 'K', 'The',
+    );
+    expect(bucketK?.artists.map(a => a.name)).toEqual(['The Kinks']);
+
+    const bucketT = await fetchOfflineLocalArtistCatalogChunk(
+      'srv-a', 0, 50, 'track', 'T', 'The',
+    );
+    expect(bucketT?.artists).toEqual([]);
+  });
+
+  it('fetchOfflineLocalStarredArtists respects album credit mode', async () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/media/cache/a.test/t1.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+        'a.test:t2': {
+          serverIndexKey: 'a.test',
+          trackId: 't2',
+          localPath: '/media/cache/a.test/t2.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+      },
+    });
+    libraryGetTracksBatchChunkedMock.mockResolvedValue([
+      {
+        id: 't1', title: 'Feat', artist: 'Guest', artistId: 'art-guest',
+        albumArtist: 'Headliner', album: 'Al', albumId: 'al-1', starredAt: 1,
+        durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+      {
+        id: 't2', title: 'Title', artist: 'Headliner', artistId: 'art-head',
+        albumArtist: 'Headliner', album: 'Al', albumId: 'al-1', starredAt: 1,
+        durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+    ]);
+
+    await expect(fetchOfflineLocalStarredArtists('srv-a', 'album')).resolves.toEqual([
+      { id: 'art-head', name: 'Headliner', albumCount: 1, serverId: 'srv-a' },
+    ]);
+  });
+
+  it('fetchOfflineLocalAlbumCatalogChunk pages filtered local albums', async () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/media/cache/a.test/t1.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+      },
+    });
+    libraryGetTracksBatchChunkedMock.mockResolvedValue([
+      {
+        id: 't1', title: 'Song', artist: 'A', artistId: 'art-a',
+        album: 'Local Album', albumId: 'al-1', durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+    ]);
+
+    const page = await fetchOfflineLocalAlbumCatalogChunk('srv-a', {
+      sort: 'alphabeticalByName',
+      genres: [],
+      losslessOnly: false,
+      starredOnly: false,
+      compFilter: 'all',
+    }, 0, 10);
+    expect(page?.albums[0]?.name).toBe('Local Album');
+    expect(page?.albums[0]?.artistId).toBe('art-a');
+  });
+
+  it('searchOfflineLocalBrowsableSongs matches title artist and album', async () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/media/cache/a.test/t1.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+      },
+    });
+    libraryGetTracksBatchChunkedMock.mockResolvedValue([
+      {
+        id: 't1', title: 'Unique Title', artist: 'Band', artistId: 'art-a',
+        album: 'Album', albumId: 'al-1', durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+    ]);
+
+    await expect(searchOfflineLocalBrowsableSongs('srv-a', 'unique', 0, 10)).resolves.toEqual([
+      expect.objectContaining({ id: 't1', title: 'Unique Title' }),
+    ]);
+  });
+
+  it('searchOfflineLocalAlbums finds albums by title or artist', async () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/media/cache/a.test/t1.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+      },
+    });
+    libraryGetTracksBatchChunkedMock.mockResolvedValue([
+      {
+        id: 't1', title: 'Song', artist: 'Cached Band', artistId: 'art-a',
+        album: 'Pinned LP', albumId: 'al-1', durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+    ]);
+
+    await expect(searchOfflineLocalAlbums('srv-a', 'pinned')).resolves.toEqual([
+      expect.objectContaining({ name: 'Pinned LP' }),
+    ]);
+  });
+
+  it('loadArtistFromLocalPlayback album credit loads albums by album artist id', async () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/media/cache/a.test/t1.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+        'a.test:t2': {
+          serverIndexKey: 'a.test',
+          trackId: 't2',
+          localPath: '/media/cache/a.test/t2.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+      },
+    });
+    libraryGetTracksBatchChunkedMock.mockResolvedValue([
+      {
+        id: 't1', title: 'Feat', artist: 'Guest', artistId: 'art-guest',
+        albumArtist: 'Headliner', album: 'Al', albumId: 'al-1',
+        durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+      {
+        id: 't2', title: 'Title', artist: 'Headliner', artistId: 'art-head',
+        albumArtist: 'Headliner', album: 'Al', albumId: 'al-1',
+        durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+    ]);
+
+    const detail = await loadArtistFromLocalPlayback('srv-a', 'art-head', 'album');
+    expect(detail?.artist.name).toBe('Headliner');
+    expect(detail?.albums).toHaveLength(1);
   });
 
 });

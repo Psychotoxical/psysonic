@@ -210,4 +210,15 @@ describe('genreBrowsePlayback', () => {
     expect(fetchOfflineLocalGenreCatalogMock).toHaveBeenCalledWith('srv-1');
     expect(libraryGetGenreAlbumCounts).toHaveBeenCalledTimes(1);
   });
+
+  it('reads album totals from offline local genre catalog', async () => {
+    isOfflineBrowseActiveMock.mockReturnValue(true);
+    offlineLocalBrowseEnabledMock.mockReturnValue(true);
+    fetchOfflineLocalGenreCatalogMock.mockResolvedValue([
+      { value: 'Rock', albumCount: 3, songCount: 0 },
+    ]);
+
+    await expect(fetchGenreAlbumCount('srv-1', 'Rock', true)).resolves.toBe(3);
+    expect(fetchGenreAlbumTotal).not.toHaveBeenCalled();
+  });
 });

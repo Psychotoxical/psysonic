@@ -39,6 +39,7 @@ import { useSongBrowseList, type SongBrowseListRestore } from '@/features/search
 import { useAdvancedSearchRunner } from '@/features/search/hooks/useAdvancedSearchRunner';
 import TracksPageChrome from '@/features/search/components/TracksPageChrome';
 import SongBrowseSection from '@/features/search/components/SongBrowseSection';
+import { tracksBrowseDiscoveryChromeHidden } from '@/features/search/utils/tracksBrowseDiscoveryChrome';
 import {
   useLiveSearchScopeStore,
   useScopedBrowseSearchQuery,
@@ -184,10 +185,12 @@ export default function SearchBrowsePage() {
     // eslint-disable-next-line react-hooks/refs
     () => leaveSnapshotRef.current != null,
   );
-  const tracksDiscoveryHidden =
-    offlineBrowseActive
-    || tracksSearchActive
-    || (isLeaveRestorePending && !!(restoreStash?.query.trim() || songBrowseInitialRestore?.query.trim()));
+  const tracksDiscoveryHidden = tracksBrowseDiscoveryChromeHidden({
+    offlineBrowseActive,
+    tracksSearchActive,
+    leaveRestorePendingWithQuery: isLeaveRestorePending
+      && !!(restoreStash?.query.trim() || songBrowseInitialRestore?.query.trim()),
+  });
 
   const handleTracksChromeLayoutReady = useCallback(() => {
     setTracksChromeLayoutReady(true);
