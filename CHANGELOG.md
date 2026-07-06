@@ -68,6 +68,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Settings → System → Contributors** now lists community theme authors in a **Themes** sub-section alongside the **App** contributors, pulled from the theme store so it stays current as new themes are published.
 * The theme card **What's new** now shows just the latest version's notes instead of the full version history.
 
+### Fullscreen player — Minimal and Immersive styles
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1249](https://github.com/Psychotoxical/psysonic/pull/1249)**
+
+* **Settings → Appearance → Fullscreen player style** lets you choose **Minimal** (the current view) or **Immersive** — the earlier fullscreen player, with the artist photo/backdrop, a cover-derived accent colour, and rail or Apple-style scrolling lyrics.
+* In Immersive, **Show artist photo** and **Photo dimming** are configurable; Apple-style lyrics show the artist image as a dimmed full-screen backdrop.
+
 
 ## Changed
 
