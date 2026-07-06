@@ -144,6 +144,42 @@ describe('genreBrowsePlayback', () => {
     expect(getGenres).not.toHaveBeenCalled();
   });
 
+  it('loads all-libraries genre cloud via unscoped SQL, not an album sample', async () => {
+    const { librarySelectionForServer } = await import('@/lib/api/subsonicClient');
+    vi.mocked(librarySelectionForServer).mockReturnValue([]);
+    vi.mocked(libraryIsReady).mockResolvedValue(true);
+    vi.mocked(libraryGetGenreAlbumCounts).mockResolvedValue([
+      { value: 'Ambient', albumCount: 3, songCount: 12 },
+      { value: 'Rock', albumCount: 42, songCount: 900 },
+    ]);
+
+    await expect(fetchGenreCatalog('srv-1', true)).resolves.toEqual([
+      { value: 'Ambient', albumCount: 3, songCount: 12 },
+      { value: 'Rock', albumCount: 42, songCount: 900 },
+    ]);
+    expect(libraryGetGenreAlbumCounts).toHaveBeenCalledWith({ serverId: 'srv-1' });
+    expect(getGenres).not.toHaveBeenCalled();
+  });
+
+  it('loads multi-library genre cloud via scoped SQL IN query', async () => {
+    const { librarySelectionForServer } = await import('@/lib/api/subsonicClient');
+    vi.mocked(librarySelectionForServer).mockReturnValue(['lib-a', 'lib-b']);
+    vi.mocked(libraryIsReady).mockResolvedValue(true);
+    vi.mocked(libraryGetGenreAlbumCounts).mockResolvedValue([
+      { value: 'Pop', albumCount: 4, songCount: 12 },
+      { value: 'Rock', albumCount: 15, songCount: 45 },
+    ]);
+
+    await expect(fetchGenreCatalog('srv-1', true)).resolves.toEqual([
+      { value: 'Pop', albumCount: 4, songCount: 12 },
+      { value: 'Rock', albumCount: 15, songCount: 45 },
+    ]);
+    expect(libraryGetGenreAlbumCounts).toHaveBeenCalledWith({
+      serverId: 'srv-1',
+      libraryScopes: ['lib-a', 'lib-b'],
+    });
+  });
+
   it('drops empty genres from server fallback catalog', async () => {
     vi.mocked(libraryIsReady).mockResolvedValue(false);
     vi.mocked(getGenres).mockResolvedValue([
