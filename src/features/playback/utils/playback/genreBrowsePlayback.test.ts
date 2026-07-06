@@ -29,6 +29,18 @@ vi.mock('@/lib/library/libraryReady', () => ({
   libraryIsReady: vi.fn(),
 }));
 
+const isOfflineBrowseActiveMock = vi.fn(() => false);
+const offlineLocalBrowseEnabledMock = vi.fn(() => false);
+const fetchOfflineLocalGenreCatalogMock = vi.fn(async () => [
+  { value: 'CachedLocal', albumCount: 2, songCount: 0 },
+]);
+
+vi.mock('@/features/offline', () => ({
+  isOfflineBrowseActive: () => isOfflineBrowseActiveMock(),
+  offlineLocalBrowseEnabled: (serverId: string) => offlineLocalBrowseEnabledMock(serverId),
+  fetchOfflineLocalGenreCatalog: (serverId: string) => fetchOfflineLocalGenreCatalogMock(serverId),
+}));
+
 // Spread the real leaf module so other consumers pulled in transitively (the
 // album barrel reaches this via the artist↔album edge → useGenreAlbumBrowse needs
 // GENRE_ALBUM_FIRST_PAGE); only fetchGenreAlbumTotal is stubbed here.
@@ -46,6 +58,9 @@ import { libraryIsReady } from '@/lib/library/libraryReady';
 describe('genreBrowsePlayback', () => {
   beforeEach(() => {
     resetGenreCatalogCountsCacheForTests();
+    isOfflineBrowseActiveMock.mockReturnValue(false);
+    offlineLocalBrowseEnabledMock.mockReturnValue(false);
+    fetchOfflineLocalGenreCatalogMock.mockClear();
     vi.mocked(libraryIsReady).mockReset();
     vi.mocked(libraryAdvancedSearch).mockReset();
     vi.mocked(libraryGetGenreAlbumCounts).mockReset();
@@ -176,6 +191,23 @@ describe('genreBrowsePlayback', () => {
     await fetchGenreCatalog('srv-1', true);
     await fetchGenreCatalog('srv-1', true);
 
+    expect(libraryGetGenreAlbumCounts).toHaveBeenCalledTimes(1);
+  });
+
+  it('bypasses online genre cache when offline local browse is active', async () => {
+    vi.mocked(libraryIsReady).mockResolvedValue(true);
+    vi.mocked(libraryGetGenreAlbumCounts).mockResolvedValue([
+      { value: 'Rock', albumCount: 999, songCount: 900 },
+    ]);
+    await fetchGenreCatalog('srv-1', true);
+
+    isOfflineBrowseActiveMock.mockReturnValue(true);
+    offlineLocalBrowseEnabledMock.mockReturnValue(true);
+
+    await expect(fetchGenreCatalog('srv-1', true)).resolves.toEqual([
+      { value: 'CachedLocal', albumCount: 2, songCount: 0 },
+    ]);
+    expect(fetchOfflineLocalGenreCatalogMock).toHaveBeenCalledWith('srv-1');
     expect(libraryGetGenreAlbumCounts).toHaveBeenCalledTimes(1);
   });
 });

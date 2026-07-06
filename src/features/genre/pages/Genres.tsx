@@ -12,6 +12,7 @@ import { libraryScopeCacheKeyForServer } from '@/lib/api/subsonicClient';
 import { peekGenreCatalogCache } from '@/lib/library/genreCatalogCountsCache';
 import { resolveIndexKey } from '@/lib/server/serverIndexKey';
 import { genreColor } from '@/lib/library/genreColor';
+import { useOfflineBrowseContext, offlineLocalBrowseEnabled } from '@/features/offline';
 
 const SCROLL_KEY = 'genres-scroll';
 const FONT_MIN_REM = 0.78;
@@ -24,14 +25,20 @@ export default function Genres() {
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const libraryScopeKey = libraryScopeCacheKeyForServer(serverId);
-  const cachedGenres = serverId ? peekGenreCatalogCache(serverId, libraryScopeKey, true) : null;
+  const offlineBrowseActive = useOfflineBrowseContext().active;
+  const skipGenreCatalogCache = offlineBrowseActive && offlineLocalBrowseEnabled(serverId);
+  const cachedGenres = serverId && !skipGenreCatalogCache
+    ? peekGenreCatalogCache(serverId, libraryScopeKey, true)
+    : null;
   const [rawGenres, setRawGenres] = useState<SubsonicGenre[]>(cachedGenres ?? []);
   const [loading, setLoading] = useState(!cachedGenres);
 
   useEffect(() => {
     let cancelled = false;
     const scopeKey = libraryScopeCacheKeyForServer(serverId);
-    const cached = serverId ? peekGenreCatalogCache(serverId, scopeKey, true) : null;
+    const cached = serverId && !skipGenreCatalogCache
+      ? peekGenreCatalogCache(serverId, scopeKey, true)
+      : null;
     if (cached) {
       // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -50,7 +57,7 @@ export default function Genres() {
     return () => {
       cancelled = true;
     };
-  }, [serverId, indexEnabled, musicLibraryFilterVersion]);
+  }, [serverId, indexEnabled, musicLibraryFilterVersion, offlineBrowseActive, skipGenreCatalogCache]);
 
   const genres = useMemo(
     () => filterGenresWithContent([...rawGenres]).sort((a, b) => b.albumCount - a.albumCount),

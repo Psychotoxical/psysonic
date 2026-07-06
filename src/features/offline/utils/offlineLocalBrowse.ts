@@ -20,6 +20,10 @@ import {
 } from '@/lib/library/albumBrowseFilters';
 import type { AlbumBrowseQuery, GenreFilterOption } from '@/lib/library/albumBrowseTypes';
 import { sortSubsonicAlbums } from '@/lib/library/albumBrowseSort';
+import {
+  pickAlbumGroupArtistFromTrackDtos,
+  resolveAlbumCreditArtistId,
+} from '@/lib/library/albumGroupArtist';
 import { artistLetterBucket } from '@/lib/library/artistLetterBucket';
 import { isLosslessSuffix } from '@/lib/library/losslessFormats';
 import { entryBelongsToServer } from '@/store/localPlaybackResolve';
@@ -47,12 +51,44 @@ export function offlineLocalBrowseEnabled(serverId: string | null | undefined): 
   return countLocalBrowsableTracks(serverId) > 0;
 }
 
+function browsableEntriesRevision(serverId: string): string {
+  return listBrowsableEntries(serverId)
+    .map(e => e.trackId)
+    .sort()
+    .join('\0');
+}
+
+type BrowsableTrackCache = {
+  serverId: string;
+  revision: string;
+  tracks: LibraryTrackDto[];
+};
+
+let browsableTrackCache: BrowsableTrackCache | null = null;
+
+/** Test-only reset. */
+export function resetBrowsableLocalTrackCacheForTests(): void {
+  browsableTrackCache = null;
+}
+
 /** Track DTOs for every library/favorite-auto entry with on-disk bytes for this server. */
 export async function fetchBrowsableLocalTrackDtos(serverId: string): Promise<LibraryTrackDto[]> {
+  const revision = browsableEntriesRevision(serverId);
+  if (
+    browsableTrackCache?.serverId === serverId
+    && browsableTrackCache.revision === revision
+  ) {
+    return browsableTrackCache.tracks;
+  }
   const entries = listBrowsableEntries(serverId);
-  if (entries.length === 0) return [];
+  if (entries.length === 0) {
+    browsableTrackCache = { serverId, revision, tracks: [] };
+    return [];
+  }
   const refs = entries.map(e => ({ serverId, trackId: e.trackId }));
-  return libraryGetTracksBatchChunked(refs);
+  const tracks = await libraryGetTracksBatchChunked(refs);
+  browsableTrackCache = { serverId, revision, tracks };
+  return tracks;
 }
 
 export function buildAlbumFromTracks(
@@ -64,11 +100,13 @@ export function buildAlbumFromTracks(
   const first = tracks[0];
   const starred = tracks.some(t => t.starredAt != null);
   const isCompilation = albumIsCompilationFromTrackDtos(tracks);
+  const creditName = pickAlbumGroupArtistFromTrackDtos(tracks);
+  const artistId = resolveAlbumCreditArtistId(tracks, creditName);
   return {
     id: albumId,
     name: first.album ?? albumId,
-    artist: first.albumArtist ?? first.artist ?? '',
-    artistId: first.artistId ?? '',
+    artist: creditName,
+    artistId,
     coverArt: resolveTrackCoverArtId(first) ?? albumId,
     year: first.year ?? undefined,
     genre: first.genre ?? undefined,
@@ -130,22 +168,28 @@ function aggregateArtistsFromTracksForCreditMode(
   if (creditMode === 'track') {
     return aggregateArtistsFromTracks(tracks, serverId);
   }
-  const albums = aggregateAlbumsFromTracks(tracks, serverId);
-  const albumIdsByArtist = new Map<string, Set<string>>();
-  const names = new Map<string, string>();
-  for (const album of albums) {
-    const artistId = album.artistId;
-    if (!artistId) continue;
-    names.set(artistId, album.artist);
-    const set = albumIdsByArtist.get(artistId) ?? new Set<string>();
-    set.add(album.id);
-    albumIdsByArtist.set(artistId, set);
+  const byAlbum = new Map<string, LibraryTrackDto[]>();
+  for (const track of tracks) {
+    const albumId = track.albumId;
+    if (!albumId) continue;
+    const list = byAlbum.get(albumId) ?? [];
+    list.push(track);
+    byAlbum.set(albumId, list);
   }
-  return [...names.entries()]
-    .map(([id, name]) => ({
+  const byArtistId = new Map<string, { name: string; albumIds: Set<string> }>();
+  for (const [albumId, albumTracks] of byAlbum) {
+    const creditName = pickAlbumGroupArtistFromTrackDtos(albumTracks);
+    const artistId = resolveAlbumCreditArtistId(albumTracks, creditName);
+    if (!artistId) continue;
+    const entry = byArtistId.get(artistId) ?? { name: creditName, albumIds: new Set<string>() };
+    entry.albumIds.add(albumId);
+    byArtistId.set(artistId, entry);
+  }
+  return [...byArtistId.entries()]
+    .map(([id, { name, albumIds }]) => ({
       id,
       name,
-      albumCount: albumIdsByArtist.get(id)?.size ?? 0,
+      albumCount: albumIds.size,
       serverId,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));

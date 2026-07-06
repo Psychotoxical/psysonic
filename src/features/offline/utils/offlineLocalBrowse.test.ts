@@ -11,6 +11,7 @@ import {
   fetchOfflineLocalBrowsableSongPage,
   loadArtistFromLocalPlayback,
   offlineLocalBrowseEnabled,
+  resetBrowsableLocalTrackCacheForTests,
   searchOfflineLocalArtists,
 } from '@/features/offline/utils/offlineLocalBrowse';
 
@@ -42,6 +43,7 @@ describe('offlineLocalBrowse', () => {
     });
     useLibraryIndexStore.setState({ masterEnabled: true });
     useLocalPlaybackStore.setState({ entries: {} });
+    resetBrowsableLocalTrackCacheForTests();
     libraryGetTracksBatchChunkedMock.mockReset();
     libraryGetTracksBatchChunkedMock.mockResolvedValue([]);
     libraryAdvancedSearchMock.mockClear();
@@ -291,8 +293,36 @@ describe('offlineLocalBrowse', () => {
     expect(trackMode?.artists.map(a => a.id).sort()).toEqual(['art-guest', 'art-head']);
 
     const albumMode = await fetchOfflineLocalArtistCatalogChunk('srv-a', 0, 50, 'album');
-    expect(albumMode?.artists).toHaveLength(1);
-    expect(albumMode?.artists[0]?.albumCount).toBe(1);
+    expect(albumMode?.artists).toEqual([
+      { id: 'art-head', name: 'Headliner', albumCount: 1, serverId: 'srv-a' },
+    ]);
+  });
+
+  it('fetchBrowsableLocalTrackDtos reuses the in-memory batch for pagination chunks', async () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/media/cache/a.test/t1.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+      },
+    });
+    libraryGetTracksBatchChunkedMock.mockResolvedValue([
+      {
+        id: 't1', title: 'Song', artist: 'A', artistId: 'art-a', album: 'Al', albumId: 'al-1',
+        durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+    ]);
+
+    await fetchOfflineLocalArtistCatalogChunk('srv-a', 0, 1);
+    await fetchOfflineLocalArtistCatalogChunk('srv-a', 1, 1);
+    expect(libraryGetTracksBatchChunkedMock).toHaveBeenCalledTimes(1);
   });
 
   it('loadArtistFromLocalPlayback uses local track rows only', async () => {
