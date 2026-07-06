@@ -33,6 +33,12 @@ describe('albumServerMetadataReconcile', () => {
     });
   });
 
+  it('rating-only drift omits starred from patch', () => {
+    const local = { ...base, userRating: 2, starred: '2024-01-01T00:00:00Z' };
+    const server = { ...base, userRating: 5 };
+    expect(diffAlbumServerMetadata(local, server)).toEqual({ userRating: 5 });
+  });
+
   it('applyAlbumServerMetadataPatch clears unrated stars', () => {
     const patched = applyAlbumServerMetadataPatch(
       { ...base, userRating: 2, starred: 'x' },
@@ -60,5 +66,11 @@ describe('patchAlbumStarToIndexFromReconcile', () => {
       albumId: 'al1',
       patch: { starredAt: Date.parse('2024-01-01T00:00:00Z') },
     });
+  });
+
+  it('skips index patch for rating-only reconcile', async () => {
+    patchAlbumStarToIndexFromReconcile('s1', 'al1', { userRating: 4 });
+    await Promise.resolve();
+    expect(invokeMock).not.toHaveBeenCalled();
   });
 });

@@ -26,10 +26,11 @@ export function diffAlbumServerMetadata(
   const serverStarred = albumIsStarred(server);
   const localStarred = albumIsStarred(local);
   if (serverRating === localRating && serverStarred === localStarred) return null;
-  return {
-    userRating: serverRating,
-    starred: server.starred,
-  };
+  const patch: AlbumServerMetadataPatch = { userRating: serverRating };
+  if (serverStarred !== localStarred) {
+    patch.starred = server.starred;
+  }
+  return patch;
 }
 
 export function applyAlbumServerMetadataPatch(
@@ -39,7 +40,7 @@ export function applyAlbumServerMetadataPatch(
   return {
     ...album,
     userRating: patch.userRating > 0 ? patch.userRating : undefined,
-    starred: patch.starred,
+    ...('starred' in patch ? { starred: patch.starred } : {}),
   };
 }
 
@@ -49,6 +50,7 @@ export function patchAlbumStarToIndexFromReconcile(
   albumId: string,
   patch: AlbumServerMetadataPatch,
 ): void {
+  if (!('starred' in patch)) return;
   if (!patch.starred) {
     patchLibraryAlbumOnUse(serverId, albumId, { starredAt: null });
     return;
@@ -59,15 +61,29 @@ export function patchAlbumStarToIndexFromReconcile(
   });
 }
 
+export type AlbumServerMetadataReconcileFetch = {
+  server: SubsonicAlbum;
+};
+
 /**
- * Fetch album metadata from the server and return a patch when starred /
- * userRating differ from `local`. `getAlbumForServer` mirrors into the index.
+ * Fetch album metadata from the server for background reconcile. Does not
+ * mirror into the index — callers apply a fresh diff against current UI state.
  */
+export async function fetchAlbumServerMetadataForReconcile(
+  serverId: string,
+  albumId: string,
+): Promise<AlbumServerMetadataReconcileFetch | null> {
+  const { album: server } = await getAlbumForServer(serverId, albumId, { mirrorToIndex: false });
+  return { server };
+}
+
+/** @deprecated use {@link fetchAlbumServerMetadataForReconcile} + fresh diff */
 export async function fetchAlbumServerMetadataPatch(
   serverId: string,
   albumId: string,
   local: SubsonicAlbum,
 ): Promise<AlbumServerMetadataPatch | null> {
-  const { album: server } = await getAlbumForServer(serverId, albumId, { mirrorToIndex: false });
-  return diffAlbumServerMetadata(local, server);
+  const fetched = await fetchAlbumServerMetadataForReconcile(serverId, albumId);
+  if (!fetched) return null;
+  return diffAlbumServerMetadata(local, fetched.server);
 }

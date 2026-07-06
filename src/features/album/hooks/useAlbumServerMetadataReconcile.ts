@@ -2,8 +2,11 @@ import { useEffect, useRef } from 'react';
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import { shouldAttemptSubsonicForServer } from '@/lib/network/subsonicNetworkGuard';
 import {
+  albumIsStarred,
+  albumUserRating,
   applyAlbumServerMetadataPatch,
-  fetchAlbumServerMetadataPatch,
+  diffAlbumServerMetadata,
+  fetchAlbumServerMetadataForReconcile,
   patchAlbumStarToIndexFromReconcile,
 } from '@/lib/library/albumServerMetadataReconcile';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
@@ -34,6 +37,8 @@ export function useAlbumServerMetadataReconcile({
 }: Args): void {
   const reconciledKeyRef = useRef<string | null>(null);
   const inFlightKeyRef = useRef<string | null>(null);
+  const albumRef = useRef(album);
+  albumRef.current = album;
 
   useEffect(() => {
     reconciledKeyRef.current = null;
@@ -55,8 +60,21 @@ export function useAlbumServerMetadataReconcile({
     void (async () => {
       try {
         if (userMutationInFlightRef.current) return;
-        const patch = await fetchAlbumServerMetadataPatch(serverId, albumId, snapshot);
-        if (cancelled || !patch || userMutationInFlightRef.current) return;
+        const fetched = await fetchAlbumServerMetadataForReconcile(serverId, albumId);
+        if (cancelled || !fetched || userMutationInFlightRef.current) return;
+
+        const current = albumRef.current;
+        if (
+          !current
+          || current.id !== albumId
+          || albumIsStarred(current) !== albumIsStarred(snapshot)
+          || albumUserRating(current) !== albumUserRating(snapshot)
+        ) {
+          return;
+        }
+
+        const patch = diffAlbumServerMetadata(current, fetched.server);
+        if (!patch) return;
 
         setAlbum(prev =>
           prev && prev.album.id === albumId
