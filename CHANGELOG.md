@@ -75,6 +75,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Settings → Appearance → Fullscreen player style** lets you choose **Minimal** (the current view) or **Immersive** — the earlier fullscreen player, with the artist photo/backdrop, a cover-derived accent colour, and rail or Apple-style scrolling lyrics.
 * In Immersive, **Show artist photo** and **Photo dimming** are configurable; Apple-style lyrics show the artist image as a dimmed full-screen backdrop.
 
+### Fullscreen player — Prism style
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1251](https://github.com/Psychotoxical/psysonic/pull/1251)**
+
+* A third **Fullscreen player style**, **Prism** — a full-bleed artist backdrop with a floating glass lyrics panel on the right and a single glass control bar at the bottom (transport, a centred now-playing pill with an integrated progress line, and utilities). The cover-derived accent colour drives the progress fill and the active lyric line, and upcoming lyric lines fade out with a progressive blur.
+
 
 ## Changed
 
