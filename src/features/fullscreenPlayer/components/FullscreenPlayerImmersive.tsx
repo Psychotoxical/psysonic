@@ -1,6 +1,6 @@
 import { queueSongStar } from '@/features/playback/store/pendingStarSync';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
-import { usePlaybackTrackCoverRef } from '@/cover/useLibraryCoverRef';
+import { usePlaybackTrackCoverRef, useArtistCoverRef } from '@/cover/useLibraryCoverRef';
 import { playbackCoverArtForAlbum } from '@/features/playback/utils/playback/playbackServer';
 import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import {
@@ -12,6 +12,9 @@ import { useCachedUrl } from '@/ui/CachedImage';
 import { getCachedBlob } from '@/cover/imageCache';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
+import { useThemeStore } from '@/store/themeStore';
+import { useArtistFanart } from '@/cover/useArtistFanart';
+import { backdropFromConfig } from '@/cover/artistBackdrop';
 import { FsLyricsApple } from './FsLyricsApple';
 import { FsLyricsRail } from './FsLyricsRail';
 import { FsArt } from './FsArt';
@@ -20,7 +23,6 @@ import { FsSeekbar } from './FsSeekbar';
 import { FsLyricsMenu } from './FsLyricsMenu';
 import { FsPlayBtn } from './FsPlayBtn';
 import { useFsDynamicAccent } from '@/features/fullscreenPlayer/hooks/useFsDynamicAccent';
-import { useFsArtistPortrait } from '@/features/fullscreenPlayer/hooks/useFsArtistPortrait';
 import { useFsIdleFade } from '@/features/fullscreenPlayer/hooks/useFsIdleFade';
 import { useQueueTrackAt } from '@/features/queue/hooks/useQueueTracks';
 
@@ -67,8 +69,21 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   // same-album tracks reuse the color without re-fetching.
   const dynamicAccent = useFsDynamicAccent(artUrl, artKey);
 
-  // Artist image → portrait on right. Falls back to cover art.
-  const artistBgUrl = useFsArtistPortrait(currentTrack?.artistId);
+  // Artist image → portrait on right. Resolved through the shared backdrop
+  // pipeline (banner / fanart.tv / Navidrome artist cover, in the user's
+  // configured fullscreen-player source order) — the same source the Minimal
+  // player uses. Falls back to the album cover when nothing resolves.
+  const fsBackdropCfg = useThemeStore(s => s.backdrops.fullscreenPlayer);
+  const fanart = useArtistFanart(currentTrack?.artistId, {
+    artistName: currentTrack?.artist,
+    albumTitle: currentTrack?.album,
+  });
+  const artistCoverRef =
+    useArtistCoverRef(currentTrack?.artistId, undefined, undefined, { libraryResolve: false }) ??
+    undefined;
+  const artistImage = usePlaybackCoverArt(artistCoverRef, 2000, { fullRes: true });
+  const artistImgUrl = useCachedUrl(artistImage.src, artistImage.cacheKey, true);
+  const artistBgUrl = backdropFromConfig(fsBackdropCfg.sources, { fanart, navidrome: artistImgUrl }).url;
   const portraitUrl = artistBgUrl || resolvedCoverUrl;
   const showFullscreenLyrics   = useAuthStore(s => s.showFullscreenLyrics);
   const fsLyricsStyle          = useAuthStore(s => s.fsLyricsStyle);
