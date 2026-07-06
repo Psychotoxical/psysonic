@@ -1,6 +1,5 @@
 import type { ArtistCreditMode, LibraryTrackDto } from '@/lib/api/library';
 import { libraryAdvancedSearch, libraryGetTracksBatchChunked, libraryGetTracksByAlbum } from '@/lib/api/library';
-import { subscribeLibrarySyncIdle } from '@/lib/api/library/events';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicGenre, SubsonicSong } from '@/lib/api/subsonicTypes';
 import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
@@ -27,6 +26,8 @@ import {
 } from '@/lib/library/albumGroupArtist';
 import { artistLetterBucket } from '@/lib/library/artistLetterBucket';
 import { isLosslessSuffix } from '@/lib/library/losslessFormats';
+import { hasBrowsableLocalPlaybackBytes } from '@/lib/localPlayback/browsablePlaybackTiers';
+import { offlineLocalLibrarySyncRevision } from '@/store/offlineLocalLibrarySyncRevision';
 import { resolveIndexKey } from '@/lib/server/serverIndexKey';
 import { entryBelongsToServer } from '@/store/localPlaybackResolve';
 
@@ -40,9 +41,7 @@ function listBrowsableEntries(
   entries: Record<string, LocalPlaybackEntry> = useLocalPlaybackStore.getState().entries,
 ): LocalPlaybackEntry[] {
   return Object.values(entries).filter(
-    e => (e.tier === 'library' || e.tier === 'favorite-auto' || e.tier === 'ephemeral')
-      && !!e.localPath
-      && entryBelongsToServer(e, serverId),
+    e => hasBrowsableLocalPlaybackBytes(e) && entryBelongsToServer(e, serverId),
   );
 }
 
@@ -65,11 +64,12 @@ export function offlineLocalBrowseEnabled(
 
 function browsableEntriesRevision(serverId: string): string {
   const filterVer = useAuthStore.getState().musicLibraryFilterVersion;
+  const syncRev = offlineLocalLibrarySyncRevision(serverId);
   const entries = listBrowsableEntries(serverId)
     .map(e => `${e.trackId}:${e.cachedAt}`)
     .sort()
     .join('\0');
-  return `${filterVer}\0${entries}`;
+  return `${filterVer}\0${syncRev}\0${entries}`;
 }
 
 type BrowsableTrackCache = {
@@ -79,18 +79,6 @@ type BrowsableTrackCache = {
 };
 
 let browsableTrackCache: BrowsableTrackCache | null = null;
-let browsableTrackCacheSyncHookRegistered = false;
-
-function ensureBrowsableTrackCacheSyncInvalidation(): void {
-  if (browsableTrackCacheSyncHookRegistered) return;
-  browsableTrackCacheSyncHookRegistered = true;
-  if (typeof subscribeLibrarySyncIdle !== 'function') return;
-  void subscribeLibrarySyncIdle(payload => {
-    if (payload.ok) {
-      invalidateBrowsableLocalTrackCache(payload.serverId);
-    }
-  });
-}
 
 /** Drop cached on-disk track DTOs after library resync or pin set changes. */
 export function invalidateBrowsableLocalTrackCache(serverId?: string): void {
@@ -116,7 +104,6 @@ export function resetBrowsableLocalTrackCacheForTests(): void {
 
 /** Track DTOs for every library/favorite-auto entry with on-disk bytes for this server. */
 export async function fetchBrowsableLocalTrackDtos(serverId: string): Promise<LibraryTrackDto[]> {
-  ensureBrowsableTrackCacheSyncInvalidation();
   const revision = browsableEntriesRevision(serverId);
   if (
     browsableTrackCache?.serverId === serverId

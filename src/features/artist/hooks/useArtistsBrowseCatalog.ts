@@ -10,11 +10,10 @@ import {
   fetchStarredArtistsForBrowse,
 } from '@/features/artist/utils/artistBrowseCreditMode';
 import { useOfflineBrowseContext, useOfflineBrowseReloadToken } from '@/features/offline';
-import { useOfflineLocalBrowseRevision } from '@/store/localPlaybackBrowseRevision';
+import { useOfflineLocalBrowseReloadKey } from '@/store/localPlaybackBrowseRevision';
 import {
   fetchOfflineLocalArtistCatalogChunk,
   fetchOfflineLocalStarredArtists,
-  invalidateBrowsableLocalTrackCache,
   offlineLocalBrowseEnabled,
 } from '@/features/offline';
 import { librarySelectionForServer } from '@/lib/api/subsonicClient';
@@ -63,8 +62,9 @@ export function useArtistsBrowseCatalog({
 }: UseArtistsBrowseCatalogArgs) {
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const offlineBrowseReloadTs = useOfflineBrowseReloadToken();
-  const offlineLocalBrowseRevision = useOfflineLocalBrowseRevision(
-    offlineBrowseActive ? serverId : null,
+  const offlineLocalBrowseReloadKey = useOfflineLocalBrowseReloadKey(
+    serverId,
+    offlineBrowseActive,
   );
   const [catalogArtists, setCatalogArtists] = useState<SubsonicArtist[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,8 +88,8 @@ export function useArtistsBrowseCatalog({
       offlineBrowseActive,
     );
     if (!offlineBrowseActive) return base;
-    return `${base}\0${offlineLocalBrowseRevision}`;
-  }, [serverId, musicLibraryFilterVersion, libraryScopeKey, creditMode, letterFilter, starredOnly, offlineBrowseActive, offlineLocalBrowseRevision]);
+    return `${base}\0${offlineLocalBrowseReloadKey}`;
+  }, [serverId, musicLibraryFilterVersion, libraryScopeKey, creditMode, letterFilter, starredOnly, offlineBrowseActive, offlineLocalBrowseReloadKey]);
 
   useLayoutEffect(() => {
     const cached = readArtistBrowseCatalogCache(catalogLoadKey);
@@ -246,9 +246,6 @@ export function useArtistsBrowseCatalog({
       try {
         if (offlineBrowseActive) {
           emitArtistsBrowseDebug('load_branch', { mode: 'offline' });
-          if (serverId) {
-            invalidateBrowsableLocalTrackCache(serverId);
-          }
           if (!cancelled && generation === loadGenerationRef.current) {
             if (serverId && starredOnly && offlineLocalBrowseEnabled(serverId)) {
               setCatalogArtists(

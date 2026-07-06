@@ -1,19 +1,17 @@
 import { useMemo } from 'react';
 import type { LocalPlaybackEntry } from '@/store/localPlaybackStore';
 import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
+import { hasBrowsableLocalPlaybackBytes } from '@/lib/localPlayback/browsablePlaybackTiers';
 import { entryBelongsToServer } from '@/store/localPlaybackResolve';
+import { useOfflineLocalLibrarySyncRevision } from '@/store/offlineLocalLibrarySyncRevision';
 
-function isBrowsableLocalEntry(entry: LocalPlaybackEntry, serverId: string): boolean {
-  return (entry.tier === 'library' || entry.tier === 'favorite-auto' || entry.tier === 'ephemeral')
-    && !!entry.localPath
-    && entryBelongsToServer(entry, serverId);
-}
-
-export function listBrowsableLocalEntries(
+function listBrowsableLocalEntries(
   serverId: string,
   entries: Record<string, LocalPlaybackEntry>,
 ): LocalPlaybackEntry[] {
-  return Object.values(entries).filter(e => isBrowsableLocalEntry(e, serverId));
+  return Object.values(entries).filter(
+    e => hasBrowsableLocalPlaybackBytes(e) && entryBelongsToServer(e, serverId),
+  );
 }
 
 /** Stable revision for on-disk browse bytes — bumps when pins or hot-cache rows change. */
@@ -43,4 +41,24 @@ export function useOfflineLocalBrowseRevision(
     () => (serverId ? offlineLocalBrowseRevision(serverId, entries) : ''),
     [serverId, entries],
   );
+}
+
+/** Entries + library sync revisions for offline browse catalog reload keys. */
+export function useOfflineLocalBrowseReloadKey(
+  serverId: string | null | undefined,
+  offlineBrowseActive: boolean,
+): string {
+  const entriesRev = useOfflineLocalBrowseRevision(offlineBrowseActive ? serverId : null);
+  const syncRev = useOfflineLocalLibrarySyncRevision(offlineBrowseActive ? serverId : null);
+  return useMemo(
+    () => (offlineBrowseActive ? `${entriesRev}\0${syncRev}` : ''),
+    [offlineBrowseActive, entriesRev, syncRev],
+  );
+}
+
+export function countLocalBrowsableTracksFromEntries(
+  serverId: string,
+  entries: Record<string, LocalPlaybackEntry>,
+): number {
+  return countBrowsableLocalEntries(serverId, entries);
 }
