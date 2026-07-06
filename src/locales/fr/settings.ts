@@ -274,7 +274,6 @@ export const settings = {
   discordCoverTitle: 'Source de la pochette',
   discordCoverDesc: 'D\'où provient la pochette affichée sur votre profil Discord.',
   discordCoverNone: 'Aucune (icône de l\'app uniquement)',
-  discordCoverServer: 'Serveur (via infos album)',
   discordCoverApple: 'Apple Music',
   discordOptions: 'Options Discord avancées',
   discordTemplates: 'Modèles de texte personnalisés',

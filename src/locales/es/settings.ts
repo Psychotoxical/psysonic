@@ -286,7 +286,6 @@ export const settings = {
   discordCoverTitle: 'Fuente de la carátula',
   discordCoverDesc: 'De dónde proviene la carátula mostrada en tu perfil de Discord.',
   discordCoverNone: 'Ninguna (solo icono de la app)',
-  discordCoverServer: 'Servidor (vía info del álbum)',
   discordCoverApple: 'Apple Music',
   discordOptions: 'Opciones avanzadas de Discord',
   discordTemplates: 'Plantillas de texto personalizadas',

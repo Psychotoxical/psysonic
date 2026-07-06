@@ -273,7 +273,6 @@ export const settings = {
   discordCoverTitle: '封面来源',
   discordCoverDesc: '你的 Discord 资料中显示的专辑封面来源。',
   discordCoverNone: '无（仅显示应用图标）',
-  discordCoverServer: '服务器（通过专辑信息）',
   discordCoverApple: 'Apple Music',
   discordOptions: 'Discord 高级选项',
   discordTemplates: '自定义文本模板',

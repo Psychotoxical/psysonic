@@ -273,7 +273,6 @@ export const settings = {
   discordCoverTitle: 'Omslagskilde',
   discordCoverDesc: 'Hvor albumomslaget på Discord-profilen din kommer fra.',
   discordCoverNone: 'Ingen (kun app-ikon)',
-  discordCoverServer: 'Server (via albuminfo)',
   discordCoverApple: 'Apple Music',
   discordOptions: 'Avanserte Discord-alternativer',
   discordTemplates: 'Egendefinerte tekstmaler',

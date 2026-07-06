@@ -75,7 +75,7 @@ export const useAuthStore = create<AuthState>()(
       clockFormat: 'auto',
       showOrbitTrigger: true,
       discordRichPresence: false,
-      discordCoverSource: 'server',
+      discordCoverSource: 'none',
       enableBandsintown: false,
       discordTemplateDetails: '{artist}',
       discordTemplateState: '{title}',

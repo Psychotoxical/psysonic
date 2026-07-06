@@ -290,7 +290,6 @@ export const settings = {
   discordCoverTitle: 'Borító forrása',
   discordCoverDesc: 'Honnan származik az albumborító a Discord-profilodon.',
   discordCoverNone: 'Nincs (csak alkalmazásikon)',
-  discordCoverServer: 'Szerver (albuminfó alapján)',
   discordCoverApple: 'Apple Music',
   discordOptions: 'Speciális Discord-beállítások',
   discordTemplates: 'Egyéni szövegsablonok',

@@ -289,7 +289,6 @@ export const settings = {
   discordCoverTitle: 'Sursa coperții',
   discordCoverDesc: 'De unde provine coperta afișată pe profilul tău Discord.',
   discordCoverNone: 'Niciuna (doar iconița aplicației)',
-  discordCoverServer: 'Server (prin informații album)',
   discordCoverApple: 'Apple Music',
   discordOptions: 'Opțiuni avansate Discord',
   discordTemplates: 'Șablon text personalizat',

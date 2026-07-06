@@ -290,7 +290,6 @@ export const settings = {
   discordCoverTitle: 'カバーアートのソース',
   discordCoverDesc: 'Discord プロフィールに表示するアルバムアートの取得元です。',
   discordCoverNone: 'なし (アプリアイコンのみ)',
-  discordCoverServer: 'サーバー (アルバム情報経由)',
   discordCoverApple: 'Apple Music',
   discordOptions: 'Discord 詳細オプション',
   discordTemplates: 'カスタムテキストテンプレート',

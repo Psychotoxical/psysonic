@@ -293,7 +293,6 @@ export const settings = {
   discordCoverTitle: 'Источник обложки',
   discordCoverDesc: 'Откуда берётся обложка, показываемая в вашем профиле Discord.',
   discordCoverNone: 'Нет (только иконка приложения)',
-  discordCoverServer: 'Сервер (через информацию об альбоме)',
   discordCoverApple: 'Apple Music',
   discordOptions: 'Расширенные параметры Discord',
   discordTemplates: 'Пользовательские шаблоны текста',
