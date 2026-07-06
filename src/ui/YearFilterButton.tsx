@@ -82,16 +82,12 @@ export default function YearFilterButton({
 
   useEffect(() => {
     if (!fromFocusedRef.current) {
-      // React Compiler set-state-in-effect rule: draft mirrors applied filter when the field is not being edited.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDraftFrom(from);
     }
   }, [from]);
 
   useEffect(() => {
     if (!toFocusedRef.current) {
-      // React Compiler set-state-in-effect rule: draft mirrors applied filter when the field is not being edited.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDraftTo(to);
     }
   }, [to]);
@@ -122,7 +118,7 @@ export default function YearFilterButton({
     setDraftTo(nextTo);
     onChange(nextFrom, nextTo);
     setOpen(false);
-  }, [draftFrom, draftTo, from, onChange, resolveDraftTo, yMin, yMax]);
+  }, [draftFrom, from, onChange, resolveDraftTo, yMin, yMax]);
 
   const commitFromField = useCallback(() => {
     if (!fromFocusedRef.current) return;
