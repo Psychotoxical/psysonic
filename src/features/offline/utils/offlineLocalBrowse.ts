@@ -12,12 +12,13 @@ import {
 } from '@/lib/library/advancedSearchLocal';
 import { albumIsCompilationFromTrackDtos } from '@/lib/library/albumCompilation';
 import {
+  countGenresFromAlbums,
   filterAlbumsByCompilation,
   filterAlbumsByGenres,
   filterAlbumsByStarred,
   filterAlbumsByYearBounds,
 } from '@/lib/library/albumBrowseFilters';
-import type { AlbumBrowseQuery } from '@/lib/library/albumBrowseTypes';
+import type { AlbumBrowseQuery, GenreFilterOption } from '@/lib/library/albumBrowseTypes';
 import { sortSubsonicAlbums } from '@/lib/library/albumBrowseSort';
 import { isLosslessSuffix } from '@/lib/library/losslessFormats';
 import { entryBelongsToServer } from '@/store/localPlaybackResolve';
@@ -242,6 +243,22 @@ export async function fetchOfflineLocalAlbumCatalogChunk(
     albums: slice,
     hasMore: offset + chunkSize < albums.length,
   };
+}
+
+/** Genre filter dropdown options from on-disk albums only (offline All Albums). */
+export async function fetchOfflineLocalAlbumGenreOptions(
+  serverId: string,
+  query: AlbumBrowseQuery,
+  starredOverrides: Record<string, boolean> = {},
+): Promise<GenreFilterOption[]> {
+  if (!offlineLocalBrowseEnabled(serverId)) return [];
+  let tracks = await fetchBrowsableLocalTrackDtos(serverId);
+  if (query.losslessOnly) {
+    tracks = tracks.filter(t => isLosslessSuffix(t.suffix ?? undefined));
+  }
+  let albums = aggregateAlbumsFromTracks(tracks, serverId);
+  albums = applyAlbumBrowseQuery(albums, { ...query, genres: [] }, starredOverrides);
+  return countGenresFromAlbums(filterAlbumsByCompilation(albums, query.compFilter));
 }
 
 export async function searchOfflineLocalAlbums(

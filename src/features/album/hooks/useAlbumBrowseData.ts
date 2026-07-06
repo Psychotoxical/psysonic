@@ -35,6 +35,10 @@ import {
 import { loadOfflineAlbumBrowseInitial } from '@/features/offline';
 import { useOfflineBrowseReloadToken } from '@/features/offline';
 import {
+  fetchOfflineLocalAlbumGenreOptions,
+  offlineLocalBrowseEnabled,
+} from '@/features/offline/utils/offlineLocalBrowse';
+import {
   fetchAlbumBrowseCatalogChunk,
   mergeAlbumCatalogChunk,
 } from '@/features/album/utils/albumBrowseCatalogChunk';
@@ -203,7 +207,10 @@ export function useAlbumBrowseData({
   const libraryScopeActive = libraryScopeIsActive(serverId);
   const narrowGenreList = yearFilterActive || losslessOnly || starredOnly || compFilterActive;
   /** When true, GenreFilterBar uses `genreCatalogOptions` instead of server `getGenres()`. */
-  const genreCatalogActive = narrowGenreList || (indexEnabled && libraryScopeActive);
+  const genreCatalogActive =
+    narrowGenreList
+    || (indexEnabled && libraryScopeActive)
+    || (offlineBrowseActive && !!serverId && offlineLocalBrowseEnabled(serverId));
 
   const compScanExhausted = useMemo(
     () => compFilterClientOnly && !genreFiltered
@@ -621,7 +628,9 @@ export function useAlbumBrowseData({
     let cancelled = false;
     void albumBrowseTimed(
       'genre_options',
-      () => fetchAlbumBrowseGenreOptions(serverId, indexEnabled, browseQueryWithoutGenre),
+      () => offlineBrowseActive && serverId && offlineLocalBrowseEnabled(serverId)
+        ? fetchOfflineLocalAlbumGenreOptions(serverId, browseQueryWithoutGenre, starredOverrides)
+        : fetchAlbumBrowseGenreOptions(serverId, indexEnabled, browseQueryWithoutGenre),
     ).then(options => {
       if (!cancelled) {
         setGenreCatalogOptions(options);
@@ -638,6 +647,8 @@ export function useAlbumBrowseData({
     indexEnabled,
     browseQueryWithoutGenre,
     musicLibraryFilterVersion,
+    offlineBrowseActive,
+    starredOverrides,
   ]);
 
   const loadMorePage = useCallback(() => {

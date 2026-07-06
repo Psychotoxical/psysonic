@@ -6,6 +6,7 @@ import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
 import {
   countLocalBrowsableTracks,
   fetchOfflineLocalArtistCatalogChunk,
+  fetchOfflineLocalAlbumGenreOptions,
   fetchOfflineLocalBrowsableSongPage,
   offlineLocalBrowseEnabled,
   searchOfflineLocalArtists,
@@ -193,6 +194,55 @@ describe('offlineLocalBrowse', () => {
 
     await expect(searchOfflineLocalArtists('srv-a', 'cached')).resolves.toEqual([
       { id: 'art-cached', name: 'Cached Band', albumCount: 1, serverId: 'srv-a' },
+    ]);
+    expect(libraryAdvancedSearchMock).not.toHaveBeenCalled();
+  });
+
+  it('fetchOfflineLocalAlbumGenreOptions counts genres from local albums only', async () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/media/cache/a.test/t1.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+        'a.test:t2': {
+          serverIndexKey: 'a.test',
+          trackId: 't2',
+          localPath: '/media/cache/a.test/t2.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+      },
+    });
+    libraryGetTracksBatchChunkedMock.mockResolvedValue([
+      {
+        id: 't1', title: 'One', artist: 'A', artistId: 'art-a', album: 'Al1', albumId: 'al-1',
+        genre: 'Rock', durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+      {
+        id: 't2', title: 'Two', artist: 'B', artistId: 'art-b', album: 'Al2', albumId: 'al-2',
+        genre: 'Jazz', durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+    ]);
+
+    await expect(fetchOfflineLocalAlbumGenreOptions('srv-a', {
+      sort: 'alphabeticalByName',
+      genres: [],
+      losslessOnly: false,
+      starredOnly: false,
+      compFilter: 'all',
+    })).resolves.toEqual([
+      { genre: 'Jazz', count: 1 },
+      { genre: 'Rock', count: 1 },
     ]);
     expect(libraryAdvancedSearchMock).not.toHaveBeenCalled();
   });
