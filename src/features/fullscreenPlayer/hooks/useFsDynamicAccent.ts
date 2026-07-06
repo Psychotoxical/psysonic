@@ -40,8 +40,11 @@ export function useFsDynamicAccent(artUrl: string, artKey: string): string | nul
       }
     })();
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artKey]);
+    // artUrl is a dep too: usePlaybackCoverArt yields the cacheKey synchronously
+    // but the src asynchronously, so keying only on artKey would fire this effect
+    // once with an empty artUrl and never retry. The has(artKey) guard keeps a
+    // later src rotation from re-extracting an already-cached cover.
+  }, [artKey, artUrl]);
 
   if (!artKey || !artUrl) {
     lastShown.current = null;
