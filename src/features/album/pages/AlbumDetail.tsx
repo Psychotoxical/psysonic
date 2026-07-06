@@ -93,6 +93,16 @@ export default function AlbumDetail() {
   // Derive a stable albumId for the selectors below (empty string when not yet loaded).
   const albumId = album?.album.id ?? '';
 
+  const onReconcileApplied = useCallback((id: string) => {
+    usePlayerStore.setState(s => {
+      const starredOverrides = { ...s.starredOverrides };
+      const userRatingOverrides = { ...s.userRatingOverrides };
+      delete starredOverrides[id];
+      delete userRatingOverrides[id];
+      return { starredOverrides, userRatingOverrides };
+    });
+  }, []);
+
   useAlbumServerMetadataReconcile({
     serverId,
     albumId,
@@ -100,6 +110,7 @@ export default function AlbumDetail() {
     setAlbum,
     enabled: !offlineCtx.active,
     userMutationInFlightRef: userMetadataMutationRef,
+    onReconcileApplied,
   });
 
   const isStarred = useMemo(() => {

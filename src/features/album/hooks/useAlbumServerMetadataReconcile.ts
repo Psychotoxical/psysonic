@@ -9,7 +9,6 @@ import {
   fetchAlbumServerMetadataForReconcile,
   patchAlbumStarToIndexFromReconcile,
 } from '@/lib/library/albumServerMetadataReconcile';
-import { usePlayerStore } from '@/features/playback/store/playerStore';
 import type { ResolvedAlbum } from '@/store/mediaResolver';
 
 interface Args {
@@ -21,6 +20,8 @@ interface Args {
   enabled: boolean;
   /** When true, skip applying server metadata (user toggled star/rating). */
   userMutationInFlightRef: React.RefObject<boolean>;
+  /** Clear optimistic star/rating overrides after server metadata is applied. */
+  onReconcileApplied?: (albumId: string) => void;
 }
 
 /**
@@ -34,11 +35,15 @@ export function useAlbumServerMetadataReconcile({
   setAlbum,
   enabled,
   userMutationInFlightRef,
+  onReconcileApplied,
 }: Args): void {
   const reconciledKeyRef = useRef<string | null>(null);
   const inFlightKeyRef = useRef<string | null>(null);
   const albumRef = useRef(album);
-  albumRef.current = album;
+
+  useEffect(() => {
+    albumRef.current = album;
+  }, [album]);
 
   useEffect(() => {
     reconciledKeyRef.current = null;
@@ -84,13 +89,7 @@ export function useAlbumServerMetadataReconcile({
 
         patchAlbumStarToIndexFromReconcile(serverId, albumId, patch);
 
-        usePlayerStore.setState(s => {
-          const starredOverrides = { ...s.starredOverrides };
-          const userRatingOverrides = { ...s.userRatingOverrides };
-          delete starredOverrides[albumId];
-          delete userRatingOverrides[albumId];
-          return { starredOverrides, userRatingOverrides };
-        });
+        onReconcileApplied?.(albumId);
         reconciledKeyRef.current = reconcileKey;
       } catch {
         /* offline / transient — keep local; allow retry */
@@ -107,5 +106,5 @@ export function useAlbumServerMetadataReconcile({
         inFlightKeyRef.current = null;
       }
     };
-  }, [enabled, serverId, albumId, album, setAlbum, userMutationInFlightRef]);
+  }, [enabled, serverId, albumId, album, setAlbum, userMutationInFlightRef, onReconcileApplied]);
 }
