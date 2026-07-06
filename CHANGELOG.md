@@ -61,6 +61,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Each theme card now has an expandable **What's new** with per-version release notes, so you can see what a theme update changed — including non-visual fixes. Provided by theme authors; themes without notes just don't show the section.
 * Installed themes with an available update now appear at the top of the store list instead of wherever the sort placed them, so you don't have to hunt for them.
 
+### Theme contributors credited in Settings
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1248](https://github.com/Psychotoxical/psysonic/pull/1248)**
+
+* **Settings → System → Contributors** now lists community theme authors in a **Themes** sub-section alongside the **App** contributors, pulled from the theme store so it stays current as new themes are published.
+* The theme card **What's new** now shows just the latest version's notes instead of the full version history.
+
 
 ## Changed
 
