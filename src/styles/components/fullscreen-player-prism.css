@@ -56,9 +56,10 @@
    element is a darker nested box (see .fsp2-pill). */
 .fsp2-bar {
   position: absolute;
-  left: 40px;
-  right: 40px;
+  left: 50%;
+  transform: translateX(-50%);
   bottom: 22px;
+  width: clamp(560px, 50%, 1040px);
   display: flex;
   align-items: center;
   justify-content: space-between;
