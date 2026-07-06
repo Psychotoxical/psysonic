@@ -138,6 +138,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The year filter on All Albums no longer clamps on every keystroke while typing a four-digit year — drafts commit on blur, Enter, or outside click; incomplete input reverts to the last applied value. Wheel and spinner controls are unchanged.
 
+### Album detail — favorite heart and album-level stars
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by HiveMind on the Psysonic Discord, PR [#1247](https://github.com/Psychotoxical/psysonic/pull/1247)**
+
+* Starring an album on the detail page now fills the heart immediately and keeps it filled after reload or returning from Favorites — the local index stores album favorites in `album.starred_at` instead of inferring from track stars.
+* When only a track is starred, the album heart stays empty unless the album itself is in Favorites; unfavorite no longer requires a double click on the detail page.
+* Album user rating on detail reconciles from the server in the background; multi-library browse and Favorites filters use album-level stars consistently.
+
 
 ## [1.49.0] - 2026-06-29
 
