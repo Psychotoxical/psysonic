@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { commands } from '@/generated/bindings';
@@ -20,19 +20,33 @@ import { SettingsGroup } from '@/features/settings/components/SettingsGroup';
 import { SettingsToggle } from '@/features/settings/components/SettingsToggle';
 import { SettingsSubCard, SettingsField } from '@/features/settings/components/SettingsSubCard';
 import { BackupSection } from '@/features/settings/components/BackupSection';
-import { CONTRIBUTORS, MAINTAINERS } from '@/config/settingsCredits';
+import { CONTRIBUTORS, MAINTAINERS, themeContributorsFromRegistry, type ThemeContributor } from '@/config/settingsCredits';
+import { fetchRegistry } from '@/lib/themes/themeRegistry';
 
 export function SystemTab() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const auth = useAuthStore();
   const [waylandTextRenderAvailable, setWaylandTextRenderAvailable] = useState(false);
+  const [themeContributors, setThemeContributors] = useState<ThemeContributor[]>([]);
 
   useEffect(() => {
     if (!IS_LINUX) return;
     linuxWaylandTextRenderSettingsAvailable()
       .then(setWaylandTextRenderAvailable)
       .catch(() => {});
+  }, []);
+
+  // Community theme authors come from the store registry (cached, offline-safe).
+  // On a first run with no cached registry this simply stays empty.
+  useEffect(() => {
+    let cancelled = false;
+    fetchRegistry()
+      .then(({ registry }) => {
+        if (!cancelled) setThemeContributors(themeContributorsFromRegistry(registry.themes));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   const exportRuntimeLogs = async () => {
@@ -52,6 +66,44 @@ export function SystemTab() {
       showToast(t('settings.loggingExportError'), 4500, 'error');
     }
   };
+
+  // Shared card for both credit sub-sections: avatar + @handle link, a sub-line,
+  // and an expandable list (code contributions for App, theme names for Themes).
+  const renderContributorCard = (github: string, sub: ReactNode, items: readonly string[]) => (
+    <details key={github} className="contributor-card">
+      <summary className="contributor-card-summary">
+        <img
+          src={`https://github.com/${github}.png?size=48`}
+          width={32}
+          height={32}
+          className="contributor-card-avatar"
+          alt={github}
+        />
+        <div className="contributor-card-meta">
+          <span
+            className="contributor-card-name"
+            role="button"
+            tabIndex={0}
+            onClick={e => { e.stopPropagation(); openUrl(`https://github.com/${github}`); }}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.stopPropagation();
+                e.preventDefault();
+                openUrl(`https://github.com/${github}`);
+              }
+            }}
+          >
+            @{github}
+          </span>
+          <span className="contributor-card-sub">{sub}</span>
+        </div>
+        <ChevronDown size={14} className="contributor-card-chevron" aria-hidden />
+      </summary>
+      <ul className="contributor-card-list">
+        {items.map(item => <li key={item}>{item}</li>)}
+      </ul>
+    </details>
+  );
 
   return (
     <>
@@ -287,47 +339,35 @@ export function SystemTab() {
         title={t('settings.aboutContributorsLabel')}
         icon={<Users size={16} />}
       >
+        <div className="contributors-subsection-label">{t('settings.aboutContributorsApp')}</div>
         <div className="contributors-grid">
-          {CONTRIBUTORS.map(c => (
-            <details key={c.github} className="contributor-card">
-              <summary className="contributor-card-summary">
-                <img
-                  src={`https://github.com/${c.github}.png?size=48`}
-                  width={32}
-                  height={32}
-                  className="contributor-card-avatar"
-                  alt={c.github}
-                />
-                <div className="contributor-card-meta">
-                  <span
-                    className="contributor-card-name"
-                    role="button"
-                    tabIndex={0}
-                    onClick={e => { e.stopPropagation(); openUrl(`https://github.com/${c.github}`); }}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        openUrl(`https://github.com/${c.github}`);
-                      }
-                    }}
-                  >
-                    @{c.github}
-                  </span>
-                  <span className="contributor-card-sub">
-                    <span className="contributor-card-since">v{c.since}</span>
-                    <span>·</span>
-                    <span>{t('settings.aboutContributorsCount', { count: c.contributions.length })}</span>
-                  </span>
-                </div>
-                <ChevronDown size={14} className="contributor-card-chevron" aria-hidden />
-              </summary>
-              <ul className="contributor-card-list">
-                {c.contributions.map(item => <li key={item}>{item}</li>)}
-              </ul>
-            </details>
-          ))}
+          {CONTRIBUTORS.map(c =>
+            renderContributorCard(
+              c.github,
+              <>
+                <span className="contributor-card-since">v{c.since}</span>
+                <span>·</span>
+                <span>{t('settings.aboutContributorsCount', { count: c.contributions.length })}</span>
+              </>,
+              c.contributions,
+            ),
+          )}
         </div>
+
+        {themeContributors.length > 0 && (
+          <>
+            <div className="contributors-subsection-label">{t('settings.aboutContributorsThemes')}</div>
+            <div className="contributors-grid">
+              {themeContributors.map(c =>
+                renderContributorCard(
+                  c.github,
+                  <span>{t('settings.aboutThemeContributorsCount', { count: c.themes.length })}</span>,
+                  c.themes,
+                ),
+              )}
+            </div>
+          </>
+        )}
       </SettingsSubSection>
 
       <SettingsSubSection

@@ -468,3 +468,36 @@ export const MAINTAINERS = [
   { github: 'Psychotoxical' },
   { github: 'cucadmuh' },
 ] as const;
+
+export interface ThemeContributor {
+  github: string;
+  /** Names of the themes this author has in the store registry, sorted. */
+  themes: string[];
+}
+
+// The org account that owns the themes repo authors the built-in / official
+// themes; it is the project itself, not a community contributor, so it is kept
+// out of the theme credits (its work is already covered under App credits).
+const NON_CONTRIBUTOR_THEME_AUTHORS = new Set(['psysonic']);
+
+// Community theme authors, derived from the store registry — the only source for
+// them, since the app bundles no community themes. Deduplicated by author (folds
+// casing drift in manifests), each carrying the theme names they authored.
+// Author + theme names sorted so the Credits list is stable across fetches.
+export function themeContributorsFromRegistry(
+  themes: readonly { author: string; name: string }[],
+): ThemeContributor[] {
+  const byAuthor = new Map<string, ThemeContributor>();
+  for (const th of themes) {
+    const author = th.author?.trim();
+    if (!author) continue;
+    const key = author.toLowerCase();
+    if (NON_CONTRIBUTOR_THEME_AUTHORS.has(key)) continue;
+    const entry = byAuthor.get(key) ?? { github: author, themes: [] };
+    if (!entry.themes.includes(th.name)) entry.themes.push(th.name);
+    byAuthor.set(key, entry);
+  }
+  return [...byAuthor.values()]
+    .map(e => ({ github: e.github, themes: [...e.themes].sort((a, b) => a.localeCompare(b)) }))
+    .sort((a, b) => a.github.toLowerCase().localeCompare(b.github.toLowerCase()));
+}
