@@ -339,7 +339,7 @@ export default function AlbumHeader({
               )}
               <div className="album-detail-info">
                 {info.year && <span>{info.year}</span>}
-                <span>· {songs.length} Tracks</span>
+                <span>· {t('albumDetail.tracksCount', { n: songs.length })}</span>
                 <span>· {formatLongDuration(totalDuration)}</span>
                 {formatLabel && <span>· {formatLabel}</span>}
                 {info.recordLabel && (
