@@ -152,12 +152,15 @@
   inset: 0;
   z-index: 2;
   pointer-events: none;
+  /* Fades out by ~52% — before the artist portrait (right ~50%–96%) so the scrim
+     only darkens the left text/cluster area and does not compound with the
+     portrait's own --fs-portrait-dim overlay (over-darkened it in rail mode). */
   background: linear-gradient(
     to right,
     rgba(6, 6, 14, 0.88) 0%,
-    rgba(6, 6, 14, 0.65) 32%,
-    rgba(6, 6, 14, 0.18) 58%,
-    transparent 78%
+    rgba(6, 6, 14, 0.6) 24%,
+    rgba(6, 6, 14, 0.2) 42%,
+    transparent 52%
   );
 }
 
