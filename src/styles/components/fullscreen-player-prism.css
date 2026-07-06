@@ -51,18 +51,25 @@
 }
 
 /* ── Bottom bar ────────────────────────────────────────────────────────────── */
-/* Centred control row (a middle band, not edge-to-edge). Only the now-playing
-   element is boxed; transport (left) and utilities (right) float bare. */
+/* Outer bar — a wide translucent glass strip holding the whole control row.
+   Transport (left) and utilities (right) sit bare inside it; the now-playing
+   element is a darker nested box (see .fsp2-pill). */
 .fsp2-bar {
   position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 40px;
+  right: 40px;
   bottom: 22px;
-  width: min(1180px, calc(100% - 44px));
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
+  padding: 8px 14px;
+  border-radius: 20px;
+  background: rgba(12, 15, 20, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(24px) saturate(1.1);
+  -webkit-backdrop-filter: blur(24px) saturate(1.1);
 }
 /* Controls stay visible; only the cursor hides while idle. */
 .fsp2-player[data-idle='true'] { cursor: none; }
@@ -74,10 +81,6 @@
   gap: 6px;
 }
 .fsp2-bar-left { gap: 4px; }
-/* Bare transport/utility icons sit directly on the image → drop shadow for legibility. */
-.fsp2-bar-left .fsp2-btn,
-.fsp2-bar-right .fsp2-btn,
-.fsp2-time { filter: drop-shadow(0 1px 5px rgba(0, 0, 0, 0.7)); }
 
 .fsp2-btn {
   display: inline-flex;
@@ -109,19 +112,15 @@
 }
 
 /* ── Now-playing pill ──────────────────────────────────────────────────────── */
-/* Centre now-playing pill — the one boxed element (cider-style); transport and
-   utilities flank it bare. */
+/* Centre now-playing pill — a darker box NESTED inside the outer bar. */
 .fsp2-pill {
   position: relative;
   flex: 0 1 460px;
   min-width: 220px;
-  padding: 8px 18px 12px;
-  border-radius: 14px;
-  background: rgba(8, 10, 16, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  padding: 6px 16px 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   overflow: hidden;
 }
 .fsp2-pill-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
