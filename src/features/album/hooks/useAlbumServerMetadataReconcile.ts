@@ -42,6 +42,7 @@ export function useAlbumServerMetadataReconcile({
   useEffect(() => {
     if (!enabled || !serverId || !albumId || !album || album.id !== albumId) return;
     if (!shouldAttemptSubsonicForServer(serverId)) return;
+    if (userMutationInFlightRef.current) return;
 
     const reconcileKey = `${serverId}:${albumId}`;
     if (reconciledKeyRef.current === reconcileKey) return;
@@ -53,6 +54,7 @@ export function useAlbumServerMetadataReconcile({
 
     void (async () => {
       try {
+        if (userMutationInFlightRef.current) return;
         const patch = await fetchAlbumServerMetadataPatch(serverId, albumId, snapshot);
         if (cancelled || !patch || userMutationInFlightRef.current) return;
 

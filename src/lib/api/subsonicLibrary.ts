@@ -263,6 +263,11 @@ export async function getSongForServer(serverId: string, id: string): Promise<Su
   }
 }
 
+export type GetAlbumOptions = {
+  /** When false, skip patch-on-use mirror into the local index (reconcile reads). */
+  mirrorToIndex?: boolean;
+};
+
 export async function getAlbum(id: string): Promise<{ album: SubsonicAlbum; songs: SubsonicSong[] }> {
   if (!shouldAttemptSubsonicForActiveServer()) {
     throw new Error('Subsonic unavailable');
@@ -284,6 +289,7 @@ export async function getAlbum(id: string): Promise<{ album: SubsonicAlbum; song
 export async function getAlbumForServer(
   serverId: string,
   id: string,
+  options?: GetAlbumOptions,
 ): Promise<{ album: SubsonicAlbum; songs: SubsonicSong[] }> {
   if (!shouldAttemptSubsonicForServer(serverId)) {
     throw new Error('Subsonic unavailable');
@@ -295,6 +301,8 @@ export async function getAlbumForServer(
   );
   const { song, ...album } = data.album;
   const result = { album, songs: song ?? [] };
-  mirrorAlbumMetadataFromServerOnUse(serverId, id, result.album);
+  if (options?.mirrorToIndex !== false) {
+    mirrorAlbumMetadataFromServerOnUse(serverId, id, result.album);
+  }
   return result;
 }

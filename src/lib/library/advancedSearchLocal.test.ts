@@ -377,4 +377,24 @@ describe('albumToAlbum', () => {
     });
     expect(album.starred).toBeUndefined();
   });
+
+  it('keeps year from raw_json when the indexed column is empty', () => {
+    const album = albumToAlbum({
+      serverId: 's1',
+      id: 'al1',
+      name: 'Album',
+      artist: 'Artist',
+      artistId: 'ar1',
+      songCount: 1,
+      durationSec: 100,
+      year: null,
+      genre: null,
+      coverArtId: null,
+      starredAt: null,
+      syncedAt: 0,
+      rawJson: { id: 'al1', year: 1999, genre: 'Rock' },
+    });
+    expect(album.year).toBe(1999);
+    expect(album.genre).toBe('Rock');
+  });
 });

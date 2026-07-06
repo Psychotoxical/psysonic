@@ -51,6 +51,6 @@ export async function fetchAlbumServerMetadataPatch(
   albumId: string,
   local: SubsonicAlbum,
 ): Promise<AlbumServerMetadataPatch | null> {
-  const { album: server } = await getAlbumForServer(serverId, albumId);
+  const { album: server } = await getAlbumForServer(serverId, albumId, { mirrorToIndex: false });
   return diffAlbumServerMetadata(local, server);
 }
