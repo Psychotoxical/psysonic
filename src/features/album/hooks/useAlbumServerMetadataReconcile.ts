@@ -46,7 +46,6 @@ export function useAlbumServerMetadataReconcile({
 
     const reconcileKey = `${serverId}:${albumId}`;
     if (reconciledKeyRef.current === reconcileKey) return;
-    if (inFlightKeyRef.current === reconcileKey) return;
 
     inFlightKeyRef.current = reconcileKey;
     const snapshot = album;
@@ -83,6 +82,9 @@ export function useAlbumServerMetadataReconcile({
 
     return () => {
       cancelled = true;
+      if (inFlightKeyRef.current === reconcileKey) {
+        inFlightKeyRef.current = null;
+      }
     };
   }, [enabled, serverId, albumId, album, setAlbum, userMutationInFlightRef]);
 }
