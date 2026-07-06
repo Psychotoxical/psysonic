@@ -26,6 +26,11 @@ export function AppearanceTab() {
   const fontStore = useFontStore();
   const [isTilingWm, setIsTilingWm] = useState(false);
 
+  const fullscreenPlayerStyleOptions: SegmentedOption<'minimal' | 'immersive'>[] = [
+    { id: 'minimal', label: t('settings.fullscreenPlayerMinimal') },
+    { id: 'immersive', label: t('settings.fullscreenPlayerImmersive') },
+  ];
+
   useEffect(() => {
     if (!IS_LINUX) return;
     isTilingWmCmd().then(setIsTilingWm).catch(() => {});
@@ -265,6 +270,23 @@ export function AppearanceTab() {
               ))}
             </div>
             </SettingsSubCard>
+          </SettingsGroup>
+        </div>
+      </SettingsSubSection>
+
+      <SettingsSubSection
+        title={t('settings.fullscreenPlayerStyle')}
+        icon={<Sliders size={16} />}
+      >
+        <div className="settings-card">
+          <SettingsGroup>
+            <SettingsField desc={t('settings.fullscreenPlayerStyleDesc')}>
+              <SettingsSegmented
+                options={fullscreenPlayerStyleOptions}
+                value={auth.fullscreenPlayerStyle}
+                onChange={auth.setFullscreenPlayerStyle}
+              />
+            </SettingsField>
           </SettingsGroup>
         </div>
       </SettingsSubSection>

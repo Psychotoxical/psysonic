@@ -7,3 +7,4 @@
  * the OS window's fullscreen state (app-shell concern), not this player view.
  */
 export { default } from './components/FullscreenPlayerStatic';
+export { default as FullscreenPlayerImmersive } from './components/FullscreenPlayerImmersive';

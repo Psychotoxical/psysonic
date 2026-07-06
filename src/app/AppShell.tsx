@@ -14,7 +14,7 @@ import DevNetworkModeToggle from '@/app/DevNetworkModeToggle';
 import { NowPlayingDropdown } from '@/features/nowPlaying';
 import QueuePanel from '@/features/queue';
 import AppRoutes from './AppRoutes';
-import FullscreenPlayer from '@/features/fullscreenPlayer';
+import FullscreenPlayer, { FullscreenPlayerImmersive } from '@/features/fullscreenPlayer';
 import ContextMenu from '@/features/contextMenu/components/ContextMenu';
 import SongInfoModal from '@/features/playback/components/SongInfoModal';
 import { DownloadFolderModal } from '@/features/offline';
@@ -114,6 +114,7 @@ export function AppShell() {
   useLiveSearchRouteScope();
   useNowPlayingPrewarm();
   const useCustomTitlebar = useAuthStore(s => s.useCustomTitlebar);
+  const fullscreenPlayerStyle = useAuthStore(s => s.fullscreenPlayerStyle);
   const offlineCtx = useReactiveOfflineBrowseContext();
   const offlineNav = offlineBrowseNavFlags(offlineCtx.capabilities);
   const hasOfflineBrowse = offlineCtx.hasBrowseCapability;
@@ -338,7 +339,9 @@ export function AppShell() {
       {isMobile && !isMobilePlayer && <BottomNav />}
       {!isMobilePlayer && <PlayerBar />}
       {isFullscreenOpen && (
-        <FullscreenPlayer onClose={toggleFullscreen} />
+        fullscreenPlayerStyle === 'immersive'
+          ? <FullscreenPlayerImmersive onClose={toggleFullscreen} />
+          : <FullscreenPlayer onClose={toggleFullscreen} />
       )}
       <ContextMenu />
       <SongInfoModal />
