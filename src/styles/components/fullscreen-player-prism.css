@@ -61,23 +61,23 @@
   justify-content: space-between;
   gap: 18px;
   padding: 20px 26px calc(20px + env(safe-area-inset-bottom, 0px));
-  transition: opacity 300ms ease;
 }
-.fsp2-player[data-idle='true'] .fsp2-bar { opacity: 0; }
+/* Controls stay visible; only the cursor hides while idle. */
+.fsp2-player[data-idle='true'] { cursor: none; }
 
+/* Transport + utilities float bare over the backdrop (only the now-playing pill
+   gets a glass container), so the bar reads as one row, not three boxes. */
 .fsp2-bar-left,
 .fsp2-bar-right {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
-  border-radius: 16px;
-  background: rgba(12, 14, 20, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
 }
 .fsp2-bar-left { gap: 4px; }
+/* Legibility drop shadow since the icons sit directly on the image. */
+.fsp2-bar-left .fsp2-btn,
+.fsp2-bar-right .fsp2-btn,
+.fsp2-time { filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.6)); }
 
 .fsp2-btn {
   display: inline-flex;
