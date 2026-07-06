@@ -110,6 +110,7 @@ export default function Artists() {
   const navigate = useNavigate();
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
   const setShowArtistImages = useAuthStore(s => s.setShowArtistImages);
+  const ignoredArticles = useLibraryIgnoredArticles(serverId, indexEnabled);
 
   const {
     catalogArtists,
@@ -127,6 +128,7 @@ export default function Artists() {
     letterFilter,
     musicLibraryFilterVersion,
     libraryScopeKey,
+    ignoredArticles,
   });
 
   const { textSearchArtists, textSearchLoading, effectiveFilter } = useBrowseArtistTextSearch(
@@ -176,8 +178,6 @@ export default function Artists() {
   }, []);
 
   const selectedArtists = artists.filter(a => selectedIds.has(a.id));
-
-  const ignoredArticles = useLibraryIgnoredArticles(serverId, indexEnabled);
 
   const {
     filtered, visible, hasMore, groups, letters, artistListFlatRows,

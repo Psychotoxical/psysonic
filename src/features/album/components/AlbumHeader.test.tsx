@@ -106,6 +106,22 @@ describe('AlbumHeader genres', () => {
     expect(screen.getByRole('button', { name: 'Show all genres' })).toBeInTheDocument();
   });
 
+  it('localizes the track count in the info row', () => {
+    renderWithProviders(
+      <AlbumHeader
+        {...baseProps()}
+        songs={[
+          { id: 't1', duration: 100 } as unknown as SubsonicSong,
+          { id: 't2', duration: 200 } as unknown as SubsonicSong,
+        ]}
+        info={albumInfo()}
+      />,
+      { language: 'nb' },
+    );
+    expect(screen.getByText(/2 spor/)).toBeInTheDocument();
+    expect(screen.queryByText(/Tracks/i)).not.toBeInTheDocument();
+  });
+
   it('opens via keyboard with focus inside the menu, arrow-navigates, and restores focus on close', async () => {
     const user = userEvent.setup();
     renderWithProviders(

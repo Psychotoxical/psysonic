@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarRange, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -7,10 +7,11 @@ import { tooltipAttrs } from '@/ui/tooltipAttrs';
 import {
   ALBUM_YEAR_MAX,
   ALBUM_YEAR_MIN,
-  clampAlbumYearFieldInput,
+  commitAlbumYearDraftField,
   formatAlbumYearFilterLabel,
   normalizeAlbumYearToFieldChange,
   resolveAlbumYearBounds,
+  sanitizeAlbumYearTypingInput,
   stepAlbumYearField,
 } from '@/lib/library/albumYearFilter';
 
@@ -33,10 +34,14 @@ export default function YearFilterButton({
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [popStyle, setPopStyle] = useState<React.CSSProperties>({});
+  const [draftFrom, setDraftFrom] = useState(from);
+  const [draftTo, setDraftTo] = useState(to);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const fromRef = useRef<HTMLInputElement>(null);
+  const fromFocusedRef = useRef(false);
+  const toFocusedRef = useRef(false);
 
   const yMin = catalogMinYear ?? ALBUM_YEAR_MIN;
   const yMax = catalogMaxYear ?? ALBUM_YEAR_MAX;
@@ -76,6 +81,18 @@ export default function YearFilterButton({
   }, [open]);
 
   useEffect(() => {
+    if (!fromFocusedRef.current) {
+      setDraftFrom(from);
+    }
+  }, [from]);
+
+  useEffect(() => {
+    if (!toFocusedRef.current) {
+      setDraftTo(to);
+    }
+  }, [to]);
+
+  useEffect(() => {
     if (!open) return;
     const onResize = () => updatePopStyle();
     window.addEventListener('resize', onResize);
@@ -86,33 +103,104 @@ export default function YearFilterButton({
     };
   }, [open]);
 
+  const resolveDraftTo = useCallback((): string => {
+    if (!draftTo.trim()) return '';
+    if (sanitizeAlbumYearTypingInput(draftTo).length < 4) return to;
+    return normalizeAlbumYearToFieldChange(to, draftTo, yMin, yMax);
+  }, [draftTo, to, yMin, yMax]);
+
+  const applyDraftsAndClose = useCallback(() => {
+    fromFocusedRef.current = false;
+    toFocusedRef.current = false;
+    const nextFrom = commitAlbumYearDraftField(draftFrom, from, yMin, yMax);
+    const nextTo = resolveDraftTo();
+    setDraftFrom(nextFrom);
+    setDraftTo(nextTo);
+    onChange(nextFrom, nextTo);
+    setOpen(false);
+  }, [draftFrom, from, onChange, resolveDraftTo, yMin, yMax]);
+
+  const commitFromField = useCallback(() => {
+    if (!fromFocusedRef.current) return;
+    fromFocusedRef.current = false;
+    const next = commitAlbumYearDraftField(draftFrom, from, yMin, yMax);
+    setDraftFrom(next);
+    onChange(next, to);
+  }, [draftFrom, from, onChange, to, yMin, yMax]);
+
+  const commitToField = useCallback(() => {
+    if (!toFocusedRef.current) return;
+    toFocusedRef.current = false;
+    if (!draftTo.trim()) {
+      setDraftTo('');
+      onChange(from, '');
+      return;
+    }
+    if (sanitizeAlbumYearTypingInput(draftTo).length < 4) {
+      setDraftTo(to);
+      return;
+    }
+    const next = normalizeAlbumYearToFieldChange(to, draftTo, yMin, yMax);
+    setDraftTo(next);
+    onChange(from, next);
+  }, [draftTo, from, onChange, to, yMin, yMax]);
+
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
       if (
         !triggerRef.current?.contains(e.target as Node) &&
         !popRef.current?.contains(e.target as Node)
-      ) setOpen(false);
+      ) {
+        applyDraftsAndClose();
+      }
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        applyDraftsAndClose();
+      }
+    };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('keydown', onKey);
     };
-  }, [open]);
+  }, [open, applyDraftsAndClose]);
 
   const clear = () => {
+    fromFocusedRef.current = false;
+    toFocusedRef.current = false;
+    setDraftFrom('');
+    setDraftTo('');
     onChange('', '');
   };
 
   const handleFromChange = (raw: string) => {
-    onChange(clampAlbumYearFieldInput(raw, yMin, yMax), to);
+    setDraftFrom(sanitizeAlbumYearTypingInput(raw));
   };
 
   const handleToChange = (raw: string) => {
-    onChange(from, normalizeAlbumYearToFieldChange(to, raw, yMin, yMax));
+    const sanitized = sanitizeAlbumYearTypingInput(raw);
+    const spinnerTick = !draftTo.trim()
+      && sanitized === String(yMin)
+      && yMin !== yMax
+      && sanitized.length === 4;
+    if (spinnerTick) {
+      const next = normalizeAlbumYearToFieldChange(to, sanitized, yMin, yMax);
+      toFocusedRef.current = false;
+      setDraftTo(next);
+      onChange(from, next);
+      return;
+    }
+    setDraftTo(sanitized);
+  };
+
+  const onYearFieldKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      applyDraftsAndClose();
+    }
   };
 
   const onYearWheel = (
@@ -122,9 +210,15 @@ export default function YearFilterButton({
     e.preventDefault();
     const delta = e.deltaY < 0 ? 1 : -1;
     if (field === 'from') {
-      onChange(stepAlbumYearField(from, delta, yMin, yMax, 'min'), to);
+      fromFocusedRef.current = false;
+      const nextFrom = stepAlbumYearField(from, delta, yMin, yMax, 'min');
+      setDraftFrom(nextFrom);
+      onChange(nextFrom, to);
     } else {
-      onChange(from, stepAlbumYearField(to, delta, yMin, yMax, 'max'));
+      toFocusedRef.current = false;
+      const nextTo = stepAlbumYearField(to, delta, yMin, yMax, 'max');
+      setDraftTo(nextTo);
+      onChange(from, nextTo);
     }
   };
 
@@ -134,7 +228,16 @@ export default function YearFilterButton({
         ref={triggerRef}
         type="button"
         className={`btn btn-surface${active ? ' btn-sort-active' : ''}`}
-        onClick={() => setOpen(v => !v)}
+        onClick={() => {
+          setOpen(prev => {
+            const next = !prev;
+            if (next) {
+              setDraftFrom(from);
+              setDraftTo(to);
+            }
+            return next;
+          });
+        }}
         aria-haspopup="dialog"
         aria-expanded={open}
         {...tooltipAttrs(t('albums.yearFilterTooltip'), { pos: 'bottom' })}
@@ -168,8 +271,11 @@ export default function YearFilterButton({
                   min={yMin}
                   max={yMax}
                   placeholder={String(yMin)}
-                  value={from}
+                  value={draftFrom}
+                  onFocus={() => { fromFocusedRef.current = true; }}
                   onChange={e => handleFromChange(e.target.value)}
+                  onBlur={commitFromField}
+                  onKeyDown={onYearFieldKeyDown}
                   onWheel={e => onYearWheel(e, 'from')}
                 />
               </div>
@@ -184,8 +290,11 @@ export default function YearFilterButton({
                   min={yMin}
                   max={yMax}
                   placeholder={String(yMax)}
-                  value={to}
+                  value={draftTo}
+                  onFocus={() => { toFocusedRef.current = true; }}
                   onChange={e => handleToChange(e.target.value)}
+                  onBlur={commitToField}
+                  onKeyDown={onYearFieldKeyDown}
                   onWheel={e => onYearWheel(e, 'to')}
                 />
               </div>

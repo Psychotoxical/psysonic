@@ -24,7 +24,7 @@ import { useSidebarNavDnd } from '@/features/sidebar/hooks/useSidebarNavDnd';
 import { useSidebarLibraryDropdown } from '@/features/sidebar/hooks/useSidebarLibraryDropdown';
 import { useSidebarScrollVisible } from '@/features/sidebar/hooks/useSidebarScrollVisible';
 import { isOfflineSidebarNavAllowed } from '@/features/offline';
-import { useOfflineBrowseContext } from '@/features/offline';
+import { useReactiveOfflineBrowseContext } from '@/features/sidebar/hooks/useReactiveOfflineBrowseContext';
 import { offlineBrowseNavFlags } from '@/features/offline';
 import { useSidebarPerfProbe } from '@/features/sidebar/hooks/useSidebarPerfProbe';
 import SidebarPerfProbeModal from '@/features/sidebar/components/SidebarPerfProbeModal';
@@ -63,7 +63,7 @@ export default function Sidebar({
   const syncJobFail   = useDeviceSyncJobStore(s => s.failed);
   const syncJobTotal  = useDeviceSyncJobStore(s => s.total);
   const isSyncing     = syncJobStatus === 'running';
-  const offlineCtx = useOfflineBrowseContext();
+  const offlineCtx = useReactiveOfflineBrowseContext();
   const offlineNav = offlineBrowseNavFlags(offlineCtx.capabilities);
   const serverId = useAuthStore(s => s.activeServerId ?? '');
   const isLoggedIn = useAuthStore(s => s.isLoggedIn);

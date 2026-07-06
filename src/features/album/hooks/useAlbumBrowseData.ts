@@ -32,13 +32,18 @@ import {
   ALBUM_YEAR_FILTER_DEBOUNCE_MS,
   resolveAlbumYearBounds,
 } from '@/lib/library/albumYearFilter';
-import { loadOfflineAlbumBrowseInitial } from '@/features/offline';
-import { useOfflineBrowseReloadToken } from '@/features/offline';
+import {
+  fetchOfflineLocalAlbumGenreOptions,
+  loadOfflineAlbumBrowseInitial,
+  offlineLocalBrowseEnabled,
+  useOfflineBrowseContext,
+  useOfflineBrowseReloadToken,
+} from '@/features/offline';
+import { useOfflineLocalBrowseReloadKey } from '@/store/localPlaybackBrowseRevision';
 import {
   fetchAlbumBrowseCatalogChunk,
   mergeAlbumCatalogChunk,
 } from '@/features/album/utils/albumBrowseCatalogChunk';
-import { useOfflineBrowseContext } from '@/features/offline';
 import { useClientSliceInfiniteScroll } from '@/lib/hooks/useClientSliceInfiniteScroll';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 import { useInpageScrollSentinel } from '@/lib/hooks/useInpageScrollSentinel';
@@ -116,6 +121,10 @@ export function useAlbumBrowseData({
 }: UseAlbumBrowseDataArgs) {
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const offlineBrowseReloadTs = useOfflineBrowseReloadToken();
+  const offlineLocalBrowseReloadKey = useOfflineLocalBrowseReloadKey(
+    serverId,
+    offlineBrowseActive,
+  );
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -153,13 +162,17 @@ export function useAlbumBrowseData({
   }), [sort, yearFilterActive, yearFilterBounds, losslessOnly, starredOnly, compFilter]);
 
   const catalogLoadKey = useMemo(
-    () => albumBrowseInitialLoadKey(
-      serverId,
-      musicLibraryFilterVersion,
-      browseQuery,
-      offlineBrowseActive,
-    ),
-    [serverId, musicLibraryFilterVersion, browseQuery, offlineBrowseActive],
+    () => {
+      const base = albumBrowseInitialLoadKey(
+        serverId,
+        musicLibraryFilterVersion,
+        browseQuery,
+        offlineBrowseActive,
+      );
+      if (!offlineBrowseActive) return base;
+      return `${base}\0${offlineLocalBrowseReloadKey}`;
+    },
+    [serverId, musicLibraryFilterVersion, browseQuery, offlineBrowseActive, offlineLocalBrowseReloadKey],
   );
 
   const compFilterActive = compFilter !== 'all';
@@ -203,7 +216,10 @@ export function useAlbumBrowseData({
   const libraryScopeActive = libraryScopeIsActive(serverId);
   const narrowGenreList = yearFilterActive || losslessOnly || starredOnly || compFilterActive;
   /** When true, GenreFilterBar uses `genreCatalogOptions` instead of server `getGenres()`. */
-  const genreCatalogActive = narrowGenreList || (indexEnabled && libraryScopeActive);
+  const genreCatalogActive =
+    narrowGenreList
+    || (indexEnabled && libraryScopeActive)
+    || (offlineBrowseActive && !!serverId && offlineLocalBrowseEnabled(serverId));
 
   const compScanExhausted = useMemo(
     () => compFilterClientOnly && !genreFiltered
@@ -621,7 +637,9 @@ export function useAlbumBrowseData({
     let cancelled = false;
     void albumBrowseTimed(
       'genre_options',
-      () => fetchAlbumBrowseGenreOptions(serverId, indexEnabled, browseQueryWithoutGenre),
+      () => offlineBrowseActive && serverId && offlineLocalBrowseEnabled(serverId)
+        ? fetchOfflineLocalAlbumGenreOptions(serverId, browseQueryWithoutGenre, starredOverrides)
+        : fetchAlbumBrowseGenreOptions(serverId, indexEnabled, browseQueryWithoutGenre),
     ).then(options => {
       if (!cancelled) {
         setGenreCatalogOptions(options);
@@ -638,6 +656,8 @@ export function useAlbumBrowseData({
     indexEnabled,
     browseQueryWithoutGenre,
     musicLibraryFilterVersion,
+    offlineBrowseActive,
+    starredOverrides,
   ]);
 
   const loadMorePage = useCallback(() => {

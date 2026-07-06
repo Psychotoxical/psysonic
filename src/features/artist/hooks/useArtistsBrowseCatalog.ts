@@ -9,8 +9,8 @@ import {
   fetchNetworkArtistCatalog,
   fetchStarredArtistsForBrowse,
 } from '@/features/artist/utils/artistBrowseCreditMode';
-import { useOfflineBrowseContext } from '@/features/offline';
-import { useOfflineBrowseReloadToken } from '@/features/offline';
+import { useOfflineBrowseContext, useOfflineBrowseReloadToken } from '@/features/offline';
+import { useOfflineLocalBrowseReloadKey } from '@/store/localPlaybackBrowseRevision';
 import {
   fetchOfflineLocalArtistCatalogChunk,
   fetchOfflineLocalStarredArtists,
@@ -46,6 +46,8 @@ export type UseArtistsBrowseCatalogArgs = {
   letterFilter: string;
   musicLibraryFilterVersion: number;
   libraryScopeKey: string;
+  /** Server `ignoredArticles` for offline letter buckets (Navidrome parity). */
+  ignoredArticles?: string | null;
 };
 
 export function useArtistsBrowseCatalog({
@@ -56,9 +58,14 @@ export function useArtistsBrowseCatalog({
   letterFilter,
   musicLibraryFilterVersion,
   libraryScopeKey,
+  ignoredArticles,
 }: UseArtistsBrowseCatalogArgs) {
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const offlineBrowseReloadTs = useOfflineBrowseReloadToken();
+  const offlineLocalBrowseReloadKey = useOfflineLocalBrowseReloadKey(
+    serverId,
+    offlineBrowseActive,
+  );
   const [catalogArtists, setCatalogArtists] = useState<SubsonicArtist[]>([]);
   const [loading, setLoading] = useState(true);
   const [catalogHasMore, setCatalogHasMore] = useState(false);
@@ -71,7 +78,7 @@ export function useArtistsBrowseCatalog({
 
   const catalogLoadKey = useMemo(() => {
     if (!serverId) return '';
-    return artistBrowseInitialLoadKey(
+    const base = artistBrowseInitialLoadKey(
       serverId,
       musicLibraryFilterVersion,
       libraryScopeKey,
@@ -80,7 +87,9 @@ export function useArtistsBrowseCatalog({
       starredOnly,
       offlineBrowseActive,
     );
-  }, [serverId, musicLibraryFilterVersion, libraryScopeKey, creditMode, letterFilter, starredOnly, offlineBrowseActive]);
+    if (!offlineBrowseActive) return base;
+    return `${base}\0${offlineLocalBrowseReloadKey}`;
+  }, [serverId, musicLibraryFilterVersion, libraryScopeKey, creditMode, letterFilter, starredOnly, offlineBrowseActive, offlineLocalBrowseReloadKey]);
 
   useLayoutEffect(() => {
     const cached = readArtistBrowseCatalogCache(catalogLoadKey);
@@ -117,6 +126,7 @@ export function useArtistsBrowseCatalog({
             ARTIST_CATALOG_CHUNK_SIZE,
             creditMode,
             letterFilter,
+            ignoredArticles,
           ),
           { append, offset: catalogOffsetRef.current },
         );
@@ -184,7 +194,7 @@ export function useArtistsBrowseCatalog({
         setCatalogLoadingMore(false);
       }
     }
-  }, [creditMode, letterFilter, offlineBrowseActive, serverId]);
+  }, [creditMode, ignoredArticles, letterFilter, offlineBrowseActive, serverId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -238,21 +248,12 @@ export function useArtistsBrowseCatalog({
           emitArtistsBrowseDebug('load_branch', { mode: 'offline' });
           if (!cancelled && generation === loadGenerationRef.current) {
             if (serverId && starredOnly && offlineLocalBrowseEnabled(serverId)) {
-              try {
-                setCatalogArtists(
-                  await artistBrowseTimed(
-                    'offline_starred',
-                    () => fetchStarredArtistsForBrowse(creditMode, serverId, true),
-                  ),
-                );
-              } catch {
-                setCatalogArtists(
-                  (await artistBrowseTimed(
-                    'offline_starred_fallback',
-                    () => fetchOfflineLocalStarredArtists(serverId),
-                  )) ?? [],
-                );
-              }
+              setCatalogArtists(
+                (await artistBrowseTimed(
+                  'offline_starred',
+                  () => fetchOfflineLocalStarredArtists(serverId, creditMode),
+                )) ?? [],
+              );
             } else if (serverId && !starredOnly && offlineLocalBrowseEnabled(serverId)) {
               const first = await artistBrowseTimed(
                 'offline_catalog_initial',
@@ -262,6 +263,7 @@ export function useArtistsBrowseCatalog({
                   ARTIST_CATALOG_CHUNK_SIZE,
                   creditMode,
                   letterFilter,
+                  ignoredArticles,
                 ),
               );
               setCatalogArtists(first?.artists ?? []);
@@ -447,7 +449,7 @@ export function useArtistsBrowseCatalog({
     return () => {
       cancelled = true;
     };
-  }, [catalogLoadKey, creditMode, letterFilter, musicLibraryFilterVersion, indexEnabled, offlineBrowseActive, offlineBrowseReloadTs, serverId, starredOnly]);
+  }, [catalogLoadKey, creditMode, ignoredArticles, letterFilter, musicLibraryFilterVersion, indexEnabled, offlineBrowseActive, offlineBrowseReloadTs, serverId, starredOnly]);
 
   return {
     catalogArtists,

@@ -56,6 +56,26 @@ export function parseAlbumYearField(raw: string): number | null {
   return n;
 }
 
+/** Digits-only year typing buffer (max four digits). */
+export function sanitizeAlbumYearTypingInput(raw: string): string {
+  return raw.replace(/\D/g, '').slice(0, 4);
+}
+
+/**
+ * Commit a typed year field on blur — incomplete drafts revert to the last applied value.
+ */
+export function commitAlbumYearDraftField(
+  draft: string,
+  previousCommitted: string,
+  min: number,
+  max: number,
+): string {
+  const trimmed = sanitizeAlbumYearTypingInput(draft);
+  if (!trimmed) return '';
+  if (trimmed.length < 4) return previousCommitted;
+  return clampAlbumYearFieldInput(trimmed, min, max);
+}
+
 export function resolveAlbumYearBounds(from: string, to: string): {
   active: boolean;
   bounds: AlbumYearBounds;

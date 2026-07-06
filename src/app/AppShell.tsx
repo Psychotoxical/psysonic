@@ -37,7 +37,7 @@ import { useOrbitHost } from '@/features/orbit';
 import { useOrbitGuest } from '@/features/orbit';
 import { useOrbitBodyAttrs } from '@/features/orbit';
 import { usePlatformShellSetup } from '@/app/hooks/usePlatformShellSetup';
-import { useOfflineBrowseContext } from '@/features/offline';
+import { useReactiveOfflineBrowseContext } from '@/features/sidebar/hooks/useReactiveOfflineBrowseContext';
 import { offlineBrowseNavFlags } from '@/features/offline';
 import { useWindowFullscreenState } from '@/app/hooks/useWindowFullscreenState';
 import { useNowPlayingTrayTitle } from '@/app/hooks/useNowPlayingTrayTitle';
@@ -114,7 +114,7 @@ export function AppShell() {
   useLiveSearchRouteScope();
   useNowPlayingPrewarm();
   const useCustomTitlebar = useAuthStore(s => s.useCustomTitlebar);
-  const offlineCtx = useOfflineBrowseContext();
+  const offlineCtx = useReactiveOfflineBrowseContext();
   const offlineNav = offlineBrowseNavFlags(offlineCtx.capabilities);
   const hasOfflineBrowse = offlineCtx.hasBrowseCapability;
   const floatingPlayerBar = useThemeStore(s => s.floatingPlayerBar);

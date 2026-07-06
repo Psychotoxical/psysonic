@@ -118,6 +118,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Artist name search on the Artists page no longer depends on query letter case for Cyrillic (and other non-ASCII) names when the local library index is enabled — matching uses the indexed `name_sort` key with Unicode case folding instead of SQLite `LIKE` on the display name alone.
 
+### Genres — full catalog on large libraries with All libraries selected
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1242](https://github.com/Psychotoxical/psysonic/pull/1242)**
+
+* The Genres page and album browse genre filter no longer miss genres on large libraries when **All libraries** is selected — both now use the indexed `track_genre` SQL aggregate instead of sampling the first page of albums (regression from multi-library scope routing in PR #1241).
+
+### Offline browse — on-disk-only Artists, Albums, Tracks, and Genres
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1243](https://github.com/Psychotoxical/psysonic/pull/1243)**
+
+* When browsing offline, Artists, Albums, Tracks, and Genres now list only content with on-disk bytes — library pins, favorites-auto saves, and hot-cache playback — instead of the full server or local index catalog.
+* Sidebar and shell gates react when hot-cache rows appear; browse pages reload after hot-cache growth and library sync without leaving the page.
+* Album vs track artist credit mode, starred artists, genre filters, and Tracks discovery rails respect the on-disk scope; album artist grouping follows indexed `album_artist` parity.
+
+### All Albums — year filter keyboard entry
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1244](https://github.com/Psychotoxical/psysonic/pull/1244)**
+
+* The year filter on All Albums no longer clamps on every keystroke while typing a four-digit year — drafts commit on blur, Enter, or outside click; incomplete input reverts to the last applied value. Wheel and spinner controls are unchanged.
+
 ### Discord — "Server" cover art no longer exposes your login
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1246](https://github.com/Psychotoxical/psysonic/pull/1246)**

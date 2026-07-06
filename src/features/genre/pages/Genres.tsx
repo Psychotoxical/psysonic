@@ -4,14 +4,16 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Tags } from 'lucide-react';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '@/constants/appScroll';
-import { subscribeLibrarySyncIdle } from '@/lib/api/library';
 import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { fetchGenreCatalog, filterGenresWithContent } from '@/features/playback/utils/playback/genreBrowsePlayback';
 import { libraryScopeCacheKeyForServer } from '@/lib/api/subsonicClient';
 import { peekGenreCatalogCache } from '@/lib/library/genreCatalogCountsCache';
-import { resolveIndexKey } from '@/lib/server/serverIndexKey';
 import { genreColor } from '@/lib/library/genreColor';
+import { useOfflineBrowseContext, offlineLocalBrowseEnabled } from '@/features/offline';
+import { useOfflineLocalBrowseReloadKey } from '@/store/localPlaybackBrowseRevision';
+import { useOfflineLocalLibrarySyncRevision } from '@/store/offlineLocalLibrarySyncRevision';
+import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
 
 const SCROLL_KEY = 'genres-scroll';
 const FONT_MIN_REM = 0.78;
@@ -24,14 +26,27 @@ export default function Genres() {
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const libraryScopeKey = libraryScopeCacheKeyForServer(serverId);
-  const cachedGenres = serverId ? peekGenreCatalogCache(serverId, libraryScopeKey, true) : null;
+  const offlineBrowseActive = useOfflineBrowseContext().active;
+  const localPlaybackEntries = useLocalPlaybackStore(s => s.entries);
+  const librarySyncRevision = useOfflineLocalLibrarySyncRevision(serverId || null);
+  const offlineLocalBrowseReloadKey = useOfflineLocalBrowseReloadKey(
+    serverId,
+    offlineBrowseActive,
+  );
+  const skipGenreCatalogCache = offlineBrowseActive
+    && offlineLocalBrowseEnabled(serverId, localPlaybackEntries);
+  const cachedGenres = serverId && !skipGenreCatalogCache
+    ? peekGenreCatalogCache(serverId, libraryScopeKey, true)
+    : null;
   const [rawGenres, setRawGenres] = useState<SubsonicGenre[]>(cachedGenres ?? []);
   const [loading, setLoading] = useState(!cachedGenres);
 
   useEffect(() => {
     let cancelled = false;
     const scopeKey = libraryScopeCacheKeyForServer(serverId);
-    const cached = serverId ? peekGenreCatalogCache(serverId, scopeKey, true) : null;
+    const cached = serverId && !skipGenreCatalogCache
+      ? peekGenreCatalogCache(serverId, scopeKey, true)
+      : null;
     if (cached) {
       // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -50,34 +65,12 @@ export default function Genres() {
     return () => {
       cancelled = true;
     };
-  }, [serverId, indexEnabled, musicLibraryFilterVersion]);
+  }, [serverId, indexEnabled, musicLibraryFilterVersion, offlineBrowseActive, skipGenreCatalogCache, librarySyncRevision, offlineLocalBrowseReloadKey]);
 
   const genres = useMemo(
     () => filterGenresWithContent([...rawGenres]).sort((a, b) => b.albumCount - a.albumCount),
     [rawGenres],
   );
-
-  // After library resync the in-memory catalog cache is cleared, but this page
-  // can still hold pre-sync genres until we refetch (issue #1162).
-  useEffect(() => {
-    if (!serverId || !indexEnabled) return;
-    let cancelled = false;
-    const indexKey = resolveIndexKey(serverId);
-    let unlisten: (() => void) | undefined;
-    void subscribeLibrarySyncIdle(payload => {
-      if (!payload.ok) return;
-      if (payload.serverId !== indexKey && payload.serverId !== serverId) return;
-      void fetchGenreCatalog(serverId, indexEnabled).then(data => {
-        if (!cancelled) setRawGenres(data);
-      });
-    }).then(fn => {
-      unlisten = fn;
-    });
-    return () => {
-      cancelled = true;
-      unlisten?.();
-    };
-  }, [serverId, indexEnabled]);
 
   // Log-scale font sizing — flattens the long tail (a 1000-album genre and a
   // 50-album genre look distinct, but a 1-album genre still has a readable size).

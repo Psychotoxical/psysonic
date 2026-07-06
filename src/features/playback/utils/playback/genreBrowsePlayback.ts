@@ -14,8 +14,6 @@ import type { Track } from '@/lib/media/trackTypes';
 import { songToTrack } from '@/lib/media/songToTrack';
 import { shuffleArray } from '@/lib/util/shuffleArray';
 import { trackToSong } from '@/lib/library/advancedSearchLocal';
-import { runLocalAlbumBrowse } from '@/lib/library/albumBrowseLocal';
-import { countGenresFromAlbums } from '@/lib/library/albumBrowseFilters';
 import { type AlbumBrowseSort } from '@/lib/library/albumBrowseSort';
 import {
   genreCatalogCacheKey,
@@ -27,6 +25,11 @@ import {
 } from '@/lib/library/genreCatalogCountsCache';
 import { fetchGenreAlbumTotal } from '@/lib/library/genreAlbumBrowse';
 import { libraryIsReady } from '@/lib/library/libraryReady';
+import {
+  fetchOfflineLocalGenreCatalog,
+  isOfflineBrowseActive,
+  offlineLocalBrowseEnabled,
+} from '@/features/offline';
 
 /** Drop genres with no indexed albums/tracks (stale server list or orphan rows). */
 export function filterGenresWithContent(genres: SubsonicGenre[]): SubsonicGenre[] {
@@ -35,11 +38,11 @@ export function filterGenresWithContent(genres: SubsonicGenre[]): SubsonicGenre[
 
 async function loadLocalGenreCatalogRows(
   serverId: string,
-  libraryScope: string,
+  args: { libraryScope?: string; libraryScopes?: string[] } = {},
 ): Promise<SubsonicGenre[]> {
   const rows = await libraryGetGenreAlbumCounts({
     serverId,
-    libraryScope,
+    ...args,
   });
   return filterGenresWithContent(rows.map(row => ({
     value: row.value,
@@ -48,38 +51,17 @@ async function loadLocalGenreCatalogRows(
   })));
 }
 
-/** Multi-library genre cloud from scoped album browse (no single-scope SQL fast path). */
-async function loadLocalGenreCatalogRowsMulti(serverId: string): Promise<SubsonicGenre[]> {
-  const page = await runLocalAlbumBrowse(
-    serverId,
-    {
-      sort: 'alphabeticalByName',
-      genres: [],
-      losslessOnly: false,
-      starredOnly: false,
-      compFilter: 'all',
-    },
-    0,
-    2000,
-  );
-  if (!page) return [];
-  return filterGenresWithContent(
-    countGenresFromAlbums(page.albums).map(({ genre, count }) => ({
-      value: genre,
-      albumCount: count,
-      songCount: 0,
-    })),
-  );
-}
-
 async function fetchLocalGenreCatalog(
   serverId: string,
   scopeKey: string,
 ): Promise<SubsonicGenre[]> {
   const selection = librarySelectionForServer(serverId);
-  const genres = selection.length === 1
-    ? await loadLocalGenreCatalogRows(serverId, selection[0])
-    : await loadLocalGenreCatalogRowsMulti(serverId);
+  const genres =
+    selection.length === 0
+      ? await loadLocalGenreCatalogRows(serverId)
+      : selection.length === 1
+        ? await loadLocalGenreCatalogRows(serverId, { libraryScope: selection[0] })
+        : await loadLocalGenreCatalogRows(serverId, { libraryScopes: selection });
   writeGenreCatalogCache(serverId, scopeKey, genres);
   return genres;
 }
@@ -144,6 +126,13 @@ export async function fetchGenreAlbumCount(
 ): Promise<number | null> {
   if (!genre.trim()) return null;
   if (indexEnabled && serverId) {
+    if (isOfflineBrowseActive() && offlineLocalBrowseEnabled(serverId)) {
+      const genres = await fetchOfflineLocalGenreCatalog(serverId);
+      const match = genres.find(
+        g => g.value.localeCompare(genre, undefined, { sensitivity: 'accent' }) === 0,
+      );
+      return match?.albumCount ?? null;
+    }
     const scopeKey = libraryScopeCacheKeyForServer(serverId);
     const cached = lookupGenreAlbumCount(serverId, genre, scopeKey);
     if (cached != null) return cached;
@@ -175,6 +164,12 @@ export async function fetchGenreCatalog(
 
   const scopeKey = libraryScopeCacheKeyForServer(serverId);
   const cacheKey = genreCatalogCacheKey(serverId, scopeKey);
+  const offlineLocal = isOfflineBrowseActive() && offlineLocalBrowseEnabled(serverId);
+
+  if (offlineLocal) {
+    return filterGenresWithContent(await fetchOfflineLocalGenreCatalog(serverId));
+  }
+
   const fresh = peekGenreCatalogCache(serverId, scopeKey, false);
   if (fresh) return fresh;
 

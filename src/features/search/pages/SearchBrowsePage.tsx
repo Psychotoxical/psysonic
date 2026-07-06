@@ -39,10 +39,12 @@ import { useSongBrowseList, type SongBrowseListRestore } from '@/features/search
 import { useAdvancedSearchRunner } from '@/features/search/hooks/useAdvancedSearchRunner';
 import TracksPageChrome from '@/features/search/components/TracksPageChrome';
 import SongBrowseSection from '@/features/search/components/SongBrowseSection';
+import { tracksBrowseDiscoveryChromeHidden } from '@/features/search/utils/tracksBrowseDiscoveryChrome';
 import {
   useLiveSearchScopeStore,
   useScopedBrowseSearchQuery,
 } from '@/store/liveSearchScopeStore';
+import { useOfflineBrowseContext } from '@/features/offline';
 
 const MOOD_UI_ENABLED = OXIMEDIA_MOOD_SEARCH_ENABLED;
 
@@ -105,6 +107,7 @@ export default function SearchBrowsePage() {
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const serverId = useAuthStore(s => s.activeServerId);
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
+  const offlineBrowseActive = useOfflineBrowseContext().active;
   const [activeSearch, setActiveSearch] = useState<SearchOpts | null>(() => restoreStash?.activeSearch ?? null);
   const [songsServerOffset, setSongsServerOffset] = useState(() => restoreStash?.songsServerOffset ?? 0);
   const [songsHasMore, setSongsHasMore] = useState(() => restoreStash?.songsHasMore ?? false);
@@ -182,9 +185,12 @@ export default function SearchBrowsePage() {
     // eslint-disable-next-line react-hooks/refs
     () => leaveSnapshotRef.current != null,
   );
-  const tracksDiscoveryHidden =
-    tracksSearchActive
-    || (isLeaveRestorePending && !!(restoreStash?.query.trim() || songBrowseInitialRestore?.query.trim()));
+  const tracksDiscoveryHidden = tracksBrowseDiscoveryChromeHidden({
+    offlineBrowseActive,
+    tracksSearchActive,
+    leaveRestorePendingWithQuery: isLeaveRestorePending
+      && !!(restoreStash?.query.trim() || songBrowseInitialRestore?.query.trim()),
+  });
 
   const handleTracksChromeLayoutReady = useCallback(() => {
     setTracksChromeLayoutReady(true);

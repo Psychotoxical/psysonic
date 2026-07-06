@@ -14,13 +14,14 @@ import {
 } from '@/lib/library/browseTextSearch';
 import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
-import { useOfflineBrowseContext } from '@/features/offline';
-import { useOfflineBrowseReloadToken } from '@/features/offline';
 import {
   fetchOfflineLocalBrowsableSongPage,
   offlineLocalBrowseEnabled,
   searchOfflineLocalBrowsableSongs,
+  useOfflineBrowseContext,
+  useOfflineBrowseReloadToken,
 } from '@/features/offline';
+import { useOfflineLocalBrowseReloadKey } from '@/store/localPlaybackBrowseRevision';
 
 const PAGE_SIZE = 50;
 
@@ -61,6 +62,10 @@ export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseS
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const offlineBrowseReloadTs = useOfflineBrowseReloadToken();
+  const offlineLocalBrowseReloadKey = useOfflineLocalBrowseReloadKey(
+    serverId,
+    offlineBrowseActive,
+  );
 
   const [debouncedQuery, setDebouncedQuery] = useState(
     () => initialRestore?.query.trim() ?? searchQuery.trim(),
@@ -193,7 +198,7 @@ export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseS
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, searchQuery, fetchSongPage, enabled, musicLibraryFilterVersion, offlineBrowseReloadTs]);
+  }, [debouncedQuery, searchQuery, fetchSongPage, enabled, musicLibraryFilterVersion, offlineBrowseReloadTs, offlineLocalBrowseReloadKey]);
 
   const loadMore = useCallback(async () => {
     if (!enabled || loading || !hasMore) return;

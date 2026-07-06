@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   albumYearFilterClauses,
   albumYearSubsonicParams,
+  commitAlbumYearDraftField,
   clampAlbumYearFieldInput,
   formatAlbumYearFilterLabel,
   normalizeAlbumYearToFieldChange,
   resolveAlbumYearBounds,
+  sanitizeAlbumYearTypingInput,
   stepAlbumYearField,
 } from './albumYearFilter';
 
@@ -94,5 +96,30 @@ describe('album year spinner helpers', () => {
   it('maps first native spinner tick on empty to field to max', () => {
     expect(normalizeAlbumYearToFieldChange('', '1975', min, max)).toBe('2020');
     expect(normalizeAlbumYearToFieldChange('2010', '1975', min, max)).toBe('1975');
+  });
+});
+
+describe('album year typing helpers', () => {
+  const min = 1975;
+  const max = 2020;
+
+  it('sanitizeAlbumYearTypingInput keeps digits only', () => {
+    expect(sanitizeAlbumYearTypingInput('19a9b0')).toBe('1990');
+    expect(sanitizeAlbumYearTypingInput('19999')).toBe('1999');
+  });
+
+  it('commitAlbumYearDraftField keeps partial drafts on blur', () => {
+    expect(commitAlbumYearDraftField('199', '1980', min, max)).toBe('1980');
+    expect(commitAlbumYearDraftField('1', '', min, max)).toBe('');
+  });
+
+  it('commitAlbumYearDraftField clamps complete years', () => {
+    expect(commitAlbumYearDraftField('1990', '', min, max)).toBe('1990');
+    expect(commitAlbumYearDraftField('1960', '', min, max)).toBe('1975');
+    expect(commitAlbumYearDraftField('2030', '2010', min, max)).toBe('2020');
+  });
+
+  it('commitAlbumYearDraftField clears empty draft', () => {
+    expect(commitAlbumYearDraftField('', '1990', min, max)).toBe('');
   });
 });
