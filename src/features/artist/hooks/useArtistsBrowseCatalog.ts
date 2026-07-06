@@ -238,21 +238,12 @@ export function useArtistsBrowseCatalog({
           emitArtistsBrowseDebug('load_branch', { mode: 'offline' });
           if (!cancelled && generation === loadGenerationRef.current) {
             if (serverId && starredOnly && offlineLocalBrowseEnabled(serverId)) {
-              try {
-                setCatalogArtists(
-                  await artistBrowseTimed(
-                    'offline_starred',
-                    () => fetchStarredArtistsForBrowse(creditMode, serverId, true),
-                  ),
-                );
-              } catch {
-                setCatalogArtists(
-                  (await artistBrowseTimed(
-                    'offline_starred_fallback',
-                    () => fetchOfflineLocalStarredArtists(serverId),
-                  )) ?? [],
-                );
-              }
+              setCatalogArtists(
+                (await artistBrowseTimed(
+                  'offline_starred',
+                  () => fetchOfflineLocalStarredArtists(serverId),
+                )) ?? [],
+              );
             } else if (serverId && !starredOnly && offlineLocalBrowseEnabled(serverId)) {
               const first = await artistBrowseTimed(
                 'offline_catalog_initial',

@@ -21,6 +21,7 @@ import type { AlbumBrowseQuery } from '@/lib/library/albumBrowseTypes';
 import { sortSubsonicAlbums } from '@/lib/library/albumBrowseSort';
 import { isLosslessSuffix } from '@/lib/library/losslessFormats';
 import { entryBelongsToServer } from '@/store/localPlaybackResolve';
+import { artistLetterBucket } from '@/features/artist/utils/artistsHelpers';
 
 function sortBrowsableSongs(songs: SubsonicSong[]): SubsonicSong[] {
   return [...songs].sort((a, b) => a.title.localeCompare(b.title));
@@ -181,51 +182,27 @@ export async function fetchOfflineLocalStarredArtists(serverId: string): Promise
   return aggregateArtistsFromTracks(tracks, serverId);
 }
 
-async function fetchOfflineLocalArtistCatalogFromIndex(
-  serverId: string,
-  offset: number,
-  chunkSize: number,
-  creditMode: ArtistCreditMode,
+function filterArtistsByLetterBucket(
+  artists: SubsonicArtist[],
   letterBucket?: string | null,
-): Promise<{ artists: SubsonicArtist[]; hasMore: boolean } | null> {
-  const bucket = letterBucket && letterBucket !== 'ALL' ? letterBucket : undefined;
-  try {
-    const resp = await libraryAdvancedSearch({
-      serverId,
-      entityTypes: ['artist'],
-      artistCreditMode: creditMode,
-      ...(bucket ? { artistLetterBucket: bucket } : {}),
-      sort: [{ field: 'name', dir: 'asc' }],
-      limit: chunkSize,
-      offset,
-      skipTotals: true,
-    });
-    if (resp.source !== 'local') return null;
-    const artists = resp.artists.map(artistToArtist).map(a => ({ ...a, serverId }));
-    return { artists, hasMore: artists.length === chunkSize };
-  } catch {
-    return null;
-  }
+): SubsonicArtist[] {
+  if (!letterBucket || letterBucket === 'ALL') return artists;
+  return artists.filter(a => artistLetterBucket(a) === letterBucket);
 }
 
 export async function fetchOfflineLocalArtistCatalogChunk(
   serverId: string,
   offset: number,
   chunkSize: number,
-  creditMode: ArtistCreditMode = 'album',
+  _creditMode: ArtistCreditMode = 'album',
   letterBucket?: string | null,
 ): Promise<{ artists: SubsonicArtist[]; hasMore: boolean } | null> {
   if (!offlineLocalBrowseEnabled(serverId)) return null;
-  const fromIndex = await fetchOfflineLocalArtistCatalogFromIndex(
-    serverId,
-    offset,
-    chunkSize,
-    creditMode,
+  const tracks = await fetchBrowsableLocalTrackDtos(serverId);
+  const artists = filterArtistsByLetterBucket(
+    aggregateArtistsFromTracks(tracks, serverId),
     letterBucket,
   );
-  if (fromIndex) return fromIndex;
-  const tracks = await fetchBrowsableLocalTrackDtos(serverId);
-  const artists = aggregateArtistsFromTracks(tracks, serverId);
   const slice = artists.slice(offset, offset + chunkSize);
   return {
     artists: slice,
@@ -236,30 +213,11 @@ export async function fetchOfflineLocalArtistCatalogChunk(
 export async function searchOfflineLocalArtists(
   serverId: string,
   query: string,
-  creditMode: ArtistCreditMode = 'album',
+  _creditMode: ArtistCreditMode = 'album',
 ): Promise<SubsonicArtist[] | null> {
   if (!offlineLocalBrowseEnabled(serverId)) return null;
   const q = query.trim().toLowerCase();
   if (!q) return [];
-  try {
-    const resp = await libraryAdvancedSearch({
-      serverId,
-      entityTypes: ['artist'],
-      artistCreditMode: creditMode,
-      query: q,
-      limit: 500,
-      offset: 0,
-      skipTotals: true,
-    });
-    if (resp.source === 'local') {
-      return resp.artists
-        .map(artistToArtist)
-        .map(a => ({ ...a, serverId }))
-        .filter(a => a.name.toLowerCase().includes(q));
-    }
-  } catch {
-    /* fall through */
-  }
   const tracks = await fetchBrowsableLocalTrackDtos(serverId);
   return aggregateArtistsFromTracks(tracks, serverId)
     .filter(a => a.name.toLowerCase().includes(q));

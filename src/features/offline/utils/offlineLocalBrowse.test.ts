@@ -5,18 +5,30 @@ import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
 import {
   countLocalBrowsableTracks,
+  fetchOfflineLocalArtistCatalogChunk,
   fetchOfflineLocalBrowsableSongPage,
   offlineLocalBrowseEnabled,
+  searchOfflineLocalArtists,
 } from '@/features/offline/utils/offlineLocalBrowse';
 
-const { libraryGetTracksBatchChunkedMock } = vi.hoisted(() => ({
+const { libraryGetTracksBatchChunkedMock, libraryAdvancedSearchMock } = vi.hoisted(() => ({
   libraryGetTracksBatchChunkedMock: vi.fn(async (): Promise<LibraryTrackDto[]> => []),
+  libraryAdvancedSearchMock: vi.fn(async () => ({
+    source: 'local' as const,
+    albums: [],
+    artists: [
+      { id: 'ghost', name: 'Ghost Artist', serverId: 'srv-a', syncedAt: 0, rawJson: {} },
+    ],
+    tracks: [],
+    totals: { tracks: 0, albums: 0, artists: 1 },
+    appliedFilters: [],
+  })),
 }));
 
 vi.mock('@/lib/api/library', () => ({
   libraryGetTracksBatchChunked: libraryGetTracksBatchChunkedMock,
   libraryGetTracksByAlbum: vi.fn(async () => []),
-  libraryAdvancedSearch: vi.fn(async () => ({ albums: [], artists: [], tracks: [] })),
+  libraryAdvancedSearch: libraryAdvancedSearchMock,
 }));
 
 describe('offlineLocalBrowse', () => {
@@ -29,6 +41,7 @@ describe('offlineLocalBrowse', () => {
     useLocalPlaybackStore.setState({ entries: {} });
     libraryGetTracksBatchChunkedMock.mockReset();
     libraryGetTracksBatchChunkedMock.mockResolvedValue([]);
+    libraryAdvancedSearchMock.mockClear();
   });
 
   it('offlineLocalBrowseEnabled requires index and local bytes', () => {
@@ -109,6 +122,79 @@ describe('offlineLocalBrowse', () => {
     const page = await fetchOfflineLocalBrowsableSongPage('srv-a', 0, 1);
     expect(page?.songs.map(s => s.id)).toEqual(['t1']);
     expect(page?.hasMore).toBe(true);
+  });
+
+  it('fetchOfflineLocalArtistCatalogChunk lists only artists with local bytes', async () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/media/cache/a.test/t1.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+      },
+    });
+    libraryGetTracksBatchChunkedMock.mockResolvedValue([
+      {
+        id: 't1',
+        title: 'Song',
+        artist: 'Local Only',
+        artistId: 'art-local',
+        album: 'Al',
+        albumId: 'al-1',
+        durationSec: 1,
+        serverId: 'srv-a',
+        syncedAt: 1,
+        rawJson: {},
+      },
+    ]);
+
+    const page = await fetchOfflineLocalArtistCatalogChunk('srv-a', 0, 50);
+    expect(page?.artists).toEqual([
+      { id: 'art-local', name: 'Local Only', albumCount: 1, serverId: 'srv-a' },
+    ]);
+    expect(libraryAdvancedSearchMock).not.toHaveBeenCalled();
+  });
+
+  it('searchOfflineLocalArtists ignores the full library index', async () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/media/cache/a.test/t1.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+      },
+    });
+    libraryGetTracksBatchChunkedMock.mockResolvedValue([
+      {
+        id: 't1',
+        title: 'Song',
+        artist: 'Cached Band',
+        artistId: 'art-cached',
+        album: 'Al',
+        albumId: 'al-1',
+        durationSec: 1,
+        serverId: 'srv-a',
+        syncedAt: 1,
+        rawJson: {},
+      },
+    ]);
+
+    await expect(searchOfflineLocalArtists('srv-a', 'cached')).resolves.toEqual([
+      { id: 'art-cached', name: 'Cached Band', albumCount: 1, serverId: 'srv-a' },
+    ]);
+    expect(libraryAdvancedSearchMock).not.toHaveBeenCalled();
   });
 
 });
