@@ -1,12 +1,12 @@
 import type { ArtistCreditMode, LibraryTrackDto } from '@/lib/api/library';
 import { libraryAdvancedSearch, libraryGetTracksBatchChunked, libraryGetTracksByAlbum } from '@/lib/api/library';
-import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '@/lib/api/subsonicTypes';
+import type { SubsonicAlbum, SubsonicArtist, SubsonicGenre, SubsonicSong } from '@/lib/api/subsonicTypes';
+import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import type { LocalPlaybackEntry } from '@/store/localPlaybackStore';
 import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
 import {
   albumToAlbum,
-  artistToArtist,
   resolveTrackCoverArtId,
   trackToSong,
 } from '@/lib/library/advancedSearchLocal';
@@ -20,9 +20,9 @@ import {
 } from '@/lib/library/albumBrowseFilters';
 import type { AlbumBrowseQuery, GenreFilterOption } from '@/lib/library/albumBrowseTypes';
 import { sortSubsonicAlbums } from '@/lib/library/albumBrowseSort';
+import { artistLetterBucket } from '@/lib/library/artistLetterBucket';
 import { isLosslessSuffix } from '@/lib/library/losslessFormats';
 import { entryBelongsToServer } from '@/store/localPlaybackResolve';
-import { artistLetterBucket } from '@/features/artist/utils/artistsHelpers';
 
 function sortBrowsableSongs(songs: SubsonicSong[]): SubsonicSong[] {
   return [...songs].sort((a, b) => a.title.localeCompare(b.title));
@@ -121,6 +121,53 @@ function aggregateArtistsFromTracks(
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** Album credit groups by album artist; track credit groups by track performer id. */
+function aggregateArtistsFromTracksForCreditMode(
+  tracks: LibraryTrackDto[],
+  serverId: string,
+  creditMode: ArtistCreditMode,
+): SubsonicArtist[] {
+  if (creditMode === 'track') {
+    return aggregateArtistsFromTracks(tracks, serverId);
+  }
+  const albums = aggregateAlbumsFromTracks(tracks, serverId);
+  const albumIdsByArtist = new Map<string, Set<string>>();
+  const names = new Map<string, string>();
+  for (const album of albums) {
+    const artistId = album.artistId;
+    if (!artistId) continue;
+    names.set(artistId, album.artist);
+    const set = albumIdsByArtist.get(artistId) ?? new Set<string>();
+    set.add(album.id);
+    albumIdsByArtist.set(artistId, set);
+  }
+  return [...names.entries()]
+    .map(([id, name]) => ({
+      id,
+      name,
+      albumCount: albumIdsByArtist.get(id)?.size ?? 0,
+      serverId,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function localTracksForArtist(
+  tracks: LibraryTrackDto[],
+  artistId: string,
+  serverId: string,
+  creditMode: ArtistCreditMode,
+): LibraryTrackDto[] {
+  if (creditMode === 'track') {
+    return tracks.filter(t => t.artistId === artistId);
+  }
+  const albumIds = new Set(
+    aggregateAlbumsFromTracks(tracks, serverId)
+      .filter(a => a.artistId === artistId)
+      .map(a => a.id),
+  );
+  return tracks.filter(t => t.albumId && albumIds.has(t.albumId));
+}
+
 function applyAlbumBrowseQuery(
   albums: SubsonicAlbum[],
   query: AlbumBrowseQuery,
@@ -177,32 +224,38 @@ export async function searchOfflineLocalBrowsableSongs(
   return sortBrowsableSongs(matched).slice(offset, offset + chunkSize);
 }
 
-export async function fetchOfflineLocalStarredArtists(serverId: string): Promise<SubsonicArtist[] | null> {
+export async function fetchOfflineLocalStarredArtists(
+  serverId: string,
+  creditMode: ArtistCreditMode = 'album',
+): Promise<SubsonicArtist[] | null> {
   if (!offlineLocalBrowseEnabled(serverId)) return null;
   const tracks = (await fetchBrowsableLocalTrackDtos(serverId)).filter(t => t.starredAt != null);
-  return aggregateArtistsFromTracks(tracks, serverId);
+  return aggregateArtistsFromTracksForCreditMode(tracks, serverId, creditMode);
 }
 
 function filterArtistsByLetterBucket(
   artists: SubsonicArtist[],
   letterBucket?: string | null,
+  ignoredArticles?: string | null,
 ): SubsonicArtist[] {
   if (!letterBucket || letterBucket === 'ALL') return artists;
-  return artists.filter(a => artistLetterBucket(a) === letterBucket);
+  return artists.filter(a => artistLetterBucket(a, ignoredArticles) === letterBucket);
 }
 
 export async function fetchOfflineLocalArtistCatalogChunk(
   serverId: string,
   offset: number,
   chunkSize: number,
-  _creditMode: ArtistCreditMode = 'album',
+  creditMode: ArtistCreditMode = 'album',
   letterBucket?: string | null,
+  ignoredArticles?: string | null,
 ): Promise<{ artists: SubsonicArtist[]; hasMore: boolean } | null> {
   if (!offlineLocalBrowseEnabled(serverId)) return null;
   const tracks = await fetchBrowsableLocalTrackDtos(serverId);
   const artists = filterArtistsByLetterBucket(
-    aggregateArtistsFromTracks(tracks, serverId),
+    aggregateArtistsFromTracksForCreditMode(tracks, serverId, creditMode),
     letterBucket,
+    ignoredArticles,
   );
   const slice = artists.slice(offset, offset + chunkSize);
   return {
@@ -214,13 +267,13 @@ export async function fetchOfflineLocalArtistCatalogChunk(
 export async function searchOfflineLocalArtists(
   serverId: string,
   query: string,
-  _creditMode: ArtistCreditMode = 'album',
+  creditMode: ArtistCreditMode = 'album',
 ): Promise<SubsonicArtist[] | null> {
   if (!offlineLocalBrowseEnabled(serverId)) return null;
   const q = query.trim().toLowerCase();
   if (!q) return [];
   const tracks = await fetchBrowsableLocalTrackDtos(serverId);
-  return aggregateArtistsFromTracks(tracks, serverId)
+  return aggregateArtistsFromTracksForCreditMode(tracks, serverId, creditMode)
     .filter(a => a.name.toLowerCase().includes(q));
 }
 
@@ -259,6 +312,23 @@ export async function fetchOfflineLocalAlbumGenreOptions(
   let albums = aggregateAlbumsFromTracks(tracks, serverId);
   albums = applyAlbumBrowseQuery(albums, { ...query, genres: [] }, starredOverrides);
   return countGenresFromAlbums(filterAlbumsByCompilation(albums, query.compFilter));
+}
+
+/** Genres cloud from on-disk albums only (offline browse). */
+export async function fetchOfflineLocalGenreCatalog(serverId: string): Promise<SubsonicGenre[]> {
+  if (!offlineLocalBrowseEnabled(serverId)) return [];
+  const options = await fetchOfflineLocalAlbumGenreOptions(serverId, {
+    sort: 'alphabeticalByName',
+    genres: [],
+    losslessOnly: false,
+    starredOnly: false,
+    compFilter: 'all',
+  });
+  return options.map(o => ({
+    value: o.genre,
+    albumCount: o.count,
+    songCount: 0,
+  }));
 }
 
 export async function searchOfflineLocalAlbums(
@@ -311,29 +381,25 @@ export async function loadAlbumFromLocalPlayback(
 export async function loadArtistFromLocalPlayback(
   serverId: string,
   artistId: string,
+  creditMode: ArtistCreditMode = useAuthStore.getState().artistBrowseCreditMode,
 ): Promise<{ artist: SubsonicArtist; albums: SubsonicAlbum[] } | null> {
   if (!offlineLocalBrowseEnabled(serverId)) return null;
   const localIds = new Set(listBrowsableEntries(serverId).map(e => e.trackId));
-  const tracks = (await fetchBrowsableLocalTrackDtos(serverId)).filter(
-    t => t.artistId === artistId && localIds.has(t.id),
-  );
+  const allTracks = (await fetchBrowsableLocalTrackDtos(serverId)).filter(t => localIds.has(t.id));
+  const tracks = localTracksForArtist(allTracks, artistId, serverId, creditMode);
   if (tracks.length === 0) return null;
 
   const albums = aggregateAlbumsFromTracks(tracks, serverId)
     .sort((a, b) => a.name.localeCompare(b.name));
-  const artistDto = tracks[0];
-  const artistSearch = await libraryAdvancedSearch({
-    serverId,
-    entityTypes: ['artist'],
-    limit: 10_000,
-  }).catch(() => null);
-  const match = artistSearch?.artists.find(a => a.id === artistId);
+  const catalogMatch = aggregateArtistsFromTracksForCreditMode(allTracks, serverId, creditMode)
+    .find(a => a.id === artistId);
+  const fallback = tracks[0];
 
-  const artist = match
-    ? { ...artistToArtist(match), serverId, albumCount: albums.length }
+  const artist: SubsonicArtist = catalogMatch
+    ? { ...catalogMatch, albumCount: albums.length }
     : {
       id: artistId,
-      name: artistDto.artist ?? artistDto.albumArtist ?? artistId,
+      name: fallback.artist ?? fallback.albumArtist ?? artistId,
       albumCount: albums.length,
       serverId,
     };

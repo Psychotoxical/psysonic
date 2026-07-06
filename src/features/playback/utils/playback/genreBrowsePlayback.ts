@@ -27,6 +27,11 @@ import {
 } from '@/lib/library/genreCatalogCountsCache';
 import { fetchGenreAlbumTotal } from '@/lib/library/genreAlbumBrowse';
 import { libraryIsReady } from '@/lib/library/libraryReady';
+import {
+  fetchOfflineLocalGenreCatalog,
+  isOfflineBrowseActive,
+  offlineLocalBrowseEnabled,
+} from '@/features/offline';
 
 /** Drop genres with no indexed albums/tracks (stale server list or orphan rows). */
 export function filterGenresWithContent(genres: SubsonicGenre[]): SubsonicGenre[] {
@@ -186,6 +191,14 @@ export async function fetchGenreCatalog(
   }
 
   const load = async (): Promise<SubsonicGenre[]> => {
+    if (
+      isOfflineBrowseActive()
+      && offlineLocalBrowseEnabled(serverId)
+    ) {
+      const genres = filterGenresWithContent(await fetchOfflineLocalGenreCatalog(serverId));
+      writeGenreCatalogCache(serverId, scopeKey, genres);
+      return genres;
+    }
     if (indexEnabled && (await libraryIsReady(serverId))) {
       try {
         return await fetchLocalGenreCatalog(serverId, scopeKey);

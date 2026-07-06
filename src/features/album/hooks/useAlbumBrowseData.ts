@@ -37,7 +37,7 @@ import { useOfflineBrowseReloadToken } from '@/features/offline';
 import {
   fetchOfflineLocalAlbumGenreOptions,
   offlineLocalBrowseEnabled,
-} from '@/features/offline/utils/offlineLocalBrowse';
+} from '@/features/offline';
 import {
   fetchAlbumBrowseCatalogChunk,
   mergeAlbumCatalogChunk,

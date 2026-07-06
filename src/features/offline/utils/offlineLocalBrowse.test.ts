@@ -7,7 +7,9 @@ import {
   countLocalBrowsableTracks,
   fetchOfflineLocalArtistCatalogChunk,
   fetchOfflineLocalAlbumGenreOptions,
+  fetchOfflineLocalGenreCatalog,
   fetchOfflineLocalBrowsableSongPage,
+  loadArtistFromLocalPlayback,
   offlineLocalBrowseEnabled,
   searchOfflineLocalArtists,
 } from '@/features/offline/utils/offlineLocalBrowse';
@@ -245,6 +247,107 @@ describe('offlineLocalBrowse', () => {
       { genre: 'Rock', count: 1 },
     ]);
     expect(libraryAdvancedSearchMock).not.toHaveBeenCalled();
+  });
+
+  it('fetchOfflineLocalArtistCatalogChunk honours album vs track credit mode', async () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/media/cache/a.test/t1.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+        'a.test:t2': {
+          serverIndexKey: 'a.test',
+          trackId: 't2',
+          localPath: '/media/cache/a.test/t2.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+      },
+    });
+    libraryGetTracksBatchChunkedMock.mockResolvedValue([
+      {
+        id: 't1', title: 'Feat', artist: 'Guest', artistId: 'art-guest',
+        albumArtist: 'Headliner', album: 'Al1', albumId: 'al-1',
+        durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+      {
+        id: 't2', title: 'Title', artist: 'Headliner', artistId: 'art-head',
+        albumArtist: 'Headliner', album: 'Al1', albumId: 'al-1',
+        durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+    ]);
+
+    const trackMode = await fetchOfflineLocalArtistCatalogChunk('srv-a', 0, 50, 'track');
+    expect(trackMode?.artists.map(a => a.id).sort()).toEqual(['art-guest', 'art-head']);
+
+    const albumMode = await fetchOfflineLocalArtistCatalogChunk('srv-a', 0, 50, 'album');
+    expect(albumMode?.artists).toHaveLength(1);
+    expect(albumMode?.artists[0]?.albumCount).toBe(1);
+  });
+
+  it('loadArtistFromLocalPlayback uses local track rows only', async () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/media/cache/a.test/t1.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+      },
+    });
+    libraryGetTracksBatchChunkedMock.mockResolvedValue([
+      {
+        id: 't1', title: 'Song', artist: 'Local Only', artistId: 'art-local',
+        album: 'Al', albumId: 'al-1', durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+    ]);
+
+    const detail = await loadArtistFromLocalPlayback('srv-a', 'art-local', 'track');
+    expect(detail?.artist.name).toBe('Local Only');
+    expect(detail?.albums).toHaveLength(1);
+    expect(libraryAdvancedSearchMock).not.toHaveBeenCalled();
+  });
+
+  it('fetchOfflineLocalGenreCatalog maps local album genres to SubsonicGenre', async () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t1': {
+          serverIndexKey: 'a.test',
+          trackId: 't1',
+          localPath: '/media/cache/a.test/t1.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+      },
+    });
+    libraryGetTracksBatchChunkedMock.mockResolvedValue([
+      {
+        id: 't1', title: 'One', artist: 'A', artistId: 'art-a', album: 'Al', albumId: 'al-1',
+        genre: 'Rock', durationSec: 1, serverId: 'srv-a', syncedAt: 1, rawJson: {},
+      },
+    ]);
+
+    await expect(fetchOfflineLocalGenreCatalog('srv-a')).resolves.toEqual([
+      { value: 'Rock', albumCount: 1, songCount: 0 },
+    ]);
   });
 
 });

@@ -46,6 +46,8 @@ export type UseArtistsBrowseCatalogArgs = {
   letterFilter: string;
   musicLibraryFilterVersion: number;
   libraryScopeKey: string;
+  /** Server `ignoredArticles` for offline letter buckets (Navidrome parity). */
+  ignoredArticles?: string | null;
 };
 
 export function useArtistsBrowseCatalog({
@@ -56,6 +58,7 @@ export function useArtistsBrowseCatalog({
   letterFilter,
   musicLibraryFilterVersion,
   libraryScopeKey,
+  ignoredArticles,
 }: UseArtistsBrowseCatalogArgs) {
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const offlineBrowseReloadTs = useOfflineBrowseReloadToken();
@@ -117,6 +120,7 @@ export function useArtistsBrowseCatalog({
             ARTIST_CATALOG_CHUNK_SIZE,
             creditMode,
             letterFilter,
+            ignoredArticles,
           ),
           { append, offset: catalogOffsetRef.current },
         );
@@ -184,7 +188,7 @@ export function useArtistsBrowseCatalog({
         setCatalogLoadingMore(false);
       }
     }
-  }, [creditMode, letterFilter, offlineBrowseActive, serverId]);
+  }, [creditMode, ignoredArticles, letterFilter, offlineBrowseActive, serverId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -241,7 +245,7 @@ export function useArtistsBrowseCatalog({
               setCatalogArtists(
                 (await artistBrowseTimed(
                   'offline_starred',
-                  () => fetchOfflineLocalStarredArtists(serverId),
+                  () => fetchOfflineLocalStarredArtists(serverId, creditMode),
                 )) ?? [],
               );
             } else if (serverId && !starredOnly && offlineLocalBrowseEnabled(serverId)) {
@@ -253,6 +257,7 @@ export function useArtistsBrowseCatalog({
                   ARTIST_CATALOG_CHUNK_SIZE,
                   creditMode,
                   letterFilter,
+                  ignoredArticles,
                 ),
               );
               setCatalogArtists(first?.artists ?? []);
@@ -438,7 +443,7 @@ export function useArtistsBrowseCatalog({
     return () => {
       cancelled = true;
     };
-  }, [catalogLoadKey, creditMode, letterFilter, musicLibraryFilterVersion, indexEnabled, offlineBrowseActive, offlineBrowseReloadTs, serverId, starredOnly]);
+  }, [catalogLoadKey, creditMode, ignoredArticles, letterFilter, musicLibraryFilterVersion, indexEnabled, offlineBrowseActive, offlineBrowseReloadTs, serverId, starredOnly]);
 
   return {
     catalogArtists,
