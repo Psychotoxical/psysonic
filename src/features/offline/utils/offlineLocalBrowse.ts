@@ -28,7 +28,7 @@ function sortBrowsableSongs(songs: SubsonicSong[]): SubsonicSong[] {
 
 function listBrowsableEntries(serverId: string): LocalPlaybackEntry[] {
   return Object.values(useLocalPlaybackStore.getState().entries).filter(
-    e => (e.tier === 'library' || e.tier === 'favorite-auto')
+    e => (e.tier === 'library' || e.tier === 'favorite-auto' || e.tier === 'ephemeral')
       && !!e.localPath
       && entryBelongsToServer(e, serverId),
   );
@@ -38,7 +38,7 @@ export function countLocalBrowsableTracks(serverId: string): number {
   return listBrowsableEntries(serverId).length;
 }
 
-/** Local library index + at least one on-disk library/favorites track for this server. */
+/** Local library index + at least one on-disk library, favorites-auto, or hot-cache track. */
 export function offlineLocalBrowseEnabled(serverId: string | null | undefined): boolean {
   if (!serverId) return false;
   if (!useLibraryIndexStore.getState().isIndexEnabled(serverId)) return false;

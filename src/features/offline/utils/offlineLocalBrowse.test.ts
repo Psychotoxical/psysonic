@@ -51,6 +51,25 @@ describe('offlineLocalBrowse', () => {
     expect(offlineLocalBrowseEnabled('srv-a')).toBe(true);
   });
 
+  it('offlineLocalBrowseEnabled treats hot-cache ephemeral bytes like library pins', () => {
+    useLocalPlaybackStore.setState({
+      entries: {
+        'a.test:t9': {
+          serverIndexKey: 'a.test',
+          trackId: 't9',
+          localPath: '/media/cache/a.test/t9.flac',
+          layoutFingerprint: 'fp',
+          sizeBytes: 1,
+          tier: 'ephemeral',
+          cachedAt: 1,
+          suffix: 'flac',
+        },
+      },
+    });
+    expect(countLocalBrowsableTracks('srv-a')).toBe(1);
+    expect(offlineLocalBrowseEnabled('srv-a')).toBe(true);
+  });
+
   it('fetchOfflineLocalBrowsableSongPage pages local bytes alphabetically', async () => {
     useLocalPlaybackStore.setState({
       entries: {
