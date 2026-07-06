@@ -51,24 +51,18 @@
 }
 
 /* ── Bottom bar ────────────────────────────────────────────────────────────── */
-/* One continuous glass bar spanning the width — transport (left), now-playing
-   (centre), utilities (right) all live inside it, so it reads as a single bar. */
+/* Centred control row (a middle band, not edge-to-edge). Only the now-playing
+   element is boxed; transport (left) and utilities (right) float bare. */
 .fsp2-bar {
   position: absolute;
-  left: 22px;
-  right: 22px;
-  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 22px;
+  width: min(1180px, calc(100% - 44px));
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 8px 16px;
-  border-radius: 18px;
-  background: rgba(10, 12, 18, 0.46);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(22px) saturate(1.05);
-  -webkit-backdrop-filter: blur(22px) saturate(1.05);
 }
 /* Controls stay visible; only the cursor hides while idle. */
 .fsp2-player[data-idle='true'] { cursor: none; }
@@ -80,6 +74,10 @@
   gap: 6px;
 }
 .fsp2-bar-left { gap: 4px; }
+/* Bare transport/utility icons sit directly on the image → drop shadow for legibility. */
+.fsp2-bar-left .fsp2-btn,
+.fsp2-bar-right .fsp2-btn,
+.fsp2-time { filter: drop-shadow(0 1px 5px rgba(0, 0, 0, 0.7)); }
 
 .fsp2-btn {
   display: inline-flex;
@@ -111,12 +109,20 @@
 }
 
 /* ── Now-playing pill ──────────────────────────────────────────────────────── */
-/* Centre now-playing block — part of the one bar, no separate box. */
+/* Centre now-playing pill — the one boxed element (cider-style); transport and
+   utilities flank it bare. */
 .fsp2-pill {
   position: relative;
   flex: 0 1 460px;
-  min-width: 200px;
-  padding: 2px 0 8px;
+  min-width: 220px;
+  padding: 8px 18px 12px;
+  border-radius: 14px;
+  background: rgba(8, 10, 16, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  overflow: hidden;
 }
 .fsp2-pill-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .fsp2-pill-title {
