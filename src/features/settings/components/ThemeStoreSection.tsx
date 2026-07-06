@@ -417,7 +417,8 @@ export function ThemeStoreSection() {
                           id={`theme-changelog-${th.id}`}
                           style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}
                         >
-                          {changelogEntries.map(([version, lines]) => (
+                          {/* Card shows only the latest version's notes; sortedChangelog is newest-first. */}
+                          {changelogEntries.slice(0, 1).map(([version, lines]) => (
                             <div key={version}>
                               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
                                 v{version}

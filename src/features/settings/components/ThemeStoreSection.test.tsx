@@ -224,7 +224,7 @@ describe('ThemeStoreSection — pagination & refresh', () => {
     expect(screen.getByRole('button', { name: '3', current: 'page' })).toBeInTheDocument();
   });
 
-  it('shows an expandable changelog only for themes that ship one, newest version first', async () => {
+  it('shows an expandable changelog with only the latest version for themes that ship one', async () => {
     const themes = [
       mkTheme('with', 'With Log', {
         changelog: { '1.0.0': ['First release'], '1.2.0': ['Newer note', 'Another newer note'] },
@@ -246,16 +246,15 @@ describe('ThemeStoreSection — pagination & refresh', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByText('Newer note')).not.toBeInTheDocument();
 
-    // Expanding lists every version, newest first (1.2.0 before 1.0.0).
+    // Expanding shows only the latest version (1.2.0); older entries are hidden.
     await user.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
     const panel = container.querySelector('#theme-changelog-with') as HTMLElement;
     expect(panel).not.toBeNull();
+    expect(panel.textContent).toContain('v1.2.0');
     expect(panel.textContent).toContain('Newer note');
-    const i120 = panel.textContent!.indexOf('v1.2.0');
-    const i100 = panel.textContent!.indexOf('v1.0.0');
-    expect(i120).toBeGreaterThanOrEqual(0);
-    expect(i100).toBeGreaterThan(i120);
+    expect(panel.textContent).not.toContain('v1.0.0');
+    expect(panel.textContent).not.toContain('First release');
   });
 
   it('floats installed themes with a pending update to the top of the list', async () => {
