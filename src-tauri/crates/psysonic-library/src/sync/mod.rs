@@ -6,6 +6,7 @@
 //! `DeltaSyncRunner` / background scheduler / Tauri surface follow in
 //! PR-3c / PR-3d / PR-5.
 
+pub mod album_metadata;
 pub mod artist_index;
 pub mod backoff;
 pub mod bandwidth;

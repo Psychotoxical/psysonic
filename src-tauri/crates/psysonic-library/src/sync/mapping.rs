@@ -171,7 +171,7 @@ fn parse_iso_ms(s: Option<&str>) -> Option<i64> {
 /// OpenSubsonic shape (`2024-06-01T12:00:00Z` or
 /// `2024-06-01T12:00:00.123+02:00`). Falls back to `None` on parse
 /// failure — sync code never panics on a bad timestamp.
-fn parse_iso_ms_str(s: &str) -> Option<i64> {
+pub(crate) fn parse_iso_ms_str(s: &str) -> Option<i64> {
     // Strip fractional + timezone before doing the manual parse —
     // SQLite stores starred_at / played_at as integer ms, so we only
     // need second precision rounded up from the offset.

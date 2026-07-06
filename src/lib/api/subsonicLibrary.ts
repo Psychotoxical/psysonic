@@ -5,6 +5,7 @@ import {
 } from '@/lib/network/subsonicNetworkGuard';
 import { api, apiForServer, libraryFilterParams, libraryFilterParamsForServer, librarySelectionForServer } from '@/lib/api/subsonicClient';
 import { getLuckyMixLibraryScopeOverride } from '@/lib/library/luckyMixScopeOverride';
+import { mirrorAlbumMetadataFromServerOnUse } from '@/lib/library/patchOnUse';
 import type {
   RandomSongsFilters,
   SubsonicAlbum,
@@ -271,7 +272,13 @@ export async function getAlbum(id: string): Promise<{ album: SubsonicAlbum; song
     ...libraryFilterParams(),
   });
   const { song, ...album } = data.album;
-  return { album, songs: song ?? [] };
+  const result = { album, songs: song ?? [] };
+  mirrorAlbumMetadataFromServerOnUse(
+    useAuthStore.getState().activeServerId,
+    id,
+    result.album,
+  );
+  return result;
 }
 
 export async function getAlbumForServer(
@@ -287,5 +294,7 @@ export async function getAlbumForServer(
     { id, ...libraryFilterParamsForServer(serverId) },
   );
   const { song, ...album } = data.album;
-  return { album, songs: song ?? [] };
+  const result = { album, songs: song ?? [] };
+  mirrorAlbumMetadataFromServerOnUse(serverId, id, result.album);
+  return result;
 }

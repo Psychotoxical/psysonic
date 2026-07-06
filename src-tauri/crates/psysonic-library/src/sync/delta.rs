@@ -505,6 +505,13 @@ impl<'a> DeltaSyncRunner<'a> {
                     .await?;
 
                     let synced_at = now_unix_ms();
+                    super::album_metadata::upsert_album_from_get_album(
+                        &self.store,
+                        &self.server_id,
+                        &album,
+                        &raw_album,
+                        synced_at,
+                    )?;
                     let raw_songs = raw_album
                         .get("song")
                         .and_then(|s| s.as_array())

@@ -6,13 +6,14 @@ import { getArtistInfo } from '@/lib/api/subsonicArtists';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { songToTrack } from '@/lib/media/songToTrack';
 import { shuffleArray } from '@/lib/util/shuffleArray';
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { downloadZip } from '@/lib/api/downloadZip';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
 import { useOrbitSongRowBehavior } from '@/features/orbit';
 import { useAlbumDetailData } from '@/features/album/hooks/useAlbumDetailData';
+import { useAlbumServerMetadataReconcile } from '@/features/album/hooks/useAlbumServerMetadataReconcile';
 import { useAlbumOfflineState } from '@/features/album/hooks/useAlbumOfflineState';
 import { useAlbumDetailSort } from '@/features/album/hooks/useAlbumDetailSort';
 import { useDownloadModalStore } from '@/features/offline';
@@ -61,13 +62,15 @@ export default function AlbumDetail() {
   const enqueue = usePlayerStore(s => s.enqueue);
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
+  const setStarredOverride = usePlayerStore(s => s.setStarredOverride);
   const userRatingOverrides = usePlayerStore(s => s.userRatingOverrides);
+  const setUserRatingOverride = usePlayerStore(s => s.setUserRatingOverride);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const isPlaying = usePlayerStore(s => s.isPlaying);
 
   const {
     album, setAlbum, relatedAlbums, loading,
-    isStarred, setIsStarred, starredSongs, setStarredSongs,
+    starredSongs, setStarredSongs,
   } = useAlbumDetailData(id);
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [bio, setBio] = useState<string | null>(null);
@@ -80,8 +83,8 @@ export default function AlbumDetail() {
   const albumEntityRatingSupport = entityRatingSupportByServer[serverId] ?? 'unknown';
   const offlineCtx = useOfflineBrowseContext();
   const albumActionPolicy = offlineActionPolicy('albumDetail', offlineCtx.active);
+  const userMetadataMutationRef = useRef(false);
 
-  const [albumEntityRating, setAlbumEntityRating] = useState(0);
   const [filterText, setFilterText] = useState('');
   const [showPlPicker, setShowPlPicker] = useState(false);
   const selectedCount = useSelectionStore(s => s.selectedIds.size);
@@ -90,15 +93,26 @@ export default function AlbumDetail() {
   // Derive a stable albumId for the selectors below (empty string when not yet loaded).
   const albumId = album?.album.id ?? '';
 
-  useEffect(() => {
-    if (!id) return;
-    // React Compiler set-state-in-effect rule: local state synced with store/prop inputs when the effect’s dependencies change.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (album && album.album.id === id) setAlbumEntityRating(album.album.userRating ?? 0);
-    // Keyed on the album's id / userRating primitives; depending on the `album`
-    // object would re-run on every render when its identity changes but those do not.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, album?.album.id, album?.album.userRating]);
+  useAlbumServerMetadataReconcile({
+    serverId,
+    albumId,
+    album: album?.album,
+    setAlbum,
+    enabled: !offlineCtx.active,
+    userMutationInFlightRef: userMetadataMutationRef,
+  });
+
+  const isStarred = useMemo(() => {
+    if (!albumId) return false;
+    if (albumId in starredOverrides) return !!starredOverrides[albumId];
+    return !!album?.album.starred;
+  }, [albumId, album?.album.starred, starredOverrides]);
+
+  const albumEntityRating = useMemo(() => {
+    if (!albumId) return 0;
+    if (albumId in userRatingOverrides) return userRatingOverrides[albumId];
+    return album?.album.userRating ?? 0;
+  }, [albumId, album?.album.userRating, userRatingOverrides]);
 
   // React Compiler rule: manual memoization is intentional and must be preserved.
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
@@ -198,11 +212,17 @@ const handleShuffleAll = () => {
   const handleAlbumEntityRating = async (rating: number) => {
     if (!album || album.album.id !== id) return;
     const albumId = album.album.id;
-    const ratingAtStart = album.album.userRating ?? 0;
+    const ratingAtStart = albumId in userRatingOverrides
+      ? userRatingOverrides[albumId]
+      : (album.album.userRating ?? 0);
 
-    setAlbumEntityRating(rating);
+    userMetadataMutationRef.current = true;
+    setUserRatingOverride(albumId, rating);
 
-    if (albumEntityRatingSupport !== 'full') return;
+    if (albumEntityRatingSupport !== 'full') {
+      userMetadataMutationRef.current = false;
+      return;
+    }
 
     try {
       await setRating(albumId, rating);
@@ -212,13 +232,15 @@ const handleShuffleAll = () => {
           : cur,
       );
     } catch (err) {
-      setAlbumEntityRating(ratingAtStart);
+      setUserRatingOverride(albumId, ratingAtStart);
       setEntityRatingSupport(serverId, 'track_only');
       showToast(
         typeof err === 'string' ? err : err instanceof Error ? err.message : t('entityRating.saveFailed'),
         4500,
         'error',
       );
+    } finally {
+      userMetadataMutationRef.current = false;
     }
   };
 
@@ -256,7 +278,17 @@ const handleShuffleAll = () => {
   const toggleStar = async () => {
     if (!album) return;
     const wasStarred = isStarred;
-    setIsStarred(!wasStarred);
+    const previousStarred = album.album.starred;
+    const nextStarred = !wasStarred;
+    userMetadataMutationRef.current = true;
+    setStarredOverride(album.album.id, nextStarred);
+    setAlbum(prev => prev ? {
+      ...prev,
+      album: {
+        ...prev.album,
+        starred: nextStarred ? (prev.album.starred ?? new Date().toISOString()) : undefined,
+      },
+    } : prev);
     try {
       const meta = {
         serverId: serverId || album.album.serverId,
@@ -270,7 +302,16 @@ const handleShuffleAll = () => {
       else await star(album.album.id, 'album', meta);
     } catch (e) {
       console.error('Failed to toggle star', e);
-      setIsStarred(wasStarred);
+      setStarredOverride(album.album.id, wasStarred);
+      setAlbum(prev => prev ? {
+        ...prev,
+        album: {
+          ...prev.album,
+          starred: wasStarred ? previousStarred : undefined,
+        },
+      } : prev);
+    } finally {
+      userMetadataMutationRef.current = false;
     }
   };
 

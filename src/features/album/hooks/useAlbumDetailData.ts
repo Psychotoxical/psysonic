@@ -32,8 +32,6 @@ interface UseAlbumDetailDataResult {
   setAlbum: React.Dispatch<React.SetStateAction<AlbumPayload | null>>;
   relatedAlbums: SubsonicAlbum[];
   loading: boolean;
-  isStarred: boolean;
-  setIsStarred: (v: boolean) => void;
   starredSongs: Set<string>;
   setStarredSongs: React.Dispatch<React.SetStateAction<Set<string>>>;
 }
@@ -47,7 +45,6 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
   const [album, setAlbum] = useState<AlbumPayload | null>(null);
   const [relatedAlbums, setRelatedAlbums] = useState<SubsonicAlbum[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isStarred, setIsStarred] = useState(false);
   const [starredSongs, setStarredSongs] = useState<Set<string>>(new Set());
   const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
   const activeServerId = useAuthStore(s => s.activeServerId);
@@ -66,7 +63,6 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
 
     const applyAlbumPayload = (data: AlbumPayload) => {
       setAlbum(data);
-      setIsStarred(!!data.album.starred);
       const initialStarred = new Set<string>();
       data.songs.forEach(s => { if (s.starred) initialStarred.add(s.id); });
       setStarredSongs(initialStarred);
@@ -201,5 +197,5 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
     searchParams,
   ]);
 
-  return { album, setAlbum, relatedAlbums, loading, isStarred, setIsStarred, starredSongs, setStarredSongs };
+  return { album, setAlbum, relatedAlbums, loading, starredSongs, setStarredSongs };
 }

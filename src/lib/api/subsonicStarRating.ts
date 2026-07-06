@@ -1,7 +1,7 @@
 import { api, apiForServer, libraryFilterParams, libraryFilterParamsForServer } from '@/lib/api/subsonicClient';
 import { invalidateEntityUserRatingCaches } from '@/lib/api/subsonicRatings';
 import { useAuthStore } from '@/store/authStore';
-import { patchLibraryTrackOnUse, type StarPatchMeta } from '@/lib/library/patchOnUse';
+import { patchLibraryAlbumOnUse, patchLibraryTrackOnUse, type StarPatchMeta } from '@/lib/library/patchOnUse';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import {
   invalidateStarredAlbumBrowse,
@@ -81,6 +81,7 @@ export async function star(
   if (type === 'song') {
     patchLibraryTrackOnUse(serverId, id, { starredAt: Date.now() });
   } else if (type === 'album' && serverId) {
+    patchLibraryAlbumOnUse(serverId, id, { starredAt: Date.now() });
     invalidateStarredAlbumBrowse(serverId);
     const indexEnabled = useLibraryIndexStore.getState().isIndexEnabled(serverId);
     void refreshStarredAlbumIndexFromServer(serverId, indexEnabled).catch(() => {});
@@ -104,6 +105,7 @@ export async function unstar(
   if (type === 'song') {
     patchLibraryTrackOnUse(serverId, id, { starredAt: null });
   } else if (type === 'album' && serverId) {
+    patchLibraryAlbumOnUse(serverId, id, { starredAt: null });
     invalidateStarredAlbumBrowse(serverId);
     const indexEnabled = useLibraryIndexStore.getState().isIndexEnabled(serverId);
     void refreshStarredAlbumIndexFromServer(serverId, indexEnabled).catch(() => {});
@@ -115,8 +117,8 @@ export async function unstar(
 
 export async function setRating(id: string, rating: number): Promise<void> {
   await api('setRating.view', { id, rating });
-  // No-op in Rust when `id` is an album/artist (no track row matches).
-  patchLibraryTrackOnUse(useAuthStore.getState().activeServerId, id, { userRating: rating });
+  const serverId = useAuthStore.getState().activeServerId;
+  patchLibraryTrackOnUse(serverId, id, { userRating: rating });
   // Cached song lists keyed by rating (e.g. Tracks → Highly Rated rail) become
   // stale immediately. `invalidateEntityUserRatingCaches` is static-imported:
   // mix paths already pull `subsonicRatings` (e.g. mixRatingFilter), so a

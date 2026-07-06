@@ -8,6 +8,7 @@ use serde_json::Value;
 
 use crate::album_compilation_filter::pick_album_group_artist;
 use crate::artist_sort::{sort_key_for_display_name, DEFAULT_IGNORED_ARTICLES};
+use crate::browse_support::read_album_starred_at;
 use crate::dto::{
     LibraryAlbumDto, LibraryArtistDto, LibraryScopeAlbumDetailRequest,
     LibraryScopeAlbumDetailResponse, LibraryScopeArtistDetailRequest,
@@ -1583,7 +1584,9 @@ pub fn album_detail(
                 .position(|p| p.server_id == a.server_id)
                 .unwrap_or(usize::MAX) as i64
         });
-        let album = merge_album_by_priority(&albums);
+        let mut album = merge_album_by_priority(&albums);
+        album.starred_at =
+            read_album_starred_at(conn, server_id, &album.id).unwrap_or(None);
         let tracks = fetch_scope_deduped_tracks_for_album_key(
             conn,
             scopes,

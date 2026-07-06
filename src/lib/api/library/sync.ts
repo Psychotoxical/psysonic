@@ -94,6 +94,21 @@ export function libraryPatchTrack(args: {
   return invoke<void>('library_patch_track', { ...args, serverId: indexKey });
 }
 
+export function libraryPatchAlbum(args: {
+  serverId: string;
+  albumId: string;
+  patch: {
+    starredAt?: number | null;
+  };
+}): Promise<void> {
+  const indexKey = serverIndexKeyForId(args.serverId);
+  return invoke<void>('library_patch_album', {
+    serverId: indexKey,
+    albumId: args.albumId,
+    patch: args.patch,
+  });
+}
+
 /** Server favorites → `album.starred_at` (UPDATE only, no stub rows). */
 export async function libraryReconcileAlbumStars(args: {
   serverId: string;

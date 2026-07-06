@@ -66,6 +66,10 @@ vi.mock('@/lib/library/libraryReady', () => ({
   libraryIsReady: (serverId: string) => libraryIsReadyMock(serverId),
 }));
 
+vi.mock('@/lib/library/patchOnUse', () => ({
+  mirrorAlbumMetadataFromServerOnUse: vi.fn(),
+}));
+
 describe('offlineMediaResolve', () => {
   beforeEach(() => {
     isOfflineBrowseActiveMock.mockReturnValue(false);
@@ -121,8 +125,22 @@ describe('offlineMediaResolve', () => {
     expect(result?.album.name).toBe('Idx');
   });
 
-  it('resolveAlbum prefers the library index when ready, without hitting the network', async () => {
+  it('resolveAlbum returns the library index immediately when ready and network is allowed', async () => {
     libraryIsReadyMock.mockResolvedValue(true);
+    loadAlbumFromLibraryIndexMock.mockResolvedValue({
+      album: { id: 'alb-1', name: 'Idx', userRating: 2 },
+      songs: [{ id: 't1' }],
+    });
+    const result = await resolveAlbum('srv-1', 'alb-1');
+    expect(loadAlbumFromLibraryIndexMock).toHaveBeenCalledWith('srv-1', 'alb-1');
+    expect(getAlbumForServerMock).not.toHaveBeenCalled();
+    expect(result?.album.userRating).toBe(2);
+    expect(result?.songs).toHaveLength(1);
+  });
+
+  it('resolveAlbum prefers the library index when ready and network is blocked', async () => {
+    libraryIsReadyMock.mockResolvedValue(true);
+    shouldAttemptSubsonicForServerMock.mockReturnValue(false);
     loadAlbumFromLibraryIndexMock.mockResolvedValue({
       album: { id: 'alb-1', name: 'Idx' },
       songs: [{ id: 't1' }],

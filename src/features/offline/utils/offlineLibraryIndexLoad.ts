@@ -51,7 +51,7 @@ export async function loadAlbumFromLibraryIndex(
       coverArt: first.coverArtId ?? albumId,
       year: first.year ?? undefined,
       genre: first.genre ?? undefined,
-      starred: first.starredAt != null ? new Date(first.starredAt).toISOString() : undefined,
+      starred: undefined,
       serverId,
     },
     songs: songs.map(s => ({ ...s, serverId })),

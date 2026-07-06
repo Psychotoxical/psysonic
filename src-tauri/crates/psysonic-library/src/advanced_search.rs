@@ -14,6 +14,7 @@ use rusqlite::types::Value as SqlValue;
 use rusqlite::{params, OptionalExtension};
 use serde_json::Value;
 
+use crate::browse_support::overlay_album_level_starred_at;
 use crate::dto::{
     ArtistCreditMode, LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse, LibraryAlbumDto,
     LibraryArtistDto,
@@ -1049,7 +1050,7 @@ fn build_album_from_tracks(
     let order = album_order_from_track_groups(&req.sort).unwrap_or_else(|| {
         "ORDER BY MAX(t.album) COLLATE NOCASE ASC, t.album_id ASC".to_string()
     });
-    query_grouped_rows(
+    let (mut albums, total) = query_grouped_rows(
         store,
         select,
         "track t",
@@ -1060,7 +1061,9 @@ fn build_album_from_tracks(
         offset,
         skip_totals,
         map_album_from_tracks,
-    )
+    )?;
+    overlay_album_level_starred_at(store, &req.server_id, &mut albums)?;
+    Ok((albums, total))
 }
 
 fn album_artist_credit_mode(req: &LibraryAdvancedSearchRequest) -> bool {
@@ -1451,7 +1454,7 @@ fn build_album_from_fts(
     );
 
     let where_sql = w.where_sql();
-    store.with_read_conn(|conn| {
+    let (mut albums, total): (Vec<LibraryAlbumDto>, u32) = store.with_read_conn(|conn| {
         let sql = format!(
             "SELECT t.server_id, t.album_id, t.album, t.artist, t.album_artist, t.artist_id, \
                     t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at \
@@ -1476,7 +1479,7 @@ fn build_album_from_fts(
                     r.get(10)?,
                 ))
             })?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
+            .collect::<rusqlite::Result<Vec<AlbumBrowseTrackRow>>>()?;
 
         let mut seen = HashSet::new();
         let mut deduped: Vec<LibraryAlbumDto> = Vec::new();
@@ -1525,13 +1528,15 @@ fn build_album_from_fts(
         } else {
             deduped.len() as u32
         };
-        let page = deduped
+        let albums = deduped
             .into_iter()
             .skip(offset as usize)
             .take(limit as usize)
-            .collect();
-        Ok((page, total))
-    })
+            .collect::<Vec<LibraryAlbumDto>>();
+        Ok((albums, total))
+    })?;
+    overlay_album_level_starred_at(store, &req.server_id, &mut albums)?;
+    Ok((albums, total))
 }
 
 /// Text search for artists when the `artist` table is empty — FTS + dedupe.

@@ -1,16 +1,18 @@
 //! Album browse helpers: favorites reconcile and catalog year bounds.
 
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
+use serde_json::Value;
 use tauri::State;
 
 use crate::dto::CatalogYearBoundsDto;
 use crate::dto::GenreAlbumCountDto;
+use crate::dto::LibraryAlbumDto;
 use crate::runtime::LibraryRuntime;
+use crate::store::LibraryStore;
 use crate::search::{
     library_scope_in_sql, library_scope_sargable_equals_sql, normalized_library_scopes,
     push_library_scope_binds,
 };
-use crate::store::LibraryStore;
 
 #[derive(Debug, Clone, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -29,6 +31,75 @@ pub fn library_reconcile_album_stars(
     starred_albums: Vec<StarredAlbumReconcileItem>,
 ) -> Result<(), String> {
     reconcile_album_stars(&runtime, &server_id, &starred_albums)
+}
+
+/// Read album-level favorite timestamp (`album.starred_at`), not track stars.
+pub(crate) fn read_album_starred_at(
+    conn: &rusqlite::Connection,
+    server_id: &str,
+    album_id: &str,
+) -> rusqlite::Result<Option<i64>> {
+    conn.query_row(
+        "SELECT starred_at FROM album WHERE server_id = ?1 AND id = ?2",
+        params![server_id, album_id],
+        |r| r.get(0),
+    )
+    .optional()
+    .map(|row| row.flatten())
+}
+
+/// Album browse/detail: `starred_at` reflects album favorites only (`album.starred_at`).
+pub(crate) fn overlay_album_level_starred_at(
+    store: &LibraryStore,
+    server_id: &str,
+    albums: &mut [LibraryAlbumDto],
+) -> Result<(), String> {
+    if albums.is_empty() {
+        return Ok(());
+    }
+    store
+        .with_read_conn(|conn| {
+            for album in albums.iter_mut() {
+                album.starred_at =
+                    read_album_starred_at(conn, server_id, &album.id).unwrap_or(None);
+            }
+            Ok(())
+        })
+        .map_err(|e| e.to_string())
+}
+
+/// Patch-on-use for album favorites — mirrors `apply_track_patch` (UPDATE only).
+pub(crate) fn apply_album_patch(
+    runtime: &LibraryRuntime,
+    server_id: &str,
+    album_id: &str,
+    patch: &Value,
+) -> Result<(), String> {
+    let starred_at = patch.get("starredAt").map(|v| v.as_i64());
+    runtime
+        .store
+        .with_conn("browse.patch_album", |conn| {
+            if let Some(v) = starred_at {
+                conn.execute(
+                    "UPDATE album SET starred_at = ?3 \
+                     WHERE server_id = ?1 AND id = ?2",
+                    params![server_id, album_id, v],
+                )?;
+            }
+            Ok(())
+        })
+        .map_err(|e| e.to_string())
+}
+
+// NOT specta-collected: serde_json::Value patch arg (same as library_patch_track).
+#[tauri::command]
+pub fn library_patch_album(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    album_id: String,
+    patch: Value,
+) -> Result<(), String> {
+    apply_album_patch(&runtime, &server_id, &album_id, &patch)
 }
 
 pub(crate) fn reconcile_album_stars(
@@ -232,9 +303,10 @@ mod tests {
     use crate::store::LibraryStore;
 
     use super::{
-        catalog_year_bounds_for_server, genre_album_counts_for_server, reconcile_album_stars,
-        StarredAlbumReconcileItem,
+        apply_album_patch, catalog_year_bounds_for_server, genre_album_counts_for_server,
+        overlay_album_level_starred_at, reconcile_album_stars, StarredAlbumReconcileItem,
     };
+    use crate::dto::LibraryAlbumDto;
 
     fn make_row(server: &str, id: &str, album_id: &str, track: i64) -> crate::repos::TrackRow {
         crate::repos::TrackRow {
@@ -279,6 +351,93 @@ mod tests {
 
     fn runtime(store: Arc<LibraryStore>) -> LibraryRuntime {
         LibraryRuntime::new(store)
+    }
+
+    #[test]
+    fn apply_album_patch_sets_and_clears_starred_at() {
+        let store = Arc::new(LibraryStore::open_in_memory());
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "INSERT INTO album (server_id, id, name, starred_at, synced_at, raw_json) \
+                     VALUES ('s1', 'al1', 'Album', NULL, 1, '{}')",
+                    [],
+                )
+            })
+            .unwrap();
+        let rt = runtime(store.clone());
+        apply_album_patch(&rt, "s1", "al1", &serde_json::json!({ "starredAt": 1700 })).unwrap();
+        let starred: Option<i64> = store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT starred_at FROM album WHERE server_id = 's1' AND id = 'al1'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(starred, Some(1700));
+
+        apply_album_patch(&rt, "s1", "al1", &serde_json::json!({ "starredAt": null })).unwrap();
+        let cleared: Option<i64> = store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT starred_at FROM album WHERE server_id = 's1' AND id = 'al1'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(cleared, None);
+    }
+
+    #[test]
+    fn overlay_album_level_starred_at_ignores_track_stars() {
+        let store = Arc::new(LibraryStore::open_in_memory());
+        TrackRepository::new(&store)
+            .upsert_batch(&[make_row("s1", "tr_1", "al1", 1)])
+            .unwrap();
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "UPDATE track SET starred_at = 999 WHERE server_id = 's1' AND id = 'tr_1'",
+                    [],
+                )?;
+                c.execute(
+                    "INSERT INTO album (server_id, id, name, starred_at, synced_at, raw_json) \
+                     VALUES ('s1', 'al1', 'Album', NULL, 1, '{}')",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let mut albums = vec![LibraryAlbumDto {
+            server_id: "s1".into(),
+            id: "al1".into(),
+            name: "Album".into(),
+            artist: None,
+            artist_id: None,
+            song_count: Some(1),
+            duration_sec: Some(200),
+            year: None,
+            genre: None,
+            cover_art_id: None,
+            starred_at: Some(999),
+            synced_at: 1,
+            raw_json: serde_json::Value::Null,
+        }];
+        overlay_album_level_starred_at(&store, "s1", &mut albums).unwrap();
+        assert_eq!(albums[0].starred_at, None);
+
+        apply_album_patch(
+            &runtime(store.clone()),
+            "s1",
+            "al1",
+            &serde_json::json!({ "starredAt": 1700 }),
+        )
+        .unwrap();
+        overlay_album_level_starred_at(&store, "s1", &mut albums).unwrap();
+        assert_eq!(albums[0].starred_at, Some(1700));
     }
 
     #[test]

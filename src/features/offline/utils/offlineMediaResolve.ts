@@ -50,6 +50,7 @@ export async function resolveAlbum(
   if (isOfflineBrowseActive() && offlineLocalBrowseEnabled(serverId)) {
     return loadAlbumFromLocalPlayback(serverId, albumId);
   }
+  const networkAllowed = shouldAttemptSubsonicForServer(serverId);
   if (await libraryIsReady(serverId)) {
     try {
       const hit = await loadAlbumFromLibraryIndex(serverId, albumId);
@@ -57,7 +58,6 @@ export async function resolveAlbum(
     } catch { /* index error → network fallback */ }
   }
   const favoritesOffline = useAuthStore.getState().favoritesOfflineEnabled;
-  const networkAllowed = shouldAttemptSubsonicForServer(serverId);
 
   if (networkAllowed) {
     try {
