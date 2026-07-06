@@ -26,6 +26,7 @@ vi.mock('@/lib/network/subsonicNetworkGuard', () => ({
 }));
 
 import axios from 'axios';
+import { onInvoke } from '@/test/mocks/tauri';
 import { pingWithCredentials, pingWithCredentialsForProfile, ping } from '@/lib/api/subsonic';
 import { getAlbumInfo2 } from '@/lib/api/subsonicAlbumInfo';
 import { getStarred } from '@/lib/api/subsonicStarRating';
@@ -147,6 +148,10 @@ describe('getRandomSongs — pass-through behaviour', () => {
 });
 
 describe('getAlbum', () => {
+  beforeEach(() => {
+    onInvoke('library_patch_album', () => undefined);
+  });
+
   it('splits the response into { album, songs }', async () => {
     vi.mocked(axios.get).mockResolvedValue(
       okResponse({

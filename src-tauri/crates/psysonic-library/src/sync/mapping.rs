@@ -215,10 +215,51 @@ pub(crate) fn parse_iso_ms_str(s: &str) -> Option<i64> {
     Some(seconds.saturating_mul(1000))
 }
 
+/// UTC ISO-8601 with `Z` suffix for Subsonic `starred` payloads.
+pub(crate) fn format_iso_ms_z(ms: i64) -> Option<String> {
+    let secs = ms.div_euclid(1000);
+    let millis = ms.rem_euclid(1000);
+    let days = secs.div_euclid(86_400);
+    let day_secs = secs.rem_euclid(86_400);
+    let hour = day_secs / 3600;
+    let minute = (day_secs % 3600) / 60;
+    let second = day_secs % 60;
+    let (year, month, day) = civil_from_days(days);
+    if millis == 0 {
+        Some(format!(
+            "{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z"
+        ))
+    } else {
+        Some(format!(
+            "{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{millis:03}Z"
+        ))
+    }
+}
+
+fn civil_from_days(z: i64) -> (i32, u32, u32) {
+    let z = z + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if mp < 10 { y } else { y + 1 };
+    (y as i32, m as u32, d as u32)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn format_iso_roundtrips_zulu_suffix() {
+        let ms = parse_iso_ms_str("2024-01-01T00:00:00Z").unwrap();
+        assert_eq!(format_iso_ms_z(ms).as_deref(), Some("2024-01-01T00:00:00Z"));
+    }
 
     #[test]
     fn parse_iso_handles_zulu_suffix() {

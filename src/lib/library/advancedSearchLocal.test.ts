@@ -3,6 +3,7 @@ import { onInvoke } from '@/test/mocks/tauri';
 import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import {
+  albumToAlbum,
   resolveTrackCoverArtId,
   runLocalAdvancedSearch,
   runLocalSongBrowse,
@@ -354,5 +355,26 @@ describe('runNetworkAdvancedYearAlbums', () => {
       100,
     );
     spy.mockRestore();
+  });
+});
+
+describe('albumToAlbum', () => {
+  it('prefers cleared starred_at over stale raw_json starred', () => {
+    const album = albumToAlbum({
+      serverId: 's1',
+      id: 'al1',
+      name: 'Album',
+      artist: 'Artist',
+      artistId: 'ar1',
+      songCount: 1,
+      durationSec: 100,
+      year: null,
+      genre: null,
+      coverArtId: null,
+      starredAt: null,
+      syncedAt: 0,
+      rawJson: { id: 'al1', starred: '2024-01-01T00:00:00Z' },
+    });
+    expect(album.starred).toBeUndefined();
   });
 });

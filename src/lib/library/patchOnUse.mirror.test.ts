@@ -30,4 +30,14 @@ describe('mirrorAlbumMetadataFromServerOnUse', () => {
       patch: { starredAt: null },
     });
   });
+
+  it('clears index starred when server omits starred key', async () => {
+    mirrorAlbumMetadataFromServerOnUse('s1', 'al1', { id: 'al1' } as { starred?: string });
+    await Promise.resolve();
+    expect(invokeMock).toHaveBeenCalledWith('library_patch_album', {
+      serverId: 's1',
+      albumId: 'al1',
+      patch: { starredAt: null },
+    });
+  });
 });

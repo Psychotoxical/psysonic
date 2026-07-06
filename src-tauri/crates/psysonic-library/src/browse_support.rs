@@ -1,7 +1,7 @@
 //! Album browse helpers: favorites reconcile and catalog year bounds.
 
 use rusqlite::{params, OptionalExtension};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use tauri::State;
 
 use crate::dto::CatalogYearBoundsDto;
@@ -9,6 +9,7 @@ use crate::dto::GenreAlbumCountDto;
 use crate::dto::LibraryAlbumDto;
 use crate::runtime::LibraryRuntime;
 use crate::store::LibraryStore;
+use crate::sync::mapping::format_iso_ms_z;
 use crate::search::{
     library_scope_in_sql, library_scope_sargable_equals_sql, normalized_library_scopes,
     push_library_scope_binds,
@@ -96,10 +97,49 @@ pub(crate) fn apply_album_patch(
                      WHERE server_id = ?1 AND id = ?2",
                     params![server_id, album_id, v],
                 )?;
+                sync_album_raw_json_starred(conn, server_id, album_id, v)?;
             }
             Ok(())
         })
         .map_err(|e| e.to_string())
+}
+
+fn sync_album_raw_json_starred(
+    conn: &rusqlite::Connection,
+    server_id: &str,
+    album_id: &str,
+    starred_at: Option<i64>,
+) -> rusqlite::Result<()> {
+    let raw_str: Option<String> = conn
+        .query_row(
+            "SELECT raw_json FROM album WHERE server_id = ?1 AND id = ?2",
+            params![server_id, album_id],
+            |r| r.get(0),
+        )
+        .optional()?
+        .flatten();
+    let mut raw = raw_str
+        .filter(|s| !s.is_empty())
+        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+        .unwrap_or_else(|| Value::Object(Map::new()));
+    let Value::Object(ref mut map) = raw else {
+        return Ok(());
+    };
+    match starred_at {
+        None => {
+            map.remove("starred");
+        }
+        Some(ms) => {
+            if let Some(iso) = format_iso_ms_z(ms) {
+                map.insert("starred".into(), Value::String(iso));
+            }
+        }
+    }
+    conn.execute(
+        "UPDATE album SET raw_json = ?3 WHERE server_id = ?1 AND id = ?2",
+        params![server_id, album_id, raw.to_string()],
+    )?;
+    Ok(())
 }
 
 // NOT specta-collected: serde_json::Value patch arg (same as library_patch_track).
@@ -400,6 +440,44 @@ mod tests {
             })
             .unwrap();
         assert_eq!(cleared, None);
+        let raw: String = store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT raw_json FROM album WHERE server_id = 's1' AND id = 'al1'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert!(!raw.contains("starred"));
+    }
+
+    #[test]
+    fn apply_album_patch_clears_stale_starred_in_raw_json() {
+        let store = Arc::new(LibraryStore::open_in_memory());
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "INSERT INTO album (server_id, id, name, starred_at, synced_at, raw_json) \
+                     VALUES ('s1', 'al1', 'Album', 100, 1, \
+                     '{\"id\":\"al1\",\"starred\":\"2024-01-01T00:00:00Z\"}')",
+                    [],
+                )
+            })
+            .unwrap();
+        let rt = runtime(store.clone());
+        apply_album_patch(&rt, "s1", "al1", &serde_json::json!({ "starredAt": null })).unwrap();
+        let raw: String = store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT raw_json FROM album WHERE server_id = 's1' AND id = 'al1'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        let parsed: Value = serde_json::from_str(&raw).unwrap();
+        assert!(parsed.get("starred").is_none());
     }
 
     #[test]

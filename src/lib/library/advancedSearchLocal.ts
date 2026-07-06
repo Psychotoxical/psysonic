@@ -158,11 +158,7 @@ function buildRequest(
 
 /** Merge `raw_json` without nullish Subsonic fields wiping hot columns (e.g. year). */
 function mergeAlbumRawJson(base: SubsonicAlbum, raw: Partial<SubsonicAlbum>): SubsonicAlbum {
-  const merged = { ...base } as SubsonicAlbum & Record<string, unknown>;
-  for (const [key, value] of Object.entries(raw)) {
-    if (value != null && value !== '') merged[key] = value;
-  }
-  return merged;
+  return { ...raw, ...base };
 }
 
 export function albumToAlbum(a: LibraryAlbumDto): SubsonicAlbum {

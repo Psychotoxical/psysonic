@@ -909,15 +909,16 @@ fn build_album(
     skip_totals: bool,
     applied: &mut BTreeSet<String>,
 ) -> Result<(Vec<LibraryAlbumDto>, u32), String> {
+    // Album browse favorites: album-level stars only (`a.starred_at`), not
+    // track-derived groups with `t.starred_at`. Must win over the lossless
+    // track-grouping fast path so starred + lossless browse stays consistent.
+    if req.starred_only == Some(true) {
+        return build_album_from_table(store, req, text, scalar, limit, offset, skip_totals, applied);
+    }
     if scalar_requires_lossless_track_grouping(scalar) {
         return build_album_from_tracks(
             store, req, text, scalar, limit, offset, skip_totals, applied, true,
         );
-    }
-    // Album browse favorites: album-level stars only (`a.starred_at`), not
-    // track-derived groups with `t.starred_at`.
-    if req.starred_only == Some(true) {
-        return build_album_from_table(store, req, text, scalar, limit, offset, skip_totals, applied);
     }
     if server_has_indexed_tracks(store, &req.server_id)? {
         if let Some(q) = text.and_then(|t| fts_album_text_match_query(req, t)) {
@@ -2662,6 +2663,39 @@ mod tests {
             .unwrap();
         let mut r = req("s1", &[EntityKind::Album]);
         r.starred_only = Some(true);
+        let resp = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(resp.albums.len(), 1);
+        assert_eq!(resp.albums[0].id, "al_star");
+    }
+
+    #[test]
+    fn starred_only_with_lossless_uses_album_star_not_track_star() {
+        let store = LibraryStore::open_in_memory();
+        insert_album(&store, "s1", "al_star", "Starred Lossless", None, None);
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "UPDATE album SET starred_at = 100 WHERE server_id = 's1' AND id = 'al_star'",
+                    [],
+                )
+            })
+            .unwrap();
+        let mut track_star = track("s1", "t1", "T", "X", "TrackStar Alb");
+        track_star.album_id = Some("al_track_only".into());
+        track_star.starred_at = Some(200);
+        track_star.suffix = Some("flac".into());
+        TrackRepository::new(&store)
+            .upsert_batch(&[track_star])
+            .unwrap();
+        let mut flac_star = track("s1", "t2", "T2", "X", "Starred Lossless");
+        flac_star.album_id = Some("al_star".into());
+        flac_star.suffix = Some("flac".into());
+        TrackRepository::new(&store)
+            .upsert_batch(&[flac_star])
+            .unwrap();
+        let mut r = req("s1", &[EntityKind::Album]);
+        r.starred_only = Some(true);
+        r.filters = vec![clause("lossless", FilterOp::IsTrue, None, None)];
         let resp = run_advanced_search(&store, &r).unwrap();
         assert_eq!(resp.albums.len(), 1);
         assert_eq!(resp.albums[0].id, "al_star");

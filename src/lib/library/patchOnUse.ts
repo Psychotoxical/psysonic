@@ -62,7 +62,6 @@ export function mirrorAlbumMetadataFromServerOnUse(
     starred?: string | null;
   },
 ): void {
-  if (!('starred' in album)) return;
   const patch: { starredAt?: number | null } = {};
   if (!album.starred) {
     patch.starredAt = null;
