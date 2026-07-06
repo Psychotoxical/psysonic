@@ -118,6 +118,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Artist name search on the Artists page no longer depends on query letter case for Cyrillic (and other non-ASCII) names when the local library index is enabled — matching uses the indexed `name_sort` key with Unicode case folding instead of SQLite `LIKE` on the display name alone.
 
+### Discord — "Server" cover art no longer exposes your login
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1246](https://github.com/Psychotoxical/psysonic/pull/1246)**
+
+* The **Settings → Integrations → Discord → Cover art source → Server** option sent your server's cover URL to Discord, which republishes external image links, so anyone viewing your Rich Presence could read your username and login token. That option has been removed — cover art now comes only from **None** (app icon) or **Apple Music**, neither of which carries your credentials. Any saved **Server** setting is switched to **None**. Reported by lavioso on Discord.
+
 
 ## [1.49.0] - 2026-06-29
 
