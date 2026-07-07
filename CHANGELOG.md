@@ -197,6 +197,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Album tiles for rows that synced without a cover id (surfacing most in **Random Albums**) no longer show a blank cover while the detail page has one — local browse now falls back to the album's first track cover id, so tile and detail resolve the same artwork. The same fallback applies to the detail header's library cover resolution, so the two stay consistent instead of flickering between art and placeholder.
 
+### Library — renamed album artist links now heal on resync
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1256](https://github.com/Psychotoxical/psysonic/pull/1256)**
+
+* When an artist is renamed on the server (minting a new artist id), the album's stored artist link no longer stays stuck on the old id and dead-ending at "Artist not found". Album metadata now follows the server's `getAlbum` for the artist reference, so a resync updates it instead of keeping the pre-rename id indefinitely. Complements the earlier ghost-row prune (#1253) and the local-index fallback (#1254), which did not clear the stale reference itself.
+
 
 ## [1.49.0] - 2026-06-29
 

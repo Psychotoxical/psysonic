@@ -191,6 +191,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Album detail — album-level favorite heart from album.starred_at; server-backed album rating reconcile on detail (report: HiveMind on Psysonic Discord, PR #1247)',
       'Library — prune orphaned artist browse rows after server-side renames (fixes "Artist not found" ghosts) on full/delta sync + one-time startup reconcile; refresh Artists/Albums catalog on sync-idle (report: Seraphim on Psysonic Discord, PR #1253)',
       'Artist detail — fall back to the local library index when getArtist 404s an album-artist id (fixes Random Albums artist links dead-ending at "Artist not found"); album browse + detail cover resolution fall back to the album\'s first track cover for rows synced without one (fixes missing Random Albums tile art) (report: tummydummy, PR #1254)',
+      'Library — follow getAlbum authoritatively for album artist reference so a server-side artist rename heals on resync instead of dead-ending at "Artist not found" (PR #1256)',
     ],
   },
   {
