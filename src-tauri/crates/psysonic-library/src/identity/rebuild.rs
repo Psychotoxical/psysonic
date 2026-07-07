@@ -120,6 +120,31 @@ pub fn rebuild_cluster_keys(
         drop(rows);
         drop(stmt);
         drop(upsert);
+        // Prune keys whose track no longer exists (soft-deleted via tombstone, or
+        // dropped when a server mints a fresh id on rename). The UPSERT above only
+        // refreshes live rows; without this, orphaned keys accumulate forever and
+        // are only reclaimed when the whole sidecar is dropped (swap/restore/import).
+        // Reads join `cluster.track_cluster_key` against `track WHERE deleted = 0`,
+        // so these rows are inert — this is bloat cleanup, scoped to the rebuilt
+        // server(s) so a single-server rebuild never touches other servers' keys.
+        if let Some(sid) = server_id {
+            tx.execute(
+                "DELETE FROM cluster.track_cluster_key \
+                 WHERE server_id = ?1 \
+                   AND track_id NOT IN (\
+                     SELECT id FROM track WHERE deleted = 0 AND server_id = ?1\
+                   )",
+                params![sid],
+            )?;
+        } else {
+            tx.execute(
+                "DELETE FROM cluster.track_cluster_key \
+                 WHERE (server_id, track_id) NOT IN (\
+                   SELECT server_id, id FROM track WHERE deleted = 0\
+                 )",
+                [],
+            )?;
+        }
         set_cluster_meta(&tx)?;
         tx.commit()?;
         Ok(upserted)
@@ -319,6 +344,86 @@ mod tests {
             .unwrap();
 
         assert_eq!(first, second);
+    }
+
+    #[test]
+    fn rebuild_prunes_orphaned_cluster_keys() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                track_row("s1", "t1", "T1", Some("A"), "Al", None, 100, "lib"),
+                track_row("s1", "t2", "T2", Some("B"), "Al", None, 120, "lib"),
+            ])
+            .unwrap();
+        rebuild_cluster_keys(&store, Some("s1")).unwrap();
+        assert!(store
+            .with_read_conn(|c| read_cluster_row(c, "s1", "t2"))
+            .unwrap()
+            .is_some());
+
+        // Soft-delete t2 (tombstone) → its stale cluster key must be pruned on
+        // the next rebuild, not linger forever.
+        store
+            .with_conn_mut("test.soft_delete", |c| {
+                c.execute(
+                    "UPDATE track SET deleted = 1 WHERE server_id = 's1' AND id = 't2'",
+                    [],
+                )
+            })
+            .unwrap();
+        rebuild_cluster_keys(&store, Some("s1")).unwrap();
+
+        assert!(
+            store
+                .with_read_conn(|c| read_cluster_row(c, "s1", "t1"))
+                .unwrap()
+                .is_some(),
+            "live track key must remain"
+        );
+        assert!(
+            store
+                .with_read_conn(|c| read_cluster_row(c, "s1", "t2"))
+                .unwrap()
+                .is_none(),
+            "orphaned cluster key must be pruned"
+        );
+    }
+
+    #[test]
+    fn per_server_rebuild_leaves_other_server_keys() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                track_row("s1", "t1", "T1", Some("A"), "Al", None, 100, "lib"),
+                track_row("s2", "t2", "T2", Some("B"), "Al", None, 120, "lib"),
+            ])
+            .unwrap();
+        rebuild_cluster_keys(&store, None).unwrap();
+
+        // Both tracks go to tombstone, but we rebuild only s1: s1's orphan is
+        // pruned while s2's key is untouched (single global norm stamp, but the
+        // prune is scoped to the rebuilt server).
+        store
+            .with_conn_mut("test.del", |c| {
+                c.execute("UPDATE track SET deleted = 1 WHERE id IN ('t1', 't2')", [])
+            })
+            .unwrap();
+        rebuild_cluster_keys(&store, Some("s1")).unwrap();
+
+        assert!(
+            store
+                .with_read_conn(|c| read_cluster_row(c, "s1", "t1"))
+                .unwrap()
+                .is_none(),
+            "rebuilt server's orphan must be pruned"
+        );
+        assert!(
+            store
+                .with_read_conn(|c| read_cluster_row(c, "s2", "t2"))
+                .unwrap()
+                .is_some(),
+            "single-server rebuild must not prune another server's keys"
+        );
     }
 
     #[test]
