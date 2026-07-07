@@ -17,8 +17,13 @@ fn album_starred_at_from_raw(raw_album: &Value) -> Option<Option<i64>> {
 }
 
 /// Upsert `album` row metadata from a `#getAlbum` response. When `starred` is
-/// present in `raw_album`, it overwrites `album.starred_at`; omitted keys are
-/// left untouched on conflict.
+/// present in `raw_album`, it overwrites `album.starred_at`.
+///
+/// `name`, `artist` and `artist_id` follow `getAlbum` authoritatively — they are
+/// overwritten even when the response omits them (writes NULL), so a server-side
+/// artist rename heals on resync instead of the old id sticking via `COALESCE`
+/// and leaving the album-artist link dead-ending at "Artist not found". Other
+/// nullable columns keep their prior value when the response omits them.
 pub(crate) fn upsert_album_from_get_album(
     store: &LibraryStore,
     server_id: &str,
@@ -41,8 +46,8 @@ pub(crate) fn upsert_album_from_get_album(
                  ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
                  ON CONFLICT(server_id, id) DO UPDATE SET
                    name = excluded.name,
-                   artist = COALESCE(excluded.artist, album.artist),
-                   artist_id = COALESCE(excluded.artist_id, album.artist_id),
+                   artist = excluded.artist,
+                   artist_id = excluded.artist_id,
                    song_count = COALESCE(excluded.song_count, album.song_count),
                    duration_sec = COALESCE(excluded.duration_sec, album.duration_sec),
                    year = COALESCE(excluded.year, album.year),
@@ -119,5 +124,79 @@ mod tests {
             })
             .unwrap();
         assert!(starred.is_some());
+    }
+
+    fn album_artist(store: &LibraryStore) -> (Option<String>, Option<String>) {
+        store
+            .with_conn("read", |c| {
+                c.query_row(
+                    "SELECT artist, artist_id FROM album WHERE server_id = 's1' AND id = 'al1'",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+            })
+            .unwrap()
+    }
+
+    fn seed_album_with_artist(store: &LibraryStore, artist: &str, artist_id: &str) {
+        store
+            .with_conn_mut("seed", |c| {
+                c.execute(
+                    "INSERT INTO album (server_id, id, name, artist, artist_id, synced_at, raw_json) \
+                     VALUES ('s1', 'al1', 'Album', ?1, ?2, 1, '{}')",
+                    params![artist, artist_id],
+                )
+            })
+            .unwrap();
+    }
+
+    fn get_album_with_artist(artist: Option<&str>, artist_id: Option<&str>) -> Album {
+        Album {
+            id: "al1".into(),
+            name: "Album".into(),
+            artist: artist.map(str::to_string),
+            artist_id: artist_id.map(str::to_string),
+            song_count: None,
+            duration: None,
+            year: None,
+            genre: None,
+            cover_art: None,
+            song: vec![],
+        }
+    }
+
+    // A server-side artist rename mints a new artist id; the fresh getAlbum must
+    // overwrite the album's stale artist ref so the card link stops dead-ending
+    // at "Artist not found" (previously COALESCE kept the pre-rename id).
+    #[test]
+    fn upsert_refreshes_album_artist_ref_on_rename() {
+        let store = LibraryStore::open_in_memory();
+        seed_album_with_artist(&store, "Old Name", "ar_old");
+        let album = get_album_with_artist(Some("New Name"), Some("ar_new"));
+        let raw = serde_json::json!({ "id": "al1", "name": "Album" });
+
+        upsert_album_from_get_album(&store, "s1", &album, &raw, 2).unwrap();
+
+        let (artist, artist_id) = album_artist(&store);
+        assert_eq!(artist.as_deref(), Some("New Name"));
+        assert_eq!(artist_id.as_deref(), Some("ar_new"));
+    }
+
+    // When the server no longer exposes an album-level artist id (e.g. only the
+    // structured `artists[]` in raw_json), the stale column value must not stick.
+    #[test]
+    fn upsert_clears_stale_album_artist_id_when_server_drops_it() {
+        let store = LibraryStore::open_in_memory();
+        seed_album_with_artist(&store, "Old", "ar_old");
+        let album = get_album_with_artist(None, None);
+        let raw = serde_json::json!({ "id": "al1", "name": "Album" });
+
+        upsert_album_from_get_album(&store, "s1", &album, &raw, 2).unwrap();
+
+        let (_, artist_id) = album_artist(&store);
+        assert!(
+            artist_id.is_none(),
+            "stale artist_id must not persist when getAlbum omits it"
+        );
     }
 }
