@@ -197,6 +197,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Album tiles for rows that synced without a cover id (surfacing most in **Random Albums**) no longer show a blank cover while the detail page has one — local browse now falls back to the album's first track cover id, so tile and detail resolve the same artwork. The same fallback applies to the detail header's library cover resolution, so the two stay consistent instead of flickering between art and placeholder.
 
+### Library — multi-library dedup sidecar no longer accumulates dead identity keys
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1255](https://github.com/Psychotoxical/psysonic/pull/1255)**
+
+* The precomputed `library-cluster.db` identity keys used for cross-library dedup are now pruned on rebuild when their track no longer exists (removed, or dropped when a server mints a fresh id on rename). Previously the rebuild only refreshed live tracks and never deleted stale rows, so the sidecar grew with library churn until it was recreated wholesale (server switch / restore / import). The rows were inert (reads only ever join live tracks), so dedup and browse results are unchanged — this just stops the sidecar from bloating.
+
 
 ## [1.49.0] - 2026-06-29
 
