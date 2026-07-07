@@ -190,7 +190,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Offline browse — on-disk-only Artists/Albums/Tracks/Genres (pins, favorites-auto, hot-cache); reactive sidebar gates and sync-idle reload; local credit mode and genre scope (PR #1243)',
       'Album detail — album-level favorite heart from album.starred_at; server-backed album rating reconcile on detail (report: HiveMind on Psysonic Discord, PR #1247)',
       'Library — prune orphaned artist browse rows after server-side renames (fixes "Artist not found" ghosts) on full/delta sync + one-time startup reconcile; refresh Artists/Albums catalog on sync-idle (report: Seraphim on Psysonic Discord, PR #1253)',
-      'Artist detail — fall back to the local library index when getArtist 404s an album-artist id (fixes Random Albums artist links dead-ending at "Artist not found") (report: tummydummy, PR #1254)',
+      'Artist detail — fall back to the local library index when getArtist 404s an album-artist id (fixes Random Albums artist links dead-ending at "Artist not found"); album browse + detail cover resolution fall back to the album\'s first track cover for rows synced without one (fixes missing Random Albums tile art) (report: tummydummy, PR #1254)',
     ],
   },
   {

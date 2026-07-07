@@ -110,8 +110,43 @@ pub fn resolve_album_cover_entry(
         None => return Ok(None),
         Some(v) => v,
     };
+    // Album rows synced without a cover id (created from a starred/tag/browse path
+    // rather than getAlbum) would otherwise resolve to the bare album id, which
+    // fails on servers that only serve art under a track/media cover id. Fall back
+    // to the album's first track cover so the detail header and browse tiles agree.
+    let cover_art_id = match cover_art_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        Some(_) => cover_art_id,
+        None => album_track_cover_art_id(store, library_server_id, album_id)?,
+    };
     let distinct = album_has_distinct_disc_covers(store, library_server_id, album_id)?;
     Ok(resolve_album_cover(album_id, cover_art_id.as_deref(), distinct).map(Into::into))
+}
+
+/// First non-empty track cover id for an album — used to fill an `album` row that
+/// synced without a `cover_art_id`. Mirrors the `ALBUM_COLUMNS` COALESCE fallback
+/// in `advanced_search.rs` so browse tiles and cover resolution agree.
+fn album_track_cover_art_id(
+    store: &LibraryStore,
+    library_server_id: &str,
+    album_id: &str,
+) -> Result<Option<String>, String> {
+    store.with_read_conn(|conn| {
+        conn.query_row(
+            "SELECT t.cover_art_id FROM track t
+             WHERE t.server_id = ?1 AND t.album_id = ?2 AND t.deleted = 0
+               AND NULLIF(TRIM(t.cover_art_id), '') IS NOT NULL
+             ORDER BY t.id ASC
+             LIMIT 1",
+            rusqlite::params![library_server_id, album_id],
+            |row| row.get::<_, Option<String>>(0),
+        )
+        .optional()
+        .map(Option::flatten)
+    })
 }
 
 /// Album id appears only on `track` rows (no `album` table row) — mirror catalog `fetch_id`.
@@ -372,6 +407,32 @@ mod tests {
             .unwrap();
         assert_eq!(e.cache_entity_id, "ca78bec6");
         assert_eq!(e.fetch_cover_art_id, "al-ca78bec6_60fc987f");
+    }
+
+    // #1252: an album row synced without a cover id (e.g. via a starred/tag path)
+    // must fall back to the album's track cover, not the bare album id, so the
+    // detail header and browse tiles resolve the same fetch id.
+    #[test]
+    fn resolve_album_falls_back_to_track_cover_when_row_cover_null() {
+        let store = LibraryStore::open_in_memory();
+        seed_album(&store, "srv", "al-nocover", None);
+        seed_track(&store, "srv", "tr1", "al-nocover", 1, Some("mf-cover"));
+        let e = resolve_album_cover_entry(&store, "srv", "al-nocover")
+            .unwrap()
+            .unwrap();
+        assert_eq!(e.cache_entity_id, "al-nocover");
+        assert_eq!(e.fetch_cover_art_id, "mf-cover");
+    }
+
+    #[test]
+    fn resolve_album_keeps_row_cover_over_track_cover() {
+        let store = LibraryStore::open_in_memory();
+        seed_album(&store, "srv", "al-rowcover", Some("al-rowcover_art"));
+        seed_track(&store, "srv", "tr1", "al-rowcover", 1, Some("mf-cover"));
+        let e = resolve_album_cover_entry(&store, "srv", "al-rowcover")
+            .unwrap()
+            .unwrap();
+        assert_eq!(e.fetch_cover_art_id, "al-rowcover_art");
     }
 
     #[test]

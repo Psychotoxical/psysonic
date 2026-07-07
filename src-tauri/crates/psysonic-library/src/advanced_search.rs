@@ -44,7 +44,12 @@ const ALBUM_COLUMNS: &str = "a.server_id, a.id, a.name, a.artist, a.artist_id, \
   a.song_count, a.duration_sec, \
   COALESCE(a.year, (SELECT MAX(t.year) FROM track t \
     WHERE t.server_id = a.server_id AND t.album_id = a.id AND t.deleted = 0)), \
-  a.genre, a.cover_art_id, a.starred_at, a.synced_at, a.raw_json";
+  a.genre, \
+  COALESCE(a.cover_art_id, (SELECT t.cover_art_id FROM track t \
+    WHERE t.server_id = a.server_id AND t.album_id = a.id AND t.deleted = 0 \
+      AND NULLIF(TRIM(t.cover_art_id), '') IS NOT NULL \
+    ORDER BY t.id ASC LIMIT 1)), \
+  a.starred_at, a.synced_at, a.raw_json";
 
 const ARTIST_COLUMNS: &str = "ar.server_id, ar.id, ar.name, ar.name_sort, ar.album_count, \
   ar.synced_at, ar.raw_json";
@@ -2666,6 +2671,36 @@ mod tests {
         let resp = run_advanced_search(&store, &r).unwrap();
         assert_eq!(resp.albums.len(), 1);
         assert_eq!(resp.albums[0].id, "al_star");
+    }
+
+    // #1252: an album-table row synced without a cover id must surface its first
+    // track cover in the browse DTO so random/browse tiles resolve the same art
+    // the detail page does. `starred_only` forces the album-table path here.
+    #[test]
+    fn album_table_cover_falls_back_to_track_cover() {
+        let store = LibraryStore::open_in_memory();
+        insert_album(&store, "s1", "al_nocover", "No Cover", None, None);
+        store
+            .with_conn("misc", |c| {
+                c.execute(
+                    "UPDATE album SET starred_at = 100 WHERE server_id = 's1' AND id = 'al_nocover'",
+                    [],
+                )
+            })
+            .unwrap();
+        let mut t = track("s1", "t1", "Song", "Artist", "No Cover");
+        t.album_id = Some("al_nocover".into());
+        t.cover_art_id = Some("mf-track-cover".into());
+        TrackRepository::new(&store).upsert_batch(&[t]).unwrap();
+        let mut r = req("s1", &[EntityKind::Album]);
+        r.starred_only = Some(true);
+        let resp = run_advanced_search(&store, &r).unwrap();
+        let al = resp
+            .albums
+            .iter()
+            .find(|a| a.id == "al_nocover")
+            .expect("album-table row present");
+        assert_eq!(al.cover_art_id.as_deref(), Some("mf-track-cover"));
     }
 
     #[test]

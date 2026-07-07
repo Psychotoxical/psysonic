@@ -191,6 +191,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Clicking the artist beneath an album (most visibly in **Random Albums**) no longer shows "Artist not found" when the server's `getArtist` doesn't recognise that album-artist id — the artist page now falls back to the local library index, which shares the id the card was built from. Artist pages also stay reachable on a brief network hiccup when the library is indexed.
 
+### Library — album tiles no longer miss cover art in Random Albums
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by tummydummy, PR [#1254](https://github.com/Psychotoxical/psysonic/pull/1254)**
+
+* Album tiles for rows that synced without a cover id (surfacing most in **Random Albums**) no longer show a blank cover while the detail page has one — local browse now falls back to the album's first track cover id, so tile and detail resolve the same artwork. The same fallback applies to the detail header's library cover resolution, so the two stay consistent instead of flickering between art and placeholder.
+
 
 ## [1.49.0] - 2026-06-29
 
