@@ -390,6 +390,50 @@ mod tests {
     }
 
     #[test]
+    fn global_rebuild_prunes_orphans_across_servers() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                track_row("s1", "t1", "T1", Some("A"), "Al", None, 100, "lib"),
+                track_row("s2", "t2", "T2", Some("B"), "Al", None, 120, "lib"),
+            ])
+            .unwrap();
+        rebuild_cluster_keys(&store, None).unwrap();
+        assert!(store
+            .with_read_conn(|c| read_cluster_row(c, "s1", "t1"))
+            .unwrap()
+            .is_some());
+        assert!(store
+            .with_read_conn(|c| read_cluster_row(c, "s2", "t2"))
+            .unwrap()
+            .is_some());
+
+        // Both tracks go to tombstone; a global (server_id = None) rebuild must
+        // prune the orphan on every server via the tuple-scoped DELETE branch.
+        store
+            .with_conn_mut("test.del", |c| {
+                c.execute("UPDATE track SET deleted = 1 WHERE id IN ('t1', 't2')", [])
+            })
+            .unwrap();
+        rebuild_cluster_keys(&store, None).unwrap();
+
+        assert!(
+            store
+                .with_read_conn(|c| read_cluster_row(c, "s1", "t1"))
+                .unwrap()
+                .is_none(),
+            "global rebuild must prune s1 orphan"
+        );
+        assert!(
+            store
+                .with_read_conn(|c| read_cluster_row(c, "s2", "t2"))
+                .unwrap()
+                .is_none(),
+            "global rebuild must prune s2 orphan"
+        );
+    }
+
+    #[test]
     fn per_server_rebuild_leaves_other_server_keys() {
         let store = LibraryStore::open_in_memory();
         TrackRepository::new(&store)
