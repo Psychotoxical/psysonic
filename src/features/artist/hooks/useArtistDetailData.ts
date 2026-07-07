@@ -162,26 +162,31 @@ export function useArtistDetailData(
         setAlbums(nextAlbums);
         setTopSongs(nextSongs);
       } catch (err) {
-        if (!cancelled) {
-          if (preferLocalArtist && serverId && id) {
-            try {
-              const local = preferLocalBytesOnly
-                ? await loadArtistFromLocalPlayback(serverId, id)
-                : await loadArtistFromLibraryIndex(serverId, id);
-              if (cancelled) return;
-              if (local) {
-                setArtist(local.artist);
-                setIsStarred(!!local.artist.starred);
-                setAlbums(local.albums);
-                setTopSongs([]);
-                setLoading(false);
-                return;
-              }
-            } catch { /* ignore */ }
-          }
-          console.error(err);
-          setLoading(false);
+        if (cancelled) return;
+        // Network `getArtist` can fail for an id that is a valid card link but
+        // has no `getArtist` entry — e.g. an album-artist surfaced by Random
+        // Albums whose id resolves the album fine but not the artist. Fall back
+        // to the local library index (the same id space the card came from)
+        // before showing "Artist not found"; this also keeps artist pages
+        // reachable on a transient network hiccup when the library is indexed.
+        if (serverId && id) {
+          try {
+            const local = preferLocalBytesOnly
+              ? await loadArtistFromLocalPlayback(serverId, id)
+              : await loadArtistFromLibraryIndex(serverId, id);
+            if (cancelled) return;
+            if (local) {
+              setArtist(local.artist);
+              setIsStarred(!!local.artist.starred);
+              setAlbums(local.albums);
+              setTopSongs([]);
+              setLoading(false);
+              return;
+            }
+          } catch { /* ignore */ }
         }
+        console.error(err);
+        setLoading(false);
       }
     })();
 

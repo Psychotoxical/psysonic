@@ -33,6 +33,7 @@ vi.mock('@/lib/hooks/useConnectionStatus', () => ({
 }));
 
 import { getArtist, getArtistForServer, getArtistInfo, getTopSongs } from '@/lib/api/subsonicArtists';
+import { loadArtistFromLibraryIndex } from '@/features/offline';
 import { search } from '@/lib/api/subsonicSearch';
 import { useArtistDetailData } from './useArtistDetailData';
 
@@ -110,6 +111,38 @@ describe('useArtistDetailData — multi-library selection', () => {
     expect(getArtistForServer).toHaveBeenCalled();
     expect(getArtist).not.toHaveBeenCalled();
     expect(result.current.artist).toMatchObject({ name: 'Network' });
+  });
+
+  it('falls back to the local library index when network getArtist fails', async () => {
+    // Random Albums links an album-artist id that `getArtist` 404s on, but the
+    // artist row exists in the local index the album came from → resolve there
+    // instead of showing "Artist not found".
+    librarySelectionForServerMock.mockReturnValue([]);
+    vi.mocked(getArtistForServer).mockRejectedValue(new Error('artist not found'));
+    vi.mocked(loadArtistFromLibraryIndex).mockResolvedValue({
+      artist: { id: 'art-x', name: 'Album Artist', albumCount: 1, serverId: 'srv-1' },
+      albums: [{ id: 'alb-9', name: 'Comp', artist: 'Album Artist', artistId: 'art-x', songCount: 1, duration: 100 }],
+    });
+
+    const { result } = renderHook(() => useArtistDetailData('art-x'), { wrapper: routerWrapper });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(getArtistForServer).toHaveBeenCalled();
+    expect(loadArtistFromLibraryIndex).toHaveBeenCalledWith('srv-1', 'art-x');
+    expect(result.current.artist).toMatchObject({ id: 'art-x', name: 'Album Artist' });
+    expect(result.current.albums).toHaveLength(1);
+  });
+
+  it('shows nothing to resolve when both network and local index miss', async () => {
+    librarySelectionForServerMock.mockReturnValue([]);
+    vi.mocked(getArtistForServer).mockRejectedValue(new Error('artist not found'));
+    vi.mocked(loadArtistFromLibraryIndex).mockResolvedValue(null);
+
+    const { result } = renderHook(() => useArtistDetailData('ghost'), { wrapper: routerWrapper });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(loadArtistFromLibraryIndex).toHaveBeenCalledWith('srv-1', 'ghost');
+    expect(result.current.artist).toBeNull();
   });
 
   it('falls through to getArtist when multi-scope load returns null', async () => {
