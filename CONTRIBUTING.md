@@ -109,6 +109,25 @@ Align early: open an issue or chat thread before sending a PR that renames `invo
 
 ---
 
+## Frontend architecture and layering
+
+The frontend uses a feature-folder architecture (introduced in #1225) with a layering contract that CI enforces through **`npm run dep:check`** (dependency-cruiser). The rule is simple: **a lower layer must never import a higher one.**
+
+```
+lib  →  store / ui  →  cover / music-network  →  features/<x>  →  app
+```
+
+- **`lib/**` is the floor** — feature-free infrastructure (API clients, formatting, i18n, util, media, server, navigation). It must **not** import from `store`, `ui`, `features`, `cover`, `music-network`, or `app`. If a `lib` helper needs auth/server state, pass it in as an argument or keep the helper in the layer that owns that state (`store` or `features`) — do not reach into a store from `lib`.
+- **`store` / `ui`** may import `lib` only.
+- **`cover` / `music-network`** are top-level domains and may import `lib`, `store`, `ui`.
+- **`features/<x>`** may import `lib`, `store`, `ui`, `cover`, `music-network`, and other features — but cross-feature access goes **only** through the `@/features/<x>` barrel, never a deep path.
+- **`app`** (shell + bridges) may import anything.
+- **No import cycles** anywhere under `src/`.
+
+The authoritative rules and rationale live in [`.dependency-cruiser.cjs`](.dependency-cruiser.cjs) (its header documents the layers and the known-violation ratchet). Any **new** layering or cycle violation fails the `dependency-cruiser` job and blocks `ci-ok`, so run **`npm run dep:check`** locally before opening a frontend PR. The known-violations baseline in `.dependency-cruiser-known-violations.json` only ratchets **down** — don't regenerate it to silence a new violation; fix the import instead.
+
+---
+
 ## CI on pull requests to `main`
 
 PRs must target `main`. `next` and `release` are maintainer-driven promotion branches — don't target them directly.
