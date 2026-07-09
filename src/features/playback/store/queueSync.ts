@@ -12,7 +12,9 @@ import {
   touchQueueMutationClock,
   isIdleQueuePullSuspended,
   resumeIdleQueuePull,
-  suspendIdleQueuePull,
+  markQueuePushFailed,
+  clearQueuePushFailed,
+  isQueuePushFailed,
   markQueueNaturallyEnded,
 } from '@/features/playback/store/queuePlaybackIdle';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
@@ -60,11 +62,18 @@ function pushRefsForServer(
   const ids = refs.slice(0, QUEUE_ID_LIMIT).map(r => r.trackId);
   const pos = Math.floor(currentTime * 1000);
   return savePlayQueue(ids, currentTrack.id, pos, serverId).then(
-    () => true,
     () => {
-      // Offline / unreachable / URI-too-long: keep local queue authoritative
-      // so idle auto-pull cannot rewind to the last successful server snapshot.
-      suspendIdleQueuePull();
+      // Server accepted the queue: local and server agree, so any prior failed
+      // push is resolved and idle auto-pull can safely resume.
+      clearQueuePushFailed();
+      return true;
+    },
+    () => {
+      // Offline / unreachable / URI-too-long: keep local queue authoritative so
+      // idle auto-pull cannot rewind to the last successful server snapshot.
+      // Transient and self-clearing (next successful push), and does not light
+      // the handoff LED — unlike a user edit's `idleQueuePullSuspended`.
+      markQueuePushFailed();
       return false;
     },
   );
@@ -187,7 +196,7 @@ export function pushQueueOnPlaybackStart(
   currentTime: number,
 ): void {
   if (!currentTrack || queue.length === 0) return;
-  if (isIdleQueuePullSuspended()) {
+  if (isIdleQueuePullSuspended() || isQueuePushFailed()) {
     void flushQueueSyncToServer(queue, currentTrack, currentTime).then(ok => {
       if (ok) resumeIdleQueuePull();
     });
@@ -197,7 +206,7 @@ export function pushQueueOnPlaybackStart(
 }
 
 export function flushLocalQueueWhenTakingPlayback(): Promise<void> {
-  if (!isIdleQueuePullSuspended()) return Promise.resolve();
+  if (!isIdleQueuePullSuspended() && !isQueuePushFailed()) return Promise.resolve();
   const s = usePlayerStore.getState();
   if (s.currentRadio || !s.currentTrack || s.queueItems.length === 0) {
     return Promise.resolve();

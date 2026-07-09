@@ -4,6 +4,14 @@ let playbackIdleSinceMs = 0;
 let lastQueueMutationAt = 0;
 /** When true, idle auto-pull is disabled until manual pull re-enables it. */
 let idleQueuePullSuspended = false;
+/**
+ * True when the last queue push to the server failed (offline / unreachable /
+ * URI-too-long). Blocks idle auto-pull so a stale server snapshot cannot rewind
+ * local playback, but is transient and self-clearing: any later successful push
+ * (or a manual pull) clears it. Distinct from `idleQueuePullSuspended` — it does
+ * NOT drive the handoff LED, so a single transient failure does not nag the user.
+ */
+let queuePushFailed = false;
 /** Set when repeat-off playback reaches the queue tail — blocks idle pull until play resumes. */
 let queueNaturallyEnded = false;
 /** Bumped on each local queue mutation; stale in-flight idle pulls must not apply. */
@@ -71,6 +79,20 @@ export function isIdleQueuePullSuspended(): boolean {
   return idleQueuePullSuspended;
 }
 
+/** Mark the last server push as failed (blocks idle pull until a push succeeds). */
+export function markQueuePushFailed(): void {
+  queuePushFailed = true;
+}
+
+/** Clear the failed-push guard — called on a successful push or a manual pull. */
+export function clearQueuePushFailed(): void {
+  queuePushFailed = false;
+}
+
+export function isQueuePushFailed(): boolean {
+  return queuePushFailed;
+}
+
 export function getIdlePullGeneration(): number {
   return idlePullGeneration;
 }
@@ -95,6 +117,7 @@ export function _resetQueuePlaybackIdleForTest(): void {
   playbackIdleSinceMs = 0;
   lastQueueMutationAt = 0;
   idleQueuePullSuspended = false;
+  queuePushFailed = false;
   queueNaturallyEnded = false;
   idlePullGeneration = 0;
 }

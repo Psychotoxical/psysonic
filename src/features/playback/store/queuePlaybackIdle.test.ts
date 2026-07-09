@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   _resetQueuePlaybackIdleForTest,
+  clearQueuePushFailed,
   getIdlePullGeneration,
   isIdleQueuePullSuspended,
+  isQueuePushFailed,
   isQueueNaturallyEnded,
   markPlaybackActive,
   markQueueNaturallyEnded,
+  markQueuePushFailed,
   resumeIdleQueuePull,
   subscribeIdleQueuePullSuspended,
   touchQueueMutationClock,
@@ -49,6 +52,39 @@ describe('idle queue pull suspension', () => {
     resumeIdleQueuePull();
     expect(count).toBe(2);
     unsub();
+  });
+});
+
+describe('queue push failed flag', () => {
+  beforeEach(() => {
+    _resetQueuePlaybackIdleForTest();
+  });
+
+  it('starts clear and toggles independently of idle-pull suspension', () => {
+    expect(isQueuePushFailed()).toBe(false);
+    markQueuePushFailed();
+    expect(isQueuePushFailed()).toBe(true);
+    // The failed-push flag must not imply user-edit suspension (no yellow LED).
+    expect(isIdleQueuePullSuspended()).toBe(false);
+    clearQueuePushFailed();
+    expect(isQueuePushFailed()).toBe(false);
+  });
+
+  it('does not notify idle-pull suspension subscribers (LED stays put)', () => {
+    let count = 0;
+    const unsub = subscribeIdleQueuePullSuspended(() => {
+      count += 1;
+    });
+    markQueuePushFailed();
+    clearQueuePushFailed();
+    expect(count).toBe(0);
+    unsub();
+  });
+
+  it('is reset by the test reset helper', () => {
+    markQueuePushFailed();
+    _resetQueuePlaybackIdleForTest();
+    expect(isQueuePushFailed()).toBe(false);
   });
 });
 

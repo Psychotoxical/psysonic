@@ -13,6 +13,8 @@ import { refreshWaveformForTrack } from '@/features/playback/store/waveformRefre
 import {
   getIdlePullGeneration,
   isIdleQueuePullSuspended,
+  isQueuePushFailed,
+  clearQueuePushFailed,
   resumeIdleQueuePull,
   clearQueueNaturallyEnded,
 } from '@/features/playback/store/queuePlaybackIdle';
@@ -131,7 +133,7 @@ export async function applyServerPlayQueue(
   const profileId = resolveServerProfileId(serverId);
   if (!profileId) return 'error';
 
-  if (options.mode === 'idle' && isIdleQueuePullSuspended()) {
+  if (options.mode === 'idle' && (isIdleQueuePullSuspended() || isQueuePushFailed())) {
     return 'noop';
   }
   const idleGenerationAtStart = options.mode === 'idle' ? getIdlePullGeneration() : null;
@@ -142,7 +144,7 @@ export async function applyServerPlayQueue(
 
     const preferServerPosition = options.preferServerPosition ?? options.mode !== 'startup';
     if (options.mode === 'idle') {
-      if (isIdleQueuePullSuspended()) return 'noop';
+      if (isIdleQueuePullSuspended() || isQueuePushFailed()) return 'noop';
       if (idleGenerationAtStart !== getIdlePullGeneration()) return 'noop';
       const serverFp = fingerprintFromServer(q);
       const localFp = fingerprintFromLocalQueue();
@@ -186,6 +188,7 @@ export async function pullPlayQueueFromActiveServer(): Promise<ApplyPlayQueueRes
     const q = await getPlayQueueForServer(activeId);
     if (q.songs.length === 0) {
       resumeIdleQueuePull();
+      clearQueuePushFailed();
       return 'empty';
     }
 
@@ -193,6 +196,7 @@ export async function pullPlayQueueFromActiveServer(): Promise<ApplyPlayQueueRes
     const localFp = fingerprintFromLocalQueue();
     if (playQueueFingerprintsEqual(serverFp, localFp)) {
       resumeIdleQueuePull();
+      clearQueuePushFailed();
       return 'noop';
     }
 
@@ -203,6 +207,7 @@ export async function pullPlayQueueFromActiveServer(): Promise<ApplyPlayQueueRes
     });
     if (result === 'applied' || result === 'noop') {
       resumeIdleQueuePull();
+      clearQueuePushFailed();
     }
     return result;
   } catch (e) {

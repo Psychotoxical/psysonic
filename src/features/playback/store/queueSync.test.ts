@@ -48,6 +48,7 @@ import {
 import {
   _resetQueuePlaybackIdleForTest,
   isIdleQueuePullSuspended,
+  isQueuePushFailed,
   isQueueNaturallyEnded,
 } from '@/features/playback/store/queuePlaybackIdle';
 
@@ -119,12 +120,13 @@ describe('syncUserQueueMutationToServer (debounced)', () => {
     expect(isIdleQueuePullSuspended()).toBe(true);
   });
 
-  it('keeps idle pull suspended when debounced push fails', async () => {
+  it('keeps idle pull suspended and flags the failed push when debounced push fails', async () => {
     savePlayQueueMock.mockRejectedValueOnce(new Error('offline'));
     syncUserQueueMutationToServer(queue, track('a'), 30);
     vi.advanceTimersByTime(5000);
     await Promise.resolve();
     expect(isIdleQueuePullSuspended()).toBe(true);
+    expect(isQueuePushFailed()).toBe(true);
   });
 });
 
@@ -148,6 +150,7 @@ describe('pushQueueOnPlaybackStart', () => {
     await vi.runAllTimersAsync();
     expect(savePlayQueueMock).toHaveBeenCalled();
     expect(isIdleQueuePullSuspended()).toBe(true);
+    expect(isQueuePushFailed()).toBe(true);
   });
 
   it('debounces when idle pull is not suspended', () => {
@@ -158,11 +161,38 @@ describe('pushQueueOnPlaybackStart', () => {
 });
 
 describe('flushQueueSyncToServer failure', () => {
-  it('suspends idle pull when an immediate push fails', async () => {
+  it('flags the failed push (blocking idle pull) without lighting the handoff LED', async () => {
     savePlayQueueMock.mockRejectedValueOnce(new Error('offline'));
     const ok = await flushQueueSyncToServer([ref('a')], track('a'), 12);
     expect(ok).toBe(false);
-    expect(isIdleQueuePullSuspended()).toBe(true);
+    // Blocks idle auto-pull (safety) but is a separate, transient flag — a bare
+    // push failure must not drive the user-edit handoff suspension / yellow LED.
+    expect(isQueuePushFailed()).toBe(true);
+    expect(isIdleQueuePullSuspended()).toBe(false);
+  });
+
+  it('self-heals: a later successful push clears the failed-push flag', async () => {
+    savePlayQueueMock.mockRejectedValueOnce(new Error('offline'));
+    await flushQueueSyncToServer([ref('a')], track('a'), 12);
+    expect(isQueuePushFailed()).toBe(true);
+
+    const ok = await flushQueueSyncToServer([ref('a')], track('a'), 20);
+    expect(ok).toBe(true);
+    expect(isQueuePushFailed()).toBe(false);
+    expect(isIdleQueuePullSuspended()).toBe(false);
+  });
+
+  it('debounced playback push failure flags without suspending, then self-heals', async () => {
+    savePlayQueueMock.mockRejectedValueOnce(new Error('offline'));
+    syncQueueToServer([ref('a')], track('a'), 12);
+    vi.advanceTimersByTime(5000);
+    await Promise.resolve();
+    expect(isQueuePushFailed()).toBe(true);
+    expect(isIdleQueuePullSuspended()).toBe(false);
+
+    const ok = await flushQueueSyncToServer([ref('a')], track('a'), 20);
+    expect(ok).toBe(true);
+    expect(isQueuePushFailed()).toBe(false);
   });
 });
 

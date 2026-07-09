@@ -57,6 +57,7 @@ import {
   _resetQueuePlaybackIdleForTest,
   getIdlePullGeneration,
   isIdleQueuePullSuspended,
+  markQueuePushFailed,
   touchQueueMutationClock,
 } from '@/features/playback/store/queuePlaybackIdle';
 
@@ -92,6 +93,23 @@ describe('applyServerPlayQueue idle guards', () => {
     expect(getPlayQueueForServerMock).not.toHaveBeenCalled();
     expect(playerState.queueItems).toEqual([{ serverId: 'srv-a', trackId: 'local-only' }]);
     expect(isIdleQueuePullSuspended()).toBe(true);
+  });
+
+  it('does not apply server queue in idle mode while a failed push blocks pull', async () => {
+    getPlayQueueForServerMock.mockResolvedValue({
+      songs: [{ id: 'remote-a' }, { id: 'remote-b' }],
+      current: 'remote-a',
+      position: 5000,
+    });
+    markQueuePushFailed();
+
+    const result = await applyServerPlayQueue('srv-a', { mode: 'idle' });
+
+    expect(result).toBe('noop');
+    expect(getPlayQueueForServerMock).not.toHaveBeenCalled();
+    expect(playerState.queueItems).toEqual([{ serverId: 'srv-a', trackId: 'local-only' }]);
+    // The failed-push guard blocks pull without implying a user-edit suspension.
+    expect(isIdleQueuePullSuspended()).toBe(false);
   });
 
   it('ignores stale idle pull responses after a local mutation during fetch', async () => {
