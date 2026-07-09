@@ -1,6 +1,5 @@
-import { api, apiForServer, apiPostFormForServer, isHttp414 } from '@/lib/api/subsonicClient';
+import { api, apiForServer, apiPostFormForServer, isHttp414, serverSupportsFormPost } from '@/lib/api/subsonicClient';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
-import { useAuthStore } from '@/store/authStore';
 
 export type PlayQueueResult = { current?: string; position?: number; songs: SubsonicSong[] };
 
@@ -50,8 +49,7 @@ export async function savePlayQueue(
   if (current !== undefined) params.current = current;
   if (position !== undefined) params.position = position;
 
-  const extensions = useAuthStore.getState().openSubsonicExtensionsByServer[serverId] ?? [];
-  if (extensions.includes('formPost')) {
+  if (serverSupportsFormPost(serverId)) {
     await apiPostFormForServer(serverId, 'savePlayQueue.view', params);
     return;
   }

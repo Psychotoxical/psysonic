@@ -134,6 +134,12 @@ export function getServerById(serverId: string): ServerProfile | undefined {
   return findServerByIdOrIndexKey(serverId);
 }
 
+/** True when the server advertises the OpenSubsonic `formPost` extension. */
+export function serverSupportsFormPost(serverId: string): boolean {
+  const exts = useAuthStore.getState().openSubsonicExtensionsByServer[serverId] ?? [];
+  return exts.includes('formPost');
+}
+
 /** Subsonic REST call against an explicit saved server (not necessarily the active one). */
 export async function apiForServer<T>(
   serverId: string,
