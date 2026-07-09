@@ -183,7 +183,7 @@ describe('flushPlayQueuePosition', () => {
     seedQueue([track], { index: 0, currentTrack: track });
     vi.mocked(savePlayQueue).mockRejectedValueOnce(new Error('offline'));
 
-    await expect(flushPlayQueuePosition()).resolves.toBeUndefined();
+    await expect(flushPlayQueuePosition()).resolves.toBe(false);
   });
 
   it('floors the position to whole milliseconds', async () => {

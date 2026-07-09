@@ -33,6 +33,48 @@ export function restBaseFromUrl(serverUrl: string): string {
   return `${base}/rest`;
 }
 
+/**
+ * Encode Subsonic REST params the same way axios does with `paramsSerializer: { indexes: null }`
+ * (repeated keys for arrays: `id=a&id=b`). Used for OpenSubsonic form POST bodies.
+ */
+export function serializeSubsonicParams(params: Record<string, unknown>): string {
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item === undefined || item === null) continue;
+        parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(item))}`);
+      }
+      continue;
+    }
+    parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+  }
+  return parts.join('&');
+}
+
+function parseSubsonicResponse<T>(respData: unknown): T {
+  const data = (respData as { ['subsonic-response']?: { status?: string; error?: { message?: string } } })?.[
+    'subsonic-response'
+  ];
+  if (!data) throw new Error('Invalid response from server (possibly not a Subsonic server)');
+  if (data.status !== 'ok') throw new Error(data.error?.message ?? 'Subsonic API error');
+  return data as T;
+}
+
+/** True when a reverse proxy / server rejected the request because the URI was too long. */
+export function isHttp414(err: unknown): boolean {
+  if (err && typeof err === 'object' && 'response' in err) {
+    const status = (err as { response?: { status?: number } }).response?.status;
+    if (status === 414) return true;
+  }
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    return msg.includes('414') || msg.includes('uri too long') || msg.includes('request-uri too large');
+  }
+  return false;
+}
+
 export async function apiWithCredentials<T>(
   serverUrl: string,
   username: string,
@@ -50,10 +92,33 @@ export async function apiWithCredentials<T>(
     paramsSerializer: { indexes: null },
     timeout,
   });
-  const data = resp.data?.['subsonic-response'];
-  if (!data) throw new Error('Invalid response from server (possibly not a Subsonic server)');
-  if (data.status !== 'ok') throw new Error(data.error?.message ?? 'Subsonic API error');
-  return data as T;
+  return parseSubsonicResponse<T>(resp.data);
+}
+
+/**
+ * OpenSubsonic `formPost`: send all API args in an `application/x-www-form-urlencoded` body
+ * (path-only URL - no query string) so large multi-`id` calls avoid HTTP 414.
+ */
+export async function apiPostFormWithCredentials<T>(
+  serverUrl: string,
+  username: string,
+  password: string,
+  endpoint: string,
+  extra: Record<string, unknown> = {},
+  timeout = 15000,
+  headerProfile?: ServerHttpHeaderProfile,
+): Promise<T> {
+  const params = { ...getAuthParams(username, password), ...extra };
+  const headers = {
+    ...(headerProfile ? headersForServerRequest(headerProfile, serverUrl) : {}),
+    'Content-Type': 'application/x-www-form-urlencoded',
+  };
+  const resp = await axios.post(
+    `${restBaseFromUrl(serverUrl)}/${endpoint}`,
+    serializeSubsonicParams(params),
+    { headers, timeout },
+  );
+  return parseSubsonicResponse<T>(resp.data);
 }
 
 export function getClient() {
@@ -93,6 +158,26 @@ export async function apiForServer<T>(
   );
 }
 
+/** Form-POST variant of `apiForServer` (OpenSubsonic `formPost`). */
+export async function apiPostFormForServer<T>(
+  serverId: string,
+  endpoint: string,
+  extra: Record<string, unknown> = {},
+  timeout = 15000,
+): Promise<T> {
+  const server = getServerById(serverId);
+  if (!server) throw new Error(`Unknown server: ${serverId}`);
+  return apiPostFormWithCredentials(
+    connectBaseUrlForServer(server),
+    server.username,
+    server.password,
+    endpoint,
+    extra,
+    timeout,
+    server,
+  );
+}
+
 export async function api<T>(
   endpoint: string,
   extra: Record<string, unknown> = {},
@@ -111,10 +196,7 @@ export async function api<T>(
     timeout,
     signal,
   });
-  const data = resp.data?.['subsonic-response'];
-  if (!data) throw new Error('Invalid response from server (possibly not a Subsonic server)');
-  if (data.status !== 'ok') throw new Error(data.error?.message ?? 'Subsonic API error');
-  return data as T;
+  return parseSubsonicResponse<T>(resp.data);
 }
 
 /** Optional `musicFolderId` when the user narrowed browsing to one Subsonic library (see `getMusicFolders`). */

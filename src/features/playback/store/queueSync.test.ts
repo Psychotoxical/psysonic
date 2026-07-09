@@ -141,10 +141,28 @@ describe('pushQueueOnPlaybackStart', () => {
     expect(isIdleQueuePullSuspended()).toBe(false);
   });
 
+  it('keeps idle pull suspended when the immediate flush fails', async () => {
+    syncUserQueueMutationToServer(queue, track('a'), 30);
+    savePlayQueueMock.mockRejectedValueOnce(new Error('414'));
+    pushQueueOnPlaybackStart(queue, track('a'), 42);
+    await vi.runAllTimersAsync();
+    expect(savePlayQueueMock).toHaveBeenCalled();
+    expect(isIdleQueuePullSuspended()).toBe(true);
+  });
+
   it('debounces when idle pull is not suspended', () => {
     pushQueueOnPlaybackStart(queue, track('a'), 12);
     expect(hasPendingQueueSync()).toBe(true);
     expect(savePlayQueueMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('flushQueueSyncToServer failure', () => {
+  it('suspends idle pull when an immediate push fails', async () => {
+    savePlayQueueMock.mockRejectedValueOnce(new Error('offline'));
+    const ok = await flushQueueSyncToServer([ref('a')], track('a'), 12);
+    expect(ok).toBe(false);
+    expect(isIdleQueuePullSuspended()).toBe(true);
   });
 });
 
