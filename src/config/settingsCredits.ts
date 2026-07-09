@@ -460,6 +460,13 @@ const CONTRIBUTOR_ENTRIES = [
       'Italian (it) full UI translation (PR #1250)',
     ],
   },
+  {
+    github: 'norperz',
+    since: '1.50.0',
+    contributions: [
+      'Sync: form POST for large play queues to avoid HTTP 414 behind reverse proxies (PR #1262)',
+    ],
+  },
 ] as const;
 
 // PR number of a contributor's first listed contribution, used as the

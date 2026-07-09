@@ -209,6 +209,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The precomputed `library-cluster.db` identity keys used for cross-library dedup are now pruned on rebuild when their track no longer exists (removed, or dropped when a server mints a fresh id on rename). Previously the rebuild only refreshed live tracks and never deleted stale rows, so the sidecar grew with library churn until it was recreated wholesale (server switch / restore / import). The rows were inert (reads only ever join live tracks), so dedup and browse results are unchanged — this just stops the sidecar from bloating.
 
+### Sync — large play queues no longer revert after pausing
+
+**By [@norperz](https://github.com/norperz), PR [#1262](https://github.com/Psychotoxical/psysonic/pull/1262)**
+
+* Pausing a large queue behind a reverse proxy (e.g. Nginx) could snap the player back to an earlier track — the save was one long URL that hit the HTTP 414 limit, failed silently, and idle auto-pull restored the stale server queue.
+* Servers advertising the OpenSubsonic `formPost` extension (Navidrome) now save via POST; others retry once as POST on 414. A failed save no longer lets auto-pull overwrite playback — it resumes only after a successful save.
+
 
 ## [1.49.0] - 2026-06-29
 
