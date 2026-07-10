@@ -278,6 +278,45 @@ export interface SubsonicLyricLine {
   value: string;
 }
 
+/**
+ * OpenSubsonic `songLyrics` v2 — classification of a lyric layer. A v1 server
+ * never sends it, and v2 omits it for the primary layer, so an absent `kind`
+ * means `main`.
+ */
+export type SubsonicLyricsKind = 'main' | 'translation' | 'pronunciation';
+
+/** One timed text fragment (word or syllable) inside a `SubsonicLyricCueLine`. */
+export interface SubsonicLyricCue {
+  start: number;
+  /** Milliseconds. All-or-nothing across a cue line: either every cue has it or none does. */
+  end?: number;
+  value: string;
+  /** UTF-8 byte offsets into the parent cue line's `value` (`byteEnd` inclusive). */
+  byteStart: number;
+  byteEnd: number;
+}
+
+/**
+ * Word/syllable timing for one line, linked back via `index`. Multi-voice
+ * lyrics emit several cue lines sharing an `index` (main-role agent first).
+ */
+export interface SubsonicLyricCueLine {
+  index: number;
+  start?: number;
+  end?: number;
+  value: string;
+  agentId?: string;
+  cue?: SubsonicLyricCue[];
+}
+
+/** Vocal layer attribution for multi-voice lyrics (`songLyrics` v2). */
+export interface SubsonicLyricAgent {
+  id: string;
+  /** `main` | `bg` | `voice` | `group` | … — at least one agent is `main`. */
+  role: string;
+  name?: string;
+}
+
 export interface SubsonicStructuredLyrics {
   /** OpenSubsonic spec field name (Navidrome ≥ 0.50.0 / any OpenSubsonic server). */
   synced?: boolean;
@@ -288,4 +327,10 @@ export interface SubsonicStructuredLyrics {
   displayArtist?: string;
   displayTitle?: string;
   line: SubsonicLyricLine[];
+  /** `songLyrics` v2, `enhanced=true` only. Absent means the primary layer. */
+  kind?: SubsonicLyricsKind;
+  /** `songLyrics` v2, `enhanced=true` only. Parallel to `line` via `index`. */
+  cueLine?: SubsonicLyricCueLine[];
+  /** `songLyrics` v2, `enhanced=true` only. Present only alongside `cueLine`. */
+  agents?: SubsonicLyricAgent[];
 }
