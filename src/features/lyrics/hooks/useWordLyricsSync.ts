@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '@/features/playback/store/playbackProgress';
 import type { Track } from '@/lib/media/trackTypes';
-import type { WordLyricsLine } from '@/features/lyrics/hooks/useLyrics';
+import type { WordLyricsLine } from '@/features/lyrics/types';
 
 interface Args {
   enabled: boolean;

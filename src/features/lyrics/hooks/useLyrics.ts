@@ -1,65 +1,25 @@
 import { getLyricsBySongId } from '@/lib/api/subsonicLyrics';
-import type { SubsonicStructuredLyrics } from '@/lib/api/subsonicTypes';
 import type { Track } from '@/lib/media/trackTypes';
 import { useEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { commands } from '@/generated/bindings';
-import { fetchLyrics, parseLrc, LrcLine } from '@/features/lyrics/api/lrclib';
+import { fetchLyrics } from '@/features/lyrics/api/lrclib';
+import { parseEnhancedLrc, parseLrc } from '@/features/lyrics/utils/lrc';
 import { fetchNeteaselyrics } from '@/features/lyrics/api/netease';
 import { fetchLyricsPlus, hasWordSync } from '@/features/lyrics/api/lyricsplus';
 import { useAuthStore } from '@/store/authStore';
 import { useOfflineStore } from '@/features/offline';
 import { useHotCacheStore } from '@/features/playback/store/hotCacheStore';
 import { getCachedLyrics, putCachedLyrics, lyricsCacheKey } from '@/features/lyrics/utils/lyricsPersistentCache';
-export type LyricsSource = 'server' | 'lrclib' | 'netease' | 'embedded' | 'lyricsplus';
-
-/**
- * Karaoke-style word/syllable timing inside a single line.
- * All times are seconds (aligned with `LrcLine.time`), converted from the
- * millisecond-based lyricsplus response.
- */
-export interface WordLyricsWord {
-  text: string;
-  time: number;
-  duration: number;
-}
-
-export interface WordLyricsLine {
-  time: number;
-  duration: number;
-  text: string;
-  words: WordLyricsWord[];
-}
-
-export interface CachedLyrics {
-  syncedLines: LrcLine[] | null;
-  wordLines: WordLyricsLine[] | null;
-  plainLyrics: string | null;
-  source: LyricsSource | null;
-  notFound: boolean;
-}
+import { parseStructuredLyrics, parseStructuredWordLines } from '@/features/lyrics/utils/structuredLyrics';
+import { FEATURE_ENHANCED_LYRICS } from '@/lib/serverCapabilities/catalog';
+import { isFeatureActiveForServer } from '@/lib/serverCapabilities/storeView';
+import type { CachedLyrics, LrcLine, LyricsSource, WordLyricsLine } from '@/features/lyrics/types';
 
 // L1 cache: RAM, survives tab switches and component remount within a session.
 // L2 (IndexedDB) lives in `utils/lyricsPersistentCache.ts` — only touched on
 // L1 miss so the common case (jumping back to a recent track) stays fully sync.
 export const lyricsCache = new Map<string, CachedLyrics>();
-
-/** Convert structured Subsonic lyrics (ms timestamps) into LrcLine[] or plain text. */
-export function parseStructuredLyrics(
-  lyrics: SubsonicStructuredLyrics,
-): Pick<CachedLyrics, 'syncedLines' | 'plainLyrics'> {
-  // Accept both `synced` (OpenSubsonic spec) and `issynced` (legacy servers).
-  const isSynced = !!(lyrics.synced ?? lyrics.issynced);
-  if (isSynced && lyrics.line.length > 0) {
-    const lines: LrcLine[] = lyrics.line
-      .filter(l => l.start !== undefined)
-      .map(l => ({ time: l.start! / 1000, text: l.value.trim() }))
-      .sort((a, b) => a.time - b.time);
-    if (lines.length > 0) return { syncedLines: lines, plainLyrics: null };
-  }
-  const plain = lyrics.line.map(l => l.value).join('\n').trim();
-  return { syncedLines: null, plainLyrics: plain || null };
-}
 
 export interface UseLyricsResult {
   syncedLines: LrcLine[] | null;
@@ -161,12 +121,14 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
         const lrcString = await commands.getEmbeddedLyrics(filePath);
         if (!lrcString) return false;
 
-        const lines = parseLrc(lrcString);
+        // Embedded tags may hold Enhanced LRC, whose inline `<mm:ss.xx>` markers
+        // must not reach the text — and can drive word highlighting when present.
+        const { lines, wordLines } = parseEnhancedLrc(lrcString);
         const synced = lines.length > 0 ? lines : null;
         const plain  = synced ? null : (lrcString.trim() || null);
         if (!synced && !plain) return false;
 
-        store({ syncedLines: synced, wordLines: null, plainLyrics: plain, source: 'embedded', notFound: false });
+        store({ syncedLines: synced, wordLines: synced ? wordLines : null, plainLyrics: plain, source: 'embedded', notFound: false });
         return true;
       } catch {
         return false;
@@ -174,11 +136,17 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
     };
 
     const fetchServer = async (): Promise<boolean> => {
-      const structured = await getLyricsBySongId(currentTrack.id);
+      // `songLyrics` v2 adds word-level cues, but only where the catalog says the
+      // server speaks it. On a v1 server this stays a plain v1 request.
+      const serverId = useAuthStore.getState().activeServerId ?? '';
+      const enhanced = !!serverId && isFeatureActiveForServer(serverId, FEATURE_ENHANCED_LYRICS);
+
+      const structured = await getLyricsBySongId(currentTrack.id, { enhanced });
       if (!structured) return false;
       const parsed = parseStructuredLyrics(structured);
       if (!parsed.syncedLines && !parsed.plainLyrics) return false;
-      store({ ...parsed, wordLines: null, source: 'server', notFound: false });
+      const wordLines = enhanced ? parseStructuredWordLines(structured) : null;
+      store({ ...parsed, wordLines, source: 'server', notFound: false });
       return true;
     };
 
@@ -191,9 +159,10 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
           currentTrack.duration ?? 0,
         );
         if (!result || (!result.syncedLyrics && !result.plainLyrics)) return false;
-        const lines = result.syncedLyrics ? parseLrc(result.syncedLyrics) : null;
-        const synced = lines && lines.length > 0 ? lines : null;
-        store({ syncedLines: synced, wordLines: null, plainLyrics: result.plainLyrics, source: 'lrclib', notFound: false });
+        const parsed = result.syncedLyrics ? parseEnhancedLrc(result.syncedLyrics) : null;
+        const synced = parsed?.lines.length ? parsed.lines : null;
+        const wordLines = synced ? parsed?.wordLines ?? null : null;
+        store({ syncedLines: synced, wordLines, plainLyrics: result.plainLyrics, source: 'lrclib', notFound: false });
         return true;
       } catch {
         return false;

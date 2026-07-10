@@ -7,6 +7,7 @@ import { useListReorderDnd } from '@/lib/hooks/useListReorderDnd';
 import { applyListReorderById, type ListReorderDropTarget } from '@/lib/util/listReorder';
 import { ReorderGripHandle } from '@/features/settings/components/ReorderGripHandle';
 import { SettingsToggle } from '@/features/settings/components/SettingsToggle';
+import { SettingsSubCard, SettingsField } from '@/features/settings/components/SettingsSubCard';
 
 const LYRICS_SOURCE_LABEL_KEYS: Record<LyricsSourceId, string> = {
   server:  'settings.lyricsSourceServer',
@@ -42,59 +43,55 @@ export function LyricsSourcesCustomizer() {
 
   return (
     <>
-      <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: '0.75rem', lineHeight: 1.5 }}>
-        {t('settings.lyricsSourcesDesc')}
-      </p>
-
       {/* YouLyPlus (karaoke) — independent toggle. When on it is tried first and
           the enabled sources below act as fallback; when off only those sources
           are used. YouLyPlus off + every source off = lyrics fully disabled. */}
-      <div style={{ marginBottom: '0.75rem' }}>
-        <SettingsToggle
-          label={t('settings.lyricsYouLyPlus')}
-          desc={t('settings.lyricsYouLyPlusDesc')}
-          checked={youLyPlusEnabled}
-          onChange={setYouLyPlusEnabled}
-        />
-      </div>
+      <SettingsToggle
+        label={t('settings.lyricsYouLyPlus')}
+        desc={t('settings.lyricsYouLyPlusDesc')}
+        checked={youLyPlusEnabled}
+        onChange={setYouLyPlusEnabled}
+      />
 
-      <div className="playback-rate-derived" style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 0.4rem' }}>
-        {youLyPlusEnabled ? t('settings.lyricsSourcesFallbackHint') : t('settings.lyricsSourcesPrimaryHint')}
-      </div>
-      <div style={{ padding: '4px 0', marginBottom: '0.75rem' }} ref={setContainer} onMouseMove={onMouseMove}>
-          {lyricsSources.map((src) => {
-            const label = t(LYRICS_SOURCE_LABEL_KEYS[src.id]);
-            const edge = isDragging ? dropEdge(src.id) : null;
-            return (
-              <div
-                key={src.id}
-                data-reorder-id={src.id}
-                className="sidebar-customizer-row"
-                style={{
-                  borderTop:    edge === 'before' ? '2px solid var(--accent)' : undefined,
-                  borderBottom: edge === 'after'  ? '2px solid var(--accent)' : undefined,
-                }}
-              >
-                <ReorderGripHandle id={src.id} type={REORDER_TYPE} label={label} />
-                <span style={{ flex: 1, fontSize: 14, opacity: src.enabled ? 1 : 0.45 }}>{label}</span>
-                <label className="toggle-switch" aria-label={label}>
-                  <input type="checkbox" checked={src.enabled} onChange={() => toggleSource(src.id)} />
-                  <span className="toggle-track" />
-                </label>
-              </div>
-            );
-          })}
-        </div>
+      <SettingsSubCard style={{ margin: '0.85rem 0' }}>
+        <SettingsField
+          desc={youLyPlusEnabled ? t('settings.lyricsSourcesFallbackHint') : t('settings.lyricsSourcesPrimaryHint')}
+          note={t('settings.lyricsServerWordSyncHint')}
+        >
+          <div ref={setContainer} onMouseMove={onMouseMove}>
+            {lyricsSources.map((src) => {
+              const label = t(LYRICS_SOURCE_LABEL_KEYS[src.id]);
+              const edge = isDragging ? dropEdge(src.id) : null;
+              return (
+                <div
+                  key={src.id}
+                  data-reorder-id={src.id}
+                  className="sidebar-customizer-row"
+                  style={{
+                    borderTop:    edge === 'before' ? '2px solid var(--accent)' : undefined,
+                    borderBottom: edge === 'after'  ? '2px solid var(--accent)' : undefined,
+                  }}
+                >
+                  <ReorderGripHandle id={src.id} type={REORDER_TYPE} label={label} />
+                  <span style={{ flex: 1, fontSize: 14, opacity: src.enabled ? 1 : 0.45 }}>{label}</span>
+                  <label className="toggle-switch" aria-label={label}>
+                    <input type="checkbox" checked={src.enabled} onChange={() => toggleSource(src.id)} />
+                    <span className="toggle-track" />
+                  </label>
+                </div>
+              );
+            })}
+          </div>
+        </SettingsField>
+      </SettingsSubCard>
 
       {/* Static-only toggle — suppresses line/word tracking in both modes. */}
-      <div style={{ marginBottom: '0.75rem' }}>
-        <SettingsToggle
-          label={t('settings.lyricsStaticOnly')}
-          desc={t('settings.lyricsStaticOnlyDesc')}
-          checked={lyricsStaticOnly}
-          onChange={setLyricsStaticOnly}
-        />
-      </div>
+      <SettingsToggle
+        label={t('settings.lyricsStaticOnly')}
+        desc={t('settings.lyricsStaticOnlyDesc')}
+        checked={lyricsStaticOnly}
+        onChange={setLyricsStaticOnly}
+      />
     </>
   );
 }

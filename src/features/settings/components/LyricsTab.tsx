@@ -26,6 +26,7 @@ export function LyricsTab() {
       <SettingsSubSection
         title={t('settings.lyricsSourcesTitle')}
         icon={<Music2 size={16} />}
+        description={t('settings.lyricsSourcesDesc')}
       >
         <SettingsGroup>
           <LyricsSourcesCustomizer />

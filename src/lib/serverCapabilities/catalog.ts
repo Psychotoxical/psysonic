@@ -14,9 +14,11 @@ import type { CapabilityDefinition } from './types';
 
 export const SONIC_SIMILARITY_EXTENSION = 'sonicSimilarity';
 export const PLAYBACK_REPORT_EXTENSION = 'playbackReport';
+export const SONG_LYRICS_EXTENSION = 'songLyrics';
 
 export const FEATURE_AUDIOMUSE_SIMILAR_TRACKS = 'audiomuse.similarTracks';
 export const FEATURE_PLAYBACK_REPORT = 'opensubsonic.playbackReport';
+export const FEATURE_ENHANCED_LYRICS = 'opensubsonic.enhancedLyrics';
 
 export const PROBE_OPENSUBSONIC_EXTENSIONS = 'opensubsonic.extensions';
 export const PROBE_LEGACY_INSTANT_MIX = 'navidrome.instantMix.legacy';
@@ -24,6 +26,7 @@ export const PROBE_LEGACY_INSTANT_MIX = 'navidrome.instantMix.legacy';
 /** Operation names used by the call router. */
 export const OP_SIMILAR_TRACKS = 'similarTracks';
 export const OP_REPORT_PLAYBACK = 'reportPlayback';
+export const OP_GET_LYRICS = 'getLyrics';
 
 export const SERVER_CAPABILITY_CATALOG: CapabilityDefinition[] = [
   {
@@ -91,6 +94,36 @@ export const SERVER_CAPABILITY_CATALOG: CapabilityDefinition[] = [
           [OP_REPORT_PLAYBACK]: { endpoint: 'reportPlayback.view', transport: 'opensubsonic' },
         },
         labelKey: 'nowPlaying.title',
+      },
+    ],
+  },
+  {
+    // OpenSubsonic `songLyrics` v2 (`enhanced=true`): word/syllable cues for
+    // karaoke highlighting, plus translation/pronunciation layers we filter out.
+    //
+    // The extension probe stores names only, not advertised versions, so the
+    // version gate rides on the server identity instead: Navidrome ships v2 in
+    // 0.63.0. That deliberately keeps `enhanced` off for every non-Navidrome
+    // server — the parameter is additive, but no spec forces a v1 server to
+    // ignore an unknown one, and a 400 would take lyrics down entirely.
+    feature: FEATURE_ENHANCED_LYRICS,
+    labelKey: 'settings.lyricsSourceServer',
+    strategies: [
+      {
+        id: 'opensubsonic.songLyricsEnhanced',
+        priority: 100,
+        when: (ctx) => ctx.isNavidrome && ctx.semverGte([0, 63, 0]),
+        detection: {
+          kind: 'extension',
+          probeId: PROBE_OPENSUBSONIC_EXTENSIONS,
+          extension: SONG_LYRICS_EXTENSION,
+        },
+        trust: 'high',
+        activation: 'auto',
+        calls: {
+          [OP_GET_LYRICS]: { endpoint: 'getLyricsBySongId.view', transport: 'opensubsonic' },
+        },
+        labelKey: 'settings.lyricsSourceServer',
       },
     ],
   },

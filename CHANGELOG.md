@@ -87,6 +87,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Full Italian (Italiano) UI translation — selectable from the language picker on the Settings and Login screens.
 
+### Lyrics — word-by-word highlighting straight from your server
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1265](https://github.com/Psychotoxical/psysonic/pull/1265)**
+
+* The **Server** lyrics source now highlights lyrics word by word, so karaoke sync no longer depends on the third-party YouLyPlus backend. Requires Navidrome 0.63 or newer and lyrics that carry word timing (TTML or Enhanced LRC); anything else keeps highlighting line by line.
+* **Settings → Lyrics → Lyrics Sources** spells out those requirements, and the block now follows the standard settings sub-card layout.
+
 
 ## Changed
 
@@ -215,6 +222,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Pausing a large queue behind a reverse proxy (e.g. Nginx) could snap the player back to an earlier track — the save was one long URL that hit the HTTP 414 limit, failed silently, and idle auto-pull restored the stale server queue.
 * Servers advertising the OpenSubsonic `formPost` extension (Navidrome) now save via POST; others retry once as POST on 414. A failed save no longer lets auto-pull overwrite playback — it resumes only after a successful save.
+
+### Lyrics — timing codes showing up in the text
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1266](https://github.com/Psychotoxical/psysonic/pull/1266)**
+
+* Tracks whose embedded lyrics use Enhanced LRC displayed the raw word timing codes (`<00:12.34>`) inside each line. The codes are now read as word timing instead of printed, so those lyrics also highlight word by word.
+
+### Lyrics — synced lyrics in FLAC and Ogg files
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1267](https://github.com/Psychotoxical/psysonic/pull/1267)**
+
+* FLAC, Ogg Vorbis, Opus and Speex files that store their synced lyrics in the `SYNCEDLYRICS` tag showed no embedded lyrics at all. That tag is now read, and it takes priority over the plain `LYRICS` tag as intended.
 
 
 ## [1.49.0] - 2026-06-29

@@ -3,11 +3,6 @@ export interface LrclibLyrics {
   plainLyrics: string | null;
 }
 
-export interface LrcLine {
-  time: number; // seconds
-  text: string;
-}
-
 export async function fetchLyrics(
   artist: string,
   title: string,
@@ -31,19 +26,4 @@ export async function fetchLyrics(
   } catch {
     return null;
   }
-}
-
-export function parseLrc(lrc: string): LrcLine[] {
-  const lines: LrcLine[] = [];
-  for (const line of lrc.split('\n')) {
-    // \d+(?:\.\d*)? — decimal part is optional so [mm:ss] (no fraction) also matches.
-    // parseFloat handles all forms: "15", "15.", "15.3", "15.32" correctly.
-    const match = line.match(/^\[(\d+):(\d+(?:\.\d*)?)\](.*)/);
-    if (!match) continue;
-    const mins = parseInt(match[1], 10);
-    const secs = parseFloat(match[2]);
-    const text = match[3].trim();
-    lines.push({ time: mins * 60 + secs, text });
-  }
-  return lines.sort((a, b) => a.time - b.time);
 }

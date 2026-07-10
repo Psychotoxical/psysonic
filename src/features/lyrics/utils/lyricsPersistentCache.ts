@@ -12,10 +12,16 @@
  *  - notFound entries: 7 days. Lets the user / server admin add lyrics
  *    later without an indefinite negative cache.
  */
-import type { CachedLyrics } from '@/features/lyrics/hooks/useLyrics';
+import type { CachedLyrics } from '@/features/lyrics/types';
 
 const DB_NAME = 'psysonic-lyrics-cache';
 const STORE_NAME = 'lyrics';
+/**
+ * 2 — server lyrics may now carry word-level timing. Entries cached as
+ * line-only under v1 would otherwise suppress karaoke for their full 90-day
+ * TTL, so the upgrade drops them once and the next play refetches.
+ */
+const DB_VERSION = 2;
 const TTL_FOUND_MS    = 90 * 24 * 60 * 60 * 1000;
 const TTL_NOT_FOUND_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -33,12 +39,15 @@ function openDB(): Promise<IDBDatabase | null> {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise(resolve => {
     try {
-      const req = indexedDB.open(DB_NAME, 1);
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = e => {
-        const database = (e.target as IDBOpenDBRequest).result;
+        const request = e.target as IDBOpenDBRequest;
+        const database = request.result;
         if (!database.objectStoreNames.contains(STORE_NAME)) {
           database.createObjectStore(STORE_NAME, { keyPath: 'key' });
+          return;
         }
+        request.transaction?.objectStore(STORE_NAME).clear();
       };
       req.onsuccess = e => {
         db = (e.target as IDBOpenDBRequest).result;

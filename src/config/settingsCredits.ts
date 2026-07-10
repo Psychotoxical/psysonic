@@ -414,6 +414,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Theme Store: per-theme changelogs shown as an expandable "What\'s new" on each card, plus installed themes with an available update pinned to the top of the list (PR #1240)',
       'Settings → System: community theme authors credited in a Themes sub-section; theme card What\'s new shows the latest version only (PR #1248)',
       'Fullscreen player style — selectable Minimal or Immersive view, with the artist backdrop, cover-derived accent, and rail/Apple lyrics (PR #1249)',
+      'Word-by-word lyrics from the server via OpenSubsonic songLyrics v2, no third-party backend needed (PR #1265)',
     ],
   },
   {
