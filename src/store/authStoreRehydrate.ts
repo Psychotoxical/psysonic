@@ -252,6 +252,9 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
   return {
     ...mediaDirMigrated,
     ...musicNetworkMigrated,
+    ...(state.startMinimizedToTray && state.showTrayIcon === false
+      ? { startMinimizedToTray: false as const }
+      : {}),
     mixMinRatingSong: clampMixFilterMinStars(state.mixMinRatingSong as number),
     mixMinRatingAlbum: clampMixFilterMinStars(state.mixMinRatingAlbum as number),
     mixMinRatingArtist: clampMixFilterMinStars(state.mixMinRatingArtist as number),

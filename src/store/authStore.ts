@@ -72,6 +72,7 @@ export const useAuthStore = create<AuthState>()(
       libraryGridMaxColumns: DEFAULT_LIBRARY_GRID_MAX_COLUMNS,
       showTrayIcon: true,
       minimizeToTray: false,
+      startMinimizedToTray: false,
       clockFormat: 'auto',
       showOrbitTrigger: true,
       discordRichPresence: false,

@@ -54,6 +54,7 @@ describe('trivial pass-through setters', () => {
     ['setArtistBrowseCreditMode', 'artistBrowseCreditMode', 'track'],
     ['setShowTrayIcon', 'showTrayIcon', false],
     ['setMinimizeToTray', 'minimizeToTray', true],
+    ['setStartMinimizedToTray', 'startMinimizedToTray', true],
     ['setClockFormat', 'clockFormat', '24h'],
     ['setShowOrbitTrigger', 'showOrbitTrigger', false],
     ['setDiscordRichPresence', 'discordRichPresence', true],
@@ -310,6 +311,24 @@ describe('lyrics source setters', () => {
 
     useAuthStore.getState().setSidebarLyricsStyle('apple');
     expect(useAuthStore.getState().sidebarLyricsStyle).toBe('apple');
+  });
+});
+
+describe('tray startup settings coupling', () => {
+  it('setStartMinimizedToTray enables showTrayIcon when it was off', () => {
+    useAuthStore.getState().setShowTrayIcon(false);
+    useAuthStore.getState().setStartMinimizedToTray(true);
+    const s = useAuthStore.getState();
+    expect(s.startMinimizedToTray).toBe(true);
+    expect(s.showTrayIcon).toBe(true);
+  });
+
+  it('setShowTrayIcon(false) clears startMinimizedToTray', () => {
+    useAuthStore.getState().setStartMinimizedToTray(true);
+    useAuthStore.getState().setShowTrayIcon(false);
+    const s = useAuthStore.getState();
+    expect(s.showTrayIcon).toBe(false);
+    expect(s.startMinimizedToTray).toBe(false);
   });
 });
 

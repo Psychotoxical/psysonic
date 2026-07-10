@@ -1,4 +1,5 @@
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { shouldDeferMainWindowReveal } from '@/lib/settings/readStartMinimizedToTray';
 import { applyStartupSplashThemeFromStorage } from '@/lib/themes/startupThemeAppearance';
 import { getWindowKind } from './windowKind';
 
@@ -7,6 +8,7 @@ export const STARTUP_SPLASH_ID = 'app-startup-splash';
 /** Ensure the native shell is visible once the webview bundle is alive. */
 export function revealStartupWindow(): void {
   if (getWindowKind() === 'mini') return;
+  if (shouldDeferMainWindowReveal()) return;
   void getCurrentWebviewWindow().show().catch(() => {});
 }
 

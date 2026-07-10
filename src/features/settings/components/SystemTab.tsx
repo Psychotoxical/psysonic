@@ -161,6 +161,18 @@ export function SystemTab() {
               checked={auth.minimizeToTray}
               onChange={auth.setMinimizeToTray}
             />
+            <div className="settings-section-divider" />
+            <SettingsToggle
+              label={t('settings.startMinimizedToTray')}
+              desc={
+                auth.showTrayIcon
+                  ? t('settings.startMinimizedToTrayDesc')
+                  : t('settings.startMinimizedToTrayRequiresTray')
+              }
+              checked={auth.startMinimizedToTray}
+              disabled={!auth.showTrayIcon}
+              onChange={auth.setStartMinimizedToTray}
+            />
           </SettingsGroup>
 
           {IS_LINUX && (

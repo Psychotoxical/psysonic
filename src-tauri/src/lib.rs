@@ -895,9 +895,7 @@ pub fn run() {
                     }
                     let _ = window.hide();
                     if let Some(main) = window.app_handle().get_webview_window("main") {
-                        let _ = main.unminimize();
-                        let _ = main.show();
-                        let _ = main.set_focus();
+                        let _ = crate::lib_commands::ui::mini::restore_main_window(&main);
                     }
                 }
             }
@@ -909,14 +907,18 @@ pub fn run() {
 
             match payload.event() {
                 tauri::webview::PageLoadEvent::Started => {
-                    let window = webview.window().clone();
+                    let app = webview.app_handle().clone();
                     std::thread::spawn(move || {
                         std::thread::sleep(std::time::Duration::from_millis(48));
-                        let _ = window.show();
+                        if let Some(window) = app.get_webview_window("main") {
+                            crate::lib_commands::ui::mini::eval_startup_main_window_visibility(&window);
+                        }
                     });
                 }
                 tauri::webview::PageLoadEvent::Finished => {
-                    let _ = webview.window().show();
+                    if let Some(window) = webview.app_handle().get_webview_window("main") {
+                        crate::lib_commands::ui::mini::eval_startup_main_window_visibility(&window);
+                    }
                 }
             }
         })

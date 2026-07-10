@@ -188,6 +188,8 @@ export interface AuthState {
   libraryGridMaxColumns: number;
   showTrayIcon: boolean;
   minimizeToTray: boolean;
+  /** Cold start: keep the main window hidden and run in the system tray. */
+  startMinimizedToTray: boolean;
   clockFormat: ClockFormat;
   /** Whether the "Orbit" topbar trigger is rendered. Users who never
    *  touch Orbit can hide it so the header stays uncluttered. */
@@ -416,6 +418,7 @@ export interface AuthState {
   setLibraryGridMaxColumns: (v: number) => void;
   setShowTrayIcon: (v: boolean) => void;
   setMinimizeToTray: (v: boolean) => void;
+  setStartMinimizedToTray: (v: boolean) => void;
   setClockFormat: (v: ClockFormat) => void;
   setShowOrbitTrigger: (v: boolean) => void;
   setDiscordRichPresence: (v: boolean) => void;

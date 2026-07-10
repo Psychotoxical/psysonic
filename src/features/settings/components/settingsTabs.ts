@@ -71,7 +71,7 @@ export const SETTINGS_INDEX: SearchIndexEntry[] = [
   { tab: 'input',          titleKey: 'settings.inputKeybindingsTitle',    keywords: 'keybindings shortcuts hotkeys keyboard' },
   { tab: 'input',          titleKey: 'settings.globalShortcutsTitle',     keywords: 'global shortcuts hotkeys system-wide media keys' },
   { tab: 'system',         titleKey: 'settings.language',                 keywords: 'language locale translation i18n' },
-  { tab: 'system',         titleKey: 'settings.behavior',                 keywords: 'behavior tray minimize close start smooth scroll linux' },
+  { tab: 'system',         titleKey: 'settings.behavior',                 keywords: 'behavior tray minimize close start minimized launch hidden smooth scroll linux' },
   { tab: 'system',         titleKey: 'settings.backupTitle',              keywords: 'backup export import settings restore' },
   { tab: 'system',         titleKey: 'settings.loggingTitle',             keywords: 'log logs diagnostic debug verbose' },
   { tab: 'system',         titleKey: 'settings.aboutTitle',               keywords: 'about version update changelog release notes' },

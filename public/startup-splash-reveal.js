@@ -13,6 +13,7 @@
   }
 
   function reveal(attempt) {
+    if (window.__psyStartMinimizedToTray) return;
     if (tryShowMainWindow()) return;
     if (attempt >= MAX_ATTEMPTS) return;
     window.setTimeout(function () {

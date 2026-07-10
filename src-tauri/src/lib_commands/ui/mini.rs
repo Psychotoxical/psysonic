@@ -169,6 +169,51 @@ document.documentElement.style.removeProperty('--psy-anim-speed');
 })();
 "#;
 
+/// Show the main window after startup splash paint, or pause rendering when the
+/// user chose "start minimized to tray" (flag set in `startup-splash-preflight.js`).
+pub(crate) fn eval_startup_main_window_visibility(window: &tauri::WebviewWindow) {
+    let js = format!(
+        "(function () {{
+  try {{
+    if (sessionStorage.getItem('psy-startup-tray-handled') === '1') return;
+  }} catch (e) {{}}
+  var deferToTray = !!window.__psyStartMinimizedToTray;
+  if (!deferToTray) {{
+    try {{
+      var raw = localStorage.getItem('psysonic-auth');
+      if (raw) {{
+        var state = JSON.parse(raw).state;
+        deferToTray = !!(state && state.startMinimizedToTray && state.showTrayIcon !== false);
+      }}
+    }} catch (e) {{}}
+  }}
+  var internals = window.__TAURI_INTERNALS__;
+  if (deferToTray) {{
+    {pause}
+    try {{ sessionStorage.setItem('psy-startup-tray-handled', '1'); }} catch (e) {{}}
+    if (internals && typeof internals.invoke === 'function') {{
+      internals.invoke('plugin:window|hide', {{ label: 'main' }}).catch(function () {{}});
+    }}
+    return;
+  }}
+  if (internals && typeof internals.invoke === 'function') {{
+    internals.invoke('plugin:window|show', {{ label: 'main' }}).catch(function () {{}});
+  }}
+}})();",
+        pause = PAUSE_RENDERING_JS.trim(),
+    );
+    let _ = window.eval(&js);
+}
+
+/// Resume rendering and bring the main window to the foreground.
+pub(crate) fn restore_main_window(main: &tauri::WebviewWindow) -> Result<(), String> {
+    main.eval(RESUME_RENDERING_JS).map_err(|e| e.to_string())?;
+    main.unminimize().map_err(|e| e.to_string())?;
+    main.show().map_err(|e| e.to_string())?;
+    main.set_focus().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// Build the mini player webview window. Caller decides `visible` so the
 /// same code path serves both pre-creation (Windows, hidden at app start)
 /// and lazy creation (other platforms, shown on demand).
@@ -299,9 +344,7 @@ pub(crate) fn open_mini_player(app: tauri::AppHandle) -> Result<(), String> {
         let _ = win.eval(PAUSE_RENDERING_JS);
         win.hide().map_err(|e| e.to_string())?;
         if let Some(main) = app.get_webview_window("main") {
-            let _ = main.unminimize();
-            let _ = main.show();
-            let _ = main.set_focus();
+            let _ = restore_main_window(&main);
         }
     } else {
         // Resume rendering before showing — the window needs to be ready
@@ -341,9 +384,7 @@ pub(crate) fn close_mini_player(app: tauri::AppHandle) -> Result<(), String> {
         win.hide().map_err(|e| e.to_string())?;
     }
     if let Some(main) = app.get_webview_window("main") {
-        let _ = main.unminimize();
-        let _ = main.show();
-        let _ = main.set_focus();
+        restore_main_window(&main)?;
     }
     Ok(())
 }
@@ -360,10 +401,7 @@ pub(crate) fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
         let _ = mini.hide();
     }
     if let Some(main) = app.get_webview_window("main") {
-        let _ = main.eval(RESUME_RENDERING_JS);
-        main.unminimize().map_err(|e| e.to_string())?;
-        main.show().map_err(|e| e.to_string())?;
-        main.set_focus().map_err(|e| e.to_string())?;
+        restore_main_window(&main)?;
     }
     Ok(())
 }

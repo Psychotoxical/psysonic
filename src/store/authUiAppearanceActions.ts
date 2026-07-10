@@ -17,6 +17,7 @@ export function createUiAppearanceActions(set: SetState): Pick<
   | 'setLibraryGridMaxColumns'
   | 'setShowTrayIcon'
   | 'setMinimizeToTray'
+  | 'setStartMinimizedToTray'
   | 'setClockFormat'
   | 'setShowOrbitTrigger'
   | 'setUseCustomTitlebar'
@@ -45,8 +46,15 @@ export function createUiAppearanceActions(set: SetState): Pick<
     setShowArtistImages: (v) => set({ showArtistImages: v }),
     setArtistBrowseCreditMode: (v) => set({ artistBrowseCreditMode: v === 'track' ? 'track' : 'album' }),
     setLibraryGridMaxColumns: (v) => set({ libraryGridMaxColumns: clampLibraryGridMaxColumns(v) }),
-    setShowTrayIcon: (v) => set({ showTrayIcon: v }),
+    setShowTrayIcon: (v) => set({
+      showTrayIcon: v,
+      ...(v ? {} : { startMinimizedToTray: false }),
+    }),
     setMinimizeToTray: (v) => set({ minimizeToTray: v }),
+    setStartMinimizedToTray: (v) => set((state) => ({
+      startMinimizedToTray: v,
+      ...(v && !state.showTrayIcon ? { showTrayIcon: true } : {}),
+    })),
     setClockFormat: (v) => set({ clockFormat: v }),
     setShowOrbitTrigger: (v) => set({ showOrbitTrigger: v }),
     setUseCustomTitlebar: (v) => set({ useCustomTitlebar: v }),

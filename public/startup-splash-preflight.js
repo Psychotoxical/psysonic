@@ -155,7 +155,25 @@
   }
 
   var persisted = readThemeState();
+  function readStartMinimizedToTray() {
+    try {
+      var raw = localStorage.getItem('psysonic-auth');
+      if (!raw) return false;
+      var parsed = JSON.parse(raw);
+      var state = parsed && parsed.state;
+      if (!state || !state.startMinimizedToTray) return false;
+      return state.showTrayIcon !== false;
+    } catch (_err) {
+      return false;
+    }
+  }
+
   var themeId = persisted ? resolveScheduledTheme(persisted) : 'mocha';
   var palette = paletteForTheme(themeId, readInstalledThemes());
   applyPalette(themeId, palette);
+  var trayHandled = false;
+  try {
+    trayHandled = sessionStorage.getItem('psy-startup-tray-handled') === '1';
+  } catch (_err) {}
+  window.__psyStartMinimizedToTray = readStartMinimizedToTray() && !trayHandled;
 })();
