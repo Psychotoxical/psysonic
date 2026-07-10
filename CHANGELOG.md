@@ -87,6 +87,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Full Italian (Italiano) UI translation — selectable from the language picker on the Settings and Login screens.
 
+### Lyrics — word-by-word highlighting straight from your server
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1265](https://github.com/Psychotoxical/psysonic/pull/1265)**
+
+* The **Server** lyrics source now highlights lyrics word by word, so karaoke sync no longer depends on the third-party YouLyPlus backend. Requires Navidrome 0.63 or newer and lyrics that carry word timing (TTML or Enhanced LRC); anything else keeps highlighting line by line.
+* **Settings → Lyrics → Lyrics Sources** spells out those requirements, and the block now follows the standard settings sub-card layout.
+
 
 ## Changed
 

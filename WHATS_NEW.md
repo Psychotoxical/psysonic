@@ -12,6 +12,10 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 
 ## Highlights
 
+### Lyrics that follow the singer, word by word
+
+- The **Server** lyrics source now highlights lyrics word by word as a track plays, so karaoke sync no longer needs the third-party YouLyPlus backend. It requires Navidrome 0.63 or newer and lyrics that carry word timing (TTML or Enhanced LRC files) — everything else keeps highlighting line by line. The requirements are spelled out under **Settings → Lyrics → Lyrics Sources**.
+
 ### Bulgarian — now in your language
 
 - Psysonic is now available in **Bulgarian (Български)** — pick it from the language menu on the **Settings** and **Login** screens.
