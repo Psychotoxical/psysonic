@@ -123,10 +123,8 @@ fn resolve_cached_play_input(engine: &AudioEngine, url: &str) -> Option<PlayInpu
                 .filter(|s| s.url == url)
                 .map(|s| s.path.clone())
         };
-        match spill_path {
-            Some(p) => std::fs::read(&p).ok()?,
-            None => return None,
-        }
+        let path = spill_path?;
+        std::fs::read(&path).ok()?
     };
     Some(PlayInput::Bytes(bytes))
 }
