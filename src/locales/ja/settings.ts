@@ -317,6 +317,7 @@ export const settings = {
   lyricsYouLyPlusDesc: 'コミュニティバックエンド (Apple Music, Spotify, Musixmatch, QQ) から単語単位の同期を取得します。最初に試行され、下の有効ソースはフォールバックとして動作します。',
   lyricsSourcesFallbackHint: 'YouLyPlus が見つからない場合のフォールバックとして使用します。ドラッグで並べ替えできます。',
   lyricsSourcesPrimaryHint: 'この順序で試行します。ドラッグで並べ替えできます。すべてオフ = 歌詞無効。',
+  lyricsServerWordSyncHint: '単語ごとのハイライトには Navidrome 0.63 以降と、単語単位のタイミングを含む歌詞（TTML や Enhanced LRC ファイルなど）が必要です。それ以外は行単位で表示されます。',
   lyricsStaticOnly: '歌詞を静的テキストのみで表示',
   lyricsStaticOnlyDesc: '同期歌詞を自動スクロールなし、単語ハイライトなしで表示します。',
   downloadsTitle: 'ZIP エクスポートとアーカイブ',

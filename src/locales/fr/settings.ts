@@ -307,6 +307,7 @@ export const settings = {
   lyricsYouLyPlusDesc: 'Synchronisation mot à mot depuis un backend communautaire (Apple Music, Spotify, Musixmatch, QQ). Essayé en premier ; les sources activées ci-dessous servent de repli.',
   lyricsSourcesFallbackHint: 'Utilisées en repli quand YouLyPlus ne trouve rien. Glisser pour réordonner.',
   lyricsSourcesPrimaryHint: 'Essayées dans l\'ordre. Glisser pour réordonner. Tout désactivé = paroles désactivées.',
+  lyricsServerWordSyncHint: 'Le mot à mot nécessite Navidrome 0.63+ et des paroles avec minutage par mot, comme des fichiers TTML ou Enhanced LRC. Le reste s\'affiche ligne par ligne.',
   lyricsStaticOnly: 'Afficher les paroles en texte statique uniquement',
   lyricsStaticOnlyDesc: 'Affiche les paroles synchronisées sans défilement automatique ni surlignage des mots.',
   downloadsTitle: 'Export ZIP & Archivage',

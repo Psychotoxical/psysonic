@@ -307,6 +307,7 @@ export const settings = {
   lyricsYouLyPlusDesc: 'Woord-voor-woord-synchronisatie van een community-backend (Apple Music, Spotify, Musixmatch, QQ). Wordt eerst geprobeerd; de ingeschakelde bronnen hieronder dienen als fallback.',
   lyricsSourcesFallbackHint: 'Worden als fallback gebruikt wanneer YouLyPlus niets vindt. Sleep om te herordenen.',
   lyricsSourcesPrimaryHint: 'Worden op volgorde geprobeerd. Sleep om te herordenen. Alles uit = songteksten uitgeschakeld.',
+  lyricsServerWordSyncHint: 'Woord voor woord vereist Navidrome 0.63+ en songteksten met timing per woord, zoals TTML- of Enhanced LRC-bestanden. Al het andere wordt regel voor regel getoond.',
   lyricsStaticOnly: 'Alleen statische tekst weergeven',
   lyricsStaticOnlyDesc: 'Gesynchroniseerde songteksten worden zonder auto-scroll en zonder woordmarkering als statische tekst weergegeven.',
   downloadsTitle: 'ZIP-export & Archivering',

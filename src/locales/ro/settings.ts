@@ -322,6 +322,7 @@ export const settings = {
   lyricsYouLyPlusDesc: 'Sincronizare cuvânt-cu-cuvânt dintr-un backend comunitar (Apple Music, Spotify, Musixmatch, QQ). Încercat primul; sursele activate de mai jos servesc drept rezervă.',
   lyricsSourcesFallbackHint: 'Folosite ca rezervă când YouLyPlus nu găsește nimic. Trage pentru a reordona.',
   lyricsSourcesPrimaryHint: 'Încercate în ordine. Trage pentru a reordona. Toate dezactivate = versuri dezactivate.',
+  lyricsServerWordSyncHint: 'Modul cuvânt cu cuvânt necesită Navidrome 0.63+ și versuri cu sincronizare pe cuvinte, precum fișierele TTML sau Enhanced LRC. Restul sunt afișate rând cu rând.',
   lyricsStaticOnly: 'Afișează versurile doar ca text static',
   lyricsStaticOnlyDesc: 'Redă versurile sincronizate fără scroll automat și fără evidențierea cuvintelor.',
   downloadsTitle: 'Export ZIP & Arhivare',

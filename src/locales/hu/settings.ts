@@ -323,6 +323,7 @@ export const settings = {
   lyricsYouLyPlusDesc: 'Szóról szóra szinkronizálás egy közösségi háttérrendszerből (Apple Music, Spotify, Musixmatch, QQ). Először ezt próbálja; az alábbi engedélyezett források tartalék gyanánt szolgálnak.',
   lyricsSourcesFallbackHint: 'Tartalékként használva, ha a YouLyPlus nem talál semmit. Húzd az átrendezéshez.',
   lyricsSourcesPrimaryHint: 'Sorrendben próbálva. Húzd az átrendezéshez. Mind kikapcsolva = dalszöveg letiltva.',
+  lyricsServerWordSyncHint: 'A szavankénti kiemeléshez Navidrome 0.63+ és szavankénti időzítést tartalmazó dalszöveg kell, például TTML vagy Enhanced LRC fájl. Minden más soronként jelenik meg.',
   lyricsStaticOnly: 'Dalszöveg megjelenítése csak statikus szövegként',
   lyricsStaticOnlyDesc: 'A szinkronizált dalszöveg megjelenítése automatikus görgetés és szókiemelés nélkül.',
   downloadsTitle: 'ZIP-exportálás és archiválás',

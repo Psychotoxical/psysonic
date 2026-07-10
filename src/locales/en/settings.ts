@@ -323,6 +323,7 @@ export const settings = {
   lyricsYouLyPlusDesc: 'Word-by-word sync from a community backend (Apple Music, Spotify, Musixmatch, QQ). Tried first; the enabled sources below act as fallback.',
   lyricsSourcesFallbackHint: 'Used as fallback when YouLyPlus finds nothing. Drag to reorder.',
   lyricsSourcesPrimaryHint: 'Tried in order. Drag to reorder. All off = lyrics disabled.',
+  lyricsServerWordSyncHint: 'Word-by-word needs Navidrome 0.63+ and lyrics with word timing, such as TTML or Enhanced LRC files. Everything else shows line by line.',
   lyricsStaticOnly: 'Show lyrics as static text only',
   lyricsStaticOnlyDesc: 'Render synced lyrics without auto-scroll and without word highlighting.',
   downloadsTitle: 'ZIP Export & Archiving',

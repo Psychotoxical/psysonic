@@ -306,6 +306,7 @@ export const settings = {
   lyricsYouLyPlusDesc: '来自社区后端（Apple Music、Spotify、Musixmatch、QQ 音乐）的逐字同步歌词。优先尝试；下方启用的来源作为后备。',
   lyricsSourcesFallbackHint: 'YouLyPlus 找不到时用作后备。拖动可重新排序。',
   lyricsSourcesPrimaryHint: '按顺序尝试。拖动可重新排序。全部关闭 = 禁用歌词。',
+  lyricsServerWordSyncHint: '逐字高亮需要 Navidrome 0.63+ 以及包含逐字时间轴的歌词，例如 TTML 或 Enhanced LRC 文件。其他歌词按行显示。',
   lyricsStaticOnly: '仅以静态文本显示歌词',
   lyricsStaticOnlyDesc: '同步歌词将不自动滚动、不逐字高亮，以静态文本显示。',
   downloadsTitle: 'ZIP 导出与归档',

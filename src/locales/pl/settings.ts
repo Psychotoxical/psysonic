@@ -323,6 +323,7 @@ export const settings = {
   lyricsYouLyPlusDesc: 'Synchronizacja słowo po słowie z backendu społecznościowego (Apple Music, Spotify, Musixmatch, QQ). Sprawdzane jako pierwsze; włączone źródła poniżej działają jako awaryjne.',
   lyricsSourcesFallbackHint: 'Używane jako opcja awaryjna gdy YouLyPlus nic nie znajdzie. Przeciągnij, aby zmienić kolejność.',
   lyricsSourcesPrimaryHint: 'Sprawdzane w podanej kolejności. Przeciągnij, aby zmienić kolejność. Wszystkie wyłączone = teksty wyłączone.',
+  lyricsServerWordSyncHint: 'Tryb słowo po słowie wymaga Navidrome 0.63+ i tekstu z czasami poszczególnych słów, np. plików TTML lub Enhanced LRC. Pozostałe teksty wyświetlane są wiersz po wierszu.',
   lyricsStaticOnly: 'Pokaż teksty utworów jako sam statyczny tekst',
   lyricsStaticOnlyDesc: 'Wyświetla zsynchronizowane teksty utworów bez automatycznego przewijania i bez podświetlania słów.',
   downloadsTitle: 'Eksportowanie i archiwizacja ZIP',

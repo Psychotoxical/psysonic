@@ -324,6 +324,7 @@ export const settings = {
   lyricsYouLyPlusDesc: 'Sincronizzazione parola per parola da un backend della community (Apple Music, Spotify, Musixmatch, QQ). Provato per primo; le fonti attivate sotto agiscono come riserva.',
   lyricsSourcesFallbackHint: 'Usata come riserva quando YouLyPlus non trova nulla. Trascina per riordinare.',
   lyricsSourcesPrimaryHint: 'Provate in ordine. Trascina per riordinare. Tutte disattivate = testi disabilitati.',
+  lyricsServerWordSyncHint: 'Parola per parola richiede Navidrome 0.63+ e testi con temporizzazione per parola, come i file TTML o Enhanced LRC. Tutto il resto viene mostrato riga per riga.',
   lyricsStaticOnly: 'Mostra i testi solo come testo statico',
   lyricsStaticOnlyDesc: 'Visualizza i testi sincronizzati senza scorrimento automatico e senza evidenziazione delle parole.',
   downloadsTitle: 'Esportazione ZIP e archiviazione',

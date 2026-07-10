@@ -319,6 +319,7 @@ export const settings = {
   lyricsYouLyPlusDesc: 'Sincronización palabra por palabra desde un backend comunitario (Apple Music, Spotify, Musixmatch, QQ). Se prueba primero; las fuentes activadas abajo actúan como respaldo.',
   lyricsSourcesFallbackHint: 'Se usan como respaldo cuando YouLyPlus no encuentra nada. Arrastra para reordenar.',
   lyricsSourcesPrimaryHint: 'Se prueban en orden. Arrastra para reordenar. Todo desactivado = letras desactivadas.',
+  lyricsServerWordSyncHint: 'Palabra por palabra requiere Navidrome 0.63+ y letras con tiempos por palabra, como archivos TTML o Enhanced LRC. El resto se muestra línea por línea.',
   lyricsStaticOnly: 'Mostrar letras como texto estático',
   lyricsStaticOnlyDesc: 'Muestra las letras sincronizadas sin desplazamiento automático ni resaltado por palabra.',
   downloadsTitle: 'Exportación ZIP y Archivado',

@@ -320,6 +320,7 @@ export const settings = {
   lyricsYouLyPlusDesc: 'Wort-für-Wort-Sync über ein Community-Backend (Apple Music, Spotify, Musixmatch, QQ). Wird zuerst versucht; die aktivierten Quellen unten dienen als Fallback.',
   lyricsSourcesFallbackHint: 'Dienen als Fallback, wenn YouLyPlus nichts findet. Zum Sortieren ziehen.',
   lyricsSourcesPrimaryHint: 'Werden der Reihe nach genutzt. Zum Sortieren ziehen. Alle aus = Lyrics deaktiviert.',
+  lyricsServerWordSyncHint: 'Wort für Wort braucht Navidrome 0.63+ und Lyrics mit Wort-Timing, etwa TTML- oder Enhanced-LRC-Dateien. Alles andere wird zeilenweise angezeigt.',
   lyricsStaticOnly: 'Nur statische Lyrics anzeigen',
   lyricsStaticOnlyDesc: 'Synchronisierte Lyrics werden ohne Auto-Scroll und ohne Wort-Hervorhebung als statischer Text dargestellt.',
   downloadsTitle: 'ZIP-Export & Archivierung',

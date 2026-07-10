@@ -306,6 +306,7 @@ export const settings = {
   lyricsYouLyPlusDesc: 'Ord-for-ord-synkronisering fra en fellesskapsbackend (Apple Music, Spotify, Musixmatch, QQ). Prøves først; de aktiverte kildene under fungerer som reserve.',
   lyricsSourcesFallbackHint: 'Brukes som reserve når YouLyPlus ikke finner noe. Dra for å endre rekkefølge.',
   lyricsSourcesPrimaryHint: 'Prøves i rekkefølge. Dra for å endre rekkefølge. Alt av = tekster deaktivert.',
+  lyricsServerWordSyncHint: 'Ord for ord krever Navidrome 0.63+ og tekster med tidskoder per ord, som TTML- eller Enhanced LRC-filer. Alt annet vises linje for linje.',
   lyricsStaticOnly: 'Vis sangtekst som statisk tekst',
   lyricsStaticOnlyDesc: 'Viser synkroniserte tekster uten auto-scroll og uten ord-utheving.',
   downloadsTitle: 'ZIP Eksport & Arkivering',
