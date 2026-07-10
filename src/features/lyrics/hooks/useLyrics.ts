@@ -3,7 +3,8 @@ import type { Track } from '@/lib/media/trackTypes';
 import { useEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { commands } from '@/generated/bindings';
-import { fetchLyrics, parseLrc, LrcLine } from '@/features/lyrics/api/lrclib';
+import { fetchLyrics } from '@/features/lyrics/api/lrclib';
+import { parseEnhancedLrc, parseLrc } from '@/features/lyrics/utils/lrc';
 import { fetchNeteaselyrics } from '@/features/lyrics/api/netease';
 import { fetchLyricsPlus, hasWordSync } from '@/features/lyrics/api/lyricsplus';
 import { useAuthStore } from '@/store/authStore';
@@ -13,7 +14,7 @@ import { getCachedLyrics, putCachedLyrics, lyricsCacheKey } from '@/features/lyr
 import { parseStructuredLyrics, parseStructuredWordLines } from '@/features/lyrics/utils/structuredLyrics';
 import { FEATURE_ENHANCED_LYRICS } from '@/lib/serverCapabilities/catalog';
 import { isFeatureActiveForServer } from '@/lib/serverCapabilities/storeView';
-import type { CachedLyrics, LyricsSource, WordLyricsLine } from '@/features/lyrics/types';
+import type { CachedLyrics, LrcLine, LyricsSource, WordLyricsLine } from '@/features/lyrics/types';
 
 // L1 cache: RAM, survives tab switches and component remount within a session.
 // L2 (IndexedDB) lives in `utils/lyricsPersistentCache.ts` — only touched on
@@ -120,12 +121,14 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
         const lrcString = await commands.getEmbeddedLyrics(filePath);
         if (!lrcString) return false;
 
-        const lines = parseLrc(lrcString);
+        // Embedded tags may hold Enhanced LRC, whose inline `<mm:ss.xx>` markers
+        // must not reach the text — and can drive word highlighting when present.
+        const { lines, wordLines } = parseEnhancedLrc(lrcString);
         const synced = lines.length > 0 ? lines : null;
         const plain  = synced ? null : (lrcString.trim() || null);
         if (!synced && !plain) return false;
 
-        store({ syncedLines: synced, wordLines: null, plainLyrics: plain, source: 'embedded', notFound: false });
+        store({ syncedLines: synced, wordLines: synced ? wordLines : null, plainLyrics: plain, source: 'embedded', notFound: false });
         return true;
       } catch {
         return false;
@@ -156,9 +159,10 @@ export function useLyrics(currentTrack: Track | null): UseLyricsResult {
           currentTrack.duration ?? 0,
         );
         if (!result || (!result.syncedLyrics && !result.plainLyrics)) return false;
-        const lines = result.syncedLyrics ? parseLrc(result.syncedLyrics) : null;
-        const synced = lines && lines.length > 0 ? lines : null;
-        store({ syncedLines: synced, wordLines: null, plainLyrics: result.plainLyrics, source: 'lrclib', notFound: false });
+        const parsed = result.syncedLyrics ? parseEnhancedLrc(result.syncedLyrics) : null;
+        const synced = parsed?.lines.length ? parsed.lines : null;
+        const wordLines = synced ? parsed?.wordLines ?? null : null;
+        store({ syncedLines: synced, wordLines, plainLyrics: result.plainLyrics, source: 'lrclib', notFound: false });
         return true;
       } catch {
         return false;

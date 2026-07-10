@@ -2,7 +2,7 @@ import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '@/featur
 import { useEffect, useRef, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
-import type { LrcLine } from '@/features/lyrics/api/lrclib';
+import type { LrcLine } from '@/features/lyrics/types';
 import { useLyrics } from '@/features/lyrics/hooks/useLyrics';
 import type { WordLyricsLine } from '@/features/lyrics/types';
 import { useAuthStore } from '@/store/authStore';

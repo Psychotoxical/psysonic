@@ -12,5 +12,4 @@
 export { default as LyricsPane } from './components/LyricsPane';
 export { useLyrics } from './hooks/useLyrics';
 export { useWordLyricsSync } from './hooks/useWordLyricsSync';
-export type { LrcLine } from './api/lrclib';
-export type { WordLyricsLine, WordLyricsWord, LyricsSource } from './types';
+export type { LrcLine, WordLyricsLine, WordLyricsWord, LyricsSource } from './types';

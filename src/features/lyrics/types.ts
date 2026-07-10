@@ -4,9 +4,14 @@
  * the hook (dependency-cruiser counts type-only edges, and a back-edge would
  * close a cycle).
  */
-import type { LrcLine } from '@/features/lyrics/api/lrclib';
 
 export type LyricsSource = 'server' | 'lrclib' | 'netease' | 'embedded' | 'lyricsplus';
+
+/** One timed line of lyrics. `time` is seconds. */
+export interface LrcLine {
+  time: number;
+  text: string;
+}
 
 /**
  * Karaoke-style word/syllable timing inside a single line.

@@ -9,8 +9,7 @@ import type {
   SubsonicLyricCueLine,
   SubsonicStructuredLyrics,
 } from '@/lib/api/subsonicTypes';
-import type { LrcLine } from '@/features/lyrics/api/lrclib';
-import type { CachedLyrics, WordLyricsLine, WordLyricsWord } from '@/features/lyrics/types';
+import type { CachedLyrics, LrcLine, WordLyricsLine, WordLyricsWord } from '@/features/lyrics/types';
 
 const MS_PER_SECOND = 1000;
 
