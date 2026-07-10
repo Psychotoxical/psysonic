@@ -94,6 +94,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The **Server** lyrics source now highlights lyrics word by word, so karaoke sync no longer depends on the third-party YouLyPlus backend. Requires Navidrome 0.63 or newer and lyrics that carry word timing (TTML or Enhanced LRC); anything else keeps highlighting line by line.
 * **Settings → Lyrics → Lyrics Sources** spells out those requirements, and the block now follows the standard settings sub-card layout.
 
+### Start minimized to tray
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1271](https://github.com/Psychotoxical/psysonic/pull/1271)**
+
+* New **Start Minimized to Tray** toggle under **Settings → System → Behavior**. When enabled, the next cold start keeps the main window hidden and Psysonic runs from the system tray until you show it from the tray icon.
+* Requires **Show Tray Icon** (turning this on enables the tray automatically; hiding the tray clears the setting). The choice applies on the next launch only — toggling it in Settings does not hide the window immediately.
+
 
 ## Changed
 
