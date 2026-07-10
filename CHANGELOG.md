@@ -229,6 +229,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Tracks whose embedded lyrics use Enhanced LRC displayed the raw word timing codes (`<00:12.34>`) inside each line. The codes are now read as word timing instead of printed, so those lyrics also highlight word by word.
 
+### Lyrics — synced lyrics in FLAC and Ogg files
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1267](https://github.com/Psychotoxical/psysonic/pull/1267)**
+
+* FLAC, Ogg Vorbis, Opus and Speex files that store their synced lyrics in the `SYNCEDLYRICS` tag showed no embedded lyrics at all. That tag is now read, and it takes priority over the plain `LYRICS` tag as intended.
+
 
 ## [1.49.0] - 2026-06-29
 
