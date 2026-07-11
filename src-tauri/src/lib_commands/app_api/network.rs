@@ -221,17 +221,36 @@ pub(crate) async fn probe_server_connection(
 /// clamp to this ceiling.
 const PROXY_MAX_TIMEOUT_SECS: u64 = 120;
 
+/// Proxied requests reuse a small pool of `reqwest::Client`s keyed by their
+/// (clamped) timeout in whole seconds. A `reqwest::Client` clone shares the
+/// underlying connection pool, so pooling by timeout bucket keeps HTTP
+/// keep-alive across the many concurrent browse calls a gated server routes
+/// here — rather than opening (and tearing down) a fresh pool per request,
+/// which under load starved connections and surfaced as spurious timeouts /
+/// `499`s on otherwise-fast endpoints (`getAlbumList2`, `getAlbum`, `ping`).
 fn proxy_http_client(timeout_ms: Option<u32>) -> reqwest::Client {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+
     let secs = timeout_ms
         .map(|ms| u64::from(ms).div_ceil(1000))
         .filter(|s| *s > 0)
         .unwrap_or(PROBE_TIMEOUT_SECS)
         .min(PROXY_MAX_TIMEOUT_SECS);
-    reqwest::Client::builder()
-        .user_agent(psysonic_core::user_agent::subsonic_wire_user_agent())
-        .timeout(std::time::Duration::from_secs(secs))
-        .build()
-        .unwrap_or_else(|_| reqwest::Client::new())
+
+    static POOL: OnceLock<Mutex<HashMap<u64, reqwest::Client>>> = OnceLock::new();
+    let pool = POOL.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut guard = pool.lock().unwrap();
+    guard
+        .entry(secs)
+        .or_insert_with(|| {
+            reqwest::Client::builder()
+                .user_agent(psysonic_core::user_agent::subsonic_wire_user_agent())
+                .timeout(std::time::Duration::from_secs(secs))
+                .build()
+                .unwrap_or_else(|_| reqwest::Client::new())
+        })
+        .clone()
 }
 
 /// WebView-transport bridge for gated servers (Cloudflare Access, Pangolin, …).

@@ -579,10 +579,7 @@ pub(crate) fn apply_playback_request_headers(
     req: reqwest::RequestBuilder,
 ) -> reqwest::RequestBuilder {
     if let Some(reg) = registry {
-        if let Some(sid) = server_id.filter(|s| !s.is_empty()) {
-            return reg.apply_for_http_url(sid, url, req);
-        }
-        if let Some(ctx) = reg.get_for_server_url(url) {
+        if let Some(ctx) = reg.resolve_context(server_id, url) {
             return psysonic_core::server_http::apply_server_headers_for_http_url(req, &ctx, url);
         }
     }
