@@ -321,6 +321,20 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
             // Debounce: give the OS time to finish configuring the new device.
             tokio::time::sleep(Duration::from_millis(500)).await;
 
+            #[cfg(target_os = "linux")]
+            {
+                let stream_on_default = tauri::async_runtime::spawn_blocking(|| {
+                    super::dev_io::linux_psysonic_stream_routes_to_default_sink()
+                })
+                .await
+                .unwrap_or(false);
+                if stream_on_default {
+                    // PipeWire already moved playback — notify frontend (EQ sync) only.
+                    app.emit("audio:device-changed", Option::<f64>::None).ok();
+                    continue;
+                }
+            }
+
             if !reopen_output_stream(&app, None, ReopenNotify::DeviceChanged).await {
                 crate::app_eprintln!("[psysonic] device-watcher: stream reopen timed out");
             }

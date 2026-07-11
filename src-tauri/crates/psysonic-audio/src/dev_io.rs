@@ -68,6 +68,98 @@ pub(crate) fn cpal_name_from_pipewire_alsa(card: &str, alsa_name: &str) -> Strin
     format!("{card}, {alsa_name}")
 }
 
+/// Read `node.driver-id` from `wpctl inspect` output (PipeWire stream → sink link).
+pub(crate) fn parse_wpctl_inspect_driver_id(inspect: &str) -> Option<u32> {
+    for line in inspect.lines() {
+        let line = line.trim().trim_start_matches('*').trim();
+        if let Some(v) = line.strip_prefix("node.driver-id = ") {
+            return v.trim_matches('"').parse().ok();
+        }
+    }
+    None
+}
+
+/// Collect PipeWire ALSA `[psysonic]` playback stream node ids from `wpctl status`.
+pub(crate) fn parse_wpctl_status_psysonic_stream_ids(status: &str) -> Vec<u32> {
+    let mut in_audio_streams = false;
+    let mut ids = Vec::new();
+    for line in status.lines() {
+        if line.contains("Streams:") && line.contains('─') {
+            in_audio_streams = true;
+            continue;
+        }
+        if !in_audio_streams {
+            continue;
+        }
+        let trimmed = line.trim();
+        if trimmed.starts_with("Video") || trimmed.starts_with("Settings") {
+            break;
+        }
+        if !trimmed.contains("PipeWire ALSA [psysonic]") || trimmed.contains("(deleted)") {
+            continue;
+        }
+        let Some(id_str) = trimmed.split('.').next() else {
+            continue;
+        };
+        if let Ok(id) = id_str.trim().parse::<u32>() {
+            ids.push(id);
+        }
+    }
+    ids
+}
+
+#[cfg(target_os = "linux")]
+fn linux_wpctl_inspect_driver_id(node_id: u32) -> Option<u32> {
+    use std::process::Command;
+    let inspect = Command::new("wpctl")
+        .args(["inspect", &node_id.to_string()])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())?;
+    parse_wpctl_inspect_driver_id(&inspect)
+}
+
+/// True when a live psysonic PipeWire stream is already routed to the default sink.
+/// Hyprpanel / WirePlumber often migrate streams on `set-default` before our poll
+/// sees the change — reopening CPAL in that case only causes an audible glitch.
+#[cfg(target_os = "linux")]
+pub(crate) fn linux_psysonic_stream_routes_to_default_sink() -> bool {
+    use std::process::Command;
+    let Some(default_id) = linux_wpctl_default_sink_id() else {
+        return false;
+    };
+    let Some(status) = Command::new("wpctl")
+        .args(["status"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+    else {
+        return false;
+    };
+    let stream_ids = parse_wpctl_status_psysonic_stream_ids(&status);
+    stream_ids.iter().any(|&id| linux_wpctl_inspect_driver_id(id) == Some(default_id))
+}
+
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn linux_psysonic_stream_routes_to_default_sink() -> bool {
+    false
+}
+
+/// Parse `wpctl list audio sinks` and return the id of the default sink (trailing `*`).
+pub(crate) fn parse_wpctl_list_default_sink_id(listing: &str) -> Option<u32> {
+    for line in listing.lines() {
+        let line = line.trim_end();
+        if !line.ends_with('*') {
+            continue;
+        }
+        let id_str = line.split('\t').next()?.trim();
+        return id_str.parse().ok();
+    }
+    None
+}
+
 /// Parse `wpctl status` and return the id of the default sink (line marked with `*`).
 pub(crate) fn parse_wpctl_default_sink_id(status: &str) -> Option<u32> {
     let mut in_sinks = false;
@@ -116,15 +208,32 @@ pub(crate) fn parse_wpctl_inspect_alsa_names(inspect: &str) -> Option<(String, S
 }
 
 #[cfg(target_os = "linux")]
-fn linux_resolve_default_via_pipewire(list: &[String]) -> Option<String> {
+fn linux_wpctl_default_sink_id() -> Option<u32> {
     use std::process::Command;
+    let listing = Command::new("wpctl")
+        .args(["list", "audio", "sinks"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned());
+    if let Some(ref text) = listing {
+        if let Some(id) = parse_wpctl_list_default_sink_id(text) {
+            return Some(id);
+        }
+    }
     let status = Command::new("wpctl")
         .args(["status"])
         .output()
         .ok()
         .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())?;
-    let sink_id = parse_wpctl_default_sink_id(&status)?;
+    parse_wpctl_default_sink_id(&status)
+}
+
+#[cfg(target_os = "linux")]
+fn linux_resolve_default_via_pipewire(list: &[String]) -> Option<String> {
+    use std::process::Command;
+    let sink_id = linux_wpctl_default_sink_id()?;
     let inspect = Command::new("wpctl")
         .args(["inspect", &sink_id.to_string()])
         .output()
@@ -137,19 +246,20 @@ fn linux_resolve_default_via_pipewire(list: &[String]) -> Option<String> {
 }
 
 /// Resolve the active default output to a device key that matches `audio_list_devices`
-/// when possible. On Linux/PipeWire, cpal's default is often the generic alias
-/// `"Default Audio Device"`, which never changes when the user switches sinks.
+/// when possible. On Linux/PipeWire, cpal's default is often a generic alias or a
+/// stale card name that does not track WirePlumber default changes (Hyprpanel,
+/// pavucontrol, `wpctl set-default`, etc.) — prefer `wpctl` when available.
 pub fn effective_default_output_device_name() -> Option<String> {
     let list = enumerate_output_device_names();
+    #[cfg(target_os = "linux")]
+    if let Some(resolved) = linux_resolve_default_via_pipewire(&list) {
+        return Some(resolved);
+    }
     let raw = raw_cpal_default_output_device_name();
     if let Some(ref name) = raw {
         if !is_generic_default_output_alias(name) {
             return pick_listed_device_name(name, &list).or_else(|| Some(name.clone()));
         }
-    }
-    #[cfg(target_os = "linux")]
-    if let Some(resolved) = linux_resolve_default_via_pipewire(&list) {
-        return Some(resolved);
     }
     raw
 }
@@ -311,6 +421,37 @@ mod tests {
         assert!(is_generic_default_output_alias("Default Audio Device"));
         assert!(is_generic_default_output_alias("PipeWire Sound Server"));
         assert!(!is_generic_default_output_alias("HDA NVidia, Gigabyte M32U"));
+    }
+
+    #[test]
+    fn parse_wpctl_status_psysonic_stream_ids_finds_active_streams() {
+        let status = r#"
+Audio
+ └─ Streams:
+        84. PipeWire ALSA [psysonic]
+             90. output_FL       > ALC897 Analog:playback_FL	[active]
+       119. PipeWire ALSA [psysonic (deleted)]
+Video
+"#;
+        assert_eq!(
+            parse_wpctl_status_psysonic_stream_ids(status),
+            vec![84]
+        );
+    }
+
+    #[test]
+    fn parse_wpctl_inspect_driver_id_reads_node_driver() {
+        let inspect = r#"
+  * node.driver-id = "58"
+    node.name = "alsa_playback.psysonic"
+"#;
+        assert_eq!(parse_wpctl_inspect_driver_id(inspect), Some(58));
+    }
+
+    #[test]
+    fn parse_wpctl_list_default_sink_id_finds_starred_sink() {
+        let listing = "56\talsa_output.pci-hdmi\taudio/sink\t\n58\talsa_output.pci-analog\taudio/sink\t*";
+        assert_eq!(parse_wpctl_list_default_sink_id(listing), Some(58));
     }
 
     #[test]
