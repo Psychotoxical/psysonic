@@ -8,7 +8,10 @@ import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { ensureConnectUrlResolved } from '@/lib/server/serverEndpoint';
 import { serverIndexKeyForProfile } from '@/lib/server/serverIndexKey';
-import { syncServerHttpContextForProfile } from '@/lib/server/syncServerHttpContext';
+import {
+  syncAllServerHttpContexts,
+  syncServerHttpContextForProfile,
+} from '@/lib/server/syncServerHttpContext';
 import { libraryDevEnabled, logLibraryStatus, logLibrarySync, timed } from './libraryDevLog';
 
 export type BindServerResult = 'bound' | 'offline' | 'error';
@@ -18,6 +21,14 @@ export type BindServerResult = 'bound' | 'offline' | 'error';
  */
 export async function bindIndexedServer(server: ServerProfile): Promise<BindServerResult> {
   if (!useLibraryIndexStore.getState().isIndexEnabled(server.id)) return 'error';
+
+  // Register per-server gate headers in the native registry FIRST — before the
+  // reachability probe, the bind session, and any stream / cover / prefetch
+  // request. Those native (reqwest) paths resolve their gate header from the
+  // registry, so it must be populated up front. Gating the sync behind a
+  // successful (and possibly slow / hanging) probe or bind left the registry
+  // empty for a gated server, and every native path 403'd behind the gate.
+  void syncServerHttpContextForProfile(server);
 
   // Dual-address: resolve the connect URL once (LAN-first, sticky cached) and
   // hand that to the Rust bind-session command — Rust then sees the reachable
@@ -50,7 +61,6 @@ export async function bindIndexedServer(server: ServerProfile): Promise<BindServ
       });
       logLibraryStatus(server.id, status, 'bind_session');
     }
-    void syncServerHttpContextForProfile(server);
     return 'bound';
   } catch {
     return 'error';
@@ -71,6 +81,12 @@ export async function bootstrapAllIndexedServers(): Promise<Record<string, BindS
   const lib = useLibraryIndexStore.getState();
   if (!lib.masterEnabled) return {};
   const auth = useAuthStore.getState();
+  // Authoritatively (re)populate the native gate-header registry for every saved
+  // server before any bind/probe runs. The persist-rehydrate sync fires very
+  // early and is best-effort; this runs once React has mounted and the Tauri IPC
+  // bridge is ready, so a gated server's headers are present for the reachability
+  // probe, stream, cover and prefetch paths that resolve them from the registry.
+  await syncAllServerHttpContexts(auth.servers).catch(() => {});
   const active = auth.activeServerId
     ? auth.servers.find(s => s.id === auth.activeServerId) ?? null
     : null;
