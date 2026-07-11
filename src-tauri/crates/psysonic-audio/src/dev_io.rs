@@ -313,6 +313,20 @@ fn linux_wpctl_default_sink_id() -> Option<u32> {
     parse_wpctl_default_sink_id(&status)
 }
 
+/// Read `node.description` from `wpctl inspect` (Bluetooth and other non-ALSA sinks).
+pub(crate) fn parse_wpctl_inspect_node_description(inspect: &str) -> Option<String> {
+    for line in inspect.lines() {
+        let line = line.trim().trim_start_matches('*').trim();
+        if let Some(v) = line.strip_prefix("node.description = ") {
+            let desc = v.trim_matches('"').to_string();
+            if !desc.is_empty() {
+                return Some(desc);
+            }
+        }
+    }
+    None
+}
+
 #[cfg(target_os = "linux")]
 fn linux_resolve_default_via_pipewire(list: &[String]) -> Option<String> {
     use std::process::Command;
@@ -323,8 +337,11 @@ fn linux_resolve_default_via_pipewire(list: &[String]) -> Option<String> {
         .ok()
         .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())?;
-    let (card, pcm) = parse_wpctl_inspect_alsa_names(&inspect)?;
-    let candidate = cpal_name_from_pipewire_alsa(&card, &pcm);
+    let candidate = if let Some((card, pcm)) = parse_wpctl_inspect_alsa_names(&inspect) {
+        cpal_name_from_pipewire_alsa(&card, &pcm)
+    } else {
+        parse_wpctl_inspect_node_description(&inspect)?
+    };
     pick_listed_device_name(&candidate, list).or(Some(candidate))
 }
 
@@ -354,6 +371,14 @@ fn resolve_effective_default_output_device_name(enumerate_devices: bool) -> Opti
     }
     #[cfg(target_os = "linux")]
     if !enumerate_devices {
+        // wpctl unavailable — last-resort cpal (skip generic/stale placeholder names).
+        if linux_wpctl_default_sink_id().is_none() {
+            if let Some(raw) = raw_cpal_default_output_device_name() {
+                if !is_generic_default_output_alias(&raw) {
+                    return Some(raw);
+                }
+            }
+        }
         return None;
     }
     let raw = raw_cpal_default_output_device_name();
@@ -607,6 +632,18 @@ Audio
         assert_eq!(
             cpal_name_from_pipewire_alsa("HD-Audio Generic", "ALC897 Analog"),
             "HD-Audio Generic, ALC897 Analog"
+        );
+    }
+
+    #[test]
+    fn parse_wpctl_inspect_node_description_reads_bluetooth_sink() {
+        let inspect = r#"
+  * node.description = "BlueZ Audio Device"
+    node.name = "bluez_output.xxx"
+"#;
+        assert_eq!(
+            parse_wpctl_inspect_node_description(inspect),
+            Some("BlueZ Audio Device".into())
         );
     }
 
