@@ -48,14 +48,16 @@ export async function bindIndexedServer(server: ServerProfile): Promise<BindServ
   // Register per-server gate headers in the native registry FIRST — before the
   // reachability probe, the bind session, and any stream / cover / prefetch
   // request. Those native (reqwest) paths resolve their gate header from the
-  // registry, so it must be populated up front. Gating the sync behind a
-  // successful (and possibly slow / hanging) probe or bind left the registry
-  // empty for a gated server, and every native path 403'd behind the gate.
-  void syncServerHttpContextForProfile(server)
-    .catch(() => {})
-    // Only after the header lands: clear any stale gate-403 `.fetch-failed`
-    // cover markers so covers that failed during a registry gap re-download.
-    .then(() => retryGatedServerCovers(server));
+  // registry synchronously at call time, so the sync must COMPLETE (awaited)
+  // before we probe/bind — a fire-and-forget sync let the native probe/bind
+  // race an empty registry and 403 behind the gate. `bootstrapAllIndexedServers`
+  // already syncs up front, but a direct `bindIndexedServer` (add / enable one
+  // server) has only this call to lean on.
+  await syncServerHttpContextForProfile(server).catch(() => {});
+  // Header is registered now: clear any stale gate-403 `.fetch-failed` cover
+  // markers so covers that failed during a registry gap re-download. Best-effort
+  // and independent of bind — keep it off the critical path.
+  void retryGatedServerCovers(server);
 
   // Dual-address: resolve the connect URL once (LAN-first, sticky cached) and
   // hand that to the Rust bind-session command — Rust then sees the reachable
