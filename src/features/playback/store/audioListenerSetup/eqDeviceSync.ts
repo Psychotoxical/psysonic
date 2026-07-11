@@ -145,14 +145,12 @@ async function resolveSystemDefaultKey(forPoll = false): Promise<string | null> 
   const next = await queryOsDefault(forPoll);
   if (next !== null) {
     resolvedOsDefault = next;
-  } else if (forPoll && resolvedOsDefault !== null) {
     return resolveEqKey(null);
-  } else if (forPoll) {
-    return null;
-  } else {
-    resolvedOsDefault = next;
   }
-  return resolveEqKey(null);
+  if (resolvedOsDefault !== null) {
+    return resolveEqKey(null);
+  }
+  return null;
 }
 
 async function refreshFollowingSystemDefault(forPoll = false): Promise<void> {
@@ -216,10 +214,11 @@ export function setupEqDeviceSync(): () => void {
       return;
     }
     void enqueueOsDefaultRefresh(async () => {
-      await resolveSystemDefaultKey();
+      const key = await resolveSystemDefaultKey();
       if (cancelled) return;
       if (useAuthStore.getState().audioOutputDevice !== null) return;
-      await switchEqToKeyAsync(resolveEqKey(null), true);
+      if (key === null) return;
+      await switchEqToKeyAsync(key, true);
     });
   });
 
