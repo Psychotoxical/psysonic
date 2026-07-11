@@ -319,6 +319,29 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                 continue;
             };
 
+            if last_default.is_none() {
+                last_default = Some(new_name.clone());
+                continue;
+            }
+
+            if let Some(ref prev) = last_default {
+                let prev_name = prev.clone();
+                let new_name_for_eq = new_name.clone();
+                let same_sink = tauri::async_runtime::spawn_blocking(move || {
+                    super::dev_io::output_device_keys_equivalent(
+                        &prev_name,
+                        &new_name_for_eq,
+                        &[],
+                    )
+                })
+                .await
+                .unwrap_or(false);
+                if same_sink {
+                    last_default = Some(new_name);
+                    continue;
+                }
+            }
+
             last_default = Some(new_name.clone());
 
             // Debounce: give the OS time to finish configuring the new device.
