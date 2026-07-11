@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import axios from 'axios';
+import { onInvoke } from '@/test/mocks/tauri';
 import {
   fetchOpenSubsonicExtensionsWithCredentials,
   hasOpenSubsonicExtension,
@@ -70,14 +71,33 @@ describe('fetchOpenSubsonicExtensionsWithCredentials', () => {
     ).resolves.toBeNull();
   });
 
-  it('sends custom gate headers when a header profile is supplied', async () => {
-    vi.mocked(axios.get).mockResolvedValue(okExtensions([]));
-    await fetchOpenSubsonicExtensionsWithCredentials('https://music.test', 'u', 'p', {
+  it('routes through the native proxy with gate headers when a header profile is supplied', async () => {
+    // Gate-header servers can't use the WebView (CORS preflight the gate rejects),
+    // so this must go through the native `subsonic_proxy_request` command with the
+    // header context forwarded — not an axios request.
+    type ProxyArgs = {
+      endpoint: string;
+      httpContext: { customHeaders: { name: string; value: string }[] } | null;
+    };
+    let received: ProxyArgs | undefined;
+    onInvoke('subsonic_proxy_request', (args) => {
+      received = args as ProxyArgs;
+      return JSON.stringify({
+        'subsonic-response': { status: 'ok', openSubsonic: true, openSubsonicExtensions: [] },
+      });
+    });
+
+    const result = await fetchOpenSubsonicExtensionsWithCredentials('https://music.test', 'u', 'p', {
       url: 'https://music.test',
       customHeaders: [{ name: 'CF-Access-Client-Secret', value: 'gate-secret' }],
       customHeadersApplyTo: 'public',
     });
-    const config = vi.mocked(axios.get).mock.calls[0]?.[1] as { headers?: Record<string, string> };
-    expect(config.headers?.['CF-Access-Client-Secret']).toBe('gate-secret');
+
+    expect(result).toEqual([]);
+    expect(axios.get).not.toHaveBeenCalled();
+    expect(received?.endpoint).toBe('getOpenSubsonicExtensions.view');
+    expect(received?.httpContext?.customHeaders).toEqual([
+      { name: 'CF-Access-Client-Secret', value: 'gate-secret' },
+    ]);
   });
 });

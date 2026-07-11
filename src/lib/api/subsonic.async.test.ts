@@ -580,3 +580,82 @@ describe('pingWithCredentialsForProfile — custom gate headers (native probe)',
     expect(r.error).toBe('Wrong username or password');
   });
 });
+
+describe('api() transport routing — gated servers use the native proxy', () => {
+  // Browse / stats / search all funnel through `api()` → axios in the WebView.
+  // For gate-header servers that axios request dies on a CORS preflight, so the
+  // transport must switch to the native `subsonic_proxy_request` command. This
+  // pins that routing decision (and the header-less axios path staying put).
+  type ProxyArgs = {
+    baseUrl: string;
+    endpoint: string;
+    params: [string, string][];
+    postForm: boolean;
+    httpContext: { customHeaders: { name: string; value: string }[] } | null;
+  };
+
+  function addGatedActiveServer() {
+    resetAuthStore();
+    const id = useAuthStore.getState().addServer({
+      name: 'Gated',
+      url: 'https://gated.example.com',
+      username: 'u',
+      password: 'p',
+      customHeaders: [{ name: 'CF-Access-Client-Secret', value: 'gate-secret' }],
+      customHeadersApplyTo: 'public',
+    });
+    useAuthStore.getState().setActiveServer(id);
+  }
+
+  it('routes getAlbumList2 through the native command with the gate header context', async () => {
+    addGatedActiveServer();
+    let received: ProxyArgs | undefined;
+    onInvoke('subsonic_proxy_request', (args) => {
+      received = args as ProxyArgs;
+      return JSON.stringify({
+        'subsonic-response': { status: 'ok', randomSongs: { song: [] } },
+      });
+    });
+
+    const songs = await getRandomSongs();
+
+    expect(songs).toEqual([]);
+    expect(axios.get).not.toHaveBeenCalled();
+    expect(received?.endpoint).toBe('getRandomSongs.view');
+    expect(received?.baseUrl).toBe('https://gated.example.com');
+    expect(received?.httpContext?.customHeaders).toEqual([
+      { name: 'CF-Access-Client-Secret', value: 'gate-secret' },
+    ]);
+    // Auth params still ride in the forwarded query.
+    expect(received?.params.some(([k]) => k === 'u')).toBe(true);
+  });
+
+  it('propagates a server failure envelope from the proxied body', async () => {
+    addGatedActiveServer();
+    onInvoke('subsonic_proxy_request', () =>
+      JSON.stringify({
+        'subsonic-response': { status: 'failed', error: { code: 40, message: 'Wrong username or password' } },
+      }),
+    );
+    await expect(getRandomSongs()).rejects.toThrow(/wrong username/i);
+  });
+
+  it('keeps the WebView axios path for header-less active servers', async () => {
+    resetAuthStore();
+    const id = useAuthStore.getState().addServer({
+      name: 'Plain', url: 'https://plain.example.com', username: 'u', password: 'p',
+    });
+    useAuthStore.getState().setActiveServer(id);
+    vi.mocked(axios.get).mockResolvedValue(okResponse({ randomSongs: { song: [] } }));
+    let proxyCalled = false;
+    onInvoke('subsonic_proxy_request', () => {
+      proxyCalled = true;
+      return JSON.stringify({ 'subsonic-response': { status: 'ok' } });
+    });
+
+    await getRandomSongs();
+
+    expect(axios.get).toHaveBeenCalledTimes(1);
+    expect(proxyCalled).toBe(false);
+  });
+});

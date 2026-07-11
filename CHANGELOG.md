@@ -248,6 +248,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Adding a server that needs a custom HTTP header (Cloudflare Access, Pangolin service tokens) failed with "Connection failed" even though streaming and covers would have worked. Root cause: the connection test ran in the WebView, which sends a header-less CORS preflight the gate rejects before the real request. The test now runs natively for header-carrying servers, so the header rides on the request and the server connects.
 * A failed "Add server" used to close the form and leave only a tiny status dot, so it was unclear what went wrong. The form now stays open on failure and shows the reason — the server's own message (e.g. "Wrong username or password"), an HTTP status like `HTTP 403 Forbidden`, or a transport error — and empty server address / username are caught up front with a clear message.
+* Even after a gated server connected, browse and detail views that run in the WebView — Main stage, New Releases, Random Albums, Statistics, search, genres, and more — stayed empty, because those `axios` requests still tripped the gate's CORS preflight. Every Subsonic REST call that would carry a gate header now runs natively (the same reqwest path streaming and covers use), so the whole app works behind a header gate, not just playback.
 
 
 ## [1.49.0] - 2026-06-29

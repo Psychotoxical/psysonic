@@ -521,6 +521,28 @@ export const commands = {
 	customHeaders?: CustomHeaderEntryWire[],
 	customHeadersApplyTo?: CustomHeadersApplyTo | null,
 } | null) => typedError<ServerProbeResult, string>(__TAURI_INVOKE("probe_server_connection", { baseUrl, username, password, httpContext })),
+	/**
+	 *  WebView-transport bridge for gated servers (Cloudflare Access, Pangolin, …).
+	 * 
+	 *  A custom gate header is not CORS-safelisted, so any Subsonic REST call the
+	 *  WebView makes over `axios`/`fetch` triggers an `OPTIONS` preflight the gate
+	 *  rejects — breaking browse, search, statistics, and every non-media view.
+	 *  The frontend routes those calls here whenever it would attach a gate header;
+	 *  this runs the request natively (no preflight) with the header applied via
+	 *  the per-server [`ServerHttpContext`], and returns the untouched JSON body
+	 *  for the WebView to parse exactly as it parses an `axios` response.
+	 * 
+	 *  The frontend supplies the *full* query (auth params + endpoint args), so no
+	 *  credentials are needed here. `endpoint` is the REST segment including
+	 *  `.view`; `post_form` uses an `application/x-www-form-urlencoded` body.
+	 */
+	subsonicProxyRequest: (baseUrl: string, endpoint: string, params: ([string, string])[], postForm: boolean, timeoutMs: number | null, httpContext: {
+	serverId: string,
+	appServerId: string,
+	endpoints: ServerHttpEndpointWire[],
+	customHeaders?: CustomHeaderEntryWire[],
+	customHeadersApplyTo?: CustomHeadersApplyTo | null,
+} | null) => typedError<string, string>(__TAURI_INVOKE("subsonic_proxy_request", { baseUrl, endpoint, params, postForm, timeoutMs, httpContext })),
 	serverHttpContextClear: (serverId: string, appServerId: string) => typedError<null, string>(__TAURI_INVOKE("server_http_context_clear", { serverId, appServerId })),
 	serverHttpContextSync: (wire: ServerHttpContextSyncWire) => typedError<null, string>(__TAURI_INVOKE("server_http_context_sync", { wire })),
 	serverHttpContextSyncAll: (entries: ServerHttpContextSyncWire[]) => typedError<null, string>(__TAURI_INVOKE("server_http_context_sync_all", { entries })),

@@ -352,6 +352,47 @@ impl SubsonicClient {
             .await
             .map_err(|e| SubsonicError::Transport(flatten_reqwest_error(e)))
     }
+
+    /// Raw WebView-transport bridge: the caller (TypeScript) has already built
+    /// the *full* query — auth params (`u`/`t`/`s`/`v`/`c`/`f`) plus the
+    /// endpoint's own args — so this only attaches gate headers + UA and hands
+    /// the untouched response body back for the frontend to parse. It lets
+    /// gated servers (Cloudflare Access, Pangolin, …) reach every Subsonic
+    /// endpoint the WebView would otherwise call over `axios`, where a
+    /// non-safelisted header trips a CORS preflight the gate rejects.
+    ///
+    /// `endpoint` is the REST path segment *including* `.view`
+    /// (e.g. `getAlbumList2.view`). `post_form` sends the params as an
+    /// `application/x-www-form-urlencoded` body (OpenSubsonic `formPost`, for
+    /// large multi-`id` calls) instead of a query string.
+    pub async fn send_raw(
+        &self,
+        endpoint: &str,
+        params: &[(String, String)],
+        post_form: bool,
+    ) -> Result<String, SubsonicError> {
+        let url = format!("{}/rest/{endpoint}", self.base_url);
+        let mut req = if post_form {
+            self.http.post(&url).form(params)
+        } else {
+            self.http.get(&url).query(params)
+        };
+        if let Some(ctx) = &self.http_context {
+            req = apply_server_headers(req, ctx, &self.base_url);
+        }
+
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| SubsonicError::Transport(flatten_reqwest_error(e)))?;
+
+        if !resp.status().is_success() {
+            return Err(SubsonicError::HttpStatus(resp.status()));
+        }
+        resp.text()
+            .await
+            .map_err(|e| SubsonicError::Transport(flatten_reqwest_error(e)))
+    }
 }
 
 #[derive(Deserialize)]
@@ -714,6 +755,71 @@ mod tests {
             matches!(err, SubsonicError::HttpStatus(_)),
             "gated endpoint without the header should not match the mock (got {err:?})"
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn send_raw_get_forwards_query_and_gate_header_and_returns_body() {
+        // WebView-transport bridge: the frontend passes the full query (auth +
+        // endpoint args) and the gate header rides via the http context. The
+        // mock only answers when both the caller's `type` param and the gate
+        // header are present, and the untouched JSON body is returned verbatim.
+        use psysonic_core::server_http::{CustomHeadersApplyTo, EndpointKind};
+        use wiremock::matchers::header;
+
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .and(query_param("type", "newest"))
+            .and(query_param("u", "user"))
+            .and(header("CF-Access-Client-Secret", "gate-secret"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "albumList2": { "album": [] } }
+            })))
+            .mount(&server)
+            .await;
+
+        let ctx = ServerHttpContext {
+            endpoints: vec![(server.uri(), EndpointKind::Public)],
+            headers: vec![("CF-Access-Client-Secret".into(), "gate-secret".into())],
+            apply_to: CustomHeadersApplyTo::Public,
+        };
+        let params = vec![
+            ("u".to_string(), "user".to_string()),
+            ("type".to_string(), "newest".to_string()),
+        ];
+        let body = test_client(&server.uri())
+            .with_http_context(ctx)
+            .send_raw("getAlbumList2.view", &params, false)
+            .await
+            .expect("gated raw GET must reach the mounted matcher");
+        assert!(body.contains("albumList2"), "raw body returned verbatim: {body}");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn send_raw_post_form_sends_params_in_body() {
+        // OpenSubsonic `formPost` path for large multi-`id` calls: params ride in
+        // the urlencoded body, not the query string.
+        use wiremock::matchers::body_string_contains;
+
+        let server = MockServer::start().await;
+        Mock::given(wm_method("POST"))
+            .and(wm_path("/rest/savePlayQueue.view"))
+            .and(body_string_contains("id=track-1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok" }
+            })))
+            .mount(&server)
+            .await;
+
+        let params = vec![
+            ("u".to_string(), "user".to_string()),
+            ("id".to_string(), "track-1".to_string()),
+        ];
+        let body = test_client(&server.uri())
+            .send_raw("savePlayQueue.view", &params, true)
+            .await
+            .expect("form-post raw request must match the body matcher");
+        assert!(body.contains("\"status\": \"ok\"") || body.contains("\"status\":\"ok\""));
     }
 
     #[tokio::test(flavor = "multi_thread")]

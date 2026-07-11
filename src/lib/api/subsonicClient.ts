@@ -2,10 +2,11 @@ import axios from 'axios';
 import { getLuckyMixLibraryScopeOverride } from '@/lib/library/luckyMixScopeOverride';
 import md5 from 'md5';
 import { version } from '@/../package.json';
+import { commands } from '@/generated/bindings';
 import { useAuthStore } from '@/store/authStore';
 import type { ServerProfile } from '@/store/authStoreTypes';
 import { connectBaseUrlForServer } from '@/lib/server/serverEndpoint';
-import { headersForServerRequest } from '@/lib/server/serverHttpHeaders';
+import { headersForServerRequest, serverHttpContextWireForProbe } from '@/lib/server/serverHttpHeaders';
 import { findServerByIdOrIndexKey, resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 
 export const SUBSONIC_CLIENT = `psysonic/${version}`;
@@ -75,6 +76,82 @@ export function isHttp414(err: unknown): boolean {
   return false;
 }
 
+function httpBaseFromUrl(serverUrl: string): string {
+  return serverUrl.startsWith('http')
+    ? serverUrl.replace(/\/$/, '')
+    : `http://${serverUrl.replace(/\/$/, '')}`;
+}
+
+/**
+ * Flatten Subsonic params into ordered `[key, value]` pairs the same way axios
+ * does with `paramsSerializer: { indexes: null }` (arrays repeat the key:
+ * `id=a&id=b`). Undefined / null values are dropped. Used as the wire payload
+ * for the native `subsonic_proxy_request` command.
+ */
+function subsonicParamPairs(params: Record<string, unknown>): [string, string][] {
+  const pairs: [string, string][] = [];
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item === undefined || item === null) continue;
+        pairs.push([key, String(item)]);
+      }
+      continue;
+    }
+    pairs.push([key, String(value)]);
+  }
+  return pairs;
+}
+
+/**
+ * Run a Subsonic REST call through the native reqwest command instead of the
+ * WebView. Required for gate-header servers (Cloudflare Access, Pangolin): a
+ * non-CORS-safelisted header makes the WebView send an `OPTIONS` preflight the
+ * gate rejects, so browse/search/stats never leave. Native reqwest never
+ * preflights and carries the header via the per-server http context. The raw
+ * JSON body is parsed exactly like an axios response.
+ */
+async function requestViaRustProxy<T>(
+  serverUrl: string,
+  endpoint: string,
+  params: Record<string, unknown>,
+  headerProfile: ServerHttpHeaderProfile,
+  timeout: number,
+  postForm: boolean,
+): Promise<T> {
+  const res = await commands.subsonicProxyRequest(
+    httpBaseFromUrl(serverUrl),
+    endpoint,
+    subsonicParamPairs(params),
+    postForm,
+    timeout,
+    serverHttpContextWireForProbe(headerProfile),
+  );
+  if (res.status === 'error') throw new Error(res.error);
+  let json: unknown;
+  try {
+    json = JSON.parse(res.data);
+  } catch {
+    throw new Error('Invalid response from server (possibly not a Subsonic server)');
+  }
+  return parseSubsonicResponse<T>(json);
+}
+
+/**
+ * True when a request to `requestBaseUrl` would carry non-safelisted gate
+ * headers — i.e. it must go through the native proxy, not the WebView. Reuses
+ * `headersForServerRequest` so the endpoint-kind / apply-to logic stays in one
+ * place: an empty header map means the WebView path is safe.
+ */
+function requiresNativeTransport(
+  headerProfile: ServerHttpHeaderProfile | undefined,
+  requestBaseUrl: string,
+): boolean {
+  if (!headerProfile) return false;
+  return Object.keys(headersForServerRequest(headerProfile, requestBaseUrl)).length > 0;
+}
+
 export async function apiWithCredentials<T>(
   serverUrl: string,
   username: string,
@@ -85,6 +162,9 @@ export async function apiWithCredentials<T>(
   headerProfile?: ServerHttpHeaderProfile,
 ): Promise<T> {
   const params = { ...getAuthParams(username, password), ...extra };
+  if (headerProfile && requiresNativeTransport(headerProfile, serverUrl)) {
+    return requestViaRustProxy<T>(serverUrl, endpoint, params, headerProfile, timeout, false);
+  }
   const headers = headerProfile ? headersForServerRequest(headerProfile, serverUrl) : {};
   const resp = await axios.get(`${restBaseFromUrl(serverUrl)}/${endpoint}`, {
     params,
@@ -109,6 +189,9 @@ export async function apiPostFormWithCredentials<T>(
   headerProfile?: ServerHttpHeaderProfile,
 ): Promise<T> {
   const params = { ...getAuthParams(username, password), ...extra };
+  if (headerProfile && requiresNativeTransport(headerProfile, serverUrl)) {
+    return requestViaRustProxy<T>(serverUrl, endpoint, params, headerProfile, timeout, true);
+  }
   const headers = {
     ...(headerProfile ? headersForServerRequest(headerProfile, serverUrl) : {}),
     'Content-Type': 'application/x-www-form-urlencoded',
@@ -193,6 +276,12 @@ export async function api<T>(
   const { baseUrl, params } = getClient();
   const server = useAuthStore.getState().getActiveServer();
   const connectBase = useAuthStore.getState().getBaseUrl();
+  // Gate-header servers: route through the native proxy (no CORS preflight).
+  // `signal` isn't forwarded — the underlying request can't be aborted mid-flight,
+  // but the caller's promise still settles and stale results are ignored upstream.
+  if (server && connectBase && requiresNativeTransport(server, connectBase)) {
+    return requestViaRustProxy<T>(connectBase, endpoint, { ...params, ...extra }, server, timeout, false);
+  }
   const headers =
     server && connectBase ? headersForServerRequest(server, connectBase) : {};
   const resp = await axios.get(`${baseUrl}/${endpoint}`, {

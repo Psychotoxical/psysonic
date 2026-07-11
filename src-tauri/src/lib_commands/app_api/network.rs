@@ -216,6 +216,67 @@ pub(crate) async fn probe_server_connection(
     }
 }
 
+/// Upper bound on a proxied WebView request so a hung gate can't wedge a
+/// command worker forever. The frontend passes its own per-call timeout; we
+/// clamp to this ceiling.
+const PROXY_MAX_TIMEOUT_SECS: u64 = 120;
+
+fn proxy_http_client(timeout_ms: Option<u32>) -> reqwest::Client {
+    let secs = timeout_ms
+        .map(|ms| u64::from(ms).div_ceil(1000))
+        .filter(|s| *s > 0)
+        .unwrap_or(PROBE_TIMEOUT_SECS)
+        .min(PROXY_MAX_TIMEOUT_SECS);
+    reqwest::Client::builder()
+        .user_agent(psysonic_core::user_agent::subsonic_wire_user_agent())
+        .timeout(std::time::Duration::from_secs(secs))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
+}
+
+/// WebView-transport bridge for gated servers (Cloudflare Access, Pangolin, …).
+///
+/// A custom gate header is not CORS-safelisted, so any Subsonic REST call the
+/// WebView makes over `axios`/`fetch` triggers an `OPTIONS` preflight the gate
+/// rejects — breaking browse, search, statistics, and every non-media view.
+/// The frontend routes those calls here whenever it would attach a gate header;
+/// this runs the request natively (no preflight) with the header applied via
+/// the per-server [`ServerHttpContext`], and returns the untouched JSON body
+/// for the WebView to parse exactly as it parses an `axios` response.
+///
+/// The frontend supplies the *full* query (auth params + endpoint args), so no
+/// credentials are needed here. `endpoint` is the REST segment including
+/// `.view`; `post_form` uses an `application/x-www-form-urlencoded` body.
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn subsonic_proxy_request(
+    base_url: String,
+    endpoint: String,
+    params: Vec<(String, String)>,
+    post_form: bool,
+    timeout_ms: Option<u32>,
+    http_context: Option<ServerHttpContextSyncWire>,
+) -> Result<String, String> {
+    let mut client = SubsonicClient::with_http(
+        base_url,
+        String::new(),
+        String::new(),
+        proxy_http_client(timeout_ms),
+    );
+    if let Some(wire) = http_context {
+        client = client.with_http_context(ServerHttpContext::from(wire));
+    }
+    client
+        .send_raw(&endpoint, &params, post_form)
+        .await
+        .map_err(|err| {
+            // Header values / password are never part of `err`, so logging the
+            // reason is safe and gives gated-server requests a diagnostic trail.
+            crate::app_deprintln!("[subsonic-proxy] {endpoint} failed: {err}");
+            probe_failure_reason(&err)
+        })
+}
+
 /// Strip a `:port` suffix. Handles `host:port` and `[ipv6]:port`; leaves
 /// bracketed IPv6 with no port (`[::1]`) and bare hosts alone.
 fn strip_port(input: &str) -> String {
