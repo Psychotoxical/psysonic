@@ -303,32 +303,15 @@ impl ServerHttpRegistry {
         self.get_for_server_url(full_http_url)
     }
 
-    pub fn apply_for_http_url(
-        &self,
-        server_ref: &str,
-        full_http_url: &str,
-        builder: RequestBuilder,
-    ) -> RequestBuilder {
-        let Some(ctx) = self.resolve_context(Some(server_ref), full_http_url) else {
-            return builder;
-        };
-        apply_server_headers_for_http_url(builder, &ctx, full_http_url)
-    }
-
-    pub fn apply_for_base_url(
-        &self,
-        server_ref: &str,
-        request_base_url: &str,
-        builder: RequestBuilder,
-    ) -> RequestBuilder {
-        let Some(ctx) = self.get_for_server_ref(server_ref) else {
-            return builder;
-        };
-        apply_server_headers(builder, &ctx, request_base_url)
-    }
 }
 
-/// Apply custom headers when `registry` is present — prefers `server_ref`, falls back to URL match.
+/// The single entry point for attaching a gated server's custom headers to any
+/// native request. Resolves the context by `server_ref` first, then falls back
+/// to matching the request URL against a registered gated endpoint; a non-gated
+/// server (no match) leaves the builder untouched. Every raw-download call site
+/// (streaming, cover art, analysis prefetch, Navidrome auth, offline transfer)
+/// and `SubsonicClient::with_registry` funnel through this / `resolve_context`,
+/// so gate-header behaviour lives in exactly one place.
 pub fn apply_optional_registry_headers(
     registry: Option<&ServerHttpRegistry>,
     server_ref: Option<&str>,

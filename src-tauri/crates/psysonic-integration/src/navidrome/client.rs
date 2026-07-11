@@ -1,7 +1,7 @@
 //! Auth + retry + HTTP client for Navidrome's native REST API.
 //! Used by every other navidrome submodule for `/auth/*` and `/api/*` calls.
 
-use psysonic_core::server_http::{apply_server_headers_for_http_url, apply_optional_registry_headers, ServerHttpRegistry};
+use psysonic_core::server_http::{apply_optional_registry_headers, ServerHttpRegistry};
 
 /// Authenticate with Navidrome's own REST API and return a Bearer token.
 pub async fn navidrome_token(server_url: &str, username: &str, password: &str) -> Result<String, String> {
@@ -17,14 +17,14 @@ pub async fn navidrome_token_with_registry(
     let client = reqwest::Client::new();
     let base = server_url.trim_end_matches('/');
     let login_url = format!("{base}/auth/login");
-    let mut req = client
-        .post(&login_url)
-        .json(&serde_json::json!({ "username": username, "password": password }));
-    if let Some(reg) = registry {
-        if let Some(ctx) = reg.get_for_server_url(server_url) {
-            req = apply_server_headers_for_http_url(req, &ctx, &login_url);
-        }
-    }
+    let req = apply_optional_registry_headers(
+        registry,
+        None,
+        &login_url,
+        client
+            .post(&login_url)
+            .json(&serde_json::json!({ "username": username, "password": password })),
+    );
     let resp = req.send().await.map_err(|e| e.to_string())?;
     let data: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
     data["token"]

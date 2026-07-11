@@ -90,14 +90,15 @@ async fn fetch_cover_once(
     registry: Option<&ServerHttpRegistry>,
     server_ref: Option<&str>,
 ) -> FetchAttempt {
-    let mut req = client.get(url);
-    if let Some(reg) = registry {
-        if let Some(sid) = server_ref.filter(|s| !s.is_empty()) {
-            req = reg.apply_for_http_url(sid, url, req);
-        } else if let Some(ctx) = reg.get_for_server_url(url) {
-            req = psysonic_core::server_http::apply_server_headers_for_http_url(req, &ctx, url);
-        }
-    }
+    // Single gate-header application point — resolves by `server_ref` first,
+    // then falls back to matching the request URL against a registered gated
+    // endpoint. No match (non-gated server) leaves the request untouched.
+    let req = psysonic_core::server_http::apply_optional_registry_headers(
+        registry,
+        server_ref,
+        url,
+        client.get(url),
+    );
     let resp = match req.send().await {
         Ok(r) => r,
         // Connection reset / timeout / DNS — transient under server load.

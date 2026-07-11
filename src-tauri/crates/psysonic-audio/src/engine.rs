@@ -578,12 +578,7 @@ pub(crate) fn apply_playback_request_headers(
     url: &str,
     req: reqwest::RequestBuilder,
 ) -> reqwest::RequestBuilder {
-    if let Some(reg) = registry {
-        if let Some(ctx) = reg.resolve_context(server_id, url) {
-            return psysonic_core::server_http::apply_server_headers_for_http_url(req, &ctx, url);
-        }
-    }
-    req
+    psysonic_core::server_http::apply_optional_registry_headers(registry, server_id, url, req)
 }
 
 /// Custom HTTP headers for reverse-proxy gates — cloned into background download tasks.
