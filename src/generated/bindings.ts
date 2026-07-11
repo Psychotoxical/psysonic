@@ -152,6 +152,8 @@ export const commands = {
 	audioCanonicalizeSelectedDevice: () => __TAURI_INVOKE<string | null>("audio_canonicalize_selected_device"),
 	/**  Device id string for the host default output (matches an entry from `audio_list_devices` when present). */
 	audioDefaultOutputDeviceName: () => __TAURI_INVOKE<string | null>("audio_default_output_device_name"),
+	/**  Lightweight default query for EQ poll — skips full `output_devices()` scan (#996). */
+	audioDefaultOutputDeviceNameForPoll: () => __TAURI_INVOKE<string | null>("audio_default_output_device_name_for_poll"),
 	/**
 	 *  Find a stored per-device EQ key that denotes the same sink as `candidate`
 	 *  (exact or Linux ALSA logical match).

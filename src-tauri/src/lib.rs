@@ -167,6 +167,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             audio::device_commands::audio_list_devices,
             audio::device_commands::audio_canonicalize_selected_device,
             audio::device_commands::audio_default_output_device_name,
+            audio::device_commands::audio_default_output_device_name_for_poll,
             audio::device_commands::audio_match_stored_output_device_key,
             audio::device_commands::audio_set_device,
             // psysonic-analysis (no Value / all ≤10 args — fully typeable)
@@ -1001,6 +1002,7 @@ pub fn run() {
             audio::device_commands::audio_list_devices,
             audio::device_commands::audio_canonicalize_selected_device,
             audio::device_commands::audio_default_output_device_name,
+            audio::device_commands::audio_default_output_device_name_for_poll,
             audio::device_commands::audio_match_stored_output_device_key,
             audio::device_commands::audio_set_device,
             audio::commands::audio_chain_preload,

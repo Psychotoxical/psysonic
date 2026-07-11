@@ -65,6 +65,34 @@ fn pick_listed_device_name(candidate: &str, list: &[String]) -> Option<String> {
         .cloned()
 }
 
+fn equivalent_list_entries(name: &str, list: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = list
+        .iter()
+        .filter(|d| d.as_str() == name || output_devices_logically_same(d, name))
+        .cloned()
+        .collect();
+    if let Some(picked) = pick_listed_device_name(name, list) {
+        if !out.iter().any(|d| d == &picked) {
+            out.push(picked);
+        }
+    }
+    if out.is_empty() && !name.is_empty() {
+        out.push(name.to_string());
+    }
+    out
+}
+
+/// True when two device keys refer to the same sink (exact, ALSA logical, or via list canon).
+pub(crate) fn output_device_keys_equivalent(a: &str, b: &str, list: &[String]) -> bool {
+    if a == b || output_devices_logically_same(a, b) {
+        return true;
+    }
+    let ea = equivalent_list_entries(a, list);
+    let eb = equivalent_list_entries(b, list);
+    ea.iter()
+        .any(|x| eb.iter().any(|y| x == y || output_devices_logically_same(x, y)))
+}
+
 /// Build the cpal-style `"CARD, PCM name"` label PipeWire exposes for ALSA sinks.
 pub(crate) fn cpal_name_from_pipewire_alsa(card: &str, alsa_name: &str) -> String {
     format!("{card}, {alsa_name}")

@@ -51,6 +51,7 @@ describe('eqDeviceSync', () => {
     resetEq();
     useAuthStore.getState().setAudioOutputDevice(null);
     onInvoke('audio_default_output_device_name', () => 'Speakers');
+    onInvoke('audio_default_output_device_name_for_poll', () => 'Speakers');
     onInvoke('audio_match_stored_output_device_key', () => null);
   });
 

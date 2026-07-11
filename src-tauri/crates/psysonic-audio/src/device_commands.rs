@@ -7,8 +7,8 @@ use std::sync::atomic::Ordering;
 use tauri::{Emitter, State};
 
 use super::dev_io::{
-    enumerate_output_device_names, output_devices_logically_same,
-    output_enumeration_includes_pinned,
+    enumerate_output_device_names, output_device_keys_equivalent,
+    output_devices_logically_same, output_enumeration_includes_pinned,
 };
 use super::engine::AudioEngine;
 
@@ -63,6 +63,13 @@ pub fn audio_default_output_device_name() -> Option<String> {
     super::dev_io::effective_default_output_device_name()
 }
 
+/// Lightweight default query for EQ poll — skips full `output_devices()` scan (#996).
+#[tauri::command]
+#[specta::specta]
+pub fn audio_default_output_device_name_for_poll() -> Option<String> {
+    super::dev_io::effective_default_output_device_name_for_poll()
+}
+
 /// Find a stored per-device EQ key that denotes the same sink as `candidate`
 /// (exact or Linux ALSA logical match).
 #[tauri::command]
@@ -71,12 +78,10 @@ pub fn audio_match_stored_output_device_key(
     candidate: String,
     stored_keys: Vec<String>,
 ) -> Option<String> {
-    if stored_keys.iter().any(|k| k == &candidate) {
-        return Some(candidate);
-    }
+    let list = enumerate_output_device_names();
     stored_keys
         .into_iter()
-        .find(|k| output_devices_logically_same(k, &candidate))
+        .find(|k| output_device_keys_equivalent(k, &candidate, &list))
 }
 
 /// Switch the audio output device. `device_name = null` → follow system default.

@@ -1,6 +1,7 @@
 import { listen } from '@tauri-apps/api/event';
 import {
   audioDefaultOutputDeviceName,
+  audioDefaultOutputDeviceNameForPoll,
   audioMatchStoredOutputDeviceKey,
 } from '@/lib/api/audio';
 import { useAuthStore } from '@/store/authStore';
@@ -130,24 +131,26 @@ async function switchEqToKeyAsync(
   }
 }
 
-async function queryOsDefault(): Promise<string | null> {
+async function queryOsDefault(forPoll = false): Promise<string | null> {
   try {
-    return await audioDefaultOutputDeviceName();
+    return forPoll
+      ? await audioDefaultOutputDeviceNameForPoll()
+      : await audioDefaultOutputDeviceName();
   } catch {
     return null;
   }
 }
 
-async function resolveSystemDefaultKey(): Promise<string> {
-  resolvedOsDefault = await queryOsDefault();
+async function resolveSystemDefaultKey(forPoll = false): Promise<string> {
+  resolvedOsDefault = await queryOsDefault(forPoll);
   return resolveEqKey(null);
 }
 
-async function refreshFollowingSystemDefault(): Promise<void> {
+async function refreshFollowingSystemDefault(forPoll = false): Promise<void> {
   if (!shouldFollowSystemDefaultEq()) return;
   await enqueueOsDefaultRefresh(async () => {
     if (!shouldFollowSystemDefaultEq()) return;
-    const key = await resolveSystemDefaultKey();
+    const key = await resolveSystemDefaultKey(forPoll);
     if (!shouldFollowSystemDefaultEq()) return;
     await switchEqToKeyAsync(key, true);
   });
@@ -223,7 +226,7 @@ export function setupEqDeviceSync(): () => void {
   // Sub 3 — poll while following system default (covers missed events / wpctl lag).
   const pollId = setInterval(() => {
     if (cancelled) return;
-    void refreshFollowingSystemDefault();
+    void refreshFollowingSystemDefault(true);
   }, SYSTEM_DEFAULT_POLL_MS);
 
   // Sub 4 — mirror live EQ edits into the current device's snapshot, and seed
