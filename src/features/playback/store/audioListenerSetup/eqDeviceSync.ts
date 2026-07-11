@@ -254,7 +254,7 @@ export function setupEqDeviceSync(): () => void {
     if (justEnabled) {
       void (async () => {
         const pinned = useAuthStore.getState().audioOutputDevice;
-        const key = pinned ?? await resolveSystemDefaultKey();
+        const key = pinned ?? await resolveSystemDefaultKey() ?? DEFAULT_DEVICE_KEY;
         if (cancelled) return;
         currentKey = key;
         useEqStore.getState().saveSnapshotFor(key);
