@@ -98,14 +98,15 @@ export function setupEqDeviceSync(): () => void {
     if (pinnedAtStart === null) {
       resolvedOsDefault = await queryOsDefault();
       if (cancelled) return;
-      currentKey = resolveEqKey(null);
     }
+    const pinned = useAuthStore.getState().audioOutputDevice;
+    currentKey = resolveEqKey(pinned);
     const eqAtStart = useEqStore.getState();
     if (eqAtStart.rememberPerDevice) {
       const snap = lookupSnapshot(
         eqAtStart.byDevice,
         currentKey,
-        pinnedAtStart === null,
+        pinned === null,
       );
       if (snap) applySnapshot(snap);
     }
