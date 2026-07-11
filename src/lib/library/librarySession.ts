@@ -12,9 +12,32 @@ import {
   syncAllServerHttpContexts,
   syncServerHttpContextForProfile,
 } from '@/lib/server/syncServerHttpContext';
+import {
+  libraryCoverBackfillRunFullPass,
+  libraryCoverClearFetchFailures,
+} from '@/lib/api/coverCache';
 import { libraryDevEnabled, logLibraryStatus, logLibrarySync, timed } from './libraryDevLog';
 
 export type BindServerResult = 'bound' | 'offline' | 'error';
+
+/**
+ * A gated server (Cloudflare Access / Pangolin) whose cover fetches 403'd while
+ * the native header registry was momentarily empty — e.g. a dev restart before
+ * {@link syncServerHttpContextForProfile} landed — wrote 30-minute
+ * `.fetch-failed` markers, so those covers won't retry on their own even after
+ * the gate starts answering. Once the header is (re)registered we drop the
+ * markers and kick a backfill pass so the covers re-download, mirroring the
+ * URL-change retry in `library_cover_backfill_set_base_url`.
+ */
+async function retryGatedServerCovers(server: ServerProfile): Promise<void> {
+  if (!server.customHeaders?.length) return;
+  try {
+    const cleared = await libraryCoverClearFetchFailures(serverIndexKeyForProfile(server));
+    if (cleared > 0) void libraryCoverBackfillRunFullPass(true);
+  } catch {
+    /* best-effort — a missing cover cache or offline server is not fatal to bind */
+  }
+}
 
 /**
  * Bind one server when it participates in the local index (master on, not excluded).
@@ -28,7 +51,11 @@ export async function bindIndexedServer(server: ServerProfile): Promise<BindServ
   // registry, so it must be populated up front. Gating the sync behind a
   // successful (and possibly slow / hanging) probe or bind left the registry
   // empty for a gated server, and every native path 403'd behind the gate.
-  void syncServerHttpContextForProfile(server);
+  void syncServerHttpContextForProfile(server)
+    .catch(() => {})
+    // Only after the header lands: clear any stale gate-403 `.fetch-failed`
+    // cover markers so covers that failed during a registry gap re-download.
+    .then(() => retryGatedServerCovers(server));
 
   // Dual-address: resolve the connect URL once (LAN-first, sticky cached) and
   // hand that to the Rust bind-session command — Rust then sees the reachable

@@ -111,11 +111,34 @@ async fn fetch_cover_once(
         };
     }
     let msg = format!("cover HTTP {status}");
-    if status.is_server_error() || status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+    if cover_http_status_is_transient(status) {
         FetchAttempt::Transient(msg)
     } else {
         FetchAttempt::Permanent(msg)
     }
+}
+
+/// A cover HTTP status worth retrying — i.e. NOT a permanent "cover missing".
+///
+/// A `4xx` normally means the art is genuinely absent (`404`/`410`) or the
+/// request was malformed (`400`) — permanent, so we never hammer the server for
+/// it. The exceptions are gate / throttle statuses: behind a Cloudflare Access
+/// or Pangolin gate a `401`/`403` means the gate refused a request whose token
+/// wasn't applied (e.g. the per-server header registry hadn't been populated yet
+/// at startup), which recovers the moment the header lands. Treating those as
+/// transient keeps the short retry loop alive across a brief registry gap
+/// instead of writing a 30-minute `.fetch-failed` marker for art that is really
+/// there.
+fn cover_http_status_is_transient(status: reqwest::StatusCode) -> bool {
+    status.is_server_error()
+        || matches!(
+            status,
+            reqwest::StatusCode::UNAUTHORIZED
+                | reqwest::StatusCode::FORBIDDEN
+                | reqwest::StatusCode::REQUEST_TIMEOUT
+                | reqwest::StatusCode::TOO_EARLY
+                | reqwest::StatusCode::TOO_MANY_REQUESTS
+        )
 }
 
 pub async fn fetch_cover_bytes(
@@ -145,7 +168,30 @@ pub async fn fetch_cover_bytes(
 
 #[cfg(test)]
 mod tests {
-    use super::build_cover_art_url;
+    use super::{build_cover_art_url, cover_http_status_is_transient};
+    use reqwest::StatusCode;
+
+    #[test]
+    fn gate_and_throttle_statuses_are_transient() {
+        // Behind an auth gate a 401/403 is a token/header hiccup that recovers
+        // once the per-server header lands — not a missing cover.
+        assert!(cover_http_status_is_transient(StatusCode::UNAUTHORIZED));
+        assert!(cover_http_status_is_transient(StatusCode::FORBIDDEN));
+        assert!(cover_http_status_is_transient(StatusCode::REQUEST_TIMEOUT));
+        assert!(cover_http_status_is_transient(StatusCode::TOO_EARLY));
+        assert!(cover_http_status_is_transient(StatusCode::TOO_MANY_REQUESTS));
+        assert!(cover_http_status_is_transient(StatusCode::BAD_GATEWAY));
+        assert!(cover_http_status_is_transient(StatusCode::SERVICE_UNAVAILABLE));
+    }
+
+    #[test]
+    fn genuine_missing_or_bad_request_is_permanent() {
+        // These mean the art really is absent / the request is wrong — marking
+        // them failed avoids hammering the server for art that isn't there.
+        assert!(!cover_http_status_is_transient(StatusCode::NOT_FOUND));
+        assert!(!cover_http_status_is_transient(StatusCode::GONE));
+        assert!(!cover_http_status_is_transient(StatusCode::BAD_REQUEST));
+    }
 
     #[test]
     fn cover_url_from_host_root() {
