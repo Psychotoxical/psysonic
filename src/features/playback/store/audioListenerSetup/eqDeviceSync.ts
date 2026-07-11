@@ -7,6 +7,8 @@ import { useEqStore, type EqSnapshot } from '@/store/eqStore';
 const DEFAULT_DEVICE_KEY = '__default__';
 /** cpal generic alias saved before PipeWire default resolution (#1274). */
 const CPAL_GENERIC_DEFAULT_KEY = 'Default Audio Device';
+/** Match Rust device-watcher poll interval while following system default. */
+const SYSTEM_DEFAULT_POLL_MS = 3000;
 
 function isLegacyDefaultDeviceKey(key: string): boolean {
   return key === DEFAULT_DEVICE_KEY || key === CPAL_GENERIC_DEFAULT_KEY;
@@ -53,8 +55,11 @@ function applySnapshot(snap: EqSnapshot): void {
 function switchEqToKey(newKey: string, followingSystemDefault: boolean): void {
   const prevKey = currentKey;
   if (newKey === prevKey) return;
-  currentKey = newKey;
   const eq = useEqStore.getState();
+  if (eq.rememberPerDevice) {
+    eq.saveSnapshotFor(prevKey);
+  }
+  currentKey = newKey;
   if (!eq.rememberPerDevice) return;
   const snap = lookupSnapshot(eq.byDevice, newKey, followingSystemDefault);
   if (snap) {
@@ -75,11 +80,16 @@ async function queryOsDefault(): Promise<string | null> {
   }
 }
 
+async function resolveSystemDefaultKey(): Promise<string> {
+  resolvedOsDefault = await queryOsDefault();
+  return resolveEqKey(null);
+}
+
 async function refreshFollowingSystemDefault(): Promise<void> {
   if (useAuthStore.getState().audioOutputDevice !== null) return;
-  resolvedOsDefault = await queryOsDefault();
+  const key = await resolveSystemDefaultKey();
   if (useAuthStore.getState().audioOutputDevice !== null) return;
-  switchEqToKey(resolveEqKey(null), true);
+  switchEqToKey(key, true);
 }
 
 /**
@@ -107,7 +117,7 @@ export function setupEqDeviceSync(): () => void {
 
   void (async () => {
     if (pinnedAtStart === null) {
-      resolvedOsDefault = await queryOsDefault();
+      await resolveSystemDefaultKey();
       if (cancelled) return;
     }
     const pinned = useAuthStore.getState().audioOutputDevice;
@@ -126,14 +136,16 @@ export function setupEqDeviceSync(): () => void {
   // Sub 1 — pinned device changed (picker or audio:device-reset clearing pin).
   const unsubDevice = useAuthStore.subscribe((_state, prev) => {
     if (_state.audioOutputDevice === prev.audioOutputDevice) return;
+    const latestPinned = _state.audioOutputDevice;
+    if (latestPinned !== null) {
+      switchEqToKey(latestPinned, false);
+      return;
+    }
     void (async () => {
-      const pinned = useAuthStore.getState().audioOutputDevice;
-      if (pinned === null) {
-        resolvedOsDefault = await queryOsDefault();
-      }
+      await resolveSystemDefaultKey();
       if (cancelled) return;
-      const latestPinned = useAuthStore.getState().audioOutputDevice;
-      switchEqToKey(resolveEqKey(latestPinned), latestPinned === null);
+      if (useAuthStore.getState().audioOutputDevice !== null) return;
+      switchEqToKey(resolveEqKey(null), true);
     })();
   });
 
@@ -147,7 +159,13 @@ export function setupEqDeviceSync(): () => void {
     });
   }
 
-  // Sub 3 — mirror live EQ edits into the current device's snapshot, and seed
+  // Sub 3 — poll while following system default (covers missed events / wpctl lag).
+  const pollId = setInterval(() => {
+    if (cancelled) return;
+    void refreshFollowingSystemDefault();
+  }, SYSTEM_DEFAULT_POLL_MS);
+
+  // Sub 4 — mirror live EQ edits into the current device's snapshot, and seed
   // the current device when the feature is switched on. Writing `byDevice` does
   // not touch the content fields, so the re-triggered listener is a no-op (no
   // feedback loop).
@@ -160,13 +178,24 @@ export function setupEqDeviceSync(): () => void {
       state.enabled !== prev.enabled ||
       state.preGain !== prev.preGain ||
       state.activePreset !== prev.activePreset;
-    if (justEnabled || contentChanged) {
+    if (justEnabled) {
+      void (async () => {
+        const pinned = useAuthStore.getState().audioOutputDevice;
+        const key = pinned ?? await resolveSystemDefaultKey();
+        if (cancelled) return;
+        currentKey = key;
+        useEqStore.getState().saveSnapshotFor(key);
+      })();
+      return;
+    }
+    if (contentChanged) {
       useEqStore.getState().saveSnapshotFor(currentKey);
     }
   });
 
   return () => {
     cancelled = true;
+    clearInterval(pollId);
     unsubDevice();
     unsubEq();
     for (const u of eventUnsubs) u();

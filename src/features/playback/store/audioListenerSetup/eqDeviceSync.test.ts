@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { emitTauriEvent, onInvoke } from '@/test/mocks/tauri';
 import { useEqStore, type EqSnapshot } from '@/store/eqStore';
 import { useAuthStore } from '@/store/authStore';
@@ -31,8 +31,17 @@ function snap(gain0: number, over: Partial<EqSnapshot> = {}): EqSnapshot {
 }
 
 async function flushAsync(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let i = 0; i < 8; i++) await Promise.resolve();
+}
+
+/** Wait until startup OS-default resolution has applied (when audioOutputDevice is null). */
+async function waitForOsDefaultInit(expectedGain0?: number): Promise<void> {
+  await vi.waitFor(async () => {
+    await flushAsync();
+    if (expectedGain0 !== undefined) {
+      expect(useEqStore.getState().gains[0]).toBe(expectedGain0);
+    }
+  });
 }
 
 describe('eqDeviceSync', () => {
@@ -148,7 +157,7 @@ describe('eqDeviceSync', () => {
     useAuthStore.getState().setAudioOutputDevice(null);
     resetEq({ rememberPerDevice: true });
     cleanup = setupEqDeviceSync();
-    await flushAsync();
+    await waitForOsDefaultInit();
 
     useEqStore.getState().setBandGain(0, 4);
 
@@ -167,9 +176,7 @@ describe('eqDeviceSync', () => {
     await flushAsync();
 
     useAuthStore.getState().setAudioOutputDevice(null);
-    await flushAsync();
-
-    expect(useEqStore.getState().gains[0]).toBe(8);
+    await waitForOsDefaultInit(8);
     expect(useEqStore.getState().enabled).toBe(true);
   });
 
@@ -178,10 +185,7 @@ describe('eqDeviceSync', () => {
     useAuthStore.getState().setAudioOutputDevice(null);
     resetEq({ rememberPerDevice: true, byDevice: { 'Default Audio Device': snap(6, { enabled: true }) } });
     cleanup = setupEqDeviceSync();
-    await flushAsync();
-
-    expect(useEqStore.getState().gains[0]).toBe(6);
-    expect(useEqStore.getState().enabled).toBe(true);
+    await waitForOsDefaultInit(6);
   });
 
   it('falls back to the legacy __default__ profile when the resolved device has no snapshot', async () => {
@@ -189,9 +193,7 @@ describe('eqDeviceSync', () => {
     useAuthStore.getState().setAudioOutputDevice(null);
     resetEq({ rememberPerDevice: true, byDevice: { __default__: snap(6, { enabled: true }) } });
     cleanup = setupEqDeviceSync();
-    await flushAsync();
-
-    expect(useEqStore.getState().gains[0]).toBe(6);
+    await waitForOsDefaultInit(6);
     expect(useEqStore.getState().enabled).toBe(true);
   });
 
@@ -206,8 +208,7 @@ describe('eqDeviceSync', () => {
       },
     });
     cleanup = setupEqDeviceSync();
-    await flushAsync();
-    expect(useEqStore.getState().gains[0]).toBe(3);
+    await waitForOsDefaultInit(3);
 
     onInvoke('audio_default_output_device_name', () => 'Headphones');
     emitTauriEvent('audio:device-changed', null);
@@ -225,7 +226,7 @@ describe('eqDeviceSync', () => {
       byDevice: { Speakers: snap(2), Headphones: snap(7) },
     });
     cleanup = setupEqDeviceSync();
-    await flushAsync();
+    await waitForOsDefaultInit(2);
 
     onInvoke('audio_default_output_device_name', () => 'Headphones');
     emitTauriEvent('audio:device-reset', null);
@@ -263,6 +264,18 @@ describe('eqDeviceSync', () => {
 
     expect(useEqStore.getState().gains[0]).toBe(5);
     expect(useEqStore.getState().enabled).toBe(false);
+  });
+
+  it('saves the outgoing device snapshot when switching pinned devices', async () => {
+    useAuthStore.getState().setAudioOutputDevice('A');
+    resetEq({ rememberPerDevice: true });
+    cleanup = setupEqDeviceSync();
+    await flushAsync();
+
+    useEqStore.getState().setBandGain(0, 3);
+    useAuthStore.getState().setAudioOutputDevice('B');
+
+    expect(useEqStore.getState().byDevice['A'].gains[0]).toBe(3);
   });
 
   it('cleanup stops mirroring further edits', async () => {
