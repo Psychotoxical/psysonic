@@ -141,6 +141,33 @@ export type ServerHttpEndpointWire = {
   kind: ServerEndpointKind;
 };
 
+/**
+ * Header context for the native connect probe (`probe_server_connection`).
+ * Returns `null` when the profile has no custom headers, so the caller keeps
+ * the plain WebView ping path. Unlike {@link serverHttpContextWireForProfile}
+ * this needs no saved-profile id — the probe resolves headers purely from the
+ * endpoint list + apply rule, so `serverId` / `appServerId` are left blank
+ * (the registry is never touched during a probe).
+ */
+export function serverHttpContextWireForProbe(
+  profile: Pick<ServerProfile, 'url' | 'alternateUrl' | 'customHeaders' | 'customHeadersApplyTo'>,
+): {
+  serverId: string;
+  appServerId: string;
+  endpoints: ServerHttpEndpointWire[];
+  customHeaders: CustomHeaderEntry[];
+  customHeadersApplyTo: CustomHeadersApplyTo;
+} | null {
+  if (!profile.customHeaders?.length) return null;
+  return {
+    serverId: '',
+    appServerId: '',
+    endpoints: serverAddressEndpoints(profile).map(e => ({ url: e.url, kind: e.kind })),
+    customHeaders: profile.customHeaders,
+    customHeadersApplyTo: profile.customHeadersApplyTo ?? DEFAULT_CUSTOM_HEADERS_APPLY_TO,
+  };
+}
+
 /** Payload for Rust registry sync — endpoint kinds from TS dual-address layer. */
 export function serverHttpContextWireForProfile(
   server: Pick<

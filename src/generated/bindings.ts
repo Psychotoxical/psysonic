@@ -497,6 +497,30 @@ export const commands = {
 	 *  design: a transient DNS hiccup shouldn't block save).
 	 */
 	resolveHostAddresses: (hostname: string) => typedError<string[], string>(__TAURI_INVOKE("resolve_host_addresses", { hostname })),
+	/**
+	 *  Header-aware connect probe. Runs the Subsonic `ping` over the native
+	 *  reqwest stack instead of the WebView so that per-server custom headers
+	 *  (Cloudflare Access / Pangolin service tokens) ride on the request itself.
+	 * 
+	 *  The WebView path can't do this behind an auth gate: a custom header like
+	 *  `Authorization` is not CORS-safelisted, so the browser sends a preflight
+	 *  `OPTIONS` first — and that preflight carries no token, so the gate rejects
+	 *  it and the real request never leaves. Native reqwest never preflights, so
+	 *  the token reaches the origin exactly as it does for streaming / sync.
+	 * 
+	 *  `http_context` mirrors `serverHttpContextWireForProfile` for the draft
+	 *  profile being added/edited (endpoints + headers + apply rule); pass `None`
+	 *  for a plain probe with no custom headers. Endpoint/apply matching reuses the
+	 *  same resolver as the data plane, so `base_url` must be the specific endpoint
+	 *  being probed.
+	 */
+	probeServerConnection: (baseUrl: string, username: string, password: string, httpContext: {
+	serverId: string,
+	appServerId: string,
+	endpoints: ServerHttpEndpointWire[],
+	customHeaders?: CustomHeaderEntryWire[],
+	customHeadersApplyTo?: CustomHeadersApplyTo | null,
+} | null) => typedError<ServerProbeResult, string>(__TAURI_INVOKE("probe_server_connection", { baseUrl, username, password, httpContext })),
 	serverHttpContextClear: (serverId: string, appServerId: string) => typedError<null, string>(__TAURI_INVOKE("server_http_context_clear", { serverId, appServerId })),
 	serverHttpContextSync: (wire: ServerHttpContextSyncWire) => typedError<null, string>(__TAURI_INVOKE("server_http_context_sync", { wire })),
 	serverHttpContextSyncAll: (entries: ServerHttpContextSyncWire[]) => typedError<null, string>(__TAURI_INVOKE("server_http_context_sync_all", { entries })),
@@ -1208,6 +1232,21 @@ export type ServerHttpEndpointWire = {
 export type ServerIndexMapping = {
 	legacyId: string,
 	indexKey: string,
+};
+
+/**
+ *  Result of a connect probe — same shape the WebView `pingWithCredentials`
+ *  path returns (`PingWithCredentialsResult` on the TS side).
+ */
+export type ServerProbeResult = {
+	/**  `true` when the server answered `ping` with `status="ok"`. */
+	ok: boolean,
+	/**  Server software family (`navidrome`, …) when advertised. */
+	type: string | null,
+	/**  Server build version when advertised. */
+	serverVersion: string | null,
+	/**  Whether the server advertises OpenSubsonic extensions. */
+	openSubsonic: boolean,
 };
 
 export type StarredAlbumReconcileItem = {

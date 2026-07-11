@@ -5,9 +5,14 @@ use std::collections::HashSet;
 
 use std::sync::Arc;
 
-use psysonic_core::server_http::{ServerHttpContextSyncWire, ServerHttpRegistry};
+use psysonic_core::server_http::{ServerHttpContext, ServerHttpContextSyncWire, ServerHttpRegistry};
+use psysonic_integration::subsonic::{ServerInfo, SubsonicClient};
+use serde::{Deserialize, Serialize};
 use tauri::State;
 use tokio::net::lookup_host;
+
+/// Connect-probe timeout — mirrors the WebView axios ping (`subsonic.ts`).
+const PROBE_TIMEOUT_SECS: u64 = 15;
 
 /// Resolve a hostname to a deduped list of IP address strings (IPv4 + IPv6).
 ///
@@ -95,6 +100,91 @@ pub(crate) fn server_http_context_clear(
     Ok(())
 }
 
+/// Result of a connect probe — same shape the WebView `pingWithCredentials`
+/// path returns (`PingWithCredentialsResult` on the TS side).
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
+pub struct ServerProbeResult {
+    /// `true` when the server answered `ping` with `status="ok"`.
+    pub ok: bool,
+    /// Server software family (`navidrome`, …) when advertised.
+    #[serde(rename = "type")]
+    pub server_type: Option<String>,
+    /// Server build version when advertised.
+    #[serde(rename = "serverVersion")]
+    pub server_version: Option<String>,
+    /// Whether the server advertises OpenSubsonic extensions.
+    #[serde(rename = "openSubsonic")]
+    pub open_subsonic: bool,
+}
+
+impl ServerProbeResult {
+    fn unreachable() -> Self {
+        Self {
+            ok: false,
+            server_type: None,
+            server_version: None,
+            open_subsonic: false,
+        }
+    }
+
+    fn from_info(info: ServerInfo) -> Self {
+        Self {
+            ok: true,
+            server_type: info.server_type,
+            server_version: info.server_version,
+            open_subsonic: info.open_subsonic,
+        }
+    }
+}
+
+fn probe_http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .user_agent(psysonic_core::user_agent::subsonic_wire_user_agent())
+        .timeout(std::time::Duration::from_secs(PROBE_TIMEOUT_SECS))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
+}
+
+/// Header-aware connect probe. Runs the Subsonic `ping` over the native
+/// reqwest stack instead of the WebView so that per-server custom headers
+/// (Cloudflare Access / Pangolin service tokens) ride on the request itself.
+///
+/// The WebView path can't do this behind an auth gate: a custom header like
+/// `Authorization` is not CORS-safelisted, so the browser sends a preflight
+/// `OPTIONS` first — and that preflight carries no token, so the gate rejects
+/// it and the real request never leaves. Native reqwest never preflights, so
+/// the token reaches the origin exactly as it does for streaming / sync.
+///
+/// `http_context` mirrors `serverHttpContextWireForProfile` for the draft
+/// profile being added/edited (endpoints + headers + apply rule); pass `None`
+/// for a plain probe with no custom headers. Endpoint/apply matching reuses the
+/// same resolver as the data plane, so `base_url` must be the specific endpoint
+/// being probed.
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn probe_server_connection(
+    base_url: String,
+    username: String,
+    password: String,
+    http_context: Option<ServerHttpContextSyncWire>,
+) -> Result<ServerProbeResult, String> {
+    let mut client = SubsonicClient::with_http(base_url, username, password, probe_http_client());
+    if let Some(wire) = http_context {
+        client = client.with_http_context(ServerHttpContext::from(wire));
+    }
+    match client.server_info().await {
+        Ok(info) => Ok(ServerProbeResult::from_info(info)),
+        Err(err) => {
+            // Unreachable / wrong credentials / non-ok envelope: surface as
+            // `ok:false` (the WebView ping did the same). Header values are
+            // never part of `err`, so this is safe to log for diagnostics —
+            // the gated-server case used to leave no trace at all.
+            crate::app_deprintln!("[connect-probe] ping failed: {err}");
+            Ok(ServerProbeResult::unreachable())
+        }
+    }
+}
+
 /// Strip a `:port` suffix. Handles `host:port` and `[ipv6]:port`; leaves
 /// bracketed IPv6 with no port (`[::1]`) and bare hosts alone.
 fn strip_port(input: &str) -> String {
@@ -120,7 +210,32 @@ fn strip_port(input: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::strip_port;
+    use super::{strip_port, ServerProbeResult};
+    use psysonic_integration::subsonic::ServerInfo;
+
+    #[test]
+    fn probe_result_from_info_carries_metadata_and_ok() {
+        let info = ServerInfo {
+            server_type: Some("navidrome".into()),
+            server_version: Some("0.62.0".into()),
+            api_version: Some("1.16.1".into()),
+            open_subsonic: true,
+        };
+        let r = ServerProbeResult::from_info(info);
+        assert!(r.ok);
+        assert_eq!(r.server_type.as_deref(), Some("navidrome"));
+        assert_eq!(r.server_version.as_deref(), Some("0.62.0"));
+        assert!(r.open_subsonic);
+    }
+
+    #[test]
+    fn probe_result_unreachable_is_not_ok_and_empty() {
+        let r = ServerProbeResult::unreachable();
+        assert!(!r.ok);
+        assert!(r.server_type.is_none());
+        assert!(r.server_version.is_none());
+        assert!(!r.open_subsonic);
+    }
 
     #[test]
     fn strips_host_port_pair() {

@@ -1,8 +1,9 @@
 import axios from 'axios';
 import md5 from 'md5';
+import { commands } from '@/generated/bindings';
 import { useAuthStore } from '@/store/authStore';
 import type { ServerProfile } from '@/store/authStoreTypes';
-import { headersForServerRequest } from '@/lib/server/serverHttpHeaders';
+import { headersForServerRequest, serverHttpContextWireForProbe } from '@/lib/server/serverHttpHeaders';
 import { findServerByIdOrIndexKey } from '@/lib/server/serverLookup';
 import {
   type InstantMixProbeResult,
@@ -73,10 +74,39 @@ export async function pingWithCredentialsForProfile(
   >,
   endpointBaseUrl: string,
 ): Promise<PingWithCredentialsResult> {
+  const base = endpointBaseUrl.startsWith('http')
+    ? endpointBaseUrl.replace(/\/$/, '')
+    : `http://${endpointBaseUrl.replace(/\/$/, '')}`;
+
+  // Gate-header servers (Cloudflare Access, Pangolin, …): probe over the native
+  // reqwest stack, not the WebView. A custom `Authorization` / `CF-Access-*`
+  // header is not CORS-safelisted, so the WebView would send a preflight
+  // `OPTIONS` that carries no token — auth gates reject it and the real request
+  // never leaves. Native reqwest never preflights, matching the streaming/sync
+  // paths that already ride these headers. Header-less servers keep the
+  // lightweight WebView path below.
+  const httpContext = serverHttpContextWireForProbe(profile);
+  if (httpContext) {
+    try {
+      const res = await commands.probeServerConnection(base, profile.username, profile.password, httpContext);
+      if (res.status === 'error') {
+        console.warn('[psysonic] pingWithCredentialsForProfile probe failed:', endpointBaseUrl, res.error);
+        return { ok: false };
+      }
+      const data = res.data;
+      return {
+        ok: data.ok,
+        type: data.type ?? undefined,
+        serverVersion: data.serverVersion ?? undefined,
+        openSubsonic: data.openSubsonic,
+      };
+    } catch (err) {
+      console.warn('[psysonic] pingWithCredentialsForProfile probe threw:', endpointBaseUrl, err);
+      return { ok: false };
+    }
+  }
+
   try {
-    const base = endpointBaseUrl.startsWith('http')
-      ? endpointBaseUrl.replace(/\/$/, '')
-      : `http://${endpointBaseUrl.replace(/\/$/, '')}`;
     const salt = secureRandomSalt();
     const token = md5(profile.password + salt);
     const resp = await axios.get(`${base}/rest/ping.view`, {

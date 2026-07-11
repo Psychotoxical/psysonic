@@ -662,6 +662,61 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn ping_sends_custom_gate_header_via_http_context() {
+        // Backs the connect-probe fix (#1216): a per-server gate header
+        // (Cloudflare Access / Pangolin) must ride on the ping itself. The mock
+        // only answers when the header is present, so a passing ping proves the
+        // header was sent on the native request (no WebView CORS preflight).
+        use psysonic_core::server_http::{CustomHeadersApplyTo, EndpointKind};
+        use wiremock::matchers::header;
+
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/ping.view"))
+            .and(header("CF-Access-Client-Secret", "gate-secret"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "version": "1.16.1" }
+            })))
+            .mount(&server)
+            .await;
+
+        let ctx = ServerHttpContext {
+            endpoints: vec![(server.uri(), EndpointKind::Public)],
+            headers: vec![("CF-Access-Client-Secret".into(), "gate-secret".into())],
+            apply_to: CustomHeadersApplyTo::Public,
+        };
+        test_client(&server.uri())
+            .with_http_context(ctx)
+            .ping()
+            .await
+            .expect("ping must carry the gate header to the mounted matcher");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn ping_without_context_misses_gate_matcher() {
+        // Same gated mock, but no header context: the request must NOT match, so
+        // the probe fails — confirming the header (not something else) is what
+        // unlocks the gated endpoint.
+        use wiremock::matchers::header;
+
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/ping.view"))
+            .and(header("CF-Access-Client-Secret", "gate-secret"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok" }
+            })))
+            .mount(&server)
+            .await;
+
+        let err = test_client(&server.uri()).ping().await.unwrap_err();
+        assert!(
+            matches!(err, SubsonicError::HttpStatus(_)),
+            "gated endpoint without the header should not match the mock (got {err:?})"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn ping_surfaces_wrong_credentials_as_code_40() {
         let server = MockServer::start().await;
         Mock::given(wm_method("GET"))
