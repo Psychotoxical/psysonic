@@ -132,10 +132,7 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
 
     tauri::async_runtime::spawn(async move {
         let mut last_default: Option<String> = tauri::async_runtime::spawn_blocking(|| {
-            use rodio::cpal::traits::{DeviceTrait, HostTrait};
-            rodio::cpal::default_host()
-                .default_output_device()
-                .and_then(|d| d.description().ok().map(|desc| desc.name().to_string()))
+            super::dev_io::effective_default_output_device_name()
         }).await.unwrap_or(None);
 
         // macOS/Windows: consecutive polls where a pinned device is absent from cpal's list.
@@ -246,7 +243,6 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
 
             // Suppress stderr on Unix to avoid ALSA probing noise (JACK, OSS, dmix).
             let (current_default, available) = tauri::async_runtime::spawn_blocking(move || {
-                use rodio::cpal::traits::{DeviceTrait, HostTrait};
                 #[cfg(unix)]
                 let _guard = unsafe {
                     struct StderrGuard(i32);
@@ -259,17 +255,9 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                     libc::close(devnull);
                     StderrGuard(saved)
                 };
-                let host = rodio::cpal::default_host();
-                let default = host
-                    .default_output_device()
-                    .and_then(|d| d.description().ok().map(|desc| desc.name().to_string()));
+                let default = super::dev_io::effective_default_output_device_name();
                 let available: Vec<String> = if need_full_enum {
-                    host.output_devices()
-                        .map(|iter| {
-                            iter.filter_map(|d| d.description().ok().map(|desc| desc.name().to_string()))
-                                .collect()
-                        })
-                        .unwrap_or_default()
+                    super::dev_io::enumerate_output_device_names()
                 } else {
                     Vec::new()
                 };

@@ -173,6 +173,17 @@ describe('eqDeviceSync', () => {
     expect(useEqStore.getState().enabled).toBe(true);
   });
 
+  it('falls back to the legacy Default Audio Device profile when the resolved device has no snapshot', async () => {
+    onInvoke('audio_default_output_device_name', () => 'Speakers');
+    useAuthStore.getState().setAudioOutputDevice(null);
+    resetEq({ rememberPerDevice: true, byDevice: { 'Default Audio Device': snap(6, { enabled: true }) } });
+    cleanup = setupEqDeviceSync();
+    await flushAsync();
+
+    expect(useEqStore.getState().gains[0]).toBe(6);
+    expect(useEqStore.getState().enabled).toBe(true);
+  });
+
   it('falls back to the legacy __default__ profile when the resolved device has no snapshot', async () => {
     onInvoke('audio_default_output_device_name', () => 'Speakers');
     useAuthStore.getState().setAudioOutputDevice(null);

@@ -5,6 +5,12 @@ import { useEqStore, type EqSnapshot } from '@/store/eqStore';
 
 /** Key used when no specific device is selected and the OS default is unknown. */
 const DEFAULT_DEVICE_KEY = '__default__';
+/** cpal generic alias saved before PipeWire default resolution (#1274). */
+const CPAL_GENERIC_DEFAULT_KEY = 'Default Audio Device';
+
+function isLegacyDefaultDeviceKey(key: string): boolean {
+  return key === DEFAULT_DEVICE_KEY || key === CPAL_GENERIC_DEFAULT_KEY;
+}
 
 let resolvedOsDefault: string | null = null;
 // The device key currently in effect. Updated on every device change.
@@ -26,12 +32,11 @@ function lookupSnapshot(
   followingSystemDefault: boolean,
 ): EqSnapshot | undefined {
   if (byDevice[key]) return byDevice[key];
-  if (
-    followingSystemDefault &&
-    key !== DEFAULT_DEVICE_KEY &&
-    byDevice[DEFAULT_DEVICE_KEY]
-  ) {
-    return byDevice[DEFAULT_DEVICE_KEY];
+  if (!followingSystemDefault) return undefined;
+  for (const legacy of [DEFAULT_DEVICE_KEY, CPAL_GENERIC_DEFAULT_KEY]) {
+    if (key !== legacy && byDevice[legacy]) {
+      return byDevice[legacy];
+    }
   }
   return undefined;
 }
@@ -46,14 +51,20 @@ function applySnapshot(snap: EqSnapshot): void {
 }
 
 function switchEqToKey(newKey: string, followingSystemDefault: boolean): void {
-  if (newKey === currentKey) return;
+  const prevKey = currentKey;
+  if (newKey === prevKey) return;
   currentKey = newKey;
   const eq = useEqStore.getState();
   if (!eq.rememberPerDevice) return;
   const snap = lookupSnapshot(eq.byDevice, newKey, followingSystemDefault);
-  if (snap) applySnapshot(snap);
-  // No saved profile for this device → keep the current EQ as-is; the next
-  // edit mirrors it under this device's key.
+  if (snap) {
+    applySnapshot(snap);
+    return;
+  }
+  // Key resolved from a generic placeholder → keep live EQ; next edit mirrors here.
+  if (followingSystemDefault && isLegacyDefaultDeviceKey(prevKey)) {
+    useEqStore.getState().saveSnapshotFor(newKey);
+  }
 }
 
 async function queryOsDefault(): Promise<string | null> {

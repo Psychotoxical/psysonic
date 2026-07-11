@@ -8,7 +8,7 @@ use tauri::{Emitter, State};
 
 use super::dev_io::{
     enumerate_output_device_names, output_devices_logically_same,
-    output_enumeration_includes_pinned, with_suppressed_alsa_stderr,
+    output_enumeration_includes_pinned,
 };
 use super::engine::AudioEngine;
 
@@ -60,12 +60,7 @@ pub fn audio_list_devices(state: State<'_, AudioEngine>) -> Vec<String> {
 #[tauri::command]
 #[specta::specta]
 pub fn audio_default_output_device_name() -> Option<String> {
-    use rodio::cpal::traits::{DeviceTrait, HostTrait};
-    with_suppressed_alsa_stderr(|| {
-        let host = rodio::cpal::default_host();
-        host.default_output_device()
-            .and_then(|d| d.description().ok().map(|desc| desc.name().to_string()))
-    })
+    super::dev_io::effective_default_output_device_name()
 }
 
 /// Switch the audio output device. `device_name = null` → follow system default.
