@@ -328,10 +328,11 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                 let prev_name = prev.clone();
                 let new_name_for_eq = new_name.clone();
                 let same_sink = tauri::async_runtime::spawn_blocking(move || {
+                    let list = super::dev_io::enumerate_output_device_names();
                     super::dev_io::output_device_keys_equivalent(
                         &prev_name,
                         &new_name_for_eq,
-                        &[],
+                        &list,
                     )
                 })
                 .await

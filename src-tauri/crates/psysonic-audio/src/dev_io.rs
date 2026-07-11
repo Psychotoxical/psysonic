@@ -114,22 +114,27 @@ fn comma_and_alsa_device_equivalent(a: &str, b: &str) -> bool {
     };
     let comma_card = comma_card.trim();
     let comma_pcm = parts.next().map(|s| s.trim()).unwrap_or("");
+    if comma_pcm.is_empty() {
+        return false;
+    }
     let Some((_, alsa_card, _)) = linux_alsa_sink_fingerprint(alsa) else {
         return false;
     };
+    let pcm = comma_pcm.to_ascii_lowercase();
+    let alsa_lower = alsa.to_ascii_lowercase();
     let cc = comma_card.to_ascii_lowercase();
     let ac = alsa_card.to_ascii_lowercase();
-    if cc == ac || cc.contains(&ac) || ac.contains(&cc) {
-        return true;
+    let card_ok = cc.contains(&ac) || ac.contains(&cc);
+    if !card_ok {
+        return false;
     }
-    if !comma_pcm.is_empty() {
-        let pcm = comma_pcm.to_ascii_lowercase();
-        let alsa_lower = alsa.to_ascii_lowercase();
-        if alsa_lower.contains(&pcm) || pcm.contains(&ac) {
-            return true;
-        }
+    if alsa_lower.starts_with("hdmi:") {
+        return !pcm.contains("analog");
     }
-    false
+    if pcm.contains("analog") {
+        return alsa_lower.starts_with("hw:") || alsa_lower.starts_with("plughw:");
+    }
+    alsa_lower.contains(&pcm) || pcm.contains(&alsa_lower)
 }
 
 /// Build the cpal-style `"CARD, PCM name"` label PipeWire exposes for ALSA sinks.
@@ -649,17 +654,21 @@ Audio
 
     #[test]
     #[cfg(target_os = "linux")]
-    fn output_device_keys_equivalent_links_comma_and_alsa_ids() {
-        let list: Vec<String> = vec![];
+    fn output_device_keys_equivalent_links_hdmi_comma_and_alsa_id() {
         assert!(output_device_keys_equivalent(
             "HDA NVidia, Gigabyte M32U",
             "hdmi:CARD=NVidia,DEV=3",
-            &list,
+            &[],
         ));
-        assert!(output_device_keys_equivalent(
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn output_device_keys_equivalent_distinguishes_analog_and_hdmi() {
+        assert!(!output_device_keys_equivalent(
             "HD-Audio Generic, ALC897 Analog",
-            "hw:CARD=Generic,DEV=0",
-            &list,
+            "hdmi:CARD=HD-Audio Generic,DEV=3",
+            &[],
         ));
     }
 
