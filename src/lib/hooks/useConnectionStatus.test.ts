@@ -93,6 +93,34 @@ describe('useConnectionStatus.isLan', () => {
     expect(result.current.isLan).toBe(false);
   });
 
+  it('updates the badge when the active server switches (LAN → public)', async () => {
+    seedDualAddressServer();
+    vi.mocked(pingWithCredentialsForProfile).mockImplementation(async (_profile, url) =>
+      url === 'http://192.168.0.10'
+        ? { ok: true, type: 'navidrome', serverVersion: '0.55.0', openSubsonic: true }
+        : { ok: false },
+    );
+    const { result } = renderHook(() => useConnectionStatus());
+    await waitFor(() => expect(result.current.isLan).toBe(true));
+
+    // Switch to a public-only server: the badge must follow, not stay 'local'.
+    const remoteId = useAuthStore.getState().addServer({
+      name: 'Remote',
+      url: 'https://remote.example.com',
+      username: 'tester',
+      password: 'pw',
+    });
+    vi.mocked(pingWithCredentialsForProfile).mockImplementation(async (_profile, url) =>
+      url === 'https://remote.example.com'
+        ? { ok: true, type: 'navidrome', serverVersion: '0.55.0', openSubsonic: true }
+        : { ok: false },
+    );
+    act(() => {
+      useAuthStore.getState().setActiveServer(remoteId);
+    });
+    await waitFor(() => expect(result.current.isLan).toBe(false));
+  });
+
   it('falls back to primary URL classification before the first probe completes', () => {
     seedDualAddressServer();
     // Don't resolve the ping — the hook is still in the `checking` state.

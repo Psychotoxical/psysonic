@@ -194,6 +194,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Artist detail — fall back to the local library index when getArtist 404s an album-artist id (fixes Random Albums artist links dead-ending at "Artist not found"); album browse + detail cover resolution fall back to the album\'s first track cover for rows synced without one (fixes missing Random Albums tile art) (report: tummydummy, PR #1254)',
       'Library — follow getAlbum authoritatively for album artist reference so a server-side artist rename heals on resync instead of dead-ending at "Artist not found" (PR #1256)',
       'Library — prune orphaned identity keys from the multi-library dedup sidecar (library-cluster.db) on rebuild so it no longer bloats with rows for removed/renamed tracks (PR #1255)',
+      'Servers — connect and run fully behind a custom-header gate (Cloudflare Access / Pangolin): native connect probe + REST proxy so browse/playback/covers pass, add-form failure reasons, live LAN/public badge on server switch, and LAN reclaim from a sticky public endpoint (PR #1273)',
     ],
   },
   {

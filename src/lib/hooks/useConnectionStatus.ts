@@ -38,6 +38,8 @@ export function useConnectionStatus() {
   const [activeEndpointKind, setActiveEndpointKind] = useState<ServerEndpointKind | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevDevForceOfflineRef = useRef<boolean | null>(null);
+  const activeServerId = useAuthStore(s => s.activeServerId);
+  const prevActiveServerIdRef = useRef<string | null | undefined>(undefined);
 
   const check = useCallback(async () => {
     if (isDevOfflineBrowseForced()) {
@@ -92,6 +94,26 @@ export function useConnectionStatus() {
     await check();
     setIsRetrying(false);
   }, [check]);
+
+  // Active server changed (switch server / login / logout): the previous
+  // probe's endpoint kind belongs to the *old* server, so the LAN/public badge
+  // would otherwise stay stuck on it — a LAN-only server keeps reading 'local'
+  // after switching to a public one, and vice versa — until the 120-s tick. Reset
+  // the kind (badge falls back to the new server's own URL classification) and
+  // re-probe now. Mount is skipped: the polling effect already probes on mount.
+  useEffect(() => {
+    if (prevActiveServerIdRef.current === undefined) {
+      prevActiveServerIdRef.current = activeServerId;
+      return;
+    }
+    if (prevActiveServerIdRef.current === activeServerId) return;
+    prevActiveServerIdRef.current = activeServerId;
+    if (perfFlags.disableBackgroundPolling) return;
+    // React Compiler set-state-in-effect rule: reset stale kind, then re-probe.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActiveEndpointKind(null);
+    void check();
+  }, [activeServerId, check, perfFlags.disableBackgroundPolling]);
 
   // DEV offline toggle: react to transitions only — the polling effect already
   // probes on mount; an unconditional check() here doubled probes and ignored
