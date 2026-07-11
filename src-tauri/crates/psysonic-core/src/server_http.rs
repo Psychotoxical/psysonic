@@ -201,17 +201,9 @@ impl ServerHttpRegistry {
         let app_id = wire.app_server_id.clone();
         let ctx = Arc::new(ServerHttpContext::from(wire));
         if ctx.headers.is_empty() {
-            eprintln!("[server-http] sync '{index_key}': no headers → removed");
             self.remove(&index_key, &app_id);
             return;
         }
-        // Endpoint URLs + header count only — never header values (secrets).
-        eprintln!(
-            "[server-http] sync '{index_key}': {} header(s), apply_to={:?}, endpoints={:?}",
-            ctx.headers.len(),
-            ctx.apply_to,
-            ctx.endpoints.iter().map(|(u, _)| u.as_str()).collect::<Vec<_>>(),
-        );
         {
             let mut contexts = self.contexts.lock().unwrap();
             contexts.insert(index_key.clone(), Arc::clone(&ctx));
@@ -235,11 +227,6 @@ impl ServerHttpRegistry {
             new_refs.insert(index_key.clone(), index_key.clone());
             new_refs.insert(app_id, index_key);
         }
-        eprintln!(
-            "[server-http] sync_all: {} gated server(s): {:?}",
-            new_contexts.len(),
-            new_contexts.keys().collect::<Vec<_>>(),
-        );
         *self.contexts.lock().unwrap() = new_contexts;
         *self.ref_to_key.lock().unwrap() = new_refs;
     }
