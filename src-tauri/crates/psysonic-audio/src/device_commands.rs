@@ -63,6 +63,22 @@ pub fn audio_default_output_device_name() -> Option<String> {
     super::dev_io::effective_default_output_device_name()
 }
 
+/// Find a stored per-device EQ key that denotes the same sink as `candidate`
+/// (exact or Linux ALSA logical match).
+#[tauri::command]
+#[specta::specta]
+pub fn audio_match_stored_output_device_key(
+    candidate: String,
+    stored_keys: Vec<String>,
+) -> Option<String> {
+    if stored_keys.iter().any(|k| k == &candidate) {
+        return Some(candidate);
+    }
+    stored_keys
+        .into_iter()
+        .find(|k| output_devices_logically_same(k, &candidate))
+}
+
 /// Switch the audio output device. `device_name = null` → follow system default.
 /// Reopens the stream immediately; frontend must restart playback via audio:device-changed.
 #[tauri::command]

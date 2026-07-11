@@ -60,7 +60,9 @@ fn raw_cpal_default_output_device_name() -> Option<String> {
 }
 
 fn pick_listed_device_name(candidate: &str, list: &[String]) -> Option<String> {
-    list.iter().find(|d| d.as_str() == candidate).cloned()
+    list.iter()
+        .find(|d| d.as_str() == candidate || output_devices_logically_same(d, candidate))
+        .cloned()
 }
 
 /// Build the cpal-style `"CARD, PCM name"` label PipeWire exposes for ALSA sinks.
@@ -546,6 +548,20 @@ Audio
         assert_eq!(
             pick_listed_device_name("HDA NVidia, Gigabyte M32U", &list),
             Some("HDA NVidia, Gigabyte M32U".to_string())
+        );
+    }
+
+    #[test]
+    fn pick_listed_device_name_matches_linux_alsa_logical_alias() {
+        let list = vec!["hdmi:CARD=NVidia,DEV=3".to_string()];
+        assert_eq!(
+            pick_listed_device_name("hw:CARD=NVidia,DEV=3", &list),
+            None,
+            "different ALSA ifaces are not logically the same"
+        );
+        assert_eq!(
+            pick_listed_device_name("hdmi:CARD=NVidia,DEV=3", &list),
+            Some("hdmi:CARD=NVidia,DEV=3".to_string())
         );
     }
 }

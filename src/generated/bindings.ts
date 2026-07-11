@@ -153,6 +153,11 @@ export const commands = {
 	/**  Device id string for the host default output (matches an entry from `audio_list_devices` when present). */
 	audioDefaultOutputDeviceName: () => __TAURI_INVOKE<string | null>("audio_default_output_device_name"),
 	/**
+	 *  Find a stored per-device EQ key that denotes the same sink as `candidate`
+	 *  (exact or Linux ALSA logical match).
+	 */
+	audioMatchStoredOutputDeviceKey: (candidate: string, storedKeys: string[]) => __TAURI_INVOKE<string | null>("audio_match_stored_output_device_key", { candidate, storedKeys }),
+	/**
 	 *  Switch the audio output device. `device_name = null` → follow system default.
 	 *  Reopens the stream immediately; frontend must restart playback via audio:device-changed.
 	 */

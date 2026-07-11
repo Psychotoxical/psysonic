@@ -1,5 +1,8 @@
 import { listen } from '@tauri-apps/api/event';
-import { audioDefaultOutputDeviceName } from '@/lib/api/audio';
+import {
+  audioDefaultOutputDeviceName,
+  audioMatchStoredOutputDeviceKey,
+} from '@/lib/api/audio';
 import { useAuthStore } from '@/store/authStore';
 import { useEqStore, type EqSnapshot } from '@/store/eqStore';
 
@@ -35,6 +38,13 @@ function resolveEqKey(pinnedDevice: string | null): string {
   return resolvedOsDefault ?? DEFAULT_DEVICE_KEY;
 }
 
+function shouldFollowSystemDefaultEq(): boolean {
+  return (
+    useEqStore.getState().rememberPerDevice &&
+    useAuthStore.getState().audioOutputDevice === null
+  );
+}
+
 /** Pre-#1233 profiles lived under `__default__`; keep as read fallback on upgrade. */
 function lookupSnapshot(
   byDevice: Record<string, EqSnapshot>,
@@ -47,6 +57,24 @@ function lookupSnapshot(
     if (key !== legacy && byDevice[legacy]) {
       return byDevice[legacy];
     }
+  }
+  return undefined;
+}
+
+async function lookupSnapshotAsync(
+  byDevice: Record<string, EqSnapshot>,
+  key: string,
+  followingSystemDefault: boolean,
+): Promise<EqSnapshot | undefined> {
+  const direct = lookupSnapshot(byDevice, key, followingSystemDefault);
+  if (direct || !followingSystemDefault) return direct;
+  const storedKeys = Object.keys(byDevice);
+  if (storedKeys.length === 0) return undefined;
+  try {
+    const matched = await audioMatchStoredOutputDeviceKey(key, storedKeys);
+    if (matched && byDevice[matched]) return byDevice[matched];
+  } catch {
+    return undefined;
   }
   return undefined;
 }
@@ -80,6 +108,28 @@ function switchEqToKey(newKey: string, followingSystemDefault: boolean): void {
   }
 }
 
+async function switchEqToKeyAsync(
+  newKey: string,
+  followingSystemDefault: boolean,
+): Promise<void> {
+  const prevKey = currentKey;
+  if (newKey === prevKey) return;
+  const eq = useEqStore.getState();
+  if (eq.rememberPerDevice) {
+    eq.saveSnapshotFor(prevKey);
+  }
+  currentKey = newKey;
+  if (!eq.rememberPerDevice) return;
+  const snap = await lookupSnapshotAsync(eq.byDevice, newKey, followingSystemDefault);
+  if (snap) {
+    applySnapshot(snap);
+    return;
+  }
+  if (followingSystemDefault && isLegacyDefaultDeviceKey(prevKey)) {
+    useEqStore.getState().saveSnapshotFor(newKey);
+  }
+}
+
 async function queryOsDefault(): Promise<string | null> {
   try {
     return await audioDefaultOutputDeviceName();
@@ -94,11 +144,12 @@ async function resolveSystemDefaultKey(): Promise<string> {
 }
 
 async function refreshFollowingSystemDefault(): Promise<void> {
+  if (!shouldFollowSystemDefaultEq()) return;
   await enqueueOsDefaultRefresh(async () => {
-    if (useAuthStore.getState().audioOutputDevice !== null) return;
+    if (!shouldFollowSystemDefaultEq()) return;
     const key = await resolveSystemDefaultKey();
-    if (useAuthStore.getState().audioOutputDevice !== null) return;
-    switchEqToKey(key, true);
+    if (!shouldFollowSystemDefaultEq()) return;
+    await switchEqToKeyAsync(key, true);
   });
 }
 
@@ -134,7 +185,7 @@ export function setupEqDeviceSync(): () => void {
     currentKey = resolveEqKey(pinned);
     const eqAtStart = useEqStore.getState();
     if (eqAtStart.rememberPerDevice) {
-      const snap = lookupSnapshot(
+      const snap = await lookupSnapshotAsync(
         eqAtStart.byDevice,
         currentKey,
         pinned === null,
@@ -155,7 +206,7 @@ export function setupEqDeviceSync(): () => void {
       await resolveSystemDefaultKey();
       if (cancelled) return;
       if (useAuthStore.getState().audioOutputDevice !== null) return;
-      switchEqToKey(resolveEqKey(null), true);
+      await switchEqToKeyAsync(resolveEqKey(null), true);
     });
   });
 
