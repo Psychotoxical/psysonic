@@ -226,7 +226,14 @@ export function AddServerForm({
       });
       return;
     }
-    if (!form.url.trim()) return;
+    if (!form.url.trim()) {
+      showToast(t('settings.serverUrlRequired'), 4000, 'error');
+      return;
+    }
+    if (!form.username.trim()) {
+      showToast(t('settings.serverUsernameRequired'), 4000, 'error');
+      return;
+    }
     if (!validateAddresses()) return;
 
     const headerValidation = validateCustomHeaders(

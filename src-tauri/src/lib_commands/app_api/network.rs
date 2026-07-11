@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use psysonic_core::server_http::{ServerHttpContext, ServerHttpContextSyncWire, ServerHttpRegistry};
-use psysonic_integration::subsonic::{ServerInfo, SubsonicClient};
+use psysonic_integration::subsonic::{ServerInfo, SubsonicClient, SubsonicError};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 use tokio::net::lookup_host;
@@ -115,25 +115,56 @@ pub struct ServerProbeResult {
     /// Whether the server advertises OpenSubsonic extensions.
     #[serde(rename = "openSubsonic")]
     pub open_subsonic: bool,
+    /// Short human-readable reason when `ok == false` — the server's own error
+    /// message, an HTTP status, or a transport error — so the add/edit form can
+    /// tell the user *why* it couldn't connect instead of a blank failure.
+    /// `None` on success. Never contains header values or the password.
+    pub error: Option<String>,
 }
 
 impl ServerProbeResult {
-    fn unreachable() -> Self {
-        Self {
-            ok: false,
-            server_type: None,
-            server_version: None,
-            open_subsonic: false,
-        }
-    }
-
     fn from_info(info: ServerInfo) -> Self {
         Self {
             ok: true,
             server_type: info.server_type,
             server_version: info.server_version,
             open_subsonic: info.open_subsonic,
+            error: None,
         }
+    }
+
+    fn from_error(err: &SubsonicError) -> Self {
+        Self {
+            ok: false,
+            server_type: None,
+            server_version: None,
+            open_subsonic: false,
+            error: Some(probe_failure_reason(err)),
+        }
+    }
+}
+
+/// Render a compact, user-facing reason from a probe failure. Subsonic API
+/// errors surface the server's own message (e.g. "Wrong username or password");
+/// HTTP/transport failures surface the status or flattened transport text. No
+/// secrets are ever part of a `SubsonicError`, so this is safe to show + log.
+fn probe_failure_reason(err: &SubsonicError) -> String {
+    match err {
+        SubsonicError::Api { code, message } => {
+            let msg = message.trim();
+            if msg.is_empty() {
+                format!("server error {code}")
+            } else {
+                msg.to_string()
+            }
+        }
+        SubsonicError::HttpStatus(status) => match status.canonical_reason() {
+            Some(reason) => format!("HTTP {} {reason}", status.as_u16()),
+            None => format!("HTTP {}", status.as_u16()),
+        },
+        SubsonicError::Transport(m) => m.trim().to_string(),
+        SubsonicError::NotFound => "not found".to_string(),
+        SubsonicError::Decode(m) => format!("invalid response: {}", m.trim()),
     }
 }
 
@@ -176,11 +207,11 @@ pub(crate) async fn probe_server_connection(
         Ok(info) => Ok(ServerProbeResult::from_info(info)),
         Err(err) => {
             // Unreachable / wrong credentials / non-ok envelope: surface as
-            // `ok:false` (the WebView ping did the same). Header values are
-            // never part of `err`, so this is safe to log for diagnostics —
-            // the gated-server case used to leave no trace at all.
+            // `ok:false` plus a reason the UI can show. Header values are never
+            // part of `err`, so this is safe to log for diagnostics — the
+            // gated-server case used to leave no trace at all.
             crate::app_deprintln!("[connect-probe] ping failed: {err}");
-            Ok(ServerProbeResult::unreachable())
+            Ok(ServerProbeResult::from_error(&err))
         }
     }
 }
@@ -210,8 +241,8 @@ fn strip_port(input: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{strip_port, ServerProbeResult};
-    use psysonic_integration::subsonic::ServerInfo;
+    use super::{probe_failure_reason, strip_port, ServerProbeResult};
+    use psysonic_integration::subsonic::{ServerInfo, SubsonicError};
 
     #[test]
     fn probe_result_from_info_carries_metadata_and_ok() {
@@ -226,15 +257,46 @@ mod tests {
         assert_eq!(r.server_type.as_deref(), Some("navidrome"));
         assert_eq!(r.server_version.as_deref(), Some("0.62.0"));
         assert!(r.open_subsonic);
+        assert!(r.error.is_none());
     }
 
     #[test]
-    fn probe_result_unreachable_is_not_ok_and_empty() {
-        let r = ServerProbeResult::unreachable();
+    fn probe_result_from_error_is_not_ok_and_carries_reason() {
+        let r = ServerProbeResult::from_error(&SubsonicError::Api {
+            code: 40,
+            message: "Wrong username or password".into(),
+        });
         assert!(!r.ok);
         assert!(r.server_type.is_none());
         assert!(r.server_version.is_none());
         assert!(!r.open_subsonic);
+        assert_eq!(r.error.as_deref(), Some("Wrong username or password"));
+    }
+
+    #[test]
+    fn probe_failure_reason_prefers_server_message() {
+        let reason = probe_failure_reason(&SubsonicError::Api {
+            code: 10,
+            message: "missing parameter: 'u'".into(),
+        });
+        assert_eq!(reason, "missing parameter: 'u'");
+    }
+
+    #[test]
+    fn probe_failure_reason_falls_back_to_code_when_message_blank() {
+        let reason = probe_failure_reason(&SubsonicError::Api {
+            code: 40,
+            message: "   ".into(),
+        });
+        assert_eq!(reason, "server error 40");
+    }
+
+    #[test]
+    fn probe_failure_reason_renders_http_status() {
+        let reason = probe_failure_reason(&SubsonicError::HttpStatus(
+            reqwest::StatusCode::FORBIDDEN,
+        ));
+        assert_eq!(reason, "HTTP 403 Forbidden");
     }
 
     #[test]

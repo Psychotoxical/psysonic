@@ -221,7 +221,11 @@ export interface SubsonicDirectory {
   child: SubsonicDirectoryEntry[];
 }
 
-export type PingWithCredentialsResult = SubsonicServerIdentity & { ok: boolean };
+export type PingWithCredentialsResult = SubsonicServerIdentity & {
+  ok: boolean;
+  /** Short reason when `ok` is false (server message / HTTP status / transport error). */
+  error?: string;
+};
 
 export interface RandomSongsFilters {
   size?: number;

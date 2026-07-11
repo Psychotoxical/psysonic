@@ -1247,6 +1247,13 @@ export type ServerProbeResult = {
 	serverVersion: string | null,
 	/**  Whether the server advertises OpenSubsonic extensions. */
 	openSubsonic: boolean,
+	/**
+	 *  Short human-readable reason when `ok == false` — the server's own error
+	 *  message, an HTTP status, or a transport error — so the add/edit form can
+	 *  tell the user *why* it couldn't connect instead of a blank failure.
+	 *  `None` on success. Never contains header values or the password.
+	 */
+	error: string | null,
 };
 
 export type StarredAlbumReconcileItem = {

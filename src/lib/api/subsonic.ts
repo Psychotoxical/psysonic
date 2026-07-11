@@ -91,7 +91,7 @@ export async function pingWithCredentialsForProfile(
       const res = await commands.probeServerConnection(base, profile.username, profile.password, httpContext);
       if (res.status === 'error') {
         console.warn('[psysonic] pingWithCredentialsForProfile probe failed:', endpointBaseUrl, res.error);
-        return { ok: false };
+        return { ok: false, error: res.error };
       }
       const data = res.data;
       return {
@@ -99,10 +99,11 @@ export async function pingWithCredentialsForProfile(
         type: data.type ?? undefined,
         serverVersion: data.serverVersion ?? undefined,
         openSubsonic: data.openSubsonic,
+        error: data.error ?? undefined,
       };
     } catch (err) {
       console.warn('[psysonic] pingWithCredentialsForProfile probe threw:', endpointBaseUrl, err);
-      return { ok: false };
+      return { ok: false, error: err instanceof Error ? err.message : undefined };
     }
   }
 
@@ -124,15 +125,18 @@ export async function pingWithCredentialsForProfile(
     });
     const data = resp.data?.['subsonic-response'];
     const ok = data?.status === 'ok';
+    const serverMessage =
+      typeof data?.error?.message === 'string' ? (data.error.message as string) : undefined;
     return {
       ok,
       type: typeof data?.type === 'string' ? data.type : undefined,
       serverVersion: typeof data?.serverVersion === 'string' ? data.serverVersion : undefined,
       openSubsonic: data?.openSubsonic === true,
+      error: ok ? undefined : serverMessage,
     };
   } catch (err) {
     console.warn('[psysonic] pingWithCredentialsForProfile failed:', endpointBaseUrl, err);
-    return { ok: false };
+    return { ok: false, error: err instanceof Error ? err.message : undefined };
   }
 }
 

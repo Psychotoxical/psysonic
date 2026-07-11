@@ -193,8 +193,9 @@ export function ServersTab({
   };
 
   const handleAddServer = async (data: Omit<ServerProfile, 'id'>) => {
-    setShowAddForm(false);
-    setPastedServerInvite(null);
+    // Keep the add form open until the connect test actually succeeds — so a
+    // failure can point the user at what's wrong (bad credentials, gate header,
+    // unreachable) instead of silently closing with a tiny status dot.
     const tempId = '_new';
     setConnStatus(s => ({ ...s, [tempId]: 'testing' }));
     try {
@@ -233,11 +234,28 @@ export function ServersTab({
           void syncServerHttpContextForProfile(added);
           void bootstrapIndexedServer(added);
         }
+        // Success only: close the form and clear any pasted invite.
+        setShowAddForm(false);
+        setPastedServerInvite(null);
       } else {
         setConnStatus(s => ({ ...s, [tempId]: 'error' }));
+        showToast(
+          ping.error
+            ? t('settings.serverConnectFailedReason', { reason: ping.error })
+            : t('settings.serverFailed'),
+          6000,
+          'error',
+        );
       }
-    } catch {
+    } catch (err) {
       setConnStatus(s => ({ ...s, [tempId]: 'error' }));
+      showToast(
+        err instanceof Error
+          ? t('settings.serverConnectFailedReason', { reason: err.message })
+          : t('settings.serverFailed'),
+        6000,
+        'error',
+      );
     }
   };
 
@@ -330,8 +348,24 @@ export function ServersTab({
         scheduleInstantMixProbeForServer(id, data.url, data.username, data.password, identity, true);
       }
       setConnStatus(s => ({ ...s, [id]: ping.ok ? 'ok' : 'error' }));
-    } catch {
+      if (!ping.ok) {
+        showToast(
+          ping.error
+            ? t('settings.serverConnectFailedReason', { reason: ping.error })
+            : t('settings.serverFailed'),
+          6000,
+          'error',
+        );
+      }
+    } catch (err) {
       setConnStatus(s => ({ ...s, [id]: 'error' }));
+      showToast(
+        err instanceof Error
+          ? t('settings.serverConnectFailedReason', { reason: err.message })
+          : t('settings.serverFailed'),
+        6000,
+        'error',
+      );
     }
   };
 

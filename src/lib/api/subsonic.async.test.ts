@@ -536,6 +536,28 @@ describe('pingWithCredentialsForProfile — custom gate headers (native probe)',
     expect(r.ok).toBe(false);
   });
 
+  it('surfaces the server-supplied failure reason so the add form can show it', async () => {
+    onInvoke('probe_server_connection', () => ({
+      ok: false,
+      type: null,
+      serverVersion: null,
+      openSubsonic: false,
+      error: 'Wrong username or password',
+    }));
+    const r = await pingWithCredentialsForProfile(
+      {
+        url: 'https://music.example.com',
+        username: 'u',
+        password: 'wrong',
+        customHeaders: [{ name: 'CF-Access-Client-Secret', value: 'gate-secret' }],
+        customHeadersApplyTo: 'public',
+      },
+      'https://music.example.com',
+    );
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe('Wrong username or password');
+  });
+
   it('keeps the WebView axios path for header-less servers', async () => {
     vi.mocked(axios.get).mockResolvedValue(okResponse({ type: 'navidrome' }));
     const r = await pingWithCredentialsForProfile(
@@ -546,5 +568,15 @@ describe('pingWithCredentialsForProfile — custom gate headers (native probe)',
     expect(axios.get).toHaveBeenCalledTimes(1);
     const calledUrl = vi.mocked(axios.get).mock.calls[0]?.[0] as string;
     expect(calledUrl).toBe('https://music.example.com/rest/ping.view');
+  });
+
+  it('carries the server error message on the header-less axios path too', async () => {
+    vi.mocked(axios.get).mockResolvedValue(errorResponse('Wrong username or password', 40));
+    const r = await pingWithCredentialsForProfile(
+      { url: 'https://music.example.com', username: 'u', password: 'wrong' },
+      'https://music.example.com',
+    );
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe('Wrong username or password');
   });
 });
