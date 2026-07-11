@@ -104,7 +104,9 @@ pub(crate) fn parse_wpctl_status_psysonic_stream_ids(status: &str) -> Vec<u32> {
                 .and_then(|s| s.trim().parse().ok());
             continue;
         }
-        if trimmed.contains('>') && trimmed.contains("[active]") {
+        if trimmed.contains('>')
+            && (trimmed.contains("[active]") || trimmed.contains("[init]"))
+        {
             if let Some(id) = current_id {
                 if !ids.contains(&id) {
                     ids.push(id);
@@ -453,12 +455,22 @@ mod tests {
     }
 
     #[test]
-    fn parse_wpctl_status_psysonic_stream_ids_ignores_inactive_streams() {
+    fn parse_wpctl_status_psysonic_stream_ids_accepts_init_links_when_paused() {
         let status = r#"
 Audio
  └─ Streams:
         84. PipeWire ALSA [psysonic]
              90. output_FL       > ALC897 Analog:playback_FL	[init]
+"#;
+        assert_eq!(parse_wpctl_status_psysonic_stream_ids(status), vec![84]);
+    }
+
+    #[test]
+    fn parse_wpctl_status_psysonic_stream_ids_ignores_streams_without_links() {
+        let status = r#"
+Audio
+ └─ Streams:
+        84. PipeWire ALSA [psysonic]
         87. PipeWire ALSA [psysonic]
             106. output_FL       > HDMI:playback_FL	[active]
 "#;

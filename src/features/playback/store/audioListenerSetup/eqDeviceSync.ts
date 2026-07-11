@@ -125,7 +125,7 @@ export function setupEqDeviceSync(): () => void {
   const pinnedAtStart = useAuthStore.getState().audioOutputDevice;
   currentKey = resolveEqKey(pinnedAtStart);
 
-  void (async () => {
+  void enqueueOsDefaultRefresh(async () => {
     if (pinnedAtStart === null) {
       await resolveSystemDefaultKey();
       if (cancelled) return;
@@ -141,7 +141,7 @@ export function setupEqDeviceSync(): () => void {
       );
       if (snap) applySnapshot(snap);
     }
-  })();
+  });
 
   // Sub 1 — pinned device changed (picker or audio:device-reset clearing pin).
   const unsubDevice = useAuthStore.subscribe((_state, prev) => {
