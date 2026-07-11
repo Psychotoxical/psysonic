@@ -73,7 +73,7 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 
 ### Equalizer — a profile per output device
 
-- Turn on **Remember EQ per device** under **Settings → Audio** and Psysonic keeps a separate equalizer setup for each output — speakers, headphones, a USB DAC — and switches to the right one automatically when you change devices. Off by default.
+- Turn on **Remember EQ per device** under **Settings → Audio** and Psysonic keeps a separate equalizer setup for each output — speakers, headphones, a USB DAC — and switches to the right one automatically when you change devices, including when **System Default** is selected and the OS default output changes outside the app. Off by default.
 
 ### Orbit — everyone hears transitions the host chose
 
