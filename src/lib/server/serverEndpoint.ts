@@ -252,8 +252,41 @@ export function invalidateReachableEndpointCache(profileId?: string): void {
 const CONNECT_PING_RETRIES = 2;
 const CONNECT_PING_RETRY_DELAY_MS = 2000;
 
+/**
+ * Upper bound on the LAN-reclaim probe. Short on purpose: an absent LAN host
+ * must fail fast so the periodic reachability tick never stalls behind the full
+ * retry cushion just to discover the laptop is still off the LAN.
+ */
+const LAN_UPGRADE_PROBE_TIMEOUT_MS = 3000;
+
 function sleepMs(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Single, no-retry connect ping bounded by {@link LAN_UPGRADE_PROBE_TIMEOUT_MS}.
+ * Decides whether a sticky *public* connection can be upgraded back to a
+ * now-reachable LAN endpoint without paying the full {@link pingWithConnectRetries}
+ * cost against a possibly-dead LAN address. Returns the successful ping, or
+ * `null` on failure / timeout.
+ */
+async function quickProbe(
+  profile: ServerProfile,
+  endpointUrl: string,
+): Promise<PingWithCredentialsResult | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>(resolve => {
+    timer = setTimeout(() => resolve(null), LAN_UPGRADE_PROBE_TIMEOUT_MS);
+  });
+  try {
+    const ping = await Promise.race([
+      pingWithCredentialsForProfile(profile, endpointUrl).catch(() => null),
+      timeout,
+    ]);
+    return ping && ping.ok ? ping : null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 /**
@@ -280,6 +313,13 @@ async function pingWithConnectRetries(
  * list, it's tried first; on failure, the cache entry is cleared and the full
  * sequence runs.
  *
+ * LAN reclaim: a sticky *public* endpoint would otherwise pin the whole session
+ * to the public address (public keeps answering, so LAN-first is never retried).
+ * When a higher-priority LAN endpoint is configured, each call first attempts a
+ * short, no-retry {@link quickProbe} of it — so a laptop returning to the LAN
+ * upgrades back on the next reachability tick, while staying off-LAN costs only
+ * one bounded probe, never the full retry cushion.
+ *
  * Each endpoint is probed with {@link pingWithConnectRetries} (initial ping +
  * {@link CONNECT_PING_RETRIES} retries, {@link CONNECT_PING_RETRY_DELAY_MS} apart).
  *
@@ -297,8 +337,28 @@ export async function pickReachableBaseUrl(
     const ordered = serverAddressEndpoints(profile);
     if (ordered.length === 0) return { ok: false, reason: 'unreachable' };
 
-    // Apply sticky: move the cached endpoint (if still in the list) to the front.
     const cached = connectCache.get(profile.id);
+
+    // LAN reclaim (see doc): when stuck on a *public* sticky endpoint but a
+    // higher-priority LAN endpoint is configured, try to reclaim LAN first with
+    // a short, no-retry probe. A dead LAN address fails fast and falls straight
+    // through to the sticky sequence below.
+    const preferred = ordered[0]!;
+    if (
+      cached &&
+      cached !== preferred.url &&
+      preferred.kind === 'local' &&
+      ordered.some(e => e.url === cached)
+    ) {
+      const ping = await quickProbe(profile, preferred.url);
+      if (ping) {
+        connectCache.set(profile.id, preferred.url);
+        notifyConnectCacheChanged();
+        return { ok: true, baseUrl: preferred.url, endpoint: preferred, ping };
+      }
+    }
+
+    // Apply sticky: move the cached endpoint (if still in the list) to the front.
     const endpoints =
       cached && ordered.some(e => e.url === cached)
         ? [

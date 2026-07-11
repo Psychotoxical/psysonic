@@ -384,6 +384,61 @@ describe('pickReachableBaseUrl', () => {
     if (result.ok) expect(result.baseUrl).toBe('https://music.example.com');
     expect(getCachedConnectBaseUrl('profile-1')).toBe('https://music.example.com');
   });
+
+  it('reclaims LAN from a sticky public endpoint when LAN answers again', async () => {
+    const profile = makeProfile({
+      url: 'https://music.example.com',
+      alternateUrl: 'http://192.168.0.10',
+    });
+    // Boot off-LAN: LAN fails, public answers → public becomes sticky.
+    vi.useFakeTimers();
+    mockDualAddressLanFailPublicOk();
+    const boot = pickReachableBaseUrl(profile);
+    await vi.runAllTimersAsync();
+    await boot;
+    vi.useRealTimers();
+    expect(getCachedConnectBaseUrl('profile-1')).toBe('https://music.example.com');
+
+    // Back on the LAN: the quick reclaim probe against the LAN endpoint answers
+    // first, so the connection upgrades without falling back to public.
+    vi.mocked(pingWithCredentialsForProfile).mockReset();
+    vi.mocked(pingWithCredentialsForProfile).mockResolvedValueOnce(pingOk());
+    const result = await pickReachableBaseUrl(profile);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.baseUrl).toBe('http://192.168.0.10');
+      expect(result.endpoint.kind).toBe('local');
+    }
+    expect(pingWithCredentialsForProfile).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(pingWithCredentialsForProfile).mock.calls[0]![1]).toBe('http://192.168.0.10');
+    expect(getCachedConnectBaseUrl('profile-1')).toBe('http://192.168.0.10');
+  });
+
+  it('keeps the sticky public endpoint when the LAN reclaim probe still fails', async () => {
+    const profile = makeProfile({
+      url: 'https://music.example.com',
+      alternateUrl: 'http://192.168.0.10',
+    });
+    vi.useFakeTimers();
+    mockDualAddressLanFailPublicOk();
+    const boot = pickReachableBaseUrl(profile);
+    await vi.runAllTimersAsync();
+    await boot;
+    expect(getCachedConnectBaseUrl('profile-1')).toBe('https://music.example.com');
+
+    // Still off-LAN: reclaim probe fails fast, sticky public keeps answering.
+    vi.mocked(pingWithCredentialsForProfile).mockClear();
+    const stayPromise = pickReachableBaseUrl(profile);
+    await vi.runAllTimersAsync();
+    const result = await stayPromise;
+    vi.useRealTimers();
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.baseUrl).toBe('https://music.example.com');
+      expect(result.endpoint.kind).toBe('public');
+    }
+    expect(getCachedConnectBaseUrl('profile-1')).toBe('https://music.example.com');
+  });
 });
 
 describe('invalidateReachableEndpointCache', () => {
