@@ -141,8 +141,17 @@ async function queryOsDefault(forPoll = false): Promise<string | null> {
   }
 }
 
-async function resolveSystemDefaultKey(forPoll = false): Promise<string> {
-  resolvedOsDefault = await queryOsDefault(forPoll);
+async function resolveSystemDefaultKey(forPoll = false): Promise<string | null> {
+  const next = await queryOsDefault(forPoll);
+  if (next !== null) {
+    resolvedOsDefault = next;
+  } else if (forPoll && resolvedOsDefault !== null) {
+    return resolveEqKey(null);
+  } else if (forPoll) {
+    return null;
+  } else {
+    resolvedOsDefault = next;
+  }
   return resolveEqKey(null);
 }
 
@@ -151,6 +160,7 @@ async function refreshFollowingSystemDefault(forPoll = false): Promise<void> {
   await enqueueOsDefaultRefresh(async () => {
     if (!shouldFollowSystemDefaultEq()) return;
     const key = await resolveSystemDefaultKey(forPoll);
+    if (key === null) return;
     if (!shouldFollowSystemDefaultEq()) return;
     await switchEqToKeyAsync(key, true);
   });
