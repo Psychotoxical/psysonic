@@ -26,7 +26,7 @@ let currentKey = DEFAULT_DEVICE_KEY;
 // immediately write it straight back.
 let applying = false;
 /** Serializes async OS-default queries so overlapping polls/events cannot apply stale EQ keys. */
-let osDefaultRefreshQueue: { tail: Promise<void> } = { tail: Promise.resolve() };
+const osDefaultRefreshQueue: { tail: Promise<void> } = { tail: Promise.resolve() };
 
 function enqueueOsDefaultRefresh(task: () => Promise<void>): Promise<void> {
   const next = osDefaultRefreshQueue.tail.then(task, task);
