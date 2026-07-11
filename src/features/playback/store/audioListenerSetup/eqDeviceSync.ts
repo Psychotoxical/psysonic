@@ -21,6 +21,14 @@ let currentKey = DEFAULT_DEVICE_KEY;
 // snapshot (on a device switch or at startup), so applying a profile does not
 // immediately write it straight back.
 let applying = false;
+/** Serializes async OS-default queries so overlapping polls/events cannot apply stale EQ keys. */
+let osDefaultRefreshQueue: { tail: Promise<void> } = { tail: Promise.resolve() };
+
+function enqueueOsDefaultRefresh(task: () => Promise<void>): Promise<void> {
+  const next = osDefaultRefreshQueue.tail.then(task, task);
+  osDefaultRefreshQueue.tail = next.catch(() => {});
+  return next;
+}
 
 function resolveEqKey(pinnedDevice: string | null): string {
   if (pinnedDevice !== null) return pinnedDevice;
@@ -86,10 +94,12 @@ async function resolveSystemDefaultKey(): Promise<string> {
 }
 
 async function refreshFollowingSystemDefault(): Promise<void> {
-  if (useAuthStore.getState().audioOutputDevice !== null) return;
-  const key = await resolveSystemDefaultKey();
-  if (useAuthStore.getState().audioOutputDevice !== null) return;
-  switchEqToKey(key, true);
+  await enqueueOsDefaultRefresh(async () => {
+    if (useAuthStore.getState().audioOutputDevice !== null) return;
+    const key = await resolveSystemDefaultKey();
+    if (useAuthStore.getState().audioOutputDevice !== null) return;
+    switchEqToKey(key, true);
+  });
 }
 
 /**
@@ -141,12 +151,12 @@ export function setupEqDeviceSync(): () => void {
       switchEqToKey(latestPinned, false);
       return;
     }
-    void (async () => {
+    void enqueueOsDefaultRefresh(async () => {
       await resolveSystemDefaultKey();
       if (cancelled) return;
       if (useAuthStore.getState().audioOutputDevice !== null) return;
       switchEqToKey(resolveEqKey(null), true);
-    })();
+    });
   });
 
   // Sub 2 — system default output changed externally (Rust device-watcher).

@@ -79,10 +79,12 @@ pub(crate) fn parse_wpctl_inspect_driver_id(inspect: &str) -> Option<u32> {
     None
 }
 
-/// Collect PipeWire ALSA `[psysonic]` playback stream node ids from `wpctl status`.
+/// Collect PipeWire ALSA `[psysonic]` stream node ids that have at least one
+/// active playback link in `wpctl status` (ignores stale / idle nodes).
 pub(crate) fn parse_wpctl_status_psysonic_stream_ids(status: &str) -> Vec<u32> {
     let mut in_audio_streams = false;
     let mut ids = Vec::new();
+    let mut current_id: Option<u32> = None;
     for line in status.lines() {
         if line.contains("Streams:") && line.contains('─') {
             in_audio_streams = true;
@@ -95,14 +97,24 @@ pub(crate) fn parse_wpctl_status_psysonic_stream_ids(status: &str) -> Vec<u32> {
         if trimmed.starts_with("Video") || trimmed.starts_with("Settings") {
             break;
         }
-        if !trimmed.contains("PipeWire ALSA [psysonic]") || trimmed.contains("(deleted)") {
+        if trimmed.contains("PipeWire ALSA [psysonic]") && !trimmed.contains("(deleted)") {
+            current_id = trimmed
+                .split('.')
+                .next()
+                .and_then(|s| s.trim().parse().ok());
             continue;
         }
-        let Some(id_str) = trimmed.split('.').next() else {
-            continue;
-        };
-        if let Ok(id) = id_str.trim().parse::<u32>() {
-            ids.push(id);
+        if trimmed.contains('>') && trimmed.contains("[active]") {
+            if let Some(id) = current_id {
+                if !ids.contains(&id) {
+                    ids.push(id);
+                }
+            }
+        } else if trimmed.contains('.') {
+            let prefix = trimmed.split('.').next().unwrap_or("").trim();
+            if prefix.chars().all(|c| c.is_ascii_digit()) && !trimmed.contains('>') {
+                current_id = None;
+            }
         }
     }
     ids
@@ -250,7 +262,21 @@ fn linux_resolve_default_via_pipewire(list: &[String]) -> Option<String> {
 /// stale card name that does not track WirePlumber default changes (Hyprpanel,
 /// pavucontrol, `wpctl set-default`, etc.) — prefer `wpctl` when available.
 pub fn effective_default_output_device_name() -> Option<String> {
-    let list = enumerate_output_device_names();
+    resolve_effective_default_output_device_name(true)
+}
+
+/// Same as [`effective_default_output_device_name`] but skips the full
+/// `output_devices()` scan — for the device-watcher poll path (#996).
+pub(crate) fn effective_default_output_device_name_for_poll() -> Option<String> {
+    resolve_effective_default_output_device_name(false)
+}
+
+fn resolve_effective_default_output_device_name(enumerate_devices: bool) -> Option<String> {
+    let list = if enumerate_devices {
+        enumerate_output_device_names()
+    } else {
+        Vec::new()
+    };
     #[cfg(target_os = "linux")]
     if let Some(resolved) = linux_resolve_default_via_pipewire(&list) {
         return Some(resolved);
@@ -258,7 +284,10 @@ pub fn effective_default_output_device_name() -> Option<String> {
     let raw = raw_cpal_default_output_device_name();
     if let Some(ref name) = raw {
         if !is_generic_default_output_alias(name) {
-            return pick_listed_device_name(name, &list).or_else(|| Some(name.clone()));
+            if enumerate_devices {
+                return pick_listed_device_name(name, &list).or_else(|| Some(name.clone()));
+            }
+            return Some(name.clone());
         }
     }
     raw
@@ -421,6 +450,19 @@ mod tests {
         assert!(is_generic_default_output_alias("Default Audio Device"));
         assert!(is_generic_default_output_alias("PipeWire Sound Server"));
         assert!(!is_generic_default_output_alias("HDA NVidia, Gigabyte M32U"));
+    }
+
+    #[test]
+    fn parse_wpctl_status_psysonic_stream_ids_ignores_inactive_streams() {
+        let status = r#"
+Audio
+ └─ Streams:
+        84. PipeWire ALSA [psysonic]
+             90. output_FL       > ALC897 Analog:playback_FL	[init]
+        87. PipeWire ALSA [psysonic]
+            106. output_FL       > HDMI:playback_FL	[active]
+"#;
+        assert_eq!(parse_wpctl_status_psysonic_stream_ids(status), vec![87]);
     }
 
     #[test]

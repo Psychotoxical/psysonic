@@ -132,7 +132,7 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
 
     tauri::async_runtime::spawn(async move {
         let mut last_default: Option<String> = tauri::async_runtime::spawn_blocking(|| {
-            super::dev_io::effective_default_output_device_name()
+            super::dev_io::effective_default_output_device_name_for_poll()
         }).await.unwrap_or(None);
 
         // macOS/Windows: consecutive polls where a pinned device is absent from cpal's list.
@@ -255,7 +255,7 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                     libc::close(devnull);
                     StderrGuard(saved)
                 };
-                let default = super::dev_io::effective_default_output_device_name();
+                let default = super::dev_io::effective_default_output_device_name_for_poll();
                 let available: Vec<String> = if need_full_enum {
                     super::dev_io::enumerate_output_device_names()
                 } else {
