@@ -240,7 +240,7 @@ export const settings = {
   audioOutputDeviceListError: 'Nem sikerült betölteni a hangeszközök listáját.',
   audioOutputDeviceNotInCurrentList: 'nincs a jelenlegi listában',
   audioOutputDeviceRememberEq: 'EQ megjegyzése eszközönként',
-  audioOutputDeviceRememberEqDesc: 'Elmenti a hangszínszabályzó beállításait minden hangkimeneti eszközhöz, és automatikusan visszaállítja őket eszközváltáskor. A profilok csak akkor váltanak, ha itt választasz eszközt, és a rendszer alapértelmezése egyetlen közös profilt használ.',
+  audioOutputDeviceRememberEqDesc: 'Elmenti a hangszínszabályzó beállításait minden hangkimeneti eszközhöz, és automatikusan visszaállítja őket eszközváltáskor. Rendszer alapértelmezés mellett a profilok követik az aktív rendszerkimenetet, beleértve a Psysonic-on kívüli váltásokat is.',
   hiResTitle: 'Natív Hi-Res lejátszás',
   hiResEnabled: 'Natív Hi-Res lejátszás engedélyezése',
   hiResDesc: 'Minden számot az eredeti mintavételezési frekvenciáján játszik le, ahelyett, hogy mindent 44,1 kHz-re mintavételezne újra, és a hangeszközt a fájlhoz igazítja (88,2 kHz-től felfelé). Csak akkor engedélyezd, ha a hardvered és a hálózatod megbízhatóan kezeli a magas mintavételezési frekvenciákat.',

@@ -239,7 +239,7 @@ export const settings = {
   audioOutputDeviceListError: 'Nu s-a putut încărca lista dispozitivelor audio',
   audioOutputDeviceNotInCurrentList: 'nu există în lista curentă',
   audioOutputDeviceRememberEq: 'Reține egalizatorul per dispozitiv',
-  audioOutputDeviceRememberEqDesc: 'Salvează setările egalizatorului pentru fiecare dispozitiv de ieșire audio și le restaurează automat la schimbarea dispozitivului. Profilurile se schimbă doar când alegi un dispozitiv aici; ieșirea implicită a sistemului folosește un singur profil comun.',
+  audioOutputDeviceRememberEqDesc: 'Salvează setările egalizatorului pentru fiecare dispozitiv de ieșire audio și le restaurează automat la schimbarea dispozitivului. Cu Ieșirea sistemului selectată, profilele urmăresc ieșirea activă a sistemului, inclusiv când se schimbă în afara Psysonic.',
   hiResTitle: 'Playback Hi-Res nativ',
   hiResEnabled: 'Pornește playback-ul hi-res nativ',
   hiResDesc: "Redă fiecare piesă la rata sa de eșantionare originală în loc să reeșantioneze totul la 44.1 kHz, comutând dispozitivul de ieșire pentru a se potrivi cu fișierul (88.2 kHz și peste). Pornește doar dacă hardware-ul și rețeaua gestionează fiabil rate mari de eșantionare.",

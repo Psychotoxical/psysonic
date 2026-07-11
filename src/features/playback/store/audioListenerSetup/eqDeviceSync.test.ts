@@ -1,8 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn(async () => null as unknown) }));
-vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
-
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { emitTauriEvent, onInvoke } from '@/test/mocks/tauri';
 import { useEqStore, type EqSnapshot } from '@/store/eqStore';
 import { useAuthStore } from '@/store/authStore';
 import { setupEqDeviceSync } from '@/features/playback/store/audioListenerSetup/eqDeviceSync';
@@ -33,13 +30,18 @@ function snap(gain0: number, over: Partial<EqSnapshot> = {}): EqSnapshot {
   return { gains: [gain0, 0, 0, 0, 0, 0, 0, 0, 0, 0], enabled: false, preGain: 0, activePreset: null, ...over };
 }
 
+async function flushAsync(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 describe('eqDeviceSync', () => {
   let cleanup: () => void = () => {};
 
   beforeEach(() => {
-    invokeMock.mockClear();
     resetEq();
     useAuthStore.getState().setAudioOutputDevice(null);
+    onInvoke('audio_default_output_device_name', () => 'Speakers');
   });
 
   afterEach(() => {
@@ -47,69 +49,74 @@ describe('eqDeviceSync', () => {
     cleanup = () => {};
   });
 
-  it('mirrors live EQ edits into the current device snapshot when enabled', () => {
+  it('mirrors live EQ edits into the current device snapshot when enabled', async () => {
     useAuthStore.getState().setAudioOutputDevice('Speakers');
     resetEq({ rememberPerDevice: true });
     cleanup = setupEqDeviceSync();
+    await flushAsync();
 
     useEqStore.getState().setBandGain(0, 4);
 
     expect(useEqStore.getState().byDevice['Speakers'].gains[0]).toBe(4);
   });
 
-  it('does not mirror edits when the feature is off', () => {
+  it('does not mirror edits when the feature is off', async () => {
     useAuthStore.getState().setAudioOutputDevice('Speakers');
     resetEq({ rememberPerDevice: false });
     cleanup = setupEqDeviceSync();
+    await flushAsync();
 
     useEqStore.getState().setBandGain(0, 4);
 
     expect(useEqStore.getState().byDevice).toEqual({});
   });
 
-  it('seeds the current device snapshot when the feature is switched on', () => {
+  it('seeds the current device snapshot when the feature is switched on', async () => {
     useAuthStore.getState().setAudioOutputDevice('Speakers');
     resetEq({ gains: [2, 0, 0, 0, 0, 0, 0, 0, 0, 0] });
     cleanup = setupEqDeviceSync();
+    await flushAsync();
 
     useEqStore.getState().setRememberPerDevice(true);
 
     expect(useEqStore.getState().byDevice['Speakers']?.gains[0]).toBe(2);
   });
 
-  it('saves the old device and restores the new device on switch', () => {
+  it('saves the old device and restores the new device on switch', async () => {
     useAuthStore.getState().setAudioOutputDevice('A');
     resetEq({ rememberPerDevice: true, byDevice: { B: snap(7, { enabled: true, preGain: 1 }) } });
     cleanup = setupEqDeviceSync();
+    await flushAsync();
 
-    // Edit on A is mirrored into A's snapshot.
     useEqStore.getState().setBandGain(0, 3);
     expect(useEqStore.getState().byDevice['A'].gains[0]).toBe(3);
 
-    // Switching to B restores B's saved profile to the live EQ.
     useAuthStore.getState().setAudioOutputDevice('B');
+    await flushAsync();
     expect(useEqStore.getState().gains[0]).toBe(7);
     expect(useEqStore.getState().enabled).toBe(true);
 
-    // A's saved snapshot is preserved (not overwritten by applying B).
     expect(useEqStore.getState().byDevice['A'].gains[0]).toBe(3);
     expect(useEqStore.getState().byDevice['B'].gains[0]).toBe(7);
   });
 
-  it('keeps the current EQ when the new device has no saved snapshot', () => {
+  it('keeps the current EQ when the new device has no saved snapshot', async () => {
     useAuthStore.getState().setAudioOutputDevice('A');
     resetEq({ rememberPerDevice: true, gains: [5, 0, 0, 0, 0, 0, 0, 0, 0, 0] });
     cleanup = setupEqDeviceSync();
+    await flushAsync();
 
     useAuthStore.getState().setAudioOutputDevice('NoProfile');
+    await flushAsync();
 
     expect(useEqStore.getState().gains[0]).toBe(5);
   });
 
-  it('applies the saved snapshot for the current device on startup', () => {
+  it('applies the saved snapshot for the current device on startup', async () => {
     useAuthStore.getState().setAudioOutputDevice('A');
     resetEq({ rememberPerDevice: true, byDevice: { A: snap(9, { enabled: true, preGain: 2, activePreset: 'X' }) } });
     cleanup = setupEqDeviceSync();
+    await flushAsync();
 
     const s = useEqStore.getState();
     expect(s.gains[0]).toBe(9);
@@ -117,51 +124,141 @@ describe('eqDeviceSync', () => {
     expect(s.activePreset).toBe('X');
   });
 
-  // Frank's exact scenario: Jazz on device 1, Rock on device 2 (neither
-  // pre-seeded), then back to device 1 — must restore Jazz, not Rock.
-  it('preset on dev1, preset on dev2, back to dev1 restores dev1 preset', () => {
+  it('preset on dev1, preset on dev2, back to dev1 restores dev1 preset', async () => {
     useAuthStore.getState().setAudioOutputDevice('Device1');
     resetEq({ rememberPerDevice: true });
     cleanup = setupEqDeviceSync();
+    await flushAsync();
 
     useEqStore.getState().applyPreset('Jazz');
     expect(useEqStore.getState().activePreset).toBe('Jazz');
 
     useAuthStore.getState().setAudioOutputDevice('Device2');
+    await flushAsync();
     useEqStore.getState().applyPreset('Rock');
     expect(useEqStore.getState().activePreset).toBe('Rock');
 
     useAuthStore.getState().setAudioOutputDevice('Device1');
+    await flushAsync();
     expect(useEqStore.getState().activePreset).toBe('Jazz');
   });
 
-  it('mirrors the system default (null device) into the __default__ bucket', () => {
+  it('mirrors system default into the resolved OS default device bucket', async () => {
+    onInvoke('audio_default_output_device_name', () => 'Speakers');
     useAuthStore.getState().setAudioOutputDevice(null);
     resetEq({ rememberPerDevice: true });
     cleanup = setupEqDeviceSync();
+    await flushAsync();
 
     useEqStore.getState().setBandGain(0, 4);
 
-    expect(useEqStore.getState().byDevice['__default__'].gains[0]).toBe(4);
+    expect(useEqStore.getState().byDevice['Speakers'].gains[0]).toBe(4);
+    expect(useEqStore.getState().byDevice['__default__']).toBeUndefined();
   });
 
-  it('restores the __default__ profile when the device resets to null (unplug / audio:device-reset)', () => {
-    // The audio:device-reset event sets audioOutputDevice = null; the sync
-    // reacts to that store change like any other device switch.
+  it('restores the OS default device profile when switching back to system default', async () => {
     useAuthStore.getState().setAudioOutputDevice('A');
-    resetEq({ rememberPerDevice: true, byDevice: { __default__: snap(8, { enabled: true }) } });
+    resetEq({
+      rememberPerDevice: true,
+      byDevice: { Speakers: snap(8, { enabled: true }) },
+    });
+    onInvoke('audio_default_output_device_name', () => 'Speakers');
     cleanup = setupEqDeviceSync();
+    await flushAsync();
 
     useAuthStore.getState().setAudioOutputDevice(null);
+    await flushAsync();
 
     expect(useEqStore.getState().gains[0]).toBe(8);
     expect(useEqStore.getState().enabled).toBe(true);
   });
 
-  it('cleanup stops mirroring further edits', () => {
+  it('falls back to the legacy __default__ profile when the resolved device has no snapshot', async () => {
+    onInvoke('audio_default_output_device_name', () => 'Speakers');
+    useAuthStore.getState().setAudioOutputDevice(null);
+    resetEq({ rememberPerDevice: true, byDevice: { __default__: snap(6, { enabled: true }) } });
+    cleanup = setupEqDeviceSync();
+    await flushAsync();
+
+    expect(useEqStore.getState().gains[0]).toBe(6);
+    expect(useEqStore.getState().enabled).toBe(true);
+  });
+
+  it('switches EQ when the OS default changes externally (audio:device-changed)', async () => {
+    onInvoke('audio_default_output_device_name', () => 'Speakers');
+    useAuthStore.getState().setAudioOutputDevice(null);
+    resetEq({
+      rememberPerDevice: true,
+      byDevice: {
+        Speakers: snap(3),
+        Headphones: snap(9, { enabled: true }),
+      },
+    });
+    cleanup = setupEqDeviceSync();
+    await flushAsync();
+    expect(useEqStore.getState().gains[0]).toBe(3);
+
+    onInvoke('audio_default_output_device_name', () => 'Headphones');
+    emitTauriEvent('audio:device-changed', null);
+    await flushAsync();
+
+    expect(useEqStore.getState().gains[0]).toBe(9);
+    expect(useEqStore.getState().enabled).toBe(true);
+  });
+
+  it('switches EQ on audio:device-reset when following system default', async () => {
+    onInvoke('audio_default_output_device_name', () => 'Speakers');
+    useAuthStore.getState().setAudioOutputDevice(null);
+    resetEq({
+      rememberPerDevice: true,
+      byDevice: { Speakers: snap(2), Headphones: snap(7) },
+    });
+    cleanup = setupEqDeviceSync();
+    await flushAsync();
+
+    onInvoke('audio_default_output_device_name', () => 'Headphones');
+    emitTauriEvent('audio:device-reset', null);
+    await flushAsync();
+
+    expect(useEqStore.getState().gains[0]).toBe(7);
+  });
+
+  it('does not react to device events when a device is pinned', async () => {
+    useAuthStore.getState().setAudioOutputDevice('A');
+    resetEq({
+      rememberPerDevice: true,
+      gains: [5, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      byDevice: { Headphones: snap(9) },
+    });
+    cleanup = setupEqDeviceSync();
+    await flushAsync();
+
+    onInvoke('audio_default_output_device_name', () => 'Headphones');
+    emitTauriEvent('audio:device-changed', null);
+    await flushAsync();
+
+    expect(useEqStore.getState().gains[0]).toBe(5);
+  });
+
+  it('does not apply the legacy __default__ profile to a pinned device without a snapshot', async () => {
+    useAuthStore.getState().setAudioOutputDevice('A');
+    resetEq({
+      rememberPerDevice: true,
+      gains: [5, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      byDevice: { __default__: snap(9, { enabled: true }) },
+    });
+    cleanup = setupEqDeviceSync();
+    await flushAsync();
+
+    expect(useEqStore.getState().gains[0]).toBe(5);
+    expect(useEqStore.getState().enabled).toBe(false);
+  });
+
+  it('cleanup stops mirroring further edits', async () => {
     useAuthStore.getState().setAudioOutputDevice('A');
     resetEq({ rememberPerDevice: true });
     cleanup = setupEqDeviceSync();
+    await flushAsync();
 
     cleanup();
     useEqStore.getState().setBandGain(0, 6);

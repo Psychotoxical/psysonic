@@ -236,7 +236,7 @@ export const settings = {
   audioOutputDeviceListError: 'Impossible de charger la liste des périphériques audio.',
   audioOutputDeviceNotInCurrentList: 'absent de la liste actuelle',
   audioOutputDeviceRememberEq: 'Mémoriser l’égaliseur par périphérique',
-  audioOutputDeviceRememberEqDesc: 'Enregistre les réglages de l’égaliseur pour chaque périphérique de sortie audio et les restaure automatiquement lors du changement de périphérique. Les profils ne changent que lorsque vous choisissez un périphérique ici ; la sortie système par défaut utilise un seul profil partagé.',
+  audioOutputDeviceRememberEqDesc: 'Enregistre les réglages de l’égaliseur pour chaque périphérique de sortie audio et les restaure automatiquement lors du changement de périphérique. Avec Sortie système sélectionnée, les profils suivent la sortie système active, y compris lorsqu’elle change en dehors de Psysonic.',
   hiResTitle: 'Lecture haute résolution native',
   hiResEnabled: 'Activer la lecture haute résolution native',
   hiResDesc: "Lit chaque piste à sa fréquence d'échantillonnage d'origine au lieu de tout rééchantillonner à 44,1 kHz, en réglant le périphérique de sortie sur celle du fichier (88,2 kHz et plus). N'activer que si le matériel et le réseau gèrent ces hautes fréquences de façon fiable.",

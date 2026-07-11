@@ -240,7 +240,7 @@ export const settings = {
   audioOutputDeviceListError: '音声デバイス一覧を読み込めませんでした。',
   audioOutputDeviceNotInCurrentList: '現在の一覧にありません',
   audioOutputDeviceRememberEq: 'デバイスごとにイコライザーを記憶',
-  audioOutputDeviceRememberEqDesc: 'オーディオ出力デバイスごとにイコライザー設定を保存し、デバイスを切り替えたときに自動的に復元します。プロファイルが切り替わるのはここでデバイスを選んだときだけで、システム既定の出力は1つの共有プロファイルを使います。',
+  audioOutputDeviceRememberEqDesc: 'オーディオ出力デバイスごとにイコライザー設定を保存し、デバイスを切り替えたときに自動的に復元します。システム既定を選択している場合、Psysonic外で変更された場合も含め、アクティブなシステム出力にプロファイルが追従します。',
   hiResTitle: 'ネイティブ Hi-Res 再生',
   hiResEnabled: 'ネイティブ Hi-Res 再生を有効化',
   hiResDesc: 'すべてを 44.1 kHz にリサンプリングせず、各トラックを元のサンプルレートで再生し、ファイルに合わせて音声デバイスを切り替えます (88.2 kHz 以上)。高サンプルレートをハードウェアとネットワークが安定して扱える場合のみ有効にしてください。',

@@ -240,7 +240,7 @@ export const settings = {
   audioOutputDeviceListError: 'Nie można było załadować listy urządzeń audio.',
   audioOutputDeviceNotInCurrentList: 'nie ma go na aktualnej liście',
   audioOutputDeviceRememberEq: 'Zapamiętaj EQ dla każdego urządzenia',
-  audioOutputDeviceRememberEqDesc: 'Save the equalizer settings for each audio output device and restore them automatically when you switch devices. Profiles switch only when you pick a device here, and the system default uses a single shared profile.', // Propozycja: Zapisuj ustawienia korektora dla każdego urządzenia wyjściowego audio i automatycznie przywracaj je po przełączeniu urządzenia. Profile przełączają się tylko wtedy, gdy wybierzesz urządzenie tutaj, a domyślne urządzenie systemowe używa jednego wspólnego profilu.
+  audioOutputDeviceRememberEqDesc: 'Zapisuje ustawienia korektora dla każdego urządzenia wyjściowego audio i automatycznie przywraca je po przełączeniu urządzenia. Przy wybranej domyślnej systemowej konfiguracja podąża za aktywnym wyjściem systemowym, także gdy zmieni się poza Psysonic.',
   hiResTitle: 'Natywne odtwarzanie w wysokiej rozdzielczości',
   hiResEnabled: 'Włącz natywne odtwarzanie w wysokiej rozdzielczości',
   hiResDesc: "Wymusza 44.1 kHz dla maksymalnej stabilności. Włącz tylko wtedy, gdy sprzęt i sieć niezawodnie obsługują wysokie częstotliwości próbkowania (88.2 kHz+).",

@@ -236,7 +236,7 @@ export const settings = {
   audioOutputDeviceListError: 'No se pudo cargar la lista de dispositivos de audio.',
   audioOutputDeviceNotInCurrentList: 'no está en la lista actual',
   audioOutputDeviceRememberEq: 'Recordar el ecualizador por dispositivo',
-  audioOutputDeviceRememberEqDesc: 'Guarda los ajustes del ecualizador para cada dispositivo de salida de audio y los restaura automáticamente al cambiar de dispositivo. Los perfiles solo cambian cuando eliges un dispositivo aquí; la salida predeterminada del sistema usa un único perfil compartido.',
+  audioOutputDeviceRememberEqDesc: 'Guarda los ajustes del ecualizador para cada dispositivo de salida de audio y los restaura automáticamente al cambiar de dispositivo. Con Salida del sistema seleccionada, los perfiles siguen la salida activa del sistema, incluso si cambia fuera de Psysonic.',
   hiResTitle: 'Reproducción Nativa Hi-Res',
   hiResEnabled: 'Habilitar reproducción nativa hi-res',
   hiResDesc: "Reproduce cada pista a su frecuencia de muestreo original en vez de remuestrear todo a 44.1 kHz, ajustando el dispositivo de salida para que coincida con el archivo (88.2 kHz o más). Habilítalo solo si tu hardware y tu red soportan de forma fiable altas tasas de muestreo.",

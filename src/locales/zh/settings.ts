@@ -236,7 +236,7 @@ export const settings = {
   audioOutputDeviceListError: '无法加载音频设备列表。',
   audioOutputDeviceNotInCurrentList: '不在当前列表中',
   audioOutputDeviceRememberEq: '为每个设备记住均衡器',
-  audioOutputDeviceRememberEqDesc: '为每个音频输出设备保存均衡器设置，并在切换设备时自动恢复。仅当你在此处选择设备时配置才会切换；系统默认输出共用一个配置。',
+  audioOutputDeviceRememberEqDesc: '为每个音频输出设备保存均衡器设置，并在切换设备时自动恢复。选择系统默认时，配置会跟随当前系统输出，包括在 Psysonic 外部切换时。',
   hiResTitle: '原生高清晰度播放',
   hiResEnabled: '启用原生高清晰度播放',
   hiResDesc: "以每个曲目的原始采样率播放，而不是将所有内容重采样到 44.1 kHz，并将输出设备切换为与文件匹配（88.2 kHz 及以上）。仅在硬件和网络能可靠处理高采样率时启用。",
