@@ -314,9 +314,12 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                 continue;
             }
 
-            last_default = current_default.clone();
+            let Some(new_name) = current_default else {
+                // Transient wpctl/cpal miss — keep last known default.
+                continue;
+            };
 
-            let Some(_new_name) = current_default else { continue };
+            last_default = Some(new_name.clone());
 
             // Debounce: give the OS time to finish configuring the new device.
             tokio::time::sleep(Duration::from_millis(500)).await;

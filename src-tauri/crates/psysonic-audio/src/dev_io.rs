@@ -87,10 +87,49 @@ pub(crate) fn output_device_keys_equivalent(a: &str, b: &str, list: &[String]) -
     if a == b || output_devices_logically_same(a, b) {
         return true;
     }
+    if comma_and_alsa_device_equivalent(a, b) {
+        return true;
+    }
     let ea = equivalent_list_entries(a, list);
     let eb = equivalent_list_entries(b, list);
     ea.iter()
         .any(|x| eb.iter().any(|y| x == y || output_devices_logically_same(x, y)))
+}
+
+/// Match wpctl/cpal `"CARD, PCM"` labels to ALSA `iface:CARD=…` picker ids.
+fn comma_and_alsa_device_equivalent(a: &str, b: &str) -> bool {
+    let (comma, alsa) = if linux_alsa_sink_fingerprint(a).is_some() {
+        (b, a)
+    } else if linux_alsa_sink_fingerprint(b).is_some() {
+        (a, b)
+    } else {
+        return false;
+    };
+    if comma.contains(':') {
+        return false;
+    }
+    let mut parts = comma.splitn(2, ',');
+    let Some(comma_card) = parts.next() else {
+        return false;
+    };
+    let comma_card = comma_card.trim();
+    let comma_pcm = parts.next().map(|s| s.trim()).unwrap_or("");
+    let Some((_, alsa_card, _)) = linux_alsa_sink_fingerprint(alsa) else {
+        return false;
+    };
+    let cc = comma_card.to_ascii_lowercase();
+    let ac = alsa_card.to_ascii_lowercase();
+    if cc == ac || cc.contains(&ac) || ac.contains(&cc) {
+        return true;
+    }
+    if !comma_pcm.is_empty() {
+        let pcm = comma_pcm.to_ascii_lowercase();
+        let alsa_lower = alsa.to_ascii_lowercase();
+        if alsa_lower.contains(&pcm) || pcm.contains(&ac) {
+            return true;
+        }
+    }
+    false
 }
 
 /// Build the cpal-style `"CARD, PCM name"` label PipeWire exposes for ALSA sinks.
@@ -312,6 +351,10 @@ fn resolve_effective_default_output_device_name(enumerate_devices: bool) -> Opti
     #[cfg(target_os = "linux")]
     if let Some(resolved) = linux_resolve_default_via_pipewire(&list) {
         return Some(resolved);
+    }
+    #[cfg(target_os = "linux")]
+    if !enumerate_devices {
+        return None;
     }
     let raw = raw_cpal_default_output_device_name();
     if let Some(ref name) = raw {
@@ -565,6 +608,22 @@ Audio
             cpal_name_from_pipewire_alsa("HD-Audio Generic", "ALC897 Analog"),
             "HD-Audio Generic, ALC897 Analog"
         );
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn output_device_keys_equivalent_links_comma_and_alsa_ids() {
+        let list: Vec<String> = vec![];
+        assert!(output_device_keys_equivalent(
+            "HDA NVidia, Gigabyte M32U",
+            "hdmi:CARD=NVidia,DEV=3",
+            &list,
+        ));
+        assert!(output_device_keys_equivalent(
+            "HD-Audio Generic, ALC897 Analog",
+            "hw:CARD=Generic,DEV=0",
+            &list,
+        ));
     }
 
     #[test]
