@@ -302,7 +302,7 @@ export default function ShareSearchResults(props: ShareSearchResultsProps) {
           <NavidromePublicShareModal
             open={navidromePreviewOpen}
             onClose={() => setNavidromePreviewOpen(false)}
-            ref={shareMatch.ref}
+            publicShareRef={shareMatch.publicShareRef}
             preview={{ navidromeShareInfo, navidromeShareResolving, navidromeShareError }}
             hostLabel={shareServerLabel}
             onPlay={handlePlay}

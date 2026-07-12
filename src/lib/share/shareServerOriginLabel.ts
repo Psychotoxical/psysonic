@@ -25,7 +25,7 @@ export function shareServerOriginLabel(
   if (!shareMatch || shareMatch.type === 'unsupported') return null;
 
   if (shareMatch.type === 'navidrome-public') {
-    return hostFromOrigin(shareMatch.ref.origin);
+    return hostFromOrigin(shareMatch.publicShareRef.origin);
   }
 
   const shareServerId = findServerIdForShareUrl(servers, shareMatch.payload.srv);

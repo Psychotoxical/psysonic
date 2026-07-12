@@ -61,4 +61,8 @@ export interface QueueItemRef {
   autoAdded?: boolean;
   radioAdded?: boolean;
   playNextAdded?: boolean;
+  /** Persisted for Navidrome public share restore (JWT stream URL). */
+  directStreamUrl?: string;
+  /** Persisted for Navidrome public share restore (JWT cover URL). */
+  directCoverArtUrl?: string;
 }

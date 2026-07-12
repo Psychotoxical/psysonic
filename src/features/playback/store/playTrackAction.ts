@@ -32,7 +32,7 @@ import {
   findLocalPlaybackUrl,
   hasLocalPersistentPlaybackBytes,
 } from '@/store/localPlaybackResolve';
-import { resolvePlaybackUrl, resolvePlaybackUrlForTrack } from '@/features/playback/utils/playback/resolvePlaybackUrl';
+import { resolvePlaybackUrlForTrack } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '@/features/playback/utils/audio/resolveReplayGainDb';
 import { enrichTrackPlaybackMetadata } from '@/features/playback/utils/audio/enrichTrackReplayGainMetadata';
 import { audioPlayHiResBlendArgs } from '@/lib/audio/hiResCrossfadeResample';
@@ -63,7 +63,7 @@ import type { Track } from '@/lib/media/trackTypes';
 import type { PlayerState } from '@/features/playback/store/playerStoreTypes';
 import { toQueueItemRefs } from '@/features/playback/store/queueItemRef';
 import { getQueueTracksView, resolveQueueTrack } from '@/features/playback/store/queueTrackView';
-import { getCachedTrack, seedQueueResolver } from '@/features/playback/store/queueTrackResolver';
+import { getCachedTrack, seedQueueResolver, mergeDirectShareUrls } from '@/features/playback/store/queueTrackResolver';
 import { promoteCompletedStreamToHotCache } from '@/features/playback/store/promoteStreamCache';
 import { pushQueueOnPlaybackStart } from '@/features/playback/store/queueSync';
 import { playListenSessionFinalize } from '@/features/playback/store/playListenSession';
@@ -216,8 +216,11 @@ export function runPlayTrack(
     return i >= 0 ? i : 0;
   })();
   const playingRefEarly = replacingEarly ? undefined : stateBeforePlay.queueItems[playIdxEarly];
-  const scopedTrack = (!replacingEarly && playingRefEarly && getCachedTrack(playingRefEarly))
-    ? getCachedTrack(playingRefEarly)!
+  const scopedTrack = playingRefEarly
+    ? mergeDirectShareUrls(
+      (!replacingEarly ? getCachedTrack(playingRefEarly) : undefined) ?? scopedTrackEarly,
+      playingRefEarly,
+    )
     : scopedTrackEarly;
   const scopedQueue = queue ? stampTrackServerIds(queue) : queue;
 

@@ -1,3 +1,4 @@
+import { NAVIDROME_PUBLIC_SHARE_SERVER_ID } from '@/lib/share/navidromePublicSharePlayback';
 import { savePlayQueue } from '@/lib/api/subsonicPlayQueue';
 import type { QueueItemRef, Track } from '@/lib/media/trackTypes';
 import { isSubsonicServerReachable } from '@/lib/network/subsonicNetworkGuard';
@@ -47,7 +48,8 @@ let lastQueueHeartbeatAt = 0;
 
 function isPlaybackServerReachable(): boolean {
   const serverId = getPlaybackServerId();
-  return serverId ? isSubsonicServerReachable(serverId) : false;
+  if (!serverId || serverId === NAVIDROME_PUBLIC_SHARE_SERVER_ID) return false;
+  return isSubsonicServerReachable(serverId);
 }
 
 /** @returns true when the server accepted the queue (or there was nothing to push). */

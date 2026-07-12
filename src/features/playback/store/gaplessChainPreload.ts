@@ -8,7 +8,7 @@ import {
   getPlaybackIndexKey,
   playbackCacheKeyForRef,
 } from '@/features/playback/utils/playback/playbackServer';
-import { resolvePlaybackUrl, resolvePlaybackUrlForTrack } from '@/features/playback/utils/playback/resolvePlaybackUrl';
+import { resolvePlaybackUrlForTrack } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';
 import {
   getGaplessPreloadingId,

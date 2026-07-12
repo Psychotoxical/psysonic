@@ -7,12 +7,12 @@ import type { NavidromePublicShareRef } from '@/lib/share/navidromePublicShareUr
 import type { NavidromePublicSharePreviewState } from '@/features/search/hooks/useNavidromePublicSharePreview';
 import { formatTrackTime } from '@/lib/format/formatDuration';
 import OverlayScrollArea from '@/ui/OverlayScrollArea';
-import { usePlayerStore } from '@/features/playback/store/playerStore';
+import { usePlayerStore } from '@/features/playback';
 
 type NavidromePublicShareModalProps = {
   open: boolean;
   onClose: () => void;
-  ref: NavidromePublicShareRef;
+  publicShareRef: NavidromePublicShareRef;
   preview: NavidromePublicSharePreviewState;
   hostLabel?: string | null;
   onPlay: () => void;
@@ -102,7 +102,7 @@ function PreviewBody({
 export default function NavidromePublicShareModal({
   open,
   onClose,
-  ref: shareRef,
+  publicShareRef: shareRef,
   preview,
   hostLabel,
   onPlay,

@@ -32,7 +32,7 @@ import {
   playbackCacheKeyForRef,
   playbackProfileIdForTrack,
 } from '@/features/playback/utils/playback/playbackServer';
-import { resolvePlaybackUrl, resolvePlaybackUrlForTrack } from '@/features/playback/utils/playback/resolvePlaybackUrl';
+import { resolvePlaybackUrlForTrack } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import { refreshWaveformForTrack } from '@/features/playback/store/waveformRefresh';
 import { syncQueueToServer } from '@/features/playback/store/queueSync';
 import { useAuthStore } from '@/store/authStore';

@@ -62,7 +62,8 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   const coverUrl = portraitCover.src;
   const coverKey = portraitCover.cacheKey;
   const directCover = currentTrack?.directCoverArtUrl;
-  const resolvedCoverUrl = directCover ?? useCachedUrl(coverUrl, coverKey, false);
+  const cachedCoverUrl = useCachedUrl(coverUrl, coverKey, false);
+  const resolvedCoverUrl = directCover ?? cachedCoverUrl;
 
   // Dynamic accent color extracted from the current album cover, applied as
   // --dynamic-fs-accent on the root element. Cache hits return instantly so

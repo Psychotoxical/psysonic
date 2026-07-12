@@ -14,7 +14,7 @@ import { parseShareSearchText } from '@/lib/share/shareSearch';
 import { serverIndexKeyFromUrl } from '@/lib/server/serverIndexKey';
 import { useShareSearchPreview } from '@/features/search/hooks/useShareSearchPreview';
 import { useNavidromePublicSharePreview } from '@/features/search/hooks/useNavidromePublicSharePreview';
-import { playNavidromePublicShare } from '@/features/share/playNavidromePublicShare';
+import { playNavidromePublicShare } from '@/features/share';
 
 export function useShareSearch(query: string, onSuccess?: () => void) {
   const { t } = useTranslation();
@@ -38,7 +38,7 @@ export function useShareSearch(query: string, onSuccess?: () => void) {
       ?? null;
   }, [shareMatch, servers, activeServerId]);
   const preview = useShareSearchPreview(shareMatch);
-  const navidromeRef = shareMatch?.type === 'navidrome-public' ? shareMatch.ref : null;
+  const navidromeRef = shareMatch?.type === 'navidrome-public' ? shareMatch.publicShareRef : null;
   const navidromePreview = useNavidromePublicSharePreview(navidromeRef);
   const [shareQueueBusy, setShareQueueBusy] = useState(false);
 
@@ -97,7 +97,7 @@ export function useShareSearch(query: string, onSuccess?: () => void) {
     }
     setShareQueueBusy(true);
     const ok = await playNavidromePublicShare(
-      shareMatch.ref,
+      shareMatch.publicShareRef,
       navidromePreview.navidromeShareInfo,
       t,
     );

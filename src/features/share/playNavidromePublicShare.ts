@@ -2,8 +2,7 @@ import type { TFunction } from 'i18next';
 import type { NavidromePublicShareRef } from '@/lib/share/navidromePublicShareUrl';
 import type { NavidromePublicShareInfo } from '@/lib/share/navidromePublicShareTypes';
 import { NAVIDROME_PUBLIC_SHARE_SERVER_ID, navidromePublicShareToTracks } from '@/lib/share/navidromePublicSharePlayback';
-import { seedQueueResolver } from '@/features/playback/store/queueTrackResolver';
-import { usePlayerStore } from '@/features/playback/store/playerStore';
+import { seedQueueResolver, usePlayerStore } from '@/features/playback';
 import { showToast } from '@/lib/dom/toast';
 
 export async function playNavidromePublicShare(

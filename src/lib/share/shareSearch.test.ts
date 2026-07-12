@@ -127,7 +127,7 @@ describe('share search parsing', () => {
     const url = 'https://music.example.com/navidrome/share/Ab12Cd34Ef';
     expect(parseShareSearchText(url)).toEqual({
       type: 'navidrome-public',
-      ref: {
+      publicShareRef: {
         pageUrl: url,
         origin: 'https://music.example.com',
         basePath: '/navidrome',

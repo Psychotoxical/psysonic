@@ -1,5 +1,5 @@
 import type { QueueItemRef, Track } from '@/lib/media/trackTypes';
-import { getCachedTrack, placeholderTrack, applyQueueOverrides } from './queueTrackResolver';
+import { getCachedTrack, placeholderTrack, applyQueueOverrides, mergeDirectShareUrls } from './queueTrackResolver';
 
 /**
  * Dual-write bridge (thin-state phase 4): rebuild the legacy `queue: Track[]`
@@ -43,7 +43,10 @@ export function bridgeQueueFromItems(items: QueueItemRef[], pools: Track[][]): T
  * for exactly this reason; see the freeze fix in queueTrackResolver).
  */
 export function resolveQueueTrack(ref: QueueItemRef, fallback?: Track): Track {
-  const base = getCachedTrack(ref) ?? fallback ?? placeholderTrack(ref);
+  const base = mergeDirectShareUrls(
+    getCachedTrack(ref) ?? fallback ?? placeholderTrack(ref),
+    ref,
+  );
   // Carry the ref's queue-only flags onto the resolved track without mutating the
   // cached object (a render-time mutation is what caused the earlier render loop).
   const needsFlags =

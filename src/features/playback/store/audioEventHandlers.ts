@@ -23,7 +23,7 @@ import {
   playbackProfileIdForRef,
   playbackProfileIdForTrack,
 } from '@/features/playback/utils/playback/playbackServer';
-import { resolvePlaybackUrl, resolvePlaybackUrlForTrack } from '@/features/playback/utils/playback/resolvePlaybackUrl';
+import { resolvePlaybackUrlForTrack } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import { requestGaplessChainPreload } from '@/features/playback/store/gaplessChainPreload';
 import {
   applyGaplessQueueAdvance,

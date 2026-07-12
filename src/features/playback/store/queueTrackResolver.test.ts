@@ -114,6 +114,19 @@ describe('queueTrackResolver', () => {
     expect(getCachedTrack(ref('bulk-554', { serverId: 'navidrome-public-share' }))?.title).toBe('Track 554');
   });
 
+  it('resolveBatch restores public share refs from persisted directStreamUrl', async () => {
+    await resolveBatch([{
+      serverId: 'navidrome-public-share',
+      trackId: 'ndshare:Ab12:0',
+      directStreamUrl: 'https://music.example.com/share/s/jwt-a',
+      directCoverArtUrl: 'https://music.example.com/share/img/jwt-a?size=300',
+    }]);
+    expect(getCachedTrack({
+      serverId: 'navidrome-public-share',
+      trackId: 'ndshare:Ab12:0',
+    })?.directStreamUrl).toBe('https://music.example.com/share/s/jwt-a');
+  });
+
   it('single-track seed does not evict a bulk-seeded public share queue', () => {
     const tracks = Array.from({ length: 555 }, (_, i) => ({
       id: `bulk-${i}`,

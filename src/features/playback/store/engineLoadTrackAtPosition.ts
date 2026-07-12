@@ -6,7 +6,7 @@ import {
   getPlaybackIndexKey,
   playbackCacheKeyForTrack,
 } from '@/features/playback/utils/playback/playbackServer';
-import { resolvePlaybackUrl, resolvePlaybackUrlForTrack } from '@/features/playback/utils/playback/resolvePlaybackUrl';
+import { resolvePlaybackUrlForTrack } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '@/features/playback/utils/audio/resolveReplayGainDb';
 import { audioPlayHiResBlendArgs } from '@/lib/audio/hiResCrossfadeResample';
 import { useAuthStore } from '@/store/authStore';

@@ -1,4 +1,5 @@
 import type { Track } from '@/lib/media/trackTypes';
+import type { QueueItemRef } from '@/lib/media/trackTypes';
 import {
   buildNavidromePublicStreamUrl,
   buildNavidromePublicCoverUrl,
@@ -24,4 +25,16 @@ export function navidromePublicShareToTracks(
     directStreamUrl: buildNavidromePublicStreamUrl(ref, t.id),
     directCoverArtUrl: buildNavidromePublicCoverUrl(ref, t.id),
   }));
+}
+
+export function isPersistedPublicShareQueue(
+  queueServerId: string | null | undefined,
+  queueItems: QueueItemRef[],
+): boolean {
+  if (queueServerId === NAVIDROME_PUBLIC_SHARE_SERVER_ID && queueItems.length > 0) {
+    return true;
+  }
+  return queueItems.some(
+    r => r.serverId === NAVIDROME_PUBLIC_SHARE_SERVER_ID && Boolean(r.directStreamUrl),
+  );
 }

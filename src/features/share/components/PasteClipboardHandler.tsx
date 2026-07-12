@@ -8,11 +8,8 @@ import { decodeServerMagicStringFromText } from '@/lib/server/serverMagicString'
 import { applySharePastePayload, applySharePasteQueue } from '@/features/share/applySharePaste';
 import { shareQueueServerContext } from '@/lib/share/shareServerOriginLabel';
 import { showToast } from '@/lib/dom/toast';
-import { useShareQueuePreview } from '@/features/search';
-import { ShareQueuePreviewModal } from '@/features/search';
-import NavidromePublicShareModal from '@/features/search/components/NavidromePublicShareModal';
-import { useNavidromePublicSharePreview } from '@/features/search/hooks/useNavidromePublicSharePreview';
-import { playNavidromePublicShare } from '@/features/share/playNavidromePublicShare';
+import { useShareQueuePreview, ShareQueuePreviewModal, NavidromePublicShareModal, useNavidromePublicSharePreview } from '@/features/search';
+import { playNavidromePublicShare } from '@/features/share';
 import type { NavidromePublicShareRef } from '@/lib/share/navidromePublicShareUrl';
 import {
   parseOrbitShareLink,
@@ -253,15 +250,14 @@ export default function PasteClipboardHandler() {
     if (ok) setNavidromePaste(null);
   };
 
-  const navidromeHostLabel = navidromePaste
-    ? (() => {
-      try {
-        return new URL(navidromePaste.origin).host;
-      } catch {
-        return navidromePaste.origin;
-      }
-    })()
-    : null;
+  const navidromeHostLabel = useMemo(() => {
+    if (!navidromePaste) return null;
+    try {
+      return new URL(navidromePaste.origin).host;
+    } catch {
+      return navidromePaste.origin;
+    }
+  }, [navidromePaste]);
 
   return (
     <>
@@ -269,7 +265,7 @@ export default function PasteClipboardHandler() {
         <NavidromePublicShareModal
           open
           onClose={closeNavidromePaste}
-          ref={navidromePaste}
+          publicShareRef={navidromePaste}
           preview={navidromePreview}
           hostLabel={navidromeHostLabel}
           onPlay={() => void confirmNavidromePaste()}

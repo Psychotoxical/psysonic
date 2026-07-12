@@ -16,7 +16,7 @@ export type ArtistShareSearchPayload = { srv: string; k: 'artist'; id: string };
 export type ComposerShareSearchPayload = { srv: string; k: 'composer'; id: string };
 
 export type ShareSearchMatch =
-  | { type: 'navidrome-public'; ref: NavidromePublicShareRef }
+  | { type: 'navidrome-public'; publicShareRef: NavidromePublicShareRef }
   | { type: 'queueable'; payload: QueueableShareSearchPayload }
   | { type: 'album'; payload: AlbumShareSearchPayload }
   | { type: 'artist'; payload: ArtistShareSearchPayload }
@@ -28,7 +28,7 @@ export function parseShareSearchText(text: string): ShareSearchMatch | null {
   if (!trimmed) return null;
 
   const navidromeRef = extractNavidromePublicShareFromText(trimmed);
-  if (navidromeRef) return { type: 'navidrome-public', ref: navidromeRef };
+  if (navidromeRef) return { type: 'navidrome-public', publicShareRef: navidromeRef };
 
   if (!trimmed.includes(PSYSONIC_SHARE_PREFIX)) return null;
 

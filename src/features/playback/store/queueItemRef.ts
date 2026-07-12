@@ -20,6 +20,8 @@ export function toQueueItemRefs(serverId: string, queue: Track[]): QueueItemRef[
     if (t.autoAdded) ref.autoAdded = true;
     if (t.radioAdded) ref.radioAdded = true;
     if (t.playNextAdded) ref.playNextAdded = true;
+    if (t.directStreamUrl) ref.directStreamUrl = t.directStreamUrl;
+    if (t.directCoverArtUrl) ref.directCoverArtUrl = t.directCoverArtUrl;
     return ref;
   });
 }

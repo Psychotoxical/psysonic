@@ -51,9 +51,15 @@ export function subscribeQueueResolver(cb: () => void): () => void {
   return () => { listeners.delete(cb); };
 }
 
-function cacheSet(key: string, track: Track): void {
+function cacheSet(key: string, track: Track, opts?: { skipCap?: boolean }): void {
   if (cache.has(key)) cache.delete(key);
   cache.set(key, track);
+  if (opts?.skipCap) return;
+  while (cache.size > CACHE_CAP) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
 }
 
 function trimCacheExcept(preserve: Set<string>): void {
@@ -100,6 +106,23 @@ export function placeholderTrack(ref: QueueItemRef): Track {
     autoAdded: ref.autoAdded,
     radioAdded: ref.radioAdded,
     playNextAdded: ref.playNextAdded,
+    directStreamUrl: ref.directStreamUrl,
+    directCoverArtUrl: ref.directCoverArtUrl,
+    serverId: ref.serverId,
+  };
+}
+
+export function mergeDirectShareUrls(track: Track, ref: QueueItemRef): Track {
+  if (!ref.directStreamUrl && !ref.directCoverArtUrl) return track;
+  if (track.directStreamUrl === ref.directStreamUrl
+    && track.directCoverArtUrl === ref.directCoverArtUrl) {
+    return track;
+  }
+  return {
+    ...track,
+    directStreamUrl: track.directStreamUrl ?? ref.directStreamUrl,
+    directCoverArtUrl: track.directCoverArtUrl ?? ref.directCoverArtUrl,
+    serverId: track.serverId ?? ref.serverId,
   };
 }
 
@@ -127,7 +150,7 @@ export function seedQueueResolver(serverId: string, tracks: Track[]): void {
   for (const t of tracks) {
     const key = refKey({ serverId: canonicalId, trackId: t.id });
     preserve.add(key);
-    cacheSet(key, t);
+    cacheSet(key, t, { skipCap: true });
   }
   // Bulk queue replace: keep the whole incoming set (may exceed CACHE_CAP).
   // Single-track touch (queue navigation): no eviction — must not wipe siblings.
@@ -158,7 +181,46 @@ export async function resolveBatch(refs: QueueItemRef[]): Promise<void> {
     }
 
     for (const [serverId, serverRefs] of byServer) {
-      if (!serverId || serverId === NAVIDROME_PUBLIC_SHARE_SERVER_ID) continue;
+      if (!serverId) continue;
+
+      if (serverId === NAVIDROME_PUBLIC_SHARE_SERVER_ID) {
+        const refByTrack = new Map(serverRefs.map(r => [r.trackId, r]));
+        const stillMissing = new Set(serverRefs.map(r => r.trackId));
+
+        if (await libraryIsReady(serverId)) {
+          for (let i = 0; i < serverRefs.length; i += BATCH) {
+            const chunk: TrackRefDto[] = serverRefs
+              .slice(i, i + BATCH)
+              .map(r => ({ serverId, trackId: r.trackId }));
+            try {
+              const dtos = await libraryGetTracksBatch(chunk);
+              for (const d of dtos) {
+                const ref = refByTrack.get(d.id);
+                const track = carryFlags(
+                  mergeDirectShareUrls(
+                    { ...songToTrack(trackToSong(d)), serverId: d.serverId ?? serverId },
+                    ref ?? { serverId, trackId: d.id },
+                  ),
+                  ref,
+                );
+                cacheSet(refKey({ serverId, trackId: d.id }), track, { skipCap: true });
+                stillMissing.delete(d.id);
+                changed = true;
+              }
+            } catch { /* fall through */ }
+          }
+        }
+
+        for (const trackId of stillMissing) {
+          const ref = refByTrack.get(trackId);
+          if (!ref?.directStreamUrl) continue;
+          const track = carryFlags(mergeDirectShareUrls(placeholderTrack(ref), ref), ref);
+          cacheSet(refKey({ serverId, trackId }), track, { skipCap: true });
+          changed = true;
+        }
+        continue;
+      }
+
       const stillMissing = new Set(serverRefs.map(r => r.trackId));
       const refByTrack = new Map(serverRefs.map(r => [r.trackId, r]));
 
