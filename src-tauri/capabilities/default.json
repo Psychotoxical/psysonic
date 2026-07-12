@@ -40,7 +40,6 @@
     "core:window:allow-set-size",
     "core:webview:allow-create-webview-window",
     "core:webview:allow-set-webview-zoom",
-    "core:webview:allow-internal-toggle-devtools",
     "process:allow-restart",
     "updater:default"
   ]

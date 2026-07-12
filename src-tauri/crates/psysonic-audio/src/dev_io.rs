@@ -602,6 +602,11 @@ pub(crate) fn output_devices_logically_same(a: &str, b: &str) -> bool {
         ) {
             return ida.1 == idb.1;
         }
+        if legacy_description_key_matches_device_id(a, b)
+            || legacy_description_key_matches_device_id(b, a)
+        {
+            return true;
+        }
     }
     match (
         linux_alsa_sink_fingerprint(a),
@@ -610,6 +615,30 @@ pub(crate) fn output_devices_logically_same(a: &str, b: &str) -> bool {
         (Some(fa), Some(fb)) => fa == fb,
         _ => false,
     }
+}
+
+/// Pre–DeviceId persisted pins (description names) vs cpal `DeviceId` enumeration keys.
+#[cfg(not(target_os = "linux"))]
+fn legacy_description_key_matches_device_id(legacy: &str, device_id_key: &str) -> bool {
+    use rodio::cpal::traits::{DeviceTrait, HostTrait};
+    use std::str::FromStr;
+    if legacy.parse::<rodio::cpal::DeviceId>().is_ok() {
+        return false;
+    }
+    let Ok(id) = rodio::cpal::DeviceId::from_str(device_id_key) else {
+        return legacy == device_id_key;
+    };
+    let Some(device) = rodio::cpal::default_host().device_by_id(&id) else {
+        return false;
+    };
+    let Ok(desc) = device.description() else {
+        return false;
+    };
+    if desc.name() == legacy {
+        return true;
+    }
+    let label = output_device_display_label(&device);
+    label == legacy || label.starts_with(&format!("{legacy} · "))
 }
 
 /// True if `pinned` is the same sink as some entry (exact or Linux ALSA logical match).
