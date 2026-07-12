@@ -35,6 +35,8 @@ export function isPersistedPublicShareQueue(
     return true;
   }
   return queueItems.some(
-    r => r.serverId === NAVIDROME_PUBLIC_SHARE_SERVER_ID && Boolean(r.directStreamUrl),
+    r =>
+      r.serverId === NAVIDROME_PUBLIC_SHARE_SERVER_ID
+      && (Boolean(r.directStreamUrl) || r.trackId.startsWith('ndshare:')),
   );
 }
