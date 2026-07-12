@@ -68,7 +68,7 @@ async function lookupSnapshotAsync(
   followingSystemDefault: boolean,
 ): Promise<EqSnapshot | undefined> {
   const direct = lookupSnapshot(byDevice, key, followingSystemDefault);
-  if (direct || !followingSystemDefault) return direct;
+  if (direct) return direct;
   const storedKeys = Object.keys(byDevice);
   if (storedKeys.length === 0) return undefined;
   try {
@@ -80,6 +80,15 @@ async function lookupSnapshotAsync(
   return undefined;
 }
 
+/** Serializes async pinned-device EQ switches so overlapping updates cannot apply stale snapshots. */
+const pinnedSwitchQueue: { tail: Promise<void> } = { tail: Promise.resolve() };
+
+function enqueuePinnedSwitch(task: () => Promise<void>): Promise<void> {
+  const next = pinnedSwitchQueue.tail.then(task, task);
+  pinnedSwitchQueue.tail = next.catch(() => {});
+  return next;
+}
+
 function applySnapshot(snap: EqSnapshot): void {
   applying = true;
   try {
@@ -89,39 +98,31 @@ function applySnapshot(snap: EqSnapshot): void {
   }
 }
 
-function switchEqToKey(newKey: string, followingSystemDefault: boolean): void {
-  const prevKey = currentKey;
-  if (newKey === prevKey) return;
-  const eq = useEqStore.getState();
-  if (eq.rememberPerDevice) {
-    eq.saveSnapshotFor(prevKey);
-  }
-  currentKey = newKey;
-  if (!eq.rememberPerDevice) return;
-  const snap = lookupSnapshot(eq.byDevice, newKey, followingSystemDefault);
-  if (snap) {
-    applySnapshot(snap);
-    return;
-  }
-  // Key resolved from a generic placeholder → keep live EQ; next edit mirrors here.
-  if (followingSystemDefault && isLegacyDefaultDeviceKey(prevKey)) {
-    useEqStore.getState().saveSnapshotFor(newKey);
-  }
-}
-
 async function switchEqToKeyAsync(
   newKey: string,
   followingSystemDefault: boolean,
 ): Promise<void> {
+  if (!followingSystemDefault && useAuthStore.getState().audioOutputDevice !== newKey) {
+    return;
+  }
   const prevKey = currentKey;
   if (newKey === prevKey) return;
   const eq = useEqStore.getState();
   if (eq.rememberPerDevice) {
     eq.saveSnapshotFor(prevKey);
   }
-  currentKey = newKey;
-  if (!eq.rememberPerDevice) return;
+  if (!eq.rememberPerDevice) {
+    currentKey = newKey;
+    return;
+  }
   const snap = await lookupSnapshotAsync(eq.byDevice, newKey, followingSystemDefault);
+  if (!followingSystemDefault && useAuthStore.getState().audioOutputDevice !== newKey) {
+    return;
+  }
+  if (currentKey !== prevKey) {
+    return;
+  }
+  currentKey = newKey;
   if (snap) {
     applySnapshot(snap);
     return;
@@ -210,7 +211,7 @@ export function setupEqDeviceSync(): () => void {
     if (_state.audioOutputDevice === prev.audioOutputDevice) return;
     const latestPinned = _state.audioOutputDevice;
     if (latestPinned !== null) {
-      switchEqToKey(latestPinned, false);
+      void enqueuePinnedSwitch(() => switchEqToKeyAsync(latestPinned, false));
       return;
     }
     void enqueueOsDefaultRefresh(async () => {

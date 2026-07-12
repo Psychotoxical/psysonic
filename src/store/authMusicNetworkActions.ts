@@ -1,4 +1,4 @@
-import type { PersistedAccount } from '../music-network/core/accounts';
+import type { PersistedAccount } from '../music-network';
 import type { AuthState } from './authStoreTypes';
 
 type SetState = (

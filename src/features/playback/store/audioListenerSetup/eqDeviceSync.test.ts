@@ -268,6 +268,75 @@ describe('eqDeviceSync', () => {
     expect(useEqStore.getState().enabled).toBe(false);
   });
 
+  it('restores pinned device EQ when the stored key is a legacy description name', async () => {
+    onInvoke('audio_match_stored_output_device_key', (args) => {
+      const { candidate, storedKeys } = args as { candidate: string; storedKeys: string[] };
+      if (candidate === 'Wasapi:{speakers-guid}' && storedKeys.includes('Speakers')) {
+        return 'Speakers';
+      }
+      return null;
+    });
+    useAuthStore.getState().setAudioOutputDevice('Wasapi:{speakers-guid}');
+    resetEq({
+      rememberPerDevice: true,
+      byDevice: { Speakers: snap(8, { enabled: true }) },
+    });
+    cleanup = setupEqDeviceSync();
+    await flushAsync();
+
+    expect(useEqStore.getState().gains[0]).toBe(8);
+    expect(useEqStore.getState().enabled).toBe(true);
+  });
+
+  it('matches legacy stored keys when switching pinned devices after DeviceId upgrade', async () => {
+    onInvoke('audio_match_stored_output_device_key', (args) => {
+      const { candidate, storedKeys } = args as { candidate: string; storedKeys: string[] };
+      if (candidate === 'Wasapi:{headphones-guid}' && storedKeys.includes('Headphones')) {
+        return 'Headphones';
+      }
+      return null;
+    });
+    useAuthStore.getState().setAudioOutputDevice('Wasapi:{speakers-guid}');
+    resetEq({
+      rememberPerDevice: true,
+      byDevice: { Headphones: snap(7, { enabled: true }) },
+    });
+    cleanup = setupEqDeviceSync();
+    await flushAsync();
+
+    useAuthStore.getState().setAudioOutputDevice('Wasapi:{headphones-guid}');
+    await flushAsync();
+
+    expect(useEqStore.getState().gains[0]).toBe(7);
+    expect(useEqStore.getState().enabled).toBe(true);
+  });
+
+  it('does not apply a queued pinned switch after the user unpins', async () => {
+    let releaseMatch: () => void = () => {};
+    const matchBlocked = new Promise<string | null>((resolve) => {
+      releaseMatch = () => resolve(null);
+    });
+    onInvoke('audio_match_stored_output_device_key', () => matchBlocked);
+    onInvoke('audio_default_output_device_name', () => 'Speakers');
+
+    useAuthStore.getState().setAudioOutputDevice('A');
+    resetEq({
+      rememberPerDevice: true,
+      byDevice: {
+        A: snap(9, { enabled: true }),
+        Speakers: snap(3),
+      },
+    });
+    cleanup = setupEqDeviceSync();
+    await flushAsync();
+
+    useAuthStore.getState().setAudioOutputDevice('Wasapi:{slow-device}');
+    useAuthStore.getState().setAudioOutputDevice(null);
+    releaseMatch();
+    await waitForOsDefaultInit(3);
+    expect(useEqStore.getState().gains[0]).toBe(3);
+  });
+
   it('saves the outgoing device snapshot when switching pinned devices', async () => {
     useAuthStore.getState().setAudioOutputDevice('A');
     resetEq({ rememberPerDevice: true });
