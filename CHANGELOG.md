@@ -269,6 +269,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Covers that hit the gate during the brief window before headers were registered got a `403`, which was treated as "cover missing" and written a 30-minute do-not-retry marker — so on a gated server most covers stayed blank long after the gate started answering. A gate-style `403`/`401` on cover art is now treated as a recoverable hiccup (retried) rather than a permanent miss, and reconnecting a gated server clears those stale markers and re-runs the cover fill so the artwork loads.
 * For a server with both a LAN and a public address, whichever answered first after launch stuck for the whole session: if the app started off the LAN it pinned to the public address and never switched back to LAN once you got home (the public address kept answering, so the LAN address was never re-checked). The reachability tick now re-checks the LAN address first with a single attempt, so returning to the LAN upgrades the connection back to local automatically, while staying remote costs just that one probe rather than the full retry wait. The LAN/public badge also refreshes immediately when you switch the active server, instead of staying on the previous server's classification until the next poll.
 
+### Windows — startup hang and audio output after per-device EQ (#1274)
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1277](https://github.com/Psychotoxical/psysonic/pull/1277)**
+
+* Windows release builds no longer freeze on the loading splash after the per-device EQ changes in #1274 — boot-time imports no longer pull lucide into the auth-store chunk (circular init left `createLucideIcon` undefined).
+* Restores the lightweight cpal default-output path on Windows so startup no longer blocks on full device enumeration.
+* Audio output devices on Windows and macOS now use stable backend IDs (`Wasapi:…`) with clearer labels; duplicate friendly names are disambiguated, device-change detection works again, and legacy pinned device / per-device EQ keys stored as plain names are matched after upgrade.
+
 
 ## [1.49.0] - 2026-06-29
 
