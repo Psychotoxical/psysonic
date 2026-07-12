@@ -3,11 +3,8 @@
 // does not matter), and the Tauri shell backs the host (browser auth + uuid).
 
 import { open } from '@tauri-apps/plugin-shell';
-import {
-  initMusicNetworkRuntime,
-  type MusicNetworkStore,
-  type RuntimeHost,
-} from '../music-network';
+import { initMusicNetworkRuntime } from '../music-network/runtime/getMusicNetworkRuntime';
+import type { MusicNetworkStore, RuntimeHost } from '../music-network/runtime/store';
 import { useAuthStore } from '../store/authStore';
 
 const store: MusicNetworkStore = {

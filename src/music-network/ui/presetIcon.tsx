@@ -1,6 +1,6 @@
 import { Globe, Radio, Server, Music2, Headphones } from 'lucide-react';
 import LastfmIcon from '@/ui/LastfmIcon';
-import type { PresetIcon } from '@/music-network';
+import type { PresetIcon } from '../contracts/PresetManifest';
 
 /**
  * Maps a preset manifest icon id to a rendered icon. Feature code references the

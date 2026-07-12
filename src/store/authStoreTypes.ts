@@ -5,7 +5,7 @@ import type {
   InstantMixProbeResult,
   SubsonicServerIdentity,
 } from '@/lib/server/subsonicServerIdentity';
-import type { PersistedAccount } from '../music-network';
+import type { PersistedAccount } from '../music-network/core/accounts';
 
 /** Album-artist vs track-performer browse (#1209). Duplicated here — not `@/lib/api/library` — to avoid store ↔ library import cycles (dependency-cruiser). */
 export type ArtistBrowseCreditMode = 'album' | 'track';

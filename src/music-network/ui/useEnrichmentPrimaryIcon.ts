@@ -1,4 +1,4 @@
-import type { PresetIcon } from '@/music-network';
+import type { PresetIcon } from '../contracts/PresetManifest';
 import { useEnrichmentPrimary } from './useEnrichmentPrimary';
 
 /**

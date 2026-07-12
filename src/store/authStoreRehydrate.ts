@@ -27,7 +27,7 @@ import type {
   SeekbarStyle,
   WindowButtonStyle,
 } from './authStoreTypes';
-import { migrateLegacyLastfm, sanitizeAccounts } from '../music-network';
+import { migrateLegacyLastfm, sanitizeAccounts } from '../music-network/runtime/accountPersistence';
 
 /**
  * Computes the post-rehydration patch for the auth store. Runs all

@@ -7,9 +7,11 @@ use std::sync::atomic::Ordering;
 use tauri::{Emitter, State};
 
 use super::dev_io::{
-    enumerate_output_device_names, output_device_keys_equivalent,
-    output_devices_logically_same, output_enumeration_includes_pinned,
+    enumerate_output_device_names, output_devices_logically_same,
+    output_enumeration_includes_pinned,
 };
+#[cfg(target_os = "linux")]
+use super::dev_io::output_device_keys_equivalent;
 use super::engine::AudioEngine;
 
 /// When the saved `selected_device` no longer literally matches any listed

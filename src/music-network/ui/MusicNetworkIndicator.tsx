@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useEnrichmentPrimary } from '@/music-network';
+import { useEnrichmentPrimary } from '../ui/useEnrichmentPrimary';
 import { renderPresetIcon } from '@/music-network/ui/presetIcon';
 
 /**
