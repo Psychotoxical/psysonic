@@ -78,7 +78,7 @@
         "installMode": "currentUser"
       },
       "wix": {
-        "version": "1.50.0-65535"
+        "version": "1.50.0.65535"
       }
     }
   }
