@@ -18,6 +18,7 @@ export async function playNavidromePublicShare(
 
   usePlayerStore.getState().clearQueue();
   seedQueueResolver(NAVIDROME_PUBLIC_SHARE_SERVER_ID, tracks);
+  usePlayerStore.setState({ navidromePublicSharePageUrl: ref.pageUrl });
   usePlayerStore.getState().playTrack(tracks[0]!, tracks);
   showToast(t('sharePaste.openedNavidromePublic', { count: tracks.length }), 3000, 'info');
   return true;

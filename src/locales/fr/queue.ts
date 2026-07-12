@@ -33,6 +33,8 @@ export const queue = {
   close: 'Fermer',
   nextTracks: 'Pistes suivantes',
   shareQueue: 'Copier le lien de la file d’attente',
+  shareNavidromePublic: 'Copy Navidrome share link',
+  shareNavidromePublicMissing: 'Navidrome share link is unavailable.',
   shareQueueEmpty: 'La file d’attente est vide — rien à partager.',
   emptyQueue: 'La file d\'attente est vide.',
   crossServerEnqueueBlocked: 'Les titres d\'un autre serveur ne peuvent pas être ajoutés à la file en cours. Terminez ou videz la file d\'abord.',

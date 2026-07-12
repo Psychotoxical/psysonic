@@ -33,6 +33,8 @@ export const queue = {
   close: '关闭',
   nextTracks: '即将播放',
   shareQueue: '复制队列分享链接',
+  shareNavidromePublic: 'Copy Navidrome share link',
+  shareNavidromePublicMissing: 'Navidrome share link is unavailable.',
   shareQueueEmpty: '队列为空，无法分享。',
   emptyQueue: '队列为空。',
   crossServerEnqueueBlocked: '无法将其他服务器的曲目加入当前播放队列。请先清空或结束当前队列。',

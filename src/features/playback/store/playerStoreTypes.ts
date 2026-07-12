@@ -24,6 +24,8 @@ export interface PlayerState {
   enginePreloadedTrackId: string | null;
   /** Saved server for stream/hot-cache/offline resolution while this queue plays. */
   queueServerId: string | null;
+  /** Navidrome public share page URL for the live queue session (not persisted). */
+  navidromePublicSharePageUrl: string | null;
   queueIndex: number;
   /** F5 (transient): full ordered track-id list + index persisted alongside the
    *  windowed `queue`. On startup, when the library index is ready, the whole

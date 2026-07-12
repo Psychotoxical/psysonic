@@ -33,6 +33,8 @@ export const queue = {
   close: 'Bezárás',
   nextTracks: 'Következő számok',
   shareQueue: 'Sor megosztási linkjének másolása',
+  shareNavidromePublic: 'Copy Navidrome share link',
+  shareNavidromePublicMissing: 'Navidrome share link is unavailable.',
   shareQueueEmpty: 'A sor üres — nincs mit megosztani.',
   emptyQueue: 'A sor üres.',
   crossServerEnqueueBlocked: 'Másik szerverről származó számok nem adhatók a jelenlegi sorhoz. Előbb fejezd be vagy töröld a sort.',

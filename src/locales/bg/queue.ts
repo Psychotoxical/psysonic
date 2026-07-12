@@ -33,6 +33,8 @@ export const queue = {
   close: 'Затвори',
   nextTracks: 'Следващи песни',
   shareQueue: 'Копирай връзка за споделяне на опашката',
+  shareNavidromePublic: 'Copy Navidrome share link',
+  shareNavidromePublicMissing: 'Navidrome share link is unavailable.',
   shareQueueEmpty: 'Опашката е празна — няма какво да се сподели.',
   emptyQueue: 'Опашката е празна.',
   crossServerEnqueueBlocked: 'Песни от друг сървър не могат да се добавят към текущата опашка. Първо завършете или изчистете опашката.',

@@ -33,6 +33,8 @@ export const queue = {
   close: 'Lukk',
   nextTracks: 'Neste spor',
   shareQueue: 'Kopiér lenke til kø',
+  shareNavidromePublic: 'Copy Navidrome share link',
+  shareNavidromePublicMissing: 'Navidrome share link is unavailable.',
   shareQueueEmpty: 'Køen er tom — ingenting å dele.',
   emptyQueue: 'Køen er tom.',
   crossServerEnqueueBlocked: 'Spor fra en annen server kan ikke legges til i den nåværende køen. Tøm eller avslutt køen først.',

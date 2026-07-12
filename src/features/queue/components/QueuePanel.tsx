@@ -35,6 +35,7 @@ import { useQueueAutoScroll } from '@/features/queue/hooks/useQueueAutoScroll';
 import { useTimelineBootstrapOnMode, useTimelineHistoryResolver, useTimelinePlayHistory } from '@/features/playback/hooks/useTimelinePlayHistory';
 import { buildTimelineDisplayRows } from '@/features/playback/utils/buildTimelineDisplayRows';
 import { activeServerQueueTrackIds } from '@/features/playback/utils/playback/trackServerScope';
+import { isActivePublicShareQueue } from '@/lib/share/navidromePublicSharePlayback';
 
 export default function QueuePanel() {
   const orbitRole = useOrbitStore(s => s.role);
@@ -79,6 +80,9 @@ function QueuePanelHostOrSolo() {
   // Track from the resolver. List, header, toolbar and id/length reads (save /
   // share / playlist) all read off the refs.
   const queueItems = usePlayerStore(s => s.queueItems);
+  const queueServerId = usePlayerStore(s => s.queueServerId);
+  const navidromePublicSharePageUrl = usePlayerStore(s => s.navidromePublicSharePageUrl);
+  const publicShareQueueActive = isActivePublicShareQueue(queueServerId, queueItems);
   const queueIndex = usePlayerStore(s => s.queueIndex);
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const userRatingOverrides = usePlayerStore(s => s.userRatingOverrides);
@@ -182,6 +186,7 @@ function QueuePanelHostOrSolo() {
   const [loadModalOpen, setLoadModalOpen] = useState(false);
 
   const handleSave = async () => {
+    if (publicShareQueueActive) return;
     const exportTrackIds = activeServerQueueTrackIds(queueItems);
     if (exportTrackIds.length === 0) return;
     if (activePlaylist) {
@@ -209,6 +214,17 @@ function QueuePanelHostOrSolo() {
   };
 
   const handleCopyQueueShare = async () => {
+    if (publicShareQueueActive) {
+      const pageUrl = navidromePublicSharePageUrl?.trim();
+      if (!pageUrl) {
+        showToast(t('queue.shareNavidromePublicMissing'), 4000, 'error');
+        return;
+      }
+      const ok = await copyTextToClipboard(pageUrl);
+      if (ok) showToast(t('contextMenu.shareCopied'));
+      else showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
+      return;
+    }
     const ids = activeServerQueueTrackIds(queueItems);
     if (ids.length === 0) {
       showToast(t('queue.shareQueueEmpty'), 3000, 'info');
@@ -344,6 +360,7 @@ function QueuePanelHostOrSolo() {
             handleLoad={handleLoad}
             handleCopyQueueShare={handleCopyQueueShare}
             handleClear={handleClear}
+            publicShareQueueActive={publicShareQueueActive}
             gaplessEnabled={gaplessEnabled}
             crossfadeEnabled={crossfadeEnabled}
             crossfadeTrimSilence={crossfadeTrimSilence}

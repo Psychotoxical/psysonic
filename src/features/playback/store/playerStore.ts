@@ -54,6 +54,7 @@ export const usePlayerStore = create<PlayerState>()(
       // through the resolver. `currentTrack` stays a full resolved singleton.
       queueItems: [],
       queueServerId: null,
+      navidromePublicSharePageUrl: null,
       queueIndex: 0,
       isPlaying: false,
       isPlaybackBuffering: false,

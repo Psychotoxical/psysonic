@@ -33,6 +33,8 @@ export const queue = {
   close: '閉じる',
   nextTracks: '次のトラック',
   shareQueue: 'キューの共有リンクをコピー',
+  shareNavidromePublic: 'Copy Navidrome share link',
+  shareNavidromePublicMissing: 'Navidrome share link is unavailable.',
   shareQueueEmpty: 'キューは空です。共有できるトラックはありません。',
   emptyQueue: 'キューは空です。',
   crossServerEnqueueBlocked: '別サーバーのトラックは現在のキューへ追加できません。先にキューを再生し終えるかクリアしてください。',

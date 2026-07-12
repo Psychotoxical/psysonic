@@ -47,3 +47,12 @@ export function isPublicSharePersistedTrack(track: Track | null | undefined): bo
   if (!track) return false;
   return track.serverId === NAVIDROME_PUBLIC_SHARE_SERVER_ID || isPublicShareTrackId(track.id);
 }
+
+export function tracksArePublicShareQueue(
+  tracks: ReadonlyArray<Pick<Track, 'id' | 'serverId'>>,
+): boolean {
+  return tracks.length > 0
+    && tracks.every(t =>
+      t.serverId === NAVIDROME_PUBLIC_SHARE_SERVER_ID || isPublicShareTrackId(t.id),
+    );
+}

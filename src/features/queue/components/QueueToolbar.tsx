@@ -21,6 +21,7 @@ interface Props {
   handleLoad: () => void;
   handleCopyQueueShare: () => void;
   handleClear: () => void;
+  publicShareQueueActive: boolean;
   gaplessEnabled: boolean;
   crossfadeEnabled: boolean;
   crossfadeTrimSilence: boolean;
@@ -34,6 +35,7 @@ interface Props {
 export function QueueToolbar({
   queue, activePlaylist, saveState, toolbarButtons, shuffleQueue,
   handleSave, handleLoad, handleCopyQueueShare, handleClear,
+  publicShareQueueActive,
   gaplessEnabled, crossfadeEnabled, crossfadeTrimSilence,
   crossfadeSecs, setCrossfadeSecs,
   infiniteQueueEnabled, setInfiniteQueueEnabled,
@@ -99,15 +101,17 @@ export function QueueToolbar({
                 </button>
                 {showPlaylistMenu && (
                   <div className="crossfade-popover queue-menu" ref={playlistMenuRef}>
-                    <button
-                      type="button"
-                      className="queue-menu-item"
-                      onClick={() => { handleSave(); setShowPlaylistMenu(false); }}
-                      disabled={saveState === 'saving'}
-                    >
-                      {saveState === 'saved' ? <Check size={14} /> : <Save size={14} />}
-                      {activePlaylist ? `${t('queue.updatePlaylist')}: ${activePlaylist.name}` : t('queue.savePlaylist')}
-                    </button>
+                    {!publicShareQueueActive && (
+                      <button
+                        type="button"
+                        className="queue-menu-item"
+                        onClick={() => { handleSave(); setShowPlaylistMenu(false); }}
+                        disabled={saveState === 'saving'}
+                      >
+                        {saveState === 'saved' ? <Check size={14} /> : <Save size={14} />}
+                        {activePlaylist ? `${t('queue.updatePlaylist')}: ${activePlaylist.name}` : t('queue.savePlaylist')}
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="queue-menu-item"
@@ -126,8 +130,8 @@ export function QueueToolbar({
                 key={btn.id}
                 className="queue-round-btn"
                 onClick={() => void handleCopyQueueShare()}
-                data-tooltip={t('queue.shareQueue')}
-                aria-label={t('queue.shareQueue')}
+                data-tooltip={publicShareQueueActive ? t('queue.shareNavidromePublic') : t('queue.shareQueue')}
+                aria-label={publicShareQueueActive ? t('queue.shareNavidromePublic') : t('queue.shareQueue')}
               >
                 <Share2 size={13} />
               </button>

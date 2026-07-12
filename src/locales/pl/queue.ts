@@ -33,6 +33,8 @@ export const queue = {
   close: 'Zamknij',
   nextTracks: 'Następne utwory',
   shareQueue: 'Skopiuj link do udostępnienia kolejki',
+  shareNavidromePublic: 'Copy Navidrome share link',
+  shareNavidromePublicMissing: 'Navidrome share link is unavailable.',
   shareQueueEmpty: 'Kolejka jest pusta — nie ma czego udostępnić.',
   emptyQueue: 'Kolejka jest pusta.',
   crossServerEnqueueBlocked: 'Nie można dodać do bieżącej kolejki utworów z innego serwera. Najpierw zakończ lub wyczyść kolejkę.',

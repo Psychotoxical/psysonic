@@ -64,6 +64,7 @@ import type { PlayerState } from '@/features/playback/store/playerStoreTypes';
 import { toQueueItemRefs } from '@/features/playback/store/queueItemRef';
 import { getQueueTracksView, resolveQueueTrack } from '@/features/playback/store/queueTrackView';
 import { getCachedTrack, seedQueueResolver, mergeDirectShareUrls } from '@/features/playback/store/queueTrackResolver';
+import { tracksArePublicShareQueue } from '@/lib/share/navidromePublicSharePlayback';
 import { promoteCompletedStreamToHotCache } from '@/features/playback/store/promoteStreamCache';
 import { pushQueueOnPlaybackStart } from '@/features/playback/store/queueSync';
 import { playListenSessionFinalize } from '@/features/playback/store/playListenSession';
@@ -260,6 +261,7 @@ export function runPlayTrack(
   // every subscriber on each track change at scale.
   const replacing = scopedQueue !== undefined;
   const srcLen = replacing ? scopedQueue.length : state.queueItems.length;
+  const dropSharePageUrl = replacing && scopedQueue && !tracksArePublicShareQueue(scopedQueue);
   if (replacing && shouldBindQueueServerForPlay(state.queueItems, scopedQueue, scopedQueue)) {
     bindQueueServerForTracks(scopedQueue);
   }
@@ -428,6 +430,7 @@ export function runPlayTrack(
       set({
         currentRadio: null,
         ...(replacing ? { queueItems: toQueueItemRefs(queueSid, scopedQueue) } : {}),
+        ...(dropSharePageUrl ? { navidromePublicSharePageUrl: null } : {}),
         queueIndex: idx >= 0 ? idx : 0,
       });
     } else {
@@ -439,6 +442,7 @@ export function runPlayTrack(
         ...deriveNormalizationSnapshot(trackForPlay, playNormWindow, normIdx),
         // Only a replace rewrites the queue; navigation keeps the canonical refs.
         ...(replacing ? { queueItems: toQueueItemRefs(queueSid, scopedQueue) } : {}),
+        ...(dropSharePageUrl ? { navidromePublicSharePageUrl: null } : {}),
         queueIndex: idx >= 0 ? idx : 0,
         progress: initialProgress,
         buffered: 0,

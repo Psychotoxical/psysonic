@@ -33,6 +33,8 @@ export const queue = {
   close: 'Close',
   nextTracks: 'Next Tracks',
   shareQueue: 'Copy queue share link',
+  shareNavidromePublic: 'Copy Navidrome share link',
+  shareNavidromePublicMissing: 'Navidrome share link is unavailable.',
   shareQueueEmpty: 'The queue is empty — nothing to share.',
   emptyQueue: 'The queue is empty.',
   crossServerEnqueueBlocked: 'Tracks from another server cannot be added to the current queue. Finish or clear the queue first.',

@@ -231,7 +231,16 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
       setCurrentRadioArtistId(null);
       clearTimelineSessionHistory();
       clearQueueServerForPlayback();
-      set({ queueItems: [], queueIndex: 0, currentTrack: null, isPlaying: false, progress: 0, buffered: 0, currentTime: 0 });
+      set({
+        queueItems: [],
+        queueIndex: 0,
+        currentTrack: null,
+        navidromePublicSharePageUrl: null,
+        isPlaying: false,
+        progress: 0,
+        buffered: 0,
+        currentTime: 0,
+      });
       syncUserQueueMutationToServer([], null, 0);
     },
 

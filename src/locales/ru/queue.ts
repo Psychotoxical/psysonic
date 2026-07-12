@@ -33,6 +33,8 @@ export const queue = {
   close: 'Закрыть',
   nextTracks: 'Дальше',
   shareQueue: 'Копировать ссылку на очередь',
+  shareNavidromePublic: 'Копировать ссылку Navidrome share',
+  shareNavidromePublicMissing: 'Ссылка Navidrome share недоступна.',
   shareQueueEmpty: 'Очередь пуста — нечем поделиться.',
   emptyQueue: 'Очередь пуста.',
   crossServerEnqueueBlocked: 'Треки с другого сервера нельзя добавить в текущую очередь. Завершите или очистите очередь.',

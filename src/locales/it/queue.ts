@@ -33,6 +33,8 @@ export const queue = {
   close: 'Chiudi',
   nextTracks: 'Prossimi brani',
   shareQueue: 'Copia il link di condivisione della coda',
+  shareNavidromePublic: 'Copy Navidrome share link',
+  shareNavidromePublicMissing: 'Navidrome share link is unavailable.',
   shareQueueEmpty: 'La coda è vuota — niente da condividere.',
   emptyQueue: 'La coda è vuota.',
   crossServerEnqueueBlocked: 'Non possono essere aggiungti brani alla coda attuale da un altro server. Termina o svuota la coda.',

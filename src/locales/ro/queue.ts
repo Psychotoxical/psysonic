@@ -33,6 +33,8 @@ export const queue = {
   close: 'Închide',
   nextTracks: 'Următoarele Piese',
   shareQueue: 'Copiază link-ul distribuirii cozii',
+  shareNavidromePublic: 'Copy Navidrome share link',
+  shareNavidromePublicMissing: 'Navidrome share link is unavailable.',
   shareQueueEmpty: 'Coada este goală — nimic de distribuit.',
   emptyQueue: 'Coada este goală.',
   crossServerEnqueueBlocked: 'Piesele de pe alt server nu pot fi adăugate în coada curentă. Golește sau oprește coada mai întâi.',
