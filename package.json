@@ -14,7 +14,10 @@
     "lint": "eslint -c eslint.config.mjs src",
     "lint:gradual": "eslint -c eslint.config.gradual.mjs src",
     "dep:check": "depcruise src --config .dependency-cruiser.cjs --ignore-known",
-    "test": "npm run prebuild:release-notes && vitest run && node --test scripts/extract-release-section.test.mjs && npm run check:css-imports",
+    "dep:check:barrels": "node scripts/check-feature-barrel-ui.mjs",
+    "check:boot-chunks": "node scripts/check-boot-chunk-lucide.mjs",
+    "build:verify": "npm run build && npm run check:boot-chunks",
+    "test": "npm run prebuild:release-notes && vitest run && node --test scripts/extract-release-section.test.mjs && npm run check:css-imports && npm run dep:check:barrels",
     "test:watch": "vitest",
     "test:coverage": "npm run prebuild:release-notes && vitest run --coverage && npm run check:css-imports"
   },

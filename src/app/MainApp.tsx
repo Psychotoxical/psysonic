@@ -8,19 +8,22 @@ import { WindowVisibilityProvider } from '@/lib/hooks/useWindowVisibility';
 import { DragDropProvider } from '@/lib/dnd/DragDropContext';
 import PasteClipboardHandler from '@/features/share/components/PasteClipboardHandler';
 import ExportPickerModal from '@/ui/ExportPickerModal';
-import { ZipDownloadOverlay } from '@/features/offline';
+import { ZipDownloadOverlay } from '@/features/offline/ui';
 import FpsOverlay from '@/app/FpsOverlay';
 import { useAuthStore } from '../store/authStore';
 import { useLibraryIndexStore } from '../store/libraryIndexStore';
 import { useGlobalShortcutsStore } from '../store/globalShortcutsStore';
 import { initHotCachePrefetch } from '../hotCachePrefetch';
 import { initLocalPlaybackInvalidation } from '../localPlaybackInvalidation';
-import { initFavoritesOfflineSync } from '@/features/offline';
-import { initPinnedOfflineSync } from '@/features/offline';
+import { initFavoritesOfflineSync } from '@/features/offline/utils/favoritesOfflineSync';
+import { initPinnedOfflineSync } from '@/features/offline/utils/pinnedOfflineSync';
 import { initClusterRebuildOnSync } from '@/lib/library/clusterRebuildOnSync';
-import { initResumeIncompleteOfflinePins, scheduleResumeIncompleteOfflinePins } from '@/features/offline';
-import { runLegacyOfflineFileMigration } from '@/features/offline';
-import { reconcileLibraryTierForServer } from '@/features/offline';
+import {
+  initResumeIncompleteOfflinePins,
+  scheduleResumeIncompleteOfflinePins,
+} from '@/features/offline/utils/resumeIncompleteOfflinePins';
+import { runLegacyOfflineFileMigration } from '@/features/offline/utils/legacyOfflineFileMigration';
+import { reconcileLibraryTierForServer } from '@/features/offline/utils/libraryTierReconcile';
 import { initMiniPlayerBridgeOnMain } from '@/features/miniPlayer';
 import { runAdvancedModeMigration } from '@/app/migrations/advancedModeMigration';
 import { bootstrapAllIndexedServers } from '@/lib/library/librarySession';

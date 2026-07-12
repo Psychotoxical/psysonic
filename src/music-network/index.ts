@@ -11,11 +11,6 @@ export {
 } from './runtime/getMusicNetworkRuntime';
 export type { MusicNetworkStore, RuntimeHost } from './runtime/store';
 export { listPresets, getPreset } from './registry/presetRegistry';
-export { useEnrichmentPrimary, type EnrichmentPrimary } from './ui/useEnrichmentPrimary';
-export { useEnrichmentPrimaryIcon } from './ui/useEnrichmentPrimaryIcon';
-export { useEnrichmentPrimaryLabel } from './ui/useEnrichmentPrimaryLabel';
-export { renderPresetIcon } from './ui/presetIcon';
-export { default as MusicNetworkIndicator } from './ui/MusicNetworkIndicator';
 export {
   migrateLegacyLastfm,
   sanitizeAccounts,

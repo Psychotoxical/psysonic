@@ -17,7 +17,7 @@ import AppRoutes from './AppRoutes';
 import FullscreenPlayer, { FullscreenPlayerImmersive, FullscreenPlayerPrism } from '@/features/fullscreenPlayer';
 import ContextMenu from '@/features/contextMenu/components/ContextMenu';
 import SongInfoModal from '@/features/playback/components/SongInfoModal';
-import { DownloadFolderModal } from '@/features/offline';
+import { DownloadFolderModal, OfflineBanner } from '@/features/offline/ui';
 import GlobalConfirmModal from '@/ui/GlobalConfirmModal';
 import ThemeMigrationNotice from '@/ui/ThemeMigrationNotice';
 import { OrbitAccountPicker, OrbitHelpModal } from '@/features/orbit';
@@ -28,8 +28,7 @@ import {
   mainRouteInpageScrollViewportId,
 } from '../constants/appScroll';
 import ConnectionIndicator from '@/app/ConnectionIndicator';
-import { MusicNetworkIndicator } from '@/music-network';
-import { OfflineBanner } from '@/features/offline';
+import { MusicNetworkIndicator } from '@/music-network/ui';
 import AppUpdater from '@/features/updater/components/AppUpdater';
 import TitleBar from '@/app/TitleBar';
 import { OrbitSessionBar, OrbitStartTrigger } from '@/features/orbit';

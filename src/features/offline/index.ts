@@ -49,7 +49,3 @@ export * from './utils/resumeIncompleteOfflinePins';
 // `OfflinePinKind` (= PinSource['kind']) is declared in both pin modules; the
 // explicit re-export resolves the `export *` ambiguity (TS2308).
 export type { OfflinePinKind } from './utils/offlinePinQueue';
-export { OfflineLibraryDiskStat } from './components/OfflineLibraryDiskStat';
-export { default as DownloadFolderModal } from './components/DownloadFolderModal';
-export { default as OfflineBanner } from './components/OfflineBanner';
-export { default as ZipDownloadOverlay } from './components/ZipDownloadOverlay';

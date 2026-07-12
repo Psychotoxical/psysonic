@@ -7,7 +7,7 @@ import {
   type BuiltinPreset,
   type PresetId,
 } from '@/music-network';
-import { renderPresetIcon } from '@/music-network';
+import { renderPresetIcon } from '@/music-network/ui';
 
 /**
  * "Add a service" list, driven entirely by the preset registry. Token-poll

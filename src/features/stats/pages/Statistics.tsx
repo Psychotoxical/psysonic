@@ -12,7 +12,8 @@ import StatisticsTabBar from '@/features/stats/components/StatisticsTabBar';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
 import { useLocation } from 'react-router-dom';
-import { getMusicNetworkRuntime, useEnrichmentPrimaryLabel, type RecentTrack, type StatsPeriod, type TopItem } from '@/music-network';
+import { getMusicNetworkRuntime, type RecentTrack, type StatsPeriod, type TopItem } from '@/music-network';
+import { useEnrichmentPrimaryLabel } from '@/music-network/ui';
 import { useOfflineBrowseContext } from '@/features/offline';
 import { usePlayerStatsRecordingEnabled } from '@/features/stats/hooks/usePlayerStatsRecordingEnabled';
 
