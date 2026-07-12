@@ -4,15 +4,16 @@ import {
   audioCanonicalizeSelectedDevice,
   audioDefaultOutputDeviceName,
   audioListDevices,
+  type AudioOutputDeviceEntry,
 } from '@/lib/api/audio';
 import type { TFunction } from 'i18next';
 import { useAuthStore } from '@/store/authStore';
 import { IS_MACOS } from '@/lib/util/platform';
-import { sortAudioDeviceIds } from '@/features/playback/utils/audio/audioDeviceLabels';
+import { sortAudioDeviceEntries } from '@/features/playback/utils/audio/audioDeviceLabels';
 import { showToast } from '@/lib/dom/toast';
 
 interface UseAudioDevicesProbeResult {
-  audioDevices: string[];
+  audioDevices: AudioOutputDeviceEntry[];
   osDefaultAudioDeviceId: string | null;
   deviceSwitching: boolean;
   devicesLoading: boolean;
@@ -31,7 +32,7 @@ interface UseAudioDevicesProbeResult {
  * there, and the whole output-device category is gated out in settings.
  */
 export function useAudioDevicesProbe(t: TFunction): UseAudioDevicesProbeResult {
-  const [audioDevices, setAudioDevices] = useState<string[]>([]);
+  const [audioDevices, setAudioDevices] = useState<AudioOutputDeviceEntry[]>([]);
   const [osDefaultAudioDeviceId, setOsDefaultAudioDeviceId] = useState<string | null>(null);
   const [deviceSwitching, setDeviceSwitching] = useState(false);
   const [devicesLoading, setDevicesLoading] = useState(false);
@@ -42,7 +43,7 @@ export function useAudioDevicesProbe(t: TFunction): UseAudioDevicesProbeResult {
     const listP = audioListDevices().catch((e) => {
       console.error(e);
       showToast(t('settings.audioOutputDeviceListError'), 5000, 'error');
-      return [] as string[];
+      return [] as AudioOutputDeviceEntry[];
     });
     const defP = audioDefaultOutputDeviceName().catch(() => null);
     Promise.all([listP, defP])
@@ -58,7 +59,7 @@ export function useAudioDevicesProbe(t: TFunction): UseAudioDevicesProbeResult {
           ? await audioListDevices().catch(() => devices)
           : devices;
         const defId = osDefault ?? null;
-        setAudioDevices(sortAudioDeviceIds(finalList, defId));
+        setAudioDevices(sortAudioDeviceEntries(finalList, defId));
         setOsDefaultAudioDeviceId(defId);
       })
       .finally(() => {

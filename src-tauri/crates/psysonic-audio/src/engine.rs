@@ -206,21 +206,24 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
     // On systems where neither alias exists (pure ALSA, macOS, Windows),
     // `find_by_name` returns None and we drop through to `default_output_device`
     // unchanged — no regression.
-    let find_by_name = |name: &str| -> Option<_> {
-        host.output_devices().ok()?.find(|d| {
-            d.description()
-                .ok()
-                .map(|desc| desc.name().to_string())
-                .as_deref()
-                == Some(name)
+    let find_by_key = |key: &str| -> Option<_> {
+        super::dev_io::resolve_output_device(key).or_else(|| {
+            host.output_devices().ok()?.find(|d| {
+                d.description()
+                    .ok()
+                    .map(|desc| desc.name().to_string())
+                    .as_deref()
+                    == Some(key)
+            })
         })
     };
 
     let device = device_name
-        .and_then(find_by_name)
+        .as_deref()
+        .and_then(find_by_key)
         .or_else(|| {
             #[cfg(target_os = "linux")]
-            { find_by_name("pipewire").or_else(|| find_by_name("pulse")) }
+            { find_by_key("pipewire").or_else(|| find_by_key("pulse")) }
             #[cfg(not(target_os = "linux"))]
             { None }
         })

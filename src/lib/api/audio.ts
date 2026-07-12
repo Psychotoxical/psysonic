@@ -105,7 +105,9 @@ export function audioPreviewSetVolume(args: { volume: number | null }): Promise<
   return commands.audioPreviewSetVolume(args.volume);
 }
 
-export function audioListDevices(): Promise<string[]> {
+export type AudioOutputDeviceEntry = { key: string; label: string };
+
+export function audioListDevices(): Promise<AudioOutputDeviceEntry[]> {
   return commands.audioListDevices();
 }
 

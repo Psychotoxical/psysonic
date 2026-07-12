@@ -137,14 +137,14 @@ export const commands = {
 	 */
 	audioPreviewSetVolume: (volume: number | null) => __TAURI_INVOKE<void>("audio_preview_set_volume", { volume }),
 	/**
-	 *  Returns the names of all available audio output devices on the current host.
+	 *  Returns the keys of all available audio output devices on the current host.
 	 *  On Linux, ALSA probes unavailable backends (JACK, OSS, dmix) and prints errors to
 	 *  stderr. We suppress fd 2 for the duration of enumeration to keep the terminal clean.
 	 * 
-	 *  The user-pinned device name is appended when cpal omits it (e.g. HDMI busy while
+	 *  The user-pinned device is appended when cpal omits it (e.g. HDMI busy while
 	 *  streaming) so the Settings dropdown still matches `audioOutputDevice`.
 	 */
-	audioListDevices: () => __TAURI_INVOKE<string[]>("audio_list_devices"),
+	audioListDevices: () => __TAURI_INVOKE<AudioOutputDeviceEntry[]>("audio_list_devices"),
 	/**
 	 *  When the saved `selected_device` no longer literally matches any listed
 	 *  physical sink (e.g. suffix drift), rewrite `selected_device` to the listed form.
@@ -801,6 +801,12 @@ export type ArtifactInputDto = {
 	notFound?: boolean,
 	contentHash?: string | null,
 	expiresAt?: number | null,
+};
+
+/**  One row in the audio output device picker (`key` is persisted; `label` is display-only). */
+export type AudioOutputDeviceEntry = {
+	key: string,
+	label: string,
 };
 
 export type BandsintownEvent = {

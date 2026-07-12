@@ -9,9 +9,10 @@ import { SettingsToggle } from '@/features/settings/components/SettingsToggle';
 import { useAuthStore } from '@/store/authStore';
 import { useEqStore } from '@/store/eqStore';
 import { buildAudioDeviceSelectOptions } from '@/features/playback/utils/audio/audioDeviceLabels';
+import type { AudioOutputDeviceEntry } from '@/lib/api/audio';
 
 interface Props {
-  audioDevices: string[];
+  audioDevices: AudioOutputDeviceEntry[];
   osDefaultAudioDeviceId: string | null;
   deviceSwitching: boolean;
   devicesLoading: boolean;
