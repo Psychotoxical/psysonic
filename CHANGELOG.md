@@ -101,6 +101,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * New **Start Minimized to Tray** toggle under **Settings → System → Behavior**. When enabled, the next cold start keeps the main window hidden and Psysonic runs from the system tray until you show it from the tray icon.
 * Requires **Show Tray Icon** (turning this on enables the tray automatically; hiding the tray clears the setting). The choice applies on the next launch only — toggling it in Settings does not hide the window immediately.
 
+### Navidrome public share links — open and play without logging in
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1275](https://github.com/Psychotoxical/psysonic/pull/1275)**
+
+* Paste or search a Navidrome **public share** URL (`/share/{id}`) to preview the shared track list in a modal, then play the full queue with no server account — direct stream and cover URLs are resolved anonymously from the share page.
+* Share playback uses a dedicated scope so an idle server play-queue pull cannot replace the share queue when you are also logged into Navidrome; direct URLs persist in the saved queue for restore after restart.
+
 
 ## Changed
 

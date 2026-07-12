@@ -196,6 +196,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Library — prune orphaned identity keys from the multi-library dedup sidecar (library-cluster.db) on rebuild so it no longer bloats with rows for removed/renamed tracks (PR #1255)',
       'Servers — connect and run fully behind a custom-header gate (Cloudflare Access / Pangolin): native connect probe + REST proxy so browse/playback/covers pass, add-form failure reasons, live LAN/public badge on server switch, and LAN reclaim from a sticky public endpoint (PR #1273)',
       'Per-device EQ — when System Default is selected, profiles follow the active OS default output and switch on external output changes (PR #1274)',
+      'Navidrome public share links — paste/search preview modal, anonymous queue playback, persisted direct stream URLs, server queue-restore guard (PR #1275)',
     ],
   },
   {
