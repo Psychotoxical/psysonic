@@ -389,6 +389,24 @@ pub fn run() {
                 let _ = window.set_title("Psysonic (Dev)");
             }
 
+            // Diagnostic (fix/windows-startup-eq-default-1274): release builds normally
+            // omit WebView2 devtools — open the inspector so Windows startup hangs
+            // can be read from Console / Network. F12 also works via capability below.
+            #[cfg(not(debug_assertions))]
+            {
+                use tauri::Manager;
+                if let Some(win) = app.get_webview_window("main") {
+                    let _ = win.open_devtools();
+                }
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    if let Some(win) = handle.get_webview_window("main") {
+                        let _ = win.open_devtools();
+                    }
+                });
+            }
+
             // ── Dev: `--theme-watch <theme.css>` live theme reload ─────────
             // Poll a local theme.css and push it into the running app on save,
             // so theme authors get a live loop without re-importing a zip. The

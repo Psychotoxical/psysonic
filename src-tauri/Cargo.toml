@@ -43,7 +43,8 @@ psysonic-audio = { path = "crates/psysonic-audio" }
 psysonic-library = { path = "crates/psysonic-library" }
 psysonic-syncfs = { path = "crates/psysonic-syncfs" }
 psysonic-integration = { path = "crates/psysonic-integration" }
-tauri = { version = "2", features = ["protocol-asset", "tray-icon", "image-png"] }
+# `devtools`: release WebView2 inspector (diagnostic branch — remove before merge to main).
+tauri = { version = "2", features = ["protocol-asset", "tray-icon", "image-png", "devtools"] }
 specta = "=2.0.0-rc.25"
 specta-typescript = "=0.0.12"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }

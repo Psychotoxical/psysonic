@@ -25,6 +25,7 @@
         "titleBarStyle": "Overlay",
         "visible": false,
         "backgroundColor": "#1e1e2e",
+        "devtools": true,
         "dragDropEnabled": false
       }
     ],
