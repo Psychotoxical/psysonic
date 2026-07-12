@@ -84,6 +84,7 @@ fn set_app_user_model_id() {
 /// tests, so a specta RC break can never block a release `cargo build` — the
 /// committed `bindings.ts` is plain TypeScript for `tsc`. Grow `collect_commands!`
 /// crate-by-crate (see the specta-contract plan).
+#[cfg(any(debug_assertions, test))]
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
         // Map Rust `i64`/`u64`/`usize`/… to TS `number` globally. This is
@@ -325,6 +326,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
 /// TS exporter config. Kept as a single seam so the exporter options (header /
 /// per-type BigInt-style handling for i64 DTOs) are configured in one place as
 /// commands are added crate-by-crate.
+#[cfg(any(debug_assertions, test))]
 fn bindings_exporter() -> specta_typescript::Typescript {
     specta_typescript::Typescript::default()
 }

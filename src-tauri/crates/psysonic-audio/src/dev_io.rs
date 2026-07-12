@@ -41,7 +41,7 @@ pub(crate) struct OutputDeviceEntry {
 }
 
 pub(crate) fn enumerate_output_device_entries() -> Vec<OutputDeviceEntry> {
-    use rodio::cpal::traits::{DeviceTrait, HostTrait};
+    use rodio::cpal::traits::HostTrait;
     let mut out = with_suppressed_alsa_stderr(|| {
         let host = rodio::cpal::default_host();
         host.output_devices()
@@ -83,8 +83,7 @@ pub(crate) fn output_device_stable_key(device: &impl rodio::cpal::traits::Device
         .description()
         .ok()
         .map(|d| d.name().to_string())
-        .or_else(|| device.name().ok())
-        .unwrap_or_default()
+        .unwrap_or_else(|| device.id().map(|i| i.to_string()).unwrap_or_default())
 }
 
 /// Human-readable label for the settings dropdown (not the stored key).
@@ -127,7 +126,7 @@ pub(crate) fn format_output_device_label(desc: &rodio::cpal::DeviceDescription) 
 
 /// Best-effort label when a legacy plain-name pin is kept off the current list.
 pub(crate) fn legacy_output_device_display_label(key: &str) -> String {
-    use rodio::cpal::traits::{DeviceTrait, HostTrait};
+    use rodio::cpal::traits::HostTrait;
     #[cfg(not(target_os = "linux"))]
     {
         if let Ok(id) = key.parse::<rodio::cpal::DeviceId>() {
@@ -190,6 +189,7 @@ pub(crate) fn resolve_output_device(
 }
 
 /// cpal/rodio aliases for "follow the OS default" — not a stable per-device key.
+#[cfg(target_os = "linux")]
 pub(crate) fn is_generic_default_output_alias(name: &str) -> bool {
     matches!(
         name,
@@ -723,6 +723,7 @@ mod tests {
     // ── generic default alias / PipeWire wpctl parsing ────────────────────────
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn generic_default_alias_detects_cpal_pipewire_placeholders() {
         assert!(is_generic_default_output_alias("Default Audio Device"));
         assert!(is_generic_default_output_alias("PipeWire Sound Server"));
