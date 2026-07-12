@@ -111,6 +111,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Changed
 
+### Queue toolbar — Navidrome public share sessions
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1279](https://github.com/Psychotoxical/psysonic/pull/1279)**
+
+* While a Navidrome public share queue is active, **Save Playlist** is hidden in the queue toolbar (share tracks cannot be saved to the server). **Load Playlist** stays available.
+* The queue **Share** button copies the original Navidrome `/share/{id}` page URL instead of a Psysonic magic-string queue payload.
+
 ### Equalizer — per-device profiles follow the active system default
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1274](https://github.com/Psychotoxical/psysonic/pull/1274)**, suggested by [@JustBuddy](https://github.com/JustBuddy)
