@@ -4,7 +4,7 @@ import { autodjMaxOverlapCapSec } from '@/lib/audio/autodjOverlapCap';
 import { computeWaveformSilence, planCrossfadeTransition } from '@/lib/waveform/waveformSilence';
 import { findLocalPlaybackUrl } from '@/store/localPlaybackResolve';
 import { playbackCacheKeyForRef } from '@/features/playback/utils/playback/playbackServer';
-import { resolvePlaybackUrl } from '@/features/playback/utils/playback/resolvePlaybackUrl';
+import { resolvePlaybackUrl, resolvePlaybackUrlForTrack } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';
 import type { Track } from '@/lib/media/trackTypes';
 import {
@@ -71,7 +71,7 @@ export function kickEagerCrossfadePreload(
   if (isCrossfadeNextReady(track.id, profileId, cacheKey)) return;
   if (track.id === getBytePreloadingId()) return;
   const serverId = cacheKey || profileId;
-  const url = resolvePlaybackUrl(track.id, serverId ?? undefined);
+  const url = resolvePlaybackUrlForTrack(track, serverId ?? undefined);
   setBytePreloadingId(track.id);
   void refreshLoudnessForTrack(track.id, { syncPlayingEngine: false });
   audioPreload({
@@ -148,7 +148,7 @@ export function maybeCrossfadeBytePreload(currentTime: number, dur: number): voi
   if (!nextTrack || nextTrack.id === track.id) return;
 
   const serverId = playbackCacheKeyForRef(nextRef);
-  const nextUrl = resolvePlaybackUrl(nextTrack.id, serverId);
+  const nextUrl = resolvePlaybackUrlForTrack(nextTrack, serverId);
 
   // Byte pre-download — skipped when the hot cache is on (it already keeps the
   // upcoming queue on disk, which is also why hot cache makes the trim reliable:

@@ -69,6 +69,7 @@ export function PlayerTrackInfo({
     showPreviewMeta ? { libraryResolve: false } : undefined,
   );
   const activeCoverRef = showPreviewMeta ? previewCoverRef : playbackCoverRef;
+  const directCoverUrl = !isRadio && !showPreviewMeta ? currentTrack?.directCoverArtUrl : undefined;
   const layoutItems = usePlayerBarLayoutStore(s => s.items);
   const isLayoutVisible = (id: PlayerBarLayoutItemId) =>
     layoutItems.find(i => i.id === id)?.visible !== false;
@@ -96,6 +97,12 @@ export function PlayerTrackInfo({
               <Cast size={20} />
             </div>
           )
+        ) : !isRadio && directCoverUrl ? (
+          <img
+            className="player-album-art"
+            src={directCoverUrl}
+            alt={currentTrack?.album ? `${currentTrack.album} Cover` : ''}
+          />
         ) : !isRadio && activeCoverRef ? (
           <CoverArtImage
             className="player-album-art"

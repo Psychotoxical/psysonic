@@ -60,10 +60,15 @@ const shareStub = {
   shareComposerResolving: false,
   shareComposerUnavailable: false,
   canQueueShareMatch: false,
+  canPlayNavidromePublic: false,
   canOpenShareAlbum: false,
   canOpenShareArtist: false,
   canOpenShareComposer: false,
   hasShareKeyboardTarget: false,
+  playNavidromePublic: vi.fn(),
+  navidromeShareInfo: null,
+  navidromeShareResolving: false,
+  navidromeShareError: null,
 } as ReturnType<typeof useShareSearch>;
 
 const results: SearchResults = {

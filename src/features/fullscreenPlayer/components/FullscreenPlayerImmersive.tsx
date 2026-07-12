@@ -61,13 +61,13 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   const portraitCover = usePlaybackCoverArt(playbackCoverRef, 500);
   const coverUrl = portraitCover.src;
   const coverKey = portraitCover.cacheKey;
-  // `false` = no fetchUrl fallback — prevents double crossfade (fetchUrl → blobUrl).
-  const resolvedCoverUrl = useCachedUrl(coverUrl, coverKey, false);
+  const directCover = currentTrack?.directCoverArtUrl;
+  const resolvedCoverUrl = directCover ?? useCachedUrl(coverUrl, coverKey, false);
 
   // Dynamic accent color extracted from the current album cover, applied as
   // --dynamic-fs-accent on the root element. Cache hits return instantly so
   // same-album tracks reuse the color without re-fetching.
-  const dynamicAccent = useFsDynamicAccent(artUrl, artKey);
+  const dynamicAccent = useFsDynamicAccent(directCover ?? artUrl, artKey);
 
   // Artist image → portrait on right. Resolved through the shared fullscreen
   // backdrop hook (banner / fanart.tv / Navidrome artist cover, in the user's

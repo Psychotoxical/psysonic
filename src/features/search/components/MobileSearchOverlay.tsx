@@ -339,6 +339,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
             shareCoverServer={share.shareCoverServer}
             shareQueueBusy={share.shareQueueBusy}
             onEnqueue={() => void share.enqueueShareMatch()}
+            onPlayNavidromePublic={() => void share.playNavidromePublic()}
             onOpenAlbum={share.openShareAlbum}
             onOpenArtist={share.openShareArtist}
             onOpenComposer={share.openShareComposer}
@@ -354,6 +355,9 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
             shareComposer={share.shareComposer}
             shareComposerResolving={share.shareComposerResolving}
             shareComposerUnavailable={share.shareComposerUnavailable}
+            navidromeShareInfo={share.navidromeShareInfo}
+            navidromeShareResolving={share.navidromeShareResolving}
+            navidromeShareError={share.navidromeShareError}
           />
         )}
 

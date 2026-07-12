@@ -23,7 +23,7 @@ import {
   playbackProfileIdForRef,
   playbackProfileIdForTrack,
 } from '@/features/playback/utils/playback/playbackServer';
-import { resolvePlaybackUrl } from '@/features/playback/utils/playback/resolvePlaybackUrl';
+import { resolvePlaybackUrl, resolvePlaybackUrlForTrack } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import { requestGaplessChainPreload } from '@/features/playback/store/gaplessChainPreload';
 import {
   applyGaplessQueueAdvance,
@@ -392,7 +392,7 @@ export function handleAudioProgress(
       const analysisServerId = nextRef
         ? playbackCacheKeyForRef(nextRef)
         : getPlaybackIndexKey();
-      const nextUrl = resolvePlaybackUrl(nextTrack.id, serverId);
+      const nextUrl = resolvePlaybackUrlForTrack(nextTrack, serverId);
 
       // Byte pre-download — gapless backup; runs early so bytes are ready by chain time.
       if (

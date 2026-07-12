@@ -26,6 +26,7 @@ interface HeroProps {
   networkLoveEnabled: boolean;
   activeLyricsTab: boolean;
   coverRef?: CoverArtRef;
+  directCoverArtUrl?: string;
   onNavigate: (path: string) => void;
   onToggleStar: () => void;
   onToggleNetworkLove: () => void;
@@ -46,7 +47,7 @@ function renderStars(rating?: number) {
   );
 }
 
-const Hero = memo(function Hero({ track, artistRefs, genre, playCount, userRatingOverride, networkTrack, networkArtist, starred, networkLoved, networkLoveEnabled, activeLyricsTab, coverRef, onNavigate, onToggleStar, onToggleNetworkLove, onOpenLyrics }: HeroProps) {
+const Hero = memo(function Hero({ track, artistRefs, genre, playCount, userRatingOverride, networkTrack, networkArtist, starred, networkLoved, networkLoveEnabled, activeLyricsTab, coverRef, directCoverArtUrl, onNavigate, onToggleStar, onToggleNetworkLove, onOpenLyrics }: HeroProps) {
   const { t } = useTranslation();
   const networkLabel = useEnrichmentPrimaryLabel() ?? '';
   const networkIcon = useEnrichmentPrimaryIcon();
@@ -57,7 +58,9 @@ const Hero = memo(function Hero({ track, artistRefs, genre, playCount, userRatin
   return (
     <div className="np-dash-hero">
       <div className="np-dash-hero-cover">
-        {coverRef ? (
+        {directCoverArtUrl ? (
+          <img className="np-cover" src={directCoverArtUrl} alt="" />
+        ) : coverRef ? (
           <CoverArtImage
             className="np-cover"
             coverRef={coverRef}

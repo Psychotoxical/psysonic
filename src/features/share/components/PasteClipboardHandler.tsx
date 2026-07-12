@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
-import type { EntitySharePayloadV1 } from '@/lib/share/shareLink';
+import { extractNavidromePublicShareFromText } from '@/lib/share/navidromePublicShareUrl';
 import { decodeSharePayloadFromText } from '@/lib/share/shareLink';
 import { decodeServerMagicStringFromText } from '@/lib/server/serverMagicString';
 import { applySharePastePayload, applySharePasteQueue } from '@/features/share/applySharePaste';
@@ -10,6 +10,10 @@ import { shareQueueServerContext } from '@/lib/share/shareServerOriginLabel';
 import { showToast } from '@/lib/dom/toast';
 import { useShareQueuePreview } from '@/features/search';
 import { ShareQueuePreviewModal } from '@/features/search';
+import NavidromePublicShareModal from '@/features/search/components/NavidromePublicShareModal';
+import { useNavidromePublicSharePreview } from '@/features/search/hooks/useNavidromePublicSharePreview';
+import { playNavidromePublicShare } from '@/features/share/playNavidromePublicShare';
+import type { NavidromePublicShareRef } from '@/lib/share/navidromePublicShareUrl';
 import {
   parseOrbitShareLink,
   joinOrbitSession,
@@ -34,7 +38,10 @@ const ORBIT_JOIN_ERROR_KEYS: Record<string, string> = {
  * Global paste: library share links (`psysonic2-`) and server invites (`psysonic1-`)
  * outside text fields. Shares require login; invites open add-server (settings or login).
  */
-type QueuePastePayload = Extract<EntitySharePayloadV1, { k: 'queue' }>;
+type QueuePastePayload = Extract<
+  NonNullable<ReturnType<typeof decodeSharePayloadFromText>>,
+  { k: 'queue' }
+>;
 
 export default function PasteClipboardHandler() {
   const navigate = useNavigate();
@@ -47,8 +54,11 @@ export default function PasteClipboardHandler() {
   const [orbitConfirm, setOrbitConfirm] = useState<{ sid: string; host: string; name: string } | null>(null);
   const [orbitInvalid, setOrbitInvalid] = useState(false);
   const [queuePaste, setQueuePaste] = useState<QueuePastePayload | null>(null);
+  const [navidromePaste, setNavidromePaste] = useState<NavidromePublicShareRef | null>(null);
   const [queuePasteBusy, setQueuePasteBusy] = useState(false);
+  const [navidromePasteBusy, setNavidromePasteBusy] = useState(false);
   const queuePreview = useShareQueuePreview(queuePaste, !!queuePaste);
+  const navidromePreview = useNavidromePublicSharePreview(navidromePaste, !!navidromePaste);
   const { label: queuePasteServerLabel, coverServer: queuePasteCoverServer } = useMemo(
     () =>
       queuePaste
@@ -148,6 +158,15 @@ export default function PasteClipboardHandler() {
         return;
       }
 
+      const navidromeShare = extractNavidromePublicShareFromText(text);
+      if (navidromeShare) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (busy.current || queuePaste || navidromePaste) return;
+        setNavidromePaste(navidromeShare);
+        return;
+      }
+
       const share = decodeSharePayloadFromText(text);
       if (share) {
         if (!isLoggedIn) {
@@ -202,11 +221,16 @@ export default function PasteClipboardHandler() {
     // the global paste listener is intentionally not re-registered on every render
     // or navigation, only when the auth/handler inputs below change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navigate, t, isLoggedIn, queuePaste]);
+  }, [navigate, t, isLoggedIn, queuePaste, navidromePaste]);
 
   const closeQueuePaste = () => {
     if (queuePasteBusy) return;
     setQueuePaste(null);
+  };
+
+  const closeNavidromePaste = () => {
+    if (navidromePasteBusy) return;
+    setNavidromePaste(null);
   };
 
   const confirmQueuePaste = async () => {
@@ -217,8 +241,41 @@ export default function PasteClipboardHandler() {
     if (ok) setQueuePaste(null);
   };
 
+  const confirmNavidromePaste = async () => {
+    if (!navidromePaste || navidromePasteBusy || !navidromePreview.navidromeShareInfo) return;
+    setNavidromePasteBusy(true);
+    const ok = await playNavidromePublicShare(
+      navidromePaste,
+      navidromePreview.navidromeShareInfo,
+      t,
+    );
+    setNavidromePasteBusy(false);
+    if (ok) setNavidromePaste(null);
+  };
+
+  const navidromeHostLabel = navidromePaste
+    ? (() => {
+      try {
+        return new URL(navidromePaste.origin).host;
+      } catch {
+        return navidromePaste.origin;
+      }
+    })()
+    : null;
+
   return (
     <>
+      {navidromePaste && (
+        <NavidromePublicShareModal
+          open
+          onClose={closeNavidromePaste}
+          ref={navidromePaste}
+          preview={navidromePreview}
+          hostLabel={navidromeHostLabel}
+          onPlay={() => void confirmNavidromePaste()}
+          playBusy={navidromePasteBusy}
+        />
+      )}
       {queuePaste && (
         <ShareQueuePreviewModal
           open

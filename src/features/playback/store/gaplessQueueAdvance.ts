@@ -32,7 +32,7 @@ import {
   playbackCacheKeyForRef,
   playbackProfileIdForTrack,
 } from '@/features/playback/utils/playback/playbackServer';
-import { resolvePlaybackUrl } from '@/features/playback/utils/playback/resolvePlaybackUrl';
+import { resolvePlaybackUrl, resolvePlaybackUrlForTrack } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import { refreshWaveformForTrack } from '@/features/playback/store/waveformRefresh';
 import { syncQueueToServer } from '@/features/playback/store/queueSync';
 import { useAuthStore } from '@/store/authStore';
@@ -86,7 +86,7 @@ function applyGaplessSuccessorUi(
 ): void {
   const switchRef = store.queueItems[newIndex];
   const switchServerId = playbackCacheKeyForRef(switchRef);
-  const switchResolvedUrl = resolvePlaybackUrl(nextTrack.id, switchServerId);
+  const switchResolvedUrl = resolvePlaybackUrlForTrack(nextTrack, switchServerId);
   const switchPlaybackSource = playbackSourceHintForResolvedUrl(
     nextTrack.id,
     switchServerId,

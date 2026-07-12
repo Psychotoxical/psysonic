@@ -2,6 +2,10 @@ import {
   decodeSharePayloadFromText,
   PSYSONIC_SHARE_PREFIX,
 } from '@/lib/share/shareLink';
+import {
+  extractNavidromePublicShareFromText,
+  type NavidromePublicShareRef,
+} from '@/lib/share/navidromePublicShareUrl';
 
 export type QueueableShareSearchPayload =
   | { srv: string; k: 'track'; id: string }
@@ -12,6 +16,7 @@ export type ArtistShareSearchPayload = { srv: string; k: 'artist'; id: string };
 export type ComposerShareSearchPayload = { srv: string; k: 'composer'; id: string };
 
 export type ShareSearchMatch =
+  | { type: 'navidrome-public'; ref: NavidromePublicShareRef }
   | { type: 'queueable'; payload: QueueableShareSearchPayload }
   | { type: 'album'; payload: AlbumShareSearchPayload }
   | { type: 'artist'; payload: ArtistShareSearchPayload }
@@ -20,6 +25,11 @@ export type ShareSearchMatch =
 
 export function parseShareSearchText(text: string): ShareSearchMatch | null {
   const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  const navidromeRef = extractNavidromePublicShareFromText(trimmed);
+  if (navidromeRef) return { type: 'navidrome-public', ref: navidromeRef };
+
   if (!trimmed.includes(PSYSONIC_SHARE_PREFIX)) return null;
 
   const payload = decodeSharePayloadFromText(trimmed);

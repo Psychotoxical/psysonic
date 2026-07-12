@@ -24,6 +24,7 @@ vi.mock('@/store/localPlaybackStore', () => ({
 import {
   getPlaybackSourceKind,
   resolvePlaybackUrl,
+  resolvePlaybackUrlForTrack,
   streamUrlTrackId,
 } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import { useAuthStore } from '@/store/authStore';
@@ -86,6 +87,19 @@ describe('resolvePlaybackUrl — precedence', () => {
     const url = resolvePlaybackUrl('track-1', 'srv-1');
     expect(url).toMatch(/^https:\/\/music\.example\.com\/rest\/stream\.view\?/);
     expect(url).toContain('id=track-1');
+  });
+});
+
+describe('resolvePlaybackUrlForTrack', () => {
+  it('returns directStreamUrl when set on the track', () => {
+    const url = resolvePlaybackUrlForTrack(
+      {
+        id: 'ndshare:abc:0',
+        directStreamUrl: 'https://music.example.com/share/s/jwt-token',
+      },
+      'navidrome-public-share',
+    );
+    expect(url).toBe('https://music.example.com/share/s/jwt-token');
   });
 });
 

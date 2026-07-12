@@ -7,6 +7,7 @@ import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import { canonicalQueueServerKey } from '@/lib/server/serverIndexKey';
 import { trackToSong } from '@/lib/library/advancedSearchLocal';
 import { libraryIsReady } from '@/lib/library/libraryReady';
+import { NAVIDROME_PUBLIC_SHARE_SERVER_ID } from '@/lib/share/navidromePublicSharePlayback';
 
 /**
  * Queue track resolver (thin-state phase 2). Resolves `QueueItemRef`s to full
@@ -53,10 +54,12 @@ export function subscribeQueueResolver(cb: () => void): () => void {
 function cacheSet(key: string, track: Track): void {
   if (cache.has(key)) cache.delete(key);
   cache.set(key, track);
-  while (cache.size > CACHE_CAP) {
-    const oldest = cache.keys().next().value;
-    if (oldest === undefined) break;
-    cache.delete(oldest);
+}
+
+function trimCacheExcept(preserve: Set<string>): void {
+  for (const key of [...cache.keys()]) {
+    if (cache.size <= CACHE_CAP) return;
+    if (!preserve.has(key)) cache.delete(key);
   }
 }
 
@@ -120,7 +123,15 @@ export function applyQueueOverrides(track: Track): Track {
 export function seedQueueResolver(serverId: string, tracks: Track[]): void {
   if (tracks.length === 0) return;
   const canonicalId = canonicalQueueServerKey(serverId);
-  for (const t of tracks) cacheSet(refKey({ serverId: canonicalId, trackId: t.id }), t);
+  const preserve = new Set<string>();
+  for (const t of tracks) {
+    const key = refKey({ serverId: canonicalId, trackId: t.id });
+    preserve.add(key);
+    cacheSet(key, t);
+  }
+  // Bulk queue replace: keep the whole incoming set (may exceed CACHE_CAP).
+  // Single-track touch (queue navigation): no eviction — must not wipe siblings.
+  if (tracks.length > 1) trimCacheExcept(preserve);
   notify();
 }
 
@@ -147,7 +158,7 @@ export async function resolveBatch(refs: QueueItemRef[]): Promise<void> {
     }
 
     for (const [serverId, serverRefs] of byServer) {
-      if (!serverId) continue;
+      if (!serverId || serverId === NAVIDROME_PUBLIC_SHARE_SERVER_ID) continue;
       const stillMissing = new Set(serverRefs.map(r => r.trackId));
       const refByTrack = new Map(serverRefs.map(r => [r.trackId, r]));
 

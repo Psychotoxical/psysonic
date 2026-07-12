@@ -32,7 +32,7 @@ import {
   findLocalPlaybackUrl,
   hasLocalPersistentPlaybackBytes,
 } from '@/store/localPlaybackResolve';
-import { resolvePlaybackUrl } from '@/features/playback/utils/playback/resolvePlaybackUrl';
+import { resolvePlaybackUrl, resolvePlaybackUrlForTrack } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '@/features/playback/utils/audio/resolveReplayGainDb';
 import { enrichTrackPlaybackMetadata } from '@/features/playback/utils/audio/enrichTrackReplayGainMetadata';
 import { audioPlayHiResBlendArgs } from '@/lib/audio/hiResCrossfadeResample';
@@ -63,7 +63,7 @@ import type { Track } from '@/lib/media/trackTypes';
 import type { PlayerState } from '@/features/playback/store/playerStoreTypes';
 import { toQueueItemRefs } from '@/features/playback/store/queueItemRef';
 import { getQueueTracksView, resolveQueueTrack } from '@/features/playback/store/queueTrackView';
-import { seedQueueResolver } from '@/features/playback/store/queueTrackResolver';
+import { getCachedTrack, seedQueueResolver } from '@/features/playback/store/queueTrackResolver';
 import { promoteCompletedStreamToHotCache } from '@/features/playback/store/promoteStreamCache';
 import { pushQueueOnPlaybackStart } from '@/features/playback/store/queueSync';
 import { playListenSessionFinalize } from '@/features/playback/store/playListenSession';
@@ -201,7 +201,24 @@ export function runPlayTrack(
     );
   }
 
-  const scopedTrack = scopedTrackEarly;
+  const stateBeforePlay = get();
+  const replacingEarly = queue !== undefined;
+  const srcLenEarly = replacingEarly ? (queue?.length ?? 0) : stateBeforePlay.queueItems.length;
+  const playIdxEarly = (() => {
+    if (typeof targetQueueIndex === 'number' && targetQueueIndex >= 0 && targetQueueIndex < srcLenEarly) {
+      return targetQueueIndex;
+    }
+    if (replacingEarly && queue) {
+      const i = queue.findIndex(t => sameQueueTrackId(t.id, scopedTrackEarly.id));
+      return i >= 0 ? i : 0;
+    }
+    const i = stateBeforePlay.queueItems.findIndex(r => sameQueueTrackId(r.trackId, scopedTrackEarly.id));
+    return i >= 0 ? i : 0;
+  })();
+  const playingRefEarly = replacingEarly ? undefined : stateBeforePlay.queueItems[playIdxEarly];
+  const scopedTrack = (!replacingEarly && playingRefEarly && getCachedTrack(playingRefEarly))
+    ? getCachedTrack(playingRefEarly)!
+    : scopedTrackEarly;
   const scopedQueue = queue ? stampTrackServerIds(queue) : queue;
 
   clearAllPlaybackScheduleTimers();
@@ -335,7 +352,7 @@ export function runPlayTrack(
     const url = libraryLocalUrl
       ?? findLocalPlaybackUrl(trackForPlay.id, playbackSid, 'library')
       ?? findLocalPlaybackUrl(trackForPlay.id, playbackSid, 'favorite-auto')
-      ?? resolvePlaybackUrl(trackForPlay.id, playbackCacheSid);
+      ?? resolvePlaybackUrlForTrack(trackForPlay, playbackCacheSid);
     recordEnginePlayUrl(trackForPlay.id, url);
     const preloadedTrackId = get().enginePreloadedTrackId;
     const keepPreloadHint = preloadedTrackId === trackForPlay.id;
@@ -361,10 +378,15 @@ export function runPlayTrack(
     // resolver with those tracks so the UI / hot paths resolve them without a
     // network round-trip. No-arg jumps reuse already-cached refs.
     if (scopedQueue) {
+      const bySid = new Map<string, Track[]>();
       for (const t of scopedQueue) {
         const sid = playbackCacheKeyForTrack(t);
-        if (sid) seedQueueResolver(sid, [t]);
+        if (!sid) continue;
+        const bucket = bySid.get(sid);
+        if (bucket) bucket.push(t);
+        else bySid.set(sid, [t]);
       }
+      for (const [sid, tracks] of bySid) seedQueueResolver(sid, tracks);
     } else if (queueSid) {
       seedQueueResolver(queueSid, [trackForPlay]);
     }

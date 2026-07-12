@@ -4,6 +4,14 @@ import { serverIndexKeyFromUrl } from '@/lib/server/serverIndexKey';
 import { findServerIdForShareUrl } from '@/lib/share/shareLink';
 import type { ShareSearchMatch } from '@/lib/share/shareSearch';
 
+function hostFromOrigin(origin: string): string {
+  try {
+    return new URL(origin).host;
+  } catch {
+    return origin;
+  }
+}
+
 /**
  * Display name for the share link's origin server when it differs from the
  * active server. Returns null when the link targets the active server, is
@@ -15,6 +23,10 @@ export function shareServerOriginLabel(
   activeServerId: string | null,
 ): string | null {
   if (!shareMatch || shareMatch.type === 'unsupported') return null;
+
+  if (shareMatch.type === 'navidrome-public') {
+    return hostFromOrigin(shareMatch.ref.origin);
+  }
 
   const shareServerId = findServerIdForShareUrl(servers, shareMatch.payload.srv);
   if (!shareServerId || shareServerId === activeServerId) return null;

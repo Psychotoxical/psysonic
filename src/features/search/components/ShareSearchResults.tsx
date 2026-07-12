@@ -8,6 +8,7 @@ import { songToTrack } from '@/lib/media/songToTrack';
 import { activateShareSearchServer } from '@/features/share/enqueueShareSearchPayload';
 import { sharePayloadTotal, type ShareSearchMatch } from '@/lib/share/shareSearch';
 import type { ShareSearchPreviewState } from '@/features/search/hooks/useShareSearchPreview';
+import type { NavidromePublicSharePreviewState } from '@/features/search/hooks/useNavidromePublicSharePreview';
 import { FETCH_QUEUE_BIAS_SEARCH_ARTIST_OVER_ALBUM } from '@/ui/CachedImage';
 import { AlbumCoverArtImage } from '@/cover/AlbumCoverArtImage';
 import { ArtistCoverArtImage } from '@/cover/ArtistCoverArtImage';
@@ -15,6 +16,7 @@ import { COVER_DENSE_SEARCH_CSS_PX } from '@/cover/layoutSizes';
 import { COVER_SCOPE_ACTIVE, type CoverServerScope } from '@/cover/types';
 import { useShareQueuePreview } from '@/features/search/hooks/useShareQueuePreview';
 import ShareQueuePreviewModal from '@/features/search/components/ShareQueuePreviewModal';
+import NavidromePublicShareModal from '@/features/search/components/NavidromePublicShareModal';
 
 type ShareSearchResultsProps = {
   variant: 'desktop' | 'mobile';
@@ -26,11 +28,12 @@ type ShareSearchResultsProps = {
   activeIndex?: number;
   shareQueueBusy: boolean;
   onEnqueue: () => void | Promise<boolean>;
+  onPlayNavidromePublic?: () => void | Promise<boolean>;
   onOpenAlbum: () => void;
   onOpenArtist: () => void;
   onOpenComposer: () => void;
   onContextMenu?: (e: React.MouseEvent, item: unknown, type: 'song' | 'album' | 'artist') => void;
-} & ShareSearchPreviewState;
+} & ShareSearchPreviewState & NavidromePublicSharePreviewState;
 
 function shareCoverServerScope(coverServer?: ServerProfile | null): CoverServerScope {
   if (coverServer) {
@@ -128,7 +131,7 @@ function withShareServer(
   t: TFunction,
   fn: () => void,
 ): void {
-  if (shareMatch.type === 'unsupported') return;
+  if (shareMatch.type === 'unsupported' || shareMatch.type === 'navidrome-public') return;
   if (!activateShareSearchServer(shareMatch.payload.srv, t)) return;
   fn();
 }
@@ -148,6 +151,7 @@ export default function ShareSearchResults(props: ShareSearchResultsProps) {
     activeIndex = 0,
     shareQueueBusy,
     onEnqueue,
+    onPlayNavidromePublic,
     onOpenAlbum,
     onOpenArtist,
     onOpenComposer,
@@ -164,6 +168,9 @@ export default function ShareSearchResults(props: ShareSearchResultsProps) {
     shareComposer,
     shareComposerResolving,
     shareComposerUnavailable,
+    navidromeShareInfo,
+    navidromeShareResolving,
+    navidromeShareError,
   } = props;
 
   const { t } = useTranslation();
@@ -192,6 +199,7 @@ export default function ShareSearchResults(props: ShareSearchResultsProps) {
   const sub = (primary: string) => shareSubLine(primary, shareServerLabel, t);
   const showEntityKindSub = !desktop || !!shareServerLabel;
   const [queuePreviewOpen, setQueuePreviewOpen] = useState(false);
+  const [navidromePreviewOpen, setNavidromePreviewOpen] = useState(false);
   const queuePayload =
     shareMatch.type === 'queueable' && shareMatch.payload.k === 'queue' ? shareMatch.payload : null;
   const queuePreview = useShareQueuePreview(queuePayload, queuePreviewOpen);
@@ -208,6 +216,101 @@ export default function ShareSearchResults(props: ShareSearchResultsProps) {
 
   if (shareMatch.type === 'unsupported') {
     return wrap(unsupportedRow);
+  }
+
+  if (shareMatch.type === 'navidrome-public') {
+    const count = navidromeShareInfo?.tracks.length ?? 0;
+    const rowCls = desktop ? 'search-share-queue-row' : 'mobile-search-share-queue-row';
+    const title = navidromeShareInfo?.description?.trim()
+      || t('sharePaste.navidromeShareTitle', { count: count || 1 });
+
+    if (navidromeShareResolving) {
+      return wrap(
+        <div className={mutedCls}>
+          <StaticIcon className={iconCls}><Link2 size={desktop ? 14 : 20} /></StaticIcon>
+          <div className={infoWrap}>
+            <div className={nameCls}>{t('common.loading')}</div>
+            <div className={subCls}>{sub(t('sharePaste.navidromeShareLoading'))}</div>
+          </div>
+        </div>,
+      );
+    }
+
+    if (navidromeShareError) {
+      const errMsg =
+        navidromeShareError === 'not-found'
+          ? t('sharePaste.navidromeShareNotFound')
+          : navidromeShareError === 'expired'
+            ? t('sharePaste.navidromeShareExpired')
+            : navidromeShareError === 'unreachable'
+              ? t('sharePaste.navidromeShareUnreachable')
+              : t('sharePaste.navidromeShareMalformed');
+      return wrap(
+        <div className={mutedCls}>
+          <StaticIcon className={iconCls}><Link2 size={desktop ? 14 : 20} /></StaticIcon>
+          <div className={infoWrap}>
+            <div className={nameCls}>{errMsg}</div>
+            <div className={subCls}>{sub('')}</div>
+          </div>
+        </div>,
+      );
+    }
+
+    if (navidromeShareInfo) {
+      const handlePlay = () => {
+        void Promise.resolve(onPlayNavidromePublic?.()).then(ok => {
+          if (ok) setNavidromePreviewOpen(false);
+        });
+      };
+      return (
+        <>
+          {wrap(
+            <div
+              className={`${rowCls}${activeIndex === 0 ? ' active' : ''}`}
+              role={desktop ? 'option' : undefined}
+            >
+              <button
+                type="button"
+                className={desktop ? 'search-share-queue-main' : 'mobile-search-item search-share-queue-main'}
+                onClick={handlePlay}
+                disabled={shareQueueBusy}
+                aria-selected={desktop ? activeIndex === 0 : undefined}
+              >
+                <StaticIcon className={iconCls}><ListPlus size={desktop ? 14 : 20} /></StaticIcon>
+                <div className={infoWrap}>
+                  <div className={nameCls}>{title}</div>
+                  <div className={subCls}>
+                    {shareQueueBusy
+                      ? sub(t('sharePaste.navidromeSharePlaying'))
+                      : sub(t('search.shareQueueTitle', { count }))}
+                  </div>
+                </div>
+              </button>
+              <button
+                type="button"
+                className="search-share-queue-preview-btn"
+                onClick={e => {
+                  e.stopPropagation();
+                  setNavidromePreviewOpen(true);
+                }}
+                aria-label={t('sharePaste.navidromeSharePreview')}
+              >
+                <Eye size={desktop ? 16 : 18} />
+              </button>
+            </div>,
+          )}
+          <NavidromePublicShareModal
+            open={navidromePreviewOpen}
+            onClose={() => setNavidromePreviewOpen(false)}
+            ref={shareMatch.ref}
+            preview={{ navidromeShareInfo, navidromeShareResolving, navidromeShareError }}
+            hostLabel={shareServerLabel}
+            onPlay={handlePlay}
+            playBusy={shareQueueBusy}
+          />
+        </>
+      );
+    }
   }
 
   if (shareMatch.type === 'artist') {

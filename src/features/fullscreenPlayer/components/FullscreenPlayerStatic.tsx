@@ -89,9 +89,8 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
   // thumbnail — crisp instead of the old low-res tier. It is no longer a
   // background source (see below).
   const cover = usePlaybackCoverArt(playbackCoverRef, 2000, { fullRes: true });
-  // `true` = show the raw URL immediately while the blob resolves (same as FsArt).
   const coverUrl = useCachedUrl(cover.src, cover.cacheKey, true);
-  const thumbUrl = coverUrl;
+  const thumbUrl = currentTrack?.directCoverArtUrl ?? coverUrl;
   // Background (§28). The album cover is deliberately NOT a background source —
   // it only ever feeds the foreground thumbnail. The user-configurable source
   // list (fanart / Navidrome artist image, no banner) drives the rest, resolved

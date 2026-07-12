@@ -122,4 +122,28 @@ describe('share search parsing', () => {
 
     expect(parseShareSearchText(orbit)).toEqual({ type: 'unsupported' });
   });
+
+  it('detects Navidrome public share URLs before psysonic2 links', () => {
+    const url = 'https://music.example.com/navidrome/share/Ab12Cd34Ef';
+    expect(parseShareSearchText(url)).toEqual({
+      type: 'navidrome-public',
+      ref: {
+        pageUrl: url,
+        origin: 'https://music.example.com',
+        basePath: '/navidrome',
+        shareId: 'Ab12Cd34Ef',
+      },
+    });
+  });
+
+  it('prefers Navidrome URL when both patterns appear in text', () => {
+    const magic = encodeSharePayload({
+      srv: 'https://music.example.com',
+      k: 'track',
+      id: 'song-1',
+    });
+    const url = 'https://music.example.com/share/Ab12Cd34Ef';
+    const match = parseShareSearchText(`${url} ${magic}`);
+    expect(match?.type).toBe('navidrome-public');
+  });
 });

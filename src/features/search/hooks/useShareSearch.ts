@@ -13,6 +13,8 @@ import { shareServerOriginLabel } from '@/lib/share/shareServerOriginLabel';
 import { parseShareSearchText } from '@/lib/share/shareSearch';
 import { serverIndexKeyFromUrl } from '@/lib/server/serverIndexKey';
 import { useShareSearchPreview } from '@/features/search/hooks/useShareSearchPreview';
+import { useNavidromePublicSharePreview } from '@/features/search/hooks/useNavidromePublicSharePreview';
+import { playNavidromePublicShare } from '@/features/share/playNavidromePublicShare';
 
 export function useShareSearch(query: string, onSuccess?: () => void) {
   const { t } = useTranslation();
@@ -26,7 +28,9 @@ export function useShareSearch(query: string, onSuccess?: () => void) {
     [shareMatch, servers, activeServerId],
   );
   const shareCoverServer = useMemo((): ServerProfile | null => {
-    if (!shareMatch || shareMatch.type === 'unsupported') return null;
+    if (!shareMatch || shareMatch.type === 'unsupported' || shareMatch.type === 'navidrome-public') {
+      return null;
+    }
     const serverId = findServerIdForShareUrl(servers, shareMatch.payload.srv);
     if (!serverId || serverId === activeServerId) return null;
     return servers.find(s => s.id === serverId)
@@ -34,12 +38,19 @@ export function useShareSearch(query: string, onSuccess?: () => void) {
       ?? null;
   }, [shareMatch, servers, activeServerId]);
   const preview = useShareSearchPreview(shareMatch);
+  const navidromeRef = shareMatch?.type === 'navidrome-public' ? shareMatch.ref : null;
+  const navidromePreview = useNavidromePublicSharePreview(navidromeRef);
   const [shareQueueBusy, setShareQueueBusy] = useState(false);
 
   const canQueueShareMatch =
     shareMatch?.type === 'queueable' &&
     (shareMatch.payload.k === 'queue' ||
       (!preview.shareTrackResolving && !!preview.shareTrackSong));
+
+  const canPlayNavidromePublic =
+    shareMatch?.type === 'navidrome-public' &&
+    !!navidromePreview.navidromeShareInfo &&
+    !navidromePreview.navidromeShareResolving;
 
   const canOpenShareAlbum =
     shareMatch?.type === 'album' && !!preview.shareAlbum && !preview.shareAlbumResolving;
@@ -49,7 +60,11 @@ export function useShareSearch(query: string, onSuccess?: () => void) {
     shareMatch?.type === 'composer' && !!preview.shareComposer && !preview.shareComposerResolving;
 
   const hasShareKeyboardTarget =
-    canQueueShareMatch || canOpenShareAlbum || canOpenShareArtist || canOpenShareComposer;
+    canQueueShareMatch ||
+    canPlayNavidromePublic ||
+    canOpenShareAlbum ||
+    canOpenShareArtist ||
+    canOpenShareComposer;
 
   const openShareAlbum = useCallback(() => {
     if (shareMatch?.type !== 'album' || !preview.shareAlbum) return;
@@ -72,6 +87,25 @@ export function useShareSearch(query: string, onSuccess?: () => void) {
     onSuccess?.();
   }, [shareMatch, preview.shareComposer, navigate, t, onSuccess]);
 
+  const playNavidromePublic = useCallback(async () => {
+    if (
+      shareMatch?.type !== 'navidrome-public' ||
+      !navidromePreview.navidromeShareInfo ||
+      shareQueueBusy
+    ) {
+      return false;
+    }
+    setShareQueueBusy(true);
+    const ok = await playNavidromePublicShare(
+      shareMatch.ref,
+      navidromePreview.navidromeShareInfo,
+      t,
+    );
+    setShareQueueBusy(false);
+    if (ok) onSuccess?.();
+    return ok;
+  }, [shareMatch, navidromePreview.navidromeShareInfo, shareQueueBusy, t, onSuccess]);
+
   const enqueueShareMatch = useCallback(async () => {
     if (shareMatch?.type !== 'queueable' || shareQueueBusy) return false;
     if (shareMatch.payload.k === 'track' && (!preview.shareTrackSong || preview.shareTrackResolving)) {
@@ -90,6 +124,7 @@ export function useShareSearch(query: string, onSuccess?: () => void) {
     shareCoverServer,
     shareQueueBusy,
     canQueueShareMatch,
+    canPlayNavidromePublic,
     canOpenShareAlbum,
     canOpenShareArtist,
     canOpenShareComposer,
@@ -98,6 +133,8 @@ export function useShareSearch(query: string, onSuccess?: () => void) {
     openShareArtist,
     openShareComposer,
     enqueueShareMatch,
+    playNavidromePublic,
     ...preview,
+    ...navidromePreview,
   };
 }

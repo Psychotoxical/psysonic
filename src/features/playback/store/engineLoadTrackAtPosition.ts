@@ -6,7 +6,7 @@ import {
   getPlaybackIndexKey,
   playbackCacheKeyForTrack,
 } from '@/features/playback/utils/playback/playbackServer';
-import { resolvePlaybackUrl } from '@/features/playback/utils/playback/resolvePlaybackUrl';
+import { resolvePlaybackUrl, resolvePlaybackUrlForTrack } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '@/features/playback/utils/audio/resolveReplayGainDb';
 import { audioPlayHiResBlendArgs } from '@/lib/audio/hiResCrossfadeResample';
 import { useAuthStore } from '@/store/authStore';
@@ -40,7 +40,7 @@ export function engineLoadTrackAtPosition(opts: {
   const replayGainPeak = isReplayGainActive() ? (track.replayGainPeak ?? null) : null;
   const playbackCacheSid = playbackCacheKeyForTrack(track);
   const playbackIndexKey = playbackCacheKeyForTrack(track) || getPlaybackIndexKey();
-  const url = resolvePlaybackUrl(track.id, playbackCacheSid);
+  const url = resolvePlaybackUrlForTrack(track, playbackCacheSid);
   recordEnginePlayUrl(track.id, url);
   usePlayerStore.setState({
     currentPlaybackSource: playbackSourceHintForResolvedUrl(track.id, playbackCacheSid, url),

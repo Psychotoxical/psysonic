@@ -42,6 +42,10 @@ export interface Track {
    *  end of the current Play-Next streak. Stale flags behind queueIndex are
    *  harmless — the streak scan only looks forward from queueIndex+1. */
   playNextAdded?: boolean;
+  /** Absolute HTTP(S) stream URL — bypasses Subsonic `stream.view` (Navidrome public share). */
+  directStreamUrl?: string;
+  /** Absolute cover art URL — bypasses Subsonic `getCoverArt` (Navidrome public share). */
+  directCoverArtUrl?: string;
 }
 
 /**

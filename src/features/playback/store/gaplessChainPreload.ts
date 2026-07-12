@@ -8,7 +8,7 @@ import {
   getPlaybackIndexKey,
   playbackCacheKeyForRef,
 } from '@/features/playback/utils/playback/playbackServer';
-import { resolvePlaybackUrl } from '@/features/playback/utils/playback/resolvePlaybackUrl';
+import { resolvePlaybackUrl, resolvePlaybackUrlForTrack } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';
 import {
   getGaplessPreloadingId,
@@ -53,7 +53,7 @@ function invokeGaplessChainPreload(
   const analysisServerId = ctx.nextRef
     ? playbackCacheKeyForRef(ctx.nextRef)
     : getPlaybackIndexKey();
-  const nextUrl = resolvePlaybackUrl(prepared.id, serverId);
+  const nextUrl = resolvePlaybackUrlForTrack(prepared, serverId);
   const nextNeighbour = gaplessNextNeighbour(ctx);
   const replayGainDb = resolveReplayGainDb(
     prepared, ctx.currentTrack, nextNeighbour,

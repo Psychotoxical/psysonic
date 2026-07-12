@@ -284,6 +284,7 @@ export default function NowPlaying() {
               networkLoveEnabled={networkLoveEnabled}
               activeLyricsTab={activeTab === 'lyrics' && isQueueVisible}
               coverRef={playbackCoverRef}
+              directCoverArtUrl={currentTrack.directCoverArtUrl}
               onNavigate={stableNavigate}
               onToggleStar={toggleStar}
               onToggleNetworkLove={toggleNetworkLove}

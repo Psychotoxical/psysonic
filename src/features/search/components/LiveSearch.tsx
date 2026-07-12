@@ -143,6 +143,7 @@ export default function LiveSearch() {
       id: 'share-link',
       action: () => {
         if (share.canQueueShareMatch) void share.enqueueShareMatch();
+        else if (share.canPlayNavidromePublic) void share.playNavidromePublic();
         else if (share.canOpenShareAlbum) share.openShareAlbum();
         else if (share.canOpenShareArtist) share.openShareArtist();
         else if (share.canOpenShareComposer) share.openShareComposer();
@@ -167,6 +168,7 @@ export default function LiveSearch() {
       if (e.key === 'Enter') {
         e.preventDefault();
         if (share.canQueueShareMatch) void share.enqueueShareMatch();
+        else if (share.canPlayNavidromePublic) void share.playNavidromePublic();
         else if (share.canOpenShareAlbum) share.openShareAlbum();
         else if (share.canOpenShareArtist) share.openShareArtist();
         else if (share.canOpenShareComposer) share.openShareComposer();

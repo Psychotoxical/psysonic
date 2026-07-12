@@ -54,6 +54,7 @@ export function QueueCurrentTrack({
 }: Props) {
   const showBufferingOverlay = usePlayerStore(s => s.isPlaybackBuffering);
   const coverRef = usePlaybackTrackCoverRef(currentTrack);
+  const directCoverUrl = currentTrack?.directCoverArtUrl;
   const artistRefs = resolveTrackArtistRefs(currentTrack);
   const enrichment = useQueueTrackEnrichment(currentTrack.id);
   const bpmTech = formatQueueBpmTech(enrichment, t);
@@ -206,7 +207,13 @@ export function QueueCurrentTrack({
       })()}
       <div className="queue-current-track-body">
         <div className={`queue-current-cover${showBufferingOverlay ? ' playback-buffering' : ''}`}>
-          {coverRef ? (
+          {directCoverUrl ? (
+            <img
+              className="queue-current-cover-img"
+              src={directCoverUrl}
+              alt=""
+            />
+          ) : coverRef ? (
             <CoverArtImage
               coverRef={coverRef}
               displayCssPx={128}

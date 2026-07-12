@@ -2,6 +2,7 @@ import { buildStreamUrlForServer } from '@/lib/api/subsonicStreamUrl';
 import { findLocalPlaybackUrl } from '@/store/localPlaybackResolve';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import { getPlaybackCacheServerKey, getPlaybackServerId } from '@/features/playback/utils/playback/playbackServer';
+import type { Track } from '@/lib/media/trackTypes';
 
 /** Same resolution order as {@link resolvePlaybackUrl} — for UI hints only. */
 export type PlaybackSourceKind = 'offline' | 'hot' | 'stream';
@@ -71,4 +72,13 @@ export function resolvePlaybackUrl(trackId: string, serverId?: string): string {
   const hot = findLocalPlaybackUrl(trackId, profileId, 'ephemeral');
   if (hot) return hot;
   return buildStreamUrlForServer(profileId, trackId);
+}
+
+/** Like {@link resolvePlaybackUrl} but honours {@link Track.directStreamUrl}. */
+export function resolvePlaybackUrlForTrack(
+  track: Pick<Track, 'id' | 'directStreamUrl'>,
+  serverId?: string,
+): string {
+  if (track.directStreamUrl) return track.directStreamUrl;
+  return resolvePlaybackUrl(track.id, serverId);
 }

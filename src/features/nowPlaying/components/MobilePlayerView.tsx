@@ -244,9 +244,11 @@ export default function MobilePlayerView() {
   const playbackCoverRef = usePlaybackTrackCoverRef(currentTrack ?? undefined);
   const { src: coverFetchUrl, cacheKey: coverKey } = usePlaybackCoverArt(playbackCoverRef, 800);
   const resolvedCover = useCachedUrl(coverFetchUrl, coverKey);
+  const directCover = currentTrack?.directCoverArtUrl;
+  const displayCover = directCover ?? resolvedCover;
 
   // Dynamic background color extracted from cover art
-  const accentColor = useAlbumAccentColor(resolvedCover);
+  const accentColor = useAlbumAccentColor(displayCover);
 
   // Star / favorite
   const isStarred = currentTrack
@@ -361,8 +363,8 @@ export default function MobilePlayerView() {
 
       {/* Cover Art */}
       <div className="mp-cover-wrap">
-        {resolvedCover ? (
-          <img src={resolvedCover} alt="" className="mp-cover" />
+        {displayCover ? (
+          <img src={displayCover} alt="" className="mp-cover" />
         ) : (
           <div className="mp-cover mp-cover-fallback">
             <Music size={64} />

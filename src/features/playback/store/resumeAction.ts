@@ -8,7 +8,7 @@ import {
   getPlaybackCacheServerKey,
   getPlaybackIndexKey,
 } from '@/features/playback/utils/playback/playbackServer';
-import { resolvePlaybackUrl } from '@/features/playback/utils/playback/resolvePlaybackUrl';
+import { resolvePlaybackUrl, resolvePlaybackUrlForTrack } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import { resolveReplayGainDb } from '@/features/playback/utils/audio/resolveReplayGainDb';
 import { audioPlayHiResBlendArgs } from '@/lib/audio/hiResCrossfadeResample';
 import { songToTrack } from '@/lib/media/songToTrack';
@@ -176,7 +176,7 @@ export function runResume(set: SetState, get: GetState): void {
       );
       const replayGainPeakCold = isReplayGainActive() ? (trackToPlay.replayGainPeak ?? null) : null;
       setDeferHotCachePrefetch(true);
-      const coldUrl = resolvePlaybackUrl(trackToPlay.id, coldServerId);
+      const coldUrl = resolvePlaybackUrlForTrack(trackToPlay, coldServerId);
       set({ currentPlaybackSource: playbackSourceHintForResolvedUrl(trackToPlay.id, coldServerId, coldUrl) });
       recordEnginePlayUrl(trackToPlay.id, coldUrl);
       touchHotCacheOnPlayback(trackToPlay.id, coldServerId);
