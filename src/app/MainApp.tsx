@@ -153,7 +153,7 @@ export default function MainApp() {
   const handleExport = async (since: number) => {
     setExportPickerOpen(false);
     try {
-      const { exportNewAlbumsImage } = await import('@/features/album');
+      const { exportNewAlbumsImage } = await import('@/features/album/utils/exportNewAlbums');
       const result = await exportNewAlbumsImage(since);
       if (result) {
         const files = result.paths.length > 1 ? ` (${result.paths.length} Dateien)` : '';

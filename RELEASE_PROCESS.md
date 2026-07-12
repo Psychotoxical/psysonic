@@ -27,6 +27,8 @@ Version is authoritative in `package.json` and `package-lock.json`. Promotion wo
 - `next` version format: `X.Y.Z-rc.N`
 - `release` version format: `X.Y.Z`
 
+WiX/MSI bundle version: alphabetic pre-releases (`-dev`, `-rc.N`) are mapped to numeric-only semver for `bundle.windows.wix.version` via `scripts/sync-wix-bundle-version.mjs` (runs in `npm run tauri:build` and promotion sync). About/updater still show the real package version. NSIS accepts full semver without this mapping.
+
 Rules:
 
 1. Never edit versions manually in random commits.

@@ -47,3 +47,8 @@ if (updatedLock !== lock) {
 } else {
   console.log(`Cargo.lock workspace crates already at ${version}`);
 }
+
+require('child_process').execSync('node scripts/sync-wix-bundle-version.mjs', {
+  cwd: root,
+  stdio: 'inherit',
+});
