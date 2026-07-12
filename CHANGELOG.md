@@ -108,6 +108,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Paste or search a Navidrome **public share** URL (`/share/{id}`) to preview the shared track list in a modal, then play the full queue with no server account — direct stream and cover URLs are resolved anonymously from the share page.
 * Share playback uses a dedicated scope so an idle server play-queue pull cannot replace the share queue while you are also logged into Navidrome. Share sessions are not restored after an app restart — the server play queue applies as usual.
 
+### Track lists — optional album cover thumbnails
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1280](https://github.com/Psychotoxical/psysonic/pull/1280)**
+
+* Browse and queue track rows can show the track's **album** cover (per-disc art when the album has distinct disc covers). Covers load through the standard cover cache pipeline — library resolve, viewport ensure, Rust resize to disk tiers — not a separate warm path.
+* **Settings → Appearance** adds separate toggles for queue vs browse tracklists. Favorites, playlist, and album-detail track grids gain a flex-resize handle on the title column when covers are shown.
+
 
 ## Changed
 
