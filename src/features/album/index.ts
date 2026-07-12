@@ -2,7 +2,9 @@
  * Album feature — the Albums/Random/Lossless/Label browse pages + AlbumDetail
  * (all lazy via deep `pages/*`, not re-exported), album cards/rows/header, the
  * album track list + its mobile/header/row pieces, album detail + browse hooks,
- * the album session store, per-album offline status, and album export helpers.
+ * the album session store, per-album offline status, and album card export.
+ * Easter-egg new-albums PNG export (`utils/exportNewAlbums`) stays off the barrel
+ * so MainApp can lazy-load it without pulling canvas/fs into the boot graph.
  *
  * Stays OUT (library-core / cross-cutting, consumed by this feature, not owned):
  * the `lib/library/album*` browse query engine (shared with offline + other
@@ -32,7 +34,6 @@ export * from './utils/albumRecency';
 export * from './utils/albumTrackListHelpers';
 export * from './utils/deriveAlbumHeaderArtistRefs';
 export * from './utils/exportAlbumCard';
-export * from './utils/exportNewAlbums';
 export { default as AlbumCard } from './components/AlbumCard';
 export { default as AlbumHeader } from './components/AlbumHeader';
 export { default as AlbumRow } from './components/AlbumRow';
