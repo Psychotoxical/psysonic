@@ -21,16 +21,8 @@ conf.bundle ??= {};
 conf.bundle.windows ??= {};
 conf.bundle.windows.wix ??= {};
 
-const override = wixVersionOverrideForPackageVersion(version);
-if (override === null) {
-  delete conf.bundle.windows.wix.version;
-  if (Object.keys(conf.bundle.windows.wix).length === 0) {
-    delete conf.bundle.windows.wix;
-  }
-  console.log(`tauri.conf wix.version cleared (stable ${version})`);
-} else {
-  conf.bundle.windows.wix.version = override;
-  console.log(`tauri.conf wix.version -> ${override} (package ${version})`);
-}
+const wixVersion = wixVersionOverrideForPackageVersion(version);
+conf.bundle.windows.wix.version = wixVersion;
+console.log(`tauri.conf wix.version -> ${wixVersion} (package ${version})`);
 
 fs.writeFileSync(confPath, `${JSON.stringify(conf, null, 2)}\n`);

@@ -5,7 +5,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { wixVersionOverrideForPackageVersion } from './wix-bundle-version.mjs';
+import {
+  wixMappedBuildNumber,
+  wixVersionOverrideForPackageVersion,
+} from './wix-bundle-version.mjs';
 
 /** Mirrors sync-tauri + sync-wix effects on tauri.conf.json. */
 function confAfterVersionSync(packageVersion, priorConf) {
@@ -14,14 +17,7 @@ function confAfterVersionSync(packageVersion, priorConf) {
   conf.bundle ??= {};
   conf.bundle.windows ??= {};
   const override = wixVersionOverrideForPackageVersion(packageVersion);
-  if (override === null) {
-    delete conf.bundle.windows.wix?.version;
-    if (conf.bundle.windows.wix && Object.keys(conf.bundle.windows.wix).length === 0) {
-      delete conf.bundle.windows.wix;
-    }
-  } else {
-    conf.bundle.windows.wix = { ...(conf.bundle.windows.wix ?? {}), version: override };
-  }
+  conf.bundle.windows.wix = { ...(conf.bundle.windows.wix ?? {}), version: override };
   return conf;
 }
 
@@ -30,46 +26,50 @@ const baseConf = {
   bundle: {
     windows: {
       nsis: { installMode: 'currentUser' },
-      wix: { version: '1.49.0.65535' },
+      wix: { version: '1.49.0.1' },
     },
   },
 };
 
 describe('version promotion pipeline (sync-tauri + sync-wix)', () => {
-  it('main → next: dev to first RC', () => {
+  it('main → next: dev to first RC increases WiX build', () => {
     const conf = confAfterVersionSync('1.50.0-rc.1', baseConf);
     assert.equal(conf.version, '1.50.0-rc.1');
-    assert.equal(conf.bundle.windows.wix.version, '1.50.0.1');
+    assert.equal(conf.bundle.windows.wix.version, '1.50.0.10001');
+    assert.ok(
+      wixMappedBuildNumber('1.50.0-rc.1') > wixMappedBuildNumber('1.50.0-dev'),
+    );
   });
 
   it('next RC bump: rc.1 to rc.2', () => {
     const from = confAfterVersionSync('1.50.0-rc.1', baseConf);
     const conf = confAfterVersionSync('1.50.0-rc.2', from);
     assert.equal(conf.version, '1.50.0-rc.2');
-    assert.equal(conf.bundle.windows.wix.version, '1.50.0.2');
+    assert.equal(conf.bundle.windows.wix.version, '1.50.0.10002');
   });
 
-  it('next → release: RC to stable clears wix override', () => {
+  it('next → release: RC to stable increases WiX build', () => {
     const from = confAfterVersionSync('1.50.0-rc.3', baseConf);
     const conf = confAfterVersionSync('1.50.0', from);
     assert.equal(conf.version, '1.50.0');
-    assert.equal(conf.bundle.windows.wix, undefined);
+    assert.equal(conf.bundle.windows.wix.version, '1.50.0.65534');
+    assert.ok(wixMappedBuildNumber('1.50.0') > wixMappedBuildNumber('1.50.0-rc.3'));
   });
 
-  it('post-release: stable to next minor dev', () => {
+  it('post-release: next minor dev resets build band on new line', () => {
     const from = confAfterVersionSync('1.50.0', baseConf);
     const conf = confAfterVersionSync('1.51.0-dev', from);
     assert.equal(conf.version, '1.51.0-dev');
-    assert.equal(conf.bundle.windows.wix.version, '1.51.0.65535');
+    assert.equal(conf.bundle.windows.wix.version, '1.51.0.1');
   });
 
-  it('stable release stays without wix block', () => {
+  it('stable release sets highest build in line', () => {
     const conf = confAfterVersionSync('2.0.0', {
       version: '2.0.0-rc.1',
-      bundle: { windows: { wix: { version: '2.0.0.1' } } },
+      bundle: { windows: { wix: { version: '2.0.0.10001' } } },
     });
     assert.equal(conf.version, '2.0.0');
-    assert.equal(conf.bundle.windows.wix, undefined);
+    assert.equal(conf.bundle.windows.wix.version, '2.0.0.65534');
   });
 });
 

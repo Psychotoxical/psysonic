@@ -1,34 +1,38 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  toWixBundleVersion,
+  WIX_BUILD,
+  wixMappedBuildNumber,
   wixVersionOverrideForPackageVersion,
 } from './wix-bundle-version.mjs';
 
 describe('wixVersionOverrideForPackageVersion', () => {
-  it('maps -dev to major.minor.patch.65535', () => {
-    assert.equal(wixVersionOverrideForPackageVersion('1.50.0-dev'), '1.50.0.65535');
+  it('maps -dev to lowest build band', () => {
+    assert.equal(wixVersionOverrideForPackageVersion('1.50.0-dev'), '1.50.0.1');
   });
 
-  it('maps -rc.N to major.minor.patch.N', () => {
-    assert.equal(wixVersionOverrideForPackageVersion('1.50.0-rc.3'), '1.50.0.3');
+  it('maps -rc.N to RC base + N', () => {
+    assert.equal(wixVersionOverrideForPackageVersion('1.50.0-rc.3'), '1.50.0.10003');
   });
 
-  it('returns null for stable', () => {
-    assert.equal(wixVersionOverrideForPackageVersion('1.50.0'), null);
+  it('maps stable to highest build band', () => {
+    assert.equal(wixVersionOverrideForPackageVersion('1.50.0'), '1.50.0.65534');
   });
 
-  it('returns null for numeric pre-release (Tauri converts app version)', () => {
-    assert.equal(wixVersionOverrideForPackageVersion('1.50.0-42'), null);
+  it('maps numeric pre-release to RC band', () => {
+    assert.equal(wixVersionOverrideForPackageVersion('1.50.0-42'), '1.50.0.10042');
   });
 });
 
-describe('toWixBundleVersion', () => {
-  it('returns WiX dot format for dev channel', () => {
-    assert.equal(toWixBundleVersion('1.50.0-dev'), '1.50.0.65535');
-  });
-
-  it('returns base triplet for stable', () => {
-    assert.equal(toWixBundleVersion('1.50.0'), '1.50.0');
+describe('monotonic promotion builds within X.Y.Z', () => {
+  it('dev < rc.1 < rc.2 < stable', () => {
+    const chain = ['1.50.0-dev', '1.50.0-rc.1', '1.50.0-rc.2', '1.50.0'];
+    let prev = -1;
+    for (const v of chain) {
+      const build = wixMappedBuildNumber(v);
+      assert.ok(build > prev, `${v} build ${build} must exceed ${prev}`);
+      prev = build;
+    }
+    assert.equal(prev, WIX_BUILD.STABLE);
   });
 });
