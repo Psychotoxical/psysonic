@@ -324,6 +324,9 @@ pub fn start_device_watcher(engine: &AudioEngine, app: tauri::AppHandle) {
                 continue;
             }
 
+            // Linux/PipeWire: cpal default labels can drift while the physical sink
+            // is unchanged — compare via ALSA logical keys before reopening.
+            #[cfg(target_os = "linux")]
             if let Some(ref prev) = last_default {
                 let prev_name = prev.clone();
                 let new_name_for_eq = new_name.clone();

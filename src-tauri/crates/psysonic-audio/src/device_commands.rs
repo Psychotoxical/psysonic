@@ -78,10 +78,17 @@ pub fn audio_match_stored_output_device_key(
     candidate: String,
     stored_keys: Vec<String>,
 ) -> Option<String> {
-    let list = enumerate_output_device_names();
-    stored_keys
-        .into_iter()
-        .find(|k| output_device_keys_equivalent(k, &candidate, &list))
+    #[cfg(not(target_os = "linux"))]
+    {
+        return stored_keys.into_iter().find(|k| k == &candidate);
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let list = enumerate_output_device_names();
+        stored_keys
+            .into_iter()
+            .find(|k| output_device_keys_equivalent(k, &candidate, &list))
+    }
 }
 
 /// Switch the audio output device. `device_name = null` → follow system default.

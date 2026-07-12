@@ -11,10 +11,14 @@ import './styles/tracks/index.css';
 
 runPreReactBootstrap();
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>
-);
-
-scheduleStartupSplashDismiss();
+try {
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>
+  );
+} finally {
+  // Always dismiss the inline splash once the bundle has executed — even when
+  // React mount throws, so Windows users are not stuck on "Loading" forever.
+  scheduleStartupSplashDismiss();
+}

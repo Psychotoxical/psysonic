@@ -138,11 +138,13 @@ fn comma_and_alsa_device_equivalent(a: &str, b: &str) -> bool {
 }
 
 /// Build the cpal-style `"CARD, PCM name"` label PipeWire exposes for ALSA sinks.
+#[cfg(any(target_os = "linux", test))]
 pub(crate) fn cpal_name_from_pipewire_alsa(card: &str, alsa_name: &str) -> String {
     format!("{card}, {alsa_name}")
 }
 
 /// Read `node.driver-id` from `wpctl inspect` output (PipeWire stream → sink link).
+#[cfg(any(target_os = "linux", test))]
 pub(crate) fn parse_wpctl_inspect_driver_id(inspect: &str) -> Option<u32> {
     for line in inspect.lines() {
         let line = line.trim().trim_start_matches('*').trim();
@@ -155,6 +157,7 @@ pub(crate) fn parse_wpctl_inspect_driver_id(inspect: &str) -> Option<u32> {
 
 /// Collect PipeWire ALSA `[psysonic]` stream node ids that have at least one
 /// active playback link in `wpctl status` (ignores stale / idle nodes).
+#[cfg(any(target_os = "linux", test))]
 pub(crate) fn parse_wpctl_status_psysonic_stream_ids(status: &str) -> Vec<u32> {
     let mut in_audio_streams = false;
     let mut ids = Vec::new();
@@ -230,12 +233,8 @@ pub(crate) fn linux_psysonic_stream_routes_to_default_sink() -> bool {
     stream_ids.iter().any(|&id| linux_wpctl_inspect_driver_id(id) == Some(default_id))
 }
 
-#[cfg(not(target_os = "linux"))]
-pub(crate) fn linux_psysonic_stream_routes_to_default_sink() -> bool {
-    false
-}
-
 /// Parse `wpctl list audio sinks` and return the id of the default sink (trailing `*`).
+#[cfg(any(target_os = "linux", test))]
 pub(crate) fn parse_wpctl_list_default_sink_id(listing: &str) -> Option<u32> {
     for line in listing.lines() {
         let line = line.trim_end();
@@ -249,6 +248,7 @@ pub(crate) fn parse_wpctl_list_default_sink_id(listing: &str) -> Option<u32> {
 }
 
 /// Parse `wpctl status` and return the id of the default sink (line marked with `*`).
+#[cfg(any(target_os = "linux", test))]
 pub(crate) fn parse_wpctl_default_sink_id(status: &str) -> Option<u32> {
     let mut in_sinks = false;
     for line in status.lines() {
@@ -273,6 +273,7 @@ pub(crate) fn parse_wpctl_default_sink_id(status: &str) -> Option<u32> {
 }
 
 /// Read `api.alsa.card.name` + `alsa.name` from `wpctl inspect` output.
+#[cfg(any(target_os = "linux", test))]
 pub(crate) fn parse_wpctl_inspect_alsa_names(inspect: &str) -> Option<(String, String)> {
     let mut card: Option<String> = None;
     let mut pcm: Option<String> = None;
@@ -319,6 +320,7 @@ fn linux_wpctl_default_sink_id() -> Option<u32> {
 }
 
 /// Read `node.description` from `wpctl inspect` (Bluetooth and other non-ALSA sinks).
+#[cfg(any(target_os = "linux", test))]
 pub(crate) fn parse_wpctl_inspect_node_description(inspect: &str) -> Option<String> {
     for line in inspect.lines() {
         let line = line.trim().trim_start_matches('*').trim();
@@ -365,37 +367,44 @@ pub(crate) fn effective_default_output_device_name_for_poll() -> Option<String> 
 }
 
 fn resolve_effective_default_output_device_name(enumerate_devices: bool) -> Option<String> {
-    let list = if enumerate_devices {
-        enumerate_output_device_names()
-    } else {
-        Vec::new()
-    };
-    #[cfg(target_os = "linux")]
-    if let Some(resolved) = linux_resolve_default_via_pipewire(&list) {
-        return Some(resolved);
+    // Windows/macOS: single cpal default query (pre-#1274). Full `output_devices()`
+    // enumeration contends with WASAPI/CoreAudio and is only needed for Linux/PipeWire
+    // default resolution + ALSA logical key matching.
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = enumerate_devices;
+        return raw_cpal_default_output_device_name();
     }
+
     #[cfg(target_os = "linux")]
-    if !enumerate_devices {
-        // wpctl unavailable — last-resort cpal (skip generic/stale placeholder names).
-        if linux_wpctl_default_sink_id().is_none() {
-            if let Some(raw) = raw_cpal_default_output_device_name() {
-                if !is_generic_default_output_alias(&raw) {
-                    return Some(raw);
+    {
+        let list = if enumerate_devices {
+            enumerate_output_device_names()
+        } else {
+            Vec::new()
+        };
+        if let Some(resolved) = linux_resolve_default_via_pipewire(&list) {
+            return Some(resolved);
+        }
+        if !enumerate_devices {
+            // wpctl unavailable — last-resort cpal (skip generic/stale placeholder names).
+            if linux_wpctl_default_sink_id().is_none() {
+                if let Some(raw) = raw_cpal_default_output_device_name() {
+                    if !is_generic_default_output_alias(&raw) {
+                        return Some(raw);
+                    }
                 }
             }
+            return None;
         }
-        return None;
-    }
-    let raw = raw_cpal_default_output_device_name();
-    if let Some(ref name) = raw {
-        if !is_generic_default_output_alias(name) {
-            if enumerate_devices {
+        let raw = raw_cpal_default_output_device_name();
+        if let Some(ref name) = raw {
+            if !is_generic_default_output_alias(name) {
                 return pick_listed_device_name(name, &list).or_else(|| Some(name.clone()));
             }
-            return Some(name.clone());
         }
+        raw
     }
-    raw
 }
 
 /// Linux ALSA-style cpal names: same physical sink can appear with different suffixes;
