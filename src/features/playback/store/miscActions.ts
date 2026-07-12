@@ -1,9 +1,5 @@
 import { commands } from '@/generated/bindings';
 import { applyServerPlayQueue } from '@/features/playback/store/applyServerPlayQueue';
-import { preparePausedRestoreOnStartup } from '@/features/playback/store/pausedRestorePrepare';
-import { mergeDirectShareUrls, resolveBatch } from '@/features/playback/store/queueTrackResolver';
-import { isPersistedPublicShareQueue } from '@/lib/share/navidromePublicSharePlayback';
-import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { audioSeek, audioSetVolume, audioStop } from '@/lib/api/audio';
 import i18n from '@/lib/i18n';
 import { showToast } from '@/lib/dom/toast';
@@ -39,33 +35,6 @@ type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
 ) => void;
 type GetState = () => PlayerState;
-
-function waitForPlayerStoreHydration(): Promise<void> {
-  const persist = usePlayerStore.persist;
-  if (persist.hasHydrated()) return Promise.resolve();
-  return new Promise(resolve => {
-    const unsub = persist.onFinishHydration(() => {
-      unsub();
-      resolve();
-    });
-  });
-}
-
-async function restorePublicShareQueueFromPersist(): Promise<void> {
-  const s = usePlayerStore.getState();
-  if (!isPersistedPublicShareQueue(s.queueServerId, s.queueItems)) return;
-  if (s.queueItems.length === 0) return;
-  try {
-    await resolveBatch(s.queueItems);
-  } catch {
-    /* best-effort */
-  }
-  const track = s.currentTrack;
-  if (!track || s.isPlaying) return;
-  const ref = s.queueItems[s.queueIndex];
-  const merged = ref ? mergeDirectShareUrls(track, ref) : track;
-  preparePausedRestoreOnStartup(merged, s.queueItems, s.queueIndex, 0);
-}
 
 /**
  * Heterogeneous "misc" cluster — seven small-to-medium actions that
@@ -175,12 +144,6 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
     },
 
     initializeFromServerQueue: async () => {
-      await waitForPlayerStoreHydration();
-      const local = usePlayerStore.getState();
-      if (isPersistedPublicShareQueue(local.queueServerId, local.queueItems)) {
-        await restorePublicShareQueueFromPersist();
-        return;
-      }
       const activeId = useAuthStore.getState().activeServerId;
       if (!activeId) return;
       await applyServerPlayQueue(activeId, { mode: 'startup' });

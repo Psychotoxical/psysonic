@@ -8,7 +8,7 @@ import type { Track } from '@/lib/media/trackTypes';
 import { useAuthStore } from '@/store/authStore';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { preparePausedRestoreOnStartup } from '@/features/playback/store/pausedRestorePrepare';
-import { isPersistedPublicShareQueue } from '@/lib/share/navidromePublicSharePlayback';
+import { isActivePublicShareQueue } from '@/lib/share/navidromePublicSharePlayback';
 import { pushQueueUndoFromGetter } from '@/features/playback/store/queueUndo';
 import { refreshWaveformForTrack } from '@/features/playback/store/waveformRefresh';
 import {
@@ -135,7 +135,7 @@ export async function applyServerPlayQueue(
   if (!profileId) return 'error';
 
   const local = usePlayerStore.getState();
-  if (isPersistedPublicShareQueue(local.queueServerId, local.queueItems)) {
+  if (options.mode !== 'startup' && isActivePublicShareQueue(local.queueServerId, local.queueItems)) {
     return 'noop';
   }
 
@@ -149,7 +149,10 @@ export async function applyServerPlayQueue(
     if (q.songs.length === 0) return 'empty';
 
     const localAfterFetch = usePlayerStore.getState();
-    if (isPersistedPublicShareQueue(localAfterFetch.queueServerId, localAfterFetch.queueItems)) {
+    if (
+      options.mode !== 'startup'
+      && isActivePublicShareQueue(localAfterFetch.queueServerId, localAfterFetch.queueItems)
+    ) {
       return 'noop';
     }
 

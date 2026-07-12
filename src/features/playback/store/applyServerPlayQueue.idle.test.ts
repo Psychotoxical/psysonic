@@ -7,9 +7,13 @@ vi.mock('@/lib/api/subsonicPlayQueue', () => ({
   getPlayQueueForServer: (...args: unknown[]) => getPlayQueueForServerMock(...args),
 }));
 
-vi.mock('@/lib/server/serverLookup', () => ({
-  resolveServerIdForIndexKey: (id: string) => id,
-}));
+vi.mock('@/lib/server/serverLookup', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/server/serverLookup')>();
+  return {
+    ...actual,
+    resolveServerIdForIndexKey: (id: string) => id,
+  };
+});
 
 vi.mock('@/lib/media/songToTrack', () => ({
   songToTrack: (s: { id: string }) => ({
@@ -132,30 +136,27 @@ describe('applyServerPlayQueue idle guards', () => {
     expect(playerState.queueItems).toEqual([{ serverId: 'srv-a', trackId: 'local-only' }]);
   });
 
-  it('does not overwrite a restored Navidrome public share queue after fetch', async () => {
-    playerState.queueServerId = null;
-    playerState.queueItems = [];
-    getPlayQueueForServerMock.mockImplementation(async () => {
-      playerState.queueServerId = 'navidrome-public-share';
-      playerState.queueItems = [{
-        serverId: 'navidrome-public-share',
-        trackId: 'ndshare:abc:0',
-        directStreamUrl: 'https://music.example.com/share/s/jwt-a',
-      }];
-      return {
-        songs: [{ id: 'remote-a' }],
-        current: 'remote-a',
-        position: 0,
-      };
+  it('does not overwrite an active Navidrome public share queue in idle mode', async () => {
+    playerState.queueServerId = 'navidrome-public-share';
+    playerState.queueItems = [{
+      serverId: 'navidrome-public-share',
+      trackId: 'ndshare:abc:0',
+      directStreamUrl: 'https://music.example.com/share/s/jwt-a',
+    }];
+    getPlayQueueForServerMock.mockResolvedValue({
+      songs: [{ id: 'remote-a' }],
+      current: 'remote-a',
+      position: 0,
     });
 
-    const result = await applyServerPlayQueue('srv-a', { mode: 'startup' });
+    const result = await applyServerPlayQueue('srv-a', { mode: 'idle' });
 
     expect(result).toBe('noop');
+    expect(getPlayQueueForServerMock).not.toHaveBeenCalled();
     expect(playerState.queueItems[0]?.trackId).toBe('ndshare:abc:0');
   });
 
-  it('skips server queue apply when a public share queue is already pinned', async () => {
+  it('applies server queue on startup even when share refs are still in memory', async () => {
     playerState.queueServerId = 'navidrome-public-share';
     playerState.queueItems = [{
       serverId: 'navidrome-public-share',
@@ -170,26 +171,8 @@ describe('applyServerPlayQueue idle guards', () => {
 
     const result = await applyServerPlayQueue('srv-a', { mode: 'startup' });
 
-    expect(result).toBe('noop');
-    expect(getPlayQueueForServerMock).not.toHaveBeenCalled();
-  });
-
-  it('skips server queue apply when share refs are restored without queueServerId', async () => {
-    playerState.queueServerId = 'srv-a';
-    playerState.queueItems = [{
-      serverId: 'navidrome-public-share',
-      trackId: 'ndshare:abc:0',
-      directStreamUrl: 'https://music.example.com/share/s/jwt-a',
-    }];
-    getPlayQueueForServerMock.mockResolvedValue({
-      songs: [{ id: 'remote-a' }],
-      current: 'remote-a',
-      position: 0,
-    });
-
-    const result = await applyServerPlayQueue('srv-a', { mode: 'startup' });
-
-    expect(result).toBe('noop');
-    expect(getPlayQueueForServerMock).not.toHaveBeenCalled();
+    expect(result).toBe('applied');
+    expect(getPlayQueueForServerMock).toHaveBeenCalledWith('srv-a');
+    expect(playerState.queueItems[0]?.trackId).toBe('remote-a');
   });
 });

@@ -10,6 +10,10 @@ import type { NavidromePublicShareInfo } from '@/lib/share/navidromePublicShareT
 /** Synthetic queue server bucket for anonymous Navidrome public shares. */
 export const NAVIDROME_PUBLIC_SHARE_SERVER_ID = 'navidrome-public-share';
 
+export function isPublicShareTrackId(trackId: string | null | undefined): boolean {
+  return typeof trackId === 'string' && trackId.startsWith('ndshare:');
+}
+
 export function navidromePublicShareToTracks(
   ref: NavidromePublicShareRef,
   info: NavidromePublicShareInfo,
@@ -27,16 +31,19 @@ export function navidromePublicShareToTracks(
   }));
 }
 
-export function isPersistedPublicShareQueue(
+/** True while a Navidrome public share queue is live in this session. */
+export function isActivePublicShareQueue(
   queueServerId: string | null | undefined,
   queueItems: QueueItemRef[],
 ): boolean {
-  if (queueServerId === NAVIDROME_PUBLIC_SHARE_SERVER_ID && queueItems.length > 0) {
-    return true;
-  }
+  if (queueItems.length === 0) return false;
+  if (queueServerId === NAVIDROME_PUBLIC_SHARE_SERVER_ID) return true;
   return queueItems.some(
-    r =>
-      r.serverId === NAVIDROME_PUBLIC_SHARE_SERVER_ID
-      && (Boolean(r.directStreamUrl) || r.trackId.startsWith('ndshare:')),
+    r => r.serverId === NAVIDROME_PUBLIC_SHARE_SERVER_ID || isPublicShareTrackId(r.trackId),
   );
+}
+
+export function isPublicSharePersistedTrack(track: Track | null | undefined): boolean {
+  if (!track) return false;
+  return track.serverId === NAVIDROME_PUBLIC_SHARE_SERVER_ID || isPublicShareTrackId(track.id);
 }

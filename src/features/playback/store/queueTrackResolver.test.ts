@@ -114,7 +114,7 @@ describe('queueTrackResolver', () => {
     expect(getCachedTrack(ref('bulk-554', { serverId: 'navidrome-public-share' }))?.title).toBe('Track 554');
   });
 
-  it('resolveBatch restores public share refs from persisted directStreamUrl', async () => {
+  it('resolveBatch builds public share tracks from ref directStreamUrl', async () => {
     await resolveBatch([{
       serverId: 'navidrome-public-share',
       trackId: 'ndshare:Ab12:0',

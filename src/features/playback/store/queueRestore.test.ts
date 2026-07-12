@@ -135,21 +135,4 @@ describe('hydrateQueueFromIndex', () => {
     expect(usePlayerStore.getState().queueItemsIndex).toBeUndefined();
     expect(usePlayerStore.getState().queueItems.map(r => r.trackId)).toEqual(['t1']);
   });
-
-  it('hydrates a persisted public share queue with direct stream URLs', async () => {
-    seedStore({
-      queueServerId: 'navidrome-public-share',
-      queueItems: [{
-        serverId: 'navidrome-public-share',
-        trackId: 'ndshare:Ab12:0',
-        directStreamUrl: 'https://music.example.com/share/s/jwt-a',
-      }],
-      queueItemsIndex: 0,
-    });
-    await hydrateQueueFromIndex();
-    expect(getCachedTrack({
-      serverId: 'navidrome-public-share',
-      trackId: 'ndshare:Ab12:0',
-    })?.directStreamUrl).toBe('https://music.example.com/share/s/jwt-a');
-  });
 });

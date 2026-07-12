@@ -8,6 +8,11 @@ import type { QueueItemRef, Track } from '@/lib/media/trackTypes';
 import type { PlayerState } from '@/features/playback/store/playerStoreTypes';
 import { toQueueItemRefs } from '@/features/playback/store/queueItemRef';
 import { canonicalQueueServerKey } from '@/lib/server/serverIndexKey';
+import {
+  isActivePublicShareQueue,
+  isPublicSharePersistedTrack,
+  NAVIDROME_PUBLIC_SHARE_SERVER_ID,
+} from '@/lib/share/navidromePublicSharePlayback';
 import { readInitialQueueVisibility } from '@/features/playback/store/queueVisibilityStorage';
 import { createNetworkLoveActions } from '@/features/playback/store/networkLoveActions';
 import { createMiscActions } from '@/features/playback/store/miscActions';
@@ -152,6 +157,27 @@ export const usePlayerStore = create<PlayerState>()(
           queueItemsIndex = typeof blob.queueIndex === 'number' ? blob.queueIndex : 0;
         }
 
+        const persistedTrack = blob.currentTrack as Track | null | undefined;
+        let strippedPublicShare = false;
+        if (queueItems?.length && isActivePublicShareQueue(canonicalSid, queueItems)) {
+          strippedPublicShare = true;
+          queueItems = undefined;
+          queueItemsIndex = undefined;
+          delete blob.queueItems;
+          delete blob.queueItemsIndex;
+          delete blob.queueRefs;
+          delete blob.queueRefsIndex;
+          delete blob.queueIndex;
+        }
+        if (isPublicSharePersistedTrack(persistedTrack)) {
+          delete blob.currentTrack;
+        }
+        if (strippedPublicShare || canonicalSid === NAVIDROME_PUBLIC_SHARE_SERVER_ID) {
+          blob.queueServerId = null;
+        } else if (canonicalSid !== null) {
+          blob.queueServerId = canonicalSid;
+        }
+
         // Drop the obsolete windowed fat-array key — `queueItems` is canonical.
         delete blob.queue;
         // volume/repeatMode are owned by `psysonic_player_prefs`; strip any legacy
@@ -161,11 +187,6 @@ export const usePlayerStore = create<PlayerState>()(
         delete blob.isQueueVisible;
         delete blob.lastfmLovedCache;
         delete blob.networkLovedCache;
-        // Persist the canonical form back onto the merged blob so subsequent
-        // reads of state.queueServerId always see the index key.
-        if (canonicalSid !== null) {
-          blob.queueServerId = canonicalSid;
-        }
 
         return {
           ...current,

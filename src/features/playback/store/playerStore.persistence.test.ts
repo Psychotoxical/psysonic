@@ -305,4 +305,24 @@ describe('merge: restores the queue from any old persisted blob', () => {
     expect(merged.queueItems).toEqual([]);
     expect(merged.queueItemsIndex).toBeUndefined();
   });
+
+  it('drops persisted Navidrome public share queues on rehydrate', () => {
+    const merged = getMerge()(
+      {
+        queueServerId: 'navidrome-public-share',
+        queueItems: [{
+          serverId: 'navidrome-public-share',
+          trackId: 'ndshare:abc:0',
+          directStreamUrl: 'https://music.example.com/share/s/jwt-a',
+        }],
+        queueItemsIndex: 0,
+        currentTrack: makeTrack({ id: 'ndshare:abc:0', serverId: 'navidrome-public-share' }),
+      },
+      current(),
+    );
+    expect(merged.queueItems).toEqual([]);
+    expect(merged.queueItemsIndex).toBeUndefined();
+    expect(merged.currentTrack).toBeNull();
+    expect(merged.queueServerId).toBeNull();
+  });
 });

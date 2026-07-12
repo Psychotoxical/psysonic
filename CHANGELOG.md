@@ -106,7 +106,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1275](https://github.com/Psychotoxical/psysonic/pull/1275)**
 
 * Paste or search a Navidrome **public share** URL (`/share/{id}`) to preview the shared track list in a modal, then play the full queue with no server account — direct stream and cover URLs are resolved anonymously from the share page.
-* Share playback uses a dedicated scope so an idle server play-queue pull cannot replace the share queue when you are also logged into Navidrome; direct URLs persist in the saved queue for restore after restart.
+* Share playback uses a dedicated scope so an idle server play-queue pull cannot replace the share queue while you are also logged into Navidrome. Share sessions are not restored after an app restart — the server play queue applies as usual.
 
 
 ## Changed
