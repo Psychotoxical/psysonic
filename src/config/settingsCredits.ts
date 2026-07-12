@@ -198,6 +198,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Per-device EQ — when System Default is selected, profiles follow the active OS default output and switch on external output changes (PR #1274)',
       'Navidrome public share links — paste/search preview modal, anonymous queue playback, idle server queue-restore guard (PR #1275)',
       'Windows startup hang after #1274 — boot barrel split, stable Wasapi device IDs, legacy EQ key match (PR #1277)',
+      'Windows MSI bundle on dev/RC versions — numeric WiX mapping; album easter-egg import chunk (PR #1278)',
     ],
   },
   {

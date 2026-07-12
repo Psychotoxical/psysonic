@@ -277,6 +277,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Restores the lightweight cpal default-output path on Windows so startup no longer blocks on full device enumeration.
 * Audio output devices on Windows and macOS now use stable backend IDs (`Wasapi:…`) with clearer labels; duplicate friendly names are disambiguated, device-change detection works again, and legacy pinned device / per-device EQ keys stored as plain names are matched after upgrade.
 
+### Windows — MSI bundle on dev and RC versions
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1278](https://github.com/Psychotoxical/psysonic/pull/1278)**
+
+* Windows `.msi` builds no longer fail on channel versions like `1.50.0-dev` — WiX requires a numeric fourth version field, so the bundler maps `-dev` / `-rc.N` to numeric semver in `bundle.windows.wix.version` while Settings → About still shows the real package version.
+* Release builds no longer warn that the album feature barrel defeats a lazy import in the new-albums easter egg (direct import of the export helper).
+
 
 ## [1.49.0] - 2026-06-29
 
