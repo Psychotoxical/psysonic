@@ -4,6 +4,8 @@ import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import type { Track } from '@/lib/media/trackTypes';
 import { songToTrack } from '@/lib/media/songToTrack';
 import { formatLongDuration } from '@/lib/format/formatDuration';
+import { OptionalBrowseTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
+import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
 
 interface Props {
   discNums: number[];
@@ -41,6 +43,8 @@ export function AlbumTrackListMobile({
   onPlaySong,
   onContextMenu,
 }: Props) {
+  const showCovers = useTrackListCoverArtEnabled('pages');
+
   return (
     <div className="tracklist-mobile">
       {discNums.map(discNum => (
@@ -58,7 +62,7 @@ export function AlbumTrackListMobile({
             return (
               <div
                 key={song.id}
-                className={`tracklist-mobile-row${isActive ? ' active' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}`}
+                className={`tracklist-mobile-row${showCovers ? ' tracklist-mobile-row--with-cover' : ''}${isActive ? ' active' : ''}${contextMenuSongId === song.id ? ' context-active' : ''}`}
                 onClick={() => onPlaySong(song)}
                 onContextMenu={e => {
                   e.preventDefault();
@@ -74,6 +78,7 @@ export function AlbumTrackListMobile({
                   ) : (
                     <span className="tracklist-mobile-num">{song.track ?? ''}</span>
                   )}
+                  <OptionalBrowseTrackRowCoverThumb song={song} size="dense" />
                   <span className="tracklist-mobile-title">{song.title}</span>
                 </div>
                 <span className="tracklist-mobile-duration">{formatLongDuration(song.duration)}</span>

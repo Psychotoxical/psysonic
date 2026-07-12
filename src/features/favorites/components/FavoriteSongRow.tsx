@@ -10,6 +10,7 @@ import { formatTrackTime } from '@/lib/format/formatDuration';
 import StarRating from '@/ui/StarRating';
 import { OpenArtistRefInline } from '@/ui/OpenArtistRefInline';
 import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/trackArtistRefs';
+import { OptionalBrowseTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
 
 export interface FavoriteSongRowCallbacks {
   activate: (song: SubsonicSong, index: number, e: React.MouseEvent) => void;
@@ -97,6 +98,7 @@ function FavoriteSongRow({
                   ? <Square size={9} fill="currentColor" strokeWidth={0} className="playlist-suggestion-preview-icon" />
                   : <ChevronRight size={14} className="playlist-suggestion-preview-icon playlist-suggestion-preview-icon-play" />}
               </button>
+              <OptionalBrowseTrackRowCoverThumb song={song} size="dense" />
               <span className="track-title">{song.title}</span>
             </div>
           );

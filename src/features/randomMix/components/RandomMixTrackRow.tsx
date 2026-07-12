@@ -6,6 +6,7 @@ import type { Track } from '@/lib/media/trackTypes';
 import { previewInputFromSong, usePreviewStore } from '@/features/playback/store/previewStore';
 import { useDragDrop } from '@/lib/dnd/DragDropContext';
 import { formatRandomMixDuration } from '@/features/randomMix/utils/randomMixHelpers';
+import { OptionalBrowseTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
 
 interface Props {
   song: SubsonicSong;
@@ -125,6 +126,7 @@ export default function RandomMixTrackRow({
             ? <Square size={9} fill="currentColor" strokeWidth={0} className="playlist-suggestion-preview-icon" />
             : <ChevronRight size={14} className="playlist-suggestion-preview-icon playlist-suggestion-preview-icon-play" />}
         </button>
+        <OptionalBrowseTrackRowCoverThumb song={song} size="dense" />
         <span className="track-title">{song.title}</span>
       </div>
 

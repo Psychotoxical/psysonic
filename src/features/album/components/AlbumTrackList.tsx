@@ -72,7 +72,7 @@ export default function AlbumTrackList({
 
   const {
     colVisible, visibleCols, gridStyle,
-    startResize, toggleColumn, resetColumns,
+    startResize, startFlexColumnResize, toggleColumn, resetColumns,
     pickerOpen, setPickerOpen, pickerRef, tracklistRef,
   } = useTracklistColumns(COLUMNS, 'psysonic_tracklist_columns');
 
@@ -158,6 +158,7 @@ export default function AlbumTrackList({
         inSelectMode={inSelectMode}
         toggleAll={toggleAll}
         startResize={startResize}
+        startFlexColumnResize={startFlexColumnResize}
         t={t}
       />
 

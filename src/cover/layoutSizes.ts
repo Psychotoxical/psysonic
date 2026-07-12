@@ -1,6 +1,10 @@
 import { computeCardGridColumnCount, computeCellWidthPx } from '@/lib/util/cardGridLayout';
 
 export const COVER_DENSE_SEARCH_CSS_PX = 40;
+/** Track row / queue list mini album thumb (40×40 CSS px). */
+export const COVER_TRACK_ROW_CSS_PX = 40;
+/** Mini player queue row thumb (32×32 CSS px). */
+export const COVER_TRACK_ROW_MINI_CSS_PX = 32;
 /** Artist detail top-track thumb (32×32 CSS px). */
 export const COVER_ARTIST_TOP_TRACK_CSS_PX = 32;
 export const COVER_DENSE_ARTIST_LIST_CSS_PX = 64;

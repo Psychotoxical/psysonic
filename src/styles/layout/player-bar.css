@@ -98,6 +98,9 @@ html[data-platform="windows"] .player-bar.floating {
 .player-album-art {
   width: 52px;
   height: 52px;
+  min-width: 52px;
+  min-height: 52px;
+  max-width: none;
   border-radius: var(--radius-md);
   object-fit: cover;
   background: var(--bg-card);

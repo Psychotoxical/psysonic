@@ -97,6 +97,20 @@ export function AppearanceTab() {
             />
             <div className="settings-section-divider" />
             <SettingsToggle
+              label={t('settings.queueTrackListCovers')}
+              desc={t('settings.queueTrackListCoversSub')}
+              checked={auth.queueTrackListCovers}
+              onChange={auth.setQueueTrackListCovers}
+            />
+            <div className="settings-section-divider" />
+            <SettingsToggle
+              label={t('settings.trackListCoverArtOnPages')}
+              desc={t('settings.trackListCoverArtOnPagesSub')}
+              checked={theme.trackListCoverArtOnPages}
+              onChange={theme.setTrackListCoverArtOnPages}
+            />
+            <div className="settings-section-divider" />
+            <SettingsToggle
               label={t('settings.showBitrate')}
               desc={t('settings.showBitrateSub')}
               checked={theme.showBitrate}

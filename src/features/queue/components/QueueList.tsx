@@ -20,6 +20,8 @@ import { findQueueItemRefIndex } from '@/features/playback/utils/playback/queueI
 import type { TimelineDisplayRow } from '@/features/playback/utils/buildTimelineDisplayRows';
 import { findTimelineScrollLocalIndex } from '@/features/playback/utils/buildTimelineDisplayRows';
 import { playTimelineHistoryTrack } from '@/features/playback/utils/playTimelineHistoryTrack';
+import { OptionalQueueTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
+import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
 
 type StartDrag = (
   payload: { data: string; label: string },
@@ -60,6 +62,7 @@ export function QueueList({
   startDrag, orbitAttributionLabel, luckyRolling, t,
 }: Props) {
   useSyncExternalStore(subscribeQueueResolver, getQueueResolverVersion);
+  const showCovers = useTrackListCoverArtEnabled('queue');
 
   const usingTimeline = queueDisplayMode === 'timeline' && timelineRows != null;
   const rowCount = usingTimeline ? timelineRows.length : queue.length;
@@ -68,7 +71,7 @@ export function QueueList({
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
     getScrollElement: () => queueListRef.current,
-    estimateSize: () => 52,
+    estimateSize: () => (showCovers ? 56 : 52),
     overscan: 10,
     getItemKey: i => {
       if (usingTimeline) return timelineRows[i]!.key;
@@ -175,7 +178,7 @@ export function QueueList({
         data-timeline-local-idx={localIndex}
         {...(isHistory ? { 'data-timeline-kind': 'history' } : {})}
         {...(absIdx != null ? { 'data-queue-idx': absIdx } : {})}
-        className={`queue-item ${isPlaying ? 'active' : ''} ${contextMenu.isOpen && contextMenu.type === (absIdx != null ? 'queue-item' : 'song') && (absIdx != null ? contextMenu.queueIndex === absIdx : contextMenu.item === track) ? 'context-active' : ''}`}
+        className={`queue-item${showCovers ? ' queue-item--with-cover' : ''} ${isPlaying ? 'active' : ''} ${contextMenu.isOpen && contextMenu.type === (absIdx != null ? 'queue-item' : 'song') && (absIdx != null ? contextMenu.queueIndex === absIdx : contextMenu.item === track) ? 'context-active' : ''}`}
         onClick={() => {
           if (isHistory) {
             playHistoryRow(base?.serverId ?? track.serverId ?? '', track.id);
@@ -217,6 +220,18 @@ export function QueueList({
         }}
         style={{ ...(isPast && !isPlaying ? { opacity: 0.5 } : null), ...dragStyle }}
       >
+        {showCovers && (
+          <OptionalQueueTrackRowCoverThumb
+            song={{
+              id: track.id,
+              albumId: track.albumId,
+              coverArt: track.coverArt,
+              discNumber: track.discNumber,
+              serverId: track.serverId,
+              title: track.title,
+            }}
+          />
+        )}
         <div className="queue-item-info">
           <div className="queue-item-title truncate" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             {isPlaying && <Play size={10} fill="currentColor" style={{ flexShrink: 0 }} />}

@@ -50,6 +50,7 @@ describe('trivial pass-through setters', () => {
     ['setExcludeAudiobooks', 'excludeAudiobooks', true],
     ['setInfiniteQueueEnabled', 'infiniteQueueEnabled', true],
     ['setPreservePlayNextOrder', 'preservePlayNextOrder', true],
+    ['setQueueTrackListCovers', 'queueTrackListCovers', true],
     ['setShowArtistImages', 'showArtistImages', true],
     ['setArtistBrowseCreditMode', 'artistBrowseCreditMode', 'track'],
     ['setShowTrayIcon', 'showTrayIcon', false],

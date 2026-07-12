@@ -72,6 +72,9 @@ interface ThemeState {
   setBackdropSources: (surface: BackdropSurface, sources: BackdropSourcePref[]) => void;
   enablePlaylistCoverPhoto: boolean;
   setEnablePlaylistCoverPhoto: (v: boolean) => void;
+  /** Mini album thumbs in browse tracklists (Tracks, Search, playlists, favorites, …). */
+  trackListCoverArtOnPages: boolean;
+  setTrackListCoverArtOnPages: (v: boolean) => void;
   showBitrate: boolean;
   setShowBitrate: (v: boolean) => void;
   /** Compact (icon-only) vs. large action/toolbar buttons across detail pages and browse views. */
@@ -143,6 +146,8 @@ export const useThemeStore = create<ThemeState>()(
         set((s) => ({ backdrops: { ...s.backdrops, [surface]: { ...s.backdrops[surface], sources } } })),
       enablePlaylistCoverPhoto: true,
       setEnablePlaylistCoverPhoto: (v) => set({ enablePlaylistCoverPhoto: v }),
+      trackListCoverArtOnPages: false,
+      setTrackListCoverArtOnPages: (v) => set({ trackListCoverArtOnPages: v }),
       showBitrate: true,
       setShowBitrate: (v) => set({ showBitrate: v }),
       buttonSize: 'large',

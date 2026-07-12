@@ -16,6 +16,7 @@ import { codecLabel } from '@/lib/format/playlistDetailHelpers';
 import { formatLastSeen } from '@/lib/format/userMgmtHelpers';
 import { formatTrackTime } from '@/lib/format/formatDuration';
 import i18n from '@/lib/i18n';
+import { OptionalBrowseTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
 
 const PL_CENTERED = new Set(['favorite', 'rating', 'duration', 'playCount', 'bpm']);
 
@@ -170,6 +171,7 @@ export default function PlaylistSuggestions({
                           ? <Square size={9} fill="currentColor" strokeWidth={0} className="playlist-suggestion-preview-icon" />
                           : <ChevronRight size={14} className="playlist-suggestion-preview-icon playlist-suggestion-preview-icon-play" />}
                       </button>
+                      <OptionalBrowseTrackRowCoverThumb song={song} size="dense" />
                       <span className="track-title">{song.title}</span>
                     </div>
                   );

@@ -13,6 +13,7 @@ interface Props {
   inSelectMode: boolean;
   toggleAll: () => void;
   startResize: (e: React.MouseEvent, colIndex: number, direction: 1 | -1) => void;
+  startFlexColumnResize: (e: React.MouseEvent, colIndex: number, direction?: 1 | -1) => void;
   t: TFunction;
 }
 
@@ -34,6 +35,7 @@ export function TracklistHeaderRow({
   inSelectMode,
   toggleAll,
   startResize,
+  startFlexColumnResize,
   t,
 }: Props) {
   const handleHeaderClick = (key: ColKey | string) => {
@@ -59,14 +61,22 @@ export function TracklistHeaderRow({
     const isActive = canSort && sortKey === key;
 
     if (key === 'num') {
+      const titleColIndex = visibleCols.findIndex(c => c.key === 'title');
+      const titleCol = titleColIndex >= 0 ? visibleCols[titleColIndex] : undefined;
       return (
-        <div key={key} className="track-num">
+        <div key={key} className="track-num" style={{ position: 'relative' }}>
           <span
             className={`bulk-check${allSelected ? ' checked' : ''}${inSelectMode ? ' bulk-check-visible' : ''}`}
             onClick={e => { e.stopPropagation(); toggleAll(); }}
             style={{ cursor: 'pointer' }}
           />
           <span className="track-num-number">#</span>
+          {titleCol?.flex && (
+            <div
+              className="col-resize-handle"
+              onMouseDown={e => startFlexColumnResize(e, titleColIndex, 1)}
+            />
+          )}
         </div>
       );
     }
@@ -93,7 +103,7 @@ export function TracklistHeaderRow({
             {canSort && renderSortIndicator(key as SortKey)}
           </div>
           {hasNextCol && (
-            <div className="col-resize-handle" onMouseDown={e => startResize(e, colIndex + 1, -1)} />
+            <div className="col-resize-handle" onMouseDown={e => startFlexColumnResize(e, colIndex, 1)} />
           )}
         </div>
       );

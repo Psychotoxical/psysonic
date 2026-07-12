@@ -35,6 +35,7 @@ interface Props {
   setPickerOpen: React.Dispatch<React.SetStateAction<boolean>>;
   pickerRef: React.RefObject<HTMLDivElement | null>;
   startResize: (e: React.MouseEvent, colIndex: number, direction?: 1 | -1) => void;
+  startFlexColumnResize: (e: React.MouseEvent, colIndex: number, direction?: 1 | -1) => void;
   tracklistRef: React.RefObject<HTMLDivElement | null>;
 
   // Data
@@ -86,7 +87,7 @@ interface Props {
 
 export default function PlaylistTracklist({
   allColumns, visibleCols, gridStyle, colVisible, toggleColumn, resetColumns,
-  pickerOpen, setPickerOpen, pickerRef, startResize, tracklistRef,
+  pickerOpen, setPickerOpen, pickerRef, startResize, startFlexColumnResize, tracklistRef,
   songs, displayedSongs, displayedTracks, isFiltered, hasActiveFilter, id,
   sortKey, setSortKey, sortDir, setSortDir, sortClickCount, setSortClickCount,
   selectedIds, setSelectedIds, allSelected, toggleAll, toggleSelect,
@@ -334,16 +335,26 @@ export default function PlaylistTracklist({
               );
             };
 
-            if (key === 'num') return (
-              <div key="num" className="track-num">
-                <span
-                  className={`bulk-check${allSelected ? ' checked' : ''}${selectedIds.size > 0 ? ' bulk-check-visible' : ''}`}
-                  onClick={e => { e.stopPropagation(); toggleAll(); }}
-                  style={{ cursor: 'pointer' }}
-                />
-                <span className="track-num-number">#</span>
-              </div>
-            );
+            if (key === 'num') {
+              const titleColIndex = visibleCols.findIndex(c => c.key === 'title');
+              const titleCol = titleColIndex >= 0 ? visibleCols[titleColIndex] : undefined;
+              return (
+                <div key="num" className="track-num" style={{ position: 'relative' }}>
+                  <span
+                    className={`bulk-check${allSelected ? ' checked' : ''}${selectedIds.size > 0 ? ' bulk-check-visible' : ''}`}
+                    onClick={e => { e.stopPropagation(); toggleAll(); }}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span className="track-num-number">#</span>
+                  {titleCol?.flex && (
+                    <div
+                      className="col-resize-handle"
+                      onMouseDown={e => startFlexColumnResize(e, titleColIndex, 1)}
+                    />
+                  )}
+                </div>
+              );
+            }
             if (key === 'title') {
               const hasNextCol = colIndex + 1 < visibleCols.length;
               return (
@@ -365,7 +376,12 @@ export default function PlaylistTracklist({
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: isSortActive ? 600 : 400 }}>{label}</span>
                     {canSort && renderSortIndicator()}
                   </div>
-                  {hasNextCol && <div className="col-resize-handle" onMouseDown={e => startResize(e, colIndex + 1, -1)} />}
+                  {hasNextCol && (
+                    <div
+                      className="col-resize-handle"
+                      onMouseDown={e => startFlexColumnResize(e, colIndex, 1)}
+                    />
+                  )}
                 </div>
               );
             }

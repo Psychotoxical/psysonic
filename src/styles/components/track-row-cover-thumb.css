@@ -1,0 +1,63 @@
+/* Track-list row thumbs only — scoped so player bar / queue-now-playing covers
+   never pick up the 32–40px sizing (see player-bar.css, queue-panel.css). */
+
+.song-list-row .track-row-cover-thumb,
+.queue-item .track-row-cover-thumb,
+.mini-queue__item .track-row-cover-thumb,
+.fsq-item .track-row-cover-thumb,
+.track-info .track-row-cover-thumb,
+.tracklist-mobile-main .track-row-cover-thumb {
+  flex-shrink: 0;
+  --track-list-cover-size: 32px;
+  width: var(--track-list-cover-size, 40px);
+  height: var(--track-list-cover-size, 40px);
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--bg-hover);
+}
+
+.song-list-row .track-row-cover-thumb--placeholder,
+.queue-item .track-row-cover-thumb--placeholder,
+.mini-queue__item .track-row-cover-thumb--placeholder,
+.fsq-item .track-row-cover-thumb--placeholder,
+.track-info .track-row-cover-thumb--placeholder,
+.tracklist-mobile-main .track-row-cover-thumb--placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  opacity: 0.55;
+}
+
+.mini-queue__item .track-row-cover-thumb--mini,
+.fsq-item .track-row-cover-thumb--mini {
+  --track-list-cover-size: 32px;
+}
+
+.queue-item--with-cover {
+  gap: var(--space-2);
+}
+
+.queue-item--with-cover .queue-item-info {
+  min-width: 0;
+}
+
+.mini-queue__item--with-cover {
+  gap: 8px;
+}
+
+.mini-queue__item--with-cover .mini-queue__meta {
+  min-width: 0;
+}
+
+.fsq-item--with-cover {
+  gap: 10px;
+}
+
+.fsq-item--with-cover .fsq-item-info {
+  min-width: 0;
+}
+
+.tracklist-mobile-row--with-cover .tracklist-mobile-main {
+  gap: 8px;
+}

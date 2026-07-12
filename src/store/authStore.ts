@@ -110,6 +110,7 @@ export const useAuthStore = create<AuthState>()(
       queueNowPlayingCollapsed: false,
       queueDurationDisplayMode: 'total',
       queueDisplayMode: 'queue',
+      queueTrackListCovers: false,
       enableHiRes: false,
       hiResCrossfadeResampleHz: 44_100,
       audioOutputDevice: null,

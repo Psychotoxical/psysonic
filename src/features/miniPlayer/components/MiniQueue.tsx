@@ -3,6 +3,8 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import type { TFunction } from 'i18next';
 import OverlayScrollArea from '@/ui/OverlayScrollArea';
 import type { MiniSyncPayload, MiniTrackInfo } from '@/features/miniPlayer/utils/miniPlayerBridge';
+import { OptionalQueueTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
+import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
 
 // Stable initial rect so the virtualizer never re-initializes on re-render (an
 // inline literal would be a new ref each render → render loop). Replaced by the
@@ -36,6 +38,7 @@ export function MiniQueue({
   dropTarget, setDropTarget, dropTargetRef, startDrag, ctxIndex, setCtxMenu,
   jumpTo, t,
 }: Props) {
+  const showCovers = useTrackListCoverArtEnabled('queue');
   // Virtualize so a multi-thousand-track queue keeps the mini window's DOM at
   // O(visible rows). Scroll element is the OverlayScrollArea viewport.
   // React Compiler incompatible-library rule: third-party hook/value the compiler cannot analyze; usage is correct.
@@ -43,7 +46,7 @@ export function MiniQueue({
   const rowVirtualizer = useVirtualizer({
     count: state.queue.length,
     getScrollElement: () => queueScrollRef.current,
-    estimateSize: () => 40,
+    estimateSize: () => (showCovers ? 48 : 40),
     overscan: 10,
     getItemKey: i => `${state.queue[i].id}:${i}`,
     initialRect: MINI_QUEUE_INITIAL_RECT,
@@ -99,7 +102,7 @@ export function MiniQueue({
               data-index={i}
               ref={rowVirtualizer.measureElement}
               data-mq-idx={i}
-              className={`mini-queue__item${i === state.queueIndex ? ' mini-queue__item--current' : ''}${ctxIndex === i ? ' mini-queue__item--ctx' : ''}`}
+              className={`mini-queue__item${showCovers ? ' mini-queue__item--with-cover' : ''}${i === state.queueIndex ? ' mini-queue__item--current' : ''}${ctxIndex === i ? ' mini-queue__item--ctx' : ''}`}
               onClick={() => jumpTo(i)}
               onContextMenu={(e) => {
                 e.preventDefault();
@@ -134,6 +137,19 @@ export function MiniQueue({
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vi.start}px)`, ...dragStyle }}
             >
               <span className="mini-queue__num">{i + 1}</span>
+              {showCovers && (
+                <OptionalQueueTrackRowCoverThumb
+                  song={{
+                    id: track.id,
+                    albumId: track.albumId ?? '',
+                    coverArt: track.coverArt,
+                    serverId: state.queueServerId ?? undefined,
+                    title: track.title,
+                  }}
+                  size="mini"
+                  className="track-row-cover-thumb--mini"
+                />
+              )}
               <div className="mini-queue__meta">
                 <div className="mini-queue__title">{track.title}</div>
                 <div className="mini-queue__artist">{track.artist}</div>

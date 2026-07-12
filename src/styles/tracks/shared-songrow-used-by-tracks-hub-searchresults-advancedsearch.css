@@ -63,6 +63,24 @@
 .song-list-row-title {
   font-weight: 500;
   color: var(--row-text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.song-list-row-title-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.song-list-row--with-cover {
+  height: 56px;
+}
+
+.song-list-row--with-cover .song-list-row-cover-thumb {
+  --track-list-cover-size: 36px;
+  flex-shrink: 0;
 }
 
 .song-list-row-genre {

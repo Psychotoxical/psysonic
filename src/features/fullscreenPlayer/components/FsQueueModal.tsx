@@ -10,6 +10,8 @@ import {
   resolveBatch,
 } from '@/features/playback/store/queueTrackResolver';
 import { formatTrackTime } from '@/lib/format/formatDuration';
+import { OptionalQueueTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
+import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
 
 interface Props {
   onClose: () => void;
@@ -25,6 +27,7 @@ export const FsQueueModal = memo(function FsQueueModal({ onClose }: Props) {
   const queueItems = usePlayerStore(s => s.queueItems);
   const queueIndex = usePlayerStore(s => s.queueIndex);
   const playTrack = usePlayerStore(s => s.playTrack);
+  const showCovers = useTrackListCoverArtEnabled('queue');
   // Re-resolve as the resolver cache fills.
   const version = useSyncExternalStore(subscribeQueueResolver, getQueueResolverVersion);
 
@@ -73,13 +76,27 @@ export const FsQueueModal = memo(function FsQueueModal({ onClose }: Props) {
             upcoming.map(({ track, absIdx }) => (
               <button
                 key={`${track.id}:${absIdx}`}
-                className="fsq-item"
+                className={`fsq-item${showCovers ? ' fsq-item--with-cover' : ''}`}
                 onClick={() => {
                   playTrack(track, undefined, undefined, undefined, absIdx);
                   onClose();
                 }}
               >
                 <span className="fsq-item-pos">{absIdx + 1}</span>
+                {showCovers && (
+                  <OptionalQueueTrackRowCoverThumb
+                    song={{
+                      id: track.id,
+                      albumId: track.albumId,
+                      coverArt: track.coverArt,
+                      discNumber: track.discNumber,
+                      serverId: track.serverId,
+                      title: track.title,
+                    }}
+                    size="mini"
+                    className="track-row-cover-thumb--mini"
+                  />
+                )}
                 <span className="fsq-item-info">
                   <span className="fsq-item-title">{track.title}</span>
                   <span className="fsq-item-artist">{track.artist}</span>

@@ -9,6 +9,7 @@ import i18n from '@/lib/i18n';
 import { formatTrackTime } from '@/lib/format/formatDuration';
 import StarRating from '@/ui/StarRating';
 import { PlaylistArtistCell } from '@/features/playlist/components/PlaylistArtistCell';
+import { OptionalBrowseTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
 
 export interface PlaylistRowCallbacks {
   activate: (song: SubsonicSong, index: number, e: React.MouseEvent) => void;
@@ -102,6 +103,7 @@ function PlaylistRow({
                   ? <Square size={9} fill="currentColor" strokeWidth={0} className="playlist-suggestion-preview-icon" />
                   : <ChevronRight size={14} className="playlist-suggestion-preview-icon playlist-suggestion-preview-icon-play" />}
               </button>
+              <OptionalBrowseTrackRowCoverThumb song={song} size="dense" />
               <span className="track-title">{song.title}</span>
             </div>
           );

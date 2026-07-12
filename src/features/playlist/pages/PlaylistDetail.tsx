@@ -2,7 +2,7 @@ import { updatePlaylist } from '@/lib/api/subsonicPlaylists';
 import type { SubsonicPlaylist, SubsonicSong } from '@/lib/api/subsonicTypes';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { useTracklistColumns, type ColDef } from '@/lib/hooks/useTracklistColumns';
+import { useTracklistColumns, type ColDef, TRACK_TITLE_FLEX_COL } from '@/lib/hooks/useTracklistColumns';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { usePlaylistStore } from '@/features/playlist/store/playlistStore';
@@ -47,7 +47,7 @@ import { offlineActionPolicy } from '@/features/offline';
 // ── Column configuration ──────────────────────────────────────────────────────
 const PL_COLUMNS: readonly ColDef[] = [
   { key: 'num',        i18nKey: null,              minWidth: 60,  defaultWidth: 60,  required: true  },
-  { key: 'title',      i18nKey: 'trackTitle',      minWidth: 150, defaultWidth: 0,   required: true,  flex: true },
+  { key: 'title',      i18nKey: 'trackTitle',      ...TRACK_TITLE_FLEX_COL, required: true },
   { key: 'artist',     i18nKey: 'trackArtist',     minWidth: 80,  defaultWidth: 180, required: false },
   { key: 'album',      i18nKey: 'trackAlbum',      minWidth: 80,  defaultWidth: 180, required: false },
   { key: 'genre',      i18nKey: 'trackGenre',      minWidth: 60,  defaultWidth: 120, required: false },
@@ -150,7 +150,7 @@ export default function PlaylistDetail() {
   // ── Column resize/visibility ──────────────────────────────────────────────
   const {
     colVisible, visibleCols, gridStyle,
-    startResize, toggleColumn, resetColumns,
+    startResize, startFlexColumnResize, toggleColumn, resetColumns,
     pickerOpen, setPickerOpen, pickerRef, tracklistRef,
   } = useTracklistColumns(PL_COLUMNS, 'psysonic_playlist_columns');
 
@@ -320,6 +320,7 @@ export default function PlaylistDetail() {
         setPickerOpen={setPickerOpen}
         pickerRef={pickerRef}
         startResize={startResize}
+        startFlexColumnResize={startFlexColumnResize}
         tracklistRef={tracklistRef}
         songs={songs}
         displayedSongs={displayedSongs}

@@ -261,6 +261,22 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+}
+
+/* Single-line title beside play/preview/cover controls (favorites, playlists, …) */
+.track-info-suggestion .track-title {
+  min-width: 0;
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.track-info-suggestion:has(.track-row-cover-thumb) {
+  min-height: 32px;
 }
 
 .playlist-suggestion-play-btn {

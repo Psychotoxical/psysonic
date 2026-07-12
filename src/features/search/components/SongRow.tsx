@@ -12,6 +12,8 @@ import { useOrbitSongRowBehavior } from '@/features/orbit';
 import { formatTrackTime } from '@/lib/format/formatDuration';
 import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/trackArtistRefs';
 import { tooltipAttrs } from '@/ui/tooltipAttrs';
+import { OptionalBrowseTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
+import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
 
 interface Props {
   song: SubsonicSong;
@@ -27,6 +29,7 @@ function SongRow({ song, showBpm }: Props) {
   const isCurrent = usePlayerStore(s => s.currentTrack?.id === song.id);
   const psyDrag = useDragDrop();
   const { orbitActive, addTrackToOrbit } = useOrbitSongRowBehavior();
+  const showCovers = useTrackListCoverArtEnabled('pages');
 
   // In an orbit session both buttons collapse into the orbit-suggest / host-enqueue
   // path so we don't ship a queue replacement to every guest.
@@ -51,7 +54,7 @@ function SongRow({ song, showBpm }: Props) {
 
   return (
     <div
-      className={`song-list-row${isCurrent ? ' is-current' : ''}${showBpm ? ' song-list-row--with-bpm' : ''}`}
+      className={`song-list-row${isCurrent ? ' is-current' : ''}${showBpm ? ' song-list-row--with-bpm' : ''}${showCovers ? ' song-list-row--with-cover' : ''}`}
       onDoubleClick={handlePlay}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -95,7 +98,12 @@ function SongRow({ song, showBpm }: Props) {
           <ListPlus size={14} />
         </button>
       </div>
-      <div className="song-list-row-cell song-list-row-title truncate" title={song.title}>{song.title}</div>
+      <div className="song-list-row-cell song-list-row-title truncate" title={song.title}>
+        {showCovers && (
+          <OptionalBrowseTrackRowCoverThumb song={song} size="dense" className="song-list-row-cover-thumb" />
+        )}
+        <span className="song-list-row-title-text truncate">{song.title}</span>
+      </div>
       <div className="song-list-row-cell truncate" title={song.artist}>
         {artistRefs.map((a, i) => (
           <React.Fragment key={a.id ?? a.name ?? i}>
@@ -137,9 +145,10 @@ function SongRow({ song, showBpm }: Props) {
 /** Column header with the same grid as <SongRow>. Optional — pages can render it above the list. */
 export function SongListHeader({ showBpm }: { showBpm?: boolean } = {}) {
   const { t } = useTranslation();
+  const showCovers = useTrackListCoverArtEnabled('pages');
   return (
     <div
-      className={`song-list-row song-list-row--header${showBpm ? ' song-list-row--with-bpm' : ''}`}
+      className={`song-list-row song-list-row--header${showBpm ? ' song-list-row--with-bpm' : ''}${showCovers ? ' song-list-row--with-cover' : ''}`}
       role="row"
     >
       <div className="song-list-row-cell song-list-row-actions" />

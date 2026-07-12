@@ -25,8 +25,8 @@
     grid-template-columns: 64px minmax(0, 1.5fr) minmax(0, 1fr) 48px 64px;
   }
 
-  .song-list-row-cell:nth-child(4),  /* album */
-  .song-list-row-cell:nth-child(5) { /* genre */
+  .song-list-row-cell:nth-child(5),  /* album */
+  .song-list-row-cell:nth-child(6) { /* genre */
     display: none;
   }
 }

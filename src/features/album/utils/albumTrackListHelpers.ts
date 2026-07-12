@@ -1,4 +1,5 @@
 import type { ColDef } from '@/lib/hooks/useTracklistColumns';
+import { TRACK_TITLE_FLEX_COL } from '@/lib/hooks/useTracklistColumns';
 
 export function codecLabel(song: { suffix?: string; bitRate?: number }, showBitrate: boolean): string {
   const parts: string[] = [];
@@ -9,7 +10,7 @@ export function codecLabel(song: { suffix?: string; bitRate?: number }, showBitr
 
 export const COLUMNS: readonly ColDef[] = [
   { key: 'num',        i18nKey: null,              minWidth: 60,  defaultWidth: 60,  required: true  },
-  { key: 'title',      i18nKey: 'trackTitle',      minWidth: 150, defaultWidth: 0,   required: true,  flex: true },
+  { key: 'title',      i18nKey: 'trackTitle',      ...TRACK_TITLE_FLEX_COL, required: true },
   { key: 'artist',     i18nKey: 'trackArtist',     minWidth: 80,  defaultWidth: 180, required: false },
   { key: 'favorite',   i18nKey: 'trackFavorite',   minWidth: 50,  defaultWidth: 70,  required: false },
   { key: 'rating',     i18nKey: 'trackRating',     minWidth: 80,  defaultWidth: 120, required: false },

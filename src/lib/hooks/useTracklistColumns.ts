@@ -10,6 +10,25 @@ export interface ColDef {
   readonly flex?: boolean;
 }
 
+/** Shared flex title column — room for play/preview/cover controls + readable title text. */
+export const TRACK_TITLE_FLEX_COL = {
+  minWidth: 240,
+  defaultWidth: 320,
+  flex: true as const,
+};
+
+function flexColumnMin(c: ColDef, widths: Record<string, number>): number {
+  const w = widths[c.key];
+  if (typeof w === 'number' && w >= c.minWidth) return w;
+  if (c.defaultWidth >= c.minWidth) return c.defaultWidth;
+  return c.minWidth;
+}
+
+function fixedColumnWidth(c: ColDef, widths: Record<string, number>): number {
+  const w = widths[c.key];
+  return typeof w === 'number' && w > 0 ? w : c.defaultWidth;
+}
+
 function loadPrefs(
   storageKey: string,
   columns: readonly ColDef[],
@@ -35,6 +54,14 @@ function loadPrefs(
     if (durationCol && typeof widths.duration === 'number' && widths.duration < durationCol.minWidth) {
       widths.duration = defaultWidths.duration;
     }
+    // Flex title columns persisted `0` before resizable flex mins — seed a usable default.
+    columns.forEach(c => {
+      if (!c.flex || c.defaultWidth < c.minWidth) return;
+      const w = widths[c.key];
+      if (typeof w !== 'number' || w < c.minWidth) {
+        widths[c.key] = c.defaultWidth;
+      }
+    });
     return { widths, visible };
   } catch {
     return { widths: defaultWidths, visible: defaultVisible };
@@ -72,12 +99,11 @@ export function useTracklistColumns(columns: readonly ColDef[], storageKey: stri
     () =>
       visibleCols
         .map(c => {
-          if (c.flex) return `minmax(${c.minWidth}px, 1fr)`;
+          if (c.flex) return `minmax(${flexColumnMin(c, colWidths)}px, 1fr)`;
           // Defensive fallback: a column added since the last persist would have
           // no saved width, leaving the grid template with `undefinedpx` and
           // collapsing the row visually until the user resets defaults.
-          const w = colWidths[c.key];
-          return `${typeof w === 'number' && w > 0 ? w : c.defaultWidth}px`;
+          return `${fixedColumnWidth(c, colWidths)}px`;
         })
         .join(' '),
     [visibleCols, colWidths],
@@ -90,11 +116,7 @@ export function useTracklistColumns(columns: readonly ColDef[], storageKey: stri
     const gapPx = 12; // --space-3
     const boxPaddingH = 24; // var(--space-3) * 2
     const colSum = visibleCols.reduce<number>(
-      (s, c) => {
-        if (c.flex) return s + c.minWidth;
-        const w = colWidths[c.key];
-        return s + (typeof w === 'number' && w > 0 ? w : c.defaultWidth);
-      },
+      (s, c) => s + (c.flex ? flexColumnMin(c, colWidths) : fixedColumnWidth(c, colWidths)),
       0,
     );
     const gaps = Math.max(0, visibleCols.length - 1) * gapPx;
@@ -117,9 +139,10 @@ export function useTracklistColumns(columns: readonly ColDef[], storageKey: stri
       const visCols = visibleCols; // stable for the drag duration
       const colDef = visCols[colIndex];
       const colKey = colDef.key;
-      const colMin = columns.find(c => c.key === colKey)!.minWidth;
+      const colDefFull = columns.find(c => c.key === colKey)!;
+      const colMin = colDefFull.minWidth;
       const startX = e.clientX;
-      const startW = colWidths[colKey];
+      const startW = fixedColumnWidth(colDefFull, colWidths);
 
       let maxW = Infinity;
       const el = tracklistRef.current;
@@ -132,9 +155,13 @@ export function useTracklistColumns(columns: readonly ColDef[], storageKey: stri
           ? parseFloat(getComputedStyle(headerEl).columnGap) || 12
           : 12;
         const totalGaps = (visCols.length - 1) * gapPx;
+        const widthsNow = colWidthsRef.current;
         const otherFixed = visCols
           .filter((_, i) => i !== colIndex)
-          .reduce<number>((s, c) => s + (c.flex ? c.minWidth : colWidths[c.key]), 0);
+          .reduce<number>(
+            (s, c) => s + (c.flex ? flexColumnMin(c, widthsNow) : fixedColumnWidth(c, widthsNow)),
+            0,
+          );
         maxW = Math.max(colMin, containerW - totalGaps - otherFixed);
       }
 
@@ -158,6 +185,64 @@ export function useTracklistColumns(columns: readonly ColDef[], storageKey: stri
       document.addEventListener('mouseup', onUp);
     },
     [columns, visibleCols, colWidths, storageKey],
+  );
+
+  // Drag the flex (title) column min width — persisted in colWidths[key].
+  const startFlexColumnResize = useCallback(
+    (e: React.MouseEvent, colIndex: number, direction: 1 | -1 = 1) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const visCols = visibleCols;
+      const colDef = visCols[colIndex];
+      if (!colDef?.flex) return;
+
+      const colKey = colDef.key;
+      const colMin = colDef.minWidth;
+      const startX = e.clientX;
+      const startW = flexColumnMin(colDef, colWidths);
+
+      let maxW = Infinity;
+      const el = tracklistRef.current;
+      if (el) {
+        const style = getComputedStyle(el);
+        const paddingH = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+        const containerW = el.clientWidth - paddingH;
+        const headerEl = el.querySelector('.tracklist-header') as HTMLElement | null;
+        const gapPx = headerEl
+          ? parseFloat(getComputedStyle(headerEl).columnGap) || 12
+          : 12;
+        const totalGaps = (visCols.length - 1) * gapPx;
+        const widthsNow = colWidthsRef.current;
+        const otherFixed = visCols
+          .filter((_, i) => i !== colIndex)
+          .reduce<number>(
+            (s, c) => s + (c.flex ? flexColumnMin(c, widthsNow) : fixedColumnWidth(c, widthsNow)),
+            0,
+          );
+        maxW = Math.max(colMin, containerW - totalGaps - otherFixed);
+      }
+
+      const onMove = (me: MouseEvent) => {
+        const delta = me.clientX - startX;
+        const newW = Math.min(Math.max(colMin, startW + direction * delta), maxW);
+        setColWidths(prev => ({ ...prev, [colKey]: newW }));
+      };
+
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        savePrefs(storageKey, colWidthsRef.current, colVisibleRef.current);
+      };
+
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    },
+    [visibleCols, colWidths, storageKey],
   );
 
   const toggleColumn = useCallback(
@@ -193,6 +278,7 @@ export function useTracklistColumns(columns: readonly ColDef[], storageKey: stri
     visibleCols,
     gridStyle,
     startResize,
+    startFlexColumnResize,
     toggleColumn,
     resetColumns,
     pickerOpen,

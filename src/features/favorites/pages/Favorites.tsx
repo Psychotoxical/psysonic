@@ -1,6 +1,6 @@
 import { queueSongStar, queueSongRating } from '@/features/playback/store/pendingStarSync';
 import React, { useEffect, useMemo, useState } from 'react';
-import { useTracklistColumns, type ColDef } from '@/lib/hooks/useTracklistColumns';
+import { useTracklistColumns, type ColDef, TRACK_TITLE_FLEX_COL } from '@/lib/hooks/useTracklistColumns';
 import { TopFavoriteArtistsRow } from '@/features/favorites/components/TopFavoriteArtists';
 import { RadioStationRow } from '@/features/favorites/components/RadioFavorites';
 import FavoritesSongsSectionHeader from '@/features/favorites/components/FavoritesSongsSectionHeader';
@@ -18,7 +18,7 @@ import FavoritesOfflineHeader from '@/features/favorites/components/FavoritesOff
 
 const FAV_COLUMNS: readonly ColDef[] = [
   { key: 'num',        i18nKey: null,              minWidth: 60,  defaultWidth: 60,  required: true  },
-  { key: 'title',      i18nKey: 'trackTitle',      minWidth: 150, defaultWidth: 0,   required: true,  flex: true },
+  { key: 'title',      i18nKey: 'trackTitle',      ...TRACK_TITLE_FLEX_COL, required: true },
   { key: 'artist',     i18nKey: 'trackArtist',     minWidth: 80,  defaultWidth: 180, required: false },
   { key: 'album',      i18nKey: 'trackAlbum',      minWidth: 80,  defaultWidth: 180, required: false },
   { key: 'genre',      i18nKey: 'trackGenre',      minWidth: 60,  defaultWidth: 120, required: false },
@@ -59,7 +59,7 @@ export default function Favorites() {
   // ── Column resize/visibility (must be before early return) ───────────────
   const {
     colVisible, visibleCols, gridStyle,
-    startResize, toggleColumn, resetColumns,
+    startResize, startFlexColumnResize, toggleColumn, resetColumns,
     pickerOpen, setPickerOpen, pickerRef, tracklistRef,
   } = useTracklistColumns(FAV_COLUMNS, 'psysonic_favorites_columns');
 
@@ -208,6 +208,7 @@ export default function Favorites() {
                 pickerRef={pickerRef}
                 tracklistRef={tracklistRef}
                 startResize={startResize}
+                startFlexColumnResize={startFlexColumnResize}
                 handleSortClick={handleSortClick}
                 getSortIndicator={getSortIndicator}
                 ratings={ratings}
