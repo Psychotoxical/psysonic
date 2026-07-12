@@ -1,16 +1,21 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Music } from 'lucide-react';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { CoverArtImage } from '@/cover/CoverArtImage';
-import { usePlaybackTrackCoverRef, useTrackCoverRef } from '@/cover/useLibraryCoverRef';
+import {
+  useAlbumCoverRef,
+  usePlaybackTrackCoverRef,
+  useTrackCoverRef,
+} from '@/cover/useLibraryCoverRef';
 import { wakeCoverBackfillForMissingTrack } from '@/cover/wakeCoverBackfillForMissingTrack';
 import {
   COVER_ARTIST_TOP_TRACK_CSS_PX,
   COVER_TRACK_ROW_CSS_PX,
   COVER_TRACK_ROW_MINI_CSS_PX,
 } from '@/cover/layoutSizes';
+import { resolveDistinctDiscCoversForAlbum } from '@/cover/ref';
 import { coverServerScopeForServerId } from '@/cover/serverScope';
-import type { CoverArtRef } from '@/cover/types';
+import type { CoverArtRef, CoverPrefetchPriority } from '@/cover/types';
 import type { TrackListCoverArtSurface } from '@/cover/useTrackListCoverArtSettings';
 import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
 
@@ -71,11 +76,13 @@ function TrackRowCoverImage({
   displayCssPx,
   className,
   observeScrollRootId,
+  ensurePriority,
 }: {
   coverRef: CoverArtRef;
   displayCssPx: number;
   className?: string;
   observeScrollRootId?: string;
+  ensurePriority?: CoverPrefetchPriority;
 }) {
   return (
     <CoverArtImage
@@ -83,6 +90,7 @@ function TrackRowCoverImage({
       displayCssPx={displayCssPx}
       surface="dense"
       observeScrollRootId={observeScrollRootId}
+      ensurePriority={ensurePriority}
       className={`track-row-cover-thumb${className ? ` ${className}` : ''}`}
       alt=""
       loading="lazy"
@@ -92,8 +100,9 @@ function TrackRowCoverImage({
 }
 
 /**
- * Browse/detail track rows — album cover (multi-disc exception) via library
- * index + standard dense ensure pipeline.
+ * Browse/detail track rows — **album** cover via library index (multi-disc → track
+ * resolver). Album-level ref dedupes library IPC and avoids per-track `mf-*` fetch
+ * ids on the sync path; page warm registers the same album ids in prefetch.
  */
 export function BrowseTrackRowCoverThumb({
   song,
@@ -104,7 +113,13 @@ export function BrowseTrackRowCoverThumb({
   const displayCssPx = SIZE_PX[size];
   const albumId = song.albumId?.trim();
   const serverScope = coverServerScopeForServerId(song.serverId);
-  const coverRef = useTrackCoverRef(song, serverScope, { libraryResolve: true });
+  const distinctDiscCovers = useMemo(
+    () => (albumId ? resolveDistinctDiscCoversForAlbum(albumId) : false),
+    [albumId],
+  );
+  const albumRef = useAlbumCoverRef(albumId, song.coverArt, serverScope, { libraryResolve: true });
+  const trackRef = useTrackCoverRef(song, serverScope, { libraryResolve: true });
+  const coverRef = distinctDiscCovers ? trackRef : albumRef;
   const missingApiCoverArt = !song.coverArt?.trim();
 
   useEffect(() => {
@@ -123,6 +138,7 @@ export function BrowseTrackRowCoverThumb({
       displayCssPx={displayCssPx}
       className={className}
       observeScrollRootId={observeScrollRootId}
+      ensurePriority="high"
     />
   );
 }

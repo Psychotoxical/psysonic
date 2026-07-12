@@ -3,6 +3,9 @@ import React, { useRef } from 'react';
 import SongRow, { SongListHeader } from '@/features/search/components/SongRow';
 import { useInpageScrollSentinel } from '@/lib/hooks/useInpageScrollSentinel';
 import InpageScrollSentinel from '@/ui/InpageScrollSentinel';
+import { COVER_ARTIST_TOP_TRACK_CSS_PX } from '@/cover/layoutSizes';
+import { useWarmTrackListAlbumCovers } from '@/cover/useWarmTrackListAlbumCovers';
+import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
 
 interface Props {
   songs: SubsonicSong[];
@@ -24,6 +27,7 @@ interface Props {
  * is never painted over — issue #841).
  */
 export default function PagedSongList({ songs, hasMore, loadingMore, onLoadMore, showBpm }: Props) {
+  const trackListCoversOn = useTrackListCoverArtEnabled('pages');
   const onLoadMoreRef = useRef(onLoadMore);
   // React Compiler refs rule: ref kept in sync with the latest value for use in effects/handlers/cleanup; not render data.
   // eslint-disable-next-line react-hooks/refs
@@ -33,6 +37,10 @@ export default function PagedSongList({ songs, hasMore, loadingMore, onLoadMore,
     active: hasMore,
     onIntersect: () => onLoadMoreRef.current(),
     rootMargin: '600px',
+  });
+
+  useWarmTrackListAlbumCovers(songs, COVER_ARTIST_TOP_TRACK_CSS_PX, {
+    enabled: trackListCoversOn && songs.length > 0,
   });
 
   return (

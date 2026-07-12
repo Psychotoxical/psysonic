@@ -20,6 +20,9 @@ import { useOrbitSongRowBehavior } from '@/features/orbit';
 import { songToTrack } from '@/lib/media/songToTrack';
 import type { PlaylistSortKey, PlaylistSortDir } from '@/features/playlist/utils/playlistDisplayedSongs';
 import { AddToPlaylistSubmenu } from '@/features/contextMenu/components/ContextMenu';
+import { COVER_ARTIST_TOP_TRACK_CSS_PX } from '@/cover/layoutSizes';
+import { useWarmTrackListAlbumCovers } from '@/cover/useWarmTrackListAlbumCovers';
+import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
 
 const PL_CENTERED = new Set(['favorite', 'rating', 'duration', 'playCount', 'bpm']);
 
@@ -108,6 +111,7 @@ export default function PlaylistTracklist({
   const previewingId = usePreviewStore(s => s.previewingId);
   const previewAudioStarted = usePreviewStore(s => s.audioStarted);
   const showBitrate = useThemeStore(s => s.showBitrate);
+  const trackListCoversOn = useTrackListCoverArtEnabled('pages');
   const { isDragging } = useDragDrop();
   const { orbitActive, queueHint, addTrackToOrbit } = useOrbitSongRowBehavior();
 
@@ -232,6 +236,15 @@ export default function PlaylistTracklist({
   }, [isDragging, runAutoScroll]);
 
   const virtualItems = rowVirtualizer.getVirtualItems();
+
+  const warmVisibleSongs = useMemo(
+    () => virtualItems.map(vi => displayedSongs[vi.index]),
+    [virtualItems, displayedSongs],
+  );
+
+  useWarmTrackListAlbumCovers(warmVisibleSongs, COVER_ARTIST_TOP_TRACK_CSS_PX, {
+    enabled: trackListCoversOn,
+  });
 
   let dropIndicatorY: number | null = null;
   if (isDragging && !isFiltered && dropTargetIdx) {

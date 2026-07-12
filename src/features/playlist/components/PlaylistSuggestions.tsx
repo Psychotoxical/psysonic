@@ -17,6 +17,9 @@ import { formatLastSeen } from '@/lib/format/userMgmtHelpers';
 import { formatTrackTime } from '@/lib/format/formatDuration';
 import i18n from '@/lib/i18n';
 import { OptionalBrowseTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
+import { COVER_ARTIST_TOP_TRACK_CSS_PX } from '@/cover/layoutSizes';
+import { useWarmTrackListAlbumCovers } from '@/cover/useWarmTrackListAlbumCovers';
+import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
 
 const PL_CENTERED = new Set(['favorite', 'rating', 'duration', 'playCount', 'bpm']);
 
@@ -57,12 +60,17 @@ export default function PlaylistSuggestions({
   const previewingId = usePreviewStore(s => s.previewingId);
   const previewAudioStarted = usePreviewStore(s => s.audioStarted);
   const showBitrate = useThemeStore(s => s.showBitrate);
+  const trackListCoversOn = useTrackListCoverArtEnabled('pages');
   const suggestionsVisible = usePlaylistLayoutStore(s =>
     s.items.find(i => i.id === 'suggestions')?.visible !== false);
 
   if (!suggestionsVisible) return null;
 
   const filteredSuggestions = suggestions.filter(s => !existingIds.has(s.id));
+
+  useWarmTrackListAlbumCovers(filteredSuggestions, COVER_ARTIST_TOP_TRACK_CSS_PX, {
+    enabled: trackListCoversOn && filteredSuggestions.length > 0,
+  });
 
   return (
     <div className="playlist-suggestions tracklist" data-preview-loc="suggestions">

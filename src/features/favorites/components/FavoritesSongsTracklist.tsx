@@ -17,6 +17,9 @@ import { appendServerQuery } from '@/lib/navigation/detailServerScope';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '@/constants/appScroll';
 import { useElementClientHeightById } from '@/lib/hooks/useResizeClientHeight';
 import { SORTABLE_COLUMNS } from '@/features/favorites/hooks/useFavoritesSongFiltering';
+import { COVER_ARTIST_TOP_TRACK_CSS_PX } from '@/cover/layoutSizes';
+import { useWarmTrackListAlbumCovers } from '@/cover/useWarmTrackListAlbumCovers';
+import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
 
 interface Props {
   visibleSongs: SubsonicSong[];
@@ -61,6 +64,7 @@ export default function FavoritesSongsTracklist({
   const previewingId = usePreviewStore(s => s.previewingId);
   const previewAudioStarted = usePreviewStore(s => s.audioStarted);
   const showBitrate = useThemeStore(s => s.showBitrate);
+  const trackListCoversOn = useTrackListCoverArtEnabled('pages');
   const psyDrag = useDragDrop();
   const { orbitActive, queueHint, addTrackToOrbit } = useOrbitSongRowBehavior();
 
@@ -177,6 +181,15 @@ export default function FavoritesSongsTracklist({
   });
 
   const virtualItems = rowVirtualizer.getVirtualItems();
+
+  const warmVisibleSongs = useMemo(
+    () => virtualItems.map(vi => visibleSongs[vi.index]),
+    [virtualItems, visibleSongs],
+  );
+
+  useWarmTrackListAlbumCovers(warmVisibleSongs, COVER_ARTIST_TOP_TRACK_CSS_PX, {
+    enabled: trackListCoversOn,
+  });
 
   return (
     <>

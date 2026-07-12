@@ -82,6 +82,59 @@ export async function collectSongCoverWarmItems(
   return out;
 }
 
+/** Dedupe track rows to album ids for list warm/prefetch (one cover per album). */
+export function uniqueAlbumIdsFromSongs(
+  songs: ReadonlyArray<{ albumId?: string | null }>,
+  limit = 48,
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const song of songs) {
+    const id = song.albumId?.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/**
+ * Library-resolved peek + high-priority ensure for deduped album covers referenced
+ * by a track list window (browse rows, playlist suggestions, virtual slice).
+ */
+export async function warmUniqueAlbumCoversFromLibrary(
+  albumIds: readonly string[],
+  displayCssPx: number,
+  surface: CoverSurfaceKind = 'dense',
+): Promise<void> {
+  if (albumIds.length === 0 || displayCssPx <= 0) return;
+  const items: CoverWarmItem[] = [];
+  for (const albumId of albumIds) {
+    items.push(await coverWarmItemFromLibrary(albumId, albumId, displayCssPx, surface));
+  }
+  const batch = dedupeWarmItems(items);
+  if (batch.length === 0) return;
+
+  await warmCoverDiskSrcBatch(batch);
+  const tier = resolveCoverDisplayTier(displayCssPx, { surface });
+  const needEnsure = batch.filter(item => !getDiskSrcForGrid(item.ref, tier));
+  if (needEnsure.length === 0) return;
+
+  const PRIME_CHUNK = 8;
+  for (let i = 0; i < needEnsure.length; i += PRIME_CHUNK) {
+    const chunk = needEnsure.slice(i, i + PRIME_CHUNK);
+    await Promise.all(
+      chunk.map(async item => {
+        const result = await coverEnsureQueued(item.storageKey, item.ref, tier, 'high');
+        if (result.hit && result.path) {
+          rememberGridDiskSrc(item.ref, tier, result.path);
+        }
+      }),
+    );
+  }
+}
+
 /**
  * One IPC round-trip: seed `diskSrcCache` from existing `.webp` before cells hit the ensure queue.
  */
