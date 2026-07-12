@@ -126,9 +126,9 @@ pub(crate) fn format_output_device_label(desc: &rodio::cpal::DeviceDescription) 
 
 /// Best-effort label when a legacy plain-name pin is kept off the current list.
 pub(crate) fn legacy_output_device_display_label(key: &str) -> String {
-    use rodio::cpal::traits::HostTrait;
     #[cfg(not(target_os = "linux"))]
     {
+        use rodio::cpal::traits::HostTrait;
         if let Ok(id) = key.parse::<rodio::cpal::DeviceId>() {
             if let Some(device) = rodio::cpal::default_host().device_by_id(&id) {
                 return output_device_display_label(&device);
@@ -642,6 +642,7 @@ fn legacy_description_key_matches_device_id(legacy: &str, device_id_key: &str) -
 }
 
 /// True if `pinned` is the same sink as some entry (exact or Linux ALSA logical match).
+#[cfg(not(target_os = "linux"))]
 pub(crate) fn output_enumeration_includes_pinned(available: &[String], pinned: &str) -> bool {
     available
         .iter()
@@ -670,18 +671,21 @@ mod tests {
     // ── output_enumeration_includes_pinned ────────────────────────────────────
 
     #[test]
+    #[cfg(not(target_os = "linux"))]
     fn includes_pinned_finds_exact_match() {
         let avail = vec!["A".to_string(), "B".to_string(), "C".to_string()];
         assert!(output_enumeration_includes_pinned(&avail, "B"));
     }
 
     #[test]
+    #[cfg(not(target_os = "linux"))]
     fn includes_pinned_returns_false_when_absent() {
         let avail = vec!["A".to_string(), "B".to_string()];
         assert!(!output_enumeration_includes_pinned(&avail, "Z"));
     }
 
     #[test]
+    #[cfg(not(target_os = "linux"))]
     fn includes_pinned_returns_false_for_empty_list() {
         let avail: Vec<String> = vec![];
         assert!(!output_enumeration_includes_pinned(&avail, "anything"));

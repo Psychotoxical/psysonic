@@ -219,7 +219,6 @@ fn open_stream_for_device_and_rate(device_name: Option<&str>, desired_rate: u32)
     };
 
     let device = device_name
-        .as_deref()
         .and_then(find_by_key)
         .or_else(|| {
             #[cfg(target_os = "linux")]
