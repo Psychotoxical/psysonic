@@ -606,7 +606,10 @@ mod tests {
         .unwrap();
         assert_eq!(batch.cover_ids, vec!["0DurV2S7arIOBQVEknOPWX".to_string()]);
         assert_eq!(batch.items[0].cache_kind, "album");
-        assert_eq!(batch.items[0].fetch_cover_art_id, "0DurV2S7arIOBQVEknOPWX");
+        assert_eq!(
+            batch.items[0].fetch_cover_art_id,
+            "al-0DurV2S7arIOBQVEknOPWX_0"
+        );
     }
 
     #[test]
