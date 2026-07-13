@@ -537,6 +537,7 @@ export const settings = {
   playerBarEqualizer: 'イコライザー',
   playerBarMiniPlayer: 'ミニプレイヤー',
   playerBarStop: '停止ボタン',
+  playerBarShuffle: 'シャッフル',
   playerBarTransportGroup: '再生コントロール',
   playerBarActionsGroup: 'アクション',
   playerBarTrackInfo: '曲情報',

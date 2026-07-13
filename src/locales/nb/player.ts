@@ -38,6 +38,8 @@ export const player = {
   repeat: 'Gjenta',
   repeatOff: 'Av',
   repeatAll: 'Alle',
+  shuffleOn: 'På',
+  shuffleOff: 'Av',
   repeatOne: 'Én',
   progress: 'Sangfremdrift',
   volume: 'Volum',

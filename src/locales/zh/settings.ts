@@ -485,6 +485,7 @@ export const settings = {
   playerBarEqualizer: '均衡器',
   playerBarMiniPlayer: '迷你播放器',
   playerBarStop: '停止按钮',
+  playerBarShuffle: '随机播放',
   playerBarTransportGroup: '播放控制',
   playerBarActionsGroup: '操作',
   playerBarTrackInfo: '曲目信息',

@@ -498,6 +498,7 @@ export const settings = {
   playerBarEqualizer: 'Ecualizador',
   playerBarMiniPlayer: 'Mini reproductor',
   playerBarStop: 'Botón de parada',
+  playerBarShuffle: 'Reproducción aleatoria',
   playerBarTransportGroup: 'Transporte',
   playerBarActionsGroup: 'Acciones',
   playerBarTrackInfo: 'Información de la pista',

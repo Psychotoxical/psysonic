@@ -485,6 +485,7 @@ export const settings = {
   playerBarEqualizer: 'Equalizer',
   playerBarMiniPlayer: 'Miniavspiller',
   playerBarStop: 'Stopp-knapp',
+  playerBarShuffle: 'Tilfeldig rekkefølge',
   playerBarTransportGroup: 'Avspillingskontroller',
   playerBarActionsGroup: 'Handlinger',
   playerBarTrackInfo: 'Sporinfo',

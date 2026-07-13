@@ -543,6 +543,7 @@ export const settings = {
   playerBarEqualizer: 'Equalizer',
   playerBarMiniPlayer: 'Miniodtwarzacz',
   playerBarStop: 'Przycisk zatrzymania',
+  playerBarShuffle: 'Odtwarzanie losowe',
   playerBarTransportGroup: 'Sterowanie odtwarzaniem',
   playerBarActionsGroup: 'Akcje',
   playerBarTrackInfo: 'Informacje o utworze',

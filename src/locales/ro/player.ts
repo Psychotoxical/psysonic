@@ -38,6 +38,8 @@ export const player = {
   repeat: 'Repetă',
   repeatOff: 'Oprit',
   repeatAll: 'Tot',
+  shuffleOn: 'Activată',
+  shuffleOff: 'Dezactivată',
   repeatOne: 'Unul',
   progress: 'Progresul Piesei',
   volume: 'Volum',

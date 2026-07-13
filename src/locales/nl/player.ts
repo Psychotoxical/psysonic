@@ -38,6 +38,8 @@ export const player = {
   repeat: 'Herhalen',
   repeatOff: 'Uit',
   repeatAll: 'Alles',
+  shuffleOn: 'Aan',
+  shuffleOff: 'Uit',
   repeatOne: 'Één',
   progress: 'Nummervoortgang',
   volume: 'Volume',

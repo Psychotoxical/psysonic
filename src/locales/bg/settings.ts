@@ -543,6 +543,7 @@ export const settings = {
   playerBarEqualizer: 'Еквалайзер',
   playerBarMiniPlayer: 'Мини плейър',
   playerBarStop: 'Бутон за спиране',
+  playerBarShuffle: 'Разбъркано възпроизвеждане',
   playerBarTransportGroup: 'Управление на възпроизвеждането',
   playerBarActionsGroup: 'Действия',
   playerBarTrackInfo: 'Информация за песента',

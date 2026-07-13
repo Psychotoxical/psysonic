@@ -543,6 +543,7 @@ export const settings = {
   playerBarEqualizer: 'Equalizer',
   playerBarMiniPlayer: 'Mini player',
   playerBarStop: 'Stop button',
+  playerBarShuffle: 'Shuffle',
   playerBarTransportGroup: 'Transport',
   playerBarActionsGroup: 'Actions',
   playerBarTrackInfo: 'Track info',

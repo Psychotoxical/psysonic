@@ -544,6 +544,7 @@ export const settings = {
   playerBarEqualizer: 'Equalizzatore',
   playerBarMiniPlayer: 'Mini player',
   playerBarStop: 'Pulsante di stop',
+  playerBarShuffle: 'Riproduzione casuale',
   playerBarTransportGroup: 'Trasporto',
   playerBarActionsGroup: 'Azioni',
   playerBarTrackInfo: 'Info brano',

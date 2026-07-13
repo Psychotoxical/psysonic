@@ -501,6 +501,7 @@ export const settings = {
   playerBarEqualizer: 'Egalizator',
   playerBarMiniPlayer: 'Mini player',
   playerBarStop: 'Buton de oprire',
+  playerBarShuffle: 'Redare aleatorie',
   playerBarTransportGroup: 'Control redare',
   playerBarActionsGroup: 'Acțiuni',
   playerBarTrackInfo: 'Informații piesă',

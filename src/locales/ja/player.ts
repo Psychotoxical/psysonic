@@ -38,6 +38,8 @@ export const player = {
   repeat: 'リピート',
   repeatOff: 'オフ',
   repeatAll: 'すべて',
+  shuffleOn: 'オン',
+  shuffleOff: 'オフ',
   repeatOne: '1 曲',
   progress: '曲の進行',
   volume: '音量',

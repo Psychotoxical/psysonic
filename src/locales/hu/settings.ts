@@ -543,6 +543,7 @@ export const settings = {
   playerBarEqualizer: 'Hangszínszabályzó',
   playerBarMiniPlayer: 'Mini lejátszó',
   playerBarStop: 'Leállítás gomb',
+  playerBarShuffle: 'Véletlenszerű lejátszás',
   playerBarTransportGroup: 'Lejátszásvezérlők',
   playerBarActionsGroup: 'Műveletek',
   playerBarTrackInfo: 'Száminformáció',

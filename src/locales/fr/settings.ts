@@ -486,6 +486,7 @@ export const settings = {
   playerBarEqualizer: 'Égaliseur',
   playerBarMiniPlayer: 'Mini-lecteur',
   playerBarStop: 'Bouton d’arrêt',
+  playerBarShuffle: 'Lecture aléatoire',
   playerBarTransportGroup: 'Transport',
   playerBarActionsGroup: 'Actions',
   playerBarTrackInfo: 'Infos du morceau',

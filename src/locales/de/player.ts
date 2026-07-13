@@ -38,6 +38,8 @@ export const player = {
   repeat: 'Wiederholen',
   repeatOff: 'Aus',
   repeatAll: 'Alle',
+  shuffleOn: 'An',
+  shuffleOff: 'Aus',
   repeatOne: 'Einen',
   progress: 'Songfortschritt',
   volume: 'Lautstärke',

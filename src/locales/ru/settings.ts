@@ -558,6 +558,7 @@ export const settings = {
   playerBarEqualizer: 'Эквалайзер',
   playerBarMiniPlayer: 'Мини-плеер',
   playerBarStop: 'Кнопка «Стоп»',
+  playerBarShuffle: 'Случайный порядок',
   playerBarTransportGroup: 'Управление воспроизведением',
   playerBarActionsGroup: 'Действия',
   playerBarTrackInfo: 'Информация о треке',

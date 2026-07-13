@@ -38,6 +38,8 @@ export const player = {
   repeat: '重复',
   repeatOff: '关闭',
   repeatAll: '全部',
+  shuffleOn: '开',
+  shuffleOff: '关',
   repeatOne: '单曲',
   progress: '播放进度',
   volume: '音量',

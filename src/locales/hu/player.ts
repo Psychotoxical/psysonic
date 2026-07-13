@@ -38,6 +38,8 @@ export const player = {
   repeat: 'Ismétlés',
   repeatOff: 'Ki',
   repeatAll: 'Mind',
+  shuffleOn: 'Be',
+  shuffleOff: 'Ki',
   repeatOne: 'Egy',
   progress: 'A dal előrehaladása',
   volume: 'Hangerő',
