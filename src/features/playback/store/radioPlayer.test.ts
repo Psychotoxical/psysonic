@@ -101,6 +101,7 @@ describe('playRadioStream', () => {
     await playRadioStream('https://x/y', 0.5);
     hoisted.showToastMock.mockClear();
     await playRadioStream('https://x/z', 0.5);
+    Object.defineProperty(audio, 'error', { value: { code: 1 }, configurable: true });
     audio.dispatchEvent(new Event('error'));
     expect(hoisted.showToastMock).not.toHaveBeenCalled();
   });

@@ -26,6 +26,8 @@ const radioAudio = new Audio();
 radioAudio.preload = 'none';
 
 let suppressHtml5RadioErrors = false;
+/** True between `play()` and the first `playing` event for the current load. */
+let radioAwaitingFirstFrame = false;
 let radioStopping = false;
 let radioReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let radioReconnectCount = 0;
@@ -33,6 +35,7 @@ let lastVolume = 1;
 let radioGraphActive = false;
 let eqAttachUnsub: (() => void) | null = null;
 
+const MEDIA_ERR_ABORTED = typeof MediaError !== 'undefined' ? MediaError.MEDIA_ERR_ABORTED : 1;
 const MAX_RADIO_RECONNECTS = 5;
 const RECONNECT_DELAY_MS = 4000;
 
@@ -66,17 +69,26 @@ radioAudio.addEventListener('ended', () => {
 });
 radioAudio.addEventListener('error', () => {
   clearRadioReconnectTimer();
-  if (radioStopping || suppressHtml5RadioErrors) {
+  if (radioStopping) {
     radioStopping = false;
+    suppressHtml5RadioErrors = false;
+    radioAwaitingFirstFrame = false;
+    return;
+  }
+  const aborted = radioAudio.error?.code === MEDIA_ERR_ABORTED;
+  if (suppressHtml5RadioErrors && (aborted || !radioAwaitingFirstFrame)) {
     suppressHtml5RadioErrors = false;
     return;
   }
+  suppressHtml5RadioErrors = false;
+  radioAwaitingFirstFrame = false;
   radioReconnectCount = 0;
   usePlayerStore.setState({ isPlaying: false, currentRadio: null });
   showToast('Radio stream error', 3000, 'error');
 });
 radioAudio.addEventListener('playing', () => {
   suppressHtml5RadioErrors = false;
+  radioAwaitingFirstFrame = false;
   radioReconnectCount = 0;
   void resumeRadioEqContext();
 });
@@ -125,7 +137,8 @@ export async function playRadioStream(streamUrl: string, volume: number): Promis
   radioGraphActive = isRadioEqGraphActive();
 
   suppressHtml5RadioErrors = true;
-  if (shouldUseRadioEqGraph()) {
+  radioAwaitingFirstFrame = true;
+  if (shouldUseRadioEqGraph() || isRadioEqGraphActive()) {
     radioAudio.crossOrigin = 'anonymous';
   } else {
     radioAudio.removeAttribute('crossorigin');
@@ -139,7 +152,13 @@ export async function playRadioStream(streamUrl: string, volume: number): Promis
   if (radioGraphActive) {
     await resumeRadioEqContext().catch(() => {});
   }
-  return radioAudio.play();
+  try {
+    await radioAudio.play();
+  } catch (err) {
+    radioAwaitingFirstFrame = false;
+    suppressHtml5RadioErrors = false;
+    throw err;
+  }
 }
 
 export function pauseRadio(): void {
@@ -162,6 +181,7 @@ export function stopRadio(): void {
   radioAudio.src = '';
   radioAudio.removeAttribute('crossorigin');
   radioGraphActive = false;
+  radioAwaitingFirstFrame = false;
   clearRadioReconnectTimer();
   radioReconnectCount = 0;
 }
@@ -207,6 +227,7 @@ export function _radioAudioForTest(): HTMLAudioElement {
 export function _resetRadioPlayerForTest(): void {
   radioStopping = false;
   suppressHtml5RadioErrors = false;
+  radioAwaitingFirstFrame = false;
   radioReconnectCount = 0;
   radioGraphActive = false;
   lastVolume = 1;
