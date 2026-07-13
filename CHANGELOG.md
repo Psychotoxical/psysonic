@@ -302,6 +302,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Internet Radio playback stayed on HTML5 after v1.32, but EQ changes only reached the Rust engine used for library tracks — toggling EQ or switching presets had no effect on a live station. Radio now routes through a Web Audio 10-band graph on the same `<audio>` element when EQ is enabled; preset and slider changes update filters in place without restarting the stream.
 
+### Music Network — connect errors now name their cause
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1285](https://github.com/Psychotoxical/psysonic/pull/1285)**
+
+* Connecting a scrobble service could fail with only "Network error — check your connection or URL", which covers everything from a DNS failure to a blocked host, an interrupted TLS handshake or a rejected request. The underlying error is now shown alongside it, so a failing connect can be told apart from a reachability problem on your machine or network.
+
 
 ## [1.49.0] - 2026-06-29
 
