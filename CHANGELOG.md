@@ -315,6 +315,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Internet Radio playback stayed on HTML5 after v1.32, but EQ changes only reached the Rust engine used for library tracks — toggling EQ or switching presets had no effect on a live station. Radio now routes through a Web Audio 10-band graph on the same `<audio>` element when EQ is enabled; preset and slider changes update filters in place without restarting the stream.
 
+### Windows — oversized Discord banner icon
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1289](https://github.com/Psychotoxical/psysonic/pull/1289)**
+
+* The Discord community banner rendered its icon at an enormous size on Windows, pushing the message out of the bar. The icon now has a fixed size on every platform.
+
 ### Music Network — connect errors now name their cause
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1285](https://github.com/Psychotoxical/psysonic/pull/1285)**
