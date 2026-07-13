@@ -25,6 +25,8 @@ function skipFullResSeedTier(tier: CoverArtTier, fsPath: string): boolean {
 /** Dense grids: prefer a larger on-disk tier (800) before tiny thumbs when the ideal tier is missing. */
 export function gridDiskSrcLookupOrder(want: CoverArtTier): CoverArtTier[] {
   const out: CoverArtTier[] = [want];
+  // Rust peek ladder for tier 64 falls back to 128.webp — mirror that in memory lookup.
+  if (want === 64 && !out.includes(128)) out.push(128);
   if (want >= 256 && want < 800) out.push(800);
   const ladder: CoverArtTier[] = [128, 256, 512, 800];
   for (let i = ladder.length - 1; i >= 0; i -= 1) {

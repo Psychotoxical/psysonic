@@ -9,6 +9,7 @@ import { useAuthStore } from '../store/authStore';
 import { COVER_SCOPE_ACTIVE, type CoverArtRef, CoverCacheKind, CoverServerScope } from './types';
 import {
   coverEntryToRef,
+  normalizeAlbumLibraryEntry,
   resolveAlbumCoverEntry,
   resolveArtistCoverEntry,
   resolveTrackCoverEntry,
@@ -126,9 +127,11 @@ export async function resolveAlbumCoverRefFromLibrary(
   fallbackCoverArt: string | null | undefined,
   serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
 ): Promise<CoverArtRef> {
-  const entry =
-    (await libraryResolveCoverEntry(libraryServerIdFromScope(serverScope), 'album', albumId))
-    ?? resolveAlbumCoverEntry(albumId, fallbackCoverArt);
+  const raw =
+    await libraryResolveCoverEntry(libraryServerIdFromScope(serverScope), 'album', albumId);
+  const entry = raw
+    ? normalizeAlbumLibraryEntry(albumId, raw)
+    : resolveAlbumCoverEntry(albumId, fallbackCoverArt);
   return coverEntryToRef(entry!, serverScope);
 }
 
@@ -151,12 +154,21 @@ function pickTrackCoverEntry(
   const albumId = song.albumId?.trim();
   const fromClient = resolveTrackCoverEntry(song, distinctDiscCovers);
   if (!fromLibrary) return fromClient;
-  if (!fromClient) return fromLibrary;
+  if (!fromClient) {
+    return albumId && fromLibrary.cacheKind === 'album'
+      ? normalizeAlbumLibraryEntry(albumId, fromLibrary)
+      : fromLibrary;
+  }
+
+  const normalizedLibrary =
+    albumId && fromLibrary.cacheKind === 'album'
+      ? normalizeAlbumLibraryEntry(albumId, fromLibrary)
+      : fromLibrary;
 
   const songArt = resolveSongFetchCoverArtId(song);
   const libraryIsAlbumBucket =
     Boolean(albumId)
-    && fromLibrary.cacheEntityId === albumId
+    && normalizedLibrary.cacheEntityId === albumId
     && fromClient.cacheEntityId !== albumId;
 
   if (
@@ -168,11 +180,11 @@ function pickTrackCoverEntry(
     return fromClient;
   }
 
-  if (fromClient.cacheEntityId !== fromLibrary.cacheEntityId && distinctDiscCovers) {
+  if (fromClient.cacheEntityId !== normalizedLibrary.cacheEntityId && distinctDiscCovers) {
     return fromClient;
   }
 
-  return fromLibrary;
+  return normalizedLibrary;
 }
 
 export async function resolveTrackCoverRefFromLibrary(

@@ -110,6 +110,20 @@ pub fn resolve_album_cover(
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .unwrap_or(album);
+    // Navidrome track-only libraries: keep consensus `mf-*` fetch (library picks the
+    // first track per album) while the disk slot stays album-scoped.
+    if !distinct_disc_covers && fetch.starts_with("mf-") && fetch != album {
+        return Some(CoverEntry {
+            cache_kind: "album",
+            cache_entity_id: album.to_string(),
+            fetch_cover_art_id: fetch.to_string(),
+        });
+    }
+    let fetch_id = if !distinct_disc_covers && fetch == album {
+        format!("al-{album}_0")
+    } else {
+        fetch.to_string()
+    };
     let cache_entity_id = if distinct_disc_covers && fetch != album {
         fetch.to_string()
     } else {
@@ -118,7 +132,7 @@ pub fn resolve_album_cover(
     Some(CoverEntry {
         cache_kind: "album",
         cache_entity_id,
-        fetch_cover_art_id: fetch.to_string(),
+        fetch_cover_art_id: fetch_id,
     })
 }
 
@@ -269,6 +283,19 @@ mod tests {
     fn resolve_album_per_disc_changes_cache_entity() {
         let e = resolve_album_cover("al-box", Some("mf-d2"), true).unwrap();
         assert_eq!(e.cache_entity_id, "mf-d2");
+    }
+
+    #[test]
+    fn resolve_album_keeps_mf_fetch_on_album_bucket() {
+        let e = resolve_album_cover("al-box", Some("mf-track"), false).unwrap();
+        assert_eq!(e.cache_entity_id, "al-box");
+        assert_eq!(e.fetch_cover_art_id, "mf-track");
+    }
+
+    #[test]
+    fn resolve_album_navidrome_bare_id() {
+        let e = resolve_album_cover("2lsdR1ogDKiFcAD6Pcvk4f", None, false).unwrap();
+        assert_eq!(e.fetch_cover_art_id, "al-2lsdR1ogDKiFcAD6Pcvk4f_0");
     }
 
     fn test_server_dir(label: &str) -> std::path::PathBuf {

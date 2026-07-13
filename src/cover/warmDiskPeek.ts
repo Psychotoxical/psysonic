@@ -76,7 +76,7 @@ export async function collectSongCoverWarmItems(
   for (const s of songs) {
     if (!s.albumId || out.length >= limit) break;
     out.push(
-      await coverWarmItemFromLibrary(s.albumId, s.coverArt ?? s.albumId, displayCssPx, surface),
+      await coverWarmItemFromLibrary(s.albumId, s.albumId, displayCssPx, surface),
     );
   }
   return out;
@@ -109,10 +109,9 @@ export async function warmUniqueAlbumCoversFromLibrary(
   surface: CoverSurfaceKind = 'dense',
 ): Promise<void> {
   if (albumIds.length === 0 || displayCssPx <= 0) return;
-  const items: CoverWarmItem[] = [];
-  for (const albumId of albumIds) {
-    items.push(await coverWarmItemFromLibrary(albumId, albumId, displayCssPx, surface));
-  }
+  const items = await Promise.all(
+    albumIds.map(albumId => coverWarmItemFromLibrary(albumId, albumId, displayCssPx, surface)),
+  );
   const batch = dedupeWarmItems(items);
   if (batch.length === 0) return;
 

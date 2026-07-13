@@ -69,5 +69,9 @@ export function trackToSong(t: LibraryTrackDto): SubsonicSong {
     };
   }
   if (t.serverId) merged.serverId = t.serverId;
+  const hotAlbumId = base.albumId?.trim();
+  if (hotAlbumId && !merged.albumId?.trim()) {
+    merged.albumId = hotAlbumId;
+  }
   return merged;
 }

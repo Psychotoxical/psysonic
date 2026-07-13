@@ -19,4 +19,8 @@ describe('resolveCoverDisplayTier', () => {
     expect(resolveCoverDisplayTier(40, { dpr: 2, surface: 'dense' })).toBe(128);
     expect(resolveCoverDisplayTier(64, { dpr: 2, surface: 'dense' })).toBe(128);
   });
+
+  it('floors dense 32px thumbs at 128 (Rust derive minimum)', () => {
+    expect(resolveCoverDisplayTier(32, { dpr: 2, surface: 'dense' })).toBe(128);
+  });
 });

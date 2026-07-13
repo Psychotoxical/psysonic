@@ -175,6 +175,32 @@ describe('runLocalAdvancedSearch', () => {
     expect(song.coverArt).toBe('al-42');
   });
 
+  it('trackToSong keeps hot albumId when rawJson omits or nulls albumId', () => {
+    const fromNull = trackToSong({
+      serverId: 's1',
+      id: 't1',
+      title: 'T',
+      album: 'Diorama',
+      albumId: 'al-diorama',
+      durationSec: 100,
+      syncedAt: 0,
+      rawJson: { id: 't1', title: 'T', artist: 'Mol', album: 'Diorama', albumId: null, duration: 100 },
+    });
+    expect(fromNull.albumId).toBe('al-diorama');
+
+    const fromMissing = trackToSong({
+      serverId: 's1',
+      id: 't2',
+      title: 'T2',
+      album: 'Diorama',
+      albumId: 'al-diorama',
+      durationSec: 100,
+      syncedAt: 0,
+      rawJson: { id: 't2', title: 'T2', artist: 'Mol', album: 'Diorama', duration: 100 },
+    });
+    expect(fromMissing.albumId).toBe('al-diorama');
+  });
+
   it('trackToSong keeps resolved bpm and source over rawJson tag', () => {
     const song = trackToSong({
       serverId: 's1',

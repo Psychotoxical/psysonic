@@ -50,8 +50,8 @@ describe('coverEnsureQueued', () => {
       coverEnsureQueued('s:cover:al-1:128', ref, 128, 'high'),
       coverEnsureQueued('s:cover:al-1:128', ref, 128, 'low'),
     ]);
-    expect(a.path).toBe('/tmp/al-1.webp');
-    expect(b.path).toBe('/tmp/al-1.webp');
+    expect(a.path).toBe('/tmp/al-al-1_0.webp');
+    expect(b.path).toBe('/tmp/al-al-1_0.webp');
     expect(ensureImpl).toHaveBeenCalledTimes(1);
   });
 

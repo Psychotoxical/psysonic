@@ -4,8 +4,8 @@ import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { CoverArtImage } from '@/cover/CoverArtImage';
 import {
   useAlbumCoverRef,
+  useBrowseListTrackCoverRef,
   usePlaybackTrackCoverRef,
-  useTrackCoverRef,
 } from '@/cover/useLibraryCoverRef';
 import { wakeCoverBackfillForMissingTrack } from '@/cover/wakeCoverBackfillForMissingTrack';
 import {
@@ -100,9 +100,9 @@ function TrackRowCoverImage({
 }
 
 /**
- * Browse/detail track rows — **album** cover via library index (multi-disc → track
- * resolver). Album-level ref dedupes library IPC and avoids per-track `mf-*` fetch
- * ids on the sync path; page warm registers the same album ids in prefetch.
+ * Browse/detail track rows — **album** cover (multi-disc → per-disc resolver).
+ * List thumbs never use per-track `song.coverArt` / `mf-*`; fetch is album-scoped
+ * from `albumId` (+ library index for `al-*` ids when indexed).
  */
 export function BrowseTrackRowCoverThumb({
   song,
@@ -112,21 +112,30 @@ export function BrowseTrackRowCoverThumb({
 }: BaseProps) {
   const displayCssPx = SIZE_PX[size];
   const albumId = song.albumId?.trim();
-  const serverScope = coverServerScopeForServerId(song.serverId);
+  const serverScope = useMemo(
+    () => coverServerScopeForServerId(song.serverId),
+    [song.serverId],
+  );
   const distinctDiscCovers = useMemo(
     () => (albumId ? resolveDistinctDiscCoversForAlbum(albumId) : false),
     [albumId],
   );
-  const albumRef = useAlbumCoverRef(albumId, song.coverArt, serverScope, { libraryResolve: true });
-  const trackRef = useTrackCoverRef(song, serverScope, { libraryResolve: true });
+  // Page warm (`useWarmTrackListAlbumCovers`) library-resolves deduped album ids;
+  // per-row IPC would stall tracks search (50+ concurrent SQLite resolves).
+  const albumRef = useAlbumCoverRef(albumId, null, serverScope, { libraryResolve: false });
+  const trackRef = useBrowseListTrackCoverRef(
+    distinctDiscCovers ? song : null,
+    serverScope,
+    distinctDiscCovers,
+  );
   const coverRef = distinctDiscCovers ? trackRef : albumRef;
-  const missingApiCoverArt = !song.coverArt?.trim();
+  const missingResolvableCover = !albumId;
 
   useEffect(() => {
-    if (missingApiCoverArt) wakeCoverBackfillForMissingTrack(song);
+    if (missingResolvableCover) wakeCoverBackfillForMissingTrack(song);
     // song is read only for albumId/coverArt inside the wake helper.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [missingApiCoverArt, song.id, song.albumId]);
+  }, [missingResolvableCover, song.id, song.albumId]);
 
   if (!albumId || !coverRef) {
     return <TrackRowCoverPlaceholder displayCssPx={displayCssPx} className={className} showIcon />;

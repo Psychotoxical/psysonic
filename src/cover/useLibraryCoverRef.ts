@@ -65,7 +65,9 @@ export function useAlbumCoverRef(
     const id = albumId?.trim();
     if (!id) return null;
     return albumCoverRef(id, fallbackCoverArt, { serverScope, distinctDiscCovers });
-  }, [albumId, fallbackCoverArt, serverScope, distinctDiscCovers]);
+    // `serverScope` is keyed via stable `scopeKey` — see effect deps below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [albumId, fallbackCoverArt, scopeKey, distinctDiscCovers]);
 
   const [ref, setRef] = useState<CoverArtRef | null>(syncRef);
 
@@ -92,6 +94,71 @@ export function useAlbumCoverRef(
   return libraryResolve ? ref : syncRef;
 }
 
+/**
+ * Browse track-list rows — **library fetch id first**, then mount CoverArtImage.
+ * SQLite often stores per-track `mf-*` in `cover_art_id`; the sync album ref would
+ * race ensure with the wrong id before `library_resolve_cover_entry` returns the
+ * album row's `al-*` (or album id fallback).
+ */
+export function useBrowseListAlbumCoverRef(
+  albumId: string | null | undefined,
+  serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
+): CoverArtRef | null {
+  const scopeKey = coverScopeKey(serverScope);
+  const id = albumId?.trim() ?? '';
+  const [ref, setRef] = useState<CoverArtRef | null>(null);
+
+  useEffect(() => {
+    if (!id) {
+      setRef(null);
+      return;
+    }
+    let cancelled = false;
+    setRef(null);
+    void resolveAlbumCoverRefFromLibrary(id, id, serverScope).then(next => {
+      if (!cancelled) setRef(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // serverScope keyed via scopeKey — see useAlbumCoverRef.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, scopeKey]);
+
+  return ref;
+}
+
+/** Multi-disc browse rows — library-resolved per-disc slot before ensure. */
+export function useBrowseListTrackCoverRef(
+  song: Pick<SubsonicSong, 'id' | 'albumId' | 'coverArt' | 'discNumber'> | null | undefined,
+  serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
+  distinctDiscCovers = false,
+): CoverArtRef | undefined {
+  const scopeKey = coverScopeKey(serverScope);
+  const songId = song?.id?.trim() ?? '';
+  const albumId = song?.albumId?.trim() ?? '';
+  const [ref, setRef] = useState<CoverArtRef | undefined>(undefined);
+
+  useEffect(() => {
+    if (!songId || !albumId || !song) {
+      setRef(undefined);
+      return;
+    }
+    let cancelled = false;
+    setRef(undefined);
+    void resolveTrackCoverRefFromLibrary(song, serverScope, distinctDiscCovers).then(next => {
+      if (!cancelled) setRef(next ?? undefined);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // serverScope keyed via scopeKey — see useTrackCoverRef.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [song, songId, albumId, scopeKey, distinctDiscCovers]);
+
+  return ref;
+}
+
 /** Artist grid — sync fallback, then library index. */
 export function useArtistCoverRef(
   artistId: string | null | undefined,
@@ -105,7 +172,9 @@ export function useArtistCoverRef(
     const id = artistId?.trim();
     if (!id) return null;
     return artistCoverRef(id, fallbackCoverArt, serverScope);
-  }, [artistId, fallbackCoverArt, serverScope]);
+    // `serverScope` is keyed via stable `scopeKey` — see effect deps below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [artistId, fallbackCoverArt, scopeKey]);
 
   const [ref, setRef] = useState<CoverArtRef | null>(syncRef);
 

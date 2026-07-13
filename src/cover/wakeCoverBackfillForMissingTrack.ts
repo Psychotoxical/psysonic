@@ -1,5 +1,6 @@
 import { wakeLibraryCoverBackfill } from '@/lib/library/coverBackfillWake';
 import { coverStrategyAllowsLibraryBackfill } from '@/lib/library/coverStrategy';
+import { resolveAlbumCoverEntry } from '@/cover/resolveEntry';
 import { useAuthStore } from '@/store/authStore';
 import { useCoverStrategyStore } from '@/store/coverStrategyStore';
 
@@ -15,8 +16,7 @@ export function wakeCoverBackfillForMissingTrack(
   song: { albumId?: string | null; coverArt?: string | null; serverId?: string | null },
 ): void {
   const albumId = song.albumId?.trim();
-  const coverArt = song.coverArt?.trim();
-  if (albumId && coverArt) return;
+  if (albumId && resolveAlbumCoverEntry(albumId, song.coverArt)?.fetchCoverArtId) return;
 
   const now = Date.now();
   if (lastWakeMs > 0 && now - lastWakeMs < WAKE_COOLDOWN_MS) return;

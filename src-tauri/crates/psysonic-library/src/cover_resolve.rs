@@ -107,7 +107,9 @@ pub fn resolve_album_cover_entry(
         )
         .optional()
     })? {
-        None => return Ok(None),
+        None => {
+            return track_only_album_backfill_entry(store, library_server_id, album_id);
+        }
         Some(v) => v,
     };
     // Album rows synced without a cover id (created from a starred/tag/browse path
@@ -409,11 +411,9 @@ mod tests {
         assert_eq!(e.fetch_cover_art_id, "al-ca78bec6_60fc987f");
     }
 
-    // #1252: an album row synced without a cover id (e.g. via a starred/tag path)
-    // must fall back to the album's track cover, not the bare album id, so the
-    // detail header and browse tiles resolve the same fetch id.
+    // #1252: album row without cover id — use first track mf when present.
     #[test]
-    fn resolve_album_falls_back_to_track_cover_when_row_cover_null() {
+    fn resolve_album_falls_back_to_track_mf_when_row_cover_null() {
         let store = LibraryStore::open_in_memory();
         seed_album(&store, "srv", "al-nocover", None);
         seed_track(&store, "srv", "tr1", "al-nocover", 1, Some("mf-cover"));
@@ -422,6 +422,27 @@ mod tests {
             .unwrap();
         assert_eq!(e.cache_entity_id, "al-nocover");
         assert_eq!(e.fetch_cover_art_id, "mf-cover");
+    }
+
+    #[test]
+    fn resolve_album_without_album_row_uses_track_only_backfill() {
+        let store = LibraryStore::open_in_memory();
+        seed_track(
+            &store,
+            "srv",
+            "tr1",
+            "2lsdR1ogDKiFcAD6Pcvk4f",
+            1,
+            Some("mf-fis8alFzjMGlcncxrvmpUV_67afa52a"),
+        );
+        let e = resolve_album_cover_entry(&store, "srv", "2lsdR1ogDKiFcAD6Pcvk4f")
+            .unwrap()
+            .unwrap();
+        assert_eq!(e.cache_entity_id, "2lsdR1ogDKiFcAD6Pcvk4f");
+        assert_eq!(
+            e.fetch_cover_art_id,
+            "mf-fis8alFzjMGlcncxrvmpUV_67afa52a"
+        );
     }
 
     #[test]

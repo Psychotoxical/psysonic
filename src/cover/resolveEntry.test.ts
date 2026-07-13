@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   albumHasDistinctDiscCovers,
+  normalizeAlbumLibraryEntry,
   resolveAlbumCoverEntry,
   resolveArtistCoverEntry,
   resolveSongFetchCoverArtId,
@@ -14,9 +15,17 @@ describe('resolveAlbumCoverEntry', () => {
     expect(e?.fetchCoverArtId).toBe('al-0Dur_abc');
   });
 
-  it('ignores mf fetch unless distinctDiscCovers', () => {
+  it('keeps mf fetch on album bucket unless distinctDiscCovers', () => {
     expect(resolveAlbumCoverEntry('al-box', 'mf-d2')?.cacheEntityId).toBe('al-box');
+    expect(resolveAlbumCoverEntry('al-box', 'mf-d2')?.fetchCoverArtId).toBe('mf-d2');
     expect(resolveAlbumCoverEntry('al-box', 'mf-d2', true)?.cacheEntityId).toBe('mf-d2');
+    expect(resolveAlbumCoverEntry('al-box', 'mf-d2', true)?.fetchCoverArtId).toBe('mf-d2');
+  });
+
+  it('uses Navidrome al-<id>_0 fetch for bare album ids', () => {
+    expect(resolveAlbumCoverEntry('2lsdR1ogDKiFcAD6Pcvk4f', null)?.fetchCoverArtId).toBe(
+      'al-2lsdR1ogDKiFcAD6Pcvk4f_0',
+    );
   });
 });
 
@@ -78,5 +87,26 @@ describe('albumHasDistinctDiscCovers', () => {
         { id: 't4', albumId: 'al-1', coverArt: 'mf-4', discNumber: 2 },
       ]),
     ).toBe(false);
+  });
+});
+
+describe('normalizeAlbumLibraryEntry', () => {
+  it('keeps consensus mf-* fetch on the album bucket', () => {
+    const e = normalizeAlbumLibraryEntry('al-1', {
+      cacheKind: 'album',
+      cacheEntityId: 'al-1',
+      fetchCoverArtId: 'mf-track',
+    });
+    expect(e.fetchCoverArtId).toBe('mf-track');
+  });
+
+  it('keeps per-disc mf-* when cache entity is the disc bucket', () => {
+    const e = normalizeAlbumLibraryEntry('al-box', {
+      cacheKind: 'album',
+      cacheEntityId: 'mf-d2',
+      fetchCoverArtId: 'mf-d2',
+    });
+    expect(e.cacheEntityId).toBe('mf-d2');
+    expect(e.fetchCoverArtId).toBe('mf-d2');
   });
 });

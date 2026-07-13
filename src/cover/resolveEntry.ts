@@ -68,6 +68,13 @@ export function albumHasDistinctDiscCovers(
   return discCovers.size > 1;
 }
 
+/** Re-apply album fetch rules to a library-resolved entry (SQLite may still carry per-track `mf-*`). */
+export function normalizeAlbumLibraryEntry(albumId: string, entry: CoverEntry): CoverEntry {
+  const album = albumId.trim();
+  const distinctDiscCovers = entry.cacheEntityId.trim() !== album;
+  return resolveAlbumCoverEntry(album, entry.fetchCoverArtId, distinctDiscCovers)!;
+}
+
 /** Album entity — one cache slot per album unless `distinctDiscCovers`. */
 export function resolveAlbumCoverEntry(
   albumId: string,
@@ -76,7 +83,18 @@ export function resolveAlbumCoverEntry(
 ): CoverEntry | undefined {
   const album = albumId.trim();
   if (!album) return undefined;
-  const fetch = (coverArtId?.trim() || album);
+  let fetch = coverArtId?.trim() || album;
+  // Navidrome track-only libraries (no `album` row): each track carries its own
+  // `mf-*` id but getCoverArt still serves album artwork. Keep one consensus mf
+  // fetch per album (library backfill picks the first track) while the disk slot
+  // stays album-scoped — never one cache dir per track in browse lists.
+  if (!distinctDiscCovers && fetch.startsWith('mf-') && fetch !== album) {
+    return { cacheKind: 'album', cacheEntityId: album, fetchCoverArtId: fetch };
+  }
+  // Bare album ids need `al-<albumId>_0` on Navidrome when no mf id is available.
+  if (!distinctDiscCovers && fetch === album) {
+    fetch = `al-${album}_0`;
+  }
   const cacheEntityId =
     distinctDiscCovers && fetch !== album ? fetch : album;
   return { cacheKind: 'album', cacheEntityId, fetchCoverArtId: fetch };

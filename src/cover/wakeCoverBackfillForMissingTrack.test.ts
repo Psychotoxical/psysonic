@@ -35,10 +35,16 @@ describe('wakeCoverBackfillForMissingTrack', () => {
     expect(wakeLibraryCoverBackfill).toHaveBeenCalledTimes(1);
   });
 
-  it('wakes backfill when coverArt is missing', () => {
+  it('does not wake when albumId alone resolves a fetch id', () => {
     vi.setSystemTime(10_000);
     wakeCoverBackfillForMissingTrack({ albumId: 'al-1', coverArt: '' });
-    expect(wakeLibraryCoverBackfill).toHaveBeenCalledTimes(1);
+    expect(wakeLibraryCoverBackfill).not.toHaveBeenCalled();
+  });
+
+  it('does not wake for per-track mf-* when albumId resolves fetch', () => {
+    vi.setSystemTime(15_000);
+    wakeCoverBackfillForMissingTrack({ albumId: 'al-1', coverArt: 'mf-track123' });
+    expect(wakeLibraryCoverBackfill).not.toHaveBeenCalled();
   });
 
   it('does not wake when both albumId and coverArt are present', () => {
