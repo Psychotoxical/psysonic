@@ -157,6 +157,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Album detail — no duplicate cover thumbs in tracklist
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by mikmik on the Psysonic Discord, PR [#1291](https://github.com/Psychotoxical/psysonic/pull/1291)**
+
+* The album detail tracklist no longer shows a small album cover on every row when **Settings → Appearance → Track lists** is enabled — the page already displays the album art above the list, so the per-row thumbs from #1280 duplicated the same image on every line (desktop and mobile).
+
 ### Per-track covers when playing from a playlist
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1218](https://github.com/Psychotoxical/psysonic/pull/1218)**, reported by The Cup Slammer on Discord
