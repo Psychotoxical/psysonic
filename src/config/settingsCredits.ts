@@ -202,6 +202,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Windows MSI bundle on dev/RC versions — numeric WiX mapping; album easter-egg import chunk (PR #1278)',
       'Track lists — optional album cover thumbnails via standard cover pipeline; queue rows use playback scope (PR #1280)',
       'Internet Radio — Web Audio EQ on HTML5 streams; presets apply without reconnect (PR #1284)',
+      'Player bar — hideable stop button, optional album line, drag-reorderable action buttons (request: mikmik on Psysonic Discord, PR #1287)',
     ],
   },
   {

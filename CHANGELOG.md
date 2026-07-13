@@ -142,6 +142,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * While a Navidrome public share queue is active, **Save Playlist** is hidden in the queue toolbar (share tracks cannot be saved to the server). **Load Playlist** stays available.
 * The queue **Share** button copies the original Navidrome `/share/{id}` page URL instead of a Psysonic magic-string queue payload.
 
+### Player bar — build your own
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1287](https://github.com/Psychotoxical/psysonic/pull/1287)**
+
+* **Settings → Personalisation → Player bar** now also hides the **stop button** and shows the **album name** under the artist (off by default; clicking it opens the album). The right-hand buttons — star rating, favorite, love, playback speed, equalizer, mini player — can be **dragged into any order** you like.
+* The section is no longer behind **Advanced**.
+
 ## Fixed
 
 ### Per-track covers when playing from a playlist
