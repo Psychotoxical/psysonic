@@ -124,9 +124,12 @@ export async function playRadioStream(streamUrl: string, volume: number): Promis
   radioReconnectCount = 0;
   radioGraphActive = isRadioEqGraphActive();
 
-  // crossOrigin before src so EQ can attach later without a reconnect.
-  radioAudio.crossOrigin = 'anonymous';
   suppressHtml5RadioErrors = true;
+  if (shouldUseRadioEqGraph()) {
+    radioAudio.crossOrigin = 'anonymous';
+  } else {
+    radioAudio.removeAttribute('crossorigin');
+  }
   radioAudio.src = streamUrl;
 
   if (shouldUseRadioEqGraph()) {
@@ -182,6 +185,7 @@ export function bindRadioEqAttachOnEnable(): () => void {
     if (!state.enabled || prev.enabled) return;
     const player = usePlayerStore.getState();
     if (!player.currentRadio || radioGraphActive) return;
+    radioAudio.crossOrigin = 'anonymous';
     void maybeAttachEqGraph().then(() => {
       if (radioGraphActive) {
         applyOutputVolume(lastVolume);

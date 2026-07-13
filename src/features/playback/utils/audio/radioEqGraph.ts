@@ -135,7 +135,6 @@ export async function tryAttachRadioEqGraph(audio: HTMLAudioElement): Promise<bo
   audio.crossOrigin = 'anonymous';
 
   try {
-    const source = context.createMediaElementSource(audio);
     const preGainNode = context.createGain();
     const bands = EQ_BANDS.map((band) => {
       const node = context.createBiquadFilter();
@@ -147,7 +146,6 @@ export async function tryAttachRadioEqGraph(audio: HTMLAudioElement): Promise<bo
     });
     const masterGain = context.createGain();
 
-    source.connect(preGainNode);
     let tail: AudioNode = preGainNode;
     for (const band of bands) {
       tail.connect(band);
@@ -155,6 +153,10 @@ export async function tryAttachRadioEqGraph(audio: HTMLAudioElement): Promise<bo
     }
     tail.connect(masterGain);
     masterGain.connect(context.destination);
+
+    // Create the source last — once it exists the element output is hijacked.
+    const source = context.createMediaElementSource(audio);
+    source.connect(preGainNode);
 
     graph = { context, source, preGainNode, bands, masterGain };
     const { gains, enabled, preGain: preGainDb } = useEqStore.getState();
