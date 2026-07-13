@@ -50,5 +50,5 @@ export function useWarmTrackListAlbumCovers(
     return () => {
       cancelled = true;
     };
-  }, [enabled, warmKey, displayCssPx, albumIds]);
+  }, [enabled, warmKey, displayCssPx]);
 }

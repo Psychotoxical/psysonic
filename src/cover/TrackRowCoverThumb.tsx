@@ -3,7 +3,7 @@ import { Music } from 'lucide-react';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { CoverArtImage } from '@/cover/CoverArtImage';
 import {
-  useAlbumCoverRef,
+  useBrowseListAlbumCoverRef,
   useBrowseListTrackCoverRef,
   usePlaybackTrackCoverRef,
 } from '@/cover/useLibraryCoverRef';
@@ -120,9 +120,9 @@ export function BrowseTrackRowCoverThumb({
     () => (albumId ? resolveDistinctDiscCoversForAlbum(albumId) : false),
     [albumId],
   );
-  // Page warm (`useWarmTrackListAlbumCovers`) library-resolves deduped album ids;
-  // per-row IPC would stall tracks search (50+ concurrent SQLite resolves).
-  const albumRef = useAlbumCoverRef(albumId, null, serverScope, { libraryResolve: false });
+  // Library fetch id first — avoids racing ensure with sync `al-{albumId}_0` on
+  // track-only Navidrome libraries; scopeKey-stable hooks prevent re-resolve storms.
+  const albumRef = useBrowseListAlbumCoverRef(albumId, serverScope);
   const trackRef = useBrowseListTrackCoverRef(
     distinctDiscCovers ? song : null,
     serverScope,
