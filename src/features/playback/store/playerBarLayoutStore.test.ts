@@ -31,16 +31,18 @@ describe('playerBarLayoutStore', () => {
   it('starts with every item visible in declared order', () => {
     const items = usePlayerBarLayoutStore.getState().items;
     expect(ids(items)).toEqual([
-      'stop', 'starRating', 'favorite', 'lastfmLove', 'playbackRate', 'equalizer', 'miniPlayer',
+      'stop', 'shuffle', 'starRating', 'favorite', 'lastfmLove', 'playbackRate', 'equalizer', 'miniPlayer',
     ]);
     expect(items.every(i => i.visible)).toBe(true);
     expect(usePlayerBarLayoutStore.getState().trackInfoMode).toBe(DEFAULT_PLAYER_BAR_TRACK_INFO_MODE);
   });
 
-  it('places stop in the transport zone and the rest in actions', () => {
+  it('puts the playback controls in the transport zone and the rest in actions', () => {
+    // Transport items sit among the fixed controls: visibility only, no reorder.
     expect(PLAYER_BAR_LAYOUT_ZONES.stop).toBe('transport');
+    expect(PLAYER_BAR_LAYOUT_ZONES.shuffle).toBe('transport');
     expect(ids(DEFAULT_PLAYER_BAR_LAYOUT_ITEMS)
-      .filter(id => id !== 'stop')
+      .filter(id => id !== 'stop' && id !== 'shuffle')
       .every(id => PLAYER_BAR_LAYOUT_ZONES[id] === 'actions')).toBe(true);
   });
 

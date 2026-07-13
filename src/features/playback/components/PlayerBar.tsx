@@ -51,7 +51,7 @@ export default function PlayerBar() {
   const {
     currentTrack, currentRadio, isPlaying, volume,
     togglePlay, next, previous, setVolume,
-    stop, toggleRepeat, repeatMode, toggleFullscreen,
+    stop, toggleRepeat, repeatMode, toggleShuffleMode, shuffleMode, toggleFullscreen,
     networkLoved, toggleNetworkLove,
     starredOverrides,
     userRatingOverrides,
@@ -68,6 +68,8 @@ export default function PlayerBar() {
     stop: s.stop,
     toggleRepeat: s.toggleRepeat,
     repeatMode: s.repeatMode,
+    toggleShuffleMode: s.toggleShuffleMode,
+    shuffleMode: s.shuffleMode,
     toggleFullscreen: s.toggleFullscreen,
     networkLoved: s.networkLoved,
     toggleNetworkLove: s.toggleNetworkLove,
@@ -217,6 +219,8 @@ export default function PlayerBar() {
         next={next}
         toggleRepeat={toggleRepeat}
         repeatMode={repeatMode}
+        toggleShuffleMode={toggleShuffleMode}
+        shuffleMode={shuffleMode}
         playPauseBind={playPauseBind}
         scheduleRemaining={scheduleRemaining}
         transportAnchorRef={transportAnchorRef}

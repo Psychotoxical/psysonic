@@ -1,6 +1,6 @@
 import React, { useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Gauge, GripVertical, Heart, PictureInPicture2, SlidersVertical, Square, Star } from 'lucide-react';
+import { Gauge, GripVertical, Heart, PictureInPicture2, Shuffle, SlidersVertical, Square, Star } from 'lucide-react';
 import LastfmIcon from '@/ui/LastfmIcon';
 import {
   usePlayerBarLayoutStore,
@@ -16,6 +16,7 @@ import { SettingsSegmented } from '@/features/settings/components/SettingsSegmen
 
 const PLAYER_BAR_LAYOUT_LABEL_KEYS: Record<PlayerBarLayoutItemId, string> = {
   stop:       'settings.playerBarStop',
+  shuffle:    'settings.playerBarShuffle',
   starRating: 'settings.playerBarStarRating',
   favorite:   'settings.playerBarFavorite',
   lastfmLove: 'settings.playerBarLastfmLove',
@@ -26,6 +27,7 @@ const PLAYER_BAR_LAYOUT_LABEL_KEYS: Record<PlayerBarLayoutItemId, string> = {
 
 const PLAYER_BAR_LAYOUT_ICONS: Record<PlayerBarLayoutItemId, React.ReactNode> = {
   stop:       <Square size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />,
+  shuffle:    <Shuffle size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />,
   starRating: <Star size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />,
   favorite:   <Heart size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />,
   lastfmLove: (

@@ -120,6 +120,13 @@ export interface PlayerState {
 
   repeatMode: 'off' | 'all' | 'one';
   toggleRepeat: () => void;
+  /**
+   * Persistent shuffle. Reorders the queue itself rather than keeping a hidden
+   * play order, so every consumer of "the next item in the list" — gapless
+   * chain, server play-queue, Orbit guests — stays correct.
+   */
+  shuffleMode: boolean;
+  toggleShuffleMode: () => void;
 
   reorderQueue: (startIndex: number, endIndex: number) => void;
   removeTrack: (index: number) => void;

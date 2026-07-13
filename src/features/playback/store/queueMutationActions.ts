@@ -26,6 +26,13 @@ import {
   ensureQueueServerPinned,
 } from '@/features/playback/utils/playback/playbackServer';
 import { clearTimelineSessionHistory } from '@/features/playback/store/timelineSessionHistory';
+import {
+  getShuffleOriginalOrder,
+  restoreOriginalOrder,
+  setShuffleOriginalOrder,
+  shuffled,
+} from '@/features/playback/store/shuffleModeActions';
+import { persistShuffleModeSnapshot } from '@/features/playback/store/shuffleModeStorage';
 
 type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
@@ -69,9 +76,52 @@ export function createQueueMutationActions(set: SetState, get: GetState): Pick<
   | 'reorderQueue'
   | 'shuffleQueue'
   | 'shuffleUpcomingQueue'
+  | 'toggleShuffleMode'
   | 'removeTrack'
 > {
   return {
+    /**
+     * Persistent shuffle: reorders the queue itself and remembers the order it
+     * came from, so switching it off restores that order. Rationale for
+     * reordering rather than keeping a hidden play order: see shuffleModeActions.
+     */
+    toggleShuffleMode: () => {
+      const state = get();
+      const { currentTrack, queueIndex } = state;
+      const items = itemsOf(state);
+      const enabling = !state.shuffleMode;
+
+      // The flag flips even on an empty queue — the user is setting a mode, and
+      // it has to hold for whatever they play next.
+      if (items.length === 0) {
+        setShuffleOriginalOrder([]);
+        persistShuffleModeSnapshot({ enabled: enabling, originalOrder: [] });
+        set({ shuffleMode: enabling });
+        return;
+      }
+
+      pushQueueUndoFromGetter(get);
+
+      let result: QueueItemRef[];
+      if (enabling) {
+        setShuffleOriginalOrder(items.map(r => r.trackId));
+        // Everything up to and including the current track stays put: the playing
+        // track must not move, and already-played rows are history.
+        result = [...items.slice(0, queueIndex + 1), ...shuffled(items.slice(queueIndex + 1))];
+      } else {
+        result = restoreOriginalOrder(items, getShuffleOriginalOrder());
+        setShuffleOriginalOrder([]);
+      }
+
+      persistShuffleModeSnapshot({ enabled: enabling, originalOrder: getShuffleOriginalOrder() });
+
+      const newIndex = currentTrack
+        ? Math.max(0, result.findIndex(r => r.trackId === currentTrack.id))
+        : 0;
+      set({ shuffleMode: enabling, queueItems: result, queueIndex: newIndex });
+      syncUserQueueMutationToServer(result, currentTrack, get().currentTime);
+    },
+
     enqueue: (tracks, _orbitConfirmed = false, skipQueueUndo = false) => {
       if (!_orbitConfirmed && tracks.length > 1) {
         void orbitBulkGuard(tracks.length).then(ok => {

@@ -26,9 +26,15 @@ import { createScheduleActions } from '@/features/playback/store/scheduleActions
 import { createTransportLightActions } from '@/features/playback/store/transportLightActions';
 import { createUiStateActions } from '@/features/playback/store/uiStateActions';
 import { createUndoRedoActions } from '@/features/playback/store/undoRedoActions';
+import { setShuffleOriginalOrder } from '@/features/playback/store/shuffleModeActions';
+import { readShuffleModeSnapshot } from '@/features/playback/store/shuffleModeStorage';
 
 const initialPlayerPrefs = readInitialPlayerPrefs();
 const initialNetworkLovedCache = readInitialNetworkLovedCache();
+// Shuffle survives a restart, so the pre-shuffle order has to come back with it
+// — otherwise turning shuffle off later could not restore the queue.
+const initialShuffleMode = readShuffleModeSnapshot();
+setShuffleOriginalOrder(initialShuffleMode.originalOrder);
 let playerPersistWritesEnabled = false;
 
 export const usePlayerStore = create<PlayerState>()(
@@ -74,6 +80,7 @@ export const usePlayerStore = create<PlayerState>()(
       scheduledResumeAtMs: null,
       scheduledResumeStartMs: null,
       repeatMode: initialPlayerPrefs.repeatMode,
+      shuffleMode: initialShuffleMode.enabled,
       contextMenu: { isOpen: false, x: 0, y: 0, item: null, type: null },
       songInfoModal: { isOpen: false, songId: null },
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Blend, Moon, Pause, Play, Repeat, Repeat1, SkipBack, SkipForward, Square, Sunrise } from 'lucide-react';
+import { Blend, Moon, Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Square, Sunrise } from 'lucide-react';
 import { audioPreviewStop, audioPreviewStopSilent } from '@/lib/api/audio';
 import type { TFunction } from 'i18next';
 import type { PlayerState } from '@/features/playback/store/playerStoreTypes';
@@ -23,6 +23,8 @@ interface Props {
   next: () => void;
   toggleRepeat: () => void;
   repeatMode: RepeatMode;
+  toggleShuffleMode: () => void;
+  shuffleMode: boolean;
   playPauseBind: PlayPauseBind;
   scheduleRemaining: ScheduleRemaining;
   transportAnchorRef: React.RefObject<HTMLDivElement | null>;
@@ -32,6 +34,7 @@ interface Props {
 
 export function PlayerTransportControls({
   isPlaying, isRadio, isPreviewing, stop, previous, next, toggleRepeat, repeatMode,
+  toggleShuffleMode, shuffleMode,
   playPauseBind, scheduleRemaining, transportAnchorRef, playSlotRef, t,
 }: Props) {
   const autodjPhase = useAutodjTransitionUi(s => s.phase);
@@ -41,6 +44,9 @@ export function PlayerTransportControls({
   // renders as a stop control and ends the preview.
   const showStop = usePlayerBarLayoutStore(
     s => s.items.find(i => i.id === 'stop')?.visible !== false,
+  );
+  const showShuffle = usePlayerBarLayoutStore(
+    s => s.items.find(i => i.id === 'shuffle')?.visible !== false,
   );
 
   return (
@@ -60,6 +66,21 @@ export function PlayerTransportControls({
           data-tooltip={isPreviewing ? t('playlists.previewStop') : t('player.stop')}
         >
           <Square size={14} fill="currentColor" />
+        </button>
+      )}
+      {showShuffle && (
+        <button
+          className="player-btn player-btn-sm"
+          onClick={toggleShuffleMode}
+          aria-label={t('player.shuffle')}
+          aria-pressed={shuffleMode}
+          data-tooltip={`${t('player.shuffle')}: ${shuffleMode ? t('player.shuffleOn') : t('player.shuffleOff')}`}
+          disabled={isRadio}
+          style={isRadio
+            ? { opacity: 0.3, pointerEvents: 'none' }
+            : { color: shuffleMode ? 'var(--accent)' : undefined }}
+        >
+          <Shuffle size={14} />
         </button>
       )}
       <button

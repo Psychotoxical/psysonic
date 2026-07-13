@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 
 export type PlayerBarLayoutItemId =
   | 'stop'
+  | 'shuffle'
   | 'starRating'
   | 'favorite'
   // 'lastfmLove' is the enrichment-primary love button. The id is kept (not
@@ -27,6 +28,7 @@ export type PlayerBarLayoutZone = 'transport' | 'actions';
 
 export const PLAYER_BAR_LAYOUT_ZONES: Record<PlayerBarLayoutItemId, PlayerBarLayoutZone> = {
   stop:         'transport',
+  shuffle:      'transport',
   starRating:   'actions',
   favorite:     'actions',
   lastfmLove:   'actions',
@@ -47,6 +49,7 @@ export interface PlayerBarLayoutItemConfig {
 
 export const DEFAULT_PLAYER_BAR_LAYOUT_ITEMS: PlayerBarLayoutItemConfig[] = [
   { id: 'stop',        visible: true },
+  { id: 'shuffle',     visible: true },
   { id: 'starRating',  visible: true },
   { id: 'favorite',    visible: true },
   { id: 'lastfmLove',  visible: true },
