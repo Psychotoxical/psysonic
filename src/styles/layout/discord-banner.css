@@ -21,6 +21,12 @@
   min-width: 0;
 }
 
+.discord-banner-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
 .discord-banner-text {
   white-space: nowrap;
   overflow: hidden;
