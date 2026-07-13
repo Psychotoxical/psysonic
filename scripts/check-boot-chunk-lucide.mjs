@@ -27,6 +27,12 @@ const LUCIDE_SIGNALS = [
   '("download"',
 ];
 
+/** Subsonic client id must be a compile-time literal, not a cyclic package.json import. */
+const CLIENT_ID_SIGNALS = [
+  'psysonic/undefined',
+  'psysonic/${',
+];
+
 let files;
 try {
   files = readdirSync(DIST).filter(f => f.endsWith('.js'));
@@ -43,6 +49,11 @@ for (const file of files) {
   for (const signal of LUCIDE_SIGNALS) {
     if (text.includes(signal)) {
       violations.push({ file, signal });
+    }
+  }
+  for (const signal of CLIENT_ID_SIGNALS) {
+    if (text.includes(signal)) {
+      violations.push({ file, signal: `client-id: ${signal}` });
     }
   }
 }

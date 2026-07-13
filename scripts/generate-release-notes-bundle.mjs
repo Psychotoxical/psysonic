@@ -43,3 +43,15 @@ export const CHANGELOG_RAW: string = ${JSON.stringify(changelogRaw)};
 
 writeFileSync(join(outDir, 'releaseNotesBundle.ts'), ts, 'utf8');
 console.log(`wrote src/generated/releaseNotesBundle.ts (sliced for ${version})`);
+
+// Leaf module for boot-critical client id — must not import package.json at runtime
+// in the authStore chunk (circular init → psysonic/undefined on Windows WebView2).
+const appVersionTs = `/** @generated — run: node scripts/generate-release-notes-bundle.mjs */
+export const APP_VERSION = ${JSON.stringify(version)};
+
+/** Subsonic REST \`c\` param and OpenSubsonic client id (\`psysonic/<version>\`). */
+export const SUBSONIC_CLIENT_ID = ${JSON.stringify(`psysonic/${version}`)};
+`;
+
+writeFileSync(join(outDir, 'appVersion.ts'), appVersionTs, 'utf8');
+console.log(`wrote src/generated/appVersion.ts (${version})`);

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { getLuckyMixLibraryScopeOverride } from '@/lib/library/luckyMixScopeOverride';
 import md5 from 'md5';
-import { version } from '@/../package.json';
+import { SUBSONIC_CLIENT_ID } from '@/generated/appVersion';
 import { commands } from '@/generated/bindings';
 import { useAuthStore } from '@/store/authStore';
 import type { ServerProfile } from '@/store/authStoreTypes';
@@ -9,7 +9,7 @@ import { connectBaseUrlForServer } from '@/lib/server/serverEndpoint';
 import { headersForServerRequest, serverHttpContextWireForProbe } from '@/lib/server/serverHttpHeaders';
 import { findServerByIdOrIndexKey, resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 
-export const SUBSONIC_CLIENT = `psysonic/${version}`;
+export const SUBSONIC_CLIENT = SUBSONIC_CLIENT_ID;
 
 /** Subset of `ServerProfile` needed to attach gate headers on credential-based REST calls. */
 export type ServerHttpHeaderProfile = Pick<
