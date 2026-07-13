@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Music } from 'lucide-react';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
+import { useAuthStore } from '@/store/authStore';
+import { readDetailServerId } from '@/lib/navigation/detailServerScope';
 import { CoverArtImage } from '@/cover/CoverArtImage';
 import {
   useBrowseListTrackCoverRef,
@@ -110,10 +113,15 @@ export function BrowseTrackRowCoverThumb({
 }: BaseProps) {
   const displayCssPx = SIZE_PX[size];
   const albumId = song.albumId?.trim();
-  const serverScope = useMemo(
-    () => coverServerScopeForServerId(song.serverId),
-    [song.serverId],
-  );
+  const [searchParams] = useSearchParams();
+  const activeServerId = useAuthStore(s => s.activeServerId);
+  const serverScope = useMemo(() => {
+    const scopedId =
+      song.serverId?.trim()
+      || readDetailServerId(searchParams, activeServerId)
+      || undefined;
+    return coverServerScopeForServerId(scopedId);
+  }, [song.serverId, searchParams, activeServerId]);
   // Track library resolve applies `album_has_distinct_disc_covers` from SQLite —
   // no album-page visit required for per-disc slots on browse lists.
   const coverRef = useBrowseListTrackCoverRef(song, serverScope);
