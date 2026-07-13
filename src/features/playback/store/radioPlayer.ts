@@ -167,6 +167,7 @@ export function pauseRadio(): void {
 }
 
 export async function resumeRadio(): Promise<void> {
+  warmRadioEqContextFromUserGesture();
   if (usePlayerStore.getState().currentRadio && shouldUseRadioEqGraph()) {
     await maybeAttachEqGraph();
     if (radioGraphActive) applyOutputVolume(lastVolume);
