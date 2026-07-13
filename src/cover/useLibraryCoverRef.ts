@@ -134,11 +134,12 @@ export function useBrowseListAlbumCoverRef(
 export function useBrowseListTrackCoverRef(
   song: Pick<SubsonicSong, 'id' | 'albumId' | 'coverArt' | 'discNumber'> | null | undefined,
   serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
-  distinctDiscCovers = false,
 ): CoverArtRef | undefined {
   const scopeKey = coverScopeKey(serverScope);
   const songId = song?.id?.trim() ?? '';
   const albumId = song?.albumId?.trim() ?? '';
+  const coverArt = song?.coverArt;
+  const discNumber = song?.discNumber;
   const [ref, setRef] = useState<CoverArtRef | undefined>(undefined);
 
   useEffect(() => {
@@ -150,7 +151,10 @@ export function useBrowseListTrackCoverRef(
     }
     let cancelled = false;
     setRef(undefined);
-    void resolveTrackCoverRefFromLibrary(song, serverScope, distinctDiscCovers).then(next => {
+    void resolveTrackCoverRefFromLibrary(
+      { id: songId, albumId, coverArt, discNumber },
+      serverScope,
+    ).then(next => {
       if (!cancelled) setRef(next ?? undefined);
     });
     return () => {
@@ -158,7 +162,7 @@ export function useBrowseListTrackCoverRef(
     };
     // serverScope keyed via scopeKey — see useTrackCoverRef.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song, songId, albumId, scopeKey, distinctDiscCovers]);
+  }, [songId, albumId, coverArt, discNumber, scopeKey]);
 
   return ref;
 }

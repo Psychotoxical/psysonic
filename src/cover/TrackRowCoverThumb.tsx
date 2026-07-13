@@ -3,7 +3,6 @@ import { Music } from 'lucide-react';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { CoverArtImage } from '@/cover/CoverArtImage';
 import {
-  useBrowseListAlbumCoverRef,
   useBrowseListTrackCoverRef,
   usePlaybackTrackCoverRef,
 } from '@/cover/useLibraryCoverRef';
@@ -13,7 +12,6 @@ import {
   COVER_TRACK_ROW_CSS_PX,
   COVER_TRACK_ROW_MINI_CSS_PX,
 } from '@/cover/layoutSizes';
-import { resolveDistinctDiscCoversForAlbum } from '@/cover/ref';
 import { coverServerScopeForServerId } from '@/cover/serverScope';
 import type { CoverArtRef, CoverPrefetchPriority } from '@/cover/types';
 import type { TrackListCoverArtSurface } from '@/cover/useTrackListCoverArtSettings';
@@ -116,19 +114,9 @@ export function BrowseTrackRowCoverThumb({
     () => coverServerScopeForServerId(song.serverId),
     [song.serverId],
   );
-  const distinctDiscCovers = useMemo(
-    () => (albumId ? resolveDistinctDiscCoversForAlbum(albumId) : false),
-    [albumId],
-  );
-  // Library fetch id first — avoids racing ensure with sync `al-{albumId}_0` on
-  // track-only Navidrome libraries; scopeKey-stable hooks prevent re-resolve storms.
-  const albumRef = useBrowseListAlbumCoverRef(albumId, serverScope);
-  const trackRef = useBrowseListTrackCoverRef(
-    distinctDiscCovers ? song : null,
-    serverScope,
-    distinctDiscCovers,
-  );
-  const coverRef = distinctDiscCovers ? trackRef : albumRef;
+  // Track library resolve applies `album_has_distinct_disc_covers` from SQLite —
+  // no album-page visit required for per-disc slots on browse lists.
+  const coverRef = useBrowseListTrackCoverRef(song, serverScope);
   const missingResolvableCover = !albumId;
 
   useEffect(() => {
