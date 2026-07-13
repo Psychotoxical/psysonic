@@ -50,5 +50,8 @@ export function useWarmTrackListAlbumCovers(
     return () => {
       cancelled = true;
     };
+    // albumIds content is keyed by `warmKey`; listing the array retriggers warm on
+    // benign parent re-renders that rebuild the songs slice reference.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, warmKey, displayCssPx]);
 }

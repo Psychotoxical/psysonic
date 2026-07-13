@@ -116,8 +116,6 @@ export function useBrowseListAlbumCoverRef(
       return;
     }
     let cancelled = false;
-    // React Compiler set-state-in-effect rule: reset before async library resolve returns.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRef(null);
     void resolveAlbumCoverRefFromLibrary(id, id, serverScope).then(next => {
       if (!cancelled) setRef(next);
@@ -151,8 +149,6 @@ export function useBrowseListTrackCoverRef(
       return;
     }
     let cancelled = false;
-    // React Compiler set-state-in-effect rule: reset before async library resolve returns.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRef(undefined);
     void resolveTrackCoverRefFromLibrary(song, serverScope, distinctDiscCovers).then(next => {
       if (!cancelled) setRef(next ?? undefined);
