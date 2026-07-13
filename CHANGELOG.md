@@ -296,6 +296,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Windows `.msi` builds no longer fail on channel versions like `1.50.0-dev` — WiX requires a numeric fourth version field, so the bundler maps `-dev` / `-rc.N` to numeric semver in `bundle.windows.wix.version` while Settings → About still shows the real package version.
 * Release builds no longer warn that the album feature barrel defeats a lazy import in the new-albums easter egg (direct import of the export helper).
 
+### Internet Radio — equalizer presets now apply to radio playback
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1284](https://github.com/Psychotoxical/psysonic/pull/1284)**
+
+* Internet Radio playback stayed on HTML5 after v1.32, but EQ changes only reached the Rust engine used for library tracks — toggling EQ or switching presets had no effect on a live station. Radio now routes through a Web Audio 10-band graph on the same `<audio>` element when EQ is enabled; preset and slider changes update filters in place without restarting the stream.
+
 
 ## [1.49.0] - 2026-06-29
 
