@@ -64,13 +64,16 @@ export default function PlaylistSuggestions({
   const suggestionsVisible = usePlaylistLayoutStore(s =>
     s.items.find(i => i.id === 'suggestions')?.visible !== false);
 
-  if (!suggestionsVisible) return null;
-
-  const filteredSuggestions = suggestions.filter(s => !existingIds.has(s.id));
+  const filteredSuggestions = React.useMemo(
+    () => suggestions.filter(s => !existingIds.has(s.id)),
+    [suggestions, existingIds],
+  );
 
   useWarmTrackListAlbumCovers(filteredSuggestions, COVER_ARTIST_TOP_TRACK_CSS_PX, {
-    enabled: trackListCoversOn && filteredSuggestions.length > 0,
+    enabled: trackListCoversOn && suggestionsVisible && filteredSuggestions.length > 0,
   });
+
+  if (!suggestionsVisible) return null;
 
   return (
     <div className="playlist-suggestions tracklist" data-preview-loc="suggestions">

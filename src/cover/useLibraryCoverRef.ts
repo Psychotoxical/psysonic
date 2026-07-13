@@ -110,10 +110,14 @@ export function useBrowseListAlbumCoverRef(
 
   useEffect(() => {
     if (!id) {
+      // React Compiler set-state-in-effect rule: clear stale ref when album id disappears.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRef(null);
       return;
     }
     let cancelled = false;
+    // React Compiler set-state-in-effect rule: reset before async library resolve returns.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRef(null);
     void resolveAlbumCoverRefFromLibrary(id, id, serverScope).then(next => {
       if (!cancelled) setRef(next);
@@ -141,10 +145,14 @@ export function useBrowseListTrackCoverRef(
 
   useEffect(() => {
     if (!songId || !albumId || !song) {
+      // React Compiler set-state-in-effect rule: clear stale ref when track identity clears.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRef(undefined);
       return;
     }
     let cancelled = false;
+    // React Compiler set-state-in-effect rule: reset before async library resolve returns.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRef(undefined);
     void resolveTrackCoverRefFromLibrary(song, serverScope, distinctDiscCovers).then(next => {
       if (!cancelled) setRef(next ?? undefined);
