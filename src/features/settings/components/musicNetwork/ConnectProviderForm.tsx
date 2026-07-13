@@ -131,7 +131,9 @@ export function ConnectProviderForm({
           </div>
         );
       })}
-      {error && <p style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</p>}
+      {/* Selectable: the transport detail in a NETWORK error is what a bug report
+          needs verbatim, and the app disables text selection everywhere else. */}
+      {error && <p data-selectable style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</p>}
     </div>
   );
 }
