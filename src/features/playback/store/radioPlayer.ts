@@ -1,62 +1,88 @@
 import { showToast } from '@/lib/dom/toast';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
+import { useEqStore } from '@/store/eqStore';
+import {
+  applyRadioEqSettings,
+  applyRadioOutputVolume,
+  isRadioEqGraphActive,
+  resumeRadioEqContext,
+  setRadioEqMasterVolume,
+  shouldUseRadioEqGraph,
+  tryAttachRadioEqGraph,
+  warmRadioEqContextFromUserGesture,
+} from '@/features/playback/utils/audio/radioEqGraph';
 
 /**
- * Internet radio streams play through a native HTMLAudioElement rather
- * than the Rust/Symphonia engine — the browser handles reconnect logic,
- * codec negotiation (MP3, AAC, HE-AAC, OGG), and ICY headers for free.
+ * Internet radio streams play through a native HTMLAudioElement — the browser
+ * handles reconnect logic, codec negotiation (AAC, HE-AAC, HLS), and ICY headers.
  *
- * This module owns:
- *  - the singleton `<audio>` element used for radio
- *  - the bounded stalled-reconnect retry loop (MAX_RADIO_RECONNECTS)
- *  - the suppression flag (`radioStopping`) that stops the error
- *    listener from clobbering store state when the caller asked for a
- *    clean stop
- *
- * Callers drive playback through `playRadioStream` / `pauseRadio` /
- * `resumeRadio` / `stopRadio` / `setRadioVolume`. The event listeners
- * write the store state directly when the browser decides the stream
- * is dead (ended / error / unrecoverable stall).
+ * When EQ is enabled and Web Audio attaches successfully, a 10-band peaking
+ * chain is inserted via `createMediaElementSource` (issue #1276). EQ toggles
+ * and preset changes update filter nodes in place — the stream is not restarted.
+ * With EQ off the element keeps its native output path (no graph hijack).
  */
 
 const radioAudio = new Audio();
 radioAudio.preload = 'none';
 
+let suppressHtml5RadioErrors = false;
 let radioStopping = false;
 let radioReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let radioReconnectCount = 0;
+let lastVolume = 1;
+let radioGraphActive = false;
+let eqAttachUnsub: (() => void) | null = null;
+
 const MAX_RADIO_RECONNECTS = 5;
 const RECONNECT_DELAY_MS = 4000;
+
+function clampElementVolume(volume: number): number {
+  return Math.max(0, Math.min(1, volume));
+}
+
+function applyOutputVolume(volume: number): void {
+  lastVolume = volume;
+  applyRadioOutputVolume(volume, radioGraphActive);
+  if (radioGraphActive && isRadioEqGraphActive()) {
+    radioAudio.volume = 1;
+    return;
+  }
+  radioAudio.volume = clampElementVolume(volume);
+}
 
 export function clearRadioReconnectTimer(): void {
   if (radioReconnectTimer) { clearTimeout(radioReconnectTimer); radioReconnectTimer = null; }
 }
 
+/** Call synchronously from a user-gesture handler before any `await` in `playRadio`. */
+export function prepareRadioPlaybackFromUserGesture(): void {
+  warmRadioEqContextFromUserGesture();
+}
+
 radioAudio.addEventListener('ended', () => {
-  // Stream disconnected unexpectedly — clear radio state.
   clearRadioReconnectTimer();
   radioReconnectCount = 0;
   usePlayerStore.setState({ isPlaying: false, currentRadio: null, progress: 0, currentTime: 0 });
 });
 radioAudio.addEventListener('error', () => {
   clearRadioReconnectTimer();
-  if (radioStopping) { radioStopping = false; radioReconnectCount = 0; return; }
+  if (radioStopping || suppressHtml5RadioErrors) {
+    radioStopping = false;
+    suppressHtml5RadioErrors = false;
+    return;
+  }
   radioReconnectCount = 0;
   usePlayerStore.setState({ isPlaying: false, currentRadio: null });
   showToast('Radio stream error', 3000, 'error');
 });
-// Playing: stream is delivering audio — reset the reconnect counter.
 radioAudio.addEventListener('playing', () => {
+  suppressHtml5RadioErrors = false;
   radioReconnectCount = 0;
+  void resumeRadioEqContext();
 });
-// Stalled: stream stopped delivering data — try to reconnect after 4 s.
-// On macOS/WKWebView, reassigning src during a stall can itself trigger
-// another stall event before the new connection is established.  The
-// radioReconnectTimer guard prevents stacking, and MAX_RADIO_RECONNECTS
-// ensures we don't loop forever on a dead stream.
 radioAudio.addEventListener('stalled', () => {
-  if (radioReconnectTimer) return; // already scheduled
-  if (radioAudio.paused) return;   // user paused — reconnect would resume against intent
+  if (radioReconnectTimer) return;
+  if (radioAudio.paused) return;
   if (radioReconnectCount >= MAX_RADIO_RECONNECTS) {
     radioReconnectCount = 0;
     usePlayerStore.setState({ isPlaying: false, currentRadio: null });
@@ -66,75 +92,127 @@ radioAudio.addEventListener('stalled', () => {
   radioReconnectTimer = setTimeout(() => {
     radioReconnectTimer = null;
     if (!usePlayerStore.getState().currentRadio) return;
-    if (radioAudio.paused) return; // user paused while we were waiting
+    if (radioAudio.paused) return;
     radioReconnectCount++;
-    // Use load() + play() instead of src reassignment — more reliable on
-    // macOS WKWebView where setting src can fire a premature error event.
     radioAudio.load();
     radioAudio.play().catch(console.error);
   }, RECONNECT_DELAY_MS);
 });
-// Waiting: browser is rebuffering — normal for live streams, no action needed.
 radioAudio.addEventListener('waiting', () => {
   console.debug('[psysonic] radio: buffering');
 });
-// Suspend: browser paused loading (sufficient buffer) — cancel any stale reconnect.
 radioAudio.addEventListener('suspend', () => {
   clearRadioReconnectTimer();
 });
 
-/**
- * Start a new stream. Resets the reconnect counter, sets src + volume,
- * and fires play. The returned promise rejects with the audio-element's
- * error so callers can surface it (the runtime currently uses this to
- * show a toast and clear `currentRadio` state).
- */
-export function playRadioStream(streamUrl: string, volume: number): Promise<void> {
+async function maybeAttachEqGraph(): Promise<boolean> {
+  if (isRadioEqGraphActive()) {
+    radioGraphActive = true;
+    await resumeRadioEqContext().catch(() => {});
+    return true;
+  }
+  if (!shouldUseRadioEqGraph() || radioGraphActive) return false;
+  radioGraphActive = await tryAttachRadioEqGraph(radioAudio);
+  if (!radioGraphActive) {
+    radioAudio.removeAttribute('crossorigin');
+    console.warn('[psysonic] radio EQ unavailable — playing without Web Audio graph');
+  }
+  return radioGraphActive;
+}
+
+export async function playRadioStream(streamUrl: string, volume: number): Promise<void> {
   radioReconnectCount = 0;
+  radioGraphActive = isRadioEqGraphActive();
+
+  // crossOrigin before src so EQ can attach later without a reconnect.
+  radioAudio.crossOrigin = 'anonymous';
+  suppressHtml5RadioErrors = true;
   radioAudio.src = streamUrl;
-  radioAudio.volume = Math.max(0, Math.min(1, volume));
+
+  if (shouldUseRadioEqGraph()) {
+    await maybeAttachEqGraph();
+  }
+  applyOutputVolume(volume);
+  if (radioGraphActive) {
+    await resumeRadioEqContext().catch(() => {});
+  }
   return radioAudio.play();
 }
 
-/** Soft pause — keeps the src loaded so resume can pick up cheaply. */
 export function pauseRadio(): void {
-  // A reconnect timer may be pending from a previous 'stalled' event. Cancel
-  // it so it can't fire play() against the user's pause intent (issue #779).
   clearRadioReconnectTimer();
   radioAudio.pause();
 }
 
-/** Soft resume — re-plays the loaded src without reconnect. */
-export function resumeRadio(): Promise<void> {
+export async function resumeRadio(): Promise<void> {
+  if (usePlayerStore.getState().currentRadio && shouldUseRadioEqGraph()) {
+    await maybeAttachEqGraph();
+    if (radioGraphActive) applyOutputVolume(lastVolume);
+  }
+  await resumeRadioEqContext().catch(() => {});
   return radioAudio.play();
 }
 
-/**
- * Full stop. Marks the next 'error' event as expected (so the listener
- * doesn't show an error toast), pauses, and clears the src so the
- * browser releases the underlying network resources.
- */
 export function stopRadio(): void {
   radioStopping = true;
   radioAudio.pause();
   radioAudio.src = '';
+  radioAudio.removeAttribute('crossorigin');
+  radioGraphActive = false;
   clearRadioReconnectTimer();
   radioReconnectCount = 0;
 }
 
 export function setRadioVolume(volume: number): void {
-  radioAudio.volume = Math.max(0, Math.min(1, volume));
+  applyOutputVolume(volume);
 }
 
-/** Test-only access to the underlying audio element + reset hook. */
+/**
+ * When EQ is enabled during an active radio session, attach the Web Audio graph
+ * in place (no stream restart). Filter updates are handled by `bindRadioEqStore`.
+ */
+export function bindRadioEqAttachOnEnable(): () => void {
+  if (eqAttachUnsub) {
+    return () => {
+      eqAttachUnsub?.();
+      eqAttachUnsub = null;
+    };
+  }
+  eqAttachUnsub = useEqStore.subscribe((state, prev) => {
+    if (!state.enabled || prev.enabled) return;
+    const player = usePlayerStore.getState();
+    if (!player.currentRadio || radioGraphActive) return;
+    void maybeAttachEqGraph().then(() => {
+      if (radioGraphActive) {
+        applyOutputVolume(lastVolume);
+        const { gains, enabled, preGain } = useEqStore.getState();
+        applyRadioEqSettings(gains, enabled, preGain);
+      }
+    });
+  });
+  return () => {
+    eqAttachUnsub?.();
+    eqAttachUnsub = null;
+  };
+}
+
 export function _radioAudioForTest(): HTMLAudioElement {
   return radioAudio;
 }
 
 export function _resetRadioPlayerForTest(): void {
   radioStopping = false;
+  suppressHtml5RadioErrors = false;
   radioReconnectCount = 0;
+  radioGraphActive = false;
+  lastVolume = 1;
   clearRadioReconnectTimer();
   radioAudio.pause();
   radioAudio.src = '';
+  radioAudio.removeAttribute('crossorigin');
+  setRadioEqMasterVolume(1);
+}
+
+export function _radioGraphActiveForTest(): boolean {
+  return radioGraphActive;
 }

@@ -21,6 +21,7 @@ import { syncUserQueueMutationToServer } from '@/features/playback/store/queueSy
 import {
   clearRadioReconnectTimer,
   playRadioStream,
+  prepareRadioPlaybackFromUserGesture,
   setRadioVolume,
 } from '@/features/playback/store/radioPlayer';
 import { clearAllPlaybackScheduleTimers } from '@/features/playback/store/scheduleTimers';
@@ -68,6 +69,7 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
   return {
     playRadio: async (station) => {
       const { volume } = get();
+      prepareRadioPlaybackFromUserGesture();
       bumpPlayGeneration();
       clearAllPlaybackScheduleTimers();
       set({ scheduledPauseAtMs: null, scheduledPauseStartMs: null, scheduledResumeAtMs: null, scheduledResumeStartMs: null });
@@ -84,11 +86,14 @@ export function createMiscActions(set: SetState, get: GetState): Pick<
         .catch(() => station.streamUrl);
       const { replayGainFallbackDb } = useAuthStore.getState();
       const fallbackFactor = replayGainFallbackDb !== 0 ? Math.pow(10, replayGainFallbackDb / 20) : 1;
-      playRadioStream(streamUrl, Math.min(1, volume * fallbackFactor)).catch((err: unknown) => {
+      try {
+        await playRadioStream(streamUrl, Math.min(1, volume * fallbackFactor));
+      } catch (err: unknown) {
         console.error('[psysonic] radio HTML5 play failed:', err);
         showToast('Radio stream error', 3000, 'error');
         set({ isPlaying: false, currentRadio: null });
-      });
+        return;
+      }
       set({
         currentRadio: station,
         currentTrack: null,

@@ -12,15 +12,32 @@ const hoisted = vi.hoisted(() => {
     showToastMock: vi.fn(),
     playerSetStateMock: vi.fn(),
     playerStateGet,
+    eqEnabled: false,
   };
 });
 
 vi.mock('@/lib/dom/toast', () => ({ showToast: hoisted.showToastMock }));
+vi.mock('@/store/eqStore', () => ({
+  useEqStore: {
+    getState: () => ({ enabled: hoisted.eqEnabled, gains: [], preGain: 0 }),
+    subscribe: vi.fn(() => vi.fn()),
+  },
+}));
 vi.mock('@/features/playback/store/playerStore', () => ({
   usePlayerStore: {
     getState: hoisted.playerStateGet,
     setState: hoisted.playerSetStateMock,
   },
+}));
+vi.mock('@/features/playback/utils/audio/radioEqGraph', () => ({
+  applyRadioEqSettings: vi.fn(),
+  applyRadioOutputVolume: vi.fn(),
+  isRadioEqGraphActive: vi.fn(() => false),
+  resumeRadioEqContext: vi.fn(() => Promise.resolve()),
+  setRadioEqMasterVolume: vi.fn(),
+  shouldUseRadioEqGraph: vi.fn(() => hoisted.eqEnabled),
+  tryAttachRadioEqGraph: vi.fn(() => Promise.resolve(false)),
+  warmRadioEqContextFromUserGesture: vi.fn(),
 }));
 
 import {
@@ -42,6 +59,7 @@ let pausedSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   vi.useFakeTimers();
+  hoisted.eqEnabled = false;
   hoisted.showToastMock.mockClear();
   hoisted.playerSetStateMock.mockClear();
   hoisted.playerStateGet.mockReset();
@@ -49,9 +67,6 @@ beforeEach(() => {
   pauseSpy = vi.spyOn(audio, 'pause').mockImplementation(() => {});
   playSpy = vi.spyOn(audio, 'play').mockResolvedValue(undefined as never);
   loadSpy = vi.spyOn(audio, 'load').mockImplementation(() => {});
-  // jsdom defaults audio.paused to true; the reconnect path assumes the
-  // stream was actively playing, so default the getter to false and let
-  // individual tests override it where they need to assert pause behaviour.
   pausedSpy = vi.spyOn(audio, 'paused', 'get').mockReturnValue(false);
 });
 
@@ -81,6 +96,14 @@ describe('playRadioStream', () => {
     await playRadioStream('https://x/y', -0.5);
     expect(audio.volume).toBe(0);
   });
+
+  it('does not show error toast when switching station URL', async () => {
+    await playRadioStream('https://x/y', 0.5);
+    hoisted.showToastMock.mockClear();
+    await playRadioStream('https://x/z', 0.5);
+    audio.dispatchEvent(new Event('error'));
+    expect(hoisted.showToastMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('pauseRadio / resumeRadio', () => {
@@ -100,8 +123,8 @@ describe('pauseRadio / resumeRadio', () => {
     expect(audio.src).toBe(before);
   });
 
-  it('resume delegates to audio.play', () => {
-    void resumeRadio();
+  it('resume delegates to audio.play', async () => {
+    await resumeRadio();
     expect(playSpy).toHaveBeenCalled();
   });
 });
@@ -111,8 +134,6 @@ describe('stopRadio', () => {
     await playRadioStream('https://x/y', 0.5);
     stopRadio();
     expect(pauseSpy).toHaveBeenCalled();
-    // JSdom resolves an empty src against the page URL, so assert via the
-    // observable HTMLAudioElement attribute instead.
     expect(audio.getAttribute('src')).toBe('');
   });
 
@@ -182,7 +203,6 @@ describe('event listeners', () => {
       audio.dispatchEvent(new Event('stalled'));
       vi.advanceTimersByTime(4000);
     }
-    // Sixth stall → counter at max, gives up with toast + state clear.
     audio.dispatchEvent(new Event('stalled'));
     expect(hoisted.showToastMock).toHaveBeenCalledWith('Radio stream disconnected', 4000, 'error');
     const calls = hoisted.playerSetStateMock.mock.calls;
@@ -192,13 +212,10 @@ describe('event listeners', () => {
 
   it('"playing" resets the reconnect counter (next stall starts fresh)', () => {
     hoisted.playerStateGet.mockReturnValue({ currentRadio: { id: 'r1' } });
-    // Push counter to 1 via one stall cycle
     audio.dispatchEvent(new Event('stalled'));
     vi.advanceTimersByTime(4000);
-    // Successful 'playing' resets
     audio.dispatchEvent(new Event('playing'));
     loadSpy.mockClear();
-    // Next stall: should schedule again (counter is 0)
     audio.dispatchEvent(new Event('stalled'));
     vi.advanceTimersByTime(4000);
     expect(loadSpy).toHaveBeenCalledTimes(1);
