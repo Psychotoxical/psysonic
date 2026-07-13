@@ -12,17 +12,87 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 
 ## Highlights
 
+### Multi-library filter — browse across your libraries
+
+- The sidebar library picker now supports **multi-select with priority ordering** — browse, search, genres, and album/artist detail views aggregate across the libraries you pick and de-duplicate shared items by priority.
+- Cross-library matching normalises names per locale (German ß, Norwegian æ, French œ, Romanian ș/ț, Cyrillic ё/й); CJK titles are matched as-is.
+
+### Navidrome public share links — listen without logging in
+
+- Paste or search a Navidrome **public share** URL (`/share/{id}`) to preview the shared track list, then play the full queue with no server account.
+- Share playback stays isolated from your logged-in Navidrome queue — idle server play-queue pull cannot replace a share session while you are connected elsewhere.
+
+### Fullscreen player — Minimal, Immersive, and Prism
+
+- **Settings → Appearance → Fullscreen player style** now offers three looks: **Minimal** (the current sharp view), **Immersive** (artist photo/backdrop with rail or Apple-style scrolling lyrics), and **Prism** (full-bleed artist backdrop, glass lyrics panel, and a single glass control bar).
+- In Immersive, **Show artist photo** and **Photo dimming** are configurable; Prism drives progress and the active lyric line from the cover-derived accent colour.
+
 ### Lyrics that follow the singer, word by word
 
 - The **Server** lyrics source now highlights lyrics word by word as a track plays, so karaoke sync no longer needs the third-party YouLyPlus backend. It requires Navidrome 0.63 or newer and lyrics that carry word timing (TTML or Enhanced LRC files) — everything else keeps highlighting line by line. The requirements are spelled out under **Settings → Lyrics → Lyrics Sources**.
 
-### Bulgarian — now in your language
+### Track lists — optional album cover thumbnails
 
-- Psysonic is now available in **Bulgarian (Български)** — pick it from the language menu on the **Settings** and **Login** screens.
+- Browse and queue track rows can show each track's **album** cover (per-disc art when the album has distinct disc covers).
+- **Settings → Appearance** adds separate toggles for queue vs browse tracklists; playlist, Favorites, and album-detail grids gain a flex-resize handle on the title column when covers are shown.
+
+### Artists browse — album artists or track credits
+
+- Toggle **Album artists** vs **Track artists** on the Artists page — album mode lists indexed album artists; track mode includes featured and guest performers from the local artist index. The choice persists across restarts like **Show artist images**.
+
+### Theme Store — what's new on each theme
+
+- Each theme card has an expandable **What's new** with per-version release notes from the author — including non-visual fixes.
+- Installed themes with an available update now appear at the top of the store list so you do not have to hunt for them.
+
+### Italian and Bulgarian — now in your language
+
+- Psysonic is now available in **Italian (Italiano)** and **Bulgarian (Български)** — pick either from the language menu on the **Settings** and **Login** screens.
+
+### Start minimized to tray
+
+- New **Start Minimized to Tray** toggle under **Settings → System → Behavior** — the next cold start keeps the main window hidden and Psysonic runs from the system tray until you show it from the tray icon. Requires **Show Tray Icon**; applies on the next launch only.
 
 ### Square corners — a sharper, boxier look
 
-- New **Square Corners** toggle under **Settings → Appearance → Visual Options** strips the rounded corners off cards and cover art across the app — handy when a theme's rounding doesn't suit your album covers. Off by default; everything else stays the way your theme defines it.
+- New **Square Corners** toggle under **Settings → Appearance → Visual Options** strips the rounded corners off cards and cover art across the app — handy when a theme's rounding does not suit your album covers. Off by default; buttons, inputs, and dialogs keep the theme's corners.
+
+## Improved
+
+- With **Remember EQ per device** on and **System Default** selected, the equalizer now keys profiles to the active OS default output and switches when that default changes outside the app (Windows sound settings, Stream Deck, PipeWire / `wpctl`, and similar). **Linux:** when PipeWire has already moved the stream to the new default, the device watcher skips a redundant reopen to avoid a post-switch stutter.
+- While a Navidrome public share queue is active, **Save Playlist** is hidden in the queue toolbar (share tracks cannot be saved to the server); the queue **Share** button copies the original Navidrome `/share/{id}` page URL.
+
+## Fixed
+
+### Playback and audio
+
+- Playing a song from a playlist no longer shows the track's own cover in Now Playing when the album page would show album art — Now Playing consistently uses the album cover.
+- ReplayGain applies when stream or queue metadata resolves late; gapless auto-advance no longer leaves the playbar on the previous track.
+- Pausing a large queue behind a reverse proxy (e.g. Nginx) no longer snaps playback back to an earlier track — Navidrome saves via POST when supported, and a failed save no longer lets idle auto-pull overwrite your queue.
+- Enhanced LRC no longer prints raw word timing codes (`<00:12.34>`) in the lyric text — those codes drive word-by-word highlighting instead.
+- FLAC, Ogg Vorbis, Opus, and Speex files that store synced lyrics in the `SYNCEDLYRICS` tag show embedded lyrics again, with that tag taking priority over plain `LYRICS`.
+- **Windows:** release builds no longer freeze on the loading splash after per-device EQ changes; audio output devices use stable backend IDs with clearer labels, and device-change detection works again.
+
+### Offline, Now Playing, and Navidrome
+
+- Desktop builds no longer get stuck showing "offline" when WebKitGTK leaves `navigator.onLine` at `false` while the server is reachable — the app confirms with a real server probe instead.
+- When browsing offline, Artists, Albums, Tracks, and Genres list only content with on-disk bytes — pins, favorites-auto saves, and hot-cache playback — instead of the full server or local index catalog.
+
+### Themes and integrations
+
+- **Discord:** the **Server** cover art source has been removed — it sent your server's cover URL to Discord, which could expose your login credentials in the republished link. Cover art now comes only from **None** (app icon) or **Apple Music**; any saved **Server** setting switches to **None**.
+
+### Browse and library
+
+- Adding tracks to a playlist no longer fails past ~341 songs — writes go to the server in batches, and large-playlist edits are faster.
+- Artist name search on the Artists page no longer depends on query letter case for Cyrillic and other non-ASCII names when the local library index is enabled.
+- The Genres page and album browse genre filter no longer miss genres on large libraries when **All libraries** is selected.
+- Starring an album on the detail page fills the heart immediately and keeps it filled after reload; album-level stars and ratings reconcile consistently across browse and Favorites.
+- Renamed artists no longer linger as ghost entries that open to "Artist not found"; album artist links and cover tiles in **Random Albums** stay consistent after resync.
+
+### Other
+
+- Servers behind a custom HTTP header gate (Cloudflare Access, Pangolin, and similar) now work for the full app — add-server errors stay on the form with a clear reason, browse and detail views load natively behind the gate, streaming and covers carry the header reliably, and returning to a LAN address upgrades the connection automatically when both LAN and public endpoints are configured.
 
 
 ## [1.49.0]

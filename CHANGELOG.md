@@ -13,6 +13,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 
+### Square corners — sharp-edged cards and covers
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1215](https://github.com/Psychotoxical/psysonic/pull/1215)**
+
+* New **Square Corners** toggle under **Settings → Appearance → Visual Options → Display** overrides the active theme to render cards and cover art with square, non-rounded corners. Covers album, playlist, artist and song cards, detail-page cover art, the Now Playing / Radio and fullscreen views, the cover lightbox, the queue cover, and the mini player. Off by default; buttons, inputs and dialogs keep the theme's corners.
+
+### Discord community banner
+
+**By [@ImAsra](https://github.com/ImAsra), PR [#1222](https://github.com/Psychotoxical/psysonic/pull/1222)**
+
+* A dismissible banner inviting you to join the Psysonic community on Discord appears after 20 hours of accumulated app use. **Join** opens the invite; dismiss it for the session, or choose **Never show again** to hide it permanently.
+
+### Bulgarian translation
+
+**By [@akirichev](https://github.com/akirichev), PR [#1228](https://github.com/Psychotoxical/psysonic/pull/1228)**
+
+* Full Bulgarian (Български) UI translation — selectable from the language picker on the Settings and Login screens.
+
 ### Artists browse — album vs track credit mode
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1232](https://github.com/Psychotoxical/psysonic/pull/1232)**
@@ -27,24 +45,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `psysonic --player volume +5` / `volume -10` adjust the current level by that many percent; `volume 80` still sets an absolute level (use `-q` before `--player` when the delta is negative so it is not parsed as a flag).
 * CLI invocations no longer print WebKit/NVIDIA workaround notes on stderr; on Linux, remote `--player` forwarding runs before WebKit startup so helper processes exit with less noise.
 
-### Square corners — sharp-edged cards and covers
+### Theme Store — per-theme changelogs and pinned updates
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1215](https://github.com/Psychotoxical/psysonic/pull/1215)**
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1240](https://github.com/Psychotoxical/psysonic/pull/1240)**
 
-* New **Square Corners** toggle under **Settings → Appearance → Visual Options → Display** overrides the active theme to render cards and cover art with square, non-rounded corners. Covers album, playlist, artist and song cards, detail-page cover art, the Now Playing / Radio and fullscreen views, the cover lightbox, the queue cover, and the mini player. Off by default; buttons, inputs and dialogs keep the theme's corners.
-
-### Bulgarian translation
-
-**By [@akirichev](https://github.com/akirichev), PR [#1228](https://github.com/Psychotoxical/psysonic/pull/1228)**
-
-* Full Bulgarian (Български) UI translation — selectable from the language picker on the Settings and Login screens.
-
-
-### Discord community banner
-
-**By [@ImAsra](https://github.com/ImAsra), PR [#1222](https://github.com/Psychotoxical/psysonic/pull/1222)**
-
-* A dismissible banner inviting you to join the Psysonic community on Discord appears after 20 hours of accumulated app use. **Join** opens the invite; dismiss it for the session, or choose **Never show again** to hide it permanently.
+* Each theme card now has an expandable **What's new** with per-version release notes, so you can see what a theme update changed — including non-visual fixes. Provided by theme authors; themes without notes just don't show the section.
+* Installed themes with an available update now appear at the top of the store list instead of wherever the sort placed them, so you don't have to hunt for them.
 
 ### Multi-library filter — browse and search across selected libraries
 
@@ -52,14 +58,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The sidebar library picker now supports **multi-select with priority ordering**: browse, search, genre and album/artist detail views aggregate across the chosen libraries and de-duplicate shared items by priority. Built for large libraries — scoped SQL uses the hot `library_id` column with covering indexes and FTS-first matching.
 * Identity matching that powers cross-library de-duplication now normalises names per shipped locale (folds German ß, Norwegian æ, French œ, Romanian ș/ț, and Cyrillic ё/й); CJK titles are matched as-is.
-
-
-### Theme Store — per-theme changelogs and pinned updates
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1240](https://github.com/Psychotoxical/psysonic/pull/1240)**
-
-* Each theme card now has an expandable **What's new** with per-version release notes, so you can see what a theme update changed — including non-visual fixes. Provided by theme authors; themes without notes just don't show the section.
-* Installed themes with an available update now appear at the top of the store list instead of wherever the sort placed them, so you don't have to hunt for them.
 
 ### Theme contributors credited in Settings
 
@@ -75,17 +73,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Settings → Appearance → Fullscreen player style** lets you choose **Minimal** (the current view) or **Immersive** — the earlier fullscreen player, with the artist photo/backdrop, a cover-derived accent colour, and rail or Apple-style scrolling lyrics.
 * In Immersive, **Show artist photo** and **Photo dimming** are configurable; Apple-style lyrics show the artist image as a dimmed full-screen backdrop.
 
-### Fullscreen player — Prism style
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1251](https://github.com/Psychotoxical/psysonic/pull/1251)**
-
-* A third **Fullscreen player style**, **Prism** — a full-bleed artist backdrop with a floating glass lyrics panel on the right and a single glass control bar at the bottom (transport, a centred now-playing pill with an integrated progress line, and utilities). The cover-derived accent colour drives the progress fill and the active lyric line, and upcoming lyric lines fade out with a progressive blur.
-
 ### Italian translation
 
 **By [@daquino94](https://github.com/daquino94), PR [#1250](https://github.com/Psychotoxical/psysonic/pull/1250)**
 
 * Full Italian (Italiano) UI translation — selectable from the language picker on the Settings and Login screens.
+
+### Fullscreen player — Prism style
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1251](https://github.com/Psychotoxical/psysonic/pull/1251)**
+
+* A third **Fullscreen player style**, **Prism** — a full-bleed artist backdrop with a floating glass lyrics panel on the right and a single glass control bar at the bottom (transport, a centred now-playing pill with an integrated progress line, and utilities). The cover-derived accent colour drives the progress fill and the active lyric line, and upcoming lyric lines fade out with a progressive blur.
 
 ### Lyrics — word-by-word highlighting straight from your server
 
@@ -118,20 +116,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Changed
 
-### Queue toolbar — Navidrome public share sessions
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1279](https://github.com/Psychotoxical/psysonic/pull/1279)**
-
-* While a Navidrome public share queue is active, **Save Playlist** is hidden in the queue toolbar (share tracks cannot be saved to the server). **Load Playlist** stays available.
-* The queue **Share** button copies the original Navidrome `/share/{id}` page URL instead of a Psysonic magic-string queue payload.
-
-### Equalizer — per-device profiles follow the active system default
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1274](https://github.com/Psychotoxical/psysonic/pull/1274)**, suggested by [@JustBuddy](https://github.com/JustBuddy)
-
-* With **Remember EQ per device** enabled and **System Default** selected, the equalizer now keys profiles to the active OS default output and switches when that default changes externally (Windows sound settings, Stream Deck, etc.), instead of using one shared profile for all system-default outputs.
-* On Linux/PipeWire, the active default is resolved from WirePlumber (`wpctl`) first — including Hyprpanel, pavucontrol, and `wpctl set-default` — not cpal, which can keep a stale card name even after the default sink changes. When PipeWire has already moved the playback stream to the new default, the device watcher skips a redundant stream reopen (avoids a post-switch stutter).
-
 ### Frontend restructure — feature-folder architecture and hardening
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), with additional architecture by [@cucadmuh](https://github.com/cucadmuh), PR [#1225](https://github.com/Psychotoxical/psysonic/pull/1225)**
@@ -143,6 +127,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@Psychotoxical](https://github.com/Psychotoxical), with additional architecture by [@cucadmuh](https://github.com/cucadmuh), PR [#1230](https://github.com/Psychotoxical/psysonic/pull/1230)**
 
 * Completed the frontend/backend typed-IPC contract: the frontend now calls the generated tauri-specta command surface, with CI guards keeping the bindings fresh and every command registered in the handler. Internal only — no change to how the app looks or behaves.
+
+### Equalizer — per-device profiles follow the active system default
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1274](https://github.com/Psychotoxical/psysonic/pull/1274)**, suggested by [@JustBuddy](https://github.com/JustBuddy)
+
+* With **Remember EQ per device** enabled and **System Default** selected, the equalizer now keys profiles to the active OS default output and switches when that default changes externally (Windows sound settings, Stream Deck, etc.), instead of using one shared profile for all system-default outputs.
+* On Linux/PipeWire, the active default is resolved from WirePlumber (`wpctl`) first — including Hyprpanel, pavucontrol, and `wpctl set-default` — not cpal, which can keep a stale card name even after the default sink changes. When PipeWire has already moved the playback stream to the new default, the device watcher skips a redundant stream reopen (avoids a post-switch stutter).
+
+### Queue toolbar — Navidrome public share sessions
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1279](https://github.com/Psychotoxical/psysonic/pull/1279)**
+
+* While a Navidrome public share queue is active, **Save Playlist** is hidden in the queue toolbar (share tracks cannot be saved to the server). **Load Playlist** stays available.
+* The queue **Share** button copies the original Navidrome `/share/{id}` page URL instead of a Psysonic magic-string queue payload.
 
 ## Fixed
 
@@ -206,6 +204,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The year filter on All Albums no longer clamps on every keystroke while typing a four-digit year — drafts commit on blur, Enter, or outside click; incomplete input reverts to the last applied value. Wheel and spinner controls are unchanged.
 
+### Discord — "Server" cover art no longer exposes your login
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1246](https://github.com/Psychotoxical/psysonic/pull/1246)**
+
+* The **Settings → Integrations → Discord → Cover art source → Server** option sent your server's cover URL to Discord, which republishes external image links, so anyone viewing your Rich Presence could read your username and login token. That option has been removed — cover art now comes only from **None** (app icon) or **Apple Music**, neither of which carries your credentials. Any saved **Server** setting is switched to **None**. Reported by lavioso on Discord.
+
 ### Album detail — favorite heart and album-level stars
 
 **By [@cucadmuh](https://github.com/cucadmuh), reported by HiveMind on the Psysonic Discord, PR [#1247](https://github.com/Psychotoxical/psysonic/pull/1247)**
@@ -213,12 +217,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Starring an album on the detail page now fills the heart immediately and keeps it filled after reload or returning from Favorites — the local index stores album favorites in `album.starred_at` instead of inferring from track stars.
 * When only a track is starred, the album heart stays empty unless the album itself is in Favorites; unfavorite no longer requires a double click on the detail page.
 * Album user rating on detail reconciles from the server in the background; multi-library browse and Favorites filters use album-level stars consistently.
-
-### Discord — "Server" cover art no longer exposes your login
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1246](https://github.com/Psychotoxical/psysonic/pull/1246)**
-
-* The **Settings → Integrations → Discord → Cover art source → Server** option sent your server's cover URL to Discord, which republishes external image links, so anyone viewing your Rich Presence could read your username and login token. That option has been removed — cover art now comes only from **None** (app icon) or **Apple Music**, neither of which carries your credentials. Any saved **Server** setting is switched to **None**. Reported by lavioso on Discord.
 
 ### Library — renamed artists no longer linger as ghosts after resync
 
@@ -239,17 +237,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Album tiles for rows that synced without a cover id (surfacing most in **Random Albums**) no longer show a blank cover while the detail page has one — local browse now falls back to the album's first track cover id, so tile and detail resolve the same artwork. The same fallback applies to the detail header's library cover resolution, so the two stay consistent instead of flickering between art and placeholder.
 
-### Library — renamed album artist links now heal on resync
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1256](https://github.com/Psychotoxical/psysonic/pull/1256)**
-
-* When an artist is renamed on the server (minting a new artist id), the album's stored artist link no longer stays stuck on the old id and dead-ending at "Artist not found". Album metadata now follows the server's `getAlbum` for the artist reference, so a resync updates it instead of keeping the pre-rename id indefinitely. Complements the earlier ghost-row prune (#1253) and the local-index fallback (#1254), which did not clear the stale reference itself.
-
 ### Library — multi-library dedup sidecar no longer accumulates dead identity keys
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1255](https://github.com/Psychotoxical/psysonic/pull/1255)**
 
 * The precomputed `library-cluster.db` identity keys used for cross-library dedup are now pruned on rebuild when their track no longer exists (removed, or dropped when a server mints a fresh id on rename). Previously the rebuild only refreshed live tracks and never deleted stale rows, so the sidecar grew with library churn until it was recreated wholesale (server switch / restore / import). The rows were inert (reads only ever join live tracks), so dedup and browse results are unchanged — this just stops the sidecar from bloating.
+
+### Library — renamed album artist links now heal on resync
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1256](https://github.com/Psychotoxical/psysonic/pull/1256)**
+
+* When an artist is renamed on the server (minting a new artist id), the album's stored artist link no longer stays stuck on the old id and dead-ending at "Artist not found". Album metadata now follows the server's `getAlbum` for the artist reference, so a resync updates it instead of keeping the pre-rename id indefinitely. Complements the earlier ghost-row prune (#1253) and the local-index fallback (#1254), which did not clear the stale reference itself.
 
 ### Sync — large play queues no longer revert after pausing
 
