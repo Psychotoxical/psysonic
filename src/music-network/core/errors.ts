@@ -43,3 +43,21 @@ export function isMusicNetworkError(e: unknown): e is MusicNetworkError {
 export function errorI18nKey(code: MusicNetworkErrorCode): string {
   return `musicNetwork.errors.${code}`;
 }
+
+/** Longest transport detail we append to a translated message. */
+const DETAIL_MAX_LEN = 200;
+
+/**
+ * The transport detail behind a NETWORK error, for display next to the
+ * translated message.
+ *
+ * NETWORK is the catch-all: a DNS failure, a TLS handshake broken by a proxy or
+ * AV, a timeout and a provider API error the auth classifier did not recognise
+ * all collapse into it. Its i18n string therefore cannot say what went wrong,
+ * and a user report that quotes only that string is not actionable. Every other
+ * code names its own failure, so it needs no detail.
+ */
+export function errorDetail(e: MusicNetworkError): string {
+  if (e.code !== 'NETWORK') return '';
+  return e.message.trim().slice(0, DETAIL_MAX_LEN);
+}

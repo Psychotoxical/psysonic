@@ -30,7 +30,7 @@ export type {
   CapabilityState,
   CapabilityStatus,
 } from './core/capabilities';
-export { MusicNetworkError, errorI18nKey, isMusicNetworkError } from './core/errors';
+export { MusicNetworkError, errorDetail, errorI18nKey, isMusicNetworkError } from './core/errors';
 export type { MusicNetworkErrorCode } from './core/errors';
 export type {
   ArtistStats,
