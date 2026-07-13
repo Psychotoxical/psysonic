@@ -145,10 +145,9 @@ function SongRow({ song, showBpm }: Props) {
 /** Column header with the same grid as <SongRow>. Optional — pages can render it above the list. */
 export function SongListHeader({ showBpm }: { showBpm?: boolean } = {}) {
   const { t } = useTranslation();
-  const showCovers = useTrackListCoverArtEnabled('pages');
   return (
     <div
-      className={`song-list-row song-list-row--header${showBpm ? ' song-list-row--with-bpm' : ''}${showCovers ? ' song-list-row--with-cover' : ''}`}
+      className={`song-list-row song-list-row--header${showBpm ? ' song-list-row--with-bpm' : ''}`}
       role="row"
     >
       <div className="song-list-row-cell song-list-row-actions" />

@@ -16,6 +16,8 @@ import { formatLastSeen } from '@/lib/format/userMgmtHelpers';
 import i18n from '@/lib/i18n';
 import { offlineActionPolicy, type OfflineActionPolicy } from '@/features/offline';
 import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/trackArtistRefs';
+import { OptionalBrowseTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
+import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
 
 type ContextMenuFn = (
   x: number,
@@ -76,6 +78,7 @@ export const TrackRow = React.memo(function TrackRow({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const showBitrate = useThemeStore(s => s.showBitrate);
+  const showCovers = useTrackListCoverArtEnabled('pages');
   const isSelected = useSelectionStore(s => s.selectedIds.has(song.id));
   const isActive = currentTrackId === song.id;
   const isPreviewing = usePreviewStore(s => s.previewingId === song.id);
@@ -106,6 +109,9 @@ export const TrackRow = React.memo(function TrackRow({
       case 'title':
         return (
           <div key="title" className="track-info track-info-suggestion">
+            {showCovers ? (
+              <OptionalBrowseTrackRowCoverThumb song={song} size="dense" className="song-list-row-cover-thumb" />
+            ) : null}
             <button
               type="button"
               className="playlist-suggestion-play-btn"
