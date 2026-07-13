@@ -73,6 +73,11 @@ export function PlayerTrackInfo({
   const layoutItems = usePlayerBarLayoutStore(s => s.items);
   const isLayoutVisible = (id: PlayerBarLayoutItemId) =>
     layoutItems.find(i => i.id === id)?.visible !== false;
+  const trackInfoMode = usePlayerBarLayoutStore(s => s.trackInfoMode);
+  // Radio has no album, and a preview shows the previewed track's own meta.
+  const albumLine = trackInfoMode === 'titleAlbum' && !isRadio && !showPreviewMeta
+    ? currentTrack?.album
+    : undefined;
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const playerPolicy = offlineActionPolicy('playerBar', offlineBrowseActive);
 
@@ -175,6 +180,14 @@ export function PlayerTrackInfo({
             className="player-track-artist"
             style={{ cursor: !isRadio && !showPreviewMeta && currentTrack?.artistId ? 'pointer' : 'default' }}
             onClick={() => !isRadio && !showPreviewMeta && currentTrack?.artistId && navigate(`/artist/${currentTrack.artistId}`)}
+          />
+        )}
+        {albumLine && (
+          <MarqueeText
+            text={albumLine}
+            className="player-track-album"
+            style={{ cursor: currentTrack?.albumId ? 'pointer' : 'default' }}
+            onClick={() => currentTrack?.albumId && navigate(`/album/${currentTrack.albumId}`)}
           />
         )}
         {currentTrack && !isRadio && !showPreviewMeta && isLayoutVisible('starRating') && playerPolicy.canRate && (

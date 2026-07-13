@@ -8,6 +8,7 @@ import { usePreviewStore } from '@/features/playback/store/previewStore';
 import PlaybackScheduleBadge from '@/features/playback/components/PlaybackScheduleBadge';
 import { usePlaybackDelayPress } from '@/features/playback/hooks/usePlaybackDelayPress';
 import { usePlaybackScheduleRemaining } from '@/features/playback/utils/playbackScheduleFormat';
+import { usePlayerBarLayoutStore } from '@/features/playback/store/playerBarLayoutStore';
 
 type RepeatMode = PlayerState['repeatMode'];
 type PlayPauseBind = ReturnType<typeof usePlaybackDelayPress>['playPauseBind'];
@@ -36,24 +37,31 @@ export function PlayerTransportControls({
   const autodjPhase = useAutodjTransitionUi(s => s.phase);
   const showAutodjTransition =
     isPlaying && !isPreviewing && scheduleRemaining == null && autodjPhase === 'mixing';
+  // Hiding Stop leaves no dead end: while previewing, the primary button already
+  // renders as a stop control and ends the preview.
+  const showStop = usePlayerBarLayoutStore(
+    s => s.items.find(i => i.id === 'stop')?.visible !== false,
+  );
 
   return (
     <div className="player-buttons" ref={transportAnchorRef}>
-      <button
-        className="player-btn player-btn-sm"
-        onClick={() => {
-          if (isPreviewing) {
-            usePreviewStore.setState({ previewingId: null, previewingTrack: null, elapsed: 0 });
-            audioPreviewStopSilent().catch(() => {});
-          } else {
-            stop();
-          }
-        }}
-        aria-label={isPreviewing ? t('playlists.previewStop') : t('player.stop')}
-        data-tooltip={isPreviewing ? t('playlists.previewStop') : t('player.stop')}
-      >
-        <Square size={14} fill="currentColor" />
-      </button>
+      {showStop && (
+        <button
+          className="player-btn player-btn-sm"
+          onClick={() => {
+            if (isPreviewing) {
+              usePreviewStore.setState({ previewingId: null, previewingTrack: null, elapsed: 0 });
+              audioPreviewStopSilent().catch(() => {});
+            } else {
+              stop();
+            }
+          }}
+          aria-label={isPreviewing ? t('playlists.previewStop') : t('player.stop')}
+          data-tooltip={isPreviewing ? t('playlists.previewStop') : t('player.stop')}
+        >
+          <Square size={14} fill="currentColor" />
+        </button>
+      )}
       <button
         className="player-btn"
         onClick={() => previous()}

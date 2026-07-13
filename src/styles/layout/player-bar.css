@@ -186,6 +186,15 @@ html[data-platform="windows"] .player-bar.floating {
   text-decoration: underline;
 }
 
+/* Optional third line (Settings → Personalisation → Player bar). Sits below the
+   artist and is quieter than it, so the title stays the anchor of the block. */
+.player-track-album {
+  font-size: 11px;
+  color: var(--player-artist);
+  opacity: 0.75;
+  margin-top: 1px;
+}
+
 .player-track-rating {
   margin-top: 4px;
   width: auto;

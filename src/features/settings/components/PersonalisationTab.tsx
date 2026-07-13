@@ -181,7 +181,6 @@ export function PersonalisationTab() {
       <SettingsSubSection
         title={t('settings.playerBarTitle')}
         icon={<Disc3 size={16} />}
-        advanced
         action={
           <button
             type="button"
