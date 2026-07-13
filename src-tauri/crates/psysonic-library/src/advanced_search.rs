@@ -14,6 +14,7 @@ use rusqlite::types::Value as SqlValue;
 use rusqlite::{params, OptionalExtension};
 use serde_json::Value;
 
+use crate::album_compilation_filter::sql_display_artist_from;
 use crate::browse_support::overlay_album_level_starred_at;
 use crate::dto::{
     ArtistCreditMode, LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse, LibraryAlbumDto,
@@ -766,13 +767,12 @@ fn multi_scope_track_filter_sql(
     Ok((w.where_sql(), w.params().to_vec()))
 }
 
+/// Same sort, built directly against the dedup shape's projected columns. It used
+/// to be the grouped SQL with `MAX(t.x)` string-replaced into column names — that
+/// only held while every key was a bare aggregate, and would silently mangle the
+/// display-artist expression.
 pub(crate) fn deduped_album_order_sql(sort: &[LibrarySortClause]) -> String {
-    album_order_from_track_groups(sort)
-        .map(|s| {
-            s.replace("MAX(t.album)", "album")
-                .replace("MAX(t.artist)", "artist")
-                .replace("MAX(t.year)", "year")
-        })
+    album_order_sql(sort, &AlbumOrderCols::deduped())
         .unwrap_or_else(|| "ORDER BY album COLLATE NOCASE ASC, album_id ASC".to_string())
 }
 
@@ -2081,16 +2081,48 @@ pub(crate) fn order_clause(sort: &[LibrarySortClause], entity: EntityKind) -> Op
     }
 }
 
-/// Sort for album rows aggregated from `track t` (`GROUP BY t.album_id`).
-/// Must not reference `album a` — that alias is absent in this query shape.
-pub(crate) fn album_order_from_track_groups(sort: &[LibrarySortClause]) -> Option<String> {
+/// Column expressions the album sort orders by, per query shape.
+///
+/// `artist` must be the **displayed** album artist, not the raw track artist:
+/// the row mappers derive it with `pick_album_group_artist` (album-artist first),
+/// so ordering by `MAX(t.artist)` sorted by something the user never sees — on a
+/// featured-guest album that is "X feat. Z" while the row reads "X", which tore
+/// such albums out of their artist's year run (#1217).
+struct AlbumOrderCols {
+    name: &'static str,
+    artist: String,
+    year: &'static str,
+}
+
+impl AlbumOrderCols {
+    /// Rows aggregated from `track t` (`GROUP BY t.album_id`) — the expressions
+    /// must be aggregates. Must not reference `album a`: absent in this shape.
+    fn grouped() -> Self {
+        Self {
+            name: "MAX(t.album) COLLATE NOCASE",
+            artist: sql_display_artist_from("MAX(t.artist)", "MAX(t.album_artist)"),
+            year: "MAX(t.year)",
+        }
+    }
+
+    /// Multi-library dedup shape: the outer select projects plain columns.
+    fn deduped() -> Self {
+        Self {
+            name: "album COLLATE NOCASE",
+            artist: sql_display_artist_from("artist", "album_artist"),
+            year: "year",
+        }
+    }
+}
+
+fn album_order_sql(sort: &[LibrarySortClause], cols: &AlbumOrderCols) -> Option<String> {
     let mut keys: Vec<String> = Vec::new();
     for s in sort {
         let col = match s.field.as_str() {
-            "name" => "MAX(t.album) COLLATE NOCASE",
-            "artist" => "MAX(t.artist) COLLATE NOCASE",
-            "year" => "MAX(t.year)",
-            "random" => "RANDOM()",
+            "name" => cols.name.to_string(),
+            "artist" => format!("{} COLLATE NOCASE", cols.artist),
+            "year" => cols.year.to_string(),
+            "random" => "RANDOM()".to_string(),
             _ => continue,
         };
         let dir = match s.dir {
@@ -2104,6 +2136,11 @@ pub(crate) fn album_order_from_track_groups(sort: &[LibrarySortClause]) -> Optio
     } else {
         Some(format!("ORDER BY {}", keys.join(", ")))
     }
+}
+
+/// Sort for album rows aggregated from `track t` (`GROUP BY t.album_id`).
+pub(crate) fn album_order_from_track_groups(sort: &[LibrarySortClause]) -> Option<String> {
+    album_order_sql(sort, &AlbumOrderCols::grouped())
 }
 
 /// Allowlist of sortable fields per entity → trusted column expression.
@@ -3343,6 +3380,61 @@ mod tests {
         let resp = run_advanced_search(&store, &r).unwrap();
         let ids: Vec<&str> = resp.tracks.iter().map(|t| t.id.as_str()).collect();
         assert_eq!(ids, vec!["t2", "t1"]);
+    }
+
+    /// #1217: the album browse sorted by `MAX(t.artist)` — the raw *track* artist —
+    /// while the row displays the *album* artist. On an album with featured guests
+    /// the two differ ("Alpha feat. Zulu" vs "Alpha"), so the album sorted under a
+    /// name nobody could see and fell out of its artist's year run, landing after a
+    /// completely different artist.
+    #[test]
+    fn album_artist_year_sort_keeps_featured_guest_albums_with_their_artist() {
+        let store = LibraryStore::open_in_memory();
+
+        // Same album artist "Alpha" throughout; only the middle album carries a
+        // featured-guest track credit.
+        let mut solo_early = track("s1", "t1", "One", "Alpha", "Early");
+        solo_early.year = Some(2000);
+
+        let mut feat = track("s1", "t2", "Two", "Alpha feat. Zulu", "Featured");
+        feat.album_artist = Some("Alpha".into());
+        feat.year = Some(2001);
+
+        let mut solo_late = track("s1", "t3", "Three", "Alpha", "Late");
+        solo_late.year = Some(2002);
+
+        // A second artist that sorts between "Alpha" and "Alpha feat. Zulu".
+        let mut other = track("s1", "t4", "Four", "Alpha Beta", "Other");
+        other.year = Some(1999);
+
+        TrackRepository::new(&store)
+            .upsert_batch(&[solo_early, feat, solo_late, other])
+            .unwrap();
+
+        let mut r = req("s1", &[EntityKind::Album]);
+        r.sort = vec![
+            LibrarySortClause { field: "artist".into(), dir: SortDir::Asc },
+            LibrarySortClause { field: "year".into(), dir: SortDir::Asc },
+        ];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        let names: Vec<&str> = resp.albums.iter().map(|a| a.name.as_str()).collect();
+
+        // Alpha's three albums stay together in year order; the other artist follows.
+        // Before the fix the featured album sorted last, behind "Alpha Beta".
+        assert_eq!(names, vec!["Early", "Featured", "Late", "Other"]);
+    }
+
+    #[test]
+    fn album_sorts_order_by_the_displayed_artist_in_both_query_shapes() {
+        let sort = vec![LibrarySortClause { field: "artist".into(), dir: SortDir::Asc }];
+
+        let grouped = album_order_from_track_groups(&sort).unwrap();
+        assert!(grouped.contains("MAX(t.album_artist)"), "grouped: {grouped}");
+
+        let deduped = deduped_album_order_sql(&sort);
+        assert!(deduped.contains("album_artist"), "deduped: {deduped}");
+        // The dedup shape has no aggregates to reference.
+        assert!(!deduped.contains("MAX("), "deduped: {deduped}");
     }
 
     // ── multi-library scope (WO-4b) ─────────────────────────────────────

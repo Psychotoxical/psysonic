@@ -49,15 +49,28 @@ pub fn various_artists_label(s: &str) -> bool {
     s.trim().to_ascii_lowercase().contains("various artists")
 }
 
+/// SQL mirror of [`pick_album_group_artist`] over arbitrary column *expressions*
+/// rather than a table alias — the album browse groups by album and therefore has
+/// to feed aggregates (`MAX(t.artist)`, `MAX(t.album_artist)`), while the
+/// multi-library dedup path feeds projected columns (`artist`, `album_artist`).
+/// Single source of the rule; keep in sync with [`pick_album_group_artist`].
+pub fn sql_display_artist_from(track_artist: &str, album_artist: &str) -> String {
+    format!(
+        "CASE WHEN trim(coalesce({aa}, '')) != '' \
+         THEN trim({aa}) \
+         ELSE NULLIF(trim(coalesce({ta}, '')), '') END",
+        aa = album_artist,
+        ta = track_artist,
+    )
+}
+
 /// SQL mirror of [`pick_album_group_artist`] for track-grouped browse subqueries
 /// (`la`). Used where `ORDER BY` / `COALESCE(a.artist, …)` must stay in SQL;
 /// keep both implementations in sync.
 pub fn sql_track_group_display_artist(alias: &str) -> String {
-    format!(
-        "CASE WHEN trim(coalesce({a}.album_artist, '')) != '' \
-         THEN trim({a}.album_artist) \
-         ELSE NULLIF(trim(coalesce({a}.artist, '')), '') END",
-        a = alias
+    sql_display_artist_from(
+        &format!("{alias}.artist"),
+        &format!("{alias}.album_artist"),
     )
 }
 
