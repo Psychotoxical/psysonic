@@ -200,6 +200,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Queue toolbar — Navidrome public share: hide Save Playlist, copy original share URL (PR #1279)',
       'Windows startup hang after #1274 — boot barrel split, stable Wasapi device IDs, legacy EQ key match (PR #1277)',
       'Windows MSI bundle on dev/RC versions — numeric WiX mapping; album easter-egg import chunk (PR #1278)',
+      'Windows release builds — Subsonic client id no longer psysonic/undefined in Who is listening (PR #1290)',
       'Track lists — optional album cover thumbnails via standard cover pipeline; queue rows use playback scope (PR #1280)',
       'Internet Radio — Web Audio EQ on HTML5 streams; presets apply without reconnect (PR #1284)',
       'Player bar — hideable stop button, optional album line, drag-reorderable action buttons (request: mikmik on Psysonic Discord, PR #1287)',

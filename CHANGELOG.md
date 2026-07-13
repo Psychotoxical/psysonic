@@ -309,6 +309,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Windows `.msi` builds no longer fail on channel versions like `1.50.0-dev` — WiX requires a numeric fourth version field, so the bundler maps `-dev` / `-rc.N` to numeric semver in `bundle.windows.wix.version` while Settings → About still shows the real package version.
 * Release builds no longer warn that the album feature barrel defeats a lazy import in the new-albums easter egg (direct import of the export helper).
 
+### Windows — Subsonic client id no longer `psysonic/undefined`
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1290](https://github.com/Psychotoxical/psysonic/pull/1290)**
+
+* Windows release builds could send `psysonic/undefined` as the Subsonic client id (visible in **Who is listening?**) when `package.json` version was read during a circular authStore boot-chunk init — prebuild now emits a leaf `SUBSONIC_CLIENT_ID` literal and the boot-chunk guard rejects unresolved client-id templates.
+
 ### Internet Radio — equalizer presets now apply to radio playback
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1284](https://github.com/Psychotoxical/psysonic/pull/1284)**
