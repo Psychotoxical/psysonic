@@ -327,6 +327,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The Discord community banner rendered its icon at an enormous size on Windows, pushing the message out of the bar. The icon now has a fixed size on every platform.
 
+### Albums — "Artist / Year" sorting and albums with featured guests
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1292](https://github.com/Psychotoxical/psysonic/pull/1292)**
+
+* Sorting albums by artist ordered them by the track artist while showing the album artist. On a release with featured guests the two differ, so it was filed under a name that isn't on screen — the album dropped out of its artist's run of years, sometimes behind a different artist entirely. Album sorting now follows the artist the row actually shows.
+
 
 ## [1.49.0] - 2026-06-29
 
