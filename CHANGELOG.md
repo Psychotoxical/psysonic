@@ -149,6 +149,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Settings → Personalisation → Player bar** now also hides the **stop button** and shows the **album name** under the artist (off by default; clicking it opens the album). The right-hand buttons — star rating, favorite, love, playback speed, equalizer, mini player — can be **dragged into any order** you like.
 * The section is no longer behind **Advanced**.
 
+### Shuffle
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1288](https://github.com/Psychotoxical/psysonic/pull/1288)**
+
+* A **shuffle toggle** in the player bar, next to the transport controls. While on, the queue is shuffled from the current track onwards — the playing track stays put — and turning it off restores the original order. It survives a restart, and the shuffled order is what your other devices and Orbit guests see, so playback stays in step everywhere. Hide the button under **Settings → Personalisation → Player bar** if you don't want it.
+
 ## Fixed
 
 ### Per-track covers when playing from a playlist
