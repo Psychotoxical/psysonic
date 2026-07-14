@@ -23,6 +23,9 @@
 
   function reveal(attempt) {
     if (window.__psyStartMinimizedToTray) {
+      // Match the native cold-start hide path. This is intentionally not the
+      // CSS animation pause flag: React may still mount entrance animations.
+      window.__psyHidden = true;
       if (tryHideMainWindow()) return;
       if (attempt >= MAX_ATTEMPTS) return;
       window.setTimeout(function () {

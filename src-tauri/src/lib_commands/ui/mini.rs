@@ -195,6 +195,10 @@ pub(crate) fn eval_startup_main_window_visibility(window: &tauri::WebviewWindow)
   }
   var internals = window.__TAURI_INTERNALS__;
   if (deferToTray) {
+    // Keep JS polling and media/UI background work paused while the native
+    // window is hidden, without setting data-psy-native-hidden (that CSS
+    // selector freezes entrance animations mounted during cold start).
+    window.__psyHidden = true;
     try { sessionStorage.setItem('psy-startup-tray-handled', '1'); } catch (e) {}
     if (internals && typeof internals.invoke === 'function') {
       internals.invoke('plugin:window|hide', { label: 'main' }).catch(function () {});

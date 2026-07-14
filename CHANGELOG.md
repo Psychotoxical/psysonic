@@ -179,7 +179,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1296](https://github.com/Psychotoxical/psysonic/pull/1296)**
 
-* With **Start minimized to tray** enabled, opening the main window from the tray could leave the left sidebar menu invisible until a full app restart (seen on Linux tiling WMs such as Hyprland). The sidebar no longer uses a slide-in entrance animation that starts at `opacity: 0`; cold-start tray hide restores the original pause-and-hide path from PR #1271, and tray show again resumes rendering before `show()` without an extra `unminimize()` that could pop the window on tiling WMs.
+* With **Start minimized to tray** enabled, opening the main window from the tray could leave the left sidebar menu invisible until a full app restart (seen on Linux tiling WMs such as Hyprland). The sidebar no longer uses a slide-in entrance animation that starts at `opacity: 0`; tray show resumes rendering before `show()` without an extra `unminimize()` that could pop the window on tiling WMs.
 
 ### Playlist and radio custom covers blank
 
