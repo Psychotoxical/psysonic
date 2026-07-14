@@ -3,6 +3,8 @@ import { commands } from '@/generated/bindings';
 import { useAuthStore } from '@/store/authStore';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { getPlaybackProgressSnapshot } from '@/features/playback/store/playbackProgress';
+import { resolveServerCoverForDiscord } from '@/cover/integrations/discord';
+import { serverShareBaseUrl } from '@/lib/server/serverEndpoint';
 
 /**
  * Discord Rich Presence sync. Updates on track change or play/pause toggle —
@@ -77,12 +79,26 @@ export function setupDiscordPresence(): () => void {
       }).catch(() => {});
     };
 
-    // Cover art is resolved Rust-side: 'apple' triggers the iTunes lookup via
-    // the fetchItunesCovers flag above; 'none' shows just the app icon. The
-    // frontend never builds a cover URL for Discord — the removed 'server'
-    // source leaked the authenticated Subsonic getCoverArt URL (u/t/s) through
-    // Discord's public external image proxy.
-    sendPresence(null);
+    // 'apple' is resolved Rust-side via the fetchItunesCovers flag above.
+    // 'none' shows just the app icon. 'server' resolves here via the
+    // credential-blind getAlbumInfo2 resolver (cover/integrations/discord.ts)
+    // — it never sees server auth, unlike the removed builder that leaked the
+    // authenticated Subsonic getCoverArt URL (u/t/s) through Discord's public
+    // external image proxy (PR #1246). The Rust command re-validates whatever
+    // URL arrives here before it ever reaches Discord (defense in depth).
+    if (discordCoverSource === 'server' && currentTrack.albumId) {
+      const trackId = currentTrack.id;
+      const { servers, activeServerId } = useAuthStore.getState();
+      const profile = servers.find(s => s.id === activeServerId);
+      const shareBase = profile ? serverShareBaseUrl(profile) : null;
+      void resolveServerCoverForDiscord(currentTrack.albumId, shareBase).then(url => {
+        // Staleness guard: the resolve is async — drop it if playback moved on.
+        if (usePlayerStore.getState().currentTrack?.id !== trackId) return;
+        sendPresence(url);
+      });
+    } else {
+      sendPresence(null);
+    }
   }
 
   const unsubDiscordPlayer = usePlayerStore.subscribe(syncDiscord);
