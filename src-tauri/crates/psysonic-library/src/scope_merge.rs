@@ -266,11 +266,16 @@ pub fn list_albums(
     let limit = clamp_limit(request.limit);
     let offset = clamp_offset(request.offset);
     if crate::dto::scoped_layer1_eligible(scopes) {
+        // Plain-identifier keys (`ORDER BY artist COLLATE NOCASE`), which SQLite
+        // resolves to the `MAX(...) AS x` aliases in the grouped shape and to the
+        // projected columns in the dedup shape — correct either way, so one string
+        // serves both.
         let (albums, _) = list_albums_layer1_filtered(
             store,
             scopes,
             "",
             &[],
+            &order,
             &order,
             limit,
             offset,
@@ -385,7 +390,14 @@ pub(crate) fn list_albums_layer1_filtered(
     scopes: &[LibraryScopePair],
     extra_where: &str,
     extra_params: &[SqlValue],
-    order_sql: &str,
+    // `GROUP BY t.album_id` shapes. A sort key that is a plain identifier may be
+    // passed as-is (SQLite resolves it to the `MAX(...) AS x` result alias), but a
+    // key that wraps the name in an expression — our display-artist `CASE` — must
+    // carry the aggregates itself, or the name resolves to the table column and is
+    // read from an arbitrary row of the group.
+    grouped_order_sql: &str,
+    // Dedup shape: the outer select projects plain columns, so plain names are right.
+    deduped_order_sql: &str,
     limit: u32,
     offset: u32,
     skip_totals: bool,
@@ -411,10 +423,11 @@ pub(crate) fn list_albums_layer1_filtered(
         params.extend_from_slice(extra_params);
 
         let count_sql = format!("SELECT COUNT(DISTINCT t.album_id) FROM track t WHERE {where_sql}");
-        // The sort columns are aliased so the shared ORDER BY (built for the dedup
-        // shape's plain column names) binds to these aggregates. Unaliased, SQLite
-        // resolves `artist` / `album_artist` to bare table columns and takes them
-        // from an arbitrary row of the group.
+        // Grouped shape: the ORDER BY must carry the aggregates itself. Aliasing the
+        // sort columns is not enough — SQLite substitutes a result alias only when the
+        // whole ORDER BY term is a plain identifier, so a bare name inside the
+        // display-artist CASE would resolve to the table column and be read from an
+        // arbitrary row of the group.
         let sql = format!(
             "SELECT t.server_id, t.album_id, MAX(t.album) AS album, MAX(t.artist) AS artist, \
                     MAX(t.artist_id), MAX(t.album_artist) AS album_artist, COUNT(*), \
@@ -422,7 +435,7 @@ pub(crate) fn list_albums_layer1_filtered(
                     MAX(t.cover_art_id), MAX(t.starred_at), MAX(t.synced_at) \
              FROM track t WHERE {where_sql} \
              GROUP BY t.album_id \
-             {order_sql} \
+             {grouped_order_sql} \
              LIMIT ? OFFSET ?"
         );
         let total = if skip_totals {
@@ -466,7 +479,7 @@ pub(crate) fn list_albums_layer1_filtered(
                 params.push(SqlValue::Text(p.library_id.clone()));
             }
             let count_sql = format!("SELECT COUNT(DISTINCT t.album_id) FROM track t WHERE {where_sql}");
-            // Aliased for the same reason as the single-scope shape above.
+            // Grouped shape — same reasoning as the single-scope branch above.
             let sql = format!(
                 "SELECT t.server_id, t.album_id, MAX(t.album) AS album, MAX(t.artist) AS artist, \
                         MAX(t.artist_id), MAX(t.album_artist) AS album_artist, COUNT(*), \
@@ -474,7 +487,7 @@ pub(crate) fn list_albums_layer1_filtered(
                         MAX(t.cover_art_id), MAX(t.starred_at), MAX(t.synced_at) \
                  FROM track t WHERE {where_sql} \
                  GROUP BY t.album_id \
-                 {order_sql} \
+                 {grouped_order_sql} \
                  LIMIT ? OFFSET ?"
             );
             let total = if skip_totals {
@@ -541,7 +554,7 @@ pub(crate) fn list_albums_layer1_filtered(
                       MIN(_pick) AS _pick \
                FROM per_lib GROUP BY album_dedup \
              ) \
-             {order_sql} \
+             {deduped_order_sql} \
              LIMIT ? OFFSET ?"
         ),
     );
@@ -2545,10 +2558,11 @@ mod tests {
         let order = "ORDER BY album COLLATE NOCASE ASC, album_id ASC".to_string();
 
         let bench = |label: &str, scopes: &[LibraryScopePair]| {
-            let _ = list_albums_layer1_filtered(&store, scopes, "", &[], &order, 100, 0, true, false);
+            let _ =
+                list_albums_layer1_filtered(&store, scopes, "", &[], &order, &order, 100, 0, true, false);
             let start = Instant::now();
             let (rows, _) = list_albums_layer1_filtered(
-                &store, scopes, "", &[], &order, 100, 0, true, false,
+                &store, scopes, "", &[], &order, &order, 100, 0, true, false,
             )
             .unwrap();
             println!("  {label}: {:?} ({} albums)", start.elapsed(), rows.len());

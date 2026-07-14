@@ -256,12 +256,15 @@ fn list_albums_by_genre_layer1_scope(
          WHERE tg.server_id = t.server_id AND tg.track_id = t.id \
            AND tg.genre = ? COLLATE NOCASE)";
     let extra_params = vec![SqlValue::Text(genre.to_string())];
+    // Plain-identifier keys, so the same string is correct for both the grouped and
+    // the dedup shape (SQLite resolves a bare ORDER BY name to the result alias).
     let order = genre_multi_scope_order_sql(&req.sort);
     let (albums, total_count) = scope_merge::list_albums_layer1_filtered(
         store,
         scopes,
         extra_where,
         &extra_params,
+        &order,
         &order,
         limit,
         offset,

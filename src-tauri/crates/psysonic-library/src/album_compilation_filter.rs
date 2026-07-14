@@ -174,4 +174,60 @@ mod tests {
             );
         }
     }
+
+    /// Same parity, but for the **aggregate** form the grouped album browse sorts on.
+    ///
+    /// `map_album_from_tracks` builds a row's display artist as
+    /// `pick_album_group_artist(MAX(artist), MAX(album_artist))`, so the sort key
+    /// must be `sql_display_artist_from("MAX(t.artist)", "MAX(t.album_artist)")` over
+    /// the same aggregates — anything else sorts the album under a name the row does
+    /// not show (#1217). The multi-row groups here are the point: a single row cannot
+    /// tell an aggregate apart from a bare column.
+    #[test]
+    fn sql_display_artist_from_aggregates_matches_pick_album_group_artist() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute("CREATE TABLE t (artist TEXT, album_artist TEXT)", [])
+            .unwrap();
+        let sql = format!(
+            "SELECT {} FROM t",
+            sql_display_artist_from("MAX(t.artist)", "MAX(t.album_artist)"),
+        );
+
+        // Each case is one album's worth of tracks — album_artist deliberately sparse.
+        let groups: [&[(&str, Option<&str>)]; 5] = [
+            // Featured guest on one track only; the album artist is what shows.
+            &[("Alpha", Some("Alpha")), ("Alpha feat. Zulu", None)],
+            // Album artist on the *second* track — MAX still has to find it.
+            &[("Alpha feat. Zulu", None), ("Alpha", Some("Alpha"))],
+            // No album artist anywhere: falls back to the track credit.
+            &[("Alpha", None), ("Alpha feat. Zulu", None)],
+            // Blank strings must not count as an album artist.
+            &[("Alice", Some("   ")), ("Alice feat. Bob", Some(""))],
+            // Compilation: every track carries the same album artist.
+            &[("Alice", Some("Various Artists")), ("Bob", Some("Various Artists"))],
+        ];
+
+        for rows in groups {
+            conn.execute("DELETE FROM t", []).unwrap();
+            for (artist, album_artist) in rows {
+                conn.execute(
+                    "INSERT INTO t (artist, album_artist) VALUES (?1, ?2)",
+                    rusqlite::params![artist, album_artist],
+                )
+                .unwrap();
+            }
+            let sql_out: Option<String> = conn.query_row(&sql, [], |r| r.get(0)).unwrap();
+
+            // The Rust side of the same decision, over the same aggregates.
+            let max_artist = rows.iter().map(|(a, _)| *a).max().map(str::to_string);
+            let max_album_artist = rows
+                .iter()
+                .filter_map(|(_, aa)| *aa)
+                .max()
+                .map(str::to_string);
+            let rust_out = pick_album_group_artist(max_artist, max_album_artist);
+
+            assert_eq!(sql_out, rust_out, "rows={rows:?}");
+        }
+    }
 }
