@@ -53,11 +53,14 @@ fn on_second_instance<R: tauri::Runtime>(
         let window = app.get_webview_window("main").expect("no main window");
         // The window may have been hidden via the close-to-tray path,
         // which injects PAUSE_RENDERING_JS (sets `__psyHidden=true`,
-        // pauses CSS animations). Tray restore uses `restore_main_window`
-        // — second-launch restore must do the same, otherwise the webview
-        // comes back with rendering still paused and navigation looks blank
-        // (issue #497).
-        let _ = crate::lib_commands::ui::mini::restore_main_window(&window);
+        // pauses CSS animations). Tray-icon restore mirrors this with
+        // RESUME_RENDERING_JS — second-launch restore must do the same,
+        // otherwise the webview comes back with rendering still paused
+        // and navigation looks blank (issue #497).
+        let _ = window.eval(RESUME_RENDERING_JS);
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
     }
 }
 
