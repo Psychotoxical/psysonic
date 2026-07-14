@@ -9,7 +9,7 @@ use crate::tray_runtime::{
     TrayPlaybackState, TrayState, TrayTooltip,
 };
 
-use super::super::ui::{restore_main_window, PAUSE_RENDERING_JS};
+use super::super::ui::{PAUSE_RENDERING_JS, RESUME_RENDERING_JS};
 use tauri::image::Image;
 
 /// Debug builds: mirror the default app icon horizontally so the tray differs from release.
@@ -177,7 +177,9 @@ pub(crate) fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon>
                         let _ = win.eval(PAUSE_RENDERING_JS);
                         let _ = win.hide();
                     } else {
-                        let _ = restore_main_window(&win);
+                        let _ = win.eval(RESUME_RENDERING_JS);
+                        let _ = win.show();
+                        let _ = win.set_focus();
                     }
                 }
             }
@@ -211,7 +213,9 @@ pub(crate) fn build_tray_icon(app: &tauri::AppHandle) -> tauri::Result<TrayIcon>
                         let _ = win.eval(PAUSE_RENDERING_JS);
                         let _ = win.hide();
                     } else {
-                        let _ = restore_main_window(&win);
+                        let _ = win.eval(RESUME_RENDERING_JS);
+                        let _ = win.show();
+                        let _ = win.set_focus();
                     }
                 }
             }

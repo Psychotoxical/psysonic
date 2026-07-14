@@ -57,7 +57,7 @@ fn on_second_instance<R: tauri::Runtime>(
         // — second-launch restore must do the same, otherwise the webview
         // comes back with rendering still paused and navigation looks blank
         // (issue #497).
-        let _ = restore_main_window(&window);
+        let _ = crate::lib_commands::ui::mini::restore_main_window(&window);
     }
 }
 

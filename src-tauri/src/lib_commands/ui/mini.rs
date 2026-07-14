@@ -169,46 +169,44 @@ document.documentElement.style.removeProperty('--psy-anim-speed');
 })();
 "#;
 
-/// Show the main window after startup splash paint, or hide it when the user
-/// chose "start minimized to tray" (flag set in `startup-splash-preflight.js`).
+/// Show the main window after startup splash paint, or pause rendering and hide
+/// when the user chose "start minimized to tray" (flag set in
+/// `startup-splash-preflight.js`).
 ///
-/// Cold-start tray intentionally does **not** inject [`PAUSE_RENDERING_JS`]:
-/// React mounts the shell (sidebar, routes) while the window is hidden, and
-/// entrance animations using `animation-fill-mode: both` start at `opacity: 0`.
-/// Pausing every animation there (plus WebKitGTK on tiling WMs) can leave the
-/// sidebar stuck invisible after tray restore until a full restart — same class
-/// of bug as tray restore + `.animate-fade-in` (#497 / #501). GPU pause on
-/// close-to-tray still uses [`PAUSE_RENDERING_JS`] once the UI is live.
+/// The shell no longer uses entrance animations that start at `opacity: 0`, so
+/// pausing CSS here is safe on WebKitGTK tiling WMs (sidebar fix in #1296).
 pub(crate) fn eval_startup_main_window_visibility(window: &tauri::WebviewWindow) {
-    let js = r#"
-(function () {
-  try {
+    let js = format!(
+        "(function () {{
+  try {{
     if (sessionStorage.getItem('psy-startup-tray-handled') === '1') return;
-  } catch (e) {}
+  }} catch (e) {{}}
   var deferToTray = !!window.__psyStartMinimizedToTray;
-  if (!deferToTray) {
-    try {
+  if (!deferToTray) {{
+    try {{
       var raw = localStorage.getItem('psysonic-auth');
-      if (raw) {
+      if (raw) {{
         var state = JSON.parse(raw).state;
         deferToTray = !!(state && state.startMinimizedToTray && state.showTrayIcon !== false);
-      }
-    } catch (e) {}
-  }
+      }}
+    }} catch (e) {{}}
+  }}
   var internals = window.__TAURI_INTERNALS__;
-  if (deferToTray) {
-    try { sessionStorage.setItem('psy-startup-tray-handled', '1'); } catch (e) {}
-    if (internals && typeof internals.invoke === 'function') {
-      internals.invoke('plugin:window|hide', { label: 'main' }).catch(function () {});
-    }
+  if (deferToTray) {{
+    {pause}
+    try {{ sessionStorage.setItem('psy-startup-tray-handled', '1'); }} catch (e) {{}}
+    if (internals && typeof internals.invoke === 'function') {{
+      internals.invoke('plugin:window|hide', {{ label: 'main' }}).catch(function () {{}});
+    }}
     return;
-  }
-  if (internals && typeof internals.invoke === 'function') {
-    internals.invoke('plugin:window|show', { label: 'main' }).catch(function () {});
-  }
-})();
-"#;
-    let _ = window.eval(js);
+  }}
+  if (internals && typeof internals.invoke === 'function') {{
+    internals.invoke('plugin:window|show', {{ label: 'main' }}).catch(function () {{}});
+  }}
+}})();",
+        pause = PAUSE_RENDERING_JS.trim(),
+    );
+    let _ = window.eval(&js);
 }
 
 /// Resume rendering and bring the main window to the foreground.
