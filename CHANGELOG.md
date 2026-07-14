@@ -369,6 +369,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Modal dialogs carried no accessible name, so a screen reader announced them without saying which dialog had opened. The dialog is now linked to its title, and each instance gets its own id so several open dialogs cannot be confused for one another.
 
+### Contributors — theme credits could show an outdated name
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1302](https://github.com/Psychotoxical/psysonic/pull/1302)**
+
+* **Settings → System → Contributors** read the theme list from a cache that is only refreshed every 12 hours, so a theme author whose name had since been corrected in the store kept showing under the old one, with no way to refresh from that screen. The list now shows the cached names instantly and quietly corrects itself from the store in the background.
+
 
 ## [1.49.0] - 2026-06-29
 
