@@ -345,7 +345,12 @@ export default function Home() {
   // sidebar) instead of leaving the user on nothing.
   const allSectionsHidden = homeSections.every(s => !s.visible);
   return (
-    <div className={`animate-fade-in${homeLiteArtworkFx ? ' home-lite-artwork' : ''}${homeFlatArtworkClip ? ' home-flat-artwork-clip' : ''}`}>
+    <div
+      className={[
+        homeLiteArtworkFx ? 'home-lite-artwork' : '',
+        homeFlatArtworkClip ? 'home-flat-artwork-clip' : '',
+      ].filter(Boolean).join(' ') || undefined}
+    >
       {!loading && !perfFlags.disableMainstageHero && isVisible('hero') && <Hero albums={heroAlbums} />}
 
       <div className="content-body" style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>

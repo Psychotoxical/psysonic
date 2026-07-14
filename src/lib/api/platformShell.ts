@@ -36,6 +36,11 @@ export async function pauseRendering(): Promise<void> {
   if (res.status === 'error') throw new Error(res.error);
 }
 
+export async function resumeRendering(): Promise<void> {
+  const res = await commands.resumeRendering();
+  if (res.status === 'error') throw new Error(res.error);
+}
+
 // --- plain (reject on error like invoke) ---
 
 export function setWindowDecorations(args: { enabled: boolean }): Promise<void> {

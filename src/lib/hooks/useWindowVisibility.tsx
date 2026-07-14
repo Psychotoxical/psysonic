@@ -6,6 +6,7 @@ import {
   useEffect,
   type ReactNode,
 } from 'react';
+import { resumeRendering } from '@/lib/api/platformShell';
 
 const WindowVisibilityContext = createContext(false);
 
@@ -40,6 +41,9 @@ export function WindowVisibilityProvider({ children }: { children: ReactNode }) 
         if (cancelled) return;
         const current = isWindowHidden();
         if (current !== hiddenRef.current) {
+          if (hiddenRef.current && !current) {
+            void resumeRendering().catch(() => {});
+          }
           hiddenRef.current = current;
           setHidden(current);
         }
