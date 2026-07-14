@@ -95,6 +95,7 @@ export default function PlaylistHero({
                   coverArt={customCoverId}
                   displayCssPx={PLAYLIST_MAIN_COVER_CSS_PX}
                   surface="dense"
+                  libraryResolve={false}
                   alt=""
                   className="playlist-cover-grid"
                   style={{ objectFit: 'cover', display: 'block' }}

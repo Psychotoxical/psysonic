@@ -26,6 +26,7 @@ export function IntegrationsTab() {
   ];
   const discordCoverOptions: SegmentedOption<DiscordCoverSource>[] = [
     { id: 'none', label: t('settings.discordCoverNone') },
+    { id: 'server', label: t('settings.discordCoverServer') },
     { id: 'apple', label: t('settings.discordCoverApple') },
   ];
   const backdropSourceLabel = (s: BackdropSource): string =>

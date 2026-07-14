@@ -20,6 +20,7 @@ use std::path::{Path, PathBuf};
 pub const LAYOUT_STAMP: &str = "canonical-segment-v5";
 
 /// True for ids that are only valid as `getCoverArt` targets, not library entity keys.
+/// Prefixes mirror Navidrome `model.Kind` (`pl`, `ra`, `dc`, `mf`, …) — not bare album hashes.
 pub fn is_fetch_only_cover_id(id: &str) -> bool {
     let id = id.trim();
     id.starts_with("mf-")
@@ -119,7 +120,7 @@ pub fn resolve_album_cover(
             fetch_cover_art_id: fetch.to_string(),
         });
     }
-    let fetch_id = if !distinct_disc_covers && fetch == album {
+    let fetch_id = if !distinct_disc_covers && fetch == album && !is_fetch_only_cover_id(fetch) {
         format!("al-{album}_0")
     } else {
         fetch.to_string()
@@ -296,6 +297,28 @@ mod tests {
     fn resolve_album_navidrome_bare_id() {
         let e = resolve_album_cover("2lsdR1ogDKiFcAD6Pcvk4f", None, false).unwrap();
         assert_eq!(e.fetch_cover_art_id, "al-2lsdR1ogDKiFcAD6Pcvk4f_0");
+    }
+
+    #[test]
+    fn resolve_album_playlist_cover_keeps_pl_prefix() {
+        let e = resolve_album_cover("pl-abc123", Some("pl-abc123"), false).unwrap();
+        assert_eq!(e.cache_entity_id, "pl-abc123");
+        assert_eq!(e.fetch_cover_art_id, "pl-abc123");
+    }
+
+    #[test]
+    fn resolve_album_playlist_cover_keeps_navidrome_pl_suffix() {
+        let id = "pl-18690de0-151b-4d86-81cb-f418a907315a_0";
+        let e = resolve_album_cover(id, Some(id), false).unwrap();
+        assert_eq!(e.cache_entity_id, id);
+        assert_eq!(e.fetch_cover_art_id, id);
+    }
+
+    #[test]
+    fn resolve_album_radio_cover_keeps_ra_prefix() {
+        let e = resolve_album_cover("ra-rd-1_0", Some("ra-rd-1_0"), false).unwrap();
+        assert_eq!(e.cache_entity_id, "ra-rd-1_0");
+        assert_eq!(e.fetch_cover_art_id, "ra-rd-1_0");
     }
 
     fn test_server_dir(label: &str) -> std::path::PathBuf {

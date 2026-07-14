@@ -22,6 +22,21 @@ export type CoverArtResolvableSong = Pick<SubsonicSong, 'id' | 'coverArt'> & {
   albumId?: string | null;
 };
 
+/**
+ * True for ids that are only valid as `getCoverArt` targets, not library entity keys.
+ * Keep in sync with Rust `psysonic_core::cover_cache_layout::is_fetch_only_cover_id`.
+ */
+export function isFetchOnlyCoverId(id: string): boolean {
+  const trimmed = id.trim();
+  return (
+    trimmed.startsWith('mf-')
+    || trimmed.startsWith('tr-')
+    || trimmed.startsWith('pl-')
+    || trimmed.startsWith('dc-')
+    || trimmed.startsWith('ra-')
+  );
+}
+
 /** Navidrome `getCoverArt` id for a song row (ignores echo of track id with no art). */
 export function resolveSongFetchCoverArtId(song: CoverArtResolvableSong): string | undefined {
   const albumId = song.albumId?.trim();
@@ -92,7 +107,8 @@ export function resolveAlbumCoverEntry(
     return { cacheKind: 'album', cacheEntityId: album, fetchCoverArtId: fetch };
   }
   // Bare album ids need `al-<albumId>_0` on Navidrome when no mf id is available.
-  if (!distinctDiscCovers && fetch === album) {
+  // Playlist / radio / other fetch-only ids must keep their native prefix (e.g. `pl-*`).
+  if (!distinctDiscCovers && fetch === album && !isFetchOnlyCoverId(fetch)) {
     fetch = `al-${album}_0`;
   }
   const cacheEntityId =

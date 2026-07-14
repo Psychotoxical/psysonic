@@ -206,7 +206,7 @@ export default function Sidebar({
 
   return (
     <>
-    <aside className={`sidebar animate-slide-in ${isCollapsed ? 'collapsed' : ''}`}>
+    <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-brand" aria-hidden>
         {isCollapsed
           ? <PSmallLogo style={{ height: '32px', width: 'auto' }} />

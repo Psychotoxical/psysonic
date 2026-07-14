@@ -84,6 +84,7 @@ export default function PlaylistEditModal({
                 coverArt={customCoverId}
                 displayCssPx={PLAYLIST_MAIN_COVER_CSS_PX}
                 surface="dense"
+                libraryResolve={false}
                 alt=""
                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
               />

@@ -169,8 +169,12 @@ document.documentElement.style.removeProperty('--psy-anim-speed');
 })();
 "#;
 
-/// Show the main window after startup splash paint, or pause rendering when the
-/// user chose "start minimized to tray" (flag set in `startup-splash-preflight.js`).
+/// Show the main window after startup splash paint, or pause rendering and hide
+/// when the user chose "start minimized to tray" (flag set in
+/// `startup-splash-preflight.js`).
+///
+/// The shell no longer uses entrance animations that start at `opacity: 0`, so
+/// pausing CSS here is safe on WebKitGTK tiling WMs (sidebar fix in #1296).
 pub(crate) fn eval_startup_main_window_visibility(window: &tauri::WebviewWindow) {
     let js = format!(
         "(function () {{
