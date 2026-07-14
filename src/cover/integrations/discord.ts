@@ -35,12 +35,16 @@ export function sanitizeDiscordCoverUrl(raw: string | null | undefined): string 
 }
 
 /**
- * Swap `raw`'s origin for `shareBase`'s, keeping path + query untouched.
- * Navidrome's `getAlbumInfo2` derives the image host from the request that
- * reached it — when the app is connected over the LAN address, the returned
- * URL is LAN-scoped even though the server also has a public address
- * configured. The `/share/img/<jwt>` path is host-independent, so pointing
- * it at the profile's public share address makes it reachable for Discord.
+ * Swap `raw`'s origin for `shareBase`'s, keeping query untouched and
+ * preserving both URLs' paths. Navidrome's `getAlbumInfo2` derives the image
+ * host from the request that reached it — when the app is connected over the
+ * LAN address, the returned URL is LAN-scoped even though the server also
+ * has a public address configured. The `/share/img/<jwt>` path itself is
+ * host-independent, so pointing it at the profile's public share address
+ * makes it reachable for Discord — but `shareBase` may itself carry a path
+ * prefix (a server reachable behind a reverse proxy at e.g.
+ * `https://host/nav`), which must be kept, not dropped, or the rewritten URL
+ * 404s against the actual public endpoint.
  */
 function rewriteOriginToShareBase(raw: string, shareBase: string): string {
   try {
@@ -50,18 +54,31 @@ function rewriteOriginToShareBase(raw: string, shareBase: string): string {
     url.protocol = share.protocol;
     url.hostname = share.hostname;
     url.port = share.port;
+    const sharePrefix = share.pathname.replace(/\/$/, '');
+    if (sharePrefix && !url.pathname.startsWith(sharePrefix)) {
+      url.pathname = `${sharePrefix}${url.pathname}`;
+    }
     return url.toString();
   } catch {
     return raw;
   }
 }
 
+interface ServerCoverCacheEntry {
+  url: string | null;
+  fetchedAt: number;
+}
+
 /**
  * Session cache: `"<shareBase>|<albumId>"` -> resolved (already sanitized)
  * cover URL, or `null` for a miss/failure. Negative results are cached too —
- * at most one `getAlbumInfo2` call per album per server per session.
+ * at most one `getAlbumInfo2` call per album per server per TTL window.
+ * TTL (not "forever") so a transient failure (server briefly unreachable,
+ * timeout) doesn't hide an album's cover for the rest of the session —
+ * mirrors the Rust-side iTunes artwork cache TTL for the same reason.
  */
-const serverCoverCache = new Map<string, string | null>();
+const SERVER_COVER_CACHE_TTL_MS = 60 * 60 * 1000;
+const serverCoverCache = new Map<string, ServerCoverCacheEntry>();
 
 /**
  * Resolve a credential-free Discord cover URL for `albumId` via the
@@ -76,7 +93,9 @@ export async function resolveServerCoverForDiscord(
 ): Promise<string | null> {
   const cacheKey = `${shareBase ?? ''}|${albumId}`;
   const cached = serverCoverCache.get(cacheKey);
-  if (cached !== undefined) return cached;
+  if (cached && Date.now() - cached.fetchedAt < SERVER_COVER_CACHE_TTL_MS) {
+    return cached.url;
+  }
 
   let result: string | null = null;
   const info = await getAlbumInfo2(albumId);
@@ -86,6 +105,6 @@ export async function resolveServerCoverForDiscord(
     result = sanitizeDiscordCoverUrl(rewritten);
   }
 
-  serverCoverCache.set(cacheKey, result);
+  serverCoverCache.set(cacheKey, { url: result, fetchedAt: Date.now() });
   return result;
 }

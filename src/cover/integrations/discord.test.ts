@@ -114,4 +114,34 @@ describe('resolveServerCoverForDiscord', () => {
     mockedGetAlbumInfo2.mockResolvedValueOnce({});
     expect(await resolveServerCoverForDiscord('al-empty', null)).toBeNull();
   });
+
+  it('preserves a reverse-proxy path prefix from shareBase when rewriting origin', async () => {
+    mockedGetAlbumInfo2.mockResolvedValueOnce({
+      largeImageUrl: 'https://192.168.1.5:4533/share/img/eyJhbGciOiJIUzI1NiJ9.abc?size=1200',
+    });
+    const result = await resolveServerCoverForDiscord('al-proxy', 'https://music.example.com/nav');
+    expect(result).toBe('https://music.example.com/nav/share/img/eyJhbGciOiJIUzI1NiJ9.abc?size=1200');
+  });
+
+  it('re-fetches after the cache TTL expires, including for a cached negative result', async () => {
+    vi.useFakeTimers();
+    try {
+      mockedGetAlbumInfo2.mockResolvedValueOnce(null);
+      expect(await resolveServerCoverForDiscord('al-ttl', null)).toBeNull();
+      expect(mockedGetAlbumInfo2).toHaveBeenCalledTimes(1);
+
+      // Still within the TTL window — cache hit, no second call.
+      await vi.advanceTimersByTimeAsync(59 * 60 * 1000);
+      expect(await resolveServerCoverForDiscord('al-ttl', null)).toBeNull();
+      expect(mockedGetAlbumInfo2).toHaveBeenCalledTimes(1);
+
+      // Past the TTL — must re-fetch instead of trusting the stale negative result.
+      await vi.advanceTimersByTimeAsync(2 * 60 * 1000);
+      mockedGetAlbumInfo2.mockResolvedValueOnce({ largeImageUrl: 'https://music.example.com/img/fresh.jpg' });
+      expect(await resolveServerCoverForDiscord('al-ttl', null)).toBe('https://music.example.com/img/fresh.jpg');
+      expect(mockedGetAlbumInfo2).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
