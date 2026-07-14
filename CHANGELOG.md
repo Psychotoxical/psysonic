@@ -163,6 +163,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Tray — blank Mainstage after cold start minimized to tray
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1303](https://github.com/Psychotoxical/psysonic/pull/1303)**
+
+* With **Start minimized to tray** enabled, the main content area could stay blank after opening from the tray (sidebar and queue rendered, Mainstage did not) until a manual tray hide/show cycle — `PAUSE_RENDERING_JS` on cold start froze Mainstage's `animate-fade-in` at `opacity: 0`. Cold-start tray now hides without pausing animations, `startup-splash-reveal.js` proactively hides when the tray flag is set, Mainstage drops the entrance fade, and showing the window resumes rendering.
+
 ### Tray — release build compile after #1296
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1298](https://github.com/Psychotoxical/psysonic/pull/1298)**
