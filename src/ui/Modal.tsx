@@ -31,6 +31,9 @@ interface ModalProps {
 export default function Modal({
   open, onClose, title, subtitle, icon, footer, size = 'md', hideClose, closeLabel, children,
 }: ModalProps) {
+  // Generate a stable ID for aria-labelledby
+  const titleId = open ? 'ui-modal-title' : undefined;
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -40,6 +43,14 @@ export default function Modal({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
+
   if (!open) return null;
 
   return createPortal(
@@ -48,12 +59,13 @@ export default function Modal({
         className={`ui-modal ui-modal--${size}`}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
         onClick={e => e.stopPropagation()}
       >
         <div className="ui-modal-header">
           {icon && <span className="ui-modal-icon">{icon}</span>}
           <div className="ui-modal-titles">
-            <span className="ui-modal-title">{title}</span>
+            <span className="ui-modal-title" id={titleId}>{title}</span>
             {subtitle != null && <span className="ui-modal-subtitle">{subtitle}</span>}
           </div>
           {!hideClose && (
