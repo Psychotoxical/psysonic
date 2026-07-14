@@ -157,6 +157,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Playlist and radio custom covers blank
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by VirtualWolf, PR [#1295](https://github.com/Psychotoxical/psysonic/pull/1295)**
+
+* Custom playlist and internet radio covers uploaded in Navidrome stayed blank in Psysonic (cards and detail headers) while album and track art worked. The cover resolver rewrote Navidrome's `pl-*` and `ra-*` getCoverArt ids into invalid `al-pl-*_0` / `al-ra-*_0` forms; fetch-only prefixes are now preserved in TS and Rust.
+
 ### Album detail — no duplicate cover thumbs in tracklist
 
 **By [@cucadmuh](https://github.com/cucadmuh), reported by mikmik on the Psysonic Discord, PR [#1291](https://github.com/Psychotoxical/psysonic/pull/1291)**
