@@ -1,7 +1,7 @@
 /**
  * Show the native window after the inline startup splash has painted.
  * When starting minimized to tray, hide the main window as early as possible
- * (visible:false may still map briefly on some Linux WMs before Rust eval).
+ * (visible:false may still map briefly on some Linux WMs before this script).
  * __TAURI_INTERNALS__ may not exist yet when this script first runs.
  */
 (function startupSplashReveal() {
@@ -23,9 +23,6 @@
 
   function reveal(attempt) {
     if (window.__psyStartMinimizedToTray) {
-      // Match the native cold-start hide path. This is intentionally not the
-      // CSS animation pause flag: React may still mount entrance animations.
-      window.__psyHidden = true;
       if (tryHideMainWindow()) return;
       if (attempt >= MAX_ATTEMPTS) return;
       window.setTimeout(function () {
@@ -38,6 +35,15 @@
     window.setTimeout(function () {
       reveal(attempt + 1);
     }, 50);
+  }
+
+  if (window.__psyStartMinimizedToTray) {
+    // Mark this synchronously, before React mounts. This deliberately does
+    // not set the CSS animation-pause attribute: entrance animations may
+    // still mount while the native window is hidden.
+    window.__psyHidden = true;
+    reveal(0);
+    return;
   }
 
   requestAnimationFrame(function () {
