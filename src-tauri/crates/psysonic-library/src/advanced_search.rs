@@ -3437,6 +3437,47 @@ mod tests {
         assert!(!deduped.contains("MAX("), "deduped: {deduped}");
     }
 
+    /// Same defect, other query path: with a library scope selected, the browse
+    /// runs through `scope_merge`, which feeds the sort into `GROUP BY` shapes.
+    /// Their sort columns are aliased so the shared ORDER BY binds to the
+    /// aggregates instead of an arbitrary row's bare columns.
+    #[test]
+    fn scoped_album_artist_year_sort_also_keeps_featured_guest_albums_in_place() {
+        let store = LibraryStore::open_in_memory();
+
+        let mut solo_early =
+            scoped_track("s1", "t1", "One", "Alpha", "Early", "al_early", "lib1", None, Some(2000), None);
+        solo_early.album_artist = Some("Alpha".into());
+
+        let mut feat = scoped_track(
+            "s1", "t2", "Two", "Alpha feat. Zulu", "Featured", "al_feat", "lib1", None, Some(2001), None,
+        );
+        feat.album_artist = Some("Alpha".into());
+
+        let mut solo_late =
+            scoped_track("s1", "t3", "Three", "Alpha", "Late", "al_late", "lib1", None, Some(2002), None);
+        solo_late.album_artist = Some("Alpha".into());
+
+        let mut other =
+            scoped_track("s1", "t4", "Four", "Alpha Beta", "Other", "al_other", "lib1", None, Some(1999), None);
+        other.album_artist = Some("Alpha Beta".into());
+
+        TrackRepository::new(&store)
+            .upsert_batch(&[solo_early, feat, solo_late, other])
+            .unwrap();
+
+        let mut r = req("s1", &[EntityKind::Album]);
+        r.library_scopes = Some(vec![scope_pair("s1", "lib1")]);
+        r.sort = vec![
+            LibrarySortClause { field: "artist".into(), dir: SortDir::Asc },
+            LibrarySortClause { field: "year".into(), dir: SortDir::Asc },
+        ];
+        let resp = run_advanced_search(&store, &r).unwrap();
+        let names: Vec<&str> = resp.albums.iter().map(|a| a.name.as_str()).collect();
+
+        assert_eq!(names, vec!["Early", "Featured", "Late", "Other"]);
+    }
+
     // ── multi-library scope (WO-4b) ─────────────────────────────────────
 
     fn scope_pair(server: &str, lib: &str) -> crate::dto::LibraryScopePair {

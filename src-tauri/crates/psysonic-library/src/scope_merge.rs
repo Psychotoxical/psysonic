@@ -411,9 +411,14 @@ pub(crate) fn list_albums_layer1_filtered(
         params.extend_from_slice(extra_params);
 
         let count_sql = format!("SELECT COUNT(DISTINCT t.album_id) FROM track t WHERE {where_sql}");
+        // The sort columns are aliased so the shared ORDER BY (built for the dedup
+        // shape's plain column names) binds to these aggregates. Unaliased, SQLite
+        // resolves `artist` / `album_artist` to bare table columns and takes them
+        // from an arbitrary row of the group.
         let sql = format!(
-            "SELECT t.server_id, t.album_id, MAX(t.album), MAX(t.artist), MAX(t.artist_id), \
-                    MAX(t.album_artist), COUNT(*), SUM(t.duration_sec), MAX(t.year), MAX(t.genre), \
+            "SELECT t.server_id, t.album_id, MAX(t.album) AS album, MAX(t.artist) AS artist, \
+                    MAX(t.artist_id), MAX(t.album_artist) AS album_artist, COUNT(*), \
+                    SUM(t.duration_sec), MAX(t.year) AS year, MAX(t.genre), \
                     MAX(t.cover_art_id), MAX(t.starred_at), MAX(t.synced_at) \
              FROM track t WHERE {where_sql} \
              GROUP BY t.album_id \
@@ -461,9 +466,11 @@ pub(crate) fn list_albums_layer1_filtered(
                 params.push(SqlValue::Text(p.library_id.clone()));
             }
             let count_sql = format!("SELECT COUNT(DISTINCT t.album_id) FROM track t WHERE {where_sql}");
+            // Aliased for the same reason as the single-scope shape above.
             let sql = format!(
-                "SELECT t.server_id, t.album_id, MAX(t.album), MAX(t.artist), MAX(t.artist_id), \
-                        MAX(t.album_artist), COUNT(*), SUM(t.duration_sec), MAX(t.year), MAX(t.genre), \
+                "SELECT t.server_id, t.album_id, MAX(t.album) AS album, MAX(t.artist) AS artist, \
+                        MAX(t.artist_id), MAX(t.album_artist) AS album_artist, COUNT(*), \
+                        SUM(t.duration_sec), MAX(t.year) AS year, MAX(t.genre), \
                         MAX(t.cover_art_id), MAX(t.starred_at), MAX(t.synced_at) \
                  FROM track t WHERE {where_sql} \
                  GROUP BY t.album_id \
