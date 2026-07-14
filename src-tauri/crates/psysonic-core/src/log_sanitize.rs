@@ -293,7 +293,10 @@ fn is_lan_ipv6(host: &str) -> bool {
     false
 }
 
-fn is_lan_host(host: &str) -> bool {
+/// Public: reused by other crates (e.g. `psysonic-integration`'s Discord
+/// publish gate) wherever "is this host LAN/loopback, not safe to expose
+/// externally" needs the same answer this log-redaction module already uses.
+pub fn is_lan_host(host: &str) -> bool {
     let stripped = host.trim().trim_matches(|c| c == '[' || c == ']');
     let lower = stripped.to_ascii_lowercase();
     if lower.is_empty() || lower == "localhost" || lower.ends_with(".local") {

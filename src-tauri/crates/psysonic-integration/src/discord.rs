@@ -27,10 +27,13 @@ const CREDENTIAL_PARAM_KEYS: &[&str] = &["u", "t", "s", "p", "apikey", "jwt", "t
 /// Backstop gate: true when `url` is safe to publish to Discord as a
 /// `large_image`. Discord's external image proxy re-exposes the source URL
 /// to anyone viewing the presence, so this must reject anything credentialed
-/// before it ever reaches `Assets::large_image` — regardless of which
-/// frontend code path produced the URL (mirrors the sanitizer in
+/// or LAN-scoped before it ever reaches `Assets::large_image` — regardless of
+/// which frontend code path produced the URL (mirrors the sanitizer in
 /// `src/cover/integrations/discord.ts`, but this is the layer a frontend
-/// regression cannot bypass).
+/// regression cannot bypass). The LAN/loopback check reuses
+/// `psysonic_core::log_sanitize::is_lan_host`, the same host classification
+/// already relied on for local-log redaction, rather than a second
+/// hand-written copy.
 fn is_publishable_image_url(url: &str) -> bool {
     let Ok(parsed) = url::Url::parse(url) else {
         return false;
@@ -39,6 +42,9 @@ fn is_publishable_image_url(url: &str) -> bool {
         return false;
     }
     if !parsed.username().is_empty() || parsed.password().is_some() {
+        return false;
+    }
+    if psysonic_core::log_sanitize::is_lan_host(parsed.host_str().unwrap_or("")) {
         return false;
     }
     for (key, _) in parsed.query_pairs() {
@@ -698,6 +704,19 @@ mod tests {
     #[test]
     fn publishable_url_rejects_malformed_url() {
         assert!(!is_publishable_image_url("not a url"));
+    }
+
+    #[test]
+    fn publishable_url_rejects_lan_host() {
+        assert!(!is_publishable_image_url(
+            "https://192.168.1.5/share/img/eyJhbGciOiJIUzI1NiJ9.abc"
+        ));
+    }
+
+    #[test]
+    fn publishable_url_rejects_loopback_and_local_hosts() {
+        assert!(!is_publishable_image_url("https://localhost/share/img/abc"));
+        assert!(!is_publishable_image_url("https://music.local/share/img/abc"));
     }
 
     // ── compute_discord_start_timestamp ──────────────────────────────────────
