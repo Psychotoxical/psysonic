@@ -157,6 +157,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Tray — sidebar missing after cold start minimized to tray
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1296](https://github.com/Psychotoxical/psysonic/pull/1296)**
+
+* With **Start minimized to tray** enabled, opening the main window from the tray could leave the left sidebar menu invisible until a full app restart (seen on Linux tiling WMs such as Hyprland). Cold-start tray hide no longer pauses CSS animations before the shell mounts, the sidebar no longer uses a slide-in entrance animation that starts at `opacity: 0`, and tray restore uses the same resume path as other show-window flows.
+
 ### Playlist and radio custom covers blank
 
 **By [@cucadmuh](https://github.com/cucadmuh), reported by VirtualWolf, PR [#1295](https://github.com/Psychotoxical/psysonic/pull/1295)**
