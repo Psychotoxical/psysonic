@@ -480,6 +480,13 @@ const CONTRIBUTOR_ENTRIES = [
       'Sync: form POST for large play queues to avoid HTTP 414 behind reverse proxies (PR #1262)',
     ],
   },
+  {
+    github: 'AliMahmoudDev',
+    since: '1.50.0',
+    contributions: [
+      'Accessibility: modal dialogs announce their title to screen readers (aria-labelledby) (PR #1301)',
+    ],
+  },
 ] as const;
 
 // PR number of a contributor's first listed contribution, used as the

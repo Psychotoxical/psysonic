@@ -363,6 +363,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Horizontal album rails clipped an outer card shadow at the edges, which only themes that use a real drop shadow ran into. Working around it meant overriding the rail's `overflow`, and that disabled the rail's `<` / `>` scroll arrows. Rails now reserve room for the shadow inside the rail itself, so the arrows keep working; a theme that needs more room can raise `--rail-shadow-room` instead of touching `overflow`.
 
+### Accessibility — modal dialogs announce their title
+
+**By [@AliMahmoudDev](https://github.com/AliMahmoudDev), PR [#1301](https://github.com/Psychotoxical/psysonic/pull/1301)**
+
+* Modal dialogs carried no accessible name, so a screen reader announced them without saying which dialog had opened. The dialog is now linked to its title, and each instance gets its own id so several open dialogs cannot be confused for one another.
+
 
 ## [1.49.0] - 2026-06-29
 

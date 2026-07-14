@@ -13,10 +13,10 @@ describe('Modal', () => {
   };
 
   it('renders nothing when open is false', () => {
-    const { container } = renderWithProviders(
-      <Modal {...defaultProps} open={false} />,
-    );
-    expect(container.innerHTML).toBe('');
+    // Query the document, not the render container: Modal portals into
+    // document.body, so the container is empty whether it is open or not.
+    renderWithProviders(<Modal {...defaultProps} open={false} />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('renders the dialog when open is true', () => {
