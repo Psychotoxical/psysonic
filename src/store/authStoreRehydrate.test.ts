@@ -86,3 +86,40 @@ describe('computeAuthStoreRehydration — lyrics', () => {
     expect(patch.startMinimizedToTray).toBe(false);
   });
 });
+
+describe('computeAuthStoreRehydration — discordCoverSource server-revival (PR #1299)', () => {
+  const SENTINEL_KEY = 'psysonic-discord-server-cover-revival-v1';
+
+  beforeEach(() => {
+    resetAuthStore();
+    localStorage.clear();
+  });
+
+  it('coerces a stale pre-#1246 "server" value to "none" exactly once', () => {
+    const base = useAuthStore.getState();
+    const patch = computeAuthStoreRehydration({ ...base, discordCoverSource: 'server' } as AuthState);
+    expect(patch.discordCoverSource).toBe('none');
+    expect(localStorage.getItem(SENTINEL_KEY)).toBe('1');
+  });
+
+  it('does not coerce "server" once the sentinel is already set (post-revival user choice)', () => {
+    localStorage.setItem(SENTINEL_KEY, '1');
+    const base = useAuthStore.getState();
+    const patch = computeAuthStoreRehydration({ ...base, discordCoverSource: 'server' } as AuthState);
+    expect(patch.discordCoverSource).toBeUndefined();
+  });
+
+  it('sets the sentinel on first rehydrate even when the value is not "server"', () => {
+    const base = useAuthStore.getState();
+    computeAuthStoreRehydration({ ...base, discordCoverSource: 'none' } as AuthState);
+    expect(localStorage.getItem(SENTINEL_KEY)).toBe('1');
+  });
+
+  it('does not touch "apple" or "none"', () => {
+    const base = useAuthStore.getState();
+    for (const source of ['apple', 'none'] as const) {
+      const patch = computeAuthStoreRehydration({ ...base, discordCoverSource: source } as AuthState);
+      expect(patch.discordCoverSource).toBeUndefined();
+    }
+  });
+});
