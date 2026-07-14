@@ -357,6 +357,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The Discord community banner rendered its icon at an enormous size on Windows, pushing the message out of the bar. The icon now has a fixed size on every platform.
 
+### Themes — album rails no longer cut off card shadows
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by Asra on the Psysonic Discord, PR [#1300](https://github.com/Psychotoxical/psysonic/pull/1300)**
+
+* Horizontal album rails clipped an outer card shadow at the edges, which only themes that use a real drop shadow ran into. Working around it meant overriding the rail's `overflow`, and that disabled the rail's `<` / `>` scroll arrows. Rails now reserve room for the shadow inside the rail itself, so the arrows keep working; a theme that needs more room can raise `--rail-shadow-room` instead of touching `overflow`.
+
 
 ## [1.49.0] - 2026-06-29
 
