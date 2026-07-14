@@ -157,6 +157,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### Tray — release build compile after #1296
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1298](https://github.com/Psychotoxical/psysonic/pull/1298)**
+
+* Fixes `E0308` in release `on_second_instance`: second-launch tray restore again uses inline resume/show/unminimize/focus so it stays generic over `tauri::Runtime` (Nix/release builds no longer fail on `restore_main_window(&WebviewWindow<R>)`).
+
 ### Tray — sidebar missing after cold start minimized to tray
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1296](https://github.com/Psychotoxical/psysonic/pull/1296)**
