@@ -35,5 +35,13 @@
   /* Layout */
   --sidebar-width: 220px;
   --player-height: 88px;
+
+  /* Room reserved inside a horizontal card rail's clip box so an outer card
+     shadow has somewhere to paint. A rail scrolls, so it must clip (its
+     `overflow-x: auto` makes `overflow-y` compute to `auto`), and a drop shadow
+     would otherwise be cut off at the edges. Raise this in a theme that uses a
+     larger shadow or glow — never override `overflow` on the rail itself, which
+     would remove its scrollability and disable its nav arrows. */
+  --rail-shadow-room: 8px;
 }
 
