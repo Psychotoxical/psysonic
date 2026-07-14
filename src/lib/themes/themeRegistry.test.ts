@@ -3,7 +3,7 @@
  * stale-on-error fallback, and malformed-cache tolerance.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchRegistry, getCachedRegistry } from '@/lib/themes/themeRegistry';
+import { fetchRegistry, getCachedRegistry, revalidateRegistry } from '@/lib/themes/themeRegistry';
 
 const CACHE_KEY = 'psysonic_theme_registry_cache';
 const NOW = 1_000_000_000;
@@ -93,5 +93,57 @@ describe('fetchRegistry', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]).toContain('raw.githubusercontent.com');
     expect(calls[0]).not.toContain('jsdelivr');
+  });
+});
+
+describe('revalidateRegistry', () => {
+  it('serves the cache first, then the fresh copy — the TTL must not hide an update', async () => {
+    // The exact case this exists for: a cache well inside the TTL, holding a
+    // registry that has since been corrected upstream. `fetchRegistry` alone
+    // would return the stale copy and never hit the network.
+    writeCache(NOW, 'cached');
+    vi.stubGlobal('fetch', vi.fn(async () => okRes(reg('corrected'))));
+
+    const seen: string[] = [];
+    await revalidateRegistry(r => seen.push(r.generatedAt));
+
+    expect(seen).toEqual(['cached', 'corrected']);
+  });
+
+  it('emits once when the fresh copy matches the cache — no pointless re-render', async () => {
+    writeCache(NOW, 'same');
+    vi.stubGlobal('fetch', vi.fn(async () => okRes(reg('same'))));
+
+    const seen: string[] = [];
+    await revalidateRegistry(r => seen.push(r.generatedAt));
+
+    expect(seen).toEqual(['same']);
+  });
+
+  it('emits once with the network copy when there is no cache', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => okRes(reg('first'))));
+
+    const seen: string[] = [];
+    await revalidateRegistry(r => seen.push(r.generatedAt));
+
+    expect(seen).toEqual(['first']);
+  });
+
+  it('keeps the cached copy when the network fails, and does not emit it twice', async () => {
+    writeCache(NOW, 'cached');
+    vi.stubGlobal('fetch', vi.fn(async () => failRes()));
+
+    const seen: string[] = [];
+    await revalidateRegistry(r => seen.push(r.generatedAt));
+
+    expect(seen).toEqual(['cached']);
+  });
+
+  it('never rejects and emits nothing when there is no cache and no network', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => failRes()));
+
+    const seen: string[] = [];
+    await expect(revalidateRegistry(r => seen.push(r.generatedAt))).resolves.toBeUndefined();
+    expect(seen).toEqual([]);
   });
 });
