@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import type { CoverArtId, CoverArtRef } from '@/cover/types';
+import { albumCoverRef } from '@/cover/ref';
 import { coverPrefetchRegister } from '@/cover/prefetchRegistry';
 import { resolveAlbumCoverRefFromLibrary } from '@/cover/resolveEntryLibrary';
 import { useCoverArt } from '@/cover/useCoverArt';
@@ -18,6 +19,11 @@ async function playlistCoverRefFromLibrary(
   coverId: string,
   songs: SubsonicSong[],
 ): Promise<CoverArtRef> {
+  const trimmed = coverId.trim();
+  // Custom playlist / radio covers only — not track mf-* ids used in quad collages.
+  if (trimmed.startsWith('pl-') || trimmed.startsWith('ra-')) {
+    return albumCoverRef(trimmed, trimmed);
+  }
   const song = songs.find(s => s.coverArt === coverId || s.albumId === coverId);
   if (song?.albumId) {
     return resolveAlbumCoverRefFromLibrary(song.albumId, coverId);
