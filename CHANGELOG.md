@@ -113,6 +113,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Browse and queue track rows can show the track's **album** cover (per-disc art when the album has distinct disc covers). Covers load through the standard cover cache pipeline — library resolve, viewport ensure, Rust resize to disk tiers — not a separate warm path.
 * **Settings → Appearance** adds separate toggles for queue vs browse tracklists. Favorites, playlist, and album-detail track grids gain a flex-resize handle on the title column when covers are shown.
 
+### Discord — server cover art source, without the credential leak
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1299](https://github.com/Psychotoxical/psysonic/pull/1299)**
+
+* **Settings → Integrations → Discord → Cover art source** gets a **Server** option back, alongside None and Apple Music. It resolves artwork through the standard Subsonic `getAlbumInfo2` endpoint's public image link — never the authenticated cover URL that leaked login credentials in #1246. Needs a publicly reachable server; anyone viewing your Discord profile can see that server's public address, but nothing else.
+
 
 ## Changed
 
