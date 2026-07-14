@@ -214,8 +214,8 @@ describe('replay-gain related setters (write through to player store)', () => {
 });
 
 describe('discord cover source setters', () => {
-  it('setDiscordCoverSource accepts none / apple', () => {
-    for (const src of ['none', 'apple'] as const) {
+  it('setDiscordCoverSource accepts none / server / apple', () => {
+    for (const src of ['none', 'server', 'apple'] as const) {
       useAuthStore.getState().setDiscordCoverSource(src);
       expect(useAuthStore.getState().discordCoverSource).toBe(src);
     }
