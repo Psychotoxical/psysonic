@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **By [@ImAsra](https://github.com/ImAsra), PR [#1222](https://github.com/Psychotoxical/psysonic/pull/1222)**
 
-* A dismissible banner inviting you to join the Psysonic community on Discord appears after 20 hours of accumulated app use. **Join** opens the invite; dismiss it for the session, or choose **Never show again** to hide it permanently.
+* A dismissible banner inviting you to join the Psysonic community on Discord appears after 20 hours of accumulated app use. **Join** opens the invite; dismiss it for the session, or choose **Never show again** to hide it permanently. The icon renders at a consistent size on every platform, including Windows.
 
 ### Bulgarian translation
 
@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Toggle **Album artists** vs **Track artists** on the Artists page — album mode lists indexed album artists; track mode includes performers from the local artist index (featured/guest credits). Star filter works in both modes; the choice persists across app restarts like **Show artist images**.
 * Letter bucket filter (`A`–`Z`, `#`, `OTHER`) runs in local SQL instead of scanning catalog chunks client-side, so late-alphabet picks load promptly on large libraries.
+* Artist name search no longer depends on query letter case for Cyrillic (and other non-ASCII) names when the local library index is enabled.
 
 ### CLI — relative volume and quieter scripting output
 
@@ -58,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The sidebar library picker now supports **multi-select with priority ordering**: browse, search, genre and album/artist detail views aggregate across the chosen libraries and de-duplicate shared items by priority. Built for large libraries — scoped SQL uses the hot `library_id` column with covering indexes and FTS-first matching.
 * Identity matching that powers cross-library de-duplication now normalises names per shipped locale (folds German ß, Norwegian æ, French œ, Romanian ș/ț, and Cyrillic ё/й); CJK titles are matched as-is.
+* The Genres page and album browse genre filter list the full catalog on large libraries when **All libraries** is selected.
 
 ### Theme contributors credited in Settings
 
@@ -65,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * **Settings → System → Contributors** now lists community theme authors in a **Themes** sub-section alongside the **App** contributors, pulled from the theme store so it stays current as new themes are published.
 * The theme card **What's new** now shows just the latest version's notes instead of the full version history.
+* Theme author names refresh quietly from the store in the background instead of staying stale for up to 12 hours.
 
 ### Fullscreen player — Minimal and Immersive styles
 
@@ -91,6 +94,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The **Server** lyrics source now highlights lyrics word by word, so karaoke sync no longer depends on the third-party YouLyPlus backend. Requires Navidrome 0.63 or newer and lyrics that carry word timing (TTML or Enhanced LRC); anything else keeps highlighting line by line.
 * **Settings → Lyrics → Lyrics Sources** spells out those requirements, and the block now follows the standard settings sub-card layout.
+* Embedded Enhanced LRC no longer prints raw word timing codes (`<00:12.34>`) in the lyric text — those codes drive word-by-word highlighting instead.
+* FLAC, Ogg Vorbis, Opus and Speex files that store synced lyrics in the `SYNCEDLYRICS` tag show embedded lyrics again, with that tag taking priority over the plain `LYRICS` tag.
 
 ### Start minimized to tray
 
@@ -98,6 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * New **Start Minimized to Tray** toggle under **Settings → System → Behavior**. When enabled, the next cold start keeps the main window hidden and Psysonic runs from the system tray until you show it from the tray icon.
 * Requires **Show Tray Icon** (turning this on enables the tray automatically; hiding the tray clears the setting). The choice applies on the next launch only — toggling it in Settings does not hide the window immediately.
+* Opening the main window from the tray after a cold start renders the sidebar and main content immediately — including on Linux tiling WMs such as Hyprland — instead of leaving the sidebar or Mainstage invisible or blank until a restart.
 
 ### Navidrome public share links — open and play without logging in
 
@@ -105,6 +111,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Paste or search a Navidrome **public share** URL (`/share/{id}`) to preview the shared track list in a modal, then play the full queue with no server account — direct stream and cover URLs are resolved anonymously from the share page.
 * Share playback uses a dedicated scope so an idle server play-queue pull cannot replace the share queue while you are also logged into Navidrome. Share sessions are not restored after an app restart — the server play queue applies as usual.
+* While a share queue is active, **Save Playlist** is hidden in the queue toolbar (share tracks cannot be saved to the server); **Load Playlist** stays available. The queue **Share** button copies the original Navidrome `/share/{id}` page URL.
 
 ### Track lists — optional album cover thumbnails
 
@@ -112,12 +119,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Browse and queue track rows can show the track's **album** cover (per-disc art when the album has distinct disc covers). Covers load through the standard cover cache pipeline — library resolve, viewport ensure, Rust resize to disk tiers — not a separate warm path.
 * **Settings → Appearance** adds separate toggles for queue vs browse tracklists. Favorites, playlist, and album-detail track grids gain a flex-resize handle on the title column when covers are shown.
+* Album detail pages skip per-row cover thumbs when the album art is already shown above the list — no duplicate image on every line.
 
 ### Discord — server cover art source, without the credential leak
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1299](https://github.com/Psychotoxical/psysonic/pull/1299)**
 
-* **Settings → Integrations → Discord → Cover art source** gets a **Server** option back, alongside None and Apple Music. It resolves artwork through the standard Subsonic `getAlbumInfo2` endpoint's public image link — never the authenticated cover URL that leaked login credentials in #1246. Needs a publicly reachable server; anyone viewing your Discord profile can see that server's public address, but nothing else.
+* **Settings → Integrations → Discord → Cover art source** gets a **Server** option, alongside **None** and **Apple Music**. It resolves artwork through the standard Subsonic `getAlbumInfo2` endpoint's public image link — never an authenticated cover URL that could expose your login credentials (reported by lavioso on Discord). Needs a publicly reachable server; anyone viewing your Discord profile can see that server's public address, but nothing else.
 
 
 ## Changed
@@ -140,13 +148,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * With **Remember EQ per device** enabled and **System Default** selected, the equalizer now keys profiles to the active OS default output and switches when that default changes externally (Windows sound settings, Stream Deck, etc.), instead of using one shared profile for all system-default outputs.
 * On Linux/PipeWire, the active default is resolved from WirePlumber (`wpctl`) first — including Hyprpanel, pavucontrol, and `wpctl set-default` — not cpal, which can keep a stale card name even after the default sink changes. When PipeWire has already moved the playback stream to the new default, the device watcher skips a redundant stream reopen (avoids a post-switch stutter).
-
-### Queue toolbar — Navidrome public share sessions
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1279](https://github.com/Psychotoxical/psysonic/pull/1279)**
-
-* While a Navidrome public share queue is active, **Save Playlist** is hidden in the queue toolbar (share tracks cannot be saved to the server). **Load Playlist** stays available.
-* The queue **Share** button copies the original Navidrome `/share/{id}` page URL instead of a Psysonic magic-string queue payload.
+* **Windows:** release builds no longer freeze on the loading splash; audio output devices on Windows and macOS use stable backend IDs with clearer labels, duplicate friendly names are disambiguated, device-change detection works again, and legacy pinned device / per-device EQ keys stored as plain names are matched after upgrade.
 
 ### Player bar — build your own
 
@@ -162,36 +164,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * A **shuffle toggle** in the player bar, next to the transport controls. While on, the queue is shuffled from the current track onwards — the playing track stays put — and turning it off restores the original order. It survives a restart, and the shuffled order is what your other devices and Orbit guests see, so playback stays in step everywhere. Hide the button under **Settings → Personalisation → Player bar** if you don't want it.
 
 ## Fixed
-
-### Tray — blank Mainstage after cold start minimized to tray
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1303](https://github.com/Psychotoxical/psysonic/pull/1303)**
-
-* With **Start minimized to tray** enabled, the main content area could stay blank after opening from the tray (sidebar and queue rendered, Mainstage did not) until a manual tray hide/show cycle — `PAUSE_RENDERING_JS` on cold start froze Mainstage's `animate-fade-in` at `opacity: 0`. Cold-start tray now hides without pausing animations, `startup-splash-reveal.js` proactively hides when the tray flag is set, Mainstage drops the entrance fade, and showing the window resumes rendering.
-
-### Tray — release build compile after #1296
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1298](https://github.com/Psychotoxical/psysonic/pull/1298)**
-
-* Fixes `E0308` in release `on_second_instance`: second-launch tray restore again uses inline resume/show/unminimize/focus so it stays generic over `tauri::Runtime` (Nix/release builds no longer fail on `restore_main_window(&WebviewWindow<R>)`).
-
-### Tray — sidebar missing after cold start minimized to tray
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1296](https://github.com/Psychotoxical/psysonic/pull/1296)**
-
-* With **Start minimized to tray** enabled, opening the main window from the tray could leave the left sidebar menu invisible until a full app restart (seen on Linux tiling WMs such as Hyprland). The sidebar no longer uses a slide-in entrance animation that starts at `opacity: 0`; tray show resumes rendering before `show()` without an extra `unminimize()` that could pop the window on tiling WMs.
-
-### Playlist and radio custom covers blank
-
-**By [@cucadmuh](https://github.com/cucadmuh), reported by VirtualWolf, PR [#1295](https://github.com/Psychotoxical/psysonic/pull/1295)**
-
-* Custom playlist and internet radio covers uploaded in Navidrome stayed blank in Psysonic (cards and detail headers) while album and track art worked. The cover resolver rewrote Navidrome's `pl-*` and `ra-*` getCoverArt ids into invalid `al-pl-*_0` / `al-ra-*_0` forms; fetch-only prefixes are now preserved in TS and Rust.
-
-### Album detail — no duplicate cover thumbs in tracklist
-
-**By [@cucadmuh](https://github.com/cucadmuh), reported by mikmik on the Psysonic Discord, PR [#1291](https://github.com/Psychotoxical/psysonic/pull/1291)**
-
-* The album detail tracklist no longer shows a small album cover on every row when **Settings → Appearance → Track lists** is enabled — the page already displays the album art above the list, so the per-row thumbs from #1280 duplicated the same image on every line (desktop and mobile).
 
 ### Per-track covers when playing from a playlist
 
@@ -227,18 +199,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Queue rows that were far from the currently playing track (e.g. after starting a large playlist from the middle, or scrolling the queue) no longer stay stuck on a "…" placeholder — the queue now loads track details for whatever you scroll to, in the desktop queue panel, the mobile queue drawer, and the fullscreen "up next" overlay.
 
-### Artists browse — case-insensitive search for Cyrillic names
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1237](https://github.com/Psychotoxical/psysonic/pull/1237)**
-
-* Artist name search on the Artists page no longer depends on query letter case for Cyrillic (and other non-ASCII) names when the local library index is enabled — matching uses the indexed `name_sort` key with Unicode case folding instead of SQLite `LIKE` on the display name alone.
-
-### Genres — full catalog on large libraries with All libraries selected
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1242](https://github.com/Psychotoxical/psysonic/pull/1242)**
-
-* The Genres page and album browse genre filter no longer miss genres on large libraries when **All libraries** is selected — both now use the indexed `track_genre` SQL aggregate instead of sampling the first page of albums (regression from multi-library scope routing in PR #1241).
-
 ### Offline browse — on-disk-only Artists, Albums, Tracks, and Genres
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1243](https://github.com/Psychotoxical/psysonic/pull/1243)**
@@ -252,12 +212,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1244](https://github.com/Psychotoxical/psysonic/pull/1244)**
 
 * The year filter on All Albums no longer clamps on every keystroke while typing a four-digit year — drafts commit on blur, Enter, or outside click; incomplete input reverts to the last applied value. Wheel and spinner controls are unchanged.
-
-### Discord — "Server" cover art no longer exposes your login
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1246](https://github.com/Psychotoxical/psysonic/pull/1246)**
-
-* The **Settings → Integrations → Discord → Cover art source → Server** option sent your server's cover URL to Discord, which republishes external image links, so anyone viewing your Rich Presence could read your username and login token. That option has been removed — cover art now comes only from **None** (app icon) or **Apple Music**, neither of which carries your credentials. Any saved **Server** setting is switched to **None**. Reported by lavioso on Discord.
 
 ### Album detail — favorite heart and album-level stars
 
@@ -305,18 +259,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Pausing a large queue behind a reverse proxy (e.g. Nginx) could snap the player back to an earlier track — the save was one long URL that hit the HTTP 414 limit, failed silently, and idle auto-pull restored the stale server queue.
 * Servers advertising the OpenSubsonic `formPost` extension (Navidrome) now save via POST; others retry once as POST on 414. A failed save no longer lets auto-pull overwrite playback — it resumes only after a successful save.
 
-### Lyrics — timing codes showing up in the text
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1266](https://github.com/Psychotoxical/psysonic/pull/1266)**
-
-* Tracks whose embedded lyrics use Enhanced LRC displayed the raw word timing codes (`<00:12.34>`) inside each line. The codes are now read as word timing instead of printed, so those lyrics also highlight word by word.
-
-### Lyrics — synced lyrics in FLAC and Ogg files
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1267](https://github.com/Psychotoxical/psysonic/pull/1267)**
-
-* FLAC, Ogg Vorbis, Opus and Speex files that store their synced lyrics in the `SYNCEDLYRICS` tag showed no embedded lyrics at all. That tag is now read, and it takes priority over the plain `LYRICS` tag as intended.
-
 ### Servers — connecting to servers behind a header gate
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1273](https://github.com/Psychotoxical/psysonic/pull/1273)**
@@ -330,26 +272,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Covers that hit the gate during the brief window before headers were registered got a `403`, which was treated as "cover missing" and written a 30-minute do-not-retry marker — so on a gated server most covers stayed blank long after the gate started answering. A gate-style `403`/`401` on cover art is now treated as a recoverable hiccup (retried) rather than a permanent miss, and reconnecting a gated server clears those stale markers and re-runs the cover fill so the artwork loads.
 * For a server with both a LAN and a public address, whichever answered first after launch stuck for the whole session: if the app started off the LAN it pinned to the public address and never switched back to LAN once you got home (the public address kept answering, so the LAN address was never re-checked). The reachability tick now re-checks the LAN address first with a single attempt, so returning to the LAN upgrades the connection back to local automatically, while staying remote costs just that one probe rather than the full retry wait. The LAN/public badge also refreshes immediately when you switch the active server, instead of staying on the previous server's classification until the next poll.
 
-### Windows — startup hang and audio output after per-device EQ (#1274)
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1277](https://github.com/Psychotoxical/psysonic/pull/1277)**
-
-* Windows release builds no longer freeze on the loading splash after the per-device EQ changes in #1274 — boot-time imports no longer pull lucide into the auth-store chunk (circular init left `createLucideIcon` undefined).
-* Restores the lightweight cpal default-output path on Windows so startup no longer blocks on full device enumeration.
-* Audio output devices on Windows and macOS now use stable backend IDs (`Wasapi:…`) with clearer labels; duplicate friendly names are disambiguated, device-change detection works again, and legacy pinned device / per-device EQ keys stored as plain names are matched after upgrade.
-
 ### Windows — MSI bundle on dev and RC versions
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1278](https://github.com/Psychotoxical/psysonic/pull/1278)**
 
 * Windows `.msi` builds no longer fail on channel versions like `1.50.0-dev` — WiX requires a numeric fourth version field, so the bundler maps `-dev` / `-rc.N` to numeric semver in `bundle.windows.wix.version` while Settings → About still shows the real package version.
 * Release builds no longer warn that the album feature barrel defeats a lazy import in the new-albums easter egg (direct import of the export helper).
-
-### Windows — Subsonic client id no longer `psysonic/undefined`
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1290](https://github.com/Psychotoxical/psysonic/pull/1290)**
-
-* Windows release builds could send `psysonic/undefined` as the Subsonic client id (visible in **Who is listening?**) when `package.json` version was read during a circular authStore boot-chunk init — prebuild now emits a leaf `SUBSONIC_CLIENT_ID` literal and the boot-chunk guard rejects unresolved client-id templates.
 
 ### Internet Radio — equalizer presets now apply to radio playback
 
@@ -363,17 +291,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Connecting a scrobble service could fail with only "Network error — check your connection or URL", which covers everything from a DNS failure to a blocked host, an interrupted TLS handshake or a rejected request. The underlying error is now shown alongside it, so a failing connect can be told apart from a reachability problem on your machine or network.
 
-### Windows — oversized Discord banner icon
+### Windows — Subsonic client id no longer `psysonic/undefined`
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1289](https://github.com/Psychotoxical/psysonic/pull/1289)**
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1290](https://github.com/Psychotoxical/psysonic/pull/1290)**
 
-* The Discord community banner rendered its icon at an enormous size on Windows, pushing the message out of the bar. The icon now has a fixed size on every platform.
+* Windows release builds could send `psysonic/undefined` as the Subsonic client id (visible in **Who is listening?**) when `package.json` version was read during a circular authStore boot-chunk init — prebuild now emits a leaf `SUBSONIC_CLIENT_ID` literal and the boot-chunk guard rejects unresolved client-id templates.
 
 ### Albums — "Artist / Year" sorting and albums with featured guests
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1292](https://github.com/Psychotoxical/psysonic/pull/1292)**
 
 * Sorting albums by artist ordered them by the track artist while showing the album artist. On a release with featured guests the two differ, so it was filed under a name that isn't on screen — the album dropped out of its artist's run of years, sometimes behind a different artist entirely. Album sorting now follows the artist the row actually shows.
+
+### Playlist and radio custom covers blank
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by VirtualWolf, PR [#1295](https://github.com/Psychotoxical/psysonic/pull/1295)**
+
+* Custom playlist and internet radio covers uploaded in Navidrome stayed blank in Psysonic (cards and detail headers) while album and track art worked. The cover resolver rewrote Navidrome's `pl-*` and `ra-*` getCoverArt ids into invalid `al-pl-*_0` / `al-ra-*_0` forms; fetch-only prefixes are now preserved in TS and Rust.
 
 ### Themes — album rails no longer cut off card shadows
 
@@ -386,12 +320,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@AliMahmoudDev](https://github.com/AliMahmoudDev), PR [#1301](https://github.com/Psychotoxical/psysonic/pull/1301)**
 
 * Modal dialogs carried no accessible name, so a screen reader announced them without saying which dialog had opened. The dialog is now linked to its title, and each instance gets its own id so several open dialogs cannot be confused for one another.
-
-### Contributors — theme credits could show an outdated name
-
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1302](https://github.com/Psychotoxical/psysonic/pull/1302)**
-
-* **Settings → System → Contributors** read the theme list from a cache that is only refreshed every 12 hours, so a theme author whose name had since been corrected in the store kept showing under the old one, with no way to refresh from that screen. The list now shows the cached names instantly and quietly corrects itself from the store in the background.
 
 
 ## [1.49.0] - 2026-06-29

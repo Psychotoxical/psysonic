@@ -16,11 +16,13 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 
 - The sidebar library picker now supports **multi-select with priority ordering** — browse, search, genres, and album/artist detail views aggregate across the libraries you pick and de-duplicate shared items by priority.
 - Cross-library matching normalises names per locale (German ß, Norwegian æ, French œ, Romanian ș/ț, Cyrillic ё/й); CJK titles are matched as-is.
+- The Genres page and album browse genre filter list the full catalog on large libraries when **All libraries** is selected.
 
 ### Navidrome public share links — listen without logging in
 
 - Paste or search a Navidrome **public share** URL (`/share/{id}`) to preview the shared track list, then play the full queue with no server account.
 - Share playback stays isolated from your logged-in Navidrome queue — idle server play-queue pull cannot replace a share session while you are connected elsewhere.
+- While a share queue is active, **Save Playlist** is hidden in the queue toolbar; **Share** copies the original Navidrome `/share/{id}` page URL.
 
 ### Fullscreen player — Minimal, Immersive, and Prism
 
@@ -30,20 +32,33 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 ### Lyrics that follow the singer, word by word
 
 - The **Server** lyrics source now highlights lyrics word by word as a track plays, so karaoke sync no longer needs the third-party YouLyPlus backend. It requires Navidrome 0.63 or newer and lyrics that carry word timing (TTML or Enhanced LRC files) — everything else keeps highlighting line by line. The requirements are spelled out under **Settings → Lyrics → Lyrics Sources**.
+- Embedded Enhanced LRC no longer prints raw word timing codes in the lyric text; FLAC, Ogg Vorbis, Opus, and Speex files with synced lyrics in the `SYNCEDLYRICS` tag show embedded lyrics again.
+
+### Player bar — build your own, plus shuffle
+
+- **Settings → Personalisation → Player bar** now also hides the **stop button** and shows the **album name** under the artist (off by default; clicking it opens the album). Star rating, favourite, love, playback speed, equalizer, and mini player can be **dragged into any order** you like — the section is no longer behind **Advanced**.
+- A **shuffle toggle** in the player bar shuffles the queue from the current track onwards while keeping the playing track in place; turning shuffle off restores the original order. It survives restarts and keeps Orbit guests in sync with the host. Hide the button from **Settings → Personalisation → Player bar** if you prefer.
 
 ### Track lists — optional album cover thumbnails
 
 - Browse and queue track rows can show each track's **album** cover (per-disc art when the album has distinct disc covers).
 - **Settings → Appearance** adds separate toggles for queue vs browse tracklists; playlist, Favorites, and album-detail grids gain a flex-resize handle on the title column when covers are shown.
+- Album detail pages skip per-row cover thumbs when the album art is already shown above the list.
+
+### Discord — Server cover art without exposing your login
+
+- **Settings → Integrations → Discord → Cover art source** includes a **Server** option alongside **None** and **Apple Music**. It resolves artwork through the server's public album image link — never an authenticated URL that could expose your login credentials. Requires a publicly reachable server.
 
 ### Artists browse — album artists or track credits
 
 - Toggle **Album artists** vs **Track artists** on the Artists page — album mode lists indexed album artists; track mode includes featured and guest performers from the local artist index. The choice persists across restarts like **Show artist images**.
+- Artist name search no longer depends on query letter case for Cyrillic and other non-ASCII names when the local library index is enabled.
 
 ### Theme Store — what's new on each theme
 
 - Each theme card has an expandable **What's new** with per-version release notes from the author — including non-visual fixes.
 - Installed themes with an available update now appear at the top of the store list so you do not have to hunt for them.
+- **Settings → System → Contributors** lists community theme authors in a **Themes** section alongside app contributors; author names refresh quietly from the store in the background.
 
 ### Italian and Bulgarian — now in your language
 
@@ -52,15 +67,15 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 ### Start minimized to tray
 
 - New **Start Minimized to Tray** toggle under **Settings → System → Behavior** — the next cold start keeps the main window hidden and Psysonic runs from the system tray until you show it from the tray icon. Requires **Show Tray Icon**; applies on the next launch only.
+- Opening the main window from the tray after a cold start renders the sidebar and main content immediately — including on Linux tiling window managers — instead of leaving them invisible or blank until a restart.
 
 ### Square corners — a sharper, boxier look
 
-- New **Square Corners** toggle under **Settings → Appearance → Visual Options** strips the rounded corners off cards and cover art across the app — handy when a theme's rounding does not suit your album covers. Off by default; buttons, inputs, and dialogs keep the theme's corners.
+- New **Square Corners** toggle under **Settings → Appearance → Visual Options → Display** strips the rounded corners off cards and cover art across the app — handy when a theme's rounding does not suit your album covers. Off by default; buttons, inputs, and dialogs keep the theme's corners.
 
 ## Improved
 
-- With **Remember EQ per device** on and **System Default** selected, the equalizer now keys profiles to the active OS default output and switches when that default changes outside the app (Windows sound settings, Stream Deck, PipeWire / `wpctl`, and similar). **Linux:** when PipeWire has already moved the stream to the new default, the device watcher skips a redundant reopen to avoid a post-switch stutter.
-- While a Navidrome public share queue is active, **Save Playlist** is hidden in the queue toolbar (share tracks cannot be saved to the server); the queue **Share** button copies the original Navidrome `/share/{id}` page URL.
+- With **Remember EQ per device** on and **System Default** selected, the equalizer now keys profiles to the active OS default output and switches when that default changes outside the app (Windows sound settings, Stream Deck, PipeWire / `wpctl`, and similar). **Linux:** when PipeWire has already moved the stream to the new default, the device watcher skips a redundant reopen to avoid a post-switch stutter. **Windows:** release builds no longer freeze on the loading splash; audio output devices use stable backend IDs with clearer labels, and device-change detection works again after upgrade.
 
 ## Fixed
 
@@ -69,9 +84,7 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 - Playing a song from a playlist no longer shows the track's own cover in Now Playing when the album page would show album art — Now Playing consistently uses the album cover.
 - ReplayGain applies when stream or queue metadata resolves late; gapless auto-advance no longer leaves the playbar on the previous track.
 - Pausing a large queue behind a reverse proxy (e.g. Nginx) no longer snaps playback back to an earlier track — Navidrome saves via POST when supported, and a failed save no longer lets idle auto-pull overwrite your queue.
-- Enhanced LRC no longer prints raw word timing codes (`<00:12.34>`) in the lyric text — those codes drive word-by-word highlighting instead.
-- FLAC, Ogg Vorbis, Opus, and Speex files that store synced lyrics in the `SYNCEDLYRICS` tag show embedded lyrics again, with that tag taking priority over plain `LYRICS`.
-- **Windows:** release builds no longer freeze on the loading splash after per-device EQ changes; audio output devices use stable backend IDs with clearer labels, and device-change detection works again.
+- Internet Radio equalizer presets and slider changes now apply to live stations — not just library tracks.
 
 ### Offline, Now Playing, and Navidrome
 
@@ -80,19 +93,24 @@ Within each section, order by **user impact** (most noticeable first) — not PR
 
 ### Themes and integrations
 
-- **Discord:** the **Server** cover art source has been removed — it sent your server's cover URL to Discord, which could expose your login credentials in the republished link. Cover art now comes only from **None** (app icon) or **Apple Music**; any saved **Server** setting switches to **None**.
+- Connecting a scrobble service in **Settings → Integrations → Music Network** now shows the underlying error alongside the generic network message, so a bad URL or rejected token is easier to tell apart from a reachability problem on your machine.
+- Horizontal album rails in themes with drop shadows no longer clip card shadows at the edges — scroll arrows keep working without theme authors overriding rail overflow.
 
 ### Browse and library
 
 - Adding tracks to a playlist no longer fails past ~341 songs — writes go to the server in batches, and large-playlist edits are faster.
-- Artist name search on the Artists page no longer depends on query letter case for Cyrillic and other non-ASCII names when the local library index is enabled.
-- The Genres page and album browse genre filter no longer miss genres on large libraries when **All libraries** is selected.
+- Queue rows far from the playing track no longer stay stuck on a "…" placeholder — the queue loads details for whatever you scroll to, in the desktop panel, mobile drawer, and fullscreen **Up next** overlay.
+- The year filter on **All Albums** no longer clamps on every keystroke while you type a four-digit year — it commits on blur, Enter, or outside click.
 - Starring an album on the detail page fills the heart immediately and keeps it filled after reload; album-level stars and ratings reconcile consistently across browse and Favorites.
 - Renamed artists no longer linger as ghost entries that open to "Artist not found"; album artist links and cover tiles in **Random Albums** stay consistent after resync.
+- Custom playlist and internet radio covers uploaded in Navidrome show again on cards and detail headers.
+- Sorting albums by artist now follows the name shown on each row — featured-guest releases no longer land under the wrong artist in **Artist / Year** order.
 
 ### Other
 
 - Servers behind a custom HTTP header gate (Cloudflare Access, Pangolin, and similar) now work for the full app — add-server errors stay on the form with a clear reason, browse and detail views load natively behind the gate, streaming and covers carry the header reliably, and returning to a LAN address upgrades the connection automatically when both LAN and public endpoints are configured.
+- Modal dialogs now announce their title to screen readers when they open.
+- **Windows:** **Who is listening?** no longer shows `psysonic/undefined` as the client id.
 
 
 ## [1.49.0]
