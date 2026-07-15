@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
-import { Play, ChevronRight, FolderTree, ListMusic, Trash2 } from 'lucide-react';
+import { Play, ChevronsRight, ChevronRight, FolderTree, ListMusic, ListPlus, Trash2 } from 'lucide-react';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
-import { usePlaylistStore } from '@/features/playlist';
+import { usePlaylistStore, resolvePlaylistTracks } from '@/features/playlist';
 import { MultiPlaylistToPlaylistSubmenu, SinglePlaylistToPlaylistSubmenu } from '@/features/contextMenu/components/PlaylistToPlaylistSubmenus';
 import MoveToFolderSubmenu from '@/features/contextMenu/components/MoveToFolderSubmenu';
 import type { ContextMenuItemsProps } from '@/features/contextMenu/components/contextMenuItemTypes';
@@ -9,6 +9,7 @@ import type { ContextMenuItemsProps } from '@/features/contextMenu/components/co
 export default function PlaylistContextItems(props: ContextMenuItemsProps) {
   const {
     type, item, closeContextMenu,
+    playTrack, playNext, enqueue,
     playlistSubmenuOpen, setPlaylistSubmenuOpen, cancelPlaylistSubmenuCloseTimer, onPlaylistSubmenuTriggerMouseLeave,
     playlistSongIds, setPlaylistSongIds,
     handleAction,
@@ -23,14 +24,25 @@ export default function PlaylistContextItems(props: ContextMenuItemsProps) {
           return (
             <>
               <div className="context-menu-item" onClick={() => handleAction(async () => {
-                const { playPlaylistById } = await import('@/features/playlist');
-                try {
-                  await playPlaylistById(playlist.id);
-                } catch {
-                  // Network/load failure — leave playback untouched rather than crash.
-                }
+                const tracks = await resolvePlaylistTracks(playlist.id);
+                if (tracks.length === 0) return;
+                playTrack(tracks[0], tracks);
               })}>
                 <Play size={14} /> {t('contextMenu.playNow')}
+              </div>
+              <div className="context-menu-item" onClick={() => handleAction(async () => {
+                const tracks = await resolvePlaylistTracks(playlist.id);
+                if (tracks.length === 0) return;
+                playNext(tracks);
+              })}>
+                <ChevronsRight size={14} /> {t('contextMenu.playNext')}
+              </div>
+              <div className="context-menu-item" onClick={() => handleAction(async () => {
+                const tracks = await resolvePlaylistTracks(playlist.id);
+                if (tracks.length === 0) return;
+                enqueue(tracks);
+              })}>
+                <ListPlus size={14} /> {t('contextMenu.addToQueue')}
               </div>
               <div className="context-menu-divider" />
               {offlinePolicy.canAddToPlaylist && (
