@@ -295,7 +295,7 @@ export const settings = {
   linuxWaylandTextRenderGpu: 'Priorità GPU',
   linuxWaylandTextRenderMinimal: 'Minimo (levigatura CSS predefinita)',
   discordCoverTitle: 'Fonte della copertina',
-  discordCoverDesc: 'Da dove proviene la copertina dell\'album mostrata sul tuo profilo Discord.',
+  discordCoverDesc: 'Da dove proviene la copertina dell\'album mostrata sul tuo profilo Discord. Le copertine del server usano un link immagine pubblico e privo di credenziali — chi visualizza il tuo profilo può vedere l\'indirizzo pubblico del tuo server. Richiede un server raggiungibile pubblicamente.',
   discordCoverNone: 'Nessuna (solo icona dell\'app)',
   discordCoverServer: 'Server (tramite info album)',
   discordCoverApple: 'Apple Music',

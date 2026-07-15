@@ -51,7 +51,15 @@
   display: flex;
   gap: var(--space-4);
   overflow-x: auto;
-  padding-bottom: var(--space-4);
+  /* The rail scrolls, so it clips: `overflow-x: auto` makes `overflow-y` compute
+     to `auto` too. An outer card shadow would be cut off at the edges. Padding
+     gives it room to paint *inside* the clip box; the matching negative margin
+     keeps the rail's content box exactly where it was, so nothing shifts.
+     Without this, a theme with a drop shadow is pushed into overriding `overflow`
+     — which removes the scroll container the nav arrows drive, disabling them. */
+  padding: var(--rail-shadow-room) var(--rail-shadow-room)
+    max(var(--space-4), var(--rail-shadow-room));
+  margin: calc(-1 * var(--rail-shadow-room)) calc(-1 * var(--rail-shadow-room)) 0;
   scroll-snap-type: none;
   scroll-behavior: smooth;
   /* Hide scrollbar for Webkit */

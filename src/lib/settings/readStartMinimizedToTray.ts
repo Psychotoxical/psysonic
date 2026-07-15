@@ -1,6 +1,6 @@
 const AUTH_STORAGE_KEY = 'psysonic-auth';
 
-/** Keep in sync with `public/startup-splash-preflight.js` and Rust `eval_startup_main_window_visibility`. */
+/** Keep in sync with `public/startup-splash-preflight.js` and `public/startup-splash-reveal.js`. */
 export const STARTUP_TRAY_HANDLED_KEY = 'psy-startup-tray-handled';
 
 /** Read persisted "start minimized to tray" before Zustand rehydrates. */

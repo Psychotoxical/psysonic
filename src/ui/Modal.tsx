@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect } from 'react';
+import { type ReactNode, useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
@@ -31,6 +31,8 @@ interface ModalProps {
 export default function Modal({
   open, onClose, title, subtitle, icon, footer, size = 'md', hideClose, closeLabel, children,
 }: ModalProps) {
+  const titleId = useId();
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -48,12 +50,13 @@ export default function Modal({
         className={`ui-modal ui-modal--${size}`}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
         onClick={e => e.stopPropagation()}
       >
         <div className="ui-modal-header">
           {icon && <span className="ui-modal-icon">{icon}</span>}
           <div className="ui-modal-titles">
-            <span className="ui-modal-title">{title}</span>
+            <span className="ui-modal-title" id={titleId}>{title}</span>
             {subtitle != null && <span className="ui-modal-subtitle">{subtitle}</span>}
           </div>
           {!hideClose && (

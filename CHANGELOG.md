@@ -113,6 +113,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Browse and queue track rows can show the track's **album** cover (per-disc art when the album has distinct disc covers). Covers load through the standard cover cache pipeline — library resolve, viewport ensure, Rust resize to disk tiers — not a separate warm path.
 * **Settings → Appearance** adds separate toggles for queue vs browse tracklists. Favorites, playlist, and album-detail track grids gain a flex-resize handle on the title column when covers are shown.
 
+### Discord — server cover art source, without the credential leak
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1299](https://github.com/Psychotoxical/psysonic/pull/1299)**
+
+* **Settings → Integrations → Discord → Cover art source** gets a **Server** option back, alongside None and Apple Music. It resolves artwork through the standard Subsonic `getAlbumInfo2` endpoint's public image link — never the authenticated cover URL that leaked login credentials in #1246. Needs a publicly reachable server; anyone viewing your Discord profile can see that server's public address, but nothing else.
+
 
 ## Changed
 
@@ -156,6 +162,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * A **shuffle toggle** in the player bar, next to the transport controls. While on, the queue is shuffled from the current track onwards — the playing track stays put — and turning it off restores the original order. It survives a restart, and the shuffled order is what your other devices and Orbit guests see, so playback stays in step everywhere. Hide the button under **Settings → Personalisation → Player bar** if you don't want it.
 
 ## Fixed
+
+### Tray — blank Mainstage after cold start minimized to tray
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1303](https://github.com/Psychotoxical/psysonic/pull/1303)**
+
+* With **Start minimized to tray** enabled, the main content area could stay blank after opening from the tray (sidebar and queue rendered, Mainstage did not) until a manual tray hide/show cycle — `PAUSE_RENDERING_JS` on cold start froze Mainstage's `animate-fade-in` at `opacity: 0`. Cold-start tray now hides without pausing animations, `startup-splash-reveal.js` proactively hides when the tray flag is set, Mainstage drops the entrance fade, and showing the window resumes rendering.
+
+### Tray — release build compile after #1296
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1298](https://github.com/Psychotoxical/psysonic/pull/1298)**
+
+* Fixes `E0308` in release `on_second_instance`: second-launch tray restore again uses inline resume/show/unminimize/focus so it stays generic over `tauri::Runtime` (Nix/release builds no longer fail on `restore_main_window(&WebviewWindow<R>)`).
+
+### Tray — sidebar missing after cold start minimized to tray
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1296](https://github.com/Psychotoxical/psysonic/pull/1296)**
+
+* With **Start minimized to tray** enabled, opening the main window from the tray could leave the left sidebar menu invisible until a full app restart (seen on Linux tiling WMs such as Hyprland). The sidebar no longer uses a slide-in entrance animation that starts at `opacity: 0`; tray show resumes rendering before `show()` without an extra `unminimize()` that could pop the window on tiling WMs.
+
+### Playlist and radio custom covers blank
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by VirtualWolf, PR [#1295](https://github.com/Psychotoxical/psysonic/pull/1295)**
+
+* Custom playlist and internet radio covers uploaded in Navidrome stayed blank in Psysonic (cards and detail headers) while album and track art worked. The cover resolver rewrote Navidrome's `pl-*` and `ra-*` getCoverArt ids into invalid `al-pl-*_0` / `al-ra-*_0` forms; fetch-only prefixes are now preserved in TS and Rust.
+
+### Album detail — no duplicate cover thumbs in tracklist
+
+**By [@cucadmuh](https://github.com/cucadmuh), reported by mikmik on the Psysonic Discord, PR [#1291](https://github.com/Psychotoxical/psysonic/pull/1291)**
+
+* The album detail tracklist no longer shows a small album cover on every row when **Settings → Appearance → Track lists** is enabled — the page already displays the album art above the list, so the per-row thumbs from #1280 duplicated the same image on every line (desktop and mobile).
 
 ### Per-track covers when playing from a playlist
 
@@ -332,6 +368,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1289](https://github.com/Psychotoxical/psysonic/pull/1289)**
 
 * The Discord community banner rendered its icon at an enormous size on Windows, pushing the message out of the bar. The icon now has a fixed size on every platform.
+
+### Themes — album rails no longer cut off card shadows
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by Asra on the Psysonic Discord, PR [#1300](https://github.com/Psychotoxical/psysonic/pull/1300)**
+
+* Horizontal album rails clipped an outer card shadow at the edges, which only themes that use a real drop shadow ran into. Working around it meant overriding the rail's `overflow`, and that disabled the rail's `<` / `>` scroll arrows. Rails now reserve room for the shadow inside the rail itself, so the arrows keep working; a theme that needs more room can raise `--rail-shadow-room` instead of touching `overflow`.
+
+### Accessibility — modal dialogs announce their title
+
+**By [@AliMahmoudDev](https://github.com/AliMahmoudDev), PR [#1301](https://github.com/Psychotoxical/psysonic/pull/1301)**
+
+* Modal dialogs carried no accessible name, so a screen reader announced them without saying which dialog had opened. The dialog is now linked to its title, and each instance gets its own id so several open dialogs cannot be confused for one another.
+
+### Contributors — theme credits could show an outdated name
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1302](https://github.com/Psychotoxical/psysonic/pull/1302)**
+
+* **Settings → System → Contributors** read the theme list from a cache that is only refreshed every 12 hours, so a theme author whose name had since been corrected in the store kept showing under the old one, with no way to refresh from that screen. The list now shows the cached names instantly and quietly corrects itself from the store in the background.
 
 
 ## [1.49.0] - 2026-06-29

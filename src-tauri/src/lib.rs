@@ -906,28 +906,6 @@ pub fn run() {
                 }
             }
         })
-        .on_page_load(|webview, payload| {
-            if webview.label() != "main" {
-                return;
-            }
-
-            match payload.event() {
-                tauri::webview::PageLoadEvent::Started => {
-                    let app = webview.app_handle().clone();
-                    std::thread::spawn(move || {
-                        std::thread::sleep(std::time::Duration::from_millis(48));
-                        if let Some(window) = app.get_webview_window("main") {
-                            crate::lib_commands::ui::mini::eval_startup_main_window_visibility(&window);
-                        }
-                    });
-                }
-                tauri::webview::PageLoadEvent::Finished => {
-                    if let Some(window) = webview.app_handle().get_webview_window("main") {
-                        crate::lib_commands::ui::mini::eval_startup_main_window_visibility(&window);
-                    }
-                }
-            }
-        })
         .invoke_handler(tauri::generate_handler![
             greet,
             theme_import::import_theme_zip,

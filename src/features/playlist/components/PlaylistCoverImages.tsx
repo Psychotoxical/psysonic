@@ -26,6 +26,7 @@ export function PlaylistCardMainCover({ coverArt, alt }: { coverArt: string; alt
       coverArt={coverArt}
       displayCssPx={PLAYLIST_MAIN_COVER_CSS_PX}
       surface="dense"
+      libraryResolve={false}
       alt={alt}
       className="album-card-cover-img"
     />

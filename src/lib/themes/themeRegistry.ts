@@ -111,6 +111,37 @@ export async function fetchRegistry(opts?: { force?: boolean }): Promise<FetchRe
 }
 
 /**
+ * Stale-while-revalidate read, for surfaces that must not show outdated data but
+ * must not block on the network either. Hands the cached copy over immediately
+ * (if there is one), then force-fetches and hands over the fresh copy when it
+ * actually differs.
+ *
+ * The TTL path is deliberately bypassed: a copy up to {@link TTL_MS} old is fine
+ * for *browsing* the store, but it is not fine for the Credits list, which
+ * attributes work to a person — a theme author whose handle was corrected
+ * upstream would otherwise stay mis-credited for up to 12 hours, with no way to
+ * refresh from that screen.
+ *
+ * `onRegistry` runs at most twice (cached, then fresh) and never with the same
+ * registry twice. Never rejects: with no cache and no network the caller simply
+ * keeps whatever it had.
+ */
+export async function revalidateRegistry(
+  onRegistry: (registry: Registry) => void,
+): Promise<void> {
+  const cached = getCachedRegistry();
+  if (cached) onRegistry(cached);
+  try {
+    const { registry, stale } = await fetchRegistry({ force: true });
+    // `stale` means the network failed and we were handed the cache back — the
+    // caller already has it.
+    if (!stale && registry.generatedAt !== cached?.generatedAt) onRegistry(registry);
+  } catch {
+    // No cache and no network. Nothing to show, nothing to update.
+  }
+}
+
+/**
  * Fetch a single theme's CSS text from GitHub raw (repo-relative path). Raw is
  * used rather than a mutable CDN edge so an install or update always gets the
  * current bytes: a stale edge would otherwise store pre-update CSS under the new

@@ -205,6 +205,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Internet Radio — Web Audio EQ on HTML5 streams; presets apply without reconnect (PR #1284)',
       'Player bar — hideable stop button, optional album line, drag-reorderable action buttons (request: mikmik on Psysonic Discord, PR #1287)',
       'Persistent shuffle mode — queue-reordering shuffle with restore, survives restart, in sync with other devices and Orbit (request: mikmik on Psysonic Discord, PR #1288)',
+      'Playlist and radio custom covers — preserve Navidrome pl-/ra-* getCoverArt ids (fixes blank uploaded covers; PR #1295)',
     ],
   },
   {
@@ -478,6 +479,13 @@ const CONTRIBUTOR_ENTRIES = [
     since: '1.50.0',
     contributions: [
       'Sync: form POST for large play queues to avoid HTTP 414 behind reverse proxies (PR #1262)',
+    ],
+  },
+  {
+    github: 'AliMahmoudDev',
+    since: '1.50.0',
+    contributions: [
+      'Accessibility: modal dialogs announce their title to screen readers (aria-labelledby) (PR #1301)',
     ],
   },
 ] as const;

@@ -21,7 +21,7 @@ import { SettingsToggle } from '@/features/settings/components/SettingsToggle';
 import { SettingsSubCard, SettingsField } from '@/features/settings/components/SettingsSubCard';
 import { BackupSection } from '@/features/settings/components/BackupSection';
 import { CONTRIBUTORS, MAINTAINERS, themeContributorsFromRegistry, type ThemeContributor } from '@/config/settingsCredits';
-import { fetchRegistry } from '@/lib/themes/themeRegistry';
+import { revalidateRegistry } from '@/lib/themes/themeRegistry';
 
 export function SystemTab() {
   const { t } = useTranslation();
@@ -37,15 +37,16 @@ export function SystemTab() {
       .catch(() => {});
   }, []);
 
-  // Community theme authors come from the store registry (cached, offline-safe).
-  // On a first run with no cached registry this simply stays empty.
+  // Community theme authors come from the store registry. Stale-while-revalidate:
+  // the cached copy paints immediately (offline-safe), then a background refresh
+  // corrects it. Reading the plain TTL cache would leave a corrected author
+  // mis-credited for up to 12 hours, and Credits has no refresh control of its
+  // own. On a first run with no cached registry this simply stays empty.
   useEffect(() => {
     let cancelled = false;
-    fetchRegistry()
-      .then(({ registry }) => {
-        if (!cancelled) setThemeContributors(themeContributorsFromRegistry(registry.themes));
-      })
-      .catch(() => {});
+    void revalidateRegistry(registry => {
+      if (!cancelled) setThemeContributors(themeContributorsFromRegistry(registry.themes));
+    });
     return () => { cancelled = true; };
   }, []);
 
