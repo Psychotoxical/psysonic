@@ -42,6 +42,9 @@
     // not set the CSS animation-pause attribute: entrance animations may
     // still mount while the native window is hidden.
     window.__psyHidden = true;
+    try {
+      sessionStorage.setItem('psy-startup-tray-handled', '1');
+    } catch (_err) {}
     reveal(0);
     return;
   }
