@@ -1,8 +1,6 @@
-import { resolveMediaServerId, resolvePlaylist } from '@/features/offline';
+import { resolvePlaylistTracks } from '@/features/playlist/utils/resolvePlaylistTracks';
 import { getGenres } from '@/lib/api/subsonicGenres';
-import { filterSongsToActiveLibrary } from '@/lib/api/subsonicLibrary';
 import type { SubsonicPlaylist, SubsonicGenre } from '@/lib/api/subsonicTypes';
-import { songToTrack } from '@/lib/media/songToTrack';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { usePlaylistStore } from '@/features/playlist/store/playlistStore';
@@ -144,14 +142,7 @@ export default function Playlists() {
     if (playingId === pl.id) return;
     setPlayingId(pl.id);
     try {
-      const serverId = resolveMediaServerId(activeServerId);
-      if (!serverId) return;
-      const data = await resolvePlaylist(serverId, pl.id);
-      if (!data) return;
-      const songs = offlineBrowseActive
-        ? data.songs
-        : await filterSongsToActiveLibrary(data.songs);
-      const tracks = songs.map(songToTrack);
+      const tracks = await resolvePlaylistTracks(pl.id);
       if (tracks.length > 0) {
         touchPlaylist(pl.id);
         playTrack(tracks[0], tracks);
