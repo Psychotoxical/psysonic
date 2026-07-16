@@ -391,34 +391,149 @@ pub fn run() {
                 let _ = window.set_title("Psysonic (Dev)");
             }
 
-            // ── Dev: `--theme-watch <theme.css>` live theme reload ─────────
-            // Poll a local theme.css and push it into the running app on save,
-            // so theme authors get a live loop without re-importing a zip. The
-            // frontend (dev only) installs it under the id in its
-            // `[data-theme='<id>']` selector and applies it. Dev-builds only.
+            // ── Dev: `--theme-watch <theme.css | dir>` live theme reload ───
+            // Poll a local theme.css — or every `themes/*/theme.css` in a
+            // cloned themes-repo checkout — and push contents into the running
+            // app, so theme authors get a live loop without re-importing zips.
+            // The frontend (dev only, main window) installs each payload under
+            // the id in its `[data-theme='<id>']` selector; a save applies
+            // live, the directory startup sweep only installs so authors can
+            // switch between the checkout's themes in the UI. Dev-builds only.
             #[cfg(debug_assertions)]
             {
                 let args: Vec<String> = std::env::args().collect();
                 if let Some(i) = args.iter().position(|a| a == "--theme-watch") {
                     match args.get(i + 1).cloned() {
                         Some(path) => {
-                            eprintln!("[theme-watch] watching {path}");
+                            use std::collections::HashMap;
+                            use std::path::PathBuf;
+                            use std::sync::{Arc, Mutex};
+                            use std::time::SystemTime;
+                            use tauri::Listener;
+
+                            // Accept a repo root (has themes/), a themes/ dir,
+                            // a single theme folder, or a bare theme.css.
+                            enum WatchTarget {
+                                Dir(PathBuf),
+                                File(PathBuf),
+                            }
+                            let root = PathBuf::from(&path);
+                            let target = if root.is_dir() && !root.join("theme.css").is_file() {
+                                if root.join("themes").is_dir() {
+                                    WatchTarget::Dir(root.join("themes"))
+                                } else {
+                                    WatchTarget::Dir(root)
+                                }
+                            } else if root.is_dir() {
+                                WatchTarget::File(root.join("theme.css"))
+                            } else {
+                                WatchTarget::File(root)
+                            };
+                            match &target {
+                                WatchTarget::Dir(d) => {
+                                    eprintln!("[theme-watch] watching {}/*/theme.css", d.display())
+                                }
+                                WatchTarget::File(f) => {
+                                    if !f.is_file() {
+                                        eprintln!(
+                                            "[theme-watch] warning: {} does not exist — nothing will load until it appears",
+                                            f.display()
+                                        );
+                                    }
+                                    eprintln!("[theme-watch] watching {}", f.display());
+                                }
+                            }
+
+                            // Per-file state: mtime (gates the read while a
+                            // file is unchanged) and last pushed contents
+                            // (change detection + ready re-send). Entries only
+                            // update after a successful emit, so a failed push
+                            // retries next tick instead of being marked seen.
+                            type Seen = HashMap<PathBuf, (Option<SystemTime>, String)>;
+                            let seen: Arc<Mutex<Seen>> = Arc::new(Mutex::new(HashMap::new()));
+
+                            // The frontend announces its listeners (on mount
+                            // and after every dev-server reload) via
+                            // `theme-watch:ready`; re-send everything already
+                            // loaded so no emit is lost to a webview that
+                            // wasn't listening yet. Directory mode re-seeds
+                            // install-only (the active theme id is persisted,
+                            // so its CSS comes back without stealing the
+                            // selection); single-file mode re-applies the one
+                            // authored theme. Change detection keeps running
+                            // untouched, so a save landing mid-reload still
+                            // arrives as an applying `css` event.
+                            let ready_event = if matches!(target, WatchTarget::Dir(_)) {
+                                "theme-watch:css-seed"
+                            } else {
+                                "theme-watch:css"
+                            };
+                            {
+                                let seen = Arc::clone(&seen);
+                                let handle = app.handle().clone();
+                                app.listen("theme-watch:ready", move |_| {
+                                    let Ok(m) = seen.lock() else { return };
+                                    for (_, css) in m.values() {
+                                        let _ = handle.emit(ready_event, css);
+                                    }
+                                });
+                            }
+
                             let handle = app.handle().clone();
-                            std::thread::spawn(move || {
-                                let p = std::path::PathBuf::from(&path);
-                                let mut last_css = String::new();
-                                loop {
-                                    if let Ok(css) = std::fs::read_to_string(&p) {
-                                        if css != last_css {
-                                            last_css = css.clone();
-                                            let _ = handle.emit("theme-watch:css", css);
+                            std::thread::spawn(move || loop {
+                                let files: Vec<PathBuf> = match &target {
+                                    // Re-scan each tick so theme folders added
+                                    // while running are picked up live.
+                                    WatchTarget::Dir(dir) => std::fs::read_dir(dir)
+                                        .map(|rd| {
+                                            rd.flatten()
+                                                .map(|e| e.path().join("theme.css"))
+                                                .filter(|p| p.is_file())
+                                                .collect()
+                                        })
+                                        .unwrap_or_default(),
+                                    WatchTarget::File(f) => vec![f.clone()],
+                                };
+                                for f in files {
+                                    let mtime =
+                                        std::fs::metadata(&f).and_then(|m| m.modified()).ok();
+                                    let Ok(mut m) = seen.lock() else { continue };
+                                    // mtime gate: skip the full read while the
+                                    // stamp is unchanged (a None stamp never
+                                    // matches, so filesystems without mtime
+                                    // fall back to read + compare).
+                                    if let Some((prev_mtime, _)) = m.get(&f) {
+                                        if prev_mtime.is_some() && *prev_mtime == mtime {
+                                            continue;
                                         }
                                     }
-                                    std::thread::sleep(std::time::Duration::from_millis(300));
+                                    let Ok(css) = std::fs::read_to_string(&f) else {
+                                        continue;
+                                    };
+                                    let event = match m.get_mut(&f) {
+                                        // mtime-only touch — restamp quietly.
+                                        Some(entry) if entry.1 == css => {
+                                            entry.0 = mtime;
+                                            continue;
+                                        }
+                                        // First sight in directory mode
+                                        // installs without stealing the
+                                        // active theme; a save applies.
+                                        None if matches!(target, WatchTarget::Dir(_)) => {
+                                            "theme-watch:css-seed"
+                                        }
+                                        _ => "theme-watch:css",
+                                    };
+                                    if handle.emit(event, &css).is_ok() {
+                                        m.insert(f, (mtime, css));
+                                    }
                                 }
+                                std::thread::sleep(std::time::Duration::from_millis(300));
                             });
                         }
-                        None => eprintln!("[theme-watch] usage: --theme-watch <path/to/theme.css>"),
+                        None => eprintln!(
+                            "[theme-watch] usage: --theme-watch <path/to/theme.css | path/to/themes-checkout>"
+                        ),
                     }
                 }
             }

@@ -36,7 +36,13 @@ export const useInstalledThemesStore = create<InstalledThemesState>()(
     (set, get) => ({
       themes: [],
       install: (theme) =>
-        set((s) => ({ themes: [...s.themes.filter((t) => t.id !== theme.id), theme] })),
+        set((s) => ({
+          // Replace in place so an update (or a dev theme-watch push) keeps
+          // the theme's position in the grid; append only when it's new.
+          themes: s.themes.some((t) => t.id === theme.id)
+            ? s.themes.map((t) => (t.id === theme.id ? theme : t))
+            : [...s.themes, theme],
+        })),
       uninstall: (id) =>
         set((s) => ({ themes: s.themes.filter((t) => t.id !== id) })),
       isInstalled: (id) => get().themes.some((t) => t.id === id),

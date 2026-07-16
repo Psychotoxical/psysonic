@@ -33,26 +33,55 @@ export default function App() {
     syncInjectedThemes(installedThemes);
   }, [installedThemes]);
 
-  // Dev only: `--theme-watch <theme.css>` (debug builds) pushes a local theme's
-  // CSS in on every save. Install it under the id in its `[data-theme='<id>']`
-  // selector and apply it — the syncInjectedThemes effect above re-injects, so
-  // authoring is live without re-importing a zip. Never wired in production.
+  // Dev only: `--theme-watch <theme.css | dir>` (debug builds) pushes local
+  // theme CSS in on every save. Each payload is installed under the id in its
+  // `[data-theme='<id>']` selector — the syncInjectedThemes effect above
+  // re-injects, so authoring is live without re-importing a zip.
+  // `theme-watch:css` also applies (single file, or a save in a watched
+  // directory); `theme-watch:css-seed` only installs (directory startup
+  // sweep), so authors can switch between a themes-repo checkout's themes in
+  // the UI. Never wired in production.
   useEffect(() => {
     if (!import.meta.env.DEV) return;
-    let unlisten: (() => void) | undefined;
-    void import('@tauri-apps/api/event').then(({ listen }) => {
-      const sub = listen<string>('theme-watch:css', ({ payload }) => {
-        const id = payload.match(/\[data-theme=['"]([^'"]+)['"]\]/)?.[1];
+    // Main window only: the mini player shares the same persisted store — a
+    // second subscriber would double every install and could write a stale
+    // whole-store snapshot over changes made in the main window.
+    if (getWindowKind() !== 'main') return;
+    const unlisteners: (() => void)[] = [];
+    void import('@tauri-apps/api/event').then(({ listen, emit }) => {
+      const install = (css: string, apply: boolean) => {
+        const id = css.match(/\[data-theme=['"]([^'"]+)['"]\]/)?.[1];
         if (!id) return;
+        // Only the CSS is the dev payload — keep a store-installed copy's
+        // metadata and installedAt, so watching a checkout doesn't rebrand
+        // real installs as 'dev' or reshuffle the Themes grid.
+        const prev = useInstalledThemesStore.getState().getInstalled(id);
         useInstalledThemesStore.getState().install({
-          id, name: id, author: 'dev', version: '0.0.0', description: '', mode: 'dark', css: payload, installedAt: Date.now(),
+          id,
+          name: prev?.name ?? id,
+          author: prev?.author ?? 'dev',
+          version: prev?.version ?? '0.0.0',
+          description: prev?.description ?? '',
+          mode: prev?.mode ?? 'dark',
+          tags: prev?.tags,
+          css,
+          installedAt: prev?.installedAt ?? Date.now(),
         });
-        useThemeStore.getState().setTheme(id);
-      });
+        if (apply) useThemeStore.getState().setTheme(id);
+      };
+      const subs = [
+        listen<string>('theme-watch:css', ({ payload }) => install(payload, true)),
+        listen<string>('theme-watch:css-seed', ({ payload }) => install(payload, false)),
+      ];
       // Guard the mocked-in-tests case where listen() isn't a promise.
-      if (sub && typeof sub.then === 'function') sub.then(u => { unlisten = u; });
+      for (const sub of subs) {
+        if (sub && typeof sub.then === 'function') void sub.then(u => { unlisteners.push(u); });
+      }
+      // Announce the attached listeners (again after every dev-server reload)
+      // so the watcher (re-)sends current contents — no lost first emit.
+      void emit('theme-watch:ready').catch(() => {});
     }).catch(() => {});
-    return () => unlisten?.();
+    return () => { unlisteners.forEach(u => u()); };
   }, []);
 
   useEffect(() => {
