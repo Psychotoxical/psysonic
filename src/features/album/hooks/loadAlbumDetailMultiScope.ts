@@ -1,7 +1,7 @@
 import {
   libraryScopeAlbumDetail,
-  scopePairsFromLibrarySelection,
 } from '@/lib/api/library/scopeReads';
+import type { LibraryScopePair } from '@/lib/api/library';
 import { albumToAlbum, trackToSong } from '@/lib/library/advancedSearchLocal';
 import type { ResolvedAlbum } from '@/features/offline';
 
@@ -12,10 +12,11 @@ import type { ResolvedAlbum } from '@/features/offline';
 export async function tryLoadAlbumDetailMultiScope(
   serverId: string,
   albumId: string,
+  scopes: LibraryScopePair[],
 ): Promise<ResolvedAlbum | null> {
   try {
     const response = await libraryScopeAlbumDetail(serverId, {
-      scopes: scopePairsFromLibrarySelection(serverId),
+      scopes,
       albumId,
       serverId,
     });

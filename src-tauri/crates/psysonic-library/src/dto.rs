@@ -702,6 +702,43 @@ pub struct LibraryScopePair {
     pub library_id: Option<String>,
 }
 
+/// Entity kind accepted by `library_resolve_entity_sources`.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum LibrarySourceEntityType {
+    Track,
+    Album,
+    Artist,
+}
+
+/// Resolve one concrete browse entity to every matching concrete source in an
+/// explicitly ordered scope.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryResolveEntitySourcesRequest {
+    pub entity_type: LibrarySourceEntityType,
+    pub anchor_server_id: String,
+    pub anchor_id: String,
+    pub scopes: Vec<LibraryScopePair>,
+}
+
+/// Concrete source metadata for one browse identity partition. Identity keys
+/// remain internal so the frontend contract cannot persist raw cluster hashes.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryEntitySourceDto {
+    pub server_id: String,
+    pub id: String,
+    pub library_id: String,
+    pub priority: u32,
+    pub duration_sec: Option<i64>,
+    pub suffix: Option<String>,
+    pub bit_rate: Option<i64>,
+    pub size_bytes: Option<i64>,
+    pub starred_at: Option<i64>,
+    pub user_rating: Option<i64>,
+}
+
 /// Derive ordered `(server_id, library_id)` pairs from request fields.
 /// List order is merge priority (index 0 wins). Duplicate pairs keep their first
 /// occurrence; mixing whole-server and exact-library sources for one server is rejected.

@@ -53,7 +53,7 @@ export const DEFAULT_ALBUM_BROWSE_RETURN_FILTERS: AlbumBrowseReturnFilters = {
 
 
 interface AlbumBrowseSessionStore {
-  /** Session-lifetime sort per server (sidebar ↔ album detail). */
+  /** Session-lifetime sort per scope key (server id for legacy single-server callers). */
   sortByServer: Record<string, AlbumBrowseSort>;
   /** Stashed when leaving a browse surface → album detail; consumed after scroll restore. */
   returnStashByKey: Record<string, AlbumBrowseReturnFilters>;
@@ -67,8 +67,8 @@ interface AlbumBrowseSessionStore {
   peekReturnStash: (serverId: string, surface: AlbumBrowseSurface) => AlbumBrowseReturnFilters | null;
 }
 
-function returnStashKey(serverId: string, surface: AlbumBrowseSurface): string {
-  return `${serverId}:${surface}`;
+function returnStashKey(scopeKey: string, surface: AlbumBrowseSurface): string {
+  return JSON.stringify([scopeKey, surface]);
 }
 
 function genreDetailStashKey(serverId: string, genreName: string): string {

@@ -12,6 +12,8 @@ import {
 import type {
   LibraryAlbumDto,
   LibraryArtistDto,
+  LibraryEntitySourceDto,
+  LibraryResolveEntitySourcesRequest,
   LibraryScopePair,
   LibraryTrackDto,
 } from './dto';
@@ -176,4 +178,24 @@ export function libraryScopeArtistDetail(
     albums: mapAlbumsServerId(response.albums, serverId),
     tracks: mapTracksServerId(response.tracks, serverId),
   }));
+}
+
+export function libraryResolveEntitySources(
+  serverId: string,
+  request: LibraryResolveEntitySourcesRequest,
+): Promise<LibraryEntitySourceDto[]> {
+  const anchorIndexKey =
+    request.anchorServerId === serverId
+      ? serverIndexKeyForId(serverId)
+      : serverIndexKeyForId(request.anchorServerId);
+  return invoke<LibraryEntitySourceDto[]>('library_resolve_entity_sources', {
+    request: {
+      ...request,
+      anchorServerId: anchorIndexKey,
+      scopes: mapScopePairs(request.scopes, serverId),
+    },
+  }).then(sources => sources.map(source => ({
+    ...source,
+    serverId: mapServerIdFromIndexKey(source.serverId, serverId),
+  })));
 }

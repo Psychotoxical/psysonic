@@ -6,6 +6,7 @@ import InpageScrollSentinel from '@/ui/InpageScrollSentinel';
 import { COVER_ARTIST_TOP_TRACK_CSS_PX } from '@/cover/layoutSizes';
 import { useWarmTrackListAlbumCovers } from '@/cover/useWarmTrackListAlbumCovers';
 import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
+import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
 
 interface Props {
   songs: SubsonicSong[];
@@ -47,7 +48,7 @@ export default function PagedSongList({ songs, hasMore, loadingMore, onLoadMore,
     <>
       <SongListHeader showBpm={showBpm} />
       {songs.map(song => (
-        <SongRow key={song.id} song={song} showBpm={showBpm} />
+        <SongRow key={libraryEntityKey(song)} song={song} showBpm={showBpm} />
       ))}
       {hasMore && (
         <InpageScrollSentinel

@@ -23,6 +23,7 @@ use crate::dto::{
     count_local_tracks, local_tracks_max_updated_ms, track_index_nonempty, ArtifactInputDto,
     FactInputDto, LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse,
     LibraryCrossServerSearchResponse, LibraryLiveSearchRequest, LibraryLiveSearchResponse,
+    LibraryEntitySourceDto, LibraryResolveEntitySourcesRequest,
     LibraryScopeAlbumDetailRequest, LibraryScopeAlbumDetailResponse, LibraryScopeArtistDetailRequest,
     LibraryScopeArtistDetailResponse, LibraryScopeListRequest, LibraryScopeSearchRequest,
     LibraryTrackDto,
@@ -684,6 +685,16 @@ pub fn library_cluster_rebuild(
         .map(str::trim)
         .filter(|s| !s.is_empty());
     crate::identity::rebuild_cluster_keys(&runtime.store, server_id)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn library_resolve_entity_sources(
+    runtime: State<'_, LibraryRuntime>,
+    request: LibraryResolveEntitySourcesRequest,
+) -> Result<Vec<LibraryEntitySourceDto>, String> {
+    let store = Arc::clone(&runtime.store);
+    library_spawn_blocking(move || scope_merge::resolve_entity_sources(&store, &request)).await
 }
 
 // NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.

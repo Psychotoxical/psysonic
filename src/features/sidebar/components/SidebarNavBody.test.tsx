@@ -4,6 +4,7 @@ import { createRef } from 'react';
 import { renderWithProviders } from '@/test/helpers/renderWithProviders';
 import { DragDropProvider } from '@/lib/dnd/DragDropContext';
 import SidebarNavBody from '@/features/sidebar/components/SidebarNavBody';
+import type { SidebarLibraryServer } from '@/features/sidebar/components/SidebarLibraryPicker';
 
 const baseProps = () => ({
   isCollapsed: false,
@@ -19,6 +20,10 @@ const baseProps = () => ({
     { id: 'lib-b', name: 'Jazz' },
   ],
   onLibrarySelectionChange: vi.fn(),
+  libraryServers: [] as SidebarLibraryServer[],
+  onLibraryServerSelectionChange: vi.fn(),
+  onServerLibrarySelectionChange: vi.fn(),
+  onLibraryServersReorder: vi.fn(),
   visibleLibraryConfigs: [],
   visibleSystemConfigs: [],
   playlistsExpanded: false,
@@ -70,5 +75,23 @@ describe('SidebarNavBody library picker gate', () => {
     renderBody({ isCollapsed: true, showLibraryPicker: false });
 
     expect(screen.queryByRole('button', { name: 'Library scope' })).not.toBeInTheDocument();
+  });
+
+  it('renders the picker for multiple servers even without multiple active-server folders', () => {
+    renderBody({
+      musicFolders: [],
+      libraryServers: [
+        {
+          id: 'a', label: 'A', selected: true, folders: [], selectedLibraryIds: [],
+          status: null, connection: 'unknown', excludedReasons: ['connection_unknown', 'index_not_ready'],
+        },
+        {
+          id: 'b', label: 'B', selected: false, folders: [], selectedLibraryIds: [],
+          status: null, connection: 'unknown', excludedReasons: [],
+        },
+      ],
+    });
+
+    expect(screen.getByRole('button', { name: 'Library scope' })).toBeInTheDocument();
   });
 });

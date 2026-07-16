@@ -1,4 +1,4 @@
-import { buildDownloadUrl } from '@/lib/api/subsonicStreamUrl';
+import { buildDownloadUrlForServer } from '@/lib/api/subsonicStreamUrl';
 import { resolveAlbum } from '@/features/offline';
 import { songToTrack } from '@/lib/media/songToTrack';
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
@@ -59,6 +59,8 @@ import {
   emitAlbumBrowseDebug,
 } from '@/lib/library/albumBrowseDebug';
 import { librarySelectionForServer } from '@/lib/api/subsonicClient';
+import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
+import { useBrowseLibraryScope } from '@/store/useBrowseLibraryScope';
 
 type SortType = AlbumBrowseSort;
 
@@ -73,6 +75,8 @@ export default function Albums() {
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const auth = useAuthStore();
   const serverId = useAuthStore(s => s.activeServerId ?? '');
+  const browseScope = useBrowseLibraryScope();
+  const browseServerId = browseScope.anchorServerId || serverId;
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
 
   useLayoutEffect(() => {
@@ -90,7 +94,7 @@ export default function Albums() {
 
   const scrollSnapshotRef = useRef<AlbumBrowseScrollSnapshot>({ scrollTop: 0, displayCount: 0 });
   const restoreDisplayCountRef = useRef<number | undefined>(
-    peekAlbumBrowseScrollRestore(serverId, 'albums')?.displayCount,
+    peekAlbumBrowseScrollRestore(`${serverId}\0${browseScope.fingerprint}`, 'albums')?.displayCount,
   );
 
   const {
@@ -108,14 +112,16 @@ export default function Albums() {
     setStarredOnly,
     losslessOnly,
     setLosslessOnly,
-  } = useAlbumBrowseFilters(serverId, scrollSnapshotRef);
+  } = useAlbumBrowseFilters(`${serverId}\0${browseScope.fingerprint}`, scrollSnapshotRef);
 
   const albumsSearchQuery = useScopedBrowseSearchQuery('albums');
   const { textSearchAlbums, textSearchLoading } = useBrowseAlbumTextSearch(
     albumsSearchQuery,
     indexEnabled,
-    serverId,
+    browseServerId,
     losslessOnly,
+    browseScope.pairs,
+    browseScope.multiServer,
   );
 
   const {
@@ -126,7 +132,7 @@ export default function Albums() {
 
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
   const browseData = useAlbumBrowseData({
-    serverId,
+    serverId: browseServerId,
     indexEnabled,
     musicLibraryFilterVersion,
     sort,
@@ -142,6 +148,9 @@ export default function Albums() {
     // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
     // eslint-disable-next-line react-hooks/refs
     restoreDisplayCount: restoreDisplayCountRef.current,
+    scopePairs: browseScope.pairs,
+    scopeFingerprint: browseScope.fingerprint,
+    localOnly: browseScope.multiServer,
   });
 
   const textSearchActive = textSearchAlbums != null;
@@ -280,7 +289,7 @@ export default function Albums() {
     resetSelection();
   };
 
-  const selectedAlbums = displayAlbums.filter(a => selectedIds.has(a.id));
+  const selectedAlbums = displayAlbums.filter(a => selectedIds.has(libraryEntityKey(a)));
   const enqueue = usePlayerStore(state => state.enqueue);
 
   const handleEnqueueSelected = async () => {
@@ -288,7 +297,7 @@ export default function Albums() {
     try {
       // Parallel album resolves — Navidrome handles concurrent requests fine.
       const results = await Promise.all(
-        selectedAlbums.map(a => resolveAlbum(serverId, a.id).catch(() => null)),
+        selectedAlbums.map(a => resolveAlbum(a.serverId ?? serverId, a.id).catch(() => null)),
       );
       const tracks = results.flatMap(r => r ? r.songs.map(songToTrack) : []);
       if (tracks.length > 0) {
@@ -314,7 +323,8 @@ export default function Albums() {
       const downloadId = crypto.randomUUID();
       const filename = `${sanitizeFilename(album.name)}.zip`;
       const destPath = await join(folder, filename);
-      const url = buildDownloadUrl(album.id);
+      const ownerServerId = album.serverId ?? serverId;
+      const url = buildDownloadUrlForServer(ownerServerId, album.id);
       start(downloadId, filename);
       try {
         await downloadZip({ id: downloadId, url, destPath });
@@ -332,9 +342,10 @@ export default function Albums() {
     let queued = 0;
     for (const album of selectedAlbums) {
       try {
-        const detail = await resolveAlbum(serverId, album.id);
+        const ownerServerId = album.serverId ?? serverId;
+        const detail = await resolveAlbum(ownerServerId, album.id);
         if (!detail) throw new Error('album unavailable');
-        downloadAlbum(album.id, album.name, albumArtistDisplayName(album), album.coverArt, album.year, detail.songs, serverId);
+        downloadAlbum(album.id, album.name, albumArtistDisplayName(album), album.coverArt, album.year, detail.songs, ownerServerId);
         queued++;
       } catch {
         showToast(t('albums.offlineFailed', { name: album.name }), 3000, 'error');
@@ -550,7 +561,7 @@ export default function Albums() {
                 <div ref={gridMeasureRef}>
                   <VirtualCardGrid
                     items={displayAlbums}
-                    itemKey={(a, _i) => a.id}
+                    itemKey={(a, _i) => libraryEntityKey(a)}
                     rowVariant="album"
                     disableVirtualization={albumBrowsePlainLayout}
                     layoutSignal={displayAlbums.length}
@@ -566,7 +577,7 @@ export default function Albums() {
                         observeScrollRootId={ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
                         linkQuery={losslessOnly ? LOSSLESS_MODE_QUERY : undefined}
                         selectionMode={selectionMode}
-                        selected={selectedIds.has(a.id)}
+                        selected={selectedIds.has(libraryEntityKey(a))}
                         onToggleSelect={toggleSelect}
                         selectedAlbums={selectedAlbums}
                       />

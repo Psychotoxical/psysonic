@@ -4,6 +4,7 @@ import { isOfflineBrowseActive } from '@/features/offline';
 import { loadOfflineAlbumCatalogChunk } from '@/features/offline';
 import type { AlbumBrowseQuery } from '@/lib/library/albumBrowseTypes';
 import { fetchLocalAlbumCatalogChunk } from '@/lib/library/albumBrowseLoad';
+import type { LibraryScopePair } from '@/lib/api/library';
 
 export type AlbumCatalogChunk = {
   albums: SubsonicAlbum[];
@@ -30,6 +31,7 @@ export async function fetchAlbumBrowseCatalogChunk(
   offset: number,
   chunkSize: number,
   starredOverrides: Record<string, boolean>,
+  scopePairs?: LibraryScopePair[],
 ): Promise<AlbumCatalogChunk | null> {
   if (isOfflineBrowseActive()) {
     return loadOfflineAlbumCatalogChunk(
@@ -40,5 +42,5 @@ export async function fetchAlbumBrowseCatalogChunk(
       starredOverrides,
     );
   }
-  return fetchLocalAlbumCatalogChunk(serverId, indexEnabled, query, offset, chunkSize);
+  return fetchLocalAlbumCatalogChunk(serverId, indexEnabled, query, offset, chunkSize, scopePairs);
 }

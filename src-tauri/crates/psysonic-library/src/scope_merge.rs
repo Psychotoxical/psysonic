@@ -11,10 +11,11 @@ use crate::album_compilation_filter::pick_album_group_artist;
 use crate::artist_sort::{sort_key_for_display_name, DEFAULT_IGNORED_ARTICLES};
 use crate::browse_support::{overlay_album_starred_at_rows, read_album_starred_at};
 use crate::dto::{
-    LibraryAlbumDto, LibraryArtistDto, LibraryScopeAlbumDetailRequest,
+    LibraryAlbumDto, LibraryArtistDto, LibraryEntitySourceDto,
+    LibraryResolveEntitySourcesRequest, LibraryScopeAlbumDetailRequest,
     LibraryScopeAlbumDetailResponse, LibraryScopeArtistDetailRequest,
     LibraryScopeArtistDetailResponse, LibraryScopeListRequest, LibraryScopePair,
-    LibraryScopeSearchRequest, LibraryTrackDto,
+    LibraryScopeSearchRequest, LibrarySourceEntityType, LibraryTrackDto,
 };
 use crate::repos::row_to_track_row;
 use crate::search::{
@@ -1505,6 +1506,192 @@ fn lookup_artist_key(
     .map(Option::flatten)
 }
 
+fn lookup_track_partition(
+    conn: &rusqlite::Connection,
+    server_id: &str,
+    track_id: &str,
+) -> rusqlite::Result<Option<(Option<String>, i64)>> {
+    conn.query_row(
+        "SELECT ck.cluster_key, ck.duration_sec / 5 FROM track t \
+         INNER JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
+         WHERE t.server_id = ? AND t.id = ? AND t.deleted = 0 LIMIT 1",
+        rusqlite::params![server_id, track_id],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )
+    .optional()
+}
+
+fn map_entity_source_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryEntitySourceDto> {
+    let priority = r.get::<_, i64>(3)?;
+    Ok(LibraryEntitySourceDto {
+        server_id: r.get(0)?,
+        id: r.get(1)?,
+        library_id: r.get::<_, Option<String>>(2)?.unwrap_or_default(),
+        priority: u32::try_from(priority).unwrap_or(u32::MAX),
+        duration_sec: r.get(4)?,
+        suffix: r.get(5)?,
+        bit_rate: r.get(6)?,
+        size_bytes: r.get(7)?,
+        starred_at: r.get(8)?,
+        user_rating: r.get(9)?,
+    })
+}
+
+fn fetch_track_sources(
+    conn: &rusqlite::Connection,
+    scopes: &[LibraryScopePair],
+    cluster_key: Option<&str>,
+    duration_bucket: i64,
+    anchor_server: &str,
+    anchor_id: &str,
+) -> rusqlite::Result<Vec<LibraryEntitySourceDto>> {
+    let (cte, scope_binds) = scope_cte_sql(scopes);
+    let key_filter = if cluster_key.is_some() {
+        "ck.cluster_key = ? AND ck.duration_sec / 5 = ?"
+    } else {
+        "t.server_id = ? AND t.id = ? AND ck.cluster_key IS NULL"
+    };
+    let sql = format!(
+        "{cte} SELECT t.server_id, t.id, t.library_id, s.pr, t.duration_sec, t.suffix, \
+         t.bit_rate, t.size_bytes, t.starred_at, t.user_rating \
+         {scoped} AND {key_filter} \
+         ORDER BY s.pr ASC, t.id ASC",
+        scoped = scoped_track_join(),
+    );
+    let mut binds = scope_binds;
+    if let Some(key) = cluster_key {
+        binds.push(SqlValue::Text(key.to_string()));
+        binds.push(SqlValue::Integer(duration_bucket));
+    } else {
+        binds.push(SqlValue::Text(anchor_server.to_string()));
+        binds.push(SqlValue::Text(anchor_id.to_string()));
+    }
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt
+        .query_map(params_from_iter(binds.iter()), map_entity_source_row)?
+        .collect();
+    rows
+}
+
+fn fetch_grouped_entity_sources(
+    conn: &rusqlite::Connection,
+    scopes: &[LibraryScopePair],
+    entity_type: LibrarySourceEntityType,
+    identity_key: Option<&str>,
+    anchor_server: &str,
+    anchor_id: &str,
+) -> rusqlite::Result<Vec<LibraryEntitySourceDto>> {
+    let (entity_column, cluster_column) = match entity_type {
+        LibrarySourceEntityType::Album => ("album_id", "album_key"),
+        LibrarySourceEntityType::Artist => ("artist_id", "artist_key"),
+        LibrarySourceEntityType::Track => unreachable!("track sources use fetch_track_sources"),
+    };
+    let (cte, scope_binds) = scope_cte_sql(scopes);
+    let key_filter = if identity_key.is_some() {
+        format!("ck.{cluster_column} = ?")
+    } else {
+        format!(
+            "t.server_id = ? AND t.{entity_column} = ? AND ck.{cluster_column} IS NULL"
+        )
+    };
+    let (metadata_join, duration_column, starred_column) = match entity_type {
+        LibrarySourceEntityType::Album => (
+            "LEFT JOIN album e ON e.server_id = candidates.server_id AND e.id = candidates.entity_id",
+            "e.duration_sec",
+            "e.starred_at",
+        ),
+        LibrarySourceEntityType::Artist => ("", "NULL", "NULL"),
+        LibrarySourceEntityType::Track => unreachable!(),
+    };
+    let sql = format!(
+        "{cte}, candidates AS ( \
+           SELECT t.server_id, t.{entity_column} AS entity_id, t.library_id, s.pr, \
+                  ROW_NUMBER() OVER ( \
+                    PARTITION BY t.server_id, t.{entity_column} \
+                    ORDER BY s.pr ASC, t.id ASC \
+                  ) AS rn \
+           {scoped} AND t.{entity_column} IS NOT NULL AND t.{entity_column} != '' AND {key_filter} \
+         ) \
+         SELECT candidates.server_id, candidates.entity_id, candidates.library_id, candidates.pr, \
+                {duration_column}, NULL, NULL, NULL, {starred_column}, NULL \
+         FROM candidates {metadata_join} \
+         WHERE candidates.rn = 1 ORDER BY candidates.pr ASC, candidates.entity_id ASC",
+        scoped = scoped_track_join(),
+    );
+    let mut binds = scope_binds;
+    if let Some(key) = identity_key {
+        binds.push(SqlValue::Text(key.to_string()));
+    } else {
+        binds.push(SqlValue::Text(anchor_server.to_string()));
+        binds.push(SqlValue::Text(anchor_id.to_string()));
+    }
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt
+        .query_map(params_from_iter(binds.iter()), map_entity_source_row)?
+        .collect();
+    rows
+}
+
+/// Resolve a concrete anchor to all matching concrete rows in caller-supplied
+/// pair priority. Track identity includes browse's fixed five-second bucket.
+pub fn resolve_entity_sources(
+    store: &LibraryStore,
+    request: &LibraryResolveEntitySourcesRequest,
+) -> Result<Vec<LibraryEntitySourceDto>, String> {
+    let scopes = non_empty_scopes(&request.scopes)?;
+    let anchor_server = request.anchor_server_id.trim();
+    let anchor_id = request.anchor_id.trim();
+    if anchor_server.is_empty() || anchor_id.is_empty() {
+        return Err("anchor_server_id and anchor_id are required".into());
+    }
+    crate::identity::ensure_cluster_keys_built(store, anchor_server)?;
+    for pair in scopes {
+        if pair.server_id != anchor_server {
+            crate::identity::ensure_cluster_keys_built(store, &pair.server_id)?;
+        }
+    }
+
+    store.with_read_conn(|conn| match request.entity_type {
+        LibrarySourceEntityType::Track => {
+            let Some((cluster_key, duration_bucket)) =
+                lookup_track_partition(conn, anchor_server, anchor_id)?
+            else {
+                return Ok(Vec::new());
+            };
+            fetch_track_sources(
+                conn,
+                scopes,
+                cluster_key.as_deref(),
+                duration_bucket,
+                anchor_server,
+                anchor_id,
+            )
+        }
+        LibrarySourceEntityType::Album => {
+            let key = lookup_album_key(conn, anchor_server, anchor_id)?;
+            fetch_grouped_entity_sources(
+                conn,
+                scopes,
+                request.entity_type,
+                key.as_deref(),
+                anchor_server,
+                anchor_id,
+            )
+        }
+        LibrarySourceEntityType::Artist => {
+            let key = lookup_artist_key(conn, anchor_server, anchor_id)?;
+            fetch_grouped_entity_sources(
+                conn,
+                scopes,
+                request.entity_type,
+                key.as_deref(),
+                anchor_server,
+                anchor_id,
+            )
+        }
+    })
+}
+
 fn priority_album_owner(candidates: &[LibraryAlbumDto]) -> LibraryAlbumDto {
     candidates.first().cloned().unwrap_or_else(|| LibraryAlbumDto {
         server_id: String::new(),
@@ -2368,6 +2555,217 @@ mod tests {
         .unwrap();
         assert!(flipped.iter().any(|track| track.id == "t-b"));
         assert!(!flipped.iter().any(|track| track.id == "t-a"));
+    }
+
+    #[test]
+    fn source_resolver_track_matches_browse_partition_priority_and_metadata() {
+        let store = LibraryStore::open_in_memory();
+        let mut high = track(
+            "s1", "t-high", "Shared", Some("Artist"), "Album", "al-high",
+            Some("ar-high"), 104, "lib-high", None, None, None,
+        );
+        high.suffix = Some("flac".into());
+        high.bit_rate = Some(1_000);
+        high.size_bytes = Some(30_000_000);
+        high.starred_at = Some(1_700_000_000);
+        high.user_rating = Some(5);
+        let mut low = track(
+            "s2", "t-low", "Shared", Some("Artist"), "Album", "al-low",
+            Some("ar-low"), 104, "lib-low", None, None, None,
+        );
+        low.suffix = Some("mp3".into());
+        low.bit_rate = Some(320);
+        low.size_bytes = Some(8_000_000);
+        let boundary = track(
+            "s3", "t-boundary", "Shared", Some("Artist"), "Album", "al-boundary",
+            Some("ar-boundary"), 105, "lib-boundary", None, None, None,
+        );
+        seed_and_rebuild(&store, &[high, low, boundary]);
+
+        let scopes = vec![
+            scope_pair("s2", "lib-low"),
+            scope_pair("s1", "lib-high"),
+            scope_pair("s3", "lib-boundary"),
+        ];
+        let sources = resolve_entity_sources(
+            &store,
+            &LibraryResolveEntitySourcesRequest {
+                entity_type: LibrarySourceEntityType::Track,
+                anchor_server_id: "s1".into(),
+                anchor_id: "t-high".into(),
+                scopes: scopes.clone(),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            sources.iter().map(|source| source.id.as_str()).collect::<Vec<_>>(),
+            vec!["t-low", "t-high"]
+        );
+        assert_eq!(sources[0].priority, 0);
+        assert_eq!(sources[1].priority, 1);
+        assert_eq!(sources[1].library_id, "lib-high");
+        assert_eq!(sources[1].duration_sec, Some(104));
+        assert_eq!(sources[1].suffix.as_deref(), Some("flac"));
+        assert_eq!(sources[1].bit_rate, Some(1_000));
+        assert_eq!(sources[1].size_bytes, Some(30_000_000));
+        assert_eq!(sources[1].starred_at, Some(1_700_000_000));
+        assert_eq!(sources[1].user_rating, Some(5));
+
+        let browse = search_tracks(
+            &store,
+            &LibraryScopeSearchRequest {
+                scopes,
+                query: "Shared".into(),
+                limit: Some(10),
+            },
+        )
+        .unwrap();
+        assert_eq!(browse.len(), 2, "the 105-second boundary remains a separate partition");
+        assert_eq!(browse[0].id, "t-low", "browse and resolver use pair priority");
+    }
+
+    #[test]
+    fn source_resolver_album_and_artist_use_browse_identity_and_pair_priority() {
+        let store = LibraryStore::open_in_memory();
+        seed_and_rebuild(
+            &store,
+            &[
+                track(
+                    "s1", "t-a", "One", Some("Shared Artist"), "Shared Album", "al-a",
+                    Some("ar-a"), 100, "lib-a", None, None, None,
+                ),
+                track(
+                    "s2", "t-b", "Two", Some("Shared Artist"), "Shared Album", "al-b",
+                    Some("ar-b"), 110, "lib-b", None, None, None,
+                ),
+            ],
+        );
+        store
+            .with_conn_mut("test.source_resolver_album_metadata", |conn| {
+                conn.execute(
+                    "INSERT INTO album(server_id, id, name, duration_sec, starred_at, synced_at, raw_json) \
+                     VALUES ('s1', 'al-a', 'Shared Album', 100, 11, 1, '{}'), \
+                            ('s2', 'al-b', 'Shared Album', 110, 22, 1, '{}')",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let scopes = vec![scope_pair("s2", "lib-b"), scope_pair("s1", "lib-a")];
+
+        let albums = resolve_entity_sources(
+            &store,
+            &LibraryResolveEntitySourcesRequest {
+                entity_type: LibrarySourceEntityType::Album,
+                anchor_server_id: "s1".into(),
+                anchor_id: "al-a".into(),
+                scopes: scopes.clone(),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            albums.iter().map(|source| source.id.as_str()).collect::<Vec<_>>(),
+            vec!["al-b", "al-a"]
+        );
+        assert_eq!(albums[0].priority, 0);
+        assert_eq!(albums[0].duration_sec, Some(110));
+        assert_eq!(albums[0].starred_at, Some(22));
+        assert_eq!(albums[0].suffix, None);
+
+        let artists = resolve_entity_sources(
+            &store,
+            &LibraryResolveEntitySourcesRequest {
+                entity_type: LibrarySourceEntityType::Artist,
+                anchor_server_id: "s1".into(),
+                anchor_id: "ar-a".into(),
+                scopes,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            artists.iter().map(|source| source.id.as_str()).collect::<Vec<_>>(),
+            vec!["ar-b", "ar-a"]
+        );
+        assert!(artists.iter().all(|source| source.duration_sec.is_none()));
+        assert!(artists.iter().all(|source| source.starred_at.is_none()));
+    }
+
+    #[test]
+    fn source_resolver_returns_only_selected_concrete_sources_and_handles_missing_anchor() {
+        let store = LibraryStore::open_in_memory();
+        seed_and_rebuild(
+            &store,
+            &[
+                track(
+                    "anchor", "t-anchor", "Shared", Some("Artist"), "Album", "al-anchor",
+                    Some("ar-anchor"), 100, "lib-anchor", None, None, None,
+                ),
+                track(
+                    "selected", "t-selected", "Shared", Some("Artist"), "Album", "al-selected",
+                    Some("ar-selected"), 100, "", None, None, None,
+                ),
+                track(
+                    "excluded", "t-excluded", "Shared", Some("Artist"), "Album", "al-excluded",
+                    Some("ar-excluded"), 100, "lib-excluded", None, None, None,
+                ),
+            ],
+        );
+
+        let sources = resolve_entity_sources(
+            &store,
+            &LibraryResolveEntitySourcesRequest {
+                entity_type: LibrarySourceEntityType::Track,
+                anchor_server_id: "anchor".into(),
+                anchor_id: "t-anchor".into(),
+                scopes: vec![whole_scope("selected")],
+            },
+        )
+        .unwrap();
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].id, "t-selected");
+        assert_eq!(sources[0].library_id, "");
+
+        let missing = resolve_entity_sources(
+            &store,
+            &LibraryResolveEntitySourcesRequest {
+                entity_type: LibrarySourceEntityType::Track,
+                anchor_server_id: "anchor".into(),
+                anchor_id: "missing".into(),
+                scopes: vec![whole_scope("selected")],
+            },
+        )
+        .unwrap();
+        assert!(missing.is_empty());
+    }
+
+    #[test]
+    fn source_resolver_null_identity_does_not_merge_unrelated_entities() {
+        let store = LibraryStore::open_in_memory();
+        seed_and_rebuild(
+            &store,
+            &[
+                track(
+                    "s1", "t-anchor", "No Artist", None, "Album", "al-anchor", None, 100,
+                    "lib-a", None, None, None,
+                ),
+                track(
+                    "s2", "t-other", "No Artist", None, "Album", "al-other", None, 100,
+                    "lib-b", None, None, None,
+                ),
+            ],
+        );
+        let sources = resolve_entity_sources(
+            &store,
+            &LibraryResolveEntitySourcesRequest {
+                entity_type: LibrarySourceEntityType::Track,
+                anchor_server_id: "s1".into(),
+                anchor_id: "t-anchor".into(),
+                scopes: vec![scope_pair("s1", "lib-a"), scope_pair("s2", "lib-b")],
+            },
+        )
+        .unwrap();
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].id, "t-anchor");
     }
 
     #[test]

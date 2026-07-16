@@ -32,15 +32,20 @@ interface ArtistBrowseSessionStore {
   peekReturnStash: (serverId: string) => ArtistBrowseReturnState | null;
 }
 
+function returnStashKey(scopeKey: string): string {
+  return JSON.stringify([scopeKey]);
+}
+
 export const useArtistBrowseSessionStore = create<ArtistBrowseSessionStore>((set, get) => ({
   returnStashByServer: {},
 
   stashReturnState: (serverId, state) => {
     if (!serverId) return;
+    const key = returnStashKey(serverId);
     set((s) => ({
       returnStashByServer: {
         ...s.returnStashByServer,
-        [serverId]: {
+        [key]: {
           filter: state.filter,
           letterFilter: state.letterFilter,
           starredOnly: state.starredOnly,
@@ -57,13 +62,13 @@ export const useArtistBrowseSessionStore = create<ArtistBrowseSessionStore>((set
   clearReturnStash: (serverId) => {
     if (!serverId) return;
     const next = { ...get().returnStashByServer };
-    delete next[serverId];
+    delete next[returnStashKey(serverId)];
     set({ returnStashByServer: next });
   },
 
   peekReturnStash: (serverId) => {
     if (!serverId) return null;
-    const stash = get().returnStashByServer[serverId];
+    const stash = get().returnStashByServer[returnStashKey(serverId)];
     if (!stash) return null;
     return {
       filter: stash.filter,

@@ -47,12 +47,18 @@ import {
   beginArtistsBrowseTrace,
   emitArtistsBrowseDebug,
 } from '@/lib/library/artistBrowseDebug';
+import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
+import { appendServerQuery } from '@/lib/navigation/detailServerScope';
+import { useBrowseLibraryScope } from '@/store/useBrowseLibraryScope';
 
 export default function Artists() {
   const perfFlags = usePerfProbeFlags();
   const { t } = useTranslation();
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const serverId = useAuthStore(s => s.activeServerId ?? '');
+  const browseScope = useBrowseLibraryScope();
+  const browseServerId = browseScope.anchorServerId || serverId;
+  const sessionScopeKey = `${serverId}\0${browseScope.fingerprint}`;
   const libraryScopeKey = useAuthStore(s => {
     if (!serverId) return 'all';
     const resolved = resolveServerIdForIndexKey(serverId);
@@ -68,7 +74,7 @@ export default function Artists() {
 
   const scrollSnapshotRef = useRef<ArtistBrowseScrollSnapshot>({ scrollTop: 0, visibleCount: 0 });
   const restoreVisibleCountRef = useRef<number | undefined>(
-    peekArtistBrowseScrollRestore(serverId)?.visibleCount,
+    peekArtistBrowseScrollRestore(sessionScopeKey)?.visibleCount,
   );
 
   const {
@@ -80,7 +86,7 @@ export default function Artists() {
     setCreditMode,
     viewMode,
     setViewMode,
-  } = useArtistsBrowseFilters(serverId, scrollSnapshotRef);
+  } = useArtistsBrowseFilters(sessionScopeKey, scrollSnapshotRef);
 
   useLayoutEffect(() => {
     beginArtistsBrowseTrace({
@@ -121,7 +127,7 @@ export default function Artists() {
     loadCatalogChunk,
     catalogLoadingRef,
   } = useArtistsBrowseCatalog({
-    serverId,
+    serverId: browseServerId,
     indexEnabled,
     starredOnly,
     creditMode,
@@ -129,15 +135,20 @@ export default function Artists() {
     musicLibraryFilterVersion,
     libraryScopeKey,
     ignoredArticles,
+    scopePairs: browseScope.pairs,
+    scopeFingerprint: browseScope.fingerprint,
+    localOnly: browseScope.multiServer,
   });
 
   const { textSearchArtists, textSearchLoading, effectiveFilter } = useBrowseArtistTextSearch(
     artistsSearchQuery,
     indexEnabled,
-    serverId,
+    browseServerId,
     'artists_browse',
     creditMode,
     starredOnly,
+    browseScope.pairs,
+    browseScope.multiServer,
   );
   const artists = starredOnly ? catalogArtists : (textSearchArtists ?? catalogArtists);
   const loading = starredOnly ? catalogLoading : (catalogLoading || textSearchLoading);
@@ -154,7 +165,7 @@ export default function Artists() {
     loadMore: sliceLoadMore,
   } = useClientSliceInfiniteScroll({
     pageSize: PAGE_SIZE,
-    resetDeps: [artistsSearchQuery, letterFilter, starredOnly, creditMode, viewMode, musicLibraryFilterVersion, serverId],
+    resetDeps: [artistsSearchQuery, letterFilter, starredOnly, creditMode, viewMode, musicLibraryFilterVersion, browseScope.fingerprint],
     getScrollRoot: getArtistsScrollRoot,
     scrollRootEl: artistsScrollBodyEl,
     restoreDisplayCount: restoreVisibleCountRef.current,
@@ -169,7 +180,8 @@ export default function Artists() {
     setSelectedIds(new Set());
   };
 
-  const toggleSelect = useCallback((id: string) => {
+  const toggleSelect = useCallback((artist: Parameters<typeof libraryEntityKey>[0]) => {
+    const id = libraryEntityKey(artist);
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -177,7 +189,11 @@ export default function Artists() {
     });
   }, []);
 
-  const selectedArtists = artists.filter(a => selectedIds.has(a.id));
+  const selectedArtists = artists.filter(a => selectedIds.has(libraryEntityKey(a)));
+  const openArtist = useCallback((artist: Parameters<typeof libraryEntityKey>[0]) => {
+    const search = appendServerQuery(undefined, artist.serverId ?? undefined);
+    navigateToArtist(artist.id, search ? { search } : undefined);
+  }, [navigateToArtist]);
 
   const {
     filtered, visible, hasMore, groups, letters, artistListFlatRows,
@@ -517,7 +533,7 @@ export default function Artists() {
             selectedArtists={selectedArtists}
             showArtistImages={showArtistImages}
             toggleSelect={toggleSelect}
-            onOpenArtist={navigateToArtist}
+            onOpenArtist={openArtist}
             openContextMenu={openContextMenu}
             t={t}
           />
@@ -537,7 +553,7 @@ export default function Artists() {
             selectedArtists={selectedArtists}
             showArtistImages={showArtistImages}
             toggleSelect={toggleSelect}
-            onOpenArtist={navigateToArtist}
+            onOpenArtist={openArtist}
             openContextMenu={openContextMenu}
             t={t}
           />

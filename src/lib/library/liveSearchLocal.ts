@@ -7,6 +7,7 @@ import type { SearchResults } from '@/lib/api/subsonicTypes';
 import { search } from '@/lib/api/subsonicSearch';
 import { libraryScopeForServer, libraryScopePairsForServer } from '@/lib/api/subsonicClient';
 import { libraryLiveSearch } from '@/lib/api/library';
+import type { LibraryScopePair } from '@/lib/api/library';
 import { filterSearchArtistsWithNoAlbums } from '@/lib/api/subsonicSearch';
 import {
   albumToAlbum,
@@ -15,6 +16,7 @@ import {
 } from './advancedSearchLocal';
 import { logLibrarySearch, timed } from './libraryDevLog';
 import { searchQueryIsFtsSafe } from './searchQueryFtsSafe';
+import { libraryEntityKey } from './libraryEntityKey';
 
 export const LIVE_SEARCH_DEBOUNCE_LOCAL_MS = 200;
 export const LIVE_SEARCH_DEBOUNCE_NETWORK_MS = 300;
@@ -67,6 +69,7 @@ export async function runLocalLiveSearch(
   serverId: string | null | undefined,
   query: string,
   ctx: LiveSearchRunContext,
+  libraryScopes?: LibraryScopePair[],
 ): Promise<SearchResults | null> {
   if (!serverId || ctx.isStale()) return null;
   const q = query.trim();
@@ -78,7 +81,7 @@ export async function runLocalLiveSearch(
         serverId,
         query: q,
         libraryScope: libraryScopeForServer(serverId),
-        libraryScopes: libraryScopePairsForServer(serverId),
+        libraryScopes: libraryScopes ?? libraryScopePairsForServer(serverId),
         artistLimit: ARTIST_LIMIT,
         albumLimit: ALBUM_LIMIT,
         songLimit: SONG_LIMIT,
@@ -168,12 +171,13 @@ export function mergeLiveSearchResults(
     extraItems: T[],
     limit: number,
   ): T[] => {
-    const seen = new Set(primaryItems.map(i => i.id));
+    const seen = new Set(primaryItems.map(libraryEntityKey));
     const out = [...primaryItems];
     for (const item of extraItems) {
       if (out.length >= limit) break;
-      if (seen.has(item.id)) continue;
-      seen.add(item.id);
+      const key = libraryEntityKey(item);
+      if (seen.has(key)) continue;
+      seen.add(key);
       out.push(item);
     }
     return out;

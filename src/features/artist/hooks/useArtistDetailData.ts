@@ -13,8 +13,8 @@ import { loadArtistFromLocalPlayback, offlineLocalBrowseEnabled } from '@/featur
 import { readDetailServerId } from '@/lib/navigation/detailServerScope';
 import { runLocalArtistLosslessBrowse } from '@/lib/library/browseTextSearch';
 import { isLosslessSuffix } from '@/lib/library/losslessFormats';
-import { librarySelectionForServer } from '@/lib/api/subsonicClient';
-import { tryLoadArtistDetailMultiScope } from '@/features/artist/hooks/loadArtistDetailMultiScope';
+import { tryLoadArtistDetailMultiScope } from '@/lib/library/loadArtistDetailMultiScope';
+import { useBrowseLibraryScope } from '@/store/useBrowseLibraryScope';
 
 export interface UseArtistDetailDataOptions {
   /** When true, albums and top tracks are limited to lossless containers (local index preferred). */
@@ -56,6 +56,7 @@ export function useArtistDetailData(
   const activeServerId = useAuthStore(s => s.activeServerId);
   const [searchParams] = useSearchParams();
   const serverId = readDetailServerId(searchParams, activeServerId);
+  const browseScope = useBrowseLibraryScope();
   const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
   const { status: connStatus } = useConnectionStatus();
   const audiomuseNavidromeEnabled = useAuthStore(
@@ -94,14 +95,21 @@ export function useArtistDetailData(
           setLoading(false);
           return;
         }
-        if (serverId && librarySelectionForServer(serverId).length > 0) {
-          const multi = await tryLoadArtistDetailMultiScope(serverId, id);
+        if (serverId && browseScope.pairs.length > 0) {
+          const multi = await tryLoadArtistDetailMultiScope(serverId, id, browseScope.pairs);
           if (cancelled) return;
           if (multi) {
+            const scoped = losslessOnly
+              ? filterNetworkArtistToLossless(multi.albums, multi.topSongs)
+              : { albums: multi.albums, songs: multi.topSongs };
             setArtist(multi.artist);
             setIsStarred(!!multi.artist.starred);
-            setAlbums(multi.albums);
-            setTopSongs(multi.topSongs);
+            setAlbums(scoped.albums);
+            setTopSongs(scoped.songs);
+            setLoading(false);
+            return;
+          }
+          if (browseScope.multiServer) {
             setLoading(false);
             return;
           }
@@ -193,6 +201,9 @@ export function useArtistDetailData(
     return () => { cancelled = true; };
   }, [
     id,
+    browseScope.fingerprint,
+    browseScope.multiServer,
+    browseScope.pairs,
     losslessOnly,
     musicLibraryFilterVersion,
     musicLibrarySelectionByServer,
@@ -204,7 +215,7 @@ export function useArtistDetailData(
   ]);
 
   useEffect(() => {
-    if (!id || preferLocalArtist) return;
+    if (!id || preferLocalArtist || browseScope.multiServer) return;
     let cancelled = false;
     // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -220,10 +231,10 @@ export function useArtistDetailData(
         if (!cancelled) setArtistInfoLoading(false);
       });
     return () => { cancelled = true; };
-  }, [id, audiomuseNavidromeEnabled, preferLocalArtist]);
+  }, [id, audiomuseNavidromeEnabled, browseScope.multiServer, preferLocalArtist]);
 
   useEffect(() => {
-    if (!id || !artist || preferLocalArtist) return;
+    if (!id || !artist || preferLocalArtist || browseScope.multiServer) return;
     const ownAlbumIds = new Set(albums.map(a => a.id));
     // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -265,7 +276,7 @@ export function useArtistDetailData(
         setFeaturedLoading(false);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artist?.id, musicLibraryFilterVersion, losslessOnly, albums, preferLocalArtist]);
+  }, [artist?.id, browseScope.multiServer, musicLibraryFilterVersion, losslessOnly, albums, preferLocalArtist]);
 
   const info = infoEntry && infoEntry.id === id ? infoEntry.value : null;
 

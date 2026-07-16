@@ -4,7 +4,13 @@
  * `lib/api/library.ts` god-module; the wrappers (reads/sync/stats/events) and the
  * `@/lib/api/library` barrel re-export these, so consumers are unchanged.
  */
-import type { CatalogYearBoundsDto, GenreAlbumCountDto } from '@/generated/bindings';
+import type {
+  CatalogYearBoundsDto,
+  GenreAlbumCountDto,
+  LibraryEntitySourceDto as GeneratedLibraryEntitySourceDto,
+  LibraryResolveEntitySourcesRequest as GeneratedLibraryResolveEntitySourcesRequest,
+  LibrarySourceEntityType as GeneratedLibrarySourceEntityType,
+} from '@/generated/bindings';
 
 export interface TrackRefDto {
   serverId: string;
@@ -201,6 +207,10 @@ export interface LibraryScopePair {
   serverId: string;
   libraryId: string | null;
 }
+
+export type LibrarySourceEntityType = GeneratedLibrarySourceEntityType;
+export type LibraryResolveEntitySourcesRequest = GeneratedLibraryResolveEntitySourcesRequest;
+export type LibraryEntitySourceDto = GeneratedLibraryEntitySourceDto;
 
 export interface LibraryAdvancedSearchRequest {
   serverId: string;

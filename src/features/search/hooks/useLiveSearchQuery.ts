@@ -27,6 +27,7 @@ import type { LiveSearchScope } from '@/store/liveSearchScopeStore';
 import { isLiveSearchDropdownBlocked } from '@/features/search/components/liveSearchScope';
 import type { useShareSearch } from '@/features/search/hooks/useShareSearch';
 import type { LiveSearchSource } from '@/features/search/components/LiveSearchDropdown';
+import { useBrowseLibraryScope } from '@/store/useBrowseLibraryScope';
 
 interface UseLiveSearchQueryParams {
   query: string;
@@ -59,6 +60,8 @@ export function useLiveSearchQuery({
 }: UseLiveSearchQueryParams) {
   const { t } = useTranslation();
   const serverId = useAuthStore(s => s.activeServerId);
+  const browseScope = useBrowseLibraryScope();
+  const browseServerId = browseScope.anchorServerId || serverId;
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const localReadyRef = useRef(false);
@@ -161,11 +164,25 @@ export function useLiveSearchQuery({
             return;
           }
 
-          const raceCtx = { epoch: gen, isStale, suppressLog: indexEnabled && !!serverId };
+          const raceCtx = { epoch: gen, isStale, suppressLog: indexEnabled && !!browseServerId };
 
-            if (indexEnabled && serverId) {
+            if (browseScope.multiServer && browseServerId) {
+              const local = await runLocalLiveSearch(
+                browseServerId,
+                q,
+                raceCtx,
+                browseScope.pairs,
+              );
+              if (isStale()) return;
+              setResults(local ?? EMPTY_SEARCH_RESULTS);
+              setSearchSource(local ? 'local' : null);
+              setOpen(true);
+              return;
+            }
+
+            if (indexEnabled && browseServerId) {
               const winner = await raceLiveSearch(
-                () => runLocalLiveSearch(serverId, q, raceCtx),
+                () => runLocalLiveSearch(browseServerId, q, raceCtx, browseScope.pairs),
                 () => runNetworkLiveSearch(q, abort.signal),
                 isStale,
                 meta => {
@@ -276,7 +293,7 @@ export function useLiveSearchQuery({
       liveSearchGenRef.current += 1;
     };
   }, [
-    query, scope, shareMatch, serverId, indexEnabled, musicLibraryFilterVersion, t,
+    query, scope, shareMatch, serverId, browseScope.fingerprint, browseScope.multiServer, browseScope.pairs, browseServerId, indexEnabled, musicLibraryFilterVersion, t,
     liveSearchGenRef, setResults, setOpen, setLoading, setSearchSource, setActiveIndex,
   ]);
 

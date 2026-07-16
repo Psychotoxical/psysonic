@@ -3,6 +3,9 @@ import { songToTrack } from '@/lib/media/songToTrack';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useNavigateToAlbum } from '@/features/album';
+import { useNavigateToArtist } from '@/features/artist';
+import { appendServerQuery } from '@/lib/navigation/detailServerScope';
+import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
 import { Search, TextSearch } from 'lucide-react';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useTranslation } from 'react-i18next';
@@ -47,6 +50,7 @@ export default function LiveSearch() {
   const liveSearchGenRef = useRef(0);
   const navigate = useNavigate();
   const navigateToAlbum = useNavigateToAlbum();
+  const navigateToArtist = useNavigateToArtist();
   const enqueue = usePlayerStore(state => state.enqueue);
   const ctxIsOpen = usePlayerStore(state => state.contextMenu.isOpen);
   const ref = useRef<HTMLDivElement>(null);
@@ -150,9 +154,17 @@ export default function LiveSearch() {
       },
     },
   ] : results ? [
-    ...(results.artists.map(a => ({ id: a.id, action: () => { navigate(`/artist/${a.id}`); setOpen(false); setQuery(''); } }))),
-    ...(results.albums.map(a => ({ id: a.id, action: () => { navigateToAlbum(a.id); setOpen(false); setQuery(''); } }))),
-   ...(results.songs.map(s => ({ id: s.id, action: () => {
+    ...(results.artists.map(a => ({ id: libraryEntityKey(a), action: () => {
+      const search = appendServerQuery(undefined, a.serverId);
+      navigateToArtist(a.id, search ? { search } : undefined);
+      setOpen(false); setQuery('');
+    } }))),
+    ...(results.albums.map(a => ({ id: libraryEntityKey(a), action: () => {
+      const search = appendServerQuery(undefined, a.serverId);
+      navigateToAlbum(a.id, search ? { search } : undefined);
+      setOpen(false); setQuery('');
+    } }))),
+   ...(results.songs.map(s => ({ id: libraryEntityKey(s), action: () => {
        const track = songToTrack(s);
        enqueue([track]);
        showToast(t('search.addedToQueueToast', { title: track.title }), 2200, 'info');

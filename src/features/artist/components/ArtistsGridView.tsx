@@ -6,6 +6,7 @@ import type { PlayerState } from '@/features/playback/store/playerStoreTypes';
 import { ARTISTS_INPAGE_SCROLL_VIEWPORT_ID } from '@/constants/appScroll';
 import { VirtualCardGrid } from '@/ui/VirtualCardGrid';
 import { ArtistCardAvatar } from '@/features/artist/components/ArtistAvatars';
+import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
 
 interface TileProps {
   artist: SubsonicArtist;
@@ -13,8 +14,8 @@ interface TileProps {
   selectedIds: Set<string>;
   selectedArtists: SubsonicArtist[];
   showArtistImages: boolean;
-  toggleSelect: (id: string) => void;
-  onOpenArtist: (id: string) => void;
+  toggleSelect: (artist: SubsonicArtist) => void;
+  onOpenArtist: (artist: SubsonicArtist) => void;
   openContextMenu: PlayerState['openContextMenu'];
   t: TFunction;
 }
@@ -24,12 +25,12 @@ type TilePropsShared = Omit<TileProps, 'artist'>;
 function ArtistGridTile({ artist, ...rest }: TileProps) {
   return (
     <div
-      className={`artist-card${rest.selectionMode ? ' artist-card--selectable' : ''}${rest.selectionMode && rest.selectedIds.has(artist.id) ? ' artist-card--selected' : ''}`}
+      className={`artist-card${rest.selectionMode ? ' artist-card--selectable' : ''}${rest.selectionMode && rest.selectedIds.has(libraryEntityKey(artist)) ? ' artist-card--selected' : ''}`}
       onClick={() => {
         if (rest.selectionMode) {
-          rest.toggleSelect(artist.id);
+          rest.toggleSelect(artist);
         } else {
-          rest.onOpenArtist(artist.id);
+          rest.onOpenArtist(artist);
         }
       }}
       onContextMenu={(e) => {
@@ -42,8 +43,8 @@ function ArtistGridTile({ artist, ...rest }: TileProps) {
       }}
     >
       {rest.selectionMode && (
-        <div className={`artist-card-select-check${rest.selectedIds.has(artist.id) ? ' artist-card-select-check--on' : ''}`}>
-          {rest.selectedIds.has(artist.id) && <Check size={14} strokeWidth={3} />}
+        <div className={`artist-card-select-check${rest.selectedIds.has(libraryEntityKey(artist)) ? ' artist-card-select-check--on' : ''}`}>
+          {rest.selectedIds.has(libraryEntityKey(artist)) && <Check size={14} strokeWidth={3} />}
         </div>
       )}
       <ArtistCardAvatar artist={artist} showImages={rest.showArtistImages} />
@@ -67,8 +68,8 @@ interface Props {
   selectedIds: Set<string>;
   selectedArtists: SubsonicArtist[];
   showArtistImages: boolean;
-  toggleSelect: (id: string) => void;
-  onOpenArtist: (id: string) => void;
+  toggleSelect: (artist: SubsonicArtist) => void;
+  onOpenArtist: (artist: SubsonicArtist) => void;
   openContextMenu: PlayerState['openContextMenu'];
   t: TFunction;
 }
@@ -104,14 +105,14 @@ export function ArtistsGridView({
     <VirtualCardGrid
       key={layoutKey}
       items={visible}
-      itemKey={(artist) => artist.id}
+      itemKey={libraryEntityKey}
       rowVariant="artist"
       disableVirtualization={disableVirtualization}
       layoutSignal={visible.length}
       scrollRootId={ARTISTS_INPAGE_SCROLL_VIEWPORT_ID}
       wrapClassName={disableVirtualization ? 'album-grid-wrap album-grid-wrap--plain' : 'album-grid-wrap'}
       renderItem={artist => (
-        <ArtistGridTile key={artist.id} artist={artist} {...tilePropsShared} />
+        <ArtistGridTile key={libraryEntityKey(artist)} artist={artist} {...tilePropsShared} />
       )}
     />
   );

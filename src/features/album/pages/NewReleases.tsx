@@ -1,4 +1,4 @@
-import { buildDownloadUrl } from '@/lib/api/subsonicStreamUrl';
+import { buildDownloadUrlForServer } from '@/lib/api/subsonicStreamUrl';
 import { getAlbumsByGenre } from '@/lib/api/subsonicGenres';
 import { getAlbumList } from '@/lib/api/subsonicLibrary';
 import { resolveAlbum } from '@/features/offline';
@@ -19,6 +19,7 @@ import { join } from '@tauri-apps/api/path';
 import { showToast } from '@/lib/dom/toast';
 import { useZipDownloadStore } from '@/features/offline';
 import { useRangeSelection } from '@/lib/hooks/useRangeSelection';
+import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import { useMainstageInpageHeaderTight } from '@/lib/hooks/useMainstageInpageHeaderTight';
 import { albumGridWarmCovers } from '@/cover/layoutSizes';
@@ -133,7 +134,7 @@ export default function NewReleases() {
 
   const toggleSelectionMode = () => { setSelectionMode(v => !v); resetSelection(); };
   const clearSelection = () => { setSelectionMode(false); resetSelection(); };
-  const selectedAlbums = displayAlbums.filter(a => selectedIds.has(a.id));
+  const selectedAlbums = displayAlbums.filter(a => selectedIds.has(libraryEntityKey(a)));
 
   const handleDownloadZips = async () => {
     if (selectedAlbums.length === 0) return;
@@ -145,7 +146,8 @@ export default function NewReleases() {
       const downloadId = crypto.randomUUID();
       const filename = `${sanitizeFilename(album.name)}.zip`;
       const destPath = await join(folder, filename);
-      const url = buildDownloadUrl(album.id);
+      const ownerServerId = album.serverId ?? serverId;
+      const url = buildDownloadUrlForServer(ownerServerId, album.id);
       start(downloadId, filename);
       try {
         await downloadZip({ id: downloadId, url, destPath });
@@ -163,9 +165,10 @@ export default function NewReleases() {
     let queued = 0;
     for (const album of selectedAlbums) {
       try {
-        const detail = await resolveAlbum(serverId, album.id);
+        const ownerServerId = album.serverId ?? serverId;
+        const detail = await resolveAlbum(ownerServerId, album.id);
         if (!detail) throw new Error('album unavailable');
-        downloadAlbum(album.id, album.name, albumArtistDisplayName(album), album.coverArt, album.year, detail.songs, serverId);
+        downloadAlbum(album.id, album.name, albumArtistDisplayName(album), album.coverArt, album.year, detail.songs, ownerServerId);
         queued++;
       } catch {
         showToast(t('albums.offlineFailed', { name: album.name }), 3000, 'error');
@@ -316,7 +319,7 @@ export default function NewReleases() {
             <div style={{ visibility: isScrollRestorePending ? 'hidden' : 'visible' }}>
             <VirtualCardGrid
               items={displayAlbums}
-              itemKey={(a, _i) => a.id}
+              itemKey={(a, _i) => libraryEntityKey(a)}
               rowVariant="album"
               disableVirtualization={albumBrowsePlainLayout}
               layoutSignal={displayAlbums.length}
@@ -327,7 +330,7 @@ export default function NewReleases() {
                   album={a}
                   observeScrollRootId={NEW_RELEASES_INPAGE_SCROLL_VIEWPORT_ID}
                   selectionMode={selectionMode}
-                  selected={selectedIds.has(a.id)}
+                  selected={selectedIds.has(libraryEntityKey(a))}
                   onToggleSelect={toggleSelect}
                   selectedAlbums={selectedAlbums}
                 />

@@ -5,10 +5,6 @@ const libraryScopeAlbumDetailMock = vi.fn();
 
 vi.mock('@/lib/api/library/scopeReads', () => ({
   libraryScopeAlbumDetail: (...args: unknown[]) => libraryScopeAlbumDetailMock(...args),
-  scopePairsFromLibrarySelection: (serverId: string) => [
-    { serverId: `${serverId}-idx`, libraryId: 'lib-a' },
-    { serverId: `${serverId}-idx`, libraryId: 'lib-b' },
-  ],
 }));
 
 import { tryLoadAlbumDetailMultiScope } from './loadAlbumDetailMultiScope';
@@ -53,7 +49,10 @@ describe('tryLoadAlbumDetailMultiScope', () => {
       tracks: [trackDto(), trackDto({ id: 'trk-2', title: 'Track Two', trackNumber: 2 })],
     });
 
-    const result = await tryLoadAlbumDetailMultiScope('srv-1', 'alb-1');
+    const result = await tryLoadAlbumDetailMultiScope('srv-1', 'alb-1', [
+      { serverId: 'srv-1-idx', libraryId: 'lib-a' },
+      { serverId: 'srv-1-idx', libraryId: 'lib-b' },
+    ]);
 
     expect(libraryScopeAlbumDetailMock).toHaveBeenCalledWith('srv-1', {
       scopes: [
@@ -74,12 +73,12 @@ describe('tryLoadAlbumDetailMultiScope', () => {
       tracks: [],
     });
 
-    await expect(tryLoadAlbumDetailMultiScope('srv-1', 'alb-1')).resolves.toBeNull();
+    await expect(tryLoadAlbumDetailMultiScope('srv-1', 'alb-1', [])).resolves.toBeNull();
   });
 
   it('returns null when the scope command throws', async () => {
     libraryScopeAlbumDetailMock.mockRejectedValue(new Error('ipc fail'));
 
-    await expect(tryLoadAlbumDetailMultiScope('srv-1', 'alb-1')).resolves.toBeNull();
+    await expect(tryLoadAlbumDetailMultiScope('srv-1', 'alb-1', [])).resolves.toBeNull();
   });
 });

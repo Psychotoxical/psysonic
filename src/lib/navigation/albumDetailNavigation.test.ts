@@ -38,6 +38,20 @@ describe('albumDetailNavigation', () => {
     expect(navigate).toHaveBeenCalledWith('/album/alb-1', { state: { returnTo: '/artist/a' } });
   });
 
+  it('preserves the owner server query on album and artist detail navigation', () => {
+    const navigate = vi.fn();
+    const location = { pathname: '/search', search: '?q=rock', hash: '', state: null };
+    navigateToAlbumDetail(navigate, location, 'alb-1', { search: 'server=srv-b' });
+    expect(navigate).toHaveBeenCalledWith('/album/alb-1?server=srv-b', {
+      state: { returnTo: '/search?q=rock' },
+    });
+    navigate.mockClear();
+    navigateToArtistDetail(navigate, location, 'art-1', { search: 'server=srv-b' });
+    expect(navigate).toHaveBeenCalledWith('/artist/art-1?server=srv-b', {
+      state: { returnTo: '/search?q=rock' },
+    });
+  });
+
   it('preserves returnTo when opening a related album', () => {
     const navigate = vi.fn();
     navigateToAlbumDetail(

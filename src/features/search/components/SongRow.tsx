@@ -14,6 +14,8 @@ import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/track
 import { tooltipAttrs } from '@/ui/tooltipAttrs';
 import { OptionalBrowseTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
 import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
+import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
+import { appendServerQuery } from '@/lib/navigation/detailServerScope';
 
 interface Props {
   song: SubsonicSong;
@@ -26,7 +28,9 @@ function SongRow({ song, showBpm }: Props) {
   const { t } = useTranslation();
   const enqueue = usePlayerStore(s => s.enqueue);
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
-  const isCurrent = usePlayerStore(s => s.currentTrack?.id === song.id);
+  const isCurrent = usePlayerStore(s => (
+    s.currentTrack ? libraryEntityKey(s.currentTrack) === libraryEntityKey(song) : false
+  ));
   const psyDrag = useDragDrop();
   const { orbitActive, addTrackToOrbit } = useOrbitSongRowBehavior();
   const showCovers = useTrackListCoverArtEnabled('pages');
@@ -111,7 +115,12 @@ function SongRow({ song, showBpm }: Props) {
             <span
               className={a.id ? 'track-artist-link' : ''}
               style={{ cursor: a.id ? 'pointer' : 'default' }}
-              onClick={(e) => { if (a.id) { e.stopPropagation(); navigateToArtist(a.id!); } }}
+              onClick={(e) => {
+                if (!a.id) return;
+                e.stopPropagation();
+                const search = appendServerQuery(undefined, song.serverId);
+                navigateToArtist(a.id, search ? { search } : undefined);
+              }}
             >{a.name ?? song.artist}</span>
           </React.Fragment>
         ))}
@@ -121,7 +130,11 @@ function SongRow({ song, showBpm }: Props) {
           <span
             className="track-artist-link"
             style={{ cursor: 'pointer' }}
-            onClick={(e) => { e.stopPropagation(); navigateToAlbum(song.albumId!); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              const search = appendServerQuery(undefined, song.serverId);
+              navigateToAlbum(song.albumId!, search ? { search } : undefined);
+            }}
             title={song.album}
           >{song.album}</span>
         ) : <span title={song.album}>{song.album}</span>}

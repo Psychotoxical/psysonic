@@ -18,8 +18,8 @@ export function appendServerQuery(
   serverId: string | undefined,
 ): string | undefined {
   if (!serverId) return base;
-  const serverPart = `server=${encodeURIComponent(serverId)}`;
-  if (!base) return serverPart;
-  const normalized = base.startsWith('?') ? base.slice(1) : base;
-  return `${normalized}&${serverPart}`;
+  const normalized = base?.startsWith('?') ? base.slice(1) : (base ?? '');
+  const params = new URLSearchParams(normalized);
+  params.set('server', serverId);
+  return params.toString();
 }

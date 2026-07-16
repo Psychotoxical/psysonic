@@ -120,3 +120,20 @@ export function buildDownloadUrl(id: string): string {
   });
   return `${baseUrl}/rest/download.view?${p.toString()}`;
 }
+
+export function buildDownloadUrlForServer(serverId: string, id: string): string {
+  const server = findServerByIdOrIndexKey(serverId);
+  if (!server) return buildDownloadUrl(id);
+  const salt = secureRandomSalt();
+  const token = md5(server.password + salt);
+  const p = new URLSearchParams({
+    id,
+    u: server.username,
+    t: token,
+    s: salt,
+    v: '1.16.1',
+    c: SUBSONIC_CLIENT,
+    f: 'json',
+  });
+  return `${restBaseFromUrl(connectBaseUrlForServer(server))}/download.view?${p.toString()}`;
+}

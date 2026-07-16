@@ -7,9 +7,24 @@ import { useAuthStore } from '@/store/authStore';
 const tryLoadAlbumDetailMultiScopeMock = vi.fn();
 const resolveAlbumMock = vi.fn();
 const librarySelectionForServerMock = vi.fn();
+let browseScope = {
+  pairs: [{ serverId: 'srv-1', libraryId: 'lib-a' }, { serverId: 'srv-2', libraryId: null }],
+  fingerprint: 'multi',
+  anchorServerId: 'srv-1',
+  configuredServerIds: ['srv-1', 'srv-2'],
+  multiServer: true,
+};
 
 vi.mock('@/features/album/hooks/loadAlbumDetailMultiScope', () => ({
   tryLoadAlbumDetailMultiScope: (...args: unknown[]) => tryLoadAlbumDetailMultiScopeMock(...args),
+}));
+
+vi.mock('@/lib/library/loadArtistDetailMultiScope', () => ({
+  tryLoadArtistDetailMultiScope: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock('@/store/useBrowseLibraryScope', () => ({
+  useBrowseLibraryScope: () => browseScope,
 }));
 
 vi.mock('@/lib/api/subsonicClient', async importOriginal => {
@@ -49,6 +64,13 @@ describe('useAlbumDetailData — multi-library selection', () => {
     tryLoadAlbumDetailMultiScopeMock.mockReset();
     resolveAlbumMock.mockReset();
     librarySelectionForServerMock.mockReset();
+    browseScope = {
+      pairs: [{ serverId: 'srv-1', libraryId: 'lib-a' }, { serverId: 'srv-2', libraryId: null }],
+      fingerprint: 'multi',
+      anchorServerId: 'srv-1',
+      configuredServerIds: ['srv-1', 'srv-2'],
+      multiServer: true,
+    };
     useAuthStore.setState({
       activeServerId: 'srv-1',
       servers: [{ id: 'srv-1', name: 'S', url: 'https://s.test', username: 'u', password: 'p' }],
@@ -72,7 +94,7 @@ describe('useAlbumDetailData — multi-library selection', () => {
     const { result } = renderHook(() => useAlbumDetailData('alb-1'), { wrapper: routerWrapper });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(tryLoadAlbumDetailMultiScopeMock).toHaveBeenCalledWith('srv-1', 'alb-1');
+    expect(tryLoadAlbumDetailMultiScopeMock).toHaveBeenCalledWith('srv-1', 'alb-1', browseScope.pairs);
     expect(resolveAlbumMock).not.toHaveBeenCalled();
     expect(result.current.album?.album).toMatchObject({ id: 'alb-1', name: 'Merged' });
     expect(result.current.album?.songs).toHaveLength(1);
@@ -88,12 +110,19 @@ describe('useAlbumDetailData — multi-library selection', () => {
     const { result } = renderHook(() => useAlbumDetailData('alb-1'), { wrapper: routerWrapper });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(tryLoadAlbumDetailMultiScopeMock).toHaveBeenCalledWith('srv-1', 'alb-1');
+    expect(tryLoadAlbumDetailMultiScopeMock).toHaveBeenCalledWith('srv-1', 'alb-1', browseScope.pairs);
     expect(resolveAlbumMock).not.toHaveBeenCalled();
     expect(result.current.album?.album).toMatchObject({ name: 'Scoped' });
   });
 
   it('does not call tryLoadAlbumDetailMultiScope when all libraries are selected', async () => {
+    browseScope = {
+      pairs: [],
+      fingerprint: 'single',
+      anchorServerId: 'srv-1',
+      configuredServerIds: ['srv-1'],
+      multiServer: false,
+    };
     librarySelectionForServerMock.mockReturnValue([]);
     resolveAlbumMock.mockResolvedValue({
       album: { id: 'alb-1', name: 'Single' },
@@ -108,7 +137,7 @@ describe('useAlbumDetailData — multi-library selection', () => {
     expect(result.current.album?.album).toMatchObject({ id: 'alb-1', name: 'Single' });
   });
 
-  it('falls through to resolveAlbum when multi-scope load returns null', async () => {
+  it('does not fall through to network when multi-server scope load returns null', async () => {
     librarySelectionForServerMock.mockReturnValue(['lib-a', 'lib-b']);
     tryLoadAlbumDetailMultiScopeMock.mockResolvedValue(null);
     resolveAlbumMock.mockResolvedValue({
@@ -120,7 +149,7 @@ describe('useAlbumDetailData — multi-library selection', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(tryLoadAlbumDetailMultiScopeMock).toHaveBeenCalled();
-    expect(resolveAlbumMock).toHaveBeenCalled();
-    expect(result.current.album?.album).toMatchObject({ name: 'Fallback' });
+    expect(resolveAlbumMock).not.toHaveBeenCalled();
+    expect(result.current.album).toBeNull();
   });
 });

@@ -6,6 +6,7 @@ import {
   libraryScopeListAlbums,
   libraryScopeListArtists,
   libraryScopeSearchTracks,
+  libraryResolveEntitySources,
   mapScopePairs,
   scopePairsFromLibrarySelection,
   type LibraryScopePair,
@@ -246,5 +247,77 @@ describe('libraryScopeArtistDetail', () => {
         serverId: 's1.example',
       },
     });
+  });
+});
+
+describe('libraryResolveEntitySources', () => {
+  it('maps the concrete anchor and ordered scopes to index keys', async () => {
+    let captured: unknown;
+    onInvoke('library_resolve_entity_sources', (args) => {
+      captured = args;
+      return [];
+    });
+    await libraryResolveEntitySources('profile-s1', {
+      entityType: 'track',
+      anchorServerId: 'profile-s2',
+      anchorId: 'track-2',
+      scopes: [
+        { serverId: 'profile-s2', libraryId: null },
+        { serverId: 'profile-s1', libraryId: 'lib-a' },
+      ],
+    });
+    expect(captured).toEqual({
+      request: {
+        entityType: 'track',
+        anchorServerId: 's2.example',
+        anchorId: 'track-2',
+        scopes: [
+          { serverId: 's2.example', libraryId: null },
+          { serverId: 's1.example', libraryId: 'lib-a' },
+        ],
+      },
+    });
+  });
+
+  it('preserves source order and maps each concrete server provenance', async () => {
+    onInvoke('library_resolve_entity_sources', () => [
+      {
+        serverId: 's2.example',
+        id: 'track-2',
+        libraryId: '',
+        priority: 0,
+        durationSec: 104,
+        suffix: 'flac',
+        bitRate: 1000,
+        sizeBytes: 30000000,
+        starredAt: null,
+        userRating: 5,
+      },
+      {
+        serverId: 's1.example',
+        id: 'track-1',
+        libraryId: 'lib-a',
+        priority: 1,
+        durationSec: 104,
+        suffix: 'mp3',
+        bitRate: 320,
+        sizeBytes: 8000000,
+        starredAt: null,
+        userRating: null,
+      },
+    ]);
+
+    const sources = await libraryResolveEntitySources('profile-s1', {
+      entityType: 'track',
+      anchorServerId: 'profile-s1',
+      anchorId: 'track-1',
+      scopes,
+    });
+
+    expect(sources.map(source => [source.serverId, source.id, source.priority])).toEqual([
+      ['profile-s2', 'track-2', 0],
+      ['profile-s1', 'track-1', 1],
+    ]);
+    expect(sources[0]).not.toHaveProperty('clusterKey');
   });
 });

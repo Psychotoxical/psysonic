@@ -6,6 +6,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import { dedupeById } from '@/lib/util/dedupeById';
+import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
 
 interface Props {
   title: string;
@@ -137,7 +138,7 @@ export default function AlbumRow({
 
   // Reset when the row’s identity changes (new data / server), not when the list grows via
   // “load more” — reusing albums.length would shrink the budget mid-scroll and flash placeholders.
-  const rowArtworkResetKey = uniqueAlbums[0]?.id ?? '';
+  const rowArtworkResetKey = uniqueAlbums[0] ? libraryEntityKey(uniqueAlbums[0]) : '';
   useEffect(() => {
     // React Compiler set-state-in-effect rule: local state synced with store/prop inputs when the effect’s dependencies change.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -261,7 +262,7 @@ export default function AlbumRow({
         <div className="album-grid" ref={scrollRef} onScroll={handleScroll}>
           {uniqueAlbums.map((a, idx) => (
             <AlbumCard
-              key={a.serverId ? `${a.serverId}:${a.id}` : a.id}
+              key={libraryEntityKey(a)}
               album={a}
               showRating={showRating}
               linkQuery={albumLinkQuery}

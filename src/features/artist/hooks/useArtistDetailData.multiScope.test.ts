@@ -6,9 +6,20 @@ import { useAuthStore } from '@/store/authStore';
 
 const tryLoadArtistDetailMultiScopeMock = vi.fn();
 const librarySelectionForServerMock = vi.fn();
+let browseScope = {
+  pairs: [{ serverId: 'srv-1', libraryId: 'lib-a' }, { serverId: 'srv-2', libraryId: null }],
+  fingerprint: 'multi',
+  anchorServerId: 'srv-1',
+  configuredServerIds: ['srv-1', 'srv-2'],
+  multiServer: true,
+};
 
-vi.mock('@/features/artist/hooks/loadArtistDetailMultiScope', () => ({
+vi.mock('@/lib/library/loadArtistDetailMultiScope', () => ({
   tryLoadArtistDetailMultiScope: (...args: unknown[]) => tryLoadArtistDetailMultiScopeMock(...args),
+}));
+
+vi.mock('@/store/useBrowseLibraryScope', () => ({
+  useBrowseLibraryScope: () => browseScope,
 }));
 
 vi.mock('@/lib/api/subsonicClient', async importOriginal => {
@@ -45,6 +56,13 @@ describe('useArtistDetailData — multi-library selection', () => {
   beforeEach(() => {
     tryLoadArtistDetailMultiScopeMock.mockReset();
     librarySelectionForServerMock.mockReset();
+    browseScope = {
+      pairs: [{ serverId: 'srv-1', libraryId: 'lib-a' }, { serverId: 'srv-2', libraryId: null }],
+      fingerprint: 'multi',
+      anchorServerId: 'srv-1',
+      configuredServerIds: ['srv-1', 'srv-2'],
+      multiServer: true,
+    };
     vi.mocked(getTopSongs).mockResolvedValue([]);
     vi.mocked(getArtistInfo).mockResolvedValue({} as Awaited<ReturnType<typeof getArtistInfo>>);
     vi.mocked(search).mockResolvedValue({ songs: [], albums: [], artists: [] });
@@ -73,7 +91,7 @@ describe('useArtistDetailData — multi-library selection', () => {
     const { result } = renderHook(() => useArtistDetailData('art-1'), { wrapper: routerWrapper });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(tryLoadArtistDetailMultiScopeMock).toHaveBeenCalledWith('srv-1', 'art-1');
+    expect(tryLoadArtistDetailMultiScopeMock).toHaveBeenCalledWith('srv-1', 'art-1', browseScope.pairs);
     expect(getArtistForServer).not.toHaveBeenCalled();
     expect(getArtist).not.toHaveBeenCalled();
     expect(result.current.artist).toMatchObject({ id: 'art-1', name: 'Merged' });
@@ -92,12 +110,19 @@ describe('useArtistDetailData — multi-library selection', () => {
     const { result } = renderHook(() => useArtistDetailData('art-1'), { wrapper: routerWrapper });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(tryLoadArtistDetailMultiScopeMock).toHaveBeenCalledWith('srv-1', 'art-1');
+    expect(tryLoadArtistDetailMultiScopeMock).toHaveBeenCalledWith('srv-1', 'art-1', browseScope.pairs);
     expect(getArtistForServer).not.toHaveBeenCalled();
     expect(result.current.albums).toHaveLength(1);
   });
 
   it('does not call tryLoadArtistDetailMultiScope when all libraries are selected', async () => {
+    browseScope = {
+      pairs: [],
+      fingerprint: 'single',
+      anchorServerId: 'srv-1',
+      configuredServerIds: ['srv-1'],
+      multiServer: false,
+    };
     librarySelectionForServerMock.mockReturnValue([]);
     vi.mocked(getArtistForServer).mockResolvedValue({
       artist: { id: 'art-1', name: 'Network' },
@@ -114,6 +139,13 @@ describe('useArtistDetailData — multi-library selection', () => {
   });
 
   it('falls back to the local library index when network getArtist fails', async () => {
+    browseScope = {
+      pairs: [],
+      fingerprint: 'single',
+      anchorServerId: 'srv-1',
+      configuredServerIds: ['srv-1'],
+      multiServer: false,
+    };
     // Random Albums links an album-artist id that `getArtist` 404s on, but the
     // artist row exists in the local index the album came from → resolve there
     // instead of showing "Artist not found".
@@ -134,6 +166,13 @@ describe('useArtistDetailData — multi-library selection', () => {
   });
 
   it('shows nothing to resolve when both network and local index miss', async () => {
+    browseScope = {
+      pairs: [],
+      fingerprint: 'single',
+      anchorServerId: 'srv-1',
+      configuredServerIds: ['srv-1'],
+      multiServer: false,
+    };
     librarySelectionForServerMock.mockReturnValue([]);
     vi.mocked(getArtistForServer).mockRejectedValue(new Error('artist not found'));
     vi.mocked(loadArtistFromLibraryIndex).mockResolvedValue(null);
@@ -145,7 +184,7 @@ describe('useArtistDetailData — multi-library selection', () => {
     expect(result.current.artist).toBeNull();
   });
 
-  it('falls through to getArtist when multi-scope load returns null', async () => {
+  it('does not fall through to getArtist when multi-server scope load returns null', async () => {
     librarySelectionForServerMock.mockReturnValue(['lib-a', 'lib-b']);
     tryLoadArtistDetailMultiScopeMock.mockResolvedValue(null);
     vi.mocked(getArtistForServer).mockResolvedValue({
@@ -157,7 +196,7 @@ describe('useArtistDetailData — multi-library selection', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(tryLoadArtistDetailMultiScopeMock).toHaveBeenCalled();
-    expect(getArtistForServer).toHaveBeenCalled();
-    expect(result.current.artist).toMatchObject({ name: 'Fallback' });
+    expect(getArtistForServer).not.toHaveBeenCalled();
+    expect(result.current.artist).toBeNull();
   });
 });

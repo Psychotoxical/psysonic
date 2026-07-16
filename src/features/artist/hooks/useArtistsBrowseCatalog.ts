@@ -18,6 +18,7 @@ import {
   offlineLocalBrowseEnabled,
 } from '@/features/offline';
 import { librarySelectionForServer } from '@/lib/api/subsonicClient';
+import type { LibraryScopePair } from '@/lib/api/library';
 import { scheduleAlbumBrowseBackgroundWork } from '@/lib/library/albumBrowseBackground';
 import {
   artistBrowseTimed,
@@ -50,6 +51,9 @@ export type UseArtistsBrowseCatalogArgs = {
   libraryScopeKey: string;
   /** Server `ignoredArticles` for offline letter buckets (Navidrome parity). */
   ignoredArticles?: string | null;
+  scopePairs?: LibraryScopePair[];
+  scopeFingerprint?: string;
+  localOnly?: boolean;
 };
 
 export function useArtistsBrowseCatalog({
@@ -61,6 +65,9 @@ export function useArtistsBrowseCatalog({
   musicLibraryFilterVersion,
   libraryScopeKey,
   ignoredArticles,
+  scopePairs,
+  scopeFingerprint = '',
+  localOnly = false,
 }: UseArtistsBrowseCatalogArgs) {
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const offlineBrowseReloadTs = useOfflineBrowseReloadToken();
@@ -84,7 +91,7 @@ export function useArtistsBrowseCatalog({
     const base = artistBrowseInitialLoadKey(
       serverId,
       musicLibraryFilterVersion,
-      libraryScopeKey,
+      `${libraryScopeKey}\0${scopeFingerprint}`,
       creditMode,
       letterFilter,
       starredOnly,
@@ -95,7 +102,7 @@ export function useArtistsBrowseCatalog({
     // resync surfaces renamed/pruned artists without an app restart.
     if (!offlineBrowseActive) return artistBrowseOnlineCatalogKey(base, librarySyncRevision);
     return `${base}\0${offlineLocalBrowseReloadKey}`;
-  }, [serverId, musicLibraryFilterVersion, libraryScopeKey, creditMode, letterFilter, starredOnly, offlineBrowseActive, offlineLocalBrowseReloadKey, librarySyncRevision]);
+  }, [serverId, musicLibraryFilterVersion, libraryScopeKey, scopeFingerprint, creditMode, letterFilter, starredOnly, offlineBrowseActive, offlineLocalBrowseReloadKey, librarySyncRevision]);
 
   useLayoutEffect(() => {
     const cached = readArtistBrowseCatalogCache(catalogLoadKey);
@@ -166,8 +173,10 @@ export function useArtistsBrowseCatalog({
           serverId,
           catalogOffsetRef.current,
           ARTIST_CATALOG_CHUNK_SIZE,
-          creditMode,
-          letterFilter,
+            creditMode,
+            letterFilter,
+            scopePairs,
+            starredOnly,
         ),
         { append, offset: catalogOffsetRef.current, creditMode, letterFilter },
       );
@@ -200,7 +209,7 @@ export function useArtistsBrowseCatalog({
         setCatalogLoadingMore(false);
       }
     }
-  }, [creditMode, ignoredArticles, letterFilter, offlineBrowseActive, serverId]);
+  }, [creditMode, ignoredArticles, letterFilter, offlineBrowseActive, scopePairs, serverId, starredOnly]);
 
   useEffect(() => {
     let cancelled = false;
@@ -287,7 +296,7 @@ export function useArtistsBrowseCatalog({
           }
           return;
         }
-        if (starredOnly) {
+        if (starredOnly && !localOnly) {
           emitArtistsBrowseDebug('load_branch', { mode: 'starred' });
           if (!cancelled && generation === loadGenerationRef.current) {
             const starred = await artistBrowseTimed(
@@ -317,7 +326,9 @@ export function useArtistsBrowseCatalog({
                   0,
                   ARTIST_BROWSE_BOOTSTRAP_CHUNK,
                   creditMode,
-                  letterFilter,
+                    letterFilter,
+                    scopePairs,
+                    false,
                 ),
                 { creditMode, letterFilter, chunkSize: ARTIST_BROWSE_BOOTSTRAP_CHUNK },
               ),
@@ -356,7 +367,9 @@ export function useArtistsBrowseCatalog({
                             tailOffset,
                             tailSize,
                             creditMode,
-                            letterFilter,
+                              letterFilter,
+                              scopePairs,
+                              false,
                           ),
                           { creditMode, letterFilter, chunkSize: tailSize, offset: tailOffset },
                         ),
@@ -393,6 +406,8 @@ export function useArtistsBrowseCatalog({
                 ARTIST_CATALOG_CHUNK_SIZE,
                 creditMode,
                 letterFilter,
+                scopePairs,
+                starredOnly,
               ),
               { creditMode, letterFilter, chunkSize: ARTIST_CATALOG_CHUNK_SIZE },
             ),
@@ -413,7 +428,7 @@ export function useArtistsBrowseCatalog({
           }
           emitArtistsBrowseDebug('slice_fallback', { reason: 'local_chunk_null' });
         }
-        if (!cancelled && generation === loadGenerationRef.current && !indexEnabled) {
+        if (!cancelled && generation === loadGenerationRef.current && !indexEnabled && !localOnly) {
           emitArtistsBrowseDebug('load_branch', { mode: 'network' });
           const network = await artistBrowseTimed(
             'network_catalog',
@@ -455,7 +470,7 @@ export function useArtistsBrowseCatalog({
     return () => {
       cancelled = true;
     };
-  }, [catalogLoadKey, creditMode, ignoredArticles, letterFilter, musicLibraryFilterVersion, indexEnabled, offlineBrowseActive, offlineBrowseReloadTs, serverId, starredOnly]);
+  }, [catalogLoadKey, creditMode, ignoredArticles, letterFilter, musicLibraryFilterVersion, indexEnabled, localOnly, offlineBrowseActive, offlineBrowseReloadTs, scopePairs, serverId, starredOnly]);
 
   return {
     catalogArtists,

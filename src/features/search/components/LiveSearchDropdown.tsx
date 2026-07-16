@@ -1,5 +1,4 @@
 import { type RefObject } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Users, Disc3, Music, Database, Globe } from 'lucide-react';
 import { useNavigateToAlbum, albumArtistDisplayName } from '@/features/album';
@@ -15,6 +14,9 @@ import {
   LiveSearchArtistThumb,
 } from '@/features/search/components/liveSearchResultThumbs';
 import type { useShareSearch } from '@/features/search/hooks/useShareSearch';
+import { useNavigateToArtist } from '@/features/artist';
+import { appendServerQuery } from '@/lib/navigation/detailServerScope';
+import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
 
 export type LiveSearchSource = 'local' | 'network';
 
@@ -43,12 +45,12 @@ export default function LiveSearchDropdown({
   const { t } = useTranslation();
   const query = useLiveSearchScopeStore(s => s.query);
   const setQuery = useLiveSearchScopeStore(s => s.setQuery);
-  const navigate = useNavigate();
   const navigateToAlbum = useNavigateToAlbum();
+  const navigateToArtist = useNavigateToArtist();
   const enqueue = usePlayerStore(state => state.enqueue);
   const openContextMenu = usePlayerStore(state => state.openContextMenu);
   const ctxIsOpen = usePlayerStore(state => state.contextMenu.isOpen);
-  const ctxItemId = usePlayerStore(state => (state.contextMenu.item as { id?: string } | null)?.id);
+  const ctxItem = usePlayerStore(state => state.contextMenu.item as { id?: string; serverId?: string } | null);
   const ctxType   = usePlayerStore(state => state.contextMenu.type);
 
   const hasResults =
@@ -135,10 +137,15 @@ export default function LiveSearchDropdown({
               <div className="search-section-label"><Users size={12} /> {t('search.artists')}</div>
               {results.artists.map(a => {
                 const i = idx++;
-                const isCtxActive = ctxIsOpen && ctxType === 'artist' && ctxItemId === a.id;
+                const isCtxActive = ctxIsOpen && ctxType === 'artist' && ctxItem?.id === a.id
+                  && (ctxItem.serverId ?? '') === (a.serverId ?? '');
                 return (
-                  <button key={a.id} className={`search-result-item${activeIndex === i ? ' active' : ''}${isCtxActive ? ' context-active' : ''}`}
-                    onClick={() => { navigate(`/artist/${a.id}`); setOpen(false); setQuery(''); }}
+                  <button key={libraryEntityKey(a)} className={`search-result-item${activeIndex === i ? ' active' : ''}${isCtxActive ? ' context-active' : ''}`}
+                    onClick={() => {
+                      const search = appendServerQuery(undefined, a.serverId);
+                      navigateToArtist(a.id, search ? { search } : undefined);
+                      setOpen(false); setQuery('');
+                    }}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       openContextMenu(e.clientX, e.clientY, a, 'artist');
@@ -159,10 +166,15 @@ export default function LiveSearchDropdown({
               <div className="search-section-label"><Disc3 size={12} /> {t('search.albums')}</div>
               {results.albums.map(a => {
                 const i = idx++;
-                const isCtxActive = ctxIsOpen && ctxType === 'album' && ctxItemId === a.id;
+                const isCtxActive = ctxIsOpen && ctxType === 'album' && ctxItem?.id === a.id
+                  && (ctxItem.serverId ?? '') === (a.serverId ?? '');
                 return (
-                  <button key={a.id} className={`search-result-item${activeIndex === i ? ' active' : ''}${isCtxActive ? ' context-active' : ''}`}
-                    onClick={() => { navigateToAlbum(a.id); setOpen(false); setQuery(''); }}
+                  <button key={libraryEntityKey(a)} className={`search-result-item${activeIndex === i ? ' active' : ''}${isCtxActive ? ' context-active' : ''}`}
+                    onClick={() => {
+                      const search = appendServerQuery(undefined, a.serverId);
+                      navigateToAlbum(a.id, search ? { search } : undefined);
+                      setOpen(false); setQuery('');
+                    }}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       openContextMenu(e.clientX, e.clientY, a, 'album');
@@ -188,9 +200,10 @@ export default function LiveSearchDropdown({
               <div className="search-section-label"><Music size={12} /> {t('search.songs')}</div>
               {results.songs.map(s => {
                 const i = idx++;
-                const isCtxActive = ctxIsOpen && ctxType === 'song' && ctxItemId === s.id;
+                const isCtxActive = ctxIsOpen && ctxType === 'song' && ctxItem?.id === s.id
+                  && (ctxItem.serverId ?? '') === (s.serverId ?? '');
                 return (
-                  <button key={s.id} className={`search-result-item${activeIndex === i ? ' active' : ''}${isCtxActive ? ' context-active' : ''}`}
+                  <button key={libraryEntityKey(s)} className={`search-result-item${activeIndex === i ? ' active' : ''}${isCtxActive ? ' context-active' : ''}`}
                     onClick={() => {
                       const track = songToTrack(s);
                       enqueue([track]);

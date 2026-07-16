@@ -168,10 +168,13 @@ export async function fetchGenreAlbumCount(
 export async function fetchGenreCatalog(
   serverId: string | null | undefined,
   indexEnabled: boolean,
+  scopePairs?: LibraryScopePair[],
+  localOnly = false,
+  scopeKeyOverride?: string,
 ): Promise<SubsonicGenre[]> {
   if (!serverId) return getGenres();
 
-  const scopeKey = libraryScopeCacheKeyForServer(serverId);
+  const scopeKey = scopeKeyOverride ?? libraryScopeCacheKeyForServer(serverId);
   const cacheKey = genreCatalogCacheKey(serverId, scopeKey);
   const offlineLocal = isOfflineBrowseActive() && offlineLocalBrowseEnabled(serverId);
 
@@ -192,11 +195,17 @@ export async function fetchGenreCatalog(
   const load = async (): Promise<SubsonicGenre[]> => {
     if (indexEnabled && (await libraryIsReady(serverId))) {
       try {
+        if (scopePairs !== undefined) {
+          const genres = await loadLocalGenreCatalogRows(serverId, { libraryScopes: scopePairs });
+          writeGenreCatalogCache(serverId, scopeKey, genres);
+          return genres;
+        }
         return await fetchLocalGenreCatalog(serverId, scopeKey);
       } catch {
-        /* network fallback */
+        if (localOnly) return [];
       }
     }
+    if (localOnly) return [];
     const genres = filterGenresWithContent(await getGenres());
     writeGenreCatalogCache(serverId, scopeKey, genres);
     return genres;
