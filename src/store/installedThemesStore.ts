@@ -20,6 +20,12 @@ export interface InstalledTheme {
   /** The `[data-theme='<id>']` block — the only CSS, already CI-validated. */
   css: string;
   installedAt: number;
+  /**
+   * Session-only copy pushed by the dev `--theme-watch` sweep. Never written
+   * to storage (see partialize/merge below), so a dev session leaves no trace
+   * in the user's installed themes.
+   */
+  dev?: boolean;
 }
 
 interface InstalledThemesState {
@@ -51,6 +57,18 @@ export const useInstalledThemesStore = create<InstalledThemesState>()(
     {
       name: 'psysonic_installed_themes',
       version: 1,
+      // Dev theme-watch copies are session-only: partialize keeps them out of
+      // storage, and merge keeps the in-memory ones across a rehydrate (the
+      // cross-window storage sync rehydrates on every write from the other
+      // window — without this, a persisted change would wipe them).
+      partialize: (s) => ({ themes: s.themes.filter((t) => !t.dev) }),
+      merge: (persisted, current) => {
+        const stored = (persisted as { themes?: InstalledTheme[] } | undefined)?.themes ?? [];
+        const dev = current.themes.filter(
+          (t) => t.dev && !stored.some((p) => p.id === t.id),
+        );
+        return { ...current, themes: [...stored, ...dev] };
+      },
     }
   )
 );

@@ -34,44 +34,57 @@ export default function App() {
   }, [installedThemes]);
 
   // Dev only: `--theme-watch <theme.css | dir>` (debug builds) pushes local
-  // theme CSS in on every save. Each payload is installed under the id in its
-  // `[data-theme='<id>']` selector — the syncInjectedThemes effect above
-  // re-injects, so authoring is live without re-importing a zip.
-  // `theme-watch:css` also applies (single file, or a save in a watched
-  // directory); `theme-watch:css-seed` only installs (directory startup
-  // sweep), so authors can switch between a themes-repo checkout's themes in
-  // the UI. Never wired in production.
+  // theme CSS (+ sibling manifest.json metadata) in on every save. Each
+  // payload is installed under the id in its `[data-theme='<id>']` selector —
+  // the syncInjectedThemes effect above re-injects, so authoring is live
+  // without re-importing a zip. `theme-watch:css` also applies (single file,
+  // or a save in a watched directory); `theme-watch:css-seed` only installs
+  // (directory startup sweep), so authors can switch between a themes-repo
+  // checkout's themes in the UI. Both windows subscribe: dev-seeded themes
+  // are session-only (excluded from persistence), so the mini player cannot
+  // get them through the cross-window storage sync. Never wired in
+  // production.
   useEffect(() => {
     if (!import.meta.env.DEV) return;
-    // Main window only: the mini player shares the same persisted store — a
-    // second subscriber would double every install and could write a stale
-    // whole-store snapshot over changes made in the main window.
-    if (getWindowKind() !== 'main') return;
     const unlisteners: (() => void)[] = [];
     void import('@tauri-apps/api/event').then(({ listen, emit }) => {
-      const install = (css: string, apply: boolean) => {
-        const id = css.match(/\[data-theme=['"]([^'"]+)['"]\]/)?.[1];
+      type WatchPayload = {
+        css: string;
+        name?: string | null;
+        author?: string | null;
+        version?: string | null;
+        description?: string | null;
+        mode?: string | null;
+      };
+      const install = (payload: WatchPayload, apply: boolean) => {
+        const css = payload?.css;
+        const id = css?.match(/\[data-theme=['"]([^'"]+)['"]\]/)?.[1];
         if (!id) return;
-        // Only the CSS is the dev payload — keep a store-installed copy's
-        // metadata and installedAt, so watching a checkout doesn't rebrand
-        // real installs as 'dev' or reshuffle the Themes grid.
+        // Manifest metadata wins, then a store-installed copy's, then dev
+        // placeholders — watched themes keep their real identity, and only
+        // the CSS is the live payload. Fresh seeds are marked dev
+        // (session-only, never persisted); a store-installed theme being
+        // watched keeps its persisted entry.
         const prev = useInstalledThemesStore.getState().getInstalled(id);
         useInstalledThemesStore.getState().install({
           id,
-          name: prev?.name ?? id,
-          author: prev?.author ?? 'dev',
-          version: prev?.version ?? '0.0.0',
-          description: prev?.description ?? '',
-          mode: prev?.mode ?? 'dark',
+          name: payload.name ?? prev?.name ?? id,
+          author: payload.author ?? prev?.author ?? 'dev',
+          version: payload.version ?? prev?.version ?? '0.0.0',
+          description: payload.description ?? prev?.description ?? '',
+          mode: payload.mode === 'light' || payload.mode === 'dark'
+            ? payload.mode
+            : prev?.mode ?? 'dark',
           tags: prev?.tags,
           css,
           installedAt: prev?.installedAt ?? Date.now(),
+          dev: prev ? prev.dev ?? false : true,
         });
         if (apply) useThemeStore.getState().setTheme(id);
       };
       const subs = [
-        listen<string>('theme-watch:css', ({ payload }) => install(payload, true)),
-        listen<string>('theme-watch:css-seed', ({ payload }) => install(payload, false)),
+        listen<WatchPayload>('theme-watch:css', ({ payload }) => install(payload, true)),
+        listen<WatchPayload>('theme-watch:css-seed', ({ payload }) => install(payload, false)),
       ];
       // Guard the mocked-in-tests case where listen() isn't a promise.
       for (const sub of subs) {

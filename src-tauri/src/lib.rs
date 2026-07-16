@@ -445,11 +445,11 @@ pub fn run() {
                             }
 
                             // Per-file state: mtime (gates the read while a
-                            // file is unchanged) and last pushed contents
+                            // file is unchanged) and last pushed payload
                             // (change detection + ready re-send). Entries only
                             // update after a successful emit, so a failed push
                             // retries next tick instead of being marked seen.
-                            type Seen = HashMap<PathBuf, (Option<SystemTime>, String)>;
+                            type Seen = HashMap<PathBuf, (Option<SystemTime>, serde_json::Value)>;
                             let seen: Arc<Mutex<Seen>> = Arc::new(Mutex::new(HashMap::new()));
 
                             // The frontend announces its listeners (on mount
@@ -473,8 +473,8 @@ pub fn run() {
                                 let handle = app.handle().clone();
                                 app.listen("theme-watch:ready", move |_| {
                                     let Ok(m) = seen.lock() else { return };
-                                    for (_, css) in m.values() {
-                                        let _ = handle.emit(ready_event, css);
+                                    for (_, payload) in m.values() {
+                                        let _ = handle.emit(ready_event, payload);
                                     }
                                 });
                             }
@@ -512,7 +512,10 @@ pub fn run() {
                                     };
                                     let event = match m.get_mut(&f) {
                                         // mtime-only touch — restamp quietly.
-                                        Some(entry) if entry.1 == css => {
+                                        Some(entry)
+                                            if entry.1.get("css").and_then(|c| c.as_str())
+                                                == Some(css.as_str()) =>
+                                        {
                                             entry.0 = mtime;
                                             continue;
                                         }
@@ -524,8 +527,35 @@ pub fn run() {
                                         }
                                         _ => "theme-watch:css",
                                     };
-                                    if handle.emit(event, &css).is_ok() {
-                                        m.insert(f, (mtime, css));
+                                    // Ship the sibling manifest's metadata so
+                                    // the frontend can show the theme's real
+                                    // name/author/version instead of dev
+                                    // placeholders (and the update badge
+                                    // stays quiet).
+                                    let manifest = f
+                                        .parent()
+                                        .map(|d| d.join("manifest.json"))
+                                        .and_then(|p| std::fs::read_to_string(p).ok())
+                                        .and_then(|s| {
+                                            serde_json::from_str::<serde_json::Value>(&s).ok()
+                                        });
+                                    let meta = |k: &str| {
+                                        manifest
+                                            .as_ref()
+                                            .and_then(|v| v.get(k))
+                                            .and_then(|v| v.as_str())
+                                            .map(String::from)
+                                    };
+                                    let payload = serde_json::json!({
+                                        "css": css,
+                                        "name": meta("name"),
+                                        "author": meta("author"),
+                                        "version": meta("version"),
+                                        "description": meta("description"),
+                                        "mode": meta("mode"),
+                                    });
+                                    if handle.emit(event, &payload).is_ok() {
+                                        m.insert(f, (mtime, payload));
                                     }
                                 }
                                 std::thread::sleep(std::time::Duration::from_millis(300));

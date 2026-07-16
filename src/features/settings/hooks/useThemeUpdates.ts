@@ -32,7 +32,11 @@ export function useThemeUpdates(): RegistryTheme[] {
 
   return useMemo(() => {
     if (!registry) return [];
-    const installedVersionById = new Map(installed.map(t => [t.id, t.version]));
+    // Dev theme-watch copies are session-only working state — offering a
+    // registry "update" for them would overwrite the author's local work.
+    const installedVersionById = new Map(
+      installed.filter(t => !t.dev).map(t => [t.id, t.version]),
+    );
     return registry.themes.filter(rt => {
       const current = installedVersionById.get(rt.id);
       return current != null && isNewer(rt.version, current);
