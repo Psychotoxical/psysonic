@@ -333,6 +333,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Modal dialogs carried no accessible name, so a screen reader announced them without saying which dialog had opened. The dialog is now linked to its title, and each instance gets its own id so several open dialogs cannot be confused for one another.
 
+### Themes — smooth UI with many themes installed
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by Asra on the Psysonic Discord, PR [#1315](https://github.com/Psychotoxical/psysonic/pull/1315)**
+
+* With a large number of community themes installed, every hover or playback-state change made the browser re-evaluate the CSS of every installed theme, which could slow the UI to a crawl. Only the active theme (plus the scheduler's day and night picks) participates now; the others stay dormant until applied — switching themes is unaffected.
+
 
 ## [1.49.0] - 2026-06-29
 
