@@ -16,6 +16,9 @@ import { getMusicNetworkRuntime, type RecentTrack, type StatsPeriod, type TopIte
 import { useEnrichmentPrimaryLabel } from '@/music-network/ui';
 import { useOfflineBrowseContext } from '@/features/offline';
 import { usePlayerStatsRecordingEnabled } from '@/features/stats/hooks/usePlayerStatsRecordingEnabled';
+import { useBrowseLibraryScope } from '@/store/useBrowseLibraryScope';
+import { libraryScopeMostPlayedAlbums } from '@/lib/api/library';
+import { albumToAlbum } from '@/lib/library/advancedSearchLocal';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function relativeTime(timestamp: number, t: (key: string, opts?: any) => string): string {
@@ -45,6 +48,8 @@ export default function Statistics() {
   const enrichmentPrimaryId = useAuthStore(s => s.enrichmentPrimaryId);
   const enrichmentLabel = useEnrichmentPrimaryLabel() ?? '';
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
+  const browseScope = useBrowseLibraryScope();
+  const browseServerId = browseScope.anchorServerId;
   const [recent, setRecent] = useState<SubsonicAlbum[]>([]);
   const [frequent, setFrequent] = useState<SubsonicAlbum[]>([]);
   const [highest, setHighest] = useState<SubsonicAlbum[]>([]);
@@ -87,7 +92,12 @@ export default function Statistics() {
       setLoading(false);
       return;
     }
-    fetchStatisticsOverview()
+    fetchStatisticsOverview({
+      serverId: browseServerId,
+      pairs: browseScope.pairs,
+      fingerprint: browseScope.fingerprint,
+      multiServer: browseScope.multiServer,
+    })
       .then(d => {
         setRecent(d.recent);
         setFrequent(d.frequent);
@@ -96,7 +106,7 @@ export default function Statistics() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [musicLibraryFilterVersion, offlineBrowseActive, isPlayerStats]);
+  }, [musicLibraryFilterVersion, offlineBrowseActive, isPlayerStats, browseScope.fingerprint, browseScope.multiServer, browseScope.pairs, browseServerId]);
 
   // Background: playtime, album/song counts, genre insights (cached per server+library like rating prefetch)
   useEffect(() => {
@@ -111,7 +121,11 @@ export default function Statistics() {
     setGenres([]);
     (async () => {
       try {
-        const agg = await fetchStatisticsLibraryAggregates();
+        const agg = await fetchStatisticsLibraryAggregates({
+          serverId: browseServerId,
+          pairs: browseScope.pairs,
+          fingerprint: browseScope.fingerprint,
+        });
         if (cancelled) return;
         setTotalPlaytime(agg.playtimeSec);
         setTotalAlbums(agg.albumsCounted);
@@ -129,7 +143,7 @@ export default function Statistics() {
       }
     })();
     return () => { cancelled = true; };
-  }, [musicLibraryFilterVersion, offlineBrowseActive, isPlayerStats]);
+  }, [musicLibraryFilterVersion, offlineBrowseActive, isPlayerStats, browseScope.fingerprint, browseScope.pairs, browseServerId]);
 
   // Background: format distribution (cached random sample, same TTL as other Statistics fetches)
   useEffect(() => {
@@ -139,7 +153,11 @@ export default function Statistics() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setFormatData(null);
     setFormatSampleSize(0);
-    fetchStatisticsFormatSample()
+    fetchStatisticsFormatSample({
+      serverId: browseServerId,
+      pairs: browseScope.pairs,
+      fingerprint: browseScope.fingerprint,
+    })
       .then(s => {
         if (cancelled) return;
         setFormatData(s.rows);
@@ -147,7 +165,7 @@ export default function Statistics() {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [musicLibraryFilterVersion, offlineBrowseActive, isPlayerStats]);
+  }, [musicLibraryFilterVersion, offlineBrowseActive, isPlayerStats, browseScope.fingerprint, browseScope.pairs, browseServerId]);
 
   useEffect(() => {
     if (offlineBrowseActive || isPlayerStats) return;
@@ -184,7 +202,15 @@ export default function Statistics() {
     setter: React.Dispatch<React.SetStateAction<SubsonicAlbum[]>>
   ) => {
     try {
-      const more = await getAlbumList(type, 12, currentList.length);
+      const more = type === 'frequent' && browseScope.pairs.length
+        ? (await libraryScopeMostPlayedAlbums(browseServerId, {
+            scopes: browseScope.pairs,
+            limit: 12,
+            offset: currentList.length,
+          })).map(row => ({ ...albumToAlbum(row.album), playCount: row.playCount }))
+        : browseScope.multiServer
+          ? []
+          : await getAlbumList(type, 12, currentList.length);
       const newItems = more.filter(m => !currentList.find(c => c.id === m.id));
       if (newItems.length > 0) setter(prev => [...prev, ...newItems]);
     } catch (e) {

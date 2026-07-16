@@ -35,6 +35,7 @@ import {
 import { libraryIsReady, waitForLibraryBrowseReady } from './libraryReady';
 import { artistBrowseTimed, emitArtistsBrowseDebug } from './artistBrowseDebug';
 import { raceSearchSources, type SearchRaceWinner } from './searchRace';
+export { runLocalRandomSongs } from './randomScopeReads';
 
 export type { LibrarySearchSurface };
 
@@ -421,29 +422,6 @@ import { GENRE_ALBUM_FETCH_LIMIT } from './albumBrowseTypes';
  * Random track sample from the local `track` table — SQLite `ORDER BY RANDOM() LIMIT N`.
  * Returns null when the index is unavailable (caller falls back to the network).
  */
-export async function runLocalRandomSongs(
-  serverId: string | null | undefined,
-  limit: number,
-): Promise<SubsonicSong[] | null> {
-  if (!serverId || !(await libraryIsReady(serverId))) return null;
-  try {
-    const resp = await libraryAdvancedSearch({
-      serverId,
-      libraryScope: libraryScopeForServer(serverId) ?? undefined,
-      libraryScopes: libraryScopePairsForServer(serverId),
-      entityTypes: ['track'],
-      sort: [{ field: 'random', dir: 'asc' }],
-      limit,
-      offset: 0,
-      skipTotals: true,
-    });
-    if (resp.source !== 'local') return null;
-    return resp.tracks.map(trackToSong);
-  } catch {
-    return null;
-  }
-}
-
 /** Paginated lossless albums from the local index. Returns null when unavailable. */
 export async function runLocalLosslessAlbums(
   serverId: string | null | undefined,
@@ -500,13 +478,14 @@ export async function runLocalArtistLosslessBrowse(
 export async function runLocalRandomAlbums(
   serverId: string | null | undefined,
   limit: number,
+  libraryScopes?: LibraryScopePair[],
 ): Promise<SubsonicAlbum[] | null> {
   if (!serverId || !(await libraryIsReady(serverId))) return null;
   try {
     const resp = await libraryAdvancedSearch({
       serverId,
       libraryScope: libraryScopeForServer(serverId) ?? undefined,
-      libraryScopes: libraryScopePairsForServer(serverId),
+      libraryScopes: libraryScopes ?? libraryScopePairsForServer(serverId),
       entityTypes: ['album'],
       sort: [{ field: 'random', dir: 'asc' }],
       limit,
@@ -550,6 +529,7 @@ export async function runLocalAlbumsByGenres(
   sort: AlbumBrowseSort,
   limitPerGenre = GENRE_ALBUM_FETCH_LIMIT,
   losslessOnly?: boolean,
+  libraryScopes?: LibraryScopePair[],
 ): Promise<SubsonicAlbum[] | null> {
   if (!serverId || genres.length === 0) return null;
   const query: AlbumBrowseQuery = {
@@ -559,7 +539,7 @@ export async function runLocalAlbumsByGenres(
     starredOnly: false,
     compFilter: 'all',
   };
-  const page = await runLocalAlbumBrowse(serverId, query, 0, limitPerGenre);
+  const page = await runLocalAlbumBrowse(serverId, query, 0, limitPerGenre, undefined, libraryScopes);
   return page?.albums ?? null;
 }
 

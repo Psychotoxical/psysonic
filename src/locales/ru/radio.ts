@@ -1,4 +1,5 @@
 export const radio = {
+  sources: 'Radio sources',
   title: 'Онлайн-радио',
   empty: 'Радиостанции не настроены.',
   addStation: 'Добавить станцию',

@@ -6,9 +6,13 @@ import { usePlaylistStore } from '@/features/playlist';
 import { addTracksToPlaylistWithDedup, showAddTracksDedupToast } from '@/features/playlist';
 import { showToast } from '@/lib/dom/toast';
 import { isSmartPlaylistName } from '@/features/contextMenu/utils/contextMenuHelpers';
+import type { Track } from '@/lib/media/trackTypes';
+import { useBrowseLibraryScope } from '@/store/useBrowseLibraryScope';
+import { resolvePlaylistTargetTrackIds } from '@/features/playlist';
 
 interface Props {
   songIds: string[];
+  tracks?: Track[];
   /** When set (bulk toolbar pickers), read IDs at action time — avoids stale props if selection changes after open. */
   resolveSongIds?: () => readonly string[];
   onDone: () => void;
@@ -16,7 +20,7 @@ interface Props {
   triggerId?: string;
 }
 
-export function AddToPlaylistSubmenu({ songIds, resolveSongIds, onDone, dropDown, triggerId }: Props) {
+export function AddToPlaylistSubmenu({ songIds, tracks, resolveSongIds, onDone, dropDown, triggerId }: Props) {
   const { t } = useTranslation();
   const subRef = useRef<HTMLDivElement>(null);
   const newNameRef = useRef<HTMLInputElement>(null);
@@ -34,6 +38,7 @@ export function AddToPlaylistSubmenu({ songIds, resolveSongIds, onDone, dropDown
   const createPlaylist = usePlaylistStore((s) => s.createPlaylist);
   const touchPlaylist = usePlaylistStore((s) => s.touchPlaylist);
   const fetchPlaylists = usePlaylistStore((s) => s.fetchPlaylists);
+  const browseScope = useBrowseLibraryScope();
 
   useEffect(() => {
     if (storePlaylists.length === 0) fetchPlaylists();
@@ -68,12 +73,15 @@ export function AddToPlaylistSubmenu({ songIds, resolveSongIds, onDone, dropDown
   const idsForAction = () => [...(resolveSongIds?.() ?? songIdsRef.current)];
 
   const handleAdd = async (pl: SubsonicPlaylist) => {
-    const ids = idsForAction();
+    if (!pl.serverId) return;
+    const ids = tracks?.length
+      ? await resolvePlaylistTargetTrackIds(pl.serverId, tracks, browseScope.pairs)
+      : idsForAction();
     setAdding(pl.id);
     try {
-      const result = await addTracksToPlaylistWithDedup(pl.id, pl.name, ids, t);
+      const result = await addTracksToPlaylistWithDedup(pl.id, pl.name, ids, t, pl.serverId);
       showAddTracksDedupToast(t, pl.name, result);
-      if (result.outcome !== 'skipped') touchPlaylist(pl.id);
+      if (result.outcome !== 'skipped') touchPlaylist(pl.id, pl.serverId);
     } catch {
       showToast(t('playlists.addError'), 3000, 'error');
     }
@@ -85,7 +93,8 @@ export function AddToPlaylistSubmenu({ songIds, resolveSongIds, onDone, dropDown
     const ids = idsForAction();
     const name = newName.trim() || t('playlists.unnamed');
     try {
-      const pl = await createPlaylist(name, ids);
+      const targetServerId = storePlaylists[0]?.serverId;
+      const pl = await createPlaylist(name, ids, targetServerId);
       if (pl?.id) {
         showToast(t('playlists.createAndAddSuccess', { count: ids.length, playlist: pl.name || name }));
       }
@@ -144,7 +153,7 @@ export function AddToPlaylistSubmenu({ songIds, resolveSongIds, onDone, dropDown
       )}
       {playlists.map((pl: SubsonicPlaylist) => (
         <div
-          key={pl.id}
+          key={`${pl.serverId ?? ''}:${pl.id}`}
           className="context-menu-item"
           onClick={() => handleAdd(pl)}
           style={{ opacity: adding === pl.id ? 0.5 : 1, pointerEvents: adding ? 'none' : undefined }}

@@ -1,4 +1,5 @@
 export const playlists = {
+  sources: 'Playlist sources',
   sortTooltip: 'Nummers sorteren',
   sortDateAddedNewest: 'Datum toegevoegd (nieuwste)',
   sortDateAddedOldest: 'Datum toegevoegd (oudste)',

@@ -55,10 +55,10 @@ export interface PlayerState {
   networkLoved: boolean;
   networkLovedCache: Record<string, boolean>;
   starredOverrides: Record<string, boolean>;
-  setStarredOverride: (id: string, starred: boolean) => void;
+  setStarredOverride: (id: string, starred: boolean, serverId?: string) => void;
   /** Optimistic track ratings (e.g. skip→1★ while UI lists still have stale `song.userRating`). */
   userRatingOverrides: Record<string, number>;
-  setUserRatingOverride: (id: string, rating: number) => void;
+  setUserRatingOverride: (id: string, rating: number, serverId?: string) => void;
 
   playRadio: (station: InternetRadioStation) => void;
   /** `_orbitConfirmed` is an internal bypass flag — callers outside the

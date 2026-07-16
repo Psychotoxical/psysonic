@@ -24,7 +24,14 @@ import type {
 
 export async function libraryGetCatalogYearBounds(args: {
   serverId: string;
+  libraryScopes?: LibraryScopePair[];
 }): Promise<CatalogYearBounds> {
+  if (args.libraryScopes?.length) {
+    const rows = await invoke<CatalogYearBounds>('library_scope_catalog_year_bounds', {
+      scopes: mapScopePairs(args.libraryScopes, args.serverId),
+    });
+    return rows;
+  }
   const indexKey = serverIndexKeyForId(args.serverId);
   const res = await commands.libraryGetCatalogYearBounds(indexKey);
   if (res.status === 'error') throw new Error(res.error);

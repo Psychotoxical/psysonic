@@ -258,6 +258,39 @@ pub fn library_get_catalog_year_bounds(
     result
 }
 
+pub(crate) fn catalog_year_bounds_for_scopes(
+    store: &LibraryStore,
+    scopes: &[LibraryScopePair],
+) -> Result<CatalogYearBoundsDto, String> {
+    let scopes = crate::scope_merge::normalize_scope_pairs(scopes)?;
+    if scopes.is_empty() {
+        return Ok(CatalogYearBoundsDto { min_year: None, max_year: None });
+    }
+    let (cte, binds) = crate::scope_merge::scope_cte_sql(&scopes);
+    let sql = format!(
+        "{cte} SELECT MIN(t.year), MAX(t.year) \
+         FROM scoped_track s CROSS JOIN track t ON t.rowid = s.rowid \
+         WHERE t.deleted = 0 AND t.year IS NOT NULL AND t.year > 0"
+    );
+    store.with_read_conn(|conn| {
+        conn.query_row(&sql, rusqlite::params_from_iter(binds.iter()), |row| {
+            Ok(CatalogYearBoundsDto {
+                min_year: row.get::<_, Option<i64>>(0)?.map(|year| year as i32),
+                max_year: row.get::<_, Option<i64>>(1)?.map(|year| year as i32),
+            })
+        })
+    }).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn library_scope_catalog_year_bounds(
+    runtime: State<'_, LibraryRuntime>,
+    scopes: Vec<LibraryScopePair>,
+) -> Result<CatalogYearBoundsDto, String> {
+    catalog_year_bounds_for_scopes(&runtime.store, &scopes)
+}
+
 pub(crate) fn genre_album_counts_for_server(
     store: &LibraryStore,
     server_id: &str,
@@ -407,7 +440,7 @@ mod tests {
 
     use super::{
         apply_album_patch, catalog_year_bounds_for_server, genre_album_counts_for_scopes,
-        genre_album_counts_for_server,
+        genre_album_counts_for_server, catalog_year_bounds_for_scopes,
         overlay_album_level_starred_at, reconcile_album_stars, StarredAlbumReconcileItem,
     };
     use crate::dto::LibraryAlbumDto;
@@ -503,6 +536,27 @@ mod tests {
             })
             .unwrap();
         assert!(!raw.contains("starred"));
+    }
+
+    #[test]
+    fn catalog_year_bounds_respect_cross_server_scope() {
+        let store = LibraryStore::open_in_memory();
+        let mut old = make_row("s1", "t1", "al1", 1);
+        old.library_id = Some("a".into());
+        old.year = Some(1990);
+        let mut recent = make_row("s2", "t2", "al2", 1);
+        recent.library_id = Some("b".into());
+        recent.year = Some(2024);
+        let mut excluded = make_row("s2", "t3", "al3", 1);
+        excluded.library_id = Some("other".into());
+        excluded.year = Some(2030);
+        TrackRepository::new(&store).upsert_batch(&[old, recent, excluded]).unwrap();
+        let bounds = catalog_year_bounds_for_scopes(&store, &[
+            crate::dto::LibraryScopePair { server_id: "s1".into(), library_id: Some("a".into()) },
+            crate::dto::LibraryScopePair { server_id: "s2".into(), library_id: Some("b".into()) },
+        ]).unwrap();
+        assert_eq!(bounds.min_year, Some(1990));
+        assert_eq!(bounds.max_year, Some(2024));
     }
 
     #[test]

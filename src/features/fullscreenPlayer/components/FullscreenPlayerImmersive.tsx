@@ -1,4 +1,5 @@
 import { queueSongStar, playbackCoverArtForAlbum, usePlayerStore } from '@/features/playback';
+import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
 import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
 import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
@@ -39,7 +40,8 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   const isStarred = usePlayerStore(s => {
     const track = s.currentTrack;
     if (!track) return false;
-    return track.id in s.starredOverrides ? s.starredOverrides[track.id] : !!track.starred;
+    const key = entityOverrideKey(track.serverId ?? s.queueServerId, track.id);
+    return key in s.starredOverrides ? s.starredOverrides[key] : !!track.starred;
   });
 
   const toggleStar = useCallback(() => {

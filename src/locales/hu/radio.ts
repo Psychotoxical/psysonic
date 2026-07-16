@@ -1,4 +1,5 @@
 export const radio = {
+  sources: 'Radio sources',
   title: 'Internetes rádió',
   empty: 'Nincs beállított rádióállomás.',
   addStation: 'Állomás hozzáadása',

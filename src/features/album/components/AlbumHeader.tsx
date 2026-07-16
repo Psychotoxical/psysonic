@@ -145,6 +145,7 @@ interface AlbumInfo {
   coverArt?: string;
   recordLabel?: string;
   created?: string;
+  serverId?: string;
 }
 
 interface AlbumHeaderProps {
@@ -230,7 +231,7 @@ export default function AlbumHeader({
 
   const handleShareAlbum = async () => {
     try {
-      const ok = await copyEntityShareLink('album', info.id);
+      const ok = await copyEntityShareLink('album', info.id, info.serverId);
       if (ok) showToast(t('contextMenu.shareCopied'));
       else showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
     } catch {

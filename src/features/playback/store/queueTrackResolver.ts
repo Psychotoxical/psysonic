@@ -8,6 +8,7 @@ import { canonicalQueueServerKey } from '@/lib/server/serverIndexKey';
 import { trackToSong } from '@/lib/library/advancedSearchLocal';
 import { libraryIsReady } from '@/lib/library/libraryReady';
 import { NAVIDROME_PUBLIC_SHARE_SERVER_ID } from '@/lib/share/navidromePublicSharePlayback';
+import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
 
 /**
  * Queue track resolver (thin-state phase 2). Resolves `QueueItemRef`s to full
@@ -129,14 +130,16 @@ export function mergeDirectShareUrls(track: Track, ref: QueueItemRef): Track {
 /** Merge session star/rating overrides (F4) onto a resolved track. */
 export function applyQueueOverrides(track: Track): Track {
   const s = usePlayerStore.getState();
-  const hasStar = track.id in s.starredOverrides;
-  const hasRating = track.id in s.userRatingOverrides;
+  const serverId = track.serverId ?? s.queueServerId ?? '';
+  const overrideKey = entityOverrideKey(serverId, track.id);
+  const hasStar = overrideKey in s.starredOverrides;
+  const hasRating = overrideKey in s.userRatingOverrides;
   if (!hasStar && !hasRating) return track;
   const next = { ...track };
   if (hasStar) {
-    next.starred = s.starredOverrides[track.id] ? (track.starred ?? new Date().toISOString()) : undefined;
+    next.starred = s.starredOverrides[overrideKey] ? (track.starred ?? new Date().toISOString()) : undefined;
   }
-  if (hasRating) next.userRating = s.userRatingOverrides[track.id];
+  if (hasRating) next.userRating = s.userRatingOverrides[overrideKey];
   return next;
 }
 
@@ -290,15 +293,13 @@ export function invalidateQueueResolver(trackId: string): void {
  *  succeeds). Unlike {@link invalidateQueueResolver}, this keeps the entry so a
  *  visible queue row never blanks to a placeholder — the row stays resolved and
  *  just reflects the synced value. No-op for refs not currently cached. */
-export function patchCachedTrack(trackId: string, patch: Partial<Track>): void {
-  let changed = false;
-  for (const [key, track] of cache) {
-    if (key.endsWith(`:${trackId}`)) {
-      cache.set(key, { ...track, ...patch });
-      changed = true;
-    }
-  }
-  if (changed) notify();
+export function patchCachedTrack(serverId: string, trackId: string, patch: Partial<Track>): void {
+  const canonicalId = canonicalQueueServerKey(serverId);
+  const key = refKey({ serverId: canonicalId, trackId });
+  const track = cache.get(key);
+  if (!track) return;
+  cache.set(key, { ...track, ...patch });
+  notify();
 }
 
 /** Test-only: clear cache + in-flight set. */

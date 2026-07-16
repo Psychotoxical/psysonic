@@ -1,9 +1,8 @@
 import type React from 'react';
 import type { TFunction } from 'i18next';
 import { uploadArtistImage } from '@/lib/api/subsonicArtists';
-import { setRating, star, unstar } from '@/lib/api/subsonicStarRating';
+import { queueEntityRating, queueEntityStar } from '@/features/playback';
 import type { SubsonicArtist } from '@/lib/api/subsonicTypes';
-import { useAuthStore } from '@/store/authStore';
 import { copyEntityShareLink } from '@/lib/share/copyEntityShareLink';
 import { invalidateCoverArt } from '@/cover';
 import { showToast } from '@/lib/dom/toast';
@@ -20,27 +19,15 @@ export interface RunArtistEntityRatingDeps {
 }
 
 export async function runArtistEntityRating(deps: RunArtistEntityRatingDeps): Promise<void> {
-  const { artist, id, rating, artistEntityRatingSupport, activeServerId, t, setArtistEntityRating, setArtist } = deps;
+  const { artist, id, rating, artistEntityRatingSupport, activeServerId, setArtistEntityRating, setArtist } = deps;
   if (!artist || artist.id !== id) return;
   const artistId = artist.id;
-  const ratingAtStart = artist.userRating ?? 0;
-
   setArtistEntityRating(rating);
 
   if (artistEntityRatingSupport !== 'full') return;
 
-  try {
-    await setRating(artistId, rating);
-    setArtist(a => (a && a.id === artistId ? { ...a, userRating: rating } : a));
-  } catch (err) {
-    setArtistEntityRating(ratingAtStart);
-    useAuthStore.getState().setEntityRatingSupport(activeServerId, 'track_only');
-    showToast(
-      typeof err === 'string' ? err : err instanceof Error ? err.message : t('entityRating.saveFailed'),
-      4500,
-      'error',
-    );
-  }
+  queueEntityRating('artist', artistId, rating, artist.serverId ?? activeServerId);
+  setArtist(a => (a && a.id === artistId ? { ...a, userRating: rating } : a));
 }
 
 export interface RunArtistToggleStarDeps {
@@ -54,18 +41,7 @@ export async function runArtistToggleStar(deps: RunArtistToggleStarDeps): Promis
   if (!artist) return;
   const currentlyStarred = isStarred;
   setIsStarred(!currentlyStarred);
-  try {
-    const meta = {
-      serverId: artist.serverId,
-      name: artist.name,
-      albumCount: artist.albumCount,
-    };
-    if (currentlyStarred) await unstar(artist.id, 'artist', meta);
-    else await star(artist.id, 'artist', meta);
-  } catch (e) {
-    console.error('Failed to toggle star', e);
-    setIsStarred(currentlyStarred);
-  }
+  queueEntityStar('artist', artist.id, !currentlyStarred, artist.serverId);
 }
 
 export interface RunArtistShareDeps {
@@ -76,7 +52,7 @@ export interface RunArtistShareDeps {
 export async function runArtistShare(deps: RunArtistShareDeps): Promise<void> {
   const { artist, t } = deps;
   try {
-    const ok = await copyEntityShareLink('artist', artist.id);
+    const ok = await copyEntityShareLink('artist', artist.id, artist.serverId);
     if (ok) showToast(t('contextMenu.shareCopied'));
     else showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
   } catch {

@@ -2125,6 +2125,7 @@ struct AlbumOrderCols {
     name: &'static str,
     artist: String,
     year: &'static str,
+    synced: &'static str,
 }
 
 impl AlbumOrderCols {
@@ -2135,6 +2136,7 @@ impl AlbumOrderCols {
             name: "MAX(t.album) COLLATE NOCASE",
             artist: sql_display_artist_from("MAX(t.artist)", "MAX(t.album_artist)"),
             year: "MAX(t.year)",
+            synced: "MAX(t.synced_at)",
         }
     }
 
@@ -2144,6 +2146,7 @@ impl AlbumOrderCols {
             name: "album COLLATE NOCASE",
             artist: sql_display_artist_from("artist", "album_artist"),
             year: "year",
+            synced: "synced_at",
         }
     }
 }
@@ -2155,6 +2158,7 @@ fn album_order_sql(sort: &[LibrarySortClause], cols: &AlbumOrderCols) -> Option<
             "name" => cols.name.to_string(),
             "artist" => format!("{} COLLATE NOCASE", cols.artist),
             "year" => cols.year.to_string(),
+            "synced" => cols.synced.to_string(),
             "random" => "RANDOM()".to_string(),
             _ => continue,
         };
@@ -2190,6 +2194,7 @@ pub(crate) fn sort_column(field: &str, entity: EntityKind) -> Option<&'static st
         ("name", EntityKind::Album) => Some("a.name COLLATE NOCASE"),
         ("year", EntityKind::Album) => Some("a.year"),
         ("artist", EntityKind::Album) => Some("a.artist COLLATE NOCASE"),
+        ("synced", EntityKind::Album) => Some("a.synced_at"),
         ("name", EntityKind::Artist) => Some("COALESCE(ar.name_sort, ar.name) COLLATE NOCASE"),
         // SQLite built-in: ORDER BY RANDOM() LIMIT N — fast pseudo-random sample,
         // no index scan needed beyond the row-id range. Direction is ignored.

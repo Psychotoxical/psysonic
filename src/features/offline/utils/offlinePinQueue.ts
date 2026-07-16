@@ -35,8 +35,13 @@ export function clearOfflinePinTasks(): void {
   pinTasks.clear();
 }
 
-export function removeOfflinePinTask(albumId: string): void {
-  pinTasks.delete(albumId);
+function pinKey(serverId: string | undefined, albumId: string): string {
+  return `${serverId}:${albumId}`;
+}
+
+export function removeOfflinePinTask(albumId: string, serverId?: string): void {
+  if (serverId) pinTasks.delete(pinKey(serverId, albumId));
+  else for (const key of pinTasks.keys()) if (key.endsWith(`:${albumId}`)) pinTasks.delete(key);
 }
 
 /** True when the album is waiting in the pin queue (not actively downloading). */
@@ -57,9 +62,9 @@ export function dequeueOfflinePin(albumId: string): boolean {
   return true;
 }
 
-function isPinAlreadyScheduled(albumId: string): boolean {
+function isPinAlreadyScheduled(serverId: string, albumId: string): boolean {
   const { pinQueue } = useOfflineJobStore.getState();
-  return pinQueue.some(p => p.albumId === albumId);
+  return pinQueue.some(p => p.serverId === serverId && p.albumId === albumId);
 }
 
 /**
@@ -70,22 +75,23 @@ export function enqueueOfflinePin(task: OfflinePinTask): boolean {
   cancelledDownloads.delete(task.albumId);
 
   const store = useOfflineJobStore.getState();
-  const existing = store.pinQueue.find(p => p.albumId === task.albumId);
+  const existing = store.pinQueue.find(p => p.serverId === task.serverId && p.albumId === task.albumId);
   if (existing?.status === 'downloading') {
     return false;
   }
 
-  pinTasks.set(task.albumId, task);
+  pinTasks.set(pinKey(task.serverId, task.albumId), task);
 
   if (existing?.status === 'queued') {
     scheduleOfflinePinQueue();
     return true;
   }
-  if (isPinAlreadyScheduled(task.albumId)) {
+  if (isPinAlreadyScheduled(task.serverId, task.albumId)) {
     return false;
   }
 
   const entry: OfflinePinQueueEntry = {
+    serverId: task.serverId,
     albumId: task.albumId,
     albumName: task.albumName,
     pinKind: task.type,
@@ -113,18 +119,18 @@ async function drainOfflinePinQueue(): Promise<void> {
       if (!next) break;
 
       if (cancelledDownloads.has(next.albumId)) {
-        store.removePinFromQueue(next.albumId);
-        pinTasks.delete(next.albumId);
+        store.removePinFromQueue(next.albumId, next.serverId);
+        pinTasks.delete(pinKey(next.serverId, next.albumId));
         continue;
       }
 
-      const task = pinTasks.get(next.albumId);
+      const task = pinTasks.get(pinKey(next.serverId, next.albumId));
       if (!task) {
-        store.removePinFromQueue(next.albumId);
+        store.removePinFromQueue(next.albumId, next.serverId);
         continue;
       }
 
-      store.setPinQueueStatus(next.albumId, 'downloading');
+      store.setPinQueueStatus(next.albumId, 'downloading', next.serverId);
       try {
         await executor(task);
       } catch {
@@ -133,8 +139,8 @@ async function drainOfflinePinQueue(): Promise<void> {
         if (task.artistProgressGroupId) {
           store.bumpBulkProgressDone(task.artistProgressGroupId);
         }
-        store.removePinFromQueue(next.albumId);
-        pinTasks.delete(next.albumId);
+        store.removePinFromQueue(next.albumId, next.serverId);
+        pinTasks.delete(pinKey(next.serverId, next.albumId));
       }
     }
   } finally {

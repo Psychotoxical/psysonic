@@ -1,5 +1,5 @@
 import { Play } from 'lucide-react';
-import { updatePlaylist } from '@/lib/api/subsonicPlaylists';
+import { createPlaylistForServer } from '@/lib/api/subsonicPlaylists';
 import { resolvePlaylist, resolveMediaServerId } from '@/features/offline';
 import { songToTrack } from '@/lib/media/songToTrack';
 import type { Track } from '@/lib/media/trackTypes';
@@ -8,7 +8,6 @@ import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useOrbitStore } from '@/features/orbit';
 import { OrbitGuestQueue, OrbitQueueHead } from '@/features/orbit';
 import HostApprovalQueue from '@/features/orbit/components/HostApprovalQueue';
-import { usePlaylistStore } from '@/features/playlist';
 import { useTranslation } from 'react-i18next';
 import { usePlaybackLibraryNavigate } from '@/features/playback/hooks/usePlaybackLibraryNavigate';
 import { useAuthStore } from '@/store/authStore';
@@ -34,8 +33,13 @@ import { QueueTabBar } from '@/features/queue/components/QueueTabBar';
 import { useQueueAutoScroll } from '@/features/queue/hooks/useQueueAutoScroll';
 import { useTimelineBootstrapOnMode, useTimelineHistoryResolver, useTimelinePlayHistory } from '@/features/playback/hooks/useTimelinePlayHistory';
 import { buildTimelineDisplayRows } from '@/features/playback/utils/buildTimelineDisplayRows';
-import { activeServerQueueTrackIds } from '@/features/playback/utils/playback/trackServerScope';
 import { isActivePublicShareQueue } from '@/lib/share/navidromePublicSharePlayback';
+import {
+  queueServerSlices,
+  updateQueuePlaylistForServer,
+  type QueueServerSlice,
+} from '@/features/queue/utils/queueServerSlices';
+import { QueueServerSliceDialog } from '@/features/queue/components/QueueServerSliceDialog';
 
 export default function QueuePanel() {
   const orbitRole = useOrbitStore(s => s.role);
@@ -180,28 +184,51 @@ function QueuePanelHostOrSolo() {
     suppressNextAutoScrollRef,
   });
 
-  const [activePlaylist, setActivePlaylist] = useState<{ id: string; name: string } | null>(null);
+  const [activePlaylist, setActivePlaylist] = useState<{ id: string; name: string; serverId: string } | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [loadModalOpen, setLoadModalOpen] = useState(false);
+  const [sliceChoice, setSliceChoice] = useState<{
+    action: 'save' | 'share';
+    slices: QueueServerSlice[];
+    selectedServerId: string;
+  } | null>(null);
+  const [saveSlice, setSaveSlice] = useState<QueueServerSlice | null>(null);
 
-  const handleSave = async () => {
-    if (publicShareQueueActive) return;
-    const exportTrackIds = activeServerQueueTrackIds(queueItems);
-    if (exportTrackIds.length === 0) return;
-    if (activePlaylist) {
+  const chooseQueueSlice = (action: 'save' | 'share'): QueueServerSlice | null => {
+    const slices = queueServerSlices(queueItems);
+    if (slices.length === 0) return null;
+    if (slices.length === 1) return slices[0];
+    const activeServerId = useAuthStore.getState().activeServerId;
+    setSliceChoice({
+      action,
+      slices,
+      selectedServerId: slices.find(slice => slice.server.id === activeServerId)?.server.id ?? slices[0].server.id,
+    });
+    return null;
+  };
+
+  const saveQueueSlice = async (slice: QueueServerSlice) => {
+    if (activePlaylist?.serverId === slice.server.id) {
       setSaveState('saving');
       try {
-        await updatePlaylist(activePlaylist.id, exportTrackIds);
+        await updateQueuePlaylistForServer(slice.server.id, activePlaylist.id, slice.trackIds);
         setSaveState('saved');
         setTimeout(() => setSaveState('idle'), 1500);
       } catch (e) {
         console.error('Failed to update playlist', e);
         setSaveState('idle');
       }
-    } else {
-      setSaveModalOpen(true);
+      return;
     }
+    setSaveSlice(slice);
+    setSaveModalOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (publicShareQueueActive) return;
+    const slice = chooseQueueSlice('save');
+    if (slice) await saveQueueSlice(slice);
   };
 
   const handleLoad = () => {
@@ -225,19 +252,27 @@ function QueuePanelHostOrSolo() {
       else showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
       return;
     }
-    const ids = activeServerQueueTrackIds(queueItems);
-    if (ids.length === 0) {
+    const slice = chooseQueueSlice('share');
+    if (!slice) {
+      if (queueServerSlices(queueItems).length === 0) {
+        showToast(t('queue.shareQueueEmpty'), 3000, 'info');
+      }
+      return;
+    }
+    await copyQueueSliceShare(slice);
+  };
+
+  const copyQueueSliceShare = async (slice: QueueServerSlice) => {
+    if (slice.trackIds.length === 0) {
       showToast(t('queue.shareQueueEmpty'), 3000, 'info');
       return;
     }
     // Queue share goes to remote recipients — use the share URL, not the
     // connect URL the active app is currently bound to (would leak the LAN
     // host on a dual-address profile).
-    const active = useAuthStore.getState().getActiveServer();
-    if (!active) return;
-    const srv = serverShareBaseUrl(active);
+    const srv = serverShareBaseUrl(slice.server);
     if (!srv) return;
-    const ok = await copyTextToClipboard(encodeSharePayload({ srv, k: 'queue', ids }));
+    const ok = await copyTextToClipboard(encodeSharePayload({ srv, k: 'queue', ids: slice.trackIds }));
     if (ok) showToast(t('contextMenu.shareCopied'));
     else showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
   };
@@ -408,13 +443,15 @@ function QueuePanelHostOrSolo() {
 
       {saveModalOpen && (
         <SavePlaylistModal
-          onClose={() => setSaveModalOpen(false)}
+          onClose={() => { setSaveModalOpen(false); setSaveSlice(null); }}
           onSave={async (name) => {
             try {
-              const createPlaylist = usePlaylistStore.getState().createPlaylist;
-              const pl = await createPlaylist(name, activeServerQueueTrackIds(queueItems));
-              if (pl) setActivePlaylist({ id: pl.id, name: pl.name });
+              const slice = saveSlice ?? queueServerSlices(queueItems)[0];
+              if (!slice) return;
+              const pl = await createPlaylistForServer(slice.server.id, name, slice.trackIds);
+              setActivePlaylist({ id: pl.id, name: pl.name, serverId: slice.server.id });
               setSaveModalOpen(false);
+              setSaveSlice(null);
             } catch (e) {
               console.error('Failed to save playlist', e);
             }
@@ -440,11 +477,30 @@ function QueuePanelHostOrSolo() {
                   playTrack(tracks[0], tracks);
                 }
               }
-              setActivePlaylist({ id, name });
+              const activeServerId = useAuthStore.getState().activeServerId;
+              if (activeServerId) setActivePlaylist({ id, name, serverId: activeServerId });
               setLoadModalOpen(false);
             } catch (e) {
               console.error('Failed to load playlist', e);
             }
+          }}
+        />
+      )}
+
+      {sliceChoice && (
+        <QueueServerSliceDialog
+          action={sliceChoice.action}
+          slices={sliceChoice.slices}
+          selectedServerId={sliceChoice.selectedServerId}
+          onSelect={selectedServerId => setSliceChoice(current => current ? { ...current, selectedServerId } : current)}
+          onCancel={() => setSliceChoice(null)}
+          onConfirm={() => {
+            const choice = sliceChoice.slices.find(slice => slice.server.id === sliceChoice.selectedServerId);
+            const action = sliceChoice.action;
+            setSliceChoice(null);
+            if (!choice) return;
+            if (action === 'save') void saveQueueSlice(choice);
+            else void copyQueueSliceShare(choice);
           }}
         />
       )}

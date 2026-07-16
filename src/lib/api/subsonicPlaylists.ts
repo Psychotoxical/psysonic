@@ -49,6 +49,10 @@ function schedulePinnedPlaylistSync(playlistId: string): void {
     .catch(() => {});
 }
 
+function withoutOrbit(playlists: SubsonicPlaylist[], includeOrbit: boolean): SubsonicPlaylist[] {
+  return includeOrbit ? playlists : playlists.filter(p => !p.name.startsWith('__psyorbit_'));
+}
+
 async function clearPlaylistSongs(id: string, prevCount: number): Promise<void> {
   for (const indices of chunkIndicesForSubsonicGet(prevCount)) {
     await api('updatePlaylist.view', { playlistId: id, songIndexToRemove: indices });
@@ -62,7 +66,20 @@ export async function getPlaylists(includeOrbit = false): Promise<SubsonicPlayli
   // so guests can reach them, which means they leak into every UI picker and
   // even into the Navidrome web client. Filter them out of every UI call;
   // orbit's own sweep passes `includeOrbit=true`.
-  return includeOrbit ? all : all.filter(p => !p.name.startsWith('__psyorbit_'));
+  return withoutOrbit(all, includeOrbit);
+}
+
+export async function getPlaylistsForServer(
+  serverId: string,
+  includeOrbit = false,
+): Promise<SubsonicPlaylist[]> {
+  const data = await apiForServer<{ playlists: { playlist: SubsonicPlaylist[] } }>(
+    serverId,
+    'getPlaylists.view',
+    { _t: Date.now() },
+  );
+  return withoutOrbit(data.playlists?.playlist ?? [], includeOrbit)
+    .map(playlist => ({ ...playlist, serverId }));
 }
 
 export async function getPlaylist(id: string): Promise<{ playlist: SubsonicPlaylist; songs: SubsonicSong[] }> {
@@ -96,11 +113,34 @@ export async function createPlaylist(name: string, songIds?: string[]): Promise<
   return data.playlist;
 }
 
+export async function createPlaylistForServer(
+  serverId: string,
+  name: string,
+  songIds?: string[],
+): Promise<SubsonicPlaylist> {
+  const params: Record<string, unknown> = { name };
+  if (songIds?.length) params.songId = songIds;
+  const data = await apiForServer<{ playlist: SubsonicPlaylist }>(serverId, 'createPlaylist.view', params);
+  return { ...data.playlist, serverId };
+}
+
 /** Append tracks without re-sending the full playlist (avoids GET URL length limits). */
 export async function addSongsToPlaylist(id: string, songIdsToAdd: string[]): Promise<void> {
   if (songIdsToAdd.length === 0) return;
   for (const batch of chunkSongIdsForSubsonicGet(songIdsToAdd)) {
     await api('updatePlaylist.view', { playlistId: id, songIdToAdd: batch });
+  }
+  schedulePinnedPlaylistSync(id);
+}
+
+export async function addSongsToPlaylistForServer(
+  serverId: string,
+  id: string,
+  songIdsToAdd: string[],
+): Promise<void> {
+  if (songIdsToAdd.length === 0) return;
+  for (const batch of chunkSongIdsForSubsonicGet(songIdsToAdd)) {
+    await apiForServer(serverId, 'updatePlaylist.view', { playlistId: id, songIdToAdd: batch });
   }
   schedulePinnedPlaylistSync(id);
 }
@@ -163,4 +203,8 @@ export async function uploadPlaylistCoverArt(id: string, file: File): Promise<vo
 
 export async function deletePlaylist(id: string): Promise<void> {
   await api('deletePlaylist.view', { id });
+}
+
+export async function deletePlaylistForServer(serverId: string, id: string): Promise<void> {
+  await apiForServer(serverId, 'deletePlaylist.view', { id });
 }

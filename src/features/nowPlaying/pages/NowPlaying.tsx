@@ -9,6 +9,7 @@ import { usePlaybackServerId } from '@/features/playback/hooks/usePlaybackServer
 import { useTranslation } from 'react-i18next';
 import { Music, EyeOff, LayoutGrid, RotateCcw, Eye } from 'lucide-react';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
+import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
 import { useAuthStore } from '@/store/authStore';
 import { useLyricsStore } from '@/store/lyricsStore';
 import { songToTrack } from '@/lib/media/songToTrack';
@@ -276,7 +277,7 @@ export default function NowPlaying() {
               artistRefs={trackArtistRefs.length > 0 ? trackArtistRefs : undefined}
               genre={songMeta?.genre ?? undefined}
               playCount={(songMeta as (SubsonicSong & { playCount?: number }) | null)?.playCount}
-              userRatingOverride={userRatingOverrides[currentTrack.id]}
+              userRatingOverride={userRatingOverrides[entityOverrideKey(currentTrack.serverId ?? playbackServerId, currentTrack.id)]}
               networkTrack={networkTrack}
               networkArtist={networkArtist}
               starred={starred}

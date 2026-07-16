@@ -320,7 +320,7 @@ fn finish_scope_album_list(
     Ok((albums, total))
 }
 
-fn ensure_cluster_keys_for_scopes(
+pub(crate) fn ensure_cluster_keys_for_scopes(
     store: &LibraryStore,
     scopes: &[LibraryScopePair],
 ) -> Result<(), String> {
@@ -371,15 +371,15 @@ pub fn list_albums(
         "{cte}, \
          base AS ( \
            SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
-                  t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.duration_sec, t.id, \
+                   t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.duration_sec, t.id, \
                   s.pr, {ALBUM_DEDUP_KEY} AS album_dedup, {TRACK_DEDUP_KEY} AS track_dedup \
            {scoped} AND t.album_id IS NOT NULL AND t.album_id != '' \
          ) \
          SELECT server_id, album_id, album, artist, artist_id, album_artist, \
-                song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at \
+                 song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at \
          FROM ( \
            SELECT server_id, album_id, album, artist, artist_id, album_artist, \
-                  year, genre, cover_art_id, starred_at, synced_at, \
+                   year, genre, cover_art_id, starred_at, synced_at, \
                   COUNT(DISTINCT track_dedup) AS song_count, SUM(duration_sec) AS duration_total, \
                   MIN({ALBUM_PICK_KEY}) AS _pick \
            FROM base GROUP BY album_dedup \

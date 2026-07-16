@@ -2,6 +2,7 @@ export const orbit = {
   triggerLabel: 'Orbit',
   triggerTooltip: '开始或加入共享收听会话',
   launchCreate: '创建会话',
+  launchCreateMultiServerBlocked: 'Choose one browse server before creating an Orbit session. Joining an invite will switch and narrow the server automatically.',
   launchJoin: '加入会话',
   launchHelp: '这是怎么工作的？',
   launchHelpSoon: '即将推出',

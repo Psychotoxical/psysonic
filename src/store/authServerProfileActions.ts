@@ -2,6 +2,7 @@ import type { AuthState } from './authStoreTypes';
 import { generateId } from './authStoreHelpers';
 import { getQueueServerId, clearQueueServerForPlayback } from './playbackEngineBridge';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
+import { discardPendingEntityMutationsForServer } from './entityMutationBridge';
 
 type SetState = (
   partial: Partial<AuthState> | ((state: AuthState) => Partial<AuthState>),
@@ -65,6 +66,7 @@ export function createServerProfileActions(set: SetState): Pick<
     },
 
     removeServer: (id) => {
+      discardPendingEntityMutationsForServer(id);
       // queueServerId is the canonical index key (B1); resolve the
       // canonical id back to a server UUID before comparing so a profile
       // delete still clears the matching queue binding.

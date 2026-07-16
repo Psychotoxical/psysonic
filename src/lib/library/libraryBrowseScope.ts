@@ -4,10 +4,15 @@ import type { LibraryServerConnection } from '@/lib/network/libraryServerReachab
 import { serverIndexKeyFromUrl } from '@/lib/server/serverIndexKey';
 
 interface LibraryScopeState {
-  servers: Array<{ id: string; url: string }>;
+  servers: Array<{ id: string; url: string; name?: string }>;
   musicLibraryServerIds: string[];
   musicLibrarySelectionByServer: Record<string, string[]>;
   musicLibraryFilterByServer: Record<string, 'all' | string>;
+}
+
+export interface ReachableLibrarySource {
+  serverId: string;
+  name: string;
 }
 
 export interface LibraryScopeRuntime {
@@ -41,6 +46,22 @@ export interface DerivedLibraryScopes {
 export function configuredLibraryServerIds(state: LibraryScopeState): string[] {
   const selected = new Set(state.musicLibraryServerIds);
   return state.servers.map(server => server.id).filter(serverId => selected.has(serverId));
+}
+
+/** Selected live Subsonic sources. Unlike indexed browse, this ignores index readiness. */
+export function buildReachableLibrarySources(
+  state: LibraryScopeState,
+  runtime: Pick<LibraryScopeRuntime, 'connectionByServer'>,
+  options?: { navigatorOffline?: boolean },
+): ReachableLibrarySource[] {
+  if (options?.navigatorOffline) return [];
+  const selected = new Set(configuredLibraryServerIds(state));
+  return state.servers.flatMap(server => {
+    if (!selected.has(server.id)) return [];
+    const indexKey = serverIndexKeyFromUrl(server.url) || server.id;
+    if (runtime.connectionByServer[indexKey] !== 'online') return [];
+    return [{ serverId: server.id, name: server.name?.trim() || server.url }];
+  });
 }
 
 export function buildConfiguredLibraryScopePairs(state: LibraryScopeState): LibraryScopePair[] {

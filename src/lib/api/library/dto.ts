@@ -208,6 +208,26 @@ export interface LibraryScopePair {
   libraryId: string | null;
 }
 
+export interface LibraryScopeCatalogStatisticsRequest {
+  scopes: LibraryScopePair[];
+  formatSampleLimit?: number;
+}
+
+export interface LibraryScopeCatalogStatisticsDto {
+  artistCount: number;
+  albumCount: number;
+  trackCount: number;
+  durationSec: number;
+  genres: GenreAlbumCountRow[];
+  formats: Array<{ format: string; count: number }>;
+  formatSampleSize: number;
+}
+
+export interface LibraryScopeMostPlayedAlbumDto {
+  album: LibraryAlbumDto;
+  playCount: number;
+}
+
 export type LibrarySourceEntityType = GeneratedLibrarySourceEntityType;
 export type LibraryResolveEntitySourcesRequest = GeneratedLibraryResolveEntitySourcesRequest;
 export type LibraryEntitySourceDto = GeneratedLibraryEntitySourceDto;

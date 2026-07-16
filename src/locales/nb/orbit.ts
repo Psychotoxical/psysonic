@@ -2,6 +2,7 @@ export const orbit = {
   triggerLabel: 'Orbit',
   triggerTooltip: 'Start eller bli med i en delt lytteøkt',
   launchCreate: 'Opprett en økt',
+  launchCreateMultiServerBlocked: 'Choose one browse server before creating an Orbit session. Joining an invite will switch and narrow the server automatically.',
   launchJoin: 'Bli med i en økt',
   launchHelp: 'Hvordan fungerer dette?',
   launchHelpSoon: 'Kommer snart',

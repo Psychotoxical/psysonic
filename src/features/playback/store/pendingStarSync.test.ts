@@ -1,125 +1,199 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const starMock = vi.fn();
-const unstarMock = vi.fn();
-const setRatingMock = vi.fn();
+const starMock = vi.fn(async (..._args: unknown[]) => undefined);
+const unstarMock = vi.fn(async (..._args: unknown[]) => undefined);
+const setRatingForServerMock = vi.fn(async (..._args: unknown[]) => undefined);
+const resolveSourcesMock = vi.fn();
+const showToastMock = vi.fn();
+
 vi.mock('@/lib/api/subsonicStarRating', () => ({
-  star: (...a: unknown[]) => starMock(...a),
-  unstar: (...a: unknown[]) => unstarMock(...a),
-  setRating: (...a: unknown[]) => setRatingMock(...a),
+  star: (...args: unknown[]) => starMock(...args),
+  unstar: (...args: unknown[]) => unstarMock(...args),
+  setRatingForServer: (...args: unknown[]) => setRatingForServerMock(...args),
 }));
+vi.mock('@/lib/api/library/scopeReads', () => ({
+  libraryResolveEntitySources: (...args: unknown[]) => resolveSourcesMock(...args),
+}));
+vi.mock('@/lib/dom/toast', () => ({ showToast: (...args: unknown[]) => showToastMock(...args) }));
 
-import { usePlayerStore } from '@/features/playback/store/playerStore';
-import type { Track } from '@/lib/media/trackTypes';
+import { useAuthStore } from '@/store/authStore';
+import { useLibraryIndexStore } from '@/store/libraryIndexStore';
+import { usePlayerStore } from './playerStore';
+import { getCachedTrack, seedQueueResolver, _resetQueueResolverForTest } from './queueTrackResolver';
+import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
 import {
-  resetActiveServerConnectionSnapshot,
-  setActiveServerReachable,
-} from '@/lib/network/activeServerReachability';
-import { queueSongStar, queueSongRating, _resetPendingStarSyncForTest } from '@/features/playback/store/pendingStarSync';
-import {
-  getCachedTrack,
-  seedQueueResolver,
-  _resetQueueResolverForTest,
-} from '@/features/playback/store/queueTrackResolver';
-import { toQueueItemRefs } from '@/features/playback/store/queueItemRef';
+  _getPendingEntityMutationsForTest,
+  _resetPendingEntityMutationMemoryForTest,
+  _resetPendingStarSyncForTest,
+  discardPendingEntityMutationsForServer,
+  flushPendingEntityMutations,
+  queueEntityRating,
+  queueSongRating,
+  queueSongStar,
+} from './pendingStarSync';
 
-const track = (id: string): Track => ({
-  id, title: id, artist: '', album: 'A', albumId: 'A', duration: 1,
+const ready = (serverId: string) => ({
+  serverId,
+  libraryScope: '',
+  syncPhase: 'ready',
+  capabilityFlags: 0,
+  libraryTier: '',
 });
 
-describe('pendingStarSync', () => {
+function setupServers(options?: { secondReady?: boolean; secondOnline?: boolean }): void {
+  useAuthStore.setState({
+    activeServerId: 's1',
+    servers: [
+      { id: 's1', name: 'One', url: 'https://one.test', username: 'u', password: 'p' },
+      { id: 's2', name: 'Two', url: 'https://two.test', username: 'u', password: 'p' },
+    ],
+    musicLibraryServerIds: ['s1', 's2'],
+    musicLibrarySelectionByServer: { s1: [], s2: [] },
+    musicLibraryFilterByServer: {},
+    entityRatingSupportByServer: { s1: 'full', s2: 'full' },
+  });
+  useLibraryIndexStore.setState({
+    statusByServer: {
+      'one.test': ready('one.test'),
+      ...(options?.secondReady === false ? {} : { 'two.test': ready('two.test') }),
+    },
+    connectionByServer: {
+      'one.test': 'online',
+      'two.test': options?.secondOnline === false ? 'offline' : 'online',
+    },
+  });
+}
+
+describe('pending entity mutation outbox', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
-    resetActiveServerConnectionSnapshot();
-    setActiveServerReachable(true);
-    starMock.mockReset().mockResolvedValue(undefined);
-    unstarMock.mockReset().mockResolvedValue(undefined);
-    setRatingMock.mockReset().mockResolvedValue(undefined);
+    localStorage.clear();
     _resetPendingStarSyncForTest();
     _resetQueueResolverForTest();
-    // Thin-state: the queue's track copy lives in the resolver cache. Seed it so
-    // a star/rating success has a cached entry to patch in place.
-    seedQueueResolver('', [track('t1')]);
+    starMock.mockClear();
+    unstarMock.mockClear();
+    setRatingForServerMock.mockClear();
+    resolveSourcesMock.mockReset();
+    showToastMock.mockClear();
     usePlayerStore.setState({
-      currentTrack: track('t1'),
-      queueItems: toQueueItemRefs('', [track('t1')]),
+      currentTrack: null,
       queueServerId: null,
       starredOverrides: {},
       userRatingOverrides: {},
     });
-  });
-  afterEach(() => {
-    _resetPendingStarSyncForTest();
-    vi.useRealTimers();
-  });
-
-  it('stars optimistically, then keeps the override + patches the track on success', async () => {
-    queueSongStar('t1', true);
-    expect(usePlayerStore.getState().starredOverrides.t1).toBe(true); // optimistic, instant
-
-    await vi.runAllTimersAsync();
-
-    expect(starMock).toHaveBeenCalledWith('t1', 'song', undefined);
-    const s = usePlayerStore.getState();
-    expect(s.starredOverrides.t1).toBe(true); // kept on success so list views stay in sync
-    expect(s.currentTrack?.starred).toBeTruthy(); // in-memory track patched
-    // Thin-state: the resolver cache entry is patched in place (not dropped) so
-    // the visible queue row keeps its title and reflects the synced star —
-    // dropping it would blank the row to a "…" placeholder.
-    const cached = getCachedTrack({ serverId: '', trackId: 't1' });
-    expect(cached?.title).toBe('t1');
-    expect(cached?.starred).toBeTruthy();
+    setupServers();
+    resolveSourcesMock.mockResolvedValue([
+      { serverId: 's1', id: 'a1', libraryId: '', priority: 0 },
+      { serverId: 's2', id: 'b1', libraryId: '', priority: 1 },
+    ]);
   });
 
-  it('does NOT roll back on a network failure and keeps retrying', async () => {
-    starMock.mockRejectedValue(new Error('offline'));
-    queueSongStar('t1', true);
+  it('fans out to every matching ready online target and patches only its qualified cache row', async () => {
+    seedQueueResolver('s1', [{ id: 'a1', title: 'A', artist: '', album: '', albumId: '', duration: 1 }]);
+    seedQueueResolver('s2', [{ id: 'a1', title: 'same raw id', artist: '', album: '', albumId: '', duration: 1 }]);
+    queueSongStar('a1', true, 's1');
+    await vi.waitFor(() => expect(starMock).toHaveBeenCalledTimes(2));
 
-    await vi.advanceTimersByTimeAsync(4000); // 0ms + 1s + 2s backoff cycles
-
-    expect(starMock.mock.calls.length).toBeGreaterThanOrEqual(2); // retried
-    expect(usePlayerStore.getState().starredOverrides.t1).toBe(true); // override survives (no rollback)
+    expect(starMock).toHaveBeenCalledWith('a1', 'song', { serverId: 's1' });
+    expect(starMock).toHaveBeenCalledWith('b1', 'song', { serverId: 's2' });
+    expect(usePlayerStore.getState().starredOverrides).toMatchObject({
+      [entityOverrideKey('s1', 'a1')]: true,
+      [entityOverrideKey('s2', 'b1')]: true,
+    });
+    expect(getCachedTrack({ serverId: 's1', trackId: 'a1' })?.starred).toBeTruthy();
+    expect(getCachedTrack({ serverId: 's2', trackId: 'a1' })?.starred).toBeUndefined();
+    expect(_getPendingEntityMutationsForTest()).toEqual([]);
   });
 
-  it('flushes pending stars when the active server becomes reachable', async () => {
-    starMock.mockRejectedValue(new Error('offline'));
-    queueSongStar('t1', true);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(starMock).toHaveBeenCalledTimes(1);
+  it('persists an offline concrete target and retries it after reconnect', async () => {
+    setupServers({ secondOnline: false });
+    queueSongRating('a1', 4, 's1');
+    await vi.waitFor(() => expect(setRatingForServerMock).toHaveBeenCalledWith('s1', 'a1', 4));
 
-    setActiveServerReachable(false);
-    setActiveServerReachable(true);
-    await vi.advanceTimersByTimeAsync(0);
+    expect(_getPendingEntityMutationsForTest()).toEqual([
+      expect.objectContaining({ targetServerId: 's2', entityId: 'b1', value: 4, resolution: 'resolved' }),
+    ]);
+    expect(localStorage.getItem('psysonic-entity-mutation-outbox-v1')).toContain('b1');
 
-    expect(starMock.mock.calls.length).toBeGreaterThan(1);
+    useLibraryIndexStore.setState(state => ({
+      connectionByServer: { ...state.connectionByServer, 'two.test': 'online' },
+    }));
+    await flushPendingEntityMutations('s2');
+    expect(setRatingForServerMock).toHaveBeenCalledWith('s2', 'b1', 4);
+    expect(_getPendingEntityMutationsForTest()).toEqual([]);
   });
 
-  it('passes serverId through to star/unstar for cross-server favorites', async () => {
-    queueSongStar('t1', true, 'srv-b');
-    await vi.runAllTimersAsync();
-    expect(starMock).toHaveBeenCalledWith('t1', 'song', { serverId: 'srv-b' });
+  it('restores persisted concrete targets after an app restart', async () => {
+    setupServers({ secondOnline: false });
+    queueSongRating('a1', 4, 's1');
+    await vi.waitFor(() => expect(localStorage.getItem('psysonic-entity-mutation-outbox-v1')).toContain('b1'));
+    _resetPendingEntityMutationMemoryForTest();
+
+    useLibraryIndexStore.setState(state => ({
+      connectionByServer: { ...state.connectionByServer, 'two.test': 'online' },
+    }));
+    await flushPendingEntityMutations('s2');
+    expect(setRatingForServerMock).toHaveBeenCalledWith('s2', 'b1', 4);
+    expect(_getPendingEntityMutationsForTest()).toEqual([]);
   });
 
-  it('latest toggle wins when re-queued before sync', async () => {
-    queueSongStar('t1', true);
-    queueSongStar('t1', false); // user toggled back off
-    await vi.runAllTimersAsync();
-    expect(unstarMock).toHaveBeenCalledWith('t1', 'song', undefined);
-    expect(usePlayerStore.getState().starredOverrides.t1).toBe(false); // kept as durable false
-    expect(usePlayerStore.getState().currentTrack?.starred).toBeFalsy();
+  it('keeps a deferred logical target until its index becomes ready', async () => {
+    setupServers({ secondReady: false });
+    resolveSourcesMock.mockResolvedValueOnce([
+      { serverId: 's1', id: 'a1', libraryId: '', priority: 0 },
+    ]);
+    queueSongStar('a1', true, 's1');
+    await vi.waitFor(() => expect(starMock).toHaveBeenCalledTimes(1));
+    expect(_getPendingEntityMutationsForTest()).toEqual([
+      expect.objectContaining({ targetServerId: 's2', resolution: 'awaiting_index', anchorId: 'a1' }),
+    ]);
+
+    resolveSourcesMock.mockResolvedValueOnce([
+      { serverId: 's2', id: 'b1', libraryId: '', priority: 0 },
+    ]);
+    useLibraryIndexStore.setState(state => ({
+      statusByServer: { ...state.statusByServer, 'two.test': ready('two.test') },
+    }));
+    await flushPendingEntityMutations('s2');
+    expect(starMock).toHaveBeenCalledWith('b1', 'song', { serverId: 's2' });
+    expect(_getPendingEntityMutationsForTest()).toEqual([]);
   });
 
-  it('rates optimistically (track patched), clears override on success', async () => {
-    queueSongRating('t1', 4);
-    // setUserRatingOverride patches the track immediately:
-    expect(usePlayerStore.getState().currentTrack?.userRating).toBe(4);
-    expect(usePlayerStore.getState().userRatingOverrides.t1).toBe(4);
+  it('coalesces different deferred anchors resolving to one concrete target by newest updatedAt', async () => {
+    setupServers({ secondReady: false });
+    resolveSourcesMock.mockResolvedValue([]);
+    queueSongRating('anchor-old', 2, 's1');
+    queueSongRating('anchor-new', 5, 's1');
+    await vi.waitFor(() => expect(_getPendingEntityMutationsForTest().filter(task => task.targetServerId === 's2')).toHaveLength(2));
 
-    await vi.runAllTimersAsync();
+    resolveSourcesMock.mockResolvedValue([
+      { serverId: 's2', id: 'same-target', libraryId: '', priority: 0 },
+    ]);
+    useLibraryIndexStore.setState(state => ({
+      statusByServer: { ...state.statusByServer, 'two.test': ready('two.test') },
+    }));
+    await flushPendingEntityMutations('s2');
+    expect(setRatingForServerMock).toHaveBeenCalledWith('s2', 'same-target', 5);
+    expect(setRatingForServerMock).not.toHaveBeenCalledWith('s2', 'same-target', 2);
+  });
 
-    expect(setRatingMock).toHaveBeenCalledWith('t1', 4);
-    const s = usePlayerStore.getState();
-    expect('t1' in s.userRatingOverrides).toBe(false); // cleared
-    expect(s.currentTrack?.userRating).toBe(4); // track stays patched
+  it('retires unsupported album ratings as permanent failures', async () => {
+    useAuthStore.setState(state => ({
+      entityRatingSupportByServer: { ...state.entityRatingSupportByServer, s2: 'track_only' },
+    }));
+    queueEntityRating('album', 'album-a', 5, 's1');
+    await vi.waitFor(() => expect(setRatingForServerMock).toHaveBeenCalledWith('s1', 'a1', 5));
+    expect(setRatingForServerMock).not.toHaveBeenCalledWith('s2', 'b1', 5);
+    expect(_getPendingEntityMutationsForTest()).toEqual([]);
+    expect(showToastMock).toHaveBeenCalled();
+  });
+
+  it('discards all pending rows for a deleted server with one notice', async () => {
+    setupServers({ secondOnline: false });
+    queueSongStar('a1', true, 's1');
+    queueSongRating('a1', 3, 's1');
+    await vi.waitFor(() => expect(_getPendingEntityMutationsForTest().some(task => task.targetServerId === 's2')).toBe(true));
+    discardPendingEntityMutationsForServer('s2');
+    expect(_getPendingEntityMutationsForTest().some(task => task.targetServerId === 's2')).toBe(false);
+    expect(showToastMock).toHaveBeenCalledTimes(1);
   });
 });

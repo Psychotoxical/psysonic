@@ -4,6 +4,7 @@ import {
   buildBrowseScopeExcludedSources,
   buildConfiguredLibraryScopePairs,
   buildMutationLibraryScope,
+  buildReachableLibrarySources,
   configuredLibraryServerIds,
   libraryScopeFingerprint,
 } from './libraryBrowseScope';
@@ -75,6 +76,18 @@ describe('libraryBrowseScope', () => {
         'a.example': 'offline',
       },
     })).toEqual([{ serverId: 'b', libraryId: 'b-1' }]);
+  });
+
+  it('lists selected reachable live sources without requiring index readiness', () => {
+    expect(buildReachableLibrarySources({
+      ...state,
+      servers: state.servers.map(server => ({ ...server, name: server.id.toUpperCase() })),
+    }, {
+      connectionByServer: {
+        'b.example': 'online',
+        'a.example': 'offline',
+      },
+    })).toEqual([{ serverId: 'b', name: 'B' }]);
   });
 
   it('keeps every selected server in mutation membership with readiness', () => {

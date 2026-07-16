@@ -2,6 +2,7 @@ import React from 'react';
 import { ChevronDown, FolderOpen, HardDrive, Music, Waves } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import type { Track } from '@/lib/media/trackTypes';
+import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
 import type { LoudnessLufsPreset, NormalizationEngine } from '@/store/authStoreTypes';
 import type { PlaybackSourceKind } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import {
@@ -253,7 +254,7 @@ export function QueueCurrentTrack({
             const label = orbitAttributionLabel(currentTrack.id);
             return label ? <div className="queue-current-sub queue-current-attribution">{label}</div> : null;
           })()}
-          {renderStars(userRatingOverrides[currentTrack.id] ?? currentTrack.userRating)}
+          {renderStars(userRatingOverrides[entityOverrideKey(currentTrack.serverId, currentTrack.id)] ?? currentTrack.userRating)}
         </div>
       </div>
     </div>

@@ -19,6 +19,7 @@ import RandomMixHeader from '@/features/randomMix/components/RandomMixHeader';
 import RandomMixFiltersPanel from '@/features/randomMix/components/RandomMixFiltersPanel';
 import RandomMixGenrePanel from '@/features/randomMix/components/RandomMixGenrePanel';
 import RandomMixTrackRow from '@/features/randomMix/components/RandomMixTrackRow';
+import { useBrowseLibraryScope } from '@/store/useBrowseLibraryScope';
 
 export default function RandomMix() {
   const { t } = useTranslation();
@@ -60,6 +61,8 @@ export default function RandomMix() {
   );
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const activeServerId = useAuthStore(s => s.activeServerId ?? '');
+  const browseScope = useBrowseLibraryScope();
+  const browseServerId = browseScope.anchorServerId || activeServerId;
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(activeServerId));
   const [addedGenre, setAddedGenre] = useState<string | null>(null);
   const [addedArtist, setAddedArtist] = useState<string | null>(null);
@@ -85,7 +88,14 @@ export default function RandomMix() {
   const fetchSongs = (overrideSize?: number) => {
     setLoading(true);
     setSongs([]);
-    fetchRandomMixSongsUntilFull(getMixMinRatingsConfigFromAuth(), { targetSize: overrideSize ?? randomMixSize })
+    fetchRandomMixSongsUntilFull(getMixMinRatingsConfigFromAuth(), {
+      targetSize: overrideSize ?? randomMixSize,
+      localScope: {
+        serverId: browseServerId,
+        pairs: browseScope.pairs,
+        multiServer: browseScope.multiServer,
+      },
+    })
       .then(list => {
         setSongs(list);
         const st = new Set<string>();
@@ -107,7 +117,13 @@ export default function RandomMix() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchSongs();
     setGenresLoading(true);
-    void fetchGenreCatalog(activeServerId, indexEnabled)
+    void fetchGenreCatalog(
+      browseServerId,
+      indexEnabled,
+      browseScope.pairs,
+      browseScope.multiServer,
+      browseScope.fingerprint,
+    )
       .then(data => {
         setServerGenres(data);
         const audiobookLower = AUDIOBOOK_GENRES.map(g => g.toLowerCase());
@@ -127,7 +143,7 @@ export default function RandomMix() {
     // fetchSongs is a local helper recreated each render; the mix reload is keyed
     // on the library filter / server / index, not on the function identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [musicLibraryFilterVersion, activeServerId, indexEnabled]);
+  }, [musicLibraryFilterVersion, activeServerId, indexEnabled, browseScope.fingerprint, browseScope.pairs, browseServerId]);
 
   const filteredSongs = filterRandomMixSongs(songs, { excludeAudiobooks, customGenreBlacklist, mixRatingCfg });
   const filteredGenreMixSongs = filterRandomMixSongs(genreMixSongs, {
@@ -164,6 +180,11 @@ export default function RandomMix() {
         genre,
         timeout: 45000,
         targetSize: overrideSize ?? randomMixSize,
+        localScope: {
+          serverId: browseServerId,
+          pairs: browseScope.pairs,
+          multiServer: browseScope.multiServer,
+        },
       });
       setGenreMixSongs(list);
     } catch { /* ignore: best-effort */ }

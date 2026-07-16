@@ -1,4 +1,8 @@
-import { getMusicFolders, getMusicDirectory, getMusicIndexes } from '@/lib/api/subsonicLibrary';
+import {
+  getMusicDirectoryForServer,
+  getMusicFoldersForServer,
+  getMusicIndexesForServer,
+} from '@/lib/api/subsonicLibrary';
 import type { SubsonicDirectoryEntry, SubsonicArtist } from '@/lib/api/subsonicTypes';
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
@@ -11,6 +15,7 @@ import FolderBrowserColumn from '@/features/folderBrowser/components/FolderBrows
 import { useFolderBrowserNowPlayingPath } from '@/features/folderBrowser/hooks/useFolderBrowserNowPlayingPath';
 import { useFolderBrowserScrolling } from '@/features/folderBrowser/hooks/useFolderBrowserScrolling';
 import { useFolderBrowserKeyboardNav } from '@/features/folderBrowser/hooks/useFolderBrowserKeyboardNav';
+import { useReachableLibrarySources } from '@/store/useReachableLibrarySources';
 
 export default function FolderBrowser() {
   const { t } = useTranslation();
@@ -27,6 +32,7 @@ export default function FolderBrowser() {
   const playTrack = usePlayerStore(s => s.playTrack);
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const isContextMenuOpen = usePlayerStore(s => s.contextMenu.isOpen);
+  const sources = useReachableLibrarySources();
 
   const { wrapperRef, columnsViewportWidth } = useFolderBrowserScrolling({
     columns, keyboardPos, keyboardNavActive, setKeyboardNavActive,
@@ -38,6 +44,7 @@ export default function FolderBrowser() {
   useEffect(() => {
     const placeholder: Column = {
       id: 'root',
+      serverId: '',
       name: '',
       items: [],
       selectedId: null,
@@ -48,19 +55,23 @@ export default function FolderBrowser() {
     // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setColumns([placeholder]);
-    getMusicFolders()
-      .then(folders => {
-        const items: SubsonicDirectoryEntry[] = folders.map(f => ({
-          id: f.id,
-          title: f.name,
-          isDir: true,
-        }));
+    Promise.all(sources.map(async source => {
+      const folders = await getMusicFoldersForServer(source.serverId);
+      return folders.map(f => ({
+        id: f.id,
+        title: sources.length > 1 ? `${source.name} · ${f.name}` : f.name,
+        isDir: true,
+        serverId: source.serverId,
+      } satisfies SubsonicDirectoryEntry));
+    }))
+      .then(groups => {
+        const items = groups.flat();
         setColumns([{ ...placeholder, items, loading: false }]);
       })
       .catch(() => {
         setColumns([{ ...placeholder, items: [], loading: false, error: true }]);
       });
-  }, []);
+  }, [sources]);
 
   useEffect(() => {
     // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
@@ -171,6 +182,7 @@ export default function FolderBrowser() {
       ),
       {
         id: item.id,
+        serverId: item.serverId ?? '',
         name: item.title,
         items: [],
         selectedId: null,
@@ -180,8 +192,11 @@ export default function FolderBrowser() {
       },
     ]);
 
-    const fetchItems =
-      colIndex === 0 ? getMusicIndexes(item.id) : getMusicDirectory(item.id).then(d => d.child);
+    const ownerServerId = item.serverId ?? columns[colIndex]?.serverId;
+    if (!ownerServerId) return;
+    const fetchItems = colIndex === 0
+      ? getMusicIndexesForServer(ownerServerId, item.id)
+      : getMusicDirectoryForServer(ownerServerId, item.id).then(d => d.child);
 
     fetchItems
       .then(items => {
@@ -202,7 +217,7 @@ export default function FolderBrowser() {
           return next;
         });
       });
-  }, [clearFiltersRightOf]);
+  }, [clearFiltersRightOf, columns]);
 
   const handleFileClick = useCallback(
     (colIndex: number, item: SubsonicDirectoryEntry) => {
@@ -332,7 +347,7 @@ export default function FolderBrowser() {
       >
         {columns.map((col, colIndex) => (
           <FolderBrowserColumn
-            key={`${col.id}-${colIndex}`}
+            key={`${col.serverId}:${col.id}-${colIndex}`}
             col={col}
             colIndex={colIndex}
             isCompact={isColumnCompact(col, colIndex)}

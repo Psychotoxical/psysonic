@@ -20,6 +20,8 @@ import { peekComposerBrowseScrollRestore } from '@/features/composers/store/comp
 import { useScopedBrowseSearchQuery } from '@/store/liveSearchScopeStore';
 import { readComposerBrowseRestore } from '@/lib/navigation/albumDetailNavigation';
 import { filterArtistsWithRoleAlbumCredits } from '@/lib/library/composerBrowse';
+import { useBrowseLibraryScope } from '@/store/useBrowseLibraryScope';
+import { libraryScopeListArtistsByRole } from '@/lib/api/library';
 import { ALL_SENTINEL, artistLetterBucket } from '@/features/artist';
 import { useLibraryIgnoredArticles } from '@/lib/library/hooks/useLibraryIgnoredArticles';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
@@ -88,6 +90,8 @@ export default function Composers() {
   const scrollSnapshotRef = useRef<ComposerBrowseScrollSnapshot>({ scrollTop: 0, visibleCount: 0 });
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const serverId = useAuthStore(s => s.activeServerId ?? '');
+  const browseScope = useBrowseLibraryScope();
+  const browseServerId = browseScope.anchorServerId || serverId;
   const restoreVisibleCountRef = useRef<number | undefined>(
     peekComposerBrowseScrollRestore(serverId)?.visibleCount,
   );
@@ -152,7 +156,21 @@ export default function Composers() {
     // an option but Symfonium-style classical libs rarely exceed a few thousand
     // composers, and a single round-trip beats N infinite-scroll calls when the
     // list is alphabetised + filtered locally.
-    ndListArtistsByRole('composer', 0, 10000)
+    const loadComposers = browseScope.multiServer
+      ? libraryScopeListArtistsByRole(browseServerId, {
+          scopes: browseScope.pairs,
+          role: 'composer',
+          limit: 10000,
+        }).then(rows => rows.map(row => ({
+          id: row.id,
+          name: row.name,
+          nameSort: row.nameSort ?? undefined,
+          albumCount: row.albumCount ?? undefined,
+          coverArt: row.id,
+          serverId: row.serverId,
+        })))
+      : ndListArtistsByRole('composer', 0, 10000);
+    loadComposers
       .then(data => {
         if (cancelled) return;
         setComposers(filterArtistsWithRoleAlbumCredits(data));
@@ -170,7 +188,7 @@ export default function Composers() {
         setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [musicLibraryFilterVersion, reloadTick]);
+  }, [musicLibraryFilterVersion, reloadTick, browseScope.fingerprint, browseScope.multiServer, browseScope.pairs, browseServerId]);
 
   const starredOverrides = usePlayerStore(s => s.starredOverrides);
   const ignoredArticles = useLibraryIgnoredArticles(serverId);

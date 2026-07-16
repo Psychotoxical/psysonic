@@ -14,6 +14,10 @@ import { useLongPressAction } from '@/lib/hooks/useLongPressAction';
 import { LongPressWaveOverlay } from '@/ui/LongPressWaveOverlay';
 import { useTranslation } from 'react-i18next';
 import { albumArtistDisplayName } from '@/features/album/utils/deriveAlbumHeaderArtistRefs';
+import { useBrowseLibraryScope } from '@/store/useBrowseLibraryScope';
+import { libraryScopeMostPlayedAlbums } from '@/lib/api/library';
+import { albumToAlbum } from '@/lib/library/advancedSearchLocal';
+import { appendServerQuery } from '@/lib/navigation/detailServerScope';
 
 const PAGE_SIZE = 50;
 
@@ -60,11 +64,11 @@ function formatPlays(n: number, t: ReturnType<typeof import('react-i18next').use
 /** Most-played list row cover layout px. */
 const MOST_PLAYED_COVER_CSS_PX = 80;
 
-function MostPlayedPlayButton({ albumId }: { albumId: string }) {
+function MostPlayedPlayButton({ albumId, serverId }: { albumId: string; serverId?: string }) {
   const { t } = useTranslation();
   const { isHolding, pressBind } = useLongPressAction({
-    onShortPress: () => playAlbum(albumId),
-    onLongPress: () => playAlbumShuffled(albumId),
+    onShortPress: () => playAlbum(albumId, { serverId }),
+    onLongPress: () => playAlbumShuffled(albumId, { serverId }),
   });
 
   return (
@@ -90,13 +94,16 @@ export default function MostPlayed() {
   const navigate = useNavigate();
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const activeServerId = useAuthStore(s => s.activeServerId);
+  const browseScope = useBrowseLibraryScope();
+  const browseServerId = browseScope.anchorServerId || activeServerId || '';
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const enqueue = usePlayerStore(s => s.enqueue);
 
-  const handleEnqueueAlbum = useCallback(async (albumId: string) => {
-    if (!activeServerId) return;
+  const handleEnqueueAlbum = useCallback(async (albumId: string, ownerServerId?: string) => {
+    const resolvedServerId = ownerServerId ?? activeServerId;
+    if (!resolvedServerId) return;
     try {
-      const data = await resolveAlbum(activeServerId, albumId);
+      const data = await resolveAlbum(resolvedServerId, albumId);
       if (!data) return;
       enqueue(data.songs.map(songToTrack));
     } catch {
@@ -118,7 +125,13 @@ export default function MostPlayed() {
     setAlbums([]);
     setHasMore(true);
     try {
-      const result = await getAlbumList('frequent', PAGE_SIZE, 0);
+      const result = browseScope.pairs.length
+        ? (await libraryScopeMostPlayedAlbums(browseServerId, {
+            scopes: browseScope.pairs,
+            limit: PAGE_SIZE,
+            offset: 0,
+          })).map(row => ({ ...albumToAlbum(row.album), playCount: row.playCount }))
+        : await getAlbumList('frequent', PAGE_SIZE, 0);
       setAlbums(result);
       setHasMore(result.length === PAGE_SIZE);
     } catch { /* ignore: best-effort */ }
@@ -127,7 +140,7 @@ export default function MostPlayed() {
     // reads the active library filter internally, so `load` must refresh (and the
     // mount effect re-run) when that version bumps even though it is unused here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [musicLibraryFilterVersion]);
+  }, [musicLibraryFilterVersion, browseScope.fingerprint, browseScope.pairs, browseServerId]);
 
   // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -137,7 +150,13 @@ export default function MostPlayed() {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
-      const result = await getAlbumList('frequent', PAGE_SIZE, albums.length);
+      const result = browseScope.pairs.length
+        ? (await libraryScopeMostPlayedAlbums(browseServerId, {
+            scopes: browseScope.pairs,
+            limit: PAGE_SIZE,
+            offset: albums.length,
+          })).map(row => ({ ...albumToAlbum(row.album), playCount: row.playCount }))
+        : await getAlbumList('frequent', PAGE_SIZE, albums.length);
       setAlbums(prev => [...prev, ...result]);
       setHasMore(result.length === PAGE_SIZE);
     } catch { /* ignore: best-effort */ }
@@ -190,7 +209,7 @@ export default function MostPlayed() {
               <button
                 key={artist.id}
                 className="mp-artist-card"
-                onClick={() => navigate(`/artist/${artist.id}`)}
+                onClick={() => navigate({ pathname: `/artist/${artist.id}`, search: appendServerQuery(undefined, browseServerId) })}
                 onContextMenu={e => {
                   e.preventDefault();
                   openContextMenu(e.clientX, e.clientY, artist, 'artist');
@@ -234,7 +253,7 @@ export default function MostPlayed() {
                 <div
                   key={album.id}
                   className="mp-album-row"
-                  onClick={() => navigate(`/album/${album.id}`)}
+                  onClick={() => navigate({ pathname: `/album/${album.id}`, search: appendServerQuery(undefined, album.serverId) })}
                   onContextMenu={e => {
                     e.preventDefault();
                     openContextMenu(e.clientX, e.clientY, album, 'album');
@@ -263,16 +282,16 @@ export default function MostPlayed() {
                     </div>
                     <span
                       className="mp-album-artist truncate track-artist-link"
-                      onClick={e => { e.stopPropagation(); navigate(`/artist/${album.artistId}`); }}
+                      onClick={e => { e.stopPropagation(); navigate({ pathname: `/artist/${album.artistId}`, search: appendServerQuery(undefined, album.serverId) }); }}
                     >
                       {albumArtistDisplayName(album)}
                     </span>
                   </div>
                   <div className="mp-album-actions">
-                    <MostPlayedPlayButton albumId={album.id} />
+                    <MostPlayedPlayButton albumId={album.id} serverId={album.serverId} />
                     <button
                       className="mp-album-action-btn"
-                      onClick={e => { e.stopPropagation(); void handleEnqueueAlbum(album.id); }}
+                      onClick={e => { e.stopPropagation(); void handleEnqueueAlbum(album.id, album.serverId); }}
                       data-tooltip={t('contextMenu.enqueueAlbum')}
                       data-tooltip-pos="top"
                       aria-label={t('contextMenu.enqueueAlbum')}

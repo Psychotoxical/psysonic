@@ -39,6 +39,7 @@ export * from './utils/runPlaylistSaveMeta';
 export * from './utils/runPlaylistsOpenSmartEditor';
 export * from './utils/runPlaylistsSaveSmart';
 export * from './utils/resolvePlaylistTracks';
+export * from './utils/resolvePlaylistTargetTrackIds';
 export * from './utils/runPlaylistZipDownload';
 export * from './utils/spotifyCsvImport';
 export * from './utils/spotifyCsvMatch';

@@ -39,6 +39,8 @@ import { useAlbumBrowseScrollRestore } from '@/features/album/hooks/useAlbumBrow
 import { useAlbumBrowseScrollSnapshotSync, type AlbumBrowseScrollSnapshot } from '@/features/album/hooks/useAlbumBrowseFilters';
 import { readAlbumBrowseRestore } from '@/lib/navigation/albumDetailNavigation';
 import { albumArtistDisplayName } from '@/features/album/utils/deriveAlbumHeaderArtistRefs';
+import { useBrowseLibraryScope } from '@/store/useBrowseLibraryScope';
+import type { LibraryScopePair } from '@/lib/api/library';
 
 const ALBUM_COUNT = 30;
 /** Extra pool when mix rating filter is on so we can still fill the grid after filtering. */
@@ -59,17 +61,20 @@ async function fetchByGenres(genres: string[]): Promise<SubsonicAlbum[]> {
 }
 
 /** Shared fetch logic — used by both `load` and the background reserve fill. */
-async function doFetchRandomAlbums(genres: string[]): Promise<SubsonicAlbum[]> {
+async function doFetchRandomAlbums(
+  genres: string[],
+  scope?: { serverId: string; pairs: LibraryScopePair[]; multiServer: boolean },
+): Promise<SubsonicAlbum[]> {
   const mixCfg = getMixMinRatingsConfigFromAuth();
   const albumMixActive = mixCfg.enabled && (mixCfg.minAlbum > 0 || mixCfg.minArtist > 0);
   const randomSize = albumMixActive ? Math.max(ALBUM_COUNT * 3, ALBUM_FETCH_OVERSHOOT) : ALBUM_COUNT;
 
-  const serverId = useAuthStore.getState().activeServerId ?? '';
+  const serverId = scope?.serverId ?? useAuthStore.getState().activeServerId ?? '';
   const indexEnabled = useLibraryIndexStore.getState().isIndexEnabled(serverId);
 
   if (genres.length === 0 && indexEnabled && serverId) {
     // Local path: SQLite ORDER BY RANDOM() LIMIT N — no network, effectively instant.
-    const local = await runLocalRandomAlbums(serverId, randomSize);
+    const local = await runLocalRandomAlbums(serverId, randomSize, scope?.pairs);
     if (local && local.length > 0) {
       return (await filterAlbumsByMixRatings(local, mixCfg)).slice(0, ALBUM_COUNT);
     }
@@ -77,13 +82,14 @@ async function doFetchRandomAlbums(genres: string[]): Promise<SubsonicAlbum[]> {
 
   if (genres.length > 0 && indexEnabled && serverId) {
     // Genre path: local index union + JS shuffle (avoids per-genre network requests).
-    const allLocal = await runLocalAlbumsByGenres(serverId, genres, 'alphabeticalByName', GENRE_UNION_PREFILTER_CAP);
+    const allLocal = await runLocalAlbumsByGenres(serverId, genres, 'alphabeticalByName', GENRE_UNION_PREFILTER_CAP, false, scope?.pairs);
     if (allLocal && allLocal.length > 0) {
       const pool = shuffleArray(dedupeById(allLocal)).slice(0, GENRE_UNION_PREFILTER_CAP);
       return (await filterAlbumsByMixRatings(pool, mixCfg)).slice(0, ALBUM_COUNT);
     }
   }
 
+  if (scope?.multiServer) return [];
   // Network fallback when local index is unavailable or returned nothing.
   return genres.length > 0
     ? fetchByGenres(genres)
@@ -124,11 +130,15 @@ function takeReserve(filterId: string): SubsonicAlbum[] | null {
  * Covers are warmed lazily via primeAlbumCoversForDisplay when the reserve is
  * actually consumed.
  */
-async function fillReserve(filterId: string, genres: string[]): Promise<void> {
+async function fillReserve(
+  filterId: string,
+  genres: string[],
+  scope?: { serverId: string; pairs: LibraryScopePair[]; multiServer: boolean },
+): Promise<void> {
   if (_reserveFilling) return;
   _reserveFilling = true;
   try {
-    const albums = await doFetchRandomAlbums(genres);
+    const albums = await doFetchRandomAlbums(genres, scope);
     _nextReserve = { filterId, albums };
   } catch {
     // Network or cache failure — next Refresh falls back to a fresh fetch.
@@ -146,6 +156,9 @@ export default function RandomAlbums() {
   const mixMinRatingAlbum = auth.mixMinRatingAlbum;
   const mixMinRatingArtist = auth.mixMinRatingArtist;
   const serverId = auth.activeServerId ?? '';
+  const browseScope = useBrowseLibraryScope();
+  const browseServerId = browseScope.anchorServerId || serverId;
+  const sessionScopeKey = `${serverId}\0${browseScope.fingerprint}`;
   const downloadAlbum = useOfflineStore(s => s.downloadAlbum);
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
   const navigate = useNavigate();
@@ -157,7 +170,7 @@ export default function RandomAlbums() {
     selectedGenres,
     setSelectedGenres,
     initialAlbums,
-  } = useAlbumGridBrowseFilters(serverId, 'random-albums', scrollSnapshotRef, gridSnapshotRef);
+  } = useAlbumGridBrowseFilters(sessionScopeKey, 'random-albums', scrollSnapshotRef, gridSnapshotRef);
   const restoringSessionRef = useRef(initialAlbums != null);
 
   const [albums, setAlbums] = useState<SubsonicAlbum[]>(() => initialAlbums ?? []);
@@ -232,12 +245,20 @@ export default function RandomAlbums() {
         await primeAlbumCoversForDisplay(reserved, COVER_DENSE_GRID_MIN_CELL_CSS_PX);
         setAlbums(reserved);
       } else {
-        const data = await doFetchRandomAlbums(genres);
+        const data = await doFetchRandomAlbums(genres, {
+          serverId: browseServerId,
+          pairs: browseScope.pairs,
+          multiServer: browseScope.multiServer,
+        });
         await primeAlbumCoversForDisplay(data, COVER_DENSE_GRID_MIN_CELL_CSS_PX);
         setAlbums(data);
       }
       // Pre-fetch + disk-warm the next batch so the next Refresh is instant.
-      void fillReserve(filterId, genres);
+      void fillReserve(filterId, genres, {
+        serverId: browseServerId,
+        pairs: browseScope.pairs,
+        multiServer: browseScope.multiServer,
+      });
     } catch (e) {
       console.error(e);
     } finally {
@@ -249,6 +270,9 @@ export default function RandomAlbums() {
     mixMinRatingFilterEnabled,
     mixMinRatingAlbum,
     mixMinRatingArtist,
+    browseScope.multiServer,
+    browseScope.pairs,
+    browseServerId,
   ]);
 
   const loadRef = useRef(load);
@@ -279,7 +303,7 @@ export default function RandomAlbums() {
   useAlbumBrowseScrollSnapshotSync(scrollSnapshotRef, scrollBodyEl, albums.length);
 
   const { isScrollRestorePending } = useAlbumBrowseScrollRestore({
-    serverId,
+    serverId: sessionScopeKey,
     surface: 'random-albums',
     scrollBodyEl,
     displayAlbumsLength: albums.length,

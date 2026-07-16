@@ -5,7 +5,7 @@
  */
 export { usePlayerStore } from './store/playerStore';
 export { seedQueueResolver } from './store/queueTrackResolver';
-export { queueSongStar } from './store/pendingStarSync';
+export { queueEntityRating, queueEntityStar, queueSongRating, queueSongStar } from './store/pendingStarSync';
 export { getPlaybackProgressSnapshot, subscribePlaybackProgress } from './store/playbackProgress';
 export type { PlaybackProgressSnapshot } from './store/playbackProgress';
 export { playbackCoverArtForAlbum } from './utils/playback/playbackServer';

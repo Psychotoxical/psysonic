@@ -76,6 +76,25 @@ describe('copyEntityShareLink', () => {
     });
   });
 
+  it('uses the entity representative server instead of the active browse server', async () => {
+    const activeId = useAuthStore.getState().addServer({
+      name: 'Active', url: 'https://active.test', username: 'u', password: 'p',
+    });
+    const representativeId = useAuthStore.getState().addServer({
+      name: 'Representative', url: 'https://representative.test', username: 'u', password: 'p',
+    });
+    useAuthStore.getState().setActiveServer(activeId);
+
+    await copyEntityShareLink('album', 'shared-album', representativeId);
+
+    const written = vi.mocked(navigator.clipboard.writeText).mock.calls[0]?.[0] as string;
+    expect(decodeSharePayloadFromText(written)).toEqual({
+      srv: 'https://representative.test',
+      k: 'album',
+      id: 'shared-album',
+    });
+  });
+
   it('propagates a clipboard-failure return value (false)', async () => {
     const sid = useAuthStore.getState().addServer({
       name: 'Home', url: 'https://x.test', username: 'u', password: 'p',

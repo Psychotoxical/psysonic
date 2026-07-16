@@ -2,6 +2,7 @@ export const orbit = {
   triggerLabel: 'Orbit',
   triggerTooltip: '共有リスニングセッションを開始するか参加します',
   launchCreate: 'セッションを作成',
+  launchCreateMultiServerBlocked: 'Choose one browse server before creating an Orbit session. Joining an invite will switch and narrow the server automatically.',
   launchJoin: 'セッションに参加',
   launchHelp: '仕組みを見る',
   launchHelpSoon: '近日対応',

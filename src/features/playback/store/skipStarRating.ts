@@ -3,6 +3,7 @@ import { useAuthStore } from '@/store/authStore';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { getCachedTrack } from '@/features/playback/store/queueTrackResolver';
 import { queueSongRating } from '@/features/playback/store/pendingStarSync';
+import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
 /**
  * Skip → 1★ behaviour: every user-initiated `next()` on an unrated track
  * counts in `authStore.skipStarManualSkipCountsByKey` (persisted). Once the
@@ -22,13 +23,14 @@ export function applySkipStarOnManualNext(skippedTrack: Track | null, manual: bo
   // Thin-state: the queue's copy of the rating now lives in the resolver cache.
   const sid = live.queueServerId ?? '';
   const fromCache = sid ? getCachedTrack({ serverId: sid, trackId: id }) : undefined;
+  const ownerServerId = skippedTrack.serverId ?? sid;
   const cur =
-    live.userRatingOverrides[id] ??
+    live.userRatingOverrides[entityOverrideKey(ownerServerId, id)] ??
     fromCache?.userRating ??
     skippedTrack.userRating ??
     0;
   if (cur >= 1) return;
   // F4: optimistic 1★ (patches queue + currentTrack + override) and retried
   // server sync via the central helper; the override clears on success.
-  queueSongRating(id, 1);
+  queueSongRating(id, 1, ownerServerId);
 }

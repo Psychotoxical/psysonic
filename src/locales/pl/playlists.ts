@@ -1,4 +1,5 @@
 export const playlists = {
+  sources: 'Playlist sources',
   title: 'Playlisty',
   newPlaylist: 'Nowa playlista',
   unnamed: 'Nienazwana playlista',

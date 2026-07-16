@@ -7,6 +7,7 @@ export const commands = {
 	greet: (name: string) => __TAURI_INVOKE<string>("greet", { name }),
 	/**  Min/max album years from the local track catalog (for Albums browse filter spinners). */
 	libraryGetCatalogYearBounds: (serverId: string) => typedError<CatalogYearBoundsDto, string>(__TAURI_INVOKE("library_get_catalog_year_bounds", { serverId })),
+	libraryScopeCatalogYearBounds: (scopes: LibraryScopePair[]) => typedError<CatalogYearBoundsDto, string>(__TAURI_INVOKE("library_scope_catalog_year_bounds", { scopes })),
 	/**  Distinct album counts per track genre — same grouping as genre album browse. */
 	libraryGetGenreAlbumCounts: (serverId: string, libraryScope: string | null, libraryScopes: LibraryScopePair[] | null) => typedError<GenreAlbumCountDto[], string>(__TAURI_INVOKE("library_get_genre_album_counts", { serverId, libraryScope, libraryScopes })),
 	/**
@@ -46,6 +47,7 @@ export const commands = {
 	/**  Rebuild precomputed cluster identity keys (`library-cluster.db` attach). */
 	libraryClusterRebuild: (serverId: string | null) => typedError<number, string>(__TAURI_INVOKE("library_cluster_rebuild", { serverId })),
 	libraryResolveEntitySources: (request: LibraryResolveEntitySourcesRequest) => typedError<LibraryEntitySourceDto[], string>(__TAURI_INVOKE("library_resolve_entity_sources", { request })),
+	libraryScopeCatalogStatistics: (request: LibraryScopeCatalogStatisticsRequest) => typedError<LibraryScopeCatalogStatisticsDto, string>(__TAURI_INVOKE("library_scope_catalog_statistics", { request })),
 	librarySyncBindSession: (serverId: string, baseUrl: string, username: string, password: string, libraryScope: string | null) => typedError<null, string>(__TAURI_INVOKE("library_sync_bind_session", { serverId, baseUrl, username, password, libraryScope })),
 	librarySyncClearSession: (serverId: string) => typedError<null, string>(__TAURI_INVOKE("library_sync_clear_session", { serverId })),
 	librarySetPlaybackHint: (hint: string) => typedError<null, string>(__TAURI_INVOKE("library_set_playback_hint", { hint })),
@@ -1061,6 +1063,26 @@ export type LibraryResolveEntitySourcesRequest = {
 	anchorServerId: string,
 	anchorId: string,
 	scopes: LibraryScopePair[],
+};
+
+export type LibraryScopeCatalogStatisticsDto = {
+	artistCount: number,
+	albumCount: number,
+	trackCount: number,
+	durationSec: number,
+	genres: GenreAlbumCountDto[],
+	formats: LibraryScopeFormatCountDto[],
+	formatSampleSize: number,
+};
+
+export type LibraryScopeCatalogStatisticsRequest = {
+	scopes: LibraryScopePair[],
+	formatSampleLimit?: number | null,
+};
+
+export type LibraryScopeFormatCountDto = {
+	format: string,
+	count: number,
 };
 
 /**  One `(server_id, library_id)` pair in priority order (index 0 = highest). */

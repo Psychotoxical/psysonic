@@ -7,8 +7,8 @@ const getPlaylistMock = vi.fn(async (_id: string) => ({ playlist: { id: 'pl-1' }
 const confirmMock = vi.fn(async () => false);
 
 vi.mock('@/lib/api/subsonicPlaylists', () => ({
-  addSongsToPlaylist: (id: string, ids: string[]) => addSongsToPlaylistMock(id, ids),
-  getPlaylist: (id: string) => getPlaylistMock(id),
+  addSongsToPlaylistForServer: (_serverId: string, id: string, ids: string[]) => addSongsToPlaylistMock(id, ids),
+  getPlaylistForServer: (_serverId: string, id: string) => getPlaylistMock(id),
 }));
 
 vi.mock('@/store/confirmModalStore', () => ({
@@ -39,7 +39,7 @@ describe('addTracksToPlaylistWithDedup', () => {
     expect(result).toMatchObject({ outcome: 'partial', addedCount: 1, skippedCount: 1 });
     expect(getPlaylistMock).not.toHaveBeenCalled();
     expect(addSongsToPlaylistMock).toHaveBeenCalledWith('pl-1', ['c']);
-    expect(usePlaylistMembershipStore.getState().getPlaylistSongIds('pl-1')).toEqual(['a', 'b', 'c']);
+    expect(usePlaylistMembershipStore.getState().getPlaylistSongIds('pl-1', 'srv-1')).toEqual(['a', 'b', 'c']);
   });
 
   it('fetches membership once on cold cache and dedupes', async () => {
@@ -52,7 +52,7 @@ describe('addTracksToPlaylistWithDedup', () => {
     expect(result).toMatchObject({ outcome: 'partial', addedCount: 1, skippedCount: 1 });
     expect(getPlaylistMock).toHaveBeenCalledTimes(1);
     expect(addSongsToPlaylistMock).toHaveBeenCalledWith('pl-2', ['y']);
-    expect(usePlaylistMembershipStore.getState().getPlaylistSongIds('pl-2')).toEqual(['x', 'y']);
+    expect(usePlaylistMembershipStore.getState().getPlaylistSongIds('pl-2', 'srv-1')).toEqual(['x', 'y']);
   });
 
   it('invalidates cache when the write fails', async () => {
@@ -60,6 +60,6 @@ describe('addTracksToPlaylistWithDedup', () => {
     await expect(
       addTracksToPlaylistWithDedup('pl-1', 'Mix', ['c'], k => k),
     ).rejects.toThrow('boom');
-    expect(usePlaylistMembershipStore.getState().getPlaylistSongIds('pl-1')).toBeUndefined();
+    expect(usePlaylistMembershipStore.getState().getPlaylistSongIds('pl-1', 'srv-1')).toBeUndefined();
   });
 });

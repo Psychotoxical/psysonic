@@ -50,11 +50,12 @@ export function resolveQueueTrack(ref: QueueItemRef, fallback?: Track): Track {
   // Carry the ref's queue-only flags onto the resolved track without mutating the
   // cached object (a render-time mutation is what caused the earlier render loop).
   const needsFlags =
+    base.serverId !== ref.serverId ||
     base.autoAdded !== ref.autoAdded ||
     base.radioAdded !== ref.radioAdded ||
     base.playNextAdded !== ref.playNextAdded;
   const flagged = needsFlags
-    ? { ...base, autoAdded: ref.autoAdded, radioAdded: ref.radioAdded, playNextAdded: ref.playNextAdded }
+    ? { ...base, serverId: ref.serverId, autoAdded: ref.autoAdded, radioAdded: ref.radioAdded, playNextAdded: ref.playNextAdded }
     : base;
   return applyQueueOverrides(flagged);
 }

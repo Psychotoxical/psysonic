@@ -1,4 +1,4 @@
-import { star, unstar } from '@/lib/api/subsonicStarRating';
+import { queueEntityStar } from '@/features/playback';
 import { getArtist, getArtistInfo } from '@/lib/api/subsonicArtists';
 import type { SubsonicArtist, SubsonicAlbum, SubsonicArtistInfo } from '@/lib/api/subsonicTypes';
 import { useEffect, useState, useMemo } from 'react';
@@ -11,7 +11,6 @@ import { useCoverLightboxSrc } from '@/cover/lightbox';
 import { ArrowLeft, Users, Heart, Feather, Share2 } from 'lucide-react';
 import WikipediaIcon from '@/ui/WikipediaIcon';
 import { open } from '@tauri-apps/plugin-shell';
-import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
 import { useTranslation } from 'react-i18next';
 import { copyEntityShareLink } from '@/lib/share/copyEntityShareLink';
@@ -35,7 +34,6 @@ export default function ComposerDetail() {
   const [headerCoverFailed, setHeaderCoverFailed] = useState(false);
   const [openedLink, setOpenedLink] = useState<string | null>(null);
 
-  const setStarredOverride = usePlayerStore(s => s.setStarredOverride);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
 
   // Subsonic `getArtist.view` only follows AlbumArtist relations, so for a
@@ -104,20 +102,7 @@ export default function ComposerDetail() {
     if (!artist) return;
     const next = !isStarred;
     setIsStarred(next);
-    setStarredOverride(artist.id, next);
-    try {
-      const meta = {
-        serverId: artist.serverId,
-        name: artist.name,
-        albumCount: artist.albumCount,
-      };
-      if (next) await star(artist.id, 'artist', meta);
-      else await unstar(artist.id, 'artist', meta);
-    } catch (err) {
-      console.warn('[psysonic] composer star failed:', err);
-      setIsStarred(!next);
-      setStarredOverride(artist.id, !next);
-    }
+    queueEntityStar('artist', artist.id, next, artist.serverId);
   };
 
   const openLink = (url: string, key: string) => {
@@ -129,7 +114,7 @@ export default function ComposerDetail() {
   const handleShareComposer = async () => {
     if (!id || !artist) return;
     try {
-      const ok = await copyEntityShareLink('composer', artist.id);
+      const ok = await copyEntityShareLink('composer', artist.id, artist.serverId);
       if (ok) showToast(t('contextMenu.shareCopied'));
       else showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
     } catch {

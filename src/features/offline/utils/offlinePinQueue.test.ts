@@ -119,6 +119,25 @@ describe('offlinePinQueue', () => {
     expect(useOfflineJobStore.getState().pinQueue).toHaveLength(1);
   });
 
+  it('keeps the concrete server source when equal raw ids are pinned', async () => {
+    const gate = { unblock: undefined as (() => void) | undefined };
+    let calls = 0;
+    registerOfflinePinExecutor(async () => {
+      calls += 1;
+      if (calls === 1) await new Promise<void>(resolve => { gate.unblock = resolve; });
+    });
+    const base = {
+      albumId: 'same', albumName: 'Same', albumArtist: '', coverArt: undefined,
+      year: undefined, songs: [], type: 'album' as const,
+    };
+    expect(enqueueOfflinePin({ ...base, serverId: 'a' })).toBe(true);
+    expect(enqueueOfflinePin({ ...base, serverId: 'b' })).toBe(true);
+    await vi.waitFor(() => expect(useOfflineJobStore.getState().pinQueue).toHaveLength(2));
+    expect(useOfflineJobStore.getState().pinQueue.map(pin => pin.serverId)).toEqual(['a', 'b']);
+    gate.unblock?.();
+    await vi.waitFor(() => expect(useOfflineJobStore.getState().pinQueue).toHaveLength(0));
+  });
+
   it('does not replace the in-flight task when a download is active', async () => {
     let capturedTrackIds: string[] = [];
     const gate = { unblock: undefined as (() => void) | undefined };

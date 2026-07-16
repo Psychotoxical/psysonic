@@ -391,6 +391,59 @@ pub struct CatalogYearBoundsDto {
     pub max_year: Option<i32>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryScopeCatalogStatisticsRequest {
+    pub scopes: Vec<LibraryScopePair>,
+    #[serde(default)]
+    pub format_sample_limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryScopeFormatCountDto {
+    pub format: String,
+    pub count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryScopeCatalogStatisticsDto {
+    pub artist_count: u32,
+    pub album_count: u32,
+    pub track_count: u32,
+    pub duration_sec: i64,
+    pub genres: Vec<GenreAlbumCountDto>,
+    pub formats: Vec<LibraryScopeFormatCountDto>,
+    pub format_sample_size: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryScopeMostPlayedRequest {
+    pub scopes: Vec<LibraryScopePair>,
+    #[serde(default)]
+    pub limit: Option<u32>,
+    #[serde(default)]
+    pub offset: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryScopeMostPlayedAlbumDto {
+    pub album: LibraryAlbumDto,
+    pub play_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryScopeArtistRoleRequest {
+    pub scopes: Vec<LibraryScopePair>,
+    pub role: String,
+    #[serde(default)]
+    pub limit: Option<u32>,
+}
+
 /// Per-genre album/track totals from the local track catalog (Genres cloud + browse).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase")]

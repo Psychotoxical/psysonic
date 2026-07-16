@@ -19,6 +19,7 @@ export default function OrbitStartTrigger() {
   const { t } = useTranslation();
   const role = useOrbitStore(s => s.role);
   const visible = useAuthStore(s => s.showOrbitTrigger);
+  const hostBlocked = useAuthStore(s => s.musicLibraryServerIds.length > 1);
 
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
@@ -59,7 +60,11 @@ export default function OrbitStartTrigger() {
       }
     : { display: 'none' };
 
-  const pickCreate = () => { setPopoverOpen(false); setStartOpen(true); };
+  const pickCreate = () => {
+    if (hostBlocked) return;
+    setPopoverOpen(false);
+    setStartOpen(true);
+  };
   const pickJoin   = () => { setPopoverOpen(false); setJoinOpen(true); };
   const pickHelp   = () => { setPopoverOpen(false); useHelpModalStore.getState().open(); };
 
@@ -84,11 +89,26 @@ export default function OrbitStartTrigger() {
       </button>
 
       {popoverOpen && createPortal(
-        <div ref={popRef} className="nav-library-dropdown-panel orbit-launch-pop" style={popoverStyle} role="menu">
-          <button type="button" className="orbit-launch-pop__item" onClick={pickCreate}>
+        <div ref={popRef} className="nav-library-dropdown-panel orbit-launch-pop" style={popoverStyle}>
+          <button
+            type="button"
+            className="orbit-launch-pop__item"
+            onClick={pickCreate}
+            disabled={hostBlocked}
+            aria-describedby={hostBlocked ? 'orbit-create-scope-help' : undefined}
+          >
             <Plus size={14} />
             <span>{t('orbit.launchCreate')}</span>
           </button>
+          {hostBlocked && (
+            <p
+              id="orbit-create-scope-help"
+              role="status"
+              style={{ margin: '0.25rem 0.75rem 0.5rem', maxWidth: '18rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}
+            >
+              {t('orbit.launchCreateMultiServerBlocked')}
+            </p>
+          )}
           <button type="button" className="orbit-launch-pop__item" onClick={pickJoin}>
             <LogIn size={14} />
             <span>{t('orbit.launchJoin')}</span>

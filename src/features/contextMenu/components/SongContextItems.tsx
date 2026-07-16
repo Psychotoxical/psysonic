@@ -171,7 +171,7 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
                 </div>
               )}
               <div className="context-menu-divider" />
-              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink('track', song.id))}>
+              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink('track', song.id, song.serverId))}>
                 <Share2 size={14} /> {t('contextMenu.shareLink')}
               </div>
               <div className="context-menu-item" onClick={() => handleAction(() => openSongInfo(song.id))}>
@@ -311,7 +311,7 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
                 </div>
               )}
               <div className="context-menu-divider" />
-              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink('track', song.id))}>
+              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink('track', song.id, song.serverId))}>
                 <Share2 size={14} /> {t('contextMenu.shareLink')}
               </div>
               <div className="context-menu-item" onClick={() => handleAction(() => openSongInfo(song.id))}>

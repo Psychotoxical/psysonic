@@ -43,7 +43,7 @@ vi.mock('@/features/orbit/utils/guest', async (io) => ({
   leaveOrbitSession,
 }));
 
-import { switchActiveServer } from '@/utils/server/switchActiveServer';
+import { activateOrbitInviteServer, switchActiveServer } from '@/utils/server/switchActiveServer';
 import { useAuthStore } from '@/store/authStore';
 import { useOrbitStore } from '@/features/orbit';
 import { makeServer } from '@/test/helpers/factories';
@@ -100,5 +100,20 @@ describe('server switch × active orbit + playing queue', () => {
     expect(leaveOrbitSession).not.toHaveBeenCalled();
     expect(flushPlayQueueForServer).toHaveBeenCalledWith(oldServer.id);
     expect(useAuthStore.getState().activeServerId).toBe(newServer.id);
+  });
+
+  it('Orbit invite rebinds the current active server and narrows browse scope', async () => {
+    useAuthStore.setState({ musicLibraryServerIds: [oldServer.id, newServer.id] });
+    ensureConnectUrlResolved.mockResolvedValue({
+      ok: true,
+      baseUrl: 'https://old.example',
+      ping: { type: 'navidrome', serverVersion: '1.0.0', openSubsonic: true },
+    });
+
+    const result = await activateOrbitInviteServer('https://old.example/', vi.fn());
+
+    expect(result).toEqual({ ok: true, server: oldServer });
+    expect(ensureConnectUrlResolved).toHaveBeenCalledWith(oldServer);
+    expect(useAuthStore.getState().musicLibraryServerIds).toEqual([oldServer.id]);
   });
 });

@@ -12,6 +12,36 @@ import { endOrbitSession, leaveOrbitSession } from '@/features/orbit';
 import { ensureConnectUrlResolved } from '@/lib/server/serverEndpoint';
 import { syncServerHttpContextForProfile } from '@/lib/server/syncServerHttpContext';
 
+export type OrbitInviteServerActivation =
+  | { ok: true; server: ServerProfile }
+  | { ok: false; reason: 'no-account' | 'cancelled' | 'switch-failed' };
+
+function normalizedServerUrl(url: string): string {
+  return url.replace(/\/+$/, '');
+}
+
+/** Bind Orbit to one concrete invite server and collapse multi-server browse. */
+export async function activateOrbitInviteServer(
+  serverBase: string,
+  pickAccount: (accounts: ServerProfile[]) => Promise<ServerProfile | null>,
+): Promise<OrbitInviteServerActivation> {
+  const auth = useAuthStore.getState();
+  const wantUrl = normalizedServerUrl(serverBase);
+  const candidates = auth.servers.filter(server => normalizedServerUrl(server.url) === wantUrl);
+  if (candidates.length === 0) return { ok: false, reason: 'no-account' };
+
+  const active = candidates.find(server => server.id === auth.activeServerId);
+  const target = active
+    ?? (candidates.length === 1 ? candidates[0] : await pickAccount(candidates));
+  if (!target) return { ok: false, reason: 'cancelled' };
+
+  const switched = await switchActiveServer(target);
+  if (!switched) return { ok: false, reason: 'switch-failed' };
+
+  useAuthStore.setState({ musicLibraryServerIds: [target.id] });
+  return { ok: true, server: target };
+}
+
 export async function switchActiveServer(server: ServerProfile): Promise<boolean> {
   coverTrafficBeginServerSwitch();
   try {

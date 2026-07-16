@@ -27,6 +27,7 @@ import { reconcileLibraryTierForServer } from '@/features/offline/utils/libraryT
 import { initMiniPlayerBridgeOnMain } from '@/features/miniPlayer';
 import { runAdvancedModeMigration } from '@/app/migrations/advancedModeMigration';
 import { hydrateQueueFromIndex } from '@/features/playback/store/queueRestore';
+import { initPendingEntityMutationSync } from '@/features/playback/store/pendingStarSync';
 import { useLibraryIndexSync } from '@/lib/library/hooks/useLibraryIndexSync';
 import { useLibraryAnalysisBackfill } from '@/lib/library/hooks/useLibraryAnalysisBackfill';
 import { useCoverArtPrefetch } from '../cover/useCoverArtPrefetch';
@@ -101,6 +102,11 @@ export default function MainApp() {
   useEffect(() => {
     if (!migrationReady) return undefined;
     return initAudioListeners();
+  }, [migrationReady]);
+
+  useEffect(() => {
+    if (!migrationReady) return undefined;
+    return initPendingEntityMutationSync();
   }, [migrationReady]);
 
   useEffect(() => {

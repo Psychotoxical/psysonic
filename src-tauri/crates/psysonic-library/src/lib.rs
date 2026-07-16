@@ -39,6 +39,7 @@ pub mod payload;
 pub mod repos;
 pub mod runtime;
 pub mod scope_merge;
+pub mod scope_statistics;
 pub mod search;
 pub mod store;
 pub mod sync;

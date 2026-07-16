@@ -106,6 +106,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .commands(tauri_specta::collect_commands![
             crate::lib_commands::app_api::core::greet,
             psysonic_library::browse_support::library_get_catalog_year_bounds,
+            psysonic_library::browse_support::library_scope_catalog_year_bounds,
             psysonic_library::browse_support::library_get_genre_album_counts,
             // psysonic-library — remaining typeable commands. Excluded (stay on
             // generate_handler! only): the 10 search/browse/track reads whose envelopes
@@ -124,6 +125,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             psysonic_library::commands::library_genre_tags_run,
             psysonic_library::commands::library_cluster_rebuild,
             psysonic_library::commands::library_resolve_entity_sources,
+            psysonic_library::commands::library_scope_catalog_statistics,
             psysonic_library::commands::library_sync_bind_session,
             psysonic_library::commands::library_sync_clear_session,
             psysonic_library::commands::library_set_playback_hint,
@@ -1050,6 +1052,9 @@ pub fn run() {
             psysonic_library::commands::library_scope_search_tracks,
             psysonic_library::commands::library_scope_album_detail,
             psysonic_library::commands::library_scope_artist_detail,
+            psysonic_library::commands::library_scope_catalog_statistics,
+            psysonic_library::commands::library_scope_most_played_albums,
+            psysonic_library::commands::library_scope_list_artists_by_role,
             psysonic_library::commands::library_get_artist_lossless_browse,
             psysonic_library::commands::library_search_cross_server,
             psysonic_library::commands::library_get_track,
@@ -1072,6 +1077,7 @@ pub fn run() {
             psysonic_library::browse_support::library_patch_album,
             psysonic_library::browse_support::library_reconcile_album_stars,
             psysonic_library::browse_support::library_get_catalog_year_bounds,
+            psysonic_library::browse_support::library_scope_catalog_year_bounds,
             psysonic_library::browse_support::library_get_genre_album_counts,
             psysonic_library::commands::library_put_artifact,
             psysonic_library::commands::library_put_fact,
@@ -1295,6 +1301,8 @@ mod specta_export {
             "library_scope_artist_detail",
             "library_scope_list_albums",
             "library_scope_list_artists",
+            "library_scope_list_artists_by_role",
+            "library_scope_most_played_albums",
             "library_scope_search_tracks",
             "library_search",
             "library_search_cross_server",

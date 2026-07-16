@@ -15,6 +15,9 @@ import type {
   LibraryEntitySourceDto,
   LibraryResolveEntitySourcesRequest,
   LibraryScopePair,
+  LibraryScopeCatalogStatisticsDto,
+  LibraryScopeCatalogStatisticsRequest,
+  LibraryScopeMostPlayedAlbumDto,
   LibraryTrackDto,
 } from './dto';
 
@@ -116,6 +119,48 @@ export function libraryScopeListArtists(
   request: LibraryScopeListRequest,
 ): Promise<LibraryArtistDto[]> {
   return invoke<LibraryArtistDto[]>('library_scope_list_artists', {
+    request: {
+      ...request,
+      scopes: mapScopePairs(request.scopes, serverId),
+    },
+  }).then(artists => mapArtistsServerId(artists, serverId));
+}
+
+export function libraryScopeCatalogStatistics(
+  serverId: string,
+  request: LibraryScopeCatalogStatisticsRequest,
+): Promise<LibraryScopeCatalogStatisticsDto> {
+  return invoke<LibraryScopeCatalogStatisticsDto>('library_scope_catalog_statistics', {
+    request: {
+      ...request,
+      scopes: mapScopePairs(request.scopes, serverId),
+    },
+  });
+}
+
+export function libraryScopeMostPlayedAlbums(
+  serverId: string,
+  request: { scopes: LibraryScopePair[]; limit?: number; offset?: number },
+): Promise<LibraryScopeMostPlayedAlbumDto[]> {
+  return invoke<LibraryScopeMostPlayedAlbumDto[]>('library_scope_most_played_albums', {
+    request: {
+      ...request,
+      scopes: mapScopePairs(request.scopes, serverId),
+    },
+  }).then(rows => rows.map(row => ({
+    ...row,
+    album: {
+      ...row.album,
+      serverId: mapServerIdFromIndexKey(row.album.serverId, serverId),
+    },
+  })));
+}
+
+export function libraryScopeListArtistsByRole(
+  serverId: string,
+  request: { scopes: LibraryScopePair[]; role: string; limit?: number },
+): Promise<LibraryArtistDto[]> {
+  return invoke<LibraryArtistDto[]>('library_scope_list_artists_by_role', {
     request: {
       ...request,
       scopes: mapScopePairs(request.scopes, serverId),

@@ -3,6 +3,7 @@ export const playlists = {
   sortDateAddedNewest: 'Date added (newest)',
   sortDateAddedOldest: 'Date added (oldest)',
   title: 'Playlists',
+  sources: 'Playlist sources',
   newPlaylist: 'New Playlist',
   unnamed: 'Unnamed Playlist',
   createName: 'Playlist name…',

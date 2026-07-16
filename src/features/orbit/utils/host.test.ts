@@ -16,19 +16,25 @@ const { orbitStore } = vi.hoisted(() => ({
     setState: vi.fn(),
   },
 }));
+const { authState } = vi.hoisted(() => ({
+  authState: {
+    musicLibraryServerIds: [] as string[],
+    getActiveServer: vi.fn(),
+  },
+}));
 
 vi.mock('@/features/orbit/utils/remote', () => ({
   writeOrbitState,
   writeOrbitHeartbeat: vi.fn(() => Promise.resolve()),
 }));
 vi.mock('@/features/orbit/store/orbitStore', () => ({ useOrbitStore: { getState: () => orbitStore } }));
-vi.mock('@/store/authStore', () => ({ useAuthStore: { getState: () => ({}) } }));
+vi.mock('@/store/authStore', () => ({ useAuthStore: { getState: () => authState } }));
 vi.mock('@/features/playback/store/playerStore', () => ({ usePlayerStore: { getState: () => ({ enqueue: vi.fn() }) } }));
 vi.mock('@/lib/api/subsonicPlaylists', () => ({ createPlaylist: vi.fn(), deletePlaylist: vi.fn() }));
 vi.mock('@/lib/api/subsonicLibrary', () => ({ getSong: vi.fn() }));
 vi.mock('@/lib/media/songToTrack', () => ({ songToTrack: vi.fn() }));
 
-import { updateOrbitSettings } from '@/features/orbit/utils/host';
+import { OrbitHostScopeError, startOrbitSession, updateOrbitSettings } from '@/features/orbit/utils/host';
 
 function hostStateWith(settings: OrbitSettings | undefined): OrbitState {
   const base = makeInitialOrbitState({ sid: 'aaaa1111', host: 'host', name: 'sesh' });
@@ -47,6 +53,18 @@ beforeEach(() => {
   orbitStore.setState.mockClear();
   orbitStore.role = 'host';
   orbitStore.sessionPlaylistId = 'session-pl';
+  authState.musicLibraryServerIds = [];
+  authState.getActiveServer.mockReset();
+});
+
+describe('startOrbitSession', () => {
+  it('blocks before host transport work when more than one browse server is selected', async () => {
+    authState.musicLibraryServerIds = ['a', 'b'];
+
+    await expect(startOrbitSession({ name: 'Mixed scope' })).rejects.toBeInstanceOf(OrbitHostScopeError);
+
+    expect(authState.getActiveServer).not.toHaveBeenCalled();
+  });
 });
 
 describe('updateOrbitSettings', () => {

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { Play, ListPlus, Heart, Download, ChevronRight, ChevronsRight, User, ListMusic, Star, Share2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { resolveAlbum, resolveMediaServerId } from '@/features/offline';
-import { star, unstar } from '@/lib/api/subsonicStarRating';
+import { queueEntityStar } from '@/features/playback';
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import { songToTrack } from '@/lib/media/songToTrack';
 import StarRating from '@/ui/StarRating';
@@ -13,7 +13,7 @@ import type { ContextMenuItemsProps } from '@/features/contextMenu/components/co
 export default function AlbumContextItems(props: ContextMenuItemsProps) {
   const {
     type, item, playNext, enqueue, closeContextMenu,
-    setStarredOverride, userRatingOverrides, setKeyboardRating, keyboardRating,
+    userRatingOverrides, setKeyboardRating, keyboardRating,
     playlistSubmenuOpen, setPlaylistSubmenuOpen, cancelPlaylistSubmenuCloseTimer, onPlaylistSubmenuTriggerMouseLeave,
     playlistSongIds, setPlaylistSongIds,
     entityRatingSupport, applyAlbumRating,
@@ -61,16 +61,7 @@ export default function AlbumContextItems(props: ContextMenuItemsProps) {
               {offlinePolicy.canFavorite && (
                 <div className="context-menu-item" onClick={() => handleAction(() => {
                   const starred = isStarred(album.id, album.starred);
-                  setStarredOverride(album.id, !starred);
-                  const meta = {
-                    serverId: album.serverId,
-                    name: album.name,
-                    artist: album.artist,
-                    artistId: album.artistId,
-                    coverArtId: album.coverArt,
-                    year: album.year,
-                  };
-                  return starred ? unstar(album.id, 'album', meta) : star(album.id, 'album', meta);
+                   queueEntityStar('album', album.id, !starred, album.serverId);
                 })}>
                   <Heart size={14} fill={isStarred(album.id, album.starred) ? 'currentColor' : 'none'} />
                   {isStarred(album.id, album.starred) ? t('contextMenu.unfavoriteAlbum') : t('contextMenu.favoriteAlbum')}
@@ -96,7 +87,7 @@ export default function AlbumContextItems(props: ContextMenuItemsProps) {
                 </div>
               )}
               <div className="context-menu-divider" />
-              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink('album', album.id))}>
+              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink('album', album.id, album.serverId))}>
                 <Share2 size={14} /> {t('contextMenu.shareLink')}
               </div>
               {offlinePolicy.canDownload && (

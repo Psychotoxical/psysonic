@@ -1,4 +1,5 @@
 export const playlists = {
+  sources: 'Playlist sources',
   sortTooltip: 'Сортиране на песни',
   sortDateAddedNewest: 'Дата на добавяне (най-нови)',
   sortDateAddedOldest: 'Дата на добавяне (най-стари)',

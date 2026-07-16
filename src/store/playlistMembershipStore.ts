@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { useAuthStore } from '@/store/authStore';
 
 /**
  * In-memory playlist song-id membership cache, keyed by `serverId:playlistId`.
@@ -15,41 +14,40 @@ import { useAuthStore } from '@/store/authStore';
 interface PlaylistMembershipStore {
   /** Song-id lists keyed by `serverId:playlistId`. */
   songIdsByCacheKey: Record<string, readonly string[]>;
-  getPlaylistSongIds: (playlistId: string) => readonly string[] | undefined;
-  setPlaylistSongIds: (playlistId: string, songIds: readonly string[]) => void;
-  appendPlaylistSongIds: (playlistId: string, songIds: readonly string[]) => void;
-  replacePlaylistSongIds: (playlistId: string, songIds: readonly string[]) => void;
-  removePlaylistSongIdsAtIndices: (playlistId: string, indices: readonly number[]) => void;
-  invalidatePlaylistSongIds: (playlistId: string) => void;
+  getPlaylistSongIds: (playlistId: string, serverId?: string) => readonly string[] | undefined;
+  setPlaylistSongIds: (playlistId: string, songIds: readonly string[], serverId?: string) => void;
+  appendPlaylistSongIds: (playlistId: string, songIds: readonly string[], serverId?: string) => void;
+  replacePlaylistSongIds: (playlistId: string, songIds: readonly string[], serverId?: string) => void;
+  removePlaylistSongIdsAtIndices: (playlistId: string, indices: readonly number[], serverId?: string) => void;
+  invalidatePlaylistSongIds: (playlistId: string, serverId?: string) => void;
   clearAllPlaylistSongIds: () => void;
 }
 
-/** Scope membership to the active server — playlist ids are not globally unique. */
-function cacheKey(playlistId: string): string {
-  const serverId = useAuthStore.getState().activeServerId ?? '';
+/** Playlist ids are server-local; callers on merged surfaces pass the explicit owner. */
+function cacheKey(playlistId: string, serverId = ''): string {
   return `${serverId}:${playlistId}`;
 }
 
 export const usePlaylistMembershipStore = create<PlaylistMembershipStore>()((set, get) => ({
   songIdsByCacheKey: {},
-  getPlaylistSongIds: (playlistId) => get().songIdsByCacheKey[cacheKey(playlistId)],
-  setPlaylistSongIds: (playlistId, songIds) =>
+  getPlaylistSongIds: (playlistId, serverId) => get().songIdsByCacheKey[cacheKey(playlistId, serverId)],
+  setPlaylistSongIds: (playlistId, songIds, serverId) =>
     set((s) => ({
-      songIdsByCacheKey: { ...s.songIdsByCacheKey, [cacheKey(playlistId)]: [...songIds] },
+      songIdsByCacheKey: { ...s.songIdsByCacheKey, [cacheKey(playlistId, serverId)]: [...songIds] },
     })),
-  appendPlaylistSongIds: (playlistId, songIds) => {
+  appendPlaylistSongIds: (playlistId, songIds, serverId) => {
     if (songIds.length === 0) return;
     set((s) => {
-      const key = cacheKey(playlistId);
+      const key = cacheKey(playlistId, serverId);
       const prev = s.songIdsByCacheKey[key] ?? [];
       return { songIdsByCacheKey: { ...s.songIdsByCacheKey, [key]: [...prev, ...songIds] } };
     });
   },
-  replacePlaylistSongIds: (playlistId, songIds) => get().setPlaylistSongIds(playlistId, songIds),
-  removePlaylistSongIdsAtIndices: (playlistId, indices) => {
+  replacePlaylistSongIds: (playlistId, songIds, serverId) => get().setPlaylistSongIds(playlistId, songIds, serverId),
+  removePlaylistSongIdsAtIndices: (playlistId, indices, serverId) => {
     if (indices.length === 0) return;
     set((s) => {
-      const key = cacheKey(playlistId);
+      const key = cacheKey(playlistId, serverId);
       const prev = s.songIdsByCacheKey[key];
       if (!prev) return s;
       const remove = new Set(indices);
@@ -58,9 +56,9 @@ export const usePlaylistMembershipStore = create<PlaylistMembershipStore>()((set
       };
     });
   },
-  invalidatePlaylistSongIds: (playlistId) =>
+  invalidatePlaylistSongIds: (playlistId, serverId) =>
     set((s) => {
-      const key = cacheKey(playlistId);
+      const key = cacheKey(playlistId, serverId);
       if (!(key in s.songIdsByCacheKey)) return s;
       const { [key]: _removed, ...rest } = s.songIdsByCacheKey;
       return { songIdsByCacheKey: rest };

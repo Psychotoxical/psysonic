@@ -6,6 +6,9 @@ import {
   libraryScopeListAlbums,
   libraryScopeListArtists,
   libraryScopeSearchTracks,
+  libraryScopeCatalogStatistics,
+  libraryScopeMostPlayedAlbums,
+  libraryScopeListArtistsByRole,
   libraryResolveEntitySources,
   mapScopePairs,
   scopePairsFromLibrarySelection,
@@ -156,6 +159,74 @@ describe('libraryScopeListArtists', () => {
       rawJson: {},
     }]);
     const artists = await libraryScopeListArtists('profile-s1', { scopes });
+    expect(artists[0]?.serverId).toBe('profile-s2');
+  });
+});
+
+describe('scope statistics reads', () => {
+  it('maps catalog-statistics scope pairs to index keys', async () => {
+    let captured: unknown;
+    onInvoke('library_scope_catalog_statistics', args => {
+      captured = args;
+      return {
+        artistCount: 0,
+        albumCount: 0,
+        trackCount: 0,
+        durationSec: 0,
+        genres: [],
+        formats: [],
+        formatSampleSize: 0,
+      };
+    });
+    await libraryScopeCatalogStatistics('profile-s1', { scopes, formatSampleLimit: 500 });
+    expect(captured).toEqual({
+      request: {
+        scopes: [
+          { serverId: 's1.example', libraryId: 'lib-a' },
+          { serverId: 's1.example', libraryId: 'lib-b' },
+        ],
+        formatSampleLimit: 500,
+      },
+    });
+  });
+
+  it('maps Most Played album provenance from the concrete priority winner', async () => {
+    onInvoke('library_scope_most_played_albums', () => [{
+      album: {
+        serverId: 's2.example',
+        id: 'album-2',
+        name: 'Album',
+        syncedAt: 1,
+        rawJson: {},
+      },
+      playCount: 3,
+    }]);
+    const rows = await libraryScopeMostPlayedAlbums('profile-s1', { scopes, limit: 10 });
+    expect(rows[0]?.album.serverId).toBe('profile-s2');
+    expect(rows[0]?.playCount).toBe(3);
+  });
+
+  it('maps composer-role reads and preserves artist provenance', async () => {
+    let captured: unknown;
+    onInvoke('library_scope_list_artists_by_role', args => {
+      captured = args;
+      return [{ serverId: 's2.example', id: 'composer-2', name: 'Composer', syncedAt: 1, rawJson: {} }];
+    });
+    const artists = await libraryScopeListArtistsByRole('profile-s1', {
+      scopes,
+      role: 'composer',
+      limit: 100,
+    });
+    expect(captured).toEqual({
+      request: {
+        scopes: [
+          { serverId: 's1.example', libraryId: 'lib-a' },
+          { serverId: 's1.example', libraryId: 'lib-b' },
+        ],
+        role: 'composer',
+        limit: 100,
+      },
+    });
     expect(artists[0]?.serverId).toBe('profile-s2');
   });
 });

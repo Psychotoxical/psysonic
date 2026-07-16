@@ -5,6 +5,7 @@ import type { Track } from '@/lib/media/trackTypes';
 import { getCachedTrack, _resetQueueResolverForTest } from '@/features/playback/store/queueTrackResolver';
 import { seedQueue } from '@/test/helpers/factories';
 import { useQueueTrackAt, useCurrentTrack, useQueueItems } from '@/features/queue/hooks/useQueueTracks';
+import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
 
 const track = (id: string, over: Partial<Track> = {}): Track =>
   ({ id, title: id, artist: '', album: 'A', albumId: 'A', duration: 1, ...over });
@@ -28,8 +29,8 @@ describe('useQueueTracks selectors', () => {
   it('useQueueTrackAt merges session star/rating overrides', () => {
     seedQueue([track('t1')], { serverId: 's1', currentTrack: null });
     usePlayerStore.setState({
-      starredOverrides: { t1: true },
-      userRatingOverrides: { t1: 5 },
+      starredOverrides: { [entityOverrideKey('s1', 't1')]: true },
+      userRatingOverrides: { [entityOverrideKey('s1', 't1')]: 5 },
     });
     const { result } = renderHook(() => useQueueTrackAt(0));
     expect(!!result.current?.starred).toBe(true);

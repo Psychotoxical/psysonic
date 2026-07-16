@@ -13,7 +13,7 @@ import { useOrbitStore } from '@/features/orbit';
 
 interface Props {
   queue: QueueItemRef[];
-  activePlaylist: { id: string; name: string } | null;
+  activePlaylist: { id: string; name: string; serverId: string } | null;
   saveState: 'idle' | 'saving' | 'saved';
   toolbarButtons: QueueToolbarButtonConfig[];
   shuffleQueue: () => void;

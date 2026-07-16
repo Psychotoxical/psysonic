@@ -14,8 +14,8 @@ import { useAuthStore } from '@/store/authStore';
  * Best-effort: returns `[]` when the server is unknown or the playlist cannot
  * be resolved, so callers can treat empty as "nothing to enqueue".
  */
-export async function resolvePlaylistTracks(playlistId: string): Promise<Track[]> {
-  const serverId = resolveMediaServerId(useAuthStore.getState().activeServerId);
+export async function resolvePlaylistTracks(playlistId: string, ownerServerId?: string): Promise<Track[]> {
+  const serverId = resolveMediaServerId(ownerServerId ?? useAuthStore.getState().activeServerId);
   if (!serverId) return [];
   try {
     const data = await resolvePlaylist(serverId, playlistId);
@@ -25,8 +25,13 @@ export async function resolvePlaylistTracks(playlistId: string): Promise<Track[]
     // no-catch handler) never leak an unhandled rejection.
     const songs = isOfflineBrowseActive()
       ? data.songs
-      : await filterSongsToActiveLibrary(data.songs);
-    return songs.map(songToTrack);
+      : ownerServerId
+        ? data.songs
+        : await filterSongsToActiveLibrary(data.songs);
+    return songs.map(song => {
+      const track = songToTrack(song);
+      return ownerServerId ? { ...track, serverId } : track;
+    });
   } catch {
     return [];
   }

@@ -29,6 +29,7 @@ vi.mock('@/features/playback/store/playerStore', () => ({
 
 import { applySkipStarOnManualNext } from '@/features/playback/store/skipStarRating';
 import { seedQueueResolver, _resetQueueResolverForTest } from '@/features/playback/store/queueTrackResolver';
+import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
 
 function track(id: string, overrides: Partial<Track> = {}): Track {
   return {
@@ -73,7 +74,7 @@ describe('applySkipStarOnManualNext', () => {
 
   it('skips rating when the track is already rated via the override map', () => {
     recordSkipStarMock.mockReturnValueOnce({ crossedThreshold: true });
-    playerStateGet().userRatingOverrides = { t1: 3 };
+    playerStateGet().userRatingOverrides = { [entityOverrideKey('s1', 't1')]: 3 };
     applySkipStarOnManualNext(track('t1'), true);
     expect(queueSongRatingMock).not.toHaveBeenCalled();
   });
@@ -95,6 +96,6 @@ describe('applySkipStarOnManualNext', () => {
   it('delegates to queueSongRating(id, 1) when threshold crosses and the track is unrated', () => {
     recordSkipStarMock.mockReturnValueOnce({ crossedThreshold: true });
     applySkipStarOnManualNext(track('t1'), true);
-    expect(queueSongRatingMock).toHaveBeenCalledWith('t1', 1);
+    expect(queueSongRatingMock).toHaveBeenCalledWith('t1', 1, 's1');
   });
 });

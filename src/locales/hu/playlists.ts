@@ -1,4 +1,5 @@
 export const playlists = {
+  sources: 'Playlist sources',
   sortTooltip: 'Számok rendezése',
   sortDateAddedNewest: 'Hozzáadás dátuma (legújabb)',
   sortDateAddedOldest: 'Hozzáadás dátuma (legrégebbi)',

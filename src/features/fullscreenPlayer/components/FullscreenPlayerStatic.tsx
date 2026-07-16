@@ -5,7 +5,8 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
-import { queueSongStar, queueSongRating } from '@/features/playback/store/pendingStarSync';
+import { queueSongStar, queueSongRating } from '@/features/playback';
+import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
 import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
 import { useCachedUrl } from '@/ui/CachedImage';
@@ -68,7 +69,8 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
   const isStarred = usePlayerStore(s => {
     const track = s.currentTrack;
     if (!track) return false;
-    return track.id in s.starredOverrides ? s.starredOverrides[track.id] : !!track.starred;
+    const key = entityOverrideKey(track.serverId ?? s.queueServerId, track.id);
+    return key in s.starredOverrides ? s.starredOverrides[key] : !!track.starred;
   });
   const toggleStar = useCallback(() => {
     if (!currentTrack) return;
@@ -117,14 +119,15 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
   const rating = usePlayerStore(s => {
     const track = s.currentTrack;
     if (!track) return 0;
-    return track.id in s.userRatingOverrides ? s.userRatingOverrides[track.id] : (track.userRating ?? 0);
+    const key = entityOverrideKey(track.serverId ?? s.queueServerId, track.id);
+    return key in s.userRatingOverrides ? s.userRatingOverrides[key] : (track.userRating ?? 0);
   });
   // Hover preview for the clickable rating stars (0 = no preview).
   const [hoverRating, setHoverRating] = useState(0);
   const applyRating = useCallback((stars: number) => {
     if (!currentTrack) return;
     // Click the current rating again to clear it (matches StarRating's toggle-off).
-    queueSongRating(currentTrack.id, rating === stars ? 0 : stars);
+    queueSongRating(currentTrack.id, rating === stars ? 0 : stars, currentTrack.serverId);
   }, [currentTrack, rating]);
 
   return (

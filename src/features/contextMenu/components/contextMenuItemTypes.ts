@@ -52,7 +52,7 @@ export interface ContextMenuItemsProps {
   startRadio: (artistId: string, artistName: string, seedTrack?: Track) => void;
   startInstantMix: (song: Track) => void;
   downloadAlbum: (albumName: string, albumId: string) => Promise<void>;
-  copyShareLink: (kind: EntityShareKind, id: string) => void;
+  copyShareLink: (kind: EntityShareKind, id: string, representativeServerId?: string) => void;
   isStarred: (id: string, itemStarred?: string) => boolean;
   /** When true, album/artist links switch to the queue server before routing. */
   pinToPlaybackServer: boolean;

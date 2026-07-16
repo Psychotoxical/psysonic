@@ -10,6 +10,7 @@ import {
 import { formatHumanHoursMinutes } from '@/lib/format/formatHumanDuration';
 import { useDragSource } from '@/lib/dnd/DragDropContext';
 import { PlaylistCardMainCover, PlaylistSmartCoverCell } from '@/features/playlist/components/PlaylistCoverImages';
+import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
 
 interface Props {
   pl: SubsonicPlaylist;
@@ -48,16 +49,17 @@ export default function PlaylistCard({
     label: displayPlaylistName(pl.name),
   }));
   const dragEnabled = Boolean(draggable) && !selectionMode;
+  const playlistKey = libraryEntityKey(pl);
 
   return (
     <div
-      className={`album-card${selectionMode && selectedIds.has(pl.id) ? ' album-card--selected' : ''}${dragEnabled ? ' album-card--draggable' : ''}`}
+      className={`album-card${selectionMode && selectedIds.has(playlistKey) ? ' album-card--selected' : ''}${dragEnabled ? ' album-card--draggable' : ''}`}
       {...(dragEnabled ? dragHandlers : {})}
       onClick={(e) => {
         if (selectionMode) {
-          toggleSelect(pl.id, { shiftKey: e.shiftKey });
+          toggleSelect(playlistKey, { shiftKey: e.shiftKey });
         } else {
-          navigate(`/playlists/${pl.id}`);
+          navigate(`/playlists/${pl.id}${pl.serverId ? `?server=${encodeURIComponent(pl.serverId)}` : ''}`);
         }
       }}
       onContextMenu={(e) => {
@@ -81,7 +83,7 @@ export default function PlaylistCard({
                   void handleOpenSmartEditor(pl);
                   return;
                 }
-                navigate(`/playlists/${pl.id}`, { state: { openEditMeta: true } });
+                navigate(`/playlists/${pl.id}${pl.serverId ? `?server=${encodeURIComponent(pl.serverId)}` : ''}`, { state: { openEditMeta: true } });
               }}
               data-tooltip={t('playlists.editMeta')}
             >
@@ -100,8 +102,8 @@ export default function PlaylistCard({
         </div>
       )}
       {selectionMode && (
-        <div className={`album-card-select-check${selectedIds.has(pl.id) ? ' album-card-select-check--on' : ''}`}>
-          {selectedIds.has(pl.id) && <Check size={14} strokeWidth={3} />}
+        <div className={`album-card-select-check${selectedIds.has(playlistKey) ? ' album-card-select-check--on' : ''}`}>
+          {selectedIds.has(playlistKey) && <Check size={14} strokeWidth={3} />}
         </div>
       )}
       {/* Cover area — server collage or fallback icon */}

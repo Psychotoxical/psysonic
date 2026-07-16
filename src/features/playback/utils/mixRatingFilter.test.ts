@@ -9,6 +9,7 @@ vi.mock('@/lib/api/subsonicRatings', () => ({
   parseSubsonicEntityStarRating: vi.fn(),
 }));
 
+
 import { prefetchArtistUserRatings, prefetchAlbumUserRatings } from '@/lib/api/subsonicRatings';
 import {
   enrichSongsForMixRatingFilter,
@@ -55,7 +56,7 @@ describe('passesMixMinRatings — artist axis', () => {
   });
 
   it('uses playerStore userRatingOverrides before API fields', () => {
-    usePlayerStore.getState().setUserRatingOverride('art-1', 1);
+    usePlayerStore.getState().setUserRatingOverride('art-1', 1, '');
     expect(
       passesMixMinRatings(song({ id: '1', artistUserRating: 5 }), enabledArtist2),
     ).toBe(false);

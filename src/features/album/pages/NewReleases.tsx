@@ -40,6 +40,9 @@ import { albumArtistDisplayName } from '@/features/album/utils/deriveAlbumHeader
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { filterAlbumsByGenres } from '@/lib/library/albumBrowseFilters';
 import { useScopedBrowseSearchQuery } from '@/store/liveSearchScopeStore';
+import { useBrowseLibraryScope } from '@/store/useBrowseLibraryScope';
+import { libraryAdvancedSearch } from '@/lib/api/library';
+import { albumToAlbum } from '@/lib/library/advancedSearchLocal';
 
 const PAGE_SIZE = 30;
 
@@ -59,6 +62,9 @@ export default function NewReleases() {
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const auth = useAuthStore();
   const serverId = useAuthStore(s => s.activeServerId ?? '');
+  const browseScope = useBrowseLibraryScope();
+  const browseServerId = browseScope.anchorServerId || serverId;
+  const sessionScopeKey = `${serverId}\0${browseScope.fingerprint}`;
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const downloadAlbum = useOfflineStore(s => s.downloadAlbum);
   const requestDownloadFolder = useDownloadModalStore(s => s.requestFolder);
@@ -72,14 +78,17 @@ export default function NewReleases() {
     setSelectedGenres,
     initialAlbums,
     initialHasMore,
-  } = useAlbumGridBrowseFilters(serverId, 'new-releases', scrollSnapshotRef, gridSnapshotRef);
+  } = useAlbumGridBrowseFilters(sessionScopeKey, 'new-releases', scrollSnapshotRef, gridSnapshotRef);
   const restoringSessionRef = useRef(initialAlbums != null);
 
   const newReleasesSearchQuery = useScopedBrowseSearchQuery('newReleases');
   const { textSearchAlbums, textSearchLoading } = useBrowseAlbumTextSearch(
     newReleasesSearchQuery,
     indexEnabled,
-    serverId,
+    browseServerId,
+    false,
+    browseScope.pairs,
+    browseScope.multiServer,
   );
   const textSearchActive = textSearchAlbums != null;
   const scopedSearchQuery = newReleasesSearchQuery.trim();
@@ -180,17 +189,46 @@ export default function NewReleases() {
 
   const load = useCallback(async (offset: number, append = false) => {
     await runLoad(async () => {
-      const data = await getAlbumList('newest', PAGE_SIZE, offset);
+      const local = await libraryAdvancedSearch({
+        serverId: browseServerId,
+        libraryScopes: browseScope.pairs,
+        entityTypes: ['album'],
+        sort: [
+          { field: 'synced', dir: 'desc' },
+          { field: 'year', dir: 'desc' },
+          { field: 'name', dir: 'asc' },
+        ],
+        limit: PAGE_SIZE,
+        offset,
+        skipTotals: true,
+      }).then(response => response.albums.map(albumToAlbum)).catch(() => null);
+      const data = local ?? (browseScope.multiServer ? [] : await getAlbumList('newest', PAGE_SIZE, offset));
       if (append) setAlbums(prev => [...prev, ...data]);
       else setAlbums(data);
       setHasMore(data.length === PAGE_SIZE);
     });
-  }, [runLoad]);
+  }, [runLoad, browseScope.multiServer, browseScope.pairs, browseServerId]);
 
   const loadFiltered = useCallback(async (genres: string[]) => {
     setLoading(true);
     try {
-      setAlbums(await fetchByGenres(genres));
+      const local = await Promise.all(genres.map(genre => libraryAdvancedSearch({
+        serverId: browseServerId,
+        libraryScopes: browseScope.pairs,
+        entityTypes: ['album'],
+        filters: [{ field: 'genre', op: 'eq', value: genre }],
+        sort: [
+          { field: 'synced', dir: 'desc' },
+          { field: 'year', dir: 'desc' },
+          { field: 'name', dir: 'asc' },
+        ],
+        limit: 500,
+        offset: 0,
+        skipTotals: true,
+      }))).then(responses => dedupeById(
+        responses.flatMap(response => response.albums.map(albumToAlbum)),
+      ).sort((a, b) => (b.year ?? 0) - (a.year ?? 0))).catch(() => null);
+      setAlbums(local ?? (browseScope.multiServer ? [] : await fetchByGenres(genres)));
       setHasMore(false);
     } finally {
       setLoading(false);
@@ -199,7 +237,7 @@ export default function NewReleases() {
     // reads the active library filter internally); the setters are stable. The
     // loader must refresh when that version bumps even though it is unused here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [musicLibraryFilterVersion]);
+  }, [musicLibraryFilterVersion, browseScope.fingerprint, browseScope.multiServer, browseScope.pairs, browseServerId]);
 
   useEffect(() => {
     if (restoringSessionRef.current || scopedSearchQuery) return;
@@ -223,7 +261,7 @@ export default function NewReleases() {
   });
 
   const { isScrollRestorePending } = useAlbumBrowseScrollRestore({
-    serverId,
+    serverId: sessionScopeKey,
     surface: 'new-releases',
     scrollBodyEl,
     displayAlbumsLength: displayAlbums.length,
@@ -237,7 +275,7 @@ export default function NewReleases() {
     scrollSnapshotRef,
     getScrollRoot,
     isScrollRestorePending,
-    resetKey: [newReleasesSearchQuery, selectedGenres.join('\u0001'), serverId].join('|'),
+    resetKey: [newReleasesSearchQuery, selectedGenres.join('\u0001'), browseScope.fingerprint].join('|'),
   });
 
   useLayoutEffect(() => {
