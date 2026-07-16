@@ -15,6 +15,7 @@ import { useNavigateToAlbum } from '@/features/album';
 import { useNavigateToArtist } from '@/features/artist';
 import { OpenArtistRefInline } from '@/ui/OpenArtistRefInline';
 import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/trackArtistRefs';
+import { appendServerQuery } from '@/lib/navigation/detailServerScope';
 
 interface SongCardProps {
   song: SubsonicSong;
@@ -45,6 +46,7 @@ function SongCard({
   const psyDrag = useDragDrop();
   const { orbitActive, addTrackToOrbit } = useOrbitSongRowBehavior();
   const navigateToAlbum = useNavigateToAlbum();
+  const serverSearch = appendServerQuery(undefined, song.serverId);
 
   const handlePlay = () => {
     if (orbitActive) { addTrackToOrbit(song.id); return; }
@@ -62,7 +64,8 @@ function SongCard({
   const handleAlbumClick = (e: React.MouseEvent) => {
     if (!song.albumId) return;
     e.stopPropagation();
-    navigateToAlbum(song.albumId);
+    if (serverSearch) navigateToAlbum(song.albumId, { search: serverSearch });
+    else navigateToAlbum(song.albumId);
   };
 
   return (
@@ -143,7 +146,10 @@ function SongCard({
           <OpenArtistRefInline
             refs={artistRefs}
             fallbackName={song.artist}
-            onGoArtist={id => navigateToArtist(id)}
+            onGoArtist={id => {
+              if (serverSearch) navigateToArtist(id, { search: serverSearch });
+              else navigateToArtist(id);
+            }}
             as="none"
             linkTag="span"
             linkClassName="track-artist-link"

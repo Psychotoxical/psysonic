@@ -1,7 +1,7 @@
 import type { TFunction } from 'i18next';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { readTextFile } from '@tauri-apps/plugin-fs';
-import { search } from '@/lib/api/subsonicSearch';
+import { searchForServer } from '@/lib/api/subsonicSearch';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { showToast } from '@/lib/dom/toast';
 import { parseSpotifyCsv, type SpotifyCsvTrack } from '@/features/playlist/utils/spotifyCsvImport';
@@ -23,6 +23,7 @@ export interface CsvImportReport {
 
 export interface RunPlaylistCsvImportDeps {
   songs: SubsonicSong[];
+  ownerServerId: string;
   t: TFunction;
   savePlaylist: (updatedSongs: SubsonicSong[], prevCount?: number) => Promise<void>;
   setSongs: (next: SubsonicSong[]) => void;
@@ -31,7 +32,7 @@ export interface RunPlaylistCsvImportDeps {
 }
 
 export async function runPlaylistCsvImport(deps: RunPlaylistCsvImportDeps): Promise<void> {
-  const { songs, t, savePlaylist, setSongs, setCsvImporting, setCsvImportReport } = deps;
+  const { songs, ownerServerId, t, savePlaylist, setSongs, setCsvImporting, setCsvImportReport } = deps;
 
   try {
     const selected = await openDialog({
@@ -72,7 +73,7 @@ export async function runPlaylistCsvImport(deps: RunPlaylistCsvImportDeps): Prom
 
         while (attempts < maxAttempts) {
           try {
-            searchResult = await search(cleanTitleForSearch, { songCount: 40, artistCount: 0, albumCount: 0 });
+            searchResult = await searchForServer(ownerServerId, cleanTitleForSearch, { songCount: 40, artistCount: 0, albumCount: 0 });
             break;
           } catch (err) {
             attempts++;

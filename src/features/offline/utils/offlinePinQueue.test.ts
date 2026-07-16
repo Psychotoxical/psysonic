@@ -54,6 +54,20 @@ describe('offlinePinQueue', () => {
     await vi.waitFor(() => expect(useOfflineJobStore.getState().pinQueue).toHaveLength(0));
   });
 
+  it('dequeues only the matching server when ids collide', () => {
+    useOfflineJobStore.setState({
+      pinQueue: [
+        { serverId: 'a', albumId: 'same', albumName: 'A', pinKind: 'playlist', status: 'queued', queuedAt: 1 },
+        { serverId: 'b', albumId: 'same', albumName: 'B', pinKind: 'playlist', status: 'queued', queuedAt: 2 },
+      ],
+    });
+
+    expect(dequeueOfflinePin('same', 'b')).toBe(true);
+    expect(useOfflineJobStore.getState().pinQueue).toEqual([
+      { serverId: 'a', albumId: 'same', albumName: 'A', pinKind: 'playlist', status: 'queued', queuedAt: 1 },
+    ]);
+  });
+
   it('allows re-enqueue after cancelDownload (e.g. remove offline cache)', async () => {
     const ran: string[] = [];
     registerOfflinePinExecutor(async task => {

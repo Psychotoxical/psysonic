@@ -11,6 +11,7 @@ describe('useAlbumOfflineState', () => {
   it('reports queued when the album waits in the pin queue', () => {
     useOfflineJobStore.setState({
       pinQueue: [{
+        serverId: 'srv',
         albumId: 'alb-1',
         albumName: 'One',
         pinKind: 'album',
@@ -27,6 +28,7 @@ describe('useAlbumOfflineState', () => {
   it('prefers downloading over queued when jobs are active', () => {
     useOfflineJobStore.setState({
       pinQueue: [{
+        serverId: 'srv',
         albumId: 'alb-1',
         albumName: 'One',
         pinKind: 'album',

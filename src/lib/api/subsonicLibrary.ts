@@ -260,6 +260,28 @@ export async function getRandomSongs(size = 50, genre?: string, timeout = 15000)
   return data.randomSongs?.song ?? [];
 }
 
+export async function getRandomSongsForServer(
+  serverId: string,
+  size = 50,
+  genre?: string,
+  timeout = 15000,
+): Promise<SubsonicSong[]> {
+  if (!shouldAttemptSubsonicForServer(serverId)) return [];
+  const params: Record<string, string | number | string[]> = {
+    size,
+    _t: Date.now(),
+    ...libraryFilterParamsForServer(serverId),
+  };
+  if (genre) params.genre = genre;
+  const data = await apiForServer<{ randomSongs: { song: SubsonicSong[] } }>(
+    serverId,
+    'getRandomSongs.view',
+    params,
+    timeout,
+  );
+  return (data.randomSongs?.song ?? []).map(song => ({ ...song, serverId }));
+}
+
 /** Extended random song fetch with server-side year/genre filtering. */
 export async function getRandomSongsFiltered(
   filters: RandomSongsFilters,

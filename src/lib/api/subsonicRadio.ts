@@ -122,6 +122,24 @@ export async function uploadRadioCoverArtBytes(id: string, fileBytes: number[], 
   if (res.status === 'error') throw new Error(res.error);
 }
 
+export async function uploadRadioCoverArtBytesForServer(
+  serverId: string,
+  id: string,
+  fileBytes: number[],
+  mimeType: string,
+): Promise<void> {
+  const server = radioServerCredentials(serverId);
+  const res = await commands.uploadRadioCover(
+    server.url,
+    id,
+    server.username,
+    server.password,
+    fileBytes,
+    mimeType,
+  );
+  if (res.status === 'error') throw new Error(res.error);
+}
+
 function parseRadioBrowserStations(raw: Array<Record<string, string>>): RadioBrowserStation[] {
   return raw.map(s => ({
     stationuuid: s.stationuuid ?? '',

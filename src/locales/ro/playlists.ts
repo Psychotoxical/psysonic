@@ -14,6 +14,7 @@ export const playlists = {
   emptyPlaylist: 'Acest playlist este gol.',
   addFirstSong: 'Adaugă prima ta piesă',
   notFound: 'Playlistul nu a fost găsit.',
+  smartMembershipReadOnly: 'Această listă inteligentă este generată de {{server}}. Adăugarea, eliminarea, reordonarea și importul CSV sunt dezactivate aici pentru a nu înlocui regulile serverului.',
   songs_one: '{{count}} piesă',
   songs_other: '{{count}} piese',
   playAll: 'Redă tot',

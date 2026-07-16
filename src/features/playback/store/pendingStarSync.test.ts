@@ -176,6 +176,62 @@ describe('pending entity mutation outbox', () => {
     expect(setRatingForServerMock).not.toHaveBeenCalledWith('s2', 'same-target', 2);
   });
 
+  it('retains a deferred logical target when a ready index transiently resolves empty', async () => {
+    setupServers({ secondReady: false });
+    resolveSourcesMock.mockResolvedValueOnce([
+      { serverId: 's1', id: 'a1', libraryId: '', priority: 0 },
+    ]);
+    queueSongStar('a1', true, 's1');
+    await vi.waitFor(() => expect(_getPendingEntityMutationsForTest()).toEqual([
+      expect.objectContaining({ targetServerId: 's2', resolution: 'awaiting_index' }),
+    ]));
+
+    resolveSourcesMock.mockResolvedValueOnce([]);
+    useLibraryIndexStore.setState(state => ({
+      statusByServer: { ...state.statusByServer, 'two.test': ready('two.test') },
+    }));
+    await flushPendingEntityMutations('s2');
+
+    expect(_getPendingEntityMutationsForTest()).toEqual([
+      expect.objectContaining({ targetServerId: 's2', resolution: 'awaiting_index' }),
+    ]);
+  });
+
+  it('retires a deferred logical target only on explicit permanent no-match', async () => {
+    setupServers({ secondReady: false });
+    resolveSourcesMock.mockResolvedValueOnce([
+      { serverId: 's1', id: 'a1', libraryId: '', priority: 0 },
+    ]);
+    queueSongStar('a1', true, 's1');
+    await vi.waitFor(() => expect(_getPendingEntityMutationsForTest()).toHaveLength(1));
+
+    resolveSourcesMock.mockRejectedValueOnce({ code: 'no_matching_copy' });
+    useLibraryIndexStore.setState(state => ({
+      statusByServer: { ...state.statusByServer, 'two.test': ready('two.test') },
+    }));
+    await flushPendingEntityMutations('s2');
+
+    expect(_getPendingEntityMutationsForTest()).toEqual([]);
+  });
+
+  it('flushes a newer desired value queued while the previous request is in flight', async () => {
+    let finishFirst!: () => void;
+    setRatingForServerMock.mockImplementationOnce(() => new Promise<undefined>(resolve => {
+      finishFirst = () => resolve(undefined);
+    }));
+
+    queueSongRating('a1', 2, 's1');
+    await vi.waitFor(() => expect(setRatingForServerMock).toHaveBeenCalledWith('s1', 'a1', 2));
+    queueSongRating('a1', 5, 's1');
+    await vi.waitFor(() => expect(_getPendingEntityMutationsForTest()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ targetServerId: 's1', entityId: 'a1', value: 5 }),
+    ])));
+
+    finishFirst();
+    await vi.waitFor(() => expect(setRatingForServerMock).toHaveBeenCalledWith('s1', 'a1', 5));
+    await vi.waitFor(() => expect(_getPendingEntityMutationsForTest()).toEqual([]));
+  });
+
   it('retires unsupported album ratings as permanent failures', async () => {
     useAuthStore.setState(state => ({
       entityRatingSupportByServer: { ...state.entityRatingSupportByServer, s2: 'track_only' },

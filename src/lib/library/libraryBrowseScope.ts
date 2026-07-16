@@ -45,7 +45,14 @@ export interface DerivedLibraryScopes {
 
 export function configuredLibraryServerIds(state: LibraryScopeState): string[] {
   const selected = new Set(state.musicLibraryServerIds);
-  return state.servers.map(server => server.id).filter(serverId => selected.has(serverId));
+  const seenIndexKeys = new Set<string>();
+  return state.servers.flatMap(server => {
+    if (!selected.has(server.id)) return [];
+    const indexKey = serverIndexKeyFromUrl(server.url) || server.id;
+    if (seenIndexKeys.has(indexKey)) return [];
+    seenIndexKeys.add(indexKey);
+    return [server.id];
+  });
 }
 
 /** Selected live Subsonic sources. Unlike indexed browse, this ignores index readiness. */
@@ -65,17 +72,43 @@ export function buildReachableLibrarySources(
 }
 
 export function buildConfiguredLibraryScopePairs(state: LibraryScopeState): LibraryScopePair[] {
-  return configuredLibraryServerIds(state).flatMap<LibraryScopePair>(serverId => {
-    const stored = state.musicLibrarySelectionByServer[serverId];
+  const selected = new Set(state.musicLibraryServerIds);
+  const scopesByIndexKey = new Map<string, { ownerServerId: string; libraryIds: string[] | null }>();
+  for (const server of state.servers) {
+    if (!selected.has(server.id)) continue;
+    const indexKey = serverIndexKeyFromUrl(server.url) || server.id;
+    const stored = state.musicLibrarySelectionByServer[server.id];
     const libraryIds = stored !== undefined
       ? stored
-      : state.musicLibraryFilterByServer[serverId] === 'all'
-        || state.musicLibraryFilterByServer[serverId] === undefined
+      : state.musicLibraryFilterByServer[server.id] === 'all'
+        || state.musicLibraryFilterByServer[server.id] === undefined
         ? []
-        : [state.musicLibraryFilterByServer[serverId]];
-    if (libraryIds.length === 0) return [{ serverId, libraryId: null }];
-    return libraryIds.map(libraryId => ({ serverId, libraryId }));
-  });
+        : [state.musicLibraryFilterByServer[server.id]];
+    const existing = scopesByIndexKey.get(indexKey);
+    if (!existing) {
+      scopesByIndexKey.set(indexKey, {
+        ownerServerId: server.id,
+        libraryIds: libraryIds.length === 0 ? null : [...new Set(libraryIds)],
+      });
+      continue;
+    }
+    if (existing.libraryIds === null || libraryIds.length === 0) {
+      existing.libraryIds = null;
+      continue;
+    }
+    const seen = new Set(existing.libraryIds);
+    for (const libraryId of libraryIds) {
+      if (!seen.has(libraryId)) {
+        seen.add(libraryId);
+        existing.libraryIds.push(libraryId);
+      }
+    }
+  }
+  return [...scopesByIndexKey.values()].flatMap<LibraryScopePair>(({ ownerServerId, libraryIds }) =>
+    libraryIds === null
+      ? [{ serverId: ownerServerId, libraryId: null }]
+      : libraryIds.map(libraryId => ({ serverId: ownerServerId, libraryId })),
+  );
 }
 
 function runtimeForProfile(

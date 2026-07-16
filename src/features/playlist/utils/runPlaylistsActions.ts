@@ -6,6 +6,7 @@ import { usePlaylistStore } from '@/features/playlist/store/playlistStore';
 import { usePlaylistMembershipStore } from '@/store/playlistMembershipStore';
 import { collectMergeSongIds } from '@/features/playlist/utils/addTracksToPlaylistWithDedup';
 import { showToast } from '@/lib/dom/toast';
+import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
 
 export interface RunPlaylistDeleteDeps {
   e: React.MouseEvent;
@@ -19,8 +20,9 @@ export interface RunPlaylistDeleteDeps {
 export async function runPlaylistDelete(deps: RunPlaylistDeleteDeps): Promise<void> {
   const { e, pl, deleteConfirmId, setDeleteConfirmId, removeId, t } = deps;
   e.stopPropagation();
-  if (deleteConfirmId !== pl.id) {
-    setDeleteConfirmId(pl.id);
+  const key = libraryEntityKey(pl);
+  if (deleteConfirmId !== key) {
+    setDeleteConfirmId(key);
     const btn = e.currentTarget as HTMLElement;
     requestAnimationFrame(() => {
       btn.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));

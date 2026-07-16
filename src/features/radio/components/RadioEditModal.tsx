@@ -9,8 +9,11 @@ import { coverArtIdFromRadio } from '@/cover/ids';
 
 interface RadioEditModalProps {
   station: InternetRadioStation | null; // null = create new
+  sources: Array<{ serverId: string; label: string }>;
+  requireSourceSelection?: boolean;
   onClose: () => void;
   onSave: (opts: {
+    serverId: string;
     name: string;
     streamUrl: string;
     homepageUrl: string;
@@ -19,7 +22,7 @@ interface RadioEditModalProps {
   }) => Promise<void>;
 }
 
-export default function RadioEditModal({ station, onClose, onSave }: RadioEditModalProps) {
+export default function RadioEditModal({ station, sources, requireSourceSelection = false, onClose, onSave }: RadioEditModalProps) {
   const { t } = useTranslation();
   const [name, setName] = useState(station?.name ?? '');
   const [streamUrl, setStreamUrl] = useState(station?.streamUrl ?? '');
@@ -28,6 +31,9 @@ export default function RadioEditModal({ station, onClose, onSave }: RadioEditMo
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [coverRemoved, setCoverRemoved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [serverId, setServerId] = useState(
+    station?.serverId ?? (!requireSourceSelection && sources.length === 1 ? sources[0]?.serverId ?? '' : ''),
+  );
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   const hasExistingCover = !coverRemoved && (coverPreview || station?.coverArt);
@@ -51,10 +57,10 @@ export default function RadioEditModal({ station, onClose, onSave }: RadioEditMo
   };
 
   const handleSave = async () => {
-    if (!name.trim() || !streamUrl.trim()) return;
+    if (!serverId || !name.trim() || !streamUrl.trim()) return;
     setSaving(true);
     try {
-      await onSave({ name, streamUrl, homepageUrl, coverFile, coverRemoved });
+      await onSave({ serverId, name, streamUrl, homepageUrl, coverFile, coverRemoved });
     } finally {
       setSaving(false);
     }
@@ -128,6 +134,19 @@ export default function RadioEditModal({ station, onClose, onSave }: RadioEditMo
 
           {/* Fields */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {!station && (requireSourceSelection || sources.length > 1) && (
+              <select
+                className="input"
+                value={serverId}
+                onChange={e => setServerId(e.target.value)}
+                aria-label={t('radio.source')}
+              >
+                <option value="">{t('radio.selectSource')}</option>
+                {sources.map(source => (
+                  <option key={source.serverId} value={source.serverId}>{source.label}</option>
+                ))}
+              </select>
+            )}
             <input
               className="input"
               style={{ fontSize: 15, fontWeight: 600 }}
@@ -156,7 +175,7 @@ export default function RadioEditModal({ station, onClose, onSave }: RadioEditMo
           <button
             className="btn btn-primary"
             onClick={handleSave}
-            disabled={saving || !name.trim() || !streamUrl.trim()}
+            disabled={saving || !serverId || !name.trim() || !streamUrl.trim()}
           >
             {saving ? <Loader2 size={14} className="spin-slow" /> : null}
             {t('radio.save')}

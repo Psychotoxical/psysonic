@@ -31,6 +31,7 @@ export const smartPlaylists = {
   createFailed: 'Smart playlist kon niet worden aangemaakt.',
   updateFailed: 'Smart playlist kon niet worden bijgewerkt.',
   navidromeOnly: 'Smart playlists kunnen alleen op Navidrome-servers worden aangemaakt.',
+  foreignServerDisabled: 'Schakel over naar {{server}} om deze smart playlist te bewerken. Psysonic stuurt geen editorverzoeken naar een andere actieve server.',
   loadFailed: 'Smart playlists konden niet vanuit Navidrome worden geladen.',
   sortRandom: 'Sorteren: willekeurig',
   sortTitleAsc: 'Sorteren: titel A-Z',

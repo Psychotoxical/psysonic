@@ -124,7 +124,8 @@ describe('explicit playback alternatives', () => {
       { serverId: 'primary', id: 'failed', libraryId: '', priority: 0, durationSec: 180, suffix: null, bitRate: null, sizeBytes: null, starredAt: null, userRating: null },
     ]);
 
-    beginPlaybackAlternativeResolution('network failed');
+    const resumeNormalSkip = vi.fn();
+    beginPlaybackAlternativeResolution('network failed', resumeNormalSkip);
     await flush();
 
     expect(usePlaybackAlternativeStore.getState()).toMatchObject({
@@ -132,6 +133,58 @@ describe('explicit playback alternatives', () => {
       status: 'empty',
       alternatives: [],
     });
+    expect(resumeNormalSkip).toHaveBeenCalledTimes(1);
+  });
+
+  it('restores normal skip when alternative resolution fails', async () => {
+    const failed = makeTrack({ id: 'failed', serverId: 'primary' });
+    seedQueue([failed], { serverId: 'primary' });
+    const resumeNormalSkip = vi.fn();
+    mocks.resolveSources.mockRejectedValue(new Error('index unavailable'));
+
+    beginPlaybackAlternativeResolution('network failed', resumeNormalSkip);
+    await flush();
+
+    expect(usePlaybackAlternativeStore.getState().status).toBe('error');
+    expect(resumeNormalSkip).toHaveBeenCalledTimes(1);
+  });
+
+  it('restores normal skip when the user closes without choosing an alternative', async () => {
+    const failed = makeTrack({ id: 'failed', serverId: 'primary' });
+    seedQueue([failed], { serverId: 'primary' });
+    const resumeNormalSkip = vi.fn();
+    mocks.resolveSources.mockResolvedValue([
+      { serverId: 'backup', id: 'replacement', libraryId: '', priority: 1, durationSec: 180, suffix: 'flac', bitRate: 320, sizeBytes: 1, starredAt: null, userRating: null },
+    ]);
+
+    beginPlaybackAlternativeResolution('network failed', resumeNormalSkip);
+    await flush();
+    usePlaybackAlternativeStore.getState().close();
+
+    expect(resumeNormalSkip).toHaveBeenCalledTimes(1);
+    expect(usePlayerStore.getState().queueItems[0]?.trackId).toBe('failed');
+  });
+
+  it('does not restore normal skip after the user explicitly chooses a source', async () => {
+    const failed = makeTrack({ id: 'failed', serverId: 'primary' });
+    seedQueue([failed], { serverId: 'primary' });
+    const playTrack = vi.fn();
+    const resumeNormalSkip = vi.fn();
+    usePlayerStore.setState({ playTrack });
+    mocks.resolveSources.mockResolvedValue([
+      { serverId: 'backup', id: 'replacement', libraryId: '', priority: 1, durationSec: 180, suffix: 'flac', bitRate: 320, sizeBytes: 1, starredAt: null, userRating: null },
+    ]);
+    mocks.getTrack.mockResolvedValue({
+      serverId: 'backup', id: 'replacement', title: 'Replacement', artist: 'Artist', album: 'Album',
+      albumId: 'album-backup', durationSec: 180, coverArtId: null, syncedAt: 1, rawJson: {},
+    });
+
+    beginPlaybackAlternativeResolution('network failed', resumeNormalSkip);
+    await flush();
+    await usePlaybackAlternativeStore.getState().choose(usePlaybackAlternativeStore.getState().alternatives[0]!);
+
+    expect(playTrack).toHaveBeenCalledTimes(1);
+    expect(resumeNormalSkip).not.toHaveBeenCalled();
   });
 
   it('offers a downloaded alternative even when its server is offline', async () => {

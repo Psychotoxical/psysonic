@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ndLogin } from '@/lib/api/navidromeAdmin';
 import { useAuthStore } from '@/store/authStore';
-import { isNavidromeServer } from '@/lib/server/subsonicServerIdentity';
+import { isNavidromeServer, type SubsonicServerIdentity } from '@/lib/server/subsonicServerIdentity';
 
 export type NavidromeAdminRole = 'idle' | 'checking' | 'admin' | 'user' | 'na' | 'error';
 
@@ -19,6 +19,20 @@ export function canManageNavidromeRadio(role: NavidromeAdminRole): boolean {
 function normalizeServerUrl(url: string): string {
   const withScheme = url.startsWith('http') ? url : `http://${url}`;
   return withScheme.replace(/\/$/, '');
+}
+
+async function probeNavidromeAdminRole(
+  server: { url: string; username: string; password: string },
+  identity: SubsonicServerIdentity | undefined,
+): Promise<NavidromeAdminRole> {
+  if (!identity) return 'checking';
+  if (!isNavidromeServer(identity)) return 'na';
+  try {
+    const res = await ndLogin(normalizeServerUrl(server.url), server.username, server.password);
+    return res.isAdmin ? 'admin' : 'user';
+  } catch {
+    return 'error';
+  }
 }
 
 /**
@@ -81,4 +95,38 @@ export function useNavidromeAdminRole(): NavidromeAdminRole {
   ]);
 
   return role;
+}
+
+/** Probes radio-management capability independently for each reachable server. */
+export function useNavidromeAdminRoles(serverIds: string[]): Record<string, NavidromeAdminRole> {
+  const isLoggedIn = useAuthStore(s => s.isLoggedIn);
+  const servers = useAuthStore(s => s.servers);
+  const identityByServer = useAuthStore(s => s.subsonicServerIdentityByServer);
+  const serverIdsKey = serverIds.join('\u0000');
+  const targetServers = useMemo(() => {
+    const selected = new Set(serverIds);
+    return servers.filter(server => selected.has(server.id));
+    // The primitive key keeps callers free to pass a newly allocated id array.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverIdsKey, servers]);
+  const [roles, setRoles] = useState<Record<string, NavidromeAdminRole>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!isLoggedIn) return;
+
+    void Promise.all(targetServers.map(async server => [
+      server.id,
+      await probeNavidromeAdminRole(server, identityByServer[server.id]),
+    ] as const)).then(entries => {
+      if (!cancelled) setRoles(Object.fromEntries(entries));
+    });
+
+    return () => { cancelled = true; };
+  }, [isLoggedIn, targetServers, identityByServer]);
+
+  return useMemo(() => Object.fromEntries(targetServers.map(server => [
+    server.id,
+    isLoggedIn ? roles[server.id] ?? 'checking' : 'na',
+  ])), [isLoggedIn, roles, targetServers]);
 }

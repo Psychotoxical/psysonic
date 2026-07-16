@@ -8,10 +8,12 @@ import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { usePlaylistStore } from '@/features/playlist';
 import { EMPTY_SERVER_FOLDERS, usePlaylistFolderStore } from '@/features/playlist';
 import { groupPlaylistsByFolder } from '@/features/playlist';
+import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
 
 interface SidebarPlaylist {
   id: string;
   name: string;
+  serverId?: string;
 }
 
 interface Props {
@@ -20,19 +22,18 @@ interface Props {
 }
 
 /**
- * Sidebar playlist list, grouped into collapsible folders when the active
- * server has any. Folder state comes from the shared local folder store;
+ * Sidebar playlist list, grouped into per-server collapsible folders when any
+ * visible source has them. Folder state comes from the shared local folder store;
  * creation / rename / deletion lives on the Playlists page, while assignment
  * works here via each playlist's right-click menu ("Move to folder"). With no
  * folders this renders the original flat list (plus right-click support).
  */
 export default function SidebarPlaylistsSection({ playlists, playlistsLoading }: Props) {
   const { t } = useTranslation();
-  const serverId = useAuthStore(s => s.activeServerId);
+  const servers = useAuthStore(s => s.servers);
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const fullPlaylists = usePlaylistStore(s => s.playlists);
-  const bucket =
-    usePlaylistFolderStore(s => (serverId ? s.byServer[serverId] : undefined)) ?? EMPTY_SERVER_FOLDERS;
+  const byServer = usePlaylistFolderStore(s => s.byServer);
   const toggleFolderCollapsed = usePlaylistFolderStore(s => s.toggleFolderCollapsed);
 
   if (playlistsLoading) {
@@ -54,12 +55,12 @@ export default function SidebarPlaylistsSection({ playlists, playlistsLoading }:
 
   const renderItem = (pl: SidebarPlaylist) => (
     <NavLink
-      key={pl.id}
-      to={`/playlists/${pl.id}`}
+      key={libraryEntityKey(pl)}
+      to={`/playlists/${pl.id}${pl.serverId ? `?server=${encodeURIComponent(pl.serverId)}` : ''}`}
       className={({ isActive }) => `nav-link sidebar-playlist-item ${isActive ? 'active' : ''}`}
       onContextMenu={e => {
         e.preventDefault();
-        const full = fullPlaylists.find(p => p.id === pl.id) ?? pl;
+        const full = fullPlaylists.find(p => p.id === pl.id && p.serverId === pl.serverId) ?? pl;
         openContextMenu(e.clientX, e.clientY, full, 'playlist');
       }}
     >
@@ -68,33 +69,44 @@ export default function SidebarPlaylistsSection({ playlists, playlistsLoading }:
     </NavLink>
   );
 
-  if (!serverId || bucket.folders.length === 0) {
+  const serverIds = [...new Set(playlists.map(playlist => playlist.serverId).filter((id): id is string => Boolean(id)))];
+  const hasFolders = serverIds.some(serverId => (byServer[serverId]?.folders.length ?? 0) > 0);
+  if (!hasFolders) {
     return <div className="sidebar-playlists-list">{playlists.map(renderItem)}</div>;
   }
 
-  const grouped = groupPlaylistsByFolder(playlists, bucket.folders, bucket.assignments);
-
   return (
     <div className="sidebar-playlists-list">
-      {grouped.folders.map(({ folder, playlists: items }) => (
-        <div key={folder.id} className="sidebar-playlist-folder">
-          <button
-            className={`sidebar-playlist-folder-header${folder.collapsed ? '' : ' expanded'}`}
-            onClick={() => toggleFolderCollapsed(serverId, folder.id)}
-            aria-expanded={!folder.collapsed}
-            aria-label={folder.collapsed ? t('playlists.folders.expandFolder') : t('playlists.folders.collapseFolder')}
-          >
-            <ChevronRight size={12} className="sidebar-playlist-folder-chevron" />
-            <Folder size={12} />
-            <span className="sidebar-playlist-folder-name">{folder.name}</span>
-            <span className="sidebar-playlist-folder-count">{items.length}</span>
-          </button>
-          {!folder.collapsed && items.length > 0 && (
-            <div className="sidebar-playlist-folder-items">{items.map(renderItem)}</div>
-          )}
-        </div>
-      ))}
-      {grouped.ungrouped.map(renderItem)}
+      {serverIds.map(serverId => {
+        const serverPlaylists = playlists.filter(playlist => playlist.serverId === serverId);
+        const bucket = byServer[serverId] ?? EMPTY_SERVER_FOLDERS;
+        const grouped = groupPlaylistsByFolder(serverPlaylists, bucket.folders, bucket.assignments);
+        const serverName = servers.find(server => server.id === serverId)?.name ?? serverId;
+        return (
+          <React.Fragment key={serverId}>
+            {serverIds.length > 1 && <div className="sidebar-playlists-empty">{serverName}</div>}
+            {grouped.folders.map(({ folder, playlists: items }) => (
+              <div key={`${serverId}:${folder.id}`} className="sidebar-playlist-folder">
+                <button
+                  className={`sidebar-playlist-folder-header${folder.collapsed ? '' : ' expanded'}`}
+                  onClick={() => toggleFolderCollapsed(serverId, folder.id)}
+                  aria-expanded={!folder.collapsed}
+                  aria-label={folder.collapsed ? t('playlists.folders.expandFolder') : t('playlists.folders.collapseFolder')}
+                >
+                  <ChevronRight size={12} className="sidebar-playlist-folder-chevron" />
+                  <Folder size={12} />
+                  <span className="sidebar-playlist-folder-name">{folder.name}</span>
+                  <span className="sidebar-playlist-folder-count">{items.length}</span>
+                </button>
+                {!folder.collapsed && items.length > 0 && (
+                  <div className="sidebar-playlist-folder-items">{items.map(renderItem)}</div>
+                )}
+              </div>
+            ))}
+            {grouped.ungrouped.map(renderItem)}
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 }

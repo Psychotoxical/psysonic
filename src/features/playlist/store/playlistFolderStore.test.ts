@@ -52,11 +52,15 @@ describe('playlistFolderStore', () => {
   });
 
   it('scopes folders per server', () => {
-    get().createFolder('s1', 'A');
-    get().createFolder('s2', 'B');
+    const a = get().createFolder('s1', 'A');
+    const b = get().createFolder('s2', 'B');
+    get().setPlaylistFolder('s1', 'same', a);
+    get().setPlaylistFolder('s2', 'same', b);
     expect(server('s1').folders).toHaveLength(1);
     expect(server('s2').folders).toHaveLength(1);
     expect(server('s1').folders[0].name).toBe('A');
     expect(server('s2').folders[0].name).toBe('B');
+    expect(server('s1').assignments.same).toBe(a);
+    expect(server('s2').assignments.same).toBe(b);
   });
 });

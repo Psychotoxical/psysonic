@@ -28,6 +28,7 @@ interface FailedQueueSlot {
   index: number;
   ref: QueueItemRef;
   track: Track;
+  resumeNormalSkip: () => void;
 }
 
 interface PlaybackAlternativeState {
@@ -52,7 +53,12 @@ function failedCurrentQueueSlot(): FailedQueueSlot | null {
   const player = usePlayerStore.getState();
   const ref = player.queueItems[player.queueIndex];
   if (!player.currentTrack || !ref || ref.trackId !== player.currentTrack.id) return null;
-  return { index: player.queueIndex, ref: { ...ref }, track: player.currentTrack };
+  return {
+    index: player.queueIndex,
+    ref: { ...ref },
+    track: player.currentTrack,
+    resumeNormalSkip: () => {},
+  };
 }
 
 export function playbackFailureCanOfferAlternatives(): boolean {
@@ -88,11 +94,21 @@ async function resolveAlternatives(failed: FailedQueueSlot): Promise<PlaybackAlt
   });
 }
 
-export function beginPlaybackAlternativeResolution(detail: string): boolean {
+export function beginPlaybackAlternativeResolution(
+  detail: string,
+  resumeNormalSkip: () => void = () => {},
+): boolean {
   if (!playbackFailureCanOfferAlternatives()) return false;
   const failed = failedCurrentQueueSlot();
   if (!failed) return false;
 
+  let fallbackPending = true;
+  const resumeOnce = () => {
+    if (!fallbackPending) return;
+    fallbackPending = false;
+    resumeNormalSkip();
+  };
+  failed.resumeNormalSkip = resumeOnce;
   const generation = ++resolutionGeneration;
   usePlaybackAlternativeStore.setState({
     isOpen: true,
@@ -107,10 +123,12 @@ export function beginPlaybackAlternativeResolution(detail: string): boolean {
       status: alternatives.length > 0 ? 'ready' : 'empty',
       alternatives,
     });
+    if (alternatives.length === 0) resumeOnce();
   }).catch(error => {
     console.error('[psysonic] Failed to resolve playback alternatives:', error);
     if (generation !== resolutionGeneration) return;
     usePlaybackAlternativeStore.setState({ status: 'error', alternatives: [] });
+    resumeOnce();
   });
   return true;
 }
@@ -149,6 +167,7 @@ async function choosePlaybackAlternative(alternative: PlaybackAlternative): Prom
   queueItems[failed.index] = selectedRef;
   seedQueueResolver(alternative.source.serverId, [selectedTrack]);
   usePlayerStore.setState({ queueItems });
+  failed.resumeNormalSkip = () => {};
   state.close();
   usePlayerStore.getState().playTrack(selectedTrack, undefined, false, false, failed.index);
 }
@@ -160,8 +179,10 @@ export const usePlaybackAlternativeStore = create<PlaybackAlternativeState>((set
   failed: null,
   alternatives: [],
   close: () => {
+    const failed = usePlaybackAlternativeStore.getState().failed;
     resolutionGeneration++;
     set({ isOpen: false, status: 'idle', detail: '', failed: null, alternatives: [] });
+    failed?.resumeNormalSkip();
   },
   choose: choosePlaybackAlternative,
 }));

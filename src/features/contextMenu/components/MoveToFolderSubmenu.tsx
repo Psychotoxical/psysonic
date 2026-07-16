@@ -1,11 +1,11 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, Folder, FolderMinus, Plus } from 'lucide-react';
-import { useAuthStore } from '@/store/authStore';
 import { EMPTY_SERVER_FOLDERS, usePlaylistFolderStore } from '@/features/playlist';
 
 interface Props {
   playlistId: string;
+  serverId?: string;
   onDone: () => void;
   triggerId?: string;
 }
@@ -16,7 +16,7 @@ interface Props {
  * hover machinery. Folder assignment is purely local state, so it stays
  * available offline.
  */
-export default function MoveToFolderSubmenu({ playlistId, onDone, triggerId }: Props) {
+export default function MoveToFolderSubmenu({ playlistId, serverId, onDone, triggerId }: Props) {
   const { t } = useTranslation();
   const subRef = useRef<HTMLDivElement>(null);
   const [creating, setCreating] = useState(false);
@@ -25,7 +25,6 @@ export default function MoveToFolderSubmenu({ playlistId, onDone, triggerId }: P
   const [flipLeft, setFlipLeft] = useState(false);
   const [flipUp, setFlipUp] = useState(false);
 
-  const serverId = useAuthStore(s => s.activeServerId);
   const bucket =
     usePlaylistFolderStore(s => (serverId ? s.byServer[serverId] : undefined)) ?? EMPTY_SERVER_FOLDERS;
   const createFolder = usePlaylistFolderStore(s => s.createFolder);

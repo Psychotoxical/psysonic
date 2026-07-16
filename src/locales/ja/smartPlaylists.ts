@@ -31,6 +31,7 @@ export const smartPlaylists = {
   createFailed: 'スマートプレイリストを作成できませんでした。',
   updateFailed: 'スマートプレイリストを更新できませんでした。',
   navidromeOnly: 'スマートプレイリストは Navidrome サーバーでのみ作成できます。',
+  foreignServerDisabled: 'このスマートプレイリストを編集するには {{server}} に切り替えてください。Psysonic は別のアクティブサーバーへ編集リクエストを送信しません。',
   loadFailed: 'Navidrome からスマートプレイリストを読み込めませんでした。',
   sortRandom: '並び順: ランダム',
   sortTitleAsc: '並び順: タイトル A-Z',

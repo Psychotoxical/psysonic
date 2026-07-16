@@ -23,6 +23,8 @@ import { AddToPlaylistSubmenu } from '@/features/contextMenu/components/ContextM
 import { COVER_ARTIST_TOP_TRACK_CSS_PX } from '@/cover/layoutSizes';
 import { useWarmTrackListAlbumCovers } from '@/cover/useWarmTrackListAlbumCovers';
 import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
+import { appendServerQuery } from '@/lib/navigation/detailServerScope';
+import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
 
 const PL_CENTERED = new Set(['favorite', 'rating', 'duration', 'playCount', 'bpm']);
 
@@ -51,6 +53,8 @@ interface Props {
    *  scroll-to-list effect so sorting doesn't snap the viewport (issue #840). */
   hasActiveFilter: boolean;
   id: string | undefined;
+  ownerServerId: string;
+  canEditMembership: boolean;
 
   // Sort
   sortKey: PlaylistSortKey;
@@ -91,7 +95,7 @@ interface Props {
 export default function PlaylistTracklist({
   allColumns, visibleCols, gridStyle, colVisible, toggleColumn, resetColumns,
   pickerOpen, setPickerOpen, pickerRef, startResize, startFlexColumnResize, tracklistRef,
-  songs, displayedSongs, displayedTracks, isFiltered, hasActiveFilter, id,
+  songs, displayedSongs, displayedTracks, isFiltered, hasActiveFilter, id, ownerServerId, canEditMembership,
   sortKey, setSortKey, sortDir, setSortDir, sortClickCount, setSortClickCount,
   selectedIds, setSelectedIds, allSelected, toggleAll, toggleSelect,
   showBulkPlPicker, setShowBulkPlPicker, bulkRemove,
@@ -119,7 +123,7 @@ export default function PlaylistTracklist({
     selectedIds, orbitActive, displayedTracks, isFiltered, id,
     toggleSelect, handleRowMouseDown, handleRowMouseEnter, handleToggleStar,
     handleRate, removeSong, playTrack, openContextMenu, setContextMenuSongId,
-    navigate, queueHint, addTrackToOrbit,
+    navigate, queueHint, addTrackToOrbit, ownerServerId, canEditMembership,
   };
   const latest = useRef(latestVals);
   latest.current = latestVals;
@@ -143,7 +147,15 @@ export default function PlaylistTracklist({
       e.preventDefault();
       const L = latest.current;
       L.setContextMenuSongId(song.id);
-      L.openContextMenu(e.clientX, e.clientY, songToTrack(song), 'album-song', undefined, L.id, rIdx);
+      L.openContextMenu(
+        e.clientX,
+        e.clientY,
+        { ...songToTrack(song), serverId: L.ownerServerId },
+        'album-song',
+        undefined,
+        L.canEditMembership ? L.id : undefined,
+        L.canEditMembership ? rIdx : undefined,
+      );
     },
     mouseDownRow: (rIdx, e) => latest.current.handleRowMouseDown(e, rIdx),
     mouseEnterRow: (index, e) => { const L = latest.current; if (!L.isFiltered) L.handleRowMouseEnter(index, e); },
@@ -160,8 +172,14 @@ export default function PlaylistTracklist({
     toggleStar: (song, e) => latest.current.handleToggleStar(song, e),
     rate: (songId, r) => latest.current.handleRate(songId, r),
     remove: (rIdx) => latest.current.removeSong(rIdx),
-    navArtist: (artistId) => latest.current.navigate(`/artist/${artistId}`),
-    navAlbum: (albumId) => latest.current.navigate(`/album/${albumId}`),
+    navArtist: (artistId) => {
+      const query = appendServerQuery(undefined, latest.current.ownerServerId);
+      latest.current.navigate(`/artist/${artistId}${query ? `?${query}` : ''}`);
+    },
+    navAlbum: (albumId) => {
+      const query = appendServerQuery(undefined, latest.current.ownerServerId);
+      latest.current.navigate(`/album/${albumId}${query ? `?${query}` : ''}`);
+    },
   }), []);
 
   const listWrapRef = useRef<HTMLDivElement | null>(null);
@@ -285,19 +303,20 @@ export default function PlaylistTracklist({
             {showBulkPlPicker && (
               <AddToPlaylistSubmenu
                 songIds={[...selectedIds]}
+                tracks={displayedTracks.filter(track => selectedIds.has(track.id))}
                 onDone={() => { setShowBulkPlPicker(false); setSelectedIds(new Set()); }}
                 dropDown
               />
             )}
           </div>
-          <button
+          {canEditMembership && <button
             className="btn btn-surface btn-sm"
             style={{ color: 'var(--danger)' }}
             onClick={bulkRemove}
           >
             <Trash2 size={14} />
             {t('common.bulkRemoveFromPlaylist')}
-          </button>
+          </button>}
           <button
             className="btn btn-ghost btn-sm"
             onClick={() => setSelectedIds(new Set())}
@@ -439,10 +458,10 @@ export default function PlaylistTracklist({
       {songs.length === 0 && (
         <div className="empty-state" style={{ padding: '2rem 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
           <span>{t('playlists.emptyPlaylist')}</span>
-          <button className="btn btn-primary" onClick={() => setSearchOpen(true)}>
+          {canEditMembership && <button className="btn btn-primary" onClick={() => setSearchOpen(true)}>
             <Search size={15} />
             {t('playlists.addFirstSong')}
-          </button>
+          </button>}
         </div>
       )}
 
@@ -476,11 +495,17 @@ export default function PlaylistTracklist({
             isContextActive={contextMenuSongId === song.id}
             isSelected={selectedIds.has(song.id)}
             inSelectMode={selectedIds.size > 0}
-            isStarred={song.id in starredOverrides ? !!starredOverrides[song.id] : starredSongs.has(song.id)}
-            ratingValue={ratings[song.id] ?? userRatingOverrides[song.id] ?? song.userRating ?? 0}
+            isStarred={entityOverrideKey(ownerServerId, song.id) in starredOverrides
+              ? !!starredOverrides[entityOverrideKey(ownerServerId, song.id)]
+              : starredSongs.has(song.id)}
+            ratingValue={ratings[song.id]
+              ?? userRatingOverrides[entityOverrideKey(ownerServerId, song.id)]
+              ?? song.userRating
+              ?? 0}
             isPreviewing={previewingId === song.id}
             previewStarted={previewingId === song.id && previewAudioStarted}
             orbitActive={orbitActive}
+            canEditMembership={canEditMembership}
             cb={cb}
           />
         </div>

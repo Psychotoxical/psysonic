@@ -49,7 +49,9 @@ export default function PlaylistFolderSection({
       setIsOver(false);
       try {
         const data = JSON.parse((e as CustomEvent).detail?.data ?? '{}');
-        if (data.type === 'playlist' && data.id) setPlaylistFolder(serverId, data.id, targetId);
+        if (data.type === 'playlist' && data.id && data.serverId === serverId) {
+          setPlaylistFolder(serverId, data.id, targetId);
+        }
       } catch { /* ignore non-playlist drops */ }
     };
     el.addEventListener('psy-drop', handler);
@@ -66,7 +68,7 @@ export default function PlaylistFolderSection({
   const grid = items.length > 0 && (
     <VirtualCardGrid
       items={items}
-      itemKey={pl => pl.id}
+      itemKey={pl => `${pl.serverId ?? ''}:${pl.id}`}
       rowVariant="playlist"
       disableVirtualization={disableVirtualization}
       layoutSignal={items.length}

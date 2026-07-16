@@ -127,8 +127,43 @@ describe('libraryScopeListAlbums', () => {
       syncedAt: 0,
       rawJson: {},
     }]);
-    const albums = await libraryScopeListAlbums('profile-s1', { scopes });
-    expect(albums[0]?.serverId).toBe('profile-s2-alias');
+    const aliasScopes = [{ serverId: 'profile-s2', libraryId: null }];
+    const albums = await libraryScopeListAlbums('profile-s1', { scopes: aliasScopes });
+    expect(albums[0]?.serverId).toBe('profile-s2');
+
+    useAuthStore.setState({ activeServerId: 'profile-s2' });
+    const afterActiveAliasChange = await libraryScopeListAlbums('profile-s1', { scopes: aliasScopes });
+    expect(afterActiveAliasChange[0]?.serverId).toBe('profile-s2');
+  });
+
+  it('coalesces duplicate profile scopes before IPC with all-libraries dominance', async () => {
+    useAuthStore.setState(state => ({
+      servers: [
+        ...state.servers,
+        {
+          id: 'profile-s1-alias',
+          name: 'S1 alias',
+          url: 'http://s1.example/',
+          username: 'u',
+          password: 'p',
+        },
+      ],
+    }));
+    let captured: unknown;
+    onInvoke('library_scope_list_albums', args => {
+      captured = args;
+      return [];
+    });
+    await libraryScopeListAlbums('profile-s1', {
+      scopes: [
+        { serverId: 'profile-s1', libraryId: 'lib-a' },
+        { serverId: 'profile-s1-alias', libraryId: 'lib-b' },
+        { serverId: 'profile-s1-alias', libraryId: null },
+      ],
+    });
+    expect(captured).toEqual({
+      request: { scopes: [{ serverId: 's1.example', libraryId: null }] },
+    });
   });
 });
 

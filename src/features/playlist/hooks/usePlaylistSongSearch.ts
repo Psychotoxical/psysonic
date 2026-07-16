@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type React from 'react';
-import { search } from '@/lib/api/subsonicSearch';
+import { searchForServer } from '@/lib/api/subsonicSearch';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 
 export interface PlaylistSongSearchResult {
@@ -13,6 +13,7 @@ export function usePlaylistSongSearch(
   songs: SubsonicSong[],
   searchOpen: boolean,
   searchQuery: string,
+  ownerServerId: string,
 ): PlaylistSongSearchResult {
   const [searchResults, setSearchResults] = useState<SubsonicSong[]>([]);
   const [searching, setSearching] = useState(false);
@@ -26,14 +27,14 @@ export function usePlaylistSongSearch(
     searchDebounce.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const res = await search(searchQuery, { songCount: 20, artistCount: 0, albumCount: 0 });
+        const res = await searchForServer(ownerServerId, searchQuery, { songCount: 20, artistCount: 0, albumCount: 0 });
         const existingIds = new Set(songs.map(s => s.id));
         setSearchResults(res.songs.filter(s => !existingIds.has(s.id)));
       } catch { /* ignore: best-effort */ }
       setSearching(false);
     }, 350);
     return () => { if (searchDebounce.current) clearTimeout(searchDebounce.current); };
-  }, [searchQuery, searchOpen, songs]);
+  }, [searchQuery, searchOpen, songs, ownerServerId]);
 
   return { searchResults, setSearchResults, searching };
 }

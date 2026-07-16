@@ -1,14 +1,16 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Server, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import { usePlaybackAlternativeStore } from '@/features/playback/store/playbackAlternativeStore';
+import { useModalFocus } from '@/lib/hooks/useModalFocus';
 
 export default function PlaybackAlternativeModal() {
   const { t } = useTranslation();
   const firstActionRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const { isOpen, status, detail, alternatives, close, choose } = usePlaybackAlternativeStore(
     useShallow(state => ({
       isOpen: state.isOpen,
@@ -20,30 +22,29 @@ export default function PlaybackAlternativeModal() {
     })),
   );
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    const timer = window.setTimeout(() => (firstActionRef.current ?? closeRef.current)?.focus(), 0);
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [isOpen, status, close]);
+  useModalFocus({
+    open: isOpen,
+    containerRef: dialogRef,
+    onEscape: close,
+    initialFocusRef: closeRef,
+  });
 
   if (!isOpen) return null;
   return createPortal(
     <div
       className="modal-overlay playback-alternative-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="playback-alternative-title"
-      aria-describedby="playback-alternative-description"
       onClick={close}
     >
-      <div className="modal-content playback-alternative-modal" onClick={event => event.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="modal-content playback-alternative-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="playback-alternative-title"
+        aria-describedby="playback-alternative-description"
+        tabIndex={-1}
+        onClick={event => event.stopPropagation()}
+      >
         <button ref={closeRef} type="button" className="modal-close" onClick={close} aria-label={t('player.playbackAlternativeClose')}>
           <X size={18} />
         </button>

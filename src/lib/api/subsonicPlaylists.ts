@@ -3,6 +3,8 @@ import { useAuthStore } from '@/store/authStore';
 import { shouldAttemptSubsonicForServer } from '@/lib/network/subsonicNetworkGuard';
 import { api, apiForServer } from '@/lib/api/subsonicClient';
 import type { SubsonicPlaylist, SubsonicSong } from '@/lib/api/subsonicTypes';
+import { connectBaseUrlForServer } from '@/lib/server/serverEndpoint';
+import { findServerByIdOrIndexKey } from '@/lib/server/serverLookup';
 
 /** Max song-id params per Subsonic GET call (auth + ~8 KiB URL ceiling). */
 export const PLAYLIST_SONG_ID_GET_BATCH = 150;
@@ -43,9 +45,9 @@ export function chunkRemovalIndicesForSubsonicGet(
   return batches;
 }
 
-function schedulePinnedPlaylistSync(playlistId: string): void {
+function schedulePinnedPlaylistSync(playlistId: string, serverId?: string): void {
   void import('@/features/offline')
-    .then(m => m.schedulePinnedPlaylistSync(playlistId))
+    .then(m => m.schedulePinnedPlaylistSync(playlistId, serverId))
     .catch(() => {});
 }
 
@@ -56,6 +58,12 @@ function withoutOrbit(playlists: SubsonicPlaylist[], includeOrbit: boolean): Sub
 async function clearPlaylistSongs(id: string, prevCount: number): Promise<void> {
   for (const indices of chunkIndicesForSubsonicGet(prevCount)) {
     await api('updatePlaylist.view', { playlistId: id, songIndexToRemove: indices });
+  }
+}
+
+async function clearPlaylistSongsForServer(serverId: string, id: string, prevCount: number): Promise<void> {
+  for (const indices of chunkIndicesForSubsonicGet(prevCount)) {
+    await apiForServer(serverId, 'updatePlaylist.view', { playlistId: id, songIndexToRemove: indices });
   }
 }
 
@@ -101,7 +109,10 @@ export async function getPlaylistForServer(
     { id },
   );
   const { entry, ...playlist } = data.playlist;
-  return { playlist, songs: entry ?? [] };
+  return {
+    playlist: { ...playlist, serverId },
+    songs: (entry ?? []).map(song => ({ ...song, serverId })),
+  };
 }
 
 export async function createPlaylist(name: string, songIds?: string[]): Promise<SubsonicPlaylist> {
@@ -142,7 +153,7 @@ export async function addSongsToPlaylistForServer(
   for (const batch of chunkSongIdsForSubsonicGet(songIdsToAdd)) {
     await apiForServer(serverId, 'updatePlaylist.view', { playlistId: id, songIdToAdd: batch });
   }
-  schedulePinnedPlaylistSync(id);
+  schedulePinnedPlaylistSync(id, serverId);
 }
 
 /** Remove tracks by 0-based playlist indices (batched for large playlists). */
@@ -152,6 +163,18 @@ export async function removePlaylistSongsAtIndices(id: string, indices: number[]
     await api('updatePlaylist.view', { playlistId: id, songIndexToRemove: batch });
   }
   schedulePinnedPlaylistSync(id);
+}
+
+export async function removePlaylistSongsAtIndicesForServer(
+  serverId: string,
+  id: string,
+  indices: number[],
+): Promise<void> {
+  if (indices.length === 0) return;
+  for (const batch of chunkRemovalIndicesForSubsonicGet(indices)) {
+    await apiForServer(serverId, 'updatePlaylist.view', { playlistId: id, songIndexToRemove: batch });
+  }
+  schedulePinnedPlaylistSync(id, serverId);
 }
 
 export async function updatePlaylist(id: string, songIds: string[], prevCount = 0): Promise<void> {
@@ -181,6 +204,30 @@ export async function updatePlaylist(id: string, songIds: string[], prevCount = 
   schedulePinnedPlaylistSync(id);
 }
 
+export async function updatePlaylistForServer(
+  serverId: string,
+  id: string,
+  songIds: string[],
+  prevCount = 0,
+): Promise<void> {
+  if (songIds.length > 0) {
+    if (songIds.length <= PLAYLIST_SONG_ID_GET_BATCH) {
+      await apiForServer(serverId, 'createPlaylist.view', { playlistId: id, songId: songIds });
+    } else {
+      let priorCount = prevCount;
+      if (priorCount <= 0) {
+        const { songs } = await getPlaylistForServer(serverId, id);
+        priorCount = songs.length;
+      }
+      if (priorCount > 0) await clearPlaylistSongsForServer(serverId, id, priorCount);
+      await addSongsToPlaylistForServer(serverId, id, songIds);
+    }
+  } else if (prevCount > 0) {
+    await clearPlaylistSongsForServer(serverId, id, prevCount);
+  }
+  schedulePinnedPlaylistSync(id, serverId);
+}
+
 export async function updatePlaylistMeta(
   id: string,
   name: string,
@@ -188,6 +235,16 @@ export async function updatePlaylistMeta(
   isPublic: boolean,
 ): Promise<void> {
   await api('updatePlaylist.view', { playlistId: id, name, comment, public: isPublic });
+}
+
+export async function updatePlaylistMetaForServer(
+  serverId: string,
+  id: string,
+  name: string,
+  comment: string,
+  isPublic: boolean,
+): Promise<void> {
+  await apiForServer(serverId, 'updatePlaylist.view', { playlistId: id, name, comment, public: isPublic });
 }
 
 export async function uploadPlaylistCoverArt(id: string, file: File): Promise<void> {
@@ -198,6 +255,22 @@ export async function uploadPlaylistCoverArt(id: string, file: File): Promise<vo
   const buffer = await file.arrayBuffer();
   const fileBytes = Array.from(new Uint8Array(buffer));
   const res = await commands.uploadPlaylistCover(baseUrl, id, server?.username ?? '', server?.password ?? '', fileBytes, file.type || 'image/jpeg');
+  if (res.status === 'error') throw new Error(res.error);
+}
+
+export async function uploadPlaylistCoverArtForServer(serverId: string, id: string, file: File): Promise<void> {
+  const server = findServerByIdOrIndexKey(serverId);
+  if (!server) throw new Error('Playlist owner unavailable');
+  const buffer = await file.arrayBuffer();
+  const fileBytes = Array.from(new Uint8Array(buffer));
+  const res = await commands.uploadPlaylistCover(
+    connectBaseUrlForServer(server),
+    id,
+    server.username,
+    server.password,
+    fileBytes,
+    file.type || 'image/jpeg',
+  );
   if (res.status === 'error') throw new Error(res.error);
 }
 

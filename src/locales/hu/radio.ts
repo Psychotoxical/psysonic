@@ -1,4 +1,6 @@
 export const radio = {
+  source: 'Rádióforrás',
+  selectSource: 'Szerver kiválasztása…',
   sources: 'Radio sources',
   title: 'Internetes rádió',
   empty: 'Nincs beállított rádióállomás.',

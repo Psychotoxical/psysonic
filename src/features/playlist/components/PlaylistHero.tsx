@@ -19,6 +19,7 @@ import { AlbumCoverArtImage } from '@/cover/AlbumCoverArtImage';
 import { PLAYLIST_MAIN_COVER_CSS_PX } from '@/features/playlist/hooks/usePlaylistCovers';
 import { PlaylistSmartCoverCell } from '@/features/playlist/components/PlaylistCoverImages';
 import type { OfflineActionPolicy } from '@/features/offline';
+import { coverServerScopeForServerId } from '@/cover/serverScope';
 
 interface Props {
   playlist: SubsonicPlaylist;
@@ -33,7 +34,10 @@ interface Props {
   activeZip: ZipDownload | undefined;
   offlineStatus: AlbumOfflineStatus;
   offlineProgress: { done: number; total: number } | null;
-  activeServerId: string;
+  ownerServerId: string;
+  canEditMembership: boolean;
+  canDeletePlaylist: boolean;
+  deleteConfirm: boolean;
   actionPolicy: OfflineActionPolicy;
   setEditingMeta: React.Dispatch<React.SetStateAction<boolean>>;
   setSearchOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -46,6 +50,7 @@ interface Props {
   handleEnqueueAll: () => void;
   handleImportCsv: () => void;
   handleDownload: () => void;
+  handleDelete: () => void;
   deleteAlbum: (id: string, serverId: string) => void;
   downloadPlaylist: (id: string, name: string, coverArt: string | undefined, songs: SubsonicSong[], serverId: string) => void;
 }
@@ -54,10 +59,11 @@ export default function PlaylistHero({
   playlist, songs, id,
   customCoverId, coverQuadIds,
   resolvedBgUrl, saving, searchOpen, csvImporting, activeZip,
-  offlineStatus, offlineProgress, activeServerId, actionPolicy,
+  offlineStatus, offlineProgress, ownerServerId,
+  canEditMembership, canDeletePlaylist, deleteConfirm, actionPolicy,
   setEditingMeta, setSearchOpen, setSearchQuery, setSearchResults,
   setSelectedSearchIds, setSearchPlPickerOpen,
-  handlePlayAll, handleShuffleAll, handleEnqueueAll, handleImportCsv, handleDownload,
+  handlePlayAll, handleShuffleAll, handleEnqueueAll, handleImportCsv, handleDownload, handleDelete,
   deleteAlbum, downloadPlaylist,
 }: Props) {
   const { t } = useTranslation();
@@ -96,6 +102,7 @@ export default function PlaylistHero({
                   displayCssPx={PLAYLIST_MAIN_COVER_CSS_PX}
                   surface="dense"
                   libraryResolve={false}
+                  serverScope={coverServerScopeForServerId(ownerServerId)}
                   alt=""
                   className="playlist-cover-grid"
                   style={{ objectFit: 'cover', display: 'block' }}
@@ -177,7 +184,7 @@ export default function PlaylistHero({
                   <ListPlus size={16} />
                 </button>
               </div>
-              {actionPolicy.canEditPlaylist && isLayoutVisible('addSongs') && (
+              {actionPolicy.canEditPlaylist && canEditMembership && isLayoutVisible('addSongs') && (
                 <button
                   className={`btn btn-ghost ${searchOpen ? 'active' : ''}`}
                   onClick={() => { setSearchOpen(v => !v); setSearchQuery(''); setSearchResults([]); setSelectedSearchIds(new Set()); setSearchPlPickerOpen(false); }}
@@ -187,7 +194,7 @@ export default function PlaylistHero({
                   <Search size={16} /> <span className="compact-btn-label">{t('playlists.addSongs')}</span>
                 </button>
               )}
-              {actionPolicy.canEditPlaylist && isLayoutVisible('importCsv') && (
+              {actionPolicy.canEditPlaylist && canEditMembership && isLayoutVisible('importCsv') && (
                 <button
                   className="btn btn-ghost"
                   onClick={handleImportCsv}
@@ -221,11 +228,11 @@ export default function PlaylistHero({
                   disabled={offlineStatus === 'downloading'}
                   onClick={() => {
                     if (offlineStatus === 'cached') {
-                      deleteAlbum(id, activeServerId);
-                    } else if (offlineStatus === 'queued') {
-                      dequeueOfflinePin(id);
-                    } else if (playlist) {
-                      downloadPlaylist(id, playlist.name, playlist.coverArt, songs, activeServerId);
+                       deleteAlbum(id, ownerServerId);
+                     } else if (offlineStatus === 'queued') {
+                       dequeueOfflinePin(id, ownerServerId);
+                     } else if (playlist) {
+                       downloadPlaylist(id, playlist.name, playlist.coverArt, songs, ownerServerId);
                     }
                   }}
                   data-tooltip={offlineStatus === 'downloading'
@@ -257,6 +264,18 @@ export default function PlaylistHero({
                       <span className="compact-btn-label">{t('playlists.cacheOffline')}</span>
                     </>
                   )}
+                </button>
+              )}
+              {actionPolicy.canEditPlaylist && canDeletePlaylist && (
+                <button
+                  className={`btn btn-ghost${deleteConfirm ? ' btn-danger' : ''}`}
+                  onClick={handleDelete}
+                  data-tooltip={deleteConfirm ? t('playlists.confirmDelete') : t('playlists.deletePlaylist')}
+                >
+                  <Trash2 size={16} />
+                  <span className="compact-btn-label">
+                    {deleteConfirm ? t('playlists.confirmDelete') : t('playlists.deletePlaylist')}
+                  </span>
                 </button>
               )}
             </div>

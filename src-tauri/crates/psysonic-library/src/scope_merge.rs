@@ -286,12 +286,8 @@ fn album_row_to_dto(row: AlbumListRow) -> LibraryAlbumDto {
 
 /// `library_scope_list_albums` — dedup by `album_key`, priority winner metadata.
 ///
-/// Aggregated in a single `GROUP BY album_dedup` (no per-track window): `song_count`
-/// is exact via `COUNT(DISTINCT track_dedup)`; `duration_total` is `SUM(duration_sec)`,
-/// which double-counts a track only when the *same* recording is present in multiple
-/// selected libraries. The album-list duration is not surfaced in the grid (detail and
-/// now-playing recompute from the real track list), so this trade buys a ~2x browse
-/// speedup on large multi-library scopes without a user-visible effect.
+/// Track copies are reduced to their priority winner before album totals are computed,
+/// so song count and duration describe the same deduped recording set.
 /// Build cluster identity keys for every server in a >1-library scope before a
 /// browse that dedups via `cluster.track_cluster_key`. Without this the album/
 /// artist dedup keys are uniformly NULL on a cold index (no prior search / sync
@@ -374,16 +370,22 @@ pub fn list_albums(
                    t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.duration_sec, t.id, \
                   s.pr, {ALBUM_DEDUP_KEY} AS album_dedup, {TRACK_DEDUP_KEY} AS track_dedup \
            {scoped} AND t.album_id IS NOT NULL AND t.album_id != '' \
+         ), \
+         track_winners AS ( \
+           SELECT server_id, album_id, album, artist, artist_id, album_artist, \
+                  year, genre, cover_art_id, starred_at, synced_at, duration_sec, id, pr, album_dedup, \
+                  MIN(printf('%08d|%s|%s', pr, server_id, id)) AS _track_pick \
+           FROM base GROUP BY album_dedup, track_dedup \
          ) \
          SELECT server_id, album_id, album, artist, artist_id, album_artist, \
                  song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at \
          FROM ( \
-           SELECT server_id, album_id, album, artist, artist_id, album_artist, \
-                   year, genre, cover_art_id, starred_at, synced_at, \
-                  COUNT(DISTINCT track_dedup) AS song_count, SUM(duration_sec) AS duration_total, \
-                  MIN({ALBUM_PICK_KEY}) AS _pick \
-           FROM base GROUP BY album_dedup \
-         ) \
+            SELECT server_id, album_id, album, artist, artist_id, album_artist, \
+                    year, genre, cover_art_id, starred_at, synced_at, \
+                   COUNT(*) AS song_count, SUM(duration_sec) AS duration_total, \
+                   MIN({ALBUM_PICK_KEY}) AS _pick \
+            FROM track_winners GROUP BY album_dedup \
+          ) \
          {order} \
          LIMIT ? OFFSET ?",
         scoped = scoped_track_join(),
@@ -619,24 +621,26 @@ pub(crate) fn list_albums_layer1_filtered(
         ),
         format!(
             "{cte}, \
-             per_lib AS ( \
-               SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
-                      t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, \
-                      COUNT(*) AS song_count, SUM(t.duration_sec) AS duration_total, \
-                      s.pr, {ALBUM_DEDUP_KEY} AS album_dedup, \
-                      MIN({ALBUM_PICK_KEY}) AS _pick \
-               {base_where} \
-               GROUP BY album_dedup, t.server_id, t.album_id, s.pr \
-             ) \
-             SELECT server_id, album_id, album, artist, artist_id, album_artist, \
-                    song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at \
-             FROM ( \
-               SELECT server_id, album_id, album, artist, artist_id, album_artist, \
-                      year, genre, cover_art_id, starred_at, synced_at, \
-                      SUM(song_count) AS song_count, SUM(duration_total) AS duration_total, \
-                      MIN(_pick) AS _pick \
-               FROM per_lib GROUP BY album_dedup \
-             ) \
+             base AS ( \
+                SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
+                       t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.duration_sec, t.id, \
+                       s.pr, {ALBUM_DEDUP_KEY} AS album_dedup, {TRACK_DEDUP_KEY} AS track_dedup \
+                {base_where} \
+             ), track_winners AS ( \
+               SELECT server_id, album_id, album, artist, artist_id, album_artist, year, genre, \
+                      cover_art_id, starred_at, synced_at, duration_sec, id, pr, album_dedup, \
+                      MIN(printf('%08d|%s|%s', pr, server_id, id)) AS _track_pick \
+               FROM base GROUP BY album_dedup, track_dedup \
+              ) \
+              SELECT server_id, album_id, album, artist, artist_id, album_artist, \
+                     song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at \
+              FROM ( \
+                SELECT server_id, album_id, album, artist, artist_id, album_artist, \
+                       year, genre, cover_art_id, starred_at, synced_at, \
+                       COUNT(*) AS song_count, SUM(duration_sec) AS duration_total, \
+                       MIN({ALBUM_PICK_KEY}) AS _pick \
+                FROM track_winners GROUP BY album_dedup \
+              ) \
              {deduped_order_sql} \
              LIMIT ? OFFSET ?"
         ),
@@ -968,16 +972,22 @@ pub(crate) fn list_albums_filtered(
                   t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.duration_sec, t.id, \
                   s.pr, {ALBUM_DEDUP_KEY} AS album_dedup, {TRACK_DEDUP_KEY} AS track_dedup \
            {base_where} \
+         ), \
+         track_winners AS ( \
+           SELECT server_id, album_id, album, artist, artist_id, album_artist, \
+                  year, genre, cover_art_id, starred_at, synced_at, duration_sec, id, pr, album_dedup, \
+                  MIN(printf('%08d|%s|%s', pr, server_id, id)) AS _track_pick \
+           FROM base GROUP BY album_dedup, track_dedup \
          ) \
          SELECT server_id, album_id, album, artist, artist_id, album_artist, \
-                song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at \
+                 song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at \
          FROM ( \
-           SELECT server_id, album_id, album, artist, artist_id, album_artist, \
-                  year, genre, cover_art_id, starred_at, synced_at, \
-                  COUNT(DISTINCT track_dedup) AS song_count, SUM(duration_sec) AS duration_total, \
-                  MIN({ALBUM_PICK_KEY}) AS _pick \
-           FROM base GROUP BY album_dedup \
-         ) \
+            SELECT server_id, album_id, album, artist, artist_id, album_artist, \
+                    year, genre, cover_art_id, starred_at, synced_at, \
+                   COUNT(*) AS song_count, SUM(duration_sec) AS duration_total, \
+                   MIN({ALBUM_PICK_KEY}) AS _pick \
+            FROM track_winners GROUP BY album_dedup \
+          ) \
          {order_sql} \
          LIMIT ? OFFSET ?",
     );
@@ -2182,6 +2192,8 @@ mod tests {
         assert_eq!(albums_a[0].id, "alb-a");
         assert_eq!(albums_a[0].year, Some(2001));
         assert_eq!(albums_a[0].genre.as_deref(), Some("Rock"));
+        assert_eq!(albums_a[0].song_count, Some(1));
+        assert_eq!(albums_a[0].duration_sec, Some(200));
 
         let req_b_first = LibraryScopeListRequest {
             scopes: vec![scope_pair("s1", "lib-b"), scope_pair("s1", "lib-a")],

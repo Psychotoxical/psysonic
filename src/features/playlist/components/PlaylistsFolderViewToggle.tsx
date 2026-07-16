@@ -1,19 +1,17 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { FolderTree } from 'lucide-react';
-import { useAuthStore } from '@/store/authStore';
 import { usePlaylistFolderStore } from '@/features/playlist/store/playlistFolderStore';
 
 /**
  * Header toggle to switch the Playlists page between the grouped folder view
- * and a single flat grid. Hidden until the active server has at least one
+ * and a single flat grid. Hidden until a visible server has at least one
  * folder (nothing to switch otherwise).
  */
 export default function PlaylistsFolderViewToggle() {
   const { t } = useTranslation();
-  const activeServerId = useAuthStore(s => s.activeServerId);
   const folderCount = usePlaylistFolderStore(
-    s => (activeServerId ? s.byServer[activeServerId]?.folders.length ?? 0 : 0),
+    s => Object.values(s.byServer).reduce((count, bucket) => count + bucket.folders.length, 0),
   );
   const groupView = usePlaylistFolderStore(s => s.groupView);
   const toggleGroupView = usePlaylistFolderStore(s => s.toggleGroupView);

@@ -19,6 +19,7 @@ interface RadioCardProps {
   isManual: boolean;
   /** Navidrome ≥ 0.62 only lets admins manage stations — hides edit/delete. */
   canManage: boolean;
+  sourceLabel?: string;
   dropIndicator: 'before' | 'after' | null;
   onPlay: (e: React.MouseEvent) => void;
   onDelete: (e: React.MouseEvent) => void;
@@ -31,7 +32,7 @@ interface RadioCardProps {
 }
 
 export default function RadioCard({
-  s, isActive, isPlaying, deleteConfirmId, isFavorite, isManual, canManage, dropIndicator,
+  s, isActive, isPlaying, deleteConfirmId, isFavorite, isManual, canManage, sourceLabel, dropIndicator,
   onPlay, onDelete, onEdit, onFavoriteToggle, onDragEnter, onDragLeave,
   onDropOnto, onCardMouseLeave,
 }: RadioCardProps) {
@@ -138,6 +139,7 @@ export default function RadioCard({
       {/* Info */}
       <div className="album-card-info">
         <div className="album-card-title">{s.name}</div>
+        {sourceLabel && <div className="radio-card-source">{sourceLabel}</div>}
         <div className="album-card-artist" style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
           {canManage && (
             <button className="radio-card-chip" onClick={onEdit}>

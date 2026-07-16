@@ -31,6 +31,7 @@ export const smartPlaylists = {
   createFailed: 'Kunne ikke opprette smart-spilleliste.',
   updateFailed: 'Kunne ikke oppdatere smart-spilleliste.',
   navidromeOnly: 'Smart-spillelister kan bare opprettes på Navidrome-servere.',
+  foreignServerDisabled: 'Bytt til {{server}} for å redigere denne smart-spillelisten. Psysonic sender ikke redigeringsforespørsler til en annen aktiv server.',
   loadFailed: 'Kunne ikke laste smart-spillelister fra Navidrome.',
   sortRandom: 'Sortering: tilfeldig',
   sortTitleAsc: 'Sortering: tittel A-Å',

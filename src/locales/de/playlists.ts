@@ -14,6 +14,7 @@ export const playlists = {
   emptyPlaylist: 'Diese Playlist ist leer.',
   addFirstSong: 'Ersten Song hinzufügen',
   notFound: 'Playlist nicht gefunden.',
+  smartMembershipReadOnly: 'Diese intelligente Playlist wird von {{server}} erzeugt. Hinzufügen, Entfernen, Sortieren und CSV-Import sind hier deaktiviert, damit die Serverregeln nicht ersetzt werden.',
   songs_one: '{{count}} Song',
   songs_other: '{{count}} Songs',
   playAll: 'Alle abspielen',

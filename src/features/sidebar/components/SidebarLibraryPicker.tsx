@@ -11,6 +11,7 @@ import {
 import type { SyncStateDto } from '@/lib/api/library/dto';
 import { useDragSource } from '@/lib/dnd/DragDropContext';
 import { useListReorderDnd } from '@/lib/hooks/useListReorderDnd';
+import { useModalFocus } from '@/lib/hooks/useModalFocus';
 import { libraryStatusIsReady } from '@/lib/library/libraryReady';
 import type { BrowseScopeExcludedReason } from '@/lib/library/libraryBrowseScope';
 import type { LibraryServerConnection } from '@/lib/network/libraryServerReachability';
@@ -123,6 +124,14 @@ export default function SidebarLibraryPicker({
     panelRef.current = node;
     setContainer(node);
   }, [setContainer]);
+  const closePicker = useCallback(() => setLibraryDropdownOpen(false), [setLibraryDropdownOpen]);
+
+  useModalFocus({
+    open: libraryDropdownOpen && multiServer,
+    containerRef: panelRef,
+    onEscape: closePicker,
+    restoreFocusRef: libraryTriggerRef,
+  });
 
   useLayoutEffect(() => {
     if (!libraryDropdownOpen) {
@@ -251,7 +260,9 @@ export default function SidebarLibraryPicker({
             ref={setPanelContainer}
             className="nav-library-dropdown-panel nav-library-server-panel"
             role="dialog"
+            aria-modal="true"
             aria-label={t('sidebar.libraryScope')}
+            tabIndex={-1}
             onMouseMove={onMouseMove}
             style={{
               position: 'fixed',
@@ -299,7 +310,12 @@ export default function SidebarLibraryPicker({
                       />
                       <span id={`sidebar-server-label-${server.id}`}>{server.label}</span>
                     </label>
-                    <span className={`nav-library-server-status nav-library-server-status--${status}`}>
+                    <span
+                      className={`nav-library-server-status nav-library-server-status--${status}`}
+                      role="status"
+                      aria-live="polite"
+                      aria-atomic="true"
+                    >
                       {t(`sidebar.serverStatus${status[0].toUpperCase()}${status.slice(1)}`)}
                     </span>
                     <div className="nav-library-server-actions">

@@ -4,7 +4,7 @@
 }
 
 .playback-alternative-modal {
-  max-width: 520px;
+  width: min(520px, 100%);
 }
 
 .playback-alternative-modal__heading {

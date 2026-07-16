@@ -102,6 +102,13 @@ function isPermanentUnsupported(task: PendingEntityMutation, error?: unknown): b
     || message.includes('unknown method');
 }
 
+function isPermanentNoMatch(error: unknown): boolean {
+  if (error === 'no_matching_copy') return true;
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { code?: unknown; kind?: unknown };
+  return candidate.code === 'no_matching_copy' || candidate.kind === 'no_matching_copy';
+}
+
 function putLatest(task: PendingEntityMutation): void {
   const key = keyOf(task);
   const existing = pending.get(key);
@@ -159,35 +166,47 @@ function patchSuccessfulUi(task: PendingEntityMutation): void {
 
 async function runConcrete(key: string, task: PendingEntityMutation): Promise<void> {
   if (running.has(key) || !isOnline(task.targetServerId)) return;
-  if (isPermanentUnsupported(task)) {
-    pending.delete(key);
-    persist();
-    partialFailureNotice();
-    return;
-  }
   running.add(key);
   try {
-    await execute(task);
-    if (pending.get(key) === task) {
-      pending.delete(key);
-      patchSuccessfulUi(task);
-      persist();
-    }
-  } catch (error) {
-    if (pending.get(key) !== task) return;
-    if (isPermanentUnsupported(task, error)) {
-      pending.delete(key);
-      if (task.entityType !== 'track') {
-        useAuthStore.getState().setEntityRatingSupport(task.targetServerId, 'track_only');
+    let current: PendingEntityMutation | undefined = task;
+    while (current && current.resolution === 'resolved' && isOnline(current.targetServerId)) {
+      if (isPermanentUnsupported(current)) {
+        if (pending.get(key) === current) pending.delete(key);
+        persist();
+        partialFailureNotice();
+        current = pending.get(key);
+        continue;
       }
-      partialFailureNotice();
-      persist();
-      return;
+      try {
+        await execute(current);
+        if (pending.get(key) === current) {
+          pending.delete(key);
+          patchSuccessfulUi(current);
+          persist();
+        }
+      } catch (error) {
+        if (pending.get(key) !== current) {
+          current = pending.get(key);
+          continue;
+        }
+        if (isPermanentUnsupported(current, error)) {
+          pending.delete(key);
+          if (current.entityType !== 'track') {
+            useAuthStore.getState().setEntityRatingSupport(current.targetServerId, 'track_only');
+          }
+          partialFailureNotice();
+          persist();
+          current = pending.get(key);
+          continue;
+        }
+        const next = { ...current, attempts: current.attempts + 1 };
+        pending.set(key, next);
+        persist();
+        schedule(key, Math.min(MAX_BACKOFF_MS, 1000 * 2 ** Math.max(0, next.attempts - 1)));
+        break;
+      }
+      current = pending.get(key);
     }
-    const next = { ...task, attempts: task.attempts + 1 };
-    pending.set(key, next);
-    persist();
-    schedule(key, Math.min(MAX_BACKOFF_MS, 1000 * 2 ** Math.max(0, next.attempts - 1)));
   } finally {
     running.delete(key);
   }
@@ -210,13 +229,16 @@ async function resolveDeferredForServer(serverId: string): Promise<void> {
         anchorId: task.anchorId,
         scopes: targetScope.pairs,
       });
-    } catch {
+    } catch (error) {
+      if (isPermanentNoMatch(error) && pending.get(oldKey) === task) {
+        pending.delete(oldKey);
+      }
       continue;
     }
     if (pending.get(oldKey) !== task) continue;
-    pending.delete(oldKey);
     const source = sources.find(candidate => candidate.serverId === serverId);
     if (source) {
+      pending.delete(oldKey);
       const concrete: PendingEntityMutation = {
         ...task,
         entityId: source.id,
@@ -299,9 +321,9 @@ async function enqueueEntityMutation(args: {
         };
         const oldKey = deferredKey(deferred);
         if (pending.get(oldKey)?.updatedAt !== updatedAt) continue;
-        pending.delete(oldKey);
         const source = sourceByServer.get(target.serverId);
         if (!source) continue;
+        pending.delete(oldKey);
         const concrete: PendingEntityMutation = {
           ...deferred,
           entityId: source.id,
@@ -311,7 +333,22 @@ async function enqueueEntityMutation(args: {
         applyOptimistic(concrete);
       }
       persist();
-    } catch { /* durable deferred rows will resolve on the next lifecycle trigger */ }
+    } catch (error) {
+      if (isPermanentNoMatch(error)) {
+        for (const target of scope.filter(source => source.readiness === 'ready')) {
+          const key = deferredKey({
+            targetServerId: target.serverId,
+            entityType: args.entityType,
+            anchorServerId: args.anchorServerId,
+            anchorId: args.anchorId,
+            operation: args.operation,
+          });
+          if (pending.get(key)?.updatedAt === updatedAt) pending.delete(key);
+        }
+        persist();
+      }
+      /* Other failures leave durable deferred rows for the next lifecycle trigger. */
+    }
   }
   await flushPendingEntityMutations();
 }

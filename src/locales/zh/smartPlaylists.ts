@@ -31,6 +31,7 @@ export const smartPlaylists = {
   createFailed: '无法创建智能播放列表。',
   updateFailed: '无法更新智能播放列表。',
   navidromeOnly: '仅 Navidrome 服务器支持创建智能播放列表。',
+  foreignServerDisabled: '请切换到 {{server}} 以编辑此智能播放列表。Psysonic 不会向其他活动服务器发送编辑器请求。',
   loadFailed: '无法从 Navidrome 加载智能播放列表。',
   sortRandom: '排序：随机',
   sortTitleAsc: '排序：标题 A-Z',

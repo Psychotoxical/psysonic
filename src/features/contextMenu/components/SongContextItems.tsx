@@ -179,17 +179,18 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
               </div>
               {offlinePolicy.canEditPlaylist && playlistId && playlistSongIndex !== undefined && (
                 <div className="context-menu-item" style={{ color: 'var(--danger)' }} onClick={() => handleAction(async () => {
-                  const { removePlaylistSongsAtIndices } = await import('@/lib/api/subsonicPlaylists');
+                   const { removePlaylistSongsAtIndicesForServer } = await import('@/lib/api/subsonicPlaylists');
                   const { showToast } = await import('@/lib/dom/toast');
                   const { touchPlaylist } = usePlaylistStore.getState();
                   const membership = usePlaylistMembershipStore.getState();
                   try {
-                    await removePlaylistSongsAtIndices(playlistId, [playlistSongIndex]);
-                    membership.removePlaylistSongIdsAtIndices(playlistId, [playlistSongIndex]);
-                    touchPlaylist(playlistId);
+                     if (!song.serverId) throw new Error('Playlist owner unavailable');
+                     await removePlaylistSongsAtIndicesForServer(song.serverId, playlistId, [playlistSongIndex]);
+                     membership.removePlaylistSongIdsAtIndices(playlistId, [playlistSongIndex], song.serverId);
+                     touchPlaylist(playlistId, song.serverId);
                     showToast(t('playlists.removeSuccess'), 3000, 'info');
                   } catch {
-                    membership.invalidatePlaylistSongIds(playlistId);
+                     membership.invalidatePlaylistSongIds(playlistId, song.serverId);
                     showToast(t('playlists.removeError'), 4000, 'error');
                   }
                 })}>

@@ -1,5 +1,5 @@
 import { isOfflineBrowseActive, resolveMediaServerId, resolvePlaylist } from '@/features/offline';
-import { filterSongsToActiveLibrary } from '@/lib/api/subsonicLibrary';
+import { filterSongsToActiveLibrary, filterSongsToServerLibrary } from '@/lib/api/subsonicLibrary';
 import { songToTrack } from '@/lib/media/songToTrack';
 import type { Track } from '@/lib/media/trackTypes';
 import { useAuthStore } from '@/store/authStore';
@@ -26,7 +26,7 @@ export async function resolvePlaylistTracks(playlistId: string, ownerServerId?: 
     const songs = isOfflineBrowseActive()
       ? data.songs
       : ownerServerId
-        ? data.songs
+        ? await filterSongsToServerLibrary(data.songs, serverId)
         : await filterSongsToActiveLibrary(data.songs);
     return songs.map(song => {
       const track = songToTrack(song);

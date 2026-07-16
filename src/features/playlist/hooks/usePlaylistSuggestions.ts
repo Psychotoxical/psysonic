@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type React from 'react';
-import { getRandomSongs } from '@/lib/api/subsonicLibrary';
+import { getRandomSongsForServer } from '@/lib/api/subsonicLibrary';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 
 export interface PlaylistSuggestionsResult {
@@ -10,7 +10,11 @@ export interface PlaylistSuggestionsResult {
   loadSuggestions: (currentSongs: SubsonicSong[]) => Promise<void>;
 }
 
-export function usePlaylistSuggestions(songs: SubsonicSong[], playlistId: string | undefined): PlaylistSuggestionsResult {
+export function usePlaylistSuggestions(
+  songs: SubsonicSong[],
+  playlistId: string | undefined,
+  ownerServerId: string,
+): PlaylistSuggestionsResult {
   const [suggestions, setSuggestions] = useState<SubsonicSong[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
@@ -28,11 +32,11 @@ export function usePlaylistSuggestions(songs: SubsonicSong[], playlistId: string
     setLoadingSuggestions(true);
     setSuggestions([]);
     try {
-      const random = await getRandomSongs(25, genre);
+      const random = await getRandomSongsForServer(ownerServerId, 25, genre);
       setSuggestions(random.filter(s => !existingIds.has(s.id)).slice(0, 10));
     } catch { /* ignore: best-effort */ }
     setLoadingSuggestions(false);
-  }, []);
+  }, [ownerServerId]);
 
   useEffect(() => {
     // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.

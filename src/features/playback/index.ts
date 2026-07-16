@@ -10,3 +10,4 @@ export { getPlaybackProgressSnapshot, subscribePlaybackProgress } from './store/
 export type { PlaybackProgressSnapshot } from './store/playbackProgress';
 export { playbackCoverArtForAlbum } from './utils/playback/playbackServer';
 export { useVolumeToggle } from './hooks/useVolumeToggle';
+export { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from './utils/mixRatingFilter';

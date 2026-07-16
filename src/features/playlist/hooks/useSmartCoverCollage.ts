@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { filterSongsToActiveLibrary } from '@/lib/api/subsonicLibrary';
-import { getPlaylist } from '@/lib/api/subsonicPlaylists';
+import { filterSongsToServerLibrary } from '@/lib/api/subsonicLibrary';
+import { getPlaylistForServer } from '@/lib/api/subsonicPlaylists';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
 import { isSmartPlaylistName } from '@/features/playlist';
+import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
 
 /**
  * Build the 2×2 cover collage for each smart playlist. Pulls each smart
@@ -27,8 +28,9 @@ export function useSmartCoverCollage(
       const rows = await Promise.all(
         smart.map(async (pl) => {
           try {
-            const { songs } = await getPlaylist(pl.id);
-            const filtered = await filterSongsToActiveLibrary(songs);
+            if (!pl.serverId) throw new Error('Playlist owner unavailable');
+            const { songs } = await getPlaylistForServer(pl.serverId, pl.id);
+            const filtered = await filterSongsToServerLibrary(songs, pl.serverId);
             const ids: string[] = [];
             const seen = new Set<string>();
             for (const s of filtered) {
@@ -38,9 +40,9 @@ export function useSmartCoverCollage(
               ids.push(cid);
               if (ids.length >= 4) break;
             }
-            return [pl.id, ids] as const;
+            return [libraryEntityKey(pl), ids] as const;
           } catch {
-            return [pl.id, [] as string[]] as const;
+            return [libraryEntityKey(pl), [] as string[]] as const;
           }
         }),
       );

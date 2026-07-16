@@ -147,6 +147,7 @@ async function runOfflinePinDownload(task: OfflinePinTask): Promise<void> {
     jobs: [
       ...state.jobs.filter(j => j.albumId !== albumId),
       ...pendingSongs.map((s, i) => ({
+        serverId,
         trackId: s.id,
         albumId,
         albumName,

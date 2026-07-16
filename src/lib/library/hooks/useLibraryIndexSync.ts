@@ -22,6 +22,29 @@ const STATUS_POLL_MS = 3000;
 const SYNC_POLL_MS = 2500;
 const OFFLINE_RETRY_MS = 60_000;
 
+function connectionUpdates(results: Record<string, BindServerResult>) {
+  return Object.fromEntries(Object.entries(results).map(([id, result]) => [
+    id,
+    result === 'offline' ? 'offline' : result === 'bound' ? 'online' : 'unknown',
+  ])) as Record<string, 'online' | 'offline' | 'unknown'>;
+}
+
+export function applyLibraryConnectionResults(
+  results: Record<string, BindServerResult>,
+  indexedKeys?: string[],
+): void {
+  const updates = connectionUpdates(results);
+  if (!indexedKeys) {
+    useLibraryIndexStore.getState().mergeConnections(updates);
+    return;
+  }
+  const connections = Object.fromEntries(indexedKeys.map(key => [key, 'unknown'])) as Record<
+    string,
+    'online' | 'offline' | 'unknown'
+  >;
+  useLibraryIndexStore.getState().replaceConnections({ ...connections, ...updates });
+}
+
 export function useLibraryIndexSync(enabled = true) {
   const { t } = useTranslation();
   const servers = useAuthStore(s => s.servers);
@@ -63,12 +86,7 @@ export function useLibraryIndexSync(enabled = true) {
   const syncPhaseRef = useRef<Record<string, string | null>>({});
 
   const applyConnectionResults = useCallback((results: Record<string, BindServerResult>) => {
-    const connections: Record<string, 'online' | 'offline' | 'unknown'> = {};
-    for (const key of indexedKeys) connections[key] = 'unknown';
-    for (const [id, result] of Object.entries(results)) {
-      connections[id] = result === 'offline' ? 'offline' : result === 'bound' ? 'online' : 'unknown';
-    }
-    useLibraryIndexStore.getState().replaceConnections(connections);
+    applyLibraryConnectionResults(results, indexedKeys);
   }, [indexedKeys]);
 
   const refreshAllStatuses = useCallback(async () => {
@@ -117,9 +135,9 @@ export function useLibraryIndexSync(enabled = true) {
     for (const srv of offline) {
       results[srv.key] = await bootstrapIndexedServer(srv.server);
     }
-    applyConnectionResults(results);
+    applyLibraryConnectionResults(results);
     void refreshAllStatuses();
-  }, [masterEnabled, indexedServers, connectionByServer, applyConnectionResults, refreshAllStatuses]);
+  }, [masterEnabled, indexedServers, connectionByServer, refreshAllStatuses]);
 
   useEffect(() => {
     if (!enabled || !masterEnabled || indexedKeys.length === 0) return;

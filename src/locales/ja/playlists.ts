@@ -14,6 +14,7 @@ export const playlists = {
   emptyPlaylist: 'このプレイリストは空です。',
   addFirstSong: '最初の曲を追加',
   notFound: 'プレイリストが見つかりません。',
+  smartMembershipReadOnly: 'このスマートプレイリストは {{server}} によって生成されています。サーバー側のルールを置き換えないよう、曲の追加・削除・並べ替え・CSV インポートは無効です。',
   songs_one: '{{count}} 曲',
   songs_other: '{{count}} 曲',
   playAll: 'すべて再生',

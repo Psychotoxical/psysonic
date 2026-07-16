@@ -45,20 +45,20 @@ export function removeOfflinePinTask(albumId: string, serverId?: string): void {
 }
 
 /** True when the album is waiting in the pin queue (not actively downloading). */
-export function isAlbumPinQueued(albumId: string): boolean {
+export function isAlbumPinQueued(albumId: string, serverId?: string): boolean {
   return useOfflineJobStore.getState().pinQueue.some(
-    p => p.albumId === albumId && p.status === 'queued',
+    p => p.albumId === albumId && (!serverId || p.serverId === serverId) && p.status === 'queued',
   );
 }
 
 /** Remove a queued pin before download starts. No-op if already downloading. */
-export function dequeueOfflinePin(albumId: string): boolean {
+export function dequeueOfflinePin(albumId: string, serverId?: string): boolean {
   const store = useOfflineJobStore.getState();
-  const entry = store.pinQueue.find(p => p.albumId === albumId);
+  const entry = store.pinQueue.find(p => p.albumId === albumId && (!serverId || p.serverId === serverId));
   if (!entry || entry.status !== 'queued') return false;
   cancelledDownloads.add(albumId);
-  removeOfflinePinTask(albumId);
-  store.removePinFromQueue(albumId);
+  removeOfflinePinTask(albumId, serverId);
+  store.removePinFromQueue(albumId, serverId);
   return true;
 }
 

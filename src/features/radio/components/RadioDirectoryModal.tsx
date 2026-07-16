@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Cast, Check, Loader2, Plus, X } from 'lucide-react';
 import {
-  createInternetRadioStation, fetchUrlBytes, getInternetRadioStations,
-  getTopRadioStations, searchRadioBrowser, uploadRadioCoverArtBytes,
+  createInternetRadioStationForServer, fetchUrlBytes, getInternetRadioStationsForServer,
+  getTopRadioStations, searchRadioBrowser, uploadRadioCoverArtBytesForServer,
 } from '@/lib/api/subsonicRadio';
 import {
   type InternetRadioStation, type RadioBrowserStation, RADIO_PAGE_SIZE,
@@ -12,11 +12,13 @@ import {
 import { showToast } from '@/lib/dom/toast';
 
 interface RadioDirectoryModalProps {
+  sources: Array<{ serverId: string; label: string }>;
+  requireSourceSelection?: boolean;
   onClose: () => void;
-  onAdded: () => void;
+  onAdded: (serverId: string) => void;
 }
 
-export default function RadioDirectoryModal({ onClose, onAdded }: RadioDirectoryModalProps) {
+export default function RadioDirectoryModal({ sources, requireSourceSelection = false, onClose, onAdded }: RadioDirectoryModalProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<RadioBrowserStation[]>([]);
@@ -26,6 +28,9 @@ export default function RadioDirectoryModal({ onClose, onAdded }: RadioDirectory
   const [hasMore, setHasMore] = useState(true);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+  const [serverId, setServerId] = useState(
+    !requireSourceSelection && sources.length === 1 ? sources[0]?.serverId ?? '' : '',
+  );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -85,22 +90,23 @@ export default function RadioDirectoryModal({ onClose, onAdded }: RadioDirectory
   }, [hasMore, loadingMore, offset, fetchPage]);
 
   const handleAdd = async (s: RadioBrowserStation) => {
-    if (addedIds.has(s.stationuuid) || addingId !== null) return;
-    setAddingId(s.stationuuid);
+    const stationKey = `${serverId}:${s.stationuuid}`;
+    if (!serverId || addedIds.has(stationKey) || addingId !== null) return;
+    setAddingId(stationKey);
     try {
-      await createInternetRadioStation(s.name, s.url);
+      await createInternetRadioStationForServer(serverId, s.name, s.url);
       if (s.favicon) {
-        const list = await getInternetRadioStations().catch(() => [] as InternetRadioStation[]);
+        const list = await getInternetRadioStationsForServer(serverId).catch(() => [] as InternetRadioStation[]);
         const created = list.find(r => r.streamUrl === s.url);
         if (created) {
           try {
             const [fileBytes, mimeType] = await fetchUrlBytes(s.favicon);
-            await uploadRadioCoverArtBytes(created.id, fileBytes, mimeType);
+            await uploadRadioCoverArtBytesForServer(serverId, created.id, fileBytes, mimeType);
           } catch { /* favicon optional */ }
         }
       }
-      onAdded();
-      setAddedIds(prev => new Set(prev).add(s.stationuuid));
+      onAdded(serverId);
+      setAddedIds(prev => new Set(prev).add(stationKey));
       showToast(`${t('radio.stationAdded')}: ${s.name}`, 3000);
     } catch (err) {
       const msg = typeof err === 'string' ? err : (err instanceof Error ? err.message : '');
@@ -174,6 +180,20 @@ export default function RadioDirectoryModal({ onClose, onAdded }: RadioDirectory
             autoFocus
             style={{ width: '100%' }}
           />
+          {(requireSourceSelection || sources.length > 1) && (
+            <select
+              className="input"
+              value={serverId}
+              onChange={e => setServerId(e.target.value)}
+              aria-label={t('radio.source')}
+              style={{ width: '100%', marginTop: 8 }}
+            >
+              <option value="">{t('radio.selectSource')}</option>
+              {sources.map(source => (
+                <option key={source.serverId} value={source.serverId}>{source.label}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* ── 4. Body / Results ──────────────────────────────────── */}
@@ -187,9 +207,10 @@ export default function RadioDirectoryModal({ onClose, onAdded }: RadioDirectory
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingTop: 8 }}>
               {results.map(s => {
-                const isAdded = addedIds.has(s.stationuuid);
-                const isLoading = addingId === s.stationuuid;
-                const isDisabled = isAdded || addingId !== null;
+                const stationKey = `${serverId}:${s.stationuuid}`;
+                const isAdded = addedIds.has(stationKey);
+                const isLoading = addingId === stationKey;
+                const isDisabled = !serverId || isAdded || addingId !== null;
                 return (
                   <div
                     key={s.stationuuid}

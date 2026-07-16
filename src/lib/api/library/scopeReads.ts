@@ -6,7 +6,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { librarySelectionForServer } from '@/lib/api/subsonicClient';
 import {
   mapServerIdFromIndexKey,
-  mapTracksServerId,
   serverIndexKeyForId,
 } from './internal';
 import type {
@@ -68,26 +67,65 @@ function mapScopePairServerId(pair: LibraryScopePair, profileServerId: string): 
 }
 
 export function mapScopePairs(scopes: LibraryScopePair[], profileServerId: string): LibraryScopePair[] {
-  return scopes.map(pair => mapScopePairServerId(pair, profileServerId));
+  const byIndexKey = new Map<string, { whole: boolean; libraryIds: string[]; seen: Set<string> }>();
+  for (const pair of scopes) {
+    const next = mapScopePairServerId(pair, profileServerId);
+    const existing = byIndexKey.get(next.serverId);
+    if (!existing) {
+      byIndexKey.set(next.serverId, {
+        whole: next.libraryId === null,
+        libraryIds: next.libraryId === null ? [] : [next.libraryId],
+        seen: new Set(next.libraryId === null ? [] : [next.libraryId]),
+      });
+      continue;
+    }
+    if (existing.whole) continue;
+    if (next.libraryId === null) {
+      existing.whole = true;
+      existing.libraryIds = [];
+      existing.seen.clear();
+      continue;
+    }
+    if (!existing.seen.has(next.libraryId)) {
+      existing.seen.add(next.libraryId);
+      existing.libraryIds.push(next.libraryId);
+    }
+  }
+  return [...byIndexKey.entries()].flatMap<LibraryScopePair>(([serverId, scope]) =>
+    scope.whole
+      ? [{ serverId, libraryId: null }]
+      : scope.libraryIds.map(libraryId => ({ serverId, libraryId })),
+  );
+}
+
+function scopeOwnerServerId(
+  indexKey: string,
+  scopes: LibraryScopePair[],
+  fallbackServerId: string,
+): string {
+  return scopes.find(pair => serverIndexKeyForId(pair.serverId) === indexKey)?.serverId
+    ?? mapServerIdFromIndexKey(indexKey, fallbackServerId);
 }
 
 function mapAlbumsServerId(
   albums: LibraryAlbumDto[],
   profileServerId: string,
+  scopes: LibraryScopePair[],
 ): LibraryAlbumDto[] {
   return albums.map(album => ({
     ...album,
-    serverId: mapServerIdFromIndexKey(album.serverId, profileServerId),
+    serverId: scopeOwnerServerId(album.serverId, scopes, profileServerId),
   }));
 }
 
 function mapArtistsServerId(
   artists: LibraryArtistDto[],
   profileServerId: string,
+  scopes: LibraryScopePair[],
 ): LibraryArtistDto[] {
   return artists.map(artist => ({
     ...artist,
-    serverId: mapServerIdFromIndexKey(artist.serverId, profileServerId),
+    serverId: scopeOwnerServerId(artist.serverId, scopes, profileServerId),
   }));
 }
 
@@ -111,7 +149,7 @@ export function libraryScopeListAlbums(
       ...request,
       scopes: mapScopePairs(request.scopes, serverId),
     },
-  }).then(albums => mapAlbumsServerId(albums, serverId));
+  }).then(albums => mapAlbumsServerId(albums, serverId, request.scopes));
 }
 
 export function libraryScopeListArtists(
@@ -123,7 +161,7 @@ export function libraryScopeListArtists(
       ...request,
       scopes: mapScopePairs(request.scopes, serverId),
     },
-  }).then(artists => mapArtistsServerId(artists, serverId));
+  }).then(artists => mapArtistsServerId(artists, serverId, request.scopes));
 }
 
 export function libraryScopeCatalogStatistics(
@@ -151,7 +189,7 @@ export function libraryScopeMostPlayedAlbums(
     ...row,
     album: {
       ...row.album,
-      serverId: mapServerIdFromIndexKey(row.album.serverId, serverId),
+      serverId: scopeOwnerServerId(row.album.serverId, request.scopes, serverId),
     },
   })));
 }
@@ -165,7 +203,7 @@ export function libraryScopeListArtistsByRole(
       ...request,
       scopes: mapScopePairs(request.scopes, serverId),
     },
-  }).then(artists => mapArtistsServerId(artists, serverId));
+  }).then(artists => mapArtistsServerId(artists, serverId, request.scopes));
 }
 
 export function libraryScopeSearchTracks(
@@ -177,7 +215,10 @@ export function libraryScopeSearchTracks(
       ...request,
       scopes: mapScopePairs(request.scopes, serverId),
     },
-  }).then(tracks => mapTracksServerId(tracks, serverId));
+  }).then(tracks => tracks.map(track => ({
+    ...track,
+    serverId: scopeOwnerServerId(track.serverId, request.scopes, serverId),
+  })));
 }
 
 export function libraryScopeAlbumDetail(
@@ -196,9 +237,12 @@ export function libraryScopeAlbumDetail(
   }).then(response => ({
     album: {
       ...response.album,
-      serverId: mapServerIdFromIndexKey(response.album.serverId, serverId),
+      serverId: scopeOwnerServerId(response.album.serverId, request.scopes, serverId),
     },
-    tracks: mapTracksServerId(response.tracks, serverId),
+    tracks: response.tracks.map(track => ({
+      ...track,
+      serverId: scopeOwnerServerId(track.serverId, request.scopes, serverId),
+    })),
   }));
 }
 
@@ -218,10 +262,13 @@ export function libraryScopeArtistDetail(
   }).then(response => ({
     artist: {
       ...response.artist,
-      serverId: mapServerIdFromIndexKey(response.artist.serverId, serverId),
+      serverId: scopeOwnerServerId(response.artist.serverId, request.scopes, serverId),
     },
-    albums: mapAlbumsServerId(response.albums, serverId),
-    tracks: mapTracksServerId(response.tracks, serverId),
+    albums: mapAlbumsServerId(response.albums, serverId, request.scopes),
+    tracks: response.tracks.map(track => ({
+      ...track,
+      serverId: scopeOwnerServerId(track.serverId, request.scopes, serverId),
+    })),
   }));
 }
 
@@ -241,6 +288,6 @@ export function libraryResolveEntitySources(
     },
   }).then(sources => sources.map(source => ({
     ...source,
-    serverId: mapServerIdFromIndexKey(source.serverId, serverId),
+    serverId: scopeOwnerServerId(source.serverId, request.scopes, serverId),
   })));
 }

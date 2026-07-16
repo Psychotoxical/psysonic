@@ -44,13 +44,14 @@ interface Props {
   isPreviewing: boolean;
   previewStarted: boolean;
   orbitActive: boolean;
+  canEditMembership?: boolean;
   cb: PlaylistRowCallbacks;
 }
 
 function PlaylistRow({
   song, index: i, realIdx, visibleCols, gridStyle, showBitrate,
   isActive, showEq, isContextActive, isSelected, inSelectMode,
-  isStarred, ratingValue, isPreviewing, previewStarted, orbitActive, cb,
+  isStarred, ratingValue, isPreviewing, previewStarted, orbitActive, canEditMembership = true, cb,
 }: Props) {
   const { t } = useTranslation();
 
@@ -139,13 +140,13 @@ function PlaylistRow({
           case 'bpm': return (
             <div key="bpm" className="track-duration">{song.bpm && song.bpm > 0 ? song.bpm : '—'}</div>
           );
-          case 'delete': return (
+          case 'delete': return canEditMembership ? (
             <div key="delete" className="playlist-row-delete-cell">
               <button className="playlist-row-delete-btn" onClick={e => { e.stopPropagation(); cb.remove(realIdx); }} data-tooltip={t('playlists.removeSong')} data-tooltip-pos="left">
                 <Trash2 size={13} />
               </button>
             </div>
-          );
+          ) : <div key="delete" />;
           default: return null;
         }
       })}

@@ -22,20 +22,41 @@ import RadioEditModal from '@/features/radio/components/RadioEditModal';
 import RadioDirectoryModal from '@/features/radio/components/RadioDirectoryModal';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import { VirtualCardGrid } from '@/ui/VirtualCardGrid';
-import { useNavidromeAdminRole, canManageNavidromeRadio } from '@/lib/hooks/useNavidromeAdminRole';
+import { canManageNavidromeRadio, useNavidromeAdminRoles } from '@/lib/hooks/useNavidromeAdminRole';
 import { useReachableLibrarySources } from '@/store/useReachableLibrarySources';
 import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
+import { useAuthStore } from '@/store/authStore';
+import { serverListDisplayLabel } from '@/lib/server/serverDisplayName';
+import { qualifyStoredRadioIds } from '@/features/radio/utils/radioStationIdentity';
 
 export default function InternetRadio() {
   const { t } = useTranslation();
   const perfFlags = usePerfProbeFlags();
-  // Navidrome ≥ 0.62: only admins may create/edit/delete radio stations.
-  const canManage = canManageNavidromeRadio(useNavidromeAdminRole());
   const playRadio = usePlayerStore(s => s.playRadio);
   const stop = usePlayerStore(s => s.stop);
   const currentRadio = usePlayerStore(s => s.currentRadio);
   const isPlaying = usePlayerStore(s => s.isPlaying);
   const sources = useReachableLibrarySources();
+  const servers = useAuthStore(s => s.servers);
+  const activeServerId = useAuthStore(s => s.activeServerId);
+  const rolesByServer = useNavidromeAdminRoles(sources.map(source => source.serverId));
+  const sourceOptions = useMemo(() => sources.flatMap(source => {
+    const server = servers.find(candidate => candidate.id === source.serverId);
+    return server ? [{ serverId: source.serverId, label: serverListDisplayLabel(server, servers) }] : [];
+  }), [sources, servers]);
+  const sourceLabelByServer = useMemo(
+    () => Object.fromEntries(sourceOptions.map(source => [source.serverId, source.label])),
+    [sourceOptions],
+  );
+  const canManageServer = useCallback(
+    (serverId?: string) => !!serverId && canManageNavidromeRadio(rolesByServer[serverId] ?? 'checking'),
+    [rolesByServer],
+  );
+  const manageableSources = useMemo(
+    () => sourceOptions.filter(source => canManageServer(source.serverId)),
+    [sourceOptions, canManageServer],
+  );
+  const canCreate = manageableSources.length > 0;
 
   const [stations, setStations] = useState<InternetRadioStation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,13 +99,19 @@ export default function InternetRadio() {
       try { return JSON.parse(localStorage.getItem('psysonic_radio_order') ?? '[]'); }
       catch { return []; }
     })();
-    const currentIds = new Set(stations.map(libraryEntityKey));
-    const merged = saved.filter((id: string) => currentIds.has(id));
+    const merged = qualifyStoredRadioIds(saved, stations, activeServerId);
     stations.forEach(s => { const key = libraryEntityKey(s); if (!merged.includes(key)) merged.push(key); });
+    localStorage.setItem('psysonic_radio_order', JSON.stringify(merged));
     // React Compiler set-state-in-effect rule: local state synced with store/prop inputs when the effect’s dependencies change.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setManualOrder(merged);
-  }, [stations]);
+    setFavorites(previous => {
+      const qualified = qualifyStoredRadioIds([...previous], stations, activeServerId);
+      const next = new Set(qualified);
+      localStorage.setItem('psysonic_radio_favorites', JSON.stringify(qualified));
+      return next;
+    });
+  }, [stations, activeServerId]);
 
   const toggleFavorite = useCallback((id: string) => {
     setFavorites(prev => {
@@ -144,13 +171,14 @@ export default function InternetRadio() {
   }, [sortedFilteredStations, activeLetter]);
 
   const handleSave = async (opts: {
+    serverId: string;
     name: string;
     streamUrl: string;
     homepageUrl: string;
     coverFile: File | null;
     coverRemoved: boolean;
   }) => {
-    const serverId = modalStation === 'new' ? sources[0]?.serverId : modalStation?.serverId;
+    const serverId = modalStation === 'new' ? opts.serverId : modalStation?.serverId;
     if (!serverId) return;
     if (modalStation === 'new') {
       await createInternetRadioStationForServer(
@@ -250,7 +278,7 @@ export default function InternetRadio() {
       {/* ── Header ── */}
       <div className="playlists-header">
         <h1 className="page-title" style={{ marginBottom: 0 }}>{t('radio.title')}</h1>
-        {canManage && (
+        {canCreate && (
           <div className="compact-action-bar" style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-primary" onClick={() => setBrowseOpen(true)} aria-label={t('radio.browseDirectory')} data-tooltip={t('radio.browseDirectory')}>
               <Search size={14} /> <span className="compact-btn-label">{t('radio.browseDirectory')}</span>
@@ -264,7 +292,7 @@ export default function InternetRadio() {
 
       {sources.length > 1 && (
         <div className="source-group-list" aria-label={t('radio.sources')}>
-          {sources.map(source => <span key={source.serverId} className="source-group-label">{source.name}</span>)}
+          {sourceOptions.map(source => <span key={source.serverId} className="source-group-label">{source.label}</span>)}
         </div>
       )}
 
@@ -301,7 +329,8 @@ export default function InternetRadio() {
                   deleteConfirmId={deleteConfirmId}
                   isFavorite={favorites.has(libraryEntityKey(s))}
                   isManual={sortBy === 'manual'}
-                  canManage={canManage}
+                  canManage={canManageServer(s.serverId)}
+                  sourceLabel={sources.length > 1 && s.serverId ? sourceLabelByServer[s.serverId] : undefined}
                   dropIndicator={dragOver?.id === libraryEntityKey(s) ? dragOver.side : null}
                   onPlay={e => handlePlay(e, s)}
                   onDelete={e => handleDelete(e, s)}
@@ -319,17 +348,21 @@ export default function InternetRadio() {
       )}
 
       {/* ── Edit/Create Modal ── */}
-      {canManage && modalStation !== null && (
+      {modalStation !== null && (modalStation === 'new' ? canCreate : canManageServer(modalStation.serverId)) && (
         <RadioEditModal
           station={modalStation === 'new' ? null : modalStation}
+          sources={manageableSources}
+          requireSourceSelection={sources.length > 1}
           onClose={() => setModalStation(null)}
           onSave={handleSave}
         />
       )}
 
       {/* ── Directory Modal ── */}
-      {canManage && browseOpen && (
+      {canCreate && browseOpen && (
         <RadioDirectoryModal
+          sources={manageableSources}
+          requireSourceSelection={sources.length > 1}
           onClose={() => setBrowseOpen(false)}
           onAdded={reload}
         />
@@ -339,4 +372,3 @@ export default function InternetRadio() {
 }
 
 // ── Toolbar ───────────────────────────────────────────────────────────────────
-

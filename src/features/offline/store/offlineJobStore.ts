@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { cancelOfflineDownloads } from '@/lib/api/syncfs';
 
 export interface DownloadJob {
+  serverId?: string;
   trackId: string;
   albumId: string;
   albumName: string;

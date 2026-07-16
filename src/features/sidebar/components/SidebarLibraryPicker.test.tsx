@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createRef } from 'react';
 import { renderWithProviders } from '@/test/helpers/renderWithProviders';
@@ -35,13 +35,13 @@ function renderPicker(
     ...over,
   };
 
-  renderWithProviders(
+  const renderResult = renderWithProviders(
     <DragDropProvider>
       <SidebarLibraryPicker {...props} />
     </DragDropProvider>,
   );
 
-  return { onSelectionChange, setLibraryDropdownOpen, props };
+  return { onSelectionChange, setLibraryDropdownOpen, props, ...renderResult };
 }
 
 function readyStatus(serverId: string): SyncStateDto {
@@ -245,5 +245,37 @@ describe('SidebarLibraryPicker', () => {
     expect(screen.getByRole('button', { name: 'Hide libraries for Remote' }))
       .toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('group', { name: 'Libraries on Remote' })).toBeInTheDocument();
+  });
+
+  it('moves focus into the dialog, contains Tab, closes on Escape, and restores the trigger', async () => {
+    const user = userEvent.setup();
+    const { setLibraryDropdownOpen, rerender, props } = renderPicker({ servers: multiServers });
+    const trigger = screen.getByRole('button', { name: 'Library scope' });
+    trigger.focus();
+
+    const firstCheckbox = screen.getByRole('checkbox', { name: 'Home' });
+    await waitFor(() => expect(firstCheckbox).toHaveFocus());
+    const lastButton = screen.getByRole('button', { name: 'Show libraries for Remote' });
+    lastButton.focus();
+    await user.tab();
+    expect(firstCheckbox).toHaveFocus();
+
+    await user.keyboard('{Escape}');
+    expect(setLibraryDropdownOpen).toHaveBeenCalledWith(false);
+    rerender(
+      <DragDropProvider>
+        <SidebarLibraryPicker {...props} servers={multiServers} libraryDropdownOpen={false} />
+      </DragDropProvider>,
+    );
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it('announces readable server status changes and uses viewport-safe dialog structure', () => {
+    renderPicker({ servers: multiServers });
+
+    const dialog = screen.getByRole('dialog', { name: 'Library scope' });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog).toHaveClass('nav-library-server-panel');
+    expect(screen.getAllByRole('status')[0]).toHaveTextContent('Online');
   });
 });

@@ -20,6 +20,8 @@ import { OptionalBrowseTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
 import { COVER_ARTIST_TOP_TRACK_CSS_PX } from '@/cover/layoutSizes';
 import { useWarmTrackListAlbumCovers } from '@/cover/useWarmTrackListAlbumCovers';
 import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
+import { appendServerQuery } from '@/lib/navigation/detailServerScope';
+import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
 
 const PL_CENTERED = new Set(['favorite', 'rating', 'duration', 'playCount', 'bpm']);
 
@@ -41,6 +43,8 @@ interface Props {
   starredSongs: Set<string>;
   handleRate: (songId: string, rating: number) => void;
   handleToggleStar: (song: SubsonicSong, e: React.MouseEvent) => void;
+  ownerServerId: string;
+  canEditMembership: boolean;
 }
 
 export default function PlaylistSuggestions({
@@ -50,7 +54,7 @@ export default function PlaylistSuggestions({
   contextMenuSongId, setContextMenuSongId,
   hoveredSuggestionId, setHoveredSuggestionId,
   addSong, startPreview,
-  ratings, starredSongs, handleRate, handleToggleStar,
+  ratings, starredSongs, handleRate, handleToggleStar, ownerServerId, canEditMembership,
 }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -73,7 +77,7 @@ export default function PlaylistSuggestions({
     enabled: trackListCoversOn && suggestionsVisible && filteredSuggestions.length > 0,
   });
 
-  if (!suggestionsVisible) return null;
+  if (!suggestionsVisible || !canEditMembership) return null;
 
   return (
     <div className="playlist-suggestions tracklist" data-preview-loc="suggestions">
@@ -113,11 +117,12 @@ export default function PlaylistSuggestions({
           </div>
 
           {filteredSuggestions.map((song, idx) => {
-            const isStarred = song.id in starredOverrides
-              ? !!starredOverrides[song.id]
+            const overrideKey = entityOverrideKey(ownerServerId, song.id);
+            const isStarred = overrideKey in starredOverrides
+              ? !!starredOverrides[overrideKey]
               : (starredSongs.has(song.id) || !!song.starred);
             const ratingValue = ratings[song.id]
-              ?? userRatingOverrides[song.id]
+              ?? userRatingOverrides[overrideKey]
               ?? song.userRating
               ?? 0;
             return (
@@ -129,12 +134,12 @@ export default function PlaylistSuggestions({
               onMouseLeave={() => setHoveredSuggestionId(null)}
               onDoubleClick={e => {
                 if ((e.target as HTMLElement).closest('button, a, input')) return;
-                addSong(song);
+                if (canEditMembership) addSong(song);
               }}
               onContextMenu={e => {
                 e.preventDefault();
                 setContextMenuSongId(song.id);
-                openContextMenu(e.clientX, e.clientY, songToTrack(song), 'album-song');
+                openContextMenu(e.clientX, e.clientY, { ...songToTrack(song), serverId: ownerServerId }, 'album-song');
               }}
             >
               {visibleCols.map(colDef => {
@@ -189,7 +194,12 @@ export default function PlaylistSuggestions({
                   case 'artist': return <PlaylistArtistCell key="artist" song={song} />;
                   case 'album': return (
                     <div key="album" className="track-artist-cell">
-                      <span className={`track-artist${song.albumId ? ' track-artist-link' : ''}`} style={{ cursor: song.albumId ? 'pointer' : 'default' }} onClick={e => { if (song.albumId) { e.stopPropagation(); navigate(`/album/${song.albumId}`); } }}>{song.album}</span>
+                      <span className={`track-artist${song.albumId ? ' track-artist-link' : ''}`} style={{ cursor: song.albumId ? 'pointer' : 'default' }} onClick={e => {
+                        if (!song.albumId) return;
+                        e.stopPropagation();
+                        const query = appendServerQuery(undefined, ownerServerId);
+                        navigate(`/album/${song.albumId}${query ? `?${query}` : ''}`);
+                      }}>{song.album}</span>
                     </div>
                   );
                   case 'favorite': return (
@@ -218,13 +228,13 @@ export default function PlaylistSuggestions({
                   case 'bpm': return (
                     <div key="bpm" className="track-duration">{song.bpm && song.bpm > 0 ? song.bpm : '—'}</div>
                   );
-                  case 'delete': return (
+                  case 'delete': return canEditMembership ? (
                     <div key="delete" className="playlist-row-delete-cell">
                       <button className="playlist-row-delete-btn" style={{ color: hoveredSuggestionId === song.id ? 'var(--accent)' : undefined }} onClick={e => { e.stopPropagation(); addSong(song); }} data-tooltip={t('playlists.addSong')} data-tooltip-pos="left">
                         <Plus size={13} />
                       </button>
                     </div>
-                  );
+                  ) : <div key="delete" />;
                   default: return null;
                 }
               })}

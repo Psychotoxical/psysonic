@@ -47,6 +47,37 @@ describe('libraryBrowseScope', () => {
     ]);
   });
 
+  it('coalesces selected profiles sharing one index key under the first profile owner', () => {
+    expect(buildConfiguredLibraryScopePairs({
+      ...state,
+      servers: [
+        { id: 'primary', url: 'https://same.example' },
+        { id: 'alias', url: 'http://same.example/' },
+      ],
+      musicLibraryServerIds: ['alias', 'primary'],
+      musicLibrarySelectionByServer: {
+        primary: ['shared', 'primary-only'],
+        alias: ['alias-only', 'shared'],
+      },
+    })).toEqual([
+      { serverId: 'primary', libraryId: 'shared' },
+      { serverId: 'primary', libraryId: 'primary-only' },
+      { serverId: 'primary', libraryId: 'alias-only' },
+    ]);
+  });
+
+  it('lets an all-libraries alias dominate exact selections for the shared index', () => {
+    expect(buildConfiguredLibraryScopePairs({
+      ...state,
+      servers: [
+        { id: 'primary', url: 'https://same.example' },
+        { id: 'alias', url: 'http://same.example/' },
+      ],
+      musicLibraryServerIds: ['primary', 'alias'],
+      musicLibrarySelectionByServer: { primary: ['one'], alias: [] },
+    })).toEqual([{ serverId: 'primary', libraryId: null }]);
+  });
+
   it('emits a whole-server pair for an all-libraries selection', () => {
     expect(buildConfiguredLibraryScopePairs({
       ...state,

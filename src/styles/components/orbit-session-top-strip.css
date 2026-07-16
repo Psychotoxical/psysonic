@@ -460,10 +460,11 @@
   color: var(--accent);
   flex-shrink: 0;
 }
-.orbit-launch-pop__item:hover:not(:disabled) {
+.orbit-launch-pop__item:hover:not(:disabled):not([aria-disabled='true']) {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
-.orbit-launch-pop__item:disabled {
+.orbit-launch-pop__item:disabled,
+.orbit-launch-pop__item[aria-disabled='true'] {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -1913,4 +1914,3 @@
   margin-left: 0.4rem;
   opacity: 0.5;
 }
-

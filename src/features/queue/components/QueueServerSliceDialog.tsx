@@ -1,6 +1,8 @@
+import { useRef } from 'react';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { QueueServerSlice } from '@/features/queue/utils/queueServerSlices';
+import { useModalFocus } from '@/lib/hooks/useModalFocus';
 
 interface Props {
   action: 'save' | 'share';
@@ -22,10 +24,28 @@ export function QueueServerSliceDialog({
   const { t } = useTranslation();
   const titleId = `queue-server-slice-${action}-title`;
   const descriptionId = `queue-server-slice-${action}-description`;
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const selectedRef = useRef<HTMLInputElement>(null);
+
+  useModalFocus({
+    open: true,
+    containerRef: dialogRef,
+    onEscape: onCancel,
+    initialFocusRef: selectedRef,
+  });
 
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId}>
-      <div className="modal-content" style={{ maxWidth: '440px' }}>
+    <div className="modal-overlay queue-server-slice-overlay" onClick={onCancel}>
+      <div
+        ref={dialogRef}
+        className="modal-content queue-server-slice-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        tabIndex={-1}
+        onClick={event => event.stopPropagation()}
+      >
         <button type="button" className="modal-close" onClick={onCancel} aria-label={t('queue.close')}>
           <X size={18} />
         </button>
@@ -46,6 +66,7 @@ export function QueueServerSliceDialog({
                 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}
               >
                 <input
+                  ref={selectedServerId === slice.server.id ? selectedRef : undefined}
                   type="radio"
                   name={`queue-server-slice-${action}`}
                   value={slice.server.id}
