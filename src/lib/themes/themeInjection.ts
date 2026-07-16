@@ -97,3 +97,25 @@ export function syncInjectedThemes(themes: InstalledTheme[]): void {
     });
   for (const theme of themes) injectTheme(theme);
 }
+
+/**
+ * Gate injected theme styles by activity: only the styles for `activeIds`
+ * (the applied theme plus the scheduler's day/night slots) participate in
+ * style matching — every other installed theme's <style> gets
+ * `media="not all"`, so the browser skips its rules entirely. With many
+ * installed themes (a big collection, or a dev `--theme-watch` checkout
+ * sweep), an ungated head makes every style recalculation — e.g. `:hover`
+ * while moving the mouse across the Themes grid — walk all of their rules;
+ * gating keeps recalc cost independent of the installed count. Switching
+ * themes only flips the attribute: synchronous, no re-inject, no flash.
+ */
+export function gateInjectedThemes(activeIds: Iterable<string>): void {
+  const active = new Set(activeIds);
+  document.head
+    .querySelectorAll<HTMLStyleElement>(`style[${ATTR}]`)
+    .forEach((el) => {
+      const id = el.getAttribute(ATTR);
+      const media = id && active.has(id) ? 'all' : 'not all';
+      if (el.media !== media) el.media = media;
+    });
+}

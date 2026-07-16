@@ -5,7 +5,7 @@ import { setLoggingMode, setSubsonicWireUserAgent } from '@/lib/api/platformShel
 import { getWindowKind } from './windowKind';
 import { migrateThemeSelection } from '@/lib/themes/themeMigration';
 import { getScheduledTheme, useThemeStore } from '../store/themeStore';
-import { syncInjectedThemes } from '@/lib/themes/themeInjection';
+import { gateInjectedThemes, syncInjectedThemes } from '@/lib/themes/themeInjection';
 import { useInstalledThemesStore, type InstalledTheme } from '../store/installedThemesStore';
 
 /** Sync backend HTTP User-Agent from the main webview once at startup. */
@@ -69,6 +69,13 @@ export function applyThemeAtStartup(): void {
     const s = parsed.state;
     if (!s) return;
     syncInjectedThemes(readInstalledThemes());
+    // Gate to the active slots right away so the first style recalcs don't
+    // walk every installed theme's rules (App's effect re-gates after mount).
+    gateInjectedThemes([
+      String(s.theme ?? 'mocha'),
+      String(s.themeDay ?? 'latte'),
+      String(s.themeNight ?? 'mocha'),
+    ]);
     // First-frame best effort for the "follow system" mode: the Web media query
     // is sync here (the native Tauri theme resolves only after mount, when the
     // App effect re-applies the effective theme). Unreliable on Linux WebKitGTK,

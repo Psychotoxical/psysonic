@@ -4,7 +4,7 @@ import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useLyricsStore } from './store/lyricsStore';
 import { useThemeStore } from './store/themeStore';
 import { useInstalledThemesStore } from './store/installedThemesStore';
-import { syncInjectedThemes } from '@/lib/themes/themeInjection';
+import { gateInjectedThemes, syncInjectedThemes } from '@/lib/themes/themeInjection';
 import { useThemeScheduler } from '@/app/hooks/useThemeScheduler';
 import { useFontStore } from './store/fontStore';
 import { getWindowKind } from './app/windowKind';
@@ -12,9 +12,9 @@ import MiniPlayerApp from './app/MiniPlayerApp';
 import MainApp from './app/MainApp';
 
 export default function App() {
-  // Re-subscribe so themeStore changes trigger a re-render (the value itself
-  // is consumed via useThemeScheduler / data-theme attribute below).
-  useThemeStore(s => s.theme);
+  const theme = useThemeStore(s => s.theme);
+  const themeDay = useThemeStore(s => s.themeDay);
+  const themeNight = useThemeStore(s => s.themeNight);
   const effectiveTheme = useThemeScheduler();
   const font = useFontStore(s => s.font);
   const buttonSize = useThemeStore(s => s.buttonSize);
@@ -31,7 +31,12 @@ export default function App() {
   // active community theme is painted without a network round-trip.
   useEffect(() => {
     syncInjectedThemes(installedThemes);
-  }, [installedThemes]);
+    // Only the active slots participate in style matching (inactive styles
+    // get media="not all" — see gateInjectedThemes). Runs in the same effects
+    // flush as the data-theme attribute below, so a switch paints with both
+    // applied.
+    gateInjectedThemes([theme, themeDay, themeNight, effectiveTheme]);
+  }, [installedThemes, theme, themeDay, themeNight, effectiveTheme]);
 
   // Dev only: `--theme-watch <theme.css | dir>` (debug builds) pushes local
   // theme CSS (+ sibling manifest.json metadata) in on every save. Each

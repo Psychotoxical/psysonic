@@ -8,6 +8,7 @@ import {
   validateThemeCss,
   injectTheme,
   syncInjectedThemes,
+  gateInjectedThemes,
 } from '@/lib/themes/themeInjection';
 import type { InstalledTheme } from '@/store/installedThemesStore';
 
@@ -118,5 +119,34 @@ describe('syncInjectedThemes', () => {
   it('does not inject css that fails the floor', () => {
     syncInjectedThemes([mk('a', `@import 'evil.css'; ${block('a')}`)]);
     expect(injected()).toHaveLength(0);
+  });
+});
+
+describe('gateInjectedThemes', () => {
+  const media = (id: string) =>
+    document.head.querySelector<HTMLStyleElement>(`style[${ATTR}="${id}"]`)?.media;
+
+  it('disables inactive styles via media="not all" and keeps active ones on', () => {
+    syncInjectedThemes([mk('a', block('a')), mk('b', block('b')), mk('c', block('c'))]);
+    gateInjectedThemes(['b']);
+    expect(media('a')).toBe('not all');
+    expect(media('b')).toBe('all');
+    expect(media('c')).toBe('not all');
+  });
+
+  it('re-enables a style when its theme becomes active', () => {
+    syncInjectedThemes([mk('a', block('a')), mk('b', block('b'))]);
+    gateInjectedThemes(['a']);
+    gateInjectedThemes(['b']);
+    expect(media('a')).toBe('not all');
+    expect(media('b')).toBe('all');
+  });
+
+  it('keeps every listed slot active (theme + scheduler day/night)', () => {
+    syncInjectedThemes([mk('a', block('a')), mk('b', block('b')), mk('c', block('c'))]);
+    gateInjectedThemes(['a', 'c']);
+    expect(media('a')).toBe('all');
+    expect(media('b')).toBe('not all');
+    expect(media('c')).toBe('all');
   });
 });
