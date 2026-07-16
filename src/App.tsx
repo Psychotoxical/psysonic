@@ -8,6 +8,7 @@ import { gateInjectedThemes, syncInjectedThemes } from '@/lib/themes/themeInject
 import { useThemeScheduler } from '@/app/hooks/useThemeScheduler';
 import { useFontStore } from './store/fontStore';
 import { getWindowKind } from './app/windowKind';
+import { showToast } from '@/lib/dom/toast';
 import MiniPlayerApp from './app/MiniPlayerApp';
 import MainApp from './app/MainApp';
 
@@ -85,7 +86,16 @@ export default function App() {
           installedAt: prev?.installedAt ?? Date.now(),
           dev: prev ? prev.dev ?? false : true,
         });
-        if (apply) useThemeStore.getState().setTheme(id);
+        if (apply) {
+          useThemeStore.getState().setTheme(id);
+          // Confirm the save reached the app — theme authors watch the app
+          // window, not the terminal. Main window only: the mini player
+          // subscribes too and would double the toast. Dev-only path, so the
+          // string stays untranslated (same as the rest of theme-watch).
+          if (getWindowKind() !== 'mini') {
+            showToast(`Theme synced: ${payload.name ?? prev?.name ?? id}`, 2500, 'success');
+          }
+        }
       };
       const subs = [
         listen<WatchPayload>('theme-watch:css', ({ payload }) => install(payload, true)),
