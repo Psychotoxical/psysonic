@@ -3,10 +3,12 @@ import test from 'node:test';
 
 import {
   evaluateRequiredJobs,
+  isTransientApiError,
   newestChecksByName,
   pathTriggersFrontend,
   pathTriggersRust,
   requiredJobNames,
+  withTransientRetry,
 } from './ci-ok-aggregate.mjs';
 
 test('pathTriggersFrontend matches frontend workflow paths', () => {
@@ -51,4 +53,76 @@ test('evaluateRequiredJobs passes when all required jobs succeeded', () => {
   }));
   const result = evaluateRequiredJobs(['eslint', 'vitest run'], newestChecksByName(checks));
   assert.equal(result.done, true);
+});
+
+test('isTransientApiError treats 5xx, 429 and network errors as transient', () => {
+  assert.equal(isTransientApiError({ status: 503 }), true);
+  assert.equal(isTransientApiError({ status: 500 }), true);
+  assert.equal(isTransientApiError({ status: 429 }), true);
+  assert.equal(isTransientApiError(new Error('socket hang up')), true);
+  assert.equal(isTransientApiError({ status: 404 }), false);
+  assert.equal(isTransientApiError({ status: 401 }), false);
+});
+
+const silentCore = { info: () => {} };
+
+test('withTransientRetry retries transient errors and returns the late success', async () => {
+  let calls = 0;
+  const result = await withTransientRetry(
+    'test',
+    async () => {
+      calls += 1;
+      if (calls < 3) {
+        const err = new Error('unavailable');
+        err.status = 503;
+        throw err;
+      }
+      return 'ok';
+    },
+    silentCore,
+    5,
+    1,
+  );
+  assert.equal(result, 'ok');
+  assert.equal(calls, 3);
+});
+
+test('withTransientRetry rethrows non-transient errors immediately', async () => {
+  let calls = 0;
+  await assert.rejects(
+    withTransientRetry(
+      'test',
+      async () => {
+        calls += 1;
+        const err = new Error('not found');
+        err.status = 404;
+        throw err;
+      },
+      silentCore,
+      5,
+      1,
+    ),
+    /not found/,
+  );
+  assert.equal(calls, 1);
+});
+
+test('withTransientRetry gives up after the attempt budget', async () => {
+  let calls = 0;
+  await assert.rejects(
+    withTransientRetry(
+      'test',
+      async () => {
+        calls += 1;
+        const err = new Error('unavailable');
+        err.status = 503;
+        throw err;
+      },
+      silentCore,
+      3,
+      1,
+    ),
+    /unavailable/,
+  );
+  assert.equal(calls, 3);
 });

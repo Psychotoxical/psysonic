@@ -26,6 +26,33 @@ const POLL_MS = 30_000;
 const TIMEOUT_MS = 90 * 60 * 1000;
 const OK_CONCLUSIONS = new Set(['success', 'neutral', 'skipped']);
 
+/**
+ * GitHub API hiccups (5xx, secondary rate limits, dropped connections) must
+ * not fail the gate — the answer is to poll again, not to go red while the
+ * real jobs are green. 4xx config errors (401/404 …) still throw.
+ */
+export function isTransientApiError(err) {
+  const status = typeof err?.status === 'number' ? err.status : 0;
+  return status === 0 || status === 429 || status >= 500;
+}
+
+export async function withTransientRetry(label, fn, core, attempts = 5, delayMs = POLL_MS) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (!isTransientApiError(err) || attempt >= attempts) {
+        throw err;
+      }
+      // err.message can be a whole HTML error page — log only the status.
+      core.info(
+        `${label}: transient API error (status=${err?.status ?? 'network'}), retry ${attempt}/${attempts - 1} in ${delayMs / 1000}s`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
 export function pathTriggersFrontend(file) {
   return FRONTEND_PATH_RE.test(file);
 }
@@ -150,7 +177,11 @@ export async function runCiOkAggregate(github, context, core) {
   const { owner, repo } = context.repo;
   const sha = resolveTargetSha(context);
   const excludeRunId = String(context.runId);
-  const changedFiles = await listChangedFiles(github, context);
+  const changedFiles = await withTransientRetry(
+    'listChangedFiles',
+    () => listChangedFiles(github, context),
+    core,
+  );
   const required = requiredJobNames(changedFiles);
 
   core.info(`ci-ok @ ${sha}; ${changedFiles.length} changed file(s)`);
@@ -162,12 +193,24 @@ export async function runCiOkAggregate(github, context, core) {
 
   const deadline = Date.now() + TIMEOUT_MS;
   while (Date.now() < deadline) {
-    const checksAll = await github.paginate(github.rest.checks.listForRef, {
-      owner,
-      repo,
-      ref: sha,
-      per_page: 100,
-    });
+    let checksAll;
+    try {
+      checksAll = await github.paginate(github.rest.checks.listForRef, {
+        owner,
+        repo,
+        ref: sha,
+        per_page: 100,
+      });
+    } catch (err) {
+      if (!isTransientApiError(err)) {
+        throw err;
+      }
+      // Same as an inconclusive poll: wait out the hiccup, the 90-minute
+      // deadline stays the backstop.
+      core.info(`checks.listForRef: transient API error (status=${err?.status ?? 'network'}) — retrying next poll`);
+      await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+      continue;
+    }
     const newestByName = newestChecksByName(checksAll, excludeRunId);
     const { pending, failures, done } = evaluateRequiredJobs(required, newestByName);
 
