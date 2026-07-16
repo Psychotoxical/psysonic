@@ -1,6 +1,6 @@
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import React, { memo, useMemo } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useNavigateToAlbum } from '@/features/album/hooks/useNavigateToAlbum';
 import { Play, ListPlus, HardDriveDownload, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -24,8 +24,6 @@ import { isAlbumRecentlyAdded } from '@/features/album/utils/albumRecency';
 import { albumArtistDisplayName, deriveAlbumArtistRefs } from '@/features/album/utils/deriveAlbumHeaderArtistRefs';
 import { coverServerScopeForServerId } from '@/cover/serverScope';
 import { appendServerQuery } from '@/lib/navigation/detailServerScope';
-import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
-import { navigateToArtistDetail } from '@/lib/navigation/albumDetailNavigation';
 
 interface AlbumCardProps {
   album: SubsonicAlbum;
@@ -70,7 +68,6 @@ function AlbumCard({
     onLongPress: () => playAlbumShuffled(album.id, album.serverId ? { serverId: album.serverId } : undefined),
   });
   const navigate = useNavigate();
-  const location = useLocation();
   const navigateToAlbum = useNavigateToAlbum();
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const enqueue = usePlayerStore(s => s.enqueue);
@@ -99,7 +96,7 @@ function AlbumCard({
   const artistLabel = useMemo(() => albumArtistDisplayName(album), [album]);
 
   const handleClick = (opts?: { shiftKey?: boolean }) => {
-    if (selectionMode) { onToggleSelect?.(libraryEntityKey(album), opts); return; }
+    if (selectionMode) { onToggleSelect?.(album.id, opts); return; }
     navigateToAlbum(album.id, { search: albumLinkQuery });
   };
 
@@ -218,10 +215,7 @@ function AlbumCard({
           <OpenArtistRefInline
             refs={artistRefs}
             fallbackName={artistLabel}
-            onGoArtist={id => {
-              const search = appendServerQuery(undefined, album.serverId);
-              navigateToArtistDetail(navigate, location, id, search ? { search } : undefined);
-            }}
+            onGoArtist={id => navigate(`/artist/${id}`)}
             as="none"
             linkTag="span"
             linkClassName="track-artist-link"

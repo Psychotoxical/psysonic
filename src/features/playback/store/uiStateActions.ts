@@ -6,8 +6,6 @@ import {
   ensurePlaybackServerActive,
   playbackServerDiffersFromActive,
 } from '@/features/playback/utils/playback/playbackServer';
-import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
-import { useAuthStore } from '@/store/authStore';
 
 type SetState = (
   partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>),
@@ -31,31 +29,20 @@ export function createUiStateActions(set: SetState): Pick<
   | 'toggleRepeat'
 > {
   return {
-    setStarredOverride: (id, starred, serverId) => {
-      const sid = serverId ?? useAuthStore.getState().activeServerId ?? '';
-      set(s => ({
-        starredOverrides: {
-          ...s.starredOverrides,
-          [entityOverrideKey(sid, id)]: starred,
-        },
-      }));
-    },
+    setStarredOverride: (id, starred) =>
+      set(s => ({ starredOverrides: { ...s.starredOverrides, [id]: starred } })),
 
-    setUserRatingOverride: (id, rating, serverId) =>
+    setUserRatingOverride: (id, rating) =>
       set(s => {
-        const sid = serverId ?? s.currentTrack?.serverId ?? useAuthStore.getState().activeServerId ?? '';
-        const key = entityOverrideKey(sid, id);
         const nextOverrides = { ...s.userRatingOverrides };
-        if (rating === 0) delete nextOverrides[key];
-        else nextOverrides[key] = rating;
+        if (rating === 0) delete nextOverrides[id];
+        else nextOverrides[id] = rating;
         // Thin-state: the queue's copy lives in the resolver cache; the override
         // map (merged on read via applyQueueOverrides) drives the queue-row UI.
         return {
           userRatingOverrides: nextOverrides,
           currentTrack:
-            s.currentTrack?.id === id && (s.currentTrack.serverId ?? sid) === sid
-              ? { ...s.currentTrack, userRating: rating }
-              : s.currentTrack,
+            s.currentTrack?.id === id ? { ...s.currentTrack, userRating: rating } : s.currentTrack,
         };
       }),
 

@@ -160,11 +160,8 @@ describe('genreBrowsePlayback', () => {
   });
 
   it('loads all-libraries genre cloud via unscoped SQL, not an album sample', async () => {
-    const { libraryScopePairsForServer, librarySelectionForServer } = await import('@/lib/api/subsonicClient');
+    const { librarySelectionForServer } = await import('@/lib/api/subsonicClient');
     vi.mocked(librarySelectionForServer).mockReturnValue([]);
-    vi.mocked(libraryScopePairsForServer).mockReturnValue([
-      { serverId: 'srv-1', libraryId: null },
-    ]);
     vi.mocked(libraryIsReady).mockResolvedValue(true);
     vi.mocked(libraryGetGenreAlbumCounts).mockResolvedValue([
       { value: 'Ambient', albumCount: 3, songCount: 12 },
@@ -175,10 +172,7 @@ describe('genreBrowsePlayback', () => {
       { value: 'Ambient', albumCount: 3, songCount: 12 },
       { value: 'Rock', albumCount: 42, songCount: 900 },
     ]);
-    expect(libraryGetGenreAlbumCounts).toHaveBeenCalledWith({
-      serverId: 'srv-1',
-      libraryScopes: [{ serverId: 'srv-1', libraryId: null }],
-    });
+    expect(libraryGetGenreAlbumCounts).toHaveBeenCalledWith({ serverId: 'srv-1' });
     expect(getGenres).not.toHaveBeenCalled();
   });
 
@@ -197,10 +191,7 @@ describe('genreBrowsePlayback', () => {
     ]);
     expect(libraryGetGenreAlbumCounts).toHaveBeenCalledWith({
       serverId: 'srv-1',
-      libraryScopes: [
-        { serverId: 'srv-1', libraryId: 'lib-a' },
-        { serverId: 'srv-1', libraryId: 'lib-b' },
-      ],
+      libraryScopes: ['lib-a', 'lib-b'],
     });
   });
 

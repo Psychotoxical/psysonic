@@ -58,9 +58,6 @@ import {
   resetProgressEmitThrottles,
 } from '@/features/playback/store/playbackThrottles';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
-import { beginPlaybackAlternativeResolution } from '@/features/playback/store/playbackAlternativeStore';
-import { createGenerationGuardedPlaybackSkip } from '@/features/playback/store/playbackErrorSkip';
-import i18n from '@/lib/i18n';
 import { promoteCompletedStreamToHotCache } from '@/features/playback/store/promoteStreamCache';
 import {
   getLastQueueHeartbeatAt,
@@ -531,20 +528,12 @@ export function handleAudioError(message: string): void {
   void playbackReportStopped();
 
   const detail = message.length > 80 ? message.slice(0, 80) + '…' : message;
+  showToast(`Couldn't play track — skipping. ${detail}`, 8000, 'error');
+
   const gen = getPlayGeneration();
   usePlayerStore.setState({ isPlaying: false, isPlaybackBuffering: false });
-  const scheduleGuardedSkip = createGenerationGuardedPlaybackSkip({
-    generation: gen,
-    getGeneration: getPlayGeneration,
-    skip: () => usePlayerStore.getState().next(false),
-  });
-  const resumeNormalSkip = () => {
-    showToast(i18n.t('player.playbackErrorSkipping', { detail }), 8000, 'error');
-    scheduleGuardedSkip();
-  };
-  if (beginPlaybackAlternativeResolution(detail, resumeNormalSkip)) {
-    showToast(i18n.t('player.playbackAlternativePrompt'), 8000, 'error');
-    return;
-  }
-  resumeNormalSkip();
+  setTimeout(() => {
+    if (getPlayGeneration() !== gen) return;
+    usePlayerStore.getState().next(false);
+  }, 1500);
 }

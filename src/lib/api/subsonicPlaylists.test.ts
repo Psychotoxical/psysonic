@@ -7,19 +7,16 @@ import {
   chunkSongIdsForSubsonicGet,
   removePlaylistSongsAtIndices,
   updatePlaylist,
-  updatePlaylistForServer,
-  updatePlaylistMetaForServer,
-  deletePlaylistForServer,
 } from '@/lib/api/subsonicPlaylists';
 
-const { apiMock, apiForServerMock } = vi.hoisted(() => {
+const { apiMock } = vi.hoisted(() => {
   const fn = vi.fn();
-  return { apiMock: fn, apiForServerMock: vi.fn() };
+  return { apiMock: fn };
 });
 
 vi.mock('@/lib/api/subsonicClient', () => ({
   api: apiMock,
-  apiForServer: apiForServerMock,
+  apiForServer: vi.fn(),
 }));
 
 vi.mock('@/features/offline', () => ({
@@ -29,7 +26,6 @@ vi.mock('@/features/offline', () => ({
 describe('subsonicPlaylists batching', () => {
   beforeEach(() => {
     apiMock.mockReset();
-    apiForServerMock.mockReset();
     apiMock.mockImplementation(async (endpoint: string) => {
       if (endpoint === 'getPlaylist.view') {
         return {
@@ -103,24 +99,5 @@ describe('subsonicPlaylists batching', () => {
     expect(endpoints.filter(e => e === 'updatePlaylist.view').length).toBeGreaterThan(0);
     expect(endpoints.filter(e => e === 'createPlaylist.view')).toHaveLength(0);
     expect(calls.some(call => call[1]?.songIdToAdd)).toBe(true);
-  });
-
-  it('routes detail mutations to the explicit playlist owner', async () => {
-    await updatePlaylistForServer('srv-b', 'same-id', ['b-1', 'b-2'], 1);
-    await updatePlaylistMetaForServer('srv-b', 'same-id', 'B playlist', 'comment', true);
-    await deletePlaylistForServer('srv-b', 'same-id');
-
-    expect(apiForServerMock).toHaveBeenNthCalledWith(1, 'srv-b', 'createPlaylist.view', {
-      playlistId: 'same-id',
-      songId: ['b-1', 'b-2'],
-    });
-    expect(apiForServerMock).toHaveBeenNthCalledWith(2, 'srv-b', 'updatePlaylist.view', {
-      playlistId: 'same-id',
-      name: 'B playlist',
-      comment: 'comment',
-      public: true,
-    });
-    expect(apiForServerMock).toHaveBeenNthCalledWith(3, 'srv-b', 'deletePlaylist.view', { id: 'same-id' });
-    expect(apiMock).not.toHaveBeenCalled();
   });
 });

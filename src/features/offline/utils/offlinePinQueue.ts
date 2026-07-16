@@ -35,36 +35,31 @@ export function clearOfflinePinTasks(): void {
   pinTasks.clear();
 }
 
-function pinKey(serverId: string | undefined, albumId: string): string {
-  return `${serverId}:${albumId}`;
-}
-
-export function removeOfflinePinTask(albumId: string, serverId?: string): void {
-  if (serverId) pinTasks.delete(pinKey(serverId, albumId));
-  else for (const key of pinTasks.keys()) if (key.endsWith(`:${albumId}`)) pinTasks.delete(key);
+export function removeOfflinePinTask(albumId: string): void {
+  pinTasks.delete(albumId);
 }
 
 /** True when the album is waiting in the pin queue (not actively downloading). */
-export function isAlbumPinQueued(albumId: string, serverId?: string): boolean {
+export function isAlbumPinQueued(albumId: string): boolean {
   return useOfflineJobStore.getState().pinQueue.some(
-    p => p.albumId === albumId && (!serverId || p.serverId === serverId) && p.status === 'queued',
+    p => p.albumId === albumId && p.status === 'queued',
   );
 }
 
 /** Remove a queued pin before download starts. No-op if already downloading. */
-export function dequeueOfflinePin(albumId: string, serverId?: string): boolean {
+export function dequeueOfflinePin(albumId: string): boolean {
   const store = useOfflineJobStore.getState();
-  const entry = store.pinQueue.find(p => p.albumId === albumId && (!serverId || p.serverId === serverId));
+  const entry = store.pinQueue.find(p => p.albumId === albumId);
   if (!entry || entry.status !== 'queued') return false;
   cancelledDownloads.add(albumId);
-  removeOfflinePinTask(albumId, serverId);
-  store.removePinFromQueue(albumId, serverId);
+  removeOfflinePinTask(albumId);
+  store.removePinFromQueue(albumId);
   return true;
 }
 
-function isPinAlreadyScheduled(serverId: string, albumId: string): boolean {
+function isPinAlreadyScheduled(albumId: string): boolean {
   const { pinQueue } = useOfflineJobStore.getState();
-  return pinQueue.some(p => p.serverId === serverId && p.albumId === albumId);
+  return pinQueue.some(p => p.albumId === albumId);
 }
 
 /**
@@ -75,23 +70,22 @@ export function enqueueOfflinePin(task: OfflinePinTask): boolean {
   cancelledDownloads.delete(task.albumId);
 
   const store = useOfflineJobStore.getState();
-  const existing = store.pinQueue.find(p => p.serverId === task.serverId && p.albumId === task.albumId);
+  const existing = store.pinQueue.find(p => p.albumId === task.albumId);
   if (existing?.status === 'downloading') {
     return false;
   }
 
-  pinTasks.set(pinKey(task.serverId, task.albumId), task);
+  pinTasks.set(task.albumId, task);
 
   if (existing?.status === 'queued') {
     scheduleOfflinePinQueue();
     return true;
   }
-  if (isPinAlreadyScheduled(task.serverId, task.albumId)) {
+  if (isPinAlreadyScheduled(task.albumId)) {
     return false;
   }
 
   const entry: OfflinePinQueueEntry = {
-    serverId: task.serverId,
     albumId: task.albumId,
     albumName: task.albumName,
     pinKind: task.type,
@@ -119,18 +113,18 @@ async function drainOfflinePinQueue(): Promise<void> {
       if (!next) break;
 
       if (cancelledDownloads.has(next.albumId)) {
-        store.removePinFromQueue(next.albumId, next.serverId);
-        pinTasks.delete(pinKey(next.serverId, next.albumId));
+        store.removePinFromQueue(next.albumId);
+        pinTasks.delete(next.albumId);
         continue;
       }
 
-      const task = pinTasks.get(pinKey(next.serverId, next.albumId));
+      const task = pinTasks.get(next.albumId);
       if (!task) {
-        store.removePinFromQueue(next.albumId, next.serverId);
+        store.removePinFromQueue(next.albumId);
         continue;
       }
 
-      store.setPinQueueStatus(next.albumId, 'downloading', next.serverId);
+      store.setPinQueueStatus(next.albumId, 'downloading');
       try {
         await executor(task);
       } catch {
@@ -139,8 +133,8 @@ async function drainOfflinePinQueue(): Promise<void> {
         if (task.artistProgressGroupId) {
           store.bumpBulkProgressDone(task.artistProgressGroupId);
         }
-        store.removePinFromQueue(next.albumId, next.serverId);
-        pinTasks.delete(pinKey(next.serverId, next.albumId));
+        store.removePinFromQueue(next.albumId);
+        pinTasks.delete(next.albumId);
       }
     }
   } finally {

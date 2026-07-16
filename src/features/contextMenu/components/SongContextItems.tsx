@@ -171,7 +171,7 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
                 </div>
               )}
               <div className="context-menu-divider" />
-              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink('track', song.id, song.serverId))}>
+              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink('track', song.id))}>
                 <Share2 size={14} /> {t('contextMenu.shareLink')}
               </div>
               <div className="context-menu-item" onClick={() => handleAction(() => openSongInfo(song.id))}>
@@ -179,18 +179,17 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
               </div>
               {offlinePolicy.canEditPlaylist && playlistId && playlistSongIndex !== undefined && (
                 <div className="context-menu-item" style={{ color: 'var(--danger)' }} onClick={() => handleAction(async () => {
-                   const { removePlaylistSongsAtIndicesForServer } = await import('@/lib/api/subsonicPlaylists');
+                  const { removePlaylistSongsAtIndices } = await import('@/lib/api/subsonicPlaylists');
                   const { showToast } = await import('@/lib/dom/toast');
                   const { touchPlaylist } = usePlaylistStore.getState();
                   const membership = usePlaylistMembershipStore.getState();
                   try {
-                     if (!song.serverId) throw new Error('Playlist owner unavailable');
-                     await removePlaylistSongsAtIndicesForServer(song.serverId, playlistId, [playlistSongIndex]);
-                     membership.removePlaylistSongIdsAtIndices(playlistId, [playlistSongIndex], song.serverId);
-                     touchPlaylist(playlistId, song.serverId);
+                    await removePlaylistSongsAtIndices(playlistId, [playlistSongIndex]);
+                    membership.removePlaylistSongIdsAtIndices(playlistId, [playlistSongIndex]);
+                    touchPlaylist(playlistId);
                     showToast(t('playlists.removeSuccess'), 3000, 'info');
                   } catch {
-                     membership.invalidatePlaylistSongIds(playlistId, song.serverId);
+                    membership.invalidatePlaylistSongIds(playlistId);
                     showToast(t('playlists.removeError'), 4000, 'error');
                   }
                 })}>
@@ -312,7 +311,7 @@ export default function SongContextItems(props: ContextMenuItemsProps) {
                 </div>
               )}
               <div className="context-menu-divider" />
-              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink('track', song.id, song.serverId))}>
+              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink('track', song.id))}>
                 <Share2 size={14} /> {t('contextMenu.shareLink')}
               </div>
               <div className="context-menu-item" onClick={() => handleAction(() => openSongInfo(song.id))}>

@@ -2,9 +2,6 @@ import { useAuthStore } from '@/store/authStore';
 import { genreTagsFor } from '@/lib/library/genreTags';
 import { getArtists, getArtistsAcrossLibraries } from '@/lib/api/subsonicArtists';
 import { getAlbumList, getRandomSongs } from '@/lib/api/subsonicLibrary';
-import { libraryScopeCatalogStatistics, libraryScopeMostPlayedAlbums } from '@/lib/api/library';
-import type { LibraryScopePair } from '@/lib/api/library';
-import { albumToAlbum } from '@/lib/library/advancedSearchLocal';
 import { libraryScopeCacheKeyForServer, librarySelectionForServer } from '@/lib/api/subsonicClient';
 import type {
   StatisticsFormatSample,
@@ -20,10 +17,10 @@ import type {
 const STATS_CACHE_TTL = 7 * 60 * 1000;
 
 /** Key `prefix:serverId:scope` — Statistics caches share scope with `libraryFilterParams()`. */
-export function statisticsPageCacheKey(prefix: string, scopeFingerprint?: string): string | null {
+export function statisticsPageCacheKey(prefix: string): string | null {
   const { activeServerId } = useAuthStore.getState();
   if (!activeServerId) return null;
-  return `${prefix}:${activeServerId}:${scopeFingerprint ?? libraryScopeCacheKeyForServer(activeServerId)}`;
+  return `${prefix}:${activeServerId}:${libraryScopeCacheKeyForServer(activeServerId)}`;
 }
 
 const statisticsAggregatesCache = new Map<string, { value: StatisticsLibraryAggregates; expiresAt: number }>();
@@ -33,35 +30,11 @@ const statisticsAggregatesCache = new Map<string, { value: StatisticsLibraryAggr
  * 7 minutes.
  * Unknown/missing album genre is stored as `value: ''`; UI should map to i18n.
  */
-export async function fetchStatisticsLibraryAggregates(scope?: {
-  serverId: string;
-  pairs: LibraryScopePair[];
-  fingerprint: string;
-}): Promise<StatisticsLibraryAggregates> {
-  const key = statisticsPageCacheKey('statsAgg', scope?.fingerprint);
+export async function fetchStatisticsLibraryAggregates(): Promise<StatisticsLibraryAggregates> {
+  const key = statisticsPageCacheKey('statsAgg');
   if (key) {
     const hit = statisticsAggregatesCache.get(key);
     if (hit && Date.now() < hit.expiresAt) return hit.value;
-  }
-
-  if (scope?.pairs.length) {
-    const stats = await libraryScopeCatalogStatistics(scope.serverId, {
-      scopes: scope.pairs,
-      formatSampleLimit: 500,
-    });
-    const result: StatisticsLibraryAggregates = {
-      playtimeSec: stats.durationSec,
-      albumsCounted: stats.albumCount,
-      songsCounted: stats.trackCount,
-      capped: false,
-      genres: stats.genres.map(row => ({
-        value: row.value,
-        albumCount: row.albumCount,
-        songCount: row.songCount,
-      })),
-    };
-    if (key) statisticsAggregatesCache.set(key, { value: result, expiresAt: Date.now() + STATS_CACHE_TTL });
-    return result;
   }
 
   let playtimeSec = 0;
@@ -128,30 +101,11 @@ export async function fetchStatisticsLibraryAggregates(scope?: {
 /** Recent / frequent / highest album strips + artist count for Statistics. */
 const statisticsOverviewCache = new Map<string, { value: StatisticsOverviewData; expiresAt: number }>();
 
-export async function fetchStatisticsOverview(scope?: {
-  serverId: string;
-  pairs: LibraryScopePair[];
-  fingerprint: string;
-  multiServer: boolean;
-}): Promise<StatisticsOverviewData> {
-  const key = statisticsPageCacheKey('statsOverview', scope?.fingerprint);
+export async function fetchStatisticsOverview(): Promise<StatisticsOverviewData> {
+  const key = statisticsPageCacheKey('statsOverview');
   if (key) {
     const hit = statisticsOverviewCache.get(key);
     if (hit && Date.now() < hit.expiresAt) return hit.value;
-  }
-  if (scope?.pairs.length) {
-    const [frequentRows, stats] = await Promise.all([
-      libraryScopeMostPlayedAlbums(scope.serverId, { scopes: scope.pairs, limit: 12 }),
-      libraryScopeCatalogStatistics(scope.serverId, { scopes: scope.pairs, formatSampleLimit: 1 }),
-    ]);
-    const result: StatisticsOverviewData = {
-      recent: [],
-      frequent: frequentRows.map(row => ({ ...albumToAlbum(row.album), playCount: row.playCount })),
-      highest: scope.multiServer ? [] : await getAlbumList('highest', 12).catch(() => []),
-      artistCount: stats.artistCount,
-    };
-    if (key) statisticsOverviewCache.set(key, { value: result, expiresAt: Date.now() + STATS_CACHE_TTL });
-    return result;
   }
   const [recent, frequent, highest, artists] = await Promise.all([
     getAlbumList('recent', 20).catch(() => [] as SubsonicAlbum[]),
@@ -184,24 +138,11 @@ async function fetchStatisticsArtistCount(): Promise<number> {
 /** Format (suffix) histogram from a random sample for Statistics. */
 const statisticsFormatCache = new Map<string, { value: StatisticsFormatSample; expiresAt: number }>();
 
-export async function fetchStatisticsFormatSample(scope?: {
-  serverId: string;
-  pairs: LibraryScopePair[];
-  fingerprint: string;
-}): Promise<StatisticsFormatSample> {
-  const key = statisticsPageCacheKey('statsFormat', scope?.fingerprint);
+export async function fetchStatisticsFormatSample(): Promise<StatisticsFormatSample> {
+  const key = statisticsPageCacheKey('statsFormat');
   if (key) {
     const hit = statisticsFormatCache.get(key);
     if (hit && Date.now() < hit.expiresAt) return hit.value;
-  }
-  if (scope?.pairs.length) {
-    const stats = await libraryScopeCatalogStatistics(scope.serverId, {
-      scopes: scope.pairs,
-      formatSampleLimit: 500,
-    });
-    const result = { rows: stats.formats, sampleSize: stats.formatSampleSize };
-    if (key) statisticsFormatCache.set(key, { value: result, expiresAt: Date.now() + STATS_CACHE_TTL });
-    return result;
   }
   const songs = await getRandomSongs(500).catch(() => [] as SubsonicSong[]);
   const counts: Record<string, number> = {};

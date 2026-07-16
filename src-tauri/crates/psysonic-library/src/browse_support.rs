@@ -7,7 +7,6 @@ use tauri::State;
 use crate::dto::CatalogYearBoundsDto;
 use crate::dto::GenreAlbumCountDto;
 use crate::dto::LibraryAlbumDto;
-use crate::dto::LibraryScopePair;
 use crate::runtime::LibraryRuntime;
 use crate::store::LibraryStore;
 use crate::sync::mapping::format_iso_ms_z;
@@ -258,39 +257,6 @@ pub fn library_get_catalog_year_bounds(
     result
 }
 
-pub(crate) fn catalog_year_bounds_for_scopes(
-    store: &LibraryStore,
-    scopes: &[LibraryScopePair],
-) -> Result<CatalogYearBoundsDto, String> {
-    let scopes = crate::scope_merge::normalize_scope_pairs(scopes)?;
-    if scopes.is_empty() {
-        return Ok(CatalogYearBoundsDto { min_year: None, max_year: None });
-    }
-    let (cte, binds) = crate::scope_merge::scope_cte_sql(&scopes);
-    let sql = format!(
-        "{cte} SELECT MIN(t.year), MAX(t.year) \
-         FROM scoped_track s CROSS JOIN track t ON t.rowid = s.rowid \
-         WHERE t.deleted = 0 AND t.year IS NOT NULL AND t.year > 0"
-    );
-    store.with_read_conn(|conn| {
-        conn.query_row(&sql, rusqlite::params_from_iter(binds.iter()), |row| {
-            Ok(CatalogYearBoundsDto {
-                min_year: row.get::<_, Option<i64>>(0)?.map(|year| year as i32),
-                max_year: row.get::<_, Option<i64>>(1)?.map(|year| year as i32),
-            })
-        })
-    }).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn library_scope_catalog_year_bounds(
-    runtime: State<'_, LibraryRuntime>,
-    scopes: Vec<LibraryScopePair>,
-) -> Result<CatalogYearBoundsDto, String> {
-    catalog_year_bounds_for_scopes(&runtime.store, &scopes)
-}
-
 pub(crate) fn genre_album_counts_for_server(
     store: &LibraryStore,
     server_id: &str,
@@ -338,55 +304,6 @@ pub(crate) fn genre_album_counts_for_server(
         .map_err(|e| e.to_string())
 }
 
-pub(crate) fn genre_album_counts_for_scopes(
-    store: &LibraryStore,
-    scopes: &[LibraryScopePair],
-) -> Result<Vec<GenreAlbumCountDto>, String> {
-    let scopes = crate::scope_merge::normalize_scope_pairs(scopes)?;
-    if scopes.is_empty() {
-        return Ok(Vec::new());
-    }
-    if crate::dto::multi_library_merge_enabled(&scopes) {
-        for server_id in scopes
-            .iter()
-            .map(|pair| pair.server_id.as_str())
-            .collect::<std::collections::HashSet<_>>()
-        {
-            crate::identity::ensure_cluster_keys_built(store, server_id)?;
-        }
-    }
-    let (cte, binds) = crate::scope_merge::scope_cte_sql(&scopes);
-    let album_key = crate::scope_merge::ALBUM_DEDUP_KEY;
-    let track_key = crate::scope_merge::TRACK_DEDUP_KEY;
-    let sql = format!(
-        "{cte}, genre_rows AS ( \
-           SELECT tg.genre, {album_key} AS album_dedup, {track_key} AS track_dedup \
-         FROM scoped_track s CROSS JOIN track t ON t.rowid = s.rowid \
-         INNER JOIN track_genre tg ON tg.server_id = t.server_id AND tg.track_id = t.id \
-           LEFT JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
-         WHERE t.deleted = 0 AND tg.album_id IS NOT NULL AND tg.album_id != '' \
-         ) \
-         SELECT genre, COUNT(DISTINCT album_dedup), COUNT(DISTINCT track_dedup) \
-         FROM genre_rows GROUP BY genre COLLATE NOCASE HAVING COUNT(DISTINCT album_dedup) > 0 \
-         ORDER BY 2 DESC, genre COLLATE NOCASE ASC"
-    );
-    store
-        .with_read_conn(|conn| {
-            let mut stmt = conn.prepare(&sql)?;
-            let rows = stmt
-                .query_map(rusqlite::params_from_iter(binds.iter()), |r| {
-                    Ok(GenreAlbumCountDto {
-                        value: r.get(0)?,
-                        album_count: r.get::<_, i64>(1)?.max(0) as u32,
-                        song_count: r.get::<_, i64>(2)?.max(0) as u32,
-                    })
-                })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
-            Ok(rows)
-        })
-        .map_err(|e| e.to_string())
-}
-
 /// Distinct album counts per track genre — same grouping as genre album browse.
 #[tauri::command]
 #[specta::specta]
@@ -394,21 +311,19 @@ pub fn library_get_genre_album_counts(
     runtime: State<'_, LibraryRuntime>,
     server_id: String,
     library_scope: Option<String>,
-    library_scopes: Option<Vec<LibraryScopePair>>,
+    library_scopes: Option<Vec<String>>,
 ) -> Result<Vec<GenreAlbumCountDto>, String> {
     let trace = psysonic_core::logging::should_log_albums_browse_trace();
-    let scopes = crate::dto::ordered_library_scope_pairs(
-        &server_id,
-        library_scope.as_deref(),
-        library_scopes.as_deref(),
-    )?;
+    let scopes = if let Some(scopes) = library_scopes {
+        normalized_library_scopes(&scopes)
+    } else if let Some(scope) = library_scope.as_deref().filter(|s| !s.trim().is_empty()) {
+        vec![scope.to_string()]
+    } else {
+        vec![]
+    };
     let trace_scopes = scopes.clone();
     let t0 = std::time::Instant::now();
-    let result = if scopes.is_empty() {
-        genre_album_counts_for_server(&runtime.store, &server_id, &[])
-    } else {
-        genre_album_counts_for_scopes(&runtime.store, &scopes)
-    };
+    let result = genre_album_counts_for_server(&runtime.store, &server_id, &scopes);
     if trace {
         let step_ms = t0.elapsed().as_millis();
         let genre_count = result.as_ref().map(|rows| rows.len()).unwrap_or(0);
@@ -439,8 +354,7 @@ mod tests {
     use crate::store::LibraryStore;
 
     use super::{
-        apply_album_patch, catalog_year_bounds_for_server, genre_album_counts_for_scopes,
-        genre_album_counts_for_server, catalog_year_bounds_for_scopes,
+        apply_album_patch, catalog_year_bounds_for_server, genre_album_counts_for_server,
         overlay_album_level_starred_at, reconcile_album_stars, StarredAlbumReconcileItem,
     };
     use crate::dto::LibraryAlbumDto;
@@ -536,27 +450,6 @@ mod tests {
             })
             .unwrap();
         assert!(!raw.contains("starred"));
-    }
-
-    #[test]
-    fn catalog_year_bounds_respect_cross_server_scope() {
-        let store = LibraryStore::open_in_memory();
-        let mut old = make_row("s1", "t1", "al1", 1);
-        old.library_id = Some("a".into());
-        old.year = Some(1990);
-        let mut recent = make_row("s2", "t2", "al2", 1);
-        recent.library_id = Some("b".into());
-        recent.year = Some(2024);
-        let mut excluded = make_row("s2", "t3", "al3", 1);
-        excluded.library_id = Some("other".into());
-        excluded.year = Some(2030);
-        TrackRepository::new(&store).upsert_batch(&[old, recent, excluded]).unwrap();
-        let bounds = catalog_year_bounds_for_scopes(&store, &[
-            crate::dto::LibraryScopePair { server_id: "s1".into(), library_id: Some("a".into()) },
-            crate::dto::LibraryScopePair { server_id: "s2".into(), library_id: Some("b".into()) },
-        ]).unwrap();
-        assert_eq!(bounds.min_year, Some(1990));
-        assert_eq!(bounds.max_year, Some(2024));
     }
 
     #[test]
@@ -735,34 +628,6 @@ mod tests {
         assert_eq!(counts[1].value, "Jazz");
         assert_eq!(counts[1].album_count, 1);
         assert_eq!(counts[1].song_count, 1);
-    }
-
-    #[test]
-    fn genre_album_counts_include_cross_server_whole_sources_and_empty_library_rows() {
-        let store = LibraryStore::open_in_memory();
-        let mut first = make_row("s1", "t1", "al1", 1);
-        first.library_id = Some("lib-a".into());
-        first.genre = Some("Rock".into());
-        first.title = "Shared Track".into();
-        first.album = "Shared Album".into();
-        let mut second = make_row("s2", "t2", "al2", 1);
-        second.library_id = Some(String::new());
-        second.genre = Some("Rock".into());
-        second.title = "Shared Track".into();
-        second.album = "Shared Album".into();
-        TrackRepository::new(&store).upsert_batch(&[first, second]).unwrap();
-
-        let counts = genre_album_counts_for_scopes(
-            &store,
-            &[
-                crate::dto::LibraryScopePair { server_id: "s1".into(), library_id: None },
-                crate::dto::LibraryScopePair { server_id: "s2".into(), library_id: None },
-            ],
-        )
-        .unwrap();
-        let rock = counts.iter().find(|row| row.value == "Rock").unwrap();
-        assert_eq!(rock.album_count, 1);
-        assert_eq!(rock.song_count, 1);
     }
 
     #[test]

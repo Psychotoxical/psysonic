@@ -97,7 +97,7 @@ export function executeCliPlayerCommand(ctx: CliContext): void | Promise<void> {
       showToast(i18n.t('contextMenu.cliMixNeedsTrack'), 5000, 'error');
       return;
     }
-    queueSongRating(track.id, stars, track.serverId);
+    queueSongRating(track.id, stars);
     return;
   }
   // no-op for unknown command

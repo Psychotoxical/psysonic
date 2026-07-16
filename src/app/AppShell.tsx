@@ -17,7 +17,6 @@ import AppRoutes from './AppRoutes';
 import FullscreenPlayer, { FullscreenPlayerImmersive, FullscreenPlayerPrism } from '@/features/fullscreenPlayer';
 import ContextMenu from '@/features/contextMenu/components/ContextMenu';
 import SongInfoModal from '@/features/playback/components/SongInfoModal';
-import PlaybackAlternativeModal from '@/features/playback/components/PlaybackAlternativeModal';
 import { DownloadFolderModal, OfflineBanner } from '@/features/offline/ui';
 import GlobalConfirmModal from '@/ui/GlobalConfirmModal';
 import ThemeMigrationNotice from '@/ui/ThemeMigrationNotice';
@@ -347,7 +346,6 @@ export function AppShell() {
       )}
       <ContextMenu />
       <SongInfoModal />
-      <PlaybackAlternativeModal />
       <DownloadFolderModal />
       <GlobalConfirmModal />
       <ThemeMigrationNotice />

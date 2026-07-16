@@ -3,23 +3,20 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Cast, Check, Loader2, Plus, X } from 'lucide-react';
 import {
-  createInternetRadioStationForServer, fetchUrlBytes, getInternetRadioStationsForServer,
-  getTopRadioStations, searchRadioBrowser, uploadRadioCoverArtBytesForServer,
+  createInternetRadioStation, fetchUrlBytes, getInternetRadioStations,
+  getTopRadioStations, searchRadioBrowser, uploadRadioCoverArtBytes,
 } from '@/lib/api/subsonicRadio';
 import {
   type InternetRadioStation, type RadioBrowserStation, RADIO_PAGE_SIZE,
 } from '@/lib/api/subsonicTypes';
 import { showToast } from '@/lib/dom/toast';
-import { useModalFocus } from '@/lib/hooks/useModalFocus';
 
 interface RadioDirectoryModalProps {
-  sources: Array<{ serverId: string; label: string }>;
-  requireSourceSelection?: boolean;
   onClose: () => void;
-  onAdded: (serverId: string) => void;
+  onAdded: () => void;
 }
 
-export default function RadioDirectoryModal({ sources, requireSourceSelection = false, onClose, onAdded }: RadioDirectoryModalProps) {
+export default function RadioDirectoryModal({ onClose, onAdded }: RadioDirectoryModalProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<RadioBrowserStation[]>([]);
@@ -29,24 +26,11 @@ export default function RadioDirectoryModal({ sources, requireSourceSelection = 
   const [hasMore, setHasMore] = useState(true);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
-  const [serverId, setServerId] = useState(
-    !requireSourceSelection && sources.length === 1 ? sources[0]?.serverId ?? '' : '',
-  );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const queryRef = useRef(query);
-  const titleId = 'radio-directory-modal-title';
   useEffect(() => { queryRef.current = query; }, [query]);
-
-  useModalFocus({
-    open: true,
-    containerRef: dialogRef,
-    onEscape: onClose,
-    initialFocusRef: searchInputRef,
-  });
 
   const fetchPage = useCallback(async (q: string, off: number, append: boolean) => {
     if (append) setLoadingMore(true); else setSearching(true);
@@ -101,23 +85,22 @@ export default function RadioDirectoryModal({ sources, requireSourceSelection = 
   }, [hasMore, loadingMore, offset, fetchPage]);
 
   const handleAdd = async (s: RadioBrowserStation) => {
-    const stationKey = `${serverId}:${s.stationuuid}`;
-    if (!serverId || addedIds.has(stationKey) || addingId !== null) return;
-    setAddingId(stationKey);
+    if (addedIds.has(s.stationuuid) || addingId !== null) return;
+    setAddingId(s.stationuuid);
     try {
-      await createInternetRadioStationForServer(serverId, s.name, s.url);
+      await createInternetRadioStation(s.name, s.url);
       if (s.favicon) {
-        const list = await getInternetRadioStationsForServer(serverId).catch(() => [] as InternetRadioStation[]);
+        const list = await getInternetRadioStations().catch(() => [] as InternetRadioStation[]);
         const created = list.find(r => r.streamUrl === s.url);
         if (created) {
           try {
             const [fileBytes, mimeType] = await fetchUrlBytes(s.favicon);
-            await uploadRadioCoverArtBytesForServer(serverId, created.id, fileBytes, mimeType);
+            await uploadRadioCoverArtBytes(created.id, fileBytes, mimeType);
           } catch { /* favicon optional */ }
         }
       }
-      onAdded(serverId);
-      setAddedIds(prev => new Set(prev).add(stationKey));
+      onAdded();
+      setAddedIds(prev => new Set(prev).add(s.stationuuid));
       showToast(`${t('radio.stationAdded')}: ${s.name}`, 3000);
     } catch (err) {
       const msg = typeof err === 'string' ? err : (err instanceof Error ? err.message : '');
@@ -148,11 +131,6 @@ export default function RadioDirectoryModal({ sources, requireSourceSelection = 
     >
       {/* ── 2. Content Box ─────────────────────────────────────── */}
       <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
         style={{
           width: '80vw',
           maxWidth: 800,
@@ -179,39 +157,23 @@ export default function RadioDirectoryModal({ sources, requireSourceSelection = 
           }}
         >
           <button
-            type="button"
             className="btn btn-ghost"
             style={{ position: 'absolute', top: 16, right: 16, color: 'var(--text-muted)' }}
             onClick={onClose}
-            aria-label={t('common.close')}
           >
             <X size={18} />
           </button>
-          <h2 id={titleId} style={{ fontSize: 20, fontWeight: 700, marginBottom: 14, color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 14, color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
             {t('radio.browseDirectory')}
           </h2>
           <input
-            ref={searchInputRef}
             className="input"
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder={t('radio.directoryPlaceholder')}
+            autoFocus
             style={{ width: '100%' }}
           />
-          {(requireSourceSelection || sources.length > 1) && (
-            <select
-              className="input"
-              value={serverId}
-              onChange={e => setServerId(e.target.value)}
-              aria-label={t('radio.source')}
-              style={{ width: '100%', marginTop: 8 }}
-            >
-              <option value="">{t('radio.selectSource')}</option>
-              {sources.map(source => (
-                <option key={source.serverId} value={source.serverId}>{source.label}</option>
-              ))}
-            </select>
-          )}
         </div>
 
         {/* ── 4. Body / Results ──────────────────────────────────── */}
@@ -225,17 +187,14 @@ export default function RadioDirectoryModal({ sources, requireSourceSelection = 
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingTop: 8 }}>
               {results.map(s => {
-                const stationKey = `${serverId}:${s.stationuuid}`;
-                const isAdded = addedIds.has(stationKey);
-                const isLoading = addingId === stationKey;
-                const isDisabled = !serverId || isAdded || addingId !== null;
+                const isAdded = addedIds.has(s.stationuuid);
+                const isLoading = addingId === s.stationuuid;
+                const isDisabled = isAdded || addingId !== null;
                 return (
-                  <button
-                    type="button"
+                  <div
                     key={s.stationuuid}
                     className={`radio-browser-result${isAdded ? ' added' : ''}${isDisabled ? '' : ' clickable'}`}
                     onClick={() => handleAdd(s)}
-                    disabled={isDisabled}
                   >
                     {s.favicon ? (
                       <img
@@ -264,7 +223,7 @@ export default function RadioDirectoryModal({ sources, requireSourceSelection = 
                           ? <Check size={14} style={{ color: 'var(--accent)' }} />
                           : <Plus size={14} style={{ color: 'var(--text-muted)' }} />}
                     </div>
-                  </button>
+                  </div>
                 );
               })}
               {/* Sentinel for IntersectionObserver */}

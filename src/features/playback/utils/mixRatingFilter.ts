@@ -3,9 +3,6 @@ import { getRandomSongs } from '@/lib/api/subsonicLibrary';
 import type { SubsonicAlbum, SubsonicSong } from '@/lib/api/subsonicTypes';
 import { useAuthStore } from '@/store/authStore';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
-import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
-import type { LibraryScopePair } from '@/lib/api/library';
-import { runLocalRandomSongs } from '@/lib/library/randomScopeReads';
 
 /** Default target list size for Random Mix; per-call override via `fetchRandomMixSongsUntilFull(c, { targetSize })`. */
 export const RANDOM_MIX_TARGET_SIZE = 50;
@@ -64,9 +61,9 @@ function numRating(v: unknown): number | undefined {
 }
 
 /** Optimistic stars from the UI (`setUserRatingOverride`) take precedence over API payloads. */
-function mixRatingOverrideForEntity(serverId: string | undefined, entityId: string | undefined): number | undefined {
+function mixRatingOverrideForEntity(entityId: string | undefined): number | undefined {
   if (!entityId) return undefined;
-  const o = usePlayerStore.getState().userRatingOverrides[entityOverrideKey(serverId, entityId)];
+  const o = usePlayerStore.getState().userRatingOverrides[entityId];
   if (o === undefined || o <= 0) return undefined;
   return o;
 }
@@ -120,7 +117,7 @@ function artistEntityIdForMixRating(song: SubsonicSong): string | undefined {
 /** Song-level artist rating: explicit field, then OpenSubsonic `artists` / `albumArtists` on the child. */
 function effectiveArtistRatingForFilter(song: SubsonicSong): number | undefined {
   const prefer = artistEntityIdForMixRating(song);
-  const fromOverride = mixRatingOverrideForEntity(song.serverId, prefer);
+  const fromOverride = mixRatingOverrideForEntity(prefer);
   if (fromOverride !== undefined) return fromOverride;
   const d = numRating(song.artistUserRating);
   if (d !== undefined) return d;
@@ -131,14 +128,14 @@ function effectiveArtistRatingForFilter(song: SubsonicSong): number | undefined 
 
 /** Song-level album (parent) rating when the server puts it on the child payload. */
 function effectiveAlbumRatingOnSong(song: SubsonicSong): number | undefined {
-  const fromOverride = mixRatingOverrideForEntity(song.serverId, song.albumId);
+  const fromOverride = mixRatingOverrideForEntity(song.albumId);
   if (fromOverride !== undefined) return fromOverride;
   const x = song as SubsonicSong & { albumRating?: unknown };
   return numRating(song.albumUserRating ?? x.albumRating);
 }
 
 function songTrackStarRatingForMix(song: SubsonicSong): number | undefined {
-  const fromOverride = mixRatingOverrideForEntity(song.serverId, song.id);
+  const fromOverride = mixRatingOverrideForEntity(song.id);
   if (fromOverride !== undefined) return fromOverride;
   const x = song as SubsonicSong & { rating?: unknown };
   return numRating(song.userRating ?? x.rating);
@@ -246,7 +243,7 @@ export async function filterTopArtistsForMixRatings<T extends { id: string }>(
   if (!c.enabled || c.minArtist <= 0 || !artists.length) return artists;
   const byArtist = await prefetchArtistUserRatings(artists.map(a => a.id));
   return artists.filter(a => {
-    const r = mixRatingOverrideForEntity(undefined, a.id) ?? byArtist.get(a.id);
+    const r = mixRatingOverrideForEntity(a.id) ?? byArtist.get(a.id);
     if (r === undefined || r <= 0) return true;
     return r > c.minArtist;
   });
@@ -291,37 +288,19 @@ export async function enrichSongsForMixRatingFilter(
  */
 export async function fetchRandomMixSongsUntilFull(
   c: MixMinRatingsConfig,
-  opts?: {
-    genre?: string;
-    timeout?: number;
-    targetSize?: number;
-    localScope?: { serverId: string; pairs: LibraryScopePair[]; multiServer: boolean };
-  },
+  opts?: { genre?: string; timeout?: number; targetSize?: number },
 ): Promise<SubsonicSong[]> {
   const timeout = opts?.timeout ?? 15000;
   const genre = opts?.genre;
   const targetSize = opts?.targetSize ?? RANDOM_MIX_TARGET_SIZE;
   const filterActive = c.enabled;
   const batchSize = batchSizeFor(targetSize, filterActive);
-  const fetchBatch = async () => {
-    if (opts?.localScope) {
-      const local = await runLocalRandomSongs(
-        opts.localScope.serverId,
-        batchSize,
-        genre,
-        opts.localScope.pairs,
-      );
-      if (local != null) return local;
-      if (opts.localScope.multiServer) return [];
-    }
-    return getRandomSongs(batchSize, genre, timeout);
-  };
 
   // Fast-path: no filter — one call asking for the full target, slice, done. The server-side
   // `ORDER BY random() LIMIT N` returns N distinct rows, so a single round-trip usually fills
   // the request without dup-streak gymnastics.
   if (!filterActive) {
-    const raw = await fetchBatch();
+    const raw = await getRandomSongs(batchSize, genre, timeout);
     if (raw.length >= targetSize) return raw.slice(0, targetSize);
     // Library smaller than target, or random endpoint returned fewer — fall through to the
     // batched loop below so we can top up via additional calls (deduped by id).
@@ -336,7 +315,7 @@ export async function fetchRandomMixSongsUntilFull(
   let dupStreak = 0;
 
   for (let b = 0; b < maxBatches && out.length < targetSize; b++) {
-    const raw = await fetchBatch();
+    const raw = await getRandomSongs(batchSize, genre, timeout);
     if (!raw.length) break;
 
     const novel = raw.filter(s => !seenFromApi.has(s.id));

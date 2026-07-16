@@ -1,7 +1,4 @@
 export const radio = {
-  source: '电台来源',
-  selectSource: '选择服务器…',
-  sources: 'Radio sources',
   title: '网络电台',
   empty: '未配置任何电台。',
   addStation: '添加电台',

@@ -27,10 +27,4 @@ describe('detailServerScope', () => {
     expect(appendServerQuery('lossless=1', 'srv-a')).toBe('lossless=1&server=srv-a');
     expect(appendServerQuery(undefined, 'srv-a')).toBe('server=srv-a');
   });
-
-  it('appendServerQuery routes to the entity owner and replaces stale provenance', () => {
-    expect(appendServerQuery('?lossless=1&server=srv-a', 'srv-b'))
-      .toBe('lossless=1&server=srv-b');
-    expect(appendServerQuery(undefined, undefined)).toBeUndefined();
-  });
 });

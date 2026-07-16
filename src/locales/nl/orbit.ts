@@ -2,7 +2,6 @@ export const orbit = {
   triggerLabel: 'Orbit',
   triggerTooltip: 'Een gedeelde luistersessie starten of eraan deelnemen',
   launchCreate: 'Sessie aanmaken',
-  launchCreateMultiServerBlocked: 'Choose one browse server before creating an Orbit session. Joining an invite will switch and narrow the server automatically.',
   launchJoin: 'Deelnemen aan sessie',
   launchHelp: 'Hoe werkt dit?',
   launchHelpSoon: 'Binnenkort beschikbaar',

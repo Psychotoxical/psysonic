@@ -1,8 +1,7 @@
-import { addSongsToPlaylistForServer, getPlaylistForServer } from '@/lib/api/subsonicPlaylists';
+import { addSongsToPlaylist, getPlaylist } from '@/lib/api/subsonicPlaylists';
 import { useConfirmModalStore } from '@/store/confirmModalStore';
 import { showToast } from '@/lib/dom/toast';
 import { usePlaylistMembershipStore } from '@/store/playlistMembershipStore';
-import { useAuthStore } from '@/store/authStore';
 
 export type AddTracksDedupOutcome = 'added' | 'added_duplicates' | 'partial' | 'skipped';
 
@@ -33,10 +32,7 @@ export async function addTracksToPlaylistWithDedup(
   playlistName: string,
   trackIds: readonly string[],
   t: (key: string, opts?: Record<string, unknown>) => string,
-  ownerServerId?: string,
 ): Promise<AddTracksDedupResult> {
-  const serverId = ownerServerId ?? useAuthStore.getState().activeServerId;
-  if (!serverId) throw new Error('Playlist owner unavailable');
   if (trackIds.length === 0) {
     return { outcome: 'skipped', addedCount: 0, skippedCount: 0 };
   }
@@ -47,16 +43,16 @@ export async function addTracksToPlaylistWithDedup(
   const store = usePlaylistMembershipStore.getState();
   const existingIds = new Set(
     await resolvePlaylistSongIds(playlistId, async () => {
-      const { songs } = await getPlaylistForServer(serverId, playlistId);
+      const { songs } = await getPlaylist(playlistId);
       return songs.map(s => s.id);
-    }, serverId),
+    }),
   );
   const newIds = trackIds.filter(id => !existingIds.has(id));
 
   try {
     if (newIds.length > 0) {
-      await addSongsToPlaylistForServer(serverId, playlistId, newIds);
-      store.appendPlaylistSongIds(playlistId, newIds, serverId);
+      await addSongsToPlaylist(playlistId, newIds);
+      store.appendPlaylistSongIds(playlistId, newIds);
       return {
         outcome: newIds.length === trackIds.length ? 'added' : 'partial',
         addedCount: newIds.length,
@@ -69,12 +65,12 @@ export async function addTracksToPlaylistWithDedup(
       return { outcome: 'skipped', addedCount: 0, skippedCount: trackIds.length };
     }
 
-    await addSongsToPlaylistForServer(serverId, playlistId, [...trackIds]);
-    store.appendPlaylistSongIds(playlistId, trackIds, serverId);
+    await addSongsToPlaylist(playlistId, [...trackIds]);
+    store.appendPlaylistSongIds(playlistId, trackIds);
     return { outcome: 'added_duplicates', addedCount: trackIds.length, skippedCount: 0 };
   } catch (err) {
     // A batched write may have partially landed — drop the cache so the next read refetches truth.
-    store.invalidatePlaylistSongIds(playlistId, serverId);
+    store.invalidatePlaylistSongIds(playlistId);
     throw err;
   }
 }
@@ -120,12 +116,11 @@ export function showAddTracksDedupToast(
 export async function resolvePlaylistSongIds(
   playlistId: string,
   fetch: () => Promise<readonly string[]>,
-  serverId?: string,
 ): Promise<readonly string[]> {
-  const cached = usePlaylistMembershipStore.getState().getPlaylistSongIds(playlistId, serverId);
+  const cached = usePlaylistMembershipStore.getState().getPlaylistSongIds(playlistId);
   if (cached !== undefined) return cached;
   const ids = await fetch();
-  usePlaylistMembershipStore.getState().setPlaylistSongIds(playlistId, ids, serverId);
+  usePlaylistMembershipStore.getState().setPlaylistSongIds(playlistId, ids);
   return ids;
 }
 
@@ -133,22 +128,19 @@ export async function resolvePlaylistSongIds(
 export async function collectMergeSongIds(
   targetPlaylistId: string,
   sourcePlaylistIds: readonly string[],
-  ownerServerId?: string,
 ): Promise<string[]> {
-  const serverId = ownerServerId ?? useAuthStore.getState().activeServerId;
-  if (!serverId) throw new Error('Playlist owner unavailable');
   const targetIds = new Set(
     await resolvePlaylistSongIds(targetPlaylistId, async () => {
-      const { songs } = await getPlaylistForServer(serverId, targetPlaylistId);
+      const { songs } = await getPlaylist(targetPlaylistId);
       return songs.map(s => s.id);
-    }, serverId),
+    }),
   );
   const idsToAdd: string[] = [];
   for (const sourceId of sourcePlaylistIds) {
     const sourceIds = await resolvePlaylistSongIds(sourceId, async () => {
-      const { songs } = await getPlaylistForServer(serverId, sourceId);
+      const { songs } = await getPlaylist(sourceId);
       return songs.map(s => s.id);
-    }, serverId);
+    });
     for (const songId of sourceIds) {
       if (!targetIds.has(songId)) {
         targetIds.add(songId);

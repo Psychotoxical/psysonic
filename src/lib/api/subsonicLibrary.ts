@@ -26,21 +26,6 @@ export async function getMusicDirectory(id: string): Promise<SubsonicDirectory> 
   return { id: dir.id, parent: dir.parent, name: dir.name, child };
 }
 
-export async function getMusicDirectoryForServer(serverId: string, id: string): Promise<SubsonicDirectory> {
-  const data = await apiForServer<{ directory: { id: string; parent?: string; name: string; child?: SubsonicDirectoryEntry | SubsonicDirectoryEntry[] } }>(
-    serverId,
-    'getMusicDirectory.view',
-    { id },
-  );
-  const raw = data.directory.child;
-  return {
-    id: data.directory.id,
-    parent: data.directory.parent,
-    name: data.directory.name,
-    child: (!raw ? [] : Array.isArray(raw) ? raw : [raw]).map(item => ({ ...item, serverId })),
-  };
-}
-
 /** Returns the top-level artist/directory entries for a music folder root.
  *  Music folder IDs from getMusicFolders() are NOT valid getMusicDirectory IDs —
  *  use getIndexes.view with musicFolderId instead. */
@@ -64,48 +49,10 @@ export async function getMusicIndexes(musicFolderId: string): Promise<SubsonicDi
   return entries;
 }
 
-export async function getMusicIndexesForServer(
-  serverId: string,
-  musicFolderId: string,
-): Promise<SubsonicDirectoryEntry[]> {
-  type IndexArtist = { id: string; name: string; coverArt?: string };
-  type IndexEntry = { name: string; artist?: IndexArtist | IndexArtist[] };
-  const data = await apiForServer<{ indexes: { index?: IndexEntry | IndexEntry[] } }>(
-    serverId,
-    'getIndexes.view',
-    { musicFolderId },
-  );
-  const raw = data.indexes?.index;
-  if (!raw) return [];
-  return (Array.isArray(raw) ? raw : [raw]).flatMap(index => {
-    const artists = index.artist ? (Array.isArray(index.artist) ? index.artist : [index.artist]) : [];
-    return artists.map(artist => ({
-      id: artist.id,
-      title: artist.name,
-      isDir: true,
-      coverArt: artist.coverArt,
-      serverId,
-    }));
-  });
-}
-
 export async function getMusicFolders(): Promise<SubsonicMusicFolder[]> {
   const data = await api<{ musicFolders: { musicFolder: SubsonicMusicFolder | SubsonicMusicFolder[] } }>(
     'getMusicFolders.view',
   );
-  return mapMusicFolders(data);
-}
-
-export async function getMusicFoldersForServer(serverId: string): Promise<SubsonicMusicFolder[]> {
-  const data = await apiForServer<{
-    musicFolders: { musicFolder: SubsonicMusicFolder | SubsonicMusicFolder[] };
-  }>(serverId, 'getMusicFolders.view');
-  return mapMusicFolders(data);
-}
-
-function mapMusicFolders(data: {
-  musicFolders: { musicFolder: SubsonicMusicFolder | SubsonicMusicFolder[] };
-}): SubsonicMusicFolder[] {
   const raw = data.musicFolders?.musicFolder;
   if (!raw) return [];
   const arr = Array.isArray(raw) ? raw : [raw];
@@ -258,28 +205,6 @@ export async function getRandomSongs(size = 50, genre?: string, timeout = 15000)
   if (genre) params.genre = genre;
   const data = await api<{ randomSongs: { song: SubsonicSong[] } }>('getRandomSongs.view', params, timeout);
   return data.randomSongs?.song ?? [];
-}
-
-export async function getRandomSongsForServer(
-  serverId: string,
-  size = 50,
-  genre?: string,
-  timeout = 15000,
-): Promise<SubsonicSong[]> {
-  if (!shouldAttemptSubsonicForServer(serverId)) return [];
-  const params: Record<string, string | number | string[]> = {
-    size,
-    _t: Date.now(),
-    ...libraryFilterParamsForServer(serverId),
-  };
-  if (genre) params.genre = genre;
-  const data = await apiForServer<{ randomSongs: { song: SubsonicSong[] } }>(
-    serverId,
-    'getRandomSongs.view',
-    params,
-    timeout,
-  );
-  return (data.randomSongs?.song ?? []).map(song => ({ ...song, serverId }));
 }
 
 /** Extended random song fetch with server-side year/genre filtering. */

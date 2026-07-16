@@ -5,7 +5,7 @@ import {
   libraryStatusDisplayTrackCount,
   libraryStatusIsReady,
 } from '@/lib/library/libraryReady';
-import type { LibraryServerConnection } from '@/lib/network/libraryServerReachability';
+import type { LibraryServerConnection } from '@/lib/library/hooks/useLibraryIndexSync';
 
 interface ServerLibraryIndexControlsProps {
   status: SyncStateDto | null;

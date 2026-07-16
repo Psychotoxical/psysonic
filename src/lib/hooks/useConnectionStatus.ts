@@ -15,8 +15,6 @@ import {
   subscribeConnectionStatus,
   type ConnectionStatus,
 } from '@/lib/network/activeServerReachability';
-import { serverIndexKeyForProfile } from '@/lib/server/serverIndexKey';
-import { publishLibraryServerConnection } from '@/lib/network/libraryServerReachability';
 import { isNavigatorOfflineHint } from '@/lib/network/navigatorOnlineHint';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import {
@@ -45,10 +43,6 @@ export function useConnectionStatus() {
 
   const check = useCallback(async () => {
     if (isDevOfflineBrowseForced()) {
-      const server = useAuthStore.getState().getActiveServer();
-      if (server) {
-        publishLibraryServerConnection(serverIndexKeyForProfile(server), 'offline');
-      }
       setActiveServerReachable(false);
       setConnectionStatus('disconnected');
       return;
@@ -62,7 +56,6 @@ export function useConnectionStatus() {
     }
 
     if (isNavigatorOfflineHint()) {
-      publishLibraryServerConnection(serverIndexKeyForProfile(server), 'offline');
       setActiveServerReachable(false);
       setConnectionStatus('disconnected');
       return;
@@ -88,10 +81,6 @@ export function useConnectionStatus() {
     } else {
       setActiveEndpointKind(null);
     }
-    publishLibraryServerConnection(
-      serverIndexKeyForProfile(server),
-      probe.ok ? 'online' : 'offline',
-    );
     setActiveServerReachable(probe.ok);
     setConnectionStatus(probe.ok ? 'connected' : 'disconnected');
   }, []);

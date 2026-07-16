@@ -1,22 +1,15 @@
 /* ─ Radio Browser Directory ─ */
 .radio-browser-result {
-  width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 7px 6px;
-  border: 0;
   border-radius: var(--radius);
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
   transition: background 0.12s;
   cursor: default;
 }
 .radio-browser-result.clickable { cursor: pointer; }
-.radio-browser-result.clickable:hover,
-.radio-browser-result.clickable:focus-visible { background: var(--bg-hover); }
+.radio-browser-result.clickable:hover { background: var(--bg-hover); }
 .radio-browser-result.added { opacity: 0.6; }
 .radio-browser-action {
   flex-shrink: 0;
@@ -59,3 +52,4 @@
   text-overflow: ellipsis;
   margin-top: 2px;
 }
+

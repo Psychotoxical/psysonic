@@ -1,5 +1,8 @@
+import { getArtists } from '@/lib/api/subsonicArtists';
+import { getAlbumList, getRandomSongs } from '@/lib/api/subsonicLibrary';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '@/lib/api/subsonicTypes';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { runLocalRandomSongs } from '@/lib/library/browseTextSearch';
+import React, { useEffect, useState } from 'react';
 import Hero from '@/features/home/components/Hero';
 import { AlbumRow } from '@/features/album';
 import SongRail from '@/features/home/components/SongRail';
@@ -10,9 +13,11 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { useHomeStore } from '@/features/home/store/homeStore';
 import { useAuthStore } from '@/store/authStore';
+import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '@/features/playback/utils/mixRatingFilter';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import { bumpPerfCounter } from '@/lib/perf/perfTelemetry';
-import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
+import { dedupeById } from '@/lib/util/dedupeById';
+import { shuffleArray } from '@/lib/util/shuffleArray';
 import { useLibraryCoverPrefetch } from '@/cover/useLibraryCoverPrefetch';
 import { primeAlbumCoversForDisplay, warmHomeMainstageCovers } from '@/cover/warmDiskPeek';
 import { readBecauseYouLikeCache } from '@/features/home/store/becauseYouLikeCache';
@@ -27,16 +32,12 @@ import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus';
 import { useOfflineBrowseContext } from '@/features/offline';
 import { useOfflineBrowseReloadToken } from '@/features/offline';
 import { useDevOfflineBrowseStore } from '@/features/offline';
-import { useBrowseLibraryScope } from '@/store/useBrowseLibraryScope';
-import {
-  appendHomeAlbumPage,
-  loadHomeAlbumPage,
-  loadHomeFeed,
-  type HomeAlbumListType,
-  type HomeFeedScope,
-} from '@/features/home/utils/homeFeedLoader';
-import { appendServerQuery } from '@/lib/navigation/detailServerScope';
 
+/** Match Random Albums overshoot when mix filter uses album/artist axes so hero + discover row can still fill. */
+const HOME_RANDOM_FETCH = 100;
+const HOME_HERO_COUNT = 8;
+const HOME_DISCOVER_SLICE = 20;
+const HOME_DISCOVER_SONGS_SIZE = 18;
 const HOME_ALBUM_ROW_ARTWORK_SIZE = 300;
 const HOME_SONG_RAIL_ARTWORK_SIZE = 200;
 const HOME_ARTWORK_WINDOWING = true;
@@ -54,10 +55,11 @@ const HOME_ARTWORK_VISIBLE_ROW_BUDGET_WHEN_ENABLED = 8;
  * fully rehydrated and activeServerId is set, so on every return visit the
  * first render already has data, eliminating the empty-state flash.
  */
-function getInitialHomeFeed(scopeFingerprint: string, filterVersion: number): HomeFeedSnapshot | null {
-  if (!scopeFingerprint) return null;
-  return readHomeFeedCache(scopeFingerprint, filterVersion)
-    ?? readHomeFeedCacheStale(scopeFingerprint);
+function getInitialHomeFeed(): HomeFeedSnapshot | null {
+  const { activeServerId, musicLibraryFilterVersion } = useAuthStore.getState();
+  if (!activeServerId) return null;
+  return readHomeFeedCache(activeServerId, musicLibraryFilterVersion)
+    ?? readHomeFeedCacheStale(activeServerId);
 }
 
 export default function Home() {
@@ -68,27 +70,6 @@ export default function Home() {
   const homeSections = useHomeStore(s => s.sections);
   const activeServerId = useAuthStore(s => s.activeServerId);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
-  const browseScope = useBrowseLibraryScope();
-  const browseServerId = browseScope.anchorServerId || activeServerId || '';
-  const homeScope = useMemo<HomeFeedScope>(() => ({
-    activeServerId: activeServerId ?? '',
-    browseServerId,
-    pairs: browseScope.pairs,
-    fingerprint: browseScope.fingerprint,
-    multiServer: browseScope.multiServer,
-    filterVersion: musicLibraryFilterVersion,
-  }), [
-    activeServerId,
-    browseServerId,
-    browseScope.fingerprint,
-    browseScope.multiServer,
-    browseScope.pairs,
-    musicLibraryFilterVersion,
-  ]);
-  const homeScopeRef = useRef(homeScope);
-  // React Compiler refs rule: latest scope is read only after async pagination resolves.
-  // eslint-disable-next-line react-hooks/refs
-  homeScopeRef.current = homeScope;
   const connStatus = useConnectionStatus().status;
   const devForceOffline = useDevOfflineBrowseStore(s => s.forceOffline);
   const offlineBrowseActive = useOfflineBrowseContext().active;
@@ -101,25 +82,22 @@ export default function Home() {
   // values are always used without re-triggering the effect on rehydration.
   const isVisible = (id: string) => homeSections.find(s => s.id === id)?.visible ?? true;
 
-  const initialFeed = () => getInitialHomeFeed(homeScope.fingerprint, musicLibraryFilterVersion);
-  const [starred, setStarred] = useState<SubsonicAlbum[]>(() => initialFeed()?.starred ?? []);
-  const [recent, setRecent] = useState<SubsonicAlbum[]>(() => initialFeed()?.recent ?? []);
-  const [random, setRandom] = useState<SubsonicAlbum[]>(() => initialFeed()?.random ?? []);
-  const [heroAlbums, setHeroAlbums] = useState<SubsonicAlbum[]>(() => initialFeed()?.heroAlbums ?? []);
-  const [mostPlayed, setMostPlayed] = useState<SubsonicAlbum[]>(() => initialFeed()?.mostPlayed ?? []);
-  const [recentlyPlayed, setRecentlyPlayed] = useState<SubsonicAlbum[]>(() => initialFeed()?.recentlyPlayed ?? []);
-  const [randomArtists, setRandomArtists] = useState<SubsonicArtist[]>(() => initialFeed()?.randomArtists ?? []);
-  const [discoverSongs, setDiscoverSongs] = useState<SubsonicSong[]>(() => initialFeed()?.discoverSongs ?? []);
+  const [starred, setStarred] = useState<SubsonicAlbum[]>(() => getInitialHomeFeed()?.starred ?? []);
+  const [recent, setRecent] = useState<SubsonicAlbum[]>(() => getInitialHomeFeed()?.recent ?? []);
+  const [random, setRandom] = useState<SubsonicAlbum[]>(() => getInitialHomeFeed()?.random ?? []);
+  const [heroAlbums, setHeroAlbums] = useState<SubsonicAlbum[]>(() => getInitialHomeFeed()?.heroAlbums ?? []);
+  const [mostPlayed, setMostPlayed] = useState<SubsonicAlbum[]>(() => getInitialHomeFeed()?.mostPlayed ?? []);
+  const [recentlyPlayed, setRecentlyPlayed] = useState<SubsonicAlbum[]>(() => getInitialHomeFeed()?.recentlyPlayed ?? []);
+  const [randomArtists, setRandomArtists] = useState<SubsonicArtist[]>(() => getInitialHomeFeed()?.randomArtists ?? []);
+  const [discoverSongs, setDiscoverSongs] = useState<SubsonicSong[]>(() => getInitialHomeFeed()?.discoverSongs ?? []);
   // Pre-populated from cache → no loading spinner on return visits.
-  const [loading, setLoading] = useState(() => initialFeed() == null);
+  const [loading, setLoading] = useState(() => getInitialHomeFeed() == null);
   // Track whether state was pre-populated from cache at mount so useEffect can
   // skip re-applying the same snapshot (avoids creating new array references
   // that would cause child components to re-render with unchanged data).
-  const [wasPrePopulated] = useState(() => initialFeed() != null);
-  const appliedScopeFingerprintRef = useRef(wasPrePopulated ? homeScope.fingerprint : '');
+  const [wasPrePopulated] = useState(() => getInitialHomeFeed() != null);
 
   const applyFeedSnapshot = (snap: HomeFeedSnapshot) => {
-    appliedScopeFingerprintRef.current = snap.scopeFingerprint;
     setStarred(snap.starred);
     setRecent(snap.recent);
     setRandom(snap.random);
@@ -152,24 +130,52 @@ export default function Home() {
   useEffect(() => {
     if (!activeServerId) return;
     let cancelled = false;
-    const fetchFreshHomeFeed = () => loadHomeFeed(homeScope, {
-      discoverArtists: isVisible('discoverArtists'),
-      discoverSongs: isVisible('discoverSongs'),
-    });
+    const fetchFreshHomeFeed = async (): Promise<HomeFeedSnapshot | null> => {
+      const mixCfg = getMixMinRatingsConfigFromAuth();
+      const albumMix =
+        mixCfg.enabled && (mixCfg.minAlbum > 0 || mixCfg.minArtist > 0);
+      const randomSize = albumMix ? HOME_RANDOM_FETCH : HOME_DISCOVER_SLICE;
+      const [s, n, rRaw, f, rp, artists, songs] = await Promise.all([
+        getAlbumList('starred', 12).catch(() => []),
+        getAlbumList('newest', 12).catch(() => []),
+        getAlbumList('random', randomSize).catch(() => []),
+        getAlbumList('frequent', 12).catch(() => []),
+        getAlbumList('recent', 12).catch(() => []),
+        isVisible('discoverArtists') ? getArtists().catch(() => []) : Promise.resolve<SubsonicArtist[]>([]),
+        isVisible('discoverSongs')
+          ? (runLocalRandomSongs(activeServerId, HOME_DISCOVER_SONGS_SIZE)
+              .then(local => local ?? getRandomSongs(HOME_DISCOVER_SONGS_SIZE).catch(() => [] as SubsonicSong[]))
+              .catch(() => [] as SubsonicSong[]))
+          : Promise.resolve<SubsonicSong[]>([]),
+      ]);
+      const r = dedupeById(await filterAlbumsByMixRatings(rRaw, mixCfg));
+      return {
+        serverId: activeServerId,
+        filterVersion: musicLibraryFilterVersion,
+        savedAt: Date.now(),
+        starred: dedupeById(s),
+        recent: dedupeById(n),
+        heroAlbums: r.slice(0, HOME_HERO_COUNT),
+        random: r.slice(HOME_HERO_COUNT, HOME_DISCOVER_SLICE),
+        mostPlayed: dedupeById(f),
+        recentlyPlayed: dedupeById(rp),
+        discoverSongs: dedupeById(songs),
+        randomArtists: dedupeById(shuffleArray(artists)).slice(0, 16),
+      };
+    };
 
-    const cached = readHomeFeedCache(homeScope.fingerprint, musicLibraryFilterVersion)
-      ?? (offlineBrowseActive ? readHomeFeedCacheStale(homeScope.fingerprint) : null);
+    const cached = readHomeFeedCache(activeServerId, musicLibraryFilterVersion)
+      ?? (offlineBrowseActive ? readHomeFeedCacheStale(activeServerId) : null);
     if (cached) {
       // When lazy initializers already pre-populated state from this same
       // snapshot, re-applying it would only create new array references and
       // trigger unnecessary child re-renders with identical data.
-      if (!wasPrePopulated || appliedScopeFingerprintRef.current !== homeScope.fingerprint) {
-        applyFeedSnapshot(cached);
-      }
+      // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
       // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (!wasPrePopulated) applyFeedSnapshot(cached);
       setLoading(false);
       void warmHomeMainstageCovers(cached);
-      const becauseSnap = readBecauseYouLikeCache(homeScope.fingerprint, musicLibraryFilterVersion);
+      const becauseSnap = readBecauseYouLikeCache(activeServerId, musicLibraryFilterVersion);
       void primeAlbumCoversForDisplay(becauseSnap?.recs ?? [], HOME_BECAUSE_CARD_COVER_CSS_PX, {
         limit: 6,
       });
@@ -192,7 +198,7 @@ export default function Home() {
       };
     }
 
-    const stale = offlineBrowseActive ? readHomeFeedCacheStale(homeScope.fingerprint) : null;
+    const stale = offlineBrowseActive ? readHomeFeedCacheStale(activeServerId) : null;
     if (stale) {
       applyFeedSnapshot(stale);
       setLoading(false);
@@ -210,7 +216,7 @@ export default function Home() {
         applyFeedSnapshot(snap);
         if (!cancelled) setLoading(false);
         void warmHomeMainstageCovers(snap);
-        const becauseSnap = readBecauseYouLikeCache(homeScope.fingerprint, musicLibraryFilterVersion);
+        const becauseSnap = readBecauseYouLikeCache(activeServerId, musicLibraryFilterVersion);
         void primeAlbumCoversForDisplay(becauseSnap?.recs ?? [], HOME_BECAUSE_CARD_COVER_CSS_PX, {
           limit: 6,
         });
@@ -228,7 +234,6 @@ export default function Home() {
   }, [
     activeServerId,
     musicLibraryFilterVersion,
-    homeScope,
     homeSections,
     offlineBrowseActive,
     offlineBrowseReloadTs,
@@ -237,29 +242,28 @@ export default function Home() {
   /** When offline toggles without a library-filter bump, re-apply stale cache if the feed was cleared. */
   useEffect(() => {
     if (!activeServerId || !offlineBrowseActive) return;
-    const stale = readHomeFeedCacheStale(homeScope.fingerprint);
+    const stale = readHomeFeedCacheStale(activeServerId);
     if (!stale || isHomeFeedSnapshotEmpty(stale)) return;
     if (recent.length > 0 || random.length > 0 || heroAlbums.length > 0) return;
     // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     applyFeedSnapshot(stale);
     setLoading(false);
-  }, [activeServerId, connStatus, devForceOffline, homeScope.fingerprint, offlineBrowseActive]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeServerId, connStatus, devForceOffline, offlineBrowseActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadMore = async (
-    type: HomeAlbumListType,
+    type: 'starred' | 'newest' | 'random' | 'frequent' | 'recent',
     currentList: SubsonicAlbum[],
     setter: React.Dispatch<React.SetStateAction<SubsonicAlbum[]>>
   ) => {
     try {
-      const requestedFingerprint = homeScope.fingerprint;
-      const batch = await loadHomeAlbumPage(homeScope, type, currentList.length);
-      setter(prev => appendHomeAlbumPage(
-        prev,
-        batch,
-        requestedFingerprint,
-        homeScopeRef.current.fingerprint,
-      ));
+      const more = await getAlbumList(type, 12, currentList.length);
+      const mixCfg = getMixMinRatingsConfigFromAuth();
+      const batchRaw =
+        type === 'random' ? await filterAlbumsByMixRatings(more, mixCfg) : more;
+      const batch = dedupeById(batchRaw);
+      const newItems = batch.filter(m => !currentList.find(c => c.id === m.id));
+      if (newItems.length > 0) setter(prev => [...prev, ...newItems]);
     } catch (e) {
       console.error('Failed to load more', e);
     }
@@ -311,13 +315,6 @@ export default function Home() {
     reserveArtworkRow();
   const becauseYouLikeHasSeed =
     mostPlayed.length > 0 || recentlyPlayed.length > 0 || starred.length > 0;
-  const becauseYouLikeSourceServerId =
-    mostPlayed.find(album => album.serverId)?.serverId
-    ?? recentlyPlayed.find(album => album.serverId)?.serverId
-    ?? starred.find(album => album.serverId)?.serverId
-    ?? activeServerId;
-  const sourceBound = (albums: SubsonicAlbum[]) =>
-    albums.filter(album => !becauseYouLikeSourceServerId || album.serverId === becauseYouLikeSourceServerId);
   const becauseYouLikeArtworkEnabled =
     !homeRailArtworkDisabled &&
     !homeAlbumRowsDisabled &&
@@ -354,9 +351,7 @@ export default function Home() {
         homeFlatArtworkClip ? 'home-flat-artwork-clip' : '',
       ].filter(Boolean).join(' ') || undefined}
     >
-      {!loading && !perfFlags.disableMainstageHero && isVisible('hero') && (
-        <Hero albums={heroAlbums} fallbackToNetwork={!browseScope.multiServer} />
-      )}
+      {!loading && !perfFlags.disableMainstageHero && isVisible('hero') && <Hero albums={heroAlbums} />}
 
       <div className="content-body" style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
         {loading ? (
@@ -399,11 +394,9 @@ export default function Home() {
             )}
             {!homeAlbumRowsDisabled && isVisible('becauseYouLike') && becauseYouLikeHasSeed && (
               <BecauseYouLikeRail
-                sourceServerId={becauseYouLikeSourceServerId}
-                sourceKey={homeScope.fingerprint}
-                mostPlayed={sourceBound(mostPlayed)}
-                recentlyPlayed={sourceBound(recentlyPlayed)}
-                starred={sourceBound(starred)}
+                mostPlayed={mostPlayed}
+                recentlyPlayed={recentlyPlayed}
+                starred={starred}
                 disableArtwork={!becauseYouLikeArtworkEnabled}
               />
             )}
@@ -438,8 +431,8 @@ export default function Home() {
                   </NavLink>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    {randomArtists.map(a => (
-                    <button key={libraryEntityKey(a)} className="artist-ext-link" onClick={() => navigate({ pathname: `/artist/${a.id}`, search: appendServerQuery(undefined, a.serverId) })}>
+                  {randomArtists.map(a => (
+                    <button key={a.id} className="artist-ext-link" onClick={() => navigate(`/artist/${a.id}`)}>
                       {a.name}
                     </button>
                   ))}

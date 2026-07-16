@@ -4,7 +4,6 @@ import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import SongCard from '@/features/home/components/SongCard';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import { dedupeById } from '@/lib/util/dedupeById';
-import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
 
 interface Props {
   title: string;
@@ -91,7 +90,7 @@ export default function SongRail({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uniqueSongs, interactivityDisabled, windowArtworkByViewport, initialArtworkBudget]);
 
-  const rowArtworkResetKey = uniqueSongs[0] ? libraryEntityKey(uniqueSongs[0]) : '';
+  const rowArtworkResetKey = uniqueSongs[0]?.id ?? '';
   useEffect(() => {
     // React Compiler set-state-in-effect rule: state set from a DOM/layout measurement.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -152,7 +151,7 @@ export default function SongRail({
           <div className="song-grid" ref={scrollRef} onScroll={handleScroll}>
             {uniqueSongs.map((s, idx) => (
               <SongCard
-                key={libraryEntityKey(s)}
+                key={s.id}
                 song={s}
                 disableArtwork={
                   artworkDisabled ||

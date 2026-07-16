@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getPlaybackProgressSnapshot } from '@/features/playback/store/playbackProgress';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
-import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
 import { useAuthStore } from '@/store/authStore';
 import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';
 
@@ -28,14 +27,10 @@ export function usePlayerSnapshotPublisher() {
       const selected = sid ? (auth.musicLibraryFilterByServer[sid] ?? 'all') : 'all';
       const ct = s.currentTrack;
       const currentTrackUserRating =
-        ct != null
-          ? (s.userRatingOverrides[entityOverrideKey(ct.serverId ?? s.queueServerId, ct.id)] ?? ct.userRating ?? null)
-          : null;
+        ct != null ? (s.userRatingOverrides[ct.id] ?? ct.userRating ?? null) : null;
       const currentTrackStarred =
         ct != null
-          ? (entityOverrideKey(ct.serverId ?? s.queueServerId, ct.id) in s.starredOverrides
-              ? s.starredOverrides[entityOverrideKey(ct.serverId ?? s.queueServerId, ct.id)]
-              : Boolean(ct.starred))
+          ? (ct.id in s.starredOverrides ? s.starredOverrides[ct.id] : Boolean(ct.starred))
           : null;
       // Thin-state: resolve only a window around the playing track (resolver
       // cache → placeholder) instead of the whole 50k queue. `queue_length`

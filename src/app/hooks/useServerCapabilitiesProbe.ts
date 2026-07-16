@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { getMusicFoldersForServer } from '@/lib/api/subsonicLibrary';
+import { getMusicFolders } from '@/lib/api/subsonicLibrary';
 import { probeEntityRatingSupport } from '@/lib/api/subsonicStarRating';
 import { useAuthStore } from '@/store/authStore';
 import { cleanupOrphanedOrbitPlaylists } from '@/features/orbit';
@@ -18,7 +18,7 @@ import { cleanupOrphanedOrbitPlaylists } from '@/features/orbit';
 export function useServerCapabilitiesProbe(): void {
   const isLoggedIn = useAuthStore(s => s.isLoggedIn);
   const activeServerId = useAuthStore(s => s.activeServerId);
-  const setMusicFoldersForServer = useAuthStore(s => s.setMusicFoldersForServer);
+  const setMusicFolders = useAuthStore(s => s.setMusicFolders);
   const setEntityRatingSupport = useAuthStore(s => s.setEntityRatingSupport);
 
   useEffect(() => {
@@ -28,9 +28,11 @@ export function useServerCapabilitiesProbe(): void {
     (async () => {
       const stillThisServer = () => !cancelled && useAuthStore.getState().activeServerId === serverAtStart;
       try {
-        const folders = await getMusicFoldersForServer(serverAtStart);
-        if (stillThisServer()) setMusicFoldersForServer(serverAtStart, folders);
-      } catch { /* Keep the persisted last-known folders on transient failure. */ }
+        const folders = await getMusicFolders();
+        if (stillThisServer()) setMusicFolders(folders);
+      } catch {
+        if (stillThisServer()) setMusicFolders([]);
+      }
       try {
         const level = await probeEntityRatingSupport();
         if (stillThisServer()) setEntityRatingSupport(serverAtStart, level);
@@ -41,7 +43,7 @@ export function useServerCapabilitiesProbe(): void {
     return () => {
       cancelled = true;
     };
-  }, [isLoggedIn, activeServerId, setMusicFoldersForServer, setEntityRatingSupport]);
+  }, [isLoggedIn, activeServerId, setMusicFolders, setEntityRatingSupport]);
 
   useEffect(() => {
     if (!isLoggedIn || !activeServerId) return;

@@ -19,9 +19,8 @@ export async function copyShareLink(
   kind: EntityShareKind,
   id: string,
   t: (key: string) => string,
-  representativeServerId?: string,
 ) {
-  const ok = await copyEntityShareLink(kind, id, representativeServerId);
+  const ok = await copyEntityShareLink(kind, id);
   if (ok) showToast(t('contextMenu.shareCopied'));
   else showToast(t('contextMenu.shareCopyFailed'), 4000, 'error');
 }

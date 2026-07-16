@@ -1,5 +1,4 @@
 import { queueSongStar } from '@/features/playback/store/pendingStarSync';
-import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
 import { coverArtIdFromRadio } from '@/cover/ids';
 import { resolvePlaybackTrackCoverArtId } from '@/cover/resolveCoverArtId';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -125,9 +124,7 @@ export default function PlayerBar() {
 
 
   const isStarred = currentTrack
-    ? (entityOverrideKey(currentTrack.serverId, currentTrack.id) in starredOverrides
-        ? starredOverrides[entityOverrideKey(currentTrack.serverId, currentTrack.id)]
-        : !!currentTrack.starred)
+    ? (currentTrack.id in starredOverrides ? starredOverrides[currentTrack.id] : !!currentTrack.starred)
     : false;
 
   const toggleStar = useCallback(() => {

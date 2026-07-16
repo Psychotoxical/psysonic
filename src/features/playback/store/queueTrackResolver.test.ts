@@ -4,7 +4,6 @@ import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import type { TrackRefDto } from '@/lib/api/library';
 import type { QueueItemRef } from '@/lib/media/trackTypes';
-import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
 import * as subsonic from '@/lib/api/subsonicLibrary';
 import {
   resolveBatch,
@@ -155,20 +154,14 @@ describe('queueTrackResolver', () => {
   });
 
   it('applyQueueOverrides merges session star/rating overrides', () => {
-    usePlayerStore.setState({
-      starredOverrides: { [entityOverrideKey('', 't1')]: true },
-      userRatingOverrides: { [entityOverrideKey('', 't1')]: 4 },
-    });
+    usePlayerStore.setState({ starredOverrides: { t1: true }, userRatingOverrides: { t1: 4 } });
     const merged = applyQueueOverrides({ id: 't1', title: 'X', artist: '', album: 'A', albumId: 'A', duration: 1 });
     expect(!!merged.starred).toBe(true);
     expect(merged.userRating).toBe(4);
   });
 
   it('applyQueueOverrides clears starred when the override is false', () => {
-    usePlayerStore.setState({
-      starredOverrides: { [entityOverrideKey('', 't1')]: false },
-      userRatingOverrides: {},
-    });
+    usePlayerStore.setState({ starredOverrides: { t1: false }, userRatingOverrides: {} });
     const merged = applyQueueOverrides({ id: 't1', title: 'X', artist: '', album: 'A', albumId: 'A', duration: 1, starred: '2020' });
     expect(merged.starred).toBeUndefined();
   });

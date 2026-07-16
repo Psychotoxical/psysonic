@@ -4,7 +4,6 @@ import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import {
   albumToAlbum,
-  artistToArtist,
   resolveTrackCoverArtId,
   runLocalAdvancedSearch,
   runLocalSongBrowse,
@@ -103,26 +102,6 @@ describe('runLocalAdvancedSearch', () => {
         ],
       },
     });
-  });
-
-  it('preserves album and artist server provenance during DTO conversion', () => {
-    const album = albumToAlbum({
-      serverId: 'profile-s2',
-      id: 'al-2',
-      name: 'Album',
-      syncedAt: 0,
-      rawJson: { serverId: 'stale-server' },
-    });
-    const artist = artistToArtist({
-      serverId: 'profile-s2',
-      id: 'ar-2',
-      name: 'Artist',
-      syncedAt: 0,
-      rawJson: { serverId: 'stale-server' },
-    });
-
-    expect(album.serverId).toBe('profile-s2');
-    expect(artist.serverId).toBe('profile-s2');
   });
 
   it('passes lossless is_true filter to library_advanced_search', async () => {

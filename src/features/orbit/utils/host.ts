@@ -31,17 +31,6 @@ export interface StartOrbitArgs {
   sid?: string;
 }
 
-export class OrbitHostScopeError extends Error {
-  constructor() {
-    super('Orbit hosting requires exactly one selected browse server');
-    this.name = 'OrbitHostScopeError';
-  }
-}
-
-export function orbitHostBlockedByBrowseScope(): boolean {
-  return useAuthStore.getState().musicLibraryServerIds.length > 1;
-}
-
 /**
  * Host: create a new session.
  *
@@ -52,7 +41,6 @@ export function orbitHostBlockedByBrowseScope(): boolean {
  * On throw the store is left in the pre-call state — nothing partially bound.
  */
 export async function startOrbitSession(args: StartOrbitArgs): Promise<OrbitState> {
-  if (orbitHostBlockedByBrowseScope()) throw new OrbitHostScopeError();
   const server = useAuthStore.getState().getActiveServer();
   const username = server?.username;
   if (!username) throw new Error('No active Navidrome server / user');

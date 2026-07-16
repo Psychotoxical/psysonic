@@ -5,7 +5,6 @@ import type { SubsonicArtist } from '@/lib/api/subsonicTypes';
 import type { PlayerState } from '@/features/playback/store/playerStoreTypes';
 import { OTHER_BUCKET, type ArtistListFlatRow } from '@/features/artist/utils/artistsHelpers';
 import { ArtistRowAvatar } from '@/features/artist/components/ArtistAvatars';
-import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
 
 interface RowProps {
   artist: SubsonicArtist;
@@ -13,8 +12,8 @@ interface RowProps {
   selectedIds: Set<string>;
   selectedArtists: SubsonicArtist[];
   showArtistImages: boolean;
-  toggleSelect: (artist: SubsonicArtist) => void;
-  onOpenArtist: (artist: SubsonicArtist) => void;
+  toggleSelect: (id: string) => void;
+  onOpenArtist: (id: string) => void;
   openContextMenu: PlayerState['openContextMenu'];
   t: TFunction;
 }
@@ -33,12 +32,12 @@ function ArtistListRow({
   return (
     <button
       type="button"
-      className={`artist-row${selectionMode && selectedIds.has(libraryEntityKey(artist)) ? ' selected' : ''}`}
+      className={`artist-row${selectionMode && selectedIds.has(artist.id) ? ' selected' : ''}`}
       onClick={() => {
         if (selectionMode) {
-          toggleSelect(artist);
+          toggleSelect(artist.id);
         } else {
-          onOpenArtist(artist);
+          onOpenArtist(artist.id);
         }
       }}
       onContextMenu={(e) => {
@@ -49,8 +48,8 @@ function ArtistListRow({
           openContextMenu(e.clientX, e.clientY, artist, 'artist');
         }
       }}
-      id={`artist-${encodeURIComponent(libraryEntityKey(artist))}`}
-      style={selectionMode && selectedIds.has(libraryEntityKey(artist)) ? {
+      id={`artist-${artist.id}`}
+      style={selectionMode && selectedIds.has(artist.id) ? {
         background: 'var(--accent-dim)',
         color: 'var(--accent)',
       } : {}}
@@ -78,8 +77,8 @@ interface Props {
   selectedIds: Set<string>;
   selectedArtists: SubsonicArtist[];
   showArtistImages: boolean;
-  toggleSelect: (artist: SubsonicArtist) => void;
-  onOpenArtist: (artist: SubsonicArtist) => void;
+  toggleSelect: (id: string) => void;
+  onOpenArtist: (id: string) => void;
   openContextMenu: PlayerState['openContextMenu'];
   t: TFunction;
 }
@@ -127,7 +126,7 @@ export function ArtistsListView({
             <h3 className="letter-heading">{letter === OTHER_BUCKET ? t('artists.other') : letter}</h3>
             <div className="artist-list">
               {groups[letter].map(artist => (
-                <ArtistListRow key={libraryEntityKey(artist)} artist={artist} {...rowCommonProps} />
+                <ArtistListRow key={artist.id} artist={artist} {...rowCommonProps} />
               ))}
             </div>
           </div>

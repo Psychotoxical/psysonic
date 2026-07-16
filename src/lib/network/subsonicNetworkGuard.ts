@@ -4,8 +4,6 @@ import { isDevOfflineBrowseForced } from '@/store/devOfflineBrowseStore';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import { isActiveServerReachable } from '@/lib/network/activeServerReachability';
 import { isNavigatorOfflineHint } from '@/lib/network/navigatorOnlineHint';
-import { getLibraryServerConnection } from '@/lib/network/libraryServerReachability';
-import { resolveIndexKey } from '@/lib/server/serverIndexKey';
 
 function isSameServerProfile(a: string, b: string): boolean {
   if (!a || !b) return false;
@@ -26,17 +24,7 @@ export function isSubsonicServerReachable(serverId: string): boolean {
   if (!activeId || isSameServerProfile(serverId, activeId)) {
     return isActiveServerReachable();
   }
-  const runtimeConnection = getLibraryServerConnection(resolveIndexKey(serverId));
-  if (runtimeConnection !== 'unknown') return runtimeConnection === 'online';
   return true;
-}
-
-/** Authoritative reachability for unified library decisions; unknown is excluded. */
-export function isSubsonicServerReachableForUnifiedScope(serverId: string): boolean {
-  if (!serverId) return false;
-  if (isDevOfflineBrowseForced()) return false;
-  if (isNavigatorOfflineHint()) return false;
-  return getLibraryServerConnection(resolveIndexKey(serverId)) === 'online';
 }
 
 /**

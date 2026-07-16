@@ -3,7 +3,6 @@ import { usePlayerStore } from '@/features/playback/store/playerStore';
 import type { QueueItemRef, Track } from '@/lib/media/trackTypes';
 import { seedQueueResolver, _resetQueueResolverForTest } from '@/features/playback/store/queueTrackResolver';
 import { resolveQueueTrack, getQueueTracksView } from './queueTrackView';
-import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
 
 const track = (id: string, over: Partial<Track> = {}): Track =>
   ({ id, title: id, artist: 'A', album: 'Al', albumId: 'Al', duration: 1, ...over });
@@ -39,10 +38,7 @@ describe('queueTrackView', () => {
 
   it('merges session star/rating overrides', () => {
     seedQueueResolver('s1', [track('t5')]);
-    usePlayerStore.setState({
-      starredOverrides: { [entityOverrideKey('s1', 't5')]: true },
-      userRatingOverrides: { [entityOverrideKey('s1', 't5')]: 4 },
-    });
+    usePlayerStore.setState({ starredOverrides: { t5: true }, userRatingOverrides: { t5: 4 } });
     const r = resolveQueueTrack(ref('t5'));
     expect(!!r.starred).toBe(true);
     expect(r.userRating).toBe(4);

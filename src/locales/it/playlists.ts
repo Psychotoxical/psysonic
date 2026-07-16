@@ -1,5 +1,4 @@
 export const playlists = {
-  sources: 'Playlist sources',
   sortTooltip: 'Ordina brani',
   sortDateAddedNewest: 'Data aggiunta (più recenti)',
   sortDateAddedOldest: 'Data aggiunta (meno recenti)',
@@ -14,7 +13,6 @@ export const playlists = {
   emptyPlaylist: 'Questa playlist è vuota.',
   addFirstSong: 'Aggiungi il tuo primo brano',
   notFound: 'Playlist non trovata.',
-  smartMembershipReadOnly: 'Questa playlist intelligente è generata da {{server}}. Aggiunta, rimozione, riordino e importazione CSV sono disattivati qui per non sostituire le regole del server.',
   songs_one: '{{count}} brano',
   songs_other: '{{count}} brani',
   playAll: 'Riproduci tutto',

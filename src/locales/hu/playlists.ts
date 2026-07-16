@@ -1,5 +1,4 @@
 export const playlists = {
-  sources: 'Playlist sources',
   sortTooltip: 'Számok rendezése',
   sortDateAddedNewest: 'Hozzáadás dátuma (legújabb)',
   sortDateAddedOldest: 'Hozzáadás dátuma (legrégebbi)',
@@ -14,7 +13,6 @@ export const playlists = {
   emptyPlaylist: 'Ez a lejátszási lista üres.',
   addFirstSong: 'Add hozzá az első dalt',
   notFound: 'A lejátszási lista nem található.',
-  smartMembershipReadOnly: 'Ezt az intelligens lejátszási listát a(z) {{server}} hozza létre. A hozzáadás, eltávolítás, átrendezés és CSV-import itt le van tiltva, hogy a szerver szabályai ne íródjanak felül.',
   songs_one: '{{count}} dal',
   songs_other: '{{count}} dal',
   playAll: 'Összes lejátszása',

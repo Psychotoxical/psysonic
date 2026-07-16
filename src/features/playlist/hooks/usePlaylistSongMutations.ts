@@ -6,12 +6,11 @@ import { showToast } from '@/lib/dom/toast';
 export interface PlaylistSongMutationsDeps {
   songs: SubsonicSong[];
   setSongs: React.Dispatch<React.SetStateAction<SubsonicSong[]>>;
-  savePlaylist: (updatedSongs: SubsonicSong[]) => Promise<void>;
+  savePlaylist: (updatedSongs: SubsonicSong[], prevCount?: number) => Promise<void>;
   setSuggestions: React.Dispatch<React.SetStateAction<SubsonicSong[]>>;
   setSearchResults: React.Dispatch<React.SetStateAction<SubsonicSong[]>>;
   playlist: SubsonicPlaylist | null;
   t: TFunction;
-  hasSong?: (songId: string) => boolean;
 }
 
 export interface PlaylistSongMutations {
@@ -20,16 +19,17 @@ export interface PlaylistSongMutations {
 }
 
 export function usePlaylistSongMutations(deps: PlaylistSongMutationsDeps): PlaylistSongMutations {
-  const { songs, setSongs, savePlaylist, setSuggestions, setSearchResults, playlist, t, hasSong } = deps;
+  const { songs, setSongs, savePlaylist, setSuggestions, setSearchResults, playlist, t } = deps;
 
   const removeSong = (idx: number) => {
+    const prevCount = songs.length;
     const next = songs.filter((_, i) => i !== idx);
     setSongs(next);
-    savePlaylist(next);
+    savePlaylist(next, prevCount);
   };
 
   const addSong = (song: SubsonicSong) => {
-    if (songs.some(s => s.id === song.id) || hasSong?.(song.id)) return;
+    if (songs.some(s => s.id === song.id)) return;
     const scrollHost = document.querySelector('.main-content') as HTMLElement | null;
     const savedScroll = scrollHost?.scrollTop ?? 0;
     const next = [...songs, song];

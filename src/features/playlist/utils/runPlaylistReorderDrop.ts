@@ -4,7 +4,7 @@ import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 export interface RunPlaylistReorderDropDeps {
   e: Event;
   songs: SubsonicSong[];
-  savePlaylist: (next: SubsonicSong[]) => Promise<void>;
+  savePlaylist: (next: SubsonicSong[], prevCount?: number) => Promise<void>;
   setDropTargetIdx: React.Dispatch<React.SetStateAction<{ idx: number; before: boolean } | null>>;
   setSongs: React.Dispatch<React.SetStateAction<SubsonicSong[]>>;
 }

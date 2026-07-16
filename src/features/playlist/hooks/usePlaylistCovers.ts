@@ -5,7 +5,6 @@ import { albumCoverRef } from '@/cover/ref';
 import { coverPrefetchRegister } from '@/cover/prefetchRegistry';
 import { resolveAlbumCoverRefFromLibrary } from '@/cover/resolveEntryLibrary';
 import { useCoverArt } from '@/cover/useCoverArt';
-import { coverServerScopeForServerId } from '@/cover/serverScope';
 
 const PLAYLIST_HERO_BG_CSS_PX = 200;
 const PLAYLIST_MAIN_COVER_CSS_PX = 200;
@@ -19,26 +18,20 @@ export interface PlaylistCovers {
 async function playlistCoverRefFromLibrary(
   coverId: string,
   songs: SubsonicSong[],
-  ownerServerId: string,
 ): Promise<CoverArtRef> {
   const trimmed = coverId.trim();
-  const serverScope = coverServerScopeForServerId(ownerServerId);
   // Custom playlist / radio covers only — not track mf-* ids used in quad collages.
   if (trimmed.startsWith('pl-') || trimmed.startsWith('ra-')) {
-    return albumCoverRef(trimmed, trimmed, serverScope);
+    return albumCoverRef(trimmed, trimmed);
   }
   const song = songs.find(s => s.coverArt === coverId || s.albumId === coverId);
   if (song?.albumId) {
-    return resolveAlbumCoverRefFromLibrary(song.albumId, coverId, serverScope);
+    return resolveAlbumCoverRefFromLibrary(song.albumId, coverId);
   }
-  return resolveAlbumCoverRefFromLibrary(coverId, coverId, serverScope);
+  return resolveAlbumCoverRefFromLibrary(coverId, coverId);
 }
 
-export function usePlaylistCovers(
-  songs: SubsonicSong[],
-  customCoverId: string | null,
-  ownerServerId: string,
-): PlaylistCovers {
+export function usePlaylistCovers(songs: SubsonicSong[], customCoverId: string | null): PlaylistCovers {
   const coverQuad = useMemo(() => {
     const seen = new Set<string>();
     const result: string[] = [];
@@ -72,13 +65,13 @@ export function usePlaylistCovers(
       return;
     }
     let cancelled = false;
-    void playlistCoverRefFromLibrary(bgCoverId, songs, ownerServerId).then(ref => {
+    void playlistCoverRefFromLibrary(bgCoverId, songs).then(ref => {
       if (!cancelled) setBgCoverRef(ref);
     });
     return () => {
       cancelled = true;
     };
-  }, [bgCoverId, songs, ownerServerId]);
+  }, [bgCoverId, songs]);
 
   const { src: resolvedBgUrl } = useCoverArt(bgCoverRef, PLAYLIST_HERO_BG_CSS_PX, {
     surface: 'dense',
@@ -94,7 +87,7 @@ export function usePlaylistCovers(
     let cancelled = false;
     let unreg: (() => void) | undefined;
     void (async () => {
-      const refs = await Promise.all(ids.map(id => playlistCoverRefFromLibrary(id, songs, ownerServerId)));
+      const refs = await Promise.all(ids.map(id => playlistCoverRefFromLibrary(id, songs)));
       if (!cancelled) {
         unreg = coverPrefetchRegister(refs, { surface: 'dense', priority: 'middle' });
       }
@@ -103,7 +96,7 @@ export function usePlaylistCovers(
       cancelled = true;
       unreg?.();
     };
-  }, [coverQuadIds, bgCoverId, songs, ownerServerId]);
+  }, [coverQuadIds, bgCoverId, songs]);
 
   return { coverQuadIds, bgCoverId, resolvedBgUrl };
 }

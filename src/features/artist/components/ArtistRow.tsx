@@ -3,7 +3,6 @@ import React, { useRef, useState, useEffect, useLayoutEffect } from 'react';
 import ArtistCardLocal from '@/features/artist/components/ArtistCardLocal';
 import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
 
 interface Props {
   title: string;
@@ -30,7 +29,7 @@ export default function ArtistRow({
   const [showRight, setShowRight] = useState(true);
   const scrollRestoreTargetRef = useRef(restoreScrollLeft);
   const scrollRestoreDoneRef = useRef(false);
-  const rowResetKey = artists[0] ? libraryEntityKey(artists[0]) : '';
+  const rowResetKey = artists[0]?.id ?? '';
 
   const handleScroll = () => {
     if (!scrollRef.current) return;
@@ -124,7 +123,7 @@ export default function ArtistRow({
         <div className="album-grid" ref={scrollRef} onScroll={handleScroll}>
           {artists.map(a => (
             <ArtistCardLocal
-              key={libraryEntityKey(a)}
+              key={a.serverId ? `${a.serverId}:${a.id}` : a.id}
               artist={a}
               linkQuery={artistLinkQuery}
               libraryResolve={libraryResolve}

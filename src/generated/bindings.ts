@@ -7,9 +7,8 @@ export const commands = {
 	greet: (name: string) => __TAURI_INVOKE<string>("greet", { name }),
 	/**  Min/max album years from the local track catalog (for Albums browse filter spinners). */
 	libraryGetCatalogYearBounds: (serverId: string) => typedError<CatalogYearBoundsDto, string>(__TAURI_INVOKE("library_get_catalog_year_bounds", { serverId })),
-	libraryScopeCatalogYearBounds: (scopes: LibraryScopePair[]) => typedError<CatalogYearBoundsDto, string>(__TAURI_INVOKE("library_scope_catalog_year_bounds", { scopes })),
 	/**  Distinct album counts per track genre — same grouping as genre album browse. */
-	libraryGetGenreAlbumCounts: (serverId: string, libraryScope: string | null, libraryScopes: LibraryScopePair[] | null) => typedError<GenreAlbumCountDto[], string>(__TAURI_INVOKE("library_get_genre_album_counts", { serverId, libraryScope, libraryScopes })),
+	libraryGetGenreAlbumCounts: (serverId: string, libraryScope: string | null, libraryScopes: string[] | null) => typedError<GenreAlbumCountDto[], string>(__TAURI_INVOKE("library_get_genre_album_counts", { serverId, libraryScope, libraryScopes })),
 	/**
 	 *  Align `album.starred_at` with server favorites: UPDATE existing rows only
 	 *  (no INSERT / stub rows). Clears local stars absent from `starred_albums`.
@@ -46,8 +45,6 @@ export const commands = {
 	libraryGenreTagsRun: () => typedError<null, string>(__TAURI_INVOKE("library_genre_tags_run")),
 	/**  Rebuild precomputed cluster identity keys (`library-cluster.db` attach). */
 	libraryClusterRebuild: (serverId: string | null) => typedError<number, string>(__TAURI_INVOKE("library_cluster_rebuild", { serverId })),
-	libraryResolveEntitySources: (request: LibraryResolveEntitySourcesRequest) => typedError<LibraryEntitySourceDto[], string>(__TAURI_INVOKE("library_resolve_entity_sources", { request })),
-	libraryScopeCatalogStatistics: (request: LibraryScopeCatalogStatisticsRequest) => typedError<LibraryScopeCatalogStatisticsDto, string>(__TAURI_INVOKE("library_scope_catalog_statistics", { request })),
 	librarySyncBindSession: (serverId: string, baseUrl: string, username: string, password: string, libraryScope: string | null) => typedError<null, string>(__TAURI_INVOKE("library_sync_bind_session", { serverId, baseUrl, username, password, libraryScope })),
 	librarySyncClearSession: (serverId: string) => typedError<null, string>(__TAURI_INVOKE("library_sync_clear_session", { serverId })),
 	librarySetPlaybackHint: (hint: string) => typedError<null, string>(__TAURI_INVOKE("library_set_playback_hint", { hint })),
@@ -1037,71 +1034,10 @@ export type LibraryCoverProgressDto = {
 	done: number,
 };
 
-/**
- *  Concrete source metadata for one browse identity partition. Identity keys
- *  remain internal so the frontend contract cannot persist raw cluster hashes.
- */
-export type LibraryEntitySourceDto = {
-	serverId: string,
-	id: string,
-	libraryId: string,
-	priority: number,
-	durationSec: number | null,
-	suffix: string | null,
-	bitRate: number | null,
-	sizeBytes: number | null,
-	starredAt: number | null,
-	userRating: number | null,
-};
-
-/**
- *  Resolve one concrete browse entity to every matching concrete source in an
- *  explicitly ordered scope.
- */
-export type LibraryResolveEntitySourcesRequest = {
-	entityType: LibrarySourceEntityType,
-	anchorServerId: string,
-	anchorId: string,
-	scopes: LibraryScopePair[],
-};
-
-export type LibraryScopeCatalogStatisticsDto = {
-	artistCount: number,
-	albumCount: number,
-	trackCount: number,
-	durationSec: number,
-	genres: GenreAlbumCountDto[],
-	formats: LibraryScopeFormatCountDto[],
-	formatSampleSize: number,
-};
-
-export type LibraryScopeCatalogStatisticsRequest = {
-	scopes: LibraryScopePair[],
-	formatSampleLimit?: number | null,
-};
-
-export type LibraryScopeFormatCountDto = {
-	format: string,
-	count: number,
-};
-
-/**  One `(server_id, library_id)` pair in priority order (index 0 = highest). */
-export type LibraryScopePair = {
-	serverId: string,
-	/**
-	 *  `None` means every indexed library on this server. `Some("")` is the
-	 *  concrete implicit library id and must not be treated as whole-server.
-	 */
-	libraryId: string | null,
-};
-
 export type LibraryServerKeyMigrationDto = {
 	legacyId: string,
 	indexKey: string,
 };
-
-/**  Entity kind accepted by `library_resolve_entity_sources`. */
-export type LibrarySourceEntityType = "track" | "album" | "artist";
 
 export type LibraryTierDiskHit = {
 	trackId: string,

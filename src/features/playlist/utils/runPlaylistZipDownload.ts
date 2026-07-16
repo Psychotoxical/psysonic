@@ -1,6 +1,6 @@
 import { downloadZip } from '@/lib/api/downloadZip';
 import { join } from '@tauri-apps/api/path';
-import { buildDownloadUrlForServer } from '@/lib/api/subsonicStreamUrl';
+import { buildDownloadUrl } from '@/lib/api/subsonicStreamUrl';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
 import { useZipDownloadStore } from '@/features/offline';
 import { sanitizeFilename } from '@/lib/format/playlistDetailHelpers';
@@ -8,20 +8,19 @@ import { sanitizeFilename } from '@/lib/format/playlistDetailHelpers';
 export interface RunPlaylistZipDownloadDeps {
   playlist: SubsonicPlaylist;
   id: string;
-  ownerServerId: string;
   downloadFolder: string | null;
   requestDownloadFolder: () => Promise<string | null>;
   setZipDownloadId: (id: string | null) => void;
 }
 
 export async function runPlaylistZipDownload(deps: RunPlaylistZipDownloadDeps): Promise<void> {
-  const { playlist, id, ownerServerId, downloadFolder, requestDownloadFolder, setZipDownloadId } = deps;
+  const { playlist, id, downloadFolder, requestDownloadFolder, setZipDownloadId } = deps;
   const folder = downloadFolder || await requestDownloadFolder();
   if (!folder) return;
 
   const filename = `${sanitizeFilename(playlist.name)}.zip`;
   const destPath = await join(folder, filename);
-  const url = buildDownloadUrlForServer(ownerServerId, id);
+  const url = buildDownloadUrl(id);
   const downloadId = crypto.randomUUID();
 
   const { start, complete, fail } = useZipDownloadStore.getState();

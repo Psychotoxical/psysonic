@@ -2,11 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAuthStore } from '@/store/authStore';
 import { resetAuthStore } from '@/test/helpers/storeReset';
 import { setActiveServerReachable } from '@/lib/network/activeServerReachability';
-import {
-  isSubsonicServerReachableForUnifiedScope,
-  shouldAttemptSubsonicForServer,
-} from '@/lib/network/subsonicNetworkGuard';
-import { replaceLibraryServerConnectionSnapshot } from '@/lib/network/libraryServerReachability';
+import { shouldAttemptSubsonicForServer } from '@/lib/network/subsonicNetworkGuard';
 
 const hasLocalPlaybackUrlMock = vi.fn((_trackId: string, _serverId: string) => false);
 
@@ -20,7 +16,6 @@ describe('shouldAttemptSubsonicForServer', () => {
     resetAuthStore();
     setActiveServerReachable(null);
     hasLocalPlaybackUrlMock.mockReturnValue(false);
-    replaceLibraryServerConnectionSnapshot({});
   });
 
   it('returns false without a server id', () => {
@@ -57,27 +52,6 @@ describe('shouldAttemptSubsonicForServer', () => {
     expect(shouldAttemptSubsonicForServer(playbackId, 't1')).toBe(true);
     expect(shouldAttemptSubsonicForServer(playbackId)).toBe(true);
     expect(shouldAttemptSubsonicForServer(activeId)).toBe(false);
-  });
-
-  it('uses authoritative non-active runtime reachability when known', () => {
-    const playbackId = useAuthStore.getState().addServer({
-      name: 'Playback', url: 'http://playback.test', username: 'u', password: 'p',
-    });
-    const activeId = useAuthStore.getState().addServer({
-      name: 'Browse', url: 'http://browse.test', username: 'u', password: 'p',
-    });
-    useAuthStore.getState().setActiveServer(activeId);
-    replaceLibraryServerConnectionSnapshot({ 'playback.test': 'offline' });
-    expect(shouldAttemptSubsonicForServer(playbackId)).toBe(false);
-  });
-
-  it('never treats unknown non-active reachability as online for unified scope', () => {
-    const serverId = useAuthStore.getState().addServer({
-      name: 'Other', url: 'http://other.test', username: 'u', password: 'p',
-    });
-    expect(isSubsonicServerReachableForUnifiedScope(serverId)).toBe(false);
-    replaceLibraryServerConnectionSnapshot({ 'other.test': 'online' });
-    expect(isSubsonicServerReachableForUnifiedScope(serverId)).toBe(true);
   });
 
   it('returns false when the track resolves to a local playback url', () => {

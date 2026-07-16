@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Radio, Heart, ChevronRight, ListMusic, Star, Share2 } from 'lucide-react';
-import { queueEntityStar } from '@/features/playback';
+import { star, unstar } from '@/lib/api/subsonicStarRating';
 import type { SubsonicArtist } from '@/lib/api/subsonicTypes';
 import StarRating from '@/ui/StarRating';
 import { ArtistToPlaylistSubmenu } from '@/features/contextMenu/components/AlbumArtistToPlaylistSubmenu';
@@ -10,7 +10,7 @@ import type { ContextMenuItemsProps } from '@/features/contextMenu/components/co
 export default function ArtistContextItems(props: ContextMenuItemsProps) {
   const {
     type, item, shareKindOverride, closeContextMenu,
-    userRatingOverrides, setKeyboardRating, keyboardRating,
+    setStarredOverride, userRatingOverrides, setKeyboardRating, keyboardRating,
     playlistSubmenuOpen, setPlaylistSubmenuOpen, cancelPlaylistSubmenuCloseTimer, onPlaylistSubmenuTriggerMouseLeave,
     playlistSongIds, setPlaylistSongIds,
     entityRatingSupport, applyArtistRating,
@@ -43,7 +43,7 @@ export default function ArtistContextItems(props: ContextMenuItemsProps) {
                   )}
                 </div>
               )}
-              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink(shareKindOverride ?? 'artist', artist.id, artist.serverId))}>
+              <div className="context-menu-item" onClick={() => handleAction(() => copyShareLink(shareKindOverride ?? 'artist', artist.id))}>
                 <Share2 size={14} /> {t('contextMenu.shareLink')}
               </div>
               {(offlinePolicy.canFavorite || offlinePolicy.canRate) && (
@@ -52,7 +52,15 @@ export default function ArtistContextItems(props: ContextMenuItemsProps) {
                   {offlinePolicy.canFavorite && (
                     <div className="context-menu-item" onClick={() => handleAction(() => {
                       const starred = isStarred(artist.id, artist.starred);
-                       queueEntityStar('artist', artist.id, !starred, artist.serverId);
+                      setStarredOverride(artist.id, !starred);
+                      const meta = {
+                        serverId: artist.serverId,
+                        name: artist.name,
+                        albumCount: artist.albumCount,
+                      };
+                      return starred
+                        ? unstar(artist.id, 'artist', meta)
+                        : star(artist.id, 'artist', meta);
                     })}>
                       <Heart size={14} fill={isStarred(artist.id, artist.starred) ? 'currentColor' : 'none'} />
                       {isStarred(artist.id, artist.starred) ? t('contextMenu.unfavoriteArtist') : t('contextMenu.favoriteArtist')}

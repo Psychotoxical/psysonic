@@ -21,10 +21,9 @@ function legacyFilterFromSelection(libraryIds: string[]): 'all' | string {
  * option and future libraries are included automatically. `musicFolders` is the
  * active server's folder list, so this only applies once it has loaded.
  */
-function collapseFullSelection(state: AuthState, serverId: string, libraryIds: string[]): string[] {
+function collapseFullSelection(state: AuthState, libraryIds: string[]): string[] {
   if (libraryIds.length === 0) return libraryIds;
-  const folders = state.musicFoldersByServer[serverId]
-    ?? (serverId === state.activeServerId ? state.musicFolders : []);
+  const folders = state.musicFolders;
   if (folders.length === 0 || libraryIds.length < folders.length) return libraryIds;
   const selected = new Set(libraryIds);
   return folders.every(folder => selected.has(folder.id)) ? [] : libraryIds;
@@ -57,63 +56,39 @@ function deferMusicLibraryCatalogReload(get: GetState, set: SetState, serverId: 
  */
 export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
   AuthState,
-  | 'setMusicLibraryServerSelected'
-  | 'setMusicFoldersForServer'
-  | 'setMusicLibrarySelectionForServer'
-  | 'setMusicFolders'
-  | 'setMusicLibraryFilter'
-  | 'setMusicLibrarySelection'
+  'setMusicFolders' | 'setMusicLibraryFilter' | 'setMusicLibrarySelection'
 > {
   return {
-    setMusicLibraryServerSelected: (serverId, selected) => {
-      const state = get();
-      if (!state.servers.some(server => server.id === serverId)) return;
-      const selectedIds = new Set(state.musicLibraryServerIds);
-      if (selected) {
-        selectedIds.add(serverId);
-      } else {
-        selectedIds.delete(serverId);
-        if (selectedIds.size === 0 && state.servers.length > 0) return;
-      }
-      set({
-        musicLibraryServerIds: state.servers
-          .map(server => server.id)
-          .filter(id => selectedIds.has(id)),
-      });
-      deferMusicLibraryCatalogReload(get, set, serverId);
-    },
-
-    setMusicFoldersForServer: (serverId, folders) => {
-      const state = get();
-      if (!state.servers.some(server => server.id === serverId)) return;
+    setMusicFolders: (folders) => {
+      const sid = get().activeServerId;
       const folderIds = new Set(folders.map(x => x.id));
-      const updates: Partial<AuthState> = {
-        musicFoldersByServer: { ...state.musicFoldersByServer, [serverId]: folders },
-        ...(state.activeServerId === serverId ? { musicFolders: folders } : {}),
-      };
+      if (!sid) {
+        set({ musicFolders: folders });
+        return;
+      }
+
+      const s = get();
+      const updates: Partial<AuthState> = { musicFolders: folders };
       let scopeChanged = false;
 
-      const f = state.musicLibraryFilterByServer[serverId];
+      const f = s.musicLibraryFilterByServer[sid];
       const invalidFilter = f && f !== 'all' && !folderIds.has(f);
       if (invalidFilter) {
-        updates.musicLibraryFilterByServer = {
-          ...state.musicLibraryFilterByServer,
-          [serverId]: 'all',
-        };
+        updates.musicLibraryFilterByServer = { ...s.musicLibraryFilterByServer, [sid]: 'all' };
         scopeChanged = true;
       }
 
-      const selection = state.musicLibrarySelectionByServer[serverId];
+      const selection = s.musicLibrarySelectionByServer[sid];
       if (selection && selection.length > 0) {
         const pruned = selection.filter(id => folderIds.has(id));
         if (pruned.length !== selection.length) {
           updates.musicLibrarySelectionByServer = {
-            ...state.musicLibrarySelectionByServer,
-            [serverId]: pruned,
+            ...s.musicLibrarySelectionByServer,
+            [sid]: pruned,
           };
           updates.musicLibraryFilterByServer = {
-            ...(updates.musicLibraryFilterByServer ?? state.musicLibraryFilterByServer),
-            [serverId]: legacyFilterFromSelection(pruned),
+            ...(updates.musicLibraryFilterByServer ?? s.musicLibraryFilterByServer),
+            [sid]: legacyFilterFromSelection(pruned),
           };
           scopeChanged = true;
         }
@@ -124,32 +99,8 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
       // ~30 hooks gated on `musicLibraryFilterVersion` and the browse-catalog
       // caches must refetch/evict — same as an explicit selection change.
       if (scopeChanged) {
-        deferMusicLibraryCatalogReload(get, set, serverId);
+        deferMusicLibraryCatalogReload(get, set, sid);
       }
-    },
-
-    setMusicLibrarySelectionForServer: (serverId, libraryIds) => {
-      const selection = collapseFullSelection(get(), serverId, libraryIds);
-      set(s => ({
-        musicLibrarySelectionByServer: {
-          ...s.musicLibrarySelectionByServer,
-          [serverId]: selection,
-        },
-        musicLibraryFilterByServer: {
-          ...s.musicLibraryFilterByServer,
-          [serverId]: legacyFilterFromSelection(selection),
-        },
-      }));
-      deferMusicLibraryCatalogReload(get, set, serverId);
-    },
-
-    setMusicFolders: (folders) => {
-      const serverId = get().activeServerId;
-      if (!serverId) {
-        set({ musicFolders: folders });
-        return;
-      }
-      get().setMusicFoldersForServer(serverId, folders);
     },
 
     setMusicLibraryFilter: (folderId) => {
@@ -159,13 +110,32 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
       // a legacy-only write would be a no-op once a selection exists. Keep both
       // in sync: 'all' clears the selection (browse all), a folder id becomes a
       // single-entry ordered selection.
-      get().setMusicLibrarySelectionForServer(sid, folderId === 'all' ? [] : [folderId]);
+      const selection = folderId === 'all' ? [] : [folderId];
+      set(s => ({
+        musicLibrarySelectionByServer: {
+          ...s.musicLibrarySelectionByServer,
+          [sid]: selection,
+        },
+        musicLibraryFilterByServer: { ...s.musicLibraryFilterByServer, [sid]: folderId },
+      }));
+      deferMusicLibraryCatalogReload(get, set, sid);
     },
 
     setMusicLibrarySelection: (libraryIds) => {
       const sid = get().activeServerId;
       if (!sid) return;
-      get().setMusicLibrarySelectionForServer(sid, libraryIds);
+      const selection = collapseFullSelection(get(), libraryIds);
+      set(s => ({
+        musicLibrarySelectionByServer: {
+          ...s.musicLibrarySelectionByServer,
+          [sid]: selection,
+        },
+        musicLibraryFilterByServer: {
+          ...s.musicLibraryFilterByServer,
+          [sid]: legacyFilterFromSelection(selection),
+        },
+      }));
+      deferMusicLibraryCatalogReload(get, set, sid);
     },
   };
 }

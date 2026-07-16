@@ -1,24 +1,20 @@
-import {
-  createPlaylistForServer,
-  getPlaylistsForServer,
-} from '@/lib/api/subsonicPlaylists';
+import { getPlaylists, createPlaylist as apiCreatePlaylist } from '@/lib/api/subsonicPlaylists';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useAuthStore } from '@/store/authStore';
 import { isOfflineBrowseActive, fetchOfflineBrowsablePlaylists } from '@/features/offline';
 import { usePlaylistMembershipStore } from '@/store/playlistMembershipStore';
-import { isSubsonicServerReachableForUnifiedScope } from '@/lib/network/subsonicNetworkGuard';
 
 interface PlaylistStore {
   recentIds: string[];
   playlists: SubsonicPlaylist[];
   playlistsLoading: boolean;
   lastModified: Record<string, number>;
-  touchPlaylist: (id: string, serverId?: string) => void;
-  removeId: (id: string, serverId?: string) => void;
-  fetchPlaylists: (serverIds?: string[]) => Promise<void>;
-  createPlaylist: (name: string, songIds?: string[], serverId?: string) => Promise<SubsonicPlaylist | null>;
+  touchPlaylist: (id: string) => void;
+  removeId: (id: string) => void;
+  fetchPlaylists: () => Promise<void>;
+  createPlaylist: (name: string, songIds?: string[]) => Promise<SubsonicPlaylist | null>;
   addPlaylist: (playlist: SubsonicPlaylist) => void;
 }
 
@@ -29,16 +25,16 @@ export const usePlaylistStore = create<PlaylistStore>()(
       playlists: [],
       playlistsLoading: false,
       lastModified: {},
-      touchPlaylist: (id, serverId = '') =>
+      touchPlaylist: (id) =>
         set((s) => ({
-          recentIds: [`${serverId}:${id}`, ...s.recentIds.filter((x) => x !== `${serverId}:${id}`)].slice(0, 50),
-          lastModified: { ...s.lastModified, [`${serverId}:${id}`]: Date.now() },
+          recentIds: [id, ...s.recentIds.filter((x) => x !== id)].slice(0, 50),
+          lastModified: { ...s.lastModified, [id]: Date.now() },
         })),
-      removeId: (id, serverId = '') => {
-        usePlaylistMembershipStore.getState().invalidatePlaylistSongIds(id, serverId);
-        set((s) => ({ recentIds: s.recentIds.filter((x) => x !== `${serverId}:${id}`) }));
+      removeId: (id) => {
+        usePlaylistMembershipStore.getState().invalidatePlaylistSongIds(id);
+        set((s) => ({ recentIds: s.recentIds.filter((x) => x !== id) }));
       },
-      fetchPlaylists: async (requestedServerIds) => {
+      fetchPlaylists: async () => {
         set({ playlistsLoading: true });
         usePlaylistMembershipStore.getState().clearAllPlaylistSongIds();
         try {
@@ -48,26 +44,20 @@ export const usePlaylistStore = create<PlaylistStore>()(
             set({ playlists, playlistsLoading: false });
             return;
           }
-          const serverIds = (requestedServerIds ?? useAuthStore.getState().musicLibraryServerIds)
-            .filter(isSubsonicServerReachableForUnifiedScope);
-          const playlists = (await Promise.all(serverIds.map(serverId => getPlaylistsForServer(serverId))))
-            .flat();
+          const playlists = await getPlaylists();
           set({ playlists, playlistsLoading: false });
         } catch {
           set({ playlistsLoading: false });
         }
       },
-      createPlaylist: async (name: string, songIds?: string[], ownerServerId?: string) => {
+      createPlaylist: async (name: string, songIds?: string[]) => {
         try {
-          const serverId = ownerServerId ?? useAuthStore.getState().activeServerId;
-          if (!serverId) return null;
-          const playlist = await createPlaylistForServer(serverId, name, songIds);
-          const key = `${serverId}:${playlist.id}`;
+          const playlist = await apiCreatePlaylist(name, songIds);
           set((s) => ({
             playlists: [...s.playlists, playlist],
-            recentIds: [key, ...s.recentIds.filter((x) => x !== key)].slice(0, 50),
+            recentIds: [playlist.id, ...s.recentIds.filter((x) => x !== playlist.id)].slice(0, 50),
           }));
-          usePlaylistMembershipStore.getState().setPlaylistSongIds(playlist.id, songIds ?? [], serverId);
+          usePlaylistMembershipStore.getState().setPlaylistSongIds(playlist.id, songIds ?? []);
           return playlist;
         } catch {
           return null;

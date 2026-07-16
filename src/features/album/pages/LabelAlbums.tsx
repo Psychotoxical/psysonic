@@ -9,8 +9,6 @@ import { useAuthStore } from '@/store/authStore';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import { albumGridWarmCovers } from '@/cover/layoutSizes';
 import { VirtualCardGrid } from '@/ui/VirtualCardGrid';
-import { useBrowseLibraryScope } from '@/store/useBrowseLibraryScope';
-import { runLocalBrowseAlbums } from '@/lib/library/browseTextSearch';
 
 export default function LabelAlbums() {
   const { t } = useTranslation();
@@ -20,8 +18,6 @@ export default function LabelAlbums() {
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [loading, setLoading] = useState(true);
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
-  const browseScope = useBrowseLibraryScope();
-  const browseServerId = browseScope.anchorServerId;
 
   useEffect(() => {
     if (!name) return;
@@ -30,25 +26,21 @@ export default function LabelAlbums() {
     setLoading(true);
 
     // Search for the label name and ask for a large number of albums
-    const loadAlbums = browseScope.multiServer
-      ? runLocalBrowseAlbums(browseServerId, name, 200, false, browseScope.pairs)
-          .then(rows => rows ?? [])
-      : search(name, { albumCount: 200, artistCount: 0, songCount: 0 }).then(res => res.albums);
-    loadAlbums
+    search(name, { albumCount: 200, artistCount: 0, songCount: 0 })
       .then(res => {
         // Filter out albums that don't match the record label exactly if possible,
         // to avoid unrelated search hits. We do case-insensitive comparison.
-        const matches = res.filter(a =>
+        const matches = res.albums.filter(a =>
           a.recordLabel?.toLowerCase() === name.toLowerCase()
         );
         // Fallback: if Navidrome's search doesn't return the exact label in the recordLabel field
         // (or it's not indexed exactly as typed), just show all album matches
         // as a decent best-effort if our strict filter yields nothing.
-        setAlbums(matches.length > 0 ? matches : res);
+        setAlbums(matches.length > 0 ? matches : res.albums);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [name, musicLibraryFilterVersion, browseScope.fingerprint, browseScope.multiServer, browseScope.pairs, browseServerId]);
+  }, [name, musicLibraryFilterVersion]);
 
   return (
     <div className="animate-fade-in" style={{ padding: '0 var(--space-6)' }}>

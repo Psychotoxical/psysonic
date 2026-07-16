@@ -31,7 +31,6 @@ export type BuildSmartRulesOptions = {
 };
 
 export type PendingSmartPlaylist = {
-  serverId: string;
   name: string;
   id?: string;
   firstSeenCoverArt?: string;

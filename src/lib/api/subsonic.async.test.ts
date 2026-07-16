@@ -31,7 +31,7 @@ import { pingWithCredentials, pingWithCredentialsForProfile, ping } from '@/lib/
 import { getAlbumInfo2 } from '@/lib/api/subsonicAlbumInfo';
 import { getStarred } from '@/lib/api/subsonicStarRating';
 import { search } from '@/lib/api/subsonicSearch';
-import { getAlbum, getMusicDirectory, getMusicFolders, getMusicFoldersForServer, getMusicIndexes, getRandomSongs, getSong } from '@/lib/api/subsonicLibrary';
+import { getAlbum, getMusicDirectory, getMusicFolders, getMusicIndexes, getRandomSongs, getSong } from '@/lib/api/subsonicLibrary';
 import { getArtists, getTopSongs } from '@/lib/api/subsonicArtists';
 import { useAuthStore } from '@/store/authStore';
 import { resetAuthStore } from '@/test/helpers/storeReset';
@@ -244,22 +244,6 @@ describe('getMusicDirectory + getMusicIndexes + getMusicFolders', () => {
       { id: '1', name: 'Music' },
       { id: '2', name: 'Library' },
     ]);
-  });
-
-  it('getMusicFoldersForServer targets an explicit inactive server', async () => {
-    const activeServerId = useAuthStore.getState().activeServerId;
-    const otherServerId = useAuthStore.getState().addServer({
-      name: 'Other', url: 'https://other.example.com', username: 'bob', password: 'pw2',
-    });
-    vi.mocked(axios.get).mockResolvedValue(okResponse({
-      musicFolders: { musicFolder: { id: 9, name: 'Other Library' } },
-    }));
-
-    await expect(getMusicFoldersForServer(otherServerId)).resolves.toEqual([
-      { id: '9', name: 'Other Library' },
-    ]);
-    expect(useAuthStore.getState().activeServerId).toBe(activeServerId);
-    expect(vi.mocked(axios.get).mock.calls[0]?.[0]).toBe('https://other.example.com/rest/getMusicFolders.view');
   });
 });
 

@@ -4,7 +4,6 @@ import type { AlbumBrowseQuery } from './albumBrowseTypes';
 const libraryGetGenreAlbumCounts = vi.fn();
 const libraryIsReady = vi.fn();
 const libraryScopeForServer = vi.fn();
-const libraryScopePairsForServer = vi.fn();
 const librarySelectionForServer = vi.fn();
 const runLocalAlbumBrowse = vi.fn();
 
@@ -18,7 +17,6 @@ vi.mock('./libraryReady', () => ({
 
 vi.mock('@/lib/api/subsonicClient', () => ({
   libraryScopeForServer: (...args: unknown[]) => libraryScopeForServer(...args),
-  libraryScopePairsForServer: (...args: unknown[]) => libraryScopePairsForServer(...args),
   librarySelectionForServer: (...args: unknown[]) => librarySelectionForServer(...args),
 }));
 
@@ -40,7 +38,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   libraryIsReady.mockResolvedValue(true);
   libraryScopeForServer.mockReturnValue('lib-a');
-  libraryScopePairsForServer.mockReturnValue([{ serverId: 'srv-1', libraryId: 'lib-a' }]);
   librarySelectionForServer.mockReturnValue(['lib-a']);
 });
 
@@ -65,7 +62,6 @@ describe('fetchAlbumBrowseGenreOptions', () => {
 
   it('uses unscoped SQL for all libraries instead of an album sample', async () => {
     librarySelectionForServer.mockReturnValue([]);
-    libraryScopePairsForServer.mockReturnValue([{ serverId: 'srv-1', libraryId: null }]);
     libraryGetGenreAlbumCounts.mockResolvedValue([
       { value: 'Ambient', albumCount: 3, songCount: 12 },
       { value: 'Rock', albumCount: 42, songCount: 900 },
@@ -76,10 +72,7 @@ describe('fetchAlbumBrowseGenreOptions', () => {
       { genre: 'Rock', count: 42 },
     ]);
 
-    expect(libraryGetGenreAlbumCounts).toHaveBeenCalledWith({
-      serverId: 'srv-1',
-      libraryScopes: [{ serverId: 'srv-1', libraryId: null }],
-    });
+    expect(libraryGetGenreAlbumCounts).toHaveBeenCalledWith({ serverId: 'srv-1' });
     expect(runLocalAlbumBrowse).not.toHaveBeenCalled();
   });
 
@@ -100,10 +93,7 @@ describe('fetchAlbumBrowseGenreOptions', () => {
     expect(libraryGetGenreAlbumCounts).toHaveBeenCalledTimes(1);
     expect(libraryGetGenreAlbumCounts).toHaveBeenCalledWith({
       serverId: 'srv-1',
-      libraryScopes: [
-        { serverId: 'srv-1', libraryId: 'lib-a' },
-        { serverId: 'srv-1', libraryId: 'lib-b' },
-      ],
+      libraryScopes: ['lib-a', 'lib-b'],
     });
     expect(runLocalAlbumBrowse).not.toHaveBeenCalled();
   });

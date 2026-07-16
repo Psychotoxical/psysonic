@@ -14,7 +14,6 @@ import {
   isActiveServerReachable,
   onActiveServerBecameReachable,
 } from '@/lib/network/activeServerReachability';
-import { getLibraryServerConnection } from '@/lib/network/libraryServerReachability';
 import { resolveIndexKey, serverIndexKeyForProfile } from '@/lib/server/serverIndexKey';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import { findLocalPlaybackEntry } from '@/store/localPlaybackResolve';
@@ -42,12 +41,6 @@ function serverIndexKeyForOffline(serverId: string): string {
   const server = useAuthStore.getState().servers.find(s => s.id === serverId);
   if (server) return serverIndexKeyForProfile(server) || resolveIndexKey(serverId) || serverId;
   return resolveIndexKey(serverId) || serverId;
-}
-
-function isPinnedSourceServerReachable(serverId: string): boolean {
-  const activeServerId = useAuthStore.getState().activeServerId;
-  if (activeServerId === serverId) return isActiveServerReachable();
-  return getLibraryServerConnection(resolveIndexKey(serverId)) === 'online';
 }
 
 function belongsToProfile(metaServerKey: string, profileServerId: string): boolean {
@@ -471,7 +464,7 @@ export function schedulePinnedPlaylistSync(playlistId: string, serverId?: string
   if (!playlistId || !sid) return;
   if (!isSourcePinnedOffline(playlistId, sid, 'playlist')) return;
   if (!isManualOfflinePlaylist(playlistId, sid)) return;
-  if (!isPinnedSourceServerReachable(sid)) return;
+  if (!isActiveServerReachable()) return;
   pushUniquePlaylistJob(playlistId, sid);
   scheduleDebouncedPlaylistSync();
 }

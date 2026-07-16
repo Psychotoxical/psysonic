@@ -15,7 +15,6 @@ import {
 } from '@/features/contextMenu/utils/contextMenuActions';
 import { useContextMenuKeyboardNav } from '@/features/contextMenu/hooks/useContextMenuKeyboardNav';
 import { useContextMenuRating } from '@/features/contextMenu/hooks/useContextMenuRating';
-import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
 import { usePlaybackLibraryNavigate } from '@/features/playback/hooks/usePlaybackLibraryNavigate';
 import { useNavigate } from 'react-router-dom';
 import { useOfflineBrowseContext } from '@/features/offline';
@@ -178,11 +177,8 @@ export default function ContextMenu() {
     ? navigatePlaybackLibrary
     : (path: string) => { navigate(path); };
 
-  const isStarred = (id: string, itemStarred?: string) => {
-    const itemServerId = (item as { serverId?: string } | null)?.serverId ?? auth.activeServerId;
-    const key = entityOverrideKey(itemServerId, id);
-    return key in starredOverrides ? starredOverrides[key] : !!itemStarred;
-  };
+  const isStarred = (id: string, itemStarred?: string) =>
+    id in starredOverrides ? starredOverrides[id] : !!itemStarred;
 
   const { applySongRating, applyAlbumRating, applyArtistRating, getRatingValueByKind, commitRatingByKind } =
     useContextMenuRating({ type, item, userRatingOverrides, setUserRatingOverride, entityRatingSupport, t });
@@ -208,8 +204,7 @@ export default function ContextMenu() {
   };
 
   const copyShareLink = useCallback(
-    (kind: EntityShareKind, id: string, representativeServerId?: string) =>
-      copyShareLinkAction(kind, id, t, representativeServerId),
+    (kind: EntityShareKind, id: string) => copyShareLinkAction(kind, id, t),
     [t],
   );
 

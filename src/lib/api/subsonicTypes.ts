@@ -119,7 +119,6 @@ export interface InternetRadioStation {
   streamUrl: string;
   homepageUrl?: string;
   coverArt?: string; // Navidrome v0.61.0+
-  serverId?: string;
 }
 
 export interface RadioBrowserStation {
@@ -141,7 +140,6 @@ export interface SubsonicPlaylist {
   public?: boolean;
   comment?: string;
   coverArt?: string;
-  serverId?: string;
 }
 
 /** OpenSubsonic `playbackReport` lifecycle state, per the extension spec. */
@@ -214,7 +212,6 @@ export interface SubsonicDirectoryEntry {
   genre?: string;
   starred?: string;
   userRating?: number;
-  serverId?: string;
 }
 
 export interface SubsonicDirectory {

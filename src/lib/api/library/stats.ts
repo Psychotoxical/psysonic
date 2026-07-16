@@ -12,7 +12,6 @@ import type {
   GenreAlbumCountRow,
   LibraryGenreAlbumsRequest,
   LibraryGenreAlbumsResponse,
-  LibraryScopePair,
   PlaySessionInput,
   PlaySessionYearSummary,
   PlaySessionHeatmapDay,
@@ -24,14 +23,7 @@ import type {
 
 export async function libraryGetCatalogYearBounds(args: {
   serverId: string;
-  libraryScopes?: LibraryScopePair[];
 }): Promise<CatalogYearBounds> {
-  if (args.libraryScopes?.length) {
-    const rows = await invoke<CatalogYearBounds>('library_scope_catalog_year_bounds', {
-      scopes: mapScopePairs(args.libraryScopes, args.serverId),
-    });
-    return rows;
-  }
   const indexKey = serverIndexKeyForId(args.serverId);
   const res = await commands.libraryGetCatalogYearBounds(indexKey);
   if (res.status === 'error') throw new Error(res.error);
@@ -41,16 +33,13 @@ export async function libraryGetCatalogYearBounds(args: {
 export async function libraryGetGenreAlbumCounts(args: {
   serverId: string;
   libraryScope?: string;
-  libraryScopes?: LibraryScopePair[];
+  libraryScopes?: string[];
 }): Promise<GenreAlbumCountRow[]> {
   const indexKey = serverIndexKeyForId(args.serverId);
-  const libraryScopes = args.libraryScopes?.length
-    ? mapScopePairs(args.libraryScopes, args.serverId)
-    : null;
   const res = await commands.libraryGetGenreAlbumCounts(
     indexKey,
     args.libraryScope ?? null,
-    libraryScopes,
+    args.libraryScopes ?? null,
   );
   if (res.status === 'error') throw new Error(res.error);
   return res.data;

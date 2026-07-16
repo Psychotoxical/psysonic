@@ -15,7 +15,7 @@ export interface PlaylistSelection {
 export function usePlaylistSelection(
   songs: SubsonicSong[],
   setSongs: React.Dispatch<React.SetStateAction<SubsonicSong[]>>,
-  savePlaylist: (updatedSongs: SubsonicSong[]) => Promise<void>,
+  savePlaylist: (updatedSongs: SubsonicSong[], prevCount?: number) => Promise<void>,
 ): PlaylistSelection {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastSelectedIdx, setLastSelectedIdx] = useState<number | null>(null);
@@ -40,9 +40,10 @@ export function usePlaylistSelection(
   const toggleAll = () => setSelectedIds(allSelected ? new Set() : new Set(songs.map(s => s.id)));
 
   const bulkRemove = () => {
+    const prevCount = songs.length;
     const next = songs.filter(s => !selectedIds.has(s.id));
     setSongs(next);
-    savePlaylist(next);
+    savePlaylist(next, prevCount);
     setSelectedIds(new Set());
   };
 

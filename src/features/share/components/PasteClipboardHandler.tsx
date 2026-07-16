@@ -18,7 +18,7 @@ import {
   readOrbitState,
   OrbitJoinError,
 } from '@/features/orbit';
-import { activateOrbitInviteServer } from '@/utils/server/switchActiveServer';
+import { switchActiveServer } from '@/utils/server/switchActiveServer';
 import { useOrbitAccountPickerStore } from '@/features/orbit';
 import ConfirmModal from '@/ui/ConfirmModal';
 
@@ -113,19 +113,31 @@ export default function PasteClipboardHandler() {
         busy.current = true;
 
         (async () => {
+          const active = useAuthStore.getState().getActiveServer();
+          const activeUrl = (active?.url ?? '').replace(/\/+$/, '');
           const wantUrl   = orbit.serverBase.replace(/\/+$/, '');
 
-          const activation = await activateOrbitInviteServer(
-            orbit.serverBase,
-            accounts => useOrbitAccountPickerStore.getState().request(accounts),
-          );
-          if (!activation.ok) {
-            if (activation.reason === 'no-account') {
+          // Auto-switch to the link's target server if the user has an
+          // account registered for it. No account → clear error. Multiple
+          // accounts for the same URL → picker lets the user choose. The
+          // switch itself tears down any lingering orbit session (see
+          // switchActiveServer) so the join below starts clean.
+          if (activeUrl !== wantUrl) {
+            const candidates = useAuthStore.getState().servers
+              .filter(s => s.url.replace(/\/+$/, '') === wantUrl);
+            if (candidates.length === 0) {
               showToast(t('orbit.toastNoAccountForServer', { url: wantUrl }), 5000, 'warning');
-            } else if (activation.reason === 'switch-failed') {
-              showToast(t('orbit.toastSwitchFailed', { url: wantUrl }), 5000, 'error');
+              return;
             }
-            return;
+            const target = candidates.length === 1
+              ? candidates[0]
+              : await useOrbitAccountPickerStore.getState().request(candidates);
+            if (!target) return; // cancelled
+            const switched = await switchActiveServer(target);
+            if (!switched) {
+              showToast(t('orbit.toastSwitchFailed', { url: wantUrl }), 5000, 'error');
+              return;
+            }
           }
 
           // Preview the session state so the confirm dialog can show the

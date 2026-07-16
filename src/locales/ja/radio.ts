@@ -1,7 +1,4 @@
 export const radio = {
-  source: 'ラジオのソース',
-  selectSource: 'サーバーを選択…',
-  sources: 'Radio sources',
   title: 'インターネットラジオ',
   empty: 'ラジオ局が設定されていません。',
   addStation: 'ラジオ局を追加',

@@ -1,5 +1,4 @@
 export const playlists = {
-  sources: 'Playlist sources',
   title: 'Playlisty',
   newPlaylist: 'Nowa playlista',
   unnamed: 'Nienazwana playlista',
@@ -11,7 +10,6 @@ export const playlists = {
   emptyPlaylist: 'Ta playlista jest pusta.',
   addFirstSong: 'Dodaj pierwszy utwór',
   notFound: 'Playlista nie znaleziona.',
-  smartMembershipReadOnly: 'Ta inteligentna playlista jest generowana przez {{server}}. Dodawanie, usuwanie, zmiana kolejności i import CSV są tutaj wyłączone, aby nie zastąpić reguł serwera.',
   songs_one: '{{count}} utwór',
   songs_other: '{{count}} songs',
   playAll: 'Odtwórz wszystkie',

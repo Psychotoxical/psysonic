@@ -12,11 +12,11 @@ beforeEach(() => {
 });
 
 /** Simulate the shared mouse-DnD system releasing a playlist over an element. */
-function dropPlaylist(el: Element, playlistId: string, serverId = 's1') {
+function dropPlaylist(el: Element, playlistId: string) {
   el.dispatchEvent(
     new CustomEvent('psy-drop', {
       bubbles: true,
-      detail: { data: JSON.stringify({ type: 'playlist', id: playlistId, serverId }) },
+      detail: { data: JSON.stringify({ type: 'playlist', id: playlistId }) },
     }),
   );
 }
@@ -52,22 +52,5 @@ describe('PlaylistFolderSection — drop target', () => {
     );
     dropPlaylist(container.querySelector('.playlist-folder--ungrouped')!, 'p1');
     expect(assignments('s1').p1).toBeUndefined();
-  });
-
-  it('ignores an equal-id playlist dragged from another server', () => {
-    const id = store().createFolder('s1', 'Rock');
-    const folder: PlaylistFolder = { id, name: 'Rock', order: 0, collapsed: false };
-    const { container } = renderWithProviders(
-      <PlaylistFolderSection
-        serverId="s1"
-        folder={folder}
-        items={[]}
-        renderCard={() => null}
-        disableVirtualization
-      />,
-    );
-    dropPlaylist(container.querySelector('.playlist-folder')!, 'same', 's2');
-    expect(assignments('s1').same).toBeUndefined();
-    expect(assignments('s2').same).toBeUndefined();
   });
 });

@@ -2,7 +2,6 @@ export const orbit = {
   triggerLabel: 'Orbit',
   triggerTooltip: 'Démarrer ou rejoindre une session d\'écoute partagée',
   launchCreate: 'Créer une session',
-  launchCreateMultiServerBlocked: 'Choose one browse server before creating an Orbit session. Joining an invite will switch and narrow the server automatically.',
   launchJoin: 'Rejoindre une session',
   launchHelp: 'Comment ça marche ?',
   launchHelpSoon: 'Bientôt disponible',

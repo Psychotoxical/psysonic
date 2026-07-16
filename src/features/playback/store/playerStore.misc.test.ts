@@ -51,7 +51,6 @@ import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { onInvoke, invokeMock } from '@/test/mocks/tauri';
 import { resetPlayerStore, resetAuthStore } from '@/test/helpers/storeReset';
 import { makeTrack, makeTracks, seedQueue } from '@/test/helpers/factories';
-import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
 
 beforeEach(() => {
   resetPlayerStore();
@@ -78,8 +77,8 @@ describe('setStarredOverride', () => {
     usePlayerStore.getState().setStarredOverride('t-1', true);
     usePlayerStore.getState().setStarredOverride('t-2', false);
     expect(usePlayerStore.getState().starredOverrides).toEqual({
-      [entityOverrideKey('', 't-1')]: true,
-      [entityOverrideKey('', 't-2')]: false,
+      't-1': true,
+      't-2': false,
     });
   });
 });
@@ -89,8 +88,8 @@ describe('setUserRatingOverride', () => {
     usePlayerStore.getState().setUserRatingOverride('t-1', 4);
     usePlayerStore.getState().setUserRatingOverride('t-2', 5);
     expect(usePlayerStore.getState().userRatingOverrides).toEqual({
-      [entityOverrideKey('', 't-1')]: 4,
-      [entityOverrideKey('', 't-2')]: 5,
+      't-1': 4,
+      't-2': 5,
     });
   });
 });

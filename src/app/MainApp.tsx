@@ -26,9 +26,8 @@ import { runLegacyOfflineFileMigration } from '@/features/offline/utils/legacyOf
 import { reconcileLibraryTierForServer } from '@/features/offline/utils/libraryTierReconcile';
 import { initMiniPlayerBridgeOnMain } from '@/features/miniPlayer';
 import { runAdvancedModeMigration } from '@/app/migrations/advancedModeMigration';
+import { bootstrapAllIndexedServers } from '@/lib/library/librarySession';
 import { hydrateQueueFromIndex } from '@/features/playback/store/queueRestore';
-import { initPendingEntityMutationSync } from '@/features/playback/store/pendingStarSync';
-import { useLibraryIndexSync } from '@/lib/library/hooks/useLibraryIndexSync';
 import { useLibraryAnalysisBackfill } from '@/lib/library/hooks/useLibraryAnalysisBackfill';
 import { useCoverArtPrefetch } from '../cover/useCoverArtPrefetch';
 import { useLibraryCoverBackfill } from '@/cover/useLibraryCoverBackfill';
@@ -69,10 +68,12 @@ export default function MainApp() {
   const migrationPhase = useMigrationStore(s => s.phase);
   const migrationReady = migrationPhase === 'completed';
   useMigrationOrchestrator();
-  useLibraryIndexSync(migrationReady);
   useEffect(() => {
     if (!migrationReady) return;
-    void hydrateQueueFromIndex();
+    void (async () => {
+      await bootstrapAllIndexedServers();
+      void hydrateQueueFromIndex();
+    })();
   }, [activeServerId, serverIdsKey, masterEnabled, migrationReady]);
 
   useLibraryAnalysisBackfill(migrationReady);
@@ -102,11 +103,6 @@ export default function MainApp() {
   useEffect(() => {
     if (!migrationReady) return undefined;
     return initAudioListeners();
-  }, [migrationReady]);
-
-  useEffect(() => {
-    if (!migrationReady) return undefined;
-    return initPendingEntityMutationSync();
   }, [migrationReady]);
 
   useEffect(() => {

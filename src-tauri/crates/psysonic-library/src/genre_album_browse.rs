@@ -88,6 +88,15 @@ pub fn list_albums_by_genre(
     store: &LibraryStore,
     req: &LibraryGenreAlbumsRequest,
 ) -> Result<LibraryGenreAlbumsResponse, String> {
+    if !crate::dto::track_index_nonempty(store, &req.server_id)? {
+        return Ok(LibraryGenreAlbumsResponse {
+            albums: Vec::new(),
+            has_more: false,
+            total: None,
+            source: "local".to_string(),
+        });
+    }
+
     let genre = req.genre.trim();
     if genre.is_empty() {
         return Ok(LibraryGenreAlbumsResponse {
@@ -105,23 +114,13 @@ pub fn list_albums_by_genre(
         &req.server_id,
         req.library_scope.as_deref(),
         req.library_scopes.as_deref(),
-    )?;
-    if scope_pairs.is_empty() && !crate::dto::track_index_nonempty(store, &req.server_id)? {
-        return Ok(LibraryGenreAlbumsResponse {
-            albums: Vec::new(),
-            has_more: false,
-            total: None,
-            source: "local".to_string(),
-        });
-    }
+    );
     // Any >1-library scope collapses duplicates via cluster keys — including the
     // Layer-1 same-server path, whose genre `EXISTS` sets `merge_by_album_key`.
     // Build keys first so dedup works on a cold index (not only after a prior
     // search / sync-idle rebuild happened to populate them).
     if multi_library_merge_enabled(&scope_pairs) {
-        for server_id in scope_pairs.iter().map(|p| p.server_id.as_str()).collect::<std::collections::HashSet<_>>() {
-            crate::identity::ensure_cluster_keys_built(store, server_id)?;
-        }
+        crate::identity::ensure_cluster_keys_built(store, &req.server_id)?;
     }
     if scoped_layer1_eligible(&scope_pairs) {
         return list_albums_by_genre_layer1_scope(store, req, &scope_pairs, genre, limit, offset);
@@ -133,7 +132,7 @@ pub fn list_albums_by_genre(
     let mut legacy = req.clone();
     if legacy.library_scope.is_none() {
         if let Some(pair) = scope_pairs.first() {
-            legacy.library_scope = pair.library_id.clone();
+            legacy.library_scope = Some(pair.library_id.clone());
         }
     }
 
@@ -366,40 +365,6 @@ mod tests {
             synced_at: 1,
             raw_json: "{}".into(),
         }
-    }
-
-    #[test]
-    fn cross_server_whole_scope_genre_browse_merges_duplicate_albums() {
-        let store = LibraryStore::open_in_memory();
-        let mut first = track("s1", "t1", "al1", "Rock");
-        first.library_id = Some("lib-a".into());
-        first.album = "Shared Album".into();
-        let mut second = track("s2", "t2", "al2", "Rock");
-        second.library_id = Some(String::new());
-        second.album = "Shared Album".into();
-        TrackRepository::new(&store).upsert_batch(&[first, second]).unwrap();
-        crate::identity::rebuild_cluster_keys(&store, None).unwrap();
-
-        let response = list_albums_by_genre(
-            &store,
-            &LibraryGenreAlbumsRequest {
-                server_id: "s1".into(),
-                genre: "Rock".into(),
-                library_scope: None,
-                library_scopes: Some(vec![
-                    LibraryScopePair { server_id: "s2".into(), library_id: None },
-                    LibraryScopePair { server_id: "s1".into(), library_id: None },
-                ]),
-                sort: vec![],
-                limit: 50,
-                offset: 0,
-                include_total: true,
-            },
-        )
-        .unwrap();
-        assert_eq!(response.albums.len(), 1);
-        assert_eq!(response.albums[0].server_id, "s2");
-        assert_eq!(response.total, Some(1));
     }
 
     #[test]

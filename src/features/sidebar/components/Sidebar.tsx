@@ -31,10 +31,6 @@ import SidebarPerfProbeModal from '@/features/sidebar/components/SidebarPerfProb
 import SidebarNavBody from '@/features/sidebar/components/SidebarNavBody';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import { libraryScopeCacheKeyForServer } from '@/lib/api/subsonicClient';
-import { useLibraryIndexStore } from '@/store/libraryIndexStore';
-import { buildBrowseScopeExcludedSources } from '@/lib/library/libraryBrowseScope';
-import { serverIndexKeyFromUrl } from '@/lib/server/serverIndexKey';
-import { serverListDisplayLabel } from '@/lib/server/serverDisplayName';
 
 const EMPTY_LIBRARY_IDS: string[] = [];
 
@@ -72,17 +68,9 @@ export default function Sidebar({
   const serverId = useAuthStore(s => s.activeServerId ?? '');
   const isLoggedIn = useAuthStore(s => s.isLoggedIn);
   const musicFolders = useAuthStore(s => s.musicFolders);
-  const servers = useAuthStore(s => s.servers);
-  const musicLibraryServerIds = useAuthStore(s => s.musicLibraryServerIds);
-  const musicFoldersByServer = useAuthStore(s => s.musicFoldersByServer);
   const musicLibraryFilterByServer = useAuthStore(s => s.musicLibraryFilterByServer);
   const musicLibrarySelectionByServer = useAuthStore(s => s.musicLibrarySelectionByServer);
   const setMusicLibrarySelection = useAuthStore(s => s.setMusicLibrarySelection);
-  const setMusicLibraryServerSelected = useAuthStore(s => s.setMusicLibraryServerSelected);
-  const setMusicLibrarySelectionForServer = useAuthStore(s => s.setMusicLibrarySelectionForServer);
-  const setServers = useAuthStore(s => s.setServers);
-  const statusByServer = useLibraryIndexStore(s => s.statusByServer);
-  const connectionByServer = useLibraryIndexStore(s => s.connectionByServer);
   const hotCacheEnabled = useAuthStore(s => s.hotCacheEnabled);
   const setHotCacheEnabled = useAuthStore(s => s.setHotCacheEnabled);
   const normalizationEngine = useAuthStore(s => s.normalizationEngine);
@@ -111,9 +99,7 @@ export default function Sidebar({
   }, [playlistsRaw]);
   const [sidebarViewportEl, setSidebarViewportEl] = useState<HTMLDivElement | null>(null);
   const isSidebarScrolling = useSidebarScrollVisible(sidebarViewportEl);
-  const showLibraryPicker = !isCollapsed && isLoggedIn && (
-    servers.length > 1 || (musicFolders.length > 1 && !isServerOffline)
-  );
+  const showLibraryPicker = !isCollapsed && isLoggedIn && musicFolders.length > 1 && !isServerOffline;
 
   const libraryScopeKey = serverId ? libraryScopeCacheKeyForServer(serverId) : 'all';
   const selectedLibraryIds = useMemo(() => {
@@ -132,46 +118,6 @@ export default function Sidebar({
     }
     return t('sidebar.librarySelectionCount', { count: selectedLibraryIds.length });
   }, [selectedLibraryIds, musicFolders, t]);
-  const libraryServers = useMemo(() => {
-    const excluded = new Map(buildBrowseScopeExcludedSources({
-      servers,
-      musicLibraryServerIds,
-      musicLibrarySelectionByServer,
-      musicLibraryFilterByServer,
-    }, { statusByServer, connectionByServer }).map(source => [source.serverId, source.reasons]));
-    const selectedSet = new Set(musicLibraryServerIds);
-    return servers.map(server => {
-      const storedSelection = musicLibrarySelectionByServer[server.id];
-      const legacy = musicLibraryFilterByServer[server.id];
-      const selectedIds = storedSelection !== undefined
-        ? storedSelection
-        : legacy === undefined || legacy === 'all'
-          ? EMPTY_LIBRARY_IDS
-          : [legacy];
-      const indexKey = serverIndexKeyFromUrl(server.url) || server.id;
-      return {
-        id: server.id,
-        label: serverListDisplayLabel(server, servers),
-        selected: selectedSet.has(server.id),
-        folders: musicFoldersByServer[server.id]
-          ?? (server.id === serverId ? musicFolders : []),
-        selectedLibraryIds: selectedIds,
-        status: statusByServer[indexKey] ?? null,
-        connection: connectionByServer[indexKey] ?? 'unknown',
-        excludedReasons: excluded.get(server.id) ?? [],
-      };
-    });
-  }, [
-    servers,
-    musicLibraryServerIds,
-    musicLibrarySelectionByServer,
-    musicLibraryFilterByServer,
-    musicFoldersByServer,
-    musicFolders,
-    serverId,
-    statusByServer,
-    connectionByServer,
-  ]);
 
   const libraryItemsForReorder = useMemo(
     () => getLibraryItemsForReorder(sidebarItems, randomNavMode),
@@ -247,18 +193,10 @@ export default function Sidebar({
     if (isServerOffline) return;
     setMusicLibrarySelection(libraryIds);
   };
-  const onLibraryServersReorder = (serverIds: string[]) => {
-    const byId = new Map(servers.map(server => [server.id, server]));
-    const next = serverIds.flatMap(id => {
-      const server = byId.get(id);
-      return server ? [server] : [];
-    });
-    if (next.length === servers.length) setServers(next);
-  };
 
   useEffect(() => {
-    if (isServerOffline && servers.length <= 1) setLibraryDropdownOpen(false);
-  }, [isServerOffline, servers.length, setLibraryDropdownOpen]);
+    if (isServerOffline) setLibraryDropdownOpen(false);
+  }, [isServerOffline, setLibraryDropdownOpen]);
 
   // Fetch playlists when expanded
   useEffect(() => {
@@ -331,10 +269,6 @@ export default function Sidebar({
           libraryTriggerRef={libraryTriggerRef}
           musicFolders={musicFolders}
           onLibrarySelectionChange={onLibrarySelectionChange}
-          libraryServers={libraryServers}
-          onLibraryServerSelectionChange={setMusicLibraryServerSelected}
-          onServerLibrarySelectionChange={setMusicLibrarySelectionForServer}
-          onLibraryServersReorder={onLibraryServersReorder}
           visibleLibraryConfigs={visibleLibraryConfigs}
           visibleSystemConfigs={visibleSystemConfigs}
           playlistsExpanded={playlistsExpanded}

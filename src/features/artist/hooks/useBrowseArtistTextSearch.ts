@@ -16,7 +16,6 @@ import {
   artistBrowseTimed,
   emitArtistsBrowseDebug,
 } from '@/lib/library/artistBrowseDebug';
-import type { LibraryScopePair } from '@/lib/api/library';
 
 /**
  * Debounced artist/composer name search with local-vs-network race when the
@@ -31,8 +30,6 @@ export function useBrowseArtistTextSearch(
   surface: LibrarySearchSurface = 'artists_browse',
   creditMode: ArtistCreditMode = 'album',
   starredOnly = false,
-  scopePairs?: LibraryScopePair[],
-  localOnly = false,
 ) {
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const [debouncedFilter, setDebouncedFilter] = useState('');
@@ -48,7 +45,7 @@ export function useBrowseArtistTextSearch(
 
   useEffect(() => {
     const q = debouncedFilter;
-    if (starredOnly || !q || (!indexEnabled && !localOnly) || !serverId) {
+    if (starredOnly || !q || !indexEnabled || !serverId) {
       // React Compiler set-state-in-effect rule: state set from a timer/animation callback.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTextSearchArtists(null);
@@ -76,26 +73,11 @@ export function useBrowseArtistTextSearch(
         emitArtistsBrowseDebug('text_search_done', { source: 'offline', artistCount: artists?.length ?? 0 });
         return;
       }
-      if (localOnly) {
-        const artists = await artistBrowseTimed(
-          'text_search_local',
-          () => runLocalBrowseArtists(serverId, q, creditMode, undefined, scopePairs),
-          { query: q, creditMode },
-        );
-        if (isStale()) return;
-        setTextSearchArtists(artists ?? []);
-        setTextSearchLoading(false);
-        emitArtistsBrowseDebug('text_search_done', {
-          source: 'local',
-          artistCount: artists?.length ?? 0,
-        });
-        return;
-      }
       const outcome = await artistBrowseTimed(
         'text_search_race',
         () => raceBrowseWithLocalFallback(
           isStale,
-          () => runLocalBrowseArtists(serverId, q, creditMode, undefined, scopePairs),
+          () => runLocalBrowseArtists(serverId, q, creditMode),
           () => runNetworkBrowseArtists(q, creditMode),
           {
             surface,
@@ -114,7 +96,7 @@ export function useBrowseArtistTextSearch(
         artistCount: outcome?.result?.length ?? 0,
       });
     })();
-  }, [creditMode, debouncedFilter, indexEnabled, localOnly, offlineBrowseActive, scopePairs, serverId, starredOnly, surface]);
+  }, [creditMode, debouncedFilter, indexEnabled, offlineBrowseActive, serverId, starredOnly, surface]);
 
   const effectiveFilter = textSearchArtists != null ? '' : filter;
   return { textSearchArtists, textSearchLoading, effectiveFilter };

@@ -33,8 +33,6 @@ import {
   resetLiveSearchScopeBackspaceState,
   resolveLiveSearchScopeGhost,
 } from '@/features/search/components/liveSearchScope';
-import { appendServerQuery } from '@/lib/navigation/detailServerScope';
-import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
 
 const STORAGE_KEY = 'psysonic_recent_searches';
 const MAX_RECENT = 6;
@@ -370,10 +368,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
               <div className="mobile-search-section">
                 <div className="mobile-search-section-label">{t('search.artists')}</div>
                 {results!.artists.map(a => (
-                  <button key={libraryEntityKey(a)} className="mobile-search-item" onClick={() => {
-                    const search = appendServerQuery(undefined, a.serverId);
-                    goTo(`/artist/${a.id}${search ? `?${search}` : ''}`);
-                  }}>
+                  <button key={a.id} className="mobile-search-item" onClick={() => goTo(`/artist/${a.id}`)}>
                     <MobileSearchArtistThumb artist={a} />
                     <div className="mobile-search-item-info">
                       <span className="mobile-search-item-title">{a.name}</span>
@@ -389,10 +384,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
               <div className="mobile-search-section">
                 <div className="mobile-search-section-label">{t('search.albums')}</div>
                 {results!.albums.map(a => (
-                  <button key={libraryEntityKey(a)} className="mobile-search-item" onClick={() => {
-                    const search = appendServerQuery(undefined, a.serverId);
-                    goTo(`/album/${a.id}${search ? `?${search}` : ''}`);
-                  }}>
+                  <button key={a.id} className="mobile-search-item" onClick={() => goTo(`/album/${a.id}`)}>
                     {a.coverArt ? (
                       <AlbumCoverArtImage
                         albumId={a.id}
@@ -423,7 +415,7 @@ export default function MobileSearchOverlay({ onClose }: { onClose: () => void }
               <div className="mobile-search-section">
                 <div className="mobile-search-section-label">{t('search.songs')}</div>
                 {results!.songs.map(s => (
-                  <button key={libraryEntityKey(s)} className="mobile-search-item" onClick={() => enqueueSong(s)}>
+                  <button key={s.id} className="mobile-search-item" onClick={() => enqueueSong(s)}>
                     {s.albumId && (s.coverArt ?? s.albumId) ? (
                       <MobileSearchSongThumb song={s} />
                     ) : (

@@ -10,7 +10,6 @@ import {
 import { showToast } from '@/lib/dom/toast';
 
 export interface RunPlaylistsSaveSmartDeps {
-  ownerServerId: string;
   isNavidromeServer: boolean;
   smartFilters: SmartFilters;
   allGenres: string[];
@@ -28,7 +27,7 @@ export interface RunPlaylistsSaveSmartDeps {
 
 export async function runPlaylistsSaveSmart(deps: RunPlaylistsSaveSmartDeps): Promise<void> {
   const {
-    ownerServerId, isNavidromeServer, smartFilters, allGenres, editingSmartId, playlists, fetchPlaylists, t,
+    isNavidromeServer, smartFilters, allGenres, editingSmartId, playlists, fetchPlaylists, t,
     setPendingSmart, setCreatingSmart, setEditingSmartId, setSmartFilters,
     setGenreQuery, setCreatingSmartBusy,
   } = deps;
@@ -60,15 +59,12 @@ export async function runPlaylistsSaveSmart(deps: RunPlaylistsSaveSmartDeps): Pr
     const createdName = fullName;
     const updatedId = editingSmartId;
     setPendingSmart(prev => {
-      const existing = prev.find(p => p.serverId === ownerServerId && (p.id === updatedId || p.name === createdName));
+      const existing = prev.find(p => p.id === updatedId || p.name === createdName);
       if (existing) return prev;
-      const created = usePlaylistStore.getState().playlists.find(
-        p => p.serverId === ownerServerId && (p.id === updatedId || p.name === createdName),
-      );
+      const created = usePlaylistStore.getState().playlists.find((p) => p.id === updatedId || p.name === createdName);
       return [
         ...prev,
         {
-          serverId: ownerServerId,
           name: createdName,
           id: updatedId ?? created?.id,
           firstSeenCoverArt: created?.coverArt,

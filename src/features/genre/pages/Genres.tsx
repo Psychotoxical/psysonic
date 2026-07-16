@@ -7,13 +7,13 @@ import { APP_MAIN_SCROLL_VIEWPORT_ID } from '@/constants/appScroll';
 import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { fetchGenreCatalog, filterGenresWithContent } from '@/features/playback/utils/playback/genreBrowsePlayback';
+import { libraryScopeCacheKeyForServer } from '@/lib/api/subsonicClient';
 import { peekGenreCatalogCache } from '@/lib/library/genreCatalogCountsCache';
 import { genreColor } from '@/lib/library/genreColor';
 import { useOfflineBrowseContext, offlineLocalBrowseEnabled } from '@/features/offline';
 import { useOfflineLocalBrowseReloadKey } from '@/store/localPlaybackBrowseRevision';
 import { useOfflineLocalLibrarySyncRevision } from '@/store/offlineLocalLibrarySyncRevision';
 import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
-import { useBrowseLibraryScope } from '@/store/useBrowseLibraryScope';
 
 const SCROLL_KEY = 'genres-scroll';
 const FONT_MIN_REM = 0.78;
@@ -23,11 +23,9 @@ export default function Genres() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const serverId = useAuthStore(s => s.activeServerId ?? '');
-  const browseScope = useBrowseLibraryScope();
-  const browseServerId = browseScope.anchorServerId || serverId;
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
-  const libraryScopeKey = browseScope.fingerprint;
+  const libraryScopeKey = libraryScopeCacheKeyForServer(serverId);
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const localPlaybackEntries = useLocalPlaybackStore(s => s.entries);
   const librarySyncRevision = useOfflineLocalLibrarySyncRevision(serverId || null);
@@ -45,7 +43,7 @@ export default function Genres() {
 
   useEffect(() => {
     let cancelled = false;
-    const scopeKey = browseScope.fingerprint;
+    const scopeKey = libraryScopeCacheKeyForServer(serverId);
     const cached = serverId && !skipGenreCatalogCache
       ? peekGenreCatalogCache(serverId, scopeKey, true)
       : null;
@@ -57,13 +55,7 @@ export default function Genres() {
     } else {
       setLoading(true);
     }
-    void fetchGenreCatalog(
-      browseServerId,
-      indexEnabled,
-      browseScope.pairs,
-      browseScope.multiServer,
-      browseScope.fingerprint,
-    )
+    void fetchGenreCatalog(serverId, indexEnabled)
       .then(data => {
         if (!cancelled) setRawGenres(data);
       })
@@ -73,7 +65,7 @@ export default function Genres() {
     return () => {
       cancelled = true;
     };
-  }, [browseScope.fingerprint, browseScope.multiServer, browseScope.pairs, browseServerId, serverId, indexEnabled, musicLibraryFilterVersion, offlineBrowseActive, skipGenreCatalogCache, librarySyncRevision, offlineLocalBrowseReloadKey]);
+  }, [serverId, indexEnabled, musicLibraryFilterVersion, offlineBrowseActive, skipGenreCatalogCache, librarySyncRevision, offlineLocalBrowseReloadKey]);
 
   const genres = useMemo(
     () => filterGenresWithContent([...rawGenres]).sort((a, b) => b.albumCount - a.albumCount),

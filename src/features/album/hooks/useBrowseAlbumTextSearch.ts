@@ -10,7 +10,6 @@ import {
 } from '@/lib/library/browseTextSearch';
 import { useOfflineBrowseContext } from '@/features/offline';
 import { offlineLocalBrowseEnabled, searchOfflineLocalAlbums } from '@/features/offline';
-import type { LibraryScopePair } from '@/lib/api/library';
 
 /**
  * Debounced album title search with local-vs-network race when the
@@ -21,8 +20,6 @@ export function useBrowseAlbumTextSearch(
   indexEnabled: boolean,
   serverId: string | null | undefined,
   losslessOnly = false,
-  scopePairs?: LibraryScopePair[],
-  localOnly = false,
 ) {
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const [debouncedFilter, setDebouncedFilter] = useState('');
@@ -60,7 +57,7 @@ export function useBrowseAlbumTextSearch(
         setTextSearchLoading(false);
         return;
       }
-      if (!indexEnabled && !localOnly) {
+      if (!indexEnabled) {
         const albums = await runNetworkBrowseAlbums(q);
         if (isStale()) return;
         setTextSearchAlbums(albums);
@@ -68,17 +65,9 @@ export function useBrowseAlbumTextSearch(
         return;
       }
 
-      if (localOnly) {
-        const albums = await runLocalBrowseAlbums(serverId, q, undefined, losslessOnly, scopePairs);
-        if (isStale()) return;
-        setTextSearchAlbums(albums ?? []);
-        setTextSearchLoading(false);
-        return;
-      }
-
       const outcome = await raceBrowseWithLocalFallback(
         isStale,
-        () => runLocalBrowseAlbums(serverId, q, undefined, losslessOnly, scopePairs),
+        () => runLocalBrowseAlbums(serverId, q, undefined, losslessOnly),
         () => runNetworkBrowseAlbums(q),
         {
           surface: 'albums_browse',
@@ -91,7 +80,7 @@ export function useBrowseAlbumTextSearch(
       setTextSearchAlbums(outcome?.result ?? null);
       setTextSearchLoading(false);
     })();
-  }, [debouncedFilter, indexEnabled, localOnly, offlineBrowseActive, scopePairs, serverId, losslessOnly]);
+  }, [debouncedFilter, indexEnabled, offlineBrowseActive, serverId, losslessOnly]);
 
   const effectiveFilter = textSearchAlbums != null ? '' : filter;
   return { textSearchAlbums, textSearchLoading, effectiveFilter };

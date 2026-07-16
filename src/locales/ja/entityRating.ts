@@ -6,6 +6,4 @@ export const entityRating = {
   selectedArtistsRatingAriaLabel: '選択中の {{count}} 人のアーティストの星評価',
   selectedAlbumsRatingAriaLabel: '選択中の {{count}} 枚のアルバムの星評価',
   saveFailed: '評価を保存できませんでした。',
-  fanoutPartial: '一部の選択したサーバーにお気に入りまたは評価を反映できませんでした。',
-  pendingDiscarded: '削除したサーバーの未同期のお気に入りまたは評価を破棄しました。',
 };

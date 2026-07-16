@@ -7,7 +7,6 @@ export type NavPos = { colIndex: number; rowIndex: number };
 
 export type Column = {
   id: string;
-  serverId: string;
   name: string;
   items: SubsonicDirectoryEntry[];
   selectedId: string | null;
@@ -33,7 +32,6 @@ export function entryToAlbumIfPresent(item: SubsonicDirectoryEntry): SubsonicAlb
     userRating: item.userRating,
     songCount: 0,
     duration: 0,
-    serverId: item.serverId,
   };
 }
 
@@ -54,7 +52,6 @@ export function entryToTrack(e: SubsonicDirectoryEntry): Track {
     genre: e.genre,
     starred: e.starred,
     userRating: e.userRating,
-    serverId: e.serverId,
   };
 }
 

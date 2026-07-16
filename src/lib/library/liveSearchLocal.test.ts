@@ -154,22 +154,4 @@ describe('mergeLiveSearchResults', () => {
     expect(merged.albums.map(a => a.id)).toEqual(['al1']);
     expect(merged.songs.map(s => s.id)).toEqual(['s1', 's2']);
   });
-
-  it('does not collapse equal raw ids owned by different servers', () => {
-    const local: SearchResults = {
-      artists: [{ serverId: 'srv-a', id: 'same', name: 'Local' }],
-      albums: [],
-      songs: [],
-    };
-    const network: SearchResults = {
-      artists: [{ serverId: 'srv-b', id: 'same', name: 'Other server' }],
-      albums: [],
-      songs: [],
-    };
-
-    expect(mergeLiveSearchResults(local, network).artists).toEqual([
-      local.artists[0],
-      network.artists[0],
-    ]);
-  });
 });

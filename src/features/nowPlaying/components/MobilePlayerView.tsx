@@ -1,5 +1,4 @@
-import { queueSongStar } from '@/features/playback';
-import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
+import { queueSongStar } from '@/features/playback/store/pendingStarSync';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
 import { usePlaybackTrackCoverRef } from '@/cover/useLibraryCoverRef';
 import type { Track } from '@/lib/media/trackTypes';
@@ -253,9 +252,7 @@ export default function MobilePlayerView() {
 
   // Star / favorite
   const isStarred = currentTrack
-    ? (entityOverrideKey(currentTrack.serverId, currentTrack.id) in starredOverrides
-        ? starredOverrides[entityOverrideKey(currentTrack.serverId, currentTrack.id)]
-        : !!currentTrack.starred)
+    ? (currentTrack.id in starredOverrides ? starredOverrides[currentTrack.id] : !!currentTrack.starred)
     : false;
 
   const toggleStar = useCallback(() => {

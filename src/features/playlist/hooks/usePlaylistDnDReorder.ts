@@ -6,9 +6,8 @@ import { runPlaylistReorderDrop } from '@/features/playlist/utils/runPlaylistReo
 export interface PlaylistDnDReorderDeps {
   tracklistRef: React.RefObject<HTMLDivElement | null>;
   songs: SubsonicSong[];
-  savePlaylist: (updatedSongs: SubsonicSong[]) => Promise<void>;
+  savePlaylist: (updatedSongs: SubsonicSong[], prevCount?: number) => Promise<void>;
   setSongs: React.Dispatch<React.SetStateAction<SubsonicSong[]>>;
-  enabled?: boolean;
 }
 
 export interface PlaylistDnDReorderResult {
@@ -18,12 +17,11 @@ export interface PlaylistDnDReorderResult {
 }
 
 export function usePlaylistDnDReorder(deps: PlaylistDnDReorderDeps): PlaylistDnDReorderResult {
-  const { tracklistRef, songs, savePlaylist, setSongs, enabled = true } = deps;
+  const { tracklistRef, songs, savePlaylist, setSongs } = deps;
   const { isDragging } = useDragDrop();
   const [dropTargetIdx, setDropTargetIdx] = useState<{ idx: number; before: boolean } | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
     const container = tracklistRef.current;
     if (!container) return;
 
@@ -33,10 +31,10 @@ export function usePlaylistDnDReorder(deps: PlaylistDnDReorderDeps): PlaylistDnD
 
     container.addEventListener('psy-drop', onPsyDrop);
     return () => container.removeEventListener('psy-drop', onPsyDrop);
-  }, [songs, savePlaylist, tracklistRef, setSongs, enabled]);
+  }, [songs, savePlaylist, tracklistRef, setSongs]);
 
   const handleRowMouseEnter = (idx: number, e: React.MouseEvent) => {
-    if (!enabled || !isDragging) return;
+    if (!isDragging) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const before = e.clientY < rect.top + rect.height / 2;
     setDropTargetIdx({ idx, before });

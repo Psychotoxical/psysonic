@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { libraryEntityKey, type LibraryEntityIdentity } from '@/lib/library/libraryEntityKey';
 
 /**
  * Multi-select state with Shift+Click range support.
@@ -15,17 +14,12 @@ import { libraryEntityKey, type LibraryEntityIdentity } from '@/lib/library/libr
  *
  * The anchor is a ref, not state — moving it does not trigger re-renders.
  */
-export function useRangeSelection<T extends LibraryEntityIdentity>(
-  items: T[],
-  getKey: (item: T) => string = libraryEntityKey,
-) {
+export function useRangeSelection<T extends { id: string }>(items: T[]) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const itemsRef = useRef(items);
-  const getKeyRef = useRef(getKey);
   useEffect(() => {
     itemsRef.current = items;
-    getKeyRef.current = getKey;
-  }, [items, getKey]);
+  }, [items]);
   const anchorRef = useRef<string | null>(null);
 
   const toggleSelect = useCallback((id: string, opts?: { shiftKey?: boolean }) => {
@@ -39,13 +33,13 @@ export function useRangeSelection<T extends LibraryEntityIdentity>(
       const list = itemsRef.current;
 
       if (opts?.shiftKey && anchorAtCallTime && anchorAtCallTime !== id) {
-        const startIdx = list.findIndex(x => getKeyRef.current(x) === anchorAtCallTime);
-        const endIdx = list.findIndex(x => getKeyRef.current(x) === id);
+        const startIdx = list.findIndex(x => x.id === anchorAtCallTime);
+        const endIdx = list.findIndex(x => x.id === id);
         if (startIdx >= 0 && endIdx >= 0) {
           const lo = Math.min(startIdx, endIdx);
           const hi = Math.max(startIdx, endIdx);
           for (let i = lo; i <= hi; i++) {
-            next.add(getKeyRef.current(list[i]));
+            next.add(list[i].id);
           }
           return next;
         }

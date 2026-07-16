@@ -31,7 +31,6 @@ export const smartPlaylists = {
   createFailed: 'Nie udało się utworzyć playlisty inteligentnej.',
   updateFailed: 'Nie udało się zaktualizować playlisty inteligentnej.',
   navidromeOnly: 'Playlisty inteligentne można tworzyć tylko na serwerach Navidrome.',
-  foreignServerDisabled: 'Przełącz się na {{server}}, aby edytować tę inteligentną playlistę. Psysonic nie wyśle żądań edytora do innego aktywnego serwera.',
   loadFailed: 'Nie udało się wczytać playlist inteligentnych z Navidrome.',
   sortRandom: 'Sortowanie: losowo',
   sortTitleAsc: 'Sortowanie: tytuł A-Z',

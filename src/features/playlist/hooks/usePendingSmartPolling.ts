@@ -1,10 +1,9 @@
 import { useEffect } from 'react';
 import type React from 'react';
-import { getPlaylistForServer } from '@/lib/api/subsonicPlaylists';
+import { getPlaylist } from '@/lib/api/subsonicPlaylists';
 import type { SubsonicPlaylist } from '@/lib/api/subsonicTypes';
 import { usePlaylistStore } from '@/features/playlist';
 import type { PendingSmartPlaylist } from '@/features/playlist';
-import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
 
 /**
  * Poll Navidrome every 10 s for each pending smart playlist until its
@@ -29,14 +28,15 @@ export function usePendingSmartPolling(
       const listNow = usePlaylistStore.getState().playlists;
       const hydrated = pendingSmart.map(item => {
         if (item.id) return item;
-        const found = listNow.find(p => p.serverId === item.serverId && p.name === item.name);
+        const found = listNow.find(p => p.name === item.name);
         return found ? { ...item, id: found.id } : item;
       });
       // Detail endpoint tends to reflect fresh metadata earlier than list endpoint.
+      const ids = hydrated.map(p => p.id).filter((v): v is string => Boolean(v));
       const details = await Promise.all(
-        hydrated.filter((item): item is PendingSmartPlaylist & { id: string } => Boolean(item.id)).map(async (item) => {
+        ids.map(async (id) => {
           try {
-            const { playlist } = await getPlaylistForServer(item.serverId, item.id);
+            const { playlist } = await getPlaylist(id);
             return playlist;
           } catch {
             return null;
@@ -44,12 +44,12 @@ export function usePendingSmartPolling(
         }),
       );
       const freshById = new Map(
-        details.filter((p): p is SubsonicPlaylist => p !== null).map(p => [libraryEntityKey(p), p]),
+        details.filter((p): p is SubsonicPlaylist => p !== null).map(p => [p.id, p]),
       );
       if (freshById.size > 0) {
         usePlaylistStore.setState((s) => ({
           playlists: s.playlists.map((p) => {
-            const fresh = freshById.get(libraryEntityKey(p));
+            const fresh = freshById.get(p.id);
             return fresh ? { ...p, ...fresh } : p;
           }),
         }));
@@ -59,8 +59,8 @@ export function usePendingSmartPolling(
         const next: PendingSmartPlaylist[] = [];
         for (const item of hydrated) {
           const pl = item.id
-            ? current.find(p => p.serverId === item.serverId && p.id === item.id)
-            : current.find(p => p.serverId === item.serverId && p.name === item.name);
+            ? current.find(p => p.id === item.id)
+            : current.find(p => p.name === item.name);
           if (!pl) {
             next.push({ ...item, attempts: item.attempts + 1 });
             continue;

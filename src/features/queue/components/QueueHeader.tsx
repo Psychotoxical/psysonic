@@ -18,7 +18,7 @@ import {
 interface Props {
   queue: QueueItemRef[];
   queueIndex: number;
-  activePlaylist: { id: string; name: string; serverId: string } | null;
+  activePlaylist: { id: string; name: string } | null;
   isNowPlayingCollapsed: boolean;
   setIsNowPlayingCollapsed: (v: boolean) => void;
   durationMode: DurationMode;

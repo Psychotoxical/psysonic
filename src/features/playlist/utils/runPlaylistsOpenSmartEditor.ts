@@ -10,10 +10,7 @@ import { showToast } from '@/lib/dom/toast';
 
 export interface RunPlaylistsOpenSmartEditorDeps {
   pl: SubsonicPlaylist;
-  ownerServerId: string;
-  activeServerId: string;
-  isOwnerNavidrome: boolean;
-  ownerServerName: string;
+  isNavidromeServer: boolean;
   allGenres: SubsonicGenre[];
   t: TFunction;
   setSmartFilters: React.Dispatch<React.SetStateAction<SmartFilters>>;
@@ -26,20 +23,12 @@ export interface RunPlaylistsOpenSmartEditorDeps {
 
 export async function runPlaylistsOpenSmartEditor(deps: RunPlaylistsOpenSmartEditorDeps): Promise<void> {
   const {
-    pl, ownerServerId, activeServerId, isOwnerNavidrome, ownerServerName, allGenres, t,
+    pl, isNavidromeServer, allGenres, t,
     setSmartFilters, setEditingSmartId, setGenreQuery,
     setCreating, setCreatingSmart, setCreatingSmartBusy,
   } = deps;
 
-  if (!isSmartPlaylistName(pl.name)) return;
-  if (!ownerServerId || ownerServerId !== activeServerId) {
-    showToast(t('smartPlaylists.foreignServerDisabled', { server: ownerServerName }), 4000, 'warning');
-    return;
-  }
-  if (!isOwnerNavidrome) {
-    showToast(t('smartPlaylists.navidromeOnly'), 3500, 'error');
-    return;
-  }
+  if (!isNavidromeServer || !isSmartPlaylistName(pl.name)) return;
   setCreatingSmartBusy(true);
   try {
     let target: { id: string; name: string; rules?: Record<string, unknown> } | null = null;

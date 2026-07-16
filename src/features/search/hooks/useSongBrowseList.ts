@@ -1,7 +1,6 @@
 import { searchSongsPaged } from '@/lib/api/subsonicSearch';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { dedupeById } from '@/lib/util/dedupeById';
 import { ndListSongs } from '@/lib/api/navidromeBrowse';
 import { runLocalSongBrowse } from '@/lib/library/advancedSearchLocal';
 import {
@@ -23,20 +22,15 @@ import {
   useOfflineBrowseReloadToken,
 } from '@/features/offline';
 import { useOfflineLocalBrowseReloadKey } from '@/store/localPlaybackBrowseRevision';
-import { useBrowseLibraryScope } from '@/store/useBrowseLibraryScope';
-import type { LibraryScopePair } from '@/lib/api/library';
 
 const PAGE_SIZE = 50;
 
 async function fetchBrowseAllPage(
   serverId: string | null | undefined,
   offset: number,
-  scopePairs?: LibraryScopePair[],
-  localOnly = false,
 ): Promise<SubsonicSong[]> {
-  const local = await runLocalSongBrowse(serverId, offset, PAGE_SIZE, scopePairs);
+  const local = await runLocalSongBrowse(serverId, offset, PAGE_SIZE);
   if (local) return local;
-  if (localOnly) return [];
   try {
     return await ndListSongs(offset, offset + PAGE_SIZE, 'title', 'ASC');
   } catch {
@@ -64,8 +58,6 @@ type UseSongBrowseListArgs = {
 /** Tracks hub song browse — all-library paging or filtered text search. */
 export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseSongBrowseListArgs) {
   const serverId = useAuthStore(s => s.activeServerId);
-  const browseScope = useBrowseLibraryScope();
-  const browseServerId = browseScope.anchorServerId || serverId;
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const offlineBrowseActive = useOfflineBrowseContext().active;
@@ -120,29 +112,13 @@ export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseS
       }
 
       if (q === '') {
-        return fetchBrowseAllPage(
-          browseServerId,
-          pageOffset,
-          browseScope.pairs,
-          browseScope.multiServer,
-        );
+        return fetchBrowseAllPage(serverId, pageOffset);
       }
 
-      if (pageOffset === 0 && browseScope.multiServer && browseServerId) {
-        localSearchModeRef.current = true;
-        return (await runLocalBrowseSongPage(
-          browseServerId,
-          q,
-          0,
-          PAGE_SIZE,
-          browseScope.pairs,
-        )) ?? [];
-      }
-
-      if (pageOffset === 0 && indexEnabled && browseServerId) {
+      if (pageOffset === 0 && indexEnabled && serverId) {
         const winner = await raceBrowseWithLocalFallback(
           isStale,
-          () => runLocalBrowseSongPage(browseServerId, q, 0, PAGE_SIZE, browseScope.pairs),
+          () => runLocalBrowseSongPage(serverId, q, 0, PAGE_SIZE),
           () => runNetworkBrowseSongPage(q, 0, PAGE_SIZE),
           {
             surface: 'tracks_browse',
@@ -160,15 +136,9 @@ export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseS
         return (await runNetworkBrowseSongPage(q, 0, PAGE_SIZE)) ?? [];
       }
 
-      if (localSearchModeRef.current && browseServerId) {
+      if (localSearchModeRef.current && serverId) {
         try {
-          return await loadMoreLocalBrowseSongs(
-            browseServerId,
-            q,
-            pageOffset,
-            PAGE_SIZE,
-            browseScope.pairs,
-          );
+          return await loadMoreLocalBrowseSongs(serverId, q, pageOffset, PAGE_SIZE);
         } catch {
           return [];
         }
@@ -180,7 +150,7 @@ export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseS
     // loaders read the active genre/library filter state internally, so the
     // callback must refresh when that version bumps even though it is unused here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [browseScope.fingerprint, browseScope.multiServer, browseServerId, indexEnabled, musicLibraryFilterVersion, offlineBrowseActive, serverId],
+    [indexEnabled, musicLibraryFilterVersion, offlineBrowseActive, serverId],
   );
 
   useEffect(() => {
@@ -242,7 +212,10 @@ export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseS
         setHasMore(false);
       } else {
         setSongs(prev => {
-          return dedupeById([...prev, ...page]);
+          const seen = new Set(prev.map(s => s.id));
+          const merged = [...prev];
+          for (const s of page) if (!seen.has(s.id)) merged.push(s);
+          return merged;
         });
         setOffset(o => o + page.length);
         if (page.length < PAGE_SIZE) setHasMore(false);

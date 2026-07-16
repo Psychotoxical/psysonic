@@ -21,8 +21,6 @@ import {
   runNetworkBrowseFullSearch,
 } from '@/lib/library/browseTextSearch';
 import type { SearchOpts, Results } from '@/features/search/searchBrowseTypes';
-import { dedupeById } from '@/lib/util/dedupeById';
-import type { LibraryScopePair } from '@/lib/api/library';
 
 const MOOD_UI_ENABLED = OXIMEDIA_MOOD_SEARCH_ENABLED;
 
@@ -60,8 +58,6 @@ interface UseAdvancedSearchRunnerParams {
   basicSearchMode: boolean;
   localMode: boolean;
   songsServerOffset: number;
-  scopePairs: LibraryScopePair[];
-  localOnly: boolean;
   setLoading: Dispatch<SetStateAction<boolean>>;
   setHasSearched: Dispatch<SetStateAction<boolean>>;
   setGenreNote: Dispatch<SetStateAction<boolean>>;
@@ -89,8 +85,6 @@ export function useAdvancedSearchRunner({
   basicSearchMode,
   localMode,
   songsServerOffset,
-  scopePairs,
-  localOnly,
   setLoading,
   setHasSearched,
   setGenreNote,
@@ -137,20 +131,10 @@ export function useAdvancedSearchRunner({
     }
 
     try {
-      if (serverId && localOnly) {
-        const local = await runLocalBrowseFullSearch(serverId, q, BASIC_SONGS_INITIAL, scopePairs);
-        if (isStale()) return;
-        const next = local ?? { artists: [], albums: [], songs: [] };
-        setResults(next);
-        setSongsServerOffset(next.songs.length);
-        setSongsHasMore(next.songs.length >= BASIC_SONGS_INITIAL);
-        setLocalMode(true);
-        return;
-      }
       if (serverId && indexEnabled) {
         const outcome = await raceBrowseWithLocalFallback(
           isStale,
-          () => runLocalBrowseFullSearch(serverId, q, BASIC_SONGS_INITIAL, scopePairs),
+          () => runLocalBrowseFullSearch(serverId, q, BASIC_SONGS_INITIAL),
           () => runNetworkBrowseFullSearch(q, BASIC_SONGS_INITIAL),
           {
             surface: 'search_results',
@@ -205,26 +189,13 @@ export function useAdvancedSearchRunner({
 
     // Track-only filters (BPM dual-storage, mood) need the local index for full coverage.
     // Lossless skips the race — network search3 cannot filter albums by format reliably.
-    if (serverId && localOnly) {
-      const localPage = await tryRunLocalAdvancedSearch(serverId, opts, SONGS_INITIAL, true, scopePairs);
-      if (isStale()) return;
-      setResults(localPage
-        ? { artists: localPage.artists, albums: localPage.albums, songs: localPage.songs }
-        : { artists: [], albums: [], songs: [] });
-      setSongsServerOffset(localPage?.songs.length ?? 0);
-      setSongsHasMore((localPage?.songs.length ?? 0) >= SONGS_INITIAL);
-      setLocalMode(true);
-      setLoading(false);
-      return;
-    }
-
     if (q && serverId && indexEnabled && !trackOnlyFilterActive && !losslessFilterActive) {
       try {
         const winner = await raceSearchSources(
           [
             {
               source: 'local',
-              run: () => tryRunLocalAdvancedSearch(serverId, opts, SONGS_INITIAL, true, scopePairs),
+              run: () => tryRunLocalAdvancedSearch(serverId, opts, SONGS_INITIAL, true),
             },
             {
               source: 'network',
@@ -266,7 +237,7 @@ export function useAdvancedSearchRunner({
       }
       setLocalMode(false);
     } else if (serverId && indexEnabled) {
-      const localPage = await tryRunLocalAdvancedSearch(serverId, opts, SONGS_INITIAL, false, scopePairs);
+      const localPage = await tryRunLocalAdvancedSearch(serverId, opts, SONGS_INITIAL);
       if (isStale()) return;
       if (localPage) {
         setResults({
@@ -387,9 +358,9 @@ export function useAdvancedSearchRunner({
       setLoadingMoreSongs(true);
       try {
         const page = localMode && serverId
-          ? await loadMoreLocalBrowseSongs(serverId, q, songsServerOffset, BASIC_SONGS_PAGE_SIZE, scopePairs)
+          ? await loadMoreLocalBrowseSongs(serverId, q, songsServerOffset, BASIC_SONGS_PAGE_SIZE)
           : await searchSongsPaged(q, BASIC_SONGS_PAGE_SIZE, songsServerOffset);
-        setResults(prev => prev ? { ...prev, songs: dedupeById([...prev.songs, ...page]) } : prev);
+        setResults(prev => prev ? { ...prev, songs: [...prev.songs, ...page] } : prev);
         setSongsServerOffset(o => o + page.length);
         if (page.length < BASIC_SONGS_PAGE_SIZE) setSongsHasMore(false);
       } catch {
@@ -405,8 +376,8 @@ export function useAdvancedSearchRunner({
       if (!serverId) return;
       setLoadingMoreSongs(true);
       try {
-        const more = await loadMoreLocalSongs(serverId, activeSearch, songsServerOffset, SONGS_PAGE_SIZE, scopePairs);
-        setResults(prev => (prev ? { ...prev, songs: dedupeById([...prev.songs, ...more]) } : prev));
+        const more = await loadMoreLocalSongs(serverId, activeSearch, songsServerOffset, SONGS_PAGE_SIZE);
+        setResults(prev => (prev ? { ...prev, songs: [...prev.songs, ...more] } : prev));
         setSongsServerOffset(o => o + more.length);
         if (more.length < SONGS_PAGE_SIZE) setSongsHasMore(false);
       } catch {
@@ -436,7 +407,7 @@ export function useAdvancedSearchRunner({
         bpmHi,
         activeSearch.losslessOnly,
       );
-      setResults(prev => prev ? { ...prev, songs: dedupeById([...prev.songs, ...filtered]) } : prev);
+      setResults(prev => prev ? { ...prev, songs: [...prev.songs, ...filtered] } : prev);
       setSongsServerOffset(o => o + page.length);
       // No more pages when the server returned a non-full page (regardless of how many survived filtering).
       if (page.length < SONGS_PAGE_SIZE) setSongsHasMore(false);
@@ -446,7 +417,7 @@ export function useAdvancedSearchRunner({
       setLoadingMoreSongs(false);
     }
   }, [
-    loadingMoreSongs, songsHasMore, activeSearch, songsServerOffset, localMode, scopePairs, serverId, basicSearchMode,
+    loadingMoreSongs, songsHasMore, activeSearch, songsServerOffset, localMode, serverId, basicSearchMode,
     setResults, setSongsServerOffset, setSongsHasMore, setLoadingMoreSongs,
   ]);
 

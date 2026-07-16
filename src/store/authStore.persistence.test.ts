@@ -38,20 +38,6 @@ describe('hydration — loads existing localStorage shape', () => {
     expect(s.servers).toHaveLength(1);
     expect(s.servers[0]?.id).toBe('s1');
     expect(s.activeServerId).toBe('s1');
-    expect(s.musicLibraryServerIds).toEqual(['s1']);
-  });
-
-  it('persists last-known per-server folders while keeping the active mirror transient', () => {
-    useAuthStore.setState({
-      musicFolders: [{ id: 'active', name: 'Active' }],
-      musicFoldersByServer: { s1: [{ id: 'saved', name: 'Saved' }] },
-    });
-
-    const raw = localStorage.getItem(PERSIST_KEY);
-    expect(raw).not.toBeNull();
-    const parsed = JSON.parse(raw!) as { state: Record<string, unknown> };
-    expect(parsed.state.musicFolders).toBeUndefined();
-    expect(parsed.state.musicFoldersByServer).toEqual({ s1: [{ id: 'saved', name: 'Saved' }] });
   });
 
   it('defaults missing fields to their initial values', async () => {

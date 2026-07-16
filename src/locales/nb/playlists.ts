@@ -1,5 +1,4 @@
 export const playlists = {
-  sources: 'Playlist sources',
   sortTooltip: 'Sorter spor',
   sortDateAddedNewest: 'Dato lagt til (nyeste)',
   sortDateAddedOldest: 'Dato lagt til (eldste)',
@@ -14,7 +13,6 @@ export const playlists = {
   emptyPlaylist: 'Denne spillelisten er tom.',
   addFirstSong: 'Legg til din første sang',
   notFound: 'Spillelisten ble ikke funnet.',
-  smartMembershipReadOnly: 'Denne smarte spillelisten genereres av {{server}}. Legg til, fjern, omorganiser og CSV-import er deaktivert her, slik at serverreglene ikke erstattes.',
   songs_one: '{{count}} sang',
   songs_other: '{{count}} sanger',
   playAll: 'Spill alle',

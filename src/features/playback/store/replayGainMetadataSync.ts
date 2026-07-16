@@ -84,7 +84,7 @@ function applyCurrentTrackMetadataUpgrade(
   if (!shouldSyncCurrentTrackMetadata(prev, merged, queueItems, queueIndex)) return;
 
   usePlayerStore.setState({ currentTrack: merged });
-  patchCachedTrack(prev.serverId ?? usePlayerStore.getState().queueServerId ?? '', prev.id, {
+  patchCachedTrack(prev.id, {
     title: merged.title,
     duration: merged.duration,
     replayGainTrackDb: merged.replayGainTrackDb,

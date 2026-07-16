@@ -30,11 +30,4 @@
 .radio-card .album-card-artist {
   margin-top: auto;
 }
-.radio-card-source {
-  color: var(--text-muted);
-  font-size: 11px;
-  line-height: 1.35;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+

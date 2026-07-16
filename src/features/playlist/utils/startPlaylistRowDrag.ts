@@ -8,12 +8,11 @@ export interface StartPlaylistRowDragDeps {
   songs: SubsonicSong[];
   selectedIds: Set<string>;
   isFiltered: boolean;
-  ownerServerId: string;
   startDrag: (payload: { data: string; label: string }, x: number, y: number) => void;
 }
 
 export function startPlaylistRowDrag(deps: StartPlaylistRowDragDeps): void {
-  const { e, idx, songs, selectedIds, isFiltered, ownerServerId, startDrag } = deps;
+  const { e, idx, songs, selectedIds, isFiltered, startDrag } = deps;
   if (e.button !== 0) return;
   if ((e.target as HTMLElement).closest('button, input')) return;
   e.preventDefault();
@@ -23,7 +22,7 @@ export function startPlaylistRowDrag(deps: StartPlaylistRowDragDeps): void {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       if (!isFiltered && selectedIds.has(songs[idx]?.id) && selectedIds.size > 1) {
-        const bulkTracks = songs.filter(s => selectedIds.has(s.id)).map(song => ({ ...songToTrack(song), serverId: ownerServerId }));
+        const bulkTracks = songs.filter(s => selectedIds.has(s.id)).map(songToTrack);
         startDrag({ data: JSON.stringify({ type: 'songs', tracks: bulkTracks }), label: `${bulkTracks.length} Songs` }, me.clientX, me.clientY);
       } else if (!isFiltered) {
         startDrag(
@@ -33,7 +32,7 @@ export function startPlaylistRowDrag(deps: StartPlaylistRowDragDeps): void {
       } else {
         // filtered view: single-song drag to queue
         startDrag(
-          { data: JSON.stringify({ type: 'song', track: { ...songToTrack(songs[idx]), serverId: ownerServerId } }), label: songs[idx]?.title ?? '' },
+          { data: JSON.stringify({ type: 'song', track: songToTrack(songs[idx]) }), label: songs[idx]?.title ?? '' },
           me.clientX, me.clientY
         );
       }

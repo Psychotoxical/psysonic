@@ -22,9 +22,8 @@ import {
   shouldAttemptSubsonicForActiveServer,
   shouldAttemptSubsonicForServer,
 } from '@/lib/network/subsonicNetworkGuard';
+import { librarySelectionForServer } from '@/lib/api/subsonicClient';
 import { tryLoadAlbumDetailMultiScope } from '@/features/album/hooks/loadAlbumDetailMultiScope';
-import { tryLoadArtistDetailMultiScope } from '@/lib/library/loadArtistDetailMultiScope';
-import { useBrowseLibraryScope } from '@/store/useBrowseLibraryScope';
 
 type AlbumPayload = ResolvedAlbum;
 
@@ -53,7 +52,6 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const [searchParams] = useSearchParams();
   const detailServerId = readDetailServerId(searchParams, activeServerId);
-  const browseScope = useBrowseLibraryScope();
   const offlineBrowseActive = useOfflineBrowseContext().active && !!detailServerId;
 
   useEffect(() => {
@@ -79,15 +77,6 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
     ) => {
       if (!artistId) return;
       try {
-        if (browseScope.multiServer) {
-          const scoped = await tryLoadArtistDetailMultiScope(
-            serverId ?? browseScope.anchorServerId,
-            artistId,
-            browseScope.pairs,
-          );
-          if (scoped) setRelatedAlbums(scoped.albums.filter(a => a.id !== id));
-          return;
-        }
         if (useLocalArtist && serverId) {
           const artistLocal = localBytesOnly
             ? await loadArtistFromLocalPlayback(serverId, artistId)
@@ -125,15 +114,11 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
         return;
       }
 
-      if (detailServerId && browseScope.pairs.length > 0) {
-        const multi = await tryLoadAlbumDetailMultiScope(detailServerId, id, browseScope.pairs);
+      if (detailServerId && librarySelectionForServer(detailServerId).length > 0) {
+        const multi = await tryLoadAlbumDetailMultiScope(detailServerId, id);
         if (multi) {
           applyAlbumPayload(multi);
           await loadRelatedAlbums(detailServerId, multi.album.artistId, true, false);
-          return;
-        }
-        if (browseScope.multiServer) {
-          setLoading(false);
           return;
         }
       }
@@ -203,10 +188,6 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
     })();
   }, [
     activeServerId,
-    browseScope.anchorServerId,
-    browseScope.fingerprint,
-    browseScope.multiServer,
-    browseScope.pairs,
     detailServerId,
     favoritesOfflineEnabled,
     id,

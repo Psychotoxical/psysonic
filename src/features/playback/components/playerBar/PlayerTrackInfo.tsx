@@ -1,7 +1,6 @@
 import { Cast, Heart, Maximize2, Music } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { queueSongRating } from '@/features/playback/store/pendingStarSync';
-import { entityOverrideKey } from '@/lib/media/entityOverrideKey';
 import type { InternetRadioStation, SubsonicOpenArtistRef } from '@/lib/api/subsonicTypes';
 import type { Track } from '@/lib/media/trackTypes';
 import type { PlayerState } from '@/features/playback/store/playerStoreTypes';
@@ -193,8 +192,8 @@ export function PlayerTrackInfo({
         )}
         {currentTrack && !isRadio && !showPreviewMeta && isLayoutVisible('starRating') && playerPolicy.canRate && (
           <StarRating
-            value={userRatingOverrides[entityOverrideKey(currentTrack.serverId, currentTrack.id)] ?? currentTrack.userRating ?? 0}
-            onChange={r => queueSongRating(currentTrack.id, r, currentTrack.serverId)}
+            value={userRatingOverrides[currentTrack.id] ?? currentTrack.userRating ?? 0}
+            onChange={r => queueSongRating(currentTrack.id, r)}
             className="player-track-rating"
             ariaLabel={t('albumDetail.ratingLabel')}
           />

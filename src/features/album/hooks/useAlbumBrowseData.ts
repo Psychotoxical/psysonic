@@ -64,7 +64,6 @@ import {
   storeAlbumBrowseCatalogCache,
 } from '@/lib/library/albumBrowseInflight';
 import { librarySelectionForServer } from '@/lib/api/subsonicClient';
-import type { LibraryScopePair } from '@/lib/api/library';
 
 const PAGE_SIZE = 30;
 const CLIENT_SLICE_PAGE_SIZE = 60;
@@ -93,9 +92,6 @@ export type UseAlbumBrowseDataArgs = {
   scrollRootEl?: HTMLElement | null;
   /** Bootstrap visible slice size when restoring scroll after album-detail back. */
   restoreDisplayCount?: number;
-  scopePairs?: LibraryScopePair[];
-  scopeFingerprint?: string;
-  localOnly?: boolean;
 };
 
 function resolveHasMoreAfterPage(
@@ -124,9 +120,6 @@ export function useAlbumBrowseData({
   getScrollRoot,
   scrollRootEl,
   restoreDisplayCount,
-  scopePairs,
-  scopeFingerprint = '',
-  localOnly = false,
 }: UseAlbumBrowseDataArgs) {
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const offlineBrowseReloadTs = useOfflineBrowseReloadToken();
@@ -179,14 +172,13 @@ export function useAlbumBrowseData({
         browseQuery,
         offlineBrowseActive,
       );
-      const scopedBase = `${base}\0${scopeFingerprint}`;
       // Online index browse re-keys on the library sync revision so a completed
       // resync surfaces renamed/pruned albums without an app restart; offline
       // browse already re-keys via its own (sync-driven) reload key.
-      if (!offlineBrowseActive) return albumBrowseOnlineCatalogKey(scopedBase, librarySyncRevision);
-      return `${scopedBase}\0${offlineLocalBrowseReloadKey}`;
+      if (!offlineBrowseActive) return albumBrowseOnlineCatalogKey(base, librarySyncRevision);
+      return `${base}\0${offlineLocalBrowseReloadKey}`;
     },
-    [serverId, musicLibraryFilterVersion, browseQuery, offlineBrowseActive, offlineLocalBrowseReloadKey, librarySyncRevision, scopeFingerprint],
+    [serverId, musicLibraryFilterVersion, browseQuery, offlineBrowseActive, offlineLocalBrowseReloadKey, librarySyncRevision],
   );
 
   const compFilterActive = compFilter !== 'all';
@@ -214,7 +206,6 @@ export function useAlbumBrowseData({
       compFilter,
       musicLibraryFilterVersion,
       serverId,
-      scopeFingerprint,
     ],
     getScrollRoot,
     scrollRootEl,
@@ -303,8 +294,7 @@ export function useAlbumBrowseData({
         query,
         offset,
         CATALOG_CHUNK_SIZE,
-          starredOverrides,
-          scopePairs,
+        starredOverrides,
       );
       if (generation !== loadGenerationRef.current || chunk == null) return;
       setAlbums(prev => {
@@ -323,7 +313,7 @@ export function useAlbumBrowseData({
     // reloads from the right source when offline browse toggles; the loader reads
     // the active mode internally rather than referencing the flag directly here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [indexEnabled, offlineBrowseActive, scopePairs, serverId, starredOverrides]);
+  }, [indexEnabled, offlineBrowseActive, serverId, starredOverrides]);
 
   const loadBrowse = useCallback(async (
     query: AlbumBrowseQuery,
@@ -373,8 +363,6 @@ export function useAlbumBrowseData({
               }
             },
           },
-          scopePairs,
-          localOnly,
         ),
         { offset, pageSize: PAGE_SIZE, append },
       );
@@ -389,7 +377,7 @@ export function useAlbumBrowseData({
         else setLoading(false);
       }
     }
-  }, [indexEnabled, localOnly, scopePairs, serverId]);
+  }, [indexEnabled, serverId]);
 
   useLayoutEffect(() => {
     const cached = readAlbumBrowseCatalogCache(catalogLoadKey);
@@ -513,9 +501,8 @@ export function useAlbumBrowseData({
                   serverId,
                   indexEnabled,
                   browseQuery,
-                    0,
-                    ALBUM_BROWSE_BOOTSTRAP_CHUNK,
-                    scopePairs,
+                  0,
+                  ALBUM_BROWSE_BOOTSTRAP_CHUNK,
                 ),
                 { chunkSize: ALBUM_BROWSE_BOOTSTRAP_CHUNK },
               ),
@@ -556,7 +543,6 @@ export function useAlbumBrowseData({
                             browseQuery,
                             tailOffset,
                             tailSize,
-                            scopePairs,
                           ),
                           { offset: tailOffset, chunkSize: tailSize },
                         ),
@@ -603,7 +589,6 @@ export function useAlbumBrowseData({
                 browseQuery,
                 0,
                 CATALOG_CHUNK_SIZE,
-                scopePairs,
               ),
             ),
           );
@@ -629,14 +614,6 @@ export function useAlbumBrowseData({
         }
       }
       if (cancelled) return;
-      if (localOnly) {
-        setBrowseMode('slice');
-        setAlbums([]);
-        setCatalogHasMore(false);
-        setLoading(false);
-        emitAlbumBrowseDebug('load_effect_done', { browseMode: 'slice', localUnavailable: true });
-        return;
-      }
       emitAlbumBrowseDebug('load_branch', { mode: 'page' });
       setBrowseMode('page');
       await loadBrowse(browseQuery, 0, false);
@@ -651,7 +628,7 @@ export function useAlbumBrowseData({
     // starredOverrides is read to seed star state during the load, but the browse
     // list must not reload on every star toggle — it is intentionally excluded.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalogLoadKey, browseQuery, indexEnabled, localOnly, offlineBrowseActive, offlineBrowseReloadTs, scopePairs, serverId, loadBrowse, musicLibraryFilterVersion]);
+  }, [catalogLoadKey, browseQuery, indexEnabled, offlineBrowseActive, offlineBrowseReloadTs, serverId, loadBrowse, musicLibraryFilterVersion]);
 
   useEffect(() => {
     if (!genreCatalogActive) {
@@ -668,7 +645,7 @@ export function useAlbumBrowseData({
       'genre_options',
       () => offlineBrowseActive && serverId && offlineLocalBrowseEnabled(serverId)
         ? fetchOfflineLocalAlbumGenreOptions(serverId, browseQueryWithoutGenre, starredOverrides)
-        : fetchAlbumBrowseGenreOptions(serverId, indexEnabled, browseQueryWithoutGenre, scopePairs),
+        : fetchAlbumBrowseGenreOptions(serverId, indexEnabled, browseQueryWithoutGenre),
     ).then(options => {
       if (!cancelled) {
         setGenreCatalogOptions(options);
@@ -686,7 +663,6 @@ export function useAlbumBrowseData({
     browseQueryWithoutGenre,
     musicLibraryFilterVersion,
     offlineBrowseActive,
-    scopePairs,
     starredOverrides,
   ]);
 

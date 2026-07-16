@@ -1,5 +1,6 @@
 import { buildDownloadUrl } from '@/lib/api/subsonicStreamUrl';
-import { queueEntityRating, queueEntityStar, queueSongStar, queueSongRating } from '@/features/playback/store/pendingStarSync';
+import { setRating, star, unstar } from '@/lib/api/subsonicStarRating';
+import { queueSongStar, queueSongRating } from '@/features/playback/store/pendingStarSync';
 import { getAlbumForServer } from '@/lib/api/subsonicLibrary';
 import { getArtistInfo } from '@/lib/api/subsonicArtists';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
@@ -35,6 +36,7 @@ import {
 } from '@/cover/ref';
 import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
 import { useTranslation } from 'react-i18next';
+import { showToast } from '@/lib/dom/toast';
 import { useSelectionStore } from '@/store/selectionStore';
 import { sanitizeFilename } from '@/features/album/utils/albumDetailHelpers';
 import { albumArtistDisplayName, deriveAlbumHeaderArtistRefs } from '@/features/album/utils/deriveAlbumHeaderArtistRefs';
@@ -77,6 +79,7 @@ export default function AlbumDetail() {
   const deleteAlbum = useOfflineStore(s => s.deleteAlbum);
   const serverId = readDetailServerId(searchParams, auth.activeServerId) ?? '';
   const entityRatingSupportByServer = useAuthStore(s => s.entityRatingSupportByServer);
+  const setEntityRatingSupport = useAuthStore(s => s.setEntityRatingSupport);
   const albumEntityRatingSupport = entityRatingSupportByServer[serverId] ?? 'unknown';
   const offlineCtx = useOfflineBrowseContext();
   const albumActionPolicy = offlineActionPolicy('albumDetail', offlineCtx.active);
@@ -214,13 +217,16 @@ const handleShuffleAll = () => {
   const handleRate = (songId: string, rating: number) => {
     setRatings(r => ({ ...r, [songId]: rating }));
     // F4: optimistic override + retried server sync via the central helper.
-    const song = album?.songs.find(candidate => candidate.id === songId);
-    queueSongRating(songId, rating, song?.serverId ?? serverId);
+    queueSongRating(songId, rating);
   };
 
   const handleAlbumEntityRating = async (rating: number) => {
     if (!album || album.album.id !== id) return;
     const albumId = album.album.id;
+    const ratingAtStart = albumId in userRatingOverrides
+      ? userRatingOverrides[albumId]
+      : (album.album.userRating ?? 0);
+
     userMetadataMutationRef.current = true;
     setUserRatingOverride(albumId, rating);
 
@@ -229,13 +235,24 @@ const handleShuffleAll = () => {
       return;
     }
 
-    queueEntityRating('album', albumId, rating, album.album.serverId ?? serverId);
-    setAlbum(cur =>
-      cur && cur.album.id === albumId
-        ? { ...cur, album: { ...cur.album, userRating: rating } }
-        : cur,
-    );
-    userMetadataMutationRef.current = false;
+    try {
+      await setRating(albumId, rating);
+      setAlbum(cur =>
+        cur && cur.album.id === albumId
+          ? { ...cur, album: { ...cur.album, userRating: rating } }
+          : cur,
+      );
+    } catch (err) {
+      setUserRatingOverride(albumId, ratingAtStart);
+      setEntityRatingSupport(serverId, 'track_only');
+      showToast(
+        typeof err === 'string' ? err : err instanceof Error ? err.message : t('entityRating.saveFailed'),
+        4500,
+        'error',
+      );
+    } finally {
+      userMetadataMutationRef.current = false;
+    }
   };
 
   const handleBio = async () => {
@@ -272,6 +289,7 @@ const handleShuffleAll = () => {
   const toggleStar = async () => {
     if (!album) return;
     const wasStarred = isStarred;
+    const previousStarred = album.album.starred;
     const nextStarred = !wasStarred;
     userMetadataMutationRef.current = true;
     setStarredOverride(album.album.id, nextStarred);
@@ -282,8 +300,30 @@ const handleShuffleAll = () => {
         starred: nextStarred ? (prev.album.starred ?? new Date().toISOString()) : undefined,
       },
     } : prev);
-    queueEntityStar('album', album.album.id, nextStarred, album.album.serverId ?? serverId);
-    userMetadataMutationRef.current = false;
+    try {
+      const meta = {
+        serverId: serverId || album.album.serverId,
+        name: album.album.name,
+        artist: album.album.artist,
+        artistId: album.album.artistId,
+        coverArtId: album.album.coverArt,
+        year: album.album.year,
+      };
+      if (wasStarred) await unstar(album.album.id, 'album', meta);
+      else await star(album.album.id, 'album', meta);
+    } catch (e) {
+      console.error('Failed to toggle star', e);
+      setStarredOverride(album.album.id, wasStarred);
+      setAlbum(prev => prev ? {
+        ...prev,
+        album: {
+          ...prev.album,
+          starred: wasStarred ? previousStarred : undefined,
+        },
+      } : prev);
+    } finally {
+      userMetadataMutationRef.current = false;
+    }
   };
 
   const toggleSongStar = (song: SubsonicSong, e: React.MouseEvent) => {

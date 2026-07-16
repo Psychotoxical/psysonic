@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { getMusicDirectoryForServer, getMusicIndexesForServer } from '@/lib/api/subsonicLibrary';
+import { getMusicDirectory, getMusicIndexes } from '@/lib/api/subsonicLibrary';
 import type { SubsonicDirectoryEntry } from '@/lib/api/subsonicTypes';
 import type { Track } from '@/lib/media/trackTypes';
 import type { Column, NavPos } from '@/features/folderBrowser/utils/folderBrowserHelpers';
 
-let persistedPlayingPath: { serverId: string; ids: string[] } | null = null;
+let persistedPlayingPathIds: string[] = [];
 
 interface Args {
   columns: Column[];
@@ -24,10 +24,7 @@ interface Result {
 export function useFolderBrowserNowPlayingPath({
   columns, currentTrack, isPlaying, setColumns, setKeyboardPos,
 }: Args): Result {
-  const [playingPathIds, setPlayingPathIds] = useState<string[]>(() => {
-    const persisted = persistedPlayingPath;
-    return persisted && persisted.serverId === currentTrack?.serverId ? persisted.ids : [];
-  });
+  const [playingPathIds, setPlayingPathIds] = useState<string[]>(persistedPlayingPathIds);
   const autoResolvedTrackRef = useRef<string | null>(null);
   const prevTrackIdRef = useRef<string | null>(null);
   const lastHotkeyRevealTsRef = useRef<number | null>(null);
@@ -41,7 +38,7 @@ export function useFolderBrowserNowPlayingPath({
       return;
     }
     setPlayingPathIds(prev => (prev[prev.length - 1] === currentTrack.id ? prev : []));
-  }, [currentTrack?.id, currentTrack?.serverId]);
+  }, [currentTrack?.id]);
 
   useEffect(() => {
     if (!isPlaying || !currentTrack?.id) return;
@@ -69,21 +66,17 @@ export function useFolderBrowserNowPlayingPath({
   }, [columns, currentTrack?.id, isPlaying]);
 
   useEffect(() => {
-    persistedPlayingPath = currentTrack?.serverId
-      ? { serverId: currentTrack.serverId, ids: playingPathIds }
-      : null;
-  }, [playingPathIds, currentTrack?.serverId]);
+    persistedPlayingPathIds = playingPathIds;
+  }, [playingPathIds]);
 
   const resolveColumnsForTrack = useCallback(async (
     track: Track,
     roots: SubsonicDirectoryEntry[],
   ): Promise<Column[] | null> => {
     for (const root of roots) {
-      const serverId = root.serverId ?? track.serverId;
-      if (!serverId || (track.serverId && track.serverId !== serverId)) continue;
       let indexes: SubsonicDirectoryEntry[];
       try {
-        indexes = await getMusicIndexesForServer(serverId, root.id);
+        indexes = await getMusicIndexes(root.id);
       } catch {
         continue;
       }
@@ -95,7 +88,7 @@ export function useFolderBrowserNowPlayingPath({
 
       let artistChildren: SubsonicDirectoryEntry[];
       try {
-        artistChildren = (await getMusicDirectoryForServer(serverId, artistEntry.id)).child;
+        artistChildren = (await getMusicDirectory(artistEntry.id)).child;
       } catch {
         continue;
       }
@@ -111,7 +104,7 @@ export function useFolderBrowserNowPlayingPath({
 
       let albumChildren: SubsonicDirectoryEntry[];
       try {
-        albumChildren = (await getMusicDirectoryForServer(serverId, albumEntry.id)).child;
+        albumChildren = (await getMusicDirectory(albumEntry.id)).child;
       } catch {
         continue;
       }
@@ -119,10 +112,10 @@ export function useFolderBrowserNowPlayingPath({
       if (!songEntry) continue;
 
       return [
-        { id: 'root', serverId: '', name: '', items: roots, selectedId: root.id, loading: false, error: false, kind: 'roots' },
-        { id: root.id, serverId, name: root.title, items: indexes, selectedId: artistEntry.id, loading: false, error: false, kind: 'indexes' },
-        { id: artistEntry.id, serverId, name: artistEntry.title, items: artistChildren, selectedId: albumEntry.id, loading: false, error: false, kind: 'directory' },
-        { id: albumEntry.id, serverId, name: albumEntry.title, items: albumChildren, selectedId: songEntry.id, loading: false, error: false, kind: 'directory' },
+        { id: 'root', name: '', items: roots, selectedId: root.id, loading: false, error: false, kind: 'roots' },
+        { id: root.id, name: root.title, items: indexes, selectedId: artistEntry.id, loading: false, error: false, kind: 'indexes' },
+        { id: artistEntry.id, name: artistEntry.title, items: artistChildren, selectedId: albumEntry.id, loading: false, error: false, kind: 'directory' },
+        { id: albumEntry.id, name: albumEntry.title, items: albumChildren, selectedId: songEntry.id, loading: false, error: false, kind: 'directory' },
       ];
     }
     return null;

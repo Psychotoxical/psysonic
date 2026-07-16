@@ -1,5 +1,4 @@
 export const playlists = {
-  sources: 'Playlist sources',
   sortTooltip: '排序曲目',
   sortDateAddedNewest: '添加日期（最新）',
   sortDateAddedOldest: '添加日期（最早）',
@@ -14,7 +13,6 @@ export const playlists = {
   emptyPlaylist: '此播放列表为空。',
   addFirstSong: '添加第一首歌曲',
   notFound: '未找到播放列表。',
-  smartMembershipReadOnly: '此智能播放列表由 {{server}} 生成。为避免替换服务器规则，此处已禁用添加、移除、重新排序和 CSV 导入。',
   songs_one: '{{count}} 首歌曲',
   songs_other: '{{count}} 首歌曲',
   playAll: '全部播放',

@@ -1,5 +1,4 @@
 export const playlists = {
-  sources: 'Playlist sources',
   sortTooltip: 'Сортиране на песни',
   sortDateAddedNewest: 'Дата на добавяне (най-нови)',
   sortDateAddedOldest: 'Дата на добавяне (най-стари)',
@@ -14,7 +13,6 @@ export const playlists = {
   emptyPlaylist: 'Този плейлист е празен.',
   addFirstSong: 'Добавете първата си песен',
   notFound: 'Плейлистът не е намерен.',
-  smartMembershipReadOnly: 'Този интелигентен плейлист се генерира от {{server}}. Добавянето, премахването, пренареждането и импортирането на CSV са изключени тук, за да не бъдат заменени правилата на сървъра.',
   songs_one: '{{count}} песен',
   songs_other: '{{count}} песни',
   playAll: 'Пусни всички',

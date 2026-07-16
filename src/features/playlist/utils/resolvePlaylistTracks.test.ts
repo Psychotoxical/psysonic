@@ -5,7 +5,6 @@ const offlineMock = vi.fn(() => false);
 const resolveServerMock = vi.fn((id: string | null | undefined) => id ?? undefined);
 const resolvePlaylistMock = vi.fn();
 const filterMock = vi.fn();
-const serverFilterMock = vi.fn();
 let activeServerId: string | null = 'srv-1';
 
 vi.mock('@/features/offline', () => ({
@@ -16,7 +15,6 @@ vi.mock('@/features/offline', () => ({
 
 vi.mock('@/lib/api/subsonicLibrary', () => ({
   filterSongsToActiveLibrary: (songs: unknown) => filterMock(songs),
-  filterSongsToServerLibrary: (songs: unknown, serverId: string) => serverFilterMock(songs, serverId),
 }));
 
 vi.mock('@/lib/media/songToTrack', () => ({
@@ -33,7 +31,6 @@ describe('resolvePlaylistTracks', () => {
     resolveServerMock.mockReset().mockImplementation((id: string | null | undefined) => id ?? undefined);
     resolvePlaylistMock.mockReset();
     filterMock.mockReset();
-    serverFilterMock.mockReset();
     activeServerId = 'srv-1';
   });
 
@@ -55,19 +52,7 @@ describe('resolvePlaylistTracks', () => {
     const tracks = await resolvePlaylistTracks('pl-1');
 
     expect(filterMock).not.toHaveBeenCalled();
-    expect(serverFilterMock).not.toHaveBeenCalled();
     expect(tracks).toEqual([{ id: 'a', track: true }, { id: 'b', track: true }]);
-  });
-
-  it('scopes a remote playlist to its owner server library', async () => {
-    resolvePlaylistMock.mockResolvedValue({ playlist: { id: 'pl-1' }, songs: [{ id: 'a' }, { id: 'b' }] });
-    serverFilterMock.mockResolvedValue([{ id: 'b' }]);
-
-    const tracks = await resolvePlaylistTracks('pl-1', 'srv-2');
-
-    expect(serverFilterMock).toHaveBeenCalledWith([{ id: 'a' }, { id: 'b' }], 'srv-2');
-    expect(filterMock).not.toHaveBeenCalled();
-    expect(tracks).toEqual([{ id: 'b', track: true, serverId: 'srv-2' }]);
   });
 
   it('returns [] when the active server cannot be resolved', async () => {

@@ -1,4 +1,4 @@
-import { queueSongStar } from '@/features/playback';
+import { star, unstar } from '@/lib/api/subsonicStarRating';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { emit } from '@tauri-apps/api/event';
@@ -62,7 +62,12 @@ export default function MiniContextMenu({ x, y, track, index, onClose }: Props) 
   const toggleStar = async () => {
     const next = !starred;
     setStarred(next);
-    queueSongStar(track.id, next);
+    try {
+      if (next) await star(track.id, 'song');
+      else await unstar(track.id, 'song');
+    } catch {
+      setStarred(!next);
+    }
   };
 
   return createPortal(

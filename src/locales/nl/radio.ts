@@ -1,7 +1,4 @@
 export const radio = {
-  source: 'Radiobron',
-  selectSource: 'Selecteer een server…',
-  sources: 'Radio sources',
   title: 'Internetradio',
   empty: 'Geen radiostations geconfigureerd.',
   addStation: 'Station toevoegen',

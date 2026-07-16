@@ -23,7 +23,6 @@ use crate::dto::{
     count_local_tracks, local_tracks_max_updated_ms, track_index_nonempty, ArtifactInputDto,
     FactInputDto, LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse,
     LibraryCrossServerSearchResponse, LibraryLiveSearchRequest, LibraryLiveSearchResponse,
-    LibraryEntitySourceDto, LibraryResolveEntitySourcesRequest,
     LibraryScopeAlbumDetailRequest, LibraryScopeAlbumDetailResponse, LibraryScopeArtistDetailRequest,
     LibraryScopeArtistDetailResponse, LibraryScopeListRequest, LibraryScopeSearchRequest,
     LibraryTrackDto,
@@ -687,16 +686,6 @@ pub fn library_cluster_rebuild(
     crate::identity::rebuild_cluster_keys(&runtime.store, server_id)
 }
 
-#[tauri::command]
-#[specta::specta]
-pub async fn library_resolve_entity_sources(
-    runtime: State<'_, LibraryRuntime>,
-    request: LibraryResolveEntitySourcesRequest,
-) -> Result<Vec<LibraryEntitySourceDto>, String> {
-    let store = Arc::clone(&runtime.store);
-    library_spawn_blocking(move || scope_merge::resolve_entity_sources(&store, &request)).await
-}
-
 // NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.
 #[tauri::command]
 pub async fn library_scope_list_albums(
@@ -745,36 +734,6 @@ pub async fn library_scope_artist_detail(
 ) -> Result<LibraryScopeArtistDetailResponse, String> {
     let store = Arc::clone(&runtime.store);
     library_spawn_blocking(move || scope_merge::artist_detail(&store, &request)).await
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn library_scope_catalog_statistics(
-    runtime: State<'_, LibraryRuntime>,
-    request: crate::dto::LibraryScopeCatalogStatisticsRequest,
-) -> Result<crate::dto::LibraryScopeCatalogStatisticsDto, String> {
-    let store = Arc::clone(&runtime.store);
-    library_spawn_blocking(move || crate::scope_statistics::catalog_statistics(&store, &request)).await
-}
-
-// NOT specta-collected: nested album DTO carries `raw_json: Value`.
-#[tauri::command]
-pub async fn library_scope_most_played_albums(
-    runtime: State<'_, LibraryRuntime>,
-    request: crate::dto::LibraryScopeMostPlayedRequest,
-) -> Result<Vec<crate::dto::LibraryScopeMostPlayedAlbumDto>, String> {
-    let store = Arc::clone(&runtime.store);
-    library_spawn_blocking(move || crate::scope_statistics::most_played_albums(&store, &request)).await
-}
-
-// NOT specta-collected: artist DTO carries `raw_json: Value`.
-#[tauri::command]
-pub async fn library_scope_list_artists_by_role(
-    runtime: State<'_, LibraryRuntime>,
-    request: crate::dto::LibraryScopeArtistRoleRequest,
-) -> Result<Vec<crate::dto::LibraryArtistDto>, String> {
-    let store = Arc::clone(&runtime.store);
-    library_spawn_blocking(move || crate::scope_statistics::artists_by_role(&store, &request)).await
 }
 
 // NOT specta-collected: returns a DTO carrying `raw_json: Value` (LibraryTrack/Album/ArtistDto) — specta rc.25 can't export serde_json::Value. Stays hand-written on generate_handler!.

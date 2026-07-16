@@ -1,5 +1,4 @@
 export const playlists = {
-  sources: 'Playlist sources',
   sortTooltip: 'Сортировать треки',
   sortDateAddedNewest: 'Дата добавления (новые)',
   sortDateAddedOldest: 'Дата добавления (старые)',
@@ -14,7 +13,6 @@ export const playlists = {
   emptyPlaylist: 'Плейлист пуст.',
   addFirstSong: 'Добавьте первый трек',
   notFound: 'Плейлист не найден.',
-  smartMembershipReadOnly: 'Этот умный плейлист формируется сервером {{server}}. Добавление, удаление, изменение порядка и импорт CSV здесь отключены, чтобы не заменить серверные правила.',
   songs_one: '{{count}} трек',
   songs_other: '{{count}} треков',
   playAll: 'Воспроизвести всё',

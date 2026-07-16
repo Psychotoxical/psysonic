@@ -116,21 +116,8 @@ export async function unstar(
 }
 
 export async function setRating(id: string, rating: number): Promise<void> {
+  await api('setRating.view', { id, rating });
   const serverId = useAuthStore.getState().activeServerId;
-  if (!serverId) throw new Error('No server for rating API');
-  await setRatingForServer(serverId, id, rating);
-}
-
-export async function setRatingForServer(
-  serverId: string,
-  id: string,
-  rating: number,
-): Promise<void> {
-  if (serverId === useAuthStore.getState().activeServerId) {
-    await api('setRating.view', { id, rating });
-  } else {
-    await apiForServer(serverId, 'setRating.view', { id, rating });
-  }
   patchLibraryTrackOnUse(serverId, id, { userRating: rating });
   // Cached song lists keyed by rating (e.g. Tracks → Highly Rated rail) become
   // stale immediately. `invalidateEntityUserRatingCaches` is static-imported:

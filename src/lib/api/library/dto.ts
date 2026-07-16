@@ -4,13 +4,7 @@
  * `lib/api/library.ts` god-module; the wrappers (reads/sync/stats/events) and the
  * `@/lib/api/library` barrel re-export these, so consumers are unchanged.
  */
-import type {
-  CatalogYearBoundsDto,
-  GenreAlbumCountDto,
-  LibraryEntitySourceDto as GeneratedLibraryEntitySourceDto,
-  LibraryResolveEntitySourcesRequest as GeneratedLibraryResolveEntitySourcesRequest,
-  LibrarySourceEntityType as GeneratedLibrarySourceEntityType,
-} from '@/generated/bindings';
+import type { CatalogYearBoundsDto, GenreAlbumCountDto } from '@/generated/bindings';
 
 export interface TrackRefDto {
   serverId: string;
@@ -202,35 +196,11 @@ export interface LibrarySortClause {
   dir: SortDir;
 }
 
-/** One server + library source — `null` means the whole server; `''` stays exact. */
+/** One server + library folder id — profile `serverId` space until IPC wrappers remap. */
 export interface LibraryScopePair {
   serverId: string;
-  libraryId: string | null;
+  libraryId: string;
 }
-
-export interface LibraryScopeCatalogStatisticsRequest {
-  scopes: LibraryScopePair[];
-  formatSampleLimit?: number;
-}
-
-export interface LibraryScopeCatalogStatisticsDto {
-  artistCount: number;
-  albumCount: number;
-  trackCount: number;
-  durationSec: number;
-  genres: GenreAlbumCountRow[];
-  formats: Array<{ format: string; count: number }>;
-  formatSampleSize: number;
-}
-
-export interface LibraryScopeMostPlayedAlbumDto {
-  album: LibraryAlbumDto;
-  playCount: number;
-}
-
-export type LibrarySourceEntityType = GeneratedLibrarySourceEntityType;
-export type LibraryResolveEntitySourcesRequest = GeneratedLibraryResolveEntitySourcesRequest;
-export type LibraryEntitySourceDto = GeneratedLibraryEntitySourceDto;
 
 export interface LibraryAdvancedSearchRequest {
   serverId: string;
@@ -328,8 +298,8 @@ export interface LibraryLiveSearchRequest {
 export interface LibraryLosslessAlbumsRequest {
   serverId: string;
   libraryScope?: string | null;
-  /** Ordered server/library sources; wins over `libraryScope`. */
-  libraryScopes?: LibraryScopePair[] | null;
+  /** Ordered library ids for a multi-library selection; wins over `libraryScope`. */
+  libraryScopes?: string[] | null;
   limit?: number;
   offset?: number;
 }
@@ -344,8 +314,8 @@ export interface LibraryArtistLosslessBrowseRequest {
   serverId: string;
   artistId: string;
   libraryScope?: string | null;
-  /** Ordered server/library sources; wins over `libraryScope`. */
-  libraryScopes?: LibraryScopePair[] | null;
+  /** Ordered library ids for a multi-library selection; wins over `libraryScope`. */
+  libraryScopes?: string[] | null;
 }
 
 export interface LibraryArtistLosslessBrowseResponse {

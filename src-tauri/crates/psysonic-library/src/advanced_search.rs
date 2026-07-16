@@ -194,24 +194,14 @@ pub fn run_advanced_search(
         &req.server_id,
         req.library_scope.as_deref(),
         req.library_scopes.as_deref(),
-    )?;
+    );
     // Any >1-library scope dedups album/artist rows via cluster keys, including
     // the Layer-1 same-server path — build keys first so dedup works on a cold
     // index (idempotent; only rebuilds when needed).
-    let pair_reader_required = multi_library_merge_enabled(&scope_pairs)
-        || scope_pairs
-            .first()
-            .is_some_and(|pair| pair.server_id != req.server_id);
-    if pair_reader_required {
-        for server_id in scope_pairs.iter().map(|p| p.server_id.as_str()).collect::<HashSet<_>>() {
-            crate::identity::ensure_cluster_keys_built(store, server_id)?;
-        }
+    if multi_library_merge_enabled(&scope_pairs) {
+        crate::identity::ensure_cluster_keys_built(store, &req.server_id)?;
     }
-    if scoped_layer1_eligible(&scope_pairs)
-        && scope_pairs
-            .first()
-            .is_some_and(|pair| pair.server_id == req.server_id)
-    {
+    if scoped_layer1_eligible(&scope_pairs) {
         return run_advanced_search_layer1_scope(
             store,
             req,
@@ -223,7 +213,7 @@ pub fn run_advanced_search(
             skip_totals,
         );
     }
-    if pair_reader_required {
+    if multi_library_merge_enabled(&scope_pairs) {
         return run_advanced_search_multi_scope(
             store,
             req,
@@ -239,7 +229,7 @@ pub fn run_advanced_search(
     let mut legacy = req.clone();
     if legacy.library_scope.is_none() {
         if let Some(pair) = scope_pairs.first() {
-            legacy.library_scope = pair.library_id.clone();
+            legacy.library_scope = Some(pair.library_id.clone());
         }
     }
 
@@ -1150,12 +1140,11 @@ fn push_artist_library_scope_pairs(
     pairs: &[LibraryScopePair],
     applied: &mut BTreeSet<String>,
 ) {
-    if pairs.iter().any(|p| p.library_id.is_none()) {
-        return;
-    }
+    // Pairs may carry profile or index `server_id`; this query is already pinned to
+    // one server via `ar.server_id = ?`, so only drop empty library ids.
     let scoped: Vec<&LibraryScopePair> = pairs
         .iter()
-        .filter(|p| p.server_id == _server_id)
+        .filter(|p| !p.library_id.trim().is_empty())
         .collect();
     if scoped.is_empty() {
         return;
@@ -1166,7 +1155,7 @@ fn push_artist_library_scope_pairs(
         let clause = library_scope_sargable_equals_sql("t");
         w.push_params(
             &format!("{exists_prefix}{clause})"),
-            vec![SqlValue::Text(scoped[0].library_id.clone().unwrap_or_default())],
+            vec![SqlValue::Text(scoped[0].library_id.clone())],
         );
     } else {
         let in_clause = library_scope_in_sql("t", scoped.len());
@@ -1174,7 +1163,7 @@ fn push_artist_library_scope_pairs(
             &format!("{exists_prefix}{in_clause})"),
             scoped
                 .iter()
-                .map(|p| SqlValue::Text(p.library_id.clone().unwrap_or_default()))
+                .map(|p| SqlValue::Text(p.library_id.clone()))
                 .collect(),
         );
     }
@@ -1186,7 +1175,7 @@ fn push_artist_library_scope(w: &mut WhereBuilder, req: &LibraryAdvancedSearchRe
         &req.server_id,
         req.library_scope.as_deref(),
         req.library_scopes.as_deref(),
-    ).unwrap_or_default();
+    );
     push_artist_library_scope_pairs(w, &req.server_id, &pairs, applied);
 }
 
@@ -2125,7 +2114,6 @@ struct AlbumOrderCols {
     name: &'static str,
     artist: String,
     year: &'static str,
-    synced: &'static str,
 }
 
 impl AlbumOrderCols {
@@ -2136,7 +2124,6 @@ impl AlbumOrderCols {
             name: "MAX(t.album) COLLATE NOCASE",
             artist: sql_display_artist_from("MAX(t.artist)", "MAX(t.album_artist)"),
             year: "MAX(t.year)",
-            synced: "MAX(t.synced_at)",
         }
     }
 
@@ -2146,7 +2133,6 @@ impl AlbumOrderCols {
             name: "album COLLATE NOCASE",
             artist: sql_display_artist_from("artist", "album_artist"),
             year: "year",
-            synced: "synced_at",
         }
     }
 }
@@ -2158,7 +2144,6 @@ fn album_order_sql(sort: &[LibrarySortClause], cols: &AlbumOrderCols) -> Option<
             "name" => cols.name.to_string(),
             "artist" => format!("{} COLLATE NOCASE", cols.artist),
             "year" => cols.year.to_string(),
-            "synced" => cols.synced.to_string(),
             "random" => "RANDOM()".to_string(),
             _ => continue,
         };
@@ -2194,7 +2179,6 @@ pub(crate) fn sort_column(field: &str, entity: EntityKind) -> Option<&'static st
         ("name", EntityKind::Album) => Some("a.name COLLATE NOCASE"),
         ("year", EntityKind::Album) => Some("a.year"),
         ("artist", EntityKind::Album) => Some("a.artist COLLATE NOCASE"),
-        ("synced", EntityKind::Album) => Some("a.synced_at"),
         ("name", EntityKind::Artist) => Some("COALESCE(ar.name_sort, ar.name) COLLATE NOCASE"),
         // SQLite built-in: ORDER BY RANDOM() LIMIT N — fast pseudo-random sample,
         // no index scan needed beyond the row-id range. Direction is ignored.
@@ -3611,7 +3595,7 @@ mod tests {
     fn scope_pair(server: &str, lib: &str) -> crate::dto::LibraryScopePair {
         crate::dto::LibraryScopePair {
             server_id: server.into(),
-            library_id: Some(lib.into()),
+            library_id: lib.into(),
         }
     }
 
@@ -4097,28 +4081,5 @@ mod tests {
 
         assert_eq!(legacy_resp.albums, scoped_resp.albums);
         assert_eq!(legacy_resp.totals, scoped_resp.totals);
-    }
-
-    #[test]
-    fn single_exact_pair_on_another_server_uses_pair_server() {
-        let store = LibraryStore::open_in_memory();
-        TrackRepository::new(&store)
-            .upsert_batch(&[
-                scoped_track(
-                    "s1", "fallback", "Song", "Artist", "Fallback", "al1", "lib",
-                    None, None, None,
-                ),
-                scoped_track(
-                    "s2", "selected", "Song", "Artist", "Selected", "al2", "lib",
-                    None, None, None,
-                ),
-            ])
-            .unwrap();
-        let mut request = req("s1", &[EntityKind::Track]);
-        request.library_scopes = Some(vec![scope_pair("s2", "lib")]);
-        let response = run_advanced_search(&store, &request).unwrap();
-        assert_eq!(response.tracks.len(), 1);
-        assert_eq!(response.tracks[0].id, "selected");
-        assert_eq!(response.tracks[0].server_id, "s2");
     }
 }

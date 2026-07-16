@@ -6,15 +6,11 @@ import type { InternetRadioStation } from '@/lib/api/subsonicTypes';
 import { CoverArtImage } from '@/cover/CoverArtImage';
 import { albumCoverRef } from '@/cover/ref';
 import { coverArtIdFromRadio } from '@/cover/ids';
-import { useModalFocus } from '@/lib/hooks/useModalFocus';
 
 interface RadioEditModalProps {
   station: InternetRadioStation | null; // null = create new
-  sources: Array<{ serverId: string; label: string }>;
-  requireSourceSelection?: boolean;
   onClose: () => void;
   onSave: (opts: {
-    serverId: string;
     name: string;
     streamUrl: string;
     homepageUrl: string;
@@ -23,7 +19,7 @@ interface RadioEditModalProps {
   }) => Promise<void>;
 }
 
-export default function RadioEditModal({ station, sources, requireSourceSelection = false, onClose, onSave }: RadioEditModalProps) {
+export default function RadioEditModal({ station, onClose, onSave }: RadioEditModalProps) {
   const { t } = useTranslation();
   const [name, setName] = useState(station?.name ?? '');
   const [streamUrl, setStreamUrl] = useState(station?.streamUrl ?? '');
@@ -32,20 +28,7 @@ export default function RadioEditModal({ station, sources, requireSourceSelectio
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [coverRemoved, setCoverRemoved] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [serverId, setServerId] = useState(
-    station?.serverId ?? (!requireSourceSelection && sources.length === 1 ? sources[0]?.serverId ?? '' : ''),
-  );
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const nameInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
-  const titleId = 'radio-edit-modal-title';
-
-  useModalFocus({
-    open: true,
-    containerRef: dialogRef,
-    onEscape: onClose,
-    initialFocusRef: nameInputRef,
-  });
 
   const hasExistingCover = !coverRemoved && (coverPreview || station?.coverArt);
 
@@ -68,10 +51,10 @@ export default function RadioEditModal({ station, sources, requireSourceSelectio
   };
 
   const handleSave = async () => {
-    if (!serverId || !name.trim() || !streamUrl.trim()) return;
+    if (!name.trim() || !streamUrl.trim()) return;
     setSaving(true);
     try {
-      await onSave({ serverId, name, streamUrl, homepageUrl, coverFile, coverRemoved });
+      await onSave({ name, streamUrl, homepageUrl, coverFile, coverRemoved });
     } finally {
       setSaving(false);
     }
@@ -86,20 +69,15 @@ export default function RadioEditModal({ station, sources, requireSourceSelectio
   return createPortal(
     <div className="modal-overlay" style={{ alignItems: 'center', paddingTop: 0, overflowY: 'auto' }} onClick={handleOverlayClick}>
       <div
-        ref={dialogRef}
         className="modal-content"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
         style={{ maxWidth: 440, width: '90%', maxHeight: 'none', overflow: 'visible' }}
         onClick={e => e.stopPropagation()}
       >
-        <button type="button" className="btn btn-ghost modal-close" onClick={onClose} aria-label={t('common.close')} style={{ top: 16, right: 16 }}>
+        <button className="btn btn-ghost modal-close" onClick={onClose} style={{ top: 16, right: 16 }}>
           <X size={18} />
         </button>
 
-        <h2 id={titleId} className="modal-title" style={{ fontSize: 20 }}>
+        <h2 className="modal-title" style={{ fontSize: 20 }}>
           {station ? t('radio.editStation') : t('radio.addStation')}
         </h2>
 
@@ -109,6 +87,7 @@ export default function RadioEditModal({ station, sources, requireSourceSelectio
           <div
             className="playlist-edit-cover-wrap"
             style={{ width: 140, height: 140 }}
+            onClick={() => coverInputRef.current?.click()}
           >
             {coverPreview ? (
               <img src={coverPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
@@ -128,7 +107,6 @@ export default function RadioEditModal({ station, sources, requireSourceSelectio
             <div className="playlist-edit-cover-overlay">
               <div className="playlist-edit-cover-menu">
                 <button
-                  type="button"
                   className="playlist-edit-cover-menu-item"
                   onClick={e => { e.stopPropagation(); coverInputRef.current?.click(); }}
                 >
@@ -137,7 +115,6 @@ export default function RadioEditModal({ station, sources, requireSourceSelectio
                 </button>
                 {hasExistingCover && (
                   <button
-                    type="button"
                     className="playlist-edit-cover-menu-item playlist-edit-cover-menu-item--danger"
                     onClick={handleRemoveCover}
                   >
@@ -151,26 +128,13 @@ export default function RadioEditModal({ station, sources, requireSourceSelectio
 
           {/* Fields */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {!station && (requireSourceSelection || sources.length > 1) && (
-              <select
-                className="input"
-                value={serverId}
-                onChange={e => setServerId(e.target.value)}
-                aria-label={t('radio.source')}
-              >
-                <option value="">{t('radio.selectSource')}</option>
-                {sources.map(source => (
-                  <option key={source.serverId} value={source.serverId}>{source.label}</option>
-                ))}
-              </select>
-            )}
             <input
-              ref={nameInputRef}
               className="input"
               style={{ fontSize: 15, fontWeight: 600 }}
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder={t('radio.stationName')}
+              autoFocus
             />
             <input
               className="input"
@@ -190,10 +154,9 @@ export default function RadioEditModal({ station, sources, requireSourceSelectio
         <div className="playlist-edit-footer">
           <div />
           <button
-            type="button"
             className="btn btn-primary"
             onClick={handleSave}
-            disabled={saving || !serverId || !name.trim() || !streamUrl.trim()}
+            disabled={saving || !name.trim() || !streamUrl.trim()}
           >
             {saving ? <Loader2 size={14} className="spin-slow" /> : null}
             {t('radio.save')}

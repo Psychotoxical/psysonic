@@ -2,10 +2,7 @@
 //!
 //! Mirrors the frontend allowlist in `src/utils/library/losslessFormats.ts`.
 
-use crate::dto::{
-    LibraryAlbumDto, LibraryLosslessAlbumsRequest, LibraryLosslessAlbumsResponse,
-    multi_library_merge_enabled, ordered_library_scope_pairs,
-};
+use crate::dto::{LibraryAlbumDto, LibraryLosslessAlbumsRequest, LibraryLosslessAlbumsResponse};
 use crate::lossless_formats::track_is_lossless_sql;
 use crate::search::{combined_scope_library_ids, library_scope_in_sql, library_scope_sargable_equals_sql};
 use crate::store::LibraryStore;
@@ -41,47 +38,13 @@ pub fn list_lossless_albums(
     store: &LibraryStore,
     req: &LibraryLosslessAlbumsRequest,
 ) -> Result<LibraryLosslessAlbumsResponse, String> {
+    if !crate::dto::track_index_nonempty(store, &req.server_id)? {
+        return Ok(empty_response());
+    }
+
     let limit = req.limit.max(1);
     let offset = req.offset;
     let lossless_sql = track_is_lossless_sql("t");
-    let scope_pairs = ordered_library_scope_pairs(
-        &req.server_id,
-        req.library_scope.as_deref(),
-        req.library_scopes.as_deref(),
-    )?;
-    if scope_pairs.is_empty() && !crate::dto::track_index_nonempty(store, &req.server_id)? {
-        return Ok(empty_response());
-    }
-    let use_pair_reader = scope_pairs.len() > 1
-        || scope_pairs.first().is_some_and(|pair| {
-            pair.server_id != req.server_id || pair.library_id.is_none()
-        });
-    if use_pair_reader {
-        if multi_library_merge_enabled(&scope_pairs) {
-            for server_id in scope_pairs
-                .iter()
-                .map(|p| p.server_id.as_str())
-                .collect::<std::collections::HashSet<_>>()
-            {
-                crate::identity::ensure_cluster_keys_built(store, server_id)?;
-            }
-        }
-        let (albums, _) = crate::scope_merge::list_albums_filtered(
-            store,
-            &scope_pairs,
-            &lossless_sql,
-            &[],
-            "ORDER BY album COLLATE NOCASE ASC, album_id ASC",
-            limit,
-            offset,
-            true,
-        )?;
-        return Ok(LibraryLosslessAlbumsResponse {
-            has_more: albums.len() as u32 == limit,
-            albums,
-            source: "local".to_string(),
-        });
-    }
 
     let mut where_clauses = vec![
         "t.deleted = 0".to_string(),
@@ -91,11 +54,8 @@ pub fn list_lossless_albums(
     ];
     let mut params: Vec<SqlValue> = vec![SqlValue::Text(req.server_id.clone())];
 
-    let scope_ids = scope_pairs
-        .first()
-        .and_then(|pair| pair.library_id.clone())
-        .map(|library_id| vec![library_id])
-        .unwrap_or_else(|| combined_scope_library_ids(req.library_scope.as_deref(), None));
+    let scope_ids =
+        combined_scope_library_ids(req.library_scope.as_deref(), req.library_scopes.as_deref());
     push_library_scope_filter(&mut where_clauses, &mut params, &scope_ids);
 
     let where_sql = where_clauses.join(" AND ");
@@ -344,16 +304,7 @@ mod tests {
             .unwrap();
 
         let mut scoped = req("s1", 50, 0);
-        scoped.library_scopes = Some(vec![
-            crate::dto::LibraryScopePair {
-                server_id: "s1".into(),
-                library_id: Some("lib1".into()),
-            },
-            crate::dto::LibraryScopePair {
-                server_id: "s1".into(),
-                library_id: Some("lib2".into()),
-            },
-        ]);
+        scoped.library_scopes = Some(vec!["lib1".into(), "lib2".into()]);
         let resp = list_lossless_albums(&store, &scoped).unwrap();
         let mut ids: Vec<_> = resp.albums.iter().map(|a| a.id.clone()).collect();
         ids.sort();
@@ -378,25 +329,5 @@ mod tests {
         let page2 = list_lossless_albums(&store, &req("s1", 2, 2)).unwrap();
         assert_eq!(page2.albums.len(), 1);
         assert!(!page2.has_more);
-    }
-
-    #[test]
-    fn cross_server_whole_scope_lossless_browse_uses_priority_owner() {
-        let store = LibraryStore::open_in_memory();
-        let mut first = track_with_suffix("s1", "t1", "al1", "Shared", "flac", 16);
-        first.library_id = Some("lib-a".into());
-        let mut second = track_with_suffix("s2", "t2", "al2", "Shared", "flac", 24);
-        second.library_id = Some(String::new());
-        TrackRepository::new(&store).upsert_batch(&[first, second]).unwrap();
-        crate::identity::rebuild_cluster_keys(&store, None).unwrap();
-
-        let mut request = req("s1", 50, 0);
-        request.library_scopes = Some(vec![
-            crate::dto::LibraryScopePair { server_id: "s2".into(), library_id: None },
-            crate::dto::LibraryScopePair { server_id: "s1".into(), library_id: None },
-        ]);
-        let response = list_lossless_albums(&store, &request).unwrap();
-        assert_eq!(response.albums.len(), 1);
-        assert_eq!(response.albums[0].server_id, "s2");
     }
 }

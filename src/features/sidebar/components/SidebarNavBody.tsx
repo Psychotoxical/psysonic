@@ -7,9 +7,7 @@ import { ALL_NAV_ITEMS } from '@/config/navItems';
 import { mainstageBrowseNavHandlers } from '@/features/sidebar/utils/mainstageBrowseNavHandlers';
 import WhatsNewBanner from '@/features/whatsNew/components/WhatsNewBanner';
 import ThemeUpdateBanner from '@/features/settings/components/ThemeUpdateBanner';
-import SidebarLibraryPicker, {
-  type SidebarLibraryServer,
-} from '@/features/sidebar/components/SidebarLibraryPicker';
+import SidebarLibraryPicker from '@/features/sidebar/components/SidebarLibraryPicker';
 import SidebarPlaylistsSection from '@/features/sidebar/components/SidebarPlaylistsSection';
 import SidebarActiveJobs from '@/features/sidebar/components/SidebarActiveJobs';
 
@@ -31,10 +29,6 @@ interface Props {
   libraryTriggerRef: React.RefObject<HTMLButtonElement | null>;
   musicFolders: MusicFolder[];
   onLibrarySelectionChange: (libraryIds: string[]) => void;
-  libraryServers: SidebarLibraryServer[];
-  onLibraryServerSelectionChange: (serverId: string, selected: boolean) => void;
-  onServerLibrarySelectionChange: (serverId: string, libraryIds: string[]) => void;
-  onLibraryServersReorder: (serverIds: string[]) => void;
   visibleLibraryConfigs: SidebarItemConfig[];
   visibleSystemConfigs: SidebarItemConfig[];
   playlistsExpanded: boolean;
@@ -64,8 +58,7 @@ export default function SidebarNavBody(props: Props) {
   const {
     isCollapsed, showLibraryPicker, selectedLibraryIds, selectionSummary,
     libraryDropdownOpen, setLibraryDropdownOpen, dropdownRect, libraryTriggerRef,
-    musicFolders, onLibrarySelectionChange, libraryServers,
-    onLibraryServerSelectionChange, onServerLibrarySelectionChange, onLibraryServersReorder,
+    musicFolders, onLibrarySelectionChange,
     visibleLibraryConfigs,
     visibleSystemConfigs,
     playlistsExpanded, setPlaylistsExpanded, playlists, playlistsLoading,
@@ -106,10 +99,6 @@ export default function SidebarNavBody(props: Props) {
             libraryTriggerRef={libraryTriggerRef}
             musicFolders={musicFolders}
             onSelectionChange={onLibrarySelectionChange}
-            servers={libraryServers}
-            onServerSelectionChange={onLibraryServerSelectionChange}
-            onServerLibrarySelectionChange={onServerLibrarySelectionChange}
-            onServersReorder={onLibraryServersReorder}
           />
         ) : (
           <span className="nav-section-label">{t('sidebar.library')}</span>

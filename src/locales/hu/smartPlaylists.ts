@@ -31,7 +31,6 @@ export const smartPlaylists = {
   createFailed: 'Az okos lejátszási lista létrehozása nem sikerült.',
   updateFailed: 'Az okos lejátszási lista frissítése nem sikerült.',
   navidromeOnly: 'Okos lejátszási listák csak Navidrome szervereken hozhatók létre.',
-  foreignServerDisabled: 'Válts a(z) {{server}} szerverre az okos lejátszási lista szerkesztéséhez. A Psysonic nem küld szerkesztési kéréseket másik aktív szerverre.',
   loadFailed: 'Az okos lejátszási listák betöltése a Navidrome-ból nem sikerült.',
   sortRandom: 'Rendezés: véletlen',
   sortTitleAsc: 'Rendezés: cím A-Z',

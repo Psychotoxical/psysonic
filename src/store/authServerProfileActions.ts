@@ -2,30 +2,10 @@ import type { AuthState } from './authStoreTypes';
 import { generateId } from './authStoreHelpers';
 import { getQueueServerId, clearQueueServerForPlayback } from './playbackEngineBridge';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
-import { discardPendingEntityMutationsForServer } from './entityMutationBridge';
 
 type SetState = (
   partial: Partial<AuthState> | ((state: AuthState) => Partial<AuthState>),
 ) => void;
-
-function withoutKey<T>(record: Record<string, T>, id: string): Record<string, T> {
-  const { [id]: _removed, ...rest } = record;
-  return rest;
-}
-
-function selectedIdsInServerOrder(
-  servers: AuthState['servers'],
-  selectedIds: string[],
-  fallbackId: string | null,
-): string[] {
-  const selected = new Set(selectedIds);
-  const ordered = servers.map(server => server.id).filter(id => selected.has(id));
-  if (ordered.length > 0 || servers.length === 0) return ordered;
-  const fallback = fallbackId && servers.some(server => server.id === fallbackId)
-    ? fallbackId
-    : servers[0]!.id;
-  return [fallback];
-}
 
 /**
  * Server profile + connection lifecycle. `removeServer` is the
@@ -49,13 +29,7 @@ export function createServerProfileActions(set: SetState): Pick<
   return {
     addServer: (profile) => {
       const id = generateId();
-      set(s => {
-        const servers = [...s.servers, { ...profile, id }];
-        return {
-          servers,
-          musicLibraryServerIds: s.servers.length === 0 ? [id] : s.musicLibraryServerIds,
-        };
-      });
+      set(s => ({ servers: [...s.servers, { ...profile, id }] }));
       return id;
     },
 
@@ -66,7 +40,6 @@ export function createServerProfileActions(set: SetState): Pick<
     },
 
     removeServer: (id) => {
-      discardPendingEntityMutationsForServer(id);
       // queueServerId is the canonical index key (B1); resolve the
       // canonical id back to a server UUID before comparing so a profile
       // delete still clears the matching queue binding.
@@ -77,50 +50,30 @@ export function createServerProfileActions(set: SetState): Pick<
       set(s => {
         const newServers = s.servers.filter(srv => srv.id !== id);
         const switchedAway = s.activeServerId === id;
-        const activeServerId = switchedAway ? (newServers[0]?.id ?? null) : s.activeServerId;
+        const { [id]: _r, ...entityRatingRest } = s.entityRatingSupportByServer;
+        const { [id]: _a, ...audiomuseRest } = s.audiomuseNavidromeByServer;
+        const { [id]: _idn, ...identityRest } = s.subsonicServerIdentityByServer;
+        const { [id]: _iss, ...issueRest } = s.audiomuseNavidromeIssueByServer;
+        const { [id]: _pr, ...probeRest } = s.instantMixProbeByServer;
+        const { [id]: _ppl, ...pluginProbeRest } = s.audiomusePluginProbeByServer;
+        const { [id]: _ex, ...extRest } = s.openSubsonicExtensionsByServer;
         return {
           servers: newServers,
-          activeServerId,
+          activeServerId: switchedAway ? (newServers[0]?.id ?? null) : s.activeServerId,
           isLoggedIn: switchedAway ? false : s.isLoggedIn,
-          musicFolders: switchedAway && activeServerId
-            ? (s.musicFoldersByServer[activeServerId] ?? [])
-            : s.musicFolders,
-          musicLibraryServerIds: selectedIdsInServerOrder(
-            newServers,
-            s.musicLibraryServerIds.filter(serverId => serverId !== id),
-            activeServerId,
-          ),
-          musicFoldersByServer: withoutKey(s.musicFoldersByServer, id),
-          musicLibrarySelectionByServer: withoutKey(s.musicLibrarySelectionByServer, id),
-          musicLibraryFilterByServer: withoutKey(s.musicLibraryFilterByServer, id),
-          entityRatingSupportByServer: withoutKey(s.entityRatingSupportByServer, id),
-          audiomuseNavidromeByServer: withoutKey(s.audiomuseNavidromeByServer, id),
-          subsonicServerIdentityByServer: withoutKey(s.subsonicServerIdentityByServer, id),
-          audiomuseNavidromeIssueByServer: withoutKey(s.audiomuseNavidromeIssueByServer, id),
-          instantMixProbeByServer: withoutKey(s.instantMixProbeByServer, id),
-          audiomusePluginProbeByServer: withoutKey(s.audiomusePluginProbeByServer, id),
-          openSubsonicExtensionsByServer: withoutKey(s.openSubsonicExtensionsByServer, id),
+          entityRatingSupportByServer: entityRatingRest,
+          audiomuseNavidromeByServer: audiomuseRest,
+          subsonicServerIdentityByServer: identityRest,
+          audiomuseNavidromeIssueByServer: issueRest,
+          instantMixProbeByServer: probeRest,
+          audiomusePluginProbeByServer: pluginProbeRest,
+          openSubsonicExtensionsByServer: extRest,
         };
       });
     },
 
-    setServers: (servers) => set(s => ({
-      servers,
-      musicLibraryServerIds: selectedIdsInServerOrder(
-        servers,
-        s.musicLibraryServerIds,
-        s.activeServerId,
-      ),
-    })),
-    setActiveServer: (id) => set(s => {
-      const moveSingleServerSelection = s.musicLibraryServerIds.length === 1
-        && s.musicLibraryServerIds[0] === s.activeServerId;
-      return {
-        activeServerId: id,
-        musicFolders: s.musicFoldersByServer[id] ?? [],
-        ...(moveSingleServerSelection ? { musicLibraryServerIds: [id] } : {}),
-      };
-    }),
+    setServers: (servers) => set({ servers }),
+    setActiveServer: (id) => set({ activeServerId: id, musicFolders: [] }),
     setLoggedIn: (v) => set({ isLoggedIn: v }),
     setConnecting: (v) => set({ isConnecting: v }),
     setConnectionError: (e) => set({ connectionError: e }),

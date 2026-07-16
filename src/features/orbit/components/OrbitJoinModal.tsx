@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, LogIn, ClipboardPaste } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useAuthStore } from '@/store/authStore';
 import {
   parseOrbitShareLink,
   findSessionPlaylistId,
   readOrbitState,
   joinOrbitSession,
 } from '@/features/orbit/utils/orbit';
-import { activateOrbitInviteServer } from '@/utils/server/switchActiveServer';
+import { switchActiveServer } from '@/utils/server/switchActiveServer';
 import { useOrbitAccountPickerStore } from '@/features/orbit/store/orbitAccountPickerStore';
 import { showToast } from '@/lib/dom/toast';
 
@@ -42,21 +43,31 @@ export default function OrbitJoinModal({ onClose }: Props) {
     const parsed = parseOrbitShareLink(text);
     if (!parsed) { setError(t('orbit.joinErrInvalid')); return; }
 
+    const active = useAuthStore.getState().getActiveServer();
+    const activeUrl = (active?.url ?? '').replace(/\/+$/, '');
     const wantUrl   = parsed.serverBase.replace(/\/+$/, '');
 
     setBusy(true);
     try {
-      const activation = await activateOrbitInviteServer(
-        parsed.serverBase,
-        accounts => useOrbitAccountPickerStore.getState().request(accounts),
-      );
-      if (!activation.ok) {
-        if (activation.reason === 'no-account') {
+      // Auto-switch to the link's server if the user has an account for it.
+      // Multiple candidates → picker modal. switch tears down any lingering
+      // orbit session.
+      if (activeUrl !== wantUrl) {
+        const candidates = useAuthStore.getState().servers
+          .filter(s => s.url.replace(/\/+$/, '') === wantUrl);
+        if (candidates.length === 0) {
           setError(t('orbit.toastNoAccountForServer', { url: wantUrl }));
-        } else if (activation.reason === 'switch-failed') {
-          setError(t('orbit.toastSwitchFailed', { url: wantUrl }));
+          return;
         }
-        return;
+        const target = candidates.length === 1
+          ? candidates[0]
+          : await useOrbitAccountPickerStore.getState().request(candidates);
+        if (!target) { setBusy(false); return; }
+        const switched = await switchActiveServer(target);
+        if (!switched) {
+          setError(t('orbit.toastSwitchFailed', { url: wantUrl }));
+          return;
+        }
       }
 
       const playlistId = await findSessionPlaylistId(parsed.sid);

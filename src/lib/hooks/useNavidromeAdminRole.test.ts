@@ -8,7 +8,7 @@ vi.mock('@/lib/api/navidromeAdmin', () => ({
 }));
 
 import { ndLogin } from '@/lib/api/navidromeAdmin';
-import { useNavidromeAdminRole, useNavidromeAdminRoles, canManageNavidromeRadio } from './useNavidromeAdminRole';
+import { useNavidromeAdminRole, canManageNavidromeRadio } from './useNavidromeAdminRole';
 
 beforeEach(() => {
   resetAuthStore();
@@ -122,35 +122,5 @@ describe('canManageNavidromeRadio', () => {
     for (const role of ['admin', 'na', 'idle', 'checking', 'error'] as const) {
       expect(canManageNavidromeRadio(role)).toBe(true);
     }
-  });
-});
-
-describe('useNavidromeAdminRoles', () => {
-  it('keeps management capability server-qualified', async () => {
-    const homeId = seedNavidromeServer();
-    const officeId = useAuthStore.getState().addServer({
-      name: 'Home',
-      url: 'https://office.example.com',
-      username: 'office-user',
-      password: 'pw2',
-    });
-    useAuthStore.getState().setSubsonicServerIdentity(officeId, {
-      type: 'navidrome',
-      serverVersion: '0.62.0',
-      openSubsonic: true,
-    });
-    vi.mocked(ndLogin).mockImplementation(async serverUrl => ({
-      token: 't',
-      userId: serverUrl.includes('office') ? '2' : '1',
-      isAdmin: !serverUrl.includes('office'),
-    }));
-
-    const { result } = renderHook(() => useNavidromeAdminRoles([homeId, officeId]));
-    await waitFor(() => expect(result.current).toEqual({
-      [homeId]: 'admin',
-      [officeId]: 'user',
-    }));
-    expect(ndLogin).toHaveBeenCalledWith('http://music.example.com', 'tester', 'pw');
-    expect(ndLogin).toHaveBeenCalledWith('https://office.example.com', 'office-user', 'pw2');
   });
 });

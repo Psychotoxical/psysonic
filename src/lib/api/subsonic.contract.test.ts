@@ -141,13 +141,13 @@ describe('libraryScopeForServer', () => {
 });
 
 describe('libraryScopePairsForServer', () => {
-  it('returns a whole-server pair when all libraries or unset', () => {
+  it('returns empty array when all libraries or unset', () => {
     const serverId = setUpServer();
-    expect(libraryScopePairsForServer(serverId)).toEqual([{ serverId, libraryId: null }]);
+    expect(libraryScopePairsForServer(serverId)).toEqual([]);
     useAuthStore.setState({
       musicLibraryFilterByServer: { [serverId]: 'all' },
     });
-    expect(libraryScopePairsForServer(serverId)).toEqual([{ serverId, libraryId: null }]);
+    expect(libraryScopePairsForServer(serverId)).toEqual([]);
   });
 
   it('returns one ordered pair for legacy single-library filter', () => {
@@ -186,7 +186,7 @@ describe('librarySelectionForServer — collapse when all libraries selected', (
     expect(librarySelectionForServer(serverId)).toEqual([]);
     expect(libraryScopeIsActive(serverId)).toBe(false);
     expect(libraryScopeCacheKeyForServer(serverId)).toBe('all');
-    expect(libraryScopePairsForServer(serverId)).toEqual([{ serverId, libraryId: null }]);
+    expect(libraryScopePairsForServer(serverId)).toEqual([]);
     expect(libraryFilterParamsForServer(serverId)).toEqual({});
   });
 

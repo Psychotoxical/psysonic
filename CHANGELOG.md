@@ -139,14 +139,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The header search field on the Playlists page now filters the list by playlist name (same scoped badge pattern as Artists / Albums), including in folder view.
 
-### Multi-server Library — one ordered catalog across your servers
-
-**By [@cucadmuh](https://github.com/cucadmuh), PR [#1309](https://github.com/Psychotoxical/psysonic/pull/1309)**
-
-* Select and prioritise multiple servers from the sidebar Library picker. Albums, artists, tracks, search, Home, genres, lossless, random mixes, composers, statistics and detail pages merge their ready online indexes into one de-duplicated catalog; unavailable sources are clearly excluded without hiding downloaded music in **Offline**.
-* Playback, playlists, radio and folders keep their real source ownership. Failed streams offer an explicit **Play from server** choice instead of silently switching accounts, mixed-server queue sharing asks which source to export, and playlist/radio edits always target the owning server.
-* Favorites and ratings fan out durably to matching copies on selected servers, including offline retry and deferred sync while an index is still being built. Play counts and scrobbles remain attached only to the concrete source that actually played.
-
 
 ## Changed
 

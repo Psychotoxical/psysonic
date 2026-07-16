@@ -19,14 +19,12 @@ export default function OrbitStartTrigger() {
   const { t } = useTranslation();
   const role = useOrbitStore(s => s.role);
   const visible = useAuthStore(s => s.showOrbitTrigger);
-  const hostBlocked = useAuthStore(s => s.musicLibraryServerIds.length > 1);
 
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
   const [joinOpen, setJoinOpen]   = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
-  const firstEnabledItemRef = useRef<HTMLButtonElement>(null);
 
   // Close popover on outside click / Escape.
   useEffect(() => {
@@ -37,13 +35,7 @@ export default function OrbitStartTrigger() {
       if (btnRef.current?.contains(target)) return;
       setPopoverOpen(false);
     };
-    queueMicrotask(() => firstEnabledItemRef.current?.focus());
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      e.preventDefault();
-      setPopoverOpen(false);
-      btnRef.current?.focus();
-    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPopoverOpen(false); };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
     return () => {
@@ -67,11 +59,7 @@ export default function OrbitStartTrigger() {
       }
     : { display: 'none' };
 
-  const pickCreate = () => {
-    if (hostBlocked) return;
-    setPopoverOpen(false);
-    setStartOpen(true);
-  };
+  const pickCreate = () => { setPopoverOpen(false); setStartOpen(true); };
   const pickJoin   = () => { setPopoverOpen(false); setJoinOpen(true); };
   const pickHelp   = () => { setPopoverOpen(false); useHelpModalStore.getState().open(); };
 
@@ -96,49 +84,12 @@ export default function OrbitStartTrigger() {
       </button>
 
       {popoverOpen && createPortal(
-        <div
-          ref={popRef}
-          className="nav-library-dropdown-panel orbit-launch-pop"
-          style={popoverStyle}
-          role="menu"
-          aria-label={t('orbit.triggerLabel')}
-          onKeyDown={event => {
-            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-            event.preventDefault();
-            const items = Array.from(
-              event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)'),
-            );
-            const current = items.indexOf(document.activeElement as HTMLButtonElement);
-            const delta = event.key === 'ArrowDown' ? 1 : -1;
-            items[(current + delta + items.length) % items.length]?.focus();
-          }}
-        >
-          <button
-            type="button"
-            className="orbit-launch-pop__item"
-            onClick={pickCreate}
-            aria-disabled={hostBlocked || undefined}
-            aria-describedby={hostBlocked ? 'orbit-create-scope-help' : undefined}
-            role="menuitem"
-            ref={firstEnabledItemRef}
-          >
+        <div ref={popRef} className="nav-library-dropdown-panel orbit-launch-pop" style={popoverStyle} role="menu">
+          <button type="button" className="orbit-launch-pop__item" onClick={pickCreate}>
             <Plus size={14} />
             <span>{t('orbit.launchCreate')}</span>
           </button>
-          {hostBlocked && (
-            <p
-              id="orbit-create-scope-help"
-              style={{ margin: '0.25rem 0.75rem 0.5rem', maxWidth: '18rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}
-            >
-              {t('orbit.launchCreateMultiServerBlocked')}
-            </p>
-          )}
-          <button
-            type="button"
-            className="orbit-launch-pop__item"
-            onClick={pickJoin}
-            role="menuitem"
-          >
+          <button type="button" className="orbit-launch-pop__item" onClick={pickJoin}>
             <LogIn size={14} />
             <span>{t('orbit.launchJoin')}</span>
           </button>
@@ -146,7 +97,6 @@ export default function OrbitStartTrigger() {
             type="button"
             className="orbit-launch-pop__item"
             onClick={pickHelp}
-            role="menuitem"
           >
             <HelpCircle size={14} />
             <span>{t('orbit.launchHelp')}</span>

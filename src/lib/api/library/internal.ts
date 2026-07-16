@@ -4,7 +4,7 @@
  */
 import { useAuthStore } from '@/store/authStore';
 import { serverIndexKeyFromUrl } from '@/lib/server/serverIndexKey';
-import { findServerByIdOrIndexKey, resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
+import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import type { LibraryTrackDto } from './dto';
 
 export function serverIndexKeyForId(serverId: string): string {
@@ -14,8 +14,8 @@ export function serverIndexKeyForId(serverId: string): string {
 }
 
 export function mapServerIdFromIndexKey(serverId: string, fallback?: string): string {
-  if (findServerByIdOrIndexKey(serverId)) return resolveServerIdForIndexKey(serverId);
-  return fallback ?? serverId;
+  if (fallback) return fallback;
+  return resolveServerIdForIndexKey(serverId);
 }
 
 export function mapTracksServerId(

@@ -45,7 +45,6 @@ import {
   useScopedBrowseSearchQuery,
 } from '@/store/liveSearchScopeStore';
 import { useOfflineBrowseContext } from '@/features/offline';
-import { useBrowseLibraryScope } from '@/store/useBrowseLibraryScope';
 
 const MOOD_UI_ENABLED = OXIMEDIA_MOOD_SEARCH_ENABLED;
 
@@ -107,8 +106,6 @@ export default function SearchBrowsePage() {
   );
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const serverId = useAuthStore(s => s.activeServerId);
-  const browseScope = useBrowseLibraryScope();
-  const browseServerId = browseScope.anchorServerId || serverId;
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const offlineBrowseActive = useOfflineBrowseContext().active;
   const [activeSearch, setActiveSearch] = useState<SearchOpts | null>(() => restoreStash?.activeSearch ?? null);
@@ -287,7 +284,7 @@ export default function SearchBrowsePage() {
   }, []);
 
   const { runBasicSearch, runSearch, loadMoreSongs } = useAdvancedSearchRunner({
-    serverId: browseServerId,
+    serverId,
     indexEnabled,
     loadingMoreSongs,
     songsHasMore,
@@ -295,8 +292,6 @@ export default function SearchBrowsePage() {
     basicSearchMode,
     localMode,
     songsServerOffset,
-    scopePairs: browseScope.pairs,
-    localOnly: browseScope.multiServer,
     setLoading,
     setHasSearched,
     setGenreNote,

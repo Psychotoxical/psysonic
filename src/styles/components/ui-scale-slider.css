@@ -26,9 +26,9 @@
   scrollbar-color: color-mix(in srgb, var(--accent) 35%, var(--text-muted)) transparent;
 }
 
+.folder-browser-columns:focus,
 .folder-browser-columns:focus-visible {
   outline: none;
-  box-shadow: inset 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
 }
 
 .folder-browser-columns::-webkit-scrollbar {
@@ -240,3 +240,4 @@
   color: var(--text-muted);
   margin-left: auto;
 }
+

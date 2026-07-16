@@ -108,14 +108,11 @@ export function libraryListLosslessAlbums(
   request: LibraryLosslessAlbumsRequest,
 ): Promise<LibraryLosslessAlbumsResponse> {
   const indexKey = serverIndexKeyForId(request.serverId);
-  const libraryScopes = request.libraryScopes?.length
-    ? mapScopePairs(request.libraryScopes, request.serverId)
-    : undefined;
   return invoke<LibraryLosslessAlbumsResponse>('library_list_lossless_albums', {
     request: {
       serverId: indexKey,
       libraryScope: request.libraryScope ?? undefined,
-      libraryScopes,
+      libraryScopes: request.libraryScopes ?? undefined,
       limit: request.limit,
       offset: request.offset,
     },
@@ -133,15 +130,12 @@ export function libraryGetArtistLosslessBrowse(
   request: LibraryArtistLosslessBrowseRequest,
 ): Promise<LibraryArtistLosslessBrowseResponse> {
   const indexKey = serverIndexKeyForId(request.serverId);
-  const libraryScopes = request.libraryScopes?.length
-    ? mapScopePairs(request.libraryScopes, request.serverId)
-    : undefined;
   return invoke<LibraryArtistLosslessBrowseResponse>('library_get_artist_lossless_browse', {
     request: {
       serverId: indexKey,
       artistId: request.artistId,
       libraryScope: request.libraryScope ?? undefined,
-      libraryScopes,
+      libraryScopes: request.libraryScopes ?? undefined,
     },
   }).then(response => ({
     ...response,

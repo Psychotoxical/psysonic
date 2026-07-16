@@ -6,6 +6,4 @@ export const entityRating = {
   selectedArtistsRatingAriaLabel: 'Calificación con estrellas para {{count}} artistas seleccionados',
   selectedAlbumsRatingAriaLabel: 'Calificación con estrellas para {{count}} álbumes seleccionados',
   saveFailed: 'No se pudo guardar la calificación.',
-  fanoutPartial: 'Algunos servidores seleccionados no pudieron aplicar este favorito o calificación.',
-  pendingDiscarded: 'Se descartaron los favoritos o calificaciones sin sincronizar del servidor eliminado.',
 };

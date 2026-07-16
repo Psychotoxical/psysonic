@@ -1,7 +1,7 @@
 import {
   libraryScopeArtistDetail,
+  scopePairsFromLibrarySelection,
 } from '@/lib/api/library/scopeReads';
-import type { LibraryScopePair } from '@/lib/api/library';
 import { albumToAlbum, artistToArtist, trackToSong } from '@/lib/library/advancedSearchLocal';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '@/lib/api/subsonicTypes';
 
@@ -18,11 +18,10 @@ export interface ArtistDetailMultiScopePayload {
 export async function tryLoadArtistDetailMultiScope(
   serverId: string,
   artistId: string,
-  scopes: LibraryScopePair[],
 ): Promise<ArtistDetailMultiScopePayload | null> {
   try {
     const response = await libraryScopeArtistDetail(serverId, {
-      scopes,
+      scopes: scopePairsFromLibrarySelection(serverId),
       artistId,
       serverId,
     });

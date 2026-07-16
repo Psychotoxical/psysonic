@@ -57,8 +57,6 @@ export {
 export {
   endOrbitSession,
   hostEnqueueToOrbit,
-  orbitHostBlockedByBrowseScope,
-  OrbitHostScopeError,
   startOrbitSession,
   triggerOrbitShuffleNow,
   updateOrbitSettings,

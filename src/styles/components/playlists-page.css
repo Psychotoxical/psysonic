@@ -32,27 +32,6 @@
   color: var(--text-muted);
 }
 
-.source-group-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-4);
-}
-
-.source-group-label {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 3px 9px;
-  border: 1px solid var(--border-subtle, var(--border));
-  border-radius: var(--radius-full);
-  background: var(--bg-subtle, var(--sidebar-trigger-bg));
-  color: var(--text-secondary, var(--text-muted));
-  font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
 .playlist-list {
   display: flex;
   flex-direction: column;
@@ -182,3 +161,4 @@
   box-shadow: none;
   filter: brightness(1.08);
 }
+

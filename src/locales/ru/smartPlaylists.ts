@@ -31,7 +31,6 @@ export const smartPlaylists = {
   createFailed: 'Не удалось создать смарт-плейлист.',
   updateFailed: 'Не удалось обновить смарт-плейлист.',
   navidromeOnly: 'Смарт-плейлисты можно создавать только на серверах Navidrome.',
-  foreignServerDisabled: 'Переключитесь на {{server}}, чтобы изменить этот смарт-плейлист. Psysonic не будет отправлять запросы редактора на другой активный сервер.',
   loadFailed: 'Не удалось загрузить смарт-плейлисты из Navidrome.',
   sortRandom: 'Сортировка: случайно',
   sortTitleAsc: 'Сортировка: название А-Я',

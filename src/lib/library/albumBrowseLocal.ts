@@ -1,5 +1,4 @@
 import { libraryAdvancedSearch, libraryListAlbumsByGenre } from '@/lib/api/library';
-import type { LibraryScopePair } from '@/lib/api/library';
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import { libraryScopeForServer, libraryScopePairsForServer } from '@/lib/api/subsonicClient';
 import { dedupeById } from '@/lib/util/dedupeById';
@@ -22,7 +21,6 @@ export async function runLocalAlbumBrowse(
   offset: number,
   pageSize: number,
   restrictAlbumIds?: string[],
-  scopePairs?: LibraryScopePair[],
 ): Promise<AlbumBrowsePageResult | null> {
   if (!serverId) return null;
   const ready = await albumBrowseTimed(
@@ -36,7 +34,7 @@ export async function runLocalAlbumBrowse(
   }
 
   const scope = libraryScopeForServer(serverId) ?? undefined;
-  const libraryScopes = scopePairs ?? libraryScopePairsForServer(serverId);
+  const libraryScopes = libraryScopePairsForServer(serverId);
   const useServerStarredIds = restrictAlbumIds != null;
   const shared = sharedServerFilters(query, useServerStarredIds);
   const starredOnly = useServerStarredIds ? undefined : (query.starredOnly || undefined);

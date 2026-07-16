@@ -1,4 +1,4 @@
-import { buildDownloadUrlForServer } from '@/lib/api/subsonicStreamUrl';
+import { buildDownloadUrl } from '@/lib/api/subsonicStreamUrl';
 import { resolveAlbum } from '@/features/offline';
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import { songToTrack } from '@/lib/media/songToTrack';
@@ -13,7 +13,6 @@ import { useDownloadModalStore } from '@/features/offline';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useZipDownloadStore } from '@/features/offline';
 import { useRangeSelection } from '@/lib/hooks/useRangeSelection';
-import { libraryEntityKey } from '@/lib/library/libraryEntityKey';
 import { useMainstageInpageHeaderTight } from '@/lib/hooks/useMainstageInpageHeaderTight';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import { showToast } from '@/lib/dom/toast';
@@ -40,7 +39,6 @@ import {
   sortSubsonicAlbums,
   type AlbumBrowseSort,
 } from '@/lib/library/browseTextSearch';
-import { useBrowseLibraryScope } from '@/store/useBrowseLibraryScope';
 
 /** Local index page size — SQLite is cheap; larger pages than the network walk. */
 const LOCAL_PAGE_SIZE = 30;
@@ -61,8 +59,6 @@ export default function LosslessAlbums() {
   const auth = useAuthStore();
   const activeServerId = useAuthStore(s => s.activeServerId);
   const serverId = useAuthStore(s => s.activeServerId ?? '');
-  const browseScope = useBrowseLibraryScope();
-  const browseServerId = browseScope.anchorServerId || serverId;
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const sort = useAlbumBrowseSessionStore(s => albumBrowseSortForServer(s.sortByServer, serverId));
   const setBrowseSort = useAlbumBrowseSessionStore(s => s.setSort);
@@ -84,7 +80,7 @@ export default function LosslessAlbums() {
   }, [albums, sort, useLocalIndex]);
 
   const { selectedIds, toggleSelect, clearSelection: resetSelection } = useRangeSelection(displayAlbums);
-  const selectedAlbums = displayAlbums.filter(a => selectedIds.has(libraryEntityKey(a)));
+  const selectedAlbums = displayAlbums.filter(a => selectedIds.has(a.id));
 
   const toggleSelectionMode = () => { setSelectionMode(v => !v); resetSelection(); };
   const clearSelection = () => { setSelectionMode(false); resetSelection(); };
@@ -129,18 +125,17 @@ export default function LosslessAlbums() {
 
   const loadMoreLocal = useCallback(async () => {
     const data = await runLocalAlbumBrowsePage(
-      browseServerId,
+      serverId,
       sort,
       localOffset.current,
       LOCAL_PAGE_SIZE,
       undefined,
       true,
-      browseScope.pairs,
     );
     if (data == null) return null;
     localOffset.current += data.length;
     return { albums: data, hasMore: data.length === LOCAL_PAGE_SIZE };
-  }, [browseScope.pairs, browseServerId, sort]);
+  }, [serverId, sort]);
 
   const loadMore = useCallback(async () => {
     if (inFlight.current || useLocalIndex === null) return;
@@ -192,13 +187,12 @@ export default function LosslessAlbums() {
       try {
         if (indexEnabled && serverId) {
           const data = await runLocalAlbumBrowsePage(
-            browseServerId,
+            serverId,
             sort,
             0,
             LOCAL_PAGE_SIZE,
             undefined,
             true,
-            browseScope.pairs,
           );
           if (cancelled) return;
           if (data != null) {
@@ -211,12 +205,6 @@ export default function LosslessAlbums() {
         }
 
         if (cancelled) return;
-        if (browseScope.multiServer) {
-          setUseLocalIndex(true);
-          setAlbums([]);
-          setHasMore(false);
-          return;
-        }
         setUseLocalIndex(false);
         const page = await loadMoreNetwork(albums => {
           if (!cancelled) setAlbums(prev => [...prev, ...albums]);
@@ -236,7 +224,7 @@ export default function LosslessAlbums() {
     })();
 
     return () => { cancelled = true; };
-  }, [activeServerId, browseScope.fingerprint, browseScope.multiServer, browseScope.pairs, browseServerId, indexEnabled, loadMoreNetwork, serverId, sort]);
+  }, [activeServerId, indexEnabled, loadMoreNetwork, serverId, sort]);
 
   const bindLoadMoreSentinel = useInpageScrollSentinel({
     active: hasMore && useLocalIndex !== null,
@@ -250,7 +238,7 @@ export default function LosslessAlbums() {
     if (selectedAlbums.length === 0) return;
     try {
       const results = await Promise.all(
-        selectedAlbums.map(a => resolveAlbum(a.serverId ?? serverId, a.id).catch(() => null)),
+        selectedAlbums.map(a => resolveAlbum(serverId, a.id).catch(() => null)),
       );
       const tracks = results.flatMap(r => r ? r.songs.map(songToTrack) : []);
       if (tracks.length > 0) {
@@ -267,10 +255,9 @@ export default function LosslessAlbums() {
     let queued = 0;
     for (const album of selectedAlbums) {
       try {
-        const ownerServerId = album.serverId ?? serverId;
-        const detail = await resolveAlbum(ownerServerId, album.id);
+        const detail = await resolveAlbum(serverId, album.id);
         if (!detail) throw new Error('album unavailable');
-        downloadAlbum(album.id, album.name, albumArtistDisplayName(album), album.coverArt, album.year, detail.songs, ownerServerId);
+        downloadAlbum(album.id, album.name, albumArtistDisplayName(album), album.coverArt, album.year, detail.songs, serverId);
         queued++;
       } catch {
         showToast(t('albums.offlineFailed', { name: album.name }), 3000, 'error');
@@ -290,8 +277,7 @@ export default function LosslessAlbums() {
       const downloadId = crypto.randomUUID();
       const filename = `${sanitizeFilename(album.name)}.zip`;
       const destPath = await join(folder, filename);
-      const ownerServerId = album.serverId ?? serverId;
-      const url = buildDownloadUrlForServer(ownerServerId, album.id);
+      const url = buildDownloadUrl(album.id);
       start(downloadId, filename);
       try {
         await downloadZip({ id: downloadId, url, destPath });
@@ -390,7 +376,7 @@ export default function LosslessAlbums() {
           <>
             <VirtualCardGrid
               items={displayAlbums}
-              itemKey={(a, _i) => libraryEntityKey(a)}
+              itemKey={(a, _i) => a.id}
               rowVariant="album"
               disableVirtualization={perfFlags.disableMainstageVirtualLists}
               layoutSignal={displayAlbums.length}
@@ -402,7 +388,7 @@ export default function LosslessAlbums() {
                   observeScrollRootId={LOSSLESS_ALBUMS_INPAGE_SCROLL_VIEWPORT_ID}
                   linkQuery={LOSSLESS_MODE_QUERY}
                   selectionMode={selectionMode}
-                  selected={selectedIds.has(libraryEntityKey(a))}
+                  selected={selectedIds.has(a.id)}
                   onToggleSelect={toggleSelect}
                   selectedAlbums={selectedAlbums}
                 />

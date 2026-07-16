@@ -2,7 +2,6 @@ export const orbit = {
   triggerLabel: 'Orbit',
   triggerTooltip: 'Közös hallgatási munkamenet indítása vagy csatlakozás',
   launchCreate: 'Munkamenet létrehozása',
-  launchCreateMultiServerBlocked: 'Choose one browse server before creating an Orbit session. Joining an invite will switch and narrow the server automatically.',
   launchJoin: 'Csatlakozás munkamenethez',
   launchHelp: 'Hogyan működik ez?',
   launchHelpSoon: 'Hamarosan',

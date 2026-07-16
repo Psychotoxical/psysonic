@@ -54,10 +54,7 @@ describe('libraryListLosslessAlbums payload', () => {
 
     await libraryListLosslessAlbums({
       serverId: 'profile-s1',
-      libraryScopes: [
-        { serverId: 'profile-s1', libraryId: 'lib-a' },
-        { serverId: 'profile-s1', libraryId: 'lib-b' },
-      ],
+      libraryScopes: ['lib-a', 'lib-b'],
       limit: 30,
       offset: 0,
     });
@@ -65,34 +62,9 @@ describe('libraryListLosslessAlbums payload', () => {
     expect(captured).toEqual({
       request: {
         serverId: 's1.example',
-        libraryScopes: [
-          { serverId: 's1.example', libraryId: 'lib-a' },
-          { serverId: 's1.example', libraryId: 'lib-b' },
-        ],
+        libraryScopes: ['lib-a', 'lib-b'],
         limit: 30,
         offset: 0,
-      },
-    });
-  });
-
-  it('maps a whole-server pair to the index key without changing null', async () => {
-    let captured: unknown;
-    onInvoke('library_get_artist_lossless_browse', (args) => {
-      captured = args;
-      return { source: 'local', albums: [], tracks: [] };
-    });
-
-    await libraryGetArtistLosslessBrowse({
-      serverId: 'profile-s1',
-      artistId: 'ar-1',
-      libraryScopes: [{ serverId: 'profile-s1', libraryId: null }],
-    });
-
-    expect(captured).toEqual({
-      request: {
-        serverId: 's1.example',
-        artistId: 'ar-1',
-        libraryScopes: [{ serverId: 's1.example', libraryId: null }],
       },
     });
   });

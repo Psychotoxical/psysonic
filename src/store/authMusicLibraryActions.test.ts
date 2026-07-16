@@ -71,36 +71,6 @@ describe('setMusicLibrarySelection', () => {
   });
 });
 
-describe('server-explicit music library actions', () => {
-  it('updates an inactive server without changing active-server state', () => {
-    const active = setUpActiveServer();
-    const other = useAuthStore.getState().addServer({
-      name: 'Other', url: 'https://other.example.com', username: 'u', password: 'p',
-    });
-    useAuthStore.getState().setMusicFoldersForServer(other, [
-      { id: 'lib-a', name: 'A' },
-      { id: 'lib-b', name: 'B' },
-    ]);
-    useAuthStore.getState().setMusicLibrarySelectionForServer(other, ['lib-b']);
-
-    const state = useAuthStore.getState();
-    expect(state.activeServerId).toBe(active);
-    expect(state.musicFolders).toEqual([]);
-    expect(state.musicFoldersByServer[other]).toEqual([
-      { id: 'lib-a', name: 'A' },
-      { id: 'lib-b', name: 'B' },
-    ]);
-    expect(state.musicLibrarySelectionByServer[other]).toEqual(['lib-b']);
-  });
-
-  it('prevents deselecting the final configured server', () => {
-    const serverId = setUpActiveServer();
-    expect(useAuthStore.getState().musicLibraryServerIds).toEqual([serverId]);
-    useAuthStore.getState().setMusicLibraryServerSelected(serverId, false);
-    expect(useAuthStore.getState().musicLibraryServerIds).toEqual([serverId]);
-  });
-});
-
 describe('setMusicFolders', () => {
   it('prunes stale selection entries and syncs legacy', () => {
     const serverId = setUpActiveServer();
@@ -112,7 +82,6 @@ describe('setMusicFolders', () => {
     const state = useAuthStore.getState();
     expect(state.musicLibrarySelectionByServer[serverId]).toEqual(['keep']);
     expect(state.musicLibraryFilterByServer[serverId]).toBe('keep');
-    expect(state.musicFoldersByServer[serverId]).toEqual([{ id: 'keep', name: 'Keep' }]);
   });
 
   it('resets legacy filter to all when the single folder is gone', () => {

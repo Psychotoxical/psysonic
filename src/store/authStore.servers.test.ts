@@ -38,13 +38,6 @@ describe('addServer / updateServer', () => {
     expect(s.servers).toHaveLength(1);
     expect(s.servers[0]?.id).toBe(id);
     expect(s.servers[0]?.name).toBe('Home');
-    expect(s.musicLibraryServerIds).toEqual([id]);
-  });
-
-  it('leaves later server profiles unchecked', () => {
-    const first = useAuthStore.getState().addServer({ name: 'A', url: 'https://a.test', username: 'u', password: 'p' });
-    useAuthStore.getState().addServer({ name: 'B', url: 'https://b.test', username: 'u', password: 'p' });
-    expect(useAuthStore.getState().musicLibraryServerIds).toEqual([first]);
   });
 
   it('updateServer patches the matching server only', () => {
@@ -78,21 +71,6 @@ describe('setActiveServer', () => {
     const s = useAuthStore.getState();
     expect(s.activeServerId).toBe(b);
     expect(s.musicFolders).toEqual([]);
-  });
-
-  it('moves a legacy single-server selection when active server changes', () => {
-    const { a, b } = addThree();
-    useAuthStore.getState().setActiveServer(a);
-    expect(useAuthStore.getState().musicLibraryServerIds).toEqual([a]);
-    useAuthStore.getState().setActiveServer(b);
-    expect(useAuthStore.getState().musicLibraryServerIds).toEqual([b]);
-  });
-
-  it('does not rewrite a multi-server selection when active server changes', () => {
-    const { a, b, c } = addThree();
-    useAuthStore.setState({ activeServerId: a, musicLibraryServerIds: [a, b] });
-    useAuthStore.getState().setActiveServer(c);
-    expect(useAuthStore.getState().musicLibraryServerIds).toEqual([a, b]);
   });
 });
 
@@ -139,41 +117,6 @@ describe('removeServer', () => {
 
     useAuthStore.getState().removeServer(a);
     expect(useAuthStore.getState().entityRatingSupportByServer).toEqual({ [b]: 'track_only' });
-  });
-
-  it('prunes library maps and selects the active remaining server when the sole selected server is removed', () => {
-    const { a, b } = addThree();
-    useAuthStore.setState({
-      activeServerId: b,
-      musicLibraryServerIds: [a],
-      musicFoldersByServer: { [a]: [{ id: 'a-1', name: 'A' }], [b]: [{ id: 'b-1', name: 'B' }] },
-      musicLibrarySelectionByServer: { [a]: ['a-1'], [b]: ['b-1'] },
-      musicLibraryFilterByServer: { [a]: 'a-1', [b]: 'b-1' },
-    });
-
-    useAuthStore.getState().removeServer(a);
-    const state = useAuthStore.getState();
-    expect(state.musicLibraryServerIds).toEqual([b]);
-    expect(state.musicFoldersByServer).toEqual({ [b]: [{ id: 'b-1', name: 'B' }] });
-    expect(state.musicLibrarySelectionByServer).toEqual({ [b]: ['b-1'] });
-    expect(state.musicLibraryFilterByServer).toEqual({ [b]: 'b-1' });
-  });
-
-  it('selects the first remaining server when the active selected server is removed', () => {
-    const { a, b, c } = addThree();
-    useAuthStore.setState({ activeServerId: a, musicLibraryServerIds: [a] });
-    useAuthStore.getState().removeServer(a);
-    expect(useAuthStore.getState().activeServerId).toBe(b);
-    expect(useAuthStore.getState().musicLibraryServerIds).toEqual([b]);
-    expect(useAuthStore.getState().servers.map(server => server.id)).toEqual([b, c]);
-  });
-
-  it('uses common server order for configured membership after reorder', () => {
-    const { a, c } = addThree();
-    useAuthStore.setState({ musicLibraryServerIds: [a, c] });
-    const state = useAuthStore.getState();
-    state.setServers([state.servers[2]!, state.servers[1]!, state.servers[0]!]);
-    expect(useAuthStore.getState().musicLibraryServerIds).toEqual([c, a]);
   });
 
   it('does not touch activeServerId when the removed id was inactive', () => {
