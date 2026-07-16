@@ -179,8 +179,10 @@ export function albumToAlbum(a: LibraryAlbumDto): SubsonicAlbum {
     genre: a.genre ?? undefined,
     coverArt: a.coverArtId ?? a.id,
     starred: a.starredAt != null ? new Date(a.starredAt).toISOString() : undefined,
+    serverId: a.serverId,
   };
   const merged = mergeAlbumRawJson(base, raw as Partial<SubsonicAlbum>);
+  merged.serverId = a.serverId;
   if (albumIsCompilation(merged)) merged.isCompilation = true;
   return merged;
 }
@@ -193,6 +195,7 @@ export function artistToArtist(ar: LibraryArtistDto): SubsonicArtist {
     nameSort: ar.nameSort ?? undefined,
     albumCount: ar.albumCount ?? undefined,
     coverArt: ar.id,
+    serverId: ar.serverId,
   };
   const merged = mergeArtistRawJson(base, raw as Partial<SubsonicArtist>);
   return merged;

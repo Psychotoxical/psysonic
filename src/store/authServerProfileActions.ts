@@ -7,6 +7,25 @@ type SetState = (
   partial: Partial<AuthState> | ((state: AuthState) => Partial<AuthState>),
 ) => void;
 
+function withoutKey<T>(record: Record<string, T>, id: string): Record<string, T> {
+  const { [id]: _removed, ...rest } = record;
+  return rest;
+}
+
+function selectedIdsInServerOrder(
+  servers: AuthState['servers'],
+  selectedIds: string[],
+  fallbackId: string | null,
+): string[] {
+  const selected = new Set(selectedIds);
+  const ordered = servers.map(server => server.id).filter(id => selected.has(id));
+  if (ordered.length > 0 || servers.length === 0) return ordered;
+  const fallback = fallbackId && servers.some(server => server.id === fallbackId)
+    ? fallbackId
+    : servers[0]!.id;
+  return [fallback];
+}
+
 /**
  * Server profile + connection lifecycle. `removeServer` is the
  * non-trivial one: when the active server is the one being removed it
@@ -29,7 +48,13 @@ export function createServerProfileActions(set: SetState): Pick<
   return {
     addServer: (profile) => {
       const id = generateId();
-      set(s => ({ servers: [...s.servers, { ...profile, id }] }));
+      set(s => {
+        const servers = [...s.servers, { ...profile, id }];
+        return {
+          servers,
+          musicLibraryServerIds: s.servers.length === 0 ? [id] : s.musicLibraryServerIds,
+        };
+      });
       return id;
     },
 
@@ -50,30 +75,50 @@ export function createServerProfileActions(set: SetState): Pick<
       set(s => {
         const newServers = s.servers.filter(srv => srv.id !== id);
         const switchedAway = s.activeServerId === id;
-        const { [id]: _r, ...entityRatingRest } = s.entityRatingSupportByServer;
-        const { [id]: _a, ...audiomuseRest } = s.audiomuseNavidromeByServer;
-        const { [id]: _idn, ...identityRest } = s.subsonicServerIdentityByServer;
-        const { [id]: _iss, ...issueRest } = s.audiomuseNavidromeIssueByServer;
-        const { [id]: _pr, ...probeRest } = s.instantMixProbeByServer;
-        const { [id]: _ppl, ...pluginProbeRest } = s.audiomusePluginProbeByServer;
-        const { [id]: _ex, ...extRest } = s.openSubsonicExtensionsByServer;
+        const activeServerId = switchedAway ? (newServers[0]?.id ?? null) : s.activeServerId;
         return {
           servers: newServers,
-          activeServerId: switchedAway ? (newServers[0]?.id ?? null) : s.activeServerId,
+          activeServerId,
           isLoggedIn: switchedAway ? false : s.isLoggedIn,
-          entityRatingSupportByServer: entityRatingRest,
-          audiomuseNavidromeByServer: audiomuseRest,
-          subsonicServerIdentityByServer: identityRest,
-          audiomuseNavidromeIssueByServer: issueRest,
-          instantMixProbeByServer: probeRest,
-          audiomusePluginProbeByServer: pluginProbeRest,
-          openSubsonicExtensionsByServer: extRest,
+          musicFolders: switchedAway && activeServerId
+            ? (s.musicFoldersByServer[activeServerId] ?? [])
+            : s.musicFolders,
+          musicLibraryServerIds: selectedIdsInServerOrder(
+            newServers,
+            s.musicLibraryServerIds.filter(serverId => serverId !== id),
+            activeServerId,
+          ),
+          musicFoldersByServer: withoutKey(s.musicFoldersByServer, id),
+          musicLibrarySelectionByServer: withoutKey(s.musicLibrarySelectionByServer, id),
+          musicLibraryFilterByServer: withoutKey(s.musicLibraryFilterByServer, id),
+          entityRatingSupportByServer: withoutKey(s.entityRatingSupportByServer, id),
+          audiomuseNavidromeByServer: withoutKey(s.audiomuseNavidromeByServer, id),
+          subsonicServerIdentityByServer: withoutKey(s.subsonicServerIdentityByServer, id),
+          audiomuseNavidromeIssueByServer: withoutKey(s.audiomuseNavidromeIssueByServer, id),
+          instantMixProbeByServer: withoutKey(s.instantMixProbeByServer, id),
+          audiomusePluginProbeByServer: withoutKey(s.audiomusePluginProbeByServer, id),
+          openSubsonicExtensionsByServer: withoutKey(s.openSubsonicExtensionsByServer, id),
         };
       });
     },
 
-    setServers: (servers) => set({ servers }),
-    setActiveServer: (id) => set({ activeServerId: id, musicFolders: [] }),
+    setServers: (servers) => set(s => ({
+      servers,
+      musicLibraryServerIds: selectedIdsInServerOrder(
+        servers,
+        s.musicLibraryServerIds,
+        s.activeServerId,
+      ),
+    })),
+    setActiveServer: (id) => set(s => {
+      const moveSingleServerSelection = s.musicLibraryServerIds.length === 1
+        && s.musicLibraryServerIds[0] === s.activeServerId;
+      return {
+        activeServerId: id,
+        musicFolders: s.musicFoldersByServer[id] ?? [],
+        ...(moveSingleServerSelection ? { musicLibraryServerIds: [id] } : {}),
+      };
+    }),
     setLoggedIn: (v) => set({ isLoggedIn: v }),
     setConnecting: (v) => set({ isConnecting: v }),
     setConnectionError: (e) => set({ connectionError: e }),

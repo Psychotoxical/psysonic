@@ -311,17 +311,16 @@ function rawLibrarySelection(state: AuthSnapshot, resolved: string): string[] {
 }
 
 /**
- * True when `selection` already covers every library of the active server, so it
- * is equivalent to "All libraries". Only checked for the active server, since
- * `musicFolders` is the folder list of that server.
+ * True when `selection` already covers every last-known library of the server,
+ * so it is equivalent to "All libraries".
  */
 function selectionCoversAllLibraries(
   state: AuthSnapshot,
   resolved: string,
   selection: string[],
 ): boolean {
-  if (resolved !== state.activeServerId) return false;
-  const folders = state.musicFolders;
+  const folders = state.musicFoldersByServer[resolved]
+    ?? (resolved === state.activeServerId ? state.musicFolders : []);
   if (folders.length === 0 || selection.length < folders.length) return false;
   const selected = new Set(selection);
   return folders.every(folder => selected.has(folder.id));
@@ -348,9 +347,13 @@ export function libraryScopesForServer(serverId: string): string[] {
   return librarySelectionForServer(serverId);
 }
 
-/** Ordered scope pairs for local index reads — profile `serverId` space; empty when all libraries. */
-export function libraryScopePairsForServer(serverId: string): { serverId: string; libraryId: string }[] {
-  return librarySelectionForServer(serverId).map(libraryId => ({ serverId, libraryId }));
+/** Ordered scope pairs for local index reads — `null` is the whole server. */
+export function libraryScopePairsForServer(
+  serverId: string,
+): { serverId: string; libraryId: string | null }[] {
+  const selection = librarySelectionForServer(serverId);
+  if (selection.length === 0) return [{ serverId, libraryId: null }];
+  return selection.map(libraryId => ({ serverId, libraryId }));
 }
 
 /** Navidrome/Subsonic music folder id for the local library index, or undefined for all libraries. */

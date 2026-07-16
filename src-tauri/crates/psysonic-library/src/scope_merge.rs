@@ -5,6 +5,7 @@
 use rusqlite::types::Value as SqlValue;
 use rusqlite::{params_from_iter, OptionalExtension};
 use serde_json::Value;
+use std::collections::{HashMap, HashSet};
 
 use crate::album_compilation_filter::pick_album_group_artist;
 use crate::artist_sort::{sort_key_for_display_name, DEFAULT_IGNORED_ARTICLES};
@@ -22,7 +23,7 @@ use crate::search::{
 use crate::store::LibraryStore;
 
 /// NULL `album_key` rows never merge — fall back to a per-server album id.
-const ALBUM_DEDUP_KEY: &str = "CASE WHEN ck.album_key IS NOT NULL THEN ck.album_key \
+pub(crate) const ALBUM_DEDUP_KEY: &str = "CASE WHEN ck.album_key IS NOT NULL THEN ck.album_key \
     ELSE ('null:' || t.server_id || ':' || COALESCE(NULLIF(t.album_id, ''), t.id)) END";
 
 /// NULL `artist_key` rows never merge.
@@ -35,7 +36,7 @@ const ARTIST_DEDUP_KEY: &str = "CASE WHEN ck.artist_key IS NOT NULL THEN ck.arti
 /// two up to ~4 s apart inside a bucket merge. Kept as a single GROUP BY key for
 /// speed; a true tolerance window would need a self-join. Encoder-padding drift at
 /// boundaries is the known trade-off.
-const TRACK_DEDUP_KEY: &str = "CASE WHEN ck.cluster_key IS NOT NULL \
+pub(crate) const TRACK_DEDUP_KEY: &str = "CASE WHEN ck.cluster_key IS NOT NULL \
     THEN ck.cluster_key || ':' || CAST((ck.duration_sec / 5) AS TEXT) \
     ELSE ('null:' || t.server_id || ':' || t.id) END";
 
@@ -49,9 +50,43 @@ const ARTIST_PICK_KEY: &str = "printf('%08d|%s', pr, artist_id)";
 
 const TRACK_FTS_BM25_RANK: &str = "bm25(track_fts, 10.0, 3.0, 5.0, 3.0, 0.0)";
 
+pub(crate) fn normalize_scope_pairs(
+    scopes: &[LibraryScopePair],
+) -> Result<Vec<LibraryScopePair>, String> {
+    let mut normalized = Vec::with_capacity(scopes.len());
+    let mut seen = HashSet::new();
+    let mut server_modes: HashMap<String, bool> = HashMap::new();
+    for pair in scopes {
+        let server_id = pair.server_id.trim();
+        if server_id.is_empty() {
+            return Err("scope server_id must not be empty".into());
+        }
+        let whole = pair.library_id.is_none();
+        if let Some(previous_whole) = server_modes.insert(server_id.to_string(), whole) {
+            if previous_whole != whole {
+                return Err(format!(
+                    "server {server_id} cannot mix whole-server and exact-library scopes"
+                ));
+            }
+        }
+        let normalized_pair = LibraryScopePair {
+            server_id: server_id.to_string(),
+            library_id: pair.library_id.clone(),
+        };
+        if seen.insert((normalized_pair.server_id.clone(), normalized_pair.library_id.clone())) {
+            normalized.push(normalized_pair);
+        }
+    }
+    Ok(normalized)
+}
+
 fn non_empty_scopes(scopes: &[LibraryScopePair]) -> Result<&[LibraryScopePair], String> {
     if scopes.is_empty() {
         return Err("scopes must not be empty".into());
+    }
+    let normalized = normalize_scope_pairs(scopes)?;
+    if normalized.len() != scopes.len() {
+        return Err("duplicate scope pair".into());
     }
     Ok(scopes)
 }
@@ -64,26 +99,71 @@ fn clamp_offset(offset: Option<u32>) -> u32 {
     offset.unwrap_or(0)
 }
 
-/// `WITH scope(server_id, library_id, pr) AS (VALUES …)` — filters and yields priority.
+/// Compile exact-library and whole-server sources into separate indexed branches.
+/// `scoped_track` contains only rowids and pair priority so downstream readers keep
+/// their existing `s.pr` / `t.*` shape without an OR predicate on `track`.
 pub(crate) fn scope_cte_sql(scopes: &[LibraryScopePair]) -> (String, Vec<SqlValue>) {
-    let values = scopes
+    let exact = scopes
         .iter()
         .enumerate()
-        .map(|(i, _)| format!("(?, ?, {i})"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let sql = format!("WITH scope(server_id, library_id, pr) AS (VALUES {values})");
-    let mut binds = Vec::with_capacity(scopes.len() * 2);
-    for pair in scopes {
+        .filter(|(_, pair)| pair.library_id.is_some())
+        .collect::<Vec<_>>();
+    let whole = scopes
+        .iter()
+        .enumerate()
+        .filter(|(_, pair)| pair.library_id.is_none())
+        .collect::<Vec<_>>();
+    let exact_values = if exact.is_empty() {
+        "SELECT NULL, NULL, NULL WHERE 0".to_string()
+    } else {
+        format!(
+            "VALUES {}",
+            exact
+                .iter()
+                .map(|(i, _)| format!("(?, ?, {i})"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    };
+    let whole_values = if whole.is_empty() {
+        "SELECT NULL, NULL WHERE 0".to_string()
+    } else {
+        format!(
+            "VALUES {}",
+            whole
+                .iter()
+                .map(|(i, _)| format!("(?, {i})"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    };
+    let sql = format!(
+        "WITH exact_scope(server_id, library_id, pr) AS ({exact_values}), \
+         whole_scope(server_id, pr) AS ({whole_values}), \
+         scoped_track(rowid, pr) AS ( \
+           SELECT t.rowid, s.pr FROM exact_scope s \
+           CROSS JOIN track t ON t.server_id = s.server_id AND t.library_id = s.library_id \
+           WHERE t.deleted = 0 \
+           UNION ALL \
+           SELECT t.rowid, s.pr FROM whole_scope s \
+           CROSS JOIN track t ON t.server_id = s.server_id \
+           WHERE t.deleted = 0 \
+         )"
+    );
+    let mut binds = Vec::with_capacity(exact.len() * 2 + whole.len());
+    for (_, pair) in exact {
         binds.push(SqlValue::Text(pair.server_id.clone()));
-        binds.push(SqlValue::Text(pair.library_id.clone()));
+        binds.push(SqlValue::Text(pair.library_id.clone().unwrap_or_default()));
+    }
+    for (_, pair) in whole {
+        binds.push(SqlValue::Text(pair.server_id.clone()));
     }
     (sql, binds)
 }
 
 fn scoped_track_join_layer1() -> &'static str {
-    "FROM scope s \
-     CROSS JOIN track t ON t.server_id = s.server_id AND t.library_id = s.library_id \
+    "FROM scoped_track s \
+     CROSS JOIN track t ON t.rowid = s.rowid \
      WHERE t.deleted = 0"
 }
 
@@ -93,8 +173,8 @@ fn scoped_track_join() -> &'static str {
     // via idx_track_library_* instead of scanning all tracks and probing scope.
     // This only visits tracks in the selected libraries, so a subset of libraries
     // is proportionally cheaper than the whole server.
-    "FROM scope s \
-     CROSS JOIN track t ON t.server_id = s.server_id AND t.library_id = s.library_id \
+    "FROM scoped_track s \
+     CROSS JOIN track t ON t.rowid = s.rowid \
      LEFT JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
      WHERE t.deleted = 0"
 }
@@ -409,17 +489,19 @@ pub(crate) fn list_albums_layer1_filtered(
         let mut where_parts = vec![
             "t.deleted = 0".to_string(),
             "t.server_id = ?".to_string(),
-            "t.library_id = ?".to_string(),
             "t.album_id IS NOT NULL AND t.album_id != ''".to_string(),
         ];
+        if pair.library_id.is_some() {
+            where_parts.push("t.library_id = ?".to_string());
+        }
         if !extra_where.trim().is_empty() {
             where_parts.push(extra_where.to_string());
         }
         let where_sql = where_parts.join(" AND ");
-        let mut params = vec![
-            SqlValue::Text(pair.server_id.clone()),
-            SqlValue::Text(pair.library_id.clone()),
-        ];
+        let mut params = vec![SqlValue::Text(pair.server_id.clone())];
+        if let Some(library_id) = &pair.library_id {
+            params.push(SqlValue::Text(library_id.clone()));
+        }
         params.extend_from_slice(extra_params);
 
         let count_sql = format!("SELECT COUNT(DISTINCT t.album_id) FROM track t WHERE {where_sql}");
@@ -476,7 +558,7 @@ pub(crate) fn list_albums_layer1_filtered(
             );
             let mut params = vec![SqlValue::Text(server_id.clone())];
             for p in scopes {
-                params.push(SqlValue::Text(p.library_id.clone()));
+                params.push(SqlValue::Text(p.library_id.clone().unwrap_or_default()));
             }
             let count_sql = format!("SELECT COUNT(DISTINCT t.album_id) FROM track t WHERE {where_sql}");
             // Grouped shape — same reasoning as the single-scope branch above.
@@ -698,8 +780,7 @@ pub(crate) fn list_index_artists_layer1_filtered(
 ) -> Result<(Vec<LibraryArtistDto>, u32), String> {
     let scopes = non_empty_scopes(scopes)?;
     let (cte, scope_binds) = scope_cte_sql(scopes);
-    let scoped_from = "FROM scope s \
-         CROSS JOIN track t ON t.server_id = s.server_id AND t.library_id = s.library_id";
+    let scoped_from = "FROM scoped_track s CROSS JOIN track t ON t.rowid = s.rowid";
     let credited_cte = if album_artists_only {
         // #1209: album credit = one row per album-level credit in scope, not every
         // track performer with a server-wide `album_count` index row.
@@ -1068,9 +1149,8 @@ pub(crate) fn collect_scope_fts_rowids(
          SELECT f.rowid FROM track_fts f \
          WHERE track_fts MATCH ? \
            AND EXISTS ( \
-             SELECT 1 FROM track c \
-             INNER JOIN scope sc ON c.server_id = sc.server_id AND c.library_id = sc.library_id \
-             WHERE c.rowid = f.rowid AND c.deleted = 0 \
+              SELECT 1 FROM scoped_track sc \
+              WHERE sc.rowid = f.rowid \
            ) \
          ORDER BY {TRACK_FTS_BM25_RANK} LIMIT ?",
     );
@@ -1235,9 +1315,9 @@ pub(crate) fn live_search_albums(
            FROM track_fts f \
            WHERE track_fts MATCH ? \
              AND EXISTS ( \
-               SELECT 1 FROM track c \
-               INNER JOIN scope sc ON c.server_id = sc.server_id AND c.library_id = sc.library_id \
-               WHERE c.rowid = f.rowid AND c.deleted = 0 \
+                SELECT 1 FROM scoped_track sc \
+                INNER JOIN track c ON c.rowid = sc.rowid \
+                WHERE c.rowid = f.rowid AND c.deleted = 0 \
                  AND c.album_id IS NOT NULL AND c.album_id != '' \
              ) \
            ORDER BY rank \
@@ -1249,7 +1329,7 @@ pub(crate) fn live_search_albums(
                   MIN(h.rank) AS best_rank, {ALBUM_DEDUP_KEY} AS album_dedup \
            FROM fts_hits h \
            INNER JOIN track t ON t.rowid = h.rowid \
-           INNER JOIN scope s ON t.server_id = s.server_id AND t.library_id = s.library_id \
+            INNER JOIN scoped_track s ON t.rowid = s.rowid \
            LEFT JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
            WHERE t.deleted = 0 \
            GROUP BY album_dedup, t.server_id, t.album_id, s.pr \
@@ -1314,9 +1394,9 @@ pub(crate) fn live_search_artists(
            FROM track_fts f \
            WHERE track_fts MATCH ? \
              AND EXISTS ( \
-               SELECT 1 FROM track c \
-               INNER JOIN scope sc ON c.server_id = sc.server_id AND c.library_id = sc.library_id \
-               WHERE c.rowid = f.rowid AND c.deleted = 0 \
+                SELECT 1 FROM scoped_track sc \
+                INNER JOIN track c ON c.rowid = sc.rowid \
+                WHERE c.rowid = f.rowid AND c.deleted = 0 \
                  AND c.artist_id IS NOT NULL AND c.artist_id != '' \
              ) \
            ORDER BY rank \
@@ -1327,7 +1407,7 @@ pub(crate) fn live_search_artists(
                   MIN(h.rank) AS best_rank, {ARTIST_DEDUP_KEY} AS artist_dedup \
            FROM fts_hits h \
            INNER JOIN track t ON t.rowid = h.rowid \
-           INNER JOIN scope s ON t.server_id = s.server_id AND t.library_id = s.library_id \
+            INNER JOIN scoped_track s ON t.rowid = s.rowid \
            LEFT JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
            WHERE t.deleted = 0 \
            GROUP BY t.server_id, t.artist_id, t.artist, t.synced_at, s.pr, artist_dedup \
@@ -1425,9 +1505,8 @@ fn lookup_artist_key(
     .map(Option::flatten)
 }
 
-/// Caller must pre-sort `candidates` by scope priority (lowest index first).
-fn merge_album_by_priority(candidates: &[LibraryAlbumDto]) -> LibraryAlbumDto {
-    let mut out = candidates.first().cloned().unwrap_or_else(|| LibraryAlbumDto {
+fn priority_album_owner(candidates: &[LibraryAlbumDto]) -> LibraryAlbumDto {
+    candidates.first().cloned().unwrap_or_else(|| LibraryAlbumDto {
         server_id: String::new(),
         id: String::new(),
         name: String::new(),
@@ -1441,47 +1520,11 @@ fn merge_album_by_priority(candidates: &[LibraryAlbumDto]) -> LibraryAlbumDto {
         starred_at: None,
         synced_at: 0,
         raw_json: Value::Null,
-    });
-    for c in candidates.iter().skip(1) {
-        merge_optional_text(&mut out.name, &c.name);
-        merge_optional(&mut out.artist, &c.artist);
-        merge_optional(&mut out.artist_id, &c.artist_id);
-        merge_optional(&mut out.genre, &c.genre);
-        merge_optional(&mut out.cover_art_id, &c.cover_art_id);
-        merge_optional_i64(&mut out.year, c.year);
-        merge_optional_i64(&mut out.starred_at, c.starred_at);
-        merge_optional_i64(&mut out.song_count, c.song_count);
-        merge_optional_i64(&mut out.duration_sec, c.duration_sec);
-        if out.synced_at < c.synced_at {
-            out.synced_at = c.synced_at;
-        }
-    }
-    out
+    })
 }
 
-fn merge_optional_text(dst: &mut String, src: &str) {
-    if dst.trim().is_empty() && !src.trim().is_empty() {
-        *dst = src.to_string();
-    }
-}
-
-fn merge_optional(dst: &mut Option<String>, src: &Option<String>) {
-    if dst.as_ref().is_none_or(|s| s.trim().is_empty()) {
-        if let Some(s) = src.as_ref().filter(|s| !s.trim().is_empty()) {
-            *dst = Some(s.clone());
-        }
-    }
-}
-
-fn merge_optional_i64(dst: &mut Option<i64>, src: Option<i64>) {
-    if dst.is_none() {
-        *dst = src;
-    }
-}
-
-/// Caller must pre-sort `candidates` by scope priority (lowest index first).
-fn merge_artist_by_priority(candidates: &[LibraryArtistDto]) -> LibraryArtistDto {
-    let mut out = candidates.first().cloned().unwrap_or_else(|| LibraryArtistDto {
+fn priority_artist_owner(candidates: &[LibraryArtistDto]) -> LibraryArtistDto {
+    candidates.first().cloned().unwrap_or_else(|| LibraryArtistDto {
         server_id: String::new(),
         id: String::new(),
         name: String::new(),
@@ -1489,16 +1532,7 @@ fn merge_artist_by_priority(candidates: &[LibraryArtistDto]) -> LibraryArtistDto
         album_count: None,
         synced_at: 0,
         raw_json: Value::Null,
-    });
-    for c in candidates.iter().skip(1) {
-        merge_optional_text(&mut out.name, &c.name);
-        merge_optional(&mut out.name_sort, &c.name_sort);
-        merge_optional_i64(&mut out.album_count, c.album_count);
-        if out.synced_at < c.synced_at {
-            out.synced_at = c.synced_at;
-        }
-    }
-    out
+    })
 }
 
 fn fetch_album_candidates(
@@ -1623,16 +1657,9 @@ pub fn album_detail(
     store.with_read_conn(|conn| {
         let album_key = lookup_album_key(conn, server_id, album_id)?;
         let candidates = fetch_album_candidates(conn, scopes, album_key.as_deref(), server_id, album_id)?;
-        let mut albums: Vec<LibraryAlbumDto> = candidates.into_iter().map(|(_, a)| a).collect();
-        albums.sort_by_key(|a| {
-            scopes
-                .iter()
-                .position(|p| p.server_id == a.server_id)
-                .unwrap_or(usize::MAX) as i64
-        });
-        let mut album = merge_album_by_priority(&albums);
-        album.starred_at =
-            read_album_starred_at(conn, server_id, album_id).unwrap_or(None);
+        let albums: Vec<LibraryAlbumDto> = candidates.into_iter().map(|(_, a)| a).collect();
+        let mut album = priority_album_owner(&albums);
+        album.starred_at = read_album_starred_at(conn, &album.server_id, &album.id).unwrap_or(None);
         let tracks = fetch_scope_deduped_tracks_for_album_key(
             conn,
             scopes,
@@ -1650,7 +1677,7 @@ fn fetch_artist_candidates(
     artist_key: Option<&str>,
     anchor_server: &str,
     anchor_artist_id: &str,
-) -> rusqlite::Result<Vec<LibraryArtistDto>> {
+) -> rusqlite::Result<Vec<(i64, LibraryArtistDto)>> {
     let (cte, scope_binds) = scope_cte_sql(scopes);
     let key_filter = if artist_key.is_some() {
         "AND ck.artist_key = ?"
@@ -1681,15 +1708,18 @@ fn fetch_artist_candidates(
     let rows = stmt
         .query_map(params_from_iter(binds.iter()), |r| {
             let name: String = r.get(2)?;
-            Ok(LibraryArtistDto {
-                server_id: r.get(0)?,
-                id: r.get(1)?,
-                name: name.clone(),
-                name_sort: Some(sort_key_for_display_name(&name, DEFAULT_IGNORED_ARTICLES)),
-                album_count: Some(r.get(3)?),
-                synced_at: r.get(4)?,
-                raw_json: Value::Null,
-            })
+            Ok((
+                r.get(5)?,
+                LibraryArtistDto {
+                    server_id: r.get(0)?,
+                    id: r.get(1)?,
+                    name: name.clone(),
+                    name_sort: Some(sort_key_for_display_name(&name, DEFAULT_IGNORED_ARTICLES)),
+                    album_count: Some(r.get(3)?),
+                    synced_at: r.get(4)?,
+                    raw_json: Value::Null,
+                },
+            ))
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(rows)
@@ -1808,20 +1838,15 @@ pub fn artist_detail(
 
     store.with_read_conn(|conn| {
         let artist_key = lookup_artist_key(conn, server_id, artist_id)?;
-        let mut candidates = fetch_artist_candidates(
+        let candidates = fetch_artist_candidates(
             conn,
             scopes,
             artist_key.as_deref(),
             server_id,
             artist_id,
         )?;
-        candidates.sort_by_key(|a| {
-            scopes
-                .iter()
-                .position(|p| p.server_id == a.server_id)
-                .unwrap_or(usize::MAX) as i64
-        });
-        let artist = merge_artist_by_priority(&candidates);
+        let candidates: Vec<LibraryArtistDto> = candidates.into_iter().map(|(_, a)| a).collect();
+        let artist = priority_artist_owner(&candidates);
         let albums = fetch_albums_for_artist_key(
             conn,
             scopes,
@@ -1853,7 +1878,14 @@ mod tests {
     fn scope_pair(server: &str, lib: &str) -> LibraryScopePair {
         LibraryScopePair {
             server_id: server.into(),
-            library_id: lib.into(),
+            library_id: Some(lib.into()),
+        }
+    }
+
+    fn whole_scope(server: &str) -> LibraryScopePair {
+        LibraryScopePair {
+            server_id: server.into(),
+            library_id: None,
         }
     }
 
@@ -2159,7 +2191,7 @@ mod tests {
     }
 
     #[test]
-    fn album_detail_aggregates_metadata_by_priority() {
+    fn album_detail_uses_one_priority_owner_record() {
         let store = LibraryStore::open_in_memory();
         seed_and_rebuild(
             &store,
@@ -2204,9 +2236,166 @@ mod tests {
         )
         .unwrap();
         assert_eq!(detail.album.year, Some(2001));
-        assert_eq!(detail.album.genre.as_deref(), Some("Jazz"));
-        assert_eq!(detail.album.cover_art_id.as_deref(), Some("cov-b"));
+        assert_eq!(detail.album.genre, None);
+        assert_eq!(detail.album.cover_art_id, None);
         assert_eq!(detail.tracks.len(), 1);
+    }
+
+    #[test]
+    fn artist_detail_owner_uses_full_pair_priority_within_one_server() {
+        let store = LibraryStore::open_in_memory();
+        seed_and_rebuild(
+            &store,
+            &[
+                track(
+                    "s1", "t-low", "One", Some("Shared Artist"), "Low", "al-low",
+                    Some("artist-low"), 100, "lib-low", None, None, None,
+                ),
+                track(
+                    "s1", "t-high", "Two", Some("Shared Artist"), "High", "al-high",
+                    Some("artist-high"), 100, "lib-high", None, None, None,
+                ),
+            ],
+        );
+        let detail = artist_detail(
+            &store,
+            &LibraryScopeArtistDetailRequest {
+                scopes: vec![scope_pair("s1", "lib-high"), scope_pair("s1", "lib-low")],
+                artist_id: "artist-low".into(),
+                server_id: "s1".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(detail.artist.id, "artist-high");
+        assert_eq!(detail.albums.len(), 2);
+        assert_eq!(detail.tracks.len(), 2);
+    }
+
+    #[test]
+    fn scope_normalization_keeps_empty_library_and_rejects_overlap() {
+        let duplicate = vec![scope_pair("s1", ""), scope_pair("s1", "")];
+        let normalized = normalize_scope_pairs(&duplicate).unwrap();
+        assert_eq!(normalized, vec![scope_pair("s1", "")]);
+
+        let overlap = vec![whole_scope("s1"), scope_pair("s1", "lib-a")];
+        assert!(normalize_scope_pairs(&overlap)
+            .unwrap_err()
+            .contains("cannot mix whole-server and exact-library"));
+    }
+
+    #[test]
+    fn whole_server_scope_includes_empty_library_but_exact_empty_does_not_include_others() {
+        let store = LibraryStore::open_in_memory();
+        seed_and_rebuild(
+            &store,
+            &[
+                track(
+                    "s1", "t-empty", "Empty", Some("A"), "Empty Album", "al-empty",
+                    Some("ar1"), 100, "", None, None, None,
+                ),
+                track(
+                    "s1", "t-lib", "Named", Some("B"), "Named Album", "al-lib",
+                    Some("ar2"), 100, "lib-a", None, None, None,
+                ),
+            ],
+        );
+        let whole = list_albums(
+            &store,
+            &LibraryScopeListRequest {
+                scopes: vec![whole_scope("s1")],
+                sort: None,
+                limit: Some(10),
+                offset: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(whole.len(), 2);
+
+        let exact_empty = list_albums(
+            &store,
+            &LibraryScopeListRequest {
+                scopes: vec![scope_pair("s1", "")],
+                sort: None,
+                limit: Some(10),
+                offset: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(exact_empty.len(), 1);
+        assert_eq!(exact_empty[0].id, "al-empty");
+    }
+
+    #[test]
+    fn cross_server_whole_scope_priority_and_duration_bucket_are_stable() {
+        let store = LibraryStore::open_in_memory();
+        seed_and_rebuild(
+            &store,
+            &[
+                track(
+                    "s1", "t-a", "Shared", Some("Artist"), "Album", "al-a",
+                    Some("ar-a"), 104, "lib-a", Some(2001), None, None,
+                ),
+                track(
+                    "s2", "t-b", "Shared", Some("Artist"), "Album", "al-b",
+                    Some("ar-b"), 104, "", Some(1999), None, None,
+                ),
+                track(
+                    "s2", "t-boundary", "Shared", Some("Artist"), "Album", "al-b",
+                    Some("ar-b"), 105, "", Some(1999), None, None,
+                ),
+            ],
+        );
+        let first = search_tracks(
+            &store,
+            &LibraryScopeSearchRequest {
+                scopes: vec![whole_scope("s1"), whole_scope("s2")],
+                query: "Shared".into(),
+                limit: Some(10),
+            },
+        )
+        .unwrap();
+        assert_eq!(first.len(), 2, "104s copies merge; 105s starts a new bucket");
+        assert_eq!(first[0].server_id, "s1");
+
+        let flipped = search_tracks(
+            &store,
+            &LibraryScopeSearchRequest {
+                scopes: vec![whole_scope("s2"), whole_scope("s1")],
+                query: "Shared".into(),
+                limit: Some(10),
+            },
+        )
+        .unwrap();
+        assert!(flipped.iter().any(|track| track.id == "t-b"));
+        assert!(!flipped.iter().any(|track| track.id == "t-a"));
+    }
+
+    #[test]
+    fn scope_compiler_keeps_separate_indexed_branches_and_fts_exists() {
+        let scopes = vec![scope_pair("s1", "lib-a"), whole_scope("s2")];
+        let (cte, _) = scope_cte_sql(&scopes);
+        assert!(cte.contains("exact_scope"));
+        assert!(cte.contains("whole_scope"));
+        assert!(cte.contains("UNION ALL"));
+        assert!(!cte.contains("IS NULL OR"));
+
+        let store = LibraryStore::open_in_memory();
+        let plan_sql = format!(
+            "EXPLAIN QUERY PLAN {cte} SELECT f.rowid FROM track_fts f \
+             WHERE track_fts MATCH ? AND EXISTS (SELECT 1 FROM scoped_track sc WHERE sc.rowid = f.rowid) \
+             ORDER BY {TRACK_FTS_BM25_RANK} LIMIT 10"
+        );
+        let plan = store
+            .with_read_conn(|conn| {
+                let mut stmt = conn.prepare(&plan_sql)?;
+                let rows = stmt
+                    .query_map(["s1", "lib-a", "s2", "shared"], |row| row.get::<_, String>(3))?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                Ok(rows.join("\n"))
+            })
+            .unwrap();
+        assert!(plan.contains("VIRTUAL TABLE INDEX"), "{plan}");
+        assert!(plan.contains("SEARCH t") || plan.contains("COVERING INDEX"), "{plan}");
     }
 
     #[test]

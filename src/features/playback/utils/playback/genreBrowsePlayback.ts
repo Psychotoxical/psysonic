@@ -1,7 +1,12 @@
 /**
  * Genre-detail bulk play/shuffle against the local library index.
  */
-import { libraryAdvancedSearch, libraryGetGenreAlbumCounts, type LibrarySortClause } from '@/lib/api/library';
+import {
+  libraryAdvancedSearch,
+  libraryGetGenreAlbumCounts,
+  type LibraryScopePair,
+  type LibrarySortClause,
+} from '@/lib/api/library';
 import { fetchAllSongsByGenre, getGenres } from '@/lib/api/subsonicGenres';
 import type { SubsonicGenre } from '@/lib/api/subsonicTypes';
 import {
@@ -38,7 +43,7 @@ export function filterGenresWithContent(genres: SubsonicGenre[]): SubsonicGenre[
 
 async function loadLocalGenreCatalogRows(
   serverId: string,
-  args: { libraryScope?: string; libraryScopes?: string[] } = {},
+  args: { libraryScope?: string; libraryScopes?: LibraryScopePair[] } = {},
 ): Promise<SubsonicGenre[]> {
   const rows = await libraryGetGenreAlbumCounts({
     serverId,
@@ -58,10 +63,14 @@ async function fetchLocalGenreCatalog(
   const selection = librarySelectionForServer(serverId);
   const genres =
     selection.length === 0
-      ? await loadLocalGenreCatalogRows(serverId)
+      ? await loadLocalGenreCatalogRows(serverId, {
+        libraryScopes: libraryScopePairsForServer(serverId),
+      })
       : selection.length === 1
         ? await loadLocalGenreCatalogRows(serverId, { libraryScope: selection[0] })
-        : await loadLocalGenreCatalogRows(serverId, { libraryScopes: selection });
+        : await loadLocalGenreCatalogRows(serverId, {
+          libraryScopes: selection.map(libraryId => ({ serverId, libraryId })),
+        });
   writeGenreCatalogCache(serverId, scopeKey, genres);
   return genres;
 }

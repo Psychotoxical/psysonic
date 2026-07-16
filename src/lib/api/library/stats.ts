@@ -12,6 +12,7 @@ import type {
   GenreAlbumCountRow,
   LibraryGenreAlbumsRequest,
   LibraryGenreAlbumsResponse,
+  LibraryScopePair,
   PlaySessionInput,
   PlaySessionYearSummary,
   PlaySessionHeatmapDay,
@@ -33,13 +34,16 @@ export async function libraryGetCatalogYearBounds(args: {
 export async function libraryGetGenreAlbumCounts(args: {
   serverId: string;
   libraryScope?: string;
-  libraryScopes?: string[];
+  libraryScopes?: LibraryScopePair[];
 }): Promise<GenreAlbumCountRow[]> {
   const indexKey = serverIndexKeyForId(args.serverId);
+  const libraryScopes = args.libraryScopes?.length
+    ? mapScopePairs(args.libraryScopes, args.serverId)
+    : null;
   const res = await commands.libraryGetGenreAlbumCounts(
     indexKey,
     args.libraryScope ?? null,
-    args.libraryScopes ?? null,
+    libraryScopes,
   );
   if (res.status === 'error') throw new Error(res.error);
   return res.data;

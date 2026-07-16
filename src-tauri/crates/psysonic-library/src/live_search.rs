@@ -46,9 +46,15 @@ pub fn run_live_search(
         });
     }
 
-    let scope_pairs = ordered_library_scope_pairs(server_id, library_scope, library_scopes);
-    if multi_library_merge_enabled(&scope_pairs) {
-        crate::identity::ensure_cluster_keys_built(store, server_id)?;
+    let scope_pairs = ordered_library_scope_pairs(server_id, library_scope, library_scopes)?;
+    let pair_reader_required = multi_library_merge_enabled(&scope_pairs)
+        || scope_pairs
+            .first()
+            .is_some_and(|pair| pair.server_id != server_id);
+    if pair_reader_required {
+        for scope_server in scope_pairs.iter().map(|p| p.server_id.as_str()).collect::<HashSet<_>>() {
+            crate::identity::ensure_cluster_keys_built(store, scope_server)?;
+        }
         return run_live_search_multi_scope(
             store,
             &scope_pairs,
@@ -63,7 +69,7 @@ pub fn run_live_search(
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(str::to_string)
-        .or_else(|| scope_pairs.first().map(|p| p.library_id.clone()));
+        .or_else(|| scope_pairs.first().and_then(|p| p.library_id.clone()));
 
     store.with_read_conn(|conn| {
         let scopes = scopes_from_option(effective_scope.as_deref());
@@ -869,11 +875,11 @@ mod tests {
         let scopes = vec![
             LibraryScopePair {
                 server_id: "s1".into(),
-                library_id: "lib-a".into(),
+                library_id: Some("lib-a".into()),
             },
             LibraryScopePair {
                 server_id: "s1".into(),
-                library_id: "lib-b".into(),
+                library_id: Some("lib-b".into()),
             },
         ];
         let resp = run_live_search(
@@ -893,6 +899,50 @@ mod tests {
         assert_eq!(resp.albums[0].id, "alb-a");
         assert_eq!(resp.tracks.len(), 1);
         assert_eq!(resp.tracks[0].id, "t-a");
+    }
+
+    #[test]
+    fn cross_server_whole_scope_live_search_keeps_priority_and_empty_library_rows() {
+        use crate::dto::LibraryScopePair;
+        use crate::identity::rebuild_cluster_keys;
+
+        let store = LibraryStore::open_in_memory();
+        let mut first = track("s1", "t-a", "Shared Song", "Shared Artist", "Shared Album", "al-a", "ar-a");
+        first.library_id = Some("lib-a".into());
+        let mut second = track("s2", "t-b", "Shared Song", "Shared Artist", "Shared Album", "al-b", "ar-b");
+        second.library_id = Some(String::new());
+        TrackRepository::new(&store).upsert_batch(&[first, second]).unwrap();
+        rebuild_cluster_keys(&store, None).unwrap();
+
+        let scopes = vec![
+            LibraryScopePair { server_id: "s2".into(), library_id: None },
+            LibraryScopePair { server_id: "s1".into(), library_id: None },
+        ];
+        let resp = run_live_search(&store, "s1", "shared", None, Some(&scopes), 5, 5, 10).unwrap();
+        assert_eq!(resp.tracks.len(), 1);
+        assert_eq!(resp.tracks[0].server_id, "s2");
+        assert_eq!(resp.tracks[0].id, "t-b");
+    }
+
+    #[test]
+    fn single_exact_pair_on_another_server_does_not_use_fallback_server() {
+        use crate::dto::LibraryScopePair;
+
+        let store = LibraryStore::open_in_memory();
+        let mut fallback = track("s1", "fallback", "Shared Song", "Artist", "Album", "al1", "ar1");
+        fallback.library_id = Some("lib".into());
+        let mut selected = track("s2", "selected", "Shared Song", "Artist", "Album", "al2", "ar2");
+        selected.library_id = Some("lib".into());
+        TrackRepository::new(&store).upsert_batch(&[fallback, selected]).unwrap();
+
+        let scopes = vec![LibraryScopePair {
+            server_id: "s2".into(),
+            library_id: Some("lib".into()),
+        }];
+        let response = run_live_search(&store, "s1", "shared", None, Some(&scopes), 5, 5, 10).unwrap();
+        assert_eq!(response.tracks.len(), 1);
+        assert_eq!(response.tracks[0].id, "selected");
+        assert_eq!(response.tracks[0].server_id, "s2");
     }
 
     /// Manual: `cargo test -p psysonic-library bench_disk_live_search --release -- --ignored --nocapture`

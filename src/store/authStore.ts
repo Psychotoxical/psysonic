@@ -131,6 +131,8 @@ export const useAuthStore = create<AuthState>()(
       randomNavMode: 'hub',
       nowPlayingAtTop: false,
       musicFolders: [],
+      musicLibraryServerIds: [],
+      musicFoldersByServer: {},
       musicLibraryFilterByServer: {},
       musicLibrarySelectionByServer: {},
       musicLibraryFilterVersion: 0,

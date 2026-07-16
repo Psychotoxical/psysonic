@@ -196,10 +196,10 @@ export interface LibrarySortClause {
   dir: SortDir;
 }
 
-/** One server + library folder id — profile `serverId` space until IPC wrappers remap. */
+/** One server + library source — `null` means the whole server; `''` stays exact. */
 export interface LibraryScopePair {
   serverId: string;
-  libraryId: string;
+  libraryId: string | null;
 }
 
 export interface LibraryAdvancedSearchRequest {
@@ -298,8 +298,8 @@ export interface LibraryLiveSearchRequest {
 export interface LibraryLosslessAlbumsRequest {
   serverId: string;
   libraryScope?: string | null;
-  /** Ordered library ids for a multi-library selection; wins over `libraryScope`. */
-  libraryScopes?: string[] | null;
+  /** Ordered server/library sources; wins over `libraryScope`. */
+  libraryScopes?: LibraryScopePair[] | null;
   limit?: number;
   offset?: number;
 }
@@ -314,8 +314,8 @@ export interface LibraryArtistLosslessBrowseRequest {
   serverId: string;
   artistId: string;
   libraryScope?: string | null;
-  /** Ordered library ids for a multi-library selection; wins over `libraryScope`. */
-  libraryScopes?: string[] | null;
+  /** Ordered server/library sources; wins over `libraryScope`. */
+  libraryScopes?: LibraryScopePair[] | null;
 }
 
 export interface LibraryArtistLosslessBrowseResponse {

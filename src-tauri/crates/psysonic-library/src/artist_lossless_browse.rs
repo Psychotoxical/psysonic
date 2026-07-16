@@ -2,7 +2,8 @@
 
 use crate::dto::{
     LibraryAlbumDto, LibraryArtistLosslessBrowseRequest, LibraryArtistLosslessBrowseResponse,
-    LibraryTrackDto,
+    LibraryScopeArtistDetailRequest, LibraryTrackDto, multi_library_merge_enabled,
+    ordered_library_scope_pairs,
 };
 use crate::lossless_formats::track_is_lossless_sql;
 use crate::search::{
@@ -39,8 +40,60 @@ pub fn get_artist_lossless_browse(
     store: &LibraryStore,
     req: &LibraryArtistLosslessBrowseRequest,
 ) -> Result<LibraryArtistLosslessBrowseResponse, String> {
-    if !crate::dto::track_index_nonempty(store, &req.server_id)? {
+    let scope_pairs = ordered_library_scope_pairs(
+        &req.server_id,
+        req.library_scope.as_deref(),
+        req.library_scopes.as_deref(),
+    )?;
+    if scope_pairs.is_empty() && !crate::dto::track_index_nonempty(store, &req.server_id)? {
         return Ok(empty_response());
+    }
+    let use_pair_reader = scope_pairs.len() > 1
+        || scope_pairs.first().is_some_and(|pair| {
+            pair.server_id != req.server_id || pair.library_id.is_none()
+        });
+    if use_pair_reader {
+        if multi_library_merge_enabled(&scope_pairs) {
+            for server_id in scope_pairs
+                .iter()
+                .map(|p| p.server_id.as_str())
+                .collect::<std::collections::HashSet<_>>()
+            {
+                crate::identity::ensure_cluster_keys_built(store, server_id)?;
+            }
+        }
+        let detail = crate::scope_merge::artist_detail(
+            store,
+            &LibraryScopeArtistDetailRequest {
+                scopes: scope_pairs,
+                artist_id: req.artist_id.clone(),
+                server_id: req.server_id.clone(),
+            },
+        )?;
+        let tracks: Vec<_> = detail
+            .tracks
+            .into_iter()
+            .filter(|track| {
+                track
+                    .suffix
+                    .as_deref()
+                    .is_some_and(|suffix| crate::lossless_formats::LOSSLESS_SUFFIXES.contains(&suffix.to_ascii_lowercase().as_str()))
+            })
+            .collect();
+        let album_ids: std::collections::HashSet<(&str, &str)> = tracks
+            .iter()
+            .filter_map(|track| track.album_id.as_deref().map(|id| (track.server_id.as_str(), id)))
+            .collect();
+        let albums = detail
+            .albums
+            .into_iter()
+            .filter(|album| album_ids.contains(&(album.server_id.as_str(), album.id.as_str())))
+            .collect();
+        return Ok(LibraryArtistLosslessBrowseResponse {
+            albums,
+            tracks,
+            source: "local".to_string(),
+        });
     }
 
     let lossless_sql = track_is_lossless_sql("t");
@@ -55,8 +108,11 @@ pub fn get_artist_lossless_browse(
         SqlValue::Text(req.artist_id.clone()),
     ];
 
-    let scope_ids =
-        combined_scope_library_ids(req.library_scope.as_deref(), req.library_scopes.as_deref());
+    let scope_ids = scope_pairs
+        .first()
+        .and_then(|pair| pair.library_id.clone())
+        .map(|library_id| vec![library_id])
+        .unwrap_or_else(|| combined_scope_library_ids(req.library_scope.as_deref(), None));
     push_library_scope_filter(&mut track_where, &mut track_params, &scope_ids);
 
     let track_where_sql = track_where.join(" AND ");

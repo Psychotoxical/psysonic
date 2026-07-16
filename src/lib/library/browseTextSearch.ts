@@ -10,7 +10,6 @@ import { libraryAdvancedSearch, libraryGetArtistLosslessBrowse, libraryListLossl
 import {
   libraryScopeForServer,
   libraryScopePairsForServer,
-  librarySelectionForServer,
 } from '@/lib/api/subsonicClient';
 import {
   LIVE_SEARCH_DEBOUNCE_NETWORK_MS,
@@ -447,7 +446,7 @@ export async function runLocalLosslessAlbums(
     const resp = await libraryListLosslessAlbums({
       serverId,
       libraryScope: libraryScopeForServer(serverId) ?? undefined,
-      libraryScopes: librarySelectionForServer(serverId),
+      libraryScopes: libraryScopePairsForServer(serverId),
       limit,
       offset,
     });
@@ -472,7 +471,7 @@ export async function runLocalArtistLosslessBrowse(
       serverId,
       artistId,
       libraryScope: libraryScopeForServer(serverId) ?? undefined,
-      libraryScopes: librarySelectionForServer(serverId),
+      libraryScopes: libraryScopePairsForServer(serverId),
     });
     if (resp.source !== 'local') return null;
     return {

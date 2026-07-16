@@ -57,6 +57,11 @@ export interface ServerProfile {
   customHeadersApplyTo?: CustomHeadersApplyTo;
 }
 
+export interface MusicFolder {
+  id: string;
+  name: string;
+}
+
 export type SeekbarStyle = 'truewave' | 'pseudowave' | 'linedot' | 'bar' | 'thick' | 'segmented' | 'neon' | 'pulsewave' | 'particletrail' | 'liquidfill' | 'retrotape';
 /**
  * Look of the custom-title-bar window buttons (minimize/maximize/close).
@@ -312,7 +317,11 @@ export interface AuthState {
   showLuckyMixMenu: boolean;
 
   /** Subsonic music folders for the active server (not persisted; refetched on login / server change). */
-  musicFolders: Array<{ id: string; name: string }>;
+  musicFolders: MusicFolder[];
+  /** Selected server ids. Browse priority always follows `servers` order. */
+  musicLibraryServerIds: string[];
+  /** Last successfully fetched music-folder list per saved server. */
+  musicFoldersByServer: Record<string, MusicFolder[]>;
   /**
    * Per server: `all` = no musicFolderId param; otherwise a single folder id.
    * Legacy single-select; kept in sync with `musicLibrarySelectionByServer` for old readers.
@@ -476,7 +485,10 @@ export interface AuthState {
   setMixMinRatingArtist: (v: number) => void;
   setRandomMixSize: (v: number) => void;
   setShowLuckyMixMenu: (v: boolean) => void;
-  setMusicFolders: (folders: Array<{ id: string; name: string }>) => void;
+  setMusicLibraryServerSelected: (serverId: string, selected: boolean) => void;
+  setMusicFoldersForServer: (serverId: string, folders: MusicFolder[]) => void;
+  setMusicLibrarySelectionForServer: (serverId: string, libraryIds: string[]) => void;
+  setMusicFolders: (folders: MusicFolder[]) => void;
   setMusicLibraryFilter: (folderId: 'all' | string) => void;
   /** Ordered multi-library selection for the active server; array order is priority. */
   setMusicLibrarySelection: (libraryIds: string[]) => void;

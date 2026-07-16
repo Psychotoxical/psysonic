@@ -89,7 +89,9 @@ function mapArtistsServerId(
 /** Build ordered scope pairs from the persisted library selection for one server. */
 export function scopePairsFromLibrarySelection(serverId: string): LibraryScopePair[] {
   const indexKey = serverIndexKeyForId(serverId);
-  return librarySelectionForServer(serverId).map(libraryId => ({
+  const selection = librarySelectionForServer(serverId);
+  if (selection.length === 0) return [{ serverId: indexKey, libraryId: null }];
+  return selection.map(libraryId => ({
     serverId: indexKey,
     libraryId,
   }));

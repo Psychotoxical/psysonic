@@ -22,7 +22,7 @@ import { albumBrowseHasServerFilters, countGenresFromAlbums, filterAlbumsByCompi
 import { runLocalAlbumBrowse } from './albumBrowseLocal';
 import { fetchAlbumBrowseNetwork } from './albumBrowseNetwork';
 import { fetchStarredAlbumBrowse } from './albumBrowseStarredFetch';
-import { librarySelectionForServer } from '@/lib/api/subsonicClient';
+import { libraryScopePairsForServer, librarySelectionForServer } from '@/lib/api/subsonicClient';
 import { libraryIsReady } from './libraryReady';
 import type {
   AlbumBrowseFetchCallbacks,
@@ -83,7 +83,10 @@ export async function fetchAlbumBrowseGenreOptions(
       if (selection.length === 0) {
         const rows = await albumBrowseTimed(
           'genre_album_counts',
-          () => fetchGenreAlbumCountsDeduped({ serverId }),
+          () => fetchGenreAlbumCountsDeduped({
+            serverId,
+            libraryScopes: libraryScopePairsForServer(serverId),
+          }),
           { libraryCount: 0 },
         );
         return rows.map(row => ({ genre: row.value, count: row.albumCount }));
@@ -98,7 +101,10 @@ export async function fetchAlbumBrowseGenreOptions(
       }
       const rows = await albumBrowseTimed(
         'genre_album_counts_multi',
-        () => fetchGenreAlbumCountsDeduped({ serverId, libraryScopes: selection }),
+        () => fetchGenreAlbumCountsDeduped({
+          serverId,
+          libraryScopes: selection.map(libraryId => ({ serverId, libraryId })),
+        }),
         { libraryCount: selection.length },
       );
       return rows.map(row => ({ genre: row.value, count: row.albumCount })).sort(

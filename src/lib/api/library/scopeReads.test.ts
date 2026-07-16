@@ -6,6 +6,8 @@ import {
   libraryScopeListAlbums,
   libraryScopeListArtists,
   libraryScopeSearchTracks,
+  mapScopePairs,
+  scopePairsFromLibrarySelection,
   type LibraryScopePair,
 } from './scopeReads';
 import { useAuthStore } from '@/store/authStore';
@@ -25,12 +27,39 @@ beforeEach(() => {
         username: 'u',
         password: 'p',
       },
+      {
+        id: 'profile-s2',
+        name: 'S2',
+        url: 'https://s2.example',
+        username: 'u',
+        password: 'p',
+      },
     ],
     activeServerId: 'profile-s1',
   });
 });
 
 describe('libraryScopeListAlbums', () => {
+  it('maps whole-server and exact-empty pairs without conflating them', () => {
+    expect(mapScopePairs([
+      { serverId: 'profile-s1', libraryId: null },
+      { serverId: 'profile-s2', libraryId: '' },
+    ], 'profile-s1')).toEqual([
+      { serverId: 's1.example', libraryId: null },
+      { serverId: 's2.example', libraryId: '' },
+    ]);
+  });
+
+  it('builds a whole-server pair from an empty persisted selection', () => {
+    useAuthStore.setState({
+      musicLibrarySelectionByServer: { 'profile-s1': [] },
+      musicLibraryFilterByServer: { 'profile-s1': 'all' },
+    });
+    expect(scopePairsFromLibrarySelection('profile-s1')).toEqual([
+      { serverId: 's1.example', libraryId: null },
+    ]);
+  });
+
   it('invokes library_scope_list_albums with index-keyed scopes', async () => {
     let captured: unknown;
     onInvoke('library_scope_list_albums', (args) => {
@@ -47,6 +76,55 @@ describe('libraryScopeListAlbums', () => {
         limit: 50,
       },
     });
+  });
+
+  it('preserves returned cross-server provenance instead of using the caller fallback', async () => {
+    onInvoke('library_scope_list_albums', () => [{
+      serverId: 's2.example',
+      id: 'al-2',
+      name: 'B',
+      syncedAt: 0,
+      rawJson: {},
+    }]);
+    const albums = await libraryScopeListAlbums('profile-s1', { scopes });
+    expect(albums[0]?.serverId).toBe('profile-s2');
+  });
+
+  it('uses the caller fallback only for an unknown returned index key', async () => {
+    onInvoke('library_scope_list_albums', () => [{
+      serverId: 'unknown-index-key',
+      id: 'al-2',
+      name: 'B',
+      syncedAt: 0,
+      rawJson: {},
+    }]);
+    const albums = await libraryScopeListAlbums('profile-s1', { scopes });
+    expect(albums[0]?.serverId).toBe('profile-s1');
+  });
+
+  it('resolves duplicate profile/index-key aliases to the returned owner', async () => {
+    useAuthStore.setState(state => ({
+      servers: [
+        ...state.servers,
+        {
+          id: 'profile-s2-alias',
+          name: 'S2 alias',
+          url: 'https://s2.example',
+          username: 'u',
+          password: 'p',
+        },
+      ],
+      activeServerId: 'profile-s2-alias',
+    }));
+    onInvoke('library_scope_list_albums', () => [{
+      serverId: 's2.example',
+      id: 'al-2',
+      name: 'B',
+      syncedAt: 0,
+      rawJson: {},
+    }]);
+    const albums = await libraryScopeListAlbums('profile-s1', { scopes });
+    expect(albums[0]?.serverId).toBe('profile-s2-alias');
   });
 });
 
@@ -66,6 +144,18 @@ describe('libraryScopeListArtists', () => {
         ],
       },
     });
+  });
+
+  it('preserves returned cross-server artist provenance', async () => {
+    onInvoke('library_scope_list_artists', () => [{
+      serverId: 's2.example',
+      id: 'ar-2',
+      name: 'Artist B',
+      syncedAt: 0,
+      rawJson: {},
+    }]);
+    const artists = await libraryScopeListArtists('profile-s1', { scopes });
+    expect(artists[0]?.serverId).toBe('profile-s2');
   });
 });
 

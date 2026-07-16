@@ -1,8 +1,8 @@
-import type { GenreAlbumCountRow } from '@/lib/api/library/dto';
+import type { GenreAlbumCountRow, LibraryScopePair } from '@/lib/api/library/dto';
 import { libraryGetGenreAlbumCounts } from '@/lib/api/library';
 
-function genreCountsCacheKey(serverId: string, scopes: readonly string[]): string {
-  return `${serverId}|${[...scopes].sort().join('\u0001')}`;
+function genreCountsCacheKey(serverId: string, scopes: readonly LibraryScopePair[]): string {
+  return `${serverId}|${JSON.stringify(scopes.map(scope => [scope.serverId, scope.libraryId]))}`;
 }
 
 const inflight = new Map<string, Promise<GenreAlbumCountRow[]>>();
@@ -10,9 +10,12 @@ const inflight = new Map<string, Promise<GenreAlbumCountRow[]>>();
 export function fetchGenreAlbumCountsDeduped(args: {
   serverId: string;
   libraryScope?: string;
-  libraryScopes?: string[];
+  libraryScopes?: LibraryScopePair[];
 }): Promise<GenreAlbumCountRow[]> {
-  const scopes = args.libraryScopes ?? (args.libraryScope ? [args.libraryScope] : []);
+  const scopes = args.libraryScopes
+    ?? (args.libraryScope !== undefined
+      ? [{ serverId: args.serverId, libraryId: args.libraryScope }]
+      : [{ serverId: args.serverId, libraryId: null }]);
   const key = genreCountsCacheKey(args.serverId, scopes);
   const hit = inflight.get(key);
   if (hit) return hit;

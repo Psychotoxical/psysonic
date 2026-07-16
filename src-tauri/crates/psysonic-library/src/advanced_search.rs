@@ -194,14 +194,24 @@ pub fn run_advanced_search(
         &req.server_id,
         req.library_scope.as_deref(),
         req.library_scopes.as_deref(),
-    );
+    )?;
     // Any >1-library scope dedups album/artist rows via cluster keys, including
     // the Layer-1 same-server path — build keys first so dedup works on a cold
     // index (idempotent; only rebuilds when needed).
-    if multi_library_merge_enabled(&scope_pairs) {
-        crate::identity::ensure_cluster_keys_built(store, &req.server_id)?;
+    let pair_reader_required = multi_library_merge_enabled(&scope_pairs)
+        || scope_pairs
+            .first()
+            .is_some_and(|pair| pair.server_id != req.server_id);
+    if pair_reader_required {
+        for server_id in scope_pairs.iter().map(|p| p.server_id.as_str()).collect::<HashSet<_>>() {
+            crate::identity::ensure_cluster_keys_built(store, server_id)?;
+        }
     }
-    if scoped_layer1_eligible(&scope_pairs) {
+    if scoped_layer1_eligible(&scope_pairs)
+        && scope_pairs
+            .first()
+            .is_some_and(|pair| pair.server_id == req.server_id)
+    {
         return run_advanced_search_layer1_scope(
             store,
             req,
@@ -213,7 +223,7 @@ pub fn run_advanced_search(
             skip_totals,
         );
     }
-    if multi_library_merge_enabled(&scope_pairs) {
+    if pair_reader_required {
         return run_advanced_search_multi_scope(
             store,
             req,
@@ -229,7 +239,7 @@ pub fn run_advanced_search(
     let mut legacy = req.clone();
     if legacy.library_scope.is_none() {
         if let Some(pair) = scope_pairs.first() {
-            legacy.library_scope = Some(pair.library_id.clone());
+            legacy.library_scope = pair.library_id.clone();
         }
     }
 
@@ -1140,11 +1150,12 @@ fn push_artist_library_scope_pairs(
     pairs: &[LibraryScopePair],
     applied: &mut BTreeSet<String>,
 ) {
-    // Pairs may carry profile or index `server_id`; this query is already pinned to
-    // one server via `ar.server_id = ?`, so only drop empty library ids.
+    if pairs.iter().any(|p| p.library_id.is_none()) {
+        return;
+    }
     let scoped: Vec<&LibraryScopePair> = pairs
         .iter()
-        .filter(|p| !p.library_id.trim().is_empty())
+        .filter(|p| p.server_id == _server_id)
         .collect();
     if scoped.is_empty() {
         return;
@@ -1155,7 +1166,7 @@ fn push_artist_library_scope_pairs(
         let clause = library_scope_sargable_equals_sql("t");
         w.push_params(
             &format!("{exists_prefix}{clause})"),
-            vec![SqlValue::Text(scoped[0].library_id.clone())],
+            vec![SqlValue::Text(scoped[0].library_id.clone().unwrap_or_default())],
         );
     } else {
         let in_clause = library_scope_in_sql("t", scoped.len());
@@ -1163,7 +1174,7 @@ fn push_artist_library_scope_pairs(
             &format!("{exists_prefix}{in_clause})"),
             scoped
                 .iter()
-                .map(|p| SqlValue::Text(p.library_id.clone()))
+                .map(|p| SqlValue::Text(p.library_id.clone().unwrap_or_default()))
                 .collect(),
         );
     }
@@ -1175,7 +1186,7 @@ fn push_artist_library_scope(w: &mut WhereBuilder, req: &LibraryAdvancedSearchRe
         &req.server_id,
         req.library_scope.as_deref(),
         req.library_scopes.as_deref(),
-    );
+    ).unwrap_or_default();
     push_artist_library_scope_pairs(w, &req.server_id, &pairs, applied);
 }
 
@@ -3595,7 +3606,7 @@ mod tests {
     fn scope_pair(server: &str, lib: &str) -> crate::dto::LibraryScopePair {
         crate::dto::LibraryScopePair {
             server_id: server.into(),
-            library_id: lib.into(),
+            library_id: Some(lib.into()),
         }
     }
 
@@ -4081,5 +4092,28 @@ mod tests {
 
         assert_eq!(legacy_resp.albums, scoped_resp.albums);
         assert_eq!(legacy_resp.totals, scoped_resp.totals);
+    }
+
+    #[test]
+    fn single_exact_pair_on_another_server_uses_pair_server() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                scoped_track(
+                    "s1", "fallback", "Song", "Artist", "Fallback", "al1", "lib",
+                    None, None, None,
+                ),
+                scoped_track(
+                    "s2", "selected", "Song", "Artist", "Selected", "al2", "lib",
+                    None, None, None,
+                ),
+            ])
+            .unwrap();
+        let mut request = req("s1", &[EntityKind::Track]);
+        request.library_scopes = Some(vec![scope_pair("s2", "lib")]);
+        let response = run_advanced_search(&store, &request).unwrap();
+        assert_eq!(response.tracks.len(), 1);
+        assert_eq!(response.tracks[0].id, "selected");
+        assert_eq!(response.tracks[0].server_id, "s2");
     }
 }

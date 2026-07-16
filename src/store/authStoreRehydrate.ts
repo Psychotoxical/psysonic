@@ -29,6 +29,36 @@ import type {
 } from './authStoreTypes';
 import { migrateLegacyLastfm, sanitizeAccounts } from '../music-network';
 
+function sanitizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((entry): entry is string => typeof entry === 'string'))];
+}
+
+function sanitizeServerRecord<T>(
+  value: unknown,
+  serverIds: Set<string>,
+  sanitizeValue: (entry: unknown) => T | undefined,
+): Record<string, T> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const result: Record<string, T> = {};
+  for (const [serverId, raw] of Object.entries(value)) {
+    if (!serverIds.has(serverId)) continue;
+    const sanitized = sanitizeValue(raw);
+    if (sanitized !== undefined) result[serverId] = sanitized;
+  }
+  return result;
+}
+
+function sanitizeMusicFolders(value: unknown): AuthState['musicFolders'] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const folders = value.flatMap(entry => {
+    if (!entry || typeof entry !== 'object') return [];
+    const { id, name } = entry as { id?: unknown; name?: unknown };
+    return typeof id === 'string' && typeof name === 'string' ? [{ id, name }] : [];
+  });
+  return folders;
+}
+
 /**
  * Computes the post-rehydration patch for the auth store. Runs all
  * legacy-shape migrations + numeric sanitization that the persist
@@ -258,6 +288,36 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     }
   }
 
+  const servers = Array.isArray(state.servers) ? state.servers : [];
+  const serverIds = new Set(servers.map(server => server.id));
+  const activeServerId = state.activeServerId && serverIds.has(state.activeServerId)
+    ? state.activeServerId
+    : (servers[0]?.id ?? null);
+  const selectedIds = new Set(sanitizeStringArray(
+    (state as { musicLibraryServerIds?: unknown }).musicLibraryServerIds,
+  ));
+  let musicLibraryServerIds = servers
+    .map(server => server.id)
+    .filter(serverId => selectedIds.has(serverId));
+  if (musicLibraryServerIds.length === 0 && servers.length > 0) {
+    musicLibraryServerIds = [activeServerId ?? servers[0]!.id];
+  }
+  const musicFoldersByServer = sanitizeServerRecord(
+    (state as { musicFoldersByServer?: unknown }).musicFoldersByServer,
+    serverIds,
+    sanitizeMusicFolders,
+  );
+  const musicLibrarySelectionByServer = sanitizeServerRecord(
+    (state as { musicLibrarySelectionByServer?: unknown }).musicLibrarySelectionByServer,
+    serverIds,
+    raw => Array.isArray(raw) ? sanitizeStringArray(raw) : undefined,
+  );
+  const musicLibraryFilterByServer = sanitizeServerRecord(
+    (state as { musicLibraryFilterByServer?: unknown }).musicLibraryFilterByServer,
+    serverIds,
+    raw => typeof raw === 'string' ? raw : undefined,
+  );
+
   return {
     ...mediaDirMigrated,
     ...musicNetworkMigrated,
@@ -303,5 +363,11 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     ...linuxWaylandTextRenderProfileMigrated,
     ...discordCoverSourceMigrated,
     ...maxCacheMbMigrated,
+    activeServerId,
+    musicLibraryServerIds,
+    musicFoldersByServer,
+    musicLibrarySelectionByServer,
+    musicLibraryFilterByServer,
+    musicFolders: activeServerId ? (musicFoldersByServer[activeServerId] ?? []) : [],
   };
 }

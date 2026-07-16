@@ -8,7 +8,7 @@ export const commands = {
 	/**  Min/max album years from the local track catalog (for Albums browse filter spinners). */
 	libraryGetCatalogYearBounds: (serverId: string) => typedError<CatalogYearBoundsDto, string>(__TAURI_INVOKE("library_get_catalog_year_bounds", { serverId })),
 	/**  Distinct album counts per track genre — same grouping as genre album browse. */
-	libraryGetGenreAlbumCounts: (serverId: string, libraryScope: string | null, libraryScopes: string[] | null) => typedError<GenreAlbumCountDto[], string>(__TAURI_INVOKE("library_get_genre_album_counts", { serverId, libraryScope, libraryScopes })),
+	libraryGetGenreAlbumCounts: (serverId: string, libraryScope: string | null, libraryScopes: LibraryScopePair[] | null) => typedError<GenreAlbumCountDto[], string>(__TAURI_INVOKE("library_get_genre_album_counts", { serverId, libraryScope, libraryScopes })),
 	/**
 	 *  Align `album.starred_at` with server favorites: UPDATE existing rows only
 	 *  (no INSERT / stub rows). Clears local stars absent from `starred_albums`.
@@ -1032,6 +1032,16 @@ export type LibraryCoverProgressDto = {
 	totalDistinct: number,
 	pending: number,
 	done: number,
+};
+
+/**  One `(server_id, library_id)` pair in priority order (index 0 = highest). */
+export type LibraryScopePair = {
+	serverId: string,
+	/**
+	 *  `None` means every indexed library on this server. `Some("")` is the
+	 *  concrete implicit library id and must not be treated as whole-server.
+	 */
+	libraryId: string | null,
 };
 
 export type LibraryServerKeyMigrationDto = {

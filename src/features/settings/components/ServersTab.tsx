@@ -70,7 +70,7 @@ export function ServersTab({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const auth = useAuthStore();
-  const librarySync = useLibraryIndexSync();
+  const librarySync = useLibraryIndexSync(false);
 
   const [connStatus, setConnStatus] = useState<Record<string, 'idle' | 'testing' | 'ok' | 'error'>>({});
   const [showAddForm, setShowAddForm] = useState<boolean>(initialInvite != null);
