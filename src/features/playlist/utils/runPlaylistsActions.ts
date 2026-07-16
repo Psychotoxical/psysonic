@@ -42,7 +42,6 @@ export async function runPlaylistDelete(deps: RunPlaylistDeleteDeps): Promise<vo
 
 export interface RunPlaylistDeleteSelectedDeps {
   selectedPlaylists: SubsonicPlaylist[];
-  selectedIds: Set<string>;
   isPlaylistDeletable: (pl: SubsonicPlaylist) => boolean;
   removeId: (id: string) => void;
   clearSelection: () => void;
@@ -50,26 +49,26 @@ export interface RunPlaylistDeleteSelectedDeps {
 }
 
 export async function runPlaylistDeleteSelected(deps: RunPlaylistDeleteSelectedDeps): Promise<void> {
-  const { selectedPlaylists, selectedIds, isPlaylistDeletable, removeId, clearSelection, t } = deps;
+  const { selectedPlaylists, isPlaylistDeletable, removeId, clearSelection, t } = deps;
   const deletable = selectedPlaylists.filter(isPlaylistDeletable);
   if (deletable.length === 0) return;
-  let deleted = 0;
+  const removedIds = new Set<string>();
   for (const pl of deletable) {
     try {
       await deletePlaylist(pl.id);
       removeId(pl.id);
-      deleted++;
+      removedIds.add(pl.id);
     } catch {
       showToast(t('playlists.deleteFailed', { name: pl.name }), 3000, 'error');
     }
   }
-  usePlaylistStore.setState((s) => ({
-    playlists: s.playlists.filter((p) => !(selectedIds.has(p.id) && isPlaylistDeletable(p))),
-  }));
-  clearSelection();
-  if (deleted > 0) {
-    showToast(t('playlists.deleteSuccess', { count: deleted }), 3000, 'info');
+  if (removedIds.size > 0) {
+    usePlaylistStore.setState((s) => ({
+      playlists: s.playlists.filter((p) => !removedIds.has(p.id)),
+    }));
+    showToast(t('playlists.deleteSuccess', { count: removedIds.size }), 3000, 'info');
   }
+  clearSelection();
 }
 
 export interface RunPlaylistMergeSelectedDeps {

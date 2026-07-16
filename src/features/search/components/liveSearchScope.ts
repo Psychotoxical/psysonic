@@ -5,7 +5,7 @@ import { isAlbumsBrowsePath, isNewReleasesBrowsePath } from '@/features/album';
 import { isTracksBrowsePath } from '@/store/advancedSearchSessionStore';
 import { isArtistsBrowsePath } from '@/features/artist';
 import { isComposersBrowsePath } from '@/features/composers';
-import { isPlaylistsBrowsePath } from '@/features/playlist/utils/playlistsBrowseSearch';
+import { isPlaylistsBrowsePath } from '@/features/playlist';
 
 export const SCOPE_NAV_ITEM: Record<LiveSearchScope, keyof typeof ALL_NAV_ITEMS> = {
   artists: 'artists',

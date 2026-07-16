@@ -79,11 +79,36 @@ export default function Playlists() {
 
   // ── Multi-selection ──────────────────────────────────────────────────────
   const [selectionMode, setSelectionMode] = useState(false);
-  const { selectedIds, toggleSelect, clearSelection: resetSelection } = useRangeSelection(visiblePlaylists);
+  const {
+    selectedIds,
+    setSelectedIds,
+    toggleSelect,
+    clearSelection: resetSelection,
+  } = useRangeSelection(visiblePlaylists);
   const isNavidromeServer = Boolean(
     activeServerId &&
     (subsonicIdentityByServer[activeServerId]?.type ?? '').toLowerCase() === 'navidrome',
   );
+
+  // Intersect with the visible list so header/bulk actions never count hidden ids
+  // (even for the render before the prune effect below runs).
+  const visibleSelectedIds = useMemo(() => {
+    if (selectedIds.size === 0) return selectedIds;
+    const visibleIds = new Set(visiblePlaylists.map(p => p.id));
+    let changed = false;
+    const next = new Set<string>();
+    for (const id of selectedIds) {
+      if (visibleIds.has(id)) next.add(id);
+      else changed = true;
+    }
+    return changed ? next : selectedIds;
+  }, [selectedIds, visiblePlaylists]);
+
+  // Drop ids that the scoped search hid so range-select state stays coherent.
+  useEffect(() => {
+    if (visibleSelectedIds === selectedIds) return;
+    setSelectedIds(visibleSelectedIds);
+  }, [visibleSelectedIds, selectedIds, setSelectedIds]);
 
   const toggleSelectionMode = () => {
     setSelectionMode(v => !v);
@@ -95,7 +120,7 @@ export default function Playlists() {
     resetSelection();
   };
 
-  const selectedPlaylists = visiblePlaylists.filter(p => selectedIds.has(p.id));
+  const selectedPlaylists = visiblePlaylists.filter(p => visibleSelectedIds.has(p.id));
   const isPlaylistDeletable = useCallback((pl: SubsonicPlaylist) => {
     if (!pl.owner) return true;
     if (!activeUsername) return false;
@@ -164,7 +189,7 @@ export default function Playlists() {
   });
 
   const handleDeleteSelected = () => runPlaylistDeleteSelected({
-    selectedPlaylists, selectedIds, isPlaylistDeletable, removeId, clearSelection, t,
+    selectedPlaylists, isPlaylistDeletable, removeId, clearSelection, t,
   });
 
   const renderCard = (pl: SubsonicPlaylist) => (
@@ -172,7 +197,7 @@ export default function Playlists() {
       pl={pl}
       selectionMode={selectionMode}
       draggable={showFolderView}
-      selectedIds={selectedIds}
+      selectedIds={visibleSelectedIds}
       selectedPlaylists={selectedPlaylists}
       toggleSelect={toggleSelect}
       isPlaylistDeletable={isPlaylistDeletable}
@@ -245,7 +270,7 @@ export default function Playlists() {
 
       <PlaylistsHeader
         selectionMode={selectionMode}
-        selectedIds={selectedIds}
+        selectedIds={visibleSelectedIds}
         selectedPlaylists={selectedPlaylists}
         isPlaylistDeletable={isPlaylistDeletable}
         toggleSelectionMode={toggleSelectionMode}
@@ -297,6 +322,7 @@ export default function Playlists() {
               playlists={visiblePlaylists}
               renderCard={renderCard}
               disableVirtualization={perfFlags.disableMainstageVirtualLists}
+              hideEmptyFolders={textSearchActive}
             />
           ) : (
             <VirtualCardGrid

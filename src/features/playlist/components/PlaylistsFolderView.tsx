@@ -10,6 +10,8 @@ interface Props {
   playlists: SubsonicPlaylist[];
   renderCard: (pl: SubsonicPlaylist) => React.ReactNode;
   disableVirtualization: boolean;
+  /** When true, omit folder sections that currently have no matching playlists. */
+  hideEmptyFolders?: boolean;
 }
 
 /**
@@ -18,17 +20,26 @@ interface Props {
  * virtualisation match the flat grid; only the grouping differs. Rendered only
  * when at least one folder exists (the page falls back to the plain grid).
  */
-export default function PlaylistsFolderView({ serverId, playlists, renderCard, disableVirtualization }: Props) {
+export default function PlaylistsFolderView({
+  serverId,
+  playlists,
+  renderCard,
+  disableVirtualization,
+  hideEmptyFolders = false,
+}: Props) {
   const bucket = usePlaylistFolderStore(s => s.byServer[serverId]) ?? EMPTY_SERVER_FOLDERS;
   const { isDragging } = useDragDrop();
   const grouped = groupPlaylistsByFolder(playlists, bucket.folders, bucket.assignments);
   // Keep the ungrouped section as a drop target during a drag even when empty,
   // so a playlist filed into a folder can always be dragged back out to root.
   const showUngrouped = grouped.ungrouped.length > 0 || isDragging;
+  const folderSections = hideEmptyFolders && !isDragging
+    ? grouped.folders.filter(({ playlists: items }) => items.length > 0)
+    : grouped.folders;
 
   return (
     <div className="playlist-folder-view">
-      {grouped.folders.map(({ folder, playlists: items }) => (
+      {folderSections.map(({ folder, playlists: items }) => (
         <PlaylistFolderSection
           key={folder.id}
           serverId={serverId}

@@ -4,7 +4,7 @@ import { isAlbumsBrowsePath, isNewReleasesBrowsePath } from '@/features/album';
 import { isArtistsBrowsePath } from '@/features/artist';
 import { isTracksBrowsePath } from '@/store/advancedSearchSessionStore';
 import { isComposersBrowsePath } from '@/features/composers';
-import { isPlaylistsBrowsePath } from '@/features/playlist/utils/playlistsBrowseSearch';
+import { isPlaylistsBrowsePath } from '@/features/playlist';
 import { useLiveSearchScopeStore } from '@/store/liveSearchScopeStore';
 
 /** Keep scope badge in sync with browse routes; clear field text when leaving browse. */
