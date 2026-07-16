@@ -127,6 +127,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * **Settings → Integrations → Discord → Cover art source** gets a **Server** option, alongside **None** and **Apple Music**. It resolves artwork through the standard Subsonic `getAlbumInfo2` endpoint's public image link — never an authenticated cover URL that could expose your login credentials (reported by lavioso on Discord). Needs a publicly reachable server; anyone viewing your Discord profile can see that server's public address, but nothing else.
 
+### Playlist cards — play and queue from the right-click menu
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1307](https://github.com/Psychotoxical/psysonic/pull/1307)**
+
+* Right-clicking a playlist card now offers **Play next** and **Add to queue** alongside **Play now**, matching the album card. All three honour offline mode and the active multi-library filter.
+
 
 ## Changed
 
