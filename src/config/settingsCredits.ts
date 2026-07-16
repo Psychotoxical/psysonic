@@ -207,6 +207,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Persistent shuffle mode — queue-reordering shuffle with restore, survives restart, in sync with other devices and Orbit (request: mikmik on Psysonic Discord, PR #1288)',
       'Playlist and radio custom covers — preserve Navidrome pl-/ra-* getCoverArt ids (fixes blank uploaded covers; PR #1295)',
       'Playlist cards — Play next and Add to queue from the right-click menu, matching album cards (PR #1307)',
+      'Playlists browse — scoped header search by playlist name (PR #1308)',
     ],
   },
   {

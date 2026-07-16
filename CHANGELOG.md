@@ -133,6 +133,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Right-clicking a playlist card now offers **Play next** and **Add to queue** alongside **Play now**, matching the album card. All three honour offline mode and the active multi-library filter.
 
+### Playlists browse — scoped header search
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1308](https://github.com/Psychotoxical/psysonic/pull/1308)**
+
+* The header search field on the Playlists page now filters the list by playlist name (same scoped badge pattern as Artists / Albums), including in folder view.
+
 
 ## Changed
 
