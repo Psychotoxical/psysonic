@@ -10,6 +10,7 @@ import {
   type InternetRadioStation, type RadioBrowserStation, RADIO_PAGE_SIZE,
 } from '@/lib/api/subsonicTypes';
 import { showToast } from '@/lib/dom/toast';
+import { useModalFocus } from '@/lib/hooks/useModalFocus';
 
 interface RadioDirectoryModalProps {
   sources: Array<{ serverId: string; label: string }>;
@@ -33,9 +34,19 @@ export default function RadioDirectoryModal({ sources, requireSourceSelection = 
   );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const queryRef = useRef(query);
+  const titleId = 'radio-directory-modal-title';
   useEffect(() => { queryRef.current = query; }, [query]);
+
+  useModalFocus({
+    open: true,
+    containerRef: dialogRef,
+    onEscape: onClose,
+    initialFocusRef: searchInputRef,
+  });
 
   const fetchPage = useCallback(async (q: string, off: number, append: boolean) => {
     if (append) setLoadingMore(true); else setSearching(true);
@@ -137,6 +148,11 @@ export default function RadioDirectoryModal({ sources, requireSourceSelection = 
     >
       {/* ── 2. Content Box ─────────────────────────────────────── */}
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         style={{
           width: '80vw',
           maxWidth: 800,
@@ -163,21 +179,23 @@ export default function RadioDirectoryModal({ sources, requireSourceSelection = 
           }}
         >
           <button
+            type="button"
             className="btn btn-ghost"
             style={{ position: 'absolute', top: 16, right: 16, color: 'var(--text-muted)' }}
             onClick={onClose}
+            aria-label={t('common.close')}
           >
             <X size={18} />
           </button>
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 14, color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
+          <h2 id={titleId} style={{ fontSize: 20, fontWeight: 700, marginBottom: 14, color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
             {t('radio.browseDirectory')}
           </h2>
           <input
+            ref={searchInputRef}
             className="input"
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder={t('radio.directoryPlaceholder')}
-            autoFocus
             style={{ width: '100%' }}
           />
           {(requireSourceSelection || sources.length > 1) && (
@@ -212,10 +230,12 @@ export default function RadioDirectoryModal({ sources, requireSourceSelection = 
                 const isLoading = addingId === stationKey;
                 const isDisabled = !serverId || isAdded || addingId !== null;
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={s.stationuuid}
                     className={`radio-browser-result${isAdded ? ' added' : ''}${isDisabled ? '' : ' clickable'}`}
                     onClick={() => handleAdd(s)}
+                    disabled={isDisabled}
                   >
                     {s.favicon ? (
                       <img
@@ -244,7 +264,7 @@ export default function RadioDirectoryModal({ sources, requireSourceSelection = 
                           ? <Check size={14} style={{ color: 'var(--accent)' }} />
                           : <Plus size={14} style={{ color: 'var(--text-muted)' }} />}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
               {/* Sentinel for IntersectionObserver */}

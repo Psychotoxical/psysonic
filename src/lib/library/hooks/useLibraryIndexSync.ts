@@ -3,7 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { showToast } from '@/lib/dom/toast';
-import { resolveIndexKey, serverIndexKeyForProfile } from '@/lib/server/serverIndexKey';
+import {
+  resolveIndexKey,
+  serverIndexKeyForProfile,
+  serverIndexOwners,
+} from '@/lib/server/serverIndexKey';
 import {
   libraryGetStatus,
   librarySyncCancel,
@@ -48,7 +52,7 @@ export function applyLibraryConnectionResults(
 export function useLibraryIndexSync(enabled = true) {
   const { t } = useTranslation();
   const servers = useAuthStore(s => s.servers);
-  const activeServerId = useAuthStore(s => s.activeServerId);
+  const musicLibraryServerIds = useAuthStore(s => s.musicLibraryServerIds);
   const masterEnabled = useLibraryIndexStore(s => s.masterEnabled);
 
   const serverKeyById = useMemo(
@@ -60,20 +64,9 @@ export function useLibraryIndexSync(enabled = true) {
     [serverKeyById],
   );
   const indexedServers = useMemo(() => {
-    const primary = new Map<string, { key: string; server: typeof servers[number] }>();
-    for (const server of servers) {
-      const key = serverKeyById[server.id];
-      if (!primary.has(key)) primary.set(key, { key, server });
-    }
-    if (activeServerId) {
-      const active = servers.find(s => s.id === activeServerId);
-      if (active) {
-        const key = serverKeyById[active.id];
-        if (primary.has(key)) primary.set(key, { key, server: active });
-      }
-    }
-    return Array.from(primary.values());
-  }, [servers, serverKeyById, activeServerId]);
+    return serverIndexOwners({ servers, musicLibraryServerIds })
+      .map(server => ({ key: serverKeyById[server.id], server }));
+  }, [servers, musicLibraryServerIds, serverKeyById]);
 
   const statusByServer = useLibraryIndexStore(s => s.statusByServer);
   const connectionByServer = useLibraryIndexStore(s => s.connectionByServer);

@@ -23,16 +23,17 @@ export interface CsvImportReport {
 
 export interface RunPlaylistCsvImportDeps {
   songs: SubsonicSong[];
+  existingSongIds?: readonly string[];
   ownerServerId: string;
   t: TFunction;
-  savePlaylist: (updatedSongs: SubsonicSong[], prevCount?: number) => Promise<void>;
+  savePlaylist: (updatedSongs: SubsonicSong[]) => Promise<void>;
   setSongs: (next: SubsonicSong[]) => void;
   setCsvImporting: (v: boolean) => void;
   setCsvImportReport: (r: CsvImportReport | null) => void;
 }
 
 export async function runPlaylistCsvImport(deps: RunPlaylistCsvImportDeps): Promise<void> {
-  const { songs, ownerServerId, t, savePlaylist, setSongs, setCsvImporting, setCsvImportReport } = deps;
+  const { songs, existingSongIds, ownerServerId, t, savePlaylist, setSongs, setCsvImporting, setCsvImportReport } = deps;
 
   try {
     const selected = await openDialog({
@@ -53,7 +54,7 @@ export async function runPlaylistCsvImport(deps: RunPlaylistCsvImportDeps): Prom
       return;
     }
 
-    const existingIds = new Set(songs.map(s => s.id));
+    const existingIds = new Set(existingSongIds ?? songs.map(s => s.id));
     const addedSongs: SubsonicSong[] = [];
     const notFound: SpotifyCsvTrack[] = [];
     const searchErrors: SpotifyCsvTrack[] = [];

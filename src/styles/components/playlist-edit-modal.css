@@ -58,7 +58,8 @@
   transition: opacity 150ms ease;
 }
 
-.playlist-edit-cover-wrap:hover .playlist-edit-cover-overlay {
+.playlist-edit-cover-wrap:hover .playlist-edit-cover-overlay,
+.playlist-edit-cover-wrap:focus-within .playlist-edit-cover-overlay {
   opacity: 1;
 }
 
@@ -244,5 +245,4 @@
 .artist-bio-card {
   margin-bottom: 2rem;
 }
-
 

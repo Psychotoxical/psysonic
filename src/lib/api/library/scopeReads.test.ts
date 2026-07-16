@@ -136,6 +136,32 @@ describe('libraryScopeListAlbums', () => {
     expect(afterActiveAliasChange[0]?.serverId).toBe('profile-s2');
   });
 
+  it('maps resolved sources to the selected common-order owner even when its alias is active', async () => {
+    useAuthStore.setState({
+      servers: [
+        {
+          id: 'owner', name: 'Owner', url: 'https://same.example', username: 'u', password: 'p',
+        },
+        {
+          id: 'alias', name: 'Alias', url: 'http://same.example/', username: 'u', password: 'p',
+        },
+      ],
+      activeServerId: 'alias',
+      musicLibraryServerIds: ['alias', 'owner'],
+    });
+    onInvoke('library_resolve_entity_sources', () => [
+      { serverId: 'same.example', id: 'track-owner', libraryId: 'one', priority: 0 },
+    ]);
+
+    const sources = await libraryResolveEntitySources('owner', {
+      entityType: 'track',
+      anchorServerId: 'owner',
+      anchorId: 'track-owner',
+      scopes: [{ serverId: 'owner', libraryId: 'one' }],
+    });
+    expect(sources[0]?.serverId).toBe('owner');
+  });
+
   it('coalesces duplicate profile scopes before IPC with all-libraries dominance', async () => {
     useAuthStore.setState(state => ({
       servers: [

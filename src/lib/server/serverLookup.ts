@@ -1,22 +1,19 @@
 import { useAuthStore } from '@/store/authStore';
 import type { ServerProfile } from '@/store/authStoreTypes';
-import { serverIndexKeyForProfile, serverIndexKeyFromUrl } from '@/lib/server/serverIndexKey';
+import { serverIndexOwnerForKey } from '@/lib/server/serverIndexKey';
 
 export function findServerByIdOrIndexKey(serverIdOrKey: string): ServerProfile | undefined {
-  const servers = useAuthStore.getState().servers;
+  const state = useAuthStore.getState();
+  const servers = state.servers;
   const direct = servers.find(s => s.id === serverIdOrKey);
   if (direct) return direct;
-  return servers.find(s => serverIndexKeyForProfile(s) === serverIdOrKey);
+  return serverIndexOwnerForKey(state, serverIdOrKey);
 }
 
 export function resolveServerIdForIndexKey(serverIdOrKey: string): string {
-  const { servers, activeServerId } = useAuthStore.getState();
+  const state = useAuthStore.getState();
+  const { servers } = state;
   const direct = servers.find(s => s.id === serverIdOrKey);
   if (direct) return direct.id;
-  const active = servers.find(
-    s => s.id === activeServerId && serverIndexKeyFromUrl(s.url) === serverIdOrKey,
-  );
-  if (active) return active.id;
-  const fallback = servers.find(s => serverIndexKeyFromUrl(s.url) === serverIdOrKey);
-  return fallback?.id ?? serverIdOrKey;
+  return serverIndexOwnerForKey(state, serverIdOrKey)?.id ?? serverIdOrKey;
 }

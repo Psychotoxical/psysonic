@@ -6,7 +6,7 @@ import { runPlaylistReorderDrop } from '@/features/playlist/utils/runPlaylistReo
 export interface PlaylistDnDReorderDeps {
   tracklistRef: React.RefObject<HTMLDivElement | null>;
   songs: SubsonicSong[];
-  savePlaylist: (updatedSongs: SubsonicSong[], prevCount?: number) => Promise<void>;
+  savePlaylist: (updatedSongs: SubsonicSong[]) => Promise<void>;
   setSongs: React.Dispatch<React.SetStateAction<SubsonicSong[]>>;
   enabled?: boolean;
 }

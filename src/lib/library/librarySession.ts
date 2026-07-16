@@ -7,7 +7,11 @@ import type { ServerProfile } from '@/store/authStoreTypes';
 import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { ensureConnectUrlResolved } from '@/lib/server/serverEndpoint';
-import { serverIndexKeyForProfile } from '@/lib/server/serverIndexKey';
+import {
+  serverIndexKeyForProfile,
+  serverIndexOwnerForKey,
+  serverIndexOwners,
+} from '@/lib/server/serverIndexKey';
 import {
   syncAllServerHttpContexts,
   syncServerHttpContextForProfile,
@@ -115,26 +119,14 @@ export async function bootstrapAllIndexedServers(): Promise<Record<string, BindS
   // early and is best-effort; this runs once React has mounted and the Tauri IPC
   // bridge is ready, so a gated server's headers are present for the reachability
   // probe, stream, cover and prefetch paths that resolve them from the registry.
-  await syncAllServerHttpContexts(auth.servers).catch(() => {});
-  const active = auth.activeServerId
-    ? auth.servers.find(s => s.id === auth.activeServerId) ?? null
-    : null;
-  const indexed = auth.servers.filter(s => lib.isIndexEnabled(s.id));
-  const primaryByKey = new Map<string, ServerProfile>();
-  for (const server of indexed) {
-    const key = serverIndexKeyForProfile(server);
-    if (!primaryByKey.has(key)) primaryByKey.set(key, server);
-  }
-  if (active) {
-    const key = serverIndexKeyForProfile(active);
-    if (primaryByKey.has(key)) primaryByKey.set(key, active);
-  }
+  const indexed = serverIndexOwners(auth).filter(server => lib.isIndexEnabled(server.id));
+  await syncAllServerHttpContexts(indexed).catch(() => {});
   const results: Record<string, BindServerResult> = {};
-  for (const server of primaryByKey.values()) {
+  for (const server of indexed) {
     const key = serverIndexKeyForProfile(server);
     results[key] = await bindIndexedServer(server);
   }
-  for (const server of primaryByKey.values()) {
+  for (const server of indexed) {
     const key = serverIndexKeyForProfile(server);
     if (results[key] === 'bound') {
       await queueInitialSyncIfNeeded(key);
@@ -148,7 +140,9 @@ export async function bootstrapAllIndexedServers(): Promise<Record<string, BindS
  */
 export async function ensureActiveServerSessionBound(): Promise<boolean> {
   const auth = useAuthStore.getState();
-  const server = auth.servers.find(s => s.id === auth.activeServerId);
+  const server = auth.activeServerId
+    ? serverIndexOwnerForKey(auth, auth.activeServerId)
+    : undefined;
   if (!server) return false;
   if (!useLibraryIndexStore.getState().isIndexEnabled(server.id)) return false;
   return (await bindIndexedServer(server)) === 'bound';

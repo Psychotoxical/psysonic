@@ -1,4 +1,4 @@
-import { deletePlaylistForServer, updatePlaylistForServer } from '@/lib/api/subsonicPlaylists';
+import { deletePlaylistForServer } from '@/lib/api/subsonicPlaylists';
 import type { SubsonicPlaylist, SubsonicSong } from '@/lib/api/subsonicTypes';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
@@ -46,6 +46,7 @@ import { offlineActionPolicy } from '@/features/offline';
 import { readDetailServerId } from '@/lib/navigation/detailServerScope';
 import { isSmartPlaylistName } from '@/features/playlist/utils/playlistsSmart';
 import { showToast } from '@/lib/dom/toast';
+import { updatePlaylistMembership } from '@/features/playlist/utils/updatePlaylistMembership';
 
 // ── Column configuration ──────────────────────────────────────────────────────
 const PL_COLUMNS: readonly ColDef[] = [
@@ -121,18 +122,22 @@ export default function PlaylistDetail() {
   } | null>(null);
 
   // ── Save ──────────────────────────────────────────────────────
-  const savePlaylist = useCallback(async (updatedSongs: SubsonicSong[], prevCount = 0) => {
+  const savePlaylist = useCallback(async (updatedSongs: SubsonicSong[]) => {
     if (!id) return;
     setSaving(true);
     try {
-      await updatePlaylistForServer(ownerServerId, id, updatedSongs.map(s => s.id), prevCount);
-      usePlaylistMembershipStore.getState().replacePlaylistSongIds(id, updatedSongs.map(s => s.id), ownerServerId);
+      await updatePlaylistMembership({
+        playlistId: id,
+        ownerServerId,
+        previousVisibleSongs: songs,
+        nextVisibleSongs: updatedSongs,
+      });
       touchPlaylist(id, ownerServerId);
     } catch {
       usePlaylistMembershipStore.getState().invalidatePlaylistSongIds(id, ownerServerId);
     }
     setSaving(false);
-  }, [id, ownerServerId, touchPlaylist]);
+  }, [id, ownerServerId, songs, touchPlaylist]);
 
   // ── Bulk select ───────────────────────────────────────────────────
   const [showBulkPlPicker, setShowBulkPlPicker] = useState(false);
@@ -200,7 +205,9 @@ export default function PlaylistDetail() {
   const handleImportCsv = async () => {
     if (!id || csvImporting) return;
     await runPlaylistCsvImport({
-      songs, ownerServerId, t, savePlaylist,
+      songs,
+      existingSongIds: usePlaylistMembershipStore.getState().getPlaylistSongIds(id, ownerServerId) ?? songs.map(song => song.id),
+      ownerServerId, t, savePlaylist,
       setSongs, setCsvImporting, setCsvImportReport,
     });
   };
@@ -208,6 +215,9 @@ export default function PlaylistDetail() {
   // ── Remove ────────────────────────────────────────────────────
   const { removeSong, addSong } = usePlaylistSongMutations({
     songs, setSongs, savePlaylist, setSuggestions, setSearchResults, playlist, t,
+    hasSong: songId => id
+      ? (usePlaylistMembershipStore.getState().getPlaylistSongIds(id, ownerServerId) ?? []).includes(songId)
+      : false,
   });
   const canEditMembership = !playlist || !isSmartPlaylistName(playlist.name);
 

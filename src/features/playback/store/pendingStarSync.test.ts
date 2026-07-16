@@ -104,6 +104,38 @@ describe('pending entity mutation outbox', () => {
     expect(_getPendingEntityMutationsForTest()).toEqual([]);
   });
 
+  it.each(['primary', 'alias', null])('mutates a same-index selection once through its owner when active is %s', async activeServerId => {
+    useAuthStore.setState({
+      activeServerId,
+      servers: [
+        { id: 'primary', name: 'Primary', url: 'https://same.test', username: 'u', password: 'p' },
+        { id: 'alias', name: 'Alias', url: 'http://same.test/', username: 'u', password: 'p' },
+      ],
+      musicLibraryServerIds: ['alias', 'primary'],
+      musicLibrarySelectionByServer: { primary: ['one'], alias: ['two'] },
+      musicLibraryFilterByServer: {},
+      entityRatingSupportByServer: { primary: 'full', alias: 'full' },
+    });
+    useLibraryIndexStore.setState({
+      statusByServer: { 'same.test': ready('same.test') },
+      connectionByServer: { 'same.test': 'online' },
+    });
+    resolveSourcesMock.mockResolvedValue([
+      { serverId: 'primary', id: 'resolved', libraryId: 'one', priority: 0 },
+    ]);
+
+    queueSongRating('anchor', 5, 'primary');
+    await vi.waitFor(() => expect(setRatingForServerMock).toHaveBeenCalledWith('primary', 'resolved', 5));
+    expect(setRatingForServerMock).toHaveBeenCalledTimes(1);
+    expect(resolveSourcesMock).toHaveBeenCalledWith('primary', expect.objectContaining({
+      scopes: [
+        { serverId: 'primary', libraryId: 'one' },
+        { serverId: 'primary', libraryId: 'two' },
+      ],
+    }));
+    expect(_getPendingEntityMutationsForTest()).toEqual([]);
+  });
+
   it('persists an offline concrete target and retries it after reconnect', async () => {
     setupServers({ secondOnline: false });
     queueSongRating('a1', 4, 's1');

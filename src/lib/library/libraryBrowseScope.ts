@@ -1,7 +1,11 @@
 import type { LibraryScopePair, SyncStateDto } from '@/lib/api/library/dto';
 import { libraryStatusIsReady } from '@/lib/library/libraryReady';
 import type { LibraryServerConnection } from '@/lib/network/libraryServerReachability';
-import { serverIndexKeyFromUrl } from '@/lib/server/serverIndexKey';
+import {
+  assertSelectedIndexAliasesCompatible,
+  serverIndexKeyFromUrl,
+  serverIndexOwners,
+} from '@/lib/server/serverIndexKey';
 
 interface LibraryScopeState {
   servers: Array<{ id: string; url: string; name?: string }>;
@@ -45,14 +49,7 @@ export interface DerivedLibraryScopes {
 
 export function configuredLibraryServerIds(state: LibraryScopeState): string[] {
   const selected = new Set(state.musicLibraryServerIds);
-  const seenIndexKeys = new Set<string>();
-  return state.servers.flatMap(server => {
-    if (!selected.has(server.id)) return [];
-    const indexKey = serverIndexKeyFromUrl(server.url) || server.id;
-    if (seenIndexKeys.has(indexKey)) return [];
-    seenIndexKeys.add(indexKey);
-    return [server.id];
-  });
+  return serverIndexOwners(state).flatMap(server => selected.has(server.id) ? [server.id] : []);
 }
 
 /** Selected live Subsonic sources. Unlike indexed browse, this ignores index readiness. */
@@ -72,6 +69,7 @@ export function buildReachableLibrarySources(
 }
 
 export function buildConfiguredLibraryScopePairs(state: LibraryScopeState): LibraryScopePair[] {
+  assertSelectedIndexAliasesCompatible(state);
   const selected = new Set(state.musicLibraryServerIds);
   const scopesByIndexKey = new Map<string, { ownerServerId: string; libraryIds: string[] | null }>();
   for (const server of state.servers) {
