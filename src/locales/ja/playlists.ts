@@ -9,6 +9,7 @@ export const playlists = {
   create: '作成',
   cancel: 'キャンセル',
   empty: 'プレイリストはまだありません。',
+  noMatchingSearch: '検索に一致するプレイリストはありません。',
   emptyPlaylist: 'このプレイリストは空です。',
   addFirstSong: '最初の曲を追加',
   notFound: 'プレイリストが見つかりません。',

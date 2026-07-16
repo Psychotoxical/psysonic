@@ -24,6 +24,9 @@ describe('liveSearchScopeStore', () => {
     useLiveSearchScopeStore.setState({ query: 'bach', scope: 'composers' });
     expect(scopedBrowseSearchQuery('bach', 'composers', 'composers')).toBe('bach');
     expect(scopedBrowseSearchQuery('bach', 'artists', 'composers')).toBe('');
+    useLiveSearchScopeStore.setState({ query: 'road', scope: 'playlists' });
+    expect(scopedBrowseSearchQuery('road', 'playlists', 'playlists')).toBe('road');
+    expect(scopedBrowseSearchQuery('road', 'albums', 'playlists')).toBe('');
   });
 
   it('undoes query and scope badge changes', () => {

@@ -9,6 +9,7 @@ export const playlists = {
   create: 'Létrehozás',
   cancel: 'Mégse',
   empty: 'Még nincsenek lejátszási listák.',
+  noMatchingSearch: 'Nincs a keresésnek megfelelő lejátszási lista.',
   emptyPlaylist: 'Ez a lejátszási lista üres.',
   addFirstSong: 'Add hozzá az első dalt',
   notFound: 'A lejátszási lista nem található.',

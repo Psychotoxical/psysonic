@@ -9,6 +9,7 @@ export const playlists = {
   create: 'Opprett',
   cancel: 'Avbryt',
   empty: 'Ingen spillelister ennå.',
+  noMatchingSearch: 'Ingen spillelister matcher søket.',
   emptyPlaylist: 'Denne spillelisten er tom.',
   addFirstSong: 'Legg til din første sang',
   notFound: 'Spillelisten ble ikke funnet.',

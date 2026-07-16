@@ -29,6 +29,7 @@ export * from './utils/addTracksToPlaylistWithDedup';
 export * from './utils/playlistBulkPlayActions';
 export * from './utils/playlistDisplayedSongs';
 export * from './utils/playlistFolders';
+export * from './utils/playlistsBrowseSearch';
 export * from './utils/playlistsSmart';
 export * from './utils/playPlaylistById';
 export * from './utils/runPlaylistCsvImport';

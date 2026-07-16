@@ -9,6 +9,7 @@ export const playlists = {
   create: '创建',
   cancel: '取消',
   empty: '暂无播放列表。',
+  noMatchingSearch: '没有匹配搜索的播放列表。',
   emptyPlaylist: '此播放列表为空。',
   addFirstSong: '添加第一首歌曲',
   notFound: '未找到播放列表。',

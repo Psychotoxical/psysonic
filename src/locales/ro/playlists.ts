@@ -9,6 +9,7 @@ export const playlists = {
   create: 'Crează',
   cancel: 'Anulează',
   empty: 'Niciun playlist deocamdată.',
+  noMatchingSearch: 'Niciun playlist nu se potrivește căutării.',
   emptyPlaylist: 'Acest playlist este gol.',
   addFirstSong: 'Adaugă prima ta piesă',
   notFound: 'Playlistul nu a fost găsit.',

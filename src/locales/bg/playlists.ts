@@ -9,6 +9,7 @@ export const playlists = {
   create: 'Създай',
   cancel: 'Отказ',
   empty: 'Все още няма плейлисти.',
+  noMatchingSearch: 'Няма плейлисти, които съответстват на търсенето.',
   emptyPlaylist: 'Този плейлист е празен.',
   addFirstSong: 'Добавете първата си песен',
   notFound: 'Плейлистът не е намерен.',

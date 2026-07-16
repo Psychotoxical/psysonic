@@ -5,6 +5,7 @@ import { isAlbumsBrowsePath, isNewReleasesBrowsePath } from '@/features/album';
 import { isTracksBrowsePath } from '@/store/advancedSearchSessionStore';
 import { isArtistsBrowsePath } from '@/features/artist';
 import { isComposersBrowsePath } from '@/features/composers';
+import { isPlaylistsBrowsePath } from '@/features/playlist/utils/playlistsBrowseSearch';
 
 export const SCOPE_NAV_ITEM: Record<LiveSearchScope, keyof typeof ALL_NAV_ITEMS> = {
   artists: 'artists',
@@ -12,6 +13,7 @@ export const SCOPE_NAV_ITEM: Record<LiveSearchScope, keyof typeof ALL_NAV_ITEMS>
   newReleases: 'newReleases',
   tracks: 'tracks',
   composers: 'composers',
+  playlists: 'playlists',
 };
 
 /** Scope to restore when on a browse route but the badge was cleared (global search mode). */
@@ -25,6 +27,7 @@ export function resolveLiveSearchScopeGhost(
   if (isNewReleasesBrowsePath(pathname)) return 'newReleases';
   if (isTracksBrowsePath(pathname)) return 'tracks';
   if (isComposersBrowsePath(pathname)) return 'composers';
+  if (isPlaylistsBrowsePath(pathname)) return 'playlists';
   return null;
 }
 
@@ -40,6 +43,8 @@ export function liveSearchScopePlaceholderKey(scope: LiveSearchScope | null): st
       return 'search.scopeTracksPlaceholder';
     case 'composers':
       return 'search.scopeComposersPlaceholder';
+    case 'playlists':
+      return 'search.scopePlaylistsPlaceholder';
     default:
       return 'search.placeholder';
   }
@@ -62,6 +67,8 @@ export function liveSearchScopeBadgeTooltipKey(scope: LiveSearchScope): string {
       return 'search.scopeTracksBadgeTooltip';
     case 'composers':
       return 'search.scopeComposersBadgeTooltip';
+    case 'playlists':
+      return 'search.scopePlaylistsBadgeTooltip';
     default:
       return 'search.scopeArtistsBadgeTooltip';
   }
@@ -79,6 +86,8 @@ export function liveSearchScopeGhostTooltipKey(scope: LiveSearchScope): string {
       return 'search.scopeTracksGhostTooltip';
     case 'composers':
       return 'search.scopeComposersGhostTooltip';
+    case 'playlists':
+      return 'search.scopePlaylistsGhostTooltip';
     default:
       return 'search.scopeArtistsGhostTooltip';
   }

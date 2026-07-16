@@ -6,6 +6,7 @@ export const playlists = {
   create: 'Stwórz',
   cancel: 'Anuluj',
   empty: 'Nie masz jeszcze żadnych playlist.',
+  noMatchingSearch: 'Żadna playlista nie pasuje do wyszukiwania.',
   emptyPlaylist: 'Ta playlista jest pusta.',
   addFirstSong: 'Dodaj pierwszy utwór',
   notFound: 'Playlista nie znaleziona.',
