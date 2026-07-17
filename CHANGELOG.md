@@ -345,6 +345,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The queue cover-art setting and the track-list setting's title showed English text in every language except Russian — both are translated in all languages now, and the German description states more precisely which pages show the thumbnails.
 
+### Square corners — player bar and list thumbnails included
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by JU3RG on the Psysonic Discord, PR [#1320](https://github.com/Psychotoxical/psysonic/pull/1320)**
+
+* The Square Corners toggle left the player bar cover and the small cover thumbnails in list rows rounded (queue, playlists, favorites, search, Random Mix). They now go square with everything else; the floating player bar's circular cover stays round by design.
+
 
 ## [1.49.0] - 2026-06-29
 
