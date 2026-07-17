@@ -123,7 +123,10 @@ pub fn nd_http_client() -> reqwest::Client {
     // the WebKit-side Subsonic calls end up negotiating most of the time
     // on these setups.
     reqwest::Client::builder()
-        .user_agent(format!("Psysonic/{} (Tauri)", env!("CARGO_PKG_VERSION")))
+        // Shared wire UA (the main WebView's User-Agent once the frontend reports
+        // it at startup) so Navidrome logs these native calls under the same
+        // client as the WebView instead of a second `[Psysonic]` session.
+        .user_agent(psysonic_core::user_agent::subsonic_wire_user_agent())
         .http1_only()
         .pool_max_idle_per_host(0)
         .max_tls_version(reqwest::tls::Version::TLS_1_2)

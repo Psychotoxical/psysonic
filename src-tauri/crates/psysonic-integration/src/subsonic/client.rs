@@ -413,7 +413,10 @@ struct MusicFoldersWrapper {
 
 fn default_http_client() -> reqwest::Client {
     reqwest::Client::builder()
-        .user_agent(format!("Psysonic/{} (Tauri)", env!("CARGO_PKG_VERSION")))
+        // Shared wire UA (aligned with the main WebView at startup) so native
+        // Subsonic calls share the WebView's client identity on the server
+        // instead of registering a separate `[Psysonic]` session.
+        .user_agent(psysonic_core::user_agent::subsonic_wire_user_agent())
         .build()
         .unwrap_or_else(|_| reqwest::Client::new())
 }
