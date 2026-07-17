@@ -11,6 +11,8 @@ export const artistDetail = {
   playAllTooltip: 'Reproducir toda la discografía',
   shuffleTooltip: 'Reproducir toda la discografía en aleatorio',
   radioTooltip: 'Iniciar una radio basada en este artista',
+  enqueue: 'Agregar a la Cola',
+  enqueueTooltip: 'Agregar toda la discografía a la cola',
   loading: 'Cargando…',
   noRadio: 'No se encontraron pistas similares para este artista.',
   notFound: 'Artista no encontrado.',

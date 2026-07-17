@@ -11,6 +11,8 @@ export const artistDetail = {
   playAllTooltip: 'Spill hele diskografien',
   shuffleTooltip: 'Spill hele diskografien i tilfeldig rekkefølge',
   radioTooltip: 'Start en radio basert på denne artisten',
+  enqueue: 'Legg i kø',
+  enqueueTooltip: 'Legg hele diskografien i kø',
   loading: 'Laster…',
   noRadio: 'Ingen lignende spor funnet for denne artisten.',
   notFound: 'Artisten ble ikke funnet.',

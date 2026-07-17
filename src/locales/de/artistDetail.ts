@@ -11,6 +11,8 @@ export const artistDetail = {
   playAllTooltip: 'Gesamte Diskografie abspielen',
   shuffleTooltip: 'Gesamte Diskografie zufällig abspielen',
   radioTooltip: 'Radio basierend auf diesem Künstler starten',
+  enqueue: 'Einreihen',
+  enqueueTooltip: 'Gesamte Diskografie zur Warteschlange hinzufügen',
   loading: 'Lädt…',
   noRadio: 'Keine ähnlichen Titel für diesen Künstler gefunden.',
   notFound: 'Künstler nicht gefunden.',

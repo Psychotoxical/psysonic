@@ -11,6 +11,8 @@ export const artistDetail = {
   playAllTooltip: 'Play the whole discography',
   shuffleTooltip: 'Shuffle the whole discography',
   radioTooltip: 'Start a radio based on this artist',
+  enqueue: 'Enqueue',
+  enqueueTooltip: 'Add the whole discography to queue',
   loading: 'Loading…',
   noRadio: 'No similar tracks found for this artist.',
   notFound: 'Artist not found.',

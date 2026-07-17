@@ -11,6 +11,8 @@ export const artistDetail = {
   playAllTooltip: 'A teljes diszkográfia lejátszása',
   shuffleTooltip: 'A teljes diszkográfia keverése',
   radioTooltip: 'Rádió indítása az előadó alapján',
+  enqueue: 'Sorba',
+  enqueueTooltip: 'A teljes diszkográfia hozzáadása a sorhoz',
   loading: 'Betöltés…',
   noRadio: 'Nem található hasonló szám ehhez az előadóhoz.',
   notFound: 'Az előadó nem található.',

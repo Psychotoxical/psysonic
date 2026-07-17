@@ -11,6 +11,8 @@ export const artistDetail = {
   playAllTooltip: '播放全部作品',
   shuffleTooltip: '随机播放全部作品',
   radioTooltip: '基于该艺人开始电台',
+  enqueue: '加入队列',
+  enqueueTooltip: '将全部作品添加到播放队列',
   loading: '加载中…',
   noRadio: '未找到该艺术家的相似曲目。',
   notFound: '未找到艺术家。',

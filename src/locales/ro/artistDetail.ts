@@ -11,6 +11,8 @@ export const artistDetail = {
   playAllTooltip: 'Redă întreaga discografie',
   shuffleTooltip: 'Redă întreaga discografie amestecat',
   radioTooltip: 'Pornește un radio bazat pe acest artist',
+  enqueue: 'Adaugă în coadă',
+  enqueueTooltip: 'Adaugă întreaga discografie în coadă',
   loading: 'Se încarcă…',
   noRadio: 'Nicio piesă similară găsită pentru acest artist.',
   notFound: 'Artistul nu a fost găsit.',

@@ -11,6 +11,8 @@ export const artistDetail = {
   playAllTooltip: 'Lire toute la discographie',
   shuffleTooltip: 'Lire toute la discographie en aléatoire',
   radioTooltip: 'Démarrer une radio basée sur cet artiste',
+  enqueue: 'Mettre en file',
+  enqueueTooltip: 'Ajouter toute la discographie à la file d\'attente',
   loading: 'Chargement…',
   noRadio: 'Aucun morceau similaire trouvé pour cet artiste.',
   notFound: 'Artiste introuvable.',

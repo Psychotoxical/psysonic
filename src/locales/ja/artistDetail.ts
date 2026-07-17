@@ -11,6 +11,8 @@ export const artistDetail = {
   playAllTooltip: 'ディスコグラフィ全体を再生',
   shuffleTooltip: 'ディスコグラフィ全体をシャッフル',
   radioTooltip: 'このアーティストをもとにラジオを開始',
+  enqueue: 'キューに追加',
+  enqueueTooltip: 'ディスコグラフィ全体をキューに追加',
   loading: '読み込み中…',
   noRadio: 'このアーティストの類似トラックは見つかりませんでした。',
   notFound: 'アーティストが見つかりません。',

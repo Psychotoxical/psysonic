@@ -11,6 +11,8 @@ export const artistDetail = {
   playAllTooltip: 'Odtwórz całą dyskografię',
   shuffleTooltip: 'Przetasuj całą dyskografię',
   radioTooltip: 'Rozpocznij radio w oparciu o tego wykonawcę',
+  enqueue: 'Dodaj do kolejki',
+  enqueueTooltip: 'Dodaj całą dyskografię do kolejki',
   loading: 'Ładowanie…',
   noRadio: 'Nie znaleziono podobnych utworów dla tego wykonawcy.',
   notFound: 'Wykonawca nie znaleziony.',

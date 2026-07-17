@@ -11,6 +11,8 @@ export const artistDetail = {
   playAllTooltip: 'Volledige discografie afspelen',
   shuffleTooltip: 'Volledige discografie willekeurig afspelen',
   radioTooltip: 'Radio op basis van deze artiest starten',
+  enqueue: 'In wachtrij',
+  enqueueTooltip: 'Volledige discografie aan wachtrij toevoegen',
   loading: 'Laden…',
   noRadio: 'Geen vergelijkbare nummers gevonden voor deze artiest.',
   notFound: 'Artiest niet gevonden.',
