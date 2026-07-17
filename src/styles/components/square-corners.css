@@ -5,8 +5,8 @@
  *   corners off the grid cards (album / playlist / artist / song / "because")
  *   and their cover artwork, for users who prefer a sharp, boxy look.
  *
- *   Scope is deliberately limited to cards + their covers — buttons, inputs,
- *   dialogs and the player bar keep whatever radius the active theme defines.
+ *   Scope is deliberately limited to cards + covers — buttons, inputs and
+ *   dialogs keep whatever radius the active theme defines.
  *   `!important` is required because some themes set card radii with their own
  *   `!important` (see e.g. `.artist-card-avatar-initial`).
  *
@@ -67,4 +67,23 @@ html[data-square-corners] :is(
   .mp-album-cover
 ) {
   border-radius: 0 !important;
+}
+
+/* Player bar cover and the list-row cover thumbs (queue, playlists,
+ *  favorites, search — every list surface shares `.track-row-cover-thumb`).
+ *  The wrap clips the art (`overflow: hidden`), so it must lose its radius
+ *  too or the corners stay visually rounded. */
+html[data-square-corners] :is(
+  .player-album-art,
+  .player-album-art-placeholder,
+  .player-album-art-wrap,
+  .track-row-cover-thumb
+) {
+  border-radius: 0 !important;
+}
+
+/* The floating player bar's cover is a deliberate circular disc, not a card
+ *  corner — it stays round, same rule as the avatar placeholder circle. */
+html[data-square-corners] .player-bar.floating .player-album-art-wrap {
+  border-radius: 50% !important;
 }
