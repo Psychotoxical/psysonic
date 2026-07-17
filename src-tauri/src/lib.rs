@@ -444,12 +444,14 @@ pub fn run() {
                                 }
                             }
 
-                            // Per-file state: mtime (gates the read while a
-                            // file is unchanged) and last pushed payload
-                            // (change detection + ready re-send). Entries only
-                            // update after a successful emit, so a failed push
-                            // retries next tick instead of being marked seen.
-                            type Seen = HashMap<PathBuf, (Option<SystemTime>, serde_json::Value)>;
+                            // Per-file state: css + manifest mtimes (gate the
+                            // reads while both files are unchanged) and last
+                            // pushed payload (change detection + ready
+                            // re-send). Entries only update after a successful
+                            // emit, so a failed push retries next tick instead
+                            // of being marked seen.
+                            type Stamps = (Option<SystemTime>, Option<SystemTime>);
+                            type Seen = HashMap<PathBuf, (Stamps, serde_json::Value)>;
                             let seen: Arc<Mutex<Seen>> = Arc::new(Mutex::new(HashMap::new()));
 
                             // The frontend announces its listeners (on mount
@@ -495,46 +497,46 @@ pub fn run() {
                                     WatchTarget::File(f) => vec![f.clone()],
                                 };
                                 for f in files {
-                                    let mtime =
+                                    let css_mtime =
                                         std::fs::metadata(&f).and_then(|m| m.modified()).ok();
+                                    // The sibling manifest is part of the
+                                    // watched payload — a version bump alone
+                                    // must reach the UI (tester report: it
+                                    // didn't), so its stamp gates too.
+                                    let manifest_path =
+                                        f.parent().map(|d| d.join("manifest.json"));
+                                    let (manifest_exists, manifest_mtime) = match manifest_path
+                                        .as_ref()
+                                        .map(std::fs::metadata)
+                                    {
+                                        Some(Ok(md)) => (true, md.modified().ok()),
+                                        _ => (false, None),
+                                    };
+                                    let stamps = (css_mtime, manifest_mtime);
                                     let Ok(mut m) = seen.lock() else { continue };
-                                    // mtime gate: skip the full read while the
-                                    // stamp is unchanged (a None stamp never
-                                    // matches, so filesystems without mtime
-                                    // fall back to read + compare).
-                                    if let Some((prev_mtime, _)) = m.get(&f) {
-                                        if prev_mtime.is_some() && *prev_mtime == mtime {
+                                    // mtime gate: skip the full reads while
+                                    // both stamps are unchanged (a None stamp
+                                    // never matches an existing file, so
+                                    // filesystems without mtime fall back to
+                                    // read + compare).
+                                    if let Some(((prev_css, prev_manifest), _)) = m.get(&f) {
+                                        let css_fresh =
+                                            prev_css.is_some() && *prev_css == css_mtime;
+                                        let manifest_fresh = *prev_manifest == manifest_mtime
+                                            && (manifest_mtime.is_some() || !manifest_exists);
+                                        if css_fresh && manifest_fresh {
                                             continue;
                                         }
                                     }
                                     let Ok(css) = std::fs::read_to_string(&f) else {
                                         continue;
                                     };
-                                    let event = match m.get_mut(&f) {
-                                        // mtime-only touch — restamp quietly.
-                                        Some(entry)
-                                            if entry.1.get("css").and_then(|c| c.as_str())
-                                                == Some(css.as_str()) =>
-                                        {
-                                            entry.0 = mtime;
-                                            continue;
-                                        }
-                                        // First sight in directory mode
-                                        // installs without stealing the
-                                        // active theme; a save applies.
-                                        None if matches!(target, WatchTarget::Dir(_)) => {
-                                            "theme-watch:css-seed"
-                                        }
-                                        _ => "theme-watch:css",
-                                    };
                                     // Ship the sibling manifest's metadata so
                                     // the frontend can show the theme's real
                                     // name/author/version instead of dev
                                     // placeholders (and the update badge
                                     // stays quiet).
-                                    let manifest = f
-                                        .parent()
-                                        .map(|d| d.join("manifest.json"))
+                                    let manifest = manifest_path
                                         .and_then(|p| std::fs::read_to_string(p).ok())
                                         .and_then(|s| {
                                             serde_json::from_str::<serde_json::Value>(&s).ok()
@@ -554,8 +556,31 @@ pub fn run() {
                                         "description": meta("description"),
                                         "mode": meta("mode"),
                                     });
+                                    let event = match m.get_mut(&f) {
+                                        // mtime-only touch — restamp quietly.
+                                        Some(entry) if entry.1 == payload => {
+                                            entry.0 = stamps;
+                                            continue;
+                                        }
+                                        // Metadata-only change (version bump
+                                        // etc.) refreshes the install without
+                                        // stealing the active theme.
+                                        Some(entry)
+                                            if entry.1.get("css").and_then(|c| c.as_str())
+                                                == Some(css.as_str()) =>
+                                        {
+                                            "theme-watch:css-seed"
+                                        }
+                                        // First sight in directory mode
+                                        // installs without stealing the
+                                        // active theme; a save applies.
+                                        None if matches!(target, WatchTarget::Dir(_)) => {
+                                            "theme-watch:css-seed"
+                                        }
+                                        _ => "theme-watch:css",
+                                    };
                                     if handle.emit(event, &payload).is_ok() {
-                                        m.insert(f, (mtime, payload));
+                                        m.insert(f, (stamps, payload));
                                     }
                                 }
                                 std::thread::sleep(std::time::Duration::from_millis(300));
