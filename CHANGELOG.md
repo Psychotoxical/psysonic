@@ -339,6 +339,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * With a large number of community themes installed, every hover or playback-state change made the browser re-evaluate the CSS of every installed theme, which could slow the UI to a crawl. Only the active theme (plus the scheduler's day and night picks) participates now; the others stay dormant until applied — switching themes is unaffected.
 
+### Settings — cover art toggles translated
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1319](https://github.com/Psychotoxical/psysonic/pull/1319)**
+
+* The queue cover-art setting and the track-list setting's title showed English text in every language except Russian — both are translated in all languages now, and the German description states more precisely which pages show the thumbnails.
+
 
 ## [1.49.0] - 2026-06-29
 
