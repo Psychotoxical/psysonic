@@ -139,6 +139,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The header search field on the Playlists page now filters the list by playlist name (same scoped badge pattern as Artists / Albums), including in folder view.
 
+### Artist page — add the whole discography to the queue
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1321](https://github.com/Psychotoxical/psysonic/pull/1321)**
+
+* A new queue button on the artist page appends the artist's entire discography to the current queue in one click, next to Play all and Shuffle — matching what album pages already offer.
+
 
 ## Changed
 
