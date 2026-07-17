@@ -18,7 +18,8 @@ import {
 import { useArtistDetailData } from '@/features/artist/hooks/useArtistDetailData';
 import { useArtistSimilarArtists } from '@/features/artist/hooks/useArtistSimilarArtists';
 import {
-  runArtistDetailPlayAll, runArtistDetailPlayTopSong, runArtistDetailShuffle, runArtistDetailStartRadio,
+  runArtistDetailPlayAll, runArtistDetailPlayTopSong, runArtistDetailShuffle,
+  runArtistDetailStartRadio, runArtistDetailEnqueueAll,
 } from '@/features/artist/utils/runArtistDetailPlay';
 import { useOfflineBrowseContext } from '@/features/offline';
 import { offlineActionPolicy } from '@/features/offline';
@@ -112,6 +113,9 @@ export default function ArtistDetail() {
   });
   const handleShuffle = () => runArtistDetailShuffle({
     albums, serverId: activeServerId, setPlayAllLoading, playTrack,
+  });
+  const handleEnqueueAll = () => runArtistDetailEnqueueAll({
+    albums, serverId: activeServerId, setPlayAllLoading, enqueue,
   });
   const handleStartRadio = () => {
     if (!artist) return;
@@ -270,6 +274,7 @@ export default function ArtistDetail() {
         toggleStar={toggleStar}
         handlePlayAll={handlePlayAll}
         handleShuffle={handleShuffle}
+        handleEnqueueAll={handleEnqueueAll}
         handleStartRadio={handleStartRadio}
         handleShareArtist={handleShareArtist}
         handleImageUpload={handleImageUpload}

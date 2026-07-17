@@ -3,7 +3,7 @@ import { getSimilarSongs2, getTopSongs } from '@/lib/api/subsonicArtists';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '@/lib/api/subsonicTypes';
 import type { Track } from '@/lib/media/trackTypes';
 import { songToTrack } from '@/lib/media/songToTrack';
-import { runBulkPlayAll, runBulkShuffle } from '@/features/playback/utils/playback/runBulkPlay';
+import { runBulkPlayAll, runBulkShuffle, runBulkEnqueue } from '@/features/playback/utils/playback/runBulkPlay';
 import { resolveAlbum, resolveMediaServerId } from '@/features/offline';
 
 /** Ordered artist discography tracks for play-all / shuffle (network or local bytes). */
@@ -79,6 +79,24 @@ export async function runArtistDetailShuffle(deps: RunArtistDetailPlayDeps): Pro
     fetchTracks: () => fetchArtistDetailTracks(albums, serverId),
     setLoading: setPlayAllLoading,
     playTrack,
+  });
+}
+
+export interface RunArtistDetailEnqueueDeps {
+  albums: SubsonicAlbum[];
+  serverId?: string | null;
+  setPlayAllLoading: (v: boolean) => void;
+  enqueue: (tracks: Track[]) => void;
+}
+
+/** Append the whole artist discography to the play queue. */
+export async function runArtistDetailEnqueueAll(deps: RunArtistDetailEnqueueDeps): Promise<void> {
+  const { albums, serverId, setPlayAllLoading, enqueue } = deps;
+  if (albums.length === 0) return;
+  await runBulkEnqueue({
+    fetchTracks: () => fetchArtistDetailTracks(albums, serverId),
+    setLoading: setPlayAllLoading,
+    enqueue,
   });
 }
 

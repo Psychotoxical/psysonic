@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import * as offlineMediaResolve from '@/features/offline';
-import { fetchArtistDetailTracks, runArtistDetailPlayTopSong } from '@/features/artist/utils/runArtistDetailPlay';
+import {
+  fetchArtistDetailTracks, runArtistDetailPlayTopSong, runArtistDetailEnqueueAll,
+} from '@/features/artist/utils/runArtistDetailPlay';
 
 vi.mock('@/features/offline', () => ({
   resolveAlbum: vi.fn(),
@@ -97,5 +99,41 @@ describe('runArtistDetailPlayTopSong', () => {
       expect.objectContaining({ id: 'top-1' }),
       [expect.objectContaining({ id: 'top-1' })],
     );
+  });
+});
+
+describe('runArtistDetailEnqueueAll', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('enqueues the whole ordered discography', async () => {
+    resolveAlbumMock
+      .mockResolvedValueOnce({
+        album: albums[1],
+        songs: [{ id: 't1', title: 'One', artist: 'A', album: 'A', albumId: 'al-1', duration: 100, track: 1 }],
+      })
+      .mockResolvedValueOnce({
+        album: albums[0],
+        songs: [{ id: 't2', title: 'Two', artist: 'A', album: 'B', albumId: 'al-2', duration: 100, track: 1 }],
+      });
+    const enqueue = vi.fn();
+    const setPlayAllLoading = vi.fn();
+
+    await runArtistDetailEnqueueAll({ albums, serverId: 'srv-1', setPlayAllLoading, enqueue });
+
+    expect(enqueue).toHaveBeenCalledTimes(1);
+    expect(enqueue.mock.calls[0][0].map((t: { id: string }) => t.id)).toEqual(['t1', 't2']);
+    expect(setPlayAllLoading).toHaveBeenCalledWith(true);
+    expect(setPlayAllLoading).toHaveBeenLastCalledWith(false);
+  });
+
+  it('is a no-op with no albums', async () => {
+    const enqueue = vi.fn();
+
+    await runArtistDetailEnqueueAll({ albums: [], serverId: 'srv-1', setPlayAllLoading: vi.fn(), enqueue });
+
+    expect(resolveAlbumMock).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
   });
 });

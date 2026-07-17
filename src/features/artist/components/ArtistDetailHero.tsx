@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAlbumDetailBack } from '@/features/album';
 import {
   ArrowLeft, Camera, Check, HardDriveDownload, Heart,
-  Loader2, Play, Radio, Share2, Shuffle, Users,
+  ListPlus, Loader2, Play, Radio, Share2, Shuffle, Users,
 } from 'lucide-react';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicArtistInfo } from '@/lib/api/subsonicTypes';
 import { useOfflineStore } from '@/features/offline';
@@ -35,6 +35,7 @@ interface Props {
   toggleStar: () => Promise<void>;
   handlePlayAll: () => void;
   handleShuffle: () => void;
+  handleEnqueueAll: () => void;
   handleStartRadio: () => void;
   handleShareArtist: () => void;
   handleImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
@@ -100,7 +101,7 @@ function ArtistHeaderBg({ url, position }: { url: string; position?: string }) {
 
 export default function ArtistDetailHero({
   artist, id, albums, info, isStarred, artistEntityRating, handleArtistEntityRating,
-  toggleStar, handlePlayAll, handleShuffle, handleStartRadio, handleShareArtist,
+  toggleStar, handlePlayAll, handleShuffle, handleEnqueueAll, handleStartRadio, handleShareArtist,
   handleImageUpload, playAllLoading, radioLoading, uploading,
   openedLink, openLink,
   coverId, coverRef, coverRevision, headerCoverFailed, setHeaderCoverFailed,
@@ -301,6 +302,15 @@ export default function ArtistDetailHero({
                 >
                   {playAllLoading ? <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'currentColor' }} /> : <Shuffle size={16} />}
                   {!isMobile && <span className="compact-btn-label">{t('artistDetail.shuffle')}</span>}
+                </button>
+                <button
+                  className="btn btn-surface"
+                  onClick={handleEnqueueAll}
+                  disabled={playAllLoading}
+                  aria-label={t('artistDetail.enqueue')}
+                  {...tooltipAttrs(t('artistDetail.enqueueTooltip'))}
+                >
+                  <ListPlus size={16} />
                 </button>
               </>
             )}
