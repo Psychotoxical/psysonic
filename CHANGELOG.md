@@ -357,6 +357,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The Square Corners toggle left the player bar cover and the small cover thumbnails in list rows rounded (queue, playlists, favorites, search, Random Mix). They now go square with everything else; the floating player bar's circular cover stays round by design.
 
+### Duplicate server session on Navidrome
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), reported by TheHomeGuy on the Psysonic Discord, PR [#1322](https://github.com/Psychotoxical/psysonic/pull/1322)**
+
+* Native requests carried a separate User-Agent from the in-app view, so the server listed the app as two logged-in players at once. They now share one identity and show as a single session.
+
 
 ## [1.49.0] - 2026-06-29
 
