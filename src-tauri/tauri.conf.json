@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Psysonic",
-  "version": "1.50.0-dev",
+  "version": "1.51.0-dev",
   "identifier": "dev.psysonic.player",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -78,7 +78,7 @@
         "installMode": "currentUser"
       },
       "wix": {
-        "version": "1.50.0.1"
+        "version": "1.51.0.1"
       }
     }
   }
