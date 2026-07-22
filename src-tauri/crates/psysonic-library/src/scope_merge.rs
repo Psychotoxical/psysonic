@@ -2074,7 +2074,7 @@ fn fetch_scope_deduped_tracks_for_album_key(
             {scoped} AND t.album_id IS NOT NULL {key_filter} \
          ) \
          SELECT {plain_cols} FROM ranked WHERE rn = 1 \
-         ORDER BY track_number ASC NULLS LAST, disc_number ASC NULLS LAST, title COLLATE NOCASE ASC",
+         ORDER BY disc_number ASC NULLS LAST, track_number ASC NULLS LAST, title COLLATE NOCASE ASC",
         scoped = scoped,
     );
     let mut binds = scope_binds;
@@ -3413,6 +3413,43 @@ mod tests {
         assert_eq!(detail.album.genre, None);
         assert_eq!(detail.album.cover_art_id, None);
         assert_eq!(detail.tracks.len(), 2);
+    }
+
+    #[test]
+    fn album_detail_orders_tracks_disc_then_track() {
+        // A multi-disc album must play disc 1 in full before disc 2 — ordered by
+        // (disc_number, track_number). Ordering by track_number first interleaves
+        // the discs (D1T1, D2T1, D1T2, D2T2), which is what the Play-All queue did.
+        let store = LibraryStore::open_in_memory();
+        let mk = |id: &str, disc: i64, trk: i64| {
+            let mut t = track(
+                "s1", id, "Song", Some("Artist"), "Double Album", "alb-2disc",
+                Some("art1"), 200, "lib-a", Some(2000), None, None,
+            );
+            t.disc_number = Some(disc);
+            t.track_number = Some(trk);
+            t
+        };
+        // Seeded scrambled; ids deliberately don't match the target order.
+        seed_and_rebuild(&store, &[
+            mk("z-d2t2", 2, 2),
+            mk("q-d1t1", 1, 1),
+            mk("a-d2t1", 2, 1),
+            mk("m-d1t2", 1, 2),
+        ]);
+
+        let detail = album_detail(
+            &store,
+            &LibraryScopeAlbumDetailRequest {
+                scopes: vec![scope_pair("s1", "lib-a")],
+                album_id: "alb-2disc".into(),
+                server_id: "s1".into(),
+            },
+        )
+        .unwrap();
+
+        let ids: Vec<&str> = detail.tracks.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, ["q-d1t1", "m-d1t2", "a-d2t1", "z-d2t2"]);
     }
 
     #[test]
