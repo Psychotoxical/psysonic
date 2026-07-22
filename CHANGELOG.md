@@ -89,6 +89,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The first New Releases page now keeps the local catalogue's logical album de-duplication when fresh network results arrive, including alternate physical copies on one server and matching copies across several servers.
 
+### Artist details — group releases by type again
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1329](https://github.com/Psychotoxical/psysonic/pull/1329)**
+
+* The artist page groups a discography into Albums, Singles, EPs, Live and Compilations again instead of one flat list. The release type is read from each album's tags; releases without a type tag stay in the default group.
+
 
 ## [1.50.0]
 
