@@ -2227,7 +2227,12 @@ fn fetch_albums_for_artist_key(
             FROM physical_tracks b \
          ) \
          SELECT p.server_id, p.album_id, p.album, p.artist, p.artist_id, p.album_artist, \
-                st.song_count, st.duration_total, p.year, p.genre, p.cover_art_id, p.starred_at, p.synced_at \
+                st.song_count, st.duration_total, p.year, p.genre, p.cover_art_id, p.starred_at, p.synced_at, \
+                (SELECT json_extract(tt.raw_json, '$.tags.releasetype') \
+                   FROM track tt \
+                  WHERE tt.server_id = p.server_id AND tt.album_id = p.album_id AND tt.deleted = 0 \
+                    AND json_extract(tt.raw_json, '$.tags.releasetype') IS NOT NULL \
+                  LIMIT 1) AS release_types \
          FROM album_pick p \
          INNER JOIN album_stats st ON p.album_dedup = st.album_dedup \
          WHERE p.rn = 1 \
@@ -2241,11 +2246,45 @@ fn fetch_albums_for_artist_key(
         binds.push(SqlValue::Text(anchor_server.to_string()));
         binds.push(SqlValue::Text(anchor_artist_id.to_string()));
     }
+    // The bulk album pipeline keeps album `raw_json` NULL and the standalone album
+    // table is unused, so the DTO would otherwise carry no `releaseTypes` and the
+    // artist page could no longer group releases (Albums / Singles / EPs / Live /
+    // Compilations) — it collapses to one flat list. Navidrome exposes the
+    // MusicBrainz RELEASETYPE tag per track under `raw_json.tags.releasetype`
+    // (album-consistent), so surface a representative track's array here.
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt
-        .query_map(params_from_iter(binds.iter()), map_album_list_row)?
+        .query_map(params_from_iter(binds.iter()), |r| {
+            let track_artist: Option<String> = r.get(3)?;
+            let album_artist: Option<String> = r.get(5)?;
+            let raw_json = r
+                .get::<_, Option<String>>(13)?
+                .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+                .filter(|v| v.as_array().is_some_and(|a| !a.is_empty()))
+                .map(|types| {
+                    let mut obj = serde_json::Map::new();
+                    obj.insert("releaseTypes".to_string(), types);
+                    Value::Object(obj)
+                })
+                .unwrap_or(Value::Null);
+            Ok(LibraryAlbumDto {
+                server_id: r.get(0)?,
+                id: r.get(1)?,
+                name: r.get(2)?,
+                artist: pick_album_group_artist(track_artist, album_artist),
+                artist_id: r.get(4)?,
+                song_count: Some(r.get(6)?),
+                duration_sec: Some(r.get(7)?),
+                year: r.get(8)?,
+                genre: r.get(9)?,
+                cover_art_id: r.get(10)?,
+                starred_at: r.get(11)?,
+                synced_at: r.get(12)?,
+                raw_json,
+            })
+        })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
-    Ok(rows.into_iter().map(album_row_to_dto).collect())
+    Ok(rows)
 }
 
 fn fetch_scope_deduped_tracks_for_artist_key(
@@ -2811,6 +2850,38 @@ mod tests {
         .unwrap();
         assert_eq!(with_tracks.tracks.len(), 1);
         assert_eq!(with_tracks.tracks[0].id, "t1");
+    }
+
+    #[test]
+    fn artist_detail_albums_carry_release_types_for_grouping() {
+        // Regression (#1326): the artist page groups a discography into Albums /
+        // Singles / EPs / Live / Compilations from each album's `releaseTypes`. The
+        // multi-scope pipeline builds albums from tracks and keeps album `raw_json`
+        // NULL, so the release types must come from the tracks' Navidrome
+        // `raw_json.tags.releasetype` (order preserved), or grouping goes flat.
+        let store = LibraryStore::open_in_memory();
+        let mut t1 = track(
+            "s1", "t1", "Song", Some("Artist"), "A Live EP", "alb1",
+            Some("art1"), 200, "lib-a", Some(2020), None, None,
+        );
+        t1.raw_json = r#"{"tags":{"releasetype":["Single","Live"]}}"#.into();
+        seed_and_rebuild(&store, &[t1]);
+
+        let response = artist_detail(
+            &store,
+            &LibraryScopeArtistDetailRequest {
+                scopes: vec![scope_pair("s1", "lib-a")],
+                artist_id: "art1".into(),
+                server_id: "s1".into(),
+                include_tracks: false,
+                top_tracks_limit: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(response.albums.len(), 1);
+        assert_eq!(response.albums[0].raw_json["releaseTypes"][0], "Single");
+        assert_eq!(response.albums[0].raw_json["releaseTypes"][1], "Live");
     }
 
     #[test]
