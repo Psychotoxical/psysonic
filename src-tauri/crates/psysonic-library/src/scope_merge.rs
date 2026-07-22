@@ -2074,7 +2074,7 @@ fn fetch_scope_deduped_tracks_for_album_key(
             {scoped} AND t.album_id IS NOT NULL {key_filter} \
          ) \
          SELECT {plain_cols} FROM ranked WHERE rn = 1 \
-         ORDER BY disc_number ASC NULLS LAST, track_number ASC NULLS LAST, title COLLATE NOCASE ASC",
+         ORDER BY COALESCE(disc_number, 1) ASC, track_number ASC NULLS LAST, id ASC",
         scoped = scoped,
     );
     let mut binds = scope_binds;
@@ -3420,22 +3420,31 @@ mod tests {
         // A multi-disc album must play disc 1 in full before disc 2 — ordered by
         // (disc_number, track_number). Ordering by track_number first interleaves
         // the discs (D1T1, D2T1, D1T2, D2T2), which is what the Play-All queue did.
+        // A missing disc number is treated as disc 1 (matching the UI's
+        // `discNumber ?? 1`), so an untagged track stays in the disc-1 group and
+        // precedes disc 2 rather than sorting after every explicit disc. `id` is the
+        // final tie-break, so duplicate disc/track metadata is still deterministic.
         let store = LibraryStore::open_in_memory();
-        let mk = |id: &str, disc: i64, trk: i64| {
+        // Unique title per id, so nothing dedups by title.
+        let mk = |id: &str, disc: Option<i64>, trk: i64| {
             let mut t = track(
-                "s1", id, "Song", Some("Artist"), "Double Album", "alb-2disc",
+                "s1", id, id, Some("Artist"), "Double Album", "alb-2disc",
                 Some("art1"), 200, "lib-a", Some(2000), None, None,
             );
-            t.disc_number = Some(disc);
+            t.disc_number = disc;
             t.track_number = Some(trk);
             t
         };
         // Seeded scrambled; ids deliberately don't match the target order.
+        // `u-null-t3` has no disc number and must land in the disc-1 group; `b`/`z`
+        // share disc 2 / track 2 and must fall back to id order.
         seed_and_rebuild(&store, &[
-            mk("z-d2t2", 2, 2),
-            mk("q-d1t1", 1, 1),
-            mk("a-d2t1", 2, 1),
-            mk("m-d1t2", 1, 2),
+            mk("z-d2t2", Some(2), 2),
+            mk("q-d1t1", Some(1), 1),
+            mk("b-d2t2", Some(2), 2),
+            mk("u-null-t3", None, 3),
+            mk("a-d2t1", Some(2), 1),
+            mk("m-d1t2", Some(1), 2),
         ]);
 
         let detail = album_detail(
@@ -3449,7 +3458,10 @@ mod tests {
         .unwrap();
 
         let ids: Vec<&str> = detail.tracks.iter().map(|t| t.id.as_str()).collect();
-        assert_eq!(ids, ["q-d1t1", "m-d1t2", "a-d2t1", "z-d2t2"]);
+        assert_eq!(
+            ids,
+            ["q-d1t1", "m-d1t2", "u-null-t3", "a-d2t1", "b-d2t2", "z-d2t2"]
+        );
     }
 
     #[test]
