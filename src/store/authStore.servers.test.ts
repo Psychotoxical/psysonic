@@ -41,6 +41,33 @@ describe('addServer / updateServer', () => {
     expect(s.libraryBrowseServerIds).toEqual([id]);
   });
 
+  it('repairs an empty Library scope when a second server is added', () => {
+    useAuthStore.setState({
+      servers: [{
+        id: 'legacy',
+        name: 'Legacy',
+        url: 'https://legacy.test',
+        username: 'u',
+        password: 'p',
+      }],
+      activeServerId: 'legacy',
+      libraryBrowseServerIds: [],
+      libraryBrowseScopeVersion: 7,
+    });
+
+    useAuthStore.getState().addServer({
+      name: 'Second',
+      url: 'https://second.test',
+      username: 'u',
+      password: 'p',
+    });
+
+    const state = useAuthStore.getState();
+    expect(state.servers).toHaveLength(2);
+    expect(state.libraryBrowseServerIds).toEqual(['legacy']);
+    expect(state.libraryBrowseScopeVersion).toBe(8);
+  });
+
   it('updateServer patches the matching server only', () => {
     const { a, b } = addThree();
     useAuthStore.getState().updateServer(a, { name: 'A-renamed', url: 'https://a-new.test' });

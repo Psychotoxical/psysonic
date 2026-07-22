@@ -2,6 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LibraryScopePair } from '@/lib/api/library/scopeReads';
 import { loadLocalNewReleases } from '@/lib/library/newReleasesLocal';
 import {
+  describeMultiServerError,
+  emitMultiServerDebug,
+} from '@/lib/library/multiServerDebug';
+import {
   NEW_RELEASES_RESET_DELAY_MS,
   NEW_RELEASES_SEEN_MAX_IDS,
   NEW_RELEASES_UNREAD_POLL_MS,
@@ -59,10 +63,33 @@ export function useSidebarNewReleasesUnread({
     const isCurrent = () => seq === newReleasesRefreshSeqRef.current;
 
     if (!isLoggedIn || !anchorServerId || scopes.length === 0) {
+      emitMultiServerDebug('new_releases_unread_skip', {
+        seq,
+        markAsSeen,
+        reason: !isLoggedIn
+          ? 'not_logged_in'
+          : !anchorServerId
+            ? 'missing_anchor_server'
+            : 'empty_scope_pairs',
+        anchorServerId,
+        scopes,
+        scopeFingerprint,
+        pathname,
+      });
       if (isCurrent()) setNewReleasesUnreadCount(0);
       return;
     }
 
+    const startedAt = performance.now();
+    emitMultiServerDebug('new_releases_unread_start', {
+      seq,
+      markAsSeen,
+      anchorServerId,
+      scopes,
+      scopeFingerprint,
+      pathname,
+      storageKey: scopedSeenStorageKey,
+    });
     try {
       const newest = await loadLocalNewReleases(
         anchorServerId,
@@ -75,7 +102,15 @@ export function useSidebarNewReleasesUnread({
         // poll and starves the Home New/Latest rails.
         false,
       );
-      if (!isCurrent()) return;
+      if (!isCurrent()) {
+        emitMultiServerDebug('new_releases_unread_stale', {
+          seq,
+          durationMs: Math.round(performance.now() - startedAt),
+          newestCount: newest.albums.length,
+          currentSeq: newReleasesRefreshSeqRef.current,
+        });
+        return;
+      }
       const newestIds = newest.albums.map(a => a.id).filter(Boolean);
       const seenIds = readSeenNewReleaseIds();
 
@@ -83,6 +118,15 @@ export function useSidebarNewReleasesUnread({
         // First bootstrap for this server/scope: baseline is "already seen".
         writeSeenNewReleaseIds(newestIds);
         if (isCurrent()) setNewReleasesUnreadCount(0);
+        emitMultiServerDebug('new_releases_unread_done', {
+          seq,
+          action: 'bootstrap_seen_baseline',
+          durationMs: Math.round(performance.now() - startedAt),
+          newestCount: newestIds.length,
+          seenCountBefore: 0,
+          unreadCount: 0,
+          sampleNewestIds: newestIds.slice(0, 10),
+        });
         return;
       }
 
@@ -91,6 +135,15 @@ export function useSidebarNewReleasesUnread({
         // cannot silently discard freshly "read" albums (fixes badge coming back).
         writeSeenNewReleaseIds(mergeSeenNewReleaseIdsCap(seenIds, newestIds, NEW_RELEASES_SEEN_MAX_IDS));
         if (isCurrent()) setNewReleasesUnreadCount(0);
+        emitMultiServerDebug('new_releases_unread_done', {
+          seq,
+          action: 'mark_as_seen',
+          durationMs: Math.round(performance.now() - startedAt),
+          newestCount: newestIds.length,
+          seenCountBefore: seenIds.length,
+          unreadCount: 0,
+          sampleNewestIds: newestIds.slice(0, 10),
+        });
         return;
       }
 
@@ -98,14 +151,34 @@ export function useSidebarNewReleasesUnread({
       const unread = newestIds.reduce((count, id) => count + (seenSet.has(id) ? 0 : 1), 0);
 
       if (isCurrent()) setNewReleasesUnreadCount(unread);
-    } catch {
+      emitMultiServerDebug('new_releases_unread_done', {
+        seq,
+        action: 'count_unread',
+        durationMs: Math.round(performance.now() - startedAt),
+        newestCount: newestIds.length,
+        seenCountBefore: seenIds.length,
+        unreadCount: unread,
+        sampleNewestIds: newestIds.slice(0, 10),
+      });
+    } catch (error) {
       // Keep previous value on transient network/API errors.
+      emitMultiServerDebug('new_releases_unread_error', {
+        seq,
+        durationMs: Math.round(performance.now() - startedAt),
+        anchorServerId,
+        scopes,
+        scopeFingerprint,
+        error: describeMultiServerError(error),
+      });
     }
   }, [
     anchorServerId,
     isLoggedIn,
+    pathname,
     readSeenNewReleaseIds,
+    scopeFingerprint,
     scopes,
+    scopedSeenStorageKey,
     writeSeenNewReleaseIds,
   ]);
 
@@ -121,13 +194,22 @@ export function useSidebarNewReleasesUnread({
     if (refreshDebounceRef.current != null) {
       window.clearTimeout(refreshDebounceRef.current);
     }
+    emitMultiServerDebug('new_releases_unread_schedule', {
+      seq,
+      markAsSeen,
+      pendingMarkAsSeen: pendingMarkAsSeenRef.current,
+      pathname,
+      anchorServerId,
+      scopes,
+      scopeFingerprint,
+    });
     refreshDebounceRef.current = window.setTimeout(() => {
       refreshDebounceRef.current = null;
       const mark = pendingMarkAsSeenRef.current;
       pendingMarkAsSeenRef.current = false;
       void refreshNewReleasesUnread(seq, mark);
     }, NEW_RELEASES_UNREAD_DEBOUNCE_MS);
-  }, [refreshNewReleasesUnread]);
+  }, [anchorServerId, pathname, refreshNewReleasesUnread, scopeFingerprint, scopes]);
 
   useEffect(() => {
     const onNewReleasesPage = pathname.startsWith('/new-releases');

@@ -29,6 +29,7 @@ import type {
 } from './authStoreTypes';
 import { migrateLegacyLastfm, sanitizeAccounts } from '../music-network';
 import { deriveLibraryBrowseServerIdsWithFallback } from '@/lib/library/libraryBrowseScope';
+import { sanitizeDebugLoggingDepth } from '@/lib/perf/debugLoggingMode';
 
 /**
  * Computes the post-rehydration patch for the auth store. Runs all
@@ -298,6 +299,9 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     musicFoldersByServer,
     libraryBrowseSelectionByServer,
     libraryBrowseScopeVersion: 0,
+    debugLoggingDepth: sanitizeDebugLoggingDepth(
+      (state as { debugLoggingDepth?: unknown }).debugLoggingDepth,
+    ),
     musicFolders: state.activeServerId ? (musicFoldersByServer[state.activeServerId] ?? []) : [],
     ...(state.startMinimizedToTray && state.showTrayIcon === false
       ? { startMinimizedToTray: false as const }

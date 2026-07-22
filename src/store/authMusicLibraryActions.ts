@@ -5,6 +5,7 @@ import {
   scheduleMusicLibraryFilterVersionBump,
 } from './musicLibraryFilterNotify';
 import { deriveLibraryBrowseServerIdsWithFallback } from '@/lib/library/libraryBrowseScope';
+import { emitMultiServerDebug } from '@/lib/library/multiServerDebug';
 
 type SetState = (
   partial: Partial<AuthState> | ((state: AuthState) => Partial<AuthState>),
@@ -123,7 +124,15 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
 
     setMusicFoldersForServer: (serverId, folders) => {
       const s = get();
-      if (!s.servers.some(server => server.id === serverId)) return;
+      if (!s.servers.some(server => server.id === serverId)) {
+        emitMultiServerDebug('folders_store_update_skip', {
+          serverId,
+          reason: 'profile_missing',
+          folderCount: folders.length,
+          savedServerIds: s.servers.map(server => server.id),
+        });
+        return;
+      }
       const previousFolders = s.musicFoldersByServer[serverId] ?? [];
       const foldersChanged = folders.length !== previousFolders.length
         || folders.some((folder, index) => {
@@ -152,48 +161,128 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
           ? { libraryBrowseScopeVersion: state.libraryBrowseScopeVersion + 1 }
           : {}),
       }));
+      const next = get();
+      emitMultiServerDebug('folders_store_update', {
+        serverId,
+        activeServerId: next.activeServerId,
+        configuredServerIds: next.libraryBrowseServerIds,
+        previousFolders: previousFolders.map(folder => ({ id: folder.id, name: folder.name })),
+        folders: folders.map(folder => ({ id: folder.id, name: folder.name })),
+        foldersChanged,
+        previousBrowseSelection: previousBrowseSelection ?? [],
+        browseSelection: next.libraryBrowseSelectionByServer[serverId] ?? [],
+        browseScopeChanged,
+        libraryBrowseScopeVersion: next.libraryBrowseScopeVersion,
+      });
     },
 
     setLibraryBrowseServerExclusive: (serverId) => {
       const s = get();
-      if (!s.servers.some(server => server.id === serverId)) return;
-      if (s.libraryBrowseServerIds.length === 1 && s.libraryBrowseServerIds[0] === serverId) return;
+      if (!s.servers.some(server => server.id === serverId)) {
+        emitMultiServerDebug('library_scope_exclusive_skip', {
+          serverId,
+          reason: 'profile_missing',
+          configuredServerIds: s.libraryBrowseServerIds,
+        });
+        return;
+      }
+      if (s.libraryBrowseServerIds.length === 1 && s.libraryBrowseServerIds[0] === serverId) {
+        emitMultiServerDebug('library_scope_exclusive_skip', {
+          serverId,
+          reason: 'already_exclusive',
+          configuredServerIds: s.libraryBrowseServerIds,
+        });
+        return;
+      }
       set(state => ({
         libraryBrowseServerIds: [serverId],
         libraryBrowseScopeVersion: state.libraryBrowseScopeVersion + 1,
       }));
+      emitMultiServerDebug('library_scope_exclusive_set', {
+        serverId,
+        previousServerIds: s.libraryBrowseServerIds,
+        configuredServerIds: get().libraryBrowseServerIds,
+        libraryBrowseScopeVersion: get().libraryBrowseScopeVersion,
+      });
     },
 
     setLibraryBrowseServerSelected: (serverId, selected) => {
       const s = get();
-      if (!s.servers.some(server => server.id === serverId)) return;
+      if (!s.servers.some(server => server.id === serverId)) {
+        emitMultiServerDebug('library_scope_membership_skip', {
+          serverId,
+          selected,
+          reason: 'profile_missing',
+          configuredServerIds: s.libraryBrowseServerIds,
+        });
+        return;
+      }
       const current = new Set(s.libraryBrowseServerIds);
       if (selected) current.add(serverId);
       else current.delete(serverId);
-      if (current.size === 0 && s.servers.length > 0) return;
+      if (current.size === 0 && s.servers.length > 0) {
+        emitMultiServerDebug('library_scope_membership_skip', {
+          serverId,
+          selected,
+          reason: 'cannot_remove_final_server',
+          configuredServerIds: s.libraryBrowseServerIds,
+        });
+        return;
+      }
       const next = deriveLibraryBrowseServerIdsWithFallback({
         servers: s.servers,
         activeServerId: s.activeServerId,
         libraryBrowseServerIds: [...current],
       });
       if (next.length === s.libraryBrowseServerIds.length
-        && next.every((id, index) => id === s.libraryBrowseServerIds[index])) return;
+        && next.every((id, index) => id === s.libraryBrowseServerIds[index])) {
+        emitMultiServerDebug('library_scope_membership_skip', {
+          serverId,
+          selected,
+          reason: 'unchanged',
+          configuredServerIds: s.libraryBrowseServerIds,
+        });
+        return;
+      }
       set(state => ({
         libraryBrowseServerIds: next,
         libraryBrowseScopeVersion: state.libraryBrowseScopeVersion + 1,
       }));
+      emitMultiServerDebug('library_scope_membership_set', {
+        serverId,
+        selected,
+        previousServerIds: s.libraryBrowseServerIds,
+        configuredServerIds: next,
+        libraryBrowseScopeVersion: get().libraryBrowseScopeVersion,
+      });
     },
 
     setLibraryBrowseSelectionForServer: (serverId, libraryIds) => {
       const s = get();
-      if (!s.libraryBrowseServerIds.includes(serverId)) return;
+      if (!s.libraryBrowseServerIds.includes(serverId)) {
+        emitMultiServerDebug('library_folder_selection_skip', {
+          serverId,
+          requestedLibraryIds: libraryIds,
+          reason: 'server_not_in_scope',
+          configuredServerIds: s.libraryBrowseServerIds,
+        });
+        return;
+      }
       const folders = s.musicFoldersByServer[serverId] ?? [];
       const knownFolderIds = new Set(folders.map(folder => folder.id));
       const unique = [...new Set(libraryIds)].filter(id => folders.length === 0 || knownFolderIds.has(id));
       const selection = collapseServerSelection(folders, unique);
       const previous = s.libraryBrowseSelectionByServer[serverId] ?? [];
       if (selection.length === previous.length
-        && selection.every((id, index) => id === previous[index])) return;
+        && selection.every((id, index) => id === previous[index])) {
+        emitMultiServerDebug('library_folder_selection_skip', {
+          serverId,
+          requestedLibraryIds: libraryIds,
+          normalizedLibraryIds: selection,
+          reason: 'unchanged',
+        });
+        return;
+      }
       set(state => ({
         libraryBrowseSelectionByServer: {
           ...state.libraryBrowseSelectionByServer,
@@ -201,6 +290,14 @@ export function createMusicLibraryActions(set: SetState, get: GetState): Pick<
         },
         libraryBrowseScopeVersion: state.libraryBrowseScopeVersion + 1,
       }));
+      emitMultiServerDebug('library_folder_selection_set', {
+        serverId,
+        requestedLibraryIds: libraryIds,
+        previousLibraryIds: previous,
+        normalizedLibraryIds: selection,
+        availableFolderIds: folders.map(folder => folder.id),
+        libraryBrowseScopeVersion: get().libraryBrowseScopeVersion,
+      });
     },
 
     setMusicLibraryFilter: (folderId) => {

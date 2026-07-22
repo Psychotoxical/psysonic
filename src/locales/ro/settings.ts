@@ -548,6 +548,8 @@ export const settings = {
   loggingModeOff: 'Oprit',
   loggingModeNormal: 'Normal',
   loggingModeDebug: 'Debug',
+  debugLoggingDepth: 'Profunzime depanare',
+  debugLoggingDepthDesc: 'Controlează nivelul de detaliu al diagnosticelor interfeței în modul Debug. Trasările existente folosesc nivelul 1, iar trasările detaliate multi-server nivelul 3.',
   loggingExport: 'Exportă log-uri',
   loggingExportSuccess: 'Log-uri exportate ({{count}} linii).',
   loggingExportError: 'Nu s-au putut exporta log-urile.',

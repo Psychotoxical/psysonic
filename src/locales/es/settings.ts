@@ -545,6 +545,8 @@ export const settings = {
   loggingModeOff: 'Apagado',
   loggingModeNormal: 'Normal',
   loggingModeDebug: 'Depuración',
+  debugLoggingDepth: 'Profundidad de depuración',
+  debugLoggingDepthDesc: 'Controla el detalle del diagnóstico de la interfaz en modo Depuración. Las trazas existentes usan el nivel 1; las trazas detalladas de varios servidores usan el nivel 3.',
   loggingExport: 'Exportar logs',
   loggingExportSuccess: 'Logs exportados ({{count}} líneas).',
   loggingExportError: 'No se pudieron exportar los logs.',

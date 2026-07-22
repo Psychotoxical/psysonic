@@ -24,7 +24,10 @@ import { syncAllServerHttpContexts } from '@/lib/server/syncServerHttpContext';
 import type { AuthState } from './authStoreTypes';
 import { getCachedConnectBaseUrl } from '@/lib/server/serverEndpoint';
 import { serverProfileBaseUrl } from '@/lib/server/serverBaseUrl';
-import { setDebugLoggingModeSource } from '@/lib/perf/debugLoggingMode';
+import {
+  setDebugLoggingDepthSource,
+  setDebugLoggingModeSource,
+} from '@/lib/perf/debugLoggingMode';
 import { createDiscordBannerActions } from './authDiscordBannerActions';
 import { setLibraryBrowseScopeSource } from '@/lib/library/libraryBrowseScope';
 
@@ -92,6 +95,7 @@ export const useAuthStore = create<AuthState>()(
       linuxWaylandTextRenderProfile: 'sharp',
       linuxWebkitInputForceRepaint: false,
       loggingMode: 'normal',
+      debugLoggingDepth: 1,
       nowPlayingEnabled: false,
       lyricsServerFirst: true,
       enableNeteaselyrics: false,
@@ -150,7 +154,7 @@ export const useAuthStore = create<AuthState>()(
       isConnecting: false,
       connectionError: null,
 
-      ...createServerProfileActions(set),
+      ...createServerProfileActions(set, get),
       ...createMusicNetworkActions(set),
       ...createAudioSettingsActions(set),
       ...createCacheStorageActions(set),
@@ -159,7 +163,7 @@ export const useAuthStore = create<AuthState>()(
       ...createLyricsSettingsActions(set),
       ...createTrackPreviewActions(set),
       ...createDiscoveryActions(set),
-      ...createPlumbingSettingsActions(set),
+      ...createPlumbingSettingsActions(set, get),
       ...createSkipStarActions(set, get),
       ...createMusicLibraryActions(set, get),
       ...createPerServerCapabilityActions(set),
@@ -207,4 +211,5 @@ export const useAuthStore = create<AuthState>()(
 // Wire the lib-safe debug-logging gate to the auth store's `loggingMode`
 // (store → lib injection; keeps `src/lib` instrumentation free of store imports).
 setDebugLoggingModeSource(() => useAuthStore.getState().loggingMode === 'debug');
+setDebugLoggingDepthSource(() => useAuthStore.getState().debugLoggingDepth);
 setLibraryBrowseScopeSource(() => useAuthStore.getState());

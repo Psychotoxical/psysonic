@@ -561,6 +561,8 @@ export const settings = {
   loggingModeOff: 'Désactivé',
   loggingModeNormal: 'Normal',
   loggingModeDebug: 'Débogage',
+  debugLoggingDepth: 'Profondeur du débogage',
+  debugLoggingDepthDesc: 'Contrôle le niveau de détail des diagnostics de l’interface en mode Débogage. Les traces existantes utilisent le niveau 1, les traces multi-serveurs détaillées le niveau 3.',
   loggingExport: 'Exporter les journaux',
   loggingExportSuccess: 'Journaux exportés ({{count}} lignes).',
   loggingExportError: 'Impossible d\'exporter les journaux.',

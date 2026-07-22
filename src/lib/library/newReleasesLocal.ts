@@ -1,6 +1,7 @@
 import { libraryScopeListMainstageAlbums, type LibraryScopePair } from '@/lib/api/library/scopeReads';
 import { albumToAlbum } from '@/lib/library/advancedSearchLocal';
 import type { GenreAlbumCountRow } from '@/lib/api/library/dto';
+import { describeMultiServerError, emitMultiServerDebug } from '@/lib/library/multiServerDebug';
 
 export async function loadLocalNewReleases(
   anchorServerId: string,
@@ -10,18 +11,77 @@ export async function loadLocalNewReleases(
   genres: string[] = [],
   includeGenreCounts = true,
 ): Promise<{ albums: ReturnType<typeof albumToAlbum>[]; hasMore: boolean; genreCounts: GenreAlbumCountRow[] }> {
-  if (!anchorServerId || scopes.length === 0) return { albums: [], hasMore: false, genreCounts: [] };
-  const response = await libraryScopeListMainstageAlbums(anchorServerId, {
-    scopes,
-    feed: 'newReleases',
+  if (!anchorServerId) {
+    emitMultiServerDebug('new_releases_local_skip', {
+      reason: 'missing_anchor_server',
+      inputScopes: scopes,
+      limit,
+      offset,
+      genres,
+      includeGenreCounts,
+    });
+    return { albums: [], hasMore: false, genreCounts: [] };
+  }
+  const effectiveScopes = scopes.length > 0
+    ? scopes
+    : [{ serverId: anchorServerId, libraryId: null }];
+  const startedAt = performance.now();
+  emitMultiServerDebug('new_releases_local_request_start', {
+    anchorServerId,
+    inputScopes: scopes,
+    effectiveScopes,
+    defensiveFallbackUsed: scopes.length === 0,
     limit,
     offset,
     genres,
     includeGenreCounts,
   });
-  return {
-    albums: response.albums.map(albumToAlbum),
-    hasMore: response.hasMore,
-    genreCounts: response.genreCounts,
-  };
+  try {
+    const response = await libraryScopeListMainstageAlbums(anchorServerId, {
+      scopes: effectiveScopes,
+      feed: 'newReleases',
+      limit,
+      offset,
+      genres,
+      includeGenreCounts,
+    });
+    const albums = response.albums.map(albumToAlbum);
+    const ownerCounts = Object.fromEntries([...new Set(albums.map(album => album.serverId ?? ''))]
+      .filter(Boolean)
+      .map(serverId => [serverId, albums.filter(album => album.serverId === serverId).length]));
+    emitMultiServerDebug('new_releases_local_request_done', {
+      anchorServerId,
+      effectiveScopes,
+      defensiveFallbackUsed: scopes.length === 0,
+      durationMs: Math.round(performance.now() - startedAt),
+      albumCount: albums.length,
+      ownerCounts,
+      hasMore: response.hasMore,
+      genreCount: response.genreCounts?.length ?? 0,
+      sampleAlbums: response.albums.slice(0, 10).map(album => ({
+        serverId: album.serverId,
+        id: album.id,
+        name: album.name,
+        year: album.year ?? null,
+        syncedAt: album.syncedAt,
+        createdMs: album.rawJson && typeof album.rawJson === 'object'
+          ? (album.rawJson as Record<string, unknown>).createdMs ?? null
+          : null,
+      })),
+    });
+    return {
+      albums,
+      hasMore: response.hasMore,
+      genreCounts: response.genreCounts,
+    };
+  } catch (error) {
+    emitMultiServerDebug('new_releases_local_request_error', {
+      anchorServerId,
+      effectiveScopes,
+      defensiveFallbackUsed: scopes.length === 0,
+      durationMs: Math.round(performance.now() - startedAt),
+      error: describeMultiServerError(error),
+    });
+    throw error;
+  }
 }

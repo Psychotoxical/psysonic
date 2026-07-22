@@ -590,6 +590,8 @@ export const settings = {
   loggingModeOff: 'Wyłączony',
   loggingModeNormal: 'Normalny',
   loggingModeDebug: 'Debugowanie',
+  debugLoggingDepth: 'Głębokość debugowania',
+  debugLoggingDepthDesc: 'Steruje szczegółowością diagnostyki interfejsu w trybie debugowania. Istniejące ślady używają poziomu 1, a szczegółowe ślady wielu serwerów poziomu 3.',
   loggingExport: 'Eksportuj dzienniki',
   loggingExportSuccess: 'Dzienniki zostały wyeksportowane ({{count}} linii).',
   loggingExportError: 'Nie można wyeksportować dzienników.',

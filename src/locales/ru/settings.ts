@@ -606,6 +606,8 @@ export const settings = {
   loggingModeOff: 'Выключено',
   loggingModeNormal: 'Обычное',
   loggingModeDebug: 'Дебаг',
+  debugLoggingDepth: 'Глубина дебага',
+  debugLoggingDepthDesc: 'Управляет подробностью диагностики интерфейса в режиме «Дебаг». Существующие трассировки используют уровень 1, подробная multi-server диагностика — уровень 3.',
   loggingExport: 'Экспорт логов',
   loggingExportSuccess: 'Логи экспортированы ({{count}} строк).',
   loggingExportError: 'Не удалось экспортировать логи.',

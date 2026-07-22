@@ -561,6 +561,8 @@ export const settings = {
   loggingModeOff: 'Uit',
   loggingModeNormal: 'Normaal',
   loggingModeDebug: 'Debug',
+  debugLoggingDepth: 'Debugdiepte',
+  debugLoggingDepthDesc: 'Bepaalt de detaillering van frontenddiagnostiek in de debugmodus. Bestaande traces gebruiken niveau 1; uitgebreide multi-servertraces gebruiken niveau 3.',
   loggingExport: 'Logs exporteren',
   loggingExportSuccess: 'Logs geëxporteerd ({{count}} regels).',
   loggingExportError: 'Kon logs niet exporteren.',

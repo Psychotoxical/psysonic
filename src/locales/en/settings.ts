@@ -590,6 +590,8 @@ export const settings = {
   loggingModeOff: 'Off',
   loggingModeNormal: 'Normal',
   loggingModeDebug: 'Debug',
+  debugLoggingDepth: 'Debug depth',
+  debugLoggingDepthDesc: 'Controls frontend diagnostic detail while Debug logging is active. Existing traces use level 1; high-volume multi-server traces use level 3.',
   loggingExport: 'Export logs',
   loggingExportSuccess: 'Logs exported ({{count}} lines).',
   loggingExportError: 'Could not export logs.',

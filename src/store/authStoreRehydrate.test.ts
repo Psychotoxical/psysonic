@@ -41,6 +41,27 @@ describe('computeAuthStoreRehydration — queueDurationDisplayMode', () => {
   );
 });
 
+describe('computeAuthStoreRehydration — debugLoggingDepth', () => {
+  beforeEach(resetAuthStore);
+
+  it.each([1, 3] as const)('preserves valid depth %s', (depth) => {
+    const patch = computeAuthStoreRehydration({
+      ...useAuthStore.getState(),
+      debugLoggingDepth: depth,
+    });
+    expect(patch.debugLoggingDepth).toBe(depth);
+  });
+
+  it.each([0, 2, 4, '3', null, undefined] as const)(
+    'maps invalid or missing depth %j to level 1',
+    (depth) => {
+      const state = { ...useAuthStore.getState(), debugLoggingDepth: depth } as unknown as AuthState;
+      const patch = computeAuthStoreRehydration(state);
+      expect(patch.debugLoggingDepth).toBe(1);
+    },
+  );
+});
+
 describe('computeAuthStoreRehydration — Library browse scope', () => {
   beforeEach(() => {
     resetAuthStore();
@@ -66,6 +87,26 @@ describe('computeAuthStoreRehydration — Library browse scope', () => {
 
     expect(patch.libraryBrowseServerIds).toEqual(['b']);
     expect(patch.musicFoldersByServer).toEqual({ a: [{ id: 'a1', name: 'A1' }] });
+  });
+
+  it('attaches a legacy one-server profile when the persisted scope field is absent', () => {
+    const base = useAuthStore.getState();
+    const { libraryBrowseServerIds: _missing, ...legacy } = base;
+    const server = {
+      id: 'legacy',
+      name: 'Legacy',
+      url: 'https://legacy.test',
+      username: 'u',
+      password: 'p',
+    };
+
+    const patch = computeAuthStoreRehydration({
+      ...legacy,
+      servers: [server],
+      activeServerId: server.id,
+    } as AuthState);
+
+    expect(patch.libraryBrowseServerIds).toEqual([server.id]);
   });
 });
 

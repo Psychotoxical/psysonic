@@ -37,6 +37,11 @@ import {
 } from '@/lib/library/libraryBrowseScope';
 import { serverListDisplayLabel } from '@/lib/server/serverDisplayName';
 import { useUnavailableServerIds } from '@/lib/network/serverReachability';
+import {
+  emitMultiServerDebug,
+  summarizeMultiServerProfiles,
+  summarizeMusicFoldersByServer,
+} from '@/lib/library/multiServerDebug';
 
 const EMPTY_LIBRARY_IDS: string[] = [];
 
@@ -224,6 +229,57 @@ export default function Sidebar({
     isLoggedIn,
     pathname: location.pathname,
   });
+
+  useEffect(() => {
+    const visibilityBlockers = [
+      ...(isCollapsed ? ['sidebar_collapsed'] : []),
+      ...(!isLoggedIn ? ['not_logged_in'] : []),
+      ...(isServerOffline ? ['offline_mode'] : []),
+      ...(libraryGroups.length <= 1 && selectableLibraryCount <= 1
+        ? ['single_group_with_at_most_one_folder']
+        : []),
+    ];
+    emitMultiServerDebug('sidebar_library_snapshot', {
+      pathname: location.pathname,
+      activeServerId: serverId,
+      isCollapsed,
+      isLoggedIn,
+      isServerOffline,
+      configuredServerIds: libraryBrowseServerIds,
+      effectiveServerIds: effectiveLibraryBrowseServerIds,
+      unavailableServerIds: [...unavailableServerIds],
+      libraryBrowseScopeVersion,
+      servers: summarizeMultiServerProfiles(servers),
+      foldersByServer: summarizeMusicFoldersByServer(musicFoldersByServer),
+      activeMusicFolders: musicFolders.map(folder => ({ id: folder.id, name: folder.name })),
+      selectionByServer: libraryBrowseSelectionByServer,
+      libraryGroups,
+      selectableLibraryCount,
+      showLibraryPicker,
+      visibilityBlockers,
+      newReleasesScope,
+      newReleasesUnreadCount,
+    });
+  }, [
+    effectiveLibraryBrowseServerIds,
+    isCollapsed,
+    isLoggedIn,
+    isServerOffline,
+    libraryBrowseScopeVersion,
+    libraryBrowseSelectionByServer,
+    libraryBrowseServerIds,
+    libraryGroups,
+    location.pathname,
+    musicFolders,
+    musicFoldersByServer,
+    newReleasesScope,
+    newReleasesUnreadCount,
+    selectableLibraryCount,
+    serverId,
+    servers,
+    showLibraryPicker,
+    unavailableServerIds,
+  ]);
   const { perfProbeOpen, setPerfProbeOpen } = useSidebarPerfProbe();
   const perfFlags = usePerfProbeFlags();
 
@@ -231,7 +287,19 @@ export default function Sidebar({
 
 
   const onLibrarySelectionChange = (selectedServerId: string, libraryIds: string[]) => {
-    if (isServerOffline) return;
+    if (isServerOffline) {
+      emitMultiServerDebug('sidebar_library_selection_skip', {
+        selectedServerId,
+        libraryIds,
+        reason: 'offline_mode',
+      });
+      return;
+    }
+    emitMultiServerDebug('sidebar_library_selection_change', {
+      selectedServerId,
+      previousLibraryIds: libraryBrowseSelectionByServer[selectedServerId] ?? [],
+      libraryIds,
+    });
     setLibraryBrowseSelectionForServer(selectedServerId, libraryIds);
   };
 

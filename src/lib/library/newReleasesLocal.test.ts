@@ -45,4 +45,23 @@ describe('loadLocalNewReleases', () => {
     });
     expect(libraryScopeListMainstageAlbums).not.toHaveBeenCalled();
   });
+
+  it('reads the whole fallback server when defensive scope pairs are empty', async () => {
+    libraryScopeListMainstageAlbums.mockResolvedValue({
+      albums: [],
+      hasMore: false,
+      genreCounts: [],
+    });
+
+    await loadLocalNewReleases('server-a', [], 30);
+
+    expect(libraryScopeListMainstageAlbums).toHaveBeenCalledWith('server-a', {
+      scopes: [{ serverId: 'server-a', libraryId: null }],
+      feed: 'newReleases',
+      limit: 30,
+      offset: 0,
+      genres: [],
+      includeGenreCounts: true,
+    });
+  });
 });
