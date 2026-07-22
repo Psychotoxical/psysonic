@@ -120,6 +120,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Playing a multi-disc album from the header no longer interleaves the discs (disc 1 track 1, disc 2 track 1, disc 1 track 2, …). Tracks queue in disc-then-track order, so disc 1 plays in full before disc 2. Tracks without a disc number are treated as disc 1, matching the track list.
 
+### Artist details — Various Artists shows every compilation
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1335](https://github.com/Psychotoxical/psysonic/pull/1335)**
+
+* The "Various Artists" artist page lists every compilation again, instead of only the few tracks tagged directly with the Various Artists id. Compilations link to the artist through their album-artist label, which the local index now follows across all selected servers.
+* A compilation's album header links to "Various Artists" rather than to one of the individual track performers.
+
 
 ## [1.50.0]
 
