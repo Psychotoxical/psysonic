@@ -409,9 +409,11 @@ impl<'a> TrackRepository<'a> {
     }
 
     /// SELECT every non-deleted track on this album, ordered by
-    /// `COALESCE(disc_number, 1) ASC, track_number ASC, id ASC` for stable display.
-    /// A missing disc number is treated as disc 1 (matching the album UI's
-    /// `discNumber ?? 1`), and `id` is the final tie-break so the order is total.
+    /// `COALESCE(disc_number, 1) ASC, track_number ASC, id ASC, server_id ASC` for
+    /// stable display. A missing disc number is treated as disc 1 (matching the album
+    /// UI's `discNumber ?? 1`). `(id, server_id)` is the final tie-break — shared with
+    /// the scoped merge loader, where `id` alone is not globally unique — so the order
+    /// is total. This query is single-server, so `server_id` is constant here.
     pub fn find_by_album(&self, server_id: &str, album_id: &str) -> Result<Vec<TrackRow>, String> {
         self.store.with_read_conn(|conn| {
             let mut stmt = conn.prepare(SELECT_TRACKS_BY_ALBUM)?;
@@ -993,7 +995,7 @@ const SELECT_TRACKS_BY_ALBUM: &str = "SELECT server_id, id, title, title_sort, a
   server_path, library_id, isrc, mbid_recording, bpm, replay_gain_track_db, replay_gain_album_db, replay_gain_peak, \
   content_hash, server_updated_at, server_created_at, deleted, synced_at, raw_json \
   FROM track WHERE server_id = ?1 AND album_id = ?2 AND deleted = 0 \
-  ORDER BY COALESCE(disc_number, 1) ASC, track_number ASC NULLS LAST, id ASC";
+  ORDER BY COALESCE(disc_number, 1) ASC, track_number ASC NULLS LAST, id ASC, server_id ASC";
 
 pub(crate) fn track_columns() -> &'static str {
     TRACK_COLUMNS

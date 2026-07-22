@@ -2350,10 +2350,22 @@ mod tests {
     #[test]
     fn find_by_album_orders_by_disc_then_track_then_id() {
         let store = Arc::new(LibraryStore::open_in_memory());
+        // A missing disc number is treated as disc 1 (matching the album UI's
+        // `discNumber ?? 1`), then track number, then a stable `id` tie-break for
+        // duplicate disc/track positions.
+        let with_disc = |id: &str, album: &str, disc: Option<i64>, trk: i64| {
+            let mut r = make_row("s1", id, album, trk);
+            r.disc_number = disc;
+            r
+        };
         TrackRepository::new(&store)
             .upsert_batch(&[
-                make_row("s1", "tr_b", "al_1", 2),
-                make_row("s1", "tr_a", "al_1", 1),
+                with_disc("tr_dup_z", "al_1", Some(2), 2),
+                with_disc("tr_a", "al_1", Some(1), 1),
+                with_disc("tr_dup_b", "al_1", Some(2), 2),
+                with_disc("tr_null", "al_1", None, 3),
+                with_disc("tr_d2t1", "al_1", Some(2), 1),
+                with_disc("tr_m", "al_1", Some(1), 2),
                 make_row("s1", "tr_c", "al_2", 1),
             ])
             .unwrap();
@@ -2361,7 +2373,12 @@ mod tests {
             .find_by_album("s1", "al_1")
             .unwrap();
         let ids: Vec<&str> = album1.iter().map(|r| r.id.as_str()).collect();
-        assert_eq!(ids, vec!["tr_a", "tr_b"]);
+        // disc 1: tr_a (t1), tr_m (t2), tr_null (untagged -> disc 1, t3);
+        // disc 2: tr_d2t1 (t1), then the tr_dup_b/tr_dup_z tie (t2) by id.
+        assert_eq!(
+            ids,
+            vec!["tr_a", "tr_m", "tr_null", "tr_d2t1", "tr_dup_b", "tr_dup_z"]
+        );
     }
 
     #[test]
