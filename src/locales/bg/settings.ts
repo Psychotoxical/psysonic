@@ -590,6 +590,8 @@ export const settings = {
   loggingModeOff: 'Изключено',
   loggingModeNormal: 'Нормално',
   loggingModeDebug: 'Отстраняване на грешки',
+  debugLoggingDepth: 'Дълбочина на отстраняване',
+  debugLoggingDepthDesc: 'Управлява подробността на диагностиката на интерфейса в режим за отстраняване на грешки. Съществуващите трасета използват ниво 1, а подробните multi-server трасета — ниво 3.',
   loggingExport: 'Изнеси дневниците',
   loggingExportSuccess: 'Дневниците са изнесени ({{count}} реда).',
   loggingExportError: 'Изнасянето на дневниците се провали.',

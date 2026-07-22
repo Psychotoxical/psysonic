@@ -590,6 +590,8 @@ export const settings = {
   loggingModeOff: 'Ki',
   loggingModeNormal: 'Normál',
   loggingModeDebug: 'Hibakeresés',
+  debugLoggingDepth: 'Hibakeresési mélység',
+  debugLoggingDepthDesc: 'A felületi diagnosztika részletességét szabályozza Hibakeresés módban. A meglévő nyomkövetések az 1., a részletes többkiszolgálós nyomkövetések a 3. szintet használják.',
   loggingExport: 'Naplók exportálása',
   loggingExportSuccess: 'Naplók exportálva ({{count}} sor).',
   loggingExportError: 'Nem sikerült exportálni a naplókat.',

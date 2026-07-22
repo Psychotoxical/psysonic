@@ -584,6 +584,8 @@ export const settings = {
   loggingModeOff: 'オフ',
   loggingModeNormal: '通常',
   loggingModeDebug: 'デバッグ',
+  debugLoggingDepth: 'デバッグ深度',
+  debugLoggingDepthDesc: 'デバッグモード中のフロントエンド診断の詳細度を制御します。既存のトレースはレベル1、詳細なマルチサーバートレースはレベル3を使用します。',
   loggingExport: 'ログをエクスポート',
   loggingExportSuccess: 'ログをエクスポートしました ({{count}} 行)。',
   loggingExportError: 'ログをエクスポートできませんでした。',

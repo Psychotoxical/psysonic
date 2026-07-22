@@ -9,7 +9,12 @@ import { AppWindow, ChevronDown, Download, ExternalLink, Globe, HardDrive, Info,
 import { version as appVersion } from '@/../package.json';
 import i18n from '@/lib/i18n';
 import { useAuthStore } from '@/store/authStore';
-import type { ClockFormat, LinuxWaylandTextRenderProfile, LoggingMode } from '@/store/authStoreTypes';
+import type {
+  ClockFormat,
+  DebugLoggingDepth,
+  LinuxWaylandTextRenderProfile,
+  LoggingMode,
+} from '@/store/authStoreTypes';
 import { IS_LINUX } from '@/lib/util/platform';
 import { showToast } from '@/lib/dom/toast';
 import { AboutPsysonicBrandHeader } from '@/features/settings/components/AboutPsysonicLol';
@@ -247,25 +252,44 @@ export function SystemTab() {
         <div className="settings-card">
           <SettingsGroup>
             <SettingsSubCard>
-              <SettingsField desc={t('settings.loggingModeDesc')}>
-                <CustomSelect
-                  value={auth.loggingMode}
-                  onChange={(v) => auth.setLoggingMode(v as LoggingMode)}
-                  options={[
-                    { value: 'off', label: t('settings.loggingModeOff') },
-                    { value: 'normal', label: t('settings.loggingModeNormal') },
-                    { value: 'debug', label: t('settings.loggingModeDebug') },
-                  ]}
-                />
-                {auth.loggingMode === 'debug' && (
+              <SettingsField label={t('settings.loggingTitle')} desc={t('settings.loggingModeDesc')} row>
+                <div style={{ minWidth: 160 }}>
+                  <CustomSelect
+                    value={auth.loggingMode}
+                    onChange={(v) => auth.setLoggingMode(v as LoggingMode)}
+                    options={[
+                      { value: 'off', label: t('settings.loggingModeOff') },
+                      { value: 'normal', label: t('settings.loggingModeNormal') },
+                      { value: 'debug', label: t('settings.loggingModeDebug') },
+                    ]}
+                  />
+                </div>
+              </SettingsField>
+              {auth.loggingMode === 'debug' && (
+                <SettingsField
+                  label={t('settings.debugLoggingDepth')}
+                  desc={t('settings.debugLoggingDepthDesc')}
+                  row
+                >
+                  <div style={{ minWidth: 160 }}>
+                    <CustomSelect
+                      value={String(auth.debugLoggingDepth)}
+                      onChange={(v) => auth.setDebugLoggingDepth(Number(v) as DebugLoggingDepth)}
+                      options={[
+                        { value: '1', label: '1' },
+                        { value: '3', label: '3' },
+                      ]}
+                      ariaLabel={t('settings.debugLoggingDepth')}
+                    />
+                  </div>
                   <div>
                     <button className="btn btn-surface" onClick={exportRuntimeLogs}>
                       <Download size={14} />
                       {t('settings.loggingExport')}
                     </button>
                   </div>
-                )}
-              </SettingsField>
+                </SettingsField>
+              )}
             </SettingsSubCard>
           </SettingsGroup>
         </div>

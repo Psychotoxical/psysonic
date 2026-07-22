@@ -532,6 +532,8 @@ export const settings = {
   loggingModeOff: '关闭',
   loggingModeNormal: '普通',
   loggingModeDebug: '调试',
+  debugLoggingDepth: '调试深度',
+  debugLoggingDepthDesc: '控制调试模式下前端诊断的详细程度。现有跟踪使用级别 1；详细的多服务器跟踪使用级别 3。',
   loggingExport: '导出日志',
   loggingExportSuccess: '日志已导出（{{count}} 行）。',
   loggingExportError: '无法导出日志。',

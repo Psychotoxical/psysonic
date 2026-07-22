@@ -40,6 +40,12 @@ import { filterAlbumsByGenres } from '@/lib/library/albumBrowseFilters';
 import { useScopedBrowseSearchQuery } from '@/store/liveSearchScopeStore';
 import { deriveLibraryBrowseScope } from '@/lib/library/libraryBrowseScope';
 import { loadLocalNewReleases } from '@/lib/library/newReleasesLocal';
+import {
+  describeMultiServerError,
+  emitMultiServerDebug,
+  summarizeMultiServerProfiles,
+  summarizeMusicFoldersByServer,
+} from '@/lib/library/multiServerDebug';
 import { mergeHotNewReleases } from '@/features/album/utils/hotNewReleases';
 import { useHotNewReleaseOverlay } from '@/features/album/hooks/useHotNewReleaseOverlay';
 
@@ -140,6 +146,69 @@ export default function NewReleases() {
       : albums;
   }, [textSearchActive, textSearchAlbums, albums, hotAlbums, genreFiltered, selectedGenres, scopedSearchQuery]);
 
+  useEffect(() => {
+    emitMultiServerDebug('new_releases_page_snapshot', {
+      pathname: location.pathname,
+      activeServerId: auth.activeServerId,
+      pageServerId: serverId,
+      indexEnabled,
+      configuredServerIds: auth.libraryBrowseServerIds,
+      unavailableServerIds: [...unavailableServerIds],
+      servers: summarizeMultiServerProfiles(auth.servers),
+      foldersByServer: summarizeMusicFoldersByServer(auth.musicFoldersByServer),
+      selectionByServer: auth.libraryBrowseSelectionByServer,
+      releaseScope: {
+        anchorServerId,
+        pairs: releaseScopes,
+        fingerprint: releaseScopeFingerprint,
+      },
+      restore: {
+        initialAlbumCount: initialAlbums?.length ?? null,
+        initialHasMore,
+        restoringSession: restoringSessionRef.current,
+      },
+      pageState: {
+        loading,
+        albumCount: albums.length,
+        displayAlbumCount: displayAlbums.length,
+        hasMore,
+        genreCount: genreCounts.length,
+        selectedGenres,
+        scopedSearchQuery,
+        textSearchActive,
+        textSearchLoading,
+        hotOverlayCount: hotAlbums.length,
+        hotOverlayFingerprint: hotOverlay.scopeFingerprint,
+      },
+    });
+  }, [
+    albums.length,
+    anchorServerId,
+    auth.activeServerId,
+    auth.libraryBrowseSelectionByServer,
+    auth.libraryBrowseServerIds,
+    auth.musicFoldersByServer,
+    auth.servers,
+    displayAlbums.length,
+    genreCounts.length,
+    hasMore,
+    hotAlbums.length,
+    hotOverlay.scopeFingerprint,
+    indexEnabled,
+    initialAlbums,
+    initialHasMore,
+    loading,
+    location.pathname,
+    releaseScopeFingerprint,
+    releaseScopes,
+    scopedSearchQuery,
+    selectedGenres,
+    serverId,
+    textSearchActive,
+    textSearchLoading,
+    unavailableServerIds,
+  ]);
+
   const loadingGrid = textSearchActive ? textSearchLoading : loading;
   const gridHasMore = textSearchActive ? false : (!genreFiltered && hasMore);
 
@@ -206,29 +275,80 @@ export default function NewReleases() {
   };
 
   const load = useCallback(async (offset: number, append = false, genres: string[] = []) => {
-    await runLoad(async () => {
-      const data = await loadLocalNewReleases(
-        anchorServerId ?? '', releaseScopes, PAGE_SIZE, offset, genres,
-      );
-      if (append) setAlbums(prev => [...prev, ...data.albums]);
-      else setAlbums(data.albums);
-      setHasMore(data.hasMore);
-      if (!append) setGenreCounts(data.genreCounts.map(row => ({ genre: row.value, count: row.albumCount })));
+    const pageLoadStartedAt = performance.now();
+    emitMultiServerDebug('new_releases_page_load_start', {
+      anchorServerId,
+      releaseScopes,
+      releaseScopeFingerprint,
+      offset,
+      append,
+      genres,
     });
-  }, [anchorServerId, releaseScopes, runLoad]);
+    try {
+      await runLoad(async () => {
+        const data = await loadLocalNewReleases(
+          anchorServerId ?? '', releaseScopes, PAGE_SIZE, offset, genres,
+        );
+        emitMultiServerDebug('new_releases_page_load_apply', {
+          anchorServerId,
+          releaseScopeFingerprint,
+          offset,
+          append,
+          genres,
+          durationMs: Math.round(performance.now() - pageLoadStartedAt),
+          albumCount: data.albums.length,
+          hasMore: data.hasMore,
+          genreCount: data.genreCounts.length,
+        });
+        if (append) setAlbums(prev => [...prev, ...data.albums]);
+        else setAlbums(data.albums);
+        setHasMore(data.hasMore);
+        if (!append) setGenreCounts(data.genreCounts.map(row => ({ genre: row.value, count: row.albumCount })));
+      });
+    } catch (error) {
+      emitMultiServerDebug('new_releases_page_load_error', {
+        anchorServerId,
+        releaseScopes,
+        releaseScopeFingerprint,
+        offset,
+        append,
+        genres,
+        durationMs: Math.round(performance.now() - pageLoadStartedAt),
+        error: describeMultiServerError(error),
+      });
+      throw error;
+    }
+  }, [anchorServerId, releaseScopeFingerprint, releaseScopes, runLoad]);
 
   const loadFiltered = useCallback(async (genres: string[]) => {
     await load(0, false, genres);
   }, [load]);
 
   useEffect(() => {
-    if (restoringSessionRef.current || scopedSearchQuery) return;
-    if (genreFiltered) loadFiltered(selectedGenres);
+    if (restoringSessionRef.current || scopedSearchQuery) {
+      emitMultiServerDebug('new_releases_page_load_effect_skip', {
+        reason: restoringSessionRef.current ? 'restoring_session' : 'scoped_search_active',
+        scopedSearchQuery,
+        releaseScopeFingerprint,
+        anchorServerId,
+        releaseScopes,
+      });
+      return;
+    }
+    emitMultiServerDebug('new_releases_page_load_effect_run', {
+      genreFiltered,
+      selectedGenres,
+      releaseScopeFingerprint,
+      anchorServerId,
+      releaseScopes,
+      musicLibraryFilterVersion,
+    });
+    if (genreFiltered) void loadFiltered(selectedGenres);
     else {
       resetPage();
       void load(0, false, selectedGenres);
     }
-  }, [genreFiltered, selectedGenres, load, loadFiltered, resetPage, scopedSearchQuery, releaseScopeFingerprint, musicLibraryFilterVersion]);
+  }, [anchorServerId, genreFiltered, selectedGenres, load, loadFiltered, resetPage, scopedSearchQuery, releaseScopeFingerprint, releaseScopes, musicLibraryFilterVersion]);
 
   const loadMore = useCallback(() => {
     if (!gridHasMore || genreFiltered || textSearchActive || isBlocked()) return;

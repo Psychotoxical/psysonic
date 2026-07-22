@@ -1,3 +1,4 @@
+import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   getActiveServerReachable,
@@ -8,6 +9,7 @@ import {
   getServerReachabilitySnapshot,
   publishServerConnectionStatus,
   resetServerReachabilitySnapshot,
+  useServerReachabilitySnapshot,
 } from './serverReachability';
 
 beforeEach(() => {
@@ -33,5 +35,23 @@ describe('publishServerConnectionStatus', () => {
     expect(getServerReachabilitySnapshot().get('b')).toBe('available');
     expect(getActiveServerReachable()).toBeNull();
     expect(getConnectionStatus()).toBe('checking');
+  });
+
+  it('subscribes to the full snapshot only while explicitly enabled', () => {
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useServerReachabilitySnapshot(enabled),
+      { initialProps: { enabled: false } },
+    );
+    const disabledSnapshot = result.current;
+
+    act(() => publishServerConnectionStatus('a', 'online'));
+    expect(result.current).toBe(disabledSnapshot);
+    expect(result.current.size).toBe(0);
+
+    rerender({ enabled: true });
+    expect(result.current.get('a')).toBe('available');
+
+    act(() => publishServerConnectionStatus('a', 'offline'));
+    expect(result.current.get('a')).toBe('unavailable');
   });
 });

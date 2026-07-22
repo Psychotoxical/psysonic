@@ -11,6 +11,7 @@ const reachabilityByServer = new Map<string, ServerReachability>();
 const listeners = new Set<() => void>();
 let unavailableServerIds: ReadonlySet<string> = new Set();
 let reachabilitySnapshot: ReadonlyMap<string, ServerReachability> = new Map();
+const disabledReachabilitySnapshot: ReadonlyMap<string, ServerReachability> = new Map();
 
 function publish(): void {
   reachabilitySnapshot = new Map(reachabilityByServer);
@@ -67,12 +68,26 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
+function subscribeDisabled(): () => void {
+  return () => {};
+}
+
+function getDisabledReachabilitySnapshot(): ReadonlyMap<string, ServerReachability> {
+  return disabledReachabilitySnapshot;
+}
+
 export function useUnavailableServerIds(): ReadonlySet<string> {
   return useSyncExternalStore(subscribe, getUnavailableServerIds, getUnavailableServerIds);
 }
 
-export function useServerReachabilitySnapshot(): ReadonlyMap<string, ServerReachability> {
-  return useSyncExternalStore(subscribe, getServerReachabilitySnapshot, getServerReachabilitySnapshot);
+export function useServerReachabilitySnapshot(
+  enabled = true,
+): ReadonlyMap<string, ServerReachability> {
+  return useSyncExternalStore(
+    enabled ? subscribe : subscribeDisabled,
+    enabled ? getServerReachabilitySnapshot : getDisabledReachabilitySnapshot,
+    enabled ? getServerReachabilitySnapshot : getDisabledReachabilitySnapshot,
+  );
 }
 
 export function resetServerReachabilitySnapshot(): void {

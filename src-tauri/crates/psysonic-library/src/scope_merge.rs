@@ -773,7 +773,7 @@ pub(crate) fn list_artists_layer1_filtered(
     skip_totals: bool,
 ) -> Result<(Vec<LibraryArtistDto>, u32), String> {
     let scopes = non_empty_scopes(scopes)?;
-    ensure_cluster_keys_for_all_scopes(store, scopes)?;
+    ensure_cluster_keys_for_scopes(store, scopes)?;
     let (cte, scope_binds) = scope_cte_sql(scopes);
     let scoped = if scopes.len() == 1 {
         scoped_track_join_layer1()
@@ -873,7 +873,7 @@ pub(crate) fn list_index_artists_layer1_filtered(
     skip_totals: bool,
 ) -> Result<(Vec<LibraryArtistDto>, u32), String> {
     let scopes = non_empty_scopes(scopes)?;
-    ensure_cluster_keys_for_all_scopes(store, scopes)?;
+    ensure_cluster_keys_for_scopes(store, scopes)?;
     let (cte, scope_binds) = scope_cte_sql(scopes);
     let scoped_from = "FROM scope s \
          CROSS JOIN track t ON t.server_id = s.server_id AND t.library_id = s.library_id";

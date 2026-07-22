@@ -532,6 +532,8 @@ export const settings = {
   loggingModeOff: 'Av',
   loggingModeNormal: 'Normal',
   loggingModeDebug: 'Debug',
+  debugLoggingDepth: 'Feilsøkingsdybde',
+  debugLoggingDepthDesc: 'Styrer detaljnivået for diagnostikk i grensesnittet når Debug er aktiv. Eksisterende sporing bruker nivå 1, mens detaljert flerserversporing bruker nivå 3.',
   loggingExport: 'Eksporter logger',
   loggingExportSuccess: 'Logger eksportert ({{count}} linjer).',
   loggingExportError: 'Kunne ikke eksportere logger.',

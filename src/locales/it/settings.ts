@@ -590,6 +590,8 @@ export const settings = {
   loggingModeOff: 'Disattivato',
   loggingModeNormal: 'Normale',
   loggingModeDebug: 'Debug',
+  debugLoggingDepth: 'Profondità debug',
+  debugLoggingDepthDesc: 'Controlla il dettaglio della diagnostica dell’interfaccia in modalità Debug. Le tracce esistenti usano il livello 1; le tracce multi-server dettagliate usano il livello 3.',
   loggingExport: 'Esporta log',
   loggingExportSuccess: 'Log esportati ({{count}} righe).',
   loggingExportError: 'Impossibile esportare i log.',

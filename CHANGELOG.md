@@ -37,6 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Context menus, ratings, favourites, sharing, offline pins, device sync and Orbit carry the item's owner through the complete action. Creating an Orbit session from a multi-server scope now asks which server should host it, temporarily keeps only that server in the library scope and shared queue, then restores the previous scope when the session ends.
 * Sharing a mixed-server queue opens a compact server picker directly below the share button; choosing a server copies its tracks immediately, while single-server queues still copy without an extra prompt. Unavailable servers are marked with an explanatory warning.
 
+### Debug logging — selectable multi-server diagnostics
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1331](https://github.com/Psychotoxical/psysonic/pull/1331)**
+
+* **Settings → System → Logging** and **PsyLab → Logs** offer basic and verbose debug-depth levels while Debug logging is enabled. Verbose mode adds structured multi-server scope, reachability, music-folder and New Releases diagnostics, with credentials and sensitive URL data redacted.
+
 ## Changed
 
 ### Library index — designed for several live servers at once
@@ -95,11 +101,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The artist detail header no longer adopts a per-track "featuring" credit when a single track in the discography is tagged with a guest artist. It shows the artist's own name, matching the artist browse list.
 
+### Multi-server library scope — recover empty persisted selections
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1331](https://github.com/Psychotoxical/psysonic/pull/1331)**
+
+* Existing profiles that retained an empty Library server selection recover the configured active server when another server is added. Music-folder discovery and New Releases no longer collapse to an empty result in that legacy state.
+* Artist browse no longer waits for a full identity rebuild on the first launch after upgrading an existing large library.
+
 ### Album details — play multi-disc albums in disc order
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1332](https://github.com/Psychotoxical/psysonic/pull/1332)**
 
-* Playing a multi-disc album from the header no longer interleaves the discs (disc 1 track 1, disc 2 track 1, disc 1 track 2, …). Tracks queue in disc-then-track order, so disc 1 plays in full before disc 2.
+* Playing a multi-disc album from the header no longer interleaves the discs (disc 1 track 1, disc 2 track 1, disc 1 track 2, …). Tracks queue in disc-then-track order, so disc 1 plays in full before disc 2. Tracks without a disc number are treated as disc 1, matching the track list.
 
 
 ## [1.50.0]

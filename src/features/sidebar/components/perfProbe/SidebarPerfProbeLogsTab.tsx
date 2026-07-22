@@ -8,13 +8,14 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react';
 import { Copy, Download, Pause, Play, Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { getLoggingMode, tailRuntimeLogs, type RuntimeLogLine } from '@/lib/api/runtimeLogs';
 import { setLoggingMode as setBackendLoggingMode } from '@/lib/api/platformShell';
 import { useAuthStore } from '@/store/authStore';
-import type { LoggingMode } from '@/store/authStoreTypes';
+import type { DebugLoggingDepth, LoggingMode } from '@/store/authStoreTypes';
 import CustomSelect from '@/ui/CustomSelect';
 import { filterLogLines } from '@/lib/perf/filterLogLines';
 import { sanitizeLogLine } from '@/lib/perf/sanitizeLogLine';
@@ -34,10 +35,14 @@ const LINE_CAP_OPTIONS = [
   { value: '2000', label: '2000 lines' },
   { value: '5000', label: '5000 lines' },
 ];
-const DEPTH_OPTIONS: { value: LoggingMode; label: string }[] = [
+const LOGGING_MODE_OPTIONS: { value: LoggingMode; label: string }[] = [
   { value: 'off', label: 'Off' },
   { value: 'normal', label: 'Normal' },
   { value: 'debug', label: 'Debug' },
+];
+const DEBUG_DEPTH_OPTIONS = [
+  { value: '1', label: '1' },
+  { value: '3', label: '3' },
 ];
 
 /**
@@ -47,8 +52,11 @@ const DEPTH_OPTIONS: { value: LoggingMode; label: string }[] = [
  * ordered include/exclude word filter.
  */
 export default function SidebarPerfProbeLogsTab() {
+  const { t } = useTranslation();
   const loggingMode = useAuthStore(s => s.loggingMode);
   const setLoggingMode = useAuthStore(s => s.setLoggingMode);
+  const debugLoggingDepth = useAuthStore(s => s.debugLoggingDepth);
+  const setDebugLoggingDepth = useAuthStore(s => s.setDebugLoggingDepth);
 
   const [lines, setLines] = useState<RuntimeLogLine[]>([]);
   const [paused, setPaused] = useState(false);
@@ -185,6 +193,10 @@ export default function SidebarPerfProbeLogsTab() {
     void setBackendLoggingMode({ mode }).catch(() => {});
   };
 
+  const changeDebugDepth = (depth: string) => {
+    setDebugLoggingDepth(Number(depth) as DebugLoggingDepth);
+  };
+
   const clear = () => {
     setLines([]);
     setOverflowed(false);
@@ -268,13 +280,24 @@ export default function SidebarPerfProbeLogsTab() {
     <div className="perf-logs">
       <div className="perf-logs__controls">
         <label className="perf-logs__control">
-          <span className="perf-logs__control-label">Depth</span>
+          <span className="perf-logs__control-label">{t('settings.loggingTitle')}</span>
           <CustomSelect
             value={loggingMode}
             onChange={v => changeDepth(v as LoggingMode)}
-            options={DEPTH_OPTIONS}
+            options={LOGGING_MODE_OPTIONS}
           />
         </label>
+        {loggingMode === 'debug' && (
+          <label className="perf-logs__control">
+            <span className="perf-logs__control-label">{t('settings.debugLoggingDepth')}</span>
+            <CustomSelect
+              value={String(debugLoggingDepth)}
+              onChange={changeDebugDepth}
+              options={DEBUG_DEPTH_OPTIONS}
+              ariaLabel={t('settings.debugLoggingDepth')}
+            />
+          </label>
+        )}
         <label className="perf-logs__control">
           <span className="perf-logs__control-label">Keep</span>
           <CustomSelect
