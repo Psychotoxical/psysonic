@@ -1,5 +1,6 @@
 import type { HiResCrossfadeResampleHz } from '@/lib/audio/hiResCrossfadeResample';
 import type { EntityRatingSupportLevel } from '@/lib/api/subsonicTypes';
+import type { DebugLoggingDepth } from '@/lib/perf/debugLoggingMode';
 import type {
   AudiomusePluginProbeResult,
   InstantMixProbeResult,
@@ -87,6 +88,7 @@ export type DurationMode = 'total' | 'remaining' | 'eta';
  */
 export type QueueDisplayMode = 'playlist' | 'queue' | 'timeline';
 export type LoggingMode = 'off' | 'normal' | 'debug';
+export type { DebugLoggingDepth } from '@/lib/perf/debugLoggingMode';
 /**
  * Wall-clock format for ETA / sleep-timer labels. `'auto'` follows the user's
  * system locale (existing behaviour); explicit `'24h'` / `'12h'` overrides it.
@@ -231,6 +233,8 @@ export interface AuthState {
   linuxWebkitInputForceRepaint: boolean;
   /** Runtime backend logging level. */
   loggingMode: LoggingMode;
+  /** Frontend diagnostic detail emitted while runtime logging is in Debug mode. */
+  debugLoggingDepth: DebugLoggingDepth;
   nowPlayingEnabled: boolean;
   lyricsServerFirst: boolean;
   enableNeteaselyrics: boolean;
@@ -451,6 +455,7 @@ export interface AuthState {
   setLinuxWaylandTextRenderProfile: (v: LinuxWaylandTextRenderProfile) => void;
   setLinuxWebkitInputForceRepaint: (v: boolean) => void;
   setLoggingMode: (v: LoggingMode) => void;
+  setDebugLoggingDepth: (v: DebugLoggingDepth) => void;
   setNowPlayingEnabled: (v: boolean) => void;
   setLyricsServerFirst: (v: boolean) => void;
   setEnableNeteaselyrics: (v: boolean) => void;

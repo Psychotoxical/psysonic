@@ -574,6 +574,8 @@ export const settings = {
   loggingModeOff: 'Aus',
   loggingModeNormal: 'Normal',
   loggingModeDebug: 'Debug',
+  debugLoggingDepth: 'Debug-Tiefe',
+  debugLoggingDepthDesc: 'Steuert die Detailtiefe der Frontend-Diagnose im Debug-Modus. Bestehende Traces verwenden Stufe 1, umfangreiche Multi-Server-Traces Stufe 3.',
   loggingExport: 'Protokolle exportieren',
   loggingExportSuccess: 'Protokolle exportiert ({{count}} Zeilen).',
   loggingExportError: 'Protokolle konnten nicht exportiert werden.',

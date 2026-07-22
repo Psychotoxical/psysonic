@@ -3,10 +3,15 @@ import { generateId } from './authStoreHelpers';
 import { getQueueServerId, clearQueueServerForPlayback } from './playbackEngineBridge';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import { deriveLibraryBrowseServerIdsWithFallback } from '@/lib/library/libraryBrowseScope';
+import {
+  emitMultiServerDebug,
+  summarizeMultiServerProfiles,
+} from '@/lib/library/multiServerDebug';
 
 type SetState = (
   partial: Partial<AuthState> | ((state: AuthState) => Partial<AuthState>),
 ) => void;
+type GetState = () => AuthState;
 
 /**
  * Server profile + connection lifecycle. `removeServer` is the
@@ -15,7 +20,7 @@ type SetState = (
  * the active id to the next available server (or null) so the rest of
  * the app doesn't end up reading stale state.
  */
-export function createServerProfileActions(set: SetState): Pick<
+export function createServerProfileActions(set: SetState, get: GetState): Pick<
   AuthState,
   | 'addServer'
   | 'updateServer'
@@ -30,10 +35,28 @@ export function createServerProfileActions(set: SetState): Pick<
   return {
     addServer: (profile) => {
       const id = generateId();
-      set(s => ({
-        servers: [...s.servers, { ...profile, id }],
-        ...(s.servers.length === 0 ? { libraryBrowseServerIds: [id] } : {}),
-      }));
+      set(s => {
+        const servers = [...s.servers, { ...profile, id }];
+        const libraryBrowseServerIds = deriveLibraryBrowseServerIdsWithFallback({
+          servers,
+          activeServerId: s.activeServerId,
+          libraryBrowseServerIds: s.libraryBrowseServerIds,
+        });
+        const scopeChanged = libraryBrowseServerIds.length !== s.libraryBrowseServerIds.length
+          || libraryBrowseServerIds.some((serverId, index) => serverId !== s.libraryBrowseServerIds[index]);
+        return {
+          servers,
+          libraryBrowseServerIds,
+          ...(scopeChanged
+            ? { libraryBrowseScopeVersion: s.libraryBrowseScopeVersion + 1 }
+            : {}),
+        };
+      });
+      emitMultiServerDebug('server_profile_added', {
+        addedServerId: id,
+        servers: summarizeMultiServerProfiles(get().servers),
+        configuredServerIds: get().libraryBrowseServerIds,
+      });
       return id;
     },
 
@@ -90,19 +113,41 @@ export function createServerProfileActions(set: SetState): Pick<
       });
     },
 
-    setServers: (servers) => set(s => ({
-      servers,
-      libraryBrowseServerIds: deriveLibraryBrowseServerIdsWithFallback({
+    setServers: (servers) => {
+      const before = get();
+      set(s => ({
         servers,
-        activeServerId: s.activeServerId,
-        libraryBrowseServerIds: s.libraryBrowseServerIds,
-      }),
-      libraryBrowseScopeVersion: s.libraryBrowseScopeVersion + 1,
-    })),
-    setActiveServer: (id) => set(s => ({
-      activeServerId: id,
-      musicFolders: s.musicFoldersByServer[id] ?? [],
-    })),
+        libraryBrowseServerIds: deriveLibraryBrowseServerIdsWithFallback({
+          servers,
+          activeServerId: s.activeServerId,
+          libraryBrowseServerIds: s.libraryBrowseServerIds,
+        }),
+        libraryBrowseScopeVersion: s.libraryBrowseScopeVersion + 1,
+      }));
+      const after = get();
+      emitMultiServerDebug('server_profiles_set', {
+        previousServers: summarizeMultiServerProfiles(before.servers),
+        servers: summarizeMultiServerProfiles(after.servers),
+        activeServerId: after.activeServerId,
+        previousConfiguredServerIds: before.libraryBrowseServerIds,
+        configuredServerIds: after.libraryBrowseServerIds,
+        libraryBrowseScopeVersion: after.libraryBrowseScopeVersion,
+      });
+    },
+    setActiveServer: (id) => {
+      const before = get();
+      set(s => ({
+        activeServerId: id,
+        musicFolders: s.musicFoldersByServer[id] ?? [],
+      }));
+      const after = get();
+      emitMultiServerDebug('active_server_set', {
+        previousActiveServerId: before.activeServerId,
+        activeServerId: after.activeServerId,
+        configuredServerIds: after.libraryBrowseServerIds,
+        activeFolders: after.musicFolders.map(folder => ({ id: folder.id, name: folder.name })),
+      });
+    },
     setLoggedIn: (v) => set({ isLoggedIn: v }),
     setConnecting: (v) => set({ isConnecting: v }),
     setConnectionError: (e) => set({ connectionError: e }),

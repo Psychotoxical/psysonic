@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -17,6 +17,11 @@ import { applyListReorderById } from '@/lib/util/listReorder';
 import { deriveEffectiveLibraryBrowseServerIds } from '@/lib/library/libraryBrowseScope';
 import { useUnavailableServerIds } from '@/lib/network/serverReachability';
 import { ServerChoiceWarning } from '@/ui/ServerChoiceList';
+import {
+  describeMultiServerError,
+  emitMultiServerDebug,
+  summarizeMultiServerProfiles,
+} from '@/lib/library/multiServerDebug';
 
 interface Props {
   status: ConnectionStatus;
@@ -54,15 +59,21 @@ export default function ConnectionIndicator({ status, isLan, serverName }: Props
 
   const multi = servers.length > 1;
   const multiLibraryScope = libraryBrowseServerIds.length > 1;
-  const effectiveLibraryServerIds = deriveEffectiveLibraryBrowseServerIds({
+  const effectiveLibraryServerIds = useMemo(() => deriveEffectiveLibraryBrowseServerIds({
     servers,
     activeServerId,
     libraryBrowseServerIds,
-  }, unavailableServerIds);
+  }, unavailableServerIds), [activeServerId, libraryBrowseServerIds, servers, unavailableServerIds]);
   const unavailableSelection = multiLibraryScope
     && effectiveLibraryServerIds.length < libraryBrowseServerIds.length;
   const applyServerReorder = useCallback((draggedId: string, target: { id: string; before: boolean }) => {
     const next = applyListReorderById(serversRef.current, draggedId, target);
+    emitMultiServerDebug('connection_server_reorder', {
+      draggedId,
+      target,
+      previousOrder: serversRef.current.map(server => server.id),
+      nextOrder: next?.map(server => server.id) ?? null,
+    });
     if (next) setServers(next);
   }, [setServers]);
   const { isDragging, setContainer, onMouseMove, dropEdge } = useListReorderDnd({
@@ -90,6 +101,50 @@ export default function ConnectionIndicator({ status, isLan, serverName }: Props
   }, [menuOpen, updateMenuPosition]);
 
   useEffect(() => {
+    emitMultiServerDebug('connection_indicator_snapshot', {
+      status,
+      isLan,
+      displayedServerName: serverName,
+      activeServerId,
+      menuOpen,
+      switchingId,
+      configuredServerIds: libraryBrowseServerIds,
+      effectiveServerIds: effectiveLibraryServerIds,
+      unavailableServerIds: [...unavailableServerIds],
+      multiProfile: multi,
+      multiLibraryScope,
+      unavailableSelection,
+      servers: summarizeMultiServerProfiles(servers),
+      queueLed: {
+        ledVariant,
+        localQueueSyncPaused,
+        queueHandoffReason,
+        pullInFlight,
+        syncRingVisible,
+      },
+    });
+  }, [
+    activeServerId,
+    effectiveLibraryServerIds,
+    isLan,
+    ledVariant,
+    libraryBrowseServerIds,
+    localQueueSyncPaused,
+    menuOpen,
+    multi,
+    multiLibraryScope,
+    pullInFlight,
+    queueHandoffReason,
+    serverName,
+    servers,
+    status,
+    switchingId,
+    syncRingVisible,
+    unavailableSelection,
+    unavailableServerIds,
+  ]);
+
+  useEffect(() => {
     if (!menuOpen) return;
     const onDown = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -114,6 +169,12 @@ export default function ConnectionIndicator({ status, isLan, serverName }: Props
   };
 
   const onMetaClick = () => {
+    emitMultiServerDebug('connection_indicator_click', {
+      multiProfile: multi,
+      menuOpen,
+      activeServerId,
+      configuredServerIds: libraryBrowseServerIds,
+    });
     if (!multi) {
       goServerSettings();
       return;
@@ -128,21 +189,45 @@ export default function ConnectionIndicator({ status, isLan, serverName }: Props
   };
 
   const onPickServer = async (srv: ServerProfile) => {
+    emitMultiServerDebug('connection_server_pick_start', {
+      pickedServerId: srv.id,
+      activeServerId,
+      configuredServerIds: libraryBrowseServerIds,
+      alreadyActive: srv.id === activeServerId,
+    });
     if (srv.id === activeServerId) {
       setLibraryBrowseServerExclusive(srv.id);
       setMenuOpen(false);
+      emitMultiServerDebug('connection_server_pick_done', {
+        pickedServerId: srv.id,
+        switched: false,
+        action: 'exclusive_scope_only',
+      });
       return;
     }
     setSwitchingId(srv.id);
-    const ok = await switchActiveServer(srv);
-    setSwitchingId(null);
-    setMenuOpen(false);
-    if (!ok) {
-      showToast(t('connection.switchFailed'), 5000, 'error');
-      return;
+    try {
+      const ok = await switchActiveServer(srv);
+      setSwitchingId(null);
+      setMenuOpen(false);
+      emitMultiServerDebug('connection_server_pick_done', {
+        pickedServerId: srv.id,
+        switched: ok,
+        resultingActiveServerId: useAuthStore.getState().activeServerId,
+      });
+      if (!ok) {
+        showToast(t('connection.switchFailed'), 5000, 'error');
+        return;
+      }
+      setLibraryBrowseServerExclusive(srv.id);
+      navigate('/');
+    } catch (error) {
+      emitMultiServerDebug('connection_server_pick_error', {
+        pickedServerId: srv.id,
+        error: describeMultiServerError(error),
+      });
+      throw error;
     }
-    setLibraryBrowseServerExclusive(srv.id);
-    navigate('/');
   };
 
   const label = multiLibraryScope ? t('connection.multiServer') : (isLan ? 'LAN' : t('connection.extern'));
@@ -285,6 +370,13 @@ export default function ConnectionIndicator({ status, isLan, serverName }: Props
                     disabled={finalIncluded}
                     onClick={event => {
                       event.stopPropagation();
+                      emitMultiServerDebug('connection_scope_membership_change', {
+                        serverId: srv.id,
+                        selected: !included,
+                        configuredServerIds: libraryBrowseServerIds,
+                        finalIncluded,
+                        unavailable: unavailableServerIds.has(srv.id),
+                      });
                       setLibraryBrowseServerSelected(srv.id, !included);
                     }}
                   >

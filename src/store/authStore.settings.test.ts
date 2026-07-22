@@ -227,6 +227,13 @@ describe('discord cover source setters', () => {
       expect(useAuthStore.getState().loggingMode).toBe(mode);
     }
   });
+
+  it('setDebugLoggingDepth accepts levels 1 / 2 / 3', () => {
+    for (const depth of [1, 2, 3] as const) {
+      useAuthStore.getState().setDebugLoggingDepth(depth);
+      expect(useAuthStore.getState().debugLoggingDepth).toBe(depth);
+    }
+  });
 });
 
 describe('per-server bookkeeping setters', () => {
