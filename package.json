@@ -47,7 +47,7 @@
     "@tauri-apps/plugin-store": "^2",
     "@tauri-apps/plugin-updater": "^2.10.1",
     "@tauri-apps/plugin-window-state": "^2.4.1",
-    "axios": "^1.16.0",
+    "axios": "^1.18.1",
     "i18next": "^26.0.8",
     "lucide-react": "^1.17.0",
     "md5": "^2.3.0",
