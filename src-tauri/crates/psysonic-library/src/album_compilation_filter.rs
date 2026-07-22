@@ -18,7 +18,7 @@ pub fn compilation_raw_json_sql(table_alias: &str) -> String {
     )
 }
 
-fn various_artists_like_sql(column: &str) -> String {
+pub(crate) fn various_artists_like_sql(column: &str) -> String {
     format!(
         "lower(trim(coalesce({column}, ''))) LIKE '%various artists%'",
         column = column
@@ -88,6 +88,30 @@ pub fn pick_album_group_artist(
     track_artist.filter(|s| !s.trim().is_empty())
 }
 
+/// Id-side mirror of [`pick_album_group_artist`]: pick the *artist id* the album
+/// header should link to. When the album carries a named album-artist — so the
+/// displayed credit comes from `album_artist` — the link must point at that
+/// album-artist entity (`raw_json.albumArtistId`), not a representative track's
+/// `artist_id`. On a "Various Artists" compilation the album-artist id differs
+/// from every track performer's id; without this the hero reads "Various Artists"
+/// but opens one of the guest performers. Falls back to the track artist id when
+/// the album has no named album-artist, or when the server supplied no
+/// album-artist id (keeps the credit and link consistent rather than mislabelling).
+/// Keep the branch condition in sync with [`pick_album_group_artist`].
+pub fn pick_album_group_artist_id(
+    track_artist_id: Option<String>,
+    album_artist: Option<&str>,
+    album_artist_id: Option<String>,
+) -> Option<String> {
+    let album_artist_named = album_artist.map(str::trim).is_some_and(|s| !s.is_empty());
+    if album_artist_named {
+        if let Some(id) = album_artist_id.filter(|s| !s.trim().is_empty()) {
+            return Some(id);
+        }
+    }
+    track_artist_id.filter(|s| !s.trim().is_empty())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -134,6 +158,39 @@ mod tests {
             Some("Alice".to_string())
         );
         assert_eq!(pick_album_group_artist(None, None), None);
+    }
+
+    #[test]
+    fn pick_album_group_artist_id_mirrors_name_side() {
+        // Named album-artist with an id → link to that album-artist entity, even
+        // though the representative track performer differs (the VA / collaboration
+        // case: display credit and link stay on the same entity).
+        assert_eq!(
+            pick_album_group_artist_id(
+                Some("track-performer".into()),
+                Some("Various Artists"),
+                Some("va-id".into()),
+            ),
+            Some("va-id".to_string())
+        );
+        // Named album-artist but the server gave no album-artist id → keep the track
+        // id rather than blank the link.
+        assert_eq!(
+            pick_album_group_artist_id(Some("track-performer".into()), Some("Various Artists"), None),
+            Some("track-performer".to_string())
+        );
+        // Blank album-artist must not count as named → fall back to the track id,
+        // ignoring any stray album-artist id.
+        assert_eq!(
+            pick_album_group_artist_id(Some("solo".into()), Some("   "), Some("ignored".into())),
+            Some("solo".to_string())
+        );
+        assert_eq!(
+            pick_album_group_artist_id(Some("solo".into()), None, None),
+            Some("solo".to_string())
+        );
+        // Nothing usable anywhere.
+        assert_eq!(pick_album_group_artist_id(None, Some("Various Artists"), Some("  ".into())), None);
     }
 
     #[test]
