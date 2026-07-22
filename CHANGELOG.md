@@ -95,6 +95,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The artist detail header no longer adopts a per-track "featuring" credit when a single track in the discography is tagged with a guest artist. It shows the artist's own name, matching the artist browse list.
 
+### Album details — play multi-disc albums in disc order
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1332](https://github.com/Psychotoxical/psysonic/pull/1332)**
+
+* Playing a multi-disc album from the header no longer interleaves the discs (disc 1 track 1, disc 2 track 1, disc 1 track 2, …). Tracks queue in disc-then-track order, so disc 1 plays in full before disc 2.
+
 
 ## [1.50.0]
 
