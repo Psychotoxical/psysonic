@@ -11,6 +11,7 @@ import { renderPresetIcon, useEnrichmentPrimaryIcon, useEnrichmentPrimaryLabel }
 import { buildArtistDetailPath } from '@/lib/navigation/detailServerScope';
 import { effectiveAudioFormat, effectiveAudioFormatParts } from '@/lib/media/streamFormat';
 import { usePlayerStore } from '@/features/playback';
+import { useAuthStore } from '@/store/authStore';
 
 interface HeroProps {
   track: { title: string; artist: string; album: string; year?: number;
@@ -56,7 +57,8 @@ const Hero = memo(function Hero({ track, artistRefs, genre, playCount, userRatin
   const networkIcon = useEnrichmentPrimaryIcon();
   const rating = userRatingOverride ?? track.userRating;
   const resolvedStreamFormat = usePlayerStore(s => s.resolvedStreamFormat);
-  const fmt = effectiveAudioFormat(track, resolvedStreamFormat);
+  const streamMaxBitRateKbps = useAuthStore(s => s.streamMaxBitRateKbps);
+  const fmt = effectiveAudioFormat(track, resolvedStreamFormat, streamMaxBitRateKbps);
   const transcodedTooltip = fmt.transcoded
     ? t('queue.streamTranscoded', {
       original: effectiveAudioFormatParts(effectiveAudioFormat(track, null)).join(' · '),

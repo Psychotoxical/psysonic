@@ -32,6 +32,7 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   const { t } = useTranslation();
   const currentTrack       = usePlayerStore(s => s.currentTrack);
   const resolvedStreamFormat = usePlayerStore(s => s.resolvedStreamFormat);
+  const streamMaxBitRateKbps = useAuthStore(s => s.streamMaxBitRateKbps);
   const repeatMode         = usePlayerStore(s => s.repeatMode);
   const next               = usePlayerStore(s => s.next);
   const previous           = usePlayerStore(s => s.previous);
@@ -113,7 +114,7 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
 
   const metaParts = useMemo(() => {
     const fmt = currentTrack
-      ? effectiveAudioFormat(currentTrack, resolvedStreamFormat)
+      ? effectiveAudioFormat(currentTrack, resolvedStreamFormat, streamMaxBitRateKbps)
       : null;
     return [
       currentTrack?.album,
@@ -121,7 +122,7 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
       fmt?.formatLabel,
       fmt?.bitRate ? `${fmt.bitRateIsCap ? '≤' : ''}${fmt.bitRate} kbps` : '',
     ].filter(Boolean);
-  }, [currentTrack, resolvedStreamFormat]);
+  }, [currentTrack, resolvedStreamFormat, streamMaxBitRateKbps]);
 
   return (
     <div

@@ -3,6 +3,7 @@ import { ChevronDown, FolderOpen, HardDrive, Music, Waves } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import type { Track } from '@/lib/media/trackTypes';
 import { effectiveAudioFormat, effectiveAudioFormatParts } from '@/lib/media/streamFormat';
+import { useAuthStore } from '@/store/authStore';
 import type { LoudnessLufsPreset, NormalizationEngine } from '@/store/authStoreTypes';
 import type { PlaybackSourceKind } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import {
@@ -57,6 +58,7 @@ export function QueueCurrentTrack({
 }: Props) {
   const showBufferingOverlay = usePlayerStore(s => s.isPlaybackBuffering);
   const resolvedStreamFormat = usePlayerStore(s => s.resolvedStreamFormat);
+  const streamMaxBitRateKbps = useAuthStore(s => s.streamMaxBitRateKbps);
   const coverRef = usePlaybackTrackCoverRef(currentTrack);
   const directCoverUrl = currentTrack?.directCoverArtUrl;
   const artistRefs = resolveTrackArtistRefs(currentTrack);
@@ -66,7 +68,7 @@ export function QueueCurrentTrack({
   return (
     <div className="queue-current-track">
       {(() => {
-        const fmt = effectiveAudioFormat(currentTrack, resolvedStreamFormat);
+        const fmt = effectiveAudioFormat(currentTrack, resolvedStreamFormat, streamMaxBitRateKbps);
         const baseParts = [
           ...effectiveAudioFormatParts(fmt),
           bpmTech ?? undefined,

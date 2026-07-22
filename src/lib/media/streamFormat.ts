@@ -21,17 +21,6 @@ export interface ResolvedStreamFormat {
   bitsPerSample?: number;
   channels?: number;
   lossless: boolean;
-  /**
-   * Streaming bitrate cap (kbps) in effect when this stream was opened; 0 =
-   * Original. Captured at resolve time so the badge shows the cap the current
-   * stream actually used, not a setting the user changed mid-playback.
-   */
-  streamCapKbps?: number;
-  /**
-   * Playback generation the format belongs to — used to reject out-of-order
-   * events from a superseded stream of the same track (replay, rapid restart).
-   */
-  generation?: number;
 }
 
 /**
@@ -112,10 +101,8 @@ export interface EffectiveAudioFormat {
 export function effectiveAudioFormat(
   track: Pick<Track, 'id' | 'suffix' | 'bitRate' | 'samplingRate' | 'bitDepth'>,
   resolved: ResolvedStreamFormat | null | undefined,
+  streamCapKbps = 0,
 ): EffectiveAudioFormat {
-  // The cap the stream was opened at travels on the resolved format, so the
-  // badge reflects the actual stream — not a setting changed mid-playback.
-  const streamCapKbps = resolved?.streamCapKbps ?? 0;
   const base: EffectiveAudioFormat = {
     formatLabel: track.suffix ? track.suffix.toUpperCase() : undefined,
     bitRate: track.bitRate && track.bitRate > 0 ? track.bitRate : undefined,
@@ -126,15 +113,9 @@ export function effectiveAudioFormat(
   };
 
   if (!resolved || resolved.trackId !== track.id) return base;
-
-  // A transcode is happening if the decoded codec differs from the file, OR a
-  // cap below the stored bitrate is in effect — the latter catches same-codec
-  // reductions (e.g. mp3@320 → mp3@128) that a codec comparison alone misses.
-  const codecTranscoded = isStreamTranscoded(track.suffix, resolved.codec);
-  const capTranscoded = streamCapKbps > 0 && (track.bitRate == null || track.bitRate > streamCapKbps);
-  if (!codecTranscoded && !capTranscoded) {
-    // Not transcoded: the live decode confirms the stored metadata. Prefer the
-    // decoded sample rate / bit depth when the server reported them.
+  if (!isStreamTranscoded(track.suffix, resolved.codec)) {
+    // Same codec family: the live decode confirms the stored metadata. Prefer
+    // the decoded sample rate / bit depth when the server reported them.
     return {
       ...base,
       sampleRate: resolved.sampleRate ?? base.sampleRate,

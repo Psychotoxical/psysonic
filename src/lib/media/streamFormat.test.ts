@@ -72,7 +72,8 @@ describe('effectiveAudioFormat', () => {
   it('shows the requested cap as an upper bound when the user set one', () => {
     const fmt = effectiveAudioFormat(
       track,
-      resolved({ codec: 'mp3', sampleRate: 44100, streamCapKbps: 320 }),
+      resolved({ codec: 'mp3', sampleRate: 44100 }),
+      320,
     );
     expect(fmt.bitRate).toBe(320);
     expect(fmt.bitRateIsCap).toBe(true);
@@ -87,25 +88,6 @@ describe('effectiveAudioFormat', () => {
     expect(fmt.transcoded).toBe(true);
     expect(fmt.formatLabel).toBe('ALAC');
     expect(fmt.bitDepth).toBe(24);
-  });
-
-  it('detects a same-codec transcode when a cap below the stored bitrate is set (#6)', () => {
-    // Navidrome capping mp3@320 → mp3@128: codec is unchanged, so codec
-    // comparison alone misses it. A cap below the stored bitrate reveals it.
-    const mp3 = { id: 't1', suffix: 'mp3', bitRate: 320, samplingRate: 44100, bitDepth: undefined };
-    const fmt = effectiveAudioFormat(mp3, resolved({ codec: 'mp3', sampleRate: 44100, streamCapKbps: 128 }));
-    expect(fmt.transcoded).toBe(true);
-    expect(fmt.formatLabel).toBe('MP3');
-    expect(fmt.bitRate).toBe(128);
-    expect(fmt.bitRateIsCap).toBe(true);
-  });
-
-  it('does NOT flag a transcode when the cap is above the stored bitrate', () => {
-    // Stored 96 kbps, cap 128 → server streams the original untouched.
-    const mp3 = { id: 't1', suffix: 'mp3', bitRate: 96, samplingRate: 44100, bitDepth: undefined };
-    const fmt = effectiveAudioFormat(mp3, resolved({ codec: 'mp3', sampleRate: 44100, streamCapKbps: 128 }));
-    expect(fmt.transcoded).toBe(false);
-    expect(fmt.bitRate).toBe(96);
   });
 
   it('prefers the decoded sample rate when the codec is unchanged', () => {

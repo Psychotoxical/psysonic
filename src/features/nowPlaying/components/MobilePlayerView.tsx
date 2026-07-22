@@ -3,6 +3,7 @@ import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
 import { usePlaybackTrackCoverRef } from '@/cover/useLibraryCoverRef';
 import type { Track } from '@/lib/media/trackTypes';
 import { effectiveAudioFormat } from '@/lib/media/streamFormat';
+import { useAuthStore } from '@/store/authStore';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '@/features/playback/store/playbackProgress';
 import React, { useState, useCallback, useRef, useEffect, useSyncExternalStore, CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -222,6 +223,7 @@ export default function MobilePlayerView() {
 
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const resolvedStreamFormat = usePlayerStore(s => s.resolvedStreamFormat);
+  const streamMaxBitRateKbps = useAuthStore(s => s.streamMaxBitRateKbps);
   const isPlaying    = usePlayerStore(s => s.isPlaying);
   const playbackProgress = useSyncExternalStore(
     onStoreChange => subscribePlaybackProgress(() => onStoreChange()),
@@ -415,7 +417,7 @@ export default function MobilePlayerView() {
             )}
           </div>
           {(() => {
-            const fmt = effectiveAudioFormat(currentTrack, resolvedStreamFormat);
+            const fmt = effectiveAudioFormat(currentTrack, resolvedStreamFormat, streamMaxBitRateKbps);
             const parts = [
               currentTrack.year,
               currentTrack.genre,

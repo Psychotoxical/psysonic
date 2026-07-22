@@ -146,16 +146,6 @@ pub(crate) fn resolve_codec_info(params: &AudioCodecParameters) -> ResolvedCodec
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AudioFormatEvent {
-    /// Track this format was resolved for — lets the frontend drop the event if
-    /// the user has since skipped. `None` on legacy/identity-less emits.
-    pub(crate) track_id: Option<String>,
-    /// Playback server index key — disambiguates duplicate ids across servers.
-    pub(crate) server_id: Option<String>,
-    /// Playback generation the stream belongs to (stale-event rejection).
-    pub(crate) generation: Option<u64>,
-    /// `maxBitRate` cap (kbps) the stream URL was opened with — latched per
-    /// stream, so a mid-playback settings change never relabels the current one.
-    pub(crate) stream_cap_kbps: Option<u32>,
     pub(crate) codec: String,
     pub(crate) sample_rate: Option<u32>,
     pub(crate) bits_per_sample: Option<u32>,
@@ -163,22 +153,9 @@ pub(crate) struct AudioFormatEvent {
     pub(crate) lossless: bool,
 }
 
-/// Identity a resolved-format event is stamped with (who/which stream).
-#[derive(Clone, Default)]
-pub(crate) struct AudioFormatIdentity {
-    pub(crate) track_id: Option<String>,
-    pub(crate) server_id: Option<String>,
-    pub(crate) generation: Option<u64>,
-    pub(crate) stream_cap_kbps: Option<u32>,
-}
-
-impl AudioFormatEvent {
-    pub(crate) fn from_info(info: &ResolvedCodecInfo, id: AudioFormatIdentity) -> Self {
+impl From<&ResolvedCodecInfo> for AudioFormatEvent {
+    fn from(info: &ResolvedCodecInfo) -> Self {
         Self {
-            track_id: id.track_id,
-            server_id: id.server_id,
-            generation: id.generation,
-            stream_cap_kbps: id.stream_cap_kbps,
             codec: info.codec_name.to_string(),
             // Bit depth is only meaningful for lossless output.
             bits_per_sample: if info.lossless { info.bits_per_sample } else { None },
@@ -1261,22 +1238,13 @@ mod tests {
             channels: Some(2),
             lossless: false,
         };
-        let ev = AudioFormatEvent::from_info(&lossy, AudioFormatIdentity {
-            track_id: Some("t1".into()),
-            server_id: Some("srv".into()),
-            generation: Some(7),
-            stream_cap_kbps: Some(128),
-        });
+        let ev = AudioFormatEvent::from(&lossy);
         assert_eq!(ev.bits_per_sample, None);
         let json = serde_json::to_value(&ev).unwrap();
         assert_eq!(json["codec"], "mp3");
         assert_eq!(json["sampleRate"], 44_100);
         assert_eq!(json["lossless"], false);
         assert!(json["bitsPerSample"].is_null());
-        assert_eq!(json["trackId"], "t1");
-        assert_eq!(json["serverId"], "srv");
-        assert_eq!(json["generation"], 7);
-        assert_eq!(json["streamCapKbps"], 128);
     }
 
     #[test]
@@ -1288,7 +1256,7 @@ mod tests {
             channels: Some(2),
             lossless: true,
         };
-        let ev = AudioFormatEvent::from_info(&lossless, AudioFormatIdentity::default());
+        let ev = AudioFormatEvent::from(&lossless);
         assert_eq!(ev.bits_per_sample, Some(24));
     }
 }
