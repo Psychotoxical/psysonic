@@ -2228,10 +2228,10 @@ fn fetch_albums_for_artist_key(
          ) \
          SELECT p.server_id, p.album_id, p.album, p.artist, p.artist_id, p.album_artist, \
                 st.song_count, st.duration_total, p.year, p.genre, p.cover_art_id, p.starred_at, p.synced_at, \
-                (SELECT json_extract(tt.raw_json, '$.tags.releasetype') \
+                (SELECT COALESCE(json_extract(tt.raw_json, '$.releaseTypes'), json_extract(tt.raw_json, '$.tags.releasetype')) \
                    FROM track tt \
                   WHERE tt.server_id = p.server_id AND tt.album_id = p.album_id AND tt.deleted = 0 \
-                    AND json_extract(tt.raw_json, '$.tags.releasetype') IS NOT NULL \
+                    AND COALESCE(json_extract(tt.raw_json, '$.releaseTypes'), json_extract(tt.raw_json, '$.tags.releasetype')) IS NOT NULL \
                   LIMIT 1) AS release_types \
          FROM album_pick p \
          INNER JOIN album_stats st ON p.album_dedup = st.album_dedup \
@@ -2249,9 +2249,12 @@ fn fetch_albums_for_artist_key(
     // The bulk album pipeline keeps album `raw_json` NULL and the standalone album
     // table is unused, so the DTO would otherwise carry no `releaseTypes` and the
     // artist page could no longer group releases (Albums / Singles / EPs / Live /
-    // Compilations) — it collapses to one flat list. Navidrome exposes the
-    // MusicBrainz RELEASETYPE tag per track under `raw_json.tags.releasetype`
-    // (album-consistent), so surface a representative track's array here.
+    // Compilations) — it collapses to one flat list. Two ingest paths store the
+    // MusicBrainz RELEASETYPE tag differently: Navidrome-native rows keep it per
+    // track under `raw_json.tags.releasetype`, while the OpenSubsonic/S2 crawl copies
+    // the album-level array onto each track at top-level `raw_json.releaseTypes`
+    // (see `merge_album_open_subsonic_track_raw`). Read both, API-level field first,
+    // and surface a representative track's array here.
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt
         .query_map(params_from_iter(binds.iter()), |r| {
@@ -2857,15 +2860,30 @@ mod tests {
         // Regression (#1326): the artist page groups a discography into Albums /
         // Singles / EPs / Live / Compilations from each album's `releaseTypes`. The
         // multi-scope pipeline builds albums from tracks and keeps album `raw_json`
-        // NULL, so the release types must come from the tracks' Navidrome
-        // `raw_json.tags.releasetype` (order preserved), or grouping goes flat.
+        // NULL, so the release types must come from the tracks' raw JSON (order
+        // preserved), or grouping goes flat. Two ingest paths store them differently
+        // and both must work: Navidrome-native `raw_json.tags.releasetype` and the
+        // OpenSubsonic/S2 top-level `raw_json.releaseTypes`
+        // (`merge_album_open_subsonic_track_raw`). Albums with neither stay null.
         let store = LibraryStore::open_in_memory();
-        let mut t1 = track(
+        // Native Navidrome shape.
+        let mut native = track(
             "s1", "t1", "Song", Some("Artist"), "A Live EP", "alb1",
             Some("art1"), 200, "lib-a", Some(2020), None, None,
         );
-        t1.raw_json = r#"{"tags":{"releasetype":["Single","Live"]}}"#.into();
-        seed_and_rebuild(&store, &[t1]);
+        native.raw_json = r#"{"tags":{"releasetype":["Single","Live"]}}"#.into();
+        // OpenSubsonic/S2 shape: album-level array copied onto the track top-level.
+        let mut s2 = track(
+            "s1", "t2", "Song", Some("Artist"), "B Compilation EP", "alb2",
+            Some("art1"), 200, "lib-a", Some(2021), None, None,
+        );
+        s2.raw_json = r#"{"releaseTypes":["EP"]}"#.into();
+        // Neither representation → default (null) group.
+        let plain = track(
+            "s1", "t3", "Song", Some("Artist"), "C Plain Album", "alb3",
+            Some("art1"), 200, "lib-a", Some(2022), None, None,
+        );
+        seed_and_rebuild(&store, &[native, s2, plain]);
 
         let response = artist_detail(
             &store,
@@ -2879,9 +2897,21 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(response.albums.len(), 1);
-        assert_eq!(response.albums[0].raw_json["releaseTypes"][0], "Single");
-        assert_eq!(response.albums[0].raw_json["releaseTypes"][1], "Live");
+        assert_eq!(response.albums.len(), 3);
+        let by_id = |id: &str| {
+            response
+                .albums
+                .iter()
+                .find(|a| a.id == id)
+                .unwrap_or_else(|| panic!("album {id} missing"))
+        };
+        // Native tag order preserved.
+        assert_eq!(by_id("alb1").raw_json["releaseTypes"][0], "Single");
+        assert_eq!(by_id("alb1").raw_json["releaseTypes"][1], "Live");
+        // S2 top-level array surfaced.
+        assert_eq!(by_id("alb2").raw_json["releaseTypes"][0], "EP");
+        // No release types anywhere → null raw_json, so grouping falls back cleanly.
+        assert!(by_id("alb3").raw_json.is_null());
     }
 
     #[test]
