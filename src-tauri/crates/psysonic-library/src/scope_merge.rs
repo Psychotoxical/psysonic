@@ -2195,6 +2195,14 @@ fn fetch_artist_candidates(
 /// suppress a valid Navidrome-native `tags.releasetype`, and a non-string member
 /// cannot survive to the frontend, where `ArtistDetail.tsx` lowercases each entry.
 /// The top-level API field stays preferred when it is itself usable.
+///
+/// The whole expression is wrapped in a lazy `CASE WHEN json_valid(...)` guard:
+/// `track.raw_json` is unconstrained text and the library tolerates invalid JSON
+/// (`LibraryTrackDto::from_row` maps it to `Value::Null`), but the JSON1 functions
+/// (`json_type`/`json_array_length`/`json_each`/`json_extract`) raise `malformed JSON`
+/// on invalid text — which, inside this per-album correlated lookup, would abort the
+/// entire artist-detail query instead of skipping the bad row. The guard makes a
+/// malformed row contribute no release types, so a later valid track still wins.
 fn usable_release_types_expr(json_col: &str) -> String {
     let candidate = |path: &str| {
         format!(
@@ -2207,7 +2215,8 @@ fn usable_release_types_expr(json_col: &str) -> String {
         )
     };
     format!(
-        "COALESCE({top}, {nested})",
+        "CASE WHEN json_valid({c}) THEN COALESCE({top}, {nested}) END",
+        c = json_col,
         top = candidate("$.releaseTypes"),
         nested = candidate("$.tags.releasetype"),
     )
@@ -3008,6 +3017,47 @@ mod tests {
         assert!(by_id("alb-nonstring").raw_json.is_null());
         // Non-string top-level fell back to the valid nested array.
         assert_eq!(by_id("alb-nsfb").raw_json["releaseTypes"][0], "Album");
+    }
+
+    #[test]
+    fn artist_detail_release_types_tolerate_malformed_raw_json() {
+        // `track.raw_json` is unconstrained text and the library tolerates invalid
+        // JSON (from_row → Value::Null). The release-type lookup must not let a
+        // malformed row raise `malformed JSON` and abort the whole artist-detail
+        // query: the bad row contributes nothing and a later valid track still wins.
+        let store = LibraryStore::open_in_memory();
+        // Malformed row sorts before the valid one, so an unguarded query would hit
+        // it first and error out.
+        let mut bad = track(
+            "s1", "aa-bad", "Broken", Some("Artist"), "Mixed", "alb-mixed",
+            Some("art1"), 200, "lib-a", Some(2020), None, None,
+        );
+        bad.raw_json = "{not valid json".into();
+        let mut good = track(
+            "s1", "zz-good", "Fine", Some("Artist"), "Mixed", "alb-mixed",
+            Some("art1"), 210, "lib-a", Some(2020), None, None,
+        );
+        good.raw_json = r#"{"tags":{"releasetype":["EP"]}}"#.into();
+        seed_and_rebuild(&store, &[bad, good]);
+
+        let response = artist_detail(
+            &store,
+            &LibraryScopeArtistDetailRequest {
+                scopes: vec![scope_pair("s1", "lib-a")],
+                artist_id: "art1".into(),
+                server_id: "s1".into(),
+                include_tracks: false,
+                top_tracks_limit: None,
+            },
+        )
+        .unwrap();
+
+        let album = response
+            .albums
+            .iter()
+            .find(|a| a.id == "alb-mixed")
+            .expect("album missing");
+        assert_eq!(album.raw_json["releaseTypes"][0], "EP");
     }
 
     #[test]
