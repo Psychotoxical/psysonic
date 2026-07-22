@@ -2187,6 +2187,32 @@ fn fetch_artist_candidates(
     Ok(rows)
 }
 
+/// SQL expression selecting a track's *usable* release-type array from `raw_json`,
+/// or NULL when neither representation is usable. A candidate is usable only when it
+/// is a non-empty JSON array whose members are all strings; that check is applied to
+/// each representation *before* precedence, so an empty or malformed top-level
+/// OpenSubsonic `releaseTypes` (the ingest copies empty album arrays verbatim) cannot
+/// suppress a valid Navidrome-native `tags.releasetype`, and a non-string member
+/// cannot survive to the frontend, where `ArtistDetail.tsx` lowercases each entry.
+/// The top-level API field stays preferred when it is itself usable.
+fn usable_release_types_expr(json_col: &str) -> String {
+    let candidate = |path: &str| {
+        format!(
+            "CASE WHEN json_type({c}, '{p}') = 'array' \
+                   AND json_array_length({c}, '{p}') > 0 \
+                   AND NOT EXISTS (SELECT 1 FROM json_each({c}, '{p}') je WHERE je.type <> 'text') \
+                  THEN json_extract({c}, '{p}') END",
+            c = json_col,
+            p = path,
+        )
+    };
+    format!(
+        "COALESCE({top}, {nested})",
+        top = candidate("$.releaseTypes"),
+        nested = candidate("$.tags.releasetype"),
+    )
+}
+
 fn fetch_albums_for_artist_key(
     conn: &rusqlite::Connection,
     scopes: &[LibraryScopePair],
@@ -2195,6 +2221,7 @@ fn fetch_albums_for_artist_key(
     anchor_artist_id: &str,
 ) -> rusqlite::Result<Vec<LibraryAlbumDto>> {
     let (scope_cte, scope_binds) = scope_cte_sql(scopes);
+    let release_types_expr = usable_release_types_expr("tt.raw_json");
     let (cte, scoped, key_filter, priority) = keyed_detail_track_source(
         scope_cte,
         artist_key.map(|_| "artist_key"),
@@ -2237,10 +2264,11 @@ fn fetch_albums_for_artist_key(
          ) \
          SELECT p.server_id, p.album_id, p.album, p.artist, p.artist_id, p.album_artist, \
                 st.song_count, st.duration_total, p.year, p.genre, p.cover_art_id, p.starred_at, p.synced_at, \
-                (SELECT COALESCE(json_extract(tt.raw_json, '$.releaseTypes'), json_extract(tt.raw_json, '$.tags.releasetype')) \
+                (SELECT {release_types_expr} \
                    FROM track tt \
                   WHERE tt.server_id = p.server_id AND tt.album_id = p.album_id AND tt.deleted = 0 \
-                    AND COALESCE(json_extract(tt.raw_json, '$.releaseTypes'), json_extract(tt.raw_json, '$.tags.releasetype')) IS NOT NULL \
+                    AND {release_types_expr} IS NOT NULL \
+                  ORDER BY tt.id ASC \
                   LIMIT 1) AS release_types \
          FROM album_pick p \
          INNER JOIN album_stats st ON p.album_dedup = st.album_dedup \
@@ -2262,14 +2290,16 @@ fn fetch_albums_for_artist_key(
     // MusicBrainz RELEASETYPE tag differently: Navidrome-native rows keep it per
     // track under `raw_json.tags.releasetype`, while the OpenSubsonic/S2 crawl copies
     // the album-level array onto each track at top-level `raw_json.releaseTypes`
-    // (see `merge_album_open_subsonic_track_raw`). Read both, API-level field first,
-    // and surface a representative track's array here.
+    // (see `merge_album_open_subsonic_track_raw`). `usable_release_types_expr` picks a
+    // validated array (`release_types`, column 13); reuse the shared album mapper and
+    // attach it, so there is one album-DTO construction path.
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt
         .query_map(params_from_iter(binds.iter()), |r| {
-            let track_artist: Option<String> = r.get(3)?;
-            let album_artist: Option<String> = r.get(5)?;
-            let raw_json = r
+            let mut dto = album_row_to_dto(map_album_list_row(r)?);
+            // SQL already guarantees a non-empty array of strings, or NULL; the
+            // client-side re-check is a cheap invariant guard, not new filtering.
+            dto.raw_json = r
                 .get::<_, Option<String>>(13)?
                 .and_then(|s| serde_json::from_str::<Value>(&s).ok())
                 .filter(|v| v.as_array().is_some_and(|a| !a.is_empty()))
@@ -2279,21 +2309,7 @@ fn fetch_albums_for_artist_key(
                     Value::Object(obj)
                 })
                 .unwrap_or(Value::Null);
-            Ok(LibraryAlbumDto {
-                server_id: r.get(0)?,
-                id: r.get(1)?,
-                name: r.get(2)?,
-                artist: pick_album_group_artist(track_artist, album_artist),
-                artist_id: r.get(4)?,
-                song_count: Some(r.get(6)?),
-                duration_sec: Some(r.get(7)?),
-                year: r.get(8)?,
-                genre: r.get(9)?,
-                cover_art_id: r.get(10)?,
-                starred_at: r.get(11)?,
-                synced_at: r.get(12)?,
-                raw_json,
-            })
+            Ok(dto)
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(rows)
@@ -2921,6 +2937,77 @@ mod tests {
         assert_eq!(by_id("alb2").raw_json["releaseTypes"][0], "EP");
         // No release types anywhere → null raw_json, so grouping falls back cleanly.
         assert!(by_id("alb3").raw_json.is_null());
+    }
+
+    #[test]
+    fn artist_detail_release_types_reject_unusable_candidates() {
+        // Release-type candidates must be validated (non-empty array of strings)
+        // before precedence and before the representative-track `LIMIT 1`, or bad
+        // server metadata leaves valid albums ungrouped and can crash the artist page.
+        let store = LibraryStore::open_in_memory();
+        // (1) Empty top-level array must not suppress the valid nested value.
+        let mut empty_top = track(
+            "s1", "et1", "Song", Some("Artist"), "Empty Top", "alb-empty",
+            Some("art1"), 200, "lib-a", Some(2020), None, None,
+        );
+        empty_top.raw_json = r#"{"releaseTypes":[],"tags":{"releasetype":["EP"]}}"#.into();
+        // (2) An unusable earlier track must not hide a valid later track on the same
+        // album. `hid1` sorts before `hid2`; only `hid2` carries a usable array.
+        let mut hidden_bad = track(
+            "s1", "hid1", "First", Some("Artist"), "Hidden", "alb-hidden",
+            Some("art1"), 200, "lib-a", Some(2021), None, None,
+        );
+        hidden_bad.raw_json = r#"{"releaseTypes":[]}"#.into();
+        let mut hidden_good = track(
+            "s1", "hid2", "Second", Some("Artist"), "Hidden", "alb-hidden",
+            Some("art1"), 210, "lib-a", Some(2021), None, None,
+        );
+        hidden_good.raw_json = r#"{"tags":{"releasetype":["Album","Live"]}}"#.into();
+        // (3a) Non-string members with no usable fallback → no release types at all.
+        let mut nonstring = track(
+            "s1", "ns1", "Song", Some("Artist"), "Non String", "alb-nonstring",
+            Some("art1"), 200, "lib-a", Some(2022), None, None,
+        );
+        nonstring.raw_json = r#"{"releaseTypes":["EP",null]}"#.into();
+        // (3b) Non-string top-level → fall back to the valid nested value.
+        let mut nonstring_fallback = track(
+            "s1", "nsf1", "Song", Some("Artist"), "Non String Fallback", "alb-nsfb",
+            Some("art1"), 200, "lib-a", Some(2023), None, None,
+        );
+        nonstring_fallback.raw_json =
+            r#"{"releaseTypes":["Live",1],"tags":{"releasetype":["Album"]}}"#.into();
+        seed_and_rebuild(
+            &store,
+            &[empty_top, hidden_bad, hidden_good, nonstring, nonstring_fallback],
+        );
+
+        let response = artist_detail(
+            &store,
+            &LibraryScopeArtistDetailRequest {
+                scopes: vec![scope_pair("s1", "lib-a")],
+                artist_id: "art1".into(),
+                server_id: "s1".into(),
+                include_tracks: false,
+                top_tracks_limit: None,
+            },
+        )
+        .unwrap();
+        let by_id = |id: &str| {
+            response
+                .albums
+                .iter()
+                .find(|a| a.id == id)
+                .unwrap_or_else(|| panic!("album {id} missing"))
+        };
+        // Empty top-level did not suppress the nested value.
+        assert_eq!(by_id("alb-empty").raw_json["releaseTypes"][0], "EP");
+        // The valid later track won over the unusable earlier one, order preserved.
+        assert_eq!(by_id("alb-hidden").raw_json["releaseTypes"][0], "Album");
+        assert_eq!(by_id("alb-hidden").raw_json["releaseTypes"][1], "Live");
+        // Non-string members with no fallback → null (never reaches the frontend).
+        assert!(by_id("alb-nonstring").raw_json.is_null());
+        // Non-string top-level fell back to the valid nested array.
+        assert_eq!(by_id("alb-nsfb").raw_json["releaseTypes"][0], "Album");
     }
 
     #[test]
