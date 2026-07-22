@@ -9,8 +9,8 @@ use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
 use crate::album_compilation_filter::{
-    pick_album_group_artist, pick_album_group_artist_id, various_artists_label,
-    various_artists_like_sql,
+    album_credits_artist, compilation_predicate_sql, pick_album_group_artist,
+    pick_album_group_artist_id, various_artists_label, various_artists_like_sql,
 };
 use crate::artist_sort::{sort_key_for_display_name, DEFAULT_IGNORED_ARTICLES};
 use crate::browse_support::{overlay_album_starred_at_rows, read_album_starred_at};
@@ -2343,6 +2343,19 @@ fn album_artist_id_expr(json_col: &str) -> String {
     )
 }
 
+/// Split inputs for one of the artist's track-derived albums: whether any track
+/// carries an OpenSubsonic/Navidrome compilation signal, and whether the album has
+/// a real album-artist tag (vs. an S2 ingest where the display credit falls back to
+/// the track artist). The caller feeds both to [`album_credits_artist`] to route own
+/// releases (main discography) from appears-on entries.
+pub(crate) struct AlbumSplitMeta {
+    pub is_compilation: bool,
+    pub has_album_artist: bool,
+}
+
+/// Returns each of the artist's track-derived albums paired with its
+/// [`AlbumSplitMeta`]. The caller uses that plus [`album_credits_artist`] to split
+/// own releases from appears-on entries.
 fn fetch_albums_for_artist_key(
     conn: &rusqlite::Connection,
     scopes: &[LibraryScopePair],
@@ -2350,7 +2363,7 @@ fn fetch_albums_for_artist_key(
     anchor_server: &str,
     anchor_artist_id: &str,
     va_mode: bool,
-) -> rusqlite::Result<Vec<LibraryAlbumDto>> {
+) -> rusqlite::Result<Vec<(LibraryAlbumDto, AlbumSplitMeta)>> {
     let (scope_cte, scope_binds) = scope_cte_sql(scopes);
     let release_types_expr = usable_release_types_expr("tt.raw_json");
     let (cte, scoped, key_filter, priority) = keyed_detail_track_source(
@@ -2387,6 +2400,12 @@ fn fetch_albums_for_artist_key(
     } else {
         String::new()
     };
+    // Compilation signal (compilation / isCompilation / releaseTypes / a Various
+    // Artists credit in the flat columns or raw_json displayArtist). Only used to
+    // route to appears-on when the album has *no* album-artist tag — a real
+    // album_artist that credits the artist (e.g. their own best-of) keeps the album
+    // in the main discography, where the frontend groups it under "Compilation".
+    let comp_pred = compilation_predicate_sql("ct", Some("ct.artist"), Some("ct.album_artist"));
     let sql = format!(
         "{cte}, \
          base AS ( \
@@ -2432,7 +2451,11 @@ fn fetch_albums_for_artist_key(
                     AND {release_types_expr} IS NOT NULL \
                   ORDER BY tt.id ASC \
                   LIMIT 1) AS release_types, \
-                p.album_artist_id AS album_artist_id \
+                p.album_artist_id AS album_artist_id, \
+                EXISTS (SELECT 1 FROM track ct \
+                         WHERE ct.server_id = p.server_id AND ct.album_id = p.album_id AND ct.deleted = 0 \
+                           AND {comp_pred}) AS is_compilation, \
+                (TRIM(COALESCE(p.album_artist, '')) <> '') AS has_album_artist \
          FROM album_pick p \
          INNER JOIN album_stats st ON p.album_dedup = st.album_dedup \
          WHERE p.rn = 1 \
@@ -2485,7 +2508,15 @@ fn fetch_albums_for_artist_key(
                     Value::Object(obj)
                 })
                 .unwrap_or(Value::Null);
-            Ok(dto)
+            // Split inputs ride along on the same row (columns 15/16) so the caller
+            // can route own releases vs. appears-on without a second query.
+            Ok((
+                dto,
+                AlbumSplitMeta {
+                    is_compilation: r.get::<_, bool>(15)?,
+                    has_album_artist: r.get::<_, bool>(16)?,
+                },
+            ))
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(rows)
@@ -2676,7 +2707,14 @@ pub fn artist_detail(
         } else {
             false
         };
-        let albums = fetch_albums_for_artist_key(
+        // The track-derived album set contains both the artist's own releases and
+        // every album they only appear on (Various Artists / curated compilations,
+        // other artists' albums with a guest track). Split by the canonical album
+        // artist so the frontend can render "appears on" separately from the main
+        // discography — locally, so it stays correct under multi-server scopes and
+        // needs no network search (the old featured-albums path was network-only
+        // and disabled for multi-server).
+        let all_albums = fetch_albums_for_artist_key(
             conn,
             scopes,
             artist_key.as_deref(),
@@ -2684,9 +2722,29 @@ pub fn artist_detail(
             artist_id,
             va_mode,
         )?;
+        let (own, appears_on): (Vec<_>, Vec<_>) = all_albums.into_iter().partition(|(al, meta)| {
+            // Own = the album credits the artist as its album artist (`al.artist` is
+            // already album-artist-first). A single-artist compilation the artist
+            // owns (their own best-of, tagged album_artist = the artist) therefore
+            // stays in the main discography and lands in the frontend's "Compilation"
+            // release-type group. Only when the album has no album-artist tag at all
+            // (S2 ingest, credit falls back to the track artist) does a compilation
+            // signal route it to appears-on — that is the Various Artists case whose
+            // single per-artist track otherwise resolves the fallback to this artist.
+            let credited = album_credits_artist(al.artist.as_deref(), &artist.name);
+            if meta.has_album_artist {
+                credited
+            } else {
+                credited && !meta.is_compilation
+            }
+        });
+        let albums: Vec<_> = own.into_iter().map(|(al, _)| al).collect();
+        let appears_on_albums: Vec<_> = appears_on.into_iter().map(|(al, _)| al).collect();
         // A label-linked VA entity's stored `album_count` is often 0 (no track tags
         // its id), which would contradict the compilation grid we just built. When the
         // header was seeded from that row, report the count actually returned instead.
+        // Counted after the split: a VA compilation credits the VA label as its album
+        // artist, so it stays in `albums` and the count matches the rendered grid.
         if seeded_from_anchor {
             artist.album_count = Some(albums.len() as i64);
         }
@@ -2728,6 +2786,7 @@ pub fn artist_detail(
         Ok(LibraryScopeArtistDetailResponse {
             artist,
             albums,
+            appears_on_albums,
             tracks,
             top_tracks_server_id,
             top_tracks_fingerprint,
@@ -3825,6 +3884,77 @@ mod tests {
     }
 
     #[test]
+    fn artist_detail_splits_own_releases_from_appears_on() {
+        // The track-derived album set mixes the artist's own releases with albums
+        // they only appear on. `albums` carries own releases — where the artist is the
+        // album artist, *including their own best-of compilations* (which the frontend
+        // then groups under "Compilation"); Various Artists / other-artist releases the
+        // artist only guests on belong in `appears_on_albums`. The split keys off the
+        // album artist, so it is ingest-path agnostic and multi-server aware without
+        // any network search.
+        let store = LibraryStore::open_in_memory();
+        // Own release: the helper defaults `album_artist` to the track artist.
+        let own_a = track(
+            "s1", "own1", "One", Some("The Band"), "Own Album", "alb-own",
+            Some("art1"), 200, "lib-a", Some(2020), None, None,
+        );
+        let own_b = track(
+            "s1", "own2", "Two", Some("The Band"), "Own Album", "alb-own",
+            Some("art1"), 210, "lib-a", Some(2020), None, None,
+        );
+        // The artist's own best-of: a compilation, but album_artist credits the artist,
+        // so it stays in the main discography (Option B) rather than appears-on.
+        let mut own_comp = track(
+            "s1", "ownc1", "Best Cut", Some("The Band"), "Own Best-Of", "alb-owncomp",
+            Some("art1"), 205, "lib-a", Some(2022), None, None,
+        );
+        own_comp.album_artist = Some("The Band".into());
+        own_comp.raw_json = r#"{"compilation":true}"#.into();
+        // Various Artists compilation with a single track by the artist.
+        let mut comp = track(
+            "s1", "comp1", "Comp Cut", Some("The Band"), "A Compilation", "alb-comp",
+            Some("art1"), 180, "lib-a", Some(2019), None, None,
+        );
+        comp.album_artist = Some("Various Artists".into());
+        // OpenSubsonic/S2 compilation: the flat album_artist is empty and the only
+        // compilation signal lives in raw_json — must still count as appears-on.
+        let mut s2comp = track(
+            "s1", "s2c1", "S2 Comp Cut", Some("The Band"), "An S2 Compilation",
+            "alb-s2comp", Some("art1"), 170, "lib-a", Some(2018), None, None,
+        );
+        s2comp.album_artist = None;
+        s2comp.raw_json = r#"{"compilation":true}"#.into();
+        // Another artist's album the artist only guests on.
+        let mut guest = track(
+            "s1", "guest1", "Guest Spot", Some("The Band"), "Someone Else's Album",
+            "alb-guest", Some("art1"), 190, "lib-a", Some(2021), None, None,
+        );
+        guest.album_artist = Some("Another Artist".into());
+        seed_and_rebuild(&store, &[own_a, own_b, own_comp, comp, s2comp, guest]);
+
+        let response = artist_detail(
+            &store,
+            &LibraryScopeArtistDetailRequest {
+                scopes: vec![scope_pair("s1", "lib-a")],
+                artist_id: "art1".into(),
+                server_id: "s1".into(),
+                include_tracks: false,
+                top_tracks_limit: None,
+            },
+        )
+        .unwrap();
+
+        let own_ids: Vec<&str> = response.albums.iter().map(|a| a.id.as_str()).collect();
+        let appears_ids: Vec<&str> = response
+            .appears_on_albums
+            .iter()
+            .map(|a| a.id.as_str())
+            .collect();
+        assert_eq!(own_ids, ["alb-own", "alb-owncomp"]);
+        assert_eq!(appears_ids, ["alb-comp", "alb-s2comp", "alb-guest"]);
+    }
+
+    #[test]
     fn artist_detail_bounds_top_tracks_and_selects_broadest_server() {
         let store = LibraryStore::open_in_memory();
         let mut rows = vec![
@@ -4786,7 +4916,11 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(artist.albums.len(), 2);
+        // Both "Split" albums carry a Various Artists credit, so they are albums the
+        // artist appears on, not part of the main discography — but they still stay
+        // as two separate physical albums (see album_detail below).
+        assert!(artist.albums.is_empty());
+        assert_eq!(artist.appears_on_albums.len(), 2);
 
         let detail = album_detail(
             &store,

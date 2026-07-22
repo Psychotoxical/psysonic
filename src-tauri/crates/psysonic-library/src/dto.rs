@@ -1056,7 +1056,15 @@ pub struct LibraryScopeAlbumDetailResponse {
 #[serde(rename_all = "camelCase")]
 pub struct LibraryScopeArtistDetailResponse {
     pub artist: LibraryArtistDto,
+    /// The artist's own releases (they are the album artist), grouped into the
+    /// main discography by the frontend.
     pub albums: Vec<LibraryAlbumDto>,
+    /// Albums the artist only appears on — "Various Artists" and curated
+    /// compilations, plus other artists' albums with a guest track. Rendered as
+    /// a separate "appears on" section. Split locally from the same track-derived
+    /// album set, so it is multi-server aware and needs no network search.
+    #[serde(default)]
+    pub appears_on_albums: Vec<LibraryAlbumDto>,
     pub tracks: Vec<LibraryTrackDto>,
     /// Server with the broadest scoped catalog for this artist. Present only
     /// for bounded Top Tracks requests.

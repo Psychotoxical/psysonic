@@ -71,6 +71,40 @@ pub fn various_artists_label(s: &str) -> bool {
     false
 }
 
+/// Whether a track-derived album's display album-artist credits the given artist:
+/// it either *is* the artist, or is a collaboration led by them
+/// ("Artist & Guest", "Artist feat. Guest"). Other artists' albums and "Various
+/// Artists" credits do not, so they fall out of the main discography.
+///
+/// This is only the album-artist half of the artist-page split; a compilation
+/// flag from the track `raw_json` (see [`compilation_predicate_sql`], evaluated in
+/// SQL where the raw JSON is available) still routes an album to *appears-on* even
+/// when it credits the artist. The comparison is on the already-normalized display
+/// album-artist ([`pick_album_group_artist`]), so it is ingest-path agnostic, and
+/// uses Unicode-aware lowercasing because catalogs carry non-ASCII artist names.
+///
+/// The leading-token rule requires a non-alphanumeric separator after the name so
+/// "Metallica" does not spuriously credit "Metallican"; a genuine band name that
+/// contains the separator ("Mumford & Sons") still matches its own albums by exact
+/// equality.
+pub fn album_credits_artist(album_display_artist: Option<&str>, canonical_artist_name: &str) -> bool {
+    let canonical = canonical_artist_name.trim().to_lowercase();
+    if canonical.is_empty() {
+        return false;
+    }
+    let Some(display) = album_display_artist else {
+        return false;
+    };
+    let display = display.trim().to_lowercase();
+    if display == canonical {
+        return true;
+    }
+    match display.strip_prefix(&canonical) {
+        Some(rest) => rest.starts_with(|ch: char| !ch.is_alphanumeric()),
+        None => false,
+    }
+}
+
 /// SQL mirror of [`pick_album_group_artist`] over arbitrary column *expressions*
 /// rather than a table alias — the album browse groups by album and therefore has
 /// to feed aggregates (`MAX(t.artist)`, `MAX(t.album_artist)`), while the
@@ -173,6 +207,38 @@ mod tests {
         assert!(sql.contains("t.artist"));
         assert!(sql.contains("t.album_artist"));
         assert!(sql.contains("$.displayArtist"));
+    }
+
+    #[test]
+    fn album_credits_artist_matches_self_and_led_collaborations() {
+        // Exact and case/space-insensitive self credit.
+        assert!(album_credits_artist(Some("Metallica"), "Metallica"));
+        assert!(album_credits_artist(Some("  metallica "), "Metallica"));
+        // Collaboration the artist leads keeps the album as their own.
+        assert!(album_credits_artist(
+            Some("Metallica & San Francisco Symphony"),
+            "Metallica"
+        ));
+        assert!(album_credits_artist(Some("Bela B. feat. Smokestack"), "Bela B."));
+        // A band name that itself contains the separator matches by equality.
+        assert!(album_credits_artist(Some("Mumford & Sons"), "Mumford & Sons"));
+        // Non-ASCII names fold correctly.
+        assert!(album_credits_artist(Some("Чиж & Co"), "Чиж"));
+    }
+
+    #[test]
+    fn album_credits_artist_rejects_others_and_partial_names() {
+        assert!(!album_credits_artist(Some("Various Artists"), "Metallica"));
+        assert!(!album_credits_artist(Some("Another Artist"), "The Band"));
+        // A separator is required after the name, so a longer name is not credited.
+        assert!(!album_credits_artist(Some("Metallican"), "Metallica"));
+        // The artist must lead the credit, not merely appear in it.
+        assert!(!album_credits_artist(
+            Some("San Francisco Symphony & Metallica"),
+            "Metallica"
+        ));
+        assert!(!album_credits_artist(None, "Metallica"));
+        assert!(!album_credits_artist(Some("Metallica"), ""));
     }
 
     #[test]
