@@ -26,8 +26,11 @@ export function useLibraryServerReachability(): void {
   const servers = useAuthStore(state => state.servers);
   const activeServerId = useAuthStore(state => state.activeServerId);
   const libraryBrowseServerIds = useAuthStore(state => state.libraryBrowseServerIds);
+  const loggingMode = useAuthStore(state => state.loggingMode);
+  const debugLoggingDepth = useAuthStore(state => state.debugLoggingDepth);
   const unavailableServerIds = useUnavailableServerIds();
-  const reachabilitySnapshot = useServerReachabilitySnapshot();
+  const verboseDiagnosticsEnabled = loggingMode === 'debug' && debugLoggingDepth === 3;
+  const reachabilitySnapshot = useServerReachabilitySnapshot(verboseDiagnosticsEnabled);
   const perfFlags = usePerfProbeFlags();
   const selectedProfiles = useMemo(() => {
     const selected = new Set(libraryBrowseServerIds);
@@ -48,6 +51,7 @@ export function useLibraryServerReachability(): void {
   desiredActiveServerIdRef.current = desiredActiveServerId;
 
   useEffect(() => {
+    if (!verboseDiagnosticsEnabled) return;
     emitMultiServerDebug('reachability_scope_snapshot', {
       isLoggedIn,
       activeServerId,
@@ -74,6 +78,7 @@ export function useLibraryServerReachability(): void {
     selectedProfiles,
     servers,
     unavailableServerIds,
+    verboseDiagnosticsEnabled,
   ]);
 
   useEffect(() => {

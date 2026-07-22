@@ -34,7 +34,7 @@ describe('multiServerDebug', () => {
     });
   });
 
-  it('treats frontend diagnostics without an explicit depth as level 1', () => {
+  it('treats frontend diagnostics without an explicit depth as basic level 1', () => {
     const captured: Array<{ scope: string; message: string }> = [];
     onInvoke('frontend_debug_log', args => {
       captured.push(args as { scope: string; message: string });
@@ -43,7 +43,7 @@ describe('multiServerDebug', () => {
     useAuthStore.setState({ loggingMode: 'debug', debugLoggingDepth: 1 });
 
     frontendDebugLog('existing', 'level-one');
-    frontendDebugLog('deeper', 'level-two', 2);
+    frontendDebugLog('deeper', 'level-three', 3);
 
     expect(captured).toEqual([{ scope: 'existing', message: 'level-one' }]);
   });

@@ -7,7 +7,7 @@
  * Instrumentation helpers read the mode and depth gates independently; defaults
  * are off and depth 1 until the store wires the sources.
  */
-export type DebugLoggingDepth = 1 | 2 | 3;
+export type DebugLoggingDepth = 1 | 3;
 
 let debugLoggingModeSource: () => boolean = () => false;
 let debugLoggingDepthSource: () => DebugLoggingDepth = () => 1;
@@ -29,5 +29,5 @@ export function isDebugLoggingDepthEnabled(requiredDepth: DebugLoggingDepth = 1)
 }
 
 export function sanitizeDebugLoggingDepth(value: unknown): DebugLoggingDepth {
-  return value === 2 || value === 3 ? value : 1;
+  return value === 3 ? value : 1;
 }

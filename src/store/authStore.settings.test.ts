@@ -228,8 +228,8 @@ describe('discord cover source setters', () => {
     }
   });
 
-  it('setDebugLoggingDepth accepts levels 1 / 2 / 3', () => {
-    for (const depth of [1, 2, 3] as const) {
+  it('setDebugLoggingDepth accepts basic and verbose levels', () => {
+    for (const depth of [1, 3] as const) {
       useAuthStore.getState().setDebugLoggingDepth(depth);
       expect(useAuthStore.getState().debugLoggingDepth).toBe(depth);
     }

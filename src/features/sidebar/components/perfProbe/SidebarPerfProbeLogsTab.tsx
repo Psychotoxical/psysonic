@@ -42,7 +42,6 @@ const LOGGING_MODE_OPTIONS: { value: LoggingMode; label: string }[] = [
 ];
 const DEBUG_DEPTH_OPTIONS = [
   { value: '1', label: '1' },
-  { value: '2', label: '2' },
   { value: '3', label: '3' },
 ];
 

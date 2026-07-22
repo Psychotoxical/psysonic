@@ -44,7 +44,7 @@ describe('computeAuthStoreRehydration — queueDurationDisplayMode', () => {
 describe('computeAuthStoreRehydration — debugLoggingDepth', () => {
   beforeEach(resetAuthStore);
 
-  it.each([1, 2, 3] as const)('preserves valid depth %s', (depth) => {
+  it.each([1, 3] as const)('preserves valid depth %s', (depth) => {
     const patch = computeAuthStoreRehydration({
       ...useAuthStore.getState(),
       debugLoggingDepth: depth,
@@ -52,7 +52,7 @@ describe('computeAuthStoreRehydration — debugLoggingDepth', () => {
     expect(patch.debugLoggingDepth).toBe(depth);
   });
 
-  it.each([0, 4, '3', null, undefined] as const)(
+  it.each([0, 2, 4, '3', null, undefined] as const)(
     'maps invalid or missing depth %j to level 1',
     (depth) => {
       const state = { ...useAuthStore.getState(), debugLoggingDepth: depth } as unknown as AuthState;

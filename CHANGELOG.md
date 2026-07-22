@@ -41,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1331](https://github.com/Psychotoxical/psysonic/pull/1331)**
 
-* **Settings → System → Logging** and **PsyLab → Logs** offer three persisted debug-depth levels while Debug logging is enabled. Deeper levels add structured multi-server scope, reachability, music-folder and New Releases diagnostics, with credentials and sensitive URL data redacted.
+* **Settings → System → Logging** and **PsyLab → Logs** offer basic and verbose debug-depth levels while Debug logging is enabled. Verbose mode adds structured multi-server scope, reachability, music-folder and New Releases diagnostics, with credentials and sensitive URL data redacted.
 
 ## Changed
 
