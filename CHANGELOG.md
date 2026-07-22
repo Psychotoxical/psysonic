@@ -106,6 +106,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1331](https://github.com/Psychotoxical/psysonic/pull/1331)**
 
 * Existing profiles that retained an empty Library server selection recover the configured active server when another server is added. Music-folder discovery and New Releases no longer collapse to an empty result in that legacy state.
+* Artist browse no longer waits for a full identity rebuild on the first launch after upgrading an existing large library.
 
 
 ## [1.50.0]

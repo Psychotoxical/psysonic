@@ -3712,7 +3712,7 @@ mod tests {
     }
 
     #[test]
-    fn index_artists_layer1_scope_excludes_artists_from_other_libraries() {
+    fn single_scope_artists_do_not_block_on_cluster_key_rebuild() {
         let store = LibraryStore::open_in_memory();
         insert_artist_with_album_count(&store, "s1", "ar_in", "In Sampler", Some(1));
         insert_artist_with_album_count(&store, "s1", "ar_out", "Outside", Some(1));
@@ -3743,12 +3743,40 @@ mod tests {
         );
         t_out.artist_id = Some("ar_out".into());
         TrackRepository::new(&store).upsert_batch(&[t_in, t_out]).unwrap();
+        crate::identity::rebuild_cluster_keys(&store, None).unwrap();
+        store
+            .with_conn_mut("test.stale_identity", |conn| {
+                conn.execute(
+                    "UPDATE cluster.cluster_meta SET value = 'stale' WHERE key = 'norm_version'",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
         let mut r = req("s1", &[EntityKind::Artist]);
         r.library_scopes = Some(vec![scope_pair("s1", "sampler")]);
         r.artist_credit_mode = Some(ArtistCreditMode::Album);
         let resp = run_advanced_search(&store, &r).unwrap();
         let ids: Vec<&str> = resp.artists.iter().map(|a| a.id.as_str()).collect();
         assert_eq!(ids, vec!["ar_in"]);
+        assert!(
+            store
+                .with_read_conn(crate::identity::cluster_rebuild_needed)
+                .unwrap(),
+            "single-scope album artists must not trigger identity maintenance"
+        );
+
+        r.artist_credit_mode = Some(ArtistCreditMode::Track);
+        let resp = run_advanced_search(&store, &r).unwrap();
+        let ids: Vec<&str> = resp.artists.iter().map(|a| a.id.as_str()).collect();
+        assert_eq!(ids, vec!["ar_in"]);
+        assert!(
+            store
+                .with_read_conn(crate::identity::cluster_rebuild_needed)
+                .unwrap(),
+            "single-scope track artists must not trigger identity maintenance"
+        );
     }
 
     #[test]
