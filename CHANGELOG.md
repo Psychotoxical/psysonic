@@ -89,6 +89,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The first New Releases page now keeps the local catalogue's logical album de-duplication when fresh network results arrive, including alternate physical copies on one server and matching copies across several servers.
 
+### Artist details — show the artist name, not a featured-guest track credit
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1328](https://github.com/Psychotoxical/psysonic/pull/1328)**
+
+* The artist detail header no longer adopts a per-track "featuring" credit when a single track in the discography is tagged with a guest artist. It shows the artist's own name, matching the artist browse list.
+
 
 ## [1.50.0]
 
