@@ -2140,10 +2140,19 @@ fn fetch_artist_candidates(
         artist_key.map(|_| "artist_key"),
         "AND t.server_id = ? AND t.artist_id = ? AND ck.artist_key IS NULL",
     );
+    // Display name = the canonical `artist.name` for each (server, artist_id) — the
+    // same source the artist browse list uses. Deriving it from the tracks via
+    // `MAX(t.artist)` picked up per-track "feat." credits (one guest feature in a
+    // discography would rename the whole artist header); `COALESCE` keeps the old
+    // track-derived fallback for artist_ids without an indexed artist row.
     let sql = format!(
         "{cte}, \
          grouped AS ( \
-           SELECT t.server_id, t.artist_id, MAX(t.artist) AS artist, \
+           SELECT t.server_id, t.artist_id, \
+                  COALESCE( \
+                    (SELECT ar.name FROM artist ar \
+                      WHERE ar.server_id = t.server_id AND ar.id = t.artist_id), \
+                    MAX(t.artist)) AS artist, \
                   COUNT(DISTINCT t.album_id) AS album_count, MAX(t.synced_at) AS synced_at, \
                   MIN({priority}) AS best_pr \
            {scoped} AND t.artist_id IS NOT NULL AND t.artist_id != '' {key_filter} \
@@ -2912,6 +2921,44 @@ mod tests {
         assert_eq!(by_id("alb2").raw_json["releaseTypes"][0], "EP");
         // No release types anywhere → null raw_json, so grouping falls back cleanly.
         assert!(by_id("alb3").raw_json.is_null());
+    }
+
+    #[test]
+    fn artist_detail_name_uses_canonical_artist_not_feature_track_credit() {
+        // Regression: a single guest-feature track in a discography carries a
+        // per-track "feat." credit while sharing the artist's `artist_id`. The
+        // header name must stay the canonical `artist.name`, not `MAX(t.artist)`
+        // which would pick the lexicographically-larger "… feat. …" string and
+        // rename the whole artist. Mirrors the browse list (reads `artist.name`).
+        let store = LibraryStore::open_in_memory();
+        seed_and_rebuild(
+            &store,
+            &[
+                // Plain credit first so the seeded `artist.name` is canonical.
+                track(
+                    "s1", "t-plain", "A Plain Song", Some("Skyclad"), "Album One",
+                    "alb1", Some("skyclad"), 200, "lib-a", None, None, None,
+                ),
+                track(
+                    "s1", "t-feat", "A Guest Song", Some("Skyclad feat. Ten Pole Tudor"),
+                    "Album Two", "alb2", Some("skyclad"), 201, "lib-a", None, None, None,
+                ),
+            ],
+        );
+
+        let response = artist_detail(
+            &store,
+            &LibraryScopeArtistDetailRequest {
+                scopes: vec![scope_pair("s1", "lib-a")],
+                artist_id: "skyclad".into(),
+                server_id: "s1".into(),
+                include_tracks: false,
+                top_tracks_limit: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(response.artist.name, "Skyclad");
     }
 
     #[test]
