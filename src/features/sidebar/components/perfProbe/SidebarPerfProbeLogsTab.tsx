@@ -288,16 +288,17 @@ export default function SidebarPerfProbeLogsTab() {
             options={LOGGING_MODE_OPTIONS}
           />
         </label>
-        <label className="perf-logs__control">
-          <span className="perf-logs__control-label">{t('settings.debugLoggingDepth')}</span>
-          <CustomSelect
-            value={String(debugLoggingDepth)}
-            onChange={changeDebugDepth}
-            options={DEBUG_DEPTH_OPTIONS}
-            disabled={loggingMode !== 'debug'}
-            ariaLabel={t('settings.debugLoggingDepth')}
-          />
-        </label>
+        {loggingMode === 'debug' && (
+          <label className="perf-logs__control">
+            <span className="perf-logs__control-label">{t('settings.debugLoggingDepth')}</span>
+            <CustomSelect
+              value={String(debugLoggingDepth)}
+              onChange={changeDebugDepth}
+              options={DEBUG_DEPTH_OPTIONS}
+              ariaLabel={t('settings.debugLoggingDepth')}
+            />
+          </label>
+        )}
         <label className="perf-logs__control">
           <span className="perf-logs__control-label">Keep</span>
           <CustomSelect

@@ -265,33 +265,32 @@ export function SystemTab() {
                   />
                 </div>
               </SettingsField>
-              <SettingsField
-                label={t('settings.debugLoggingDepth')}
-                desc={t('settings.debugLoggingDepthDesc')}
-                row
-              >
-                <div style={{ minWidth: 160 }}>
-                  <CustomSelect
-                    value={String(auth.debugLoggingDepth)}
-                    onChange={(v) => auth.setDebugLoggingDepth(Number(v) as DebugLoggingDepth)}
-                    options={[
-                      { value: '1', label: '1' },
-                      { value: '2', label: '2' },
-                      { value: '3', label: '3' },
-                    ]}
-                    disabled={auth.loggingMode !== 'debug'}
-                    ariaLabel={t('settings.debugLoggingDepth')}
-                  />
-                </div>
-                {auth.loggingMode === 'debug' && (
+              {auth.loggingMode === 'debug' && (
+                <SettingsField
+                  label={t('settings.debugLoggingDepth')}
+                  desc={t('settings.debugLoggingDepthDesc')}
+                  row
+                >
+                  <div style={{ minWidth: 160 }}>
+                    <CustomSelect
+                      value={String(auth.debugLoggingDepth)}
+                      onChange={(v) => auth.setDebugLoggingDepth(Number(v) as DebugLoggingDepth)}
+                      options={[
+                        { value: '1', label: '1' },
+                        { value: '2', label: '2' },
+                        { value: '3', label: '3' },
+                      ]}
+                      ariaLabel={t('settings.debugLoggingDepth')}
+                    />
+                  </div>
                   <div>
                     <button className="btn btn-surface" onClick={exportRuntimeLogs}>
                       <Download size={14} />
                       {t('settings.loggingExport')}
                     </button>
                   </div>
-                )}
-              </SettingsField>
+                </SettingsField>
+              )}
             </SettingsSubCard>
           </SettingsGroup>
         </div>
