@@ -89,6 +89,25 @@ describe('resolvePlaybackUrl — precedence', () => {
     expect(url).toMatch(/^https:\/\/music\.example\.com\/rest\/stream\.view\?/);
     expect(url).toContain('id=track-1');
   });
+
+  it('omits maxBitRate on the stream URL when quality is Original (default)', () => {
+    const url = resolvePlaybackUrl('track-1', 'srv-1');
+    expect(url).not.toContain('maxBitRate');
+  });
+
+  it('appends the maxBitRate cap on the stream URL when a quality is set', () => {
+    useAuthStore.getState().setStreamMaxBitRateKbps(192);
+    const url = resolvePlaybackUrl('track-1', 'srv-1');
+    expect(url).toContain('maxBitRate=192');
+  });
+
+  it('does not cap a locally cached track (cap only applies to live streams)', () => {
+    seedLibraryEntry('track-1', 'srv-1', '/library/track-1.flac');
+    useAuthStore.getState().setStreamMaxBitRateKbps(128);
+    const url = resolvePlaybackUrl('track-1', 'srv-1');
+    expect(url).toBe('psysonic-local:///library/track-1.flac');
+    expect(url).not.toContain('maxBitRate');
+  });
 });
 
 describe('resolvePlaybackUrlForTrack', () => {

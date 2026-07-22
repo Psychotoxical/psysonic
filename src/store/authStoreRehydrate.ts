@@ -1,5 +1,6 @@
 import { IS_LINUX } from '@/lib/util/platform';
 import { sanitizeHiResCrossfadeResampleHz } from '@/lib/audio/hiResCrossfadeResample';
+import { sanitizeStreamMaxBitRateKbps } from '@/lib/audio/streamQuality';
 import {
   sanitizeAutodjOverlapCapMode,
   sanitizeAutodjOverlapCapSec,
@@ -327,6 +328,9 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
     loudnessPreIsRefV1: true,
     hiResCrossfadeResampleHz: sanitizeHiResCrossfadeResampleHz(
       (state as { hiResCrossfadeResampleHz?: unknown }).hiResCrossfadeResampleHz,
+    ),
+    streamMaxBitRateKbps: sanitizeStreamMaxBitRateKbps(
+      (state as { streamMaxBitRateKbps?: unknown }).streamMaxBitRateKbps,
     ),
     autodjOverlapCapMode: sanitizeAutodjOverlapCapMode(
       (state as { autodjOverlapCapMode?: unknown }).autodjOverlapCapMode,

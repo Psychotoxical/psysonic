@@ -1,5 +1,6 @@
 import { buildStreamUrlForServer } from '@/lib/api/subsonicStreamUrl';
 import { findLocalPlaybackUrl } from '@/store/localPlaybackResolve';
+import { useAuthStore } from '@/store/authStore';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import { getPlaybackCacheServerKey, getPlaybackServerId } from '@/features/playback/utils/playback/playbackServer';
 import type { Track } from '@/lib/media/trackTypes';
@@ -62,6 +63,16 @@ export function getPlaybackSourceKind(
   return 'stream';
 }
 
+/**
+ * The user's streaming transcode cap (kbps). Applies ONLY to the live HTTP
+ * stream — locally cached / offline / pinned tracks play from their stored
+ * original file regardless. Prefetch and loudness/waveform analysis call
+ * `buildStreamUrl*` directly without a cap, so they always pull the original.
+ */
+function streamMaxBitRateKbps(): number {
+  return useAuthStore.getState().streamMaxBitRateKbps;
+}
+
 /** Pinned library → favorites auto → ephemeral cache → HTTP stream. */
 export function resolvePlaybackUrl(trackId: string, serverId?: string): string {
   const cacheKey = serverId && serverId.length > 0 ? serverId : getPlaybackCacheServerKey();
@@ -72,7 +83,7 @@ export function resolvePlaybackUrl(trackId: string, serverId?: string): string {
   if (favorites) return favorites;
   const hot = findLocalPlaybackUrl(trackId, profileId, 'ephemeral');
   if (hot) return hot;
-  return buildStreamUrlForServer(profileId, trackId);
+  return buildStreamUrlForServer(profileId, trackId, streamMaxBitRateKbps());
 }
 
 /** Like {@link resolvePlaybackUrl} but honours {@link Track.directStreamUrl}. */

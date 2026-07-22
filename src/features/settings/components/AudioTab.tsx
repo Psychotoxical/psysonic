@@ -1,7 +1,13 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Blend, Gauge, Sliders, Volume2, Waves } from 'lucide-react';
+import { AudioLines, Blend, Gauge, Sliders, Volume2, Waves } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
+import CustomSelect from '@/ui/CustomSelect';
+import { SettingsField } from '@/features/settings/components/SettingsSubCard';
+import {
+  STREAM_MAX_BITRATE_OPTIONS,
+  sanitizeStreamMaxBitRateKbps,
+} from '@/lib/audio/streamQuality';
 import { Equalizer } from '@/features/equalizer';
 import SettingsSubSection from '@/features/settings/components/SettingsSubSection';
 import { SettingsGroup } from '@/features/settings/components/SettingsGroup';
@@ -51,6 +57,37 @@ export function AudioTab() {
           t={t}
         />
       )}
+
+      {/* Streaming quality — client-requested server transcode cap */}
+      <SettingsSubSection
+        title={t('settings.streamQualityTitle')}
+        description={t('settings.streamQualityDesc')}
+        icon={<AudioLines size={16} />}
+      >
+        <div className="settings-card">
+          <SettingsGroup>
+            <SettingsField
+              label={t('settings.streamQualityLabel')}
+              desc={t('settings.streamQualityFieldDesc')}
+              row
+            >
+              <div style={{ minWidth: 200 }}>
+                <CustomSelect
+                  ariaLabel={t('settings.streamQualityLabel')}
+                  value={String(auth.streamMaxBitRateKbps)}
+                  onChange={(v) => auth.setStreamMaxBitRateKbps(sanitizeStreamMaxBitRateKbps(Number(v)))}
+                  options={STREAM_MAX_BITRATE_OPTIONS.map((kbps) => ({
+                    value: String(kbps),
+                    label: kbps === 0
+                      ? t('settings.streamQualityOriginal')
+                      : t('settings.streamQualityKbps', { kbps }),
+                  }))}
+                />
+              </div>
+            </SettingsField>
+          </SettingsGroup>
+        </div>
+      </SettingsSubSection>
 
       {/* Normalization — loudness levelling (own category) */}
       <SettingsSubSection

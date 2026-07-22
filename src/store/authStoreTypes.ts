@@ -1,4 +1,5 @@
 import type { HiResCrossfadeResampleHz } from '@/lib/audio/hiResCrossfadeResample';
+import type { StreamMaxBitRateKbps } from '@/lib/audio/streamQuality';
 import type { EntityRatingSupportLevel } from '@/lib/api/subsonicTypes';
 import type { DebugLoggingDepth } from '@/lib/perf/debugLoggingMode';
 import type {
@@ -284,6 +285,8 @@ export interface AuthState {
   hiResCrossfadeResampleHz: HiResCrossfadeResampleHz;
   /** Selected audio output device name. null = system default. */
   audioOutputDevice: string | null;
+  /** Live-stream transcode cap sent to the server as `maxBitRate` (kbps). 0 = Original. */
+  streamMaxBitRateKbps: StreamMaxBitRateKbps;
 
   /** Auto-download starred favorites into `media/favorites/` (separate from offline library). */
   favoritesOfflineEnabled: boolean;
@@ -480,6 +483,7 @@ export interface AuthState {
   setEnableHiRes: (v: boolean) => void;
   setHiResCrossfadeResampleHz: (v: HiResCrossfadeResampleHz) => void;
   setAudioOutputDevice: (v: string | null) => void;
+  setStreamMaxBitRateKbps: (v: StreamMaxBitRateKbps) => void;
   setFavoritesOfflineEnabled: (v: boolean) => void;
   setHotCacheEnabled: (v: boolean) => void;
   setHotCacheMaxMb: (v: number) => void;
