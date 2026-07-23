@@ -3,14 +3,14 @@
 use rusqlite::types::Value as SqlValue;
 use rusqlite::params_from_iter;
 
-use crate::album_compilation_filter::pick_album_group_artist;
+use crate::album_compilation_filter::{pick_album_group_artist, pick_album_group_artist_id};
 use crate::browse_support::overlay_album_starred_at_rows;
 use crate::dto::{
     GenreAlbumCountDto, LibraryAlbumDto, LibraryMainstageAlbumFeed,
     LibraryMainstageAlbumsRequest, LibraryMainstageAlbumsResponse, LibraryScopePair,
 };
 use crate::scope_merge::{
-    non_empty_scopes, scope_cte_sql, ALBUM_DEDUP_KEY, ALBUM_PICK_KEY,
+    album_artist_id_expr, non_empty_scopes, scope_cte_sql, ALBUM_DEDUP_KEY, ALBUM_PICK_KEY,
 };
 use crate::search::PAGE_LIMIT_MAX;
 use crate::store::LibraryStore;
@@ -30,8 +30,10 @@ fn candidate_columns(feed_at: &str, priority: usize) -> String {
     format!(
         "t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
          t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.id, \
+         {album_artist_id} AS album_artist_id, \
          {priority} AS pr, ck.album_key, {ALBUM_DEDUP_KEY} AS album_dedup, \
-         {feed_at} AS feed_at"
+         {feed_at} AS feed_at",
+        album_artist_id = album_artist_id_expr("t.raw_json"),
     )
 }
 
@@ -132,6 +134,7 @@ fn build_mainstage_query(
          representative_pool AS ( \
            SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
                   t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.id, \
+                  {album_artist_id} AS album_artist_id, \
                   s.pr, grouped.album_dedup \
            FROM candidate_groups grouped \
            CROSS JOIN scope s \
@@ -145,12 +148,13 @@ fn build_mainstage_query(
              AND t.album_id IS NOT NULL AND t.album_id != '' \
            UNION ALL \
            SELECT server_id, album_id, album, artist, artist_id, album_artist, \
-                  year, genre, cover_art_id, starred_at, synced_at, id, pr, album_dedup \
+                  year, genre, cover_art_id, starred_at, synced_at, id, album_artist_id, pr, album_dedup \
            FROM candidates WHERE album_key IS NULL \
          ), \
          representatives AS ( \
            SELECT server_id, album_id, album, artist, artist_id, album_artist, \
                   year, genre, cover_art_id, starred_at, synced_at, album_dedup, \
+                  MAX(album_artist_id) AS album_artist_id, \
                   MIN({ALBUM_PICK_KEY}) AS _pick \
            FROM representative_pool GROUP BY album_dedup \
          ) \
@@ -159,13 +163,15 @@ fn build_mainstage_query(
                   representative.year, representative.genre, representative.cover_art_id, \
                   representative.starred_at, representative.synced_at, \
                   grouped.feed_at, \
-                  (SELECT COUNT(*) FROM candidates) AS candidate_count \
+                  (SELECT COUNT(*) FROM candidates) AS candidate_count, \
+                  representative.album_artist_id \
          FROM representatives representative \
          INNER JOIN candidate_groups grouped \
            ON grouped.album_dedup = representative.album_dedup \
          ORDER BY grouped.feed_at DESC, representative.album COLLATE NOCASE ASC, \
                   representative.server_id ASC, representative.album_id ASC \
-         LIMIT ? OFFSET ?"
+         LIMIT ? OFFSET ?",
+        album_artist_id = album_artist_id_expr("t.raw_json"),
     );
     binds.push(SqlValue::Integer(i64::from(result_limit)));
     binds.push(SqlValue::Integer(i64::from(result_offset)));
@@ -204,14 +210,22 @@ fn map_mainstage_album(
     include_catalog_created_at: bool,
 ) -> rusqlite::Result<(LibraryAlbumDto, u32)> {
     let track_artist = r.get(3)?;
-    let album_artist = r.get(5)?;
+    let album_artist: Option<String> = r.get(5)?;
+    // The card credit prefers the album-artist name; the linked id must follow the
+    // same choice, or a compilation reads "Various Artists" yet opens a representative
+    // performer. Reuses the shared VA-aware rule (album-artist id at column 13).
+    let artist_id = pick_album_group_artist_id(
+        r.get(4)?,
+        album_artist.as_deref(),
+        r.get::<_, Option<String>>(13)?,
+    );
     Ok((
         LibraryAlbumDto {
             server_id: r.get(0)?,
             id: r.get(1)?,
             name: r.get(2)?,
             artist: pick_album_group_artist(track_artist, album_artist),
-            artist_id: r.get(4)?,
+            artist_id,
             song_count: None,
             duration_sec: None,
             year: r.get(6)?,
@@ -448,6 +462,34 @@ mod tests {
             vec!["New", "Mid", "Old"]
         );
         assert_eq!(response.albums[0].raw_json["createdMs"], 300);
+    }
+
+    #[test]
+    fn new_release_va_card_links_to_the_album_artist_not_a_performer() {
+        // Reported on the mainstage: clicking "Various Artists" on a New Releases card
+        // opened a random performer from the compilation. The card credit is the
+        // album-artist, so the linked id must follow it (album-artist id from
+        // raw_json.albumArtistId), not the representative track's performer id.
+        let store = LibraryStore::open_in_memory();
+        let mut t = track("s1", "t1", "Christmas Comp", "comp1", "l1", Some(300));
+        t.artist = Some("A Guest Performer".into());
+        t.artist_id = Some("perf1".into());
+        t.album_artist = Some("Various Artists".into());
+        t.raw_json = r#"{"albumArtistId":"va"}"#.into();
+        TrackRepository::new(&store).upsert_batch(&[t]).unwrap();
+
+        let response = list_mainstage_albums(
+            &store,
+            &request(vec![scope("s1", "l1")], LibraryMainstageAlbumFeed::NewReleases),
+        )
+        .unwrap();
+        let card = response.albums.iter().find(|a| a.id == "comp1").unwrap();
+        assert_eq!(card.artist.as_deref(), Some("Various Artists"));
+        assert_eq!(
+            card.artist_id.as_deref(),
+            Some("va"),
+            "the VA card must link to the album-artist entity, not a track performer"
+        );
     }
 
     #[test]

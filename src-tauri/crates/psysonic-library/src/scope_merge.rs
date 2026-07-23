@@ -302,6 +302,10 @@ pub(crate) type AlbumListRow = (
     Option<String>,
     Option<i64>,
     i64,
+    // Column 13: the album-artist id from `raw_json.albumArtistId` (via
+    // `album_artist_id_expr`), so `album_row_to_dto` can link a compilation card to
+    // the album-artist entity instead of a representative track's performer.
+    Option<String>,
 );
 
 fn map_album_list_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<AlbumListRow> {
@@ -319,6 +323,7 @@ fn map_album_list_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<AlbumListRow> {
         r.get(10)?,
         r.get(11)?,
         r.get(12)?,
+        r.get(13)?,
     ))
 }
 
@@ -337,13 +342,20 @@ pub(crate) fn album_row_to_dto(row: AlbumListRow) -> LibraryAlbumDto {
         cover_art_id,
         starred_at,
         synced_at,
+        album_artist_id,
     ) = row;
+    // The credit prefers the album-artist name; the linked id must follow the same
+    // choice, or a compilation card reads "Various Artists" yet opens a guest
+    // performer. Reuses the shared VA-aware rule (`pick_album_group_artist_id`).
+    let artist = pick_album_group_artist(track_artist, album_artist.clone());
+    let resolved_artist_id =
+        pick_album_group_artist_id(artist_id, album_artist.as_deref(), album_artist_id);
     LibraryAlbumDto {
         server_id,
         id,
         name,
-        artist: pick_album_group_artist(track_artist, album_artist),
-        artist_id,
+        artist,
+        artist_id: resolved_artist_id,
         song_count: Some(song_count),
         duration_sec: Some(duration_sec),
         year,
@@ -459,14 +471,15 @@ pub fn list_albums(
          base AS ( \
            SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
                   t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.duration_sec, t.id, \
+                  {album_artist_id} AS album_artist_id, \
                   s.pr, {ALBUM_DEDUP_KEY} AS album_dedup, {TRACK_DEDUP_KEY} AS track_dedup \
            {scoped} AND t.album_id IS NOT NULL AND t.album_id != '' \
          ) \
          SELECT server_id, album_id, album, artist, artist_id, album_artist, \
-                song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at \
+                song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at, album_artist_id \
          FROM ( \
            SELECT server_id, album_id, album, artist, artist_id, album_artist, \
-                  year, genre, cover_art_id, starred_at, synced_at, \
+                  year, genre, cover_art_id, starred_at, synced_at, MAX(album_artist_id) AS album_artist_id, \
                   COUNT(DISTINCT track_dedup) AS song_count, SUM(duration_sec) AS duration_total, \
                   MIN({ALBUM_PICK_KEY}) AS _pick \
            FROM base GROUP BY album_dedup \
@@ -474,6 +487,7 @@ pub fn list_albums(
          {order} \
          LIMIT ? OFFSET ?",
         scoped = scoped_track_join(),
+        album_artist_id = album_artist_id_expr("t.raw_json"),
     );
     binds.push(SqlValue::Integer(i64::from(limit)));
     binds.push(SqlValue::Integer(i64::from(offset)));
@@ -600,11 +614,13 @@ pub(crate) fn list_albums_layer1_filtered(
             "SELECT t.server_id, t.album_id, MAX(t.album) AS album, MAX(t.artist) AS artist, \
                     MAX(t.artist_id), MAX(t.album_artist) AS album_artist, COUNT(*), \
                     SUM(t.duration_sec), MAX(t.year) AS year, MAX(t.genre), \
-                    MAX(t.cover_art_id), MAX(t.starred_at), MAX(t.synced_at) \
+                    MAX(t.cover_art_id), MAX(t.starred_at), MAX(t.synced_at), \
+                    MAX({aaid}) AS album_artist_id \
              FROM track t WHERE {where_sql} \
              GROUP BY t.album_id \
              {grouped_order_sql} \
-             LIMIT ? OFFSET ?"
+             LIMIT ? OFFSET ?",
+            aaid = album_artist_id_expr("t.raw_json"),
         );
         let total = if skip_totals {
             0u32
@@ -652,11 +668,13 @@ pub(crate) fn list_albums_layer1_filtered(
                 "SELECT t.server_id, t.album_id, MAX(t.album) AS album, MAX(t.artist) AS artist, \
                         MAX(t.artist_id), MAX(t.album_artist) AS album_artist, COUNT(*), \
                         SUM(t.duration_sec), MAX(t.year) AS year, MAX(t.genre), \
-                        MAX(t.cover_art_id), MAX(t.starred_at), MAX(t.synced_at) \
+                        MAX(t.cover_art_id), MAX(t.starred_at), MAX(t.synced_at), \
+                        MAX({aaid}) AS album_artist_id \
                  FROM track t WHERE {where_sql} \
                  GROUP BY t.album_id \
                  {grouped_order_sql} \
-                 LIMIT ? OFFSET ?"
+                 LIMIT ? OFFSET ?",
+                aaid = album_artist_id_expr("t.raw_json"),
             );
             let total = if skip_totals {
                 0u32
@@ -707,6 +725,7 @@ pub(crate) fn list_albums_layer1_filtered(
              base AS ( \
                 SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
                        t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, \
+                       {album_artist_id} AS album_artist_id, \
                        t.duration_sec, t.id, s.pr, {ALBUM_DEDUP_KEY} AS album_dedup, \
                        {TRACK_DEDUP_KEY} AS track_dedup \
                 {base_where} \
@@ -721,10 +740,11 @@ pub(crate) fn list_albums_layer1_filtered(
                ) WHERE track_rank = 1 \
              ) \
              SELECT server_id, album_id, album, artist, artist_id, album_artist, \
-                    song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at \
+                    song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at, album_artist_id \
              FROM ( \
                 SELECT server_id, album_id, album, artist, artist_id, album_artist, \
                        year, genre, cover_art_id, starred_at, synced_at, \
+                       MAX(album_artist_id) AS album_artist_id, \
                        COUNT(*) AS song_count, SUM(duration_sec) AS duration_total, \
                        MIN(_pick) AS _pick \
                 FROM ( \
@@ -733,7 +753,8 @@ pub(crate) fn list_albums_layer1_filtered(
                 ) GROUP BY album_dedup \
              ) \
              {deduped_order_sql} \
-             LIMIT ? OFFSET ?"
+             LIMIT ? OFFSET ?",
+            album_artist_id = album_artist_id_expr("t.raw_json"),
         ),
     );
 
@@ -1135,20 +1156,22 @@ pub(crate) fn list_albums_filtered(
          base AS ( \
            SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
                   t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.duration_sec, t.id, \
+                  {album_artist_id} AS album_artist_id, \
                   s.pr, {ALBUM_DEDUP_KEY} AS album_dedup, {TRACK_DEDUP_KEY} AS track_dedup \
            {base_where} \
          ) \
          SELECT server_id, album_id, album, artist, artist_id, album_artist, \
-                song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at \
+                song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at, album_artist_id \
          FROM ( \
            SELECT server_id, album_id, album, artist, artist_id, album_artist, \
-                  year, genre, cover_art_id, starred_at, synced_at, \
+                  year, genre, cover_art_id, starred_at, synced_at, MAX(album_artist_id) AS album_artist_id, \
                   COUNT(DISTINCT track_dedup) AS song_count, SUM(duration_sec) AS duration_total, \
                   MIN({ALBUM_PICK_KEY}) AS _pick \
            FROM base GROUP BY album_dedup \
          ) \
          {order_sql} \
          LIMIT ? OFFSET ?",
+        album_artist_id = album_artist_id_expr("t.raw_json"),
     );
     binds.push(SqlValue::Integer(i64::from(limit)));
     binds.push(SqlValue::Integer(i64::from(offset)));
@@ -2333,7 +2356,7 @@ fn usable_release_types_expr(json_col: &str) -> String {
 /// same way as [`usable_release_types_expr`]: JSON1 raises `malformed JSON` on invalid
 /// TEXT, and `track.raw_json` is unconstrained, so one bad row would otherwise abort
 /// the whole query instead of contributing nothing.
-fn album_artist_id_expr(json_col: &str) -> String {
+pub(crate) fn album_artist_id_expr(json_col: &str) -> String {
     format!(
         "CASE WHEN json_valid({c}) \
               THEN CASE WHEN json_type({c}, '$.albumArtistId') = 'text' \
@@ -2426,13 +2449,13 @@ fn fetch_albums_for_artist_key(
          ) \
          SELECT p.server_id, p.album_id, p.album, p.artist, p.artist_id, p.album_artist, \
                 st.song_count, st.duration_total, p.year, p.genre, p.cover_art_id, p.starred_at, p.synced_at, \
+                p.album_artist_id AS album_artist_id, \
                 (SELECT {release_types_expr} \
                    FROM track tt \
                   WHERE tt.server_id = p.server_id AND tt.album_id = p.album_id AND tt.deleted = 0 \
                     AND {release_types_expr} IS NOT NULL \
                   ORDER BY tt.id ASC \
-                  LIMIT 1) AS release_types, \
-                p.album_artist_id AS album_artist_id \
+                  LIMIT 1) AS release_types \
          FROM album_pick p \
          INNER JOIN album_stats st ON p.album_dedup = st.album_dedup \
          WHERE p.rn = 1 \
@@ -2455,28 +2478,20 @@ fn fetch_albums_for_artist_key(
     // track under `raw_json.tags.releasetype`, while the OpenSubsonic/S2 crawl copies
     // the album-level array onto each track at top-level `raw_json.releaseTypes`
     // (see `merge_album_open_subsonic_track_raw`). `usable_release_types_expr` picks a
-    // validated array (`release_types`, column 13); reuse the shared album mapper and
+    // validated array (`release_types`, column 14); reuse the shared album mapper and
     // attach it, so there is one album-DTO construction path.
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt
         .query_map(params_from_iter(binds.iter()), |r| {
+            // `album_row_to_dto` now resolves the album-artist id centrally from
+            // column 13 (the same choice the name follows), so a compilation card
+            // links to "Various Artists" rather than a representative track performer.
             let mut dto = album_row_to_dto(map_album_list_row(r)?);
-            // `album_row_to_dto` credits the album-artist name but leaves the id at
-            // the representative track performer. On a compilation the card would
-            // then read "Various Artists" while its artist link and the "go to
-            // artist" action open one guest. Apply the same choice to the id, taking
-            // both the name (column 5) and the album-artist id (column 14) from the
-            // *same* representative track so they cannot originate from different rows.
-            let album_artist: Option<String> = r.get(5)?;
-            dto.artist_id = pick_album_group_artist_id(
-                dto.artist_id.take(),
-                album_artist.as_deref(),
-                r.get::<_, Option<String>>(14)?,
-            );
-            // SQL already guarantees a non-empty array of strings, or NULL; the
-            // client-side re-check is a cheap invariant guard, not new filtering.
+            // Attach the validated release-types array (column 14). SQL already
+            // guarantees a non-empty array of strings, or NULL; the client-side
+            // re-check is a cheap invariant guard, not new filtering.
             dto.raw_json = r
-                .get::<_, Option<String>>(13)?
+                .get::<_, Option<String>>(14)?
                 .and_then(|s| serde_json::from_str::<Value>(&s).ok())
                 .filter(|v| v.as_array().is_some_and(|a| !a.is_empty()))
                 .map(|types| {
@@ -3564,6 +3579,32 @@ mod tests {
             "the clean album-artist column must not be demoted below a feat. track credit"
         );
         assert_eq!(detail.album.artist_id.as_deref(), Some("m-id"));
+    }
+
+    #[test]
+    fn album_row_to_dto_links_va_card_to_the_album_artist() {
+        // Centralised resolution shared by every browse grid (mainstage, all-albums,
+        // genre lists): a compilation card credits "Various Artists" and its link must
+        // open the album-artist entity, not a representative track performer.
+        let row = |aaid: Option<&str>, album_artist: &str, track_id: &str| -> AlbumListRow {
+            (
+                "s1".into(), "comp".into(), "Comp".into(),
+                Some("Performer One".into()), Some(track_id.into()),
+                Some(album_artist.into()), 2, 400, None, None, None, None, 1,
+                aaid.map(str::to_string),
+            )
+        };
+        // VA with an album-artist id → linked to it.
+        let va = album_row_to_dto(row(Some("va"), "Various Artists", "perf1"));
+        assert_eq!(va.artist.as_deref(), Some("Various Artists"));
+        assert_eq!(va.artist_id.as_deref(), Some("va"));
+        // VA with no album-artist id → unlinked, never the performer.
+        assert_eq!(album_row_to_dto(row(None, "Various Artists", "perf1")).artist_id, None);
+        // A normal album keeps its (album-)artist id.
+        assert_eq!(
+            album_row_to_dto(row(None, "Solo Artist", "solo")).artist_id.as_deref(),
+            Some("solo"),
+        );
     }
 
     #[test]
