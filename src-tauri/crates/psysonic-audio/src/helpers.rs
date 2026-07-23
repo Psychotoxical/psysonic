@@ -300,9 +300,46 @@ pub(crate) fn analysis_cache_track_id(logical_track_id: Option<&str>, url: &str)
     logical.or_else(|| playback_identity(url))
 }
 
+/// Quality-relevant query params of a stream URL — the requested transcode
+/// `format` and `maxBitRate` cap. Auth params (`t`/`s`) rotate per call and
+/// stay excluded. Empty when no transcode is requested.
+fn stream_quality_signature(url: &str) -> String {
+    let Some(q) = url.split('?').nth(1) else {
+        return String::new();
+    };
+    let mut max_bit_rate = "";
+    let mut format = "";
+    for pair in q.split('&') {
+        if let Some(v) = pair.strip_prefix("maxBitRate=") {
+            max_bit_rate = v;
+        } else if let Some(v) = pair.strip_prefix("format=") {
+            format = v;
+        }
+    }
+    if max_bit_rate.is_empty() && format.is_empty() {
+        return String::new();
+    }
+    format!("{max_bit_rate}|{format}")
+}
+
+/// `scheme://host[:port]` part of an HTTP URL (empty for local paths).
+fn stream_host(url: &str) -> &str {
+    url.split_once("://")
+        .map(|(_, rest)| rest.split('/').next().unwrap_or(""))
+        .unwrap_or("")
+}
+
+/// Byte-cache equality for stream/preload/chain matching. Two URLs are the
+/// same playback target only when they name the same track on the same host
+/// AND request the same transcode quality — a completed 128 kbps stream must
+/// not satisfy a later request for Original or a different cap/format.
+/// (Track-level identity for analysis/gain stays `playback_identity`, which is
+/// deliberately quality-independent.)
 pub(crate) fn same_playback_target(a_url: &str, b_url: &str) -> bool {
     match (playback_identity(a_url), playback_identity(b_url)) {
-        (Some(a), Some(b)) => a == b,
+        (Some(a), Some(b)) => a == b
+            && stream_host(a_url) == stream_host(b_url)
+            && stream_quality_signature(a_url) == stream_quality_signature(b_url),
         _ => a_url == b_url,
     }
 }
@@ -1105,6 +1142,44 @@ mod tests {
     fn sniff_returns_none_for_empty_or_random_bytes() {
         assert_eq!(sniff_stream_format_extension(&[]), None);
         assert_eq!(sniff_stream_format_extension(&[0x00, 0x01, 0x02, 0x03]), None);
+    }
+
+    // ── same_playback_target quality awareness ───────────────────────────────
+
+    #[test]
+    fn same_target_ignores_rotating_auth_but_not_quality() {
+        // Fresh salt/token → still the same target.
+        assert!(same_playback_target(
+            "https://s/rest/stream.view?id=42&t=aaa&s=x1",
+            "https://s/rest/stream.view?id=42&t=bbb&s=x2",
+        ));
+        // A completed 128 kbps stream must NOT satisfy an Original request…
+        assert!(!same_playback_target(
+            "https://s/rest/stream.view?id=42&maxBitRate=128",
+            "https://s/rest/stream.view?id=42",
+        ));
+        // …nor a different cap or a different requested format.
+        assert!(!same_playback_target(
+            "https://s/rest/stream.view?id=42&maxBitRate=128",
+            "https://s/rest/stream.view?id=42&maxBitRate=320",
+        ));
+        assert!(!same_playback_target(
+            "https://s/rest/stream.view?id=42&maxBitRate=128&format=opus",
+            "https://s/rest/stream.view?id=42&maxBitRate=128&format=mp3",
+        ));
+        // Identical quality matches.
+        assert!(same_playback_target(
+            "https://s/rest/stream.view?id=42&maxBitRate=128&format=opus&t=a",
+            "https://s/rest/stream.view?id=42&maxBitRate=128&format=opus&t=b",
+        ));
+    }
+
+    #[test]
+    fn same_target_distinguishes_hosts_sharing_a_track_id() {
+        assert!(!same_playback_target(
+            "https://lan.local/rest/stream.view?id=42",
+            "https://public.example/rest/stream.view?id=42",
+        ));
     }
 
     // ── playback_identity ─────────────────────────────────────────────────────
