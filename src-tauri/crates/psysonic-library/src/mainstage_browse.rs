@@ -3,7 +3,7 @@
 use rusqlite::types::Value as SqlValue;
 use rusqlite::params_from_iter;
 
-use crate::album_compilation_filter::{pick_album_group_artist, pick_album_group_artist_id};
+use crate::album_compilation_filter::resolve_album_credit;
 use crate::browse_support::overlay_album_starred_at_rows;
 use crate::dto::{
     GenreAlbumCountDto, LibraryAlbumDto, LibraryMainstageAlbumFeed,
@@ -132,29 +132,35 @@ fn build_mainstage_query(
            FROM candidates GROUP BY album_dedup \
          ), \
          representative_pool AS ( \
-           SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
-                  t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.id, \
-                  {album_artist_id} AS album_artist_id, \
-                  s.pr, grouped.album_dedup \
-           FROM candidate_groups grouped \
-           CROSS JOIN scope s \
-           CROSS JOIN cluster.track_cluster_key ck INDEXED BY idx_ck_scope_album \
-             ON ck.server_id = s.server_id AND ck.library_id = s.library_id \
-            AND ck.album_key = grouped.album_key \
-           INNER JOIN track t INDEXED BY sqlite_autoindex_track_1 \
-             ON t.server_id = ck.server_id AND t.id = ck.track_id \
-           WHERE grouped.album_key IS NOT NULL AND t.deleted = 0 \
-             AND t.library_id = s.library_id \
-             AND t.album_id IS NOT NULL AND t.album_id != '' \
-           UNION ALL \
-           SELECT server_id, album_id, album, artist, artist_id, album_artist, \
-                  year, genre, cover_art_id, starred_at, synced_at, id, album_artist_id, pr, album_dedup \
-           FROM candidates WHERE album_key IS NULL \
+           SELECT pool_rows.*, \
+                  MAX(pool_rows.album_artist_id) OVER (PARTITION BY pool_rows.album_dedup) \
+                    AS group_album_artist_id \
+           FROM ( \
+             SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
+                    t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.id, \
+                    {album_artist_id} AS album_artist_id, \
+                    s.pr, grouped.album_dedup \
+             FROM candidate_groups grouped \
+             CROSS JOIN scope s \
+             CROSS JOIN cluster.track_cluster_key ck INDEXED BY idx_ck_scope_album \
+               ON ck.server_id = s.server_id AND ck.library_id = s.library_id \
+              AND ck.album_key = grouped.album_key \
+             INNER JOIN track t INDEXED BY sqlite_autoindex_track_1 \
+               ON t.server_id = ck.server_id AND t.id = ck.track_id \
+             WHERE grouped.album_key IS NOT NULL AND t.deleted = 0 \
+               AND t.library_id = s.library_id \
+               AND t.album_id IS NOT NULL AND t.album_id != '' \
+             UNION ALL \
+             SELECT server_id, album_id, album, artist, artist_id, album_artist, \
+                    year, genre, cover_art_id, starred_at, synced_at, id, \
+                    album_artist_id, pr, album_dedup \
+             FROM candidates WHERE album_key IS NULL \
+           ) pool_rows \
          ), \
          representatives AS ( \
            SELECT server_id, album_id, album, artist, artist_id, album_artist, \
                   year, genre, cover_art_id, starred_at, synced_at, album_dedup, \
-                  MAX(album_artist_id) AS album_artist_id, \
+                  group_album_artist_id AS album_artist_id, \
                   MIN({ALBUM_PICK_KEY}) AS _pick \
            FROM representative_pool GROUP BY album_dedup \
          ) \
@@ -209,22 +215,17 @@ fn map_mainstage_album(
     r: &rusqlite::Row<'_>,
     include_catalog_created_at: bool,
 ) -> rusqlite::Result<(LibraryAlbumDto, u32)> {
-    let track_artist = r.get(3)?;
-    let album_artist: Option<String> = r.get(5)?;
-    // The card credit prefers the album-artist name; the linked id must follow the
-    // same choice, or a compilation reads "Various Artists" yet opens a representative
-    // performer. Reuses the shared VA-aware rule (album-artist id at column 13).
-    let artist_id = pick_album_group_artist_id(
-        r.get(4)?,
-        album_artist.as_deref(),
-        r.get::<_, Option<String>>(13)?,
-    );
+    // Shared VA-aware rule (same as `album_row_to_dto`): the card credit prefers the
+    // album-artist name and the linked id follows the same choice — album-artist id at
+    // column 13 — so a compilation links to "Various Artists", not a track performer.
+    let (artist, artist_id) =
+        resolve_album_credit(r.get(3)?, r.get(4)?, r.get(5)?, r.get(13)?);
     Ok((
         LibraryAlbumDto {
             server_id: r.get(0)?,
             id: r.get(1)?,
             name: r.get(2)?,
-            artist: pick_album_group_artist(track_artist, album_artist),
+            artist,
             artist_id,
             song_count: None,
             duration_sec: None,
@@ -489,6 +490,41 @@ mod tests {
             card.artist_id.as_deref(),
             Some("va"),
             "the VA card must link to the album-artist entity, not a track performer"
+        );
+    }
+
+    #[test]
+    fn new_release_va_card_recovers_the_album_artist_id_from_a_sibling_track() {
+        // Realistic partial tagging: the representative track (smallest ALBUM_PICK_KEY)
+        // carries no albumArtistId, a sibling carries "va". The card must still link to
+        // the VA entity (recovered via `MAX(...) OVER (PARTITION BY album_dedup)`), not
+        // go unlinked. The window is not a GROUP BY aggregate, so the credit *name*,
+        // cover and year still come from the single-MIN(_pick) representative row.
+        let store = LibraryStore::open_in_memory();
+        let mut t1 = track("s1", "t1", "Comp", "comp1", "l1", Some(300));
+        t1.artist = Some("Performer One".into());
+        t1.artist_id = Some("perf1".into());
+        t1.album_artist = Some("Various Artists".into());
+        t1.raw_json = "{}".into(); // representative: no album-artist id
+        let mut t2 = track("s1", "t2", "Comp", "comp1", "l1", Some(300));
+        t2.artist = Some("Performer Two".into());
+        t2.artist_id = Some("perf2".into());
+        t2.album_artist = Some("Various Artists".into());
+        t2.raw_json = r#"{"albumArtistId":"va"}"#.into();
+        TrackRepository::new(&store).upsert_batch(&[t1, t2]).unwrap();
+
+        let response = list_mainstage_albums(
+            &store,
+            &request(vec![scope("s1", "l1")], LibraryMainstageAlbumFeed::NewReleases),
+        )
+        .unwrap();
+        let card = response.albums.iter().find(|a| a.id == "comp1").unwrap();
+        // Credit name comes from the representative (t1); the link is recovered.
+        assert_eq!(card.artist.as_deref(), Some("Various Artists"));
+        assert_eq!(
+            card.artist_id.as_deref(),
+            Some("va"),
+            "the VA link must be recovered from a sibling when the representative lacks it"
         );
     }
 

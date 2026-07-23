@@ -9,8 +9,8 @@ use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
 use crate::album_compilation_filter::{
-    pick_album_group_artist, pick_album_group_artist_id, various_artists_label,
-    various_artists_like_sql,
+    pick_album_group_artist_id, resolve_album_credit,
+    various_artists_label, various_artists_like_sql,
 };
 use crate::artist_sort::{sort_key_for_display_name, DEFAULT_IGNORED_ARTICLES};
 use crate::browse_support::{overlay_album_starred_at_rows, read_album_starred_at};
@@ -344,12 +344,24 @@ pub(crate) fn album_row_to_dto(row: AlbumListRow) -> LibraryAlbumDto {
         synced_at,
         album_artist_id,
     ) = row;
-    // The credit prefers the album-artist name; the linked id must follow the same
-    // choice, or a compilation card reads "Various Artists" yet opens a guest
-    // performer. Reuses the shared VA-aware rule (`pick_album_group_artist_id`).
-    let artist = pick_album_group_artist(track_artist, album_artist.clone());
-    let resolved_artist_id =
-        pick_album_group_artist_id(artist_id, album_artist.as_deref(), album_artist_id);
+    // Shared VA-aware rule: the credit prefers the album-artist name and the linked id
+    // follows the same choice, so a compilation card links to "Various Artists" rather
+    // than a representative track performer.
+    //
+    // INVARIANT for the callers' SQL: the credit `name` and the linked `album_artist_id`
+    // must not decouple (card reads "Various Artists" yet opens a guest). The dedup grid
+    // and mainstage queries keep `name`/`album_artist`/cover from the single-`MIN(_pick)`
+    // representative row (SQLite's one-min/max bare-column rule) while sourcing
+    // `album_artist_id` as `MAX(album_artist_id_expr) OVER (PARTITION BY album_dedup)` —
+    // a WINDOW function, not a GROUP BY aggregate, so it does NOT add a second extreme
+    // and void that rule, yet still recovers the album's album-artist id when the
+    // representative track happens to omit it. Do NOT turn it into a bare column
+    // (loses that recovery) or into a second `MIN()`/`MAX()` aggregate (breaks the
+    // representative sourcing of every other bare column). The all-`MAX` grouped fast
+    // paths (`list_albums_layer1_filtered`, `fetch_album_candidates`) aggregate every
+    // column independently, so they agree only on well-tagged albums (the norm).
+    let (artist, resolved_artist_id) =
+        resolve_album_credit(track_artist, artist_id, album_artist, album_artist_id);
     LibraryAlbumDto {
         server_id,
         id,
@@ -471,7 +483,7 @@ pub fn list_albums(
          base AS ( \
            SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
                   t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.duration_sec, t.id, \
-                  {album_artist_id} AS album_artist_id, \
+                  MAX({album_artist_id}) OVER (PARTITION BY {ALBUM_DEDUP_KEY}) AS album_artist_id, \
                   s.pr, {ALBUM_DEDUP_KEY} AS album_dedup, {TRACK_DEDUP_KEY} AS track_dedup \
            {scoped} AND t.album_id IS NOT NULL AND t.album_id != '' \
          ) \
@@ -479,7 +491,7 @@ pub fn list_albums(
                 song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at, album_artist_id \
          FROM ( \
            SELECT server_id, album_id, album, artist, artist_id, album_artist, \
-                  year, genre, cover_art_id, starred_at, synced_at, MAX(album_artist_id) AS album_artist_id, \
+                  year, genre, cover_art_id, starred_at, synced_at, album_artist_id, \
                   COUNT(DISTINCT track_dedup) AS song_count, SUM(duration_sec) AS duration_total, \
                   MIN({ALBUM_PICK_KEY}) AS _pick \
            FROM base GROUP BY album_dedup \
@@ -725,7 +737,7 @@ pub(crate) fn list_albums_layer1_filtered(
              base AS ( \
                 SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
                        t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, \
-                       {album_artist_id} AS album_artist_id, \
+                       MAX({album_artist_id}) OVER (PARTITION BY {ALBUM_DEDUP_KEY}) AS album_artist_id, \
                        t.duration_sec, t.id, s.pr, {ALBUM_DEDUP_KEY} AS album_dedup, \
                        {TRACK_DEDUP_KEY} AS track_dedup \
                 {base_where} \
@@ -744,7 +756,7 @@ pub(crate) fn list_albums_layer1_filtered(
              FROM ( \
                 SELECT server_id, album_id, album, artist, artist_id, album_artist, \
                        year, genre, cover_art_id, starred_at, synced_at, \
-                       MAX(album_artist_id) AS album_artist_id, \
+                       album_artist_id, \
                        COUNT(*) AS song_count, SUM(duration_sec) AS duration_total, \
                        MIN(_pick) AS _pick \
                 FROM ( \
@@ -1156,7 +1168,7 @@ pub(crate) fn list_albums_filtered(
          base AS ( \
            SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
                   t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.duration_sec, t.id, \
-                  {album_artist_id} AS album_artist_id, \
+                  MAX({album_artist_id}) OVER (PARTITION BY {ALBUM_DEDUP_KEY}) AS album_artist_id, \
                   s.pr, {ALBUM_DEDUP_KEY} AS album_dedup, {TRACK_DEDUP_KEY} AS track_dedup \
            {base_where} \
          ) \
@@ -1164,7 +1176,7 @@ pub(crate) fn list_albums_filtered(
                 song_count, duration_total, year, genre, cover_art_id, starred_at, synced_at, album_artist_id \
          FROM ( \
            SELECT server_id, album_id, album, artist, artist_id, album_artist, \
-                  year, genre, cover_art_id, starred_at, synced_at, MAX(album_artist_id) AS album_artist_id, \
+                  year, genre, cover_art_id, starred_at, synced_at, album_artist_id, \
                   COUNT(DISTINCT track_dedup) AS song_count, SUM(duration_sec) AS duration_total, \
                   MIN({ALBUM_PICK_KEY}) AS _pick \
            FROM base GROUP BY album_dedup \
@@ -1518,28 +1530,36 @@ pub(crate) fn live_search_albums(
            ORDER BY rank \
            LIMIT ? \
          ), \
-         base AS ( \
+         track_hits AS ( \
            SELECT t.server_id, t.album_id, t.album, t.artist, t.album_artist, t.artist_id, \
-                  t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, s.pr, \
-                  MIN(h.rank) AS best_rank, {ALBUM_DEDUP_KEY} AS album_dedup \
+                  t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, s.pr, h.rank, \
+                  MAX({album_artist_id}) OVER (PARTITION BY {ALBUM_DEDUP_KEY}) AS album_artist_id, \
+                  {ALBUM_DEDUP_KEY} AS album_dedup \
            FROM fts_hits h \
            INNER JOIN track t ON t.rowid = h.rowid \
            INNER JOIN scope s ON t.server_id = s.server_id AND t.library_id = s.library_id \
            LEFT JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
            WHERE t.deleted = 0 \
-           GROUP BY album_dedup, t.server_id, t.album_id, s.pr \
+         ), \
+         base AS ( \
+           SELECT server_id, album_id, album, artist, album_artist, artist_id, \
+                  year, genre, cover_art_id, starred_at, synced_at, pr, album_artist_id, \
+                  MIN(rank) AS best_rank, album_dedup \
+           FROM track_hits \
+           GROUP BY album_dedup, server_id, album_id, pr \
          ), \
          album_pick AS ( \
            SELECT server_id, album_id, album, artist, album_artist, artist_id, year, genre, \
-                  cover_art_id, starred_at, synced_at, best_rank, album_dedup, \
+                  cover_art_id, starred_at, synced_at, best_rank, album_dedup, album_artist_id, \
                   ROW_NUMBER() OVER (PARTITION BY album_dedup ORDER BY pr ASC, best_rank ASC, album_id ASC) AS rn \
            FROM base \
          ) \
          SELECT server_id, album_id, album, artist, album_artist, artist_id, year, genre, \
-                cover_art_id, starred_at, synced_at, best_rank \
+                cover_art_id, starred_at, synced_at, best_rank, album_artist_id \
          FROM album_pick WHERE rn = 1 \
          ORDER BY best_rank \
          LIMIT ?",
+        album_artist_id = album_artist_id_expr("t.raw_json"),
     );
     binds.push(SqlValue::Text(fts_match.to_string()));
     binds.push(SqlValue::Integer(crate::live_search::LIVE_SEARCH_FTS_CANDIDATE_CAP));
@@ -1549,14 +1569,14 @@ pub(crate) fn live_search_albums(
         let mut stmt = conn.prepare(&sql)?;
         let rows = stmt
             .query_map(params_from_iter(binds.iter()), |r| {
-                let track_artist: Option<String> = r.get(3)?;
-                let album_artist: Option<String> = r.get(4)?;
+                let (artist, artist_id) =
+                    resolve_album_credit(r.get(3)?, r.get(5)?, r.get(4)?, r.get(12)?);
                 Ok(LibraryAlbumDto {
                     server_id: r.get(0)?,
                     id: r.get(1)?,
                     name: r.get(2)?,
-                    artist: pick_album_group_artist(track_artist, album_artist),
-                    artist_id: r.get(5)?,
+                    artist,
+                    artist_id,
                     song_count: None,
                     duration_sec: None,
                     year: r.get(6)?,
@@ -2147,24 +2167,19 @@ fn fetch_album_candidates(
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt
         .query_map(params_from_iter(binds.iter()), |r| {
-            let track_artist: Option<String> = r.get(3)?;
-            let track_artist_id: Option<String> = r.get(4)?;
-            let album_artist: Option<String> = r.get(5)?;
-            let album_artist_id: Option<String> = r.get(14)?;
             let pr: i64 = r.get(13)?;
-            // The hero credit (`artist`) prefers the album-artist name; the id it
-            // links to must follow the same choice, or a compilation reads "Various
-            // Artists" yet opens a guest performer (VA hero bug). `album_artist_id`
-            // is the server's album-artist id from `raw_json.albumArtistId`.
-            let artist_id =
-                pick_album_group_artist_id(track_artist_id, album_artist.as_deref(), album_artist_id);
+            // Same shared VA-aware rule as every other album-DTO mapper: the hero
+            // credit prefers the album-artist name and the linked id follows the same
+            // choice (`album_artist_id` = the server's `raw_json.albumArtistId`).
+            let (artist, artist_id) =
+                resolve_album_credit(r.get(3)?, r.get(4)?, r.get(5)?, r.get(14)?);
             Ok((
                 pr,
                 LibraryAlbumDto {
                     server_id: r.get(0)?,
                     id: r.get(1)?,
                     name: r.get(2)?,
-                    artist: pick_album_group_artist(track_artist, album_artist),
+                    artist,
                     artist_id,
                     song_count: Some(r.get(6)?),
                     duration_sec: Some(r.get(7)?),
@@ -2401,7 +2416,7 @@ fn fetch_albums_for_artist_key(
              SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
                     t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.duration_sec, t.id, \
                     ck.album_key, s.pr AS pr, {TRACK_DEDUP_KEY} AS track_dedup, \
-                    {album_artist_id} AS album_artist_id \
+                    MAX({album_artist_id}) OVER (PARTITION BY t.server_id, t.album_id) AS album_artist_id \
              {va_scoped} AND t.album_id IS NOT NULL AND t.album_id != '' AND {va_pred}",
             va_scoped = scoped_track_join(),
             va_pred = various_artists_like_sql("t.album_artist"),
@@ -2416,7 +2431,7 @@ fn fetch_albums_for_artist_key(
             SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
                    t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.duration_sec, t.id, \
                    ck.album_key, {priority} AS pr, {TRACK_DEDUP_KEY} AS track_dedup, \
-                   {album_artist_id} AS album_artist_id \
+                   MAX({album_artist_id}) OVER (PARTITION BY t.server_id, t.album_id) AS album_artist_id \
             {scoped} AND t.album_id IS NOT NULL AND t.album_id != '' {key_filter} \
             {va_arm} \
           ), \
@@ -3405,6 +3420,42 @@ mod tests {
         )
         .unwrap();
         assert_eq!(solo_detail.album.artist_id.as_deref(), Some("solo"));
+    }
+
+    #[test]
+    fn live_search_albums_links_va_card_to_the_album_artist() {
+        // A compilation surfaced in live search must credit "Various Artists" and
+        // link `artist_id` to the album-artist entity — recovered from a sibling
+        // track even when the best-ranked (representative) track carries no
+        // `albumArtistId`. The dedup collapses siblings, so recovery has to run on
+        // the per-track scan (window), not after the group.
+        let store = LibraryStore::open_in_memory();
+        // The best-ranked (representative) track matches the query in *both* title
+        // and album, so it deterministically wins the group — yet it lacks the
+        // album-artist id. Without cross-sibling recovery the card would render
+        // unlinked; the window must lift "va" from the sibling.
+        let mut c1 = va_comp_track("c1", "Comp Anthem", "Perf One", "p1", "Comp One", "comp1", "va");
+        c1.raw_json = "{}".into();
+        // ... its sibling carries the id but matches only via the album title.
+        let c2 = va_comp_track("c2", "Bravo", "Perf Two", "p2", "Comp One", "comp1", "va");
+        // A solo album keeps its own performer id (no album-artist entity).
+        let solo = track(
+            "s1", "solo1", "Comp Solo", Some("Solo Artist"), "Solo Album", "soloalb",
+            Some("solo"), 200, "lib-a", Some(2022), None, None,
+        );
+        seed_and_rebuild(&store, &[c1, c2, solo]);
+
+        let albums =
+            live_search_albums(&store, &[scope_pair("s1", "lib-a")], "Comp*", 20).unwrap();
+        let comp = albums.iter().find(|a| a.id == "comp1").expect("comp missing");
+        assert_eq!(comp.artist.as_deref(), Some("Various Artists"));
+        assert_eq!(
+            comp.artist_id.as_deref(),
+            Some("va"),
+            "VA card must link to the album-artist entity, recovered from a sibling"
+        );
+        let solo_dto = albums.iter().find(|a| a.id == "soloalb").expect("solo missing");
+        assert_eq!(solo_dto.artist_id.as_deref(), Some("solo"));
     }
 
     /// Inserts the standalone `album` row that a normal S2/`getAlbum` sync writes.

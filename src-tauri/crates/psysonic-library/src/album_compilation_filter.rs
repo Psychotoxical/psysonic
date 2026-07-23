@@ -141,6 +141,27 @@ pub fn pick_album_group_artist_id(
     track_artist_id.filter(|s| !s.trim().is_empty())
 }
 
+/// An album card's display credit and the entity its link opens, resolved together
+/// from a track's artist, the album-artist label, and the album-artist id. Both follow
+/// the same album-artist choice, so a compilation reads "Various Artists" *and* links to
+/// that entity instead of a track performer. One rule shared by every album-DTO mapper
+/// (`album_row_to_dto`, the mainstage feed, album detail).
+///
+/// Caller responsibility: the three inputs should come from one representative track so
+/// the credit and link agree. The dedup grid/mainstage queries ensure this via a bare
+/// `album_artist_id` + single `MIN(_pick)`; the all-`MAX` grouped fast paths aggregate
+/// each column independently, so they agree only on well-tagged albums (every track of
+/// the album carrying the same `album_artist` / `albumArtistId`, i.e. the normal case).
+pub fn resolve_album_credit(
+    track_artist: Option<String>,
+    track_artist_id: Option<String>,
+    album_artist: Option<String>,
+    album_artist_id: Option<String>,
+) -> (Option<String>, Option<String>) {
+    let id = pick_album_group_artist_id(track_artist_id, album_artist.as_deref(), album_artist_id);
+    (pick_album_group_artist(track_artist, album_artist), id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
