@@ -101,6 +101,24 @@ describe('tryLoadArtistDetailMultiScope', () => {
     await expect(tryLoadArtistDetailMultiScope([], 'srv-1', 'art-1')).resolves.toBeNull();
   });
 
+  it('maps a Various Artists payload whose albums are label-linked only', async () => {
+    // The VA entity has no track carrying its performer id, so the backend seeds the
+    // header from the artist row. If that header ever came back with an empty id, the
+    // loader would discard the whole payload and the artist hook would stop without a
+    // network fallback — the compilations would be unreachable in the app.
+    libraryScopeArtistDetailMock.mockResolvedValue({
+      artist: artistDto({ id: 'va', name: 'Various Artists' }),
+      albums: [albumDto({ id: 'comp1', name: 'Comp One', artistId: 'va' })],
+      tracks: [],
+    });
+
+    const result = await tryLoadArtistDetailMultiScope([], 'srv-1', 'va');
+
+    expect(result).not.toBeNull();
+    expect(result?.artist.id).toBe('va');
+    expect(result?.albums.map(a => a.id)).toEqual(['comp1']);
+  });
+
   it('returns null when the scope command throws', async () => {
     libraryScopeArtistDetailMock.mockRejectedValue(new Error('ipc fail'));
 

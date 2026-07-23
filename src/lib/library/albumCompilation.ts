@@ -11,18 +11,20 @@ export const ALBUM_COMP_FILTER_MAX_SCAN_ALBUMS = 500;
 
 const VARIOUS_ARTISTS = /\bvarious artists\b/i;
 
+/** True when a credit is the "Various Artists" compilation label. */
+export function isVariousArtistsLabel(name: string | null | undefined): boolean {
+  return !!name && VARIOUS_ARTISTS.test(name);
+}
+
 /** OpenSubsonic / Navidrome: `compilation`, `isCompilation`, `releaseTypes`, or VA artist. */
 export function albumIsCompilation(a: SubsonicAlbum): boolean {
   if (a.isCompilation === true) return true;
   const loose = a as SubsonicAlbum & { compilation?: boolean; albumArtist?: string };
   if (loose.compilation === true) return true;
   if (a.releaseTypes?.some(t => /^compilation$/i.test(t.trim()))) return true;
-  const artist = (a.artist ?? '').trim();
-  const displayArtist = (a.displayArtist ?? '').trim();
-  const albumArtist = (loose.albumArtist ?? '').trim();
-  return VARIOUS_ARTISTS.test(artist)
-    || VARIOUS_ARTISTS.test(displayArtist)
-    || VARIOUS_ARTISTS.test(albumArtist);
+  return isVariousArtistsLabel(a.artist)
+    || isVariousArtistsLabel(a.displayArtist)
+    || isVariousArtistsLabel(loose.albumArtist);
 }
 
 /** Any track in a grouped album matches compilation signals (offline / local aggregate). */
