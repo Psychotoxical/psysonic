@@ -133,6 +133,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The quality badge (queue, now-playing hero, mobile player, immersive fullscreen) was built from the track's stored library metadata, so a server-side transcode still read the original file — e.g. "FLAC · 3149 kbps · 24-bit" while actually receiving Opus. It now shows the format the audio engine actually decoded, with the original file's format in a tooltip, and falls back to the stored metadata when no transcode is happening. When the transmitted bitrate is unknown, none is shown instead of a wrong one.
 
+### Various Artists cards — link to the compilation, not a guest performer
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1339](https://github.com/Psychotoxical/psysonic/pull/1339)**
+
+* Clicking "Various Artists" on a New Releases card, a browse grid or a search result opened one of the compilation's guest performers instead of the Various Artists overview. Every album card now links to the album-artist, matching the artist page and album header. The link is recovered from any track on the compilation, so it resolves even when the representative track carries no album-artist tag.
+
 
 ## [1.50.0]
 
