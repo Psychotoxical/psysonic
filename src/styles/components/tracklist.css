@@ -639,13 +639,9 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
   background: var(--bg-hover);
 }
 
-.disc-header .track-row-cover-thumb--placeholder {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-  opacity: 0.55;
-}
+/* While the cover is missing or loading, `CoverArtImage` renders an empty
+   `[data-cover-provisional]` div that keeps `.track-row-cover-thumb`; the
+   `background` above is the placeholder square. */
 
 /* Per-disc subtitle (OpenSubsonic `discTitles`), e.g. "Sessions" on a deluxe CD 3. */
 .disc-subtitle {

@@ -1,31 +1,32 @@
-import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { CoverArtImage } from '@/cover/CoverArtImage';
-import { albumCoverRefForSong } from '@/cover/ref';
-import { coverServerScopeForServerId } from '@/cover/serverScope';
+import {
+  useDiscSeparatorCoverRef,
+  type DiscSeparatorSong,
+} from '@/features/album/hooks/useDiscSeparatorCoverRef';
 
-type DiscHeaderSong = Pick<SubsonicSong, 'id' | 'albumId' | 'coverArt' | 'discNumber' | 'serverId'>;
+const DISC_COVER_PX = 40;
 
 /**
- * Cover shown next to a multi-disc separator ("CD N"), resolved from the disc's
- * own first track rather than album-scoped.
+ * Cover shown next to a multi-disc separator ("CD N"), resolved from the disc's own
+ * first track rather than album-scoped.
  *
- * A disc's cover is that track's own art (`song.coverArt`). Servers surface
- * embedded per-file art as per-track `mf-*` ids, and the album-scoped heuristic
+ * A disc's cover is that track's own art (`song.coverArt`). Servers surface embedded
+ * per-file art as per-track `mf-*` ids, and the album-scoped heuristic
  * (`album_has_distinct_disc_covers`) deliberately rejects per-track ids to avoid a
  * per-song cache explosion — which routes every disc to the shared album slot, so
  * discs with genuinely different embedded art collide on the first disc's cover.
- * Forcing per-disc resolution here is safe: the separator renders at most one
- * cover per disc, so a dedicated per-track cache slot cannot explode. Genuine
- * per-disc `dc-*` art resolves the same way; single-cover albums simply reuse the
- * same bytes under a per-disc slot.
+ * `useDiscSeparatorCoverRef` forces per-disc resolution only when the track carries a
+ * usable disc-specific cover id (the album-fallback shapes stay album-scoped so they
+ * become Navidrome's `al-<albumId>_0` fetch id), and falls back to the shared album
+ * cover when the disc-specific slot is unavailable offline.
  */
-export function DiscHeaderCover({ song }: { song: DiscHeaderSong }) {
-  const coverRef = albumCoverRefForSong(song, true, coverServerScopeForServerId(song.serverId));
+export function DiscHeaderCover({ song }: { song: DiscSeparatorSong }) {
+  const coverRef = useDiscSeparatorCoverRef(song);
   if (!coverRef) return null;
   return (
     <CoverArtImage
       coverRef={coverRef}
-      displayCssPx={40}
+      displayCssPx={DISC_COVER_PX}
       surface="dense"
       alt=""
       loading="lazy"
