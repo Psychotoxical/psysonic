@@ -50,6 +50,7 @@ export const queue = {
   sourceOffline: 'オフラインライブラリから再生中',
   sourceHot: 'キャッシュから再生中',
   sourceStream: 'ネットワークストリームから再生中',
+  streamTranscoded: 'サーバーで変換済み — 元ファイル: {{original}}',
   clearCachedLoudnessWaveform: 'キャッシュ済みのラウドネスと波形をクリアし、このトラックを再解析',
   recalculatingLoudnessWaveform: 'このトラックのラウドネスと波形を再計算中…',
   bpm: '{{bpm}} BPM',

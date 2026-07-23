@@ -443,6 +443,9 @@ export function runPlayTrack(
       resetGaplessProgressTracking();
       set({
         currentTrack: trackForPlay,
+        // New playback generation: the previous stream's resolved format no
+        // longer applies (same-id replays would otherwise show stale data).
+        resolvedStreamFormat: null,
         waveformBins: null,
         ...deriveNormalizationSnapshot(trackForPlay, playNormWindow, normIdx),
         progress: initialProgress,
@@ -471,6 +474,7 @@ export function runPlayTrack(
       set({
         currentTrack: trackForPlay,
         currentRadio: null,
+        resolvedStreamFormat: null,
         waveformBins: null,
         ...deriveNormalizationSnapshot(trackForPlay, playNormWindow, normIdx),
         // Only a replace rewrites the queue; navigation keeps the canonical refs.

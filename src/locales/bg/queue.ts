@@ -50,6 +50,7 @@ export const queue = {
   sourceOffline: 'Възпроизвеждане от офлайн библиотека',
   sourceHot: 'Възпроизвеждане от кеша',
   sourceStream: 'Възпроизвеждане от мрежов поток',
+  streamTranscoded: 'Транскодирано от сървъра — оригинален файл: {{original}}',
   clearCachedLoudnessWaveform: 'Изчисти кешираната сила на звука и вълновата форма, след което анализирай отново тази песен',
   recalculatingLoudnessWaveform: 'Преизчисляване на силата на звука и вълновата форма за тази песен…',
   bpm: '{{bpm}} BPM',

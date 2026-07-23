@@ -395,6 +395,14 @@
   text-overflow: ellipsis;
 }
 
+/* Server is transcoding the live stream: the format shown is the real
+   transmitted codec, not the stored file. Accent it and hint via cursor that a
+   tooltip reveals the original. */
+.queue-current-tech-main--transcoded {
+  color: var(--accent, #8b5cf6);
+  cursor: help;
+}
+
 /* Two-line layout: base info + RG badge on top, optional ReplayGain
    values underneath when the badge is expanded. The stack wraps both
    rows so the source icon stays vertically centered next to the whole

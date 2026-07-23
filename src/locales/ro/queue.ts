@@ -50,6 +50,7 @@ export const queue = {
   sourceOffline: 'Se redă din librăria offline',
   sourceHot: 'Se redă din cache',
   sourceStream: 'Se redă din stream-ul de rețea',
+  streamTranscoded: 'Transcodat de server — fișier original: {{original}}',
   clearCachedLoudnessWaveform: 'Golește zgomotul si formele de undă din cache, apoi reanalizează piesa',
   recalculatingLoudnessWaveform: 'Se recalculează zgomotul și formele de undă pentru această piesă…',
   bpm: '{{bpm}} BPM',

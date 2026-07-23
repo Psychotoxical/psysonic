@@ -50,6 +50,7 @@ export const queue = {
   sourceOffline: '正在从离线库播放',
   sourceHot: '正在从缓存播放',
   sourceStream: '正在从网络流播放',
+  streamTranscoded: '已由服务器转码——原始文件:{{original}}',
   clearCachedLoudnessWaveform: 'Clear cached loudness and waveform, then re-analyze this track',
   recalculatingLoudnessWaveform: 'Recalculating loudness and waveform for this track…',
   bpm: '{{bpm}} BPM',

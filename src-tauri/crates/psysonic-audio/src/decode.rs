@@ -102,6 +102,93 @@ impl MediaSource for ProbeSeekGate {
 // Implements Iterator<Item = i16> + Source — identical interface to
 // rodio::Decoder, so the rest of the source chain is unchanged.
 
+/// Resolved audio format of a decoded stream — the real codec/rate/depth the
+/// engine is playing, which can differ from the server's stored file metadata
+/// when the server transcodes on the fly.
+#[derive(Clone, Debug)]
+pub(crate) struct ResolvedCodecInfo {
+    /// Symphonia codec short name, e.g. `mp3`, `flac`, `aac`, `pcm_s16le`.
+    pub(crate) codec_name: &'static str,
+    pub(crate) sample_rate: Option<u32>,
+    pub(crate) bits_per_sample: Option<u32>,
+    pub(crate) channels: Option<u16>,
+    pub(crate) lossless: bool,
+}
+
+/// Extract the human/UI-facing format from symphonia codec parameters.
+pub(crate) fn resolve_codec_info(params: &AudioCodecParameters) -> ResolvedCodecInfo {
+    // Resolve the codec name from the SAME registry the engine decodes with
+    // (`psysonic_codec_registry`), not `symphonia::default::get_codecs()`. The
+    // app registry adds decoders the stock one lacks (e.g. the libopus adapter);
+    // using the stock registry would render those as "?" even though playback
+    // works — which is exactly what a server Opus transcode would show.
+    let codec_name = psysonic_codec_registry()
+        .get_audio_decoder(params.codec)
+        .map(|d| d.codec.info.short_name)
+        .unwrap_or("?");
+    let lossless = codec_name.starts_with("pcm")
+        || matches!(
+            codec_name,
+            "flac" | "alac" | "wavpack" | "monkeys-audio" | "tta" | "shorten"
+        );
+    ResolvedCodecInfo {
+        codec_name,
+        sample_rate: params.sample_rate,
+        bits_per_sample: params.bits_per_sample.or(params.bits_per_coded_sample),
+        channels: params.channels.as_ref().map(|c| c.count() as u16),
+        lossless,
+    }
+}
+
+/// `audio:format` event payload — the actually-decoded stream format, sent to
+/// the frontend so now-playing badges can show real transmitted quality.
+/// Hand-serialized (not tauri-specta) to match the `audio:*` event convention.
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AudioFormatEvent {
+    /// Track this format was resolved for — lets the frontend drop the event if
+    /// the user has since skipped. `None` on legacy/identity-less emits.
+    pub(crate) track_id: Option<String>,
+    /// Playback server index key — disambiguates duplicate ids across servers.
+    pub(crate) server_id: Option<String>,
+    /// Playback generation the stream belongs to (stale-event rejection).
+    pub(crate) generation: Option<u64>,
+    /// `maxBitRate` cap (kbps) the stream URL was opened with — latched per
+    /// stream, so a mid-playback settings change never relabels the current one.
+    pub(crate) stream_cap_kbps: Option<u32>,
+    pub(crate) codec: String,
+    pub(crate) sample_rate: Option<u32>,
+    pub(crate) bits_per_sample: Option<u32>,
+    pub(crate) channels: Option<u16>,
+    pub(crate) lossless: bool,
+}
+
+/// Identity a resolved-format event is stamped with (who/which stream).
+#[derive(Clone, Default)]
+pub(crate) struct AudioFormatIdentity {
+    pub(crate) track_id: Option<String>,
+    pub(crate) server_id: Option<String>,
+    pub(crate) generation: Option<u64>,
+    pub(crate) stream_cap_kbps: Option<u32>,
+}
+
+impl AudioFormatEvent {
+    pub(crate) fn from_info(info: &ResolvedCodecInfo, id: AudioFormatIdentity) -> Self {
+        Self {
+            track_id: id.track_id,
+            server_id: id.server_id,
+            generation: id.generation,
+            stream_cap_kbps: id.stream_cap_kbps,
+            codec: info.codec_name.to_string(),
+            // Bit depth is only meaningful for lossless output.
+            bits_per_sample: if info.lossless { info.bits_per_sample } else { None },
+            sample_rate: info.sample_rate,
+            channels: info.channels,
+            lossless: info.lossless,
+        }
+    }
+}
+
 /// Debug logging: codec parameters in human-readable form to verify whether
 /// playback is genuinely lossless.
 pub(crate) fn log_codec_resolution(
@@ -109,26 +196,18 @@ pub(crate) fn log_codec_resolution(
     params: &AudioCodecParameters,
     container_hint: Option<&str>,
 ) {
-    let codec_name = symphonia::default::get_codecs()
-        .get_audio_decoder(params.codec)
-        .map(|d| d.codec.info.short_name)
-        .unwrap_or("?");
-    let rate = params.sample_rate.map(|r| format!("{} Hz", r)).unwrap_or_else(|| "? Hz".into());
-    let bits = params.bits_per_sample
-        .or(params.bits_per_coded_sample)
+    let info = resolve_codec_info(params);
+    let rate = info.sample_rate.map(|r| format!("{} Hz", r)).unwrap_or_else(|| "? Hz".into());
+    let bits = info.bits_per_sample
         .map(|b| format!("{}-bit", b))
         .unwrap_or_else(|| "?-bit".into());
-    let ch = params.channels.as_ref()
-        .map(|c| format!("{}ch", c.count()))
+    let ch = info.channels
+        .map(|c| format!("{}ch", c))
         .unwrap_or_else(|| "?ch".into());
-    let lossless = codec_name.starts_with("pcm")
-        || matches!(
-            codec_name,
-            "flac" | "alac" | "wavpack" | "monkeys-audio" | "tta" | "shorten"
-        );
-    let kind = if lossless { "LOSSLESS" } else { "lossy" };
+    let kind = if info.lossless { "LOSSLESS" } else { "lossy" };
     crate::app_deprintln!(
-        "[stream] {tag}: codec={codec_name} ({kind}) {bits} {rate} {ch} container={}",
+        "[stream] {tag}: codec={} ({kind}) {bits} {rate} {ch} container={}",
+        info.codec_name,
         container_hint.unwrap_or("?")
     );
 }
@@ -154,6 +233,8 @@ pub(crate) struct SizedDecoder {
     /// Interleaved f32 samples of the currently decoded packet.
     buffer: Vec<f32>,
     spec: AudioSpec,
+    /// Real decoded format (codec/rate/depth) for the now-playing UI badge.
+    codec_info: ResolvedCodecInfo,
     /// Counts consecutive DecodeErrors in the hot-path. Reset to 0 on every
     /// successfully decoded frame. Used to detect fully undecodable streams.
     consecutive_decode_errors: usize,
@@ -253,6 +334,7 @@ impl SizedDecoder {
             .clone();
 
         log_codec_resolution("bytes", &audio_params, format_hint);
+        let codec_info = resolve_codec_info(&audio_params);
 
         // Gapless trimming is performed by `build_source` (iTunSMPB), so disable
         // the decoder's built-in trimming to avoid double-trimming.
@@ -314,6 +396,7 @@ impl SizedDecoder {
             total_duration,
             buffer,
             spec,
+            codec_info,
             consecutive_decode_errors: 0,
         })
     }
@@ -428,6 +511,7 @@ impl SizedDecoder {
             .ok_or_else(|| format!("{source_tag}: track has no audio codec parameters"))?
             .clone();
         log_codec_resolution(source_tag, &audio_params, format_hint);
+        let codec_info = resolve_codec_info(&audio_params);
         // Live streams have no known total frame count → total_duration = None.
         let total_duration = None;
         let mut decoder = try_make_radio_decoder(&audio_params, &AudioDecoderOptions::default().gapless(false))
@@ -455,7 +539,7 @@ impl SizedDecoder {
         };
         let spec = decoded.spec().clone();
         let buffer = Self::make_buffer(&decoded);
-        Ok(SizedDecoder { decoder, current_frame_offset: 0, format, total_duration, buffer, spec, consecutive_decode_errors: 0 })
+        Ok(SizedDecoder { decoder, current_frame_offset: 0, format, total_duration, buffer, spec, codec_info, consecutive_decode_errors: 0 })
     }
 
     #[inline]
@@ -463,6 +547,12 @@ impl SizedDecoder {
         let mut buffer = Vec::new();
         decoded.copy_to_vec_interleaved(&mut buffer);
         buffer
+    }
+
+    /// Real decoded format (codec/rate/depth) for the now-playing UI badge.
+    #[inline]
+    pub(crate) fn codec_info(&self) -> &ResolvedCodecInfo {
+        &self.codec_info
     }
 
     /// Refine position after a coarse seek — decode packets until we reach the
@@ -711,6 +801,9 @@ pub(crate) struct BuiltSource {
     pub(crate) duration_secs: f64,
     pub(crate) output_rate: u32,
     pub(crate) output_channels: u16,
+    /// Real decoded stream format for the `audio:format` event. None only if the
+    /// source could not report codec params.
+    pub(crate) resolved_format: Option<ResolvedCodecInfo>,
     /// Trigger for the sample-level crossfade fade-out.
     pub(crate) fadeout_trigger: Arc<AtomicBool>,
     /// Total samples for the fade-out (set before triggering).
@@ -748,6 +841,7 @@ pub(crate) fn build_source(
     let decoder = SizedDecoder::new(data, format_hint, hi_res)?;
     let sample_rate = decoder.sample_rate();
     let channels = decoder.channels();
+    let resolved_format = Some(decoder.codec_info().clone());
 
     // Determine effective duration.
     // Prefer hint from Subsonic API (reliable) over decoder (unreliable for VBR MP3).
@@ -820,6 +914,7 @@ pub(crate) fn build_source(
         duration_secs: crate::playback_rate::effective_duration_secs(effective_dur, &playback_rate),
         output_rate,
         output_channels: channels.get(),
+        resolved_format,
         fadeout_trigger,
         fadeout_samples,
     })
@@ -844,6 +939,7 @@ pub(crate) fn build_streaming_source(
 ) -> Result<BuiltSource, String> {
     let sample_rate = decoder.sample_rate();
     let channels = decoder.channels();
+    let resolved_format = Some(decoder.codec_info().clone());
 
     // For streaming starts prefer server-provided duration when available.
     let effective_dur = if duration_hint > 1.0 {
@@ -892,6 +988,7 @@ pub(crate) fn build_streaming_source(
         duration_secs: crate::playback_rate::effective_duration_secs(effective_dur, &playback_rate),
         output_rate,
         output_channels: channels.get(),
+        resolved_format,
         fadeout_trigger,
         fadeout_samples,
     })
@@ -1126,6 +1223,73 @@ mod tests {
     fn log_codec_resolution_handles_unknown_codec_gracefully() {
         let params = AudioCodecParameters::new();
         log_codec_resolution("unknown", &params, None);
+    }
+
+    // ── resolve_codec_info / AudioFormatEvent ────────────────────────────────
+
+    #[test]
+    fn resolve_codec_info_reports_pcm_as_lossless() {
+        let mut params = AudioCodecParameters::new();
+        params.codec = symphonia::core::codecs::audio::well_known::CODEC_ID_PCM_S16LE;
+        params.sample_rate = Some(44_100);
+        params.bits_per_sample = Some(16);
+        params.channels = Some(symphonia::core::audio::Channels::Discrete(1));
+        let info = resolve_codec_info(&params);
+        assert!(info.codec_name.starts_with("pcm"));
+        assert!(info.lossless);
+        assert_eq!(info.sample_rate, Some(44_100));
+        assert_eq!(info.bits_per_sample, Some(16));
+        assert_eq!(info.channels, Some(1));
+    }
+
+    #[test]
+    fn resolve_codec_info_reports_mp3_as_lossy() {
+        let mut params = AudioCodecParameters::new();
+        params.codec = symphonia::core::codecs::audio::well_known::CODEC_ID_MP3;
+        params.sample_rate = Some(44_100);
+        let info = resolve_codec_info(&params);
+        assert_eq!(info.codec_name, "mp3");
+        assert!(!info.lossless);
+    }
+
+    #[test]
+    fn audio_format_event_drops_bit_depth_for_lossy() {
+        let lossy = ResolvedCodecInfo {
+            codec_name: "mp3",
+            sample_rate: Some(44_100),
+            bits_per_sample: Some(16),
+            channels: Some(2),
+            lossless: false,
+        };
+        let ev = AudioFormatEvent::from_info(&lossy, AudioFormatIdentity {
+            track_id: Some("t1".into()),
+            server_id: Some("srv".into()),
+            generation: Some(7),
+            stream_cap_kbps: Some(128),
+        });
+        assert_eq!(ev.bits_per_sample, None);
+        let json = serde_json::to_value(&ev).unwrap();
+        assert_eq!(json["codec"], "mp3");
+        assert_eq!(json["sampleRate"], 44_100);
+        assert_eq!(json["lossless"], false);
+        assert!(json["bitsPerSample"].is_null());
+        assert_eq!(json["trackId"], "t1");
+        assert_eq!(json["serverId"], "srv");
+        assert_eq!(json["generation"], 7);
+        assert_eq!(json["streamCapKbps"], 128);
+    }
+
+    #[test]
+    fn audio_format_event_keeps_bit_depth_for_lossless() {
+        let lossless = ResolvedCodecInfo {
+            codec_name: "flac",
+            sample_rate: Some(96_000),
+            bits_per_sample: Some(24),
+            channels: Some(2),
+            lossless: true,
+        };
+        let ev = AudioFormatEvent::from_info(&lossless, AudioFormatIdentity::default());
+        assert_eq!(ev.bits_per_sample, Some(24));
     }
 }
 

@@ -10,6 +10,7 @@ import { useCachedUrl } from '@/ui/CachedImage';
 import { getCachedBlob } from '@/cover/imageCache';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
+import { effectiveAudioFormat } from '@/lib/media/streamFormat';
 import { useFsArtistBackdrop } from '@/features/fullscreenPlayer/hooks/useFsArtistBackdrop';
 import { FsLyricsApple } from './FsLyricsApple';
 import { FsLyricsRail } from './FsLyricsRail';
@@ -30,6 +31,7 @@ interface FullscreenPlayerProps {
 export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   const { t } = useTranslation();
   const currentTrack       = usePlayerStore(s => s.currentTrack);
+  const resolvedStreamFormat = usePlayerStore(s => s.resolvedStreamFormat);
   const repeatMode         = usePlayerStore(s => s.repeatMode);
   const next               = usePlayerStore(s => s.next);
   const previous           = usePlayerStore(s => s.previous);
@@ -109,12 +111,17 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   // Idle-fade system — hides controls after 3 s of inactivity; Esc closes.
   const { isIdle, handleMouseMove } = useFsIdleFade(onClose);
 
-  const metaParts = useMemo(() => [
-    currentTrack?.album,
-    currentTrack?.year?.toString(),
-    currentTrack?.suffix?.toUpperCase(),
-    currentTrack?.bitRate ? `${currentTrack.bitRate} kbps` : '',
-  ].filter(Boolean), [currentTrack]);
+  const metaParts = useMemo(() => {
+    const fmt = currentTrack
+      ? effectiveAudioFormat(currentTrack, resolvedStreamFormat)
+      : null;
+    return [
+      currentTrack?.album,
+      currentTrack?.year?.toString(),
+      fmt?.formatLabel,
+      fmt?.bitRate ? `${fmt.bitRateIsCap ? '≤' : ''}${fmt.bitRate} kbps` : '',
+    ].filter(Boolean);
+  }, [currentTrack, resolvedStreamFormat]);
 
   return (
     <div

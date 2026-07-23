@@ -2,6 +2,7 @@ import React from 'react';
 import { ChevronDown, FolderOpen, HardDrive, Music, Waves } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import type { Track } from '@/lib/media/trackTypes';
+import { effectiveAudioFormat, effectiveAudioFormatParts } from '@/lib/media/streamFormat';
 import type { LoudnessLufsPreset, NormalizationEngine } from '@/store/authStoreTypes';
 import type { PlaybackSourceKind } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import {
@@ -55,6 +56,7 @@ export function QueueCurrentTrack({
   lufsTgtBtnRef, lufsTgtMenuRef, lufsTgtPopStyle, t,
 }: Props) {
   const showBufferingOverlay = usePlayerStore(s => s.isPlaybackBuffering);
+  const resolvedStreamFormat = usePlayerStore(s => s.resolvedStreamFormat);
   const coverRef = usePlaybackTrackCoverRef(currentTrack);
   const directCoverUrl = currentTrack?.directCoverArtUrl;
   const artistRefs = resolveTrackArtistRefs(currentTrack);
@@ -64,19 +66,16 @@ export function QueueCurrentTrack({
   return (
     <div className="queue-current-track">
       {(() => {
+        const fmt = effectiveAudioFormat(currentTrack, resolvedStreamFormat);
         const baseParts = [
-          currentTrack.suffix?.toUpperCase(),
-          currentTrack.bitRate ? `${currentTrack.bitRate} kbps` : undefined,
-          (() => {
-            const bd = currentTrack.bitDepth;
-            const sr = currentTrack.samplingRate ? `${currentTrack.samplingRate / 1000} kHz` : '';
-            if (bd && sr) return `${bd}/${sr}`;
-            if (bd) return `${bd}-bit`;
-            if (sr) return sr;
-            return undefined;
-          })(),
+          ...effectiveAudioFormatParts(fmt),
           bpmTech ?? undefined,
         ].filter(Boolean) as string[];
+        const transcodedTooltip = fmt.transcoded
+          ? t('queue.streamTranscoded', {
+            original: effectiveAudioFormatParts(effectiveAudioFormat(currentTrack, null)).join(' · '),
+          })
+          : undefined;
         const rgParts = formatQueueReplayGainParts(currentTrack, t);
         const baseLine = baseParts.join(' · ');
         const rgLine = rgParts.join(' · ');
@@ -124,7 +123,14 @@ export function QueueCurrentTrack({
                     {playbackSource === 'stream' && <Waves size={11} strokeWidth={2.25} />}
                   </span>
                 )}
-                {baseLine && <span className="queue-current-tech-main">{baseLine}</span>}
+                {baseLine && (
+                  <span
+                    className={`queue-current-tech-main${fmt.transcoded ? ' queue-current-tech-main--transcoded' : ''}`}
+                    data-tooltip={transcodedTooltip}
+                  >
+                    {baseLine}
+                  </span>
+                )}
                 {!isLoudnessActive && rgLine && (
                   <button
                     type="button"

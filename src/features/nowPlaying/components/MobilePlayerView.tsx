@@ -2,6 +2,7 @@ import { queueSongStar } from '@/features/playback/store/pendingStarSync';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
 import { usePlaybackTrackCoverRef } from '@/cover/useLibraryCoverRef';
 import type { Track } from '@/lib/media/trackTypes';
+import { effectiveAudioFormat } from '@/lib/media/streamFormat';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '@/features/playback/store/playbackProgress';
 import React, { useState, useCallback, useRef, useEffect, useSyncExternalStore, CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -220,6 +221,7 @@ export default function MobilePlayerView() {
   }, []);
 
   const currentTrack = usePlayerStore(s => s.currentTrack);
+  const resolvedStreamFormat = usePlayerStore(s => s.resolvedStreamFormat);
   const isPlaying    = usePlayerStore(s => s.isPlaying);
   const playbackProgress = useSyncExternalStore(
     onStoreChange => subscribePlaybackProgress(() => onStoreChange()),
@@ -413,11 +415,12 @@ export default function MobilePlayerView() {
             )}
           </div>
           {(() => {
+            const fmt = effectiveAudioFormat(currentTrack, resolvedStreamFormat);
             const parts = [
               currentTrack.year,
               currentTrack.genre,
-              currentTrack.suffix?.toUpperCase(),
-              currentTrack.bitRate ? `${currentTrack.bitRate} kbps` : null,
+              fmt.formatLabel,
+              fmt.bitRate ? `${fmt.bitRateIsCap ? '≤' : ''}${fmt.bitRate} kbps` : null,
             ].filter(Boolean);
             return parts.length > 0
               ? <div className="mp-track-info truncate">{parts.join(' • ')}</div>
