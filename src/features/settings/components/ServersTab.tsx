@@ -40,6 +40,7 @@ import { serverIdentityLabel, serverListDisplayLabel, serverSettingsEntryTitle }
 import { serverIndexKeyForProfile } from '@/lib/server/serverIndexKey';
 import { switchActiveServer } from '@/utils/server/switchActiveServer';
 import { AddServerForm } from '@/features/settings/components/AddServerForm';
+import { ServerStreamQualityRows } from '@/features/settings/components/ServerStreamQualityRows';
 import { ServerCapabilityHeaderBadge } from '@/features/settings/components/ServerCapabilityHeaderBadge';
 import { useListReorderDnd } from '@/lib/hooks/useListReorderDnd';
 import { applyListReorderById, type ListReorderDropTarget } from '@/lib/util/listReorder';
@@ -659,6 +660,7 @@ export function ServersTab({
                     </div>
                     );
                   })()}
+                  <ServerStreamQualityRows server={srv} t={t} />
                 </div>
               );
             })}

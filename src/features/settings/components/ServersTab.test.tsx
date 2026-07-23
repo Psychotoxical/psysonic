@@ -37,6 +37,8 @@ vi.mock('@/lib/server/syncServerHttpContext', () => ({
 vi.mock('@/lib/server/serverEndpoint', () => ({
   ensureConnectUrlResolved: mocks.ensureConnectUrlResolved,
   invalidateReachableEndpointCache: mocks.invalidateReachableEndpointCache,
+  allNormalizedAddresses: (srv: { url: string; alternateUrl?: string }) =>
+    [srv.url, srv.alternateUrl].filter(Boolean),
   profileProbeFingerprint: (profile: {
     url: string;
     alternateUrl?: string;

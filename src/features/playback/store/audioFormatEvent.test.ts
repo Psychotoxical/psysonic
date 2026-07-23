@@ -7,10 +7,14 @@
  * resolved format must attach to the track it was resolved for — never to
  * whatever happens to be current when the event lands.
  */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const streamCapMock = { kbps: 0 };
+vi.mock('@/features/playback/utils/playback/streamQualityResolve', () => ({
+  effectiveStreamCapKbps: () => streamCapMock.kbps,
+}));
 import { handleAudioFormat } from '@/features/playback/store/audioEventHandlers';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
-import { useAuthStore } from '@/store/authStore';
 import { resetPlayerStore, resetAuthStore } from '@/test/helpers/storeReset';
 import type { Track } from '@/lib/media/trackTypes';
 
@@ -24,6 +28,7 @@ function track(id: string, serverId: string): Track {
 beforeEach(() => {
   resetPlayerStore();
   resetAuthStore();
+  streamCapMock.kbps = 0;
 });
 
 describe('audio:format event identity', () => {
@@ -50,20 +55,20 @@ describe('audio:format event identity', () => {
 
   it('uses the cap latched on the stream by the engine, not the live setting', () => {
     // The stream was opened with maxBitRate=320 (carried in the payload); the
-    // user has since flipped the setting to 128. The badge must show 320.
-    useAuthStore.getState().setStreamMaxBitRateKbps(128);
+    // current per-address setting has since changed to 128. Badge shows 320.
+    streamCapMock.kbps = 128;
     usePlayerStore.setState({ currentTrack: track('a', 's1') });
     handleAudioFormat({
       trackId: 'a', serverId: 's1', streamCapKbps: 320, codec: 'opus', lossless: false,
     });
     expect(usePlayerStore.getState().resolvedStreamFormat?.streamCapKbps).toBe(320);
     // A later settings change must not retroactively relabel the open stream.
-    useAuthStore.getState().setStreamMaxBitRateKbps(64);
+    streamCapMock.kbps = 64;
     expect(usePlayerStore.getState().resolvedStreamFormat?.streamCapKbps).toBe(320);
   });
 
   it('falls back to a snapshot of the current setting for legacy events without a cap', () => {
-    useAuthStore.getState().setStreamMaxBitRateKbps(192);
+    streamCapMock.kbps = 192;
     usePlayerStore.setState({ currentTrack: track('a', 's1') });
     handleAudioFormat({ trackId: 'a', serverId: 's1', codec: 'opus', lossless: false });
     expect(usePlayerStore.getState().resolvedStreamFormat?.streamCapKbps).toBe(192);

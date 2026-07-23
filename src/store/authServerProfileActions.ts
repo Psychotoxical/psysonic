@@ -2,6 +2,7 @@ import type { AuthState } from './authStoreTypes';
 import { generateId } from './authStoreHelpers';
 import { getQueueServerId, clearQueueServerForPlayback } from './playbackEngineBridge';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
+import { serverProfileBaseUrl } from '@/lib/server/serverBaseUrl';
 import { deriveLibraryBrowseServerIdsWithFallback } from '@/lib/library/libraryBrowseScope';
 import {
   emitMultiServerDebug,
@@ -12,6 +13,14 @@ type SetState = (
   partial: Partial<AuthState> | ((state: AuthState) => Partial<AuthState>),
 ) => void;
 type GetState = () => AuthState;
+
+/** Normalized `[url, alternateUrl]` of a profile (mirrors `allNormalizedAddresses`,
+ *  duplicated here because the store layer must not import the connect layer). */
+function profileAddresses(srv: { url: string; alternateUrl?: string }): string[] {
+  return [srv.url, srv.alternateUrl]
+    .filter((u): u is string => !!u && u.trim().length > 0)
+    .map(u => serverProfileBaseUrl({ url: u }));
+}
 
 /**
  * Server profile + connection lifecycle. `removeServer` is the
@@ -61,9 +70,23 @@ export function createServerProfileActions(set: SetState, get: GetState): Pick<
     },
 
     updateServer: (id, data) => {
-      set(s => ({
-        servers: s.servers.map(srv => srv.id === id ? { ...srv, ...data } : srv),
-      }));
+      set(s => {
+        const prev = s.servers.find(srv => srv.id === id);
+        const servers = s.servers.map(srv => srv.id === id ? { ...srv, ...data } : srv);
+        // Address edit invalidates that address's streaming-quality preference:
+        // the new address's Navidrome identity / transport is unverified until
+        // re-probed, so caps for addresses no longer on any profile are dropped.
+        let streamQualityByAddress = s.streamQualityByAddress;
+        if (prev && ('url' in data || 'alternateUrl' in data)) {
+          const live = new Set(
+            servers.flatMap(profileAddresses),
+          );
+          streamQualityByAddress = Object.fromEntries(
+            Object.entries(s.streamQualityByAddress).filter(([addr]) => live.has(addr)),
+          );
+        }
+        return { servers, streamQualityByAddress };
+      });
     },
 
     removeServer: (id) => {
@@ -86,6 +109,11 @@ export function createServerProfileActions(set: SetState, get: GetState): Pick<
         const { [id]: _ex, ...extRest } = s.openSubsonicExtensionsByServer;
         const { [id]: _folders, ...foldersRest } = s.musicFoldersByServer;
         const { [id]: _browseSelection, ...browseSelectionRest } = s.libraryBrowseSelectionByServer;
+        // Drop streaming-quality prefs for addresses no other profile uses.
+        const liveAddresses = new Set(newServers.flatMap(profileAddresses));
+        const streamQualityByAddress = Object.fromEntries(
+          Object.entries(s.streamQualityByAddress).filter(([addr]) => liveAddresses.has(addr)),
+        );
         const activeServerId = switchedAway ? (newServers[0]?.id ?? null) : s.activeServerId;
         return {
           servers: newServers,
@@ -109,6 +137,7 @@ export function createServerProfileActions(set: SetState, get: GetState): Pick<
           instantMixProbeByServer: probeRest,
           audiomusePluginProbeByServer: pluginProbeRest,
           openSubsonicExtensionsByServer: extRest,
+          streamQualityByAddress,
         };
       });
     },

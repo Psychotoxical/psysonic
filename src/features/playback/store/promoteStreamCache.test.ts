@@ -33,9 +33,9 @@ vi.mock('@/store/localPlaybackResolve', () => ({
     hasLocalPersistentPlaybackBytesMock(trackId, serverId),
 }));
 
-const authStateMock = { streamMaxBitRateKbps: 0 };
-vi.mock('@/store/authStore', () => ({
-  useAuthStore: { getState: () => authStateMock },
+const streamCapMock = { kbps: 0 };
+vi.mock('@/features/playback/utils/playback/streamQualityResolve', () => ({
+  effectiveStreamCapKbps: () => streamCapMock.kbps,
 }));
 
 import { promoteCompletedStreamToHotCache } from '@/features/playback/store/promoteStreamCache';
@@ -58,11 +58,11 @@ describe('promoteCompletedStreamToHotCache', () => {
     setEntryMock.mockReset();
     hasLocalPersistentPlaybackBytesMock.mockReset();
     hasLocalPersistentPlaybackBytesMock.mockReturnValue(false);
-    authStateMock.streamMaxBitRateKbps = 0;
+    streamCapMock.kbps = 0;
   });
 
   it('does NOT promote a capped (transcoded) stream into the hot cache', async () => {
-    authStateMock.streamMaxBitRateKbps = 128;
+    streamCapMock.kbps = 128;
     await promoteCompletedStreamToHotCache(track('t1'), 'srv', null);
     expect(invokeMock).not.toHaveBeenCalled();
     expect(setEntryMock).not.toHaveBeenCalled();

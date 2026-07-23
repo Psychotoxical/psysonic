@@ -40,7 +40,7 @@ export function createAudioSettingsActions(set: SetState): Pick<
   | 'setEnableHiRes'
   | 'setHiResCrossfadeResampleHz'
   | 'setAudioOutputDevice'
-  | 'setStreamMaxBitRateKbps'
+  | 'setStreamQualityForAddress'
 > {
   return {
     setReplayGainEnabled: (v) => {
@@ -86,6 +86,13 @@ export function createAudioSettingsActions(set: SetState): Pick<
     setEnableHiRes: (v) => set({ enableHiRes: v }),
     setHiResCrossfadeResampleHz: (v) => set({ hiResCrossfadeResampleHz: v }),
     setAudioOutputDevice: (v) => set({ audioOutputDevice: v }),
-    setStreamMaxBitRateKbps: (v) => set({ streamMaxBitRateKbps: sanitizeStreamMaxBitRateKbps(v) }),
+    setStreamQualityForAddress: (normalizedAddress, v) => set((state) => {
+      const next = { ...state.streamQualityByAddress };
+      const clean = sanitizeStreamMaxBitRateKbps(v);
+      // Original (0) is the default — store it as absence to keep the map tidy.
+      if (clean === 0) delete next[normalizedAddress];
+      else next[normalizedAddress] = clean;
+      return { streamQualityByAddress: next };
+    }),
   };
 }

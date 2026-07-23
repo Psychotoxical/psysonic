@@ -1,6 +1,6 @@
 import { buildStreamUrlForServer } from '@/lib/api/subsonicStreamUrl';
 import { findLocalPlaybackUrl, ephemeralServeableAtQuality } from '@/store/localPlaybackResolve';
-import { useAuthStore } from '@/store/authStore';
+import { effectiveStreamCapKbps } from '@/features/playback/utils/playback/streamQualityResolve';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import { getPlaybackCacheServerKey, getPlaybackServerId } from '@/features/playback/utils/playback/playbackServer';
 import type { Track } from '@/lib/media/trackTypes';
@@ -63,16 +63,6 @@ export function getPlaybackSourceKind(
   return 'stream';
 }
 
-/**
- * The user's streaming transcode cap (kbps). Applies ONLY to the live HTTP
- * stream — locally cached / offline / pinned tracks play from their stored
- * original file regardless. Prefetch and loudness/waveform analysis call
- * `buildStreamUrl*` directly without a cap, so they always pull the original.
- */
-function streamMaxBitRateKbps(): number {
-  return useAuthStore.getState().streamMaxBitRateKbps;
-}
-
 /** Pinned library → favorites auto → ephemeral cache → HTTP stream. */
 export function resolvePlaybackUrl(trackId: string, serverId?: string): string {
   const cacheKey = serverId && serverId.length > 0 ? serverId : getPlaybackCacheServerKey();
@@ -81,7 +71,10 @@ export function resolvePlaybackUrl(trackId: string, serverId?: string): string {
   if (pinned) return pinned;
   const favorites = findLocalPlaybackUrl(trackId, profileId, 'favorite-auto');
   if (favorites) return favorites;
-  const cap = streamMaxBitRateKbps();
+  // Per-address, Navidrome-gated cap for the endpoint the connect layer chose.
+  // Applies ONLY to the live HTTP stream — locally cached / offline / pinned
+  // tracks and the prefetch/analysis fetch paths always use the original.
+  const cap = effectiveStreamCapKbps(profileId);
   const hot = findLocalPlaybackUrl(trackId, profileId, 'ephemeral');
   // Only reuse a hot-cache blob when its captured quality matches the current
   // request — a blob promoted from a capped stream must not be served at a

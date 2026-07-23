@@ -285,8 +285,15 @@ export interface AuthState {
   hiResCrossfadeResampleHz: HiResCrossfadeResampleHz;
   /** Selected audio output device name. null = system default. */
   audioOutputDevice: string | null;
-  /** Live-stream transcode cap sent to the server as `maxBitRate` (kbps). 0 = Original. */
-  streamMaxBitRateKbps: StreamMaxBitRateKbps;
+  /**
+   * Live-stream transcode cap (kbps) per NORMALIZED server address; 0/absent =
+   * Original. Keyed by address — not server id — because a profile's primary
+   * and alternate URLs are different transports (LAN vs reverse proxy) and may
+   * want different caps. Only honoured for addresses whose server identity
+   * probe reports Navidrome; playback uses the entry of the address the
+   * connect layer selected.
+   */
+  streamQualityByAddress: Record<string, StreamMaxBitRateKbps>;
 
   /** Auto-download starred favorites into `media/favorites/` (separate from offline library). */
   favoritesOfflineEnabled: boolean;
@@ -483,7 +490,7 @@ export interface AuthState {
   setEnableHiRes: (v: boolean) => void;
   setHiResCrossfadeResampleHz: (v: HiResCrossfadeResampleHz) => void;
   setAudioOutputDevice: (v: string | null) => void;
-  setStreamMaxBitRateKbps: (v: StreamMaxBitRateKbps) => void;
+  setStreamQualityForAddress: (normalizedAddress: string, v: StreamMaxBitRateKbps) => void;
   setFavoritesOfflineEnabled: (v: boolean) => void;
   setHotCacheEnabled: (v: boolean) => void;
   setHotCacheMaxMb: (v: number) => void;

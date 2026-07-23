@@ -5,7 +5,7 @@ import { useHotCacheStore } from '@/features/playback/store/hotCacheStore';
 import { getMediaDir } from '@/lib/media/mediaDir';
 import { librarySqlServerId } from '@/lib/api/coverCache';
 import { hasLocalPersistentPlaybackBytes } from '@/store/localPlaybackResolve';
-import { useAuthStore } from '@/store/authStore';
+import { effectiveStreamCapKbps } from '@/features/playback/utils/playback/streamQualityResolve';
 
 /**
  * Promote a track whose stream cache is full to the on-disk ephemeral tier.
@@ -22,7 +22,7 @@ export async function promoteCompletedStreamToHotCache(
   // live bytes by track id only), so promoting them would masquerade a low-
   // bitrate transcode as the original. Keep capped streams out of the hot
   // cache entirely; a quality-aware tier can lift this later.
-  if (useAuthStore.getState().streamMaxBitRateKbps > 0) return;
+  if (effectiveStreamCapKbps(serverIndexKey) > 0) return;
   try {
     const libraryServerId = librarySqlServerId(serverIndexKey);
     const res = await invoke<{ path: string; size: number; layoutFingerprint: string } | null>(
@@ -40,7 +40,9 @@ export async function promoteCompletedStreamToHotCache(
     // The promoted bytes are whatever the live player streamed — the Rust match
     // is by track id and ignores maxBitRate — so tag the entry with the cap in
     // effect, so a capped blob is never later reused for a different quality.
-    const cap = useAuthStore.getState().streamMaxBitRateKbps;
+    // Always 0 here today (capped streams bail above); kept for a future
+    // quality-aware tier.
+    const cap = effectiveStreamCapKbps(serverIndexKey);
     useHotCacheStore.getState().setEntry(
       track.id,
       serverIndexKey,

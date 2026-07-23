@@ -33,6 +33,7 @@ import { noteEngineProgressForGapless } from '@/features/playback/store/gaplessP
 import { showToast } from '@/lib/dom/toast';
 import { useAuthStore } from '@/store/authStore';
 import { indexKeyBelongsToServer } from '@/store/localPlaybackResolve';
+import { effectiveStreamCapKbps } from '@/features/playback/utils/playback/streamQualityResolve';
 import { getPlayGeneration, setIsAudioPaused } from '@/features/playback/store/engineState';
 import {
   clearPreloadingIds,
@@ -190,8 +191,8 @@ export function handleAudioFormat(payload: AudioFormatPayload): void {
       // The cap the stream was actually opened with, latched by Rust from the
       // stream URL — a mid-playback settings change affects the next stream,
       // never relabels the current one. Legacy events without the field fall
-      // back to a snapshot of the current setting.
-      streamCapKbps: payload.streamCapKbps ?? useAuthStore.getState().streamMaxBitRateKbps,
+      // back to a snapshot of the current per-address setting.
+      streamCapKbps: payload.streamCapKbps ?? effectiveStreamCapKbps(cur.serverId),
     },
   });
 }
