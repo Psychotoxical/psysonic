@@ -49,20 +49,6 @@ export function resolveSongFetchCoverArtId(song: CoverArtResolvableSong): string
 }
 
 /**
- * True when a song carries a genuine per-disc/per-track cover id (`mf-*`, `dc-*`, or
- * an explicit cover that is neither its track-id echo nor the bare album id). Only
- * such a song may be resolved in `distinctDiscCovers` mode — for the missing,
- * track-echo, and bare-album shapes `resolveSongFetchCoverArtId` returns the album id,
- * which must go through the normal album-scoped path so it becomes Navidrome's
- * `al-<albumId>_0` fetch id instead of the bare entity.
- */
-export function songHasDiscSpecificCover(song: CoverArtResolvableSong): boolean {
-  const albumId = song.albumId?.trim();
-  const fetchId = resolveSongFetchCoverArtId(song);
-  return !!fetchId && fetchId !== albumId;
-}
-
-/**
  * True only for genuine per-disc artwork: a multi-disc release where each disc
  * has ONE consistent cover and those covers differ between discs (e.g. a box
  * set). It must NOT be tripped by per-song cover ids — Navidrome (and other

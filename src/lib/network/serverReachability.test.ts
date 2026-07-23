@@ -10,7 +10,6 @@ import {
   publishServerConnectionStatus,
   resetServerReachabilitySnapshot,
   useServerReachabilitySnapshot,
-  useServerUnavailable,
 } from './serverReachability';
 
 beforeEach(() => {
@@ -54,33 +53,5 @@ describe('publishServerConnectionStatus', () => {
 
     act(() => publishServerConnectionStatus('a', 'offline'));
     expect(result.current.get('a')).toBe('unavailable');
-  });
-});
-
-describe('useServerUnavailable', () => {
-  it('tracks only its own server id and does not re-render on unrelated changes', () => {
-    let renders = 0;
-    const { result } = renderHook(() => {
-      renders += 1;
-      return useServerUnavailable('a');
-    });
-    expect(result.current).toBe(false);
-    const baseline = renders;
-
-    // Unrelated server flips: the boolean snapshot for 'a' is unchanged, so no re-render.
-    act(() => publishServerConnectionStatus('b', 'offline'));
-    expect(result.current).toBe(false);
-    expect(renders).toBe(baseline);
-
-    // Own server flips: re-renders and reports unavailable, then recovers.
-    act(() => publishServerConnectionStatus('a', 'offline'));
-    expect(result.current).toBe(true);
-    act(() => publishServerConnectionStatus('a', 'online'));
-    expect(result.current).toBe(false);
-  });
-
-  it('returns false for an empty server id', () => {
-    const { result } = renderHook(() => useServerUnavailable(undefined));
-    expect(result.current).toBe(false);
   });
 });

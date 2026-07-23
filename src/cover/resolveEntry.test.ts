@@ -7,9 +7,8 @@ import {
   resolveArtistCoverEntry,
   resolveSongFetchCoverArtId,
   resolveTrackCoverEntry,
-  songHasDiscSpecificCover,
 } from './resolveEntry';
-import { albumCoverRef, albumCoverRefForSong } from './ref';
+import { albumCoverRef } from './ref';
 
 describe('resolveAlbumCoverEntry', () => {
   it('uses bare Navidrome album id on disk', () => {
@@ -97,57 +96,6 @@ describe('resolveSongFetchCoverArtId', () => {
     expect(
       resolveSongFetchCoverArtId({ id: 'tr-1', coverArt: 'tr-1', albumId: 'al-42' }),
     ).toBe('al-42');
-  });
-});
-
-describe('songHasDiscSpecificCover', () => {
-  it('is true for a genuine per-track/disc cover id', () => {
-    expect(songHasDiscSpecificCover({ id: 't1', coverArt: 'mf-a', albumId: 'al-1' })).toBe(true);
-    expect(songHasDiscSpecificCover({ id: 't1', coverArt: 'dc-1:0_0', albumId: 'al-1' })).toBe(true);
-  });
-
-  it('is false for the album-fallback shapes (missing, track-echo, bare album id)', () => {
-    expect(songHasDiscSpecificCover({ id: 't1', coverArt: undefined, albumId: 'al-1' })).toBe(false);
-    expect(songHasDiscSpecificCover({ id: 'tr-1', coverArt: 'tr-1', albumId: 'al-1' })).toBe(false);
-    expect(songHasDiscSpecificCover({ id: 't1', coverArt: 'al-1', albumId: 'al-1' })).toBe(false);
-  });
-});
-
-describe('DiscHeaderCover resolution (songHasDiscSpecificCover + albumCoverRefForSong)', () => {
-  // The disc separator forces distinct mode only when the track has a disc-specific
-  // cover; the three album-fallback shapes must go through the album-scoped path so
-  // they emit Navidrome's `al-<albumId>_0` fetch id, not the bare entity.
-  const refFor = (song: Parameters<typeof albumCoverRefForSong>[0]) =>
-    albumCoverRefForSong(song, songHasDiscSpecificCover(song));
-
-  it('missing cover → al-<albumId>_0, album-scoped slot', () => {
-    const ref = refFor({ id: 't1', coverArt: undefined, albumId: 'al-1' });
-    expect(ref?.fetchCoverArtId).toBe('al-al-1_0');
-    expect(ref?.cacheEntityId).toBe('al-1');
-  });
-
-  it('cover echoes track id → al-<albumId>_0', () => {
-    const ref = refFor({ id: 'tr-1', coverArt: 'tr-1', albumId: 'al-1' });
-    expect(ref?.fetchCoverArtId).toBe('al-al-1_0');
-    expect(ref?.cacheEntityId).toBe('al-1');
-  });
-
-  it('cover equals bare album id → al-<albumId>_0', () => {
-    const ref = refFor({ id: 't1', coverArt: 'al-1', albumId: 'al-1' });
-    expect(ref?.fetchCoverArtId).toBe('al-al-1_0');
-    expect(ref?.cacheEntityId).toBe('al-1');
-  });
-
-  it('explicit mf-* cover stays disc-scoped (per-track slot + fetch id)', () => {
-    const ref = refFor({ id: 't1', coverArt: 'mf-a', albumId: 'al-1' });
-    expect(ref?.fetchCoverArtId).toBe('mf-a');
-    expect(ref?.cacheEntityId).toBe('mf-a');
-  });
-
-  it('dc-* per-disc cover stays disc-scoped', () => {
-    const ref = refFor({ id: 't1', coverArt: 'dc-1:0_0', albumId: 'al-1' });
-    expect(ref?.fetchCoverArtId).toBe('dc-1:0_0');
-    expect(ref?.cacheEntityId).toBe('dc-1:0_0');
   });
 });
 
