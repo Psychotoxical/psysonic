@@ -51,6 +51,7 @@ async fn seed_preload_analysis_bytes(
         &sid,
         &track_id,
         data.to_vec(),
+        Some(url),
         priority,
     )
     .await

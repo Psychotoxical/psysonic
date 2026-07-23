@@ -161,18 +161,26 @@ pub(crate) fn spawn_gapless_transition_analysis(app: &AppHandle, info: &ChainedI
         sid,
         track_id,
         bytes,
+        Some(info.url.clone()),
         priority,
         None,
     );
 }
 
 /// Byte-backed analysis — the single audio-side entry before the analysis crate planner.
+///
+/// `stream_url`: the URL the bytes were streamed from (None for local files).
+/// When it carries a `maxBitRate` cap the bytes are a transcode: canonical
+/// identity is then established by a raw-prefix probe of the original, and on
+/// probe failure the seed is skipped entirely so transcoded bytes never
+/// produce canonical cache/library writes.
 pub(crate) async fn dispatch_track_analysis_bytes(
     app: &AppHandle,
     origin: TrackAnalysisOrigin,
     server_id: &str,
     track_id: &str,
     bytes: Vec<u8>,
+    stream_url: Option<&str>,
     priority: AnalysisBackfillPriority,
 ) -> Result<(), String> {
     let track_id = track_id.trim();
@@ -195,6 +203,39 @@ pub(crate) async fn dispatch_track_analysis_bytes(
         if server_id.is_empty() { "''" } else { server_id },
         bytes.len() as f64 / (1024.0 * 1024.0),
     );
+    let capped = stream_url.and_then(crate::play_input::url_stream_cap_kbps).is_some();
+    if capped {
+        // Transcoded stream: fetch the ORIGINAL's fingerprint via `format=raw`
+        // so the analysis is stored under the original's identity. If the probe
+        // fails there is no trusted identity — skip the seed (no canonical
+        // writes); the next uncapped play or backfill will analyze the original.
+        let client = app
+            .try_state::<AudioEngine>()
+            .map(|e| crate::engine::audio_http_client(&e))
+            .unwrap_or_default();
+        let Some(trusted) = crate::raw_probe::fetch_trusted_original_md5(
+            &client,
+            stream_url.unwrap_or_default(),
+        )
+        .await
+        else {
+            crate::app_deprintln!(
+                "[analysis][dispatch] skip origin={origin:?} track_id={track_id}: capped stream, raw-prefix probe failed — no canonical writes"
+            );
+            return Ok(());
+        };
+        return psysonic_analysis::analysis_runtime::enqueue_track_analysis_trusted(
+            app,
+            server_id,
+            track_id,
+            &bytes,
+            None,
+            trusted,
+            priority,
+        )
+        .await
+        .map(|_| ());
+    }
     psysonic_analysis::analysis_runtime::enqueue_track_analysis(
         app,
         server_id,
@@ -208,12 +249,14 @@ pub(crate) async fn dispatch_track_analysis_bytes(
 }
 
 /// Non-blocking wrapper with optional play-generation supersede guard.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn spawn_track_analysis_bytes(
     app: AppHandle,
     origin: TrackAnalysisOrigin,
     server_id: String,
     track_id: String,
     bytes: Vec<u8>,
+    stream_url: Option<String>,
     priority: AnalysisBackfillPriority,
     generation_guard: Option<(u64, Arc<AtomicU64>)>,
 ) {
@@ -232,6 +275,7 @@ pub(crate) fn spawn_track_analysis_bytes(
             &server_id,
             &track_id,
             bytes,
+            stream_url.as_deref(),
             priority,
         )
         .await
@@ -276,6 +320,7 @@ pub(crate) fn spawn_track_analysis_file(
             &server_id,
             &track_id,
             bytes,
+            None, // local file — bytes are the original
             priority,
         )
         .await

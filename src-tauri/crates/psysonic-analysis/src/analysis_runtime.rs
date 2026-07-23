@@ -389,22 +389,46 @@ pub async fn enqueue_track_analysis(
     format_hint: Option<&str>,
     priority: AnalysisBackfillPriority,
 ) -> Result<EnqueueTrackAnalysisOutcome, String> {
-    enqueue_track_analysis_with_fetch(app, server_id, track_id, bytes, format_hint, priority, 0).await
+    enqueue_track_analysis_with_fetch(app, server_id, track_id, bytes, format_hint, None, priority, 0).await
 }
 
+/// Like [`enqueue_track_analysis`] but for TRANSCODED playback bytes whose
+/// original fingerprint was verified via a raw-prefix probe: the analysis is
+/// computed from `bytes` but planned/stored under `trusted_md5_16kb`, so every
+/// bitrate representation of the same original resolves to one analysis row.
+pub async fn enqueue_track_analysis_trusted(
+    app: &tauri::AppHandle,
+    server_id: &str,
+    track_id: &str,
+    bytes: &[u8],
+    format_hint: Option<&str>,
+    trusted_md5_16kb: String,
+    priority: AnalysisBackfillPriority,
+) -> Result<EnqueueTrackAnalysisOutcome, String> {
+    enqueue_track_analysis_with_fetch(
+        app, server_id, track_id, bytes, format_hint, Some(trusted_md5_16kb), priority, 0,
+    ).await
+}
+
+#[allow(clippy::too_many_arguments)]
 async fn enqueue_track_analysis_with_fetch(
     app: &tauri::AppHandle,
     server_id: &str,
     track_id: &str,
     bytes: &[u8],
     format_hint: Option<&str>,
+    trusted_md5_16kb: Option<String>,
     priority: AnalysisBackfillPriority,
     fetch_ms: u64,
 ) -> Result<EnqueueTrackAnalysisOutcome, String> {
     if bytes.is_empty() {
         return Ok(EnqueueTrackAnalysisOutcome::Complete);
     }
-    let content_hash = analysis_cache::md5_first_16kb(bytes);
+    // Trusted-original identity wins: planning against it reuses an existing
+    // complete result for the original even when `bytes` are a fresh transcode.
+    let content_hash = trusted_md5_16kb
+        .clone()
+        .unwrap_or_else(|| analysis_cache::md5_first_16kb(bytes));
     let plan = plan_track_analysis(app, server_id, track_id, &content_hash);
     if !plan.any() {
         crate::app_deprintln!(
@@ -429,6 +453,7 @@ async fn enqueue_track_analysis_with_fetch(
             track_id.to_string(),
             bytes.to_vec(),
             format_hint.map(str::to_string),
+            trusted_md5_16kb,
             priority,
             fetch_ms,
         )
@@ -447,6 +472,7 @@ async fn enqueue_track_analysis_with_fetch(
             server_id,
             track_id,
             bytes,
+            Some(content_hash.clone()),
             analysis_emits_ui_events(priority),
         )
         .await;
@@ -477,6 +503,7 @@ pub async fn run_track_enrichment_from_bytes(
     server_id: &str,
     track_id: &str,
     bytes: &[u8],
+    trusted_md5_16kb: Option<String>,
     notify_ui: bool,
 ) -> TrackEnrichmentOutcome {
     if server_id.is_empty() {
@@ -487,7 +514,9 @@ pub async fn run_track_enrichment_from_bytes(
     let tid = track_id.to_string();
     let data = bytes.to_vec();
     match tokio::task::spawn_blocking(move || {
-        crate::track_enrichment::run_track_enrichment_if_needed(&app, &sid, &tid, &data, notify_ui)
+        crate::track_enrichment::run_track_enrichment_if_needed(
+            &app, &sid, &tid, &data, trusted_md5_16kb.as_deref(), notify_ui,
+        )
     })
     .await
     {
@@ -618,6 +647,7 @@ async fn enqueue_track_analysis_offline_library_with_plan(
             args.track_id.to_string(),
             args.bytes.to_vec(),
             args.format_hint.map(str::to_string),
+            None,
             args.priority,
             args.fetch_ms,
         )
@@ -636,6 +666,7 @@ async fn enqueue_track_analysis_offline_library_with_plan(
             args.enrichment_server_id,
             args.track_id,
             args.bytes,
+            Some(content_hash.clone()),
             analysis_emits_ui_events(args.priority),
         )
         .await;
@@ -820,6 +851,7 @@ async fn spawn_backfill_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisBackf
                         &server_id,
                         &track_id,
                         &bytes,
+                        None,
                         None,
                         priority,
                         fetch_ms,
@@ -1104,6 +1136,9 @@ struct AnalysisCpuSeedJob {
     track_id: String,
     bytes: Vec<u8>,
     format_hint: Option<String>,
+    /// Verified fingerprint of the ORIGINAL file when `bytes` are a transcoded
+    /// representation (raw-prefix probe). `None` = bytes ARE the original.
+    trusted_md5_16kb: Option<String>,
     waiters: Vec<SeedDoneSender>,
     /// HTTP download time when this job came from the backfill worker.
     fetch_ms: u64,
@@ -1186,12 +1221,14 @@ impl AnalysisCpuSeedQueueState {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn enqueue(
         &mut self,
         server_id: String,
         track_id: String,
         bytes: Vec<u8>,
         format_hint: Option<String>,
+        trusted_md5_16kb: Option<String>,
         priority: AnalysisBackfillPriority,
         fetch_ms: u64,
     ) -> (
@@ -1214,6 +1251,7 @@ impl AnalysisCpuSeedQueueState {
             job.server_id = server_id;
             job.bytes = bytes;
             job.format_hint = format_hint;
+            job.trusted_md5_16kb = trusted_md5_16kb;
             job.fetch_ms = fetch_ms;
             job.waiters.push(done_tx);
             if priority > existing_tier {
@@ -1231,6 +1269,7 @@ impl AnalysisCpuSeedQueueState {
             track_id: track_id.clone(),
             bytes,
             format_hint,
+            trusted_md5_16kb,
             waiters: vec![done_tx],
             fetch_ms,
             priority,
@@ -1425,6 +1464,7 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
             let tid = job.track_id.clone();
             let bytes = job.bytes;
             let format_hint = job.format_hint;
+            let trusted_md5_16kb = job.trusted_md5_16kb;
             let seed_result = tokio::task::spawn_blocking(move || {
                 analysis_cache::seed_from_bytes_execute(
                     &app_for_decode,
@@ -1432,6 +1472,7 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
                     &tid,
                     &bytes,
                     format_hint.as_deref(),
+                    trusted_md5_16kb.as_deref(),
                     notify_ui,
                 )
             })
@@ -1543,19 +1584,21 @@ pub fn prune_analysis_queues(
 /// Emits `analysis:waveform-updated` when analysis **wrote** new waveform data (`Upserted`).
 /// Cache-hit skips (`SkippedWaveformCacheHit`) omit the event so the frontend does not
 /// re-run loudness refresh / waveform IPC for rows that were already current.
+#[allow(clippy::too_many_arguments)]
 pub async fn submit_analysis_cpu_seed(
     app: tauri::AppHandle,
     server_id: String,
     track_id: String,
     bytes: Vec<u8>,
     format_hint: Option<String>,
+    trusted_md5_16kb: Option<String>,
     priority: AnalysisBackfillPriority,
     fetch_ms: u64,
 ) -> Result<analysis_cache::SeedFromBytesOutcome, String> {
     let shared = analysis_cpu_seed_shared(&app);
     let rx = {
         let mut st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
-        let (kind, rx) = st.enqueue(server_id, track_id.clone(), bytes, format_hint, priority, fetch_ms);
+        let (kind, rx) = st.enqueue(server_id, track_id.clone(), bytes, format_hint, trusted_md5_16kb, priority, fetch_ms);
         crate::app_deprintln!("[analysis] cpu-seed submit: kind={kind:?} priority={priority:?}");
         drop(st);
         shared.ping_worker();
@@ -1759,6 +1802,7 @@ mod tests {
             "a".into(),
             vec![],
             None,
+            None,
             AnalysisBackfillPriority::Low,
             0,
         );
@@ -1774,6 +1818,7 @@ mod tests {
             "first".into(),
             vec![],
             None,
+            None,
             AnalysisBackfillPriority::Low,
             0,
         );
@@ -1781,6 +1826,7 @@ mod tests {
             String::new(),
             "hot".into(),
             vec![],
+            None,
             None,
             AnalysisBackfillPriority::High,
             0,
@@ -1797,6 +1843,7 @@ mod tests {
             "dup".into(),
             vec![1, 2, 3],
             None,
+            None,
             AnalysisBackfillPriority::Low,
             0,
         );
@@ -1804,6 +1851,7 @@ mod tests {
             "server-b".into(),
             "dup".into(),
             vec![4, 5, 6],
+            None,
             None,
             AnalysisBackfillPriority::Low,
             0,
@@ -1824,6 +1872,7 @@ mod tests {
             "first".into(),
             vec![],
             None,
+            None,
             AnalysisBackfillPriority::Low,
             0,
         );
@@ -1832,6 +1881,7 @@ mod tests {
             "dup".into(),
             vec![],
             None,
+            None,
             AnalysisBackfillPriority::Low,
             0,
         );
@@ -1839,6 +1889,7 @@ mod tests {
             String::new(),
             "dup".into(),
             vec![],
+            None,
             None,
             AnalysisBackfillPriority::High,
             0,
@@ -1857,6 +1908,7 @@ mod tests {
             "active".into(),
             vec![],
             None,
+            None,
             AnalysisBackfillPriority::Low,
             0,
         );
@@ -1873,6 +1925,7 @@ mod tests {
             "a".into(),
             vec![],
             None,
+            None,
             AnalysisBackfillPriority::Low,
             0,
         );
@@ -1880,6 +1933,7 @@ mod tests {
             String::new(),
             "b".into(),
             vec![],
+            None,
             None,
             AnalysisBackfillPriority::Low,
             0,
@@ -1889,6 +1943,7 @@ mod tests {
             "a".into(),
             vec![],
             None,
+            None,
             AnalysisBackfillPriority::Low,
             0,
         );
@@ -1896,6 +1951,7 @@ mod tests {
             String::new(),
             "c".into(),
             vec![],
+            None,
             None,
             AnalysisBackfillPriority::Low,
             0,
@@ -1915,6 +1971,7 @@ mod tests {
             String::new(),
             "doomed".into(),
             vec![],
+            None,
             None,
             AnalysisBackfillPriority::Low,
             0,

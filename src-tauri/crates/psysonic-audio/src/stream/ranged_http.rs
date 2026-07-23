@@ -833,6 +833,7 @@ pub(crate) async fn ranged_download_task(
                     &sid,
                     &track_id,
                     data.clone(),
+                    Some(&url),
                     priority,
                 )
                 .await

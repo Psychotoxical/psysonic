@@ -16,6 +16,7 @@ pub mod device_commands;
 pub mod mix_commands;
 mod play_input;
 pub mod playback_rate;
+mod raw_probe;
 mod sink_swap;
 mod source_build;
 mod preserve_worker;

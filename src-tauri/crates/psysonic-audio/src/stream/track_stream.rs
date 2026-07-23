@@ -188,6 +188,7 @@ pub(crate) async fn track_download_task(
                     &sid,
                     &track_id,
                     capture.clone(),
+                    Some(&url),
                     priority,
                 )
                 .await

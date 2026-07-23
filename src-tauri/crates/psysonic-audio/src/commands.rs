@@ -724,6 +724,7 @@ pub async fn audio_chain_preload(
             sid,
             track_id,
             bytes,
+            Some(url.clone()),
             priority,
             None,
         );

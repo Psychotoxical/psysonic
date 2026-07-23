@@ -90,6 +90,7 @@ fn spawn_playback_analysis_bytes(
         sid,
         track_id.to_string(),
         bytes,
+        Some(ctx.url.to_string()),
         high,
         Some((ctx.gen, state.generation.clone())),
     );
@@ -123,6 +124,7 @@ pub(super) async fn select_play_input(
                 sid,
                 track_id.to_string(),
                 d.clone(),
+                Some(ctx.url.to_string()),
                 high,
                 Some((ctx.gen, state.generation.clone())),
             );

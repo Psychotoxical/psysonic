@@ -48,6 +48,7 @@ pub fn seed_from_bytes_execute<R: Runtime>(
     track_id: &str,
     bytes: &[u8],
     format_hint: Option<&str>,
+    trusted_md5_16kb: Option<&str>,
     notify_ui: bool,
 ) -> Result<(SeedFromBytesOutcome, AnalysisSeedTimings), String> {
     let seed_started = Instant::now();
@@ -63,7 +64,7 @@ pub fn seed_from_bytes_execute<R: Runtime>(
         ));
     };
     let (outcome, md5_16kb) =
-        seed_from_bytes_into_cache(&cache, server_id, track_id, bytes, format_hint)?;
+        seed_from_bytes_into_cache(&cache, server_id, track_id, bytes, format_hint, trusted_md5_16kb)?;
     let seed_ms = seed_started.elapsed().as_millis() as u64;
     // E2 bridge (analysis → library content_hash): once the playback-derived
     // md5_16kb is known — whether freshly written or already cached — record it
@@ -87,6 +88,7 @@ pub fn seed_from_bytes_execute<R: Runtime>(
             server_id,
             track_id,
             bytes,
+            trusted_md5_16kb,
             notify_ui,
         );
         if matches!(enrichment_outcome, TrackEnrichmentOutcome::Failed) {
@@ -132,13 +134,18 @@ pub fn seed_from_bytes_into_cache(
     track_id: &str,
     bytes: &[u8],
     format_hint: Option<&str>,
+    trusted_md5_16kb: Option<&str>,
 ) -> Result<(SeedFromBytesOutcome, String), String> {
     let started = Instant::now();
-    // Write under the playback server's scope.
+    // Write under the playback server's scope. When the bytes are a transcoded
+    // representation, the verified ORIGINAL fingerprint keys the row instead of
+    // the transcode's own hash — every bitrate resolves to one analysis row.
     let key = TrackKey {
         server_id: server_id.to_string(),
         track_id: track_id.to_string(),
-        md5_16kb: md5_first_16kb(bytes),
+        md5_16kb: trusted_md5_16kb
+            .map(str::to_string)
+            .unwrap_or_else(|| md5_first_16kb(bytes)),
     };
     let coverage = cache.content_cache_coverage(server_id, track_id, &key.md5_16kb)?;
     if coverage.complete() {
@@ -1015,10 +1022,50 @@ mod tests {
     }
 
     #[test]
+    fn trusted_fingerprint_keys_analysis_under_the_original() {
+        // Transcoded playback bytes analyzed under the ORIGINAL's verified
+        // fingerprint — never under the transcode's own hash.
+        let cache = AnalysisCache::open_in_memory();
+        let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
+        let original_md5 = "trusted-original-fp";
+        let (outcome, md5) = seed_from_bytes_into_cache(
+            &cache, "server-a", "capped-track", &wav, None, Some(original_md5),
+        )
+        .unwrap();
+        assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
+        assert_eq!(md5, original_md5, "row keyed under the trusted original fingerprint");
+        assert_ne!(md5, md5_first_16kb(&wav), "not keyed under the transcode's own hash");
+    }
+
+    #[test]
+    fn different_bitrate_representations_share_one_analysis_row() {
+        // Two different transcodes of the same original (different bytes) must
+        // resolve to ONE analysis row — no per-bitrate variants.
+        let cache = AnalysisCache::open_in_memory();
+        let original_md5 = "shared-original-fp";
+        let rep_128 = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
+        let (first, _) = seed_from_bytes_into_cache(
+            &cache, "server-a", "track-x", &rep_128, None, Some(original_md5),
+        )
+        .unwrap();
+        assert_eq!(first, SeedFromBytesOutcome::Upserted);
+        let rep_320 = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.5), 44_100);
+        let (second, _) = seed_from_bytes_into_cache(
+            &cache, "server-a", "track-x", &rep_320, None, Some(original_md5),
+        )
+        .unwrap();
+        assert_eq!(
+            second,
+            SeedFromBytesOutcome::SkippedWaveformCacheHit,
+            "same trusted fingerprint reuses the existing analysis row"
+        );
+    }
+
+    #[test]
     fn seed_from_bytes_into_cache_upserts_waveform_and_loudness_for_wav() {
         let cache = AnalysisCache::open_in_memory();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.5), 44_100);
-        let (outcome, md5) = seed_from_bytes_into_cache(&cache, "server-a", "wav-track", &wav, None).unwrap();
+        let (outcome, md5) = seed_from_bytes_into_cache(&cache, "server-a", "wav-track", &wav, None, None).unwrap();
         assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
         assert_eq!(md5, md5_first_16kb(&wav), "outcome carries the content fingerprint");
 
@@ -1039,7 +1086,7 @@ mod tests {
     fn seed_from_bytes_into_cache_writes_under_the_given_server_scope() {
         let cache = AnalysisCache::open_in_memory();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.5), 44_100);
-        seed_from_bytes_into_cache(&cache, "server-x", "scoped-track", &wav, None).unwrap();
+        seed_from_bytes_into_cache(&cache, "server-x", "scoped-track", &wav, None, None).unwrap();
 
         let md5 = md5_first_16kb(&wav);
         let scoped = TrackKey {
@@ -1060,9 +1107,9 @@ mod tests {
     fn seed_from_bytes_into_cache_returns_skipped_on_second_call() {
         let cache = AnalysisCache::open_in_memory();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
-        let (first, _) = seed_from_bytes_into_cache(&cache, "server-a", "wav-track-2", &wav, None).unwrap();
+        let (first, _) = seed_from_bytes_into_cache(&cache, "server-a", "wav-track-2", &wav, None, None).unwrap();
         assert_eq!(first, SeedFromBytesOutcome::Upserted);
-        let (second, _) = seed_from_bytes_into_cache(&cache, "server-a", "wav-track-2", &wav, None).unwrap();
+        let (second, _) = seed_from_bytes_into_cache(&cache, "server-a", "wav-track-2", &wav, None, None).unwrap();
         assert_eq!(
             second,
             SeedFromBytesOutcome::SkippedWaveformCacheHit,
@@ -1076,7 +1123,7 @@ mod tests {
         // Garbage bytes — Symphonia probe fails, the pipeline falls back to
         // `derive_waveform_bins` (no loudness row gets cached).
         let bytes = vec![0xAAu8; 8 * 1024];
-        let (outcome, _) = seed_from_bytes_into_cache(&cache, "server-a", "garbage", &bytes, None).unwrap();
+        let (outcome, _) = seed_from_bytes_into_cache(&cache, "server-a", "garbage", &bytes, None, None).unwrap();
         assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
 
         let key = TrackKey {
@@ -1210,7 +1257,7 @@ mod tests {
         assert!(!cache.loudness_row_exists_for_key(&key).unwrap());
 
         let (outcome, _) =
-            seed_from_bytes_into_cache(&cache, "server-a", "track-reseed", &wav, None).unwrap();
+            seed_from_bytes_into_cache(&cache, "server-a", "track-reseed", &wav, None, None).unwrap();
         assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
         assert!(cache.loudness_row_exists_for_key(&key).unwrap());
     }
@@ -1267,7 +1314,7 @@ mod tests {
         let app = tauri::test::mock_app();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 0.25), 44_100);
         let handle = app.handle().clone();
-        let (outcome, timings) = seed_from_bytes_execute(&handle, "s", "t", &wav, None, true)
+        let (outcome, timings) = seed_from_bytes_execute(&handle, "s", "t", &wav, None, None, true)
             .expect("seed execute should return a graceful skip");
         assert_eq!(outcome, SeedFromBytesOutcome::SkippedNoAnalysisCache);
         assert_eq!(timings.seed_ms, 0);
@@ -1282,12 +1329,12 @@ mod tests {
         let handle = app.handle().clone();
 
         let (first, timings_first) =
-            seed_from_bytes_execute(&handle, "server-a", "track-exec", &wav, None, true).unwrap();
+            seed_from_bytes_execute(&handle, "server-a", "track-exec", &wav, None, None, true).unwrap();
         assert_eq!(first, SeedFromBytesOutcome::Upserted);
         assert!(timings_first.seed_ms <= 30_000);
 
         let (second, timings_second) =
-            seed_from_bytes_execute(&handle, "server-a", "track-exec", &wav, None, true).unwrap();
+            seed_from_bytes_execute(&handle, "server-a", "track-exec", &wav, None, None, true).unwrap();
         assert_eq!(second, SeedFromBytesOutcome::SkippedWaveformCacheHit);
         assert!(timings_second.seed_ms <= 30_000);
     }
