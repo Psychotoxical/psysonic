@@ -43,6 +43,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * **Settings → System → Logging** and **PsyLab → Logs** offer basic and verbose debug-depth levels while Debug logging is enabled. Verbose mode adds structured multi-server scope, reachability, music-folder and New Releases diagnostics, with credentials and sensitive URL data redacted.
 
+### Album details — disc covers in the multi-disc separator
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1336](https://github.com/Psychotoxical/psysonic/pull/1336)**
+
+* Multi-disc albums show each disc's cover next to "CD N" instead of a generic disc icon. Releases with distinct per-disc artwork show each disc's own cover; other albums fall back to the shared album art.
+* On Navidrome, the queue, playbar mini-cover and "Who is listening?" use the same per-disc artwork, so a multi-disc release no longer keeps showing disc 1 everywhere outside the album page.
+* Clearing the cover cache no longer leaves junk `mf-*` directories under the album cover store after browsing All Albums.
+
 ### Fullscreen player — volume slider in Minimal and Immersive modes
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1340](https://github.com/Psychotoxical/psysonic/pull/1340)**
