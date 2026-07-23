@@ -3706,8 +3706,15 @@ mod tests {
     fn album_detail_disc_order_tie_break_is_total_across_servers() {
         // The scoped loader merges a cross-server album, so a server-local `id` is
         // not a total tie-break: two surviving tracks from different servers can
-        // share disc, track number, and id. `server_id` is the final key, so the
-        // Play-All order stays deterministic (priority server first).
+        // share disc, track number, and id. `server_id` is the final key, which
+        // makes the Play-All order deterministic. The contract is *lexical*
+        // `server_id` order, not scope priority — only the dedup inside `ranked`
+        // is priority-driven.
+        //
+        // The fixture deliberately opposes the incidental row order so the
+        // assertion cannot pass without that final key: `s2` is seeded first and
+        // its tied track sorts before `s1`'s by title/dedup key. Removing
+        // `server_id ASC` from the production query must turn this test red.
         let store = LibraryStore::open_in_memory();
         let disc1 = |mut t: TrackRow, trk: i64| {
             t.disc_number = Some(1);
@@ -3726,16 +3733,19 @@ mod tests {
         ), 1);
         // Same id / disc / track on both servers, but distinct title + duration so
         // the two rows do not de-duplicate and both survive the merge — tying on
-        // every key except server_id.
+        // every key except server_id. The titles are chosen so the dedup key of the
+        // `s1` row sorts AFTER the `s2` one: any incidental ordering by title or
+        // dedup key therefore yields s2 → s1, the reverse of the asserted order.
         let s1_dup = disc1(track(
-            "s1", "dup", "Alpha", Some("Band"), "Tie Album", "s1-tie",
+            "s1", "dup", "Zulu", Some("Band"), "Tie Album", "s1-tie",
             Some("band"), 200, "lib-a", Some(2020), None, None,
         ), 2);
         let s2_dup = disc1(track(
-            "s2", "dup", "Beta", Some("Band"), "Tie Album", "s2-tie",
+            "s2", "dup", "Alpha", Some("Band"), "Tie Album", "s2-tie",
             Some("band"), 300, "lib-b", Some(2020), None, None,
         ), 2);
-        seed_and_rebuild(&store, &[s1_anchor, s1_dup, s2_anchor, s2_dup]);
+        // Seeded s2-first so insertion/rowid order also opposes the assertion.
+        seed_and_rebuild(&store, &[s2_anchor, s2_dup, s1_anchor, s1_dup]);
 
         let detail = album_detail(
             &store,
@@ -3752,8 +3762,9 @@ mod tests {
             .iter()
             .map(|t| (t.server_id.as_str(), t.id.as_str()))
             .collect();
-        // Anchor merges to the priority server; the tied `dup` tracks keep a
-        // deterministic order by server_id (s1 before s2).
+        // The anchor merges to the priority server (that part is `pr`-driven inside
+        // `ranked`). The tied `dup` rows are then ordered by the final lexical
+        // `server_id` key — s1 before s2 — against the fixture's own s2-first bias.
         assert_eq!(seq, [("s1", "s1-anchor"), ("s1", "dup"), ("s2", "dup")]);
     }
 
