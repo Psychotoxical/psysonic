@@ -203,7 +203,7 @@ pub(crate) async fn dispatch_track_analysis_bytes(
         if server_id.is_empty() { "''" } else { server_id },
         bytes.len() as f64 / (1024.0 * 1024.0),
     );
-    let capped = stream_url.and_then(crate::play_input::url_stream_cap_kbps).is_some();
+    let capped = stream_url.is_some_and(crate::play_input::url_requests_transcode);
     if capped {
         // Transcoded stream: fetch the ORIGINAL's fingerprint via `format=raw`
         // so the analysis is stored under the original's identity. If the probe

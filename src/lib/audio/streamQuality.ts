@@ -21,3 +21,20 @@ export function sanitizeStreamMaxBitRateKbps(value: unknown): StreamMaxBitRateKb
     ? (value as StreamMaxBitRateKbps)
     : DEFAULT_STREAM_MAX_BITRATE_KBPS;
 }
+
+/**
+ * Transcode target format sent to the server as `format` on `stream.view`.
+ * `auto` = omit the param (server picks its configured transcoder when a
+ * bitrate cap forces a transcode; streams untouched otherwise).
+ */
+export const STREAM_FORMAT_OPTIONS = ['auto', 'mp3', 'opus', 'aac'] as const;
+
+export type StreamRequestFormat = (typeof STREAM_FORMAT_OPTIONS)[number];
+
+export const DEFAULT_STREAM_FORMAT: StreamRequestFormat = 'auto';
+
+export function sanitizeStreamRequestFormat(value: unknown): StreamRequestFormat {
+  return (STREAM_FORMAT_OPTIONS as readonly string[]).includes(value as string)
+    ? (value as StreamRequestFormat)
+    : DEFAULT_STREAM_FORMAT;
+}

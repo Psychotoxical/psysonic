@@ -6,8 +6,10 @@ import type { ServerProfile } from '@/store/authStoreTypes';
 import { isNavidromeServer } from '@/lib/server/subsonicServerIdentity';
 import { allNormalizedAddresses } from '@/lib/server/serverEndpoint';
 import {
+  STREAM_FORMAT_OPTIONS,
   STREAM_MAX_BITRATE_OPTIONS,
   sanitizeStreamMaxBitRateKbps,
+  sanitizeStreamRequestFormat,
 } from '@/lib/audio/streamQuality';
 
 /**
@@ -22,6 +24,8 @@ export function ServerStreamQualityRows({ server, t }: { server: ServerProfile; 
   const identity = useAuthStore(s => s.subsonicServerIdentityByServer[server.id]);
   const streamQualityByAddress = useAuthStore(s => s.streamQualityByAddress);
   const setStreamQualityForAddress = useAuthStore(s => s.setStreamQualityForAddress);
+  const streamFormatByAddress = useAuthStore(s => s.streamFormatByAddress);
+  const setStreamFormatForAddress = useAuthStore(s => s.setStreamFormatForAddress);
   if (!isNavidromeServer(identity)) return null;
   const addresses = allNormalizedAddresses(server);
   if (addresses.length === 0) return null;
@@ -48,18 +52,31 @@ export function ServerStreamQualityRows({ server, t }: { server: ServerProfile; 
               >
                 {address}
               </span>
-              <div style={{ minWidth: 180, flexShrink: 0 }}>
-                <CustomSelect
-                  ariaLabel={`${t('settings.streamQualityTitle')} · ${address}`}
-                  value={String(streamQualityByAddress[address] ?? 0)}
-                  onChange={(v) => setStreamQualityForAddress(address, sanitizeStreamMaxBitRateKbps(Number(v)))}
-                  options={STREAM_MAX_BITRATE_OPTIONS.map((kbps) => ({
-                    value: String(kbps),
-                    label: kbps === 0
-                      ? t('settings.streamQualityOriginal')
-                      : t('settings.streamQualityKbps', { kbps }),
-                  }))}
-                />
+              <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                <div style={{ minWidth: 170 }}>
+                  <CustomSelect
+                    ariaLabel={`${t('settings.streamQualityTitle')} · ${address}`}
+                    value={String(streamQualityByAddress[address] ?? 0)}
+                    onChange={(v) => setStreamQualityForAddress(address, sanitizeStreamMaxBitRateKbps(Number(v)))}
+                    options={STREAM_MAX_BITRATE_OPTIONS.map((kbps) => ({
+                      value: String(kbps),
+                      label: kbps === 0
+                        ? t('settings.streamQualityOriginal')
+                        : t('settings.streamQualityKbps', { kbps }),
+                    }))}
+                  />
+                </div>
+                <div style={{ minWidth: 110 }}>
+                  <CustomSelect
+                    ariaLabel={`${t('settings.streamFormatLabel')} · ${address}`}
+                    value={streamFormatByAddress[address] ?? 'auto'}
+                    onChange={(v) => setStreamFormatForAddress(address, sanitizeStreamRequestFormat(v))}
+                    options={STREAM_FORMAT_OPTIONS.map((fmt) => ({
+                      value: fmt,
+                      label: fmt === 'auto' ? t('settings.streamFormatAuto') : fmt.toUpperCase(),
+                    }))}
+                  />
+                </div>
               </div>
             </div>
           ))}

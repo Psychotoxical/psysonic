@@ -77,6 +77,7 @@ export function createServerProfileActions(set: SetState, get: GetState): Pick<
         // the new address's Navidrome identity / transport is unverified until
         // re-probed, so caps for addresses no longer on any profile are dropped.
         let streamQualityByAddress = s.streamQualityByAddress;
+        let streamFormatByAddress = s.streamFormatByAddress;
         if (prev && ('url' in data || 'alternateUrl' in data)) {
           const live = new Set(
             servers.flatMap(profileAddresses),
@@ -84,8 +85,11 @@ export function createServerProfileActions(set: SetState, get: GetState): Pick<
           streamQualityByAddress = Object.fromEntries(
             Object.entries(s.streamQualityByAddress).filter(([addr]) => live.has(addr)),
           );
+          streamFormatByAddress = Object.fromEntries(
+            Object.entries(s.streamFormatByAddress).filter(([addr]) => live.has(addr)),
+          );
         }
-        return { servers, streamQualityByAddress };
+        return { servers, streamQualityByAddress, streamFormatByAddress };
       });
     },
 
@@ -114,6 +118,9 @@ export function createServerProfileActions(set: SetState, get: GetState): Pick<
         const streamQualityByAddress = Object.fromEntries(
           Object.entries(s.streamQualityByAddress).filter(([addr]) => liveAddresses.has(addr)),
         );
+        const streamFormatByAddress = Object.fromEntries(
+          Object.entries(s.streamFormatByAddress).filter(([addr]) => liveAddresses.has(addr)),
+        );
         const activeServerId = switchedAway ? (newServers[0]?.id ?? null) : s.activeServerId;
         return {
           servers: newServers,
@@ -138,6 +145,7 @@ export function createServerProfileActions(set: SetState, get: GetState): Pick<
           audiomusePluginProbeByServer: pluginProbeRest,
           openSubsonicExtensionsByServer: extRest,
           streamQualityByAddress,
+          streamFormatByAddress,
         };
       });
     },

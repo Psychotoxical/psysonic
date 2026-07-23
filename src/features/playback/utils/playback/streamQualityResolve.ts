@@ -2,7 +2,7 @@ import { useAuthStore } from '@/store/authStore';
 import { findServerByIdOrIndexKey } from '@/lib/server/serverLookup';
 import { connectBaseUrlForServer, normalizeServerBaseUrl } from '@/lib/server/serverEndpoint';
 import { isNavidromeServer } from '@/lib/server/subsonicServerIdentity';
-import type { StreamMaxBitRateKbps } from '@/lib/audio/streamQuality';
+import type { StreamMaxBitRateKbps, StreamRequestFormat } from '@/lib/audio/streamQuality';
 
 /**
  * The streaming transcode cap in effect for a server RIGHT NOW: the preference
@@ -23,4 +23,23 @@ export function effectiveStreamCapKbps(
   if (!isNavidromeServer(state.subsonicServerIdentityByServer[server.id])) return 0;
   const address = normalizeServerBaseUrl(connectBaseUrlForServer(server));
   return state.streamQualityByAddress[address] ?? 0;
+}
+
+/** Transcode target format for the active address (same Navidrome gating). */
+export function effectiveStreamFormat(
+  serverIdOrIndexKey: string | null | undefined,
+): StreamRequestFormat {
+  if (!serverIdOrIndexKey) return 'auto';
+  const state = useAuthStore.getState();
+  const server = findServerByIdOrIndexKey(serverIdOrIndexKey) ?? state.getActiveServer();
+  if (!server) return 'auto';
+  if (!isNavidromeServer(state.subsonicServerIdentityByServer[server.id])) return 'auto';
+  const address = normalizeServerBaseUrl(connectBaseUrlForServer(server));
+  return state.streamFormatByAddress[address] ?? 'auto';
+}
+
+/** Whether the current per-address preferences request ANY transcode. */
+export function streamRequestsTranscode(serverIdOrIndexKey: string | null | undefined): boolean {
+  return effectiveStreamCapKbps(serverIdOrIndexKey) > 0
+    || effectiveStreamFormat(serverIdOrIndexKey) !== 'auto';
 }

@@ -28,6 +28,7 @@ function streamUrlFromProfile(
   password: string,
   id: string,
   maxBitRateKbps = 0,
+  transcodeFormat = '',
 ): string {
   const baseUrl = restBaseFromUrl(serverUrl);
   const salt = secureRandomSalt();
@@ -45,27 +46,29 @@ function streamUrlFromProfile(
   // when 0 ("Original") so the server streams the source untouched. Only the
   // live playback path passes a cap — prefetch/analysis always send 0.
   if (maxBitRateKbps > 0) p.set('maxBitRate', String(maxBitRateKbps));
+  // Explicit transcode target ('' / 'auto' = omit; server picks its default).
+  if (transcodeFormat && transcodeFormat !== 'auto') p.set('format', transcodeFormat);
   return `${baseUrl}/stream.view?${p.toString()}`;
 }
 
-export function buildStreamUrlForServer(serverId: string, id: string, maxBitRateKbps = 0): string {
+export function buildStreamUrlForServer(serverId: string, id: string, maxBitRateKbps = 0, transcodeFormat = ''): string {
   const server = findServerByIdOrIndexKey(serverId);
-  if (!server) return buildStreamUrl(id, maxBitRateKbps);
+  if (!server) return buildStreamUrl(id, maxBitRateKbps, transcodeFormat);
   // Dual-address: route the stream through the cached connect endpoint.
   return streamUrlFromProfile(
-    connectBaseUrlForServer(server), server.username, server.password, id, maxBitRateKbps,
+    connectBaseUrlForServer(server), server.username, server.password, id, maxBitRateKbps, transcodeFormat,
   );
 }
 
-export function buildStreamUrl(id: string, maxBitRateKbps = 0): string {
+export function buildStreamUrl(id: string, maxBitRateKbps = 0, transcodeFormat = ''): string {
   const { getBaseUrl, getActiveServer } = useAuthStore.getState();
   const server = getActiveServer();
   const baseUrl = getBaseUrl();
-  if (!server || !baseUrl) return streamUrlFromProfile('', '', '', id, maxBitRateKbps);
+  if (!server || !baseUrl) return streamUrlFromProfile('', '', '', id, maxBitRateKbps, transcodeFormat);
   // `getBaseUrl()` already returns the cached connect URL; use it directly
   // instead of re-normalizing `server.url`, which would bypass the dual-
   // address connect cache.
-  return streamUrlFromProfile(baseUrl, server.username, server.password, id, maxBitRateKbps);
+  return streamUrlFromProfile(baseUrl, server.username, server.password, id, maxBitRateKbps, transcodeFormat);
 }
 
 /** @deprecated Use `coverStorageKey` from `src/cover/storageKeys` — shim until migration. */

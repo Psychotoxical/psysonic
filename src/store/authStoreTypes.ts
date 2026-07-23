@@ -1,5 +1,5 @@
 import type { HiResCrossfadeResampleHz } from '@/lib/audio/hiResCrossfadeResample';
-import type { StreamMaxBitRateKbps } from '@/lib/audio/streamQuality';
+import type { StreamMaxBitRateKbps, StreamRequestFormat } from '@/lib/audio/streamQuality';
 import type { EntityRatingSupportLevel } from '@/lib/api/subsonicTypes';
 import type { DebugLoggingDepth } from '@/lib/perf/debugLoggingMode';
 import type {
@@ -294,6 +294,8 @@ export interface AuthState {
    * connect layer selected.
    */
   streamQualityByAddress: Record<string, StreamMaxBitRateKbps>;
+  /** Transcode target format per normalized address ('auto' stored as absence). */
+  streamFormatByAddress: Record<string, StreamRequestFormat>;
 
   /** Auto-download starred favorites into `media/favorites/` (separate from offline library). */
   favoritesOfflineEnabled: boolean;
@@ -491,6 +493,7 @@ export interface AuthState {
   setHiResCrossfadeResampleHz: (v: HiResCrossfadeResampleHz) => void;
   setAudioOutputDevice: (v: string | null) => void;
   setStreamQualityForAddress: (normalizedAddress: string, v: StreamMaxBitRateKbps) => void;
+  setStreamFormatForAddress: (normalizedAddress: string, v: StreamRequestFormat) => void;
   setFavoritesOfflineEnabled: (v: boolean) => void;
   setHotCacheEnabled: (v: boolean) => void;
   setHotCacheMaxMb: (v: number) => void;

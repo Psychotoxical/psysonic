@@ -1,6 +1,6 @@
 import { IS_LINUX } from '@/lib/util/platform';
 import { sanitizeHiResCrossfadeResampleHz } from '@/lib/audio/hiResCrossfadeResample';
-import { sanitizeStreamMaxBitRateKbps } from '@/lib/audio/streamQuality';
+import { sanitizeStreamMaxBitRateKbps, sanitizeStreamRequestFormat } from '@/lib/audio/streamQuality';
 import {
   sanitizeAutodjOverlapCapMode,
   sanitizeAutodjOverlapCapSec,
@@ -336,6 +336,16 @@ export function computeAuthStoreRehydration(state: AuthState): Partial<AuthState
       for (const [addr, v] of Object.entries(raw as Record<string, unknown>)) {
         const kbps = sanitizeStreamMaxBitRateKbps(v);
         if (kbps > 0 && addr) clean[addr] = kbps;
+      }
+      return clean;
+    })(),
+    streamFormatByAddress: (() => {
+      const raw = (state as { streamFormatByAddress?: unknown }).streamFormatByAddress;
+      if (!raw || typeof raw !== 'object') return {};
+      const clean: Record<string, ReturnType<typeof sanitizeStreamRequestFormat>> = {};
+      for (const [addr, v] of Object.entries(raw as Record<string, unknown>)) {
+        const fmt = sanitizeStreamRequestFormat(v);
+        if (fmt !== 'auto' && addr) clean[addr] = fmt;
       }
       return clean;
     })(),

@@ -3,7 +3,7 @@ import {
   sanitizeAutodjOverlapCapMode,
   sanitizeAutodjOverlapCapSec,
 } from '@/lib/audio/autodjOverlapCap';
-import { sanitizeStreamMaxBitRateKbps } from '@/lib/audio/streamQuality';
+import { sanitizeStreamMaxBitRateKbps, sanitizeStreamRequestFormat } from '@/lib/audio/streamQuality';
 import { DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB } from './authStoreDefaults';
 import { updateReplayGainForCurrentTrack } from './playbackEngineBridge';
 import type { AuthState } from './authStoreTypes';
@@ -41,6 +41,7 @@ export function createAudioSettingsActions(set: SetState): Pick<
   | 'setHiResCrossfadeResampleHz'
   | 'setAudioOutputDevice'
   | 'setStreamQualityForAddress'
+  | 'setStreamFormatForAddress'
 > {
   return {
     setReplayGainEnabled: (v) => {
@@ -93,6 +94,13 @@ export function createAudioSettingsActions(set: SetState): Pick<
       if (clean === 0) delete next[normalizedAddress];
       else next[normalizedAddress] = clean;
       return { streamQualityByAddress: next };
+    }),
+    setStreamFormatForAddress: (normalizedAddress, v) => set((state) => {
+      const next = { ...state.streamFormatByAddress };
+      const clean = sanitizeStreamRequestFormat(v);
+      if (clean === 'auto') delete next[normalizedAddress];
+      else next[normalizedAddress] = clean;
+      return { streamFormatByAddress: next };
     }),
   };
 }

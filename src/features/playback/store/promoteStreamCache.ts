@@ -5,7 +5,7 @@ import { useHotCacheStore } from '@/features/playback/store/hotCacheStore';
 import { getMediaDir } from '@/lib/media/mediaDir';
 import { librarySqlServerId } from '@/lib/api/coverCache';
 import { hasLocalPersistentPlaybackBytes } from '@/store/localPlaybackResolve';
-import { effectiveStreamCapKbps } from '@/features/playback/utils/playback/streamQualityResolve';
+import { effectiveStreamCapKbps, streamRequestsTranscode } from '@/features/playback/utils/playback/streamQualityResolve';
 
 /**
  * Promote a track whose stream cache is full to the on-disk ephemeral tier.
@@ -22,7 +22,7 @@ export async function promoteCompletedStreamToHotCache(
   // live bytes by track id only), so promoting them would masquerade a low-
   // bitrate transcode as the original. Keep capped streams out of the hot
   // cache entirely; a quality-aware tier can lift this later.
-  if (effectiveStreamCapKbps(serverIndexKey) > 0) return;
+  if (streamRequestsTranscode(serverIndexKey)) return;
   try {
     const libraryServerId = librarySqlServerId(serverIndexKey);
     const res = await invoke<{ path: string; size: number; layoutFingerprint: string } | null>(

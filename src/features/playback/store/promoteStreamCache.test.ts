@@ -36,6 +36,7 @@ vi.mock('@/store/localPlaybackResolve', () => ({
 const streamCapMock = { kbps: 0 };
 vi.mock('@/features/playback/utils/playback/streamQualityResolve', () => ({
   effectiveStreamCapKbps: () => streamCapMock.kbps,
+  streamRequestsTranscode: () => streamCapMock.kbps > 0,
 }));
 
 import { promoteCompletedStreamToHotCache } from '@/features/playback/store/promoteStreamCache';

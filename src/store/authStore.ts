@@ -121,6 +121,7 @@ export const useAuthStore = create<AuthState>()(
       hiResCrossfadeResampleHz: 44_100,
       audioOutputDevice: null,
       streamQualityByAddress: {},
+      streamFormatByAddress: {},
       favoritesOfflineEnabled: false,
       hotCacheEnabled: false,
       hotCacheMaxMb: 256,
