@@ -493,6 +493,29 @@ impl AnalysisCache {
         Ok(())
     }
 
+    /// Delete every row for `(server_id, track_id)` whose fingerprint differs
+    /// from `key.md5_16kb`. Called once a VERIFIED (trusted-original) analysis
+    /// row is active, so `get_latest_*` reads can never surface a stale
+    /// variant (e.g. a pre-fix transcode-derived row) for the track.
+    pub fn delete_other_fingerprints(&self, key: &TrackKey) -> Result<usize, String> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let mut removed = 0usize;
+        for table in ["waveform_cache", "loudness_cache", "analysis_track"] {
+            removed += conn
+                .execute(
+                    &format!(
+                        "DELETE FROM {table} WHERE server_id = ?1 AND track_id = ?2 AND md5_16kb != ?3"
+                    ),
+                    rusqlite::params![key.server_id, key.track_id, key.md5_16kb],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(removed)
+    }
+
     pub fn touch_track_status(&self, key: &TrackKey, status: &str) -> Result<(), String> {
         let now = now_unix_ts();
         let conn = self

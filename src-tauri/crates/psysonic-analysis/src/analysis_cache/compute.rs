@@ -80,6 +80,22 @@ pub fn seed_from_bytes_execute<R: Runtime>(
         if let Some(sink) = app.try_state::<psysonic_core::ports::ContentHashSink>() {
             sink.record_content_hash(server_id, track_id, &md5_16kb);
         }
+        // A verified (trusted-original) row is now active: purge rows under any
+        // other fingerprint so latest-row reads can't surface a stale variant.
+        if trusted_md5_16kb.is_some() {
+            let key = TrackKey {
+                server_id: server_id.to_string(),
+                track_id: track_id.to_string(),
+                md5_16kb: md5_16kb.clone(),
+            };
+            match cache.delete_other_fingerprints(&key) {
+                Ok(n) if n > 0 => crate::app_deprintln!(
+                    "[analysis] purged {n} stale fingerprint rows track_id={track_id}"
+                ),
+                Ok(_) => {}
+                Err(e) => crate::app_eprintln!("[analysis] variant purge failed: {e}"),
+            }
+        }
     }
     let bpm_ms = if !server_id.is_empty() {
         let bpm_started = Instant::now();
@@ -1059,6 +1075,40 @@ mod tests {
             SeedFromBytesOutcome::SkippedWaveformCacheHit,
             "same trusted fingerprint reuses the existing analysis row"
         );
+    }
+
+    #[test]
+    fn verified_row_purges_stale_fingerprint_variants() {
+        // A pre-existing row under a stale (e.g. transcode-derived) fingerprint
+        // must disappear once a verified trusted row is active, so latest-row
+        // reads can never surface it again.
+        let cache = AnalysisCache::open_in_memory();
+        let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
+        // Stale variant written under the transcode's own hash (legacy path).
+        let (first, stale_md5) =
+            seed_from_bytes_into_cache(&cache, "srv", "t1", &wav, None, None).unwrap();
+        assert_eq!(first, SeedFromBytesOutcome::Upserted);
+        // Verified seed under the trusted original fingerprint.
+        let trusted = "trusted-original-fp";
+        let (second, _) =
+            seed_from_bytes_into_cache(&cache, "srv", "t1", &wav, None, Some(trusted)).unwrap();
+        assert_eq!(second, SeedFromBytesOutcome::Upserted);
+        let key = TrackKey {
+            server_id: "srv".into(),
+            track_id: "t1".into(),
+            md5_16kb: trusted.into(),
+        };
+        let removed = cache.delete_other_fingerprints(&key).unwrap();
+        assert!(removed > 0, "stale rows deleted");
+        let stale_key = TrackKey {
+            server_id: "srv".into(),
+            track_id: "t1".into(),
+            md5_16kb: stale_md5,
+        };
+        assert!(!cache.loudness_row_exists_for_key(&stale_key).unwrap_or(true));
+        // The trusted row survives.
+        let cov = cache.content_cache_coverage("srv", "t1", trusted).unwrap();
+        assert!(cov.has_waveform);
     }
 
     #[test]

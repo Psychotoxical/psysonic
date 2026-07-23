@@ -55,69 +55,85 @@ fn looks_like_subsonic_error(body: &[u8]) -> bool {
     trimmed.starts_with(b"{") || trimmed.starts_with(b"<?xml") || trimmed.starts_with(b"<subsonic")
 }
 
-/// Validate a raw-prefix probe response per the acceptance contract.
-/// `content_range` is the raw `Content-Range` header value.
-pub(crate) fn validate_raw_prefix_response(
-    status: u16,
-    content_range: Option<&str>,
-    body: &[u8],
-) -> bool {
-    if status != 206 || body.is_empty() {
-        return false;
+/// Header-phase validation — runs BEFORE any body bytes are read, so a server
+/// that ignored the Range request (200 with the whole file) is rejected
+/// without buffering it. Returns the exact prefix length the body must have.
+///
+/// Contract: `206`, `Content-Range: bytes 0-<end>/<total>` with a numeric
+/// total, and `end` exactly `min(16 KiB, total) - 1` — a shorter-than-window
+/// prefix of a larger file would fingerprint differently than
+/// `md5_first_16kb(original)`, so truncated or inconsistent ranges are
+/// rejected outright.
+pub(crate) fn expected_prefix_len(status: u16, content_range: Option<&str>) -> Option<usize> {
+    if status != 206 {
+        return None;
     }
-    let Some(range) = content_range else {
-        return false;
-    };
-    // "bytes 0-<end>/<total>" — must start at byte zero and describe the body.
-    let Some(spec) = range.trim().strip_prefix("bytes ") else {
-        return false;
-    };
-    let Some((span, _total)) = spec.split_once('/') else {
-        return false;
-    };
-    let Some((start, end)) = span.split_once('-') else {
-        return false;
-    };
-    if start.trim() != "0" {
-        return false;
+    let spec = content_range?.trim().strip_prefix("bytes ")?;
+    let (span, total) = spec.split_once('/')?;
+    let total: u64 = total.trim().parse().ok()?; // '*' (unknown total) -> reject
+    let (start, end) = span.split_once('-')?;
+    if start.trim() != "0" || total == 0 {
+        return None;
     }
-    let Ok(end) = end.trim().parse::<u64>() else {
-        return false;
-    };
-    if end > RAW_PROBE_RANGE_END {
-        return false;
+    let end: u64 = end.trim().parse().ok()?;
+    if end >= total {
+        return None; // inconsistent: range extends past the advertised size
     }
-    if body.len() as u64 != end + 1 {
-        return false;
+    if end != (total - 1).min(RAW_PROBE_RANGE_END) {
+        return None; // truncated or over-long prefix — wrong fingerprint window
     }
-    !looks_like_subsonic_error(body)
+    Some((end + 1) as usize)
+}
+
+/// Body-phase validation: exact expected length and not a Subsonic error
+/// envelope served with a misleading 206.
+pub(crate) fn validate_prefix_body(body: &[u8], expected_len: usize) -> bool {
+    body.len() == expected_len && !looks_like_subsonic_error(body)
 }
 
 /// Fetch the original file's first 16 KiB via `format=raw` and fingerprint it.
 /// `None` on any failure — the caller must then skip canonical analysis writes.
 pub(crate) async fn fetch_trusted_original_md5(
     client: &reqwest::Client,
+    http_headers: &crate::engine::PlaybackHttpHeaders,
     stream_url: &str,
 ) -> Option<String> {
     let probe_url = build_raw_probe_url(stream_url)?;
-    let resp = client
-        .get(&probe_url)
+    // Same reverse-proxy gate headers as playback itself — a probe through
+    // Pangolin/Cloudflare Access must not 403 while the stream succeeds.
+    let req = http_headers.apply(&probe_url, client.get(&probe_url));
+    let mut resp = req
         .header("Range", format!("bytes=0-{RAW_PROBE_RANGE_END}"))
         .timeout(RAW_PROBE_TIMEOUT)
         .send()
         .await
         .ok()?;
+    // Validate status + Content-Range BEFORE touching the body: a server that
+    // ignored the Range request would otherwise make us buffer the whole file.
     let status = resp.status().as_u16();
     let content_range = resp
         .headers()
         .get("Content-Range")
         .and_then(|v| v.to_str().ok())
         .map(str::to_string);
-    let body = resp.bytes().await.ok()?;
-    if !validate_raw_prefix_response(status, content_range.as_deref(), &body) {
+    let Some(expected_len) = expected_prefix_len(status, content_range.as_deref()) else {
         crate::app_deprintln!(
-            "[analysis][raw-probe] rejected status={status} content_range={:?} body_len={}",
-            content_range,
+            "[analysis][raw-probe] rejected pre-body status={status} content_range={content_range:?}"
+        );
+        return None;
+    };
+    // Stream the body with a hard cap — never trust the headers alone.
+    let mut body: Vec<u8> = Vec::with_capacity(expected_len);
+    while let Ok(Some(chunk)) = resp.chunk().await {
+        if body.len() + chunk.len() > expected_len {
+            crate::app_deprintln!("[analysis][raw-probe] rejected: body exceeds advertised range");
+            return None;
+        }
+        body.extend_from_slice(&chunk);
+    }
+    if !validate_prefix_body(&body, expected_len) {
+        crate::app_deprintln!(
+            "[analysis][raw-probe] rejected body_len={} expected={expected_len}",
             body.len()
         );
         return None;
@@ -153,31 +169,35 @@ mod tests {
     }
 
     #[test]
-    fn validation_requires_206_zero_start_and_matching_length() {
-        let body = vec![0x66u8; 16 * 1024]; // 'f' — media-ish bytes
-        assert!(validate_raw_prefix_response(206, Some("bytes 0-16383/9999999"), &body));
-        // Wrong status (whole-file 200 means Range was ignored — unverifiable).
-        assert!(!validate_raw_prefix_response(200, Some("bytes 0-16383/9999999"), &body));
+    fn header_validation_requires_206_zero_start_and_exact_window() {
+        // Full window on a large file.
+        assert_eq!(expected_prefix_len(206, Some("bytes 0-16383/9999999")), Some(16384));
+        // 200 = Range ignored → reject BEFORE reading any body.
+        assert_eq!(expected_prefix_len(200, Some("bytes 0-16383/9999999")), None);
         // Range not starting at zero.
-        assert!(!validate_raw_prefix_response(206, Some("bytes 100-16483/9999999"), &body));
-        // Advertised length disagrees with the body.
-        assert!(!validate_raw_prefix_response(206, Some("bytes 0-999/9999999"), &body));
+        assert_eq!(expected_prefix_len(206, Some("bytes 100-16483/9999999")), None);
+        // Truncated prefix of a large file — wrong fingerprint window.
+        assert_eq!(expected_prefix_len(206, Some("bytes 0-999/9999999")), None);
+        // Range end past the advertised total (inconsistent).
+        assert_eq!(expected_prefix_len(206, Some("bytes 0-16383/512")), None);
+        // Unknown total ('*') is unverifiable.
+        assert_eq!(expected_prefix_len(206, Some("bytes 0-16383/*")), None);
         // Missing header entirely.
-        assert!(!validate_raw_prefix_response(206, None, &body));
+        assert_eq!(expected_prefix_len(206, None), None);
     }
 
     #[test]
-    fn validation_accepts_short_files_and_rejects_error_envelopes() {
-        // File smaller than the probe window: "bytes 0-511/512".
-        let short = vec![0x11u8; 512];
-        assert!(validate_raw_prefix_response(206, Some("bytes 0-511/512"), &short));
-        // Subsonic JSON error served with a misleading 206.
+    fn short_files_use_their_full_size_and_bodies_must_match_exactly() {
+        // File smaller than the probe window: exact "0-(size-1)/size" accepted.
+        assert_eq!(expected_prefix_len(206, Some("bytes 0-511/512")), Some(512));
+        assert!(validate_prefix_body(&vec![0x11u8; 512], 512));
+        // Truncated or padded bodies are rejected even with valid headers.
+        assert!(!validate_prefix_body(&vec![0x11u8; 500], 512));
+        assert!(!validate_prefix_body(&vec![0x11u8; 513], 512));
+        // Subsonic error envelopes served with a misleading 206.
         let err = br#"{"subsonic-response":{"status":"failed"}}"#.to_vec();
-        let range = format!("bytes 0-{}/{}", err.len() - 1, err.len());
-        assert!(!validate_raw_prefix_response(206, Some(&range), &err));
-        // XML error envelope.
+        assert!(!validate_prefix_body(&err, err.len()));
         let xml = br#"<?xml version="1.0"?><subsonic-response status="failed"/>"#.to_vec();
-        let range = format!("bytes 0-{}/{}", xml.len() - 1, xml.len());
-        assert!(!validate_raw_prefix_response(206, Some(&range), &xml));
+        assert!(!validate_prefix_body(&xml, xml.len()));
     }
 }

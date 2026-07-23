@@ -252,7 +252,7 @@ export const settings = {
   hiResCrossfadeResampleWarning: 'Resampling zużywa więcej CPU i pamięci — wybierz ostrożnie na wolniejszych urządzeniach.',
   streamQualityTitle: 'Jakość strumieniowania',
   streamQualityPerAddressDesc: 'Poproś Navidrome o transkodowanie strumienia na żywo do limitu bitrate — przydatne przy wolnych lub zdalnych połączeniach. Ustawiane per adres: punkt LAN i publiczny proxy mogą mieć różne limity; odtwarzanie używa ustawienia połączonego adresu. Dotyczy tylko strumieniowania — utwory offline i z pamięci podręcznej zawsze grają w oryginalnej jakości.',
-  streamQualityOriginal: 'Oryginał (bez transkodowania)',
+  streamQualityOriginal: 'Bez limitu bitrate',
   streamQualityKbps: '{{kbps}} kb/s',
   streamFormatLabel: 'Format transkodowania',
   streamFormatAuto: 'Auto',

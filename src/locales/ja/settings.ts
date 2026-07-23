@@ -252,7 +252,7 @@ export const settings = {
   hiResCrossfadeResampleWarning: 'リサンプリングは CPU とメモリを追加で消費します。低速デバイスでは慎重に選んでください。',
   streamQualityTitle: 'ストリーミング品質',
   streamQualityPerAddressDesc: 'Navidrome にライブストリームをビットレート上限まで変換させます。低速またはリモート接続で便利です。アドレスごとに設定可能:LAN と公開プロキシで別々の上限を使え、再生には接続中アドレスの設定が適用されます。ストリーミングのみに影響し、オフラインやキャッシュ済みの曲は常に元の品質で再生されます。',
-  streamQualityOriginal: 'オリジナル(変換なし)',
+  streamQualityOriginal: 'ビットレート上限なし',
   streamQualityKbps: '{{kbps}} kbps',
   streamFormatLabel: '変換フォーマット',
   streamFormatAuto: '自動',

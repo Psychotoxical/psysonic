@@ -252,7 +252,7 @@ export const settings = {
   hiResCrossfadeResampleWarning: 'Il ricampionamento usa più CPU e memoria — scegli con attenzione sui dispositivi più lenti.',
   streamQualityTitle: 'Qualità dello streaming',
   streamQualityPerAddressDesc: 'Chiedi a Navidrome di transcodificare lo stream dal vivo entro un limite di bitrate — utile su connessioni lente o remote. Impostabile per indirizzo: un endpoint LAN e un proxy pubblico possono usare limiti diversi; la riproduzione usa l\u2019impostazione dell\u2019indirizzo connesso. Riguarda solo lo streaming — i brani offline e in cache restano in qualità originale.',
-  streamQualityOriginal: 'Originale (nessuna transcodifica)',
+  streamQualityOriginal: 'Nessun limite di bitrate',
   streamQualityKbps: '{{kbps}} kbps',
   streamFormatLabel: 'Formato di transcodifica',
   streamFormatAuto: 'Auto',

@@ -288,3 +288,23 @@ describe('per-address streaming quality lifecycle', () => {
     expect(st().streamQualityByAddress['https://a.test']).toBeUndefined();
   });
 });
+
+describe('address edit capability invalidation', () => {
+  it('drops the server identity (Navidrome gate) when an address changes', () => {
+    const { a } = addThree();
+    const st = () => useAuthStore.getState();
+    st().setSubsonicServerIdentity(a, { type: 'navidrome', serverVersion: '0.58.0' });
+    expect(st().subsonicServerIdentityByServer[a]?.type).toBe('navidrome');
+    st().updateServer(a, { url: 'https://a-new.test' });
+    // The new address is unverified — the gate must hide until re-probe.
+    expect(st().subsonicServerIdentityByServer[a]).toBeUndefined();
+  });
+
+  it('keeps the identity when only non-address fields change', () => {
+    const { a } = addThree();
+    const st = () => useAuthStore.getState();
+    st().setSubsonicServerIdentity(a, { type: 'navidrome' });
+    st().updateServer(a, { name: 'renamed' });
+    expect(st().subsonicServerIdentityByServer[a]?.type).toBe('navidrome');
+  });
+});

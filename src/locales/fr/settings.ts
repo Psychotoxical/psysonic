@@ -248,7 +248,7 @@ export const settings = {
   hiResCrossfadeResampleWarning: 'Le rééchantillonnage utilise davantage de CPU et de mémoire — choisissez avec prudence sur les appareils lents.',
   streamQualityTitle: 'Qualité de streaming',
   streamQualityPerAddressDesc: 'Demander à Navidrome de transcoder le flux en direct vers un plafond de débit — utile sur les connexions lentes ou distantes. Réglé par adresse : un point LAN et un proxy public peuvent utiliser des plafonds différents ; la lecture applique le réglage de l\u2019adresse connectée. Ne concerne que le streaming — les pistes hors ligne et en cache restent en qualité d\u2019origine.',
-  streamQualityOriginal: 'Original (sans transcodage)',
+  streamQualityOriginal: 'Sans plafond de débit',
   streamQualityKbps: '{{kbps}} kbps',
   streamFormatLabel: 'Format de transcodage',
   streamFormatAuto: 'Auto',

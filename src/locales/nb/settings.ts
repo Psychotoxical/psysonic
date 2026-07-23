@@ -249,7 +249,7 @@ export const settings = {
   hiResCrossfadeResampleWarning: 'Resampling bruker ekstra CPU og minne — velg forsiktig på tregere enheter.',
   streamQualityTitle: 'Strømmekvalitet',
   streamQualityPerAddressDesc: 'Be Navidrome om å transkode direktestrømmen ned til en bitrategrense — nyttig på trege eller eksterne tilkoblinger. Angis per adresse: et LAN-endepunkt og en offentlig proxy kan bruke ulike grenser; avspillingen bruker innstillingen for adressen som er tilkoblet. Gjelder kun strømming — frakoblede og bufrede spor spilles alltid i originalkvalitet.',
-  streamQualityOriginal: 'Original (ingen transkoding)',
+  streamQualityOriginal: 'Ingen bitrategrense',
   streamQualityKbps: '{{kbps}} kbps',
   streamFormatLabel: 'Transkodingsformat',
   streamFormatAuto: 'Auto',

@@ -48,6 +48,7 @@
   cursor: pointer;
   transition: background 0.1s;
 }
+.custom-select-option.active,
 .custom-select-option:hover {
   background: var(--menu-item-hover);
 }

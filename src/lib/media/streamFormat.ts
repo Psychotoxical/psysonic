@@ -27,6 +27,11 @@ export interface ResolvedStreamFormat {
    * stream actually used, not a setting the user changed mid-playback.
    */
   streamCapKbps?: number;
+  /**
+   * Playback generation the format belongs to — used to reject out-of-order
+   * events from a superseded stream of the same track (replay, rapid restart).
+   */
+  generation?: number;
 }
 
 /**

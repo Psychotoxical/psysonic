@@ -170,10 +170,15 @@ pub(crate) fn spawn_gapless_transition_analysis(app: &AppHandle, info: &ChainedI
 /// Byte-backed analysis — the single audio-side entry before the analysis crate planner.
 ///
 /// `stream_url`: the URL the bytes were streamed from (None for local files).
-/// When it carries a `maxBitRate` cap the bytes are a transcode: canonical
-/// identity is then established by a raw-prefix probe of the original, and on
-/// probe failure the seed is skipped entirely so transcoded bytes never
-/// produce canonical cache/library writes.
+/// Every HTTP stream is treated as potentially transcoded — the server may
+/// force transcoding without any client-visible URL marker — so canonical
+/// identity is established by a raw-prefix probe of the original
+/// (`format=raw`, Navidrome-verified). Probe outcomes:
+/// - success → analysis stored under the trusted ORIGINAL fingerprint;
+/// - failure + the URL requested a transcode → seed skipped entirely
+///   (no canonical writes from bytes with no verified identity);
+/// - failure + plain URL → legacy bytes-hash path (non-Navidrome servers,
+///   where the raw contract does not exist and bytes are assumed original).
 pub(crate) async fn dispatch_track_analysis_bytes(
     app: &AppHandle,
     origin: TrackAnalysisOrigin,
@@ -203,38 +208,52 @@ pub(crate) async fn dispatch_track_analysis_bytes(
         if server_id.is_empty() { "''" } else { server_id },
         bytes.len() as f64 / (1024.0 * 1024.0),
     );
-    let capped = stream_url.is_some_and(crate::play_input::url_requests_transcode);
-    if capped {
-        // Transcoded stream: fetch the ORIGINAL's fingerprint via `format=raw`
-        // so the analysis is stored under the original's identity. If the probe
-        // fails there is no trusted identity — skip the seed (no canonical
-        // writes); the next uncapped play or backfill will analyze the original.
+    let is_http_stream = stream_url
+        .is_some_and(|u| u.starts_with("http://") || u.starts_with("https://"));
+    let transcode_requested = stream_url.is_some_and(crate::play_input::url_requests_transcode);
+    if is_http_stream {
         let client = app
             .try_state::<AudioEngine>()
             .map(|e| crate::engine::audio_http_client(&e))
             .unwrap_or_default();
-        let Some(trusted) = crate::raw_probe::fetch_trusted_original_md5(
+        let http_headers = crate::engine::PlaybackHttpHeaders::from_app(
+            app,
+            Some(server_id).filter(|s| !s.is_empty()),
+        );
+        let trusted = crate::raw_probe::fetch_trusted_original_md5(
             &client,
+            &http_headers,
             stream_url.unwrap_or_default(),
         )
-        .await
-        else {
-            crate::app_deprintln!(
-                "[analysis][dispatch] skip origin={origin:?} track_id={track_id}: capped stream, raw-prefix probe failed — no canonical writes"
-            );
-            return Ok(());
-        };
-        return psysonic_analysis::analysis_runtime::enqueue_track_analysis_trusted(
-            app,
-            server_id,
-            track_id,
-            &bytes,
-            None,
-            trusted,
-            priority,
-        )
-        .await
-        .map(|_| ());
+        .await;
+        match (trusted, transcode_requested) {
+            (Some(trusted), _) => {
+                return psysonic_analysis::analysis_runtime::enqueue_track_analysis_trusted(
+                    app,
+                    server_id,
+                    track_id,
+                    &bytes,
+                    None,
+                    trusted,
+                    priority,
+                )
+                .await
+                .map(|_| ());
+            }
+            (None, true) => {
+                // The URL itself requested a transcode and the original could
+                // not be verified — never write canonical data from it.
+                crate::app_deprintln!(
+                    "[analysis][dispatch] skip origin={origin:?} track_id={track_id}: transcoded stream, raw-prefix probe failed — no canonical writes"
+                );
+                return Ok(());
+            }
+            (None, false) => {
+                // Raw contract unavailable (non-Navidrome server or probe
+                // failure on a plain stream) — legacy path: bytes are assumed
+                // to be the original.
+            }
+        }
     }
     psysonic_analysis::analysis_runtime::enqueue_track_analysis(
         app,

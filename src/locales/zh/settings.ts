@@ -248,7 +248,7 @@ export const settings = {
   hiResCrossfadeResampleWarning: '重采样会额外消耗 CPU 和内存——在较慢设备上请谨慎选择。',
   streamQualityTitle: '串流品质',
   streamQualityPerAddressDesc: '让 Navidrome 将实时串流转码到指定码率上限——适合缓慢或远程连接。按地址分别设置：局域网地址和公网代理可使用不同上限；播放采用当前连接地址的设置。仅影响串流——离线和缓存曲目始终以原始品质播放。',
-  streamQualityOriginal: '原始(不转码)',
+  streamQualityOriginal: '无码率上限',
   streamQualityKbps: '{{kbps}} kbps',
   streamFormatLabel: '转码格式',
   streamFormatAuto: '自动',

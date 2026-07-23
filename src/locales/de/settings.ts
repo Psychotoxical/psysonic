@@ -249,7 +249,7 @@ export const settings = {
   hiResCrossfadeResampleWarning: 'Resampling verbraucht zusätzliche CPU und Speicher — auf langsameren Geräten vorsichtig wählen.',
   streamQualityTitle: 'Streaming-Qualität',
   streamQualityPerAddressDesc: 'Navidrome bitten, den Live-Stream auf eine Bitraten-Obergrenze zu transkodieren — nützlich bei langsamen oder entfernten Verbindungen. Pro Adresse einstellbar: ein LAN-Endpunkt und ein öffentlicher Proxy können unterschiedliche Limits nutzen; die Wiedergabe verwendet die Einstellung der aktuell verbundenen Adresse. Betrifft nur Streaming — Offline- und zwischengespeicherte Titel spielen immer in Originalqualität.',
-  streamQualityOriginal: 'Original (kein Transkodieren)',
+  streamQualityOriginal: 'Keine Bitratengrenze',
   streamQualityKbps: '{{kbps}} kbit/s',
   streamFormatLabel: 'Transkodierformat',
   streamFormatAuto: 'Automatisch',

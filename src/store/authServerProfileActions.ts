@@ -78,6 +78,7 @@ export function createServerProfileActions(set: SetState, get: GetState): Pick<
         // re-probed, so caps for addresses no longer on any profile are dropped.
         let streamQualityByAddress = s.streamQualityByAddress;
         let streamFormatByAddress = s.streamFormatByAddress;
+        let subsonicServerIdentityByServer = s.subsonicServerIdentityByServer;
         if (prev && ('url' in data || 'alternateUrl' in data)) {
           const live = new Set(
             servers.flatMap(profileAddresses),
@@ -88,8 +89,18 @@ export function createServerProfileActions(set: SetState, get: GetState): Pick<
           streamFormatByAddress = Object.fromEntries(
             Object.entries(s.streamFormatByAddress).filter(([addr]) => live.has(addr)),
           );
+          // The edited address is an unverified endpoint: drop the cached
+          // server identity so Navidrome-gated features (streaming quality)
+          // hide until the connection re-probe confirms what it is.
+          const { [id]: _stale, ...identityRest } = s.subsonicServerIdentityByServer;
+          subsonicServerIdentityByServer = identityRest;
         }
-        return { servers, streamQualityByAddress, streamFormatByAddress };
+        return {
+          servers,
+          streamQualityByAddress,
+          streamFormatByAddress,
+          subsonicServerIdentityByServer,
+        };
       });
     },
 

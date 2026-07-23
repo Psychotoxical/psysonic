@@ -180,9 +180,19 @@ export function handleAudioFormat(payload: AudioFormatPayload): void {
   // server is rejected without false-rejecting the normal case.
   if (payload.serverId != null && cur.serverId != null
     && !indexKeyBelongsToServer(payload.serverId, cur.serverId)) return;
+  // Generation guard: a late event from a superseded playback of the SAME
+  // track (replay/restart) must not overwrite the current stream's format.
+  const prev = usePlayerStore.getState().resolvedStreamFormat;
+  if (
+    payload.generation != null
+    && prev?.generation != null
+    && prev.trackId === cur.id
+    && payload.generation < prev.generation
+  ) return;
   usePlayerStore.setState({
     resolvedStreamFormat: {
       trackId: cur.id,
+      generation: payload.generation ?? undefined,
       codec: payload.codec,
       sampleRate: payload.sampleRate ?? undefined,
       bitsPerSample: payload.bitsPerSample ?? undefined,
@@ -190,9 +200,12 @@ export function handleAudioFormat(payload: AudioFormatPayload): void {
       lossless: !!payload.lossless,
       // The cap the stream was actually opened with, latched by Rust from the
       // stream URL — a mid-playback settings change affects the next stream,
-      // never relabels the current one. Legacy events without the field fall
-      // back to a snapshot of the current per-address setting.
-      streamCapKbps: payload.streamCapKbps ?? effectiveStreamCapKbps(cur.serverId),
+      // never relabels the current one. An explicit `null` is a REAL "no cap"
+      // (Rust `None`); only a truly absent field (legacy event) falls back to
+      // a snapshot of the current per-address setting.
+      streamCapKbps: payload.streamCapKbps === undefined
+        ? effectiveStreamCapKbps(cur.serverId)
+        : (payload.streamCapKbps ?? 0),
     },
   });
 }

@@ -252,7 +252,7 @@ export const settings = {
   hiResCrossfadeResampleWarning: 'Az átmintavételezés extra CPU-t és memóriát igényel — lassabb eszközökön válassz körültekintően.',
   streamQualityTitle: 'Streamelési minőség',
   streamQualityPerAddressDesc: 'Kérd a Navidrome-ot, hogy az élő streamet egy bitráta-korlátra transzkódolja — hasznos lassú vagy távoli kapcsolatokon. Címenként állítható: egy LAN-végpont és egy nyilvános proxy eltérő korlátot használhat; a lejátszás a csatlakoztatott cím beállítását alkalmazza. Csak a streamelést érinti — az offline és gyorsítótárazott számok mindig eredeti minőségben szólnak.',
-  streamQualityOriginal: 'Eredeti (nincs transzkódolás)',
+  streamQualityOriginal: 'Nincs bitráta-korlát',
   streamQualityKbps: '{{kbps}} kbps',
   streamFormatLabel: 'Transzkódolási formátum',
   streamFormatAuto: 'Automatikus',

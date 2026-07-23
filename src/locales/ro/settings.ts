@@ -251,7 +251,7 @@ export const settings = {
   hiResCrossfadeResampleWarning: 'Reeșantionarea consumă CPU și memorie suplimentară — alege cu atenție pe dispozitive mai lente.',
   streamQualityTitle: 'Calitate streaming',
   streamQualityPerAddressDesc: 'Cere Navidrome să transcodeze fluxul live la o limită de bitrate — util pe conexiuni lente sau la distanță. Se setează per adresă: un endpoint LAN și un proxy public pot folosi limite diferite; redarea folosește setarea adresei conectate. Afectează doar streamingul — piesele offline și din cache rulează mereu la calitatea originală.',
-  streamQualityOriginal: 'Original (fără transcodare)',
+  streamQualityOriginal: 'Fără limită de bitrate',
   streamQualityKbps: '{{kbps}} kbps',
   streamFormatLabel: 'Format de transcodare',
   streamFormatAuto: 'Automat',

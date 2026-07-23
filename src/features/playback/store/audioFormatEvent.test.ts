@@ -73,4 +73,29 @@ describe('audio:format event identity', () => {
     handleAudioFormat({ trackId: 'a', serverId: 's1', codec: 'opus', lossless: false });
     expect(usePlayerStore.getState().resolvedStreamFormat?.streamCapKbps).toBe(192);
   });
+
+  it('rejects an older-generation event for the same track (out-of-order delivery)', () => {
+    // Same track id + server (replay/repeat): a late event from the PREVIOUS
+    // playback generation must not overwrite the current stream's format.
+    usePlayerStore.setState({ currentTrack: track('a', 's1') });
+    handleAudioFormat({
+      trackId: 'a', serverId: 's1', generation: 7, streamCapKbps: null, codec: 'flac', lossless: true,
+    });
+    handleAudioFormat({
+      trackId: 'a', serverId: 's1', generation: 5, streamCapKbps: 128, codec: 'opus', lossless: false,
+    });
+    const fmt = usePlayerStore.getState().resolvedStreamFormat;
+    expect(fmt?.codec).toBe('flac');
+  });
+
+  it('does NOT relabel an uncapped stream when the engine sends an explicit null cap', () => {
+    // Rust `None` serializes as null — that is a REAL "no cap", not a missing
+    // legacy field. A current setting of 192 must not be stamped onto it.
+    streamCapMock.kbps = 192;
+    usePlayerStore.setState({ currentTrack: track('a', 's1') });
+    handleAudioFormat({
+      trackId: 'a', serverId: 's1', streamCapKbps: null, codec: 'flac', lossless: true,
+    });
+    expect(usePlayerStore.getState().resolvedStreamFormat?.streamCapKbps).toBe(0);
+  });
 });

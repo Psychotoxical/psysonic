@@ -143,6 +143,16 @@ pub(crate) fn spawn_progress_task<E: ProgressEmitter>(
                 let chained = chained_arc.lock().unwrap().take();
                 if let Some(info) = chained {
                     if let Some(app) = analysis_app.clone() {
+                        // The successor is now the playing track: re-pin the
+                        // engine's analysis identity (track + server scope) so
+                        // loudness/waveform/gain resolution after the boundary
+                        // targets the successor, not the finished track.
+                        if let Some(engine) = tauri::Manager::try_state::<crate::engine::AudioEngine>(&app) {
+                            *engine.current_analysis_track_id.lock().unwrap() =
+                                info.analysis_track_id.clone();
+                            *engine.current_playback_server_id.lock().unwrap() =
+                                info.server_id.clone();
+                        }
                         crate::analysis_dispatch::spawn_gapless_transition_analysis(&app, &info);
                     }
 

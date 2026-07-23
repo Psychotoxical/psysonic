@@ -436,6 +436,15 @@ async fn enqueue_track_analysis_with_fetch(
             track_id,
             content_hash
         );
+        // Analysis already complete under the trusted fingerprint — still
+        // repair the library hash: `track.content_hash` may hold a stale
+        // (e.g. pre-probe transcode-derived) value that would keep readiness
+        // and remap keyed to the wrong identity.
+        if trusted_md5_16kb.is_some() && !server_id.is_empty() {
+            if let Some(sink) = app.try_state::<psysonic_core::ports::ContentHashSink>() {
+                sink.record_content_hash(server_id, track_id, &content_hash);
+            }
+        }
         return Ok(EnqueueTrackAnalysisOutcome::Complete);
     }
     if plan.needs_full_cpu_seed() {
@@ -1155,6 +1164,12 @@ struct AnalysisCpuSeedQueueState {
     running_tiers: HashMap<String, AnalysisBackfillPriority>,
 }
 
+/// Scope key for cpu-seed dedup/merge: same track id on different servers is
+/// different content. `\u{1f}` cannot appear in server ids or Subsonic ids.
+fn seed_key(server_id: &str, track_id: &str) -> String {
+    format!("{server_id}\u{1f}{track_id}")
+}
+
 impl AnalysisCpuSeedQueueState {
     fn queued_len(&self) -> usize {
         self.high.len() + self.middle.len() + self.low.len()
@@ -1196,7 +1211,7 @@ impl AnalysisCpuSeedQueueState {
         }
     }
 
-    fn locate_queued(&self, tid: &str) -> Option<(AnalysisBackfillPriority, usize)> {
+    fn locate_queued(&self, key: &str) -> Option<(AnalysisBackfillPriority, usize)> {
         for tier in [
             AnalysisBackfillPriority::High,
             AnalysisBackfillPriority::Middle,
@@ -1205,7 +1220,7 @@ impl AnalysisCpuSeedQueueState {
             if let Some(pos) = self
                 .tier_deque(tier)
                 .iter()
-                .position(|j| j.track_id == tid)
+                .position(|j| seed_key(&j.server_id, &j.track_id) == key)
             {
                 return Some((tier, pos));
             }
@@ -1236,9 +1251,11 @@ impl AnalysisCpuSeedQueueState {
         SeedDoneReceiver,
     ) {
         let (done_tx, done_rx) = tokio::sync::oneshot::channel();
-        let tid = track_id.as_str();
+        // Dedup/merge scope is (server, track): the same Subsonic id on two
+        // servers is two different files and must not share one decode.
+        let key = seed_key(&server_id, &track_id);
 
-        if let Some(followers) = self.running.get(tid) {
+        if let Some(followers) = self.running.get(&key) {
             followers
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
@@ -1246,7 +1263,7 @@ impl AnalysisCpuSeedQueueState {
             return (AnalysisCpuSeedEnqueueKind::RunningFollower, done_rx);
         }
 
-        if let Some((existing_tier, pos)) = self.locate_queued(tid) {
+        if let Some((existing_tier, pos)) = self.locate_queued(&key) {
             let mut job = self.tier_deque_mut(existing_tier).remove(pos).unwrap();
             job.server_id = server_id;
             job.bytes = bytes;
@@ -1434,10 +1451,9 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
                 st.try_pop_next().map(|j| {
                     let followers = Arc::new(Mutex::new(Vec::new()));
                     let job_priority = j.priority;
-                    st.running
-                        .insert(j.track_id.clone(), followers.clone());
-                    st.running_tiers
-                        .insert(j.track_id.clone(), job_priority);
+                    let run_key = seed_key(&j.server_id, &j.track_id);
+                    st.running.insert(run_key.clone(), followers.clone());
+                    st.running_tiers.insert(run_key, job_priority);
                     let worker_slot = st.running.len();
                     (j, followers, worker_slot)
                 })
@@ -1447,6 +1463,7 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
             break;
         };
         let tid_log = job.track_id.clone();
+        let run_key_log = seed_key(&job.server_id, &job.track_id);
         let fetch_ms = job.fetch_ms;
         crate::app_deprintln!(
             "[analysis] cpu-seed worker={}/{}: start track_id={}",
@@ -1493,8 +1510,8 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
 
             {
                 let mut st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
-                st.running.remove(&tid_log);
-                st.running_tiers.remove(&tid_log);
+                st.running.remove(&run_key_log);
+                st.running_tiers.remove(&run_key_log);
             }
             // Decode slot freed → wake HTTP backfill in case it was idling on
             // the `cpu_seed_pipeline_cap` backpressure check.
@@ -1837,6 +1854,37 @@ mod tests {
 
     #[test]
     fn cpu_seed_enqueue_existing_low_prio_merges_at_back() {
+        // Same (server, track): the fresh submission merges into the queued job.
+        let mut s = AnalysisCpuSeedQueueState::default();
+        let (_, _r1) = s.enqueue(
+            "server-a".into(),
+            "dup".into(),
+            vec![1, 2, 3],
+            None,
+            None,
+            AnalysisBackfillPriority::Low,
+            0,
+        );
+        let (kind, _r2) = s.enqueue(
+            "server-a".into(),
+            "dup".into(),
+            vec![4, 5, 6],
+            None,
+            None,
+            AnalysisBackfillPriority::Low,
+            0,
+        );
+        assert_eq!(kind, AnalysisCpuSeedEnqueueKind::MergedQueued);
+        assert_eq!(s.queued_len(), 1);
+        let job = s.try_pop_next().unwrap();
+        assert_eq!(job.bytes, vec![4, 5, 6], "fresh bytes overwrite");
+        assert_eq!(job.waiters.len(), 2, "both waiters attached");
+    }
+
+    #[test]
+    fn cpu_seed_enqueue_same_track_id_on_two_servers_stays_two_jobs() {
+        // The same Subsonic id on different servers is different content —
+        // it must NOT merge into one decode or steal the other's scope.
         let mut s = AnalysisCpuSeedQueueState::default();
         let (_, _r1) = s.enqueue(
             "server-a".into(),
@@ -1856,12 +1904,12 @@ mod tests {
             AnalysisBackfillPriority::Low,
             0,
         );
-        assert_eq!(kind, AnalysisCpuSeedEnqueueKind::MergedQueued);
-        assert_eq!(s.queued_len(), 1);
-        let job = s.try_pop_next().unwrap();
-        assert_eq!(job.bytes, vec![4, 5, 6], "fresh bytes overwrite");
-        assert_eq!(job.server_id, "server-b", "latest server scope wins on merge");
-        assert_eq!(job.waiters.len(), 2, "both waiters attached");
+        assert_eq!(kind, AnalysisCpuSeedEnqueueKind::NewLow);
+        assert_eq!(s.queued_len(), 2, "one job per server");
+        let first = s.try_pop_next().unwrap();
+        let second = s.try_pop_next().unwrap();
+        assert_eq!(first.server_id, "server-a");
+        assert_eq!(second.server_id, "server-b");
     }
 
     #[test]
@@ -1902,7 +1950,7 @@ mod tests {
     fn cpu_seed_enqueue_running_id_attaches_as_follower() {
         let mut s = AnalysisCpuSeedQueueState::default();
         let followers = Arc::new(Mutex::new(Vec::new()));
-        s.running.insert("active".into(), followers.clone());
+        s.running.insert(seed_key("", "active"), followers.clone());
         let (kind, _rx) = s.enqueue(
             String::new(),
             "active".into(),

@@ -248,7 +248,7 @@ export const settings = {
   hiResCrossfadeResampleWarning: 'Resampling kost extra CPU en geheugen — kies voorzichtig op tragere apparaten.',
   streamQualityTitle: 'Streamingkwaliteit',
   streamQualityPerAddressDesc: 'Vraag Navidrome om de livestream te transcoderen tot een bitrate-limiet — handig bij trage of externe verbindingen. Per adres in te stellen: een LAN-eindpunt en een publieke proxy kunnen verschillende limieten gebruiken; het afspelen gebruikt de instelling van het verbonden adres. Geldt alleen voor streaming — offline en gecachete nummers spelen altijd in originele kwaliteit.',
-  streamQualityOriginal: 'Origineel (geen transcodering)',
+  streamQualityOriginal: 'Geen bitrate-limiet',
   streamQualityKbps: '{{kbps}} kbps',
   streamFormatLabel: 'Transcodeerformaat',
   streamFormatAuto: 'Automatisch',
