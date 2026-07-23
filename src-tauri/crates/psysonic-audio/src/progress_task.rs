@@ -142,11 +142,16 @@ pub(crate) fn spawn_progress_task<E: ProgressEmitter>(
 
                 let chained = chained_arc.lock().unwrap().take();
                 if let Some(info) = chained {
+                    // The successor is now the playing track. Update the
+                    // playback URL FIRST: `resolve_analysis_server_id` prefers
+                    // the URL-derived server, so spawning the transition
+                    // analysis before this update would resolve a cross-server
+                    // successor under the PREDECESSOR's scope and headers.
+                    *current_playback_url.lock().unwrap() = Some(info.url.clone());
                     if let Some(app) = analysis_app.clone() {
-                        // The successor is now the playing track: re-pin the
-                        // engine's analysis identity (track + server scope) so
-                        // loudness/waveform/gain resolution after the boundary
-                        // targets the successor, not the finished track.
+                        // Re-pin the engine's analysis identity (track + server
+                        // scope) so loudness/waveform/gain resolution after the
+                        // boundary targets the successor, not the finished track.
                         if let Some(engine) = tauri::Manager::try_state::<crate::engine::AudioEngine>(&app) {
                             *engine.current_analysis_track_id.lock().unwrap() =
                                 info.analysis_track_id.clone();
@@ -184,8 +189,6 @@ pub(crate) fn spawn_progress_task<E: ProgressEmitter>(
                             ramp_sink_volume(Arc::clone(sink), prev_effective, effective);
                         }
                     }
-
-                    *current_playback_url.lock().unwrap() = Some(info.url.clone());
 
                     // Record the gapless switch timestamp for ghost-command guard.
                     let switch_ts = std::time::SystemTime::now()
