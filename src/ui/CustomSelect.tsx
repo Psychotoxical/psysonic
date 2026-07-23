@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown } from 'lucide-react';
 
@@ -34,7 +34,8 @@ export default function CustomSelect({
   const [dropStyle, setDropStyle] = useState<React.CSSProperties>({});
   // Keyboard navigation: index of the highlighted option while the list is open.
   const [activeIndex, setActiveIndex] = useState(-1);
-  const listboxId = useRef(`custom-select-${Math.random().toString(36).slice(2, 9)}`).current;
+  // Stable, render-pure id for aria-activedescendant / option ids.
+  const listboxId = `custom-select-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
 
   const selected = options.find(o => o.value === value);
 
