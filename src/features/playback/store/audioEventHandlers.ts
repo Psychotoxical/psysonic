@@ -32,6 +32,7 @@ import {
 import { noteEngineProgressForGapless } from '@/features/playback/store/gaplessProgressTracking';
 import { showToast } from '@/lib/dom/toast';
 import { useAuthStore } from '@/store/authStore';
+import { indexKeyBelongsToServer } from '@/store/localPlaybackResolve';
 import { getPlayGeneration, setIsAudioPaused } from '@/features/playback/store/engineState';
 import {
   clearPreloadingIds,
@@ -137,6 +138,65 @@ export function handleAudioPlaying(duration: number): void {
     // the `playing` state for servers with the playbackReport extension.
     playbackReportPlaying();
   }
+}
+
+/** Rust-side `audio:format` event payload — the actually-decoded stream format. */
+export type AudioFormatPayload = {
+  /** Track the engine resolved this format for. Absent on legacy events. */
+  trackId?: string | null;
+  /** Playback server index key — disambiguates duplicate track ids across servers. */
+  serverId?: string | null;
+  /** Playback generation of the stream (stale-event rejection). */
+  generation?: number | null;
+  /** `maxBitRate` the stream URL was opened with — latched per stream by Rust. */
+  streamCapKbps?: number | null;
+  codec: string;
+  sampleRate?: number | null;
+  bitsPerSample?: number | null;
+  channels?: number | null;
+  lossless: boolean;
+};
+
+/**
+ * The engine resolved the real codec/format of the live stream. Stamp it onto
+ * the current track so now-playing badges can show what the server is actually
+ * transmitting (a server-side transcode differs from the library's stored
+ * metadata). Identity-guarded: events for a since-skipped track, a duplicate
+ * id on another server, or an older playback generation are dropped.
+ */
+export function handleAudioFormat(payload: AudioFormatPayload): void {
+  const cur = usePlayerStore.getState().currentTrack;
+  if (!cur || !payload?.codec) return;
+  if (payload.trackId != null && payload.trackId !== cur.id) return;
+  // Rust sends the playback index key; the track carries a server profile id.
+  // `indexKeyBelongsToServer` maps between the two so a duplicate id on another
+  // server is rejected without false-rejecting the normal case.
+  if (payload.serverId != null && cur.serverId != null
+    && !indexKeyBelongsToServer(payload.serverId, cur.serverId)) return;
+  // Generation guard: a late event from a superseded playback of the SAME
+  // track (replay/restart) must not overwrite the current stream's format.
+  const prev = usePlayerStore.getState().resolvedStreamFormat;
+  if (
+    payload.generation != null
+    && prev?.generation != null
+    && prev.trackId === cur.id
+    && payload.generation < prev.generation
+  ) return;
+  usePlayerStore.setState({
+    resolvedStreamFormat: {
+      trackId: cur.id,
+      generation: payload.generation ?? undefined,
+      codec: payload.codec,
+      sampleRate: payload.sampleRate ?? undefined,
+      bitsPerSample: payload.bitsPerSample ?? undefined,
+      channels: payload.channels ?? undefined,
+      lossless: !!payload.lossless,
+      // The cap the stream was opened with, latched by Rust from the URL. No
+      // client-side cap feature exists yet, so this is normally absent/null —
+      // an explicit null is a real "no cap", never re-labelled.
+      streamCapKbps: payload.streamCapKbps ?? 0,
+    },
+  });
 }
 
 export function handleAudioProgress(

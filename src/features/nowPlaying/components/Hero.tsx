@@ -9,6 +9,8 @@ import { OpenArtistRefInline } from '@/ui/OpenArtistRefInline';
 import { formatTrackTime } from '@/lib/format/formatDuration';
 import { renderPresetIcon, useEnrichmentPrimaryIcon, useEnrichmentPrimaryLabel } from '@/music-network/ui';
 import { buildArtistDetailPath } from '@/lib/navigation/detailServerScope';
+import { effectiveAudioFormat, effectiveAudioFormatParts } from '@/lib/media/streamFormat';
+import { usePlayerStore } from '@/features/playback';
 
 interface HeroProps {
   track: { title: string; artist: string; album: string; year?: number;
@@ -53,7 +55,14 @@ const Hero = memo(function Hero({ track, artistRefs, genre, playCount, userRatin
   const networkLabel = useEnrichmentPrimaryLabel() ?? '';
   const networkIcon = useEnrichmentPrimaryIcon();
   const rating = userRatingOverride ?? track.userRating;
-  const hiRes  = (track.bitDepth ?? 0) > 16 || (track.samplingRate ?? 0) > 48000;
+  const resolvedStreamFormat = usePlayerStore(s => s.resolvedStreamFormat);
+  const fmt = effectiveAudioFormat(track, resolvedStreamFormat);
+  const transcodedTooltip = fmt.transcoded
+    ? t('queue.streamTranscoded', {
+      original: effectiveAudioFormatParts(effectiveAudioFormat(track, null)).join(' · '),
+    })
+    : undefined;
+  const hiRes  = (fmt.bitDepth ?? 0) > 16 || (fmt.sampleRate ?? 0) > 48000;
   const releaseAge = track.year ? new Date().getFullYear() - track.year : 0;
 
   return (
@@ -112,10 +121,15 @@ const Hero = memo(function Hero({ track, artistRefs, genre, playCount, userRatin
 
         <div className="np-dash-hero-badges">
           {genre && <span className="np-badge">{genre}</span>}
-          {track.suffix && <span className="np-badge">{track.suffix.toUpperCase()}</span>}
-          {(track.bitRate ?? 0) > 0 && <span className="np-badge">{track.bitRate} kbps</span>}
-          {(track.samplingRate ?? 0) > 0 && <span className="np-badge">{((track.samplingRate ?? 0) / 1000).toFixed(1)} kHz</span>}
-          {(track.bitDepth ?? 0) > 0 && <span className="np-badge">{track.bitDepth}-bit</span>}
+          {fmt.formatLabel && (
+            <span
+              className={`np-badge${fmt.transcoded ? ' np-badge-transcoded' : ''}`}
+              data-tooltip={transcodedTooltip}
+            >{fmt.formatLabel}</span>
+          )}
+          {(fmt.bitRate ?? 0) > 0 && <span className="np-badge">{fmt.bitRateIsCap ? '≤' : ''}{fmt.bitRate} kbps</span>}
+          {(fmt.sampleRate ?? 0) > 0 && <span className="np-badge">{((fmt.sampleRate ?? 0) / 1000).toFixed(1)} kHz</span>}
+          {(fmt.bitDepth ?? 0) > 0 && <span className="np-badge">{fmt.bitDepth}-bit</span>}
           {hiRes && <span className="np-badge np-badge-hires">Hi-Res</span>}
           {track.duration > 0 && <span className="np-badge">{formatTrackTime(track.duration)}</span>}
         </div>

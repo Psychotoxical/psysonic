@@ -50,6 +50,7 @@ export const queue = {
   sourceOffline: 'Lejátszás az offline könyvtárból',
   sourceHot: 'Lejátszás a gyorsítótárból',
   sourceStream: 'Lejátszás hálózati streamből',
+  streamTranscoded: 'A szerver transzkódolta — eredeti fájl: {{original}}',
   clearCachedLoudnessWaveform: 'Gyorsítótárazott hangerő és hullámforma törlése, majd a szám újraelemzése',
   recalculatingLoudnessWaveform: 'A szám hangerejének és hullámformájának újraszámítása…',
   bpm: '{{bpm}} BPM',

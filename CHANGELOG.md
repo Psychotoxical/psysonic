@@ -127,6 +127,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The "Various Artists" artist page lists every compilation again, instead of only the few tracks tagged directly with the Various Artists id. Compilations link to the artist through their album-artist label, which the local index now follows across all selected servers.
 * A compilation's album header links to "Various Artists" rather than to one of the individual track performers.
 
+### Now playing — show the real streamed format when the server transcodes
+
+**By [@Manwe-777](https://github.com/Manwe-777), PR [#1338](https://github.com/Psychotoxical/psysonic/pull/1338)**
+
+* The quality badge (queue, now-playing hero, mobile player, immersive fullscreen) was built from the track's stored library metadata, so a server-side transcode still read the original file — e.g. "FLAC · 3149 kbps · 24-bit" while actually receiving Opus. It now shows the format the audio engine actually decoded, with the original file's format in a tooltip, and falls back to the stored metadata when no transcode is happening. When the transmitted bitrate is unknown, none is shown instead of a wrong one.
+
 
 ## [1.50.0]
 

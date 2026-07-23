@@ -347,6 +347,7 @@ pub async fn audio_play(
     let duration_secs = built.duration_secs;
     let output_rate = built.output_rate;
     let output_channels = built.output_channels;
+    let resolved_format = built.resolved_format;
 
     // Store the actual output rate/channels for position calculation.
     state.current_sample_rate.store(output_rate, Ordering::Relaxed);
@@ -354,6 +355,21 @@ pub async fn audio_play(
 
     if state.generation.load(Ordering::SeqCst) != gen {
         return Ok(());
+    }
+
+    // Surface the real decoded format so now-playing badges reflect what the
+    // server is actually transmitting — it may differ from the library's
+    // stored metadata when the server transcodes. Emitted before the
+    // play/deferred-start branching so it fires on both paths; the frontend
+    // stamps it onto the current track and drops stale/mismatched events.
+    if let Some(fmt) = resolved_format.as_ref() {
+        let ev = crate::decode::AudioFormatEvent::from_info(fmt, crate::decode::AudioFormatIdentity {
+            track_id: logical_trim.clone(),
+            server_id: analysis_server_id.map(str::to_string),
+            generation: Some(gen),
+            stream_cap_kbps: crate::play_input::url_stream_cap_kbps(&url),
+        });
+        app.emit("audio:format", ev).ok();
     }
 
     let current_stream_rate = state.stream_sample_rate.load(Ordering::Relaxed);
@@ -845,6 +861,7 @@ pub async fn audio_chain_preload(
         analysis_track_id: logical_trim,
         server_id: analysis_server_id.map(str::to_string),
         raw_bytes,
+        resolved_format: built.resolved_format,
         duration_secs,
         replay_gain_linear: gain_linear,
         base_volume: volume.clamp(0.0, 1.0),

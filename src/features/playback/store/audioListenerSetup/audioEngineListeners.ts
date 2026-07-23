@@ -8,9 +8,11 @@ import {
 import {
   handleAudioEnded,
   handleAudioError,
+  handleAudioFormat,
   handleAudioPlaying,
   handleAudioProgress,
   handleAudioTrackSwitched,
+  type AudioFormatPayload,
   type NormalizationStatePayload,
 } from '@/features/playback/store/audioEventHandlers';
 import {
@@ -57,6 +59,7 @@ export function setupAudioEngineListeners(): () => void {
 
   const pending = [
     listen<number>('audio:playing', ({ payload }) => handleAudioPlaying(payload)),
+    listen<AudioFormatPayload>('audio:format', ({ payload }) => handleAudioFormat(payload)),
     listen<{ current_time: number; duration: number; buffering?: boolean }>('audio:progress', ({ payload }) => {
       if (import.meta.env.DEV) {
         _devEventCount++;

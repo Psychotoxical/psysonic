@@ -449,3 +449,34 @@ pub(crate) fn url_format_hint(url: &str) -> Option<String> {
         })
         .map(|s| s.to_lowercase())
 }
+
+/// The `maxBitRate` cap (kbps) a `stream.view` URL was opened with, if any.
+/// This latches the requested quality to the stream itself: today's frontend
+/// never sends the param, so it resolves to `None`; a future client-side cap
+/// feature (or a proxy) shows up here without further changes.
+pub(crate) fn url_stream_cap_kbps(url: &str) -> Option<u32> {
+    let query = url.split_once('?')?.1;
+    query.split('&').find_map(|kv| {
+        let (k, v) = kv.split_once('=')?;
+        if k != "maxBitRate" { return None; }
+        v.parse::<u32>().ok().filter(|&n| n > 0)
+    })
+}
+
+#[cfg(test)]
+mod url_param_tests {
+    use super::url_stream_cap_kbps;
+
+    #[test]
+    fn parses_max_bit_rate_from_stream_url() {
+        let url = "https://s.example/rest/stream.view?id=t1&u=a&maxBitRate=128&f=json";
+        assert_eq!(url_stream_cap_kbps(url), Some(128));
+    }
+
+    #[test]
+    fn absent_or_zero_cap_is_none() {
+        assert_eq!(url_stream_cap_kbps("https://s.example/rest/stream.view?id=t1&u=a"), None);
+        assert_eq!(url_stream_cap_kbps("https://s.example/rest/stream.view?id=t1&maxBitRate=0"), None);
+        assert_eq!(url_stream_cap_kbps("psysonic-local:///library/t1.flac"), None);
+    }
+}

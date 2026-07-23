@@ -1,9 +1,17 @@
 import type { InternetRadioStation } from '@/lib/api/subsonicTypes';
 import type { PlaybackSourceKind } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import type { Track, QueueItemRef } from '@/lib/media/trackTypes';
+import type { ResolvedStreamFormat } from '@/lib/media/streamFormat';
 
 export interface PlayerState {
   currentTrack: Track | null;
+  /**
+   * Format the Rust engine actually decoded for the live stream (`audio:format`
+   * event), stamped with the track it belongs to. Lets the now-playing badges
+   * show the real transmitted format when the server transcodes, instead of the
+   * stored library metadata. Not persisted; runtime-only.
+   */
+  resolvedStreamFormat: ResolvedStreamFormat | null;
   waveformBins: number[] | null;
   normalizationNowDb: number | null;
   normalizationTargetLufs: number | null;

@@ -50,6 +50,7 @@ export const queue = {
   sourceOffline: 'Spiller fra offlinebibliotek',
   sourceHot: 'Spiller fra cache',
   sourceStream: 'Spiller fra nettverksstrøm',
+  streamTranscoded: 'Transkodet av serveren — originalfil: {{original}}',
   clearCachedLoudnessWaveform: 'Clear cached loudness and waveform, then re-analyze this track',
   recalculatingLoudnessWaveform: 'Recalculating loudness and waveform for this track…',
   bpm: '{{bpm}} BPM',

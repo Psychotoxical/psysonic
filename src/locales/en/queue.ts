@@ -50,6 +50,7 @@ export const queue = {
   sourceOffline: 'Playing from offline library',
   sourceHot: 'Playing from cache',
   sourceStream: 'Playing from network stream',
+  streamTranscoded: 'Transcoded by the server — original file: {{original}}',
   clearCachedLoudnessWaveform: 'Clear cached loudness and waveform, then re-analyze this track',
   recalculatingLoudnessWaveform: 'Recalculating loudness and waveform for this track…',
   bpm: '{{bpm}} BPM',

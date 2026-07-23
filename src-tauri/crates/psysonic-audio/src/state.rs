@@ -25,6 +25,9 @@ pub(crate) struct ChainedInfo {
     /// Raw file bytes (shared with the chained decoder). Lets manual skip reuse
     /// them instead of re-downloading after dropping the Sink queue.
     pub(crate) raw_bytes: Arc<Vec<u8>>,
+    /// Real decoded format of the chained successor, for the `audio:format`
+    /// event emitted at the gapless transition.
+    pub(crate) resolved_format: Option<crate::decode::ResolvedCodecInfo>,
     pub(crate) duration_secs: f64,
     pub(crate) replay_gain_linear: f32,
     pub(crate) base_volume: f32,

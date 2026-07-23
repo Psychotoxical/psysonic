@@ -26,6 +26,9 @@ pub trait ProgressEmitter: Send + Sync + 'static {
     fn emit_progress(&self, payload: ProgressPayload);
     fn emit_track_switched(&self, duration_secs: f64);
     fn emit_ended(&self);
+    /// Resolved format of a gapless successor. Default no-op keeps test mocks
+    /// unaffected; only the live `AppHandle` forwards it to the frontend.
+    fn emit_format(&self, _ev: crate::decode::AudioFormatEvent) {}
 }
 
 impl<R: Runtime> ProgressEmitter for AppHandle<R> {
@@ -34,6 +37,9 @@ impl<R: Runtime> ProgressEmitter for AppHandle<R> {
     }
     fn emit_track_switched(&self, duration_secs: f64) {
         let _ = Emitter::emit(self, "audio:track_switched", duration_secs);
+    }
+    fn emit_format(&self, ev: crate::decode::AudioFormatEvent) {
+        let _ = Emitter::emit(self, "audio:format", ev);
     }
     fn emit_ended(&self) {
         let _ = Emitter::emit(self, "audio:ended", ());
@@ -181,6 +187,20 @@ pub(crate) fn spawn_progress_task<E: ProgressEmitter>(
                     // Emit the new track_switched event — this is immediate,
                     // not delayed by 500 ms like the old audio:playing was.
                     emitter.emit_track_switched(info.duration_secs);
+                    // Surface the successor's real decoded format too — a gapless
+                    // advance never re-runs the play command, so without this the
+                    // badge would keep showing the previous track's format.
+                    if let Some(fmt) = info.resolved_format.as_ref() {
+                        emitter.emit_format(crate::decode::AudioFormatEvent::from_info(
+                            fmt,
+                            crate::decode::AudioFormatIdentity {
+                                track_id: info.analysis_track_id.clone(),
+                                server_id: info.server_id.clone(),
+                                generation: Some(gen_counter.load(Ordering::SeqCst)),
+                                stream_cap_kbps: crate::play_input::url_stream_cap_kbps(&info.url),
+                            },
+                        ));
+                    }
                     near_end_ticks = 0;
                     continue;
                 }
@@ -299,6 +319,7 @@ mod tests {
     struct MockEmitter {
         progress: Mutex<Vec<ProgressPayload>>,
         track_switched: Mutex<Vec<f64>>,
+        formats: Mutex<Vec<crate::decode::AudioFormatEvent>>,
         ended: std::sync::atomic::AtomicUsize,
     }
 
@@ -330,6 +351,9 @@ mod tests {
         }
         fn emit_ended(&self) {
             self.ended.fetch_add(1, Ordering::SeqCst);
+        }
+        fn emit_format(&self, ev: crate::decode::AudioFormatEvent) {
+            self.formats.lock().unwrap().push(ev);
         }
     }
 
@@ -533,9 +557,16 @@ mod tests {
         let chained_samples = Arc::new(AtomicU64::new(0));
         *h.chained.lock().unwrap() = Some(ChainedInfo {
             url: chain_url.clone(),
-            analysis_track_id: None,
-            server_id: None,
+            analysis_track_id: Some("next-track".into()),
+            server_id: Some("srv-1".into()),
             raw_bytes: Arc::new(Vec::new()),
+            resolved_format: Some(crate::decode::ResolvedCodecInfo {
+                codec_name: "flac",
+                sample_rate: Some(44_100),
+                bits_per_sample: Some(16),
+                channels: Some(2),
+                lossless: true,
+            }),
             duration_secs: 200.0,
             replay_gain_linear: 1.0,
             base_volume: 1.0,
@@ -570,6 +601,17 @@ mod tests {
             h.gapless_switch_at.load(Ordering::SeqCst) > 0,
             "gapless_switch_at timestamp recorded for ghost-command guard"
         );
+
+        // The successor's resolved format must be emitted at the transition —
+        // a gapless advance never re-runs audio_play, so without this the
+        // frontend badge would keep the previous track's format.
+        {
+            let formats = emitter.formats.lock().unwrap();
+            assert_eq!(formats.len(), 1, "audio:format must fire for the gapless successor");
+            assert_eq!(formats[0].codec, "flac");
+            assert_eq!(formats[0].track_id.as_deref(), Some("next-track"));
+            assert_eq!(formats[0].server_id.as_deref(), Some("srv-1"));
+        }
 
         // Stop the task.
         h.gen_counter.store(99, Ordering::SeqCst);
