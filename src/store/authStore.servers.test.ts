@@ -256,3 +256,35 @@ describe('audio modes — gapless / crossfade mutual exclusion (regression §4.3
     expect(useAuthStore.getState().gaplessEnabled).toBe(true);
   });
 });
+
+describe('per-address streaming quality lifecycle', () => {
+  it('drops the cap and format when the address is edited (unverified until re-probed)', () => {
+    const { a } = addThree();
+    const st = () => useAuthStore.getState();
+    st().setStreamQualityForAddress('https://a.test', 192);
+    st().setStreamFormatForAddress('https://a.test', 'opus');
+    expect(st().streamQualityByAddress['https://a.test']).toBe(192);
+    st().updateServer(a, { url: 'https://a-new.test' });
+    expect(st().streamQualityByAddress['https://a.test']).toBeUndefined();
+    expect(st().streamFormatByAddress['https://a.test']).toBeUndefined();
+    // The new (unprobed) address starts at Original / Auto.
+    expect(st().streamQualityByAddress['https://a-new.test']).toBeUndefined();
+  });
+
+  it('keeps a cap whose address still exists on another profile after an edit', () => {
+    const { a } = addThree();
+    const st = () => useAuthStore.getState();
+    // b.test's cap must survive an edit of server A.
+    st().setStreamQualityForAddress('https://b.test', 128);
+    st().updateServer(a, { url: 'https://a-new.test' });
+    expect(st().streamQualityByAddress['https://b.test']).toBe(128);
+  });
+
+  it('drops per-address prefs when the owning server is removed', () => {
+    const { a } = addThree();
+    const st = () => useAuthStore.getState();
+    st().setStreamQualityForAddress('https://a.test', 320);
+    st().removeServer(a);
+    expect(st().streamQualityByAddress['https://a.test']).toBeUndefined();
+  });
+});
