@@ -451,9 +451,9 @@ pub(crate) fn url_format_hint(url: &str) -> Option<String> {
 }
 
 /// The `maxBitRate` cap (kbps) a `stream.view` URL was opened with, if any.
-/// This latches the requested quality to the stream itself: today's frontend
-/// never sends the param, so it resolves to `None`; a future client-side cap
-/// feature (or a proxy) shows up here without further changes.
+/// This latches the requested quality to the stream itself — the setting may
+/// change while the track is still playing, but the URL records what this
+/// playback generation actually asked the server for.
 pub(crate) fn url_stream_cap_kbps(url: &str) -> Option<u32> {
     let query = url.split_once('?')?.1;
     query.split('&').find_map(|kv| {

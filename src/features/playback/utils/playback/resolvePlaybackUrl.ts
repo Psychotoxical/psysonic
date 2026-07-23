@@ -1,5 +1,5 @@
 import { buildStreamUrlForServer } from '@/lib/api/subsonicStreamUrl';
-import { findLocalPlaybackUrl } from '@/store/localPlaybackResolve';
+import { findLocalPlaybackUrl, ephemeralServeableAtQuality } from '@/store/localPlaybackResolve';
 import { useAuthStore } from '@/store/authStore';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import { getPlaybackCacheServerKey, getPlaybackServerId } from '@/features/playback/utils/playback/playbackServer';
@@ -81,9 +81,13 @@ export function resolvePlaybackUrl(trackId: string, serverId?: string): string {
   if (pinned) return pinned;
   const favorites = findLocalPlaybackUrl(trackId, profileId, 'favorite-auto');
   if (favorites) return favorites;
+  const cap = streamMaxBitRateKbps();
   const hot = findLocalPlaybackUrl(trackId, profileId, 'ephemeral');
-  if (hot) return hot;
-  return buildStreamUrlForServer(profileId, trackId, streamMaxBitRateKbps());
+  // Only reuse a hot-cache blob when its captured quality matches the current
+  // request — a blob promoted from a capped stream must not be served at a
+  // different quality (e.g. a 128 kbps blob for an Original request).
+  if (hot && ephemeralServeableAtQuality(trackId, profileId, cap)) return hot;
+  return buildStreamUrlForServer(profileId, trackId, cap);
 }
 
 /** Like {@link resolvePlaybackUrl} but honours {@link Track.directStreamUrl}. */

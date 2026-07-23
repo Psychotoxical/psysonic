@@ -32,6 +32,7 @@ import {
 import { noteEngineProgressForGapless } from '@/features/playback/store/gaplessProgressTracking';
 import { showToast } from '@/lib/dom/toast';
 import { useAuthStore } from '@/store/authStore';
+import { indexKeyBelongsToServer } from '@/store/localPlaybackResolve';
 import { getPlayGeneration, setIsAudioPaused } from '@/features/playback/store/engineState';
 import {
   clearPreloadingIds,
@@ -141,6 +142,14 @@ export function handleAudioPlaying(duration: number): void {
 
 /** Rust-side `audio:format` event payload — the actually-decoded stream format. */
 export type AudioFormatPayload = {
+  /** Track the engine resolved this format for. Absent on legacy events. */
+  trackId?: string | null;
+  /** Owning server profile — disambiguates duplicate track ids across servers. */
+  serverId?: string | null;
+  /** Playback generation of the stream (stale-event rejection on the Rust side). */
+  generation?: number | null;
+  /** `maxBitRate` the stream URL was opened with — latched per stream by Rust. */
+  streamCapKbps?: number | null;
   codec: string;
   sampleRate?: number | null;
   bitsPerSample?: number | null;
@@ -159,6 +168,17 @@ export type AudioFormatPayload = {
 export function handleAudioFormat(payload: AudioFormatPayload): void {
   const cur = usePlayerStore.getState().currentTrack;
   if (!cur || !payload?.codec) return;
+  // Identity guard: the engine resolves format asynchronously, so an event may
+  // land after a skip, or a duplicate Subsonic id on another server may collide.
+  // When the event names its track/server it must match what's playing now;
+  // otherwise the format belongs to a different track and is dropped. (Legacy
+  // events without identity fall back to stamping the current track.)
+  if (payload.trackId != null && payload.trackId !== cur.id) return;
+  // Rust sends the playback index key; the track carries a server profile id.
+  // `indexKeyBelongsToServer` maps between the two so a duplicate id on another
+  // server is rejected without false-rejecting the normal case.
+  if (payload.serverId != null && cur.serverId != null
+    && !indexKeyBelongsToServer(payload.serverId, cur.serverId)) return;
   usePlayerStore.setState({
     resolvedStreamFormat: {
       trackId: cur.id,
@@ -167,6 +187,11 @@ export function handleAudioFormat(payload: AudioFormatPayload): void {
       bitsPerSample: payload.bitsPerSample ?? undefined,
       channels: payload.channels ?? undefined,
       lossless: !!payload.lossless,
+      // The cap the stream was actually opened with, latched by Rust from the
+      // stream URL — a mid-playback settings change affects the next stream,
+      // never relabels the current one. Legacy events without the field fall
+      // back to a snapshot of the current setting.
+      streamCapKbps: payload.streamCapKbps ?? useAuthStore.getState().streamMaxBitRateKbps,
     },
   });
 }

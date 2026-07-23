@@ -362,7 +362,13 @@ pub async fn audio_play(
     // the server transcodes). Emitted before the play/deferred-start branching
     // so it fires on both paths. The frontend stamps it onto the current track.
     if let Some(fmt) = resolved_format.as_ref() {
-        app.emit("audio:format", crate::decode::AudioFormatEvent::from(fmt)).ok();
+        let ev = crate::decode::AudioFormatEvent::from_info(fmt, crate::decode::AudioFormatIdentity {
+            track_id: logical_trim.clone(),
+            server_id: analysis_server_id.map(str::to_string),
+            generation: Some(gen),
+            stream_cap_kbps: crate::play_input::url_stream_cap_kbps(&url),
+        });
+        app.emit("audio:format", ev).ok();
     }
 
     let current_stream_rate = state.stream_sample_rate.load(Ordering::Relaxed);
@@ -854,6 +860,7 @@ pub async fn audio_chain_preload(
         analysis_track_id: logical_trim,
         server_id: analysis_server_id.map(str::to_string),
         raw_bytes,
+        resolved_format: built.resolved_format,
         duration_secs,
         replay_gain_linear: gain_linear,
         base_volume: volume.clamp(0.0, 1.0),

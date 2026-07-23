@@ -256,7 +256,13 @@ pub(crate) async fn try_resume_after_device_change(
     app.emit("audio:playing", ps.built.duration_secs).ok();
     // Re-assert the real decoded format after the device swap (same track).
     if let Some(fmt) = ps.built.resolved_format.as_ref() {
-        app.emit("audio:format", crate::decode::AudioFormatEvent::from(fmt)).ok();
+        let ev = crate::decode::AudioFormatEvent::from_info(fmt, crate::decode::AudioFormatIdentity {
+            track_id: engine.current_analysis_track_id.lock().unwrap().clone(),
+            server_id: engine.current_playback_server_id.lock().unwrap().clone(),
+            generation: Some(gen),
+            stream_cap_kbps: crate::play_input::url_stream_cap_kbps(url),
+        });
+        app.emit("audio:format", ev).ok();
     }
 
     let analysis_app = app.clone();

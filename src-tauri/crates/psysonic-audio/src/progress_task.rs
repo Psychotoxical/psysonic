@@ -605,13 +605,12 @@ mod tests {
         // The successor's resolved format must be emitted at the transition —
         // a gapless advance never re-runs audio_play, so without this the
         // frontend badge would keep the previous track's format.
-        {
-            let formats = emitter.formats.lock().unwrap();
-            assert_eq!(formats.len(), 1, "audio:format must fire for the gapless successor");
-            assert_eq!(formats[0].codec, "flac");
-            assert_eq!(formats[0].track_id.as_deref(), Some("next-track"));
-            assert_eq!(formats[0].server_id.as_deref(), Some("srv-1"));
-        }
+        let formats = emitter.formats.lock().unwrap();
+        assert_eq!(formats.len(), 1, "audio:format must fire for the gapless successor");
+        assert_eq!(formats[0].codec, "flac");
+        assert_eq!(formats[0].track_id.as_deref(), Some("next-track"));
+        assert_eq!(formats[0].server_id.as_deref(), Some("srv-1"));
+        drop(formats);
 
         // Stop the task.
         h.gen_counter.store(99, Ordering::SeqCst);

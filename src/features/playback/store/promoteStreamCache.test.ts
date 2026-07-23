@@ -33,6 +33,10 @@ vi.mock('@/store/localPlaybackResolve', () => ({
     hasLocalPersistentPlaybackBytesMock(trackId, serverId),
 }));
 
+vi.mock('@/store/authStore', () => ({
+  useAuthStore: { getState: () => ({ streamMaxBitRateKbps: 0 }) },
+}));
+
 import { promoteCompletedStreamToHotCache } from '@/features/playback/store/promoteStreamCache';
 
 function track(id: string, overrides: Partial<Track> = {}): Track {
@@ -100,6 +104,7 @@ describe('promoteCompletedStreamToHotCache', () => {
       'stream-promote',
       'fp',
       'mp3',
+      0,
     );
   });
 

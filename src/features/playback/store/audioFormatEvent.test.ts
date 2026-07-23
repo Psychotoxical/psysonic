@@ -1,16 +1,16 @@
 /**
- * Identity guarantees for the `audio:format` event.
+ * Identity guarantees for the `audio:format` event (cucadmuh review, #4).
  *
  * The engine resolves a stream's real format asynchronously; by the time the
- * event reaches the frontend the user may have skipped, a different server
- * may be serving a track that shares the same Subsonic id, or a superseded
- * playback of the same track may deliver late. The resolved format must
- * attach to the stream it was resolved for — never to whatever happens to be
- * current when the event lands.
+ * event reaches the frontend the user may have skipped, or a different server
+ * may be serving a track that happens to share the same Subsonic id. The
+ * resolved format must attach to the track it was resolved for — never to
+ * whatever happens to be current when the event lands.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { handleAudioFormat } from '@/features/playback/store/audioEventHandlers';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
+import { useAuthStore } from '@/store/authStore';
 import { resetPlayerStore, resetAuthStore } from '@/test/helpers/storeReset';
 import type { Track } from '@/lib/media/trackTypes';
 
@@ -48,25 +48,24 @@ describe('audio:format event identity', () => {
     expect(usePlayerStore.getState().resolvedStreamFormat).toBeNull();
   });
 
-  it('rejects an older-generation event for the same track (out-of-order delivery)', () => {
-    // Same track id + server (replay/repeat): a late event from the PREVIOUS
-    // playback generation must not overwrite the current stream's format.
+  it('uses the cap latched on the stream by the engine, not the live setting', () => {
+    // The stream was opened with maxBitRate=320 (carried in the payload); the
+    // user has since flipped the setting to 128. The badge must show 320.
+    useAuthStore.getState().setStreamMaxBitRateKbps(128);
     usePlayerStore.setState({ currentTrack: track('a', 's1') });
     handleAudioFormat({
-      trackId: 'a', serverId: 's1', generation: 7, streamCapKbps: null, codec: 'flac', lossless: true,
+      trackId: 'a', serverId: 's1', streamCapKbps: 320, codec: 'opus', lossless: false,
     });
-    handleAudioFormat({
-      trackId: 'a', serverId: 's1', generation: 5, streamCapKbps: 128, codec: 'opus', lossless: false,
-    });
-    const fmt = usePlayerStore.getState().resolvedStreamFormat;
-    expect(fmt?.codec).toBe('flac');
+    expect(usePlayerStore.getState().resolvedStreamFormat?.streamCapKbps).toBe(320);
+    // A later settings change must not retroactively relabel the open stream.
+    useAuthStore.getState().setStreamMaxBitRateKbps(64);
+    expect(usePlayerStore.getState().resolvedStreamFormat?.streamCapKbps).toBe(320);
   });
 
-  it('treats an absent or explicit-null cap as a real "no cap"', () => {
+  it('falls back to a snapshot of the current setting for legacy events without a cap', () => {
+    useAuthStore.getState().setStreamMaxBitRateKbps(192);
     usePlayerStore.setState({ currentTrack: track('a', 's1') });
-    handleAudioFormat({
-      trackId: 'a', serverId: 's1', streamCapKbps: null, codec: 'flac', lossless: true,
-    });
-    expect(usePlayerStore.getState().resolvedStreamFormat?.streamCapKbps).toBe(0);
+    handleAudioFormat({ trackId: 'a', serverId: 's1', codec: 'opus', lossless: false });
+    expect(usePlayerStore.getState().resolvedStreamFormat?.streamCapKbps).toBe(192);
   });
 });

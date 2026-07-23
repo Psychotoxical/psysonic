@@ -108,6 +108,41 @@ describe('resolvePlaybackUrl — precedence', () => {
     expect(url).toBe('psysonic-local:///library/track-1.flac');
     expect(url).not.toContain('maxBitRate');
   });
+
+  // #3 (cucadmuh): a hot-cache blob captured from a capped live stream must not
+  // be reused when the current quality differs — otherwise a 128 kbps blob is
+  // served for an Original request.
+  function seedEphemeral(trackId: string, capKbps: number): void {
+    entriesMock[`srv-1:${trackId}`] = {
+      serverIndexKey: 'srv-1', trackId, localPath: `/hot/${trackId}.mp3`,
+      layoutFingerprint: '', sizeBytes: 1, tier: 'ephemeral', cachedAt: 1,
+      suffix: 'mp3', streamMaxBitRateKbps: capKbps,
+    };
+    getLocalUrlMock.mockImplementation(
+      (tid: string, _sid: string, tier?: string) =>
+        (tier === 'ephemeral' && tid === trackId ? `psysonic-local://hot/${trackId}.mp3` : null),
+    );
+  }
+
+  it('does NOT serve a 128 kbps hot-cache blob for an Original request', () => {
+    seedEphemeral('track-1', 128);
+    useAuthStore.getState().setStreamMaxBitRateKbps(0); // Original
+    const url = resolvePlaybackUrl('track-1', 'srv-1');
+    expect(url).toMatch(/stream\.view/);
+    expect(url).not.toContain('psysonic-local');
+  });
+
+  it('reuses a hot-cache blob when the cached quality matches the current cap', () => {
+    seedEphemeral('track-1', 128);
+    useAuthStore.getState().setStreamMaxBitRateKbps(128);
+    expect(resolvePlaybackUrl('track-1', 'srv-1')).toBe('psysonic-local://hot/track-1.mp3');
+  });
+
+  it('always reuses an original hot-cache blob regardless of the cap', () => {
+    seedEphemeral('track-1', 0); // cached at original
+    useAuthStore.getState().setStreamMaxBitRateKbps(128);
+    expect(resolvePlaybackUrl('track-1', 'srv-1')).toBe('psysonic-local://hot/track-1.mp3');
+  });
 });
 
 describe('resolvePlaybackUrlForTrack', () => {

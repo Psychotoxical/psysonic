@@ -37,6 +37,14 @@ export interface LocalPlaybackEntry {
   lastPlayedAt?: number;
   pinSource?: PinSource;
   suffix: string;
+  /**
+   * Streaming bitrate cap (kbps) the cached bytes were fetched at; 0/undefined
+   * means the original file. Ephemeral (hot) entries promoted from a live
+   * capped stream carry the cap so they are only reused when the current
+   * setting matches — a 128 kbps blob must not be served for an Original
+   * request. Persistent (library/favorite-auto) tiers are always original.
+   */
+  streamMaxBitRateKbps?: number;
 }
 
 export interface PinnedGroup {

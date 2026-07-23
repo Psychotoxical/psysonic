@@ -20,6 +20,7 @@ interface HotCacheState {
     debugSource?: string,
     layoutFingerprint?: string,
     suffix?: string,
+    streamMaxBitRateKbps?: number,
   ) => void;
   touchPlayed: (trackId: string, serverId: string) => void;
   removeEntry: (trackId: string, serverId: string) => Promise<void>;
@@ -69,7 +70,7 @@ export const useHotCacheStore = create<HotCacheState>()(() => ({
   getLocalUrl: (trackId, serverId) =>
     useLocalPlaybackStore.getState().getLocalUrl(trackId, serverId, 'ephemeral'),
 
-  setEntry: (trackId, serverId, localPath, sizeBytes, _debugSource, layoutFingerprint = '', suffix = 'mp3') => {
+  setEntry: (trackId, serverId, localPath, sizeBytes, _debugSource, layoutFingerprint = '', suffix = 'mp3', streamMaxBitRateKbps = 0) => {
     useLocalPlaybackStore.getState().upsertEntry({
       serverIndexKey: serverId,
       trackId,
@@ -78,6 +79,7 @@ export const useHotCacheStore = create<HotCacheState>()(() => ({
       layoutFingerprint,
       tier: 'ephemeral',
       suffix,
+      streamMaxBitRateKbps,
     });
   },
 
