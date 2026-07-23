@@ -322,23 +322,36 @@ fn stream_quality_signature(url: &str) -> String {
     format!("{max_bit_rate}|{format}")
 }
 
-/// `scheme://host[:port]` part of an HTTP URL (empty for local paths).
-fn stream_host(url: &str) -> &str {
-    url.split_once("://")
-        .map(|(_, rest)| rest.split('/').next().unwrap_or(""))
-        .unwrap_or("")
+/// Server base of a Subsonic stream URL — scheme + authority + any path
+/// prefix before `/rest/`. Two Navidrome instances behind one reverse-proxy
+/// host on different prefixes (`https://host/nav-a` vs `…/nav-b`) are
+/// different servers and must never share cached bytes; likewise http vs
+/// https transports are kept distinct. Empty for non-HTTP URLs.
+fn stream_server_base(url: &str) -> &str {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return "";
+    }
+    if let Some(idx) = url.find("/rest/") {
+        return &url[..idx];
+    }
+    // No /rest/ segment: fall back to scheme + authority.
+    let scheme_end = url.find("://").map(|i| i + 3).unwrap_or(0);
+    match url[scheme_end..].find('/') {
+        Some(i) => &url[..scheme_end + i],
+        None => url.split('?').next().unwrap_or(url),
+    }
 }
 
 /// Byte-cache equality for stream/preload/chain matching. Two URLs are the
-/// same playback target only when they name the same track on the same host
-/// AND request the same transcode quality — a completed 128 kbps stream must
+/// same playback target only when they name the same track on the same server
+/// base (scheme + authority + path prefix) AND request the same transcode quality — a completed 128 kbps stream must
 /// not satisfy a later request for Original or a different cap/format.
 /// (Track-level identity for analysis/gain stays `playback_identity`, which is
 /// deliberately quality-independent.)
 pub(crate) fn same_playback_target(a_url: &str, b_url: &str) -> bool {
     match (playback_identity(a_url), playback_identity(b_url)) {
         (Some(a), Some(b)) => a == b
-            && stream_host(a_url) == stream_host(b_url)
+            && stream_server_base(a_url) == stream_server_base(b_url)
             && stream_quality_signature(a_url) == stream_quality_signature(b_url),
         _ => a_url == b_url,
     }
@@ -1179,6 +1192,25 @@ mod tests {
         assert!(!same_playback_target(
             "https://lan.local/rest/stream.view?id=42",
             "https://public.example/rest/stream.view?id=42",
+        ));
+    }
+
+    #[test]
+    fn same_target_distinguishes_server_bases_behind_one_proxy_host() {
+        // Two Navidrome instances on one host, different path prefixes.
+        assert!(!same_playback_target(
+            "https://proxy.example/nav-a/rest/stream.view?id=42",
+            "https://proxy.example/nav-b/rest/stream.view?id=42",
+        ));
+        // Same instance, same prefix → same target.
+        assert!(same_playback_target(
+            "https://proxy.example/nav-a/rest/stream.view?id=42&t=x",
+            "https://proxy.example/nav-a/rest/stream.view?id=42&t=y",
+        ));
+        // http vs https transports stay distinct.
+        assert!(!same_playback_target(
+            "http://host/rest/stream.view?id=42",
+            "https://host/rest/stream.view?id=42",
         ));
     }
 
