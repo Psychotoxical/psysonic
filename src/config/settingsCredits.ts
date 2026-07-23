@@ -493,6 +493,13 @@ const CONTRIBUTOR_ENTRIES = [
       'Accessibility: modal dialogs announce their title to screen readers (aria-labelledby) (PR #1301)',
     ],
   },
+  {
+    github: 'Manwe-777',
+    since: '1.51.0',
+    contributions: [
+      'Now-playing badge shows the real decoded stream format on server transcode (PR #1338)',
+    ],
+  },
 ] as const;
 
 // PR number of a contributor's first listed contribution, used as the

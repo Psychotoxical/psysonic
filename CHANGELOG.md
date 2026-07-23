@@ -120,6 +120,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Playing a multi-disc album from the header no longer interleaves the discs (disc 1 track 1, disc 2 track 1, disc 1 track 2, …). Tracks queue in disc-then-track order, so disc 1 plays in full before disc 2. Tracks without a disc number are treated as disc 1, matching the track list.
 
+### Now playing — show the real streamed format when the server transcodes
+
+**By [@Manwe-777](https://github.com/Manwe-777), PR [#1338](https://github.com/Psychotoxical/psysonic/pull/1338)**
+
+* The quality badge (queue, now-playing hero, mobile player, immersive fullscreen) was built from the track's stored library metadata, so a server-side transcode still read the original file — e.g. "FLAC · 3149 kbps · 24-bit" while actually receiving Opus. It now shows the format the audio engine actually decoded, with the original file's format in a tooltip, and falls back to the stored metadata when no transcode is happening. When the transmitted bitrate is unknown, none is shown instead of a wrong one.
+
 
 ## [1.50.0]
 
