@@ -4201,6 +4201,7 @@ dependencies = [
  "symphonia-adapter-libopus",
  "tauri",
  "tokio",
+ "wiremock",
 ]
 
 [[package]]

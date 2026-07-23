@@ -6,6 +6,7 @@
 //! - `analysis_runtime` — backfill queue, CPU-seed queue, queue snapshot loop
 
 pub mod analysis_cache;
+pub mod raw_probe;
 pub mod analysis_perf;
 pub mod analysis_runtime;
 mod codec;

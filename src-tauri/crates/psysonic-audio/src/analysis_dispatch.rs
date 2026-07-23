@@ -216,18 +216,19 @@ pub(crate) async fn dispatch_track_analysis_bytes(
             .try_state::<AudioEngine>()
             .map(|e| crate::engine::audio_http_client(&e))
             .unwrap_or_default();
-        let http_headers = crate::engine::PlaybackHttpHeaders::from_app(
-            app,
-            Some(server_id).filter(|s| !s.is_empty()),
-        );
-        let trusted = crate::raw_probe::fetch_trusted_original_md5(
+        let registry = app
+            .try_state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>()
+            .map(|s| Arc::clone(&*s));
+        use psysonic_analysis::raw_probe::TrustedProbeVerdict;
+        let verdict = psysonic_analysis::raw_probe::resolve_trusted_identity(
             &client,
-            &http_headers,
+            registry.as_deref(),
+            Some(server_id).filter(|s| !s.is_empty()),
             stream_url.unwrap_or_default(),
         )
         .await;
-        match (trusted, transcode_requested) {
-            (Some(trusted), _) => {
+        match (verdict, transcode_requested) {
+            (TrustedProbeVerdict::Trusted(trusted), _) => {
                 return psysonic_analysis::analysis_runtime::enqueue_track_analysis_trusted(
                     app,
                     server_id,
@@ -240,18 +241,20 @@ pub(crate) async fn dispatch_track_analysis_bytes(
                 .await
                 .map(|_| ());
             }
-            (None, true) => {
-                // The URL itself requested a transcode and the original could
-                // not be verified — never write canonical data from it.
+            (TrustedProbeVerdict::SkipCanonicalWrites, _) | (TrustedProbeVerdict::AssumeOriginal, true) => {
+                // Either the server is known raw-capable and the probe failed
+                // (bytes unverifiable — a plain URL is NOT proof of original:
+                // server rules can force a transcode), or the URL itself
+                // requested a transcode without a verified identity. Never
+                // write canonical data from such bytes.
                 crate::app_deprintln!(
-                    "[analysis][dispatch] skip origin={origin:?} track_id={track_id}: transcoded stream, raw-prefix probe failed — no canonical writes"
+                    "[analysis][dispatch] skip origin={origin:?} track_id={track_id}: stream identity unverified — no canonical writes"
                 );
                 return Ok(());
             }
-            (None, false) => {
-                // Raw contract unavailable (non-Navidrome server or probe
-                // failure on a plain stream) — legacy path: bytes are assumed
-                // to be the original.
+            (TrustedProbeVerdict::AssumeOriginal, false) => {
+                // No raw contract on this server (probe never succeeded here):
+                // legacy path — bytes are assumed to be the original.
             }
         }
     }

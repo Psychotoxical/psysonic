@@ -167,7 +167,7 @@ impl AnalysisBackfillQueueState {
         }
     }
 
-    fn locate_queued(&self, tid: &str) -> Option<AnalysisBackfillPriority> {
+    fn locate_queued(&self, key: &str) -> Option<AnalysisBackfillPriority> {
         [
             AnalysisBackfillPriority::High,
             AnalysisBackfillPriority::Middle,
@@ -178,11 +178,11 @@ impl AnalysisBackfillQueueState {
             self
                 .tier_deque(tier)
                 .iter()
-                .any(|(t, _, _)| t.as_str() == tid)
+                .any(|(t, _, sid)| seed_key(sid, t) == key)
         })
     }
 
-    fn remove_queued(&mut self, tid: &str) -> Option<BackfillJob> {
+    fn remove_queued(&mut self, key: &str) -> Option<BackfillJob> {
         for tier in [
             AnalysisBackfillPriority::High,
             AnalysisBackfillPriority::Middle,
@@ -191,7 +191,7 @@ impl AnalysisBackfillQueueState {
             if let Some(pos) = self
                 .tier_deque(tier)
                 .iter()
-                .position(|(t, _, _)| t.as_str() == tid)
+                .position(|(t, _, sid)| seed_key(sid, t) == key)
             {
                 return self.tier_deque_mut(tier).remove(pos);
             }
@@ -207,8 +207,8 @@ impl AnalysisBackfillQueueState {
         }
     }
 
-    fn is_reserved(&self, tid: &str) -> bool {
-        self.in_progress.contains_key(tid) || self.locate_queued(tid).is_some()
+    fn is_reserved(&self, key: &str) -> bool {
+        self.in_progress.contains_key(key) || self.locate_queued(key).is_some()
     }
 
     fn try_pop_next(&mut self, max_concurrent: usize) -> Option<BackfillJob> {
@@ -221,15 +221,15 @@ impl AnalysisBackfillQueueState {
             AnalysisBackfillPriority::Low,
         ] {
             if let Some(job) = self.tier_deque_mut(tier).pop_front() {
-                self.in_progress.insert(job.0.clone(), tier);
+                self.in_progress.insert(seed_key(&job.2, &job.0), tier);
                 return Some(job);
             }
         }
         None
     }
 
-    fn finish_job(&mut self, tid: &str) {
-        self.in_progress.remove(tid);
+    fn finish_job(&mut self, key: &str) {
+        self.in_progress.remove(key);
     }
 
     pub fn enqueue(
@@ -239,8 +239,11 @@ impl AnalysisBackfillQueueState {
         url: String,
         priority: AnalysisBackfillPriority,
     ) -> AnalysisBackfillEnqueueKind {
-        let tref = tid.as_str();
-        if !self.is_reserved(tref) && analysis_track_in_cpu_pipeline(tref) {
+        // Reservation/merge scope is (server, track): the same Subsonic id on
+        // two servers is two different files and must not collide.
+        let key = seed_key(&server_id, &tid);
+        let tref = key.as_str();
+        if !self.is_reserved(tref) && analysis_track_in_cpu_pipeline(&server_id, &tid) {
             return AnalysisBackfillEnqueueKind::DuplicateSkipped;
         }
         if self.is_reserved(tref) {
@@ -392,6 +395,41 @@ pub async fn enqueue_track_analysis(
     enqueue_track_analysis_with_fetch(app, server_id, track_id, bytes, format_hint, None, priority, 0).await
 }
 
+
+/// Analysis is already COMPLETE under a verified (trusted-original)
+/// fingerprint — no decode needed, but the surrounding state may still be
+/// stale: `track.content_hash` can hold a pre-probe transcode hash (readiness
+/// and remap key off it), and a newer transcode-variant row can shadow the
+/// trusted row in latest-row reads. Repair both: re-record the hash and purge
+/// every other-fingerprint row for the track.
+fn repair_complete_trusted_identity<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    server_id: &str,
+    track_id: &str,
+    content_hash: &str,
+) {
+    if server_id.is_empty() {
+        return;
+    }
+    if let Some(sink) = app.try_state::<psysonic_core::ports::ContentHashSink>() {
+        sink.record_content_hash(server_id, track_id, content_hash);
+    }
+    if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
+        let key = analysis_cache::TrackKey {
+            server_id: server_id.to_string(),
+            track_id: track_id.to_string(),
+            md5_16kb: content_hash.to_string(),
+        };
+        match cache.delete_other_fingerprints(&key) {
+            Ok(n) if n > 0 => crate::app_deprintln!(
+                "[analysis] complete-repair purged {n} stale fingerprint rows track_id={track_id}"
+            ),
+            Ok(_) => {}
+            Err(e) => crate::app_eprintln!("[analysis] complete-repair purge failed: {e}"),
+        }
+    }
+}
+
 /// Like [`enqueue_track_analysis`] but for TRANSCODED playback bytes whose
 /// original fingerprint was verified via a raw-prefix probe: the analysis is
 /// computed from `bytes` but planned/stored under `trusted_md5_16kb`, so every
@@ -436,14 +474,8 @@ async fn enqueue_track_analysis_with_fetch(
             track_id,
             content_hash
         );
-        // Analysis already complete under the trusted fingerprint — still
-        // repair the library hash: `track.content_hash` may hold a stale
-        // (e.g. pre-probe transcode-derived) value that would keep readiness
-        // and remap keyed to the wrong identity.
-        if trusted_md5_16kb.is_some() && !server_id.is_empty() {
-            if let Some(sink) = app.try_state::<psysonic_core::ports::ContentHashSink>() {
-                sink.record_content_hash(server_id, track_id, &content_hash);
-            }
+        if trusted_md5_16kb.is_some() {
+            repair_complete_trusted_identity(app, server_id, track_id, &content_hash);
         }
         return Ok(EnqueueTrackAnalysisOutcome::Complete);
     }
@@ -841,7 +873,7 @@ async fn spawn_backfill_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisBackf
                     .state
                     .lock()
                     .unwrap_or_else(|e| e.into_inner());
-                st.finish_job(&track_id);
+                st.finish_job(&seed_key(&server_id, &track_id));
             }
             shared.ping_worker();
 
@@ -855,13 +887,39 @@ async fn spawn_backfill_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisBackf
                         fetch_ms
                     );
                     let priority = analysis_backfill_resolve_priority(&app, &server_id, &track_id, None);
+                    // Backfill fetches through plain `stream.view`, which a
+                    // server-forced transcode policy can rewrite just like the
+                    // playback stream — establish the ORIGINAL's identity via
+                    // the same raw-prefix probe as playback. Probe failure
+                    // keeps the legacy bytes-hash path (non-Navidrome servers).
+                    let registry = app
+                        .try_state::<Arc<ServerHttpRegistry>>()
+                        .map(|s| Arc::clone(&*s));
+                    let trusted = match crate::raw_probe::resolve_trusted_identity(
+                        analysis_http_client(),
+                        registry.as_deref(),
+                        Some(server_id.as_str()),
+                        &url,
+                    )
+                    .await
+                    {
+                        crate::raw_probe::TrustedProbeVerdict::Trusted(h) => Some(h),
+                        crate::raw_probe::TrustedProbeVerdict::SkipCanonicalWrites => {
+                            crate::app_deprintln!(
+                                "[analysis] backfill skip track_id={}: stream identity unverified — no canonical writes",
+                                track_id
+                            );
+                            return;
+                        }
+                        crate::raw_probe::TrustedProbeVerdict::AssumeOriginal => None,
+                    };
                     match enqueue_track_analysis_with_fetch(
                         &app,
                         &server_id,
                         &track_id,
                         &bytes,
                         None,
-                        None,
+                        trusted,
                         priority,
                         fetch_ms,
                     )
@@ -924,7 +982,7 @@ pub fn analysis_backfill_queue_stats() -> (usize, usize, Option<String>) {
     }
 }
 
-pub fn analysis_track_in_cpu_pipeline(track_id: &str) -> bool {
+pub fn analysis_track_in_cpu_pipeline(server_id: &str, track_id: &str) -> bool {
     let tid = track_id.trim();
     if tid.is_empty() {
         return false;
@@ -932,11 +990,14 @@ pub fn analysis_track_in_cpu_pipeline(track_id: &str) -> bool {
     let Some(shared) = ANALYSIS_CPU_SEED.get() else {
         return false;
     };
+    // The cpu-seed maps are keyed by (server, track) — a bare-id lookup would
+    // never match and the backfill gate would stop seeing in-flight decodes.
+    let key = seed_key(server_id, tid);
     let st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
-    if st.running.contains_key(tid) {
+    if st.running.contains_key(&key) {
         return true;
     }
-    st.locate_queued(tid).is_some()
+    st.locate_queued(&key).is_some()
 }
 
 pub fn analysis_pipeline_queue_stats() -> AnalysisPipelineQueueStatsDto {
@@ -1650,10 +1711,10 @@ mod tests {
             "u".into(),
             AnalysisBackfillPriority::Middle,
         );
-        s.in_progress.insert("active".into(), AnalysisBackfillPriority::Low);
-        assert!(s.is_reserved("queued"));
-        assert!(s.is_reserved("active"));
-        assert!(!s.is_reserved("other"));
+        s.in_progress.insert(seed_key("", "active"), AnalysisBackfillPriority::Low);
+        assert!(s.is_reserved(&seed_key("", "queued")));
+        assert!(s.is_reserved(&seed_key("", "active")));
+        assert!(!s.is_reserved(&seed_key("", "other")));
     }
 
     #[test]
@@ -1727,6 +1788,31 @@ mod tests {
     }
 
     #[test]
+    fn backfill_enqueue_same_track_id_on_two_servers_stays_two_jobs() {
+        // Same Subsonic id on two servers is two different files: the second
+        // enqueue must not be DuplicateSkipped nor steal the first job's scope.
+        let mut s = AnalysisBackfillQueueState::default();
+        s.enqueue(
+            "server-a".into(),
+            "dup".into(),
+            "url-a".into(),
+            AnalysisBackfillPriority::Low,
+        );
+        let kind = s.enqueue(
+            "server-b".into(),
+            "dup".into(),
+            "url-b".into(),
+            AnalysisBackfillPriority::Low,
+        );
+        assert_eq!(kind, AnalysisBackfillEnqueueKind::NewLow);
+        assert_eq!(s.queued_len(), 2, "one backfill job per server");
+        let first = s.try_pop_next(4).unwrap();
+        let second = s.try_pop_next(4).unwrap();
+        assert_eq!((first.0.as_str(), first.2.as_str()), ("dup", "server-a"));
+        assert_eq!((second.0.as_str(), second.2.as_str()), ("dup", "server-b"));
+    }
+
+    #[test]
     fn backfill_enqueue_returns_duplicate_skipped_for_same_tier_dup() {
         let mut s = AnalysisBackfillQueueState::default();
         s.enqueue(
@@ -1747,9 +1833,10 @@ mod tests {
 
     #[test]
     fn backfill_enqueue_upgrades_low_to_middle() {
+        // Same (server, track): a higher-priority re-enqueue reorders the job.
         let mut s = AnalysisBackfillQueueState::default();
         s.enqueue(
-            String::new(),
+            "server-1".into(),
             "dup".into(),
             "old_url".into(),
             AnalysisBackfillPriority::Low,
@@ -1772,7 +1859,7 @@ mod tests {
     fn backfill_enqueue_returns_running_skipped_for_high_prio_active_track() {
         let mut s = AnalysisBackfillQueueState {
             in_progress: HashMap::from([(
-                String::from("active"),
+                seed_key("", "active"),
                 AnalysisBackfillPriority::Low,
             )]),
             ..Default::default()
@@ -2060,5 +2147,72 @@ mod tests {
     #[test]
     fn backpressure_bypassed_for_high_priority_jobs() {
         assert!(!should_idle_for_cpu_backpressure(100, 12, true));
+    }
+}
+
+#[cfg(test)]
+mod complete_repair_tests {
+    use super::*;
+    use crate::analysis_cache::{AnalysisCache, LoudnessEntry, TrackKey, WaveformEntry};
+    use tauri::Manager;
+
+    fn key(md5: &str) -> TrackKey {
+        TrackKey {
+            server_id: "srv".into(),
+            track_id: "t1".into(),
+            md5_16kb: md5.into(),
+        }
+    }
+
+    fn seed_complete_row(cache: &AnalysisCache, md5: &str, updated_at: i64) {
+        cache.touch_track_status(&key(md5), "ready").unwrap();
+        cache
+            .upsert_waveform(&key(md5), &WaveformEntry {
+                bins: vec![1, 2, 3],
+                bin_count: 3,
+                is_partial: false,
+                known_until_sec: 100.0,
+                duration_sec: 100.0,
+                updated_at,
+            })
+            .unwrap();
+        cache
+            .upsert_loudness(&key(md5), &LoudnessEntry {
+                integrated_lufs: -14.0,
+                true_peak: 0.5,
+                recommended_gain_db: 0.0,
+                target_lufs: -14.0,
+                updated_at,
+            })
+            .unwrap();
+    }
+
+    /// Review scenario: a COMPLETE trusted row exists, then a backfill/legacy
+    /// pass writes a transcode-variant row with a newer `updated_at`. A later
+    /// trusted resolution hits the "already complete" branch — which must
+    /// still purge the stale variant so latest-row reads return the trusted
+    /// fingerprint, not the newest write.
+    #[test]
+    fn complete_trusted_row_purges_newer_stale_variant() {
+        let app = tauri::test::mock_app();
+        app.handle().manage(AnalysisCache::open_in_memory());
+        let cache = app.handle().state::<AnalysisCache>();
+
+        seed_complete_row(&cache, "trusted-fp", 100);
+        seed_complete_row(&cache, "stale-transcode-fp", 200); // newer wins reads today
+
+        assert_eq!(
+            cache.get_latest_md5_16kb_for_track("srv", "t1").unwrap().as_deref(),
+            Some("stale-transcode-fp"),
+            "precondition: the stale variant is what reads currently select"
+        );
+
+        repair_complete_trusted_identity(app.handle(), "srv", "t1", "trusted-fp");
+
+        assert_eq!(
+            cache.get_latest_md5_16kb_for_track("srv", "t1").unwrap().as_deref(),
+            Some("trusted-fp"),
+            "the stale variant must be purged on the complete-repair path"
+        );
     }
 }
