@@ -80,6 +80,16 @@ export function useUnavailableServerIds(): ReadonlySet<string> {
   return useSyncExternalStore(subscribe, getUnavailableServerIds, getUnavailableServerIds);
 }
 
+/**
+ * Reachability of a single server as a boolean snapshot. The store notifies on any
+ * server's change, but `useSyncExternalStore` re-renders only when this boolean flips
+ * — so a caller reacting to one server is not woken by unrelated servers' probes.
+ */
+export function useServerUnavailable(serverId: string | null | undefined): boolean {
+  const isUnavailable = () => !!serverId && unavailableServerIds.has(serverId);
+  return useSyncExternalStore(subscribe, isUnavailable, isUnavailable);
+}
+
 export function useServerReachabilitySnapshot(
   enabled = true,
 ): ReadonlyMap<string, ServerReachability> {
