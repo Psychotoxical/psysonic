@@ -7,6 +7,7 @@ import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import type { Track } from '@/lib/media/trackTypes';
 import { songToTrack } from '@/lib/media/songToTrack';
 import { useSelectionStore } from '@/store/selectionStore';
+import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { previewInputFromSong, usePreviewStore } from '@/features/playback/store/previewStore';
 import StarRating from '@/ui/StarRating';
@@ -60,8 +61,10 @@ interface TrackRowProps {
  */
 const TrackArtistCell = React.memo(function TrackArtistCell({ song }: { song: SubsonicSong }) {
   const navigate = useNavigate();
+  const activeServerId = useAuthStore(s => s.activeServerId ?? '');
   const baseRefs = React.useMemo(() => resolveTrackArtistRefs(song), [song]);
-  const artistRefs = useResolvedArtistRefs(baseRefs, song.serverId);
+  // `song.serverId` is only stamped on owned/multi-server rows.
+  const artistRefs = useResolvedArtistRefs(baseRefs, song.serverId ?? activeServerId);
   return (
     <div className="track-artist-cell">
       {artistRefs.map((a, i) => (

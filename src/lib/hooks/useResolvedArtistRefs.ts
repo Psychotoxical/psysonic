@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { SubsonicOpenArtistRef } from '@/lib/api/subsonicTypes';
 import { peekArtistIdByName, resolveArtistIdsByName } from '@/lib/library/artistIdResolve';
-import { useAuthStore } from '@/store/authStore';
 
 /**
  * Fill in artist ids for credits that came from splitting a joined display string, so
@@ -15,16 +14,17 @@ import { useAuthStore } from '@/store/authStore';
  * the same guest) costs a single lookup, and an already-cached name is applied on the
  * first render with no flicker.
  */
+/**
+ * @param serverId Owning server. Callers must apply the usual
+ * `entity.serverId ?? activeServerId` fallback — `serverId` is only stamped on
+ * owned/multi-server rows, and without the fallback the lookup would silently do
+ * nothing on single-server, playlist and offline rows. Resolved by the caller rather
+ * than here because `lib/**` must not read from `store/**`.
+ */
 export function useResolvedArtistRefs(
   refs: SubsonicOpenArtistRef[],
-  serverIdInput: string | null | undefined,
+  serverId: string | null | undefined,
 ): SubsonicOpenArtistRef[] {
-  // `serverId` is only stamped on owned/multi-server rows; single-server browse,
-  // playlist and offline rows leave it unset. Without the active-server fallback the
-  // lookup would silently do nothing exactly there — the codebase convention is
-  // `entity.serverId ?? activeServerId`.
-  const activeServerId = useAuthStore(s => s.activeServerId ?? '');
-  const serverId = serverIdInput?.trim() || activeServerId;
   const unresolved = useMemo(
     () => refs
       .filter(ref => !ref.id && !!ref.name?.trim())
