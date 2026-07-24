@@ -57,6 +57,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The fullscreen player's volume control, previously only in **Prism** mode, is now also in the **Minimal** and **Immersive** styles — a mute toggle plus an always-visible level slider.
 
+### Theme store — respect a theme's minimum app version
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1344](https://github.com/Psychotoxical/psysonic/pull/1344)**
+
+* A store theme that needs a newer Psysonic now shows "requires a newer version" in place of the install button, and pending updates that need a newer app are held back, instead of the install failing with a generic error. The notice clears once the app itself is updated.
+
+### Themes — bundle local images and fonts
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1345](https://github.com/Psychotoxical/psysonic/pull/1345)**
+
+* Themes can ship their own images and fonts in an `assets/` folder and reference them with a relative `url("assets/…")`, instead of embedding everything as inline data. Assets are written to disk on install and served locally — themes still never reach the network. Works for both Theme Store installs and imported `.zip` themes; uninstalling a theme removes its files.
+
 ## Changed
 
 ### Library index — designed for several live servers at once
