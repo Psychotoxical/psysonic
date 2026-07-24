@@ -26,6 +26,8 @@ export type VirtualCardGridProps<T> = {
   scrollRootId?: string;
   /** Pre-peek disk WebP for the first viewport of cards (one IPC batch before cells ensure). */
   warmGridCovers?: {
+    /** Stable album/entity id for the disk cache slot (prefer over fetch-only `mf-*`). */
+    pickAlbumId?: (item: T) => string | null | undefined;
     pickCoverArtId: (item: T) => string | null | undefined;
     displayCssPx: number;
     limit?: number;
@@ -53,12 +55,14 @@ export function VirtualCardGrid<T>({
   const warmLimit = warmGridCovers?.limit ?? GRID_COVER_WARM_LIMIT;
   const warmItems = useMemo(() => {
     if (!warmGridCovers) return [];
-    return items
-      .slice(0, warmLimit)
-      .map(item => ({ coverArt: warmGridCovers.pickCoverArtId(item) ?? null }));
+    return items.slice(0, warmLimit).map(item => {
+      const id = warmGridCovers.pickAlbumId?.(item)?.trim() || undefined;
+      const coverArt = warmGridCovers.pickCoverArtId(item) ?? null;
+      return { id, coverArt };
+    });
   }, [items, warmGridCovers, warmLimit]);
   const warmPeekKey = useMemo(
-    () => warmItems.map(i => i.coverArt ?? '').join('\u0001'),
+    () => warmItems.map(i => `${i.id ?? ''}\u0002${i.coverArt ?? ''}`).join('\u0001'),
     [warmItems],
   );
   useWarmGridCovers(warmItems, warmGridCovers?.displayCssPx ?? 0, {

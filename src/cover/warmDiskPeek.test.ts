@@ -35,6 +35,7 @@ vi.mock('./resolveEntryLibrary', () => ({
 }));
 
 import {
+  collectAlbumCoverWarmItems,
   warmHomeMainstageCovers,
   warmUniqueAlbumCoversFromLibrary,
 } from './warmDiskPeek';
@@ -83,6 +84,26 @@ describe('warmHomeMainstageCovers', () => {
       }),
     ]));
     expect(resolveAlbumCoverRefFromLibrary).not.toHaveBeenCalled();
+  });
+});
+
+describe('collectAlbumCoverWarmItems', () => {
+  it('keys the disk slot by album id when coverArt is a per-file mf-* id', () => {
+    const items = collectAlbumCoverWarmItems(
+      [{ id: 'al-1', coverArt: 'mf-track_abc', serverId: 'srv' }],
+      200,
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0]?.ref.cacheEntityId).toBe('al-1');
+    expect(items[0]?.ref.fetchCoverArtId).toBe('mf-track_abc');
+  });
+
+  it('skips warm when only an mf-* coverArt is present (no album id)', () => {
+    const items = collectAlbumCoverWarmItems(
+      [{ coverArt: 'mf-track_abc' }],
+      200,
+    );
+    expect(items).toHaveLength(0);
   });
 });
 

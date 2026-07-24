@@ -9,6 +9,7 @@
  */
 
 import type { SubsonicAlbum, SubsonicSong } from '@/lib/api/subsonicTypes';
+import { emitCoverDebug } from '@/lib/api/coverDebug';
 import type { CoverArtRef, CoverCacheKind, CoverServerScope } from './types';
 
 /** Resolved cover identity — maps 1:1 to Rust `CoverEntry`. */
@@ -131,6 +132,16 @@ export function resolveAlbumCoverEntry(
   }
   const cacheEntityId =
     distinctDiscCovers && fetch !== album ? fetch : album;
+  // Depth-3: album disk slot keyed by a per-file `mf-*` id (distinct-disc path, or
+  // a caller that passed `mf-*` as the album id — e.g. warm without album.id).
+  if (cacheEntityId.startsWith('mf-')) {
+    emitCoverDebug('mf_album_slot_resolve', {
+      albumId: album,
+      fetchCoverArtId: fetch,
+      cacheEntityId,
+      distinctDiscCovers,
+    });
+  }
   return { cacheKind: 'album', cacheEntityId, fetchCoverArtId: fetch };
 }
 
