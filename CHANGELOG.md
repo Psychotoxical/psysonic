@@ -147,6 +147,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The quality badge (queue, now-playing hero, mobile player, immersive fullscreen) was built from the track's stored library metadata, so a server-side transcode still read the original file — e.g. "FLAC · 3149 kbps · 24-bit" while actually receiving Opus. It now shows the format the audio engine actually decoded, with the original file's format in a tooltip, and falls back to the stored metadata when no transcode is happening. When the transmitted bitrate is unknown, none is shown instead of a wrong one.
 
+### Artist credits — separate and link each artist of a joined credit
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1342](https://github.com/Psychotoxical/psysonic/pull/1342)**
+
+* A release credited to several artists showed one joined label ("A feat. B") in the album header and track lists, while the home rails already showed them separated. Every surface now separates them, and each artist links to their own page instead of only the first one. Albums whose server provides a structured artist list are unaffected.
+* Splitting follows the server's own tagging rules, so an artist name containing a slash stays intact and a comma-joined credit is left as one entry. For reliably separated credits, tag multi-valued **ARTISTS** / **ALBUMARTISTS** rather than relying on separators.
+
 
 ## [1.50.0]
 
