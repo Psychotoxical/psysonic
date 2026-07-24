@@ -88,6 +88,21 @@ describe('audio:format event identity', () => {
     expect(fmt?.codec).toBe('flac');
   });
 
+  it('rejects an old-generation event even after the format state was cleared (replay)', () => {
+    // Same-track replay: playTrack clears resolvedStreamFormat, so the guard
+    // must NOT depend on that object — the generation floor survives the clear.
+    usePlayerStore.setState({ currentTrack: track('a', 's1') });
+    handleAudioFormat({
+      trackId: 'a', serverId: 's1', generation: 7, streamCapKbps: null, codec: 'flac', lossless: true,
+    });
+    // Replay of the same track: format cleared, floor must persist.
+    usePlayerStore.setState({ resolvedStreamFormat: null });
+    handleAudioFormat({
+      trackId: 'a', serverId: 's1', generation: 5, streamCapKbps: 128, codec: 'opus', lossless: false,
+    });
+    expect(usePlayerStore.getState().resolvedStreamFormat).toBeNull();
+  });
+
   it('does NOT relabel an uncapped stream when the engine sends an explicit null cap', () => {
     // Rust `None` serializes as null — that is a REAL "no cap", not a missing
     // legacy field. A current setting of 192 must not be stamped onto it.

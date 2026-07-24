@@ -148,6 +148,19 @@ describe('audio:track_switched', () => {
     expect(s.currentTime).toBe(0);
   });
 
+  it('clears the predecessor resolved stream format on gapless advance', () => {
+    const queue = makeTracks(3);
+    seedQueue(queue, { index: 0, currentTrack: queue[0] });
+    usePlayerStore.setState({
+      repeatMode: 'off',
+      resolvedStreamFormat: { trackId: queue[0].id, codec: 'flac', lossless: true },
+    });
+    emitTauriEvent('audio:track_switched', queue[1].duration);
+    // The successor's format arrives via its own audio:format emit; until
+    // then the predecessor's must not linger on the new track.
+    expect(usePlayerStore.getState().resolvedStreamFormat).toBeNull();
+  });
+
   it('replays the same track under repeatMode=one (queueIndex stays put)', () => {
     const queue = makeTracks(3);
     seedQueue(queue, { index: 1, currentTrack: queue[1] });

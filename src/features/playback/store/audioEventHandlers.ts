@@ -180,16 +180,16 @@ export function handleAudioFormat(payload: AudioFormatPayload): void {
   // server is rejected without false-rejecting the normal case.
   if (payload.serverId != null && cur.serverId != null
     && !indexKeyBelongsToServer(payload.serverId, cur.serverId)) return;
-  // Generation guard: a late event from a superseded playback of the SAME
-  // track (replay/restart) must not overwrite the current stream's format.
-  const prev = usePlayerStore.getState().resolvedStreamFormat;
-  if (
-    payload.generation != null
-    && prev?.generation != null
-    && prev.trackId === cur.id
-    && payload.generation < prev.generation
-  ) return;
+  // Generation guard: a late event from a superseded playback must not
+  // overwrite (or resurrect) format state. Keyed off a monotonic floor that
+  // SURVIVES format clears — same-track replays wipe `resolvedStreamFormat`,
+  // so the object itself cannot carry the guard.
+  const floor = usePlayerStore.getState().streamFormatGenerationFloor;
+  if (payload.generation != null && payload.generation < floor) return;
   usePlayerStore.setState({
+    streamFormatGenerationFloor: payload.generation != null
+      ? Math.max(floor, payload.generation)
+      : floor,
     resolvedStreamFormat: {
       trackId: cur.id,
       generation: payload.generation ?? undefined,

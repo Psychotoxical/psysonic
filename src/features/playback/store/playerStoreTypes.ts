@@ -12,6 +12,13 @@ export interface PlayerState {
    * stored library metadata. Not persisted; runtime-only.
    */
   resolvedStreamFormat: ResolvedStreamFormat | null;
+  /**
+   * Highest playback generation ever seen on an `audio:format` event. The
+   * stale-event guard keys off THIS, not `resolvedStreamFormat` — the format
+   * object is cleared on replay/advance, but the floor must survive so a
+   * delayed event from a superseded generation is still rejected.
+   */
+  streamFormatGenerationFloor: number;
   waveformBins: number[] | null;
   normalizationNowDb: number | null;
   normalizationTargetLufs: number | null;

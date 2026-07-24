@@ -112,6 +112,9 @@ function applyGaplessSuccessorUi(
   resetGaplessProgressTracking();
   usePlayerStore.setState({
     currentTrack: nextTrack,
+    // The predecessor's resolved stream format must not carry over to the
+    // successor — the boundary emit repopulates it; until then show metadata.
+    resolvedStreamFormat: null,
     waveformBins: null,
     ...deriveNormalizationSnapshot(nextTrack, switchNeighbourWindow, 1),
     normalizationDbgSource: source,
