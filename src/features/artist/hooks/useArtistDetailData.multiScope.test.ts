@@ -96,6 +96,25 @@ describe('useArtistDetailData — multi-library selection', () => {
     expect(result.current.topSongs.map(s => s.id)).toEqual(['trk-high', 'trk-low']);
   });
 
+  it('loads artist info under a multi-server scope, scoped to the owning server', async () => {
+    tryLoadArtistDetailMultiScopeMock.mockResolvedValue({
+      artist: { id: 'art-1', name: 'Merged' },
+      albums: [],
+      topSongs: [],
+    });
+    vi.mocked(getArtistInfoForServer).mockResolvedValue(
+      { biography: 'Formed in 2016.' } as Awaited<ReturnType<typeof getArtistInfoForServer>>,
+    );
+
+    const { result } = renderHook(() => useArtistDetailData('art-1'), { wrapper: routerWrapper });
+
+    await waitFor(() => expect(result.current.info).toMatchObject({ biography: 'Formed in 2016.' }));
+    // The owning server is passed explicitly, so a second server in the scope
+    // cannot answer for this artist.
+    expect(getArtistInfoForServer).toHaveBeenCalledWith('srv-1', 'art-1', { similarArtistCount: undefined });
+    expect(getArtistInfo).not.toHaveBeenCalled();
+  });
+
   it('renders local detail while one server Top Songs request remains pending', async () => {
     let resolveTopSongs!: (songs: Array<{ id: string; title: string }>) => void;
     loadScopedArtistTopSongsMock.mockImplementation(() => new Promise(resolve => {

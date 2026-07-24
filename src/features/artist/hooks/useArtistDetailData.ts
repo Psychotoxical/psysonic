@@ -244,7 +244,11 @@ export function useArtistDetailData(
   ]);
 
   useEffect(() => {
-    if (!id || preferLocalArtist || browseScope.multiServer) return;
+    if (!id || preferLocalArtist) return;
+    // The owning server is known here, so the call is scoped to it and cannot read
+    // the wrong server's artist identity. Only the ownerless fallback below has to
+    // stay out of a multi-server scope, where "the active server" is a guess.
+    if (!serverId && browseScope.multiServer) return;
     let cancelled = false;
     // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
