@@ -89,6 +89,7 @@ fn seed_preload_analysis_file(
         sid,
         track_id,
         file_path,
+        Some(url.to_string()), // preloaded HTTP bytes — stream provenance applies
         priority,
         None,
     );

@@ -869,6 +869,7 @@ pub(crate) async fn ranged_download_task(
                         let _ = std::fs::remove_file(&path);
                         return;
                     }
+                    let spill_stream_url = url.clone();
                     install_stream_completed_spill(&spill_cache_slot, url, path.clone());
                     let sid = resolve_server_id_for_app(&app, server_id.as_deref());
                     let priority = analysis_priority_for_app(&app, &sid, &track_id, None);
@@ -878,6 +879,7 @@ pub(crate) async fn ranged_download_task(
                         sid,
                         track_id,
                         path,
+                        Some(spill_stream_url), // spilled HTTP bytes keep stream provenance
                         priority,
                         Some((gen, gen_arc.clone())),
                     );

@@ -911,7 +911,6 @@ async fn spawn_backfill_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisBackf
                             );
                             return;
                         }
-                        crate::raw_probe::TrustedProbeVerdict::AssumeOriginal => None,
                     };
                     match enqueue_track_analysis_with_fetch(
                         &app,
@@ -990,14 +989,27 @@ pub fn analysis_track_in_cpu_pipeline(server_id: &str, track_id: &str) -> bool {
     let Some(shared) = ANALYSIS_CPU_SEED.get() else {
         return false;
     };
-    // The cpu-seed maps are keyed by (server, track) — a bare-id lookup would
-    // never match and the backfill gate would stop seeing in-flight decodes.
-    let key = seed_key(server_id, tid);
+    // The cpu-seed maps are keyed by (server, track, revision) — match ANY
+    // revision of this (server, track) pair.
+    let prefix = format!("{}\u{1f}", seed_key(server_id, tid));
     let st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
-    if st.running.contains_key(&key) {
+    if st.running.keys().any(|k| k.starts_with(&prefix)) {
         return true;
     }
-    st.locate_queued(&key).is_some()
+    for tier in [
+        AnalysisBackfillPriority::High,
+        AnalysisBackfillPriority::Middle,
+        AnalysisBackfillPriority::Low,
+    ] {
+        if st
+            .tier_deque(tier)
+            .iter()
+            .any(|j| j.server_id == server_id && j.track_id == tid)
+        {
+            return true;
+        }
+    }
+    false
 }
 
 pub fn analysis_pipeline_queue_stats() -> AnalysisPipelineQueueStatsDto {
@@ -1209,6 +1221,11 @@ struct AnalysisCpuSeedJob {
     /// Verified fingerprint of the ORIGINAL file when `bytes` are a transcoded
     /// representation (raw-prefix probe). `None` = bytes ARE the original.
     trusted_md5_16kb: Option<String>,
+    /// Content revision this job represents: the trusted fingerprint when
+    /// present, else the bytes' own fingerprint. Part of the dedup identity —
+    /// a submission for a DIFFERENT revision of the same track must never be
+    /// swallowed as a follower of a running job.
+    revision: String,
     waiters: Vec<SeedDoneSender>,
     /// HTTP download time when this job came from the backfill worker.
     fetch_ms: u64,
@@ -1229,6 +1246,11 @@ struct AnalysisCpuSeedQueueState {
 /// different content. `\u{1f}` cannot appear in server ids or Subsonic ids.
 fn seed_key(server_id: &str, track_id: &str) -> String {
     format!("{server_id}\u{1f}{track_id}")
+}
+
+/// Full cpu-seed dedup identity: (server, track, content revision).
+fn seed_revision_key(server_id: &str, track_id: &str, revision: &str) -> String {
+    format!("{server_id}\u{1f}{track_id}\u{1f}{revision}")
 }
 
 impl AnalysisCpuSeedQueueState {
@@ -1281,7 +1303,7 @@ impl AnalysisCpuSeedQueueState {
             if let Some(pos) = self
                 .tier_deque(tier)
                 .iter()
-                .position(|j| seed_key(&j.server_id, &j.track_id) == key)
+                .position(|j| seed_revision_key(&j.server_id, &j.track_id, &j.revision) == key)
             {
                 return Some((tier, pos));
             }
@@ -1312,9 +1334,14 @@ impl AnalysisCpuSeedQueueState {
         SeedDoneReceiver,
     ) {
         let (done_tx, done_rx) = tokio::sync::oneshot::channel();
-        // Dedup/merge scope is (server, track): the same Subsonic id on two
-        // servers is two different files and must not share one decode.
-        let key = seed_key(&server_id, &track_id);
+        // Dedup/merge scope is (server, track, content revision): the same
+        // Subsonic id on two servers is two different files, and a different
+        // revision of one track is different content — neither may share or
+        // follow another job's decode.
+        let revision = trusted_md5_16kb
+            .clone()
+            .unwrap_or_else(|| analysis_cache::md5_first_16kb(&bytes));
+        let key = seed_revision_key(&server_id, &track_id, &revision);
 
         if let Some(followers) = self.running.get(&key) {
             followers
@@ -1330,6 +1357,7 @@ impl AnalysisCpuSeedQueueState {
             job.bytes = bytes;
             job.format_hint = format_hint;
             job.trusted_md5_16kb = trusted_md5_16kb;
+            job.revision = revision;
             job.fetch_ms = fetch_ms;
             job.waiters.push(done_tx);
             if priority > existing_tier {
@@ -1348,6 +1376,7 @@ impl AnalysisCpuSeedQueueState {
             bytes,
             format_hint,
             trusted_md5_16kb,
+            revision,
             waiters: vec![done_tx],
             fetch_ms,
             priority,
@@ -1512,7 +1541,7 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
                 st.try_pop_next().map(|j| {
                     let followers = Arc::new(Mutex::new(Vec::new()));
                     let job_priority = j.priority;
-                    let run_key = seed_key(&j.server_id, &j.track_id);
+                    let run_key = seed_revision_key(&j.server_id, &j.track_id, &j.revision);
                     st.running.insert(run_key.clone(), followers.clone());
                     st.running_tiers.insert(run_key, job_priority);
                     let worker_slot = st.running.len();
@@ -1524,7 +1553,7 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
             break;
         };
         let tid_log = job.track_id.clone();
-        let run_key_log = seed_key(&job.server_id, &job.track_id);
+        let run_key_log = seed_revision_key(&job.server_id, &job.track_id, &job.revision);
         let fetch_ms = job.fetch_ms;
         crate::app_deprintln!(
             "[analysis] cpu-seed worker={}/{}: start track_id={}",
@@ -1941,14 +1970,16 @@ mod tests {
 
     #[test]
     fn cpu_seed_enqueue_existing_low_prio_merges_at_back() {
-        // Same (server, track): the fresh submission merges into the queued job.
+        // Same (server, track, revision): the fresh submission merges into the
+        // queued job — e.g. two transcoded plays carrying the SAME trusted
+        // original fingerprint. Fresher bytes win, both waiters attach.
         let mut s = AnalysisCpuSeedQueueState::default();
         let (_, _r1) = s.enqueue(
             "server-a".into(),
             "dup".into(),
             vec![1, 2, 3],
             None,
-            None,
+            Some("rev-x".into()),
             AnalysisBackfillPriority::Low,
             0,
         );
@@ -1957,7 +1988,7 @@ mod tests {
             "dup".into(),
             vec![4, 5, 6],
             None,
-            None,
+            Some("rev-x".into()),
             AnalysisBackfillPriority::Low,
             0,
         );
@@ -1966,6 +1997,49 @@ mod tests {
         let job = s.try_pop_next().unwrap();
         assert_eq!(job.bytes, vec![4, 5, 6], "fresh bytes overwrite");
         assert_eq!(job.waiters.len(), 2, "both waiters attached");
+    }
+
+    #[test]
+    fn cpu_seed_running_job_does_not_swallow_a_different_content_revision() {
+        // A job for revision A is RUNNING; a submission for the same track
+        // with a DIFFERENT trusted fingerprint (new original revision) must be
+        // queued as its own job — attaching it as a follower would discard its
+        // bytes and fingerprint entirely.
+        let mut s = AnalysisCpuSeedQueueState::default();
+        let (_, _r1) = s.enqueue(
+            "srv".into(),
+            "t1".into(),
+            vec![1],
+            None,
+            Some("revision-a".into()),
+            AnalysisBackfillPriority::Low,
+            0,
+        );
+        let job_a = s.try_pop_next().unwrap();
+        assert_eq!(job_a.trusted_md5_16kb.as_deref(), Some("revision-a"));
+        // Mirror the worker: mark revision A as running.
+        s.running.insert(
+            seed_revision_key(&job_a.server_id, &job_a.track_id, &job_a.revision),
+            Arc::new(Mutex::new(Vec::new())),
+        );
+
+        let (kind, _r2) = s.enqueue(
+            "srv".into(),
+            "t1".into(),
+            vec![2],
+            None,
+            Some("revision-b".into()),
+            AnalysisBackfillPriority::Low,
+            0,
+        );
+        assert_ne!(
+            kind,
+            AnalysisCpuSeedEnqueueKind::RunningFollower,
+            "a different content revision must not be swallowed as a follower"
+        );
+        let job_b = s.try_pop_next().expect("revision B queued as its own job");
+        assert_eq!(job_b.trusted_md5_16kb.as_deref(), Some("revision-b"));
+        assert_eq!(job_b.bytes, vec![2]);
     }
 
     #[test]
@@ -2037,7 +2111,10 @@ mod tests {
     fn cpu_seed_enqueue_running_id_attaches_as_follower() {
         let mut s = AnalysisCpuSeedQueueState::default();
         let followers = Arc::new(Mutex::new(Vec::new()));
-        s.running.insert(seed_key("", "active"), followers.clone());
+        s.running.insert(
+            seed_revision_key("", "active", &analysis_cache::md5_first_16kb(&[])),
+            followers.clone(),
+        );
         let (kind, _rx) = s.enqueue(
             String::new(),
             "active".into(),

@@ -14,8 +14,6 @@
 //! envelope. On any failure the caller must treat the stream as having NO
 //! trusted identity — playback continues, canonical writes are skipped.
 
-use std::collections::HashSet;
-use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 use psysonic_core::server_http::{apply_optional_registry_headers, ServerHttpRegistry};
@@ -147,69 +145,54 @@ pub async fn fetch_trusted_original_md5(
 }
 
 
-/// Servers that have EVER answered a raw-prefix probe correctly this session.
-/// Once a server is known raw-capable, a later probe failure means "could not
-/// verify" — not "no raw contract" — so canonical writes must be skipped
-/// instead of falling back to the bytes-hash path. Session-scoped by design:
-/// it only ever tightens behaviour, never loosens it.
-fn raw_capable_servers() -> &'static Mutex<HashSet<String>> {
-    static SET: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
-    SET.get_or_init(|| Mutex::new(HashSet::new()))
+/// Whether captured stream bytes ARE the verified original: their own 16 KiB
+/// fingerprint equals the trusted one. Used to gate stream-to-local promotion
+/// — transcoded bytes must never be written to disk as the original file.
+pub fn bytes_match_trusted(bytes: &[u8], trusted_md5_16kb: &str) -> bool {
+    !bytes.is_empty() && crate::analysis_cache::md5_first_16kb(bytes) == trusted_md5_16kb
 }
 
-fn raw_capability_key(server_id: Option<&str>, stream_url: &str) -> String {
-    if let Some(sid) = server_id.map(str::trim).filter(|s| !s.is_empty()) {
-        return sid.to_string();
-    }
-    // Fall back to scheme+authority+path-prefix of the stream URL.
-    stream_url
-        .find("/rest/")
-        .map(|i| stream_url[..i].to_string())
-        .unwrap_or_else(|| stream_url.split('?').next().unwrap_or(stream_url).to_string())
-}
-
-/// Outcome of a trusted-identity resolution for one analyzed stream.
+/// Outcome of a trusted-identity resolution for one analyzed HTTP stream.
 #[derive(Debug, PartialEq, Eq)]
 pub enum TrustedProbeVerdict {
     /// The original's fingerprint was verified — store analysis under it.
     Trusted(String),
-    /// The probe failed on a server KNOWN to support the raw contract: the
-    /// bytes cannot be verified against the original, so canonical writes
-    /// (analysis cache, `content_hash`, facts) must be skipped.
+    /// No positive provenance: the server may be force-transcoding (that is
+    /// invisible on the wire), so bytes from an HTTP stream must NOT produce
+    /// canonical writes (analysis cache, `content_hash`, facts). Playback and
+    /// in-session use are unaffected.
     SkipCanonicalWrites,
-    /// No raw contract established for this server (probe never succeeded
-    /// here): legacy behaviour — bytes are assumed to be the original.
-    AssumeOriginal,
 }
 
 /// Probe + policy in one place, shared by the playback dispatcher and the
 /// HTTP backfill producers so the canonical-identity rules cannot diverge.
+/// Canonical identity for HTTP-stream bytes requires POSITIVE original
+/// provenance — a first-ever probe failure is not "assume original".
 pub async fn resolve_trusted_identity(
     client: &reqwest::Client,
     registry: Option<&ServerHttpRegistry>,
     server_id: Option<&str>,
     stream_url: &str,
 ) -> TrustedProbeVerdict {
-    let key = raw_capability_key(server_id, stream_url);
     match fetch_trusted_original_md5(client, registry, server_id, stream_url).await {
-        Some(hash) => {
-            raw_capable_servers()
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .insert(key);
-            TrustedProbeVerdict::Trusted(hash)
-        }
-        None => {
-            let known = raw_capable_servers()
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .contains(&key);
-            if known {
-                TrustedProbeVerdict::SkipCanonicalWrites
-            } else {
-                TrustedProbeVerdict::AssumeOriginal
-            }
-        }
+        Some(hash) => TrustedProbeVerdict::Trusted(hash),
+        None => TrustedProbeVerdict::SkipCanonicalWrites,
+    }
+}
+
+#[cfg(test)]
+mod byte_match_tests {
+    use super::*;
+
+    #[test]
+    fn promotion_gate_requires_prefix_equality_with_the_trusted_fingerprint() {
+        let original = vec![7u8; 20 * 1024];
+        let trusted = crate::analysis_cache::md5_first_16kb(&original);
+        assert!(bytes_match_trusted(&original, &trusted));
+        // Transcoded bytes (different content) never match the original.
+        let transcoded = vec![9u8; 20 * 1024];
+        assert!(!bytes_match_trusted(&transcoded, &trusted));
+        assert!(!bytes_match_trusted(&[], &trusted));
     }
 }
 
@@ -220,42 +203,9 @@ mod capability_tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
-    async fn probe_failure_on_a_known_raw_capable_server_skips_canonical_writes() {
-        let server = MockServer::start().await;
-        let body = {
-            let mut v = vec![0x66u8; 512];
-            v[..4].copy_from_slice(b"fLaC");
-            v
-        };
-        // First response: valid raw prefix → server learned as raw-capable.
-        Mock::given(method("GET"))
-            .and(path("/rest/stream.view"))
-            .respond_with(
-                ResponseTemplate::new(206)
-                    .insert_header("Content-Range", "bytes 0-511/512")
-                    .set_body_bytes(body),
-            )
-            .up_to_n_times(1)
-            .mount(&server)
-            .await;
-        // Every later response: server error → probe fails.
-        Mock::given(method("GET"))
-            .and(path("/rest/stream.view"))
-            .respond_with(ResponseTemplate::new(500))
-            .mount(&server)
-            .await;
-
-        let url = format!("{}/rest/stream.view?id=t1", server.uri());
-        let sid = Some("cap-test-server-a");
-        let first = resolve_trusted_identity(&reqwest::Client::new(), None, sid, &url).await;
-        assert!(matches!(first, TrustedProbeVerdict::Trusted(_)));
-        let second = resolve_trusted_identity(&reqwest::Client::new(), None, sid, &url).await;
-        assert_eq!(second, TrustedProbeVerdict::SkipCanonicalWrites);
-    }
-
-    #[tokio::test]
-    async fn probe_failure_on_an_unknown_server_assumes_original() {
-        // Server that never supported raw: legacy bytes-hash path stays.
+    async fn first_probe_failure_produces_no_canonical_verdict() {
+        // Server-forced transcoding is invisible on the wire: a FIRST-EVER
+        // probe failure must not be treated as proof the bytes are original.
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/rest/stream.view"))
@@ -264,10 +214,10 @@ mod capability_tests {
             .await;
         let url = format!("{}/rest/stream.view?id=t1", server.uri());
         let got = resolve_trusted_identity(
-            &reqwest::Client::new(), None, Some("cap-test-server-b"), &url,
+            &reqwest::Client::new(), None, Some("fresh-server"), &url,
         )
         .await;
-        assert_eq!(got, TrustedProbeVerdict::AssumeOriginal);
+        assert_eq!(got, TrustedProbeVerdict::SkipCanonicalWrites);
     }
 }
 

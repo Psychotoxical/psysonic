@@ -41,24 +41,32 @@ pub(crate) fn resolve_analysis_server_id(
     explicit: Option<&str>,
     engine: Option<&AudioEngine>,
 ) -> String {
-    if let Some(engine) = engine {
-        if let Some(url) = engine
-            .current_playback_url
-            .lock()
-            .ok()
-            .and_then(|g| (*g).clone())
-        {
-            if let Some(derived) = server_id_from_playback_url(&url) {
-                return derived;
-            }
-        }
-    }
+    let pinned = engine.map(current_playback_server_id_str).filter(|s| !s.is_empty());
+    let url_derived = engine
+        .and_then(|e| e.current_playback_url.lock().ok().and_then(|g| (*g).clone()))
+        .and_then(|url| server_id_from_playback_url(&url));
+    resolve_analysis_scope(explicit, pinned.as_deref(), url_derived.as_deref())
+}
+
+/// Canonical analysis scope precedence. The EXPLICIT canonical server key
+/// always wins: the selected playback address (URL-derived) is transport
+/// state — a profile's primary and alternate addresses must not create
+/// separate analysis rows for the same original track. URL derivation is the
+/// last resort for legacy callers that pass no scope at all.
+fn resolve_analysis_scope(
+    explicit: Option<&str>,
+    pinned: Option<&str>,
+    url_derived: Option<&str>,
+) -> String {
     explicit
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .map(str::to_string)
-        .unwrap_or_else(|| engine.map(current_playback_server_id_str).unwrap_or_default())
+        .or(pinned)
+        .or(url_derived)
+        .unwrap_or_default()
+        .to_string()
 }
+
 
 fn server_id_from_playback_url(url_raw: &str) -> Option<String> {
     if url_raw.starts_with("psysonic-local://") {
@@ -227,8 +235,9 @@ pub(crate) async fn dispatch_track_analysis_bytes(
             stream_url.unwrap_or_default(),
         )
         .await;
-        match (verdict, transcode_requested) {
-            (TrustedProbeVerdict::Trusted(trusted), _) => {
+        let _ = transcode_requested; // provenance rule applies to all HTTP streams
+        match verdict {
+            TrustedProbeVerdict::Trusted(trusted) => {
                 return psysonic_analysis::analysis_runtime::enqueue_track_analysis_trusted(
                     app,
                     server_id,
@@ -241,20 +250,14 @@ pub(crate) async fn dispatch_track_analysis_bytes(
                 .await
                 .map(|_| ());
             }
-            (TrustedProbeVerdict::SkipCanonicalWrites, _) | (TrustedProbeVerdict::AssumeOriginal, true) => {
-                // Either the server is known raw-capable and the probe failed
-                // (bytes unverifiable — a plain URL is NOT proof of original:
-                // server rules can force a transcode), or the URL itself
-                // requested a transcode without a verified identity. Never
-                // write canonical data from such bytes.
+            TrustedProbeVerdict::SkipCanonicalWrites => {
+                // No positive provenance for these HTTP-stream bytes (the
+                // server may be force-transcoding invisibly). Playback is
+                // unaffected; canonical writes are skipped.
                 crate::app_deprintln!(
                     "[analysis][dispatch] skip origin={origin:?} track_id={track_id}: stream identity unverified — no canonical writes"
                 );
                 return Ok(());
-            }
-            (TrustedProbeVerdict::AssumeOriginal, false) => {
-                // No raw contract on this server (probe never succeeded here):
-                // legacy path — bytes are assumed to be the original.
             }
         }
     }
@@ -309,12 +312,17 @@ pub(crate) fn spawn_track_analysis_bytes(
     });
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn spawn_track_analysis_file(
     app: AppHandle,
     origin: TrackAnalysisOrigin,
     server_id: String,
     track_id: String,
     file_path: PathBuf,
+    // URL the file's bytes came from when it is a SPILLED/CAPTURED HTTP
+    // stream (None for genuine local library files). Spilled bytes carry the
+    // same provenance requirements as the live stream they came from.
+    stream_url: Option<String>,
     priority: AnalysisBackfillPriority,
     generation_guard: Option<(u64, Arc<AtomicU64>)>,
 ) {
@@ -342,7 +350,7 @@ pub(crate) fn spawn_track_analysis_file(
             &server_id,
             &track_id,
             bytes,
-            None, // local file — bytes are the original
+            stream_url.as_deref(),
             priority,
         )
         .await
@@ -352,4 +360,33 @@ pub(crate) fn spawn_track_analysis_file(
             );
         }
     });
+}
+
+#[cfg(test)]
+mod scope_tests {
+    use super::resolve_analysis_scope;
+
+    #[test]
+    fn explicit_canonical_key_beats_the_selected_transport_address() {
+        // Primary vs alternate address must share one analysis scope: the
+        // explicit canonical key wins over the URL-derived transport host.
+        assert_eq!(
+            resolve_analysis_scope(Some("canonical.example"), Some("canonical.example"), Some("lan.local:4533")),
+            "canonical.example"
+        );
+        assert_eq!(
+            resolve_analysis_scope(Some("canonical.example"), None, Some("public.example/nav")),
+            "canonical.example"
+        );
+    }
+
+    #[test]
+    fn pinned_scope_then_url_are_fallbacks_only() {
+        assert_eq!(
+            resolve_analysis_scope(None, Some("pinned.example"), Some("lan.local")),
+            "pinned.example"
+        );
+        assert_eq!(resolve_analysis_scope(None, None, Some("lan.local")), "lan.local");
+        assert_eq!(resolve_analysis_scope(Some("  "), None, None), "");
+    }
 }

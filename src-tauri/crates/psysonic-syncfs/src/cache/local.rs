@@ -862,7 +862,31 @@ pub async fn promote_stream_cache_to_local(
 
     let part_path = unique_part_path(&file_path, &suffix, &track_id);
 
+    // Provenance gate: the live bytes are only promotable as the ORIGINAL
+    // file when their fingerprint matches a verified raw-probe of the
+    // original — a server-forced transcode (invisible on the wire) must never
+    // land on disk under the original suffix.
+    let registry = app
+        .try_state::<std::sync::Arc<psysonic_core::server_http::ServerHttpRegistry>>()
+        .map(|s| std::sync::Arc::clone(&*s));
+    let trusted = match psysonic_analysis::raw_probe::resolve_trusted_identity(
+        &reqwest::Client::new(),
+        registry.as_deref(),
+        Some(library_server_id.as_str()),
+        &url,
+    )
+    .await
+    {
+        psysonic_analysis::raw_probe::TrustedProbeVerdict::Trusted(h) => h,
+        psysonic_analysis::raw_probe::TrustedProbeVerdict::SkipCanonicalWrites => {
+            return Ok(None); // unverifiable — skip promotion entirely
+        }
+    };
+
     if let Some(bytes) = audio::take_stream_completed_for_url(&state, &url) {
+        if !psysonic_analysis::raw_probe::bytes_match_trusted(&bytes, &trusted) {
+            return Ok(None); // transcoded live bytes — not the original file
+        }
         if let Err(e) = tokio::fs::write(&part_path, &bytes).await {
             let _ = tokio::fs::remove_file(&part_path).await;
             return Err(e.to_string());
@@ -887,6 +911,12 @@ pub async fn promote_stream_cache_to_local(
         )
         .await;
     } else if let Some(spill_path) = audio::take_stream_completed_spill_for_url(&state, &url) {
+        let prefix = tokio::fs::read(&spill_path).await.ok().map(|b| {
+            b.into_iter().take(16 * 1024).collect::<Vec<u8>>()
+        });
+        if !prefix.is_some_and(|p| psysonic_analysis::raw_probe::bytes_match_trusted(&p, &trusted)) {
+            return Ok(None); // transcoded spill — not the original file
+        }
         if let Err(e) = tokio::fs::rename(&spill_path, &file_path).await {
             if let Err(copy_err) = tokio::fs::copy(&spill_path, &file_path).await {
                 let _ = tokio::fs::remove_file(&spill_path).await;

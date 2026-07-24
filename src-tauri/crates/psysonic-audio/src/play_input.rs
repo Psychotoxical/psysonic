@@ -197,6 +197,7 @@ fn open_local_file_input(
             sid,
             seed_id.to_string(),
             std::path::PathBuf::from(path),
+            None, // genuine local file — original by definition
             high,
             Some((ctx.gen, state.generation.clone())),
         );
