@@ -9,19 +9,44 @@ use psysonic_integration::subsonic::Song;
 /// Project a Subsonic `Song` plus its raw JSON sub-tree into a
 /// `TrackRow`. `raw_value` is what `track.raw_json` stores verbatim so
 /// OpenSubsonic extensions survive (spec §5.1 / ADR-7).
+/// Album-level OpenSubsonic fields copied onto each track `raw_json` during
+/// S2/getAlbum ingest, as `(album key, track key)`.
+///
+/// Most are the same name on both sides. The artist participants are NOT: on an
+/// album, `artists`/`displayArtist` describe the *album* artist, while on a track
+/// those same names mean the *track* performer. Copying them across unchanged would
+/// credit every song of a compilation to the album artist. They map onto the track's
+/// album-artist fields instead, which is where the album header reads them from
+/// (`deriveAlbumHeaderArtistRefs`).
+const ALBUM_TO_TRACK_RAW_KEYS: &[(&str, &str)] = &[
+    ("compilation", "compilation"),
+    ("isCompilation", "isCompilation"),
+    ("releaseTypes", "releaseTypes"),
+    ("artists", "albumArtists"),
+    ("albumArtists", "albumArtists"),
+    ("displayArtist", "displayAlbumArtist"),
+    ("displayAlbumArtist", "displayAlbumArtist"),
+];
+
 /// Copy album-level OpenSubsonic fields onto each track `raw_json` during S2/getAlbum
-/// ingest so track-grouped album browse can filter compilations.
+/// ingest, so track-grouped album browse can filter compilations and the album header
+/// can show individually linkable artists instead of one joined credit string.
+///
+/// Never overwrites a value the track already carries — the track's own field is more
+/// specific — and never writes an explicit null. Entries are applied in order, so the
+/// canonical `AlbumID3` spelling (`artists` / `displayArtist`) wins over the defensive
+/// `albumArtists` / `displayAlbumArtist` aliases a server might send instead.
 pub fn merge_album_open_subsonic_track_raw(raw_album: &Value, raw_song: &mut Value) {
     let Some(obj) = raw_song.as_object_mut() else {
         return;
     };
-    for key in ["compilation", "isCompilation", "releaseTypes"] {
-        if obj.contains_key(key) {
+    for (album_key, track_key) in ALBUM_TO_TRACK_RAW_KEYS {
+        if obj.contains_key(*track_key) {
             continue;
         }
-        if let Some(v) = raw_album.get(key) {
+        if let Some(v) = raw_album.get(*album_key) {
             if !v.is_null() {
-                obj.insert(key.to_string(), v.clone());
+                obj.insert((*track_key).to_string(), v.clone());
             }
         }
     }
@@ -308,6 +333,46 @@ mod tests {
         merge_album_open_subsonic_track_raw(&album, &mut song);
         assert_eq!(song.get("compilation"), Some(&json!(true)));
         assert_eq!(song.get("releaseTypes"), Some(&json!(["Compilation"])));
+    }
+
+    // The album header reads its individually linkable credits from the track's
+    // `albumArtists`; without this the header falls back to the joined display string
+    // ("Ice Nine Kills feat. Shavo") and cannot link the guest.
+    #[test]
+    fn merge_album_open_subsonic_track_raw_maps_album_participants_to_album_fields() {
+        let album = json!({
+            "artists": [{ "id": "ar1", "name": "Ice Nine Kills" }, { "id": "ar2", "name": "Shavo" }],
+            "displayArtist": "Ice Nine Kills feat. Shavo",
+        });
+        let mut song = json!({ "id": "tr_1", "title": "A Work of Art" });
+        merge_album_open_subsonic_track_raw(&album, &mut song);
+        assert_eq!(
+            song.get("albumArtists"),
+            Some(&json!([{ "id": "ar1", "name": "Ice Nine Kills" }, { "id": "ar2", "name": "Shavo" }]))
+        );
+        assert_eq!(
+            song.get("displayAlbumArtist"),
+            Some(&json!("Ice Nine Kills feat. Shavo"))
+        );
+        // The track performer fields must stay untouched: on an album these names mean
+        // the album artist, so copying them across would credit every song of a
+        // compilation to it.
+        assert_eq!(song.get("artists"), None);
+        assert_eq!(song.get("displayArtist"), None);
+    }
+
+    #[test]
+    fn merge_album_open_subsonic_track_raw_keeps_track_own_album_artists() {
+        let album = json!({ "artists": [{ "id": "ar1", "name": "Album Artist" }] });
+        let mut song = json!({
+            "id": "tr_1",
+            "albumArtists": [{ "id": "ar9", "name": "Track's Own" }],
+        });
+        merge_album_open_subsonic_track_raw(&album, &mut song);
+        assert_eq!(
+            song.get("albumArtists"),
+            Some(&json!([{ "id": "ar9", "name": "Track's Own" }]))
+        );
     }
 
     #[test]
