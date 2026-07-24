@@ -45,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Album details — disc covers in the multi-disc separator
 
-**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1336](https://github.com/Psychotoxical/psysonic/pull/1336)**
+**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1336](https://github.com/Psychotoxical/psysonic/pull/1336)**
 
 * Multi-disc albums show each disc's cover next to "CD N" instead of a generic disc icon. Releases with distinct per-disc artwork show each disc's own cover; other albums fall back to the shared album art.
 * On Navidrome, the queue, playbar mini-cover and "Who is listening?" use the same per-disc artwork, so a multi-disc release no longer keeps showing disc 1 everywhere outside the album page.

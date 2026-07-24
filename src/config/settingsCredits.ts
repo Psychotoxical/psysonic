@@ -210,6 +210,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Playlists browse — scoped header search by playlist name (PR #1308)',
       'True simultaneous multi-server support — unified catalogue, mixed-server playback, owner-safe actions, source fallback, and incremental indexing (PR #1326)',
       'Multi-server scope recovery and redacted selectable-depth diagnostics for reachability, music folders, and New Releases (PR #1331)',
+      'Cover pipeline — Navidrome per-disc art in queue, playbar and Who is listening?; All Albums warm no longer creates mf-* album dirs (PR #1336)',
     ],
   },
   {
@@ -434,7 +435,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Word-by-word lyrics from the server via OpenSubsonic songLyrics v2, no third-party backend needed (PR #1265)',
       'Artist page — add the whole discography to the queue (PR #1321)',
       'Fullscreen player — volume slider added to the Minimal and Immersive styles (PR #1340)',
-      'Multi-disc albums — disc covers in the separator, queue, playbar and Who is listening? (PR #1336)',
+      'Multi-disc albums — disc covers next to "CD N" in the album track list (PR #1336)',
     ],
   },
   {
