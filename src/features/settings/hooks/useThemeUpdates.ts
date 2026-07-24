@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { isNewer } from '@/lib/util/appUpdaterHelpers';
-import { fetchRegistry, getCachedRegistry, type Registry, type RegistryTheme } from '@/lib/themes/themeRegistry';
+import { fetchRegistry, getCachedRegistry, themeRequiresNewerApp, type Registry, type RegistryTheme } from '@/lib/themes/themeRegistry';
 import { useInstalledThemesStore } from '@/store/installedThemesStore';
 
 // Refresh the registry from source once per app launch (not just from the
@@ -39,7 +39,10 @@ export function useThemeUpdates(): RegistryTheme[] {
     );
     return registry.themes.filter(rt => {
       const current = installedVersionById.get(rt.id);
-      return current != null && isNewer(rt.version, current);
+      // Don't offer an update this build cannot install — it would fail at the
+      // install choke point and the notice would never clear. It reappears once
+      // the app itself is updated past the theme's floor.
+      return current != null && isNewer(rt.version, current) && !themeRequiresNewerApp(rt);
     });
   }, [registry, installed]);
 }

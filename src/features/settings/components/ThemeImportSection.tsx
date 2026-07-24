@@ -5,13 +5,25 @@ import { commands } from '@/generated/bindings';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useInstalledThemesStore } from '@/store/installedThemesStore';
 import { validateThemePackage, type ValidatedTheme } from '@/lib/themes/validateThemePackage';
+import { parseAssetRefs } from '@/lib/themes/themeAssets';
+import { installLocalAssets, type LocalAssetInput } from '@/lib/themes/themeAssetInstall';
+import { removeThemeAssets } from '@/lib/themes/themeAssetStorage';
 import { showToast } from '@/lib/dom/toast';
 import ConfirmModal from '@/ui/ConfirmModal';
 
+interface PendingImport {
+  theme: ValidatedTheme;
+  /** `assets/…` paths the CSS references, to be written on confirm. */
+  refs: string[];
+  /** Asset bytes extracted from the zip by Rust. */
+  assets: LocalAssetInput[];
+}
+
 /**
- * Import a community theme from a local `.zip` (manifest.json + theme.css).
- * Rust extracts the two entries (size-capped, outside the webview); the full
- * store contract validation then runs before the theme is persisted. Anything
+ * Import a community theme from a local `.zip` (manifest.json + theme.css, plus
+ * any `assets/` files). Rust extracts the entries (size-capped, outside the
+ * webview); the full store contract validation runs before the theme is
+ * persisted, and referenced assets are written to disk on confirm. Anything
  * off-contract is rejected with the exact reasons listed.
  */
 export function ThemeImportSection() {
@@ -20,7 +32,7 @@ export function ThemeImportSection() {
   const [importErrors, setImportErrors] = useState<string[] | null>(null);
   const [importing, setImporting] = useState(false);
   // A validated-but-not-yet-installed theme, awaiting the user's confirmation.
-  const [pending, setPending] = useState<ValidatedTheme | null>(null);
+  const [pending, setPending] = useState<PendingImport | null>(null);
 
   const handleImport = async () => {
     setImportErrors(null);
@@ -48,7 +60,12 @@ export function ThemeImportSection() {
         return;
       }
       // Validated — confirm with the user (name + author) before persisting.
-      setPending(result.theme);
+      // Assets are written on confirm, so carry the zip's bytes through.
+      setPending({
+        theme: result.theme,
+        refs: parseAssetRefs(result.theme.css),
+        assets: files.assets.map(a => ({ rel: a.rel, bytes: new Uint8Array(a.bytes) })),
+      });
     } catch (e) {
       setImportErrors([String(e)]);
     } finally {
@@ -56,10 +73,35 @@ export function ThemeImportSection() {
     }
   };
 
-  const confirmInstall = () => {
+  const confirmInstall = async () => {
     if (!pending) return;
-    install({ ...pending, installedAt: Date.now() });
-    showToast(t('settings.themeImportSuccess', { name: pending.name }), 4000, 'success');
+    const { theme, refs, assets } = pending;
+    let assetBase: string | undefined;
+    let assetRels: string[] | undefined;
+    if (refs.length > 0) {
+      const written = await installLocalAssets(theme.id, refs, assets);
+      if (!written.ok) {
+        await removeThemeAssets(theme.id);
+        setPending(null);
+        setImportErrors([
+          written.reason === 'invalid'
+            ? t('settings.themeImportAssetInvalid')
+            : t('settings.themeImportAssetError'),
+        ]);
+        return;
+      }
+      assetBase = written.assetBase;
+      assetRels = written.rels;
+    } else {
+      // No assets referenced — clear any directory a prior asset theme left.
+      await removeThemeAssets(theme.id);
+    }
+    install({
+      ...theme,
+      installedAt: Date.now(),
+      ...(assetBase ? { assetBase, assets: assetRels } : {}),
+    });
+    showToast(t('settings.themeImportSuccess', { name: theme.name }), 4000, 'success');
     setPending(null);
   };
 
@@ -134,10 +176,10 @@ export function ThemeImportSection() {
       <ConfirmModal
         open={pending !== null}
         title={t('settings.themeImportConfirmTitle')}
-        message={pending ? `${t('settings.themeImportConfirmBody', { name: pending.name, author: pending.author })} ${t('settings.themeImportConfirmRisk')}` : ''}
+        message={pending ? `${t('settings.themeImportConfirmBody', { name: pending.theme.name, author: pending.theme.author })} ${t('settings.themeImportConfirmRisk')}` : ''}
         confirmLabel={t('settings.themeStoreInstall')}
         cancelLabel={t('common.cancel')}
-        onConfirm={confirmInstall}
+        onConfirm={() => void confirmInstall()}
         onCancel={() => setPending(null)}
       />
     </div>
