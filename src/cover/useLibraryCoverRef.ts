@@ -424,10 +424,7 @@ export function useDiscCoverRef(
   song: Pick<SubsonicSong, 'id' | 'albumId' | 'coverArt' | 'discNumber' | 'serverId'>,
   serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
 ): CoverArtRef | undefined {
-  const serverId = song.serverId;
-  const isNavidrome = useAuthStore(s =>
-    isNavidromeServer(serverId ? s.subsonicServerIdentityByServer[serverId] : undefined),
-  );
+  const isNavidrome = useServerIsNavidrome(song.serverId);
   const scopeKey = coverScopeKey(serverScope);
   const albumId = song.albumId;
   const discNumber = song.discNumber;

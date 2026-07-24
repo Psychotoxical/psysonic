@@ -434,6 +434,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Word-by-word lyrics from the server via OpenSubsonic songLyrics v2, no third-party backend needed (PR #1265)',
       'Artist page — add the whole discography to the queue (PR #1321)',
       'Fullscreen player — volume slider added to the Minimal and Immersive styles (PR #1340)',
+      'Multi-disc albums — disc covers in the separator, queue, playbar and Who is listening? (PR #1336)',
     ],
   },
   {
