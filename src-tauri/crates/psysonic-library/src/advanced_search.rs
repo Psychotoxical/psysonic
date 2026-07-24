@@ -15,7 +15,7 @@ use rusqlite::{params, OptionalExtension};
 use serde_json::Value;
 
 use crate::album_compilation_filter::sql_display_artist_from;
-use crate::browse_support::overlay_album_level_starred_at;
+use crate::browse_support::{overlay_album_artist_links_for_store, overlay_album_level_starred_at};
 use crate::dto::{
     ArtistCreditMode, LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse, LibraryAlbumDto,
     LibraryArtistDto,
@@ -68,7 +68,6 @@ type AlbumBrowseTrackRow = (
     Option<String>,
     Option<i64>,
     i64,
-    Option<String>,
 );
 
 fn fts_candidate_pool_size(limit: u32, offset: u32) -> i64 {
@@ -1123,18 +1122,15 @@ fn build_album_from_tracks(
         applied,
     );
 
-    let select = format!(
-        "t.server_id, t.album_id, MAX(t.album), MAX(t.artist), MAX(t.artist_id), \
+    let select = "t.server_id, t.album_id, MAX(t.album), MAX(t.artist), MAX(t.artist_id), \
         MAX(t.album_artist), COUNT(*), SUM(t.duration_sec), MAX(t.year), MAX(t.genre), \
-        MAX(t.cover_art_id), MAX(t.starred_at), MAX(t.synced_at), MAX({aaid}) AS album_artist_id",
-        aaid = crate::scope_merge::album_artist_id_expr("t.raw_json"),
-    );
+        MAX(t.cover_art_id), MAX(t.starred_at), MAX(t.synced_at)";
     let order = album_order_from_track_groups(&req.sort).unwrap_or_else(|| {
         "ORDER BY MAX(t.album) COLLATE NOCASE ASC, t.album_id ASC".to_string()
     });
     let (mut albums, total) = query_grouped_rows(
         store,
-        &select,
+        select,
         "track t",
         &w,
         "GROUP BY t.album_id",
@@ -1145,6 +1141,7 @@ fn build_album_from_tracks(
         map_album_from_tracks,
     )?;
     overlay_album_level_starred_at(store, &req.server_id, &mut albums)?;
+    overlay_album_artist_links_for_store(store, &mut albums)?;
     Ok((albums, total))
 }
 
@@ -1547,11 +1544,9 @@ fn build_album_from_fts(
     let (mut albums, total): (Vec<LibraryAlbumDto>, u32) = store.with_read_conn(|conn| {
         let sql = format!(
             "SELECT t.server_id, t.album_id, t.album, t.artist, t.album_artist, t.artist_id, \
-                    t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, \
-                    MAX({aaid}) OVER (PARTITION BY t.server_id, t.album_id) AS album_artist_id \
+                    t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at \
              FROM track t \
-             WHERE {where_sql}",
-            aaid = crate::scope_merge::album_artist_id_expr("t.raw_json"),
+             WHERE {where_sql}"
         );
         let params = w.params.clone();
         let mut stmt = conn.prepare(&sql)?;
@@ -1569,7 +1564,6 @@ fn build_album_from_fts(
                     r.get(8)?,
                     r.get(9)?,
                     r.get(10)?,
-                    r.get(11)?,
                 ))
             })?
             .collect::<rusqlite::Result<Vec<AlbumBrowseTrackRow>>>()?;
@@ -1588,24 +1582,20 @@ fn build_album_from_fts(
             cover_art_id,
             starred_at,
             synced_at,
-            album_artist_id,
         ) in rows
         {
             if !seen.insert(album_id.clone()) {
                 continue;
             }
-            let (artist, resolved_artist_id) = crate::album_compilation_filter::resolve_album_credit(
-                track_artist,
-                artist_id,
-                album_artist,
-                album_artist_id,
-            );
             deduped.push(LibraryAlbumDto {
                 server_id,
                 id: album_id,
                 name: album,
-                artist,
-                artist_id: resolved_artist_id,
+                artist: crate::album_compilation_filter::pick_album_group_artist(
+                    track_artist,
+                    album_artist,
+                ),
+                artist_id,
                 song_count: None,
                 duration_sec: None,
                 year,
@@ -1633,6 +1623,7 @@ fn build_album_from_fts(
         Ok((albums, total))
     })?;
     overlay_album_level_starred_at(store, &req.server_id, &mut albums)?;
+    overlay_album_artist_links_for_store(store, &mut albums)?;
     Ok((albums, total))
 }
 
@@ -2107,18 +2098,14 @@ fn map_artist(r: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryArtistDto> {
 }
 
 fn map_album_from_tracks(r: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryAlbumDto> {
-    let (artist, artist_id) = crate::album_compilation_filter::resolve_album_credit(
-        r.get(3)?,
-        r.get(4)?,
-        r.get(5)?,
-        r.get(13)?,
-    );
+    let track_artist: Option<String> = r.get(3)?;
+    let album_artist: Option<String> = r.get(5)?;
     Ok(LibraryAlbumDto {
         server_id: r.get(0)?,
         id: r.get(1)?,
         name: r.get(2)?,
-        artist,
-        artist_id,
+        artist: crate::album_compilation_filter::pick_album_group_artist(track_artist, album_artist),
+        artist_id: r.get(4)?,
         song_count: Some(r.get(6)?),
         duration_sec: Some(r.get(7)?),
         year: r.get(8)?,

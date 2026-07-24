@@ -3,14 +3,14 @@
 use rusqlite::types::Value as SqlValue;
 use rusqlite::params_from_iter;
 
-use crate::album_compilation_filter::resolve_album_credit;
-use crate::browse_support::overlay_album_starred_at_rows;
+use crate::album_compilation_filter::pick_album_group_artist;
+use crate::browse_support::{overlay_album_artist_links, overlay_album_starred_at_rows};
 use crate::dto::{
     GenreAlbumCountDto, LibraryAlbumDto, LibraryMainstageAlbumFeed,
     LibraryMainstageAlbumsRequest, LibraryMainstageAlbumsResponse, LibraryScopePair,
 };
 use crate::scope_merge::{
-    album_artist_id_expr, non_empty_scopes, scope_cte_sql, ALBUM_DEDUP_KEY, ALBUM_PICK_KEY,
+    non_empty_scopes, scope_cte_sql, ALBUM_DEDUP_KEY, ALBUM_PICK_KEY,
 };
 use crate::search::PAGE_LIMIT_MAX;
 use crate::store::LibraryStore;
@@ -30,10 +30,8 @@ fn candidate_columns(feed_at: &str, priority: usize) -> String {
     format!(
         "t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
          t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.id, \
-         {album_artist_id} AS album_artist_id, \
          {priority} AS pr, ck.album_key, {ALBUM_DEDUP_KEY} AS album_dedup, \
-         {feed_at} AS feed_at",
-        album_artist_id = album_artist_id_expr("t.raw_json"),
+         {feed_at} AS feed_at"
     )
 }
 
@@ -132,35 +130,27 @@ fn build_mainstage_query(
            FROM candidates GROUP BY album_dedup \
          ), \
          representative_pool AS ( \
-           SELECT pool_rows.*, \
-                  MAX(pool_rows.album_artist_id) OVER (PARTITION BY pool_rows.album_dedup) \
-                    AS group_album_artist_id \
-           FROM ( \
-             SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
-                    t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.id, \
-                    {album_artist_id} AS album_artist_id, \
-                    s.pr, grouped.album_dedup \
-             FROM candidate_groups grouped \
-             CROSS JOIN scope s \
-             CROSS JOIN cluster.track_cluster_key ck INDEXED BY idx_ck_scope_album \
-               ON ck.server_id = s.server_id AND ck.library_id = s.library_id \
-              AND ck.album_key = grouped.album_key \
-             INNER JOIN track t INDEXED BY sqlite_autoindex_track_1 \
-               ON t.server_id = ck.server_id AND t.id = ck.track_id \
-             WHERE grouped.album_key IS NOT NULL AND t.deleted = 0 \
-               AND t.library_id = s.library_id \
-               AND t.album_id IS NOT NULL AND t.album_id != '' \
-             UNION ALL \
-             SELECT server_id, album_id, album, artist, artist_id, album_artist, \
-                    year, genre, cover_art_id, starred_at, synced_at, id, \
-                    album_artist_id, pr, album_dedup \
-             FROM candidates WHERE album_key IS NULL \
-           ) pool_rows \
+           SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
+                  t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.id, \
+                  s.pr, grouped.album_dedup \
+           FROM candidate_groups grouped \
+           CROSS JOIN scope s \
+           CROSS JOIN cluster.track_cluster_key ck INDEXED BY idx_ck_scope_album \
+             ON ck.server_id = s.server_id AND ck.library_id = s.library_id \
+            AND ck.album_key = grouped.album_key \
+           INNER JOIN track t INDEXED BY sqlite_autoindex_track_1 \
+             ON t.server_id = ck.server_id AND t.id = ck.track_id \
+           WHERE grouped.album_key IS NOT NULL AND t.deleted = 0 \
+             AND t.library_id = s.library_id \
+             AND t.album_id IS NOT NULL AND t.album_id != '' \
+           UNION ALL \
+           SELECT server_id, album_id, album, artist, artist_id, album_artist, \
+                  year, genre, cover_art_id, starred_at, synced_at, id, pr, album_dedup \
+           FROM candidates WHERE album_key IS NULL \
          ), \
          representatives AS ( \
            SELECT server_id, album_id, album, artist, artist_id, album_artist, \
                   year, genre, cover_art_id, starred_at, synced_at, album_dedup, \
-                  group_album_artist_id AS album_artist_id, \
                   MIN({ALBUM_PICK_KEY}) AS _pick \
            FROM representative_pool GROUP BY album_dedup \
          ) \
@@ -169,15 +159,13 @@ fn build_mainstage_query(
                   representative.year, representative.genre, representative.cover_art_id, \
                   representative.starred_at, representative.synced_at, \
                   grouped.feed_at, \
-                  (SELECT COUNT(*) FROM candidates) AS candidate_count, \
-                  representative.album_artist_id \
+                  (SELECT COUNT(*) FROM candidates) AS candidate_count \
          FROM representatives representative \
          INNER JOIN candidate_groups grouped \
            ON grouped.album_dedup = representative.album_dedup \
          ORDER BY grouped.feed_at DESC, representative.album COLLATE NOCASE ASC, \
                   representative.server_id ASC, representative.album_id ASC \
-         LIMIT ? OFFSET ?",
-        album_artist_id = album_artist_id_expr("t.raw_json"),
+         LIMIT ? OFFSET ?"
     );
     binds.push(SqlValue::Integer(i64::from(result_limit)));
     binds.push(SqlValue::Integer(i64::from(result_offset)));
@@ -215,18 +203,17 @@ fn map_mainstage_album(
     r: &rusqlite::Row<'_>,
     include_catalog_created_at: bool,
 ) -> rusqlite::Result<(LibraryAlbumDto, u32)> {
-    // Shared VA-aware rule (same as `album_row_to_dto`): the card credit prefers the
-    // album-artist name and the linked id follows the same choice — album-artist id at
-    // column 13 — so a compilation links to "Various Artists", not a track performer.
-    let (artist, artist_id) =
-        resolve_album_credit(r.get(3)?, r.get(4)?, r.get(5)?, r.get(13)?);
+    // Credit name only — `overlay_album_artist_links` resolves which entity that credit
+    // links to once the feed's rows are known, from the whole physical album.
+    let track_artist: Option<String> = r.get(3)?;
+    let album_artist: Option<String> = r.get(5)?;
     Ok((
         LibraryAlbumDto {
             server_id: r.get(0)?,
             id: r.get(1)?,
             name: r.get(2)?,
-            artist,
-            artist_id,
+            artist: pick_album_group_artist(track_artist, album_artist),
+            artist_id: r.get(4)?,
             song_count: None,
             duration_sec: None,
             year: r.get(6)?,
@@ -307,6 +294,7 @@ pub fn list_mainstage_albums(
             let has_more = albums.len() > limit as usize;
             albums.truncate(limit as usize);
             overlay_album_starred_at_rows(conn, &mut albums);
+            overlay_album_artist_links(conn, &mut albums);
             if psysonic_core::logging::should_log_debug() {
                 crate::app_deprintln!(
                     "[frontend][mainstage-browse] {}",

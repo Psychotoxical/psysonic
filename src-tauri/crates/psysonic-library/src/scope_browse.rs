@@ -9,6 +9,7 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::{params_from_iter, types::Value as SqlValue};
 use serde::{Deserialize, Serialize};
 
+use crate::browse_support::overlay_album_artist_links;
 use crate::dto::{
     LibraryAlbumDto, LibraryScopeBrowseEntity, LibraryScopeBrowseRequest,
     LibraryScopeBrowseResponse, LibraryScopePair, LibrarySortClause, LibraryTrackDto,
@@ -391,6 +392,16 @@ fn browse_albums(
         }
         albums.push(candidate_to_dto(candidate.clone()));
     }
+    // The projection stores the display credit and a representative track's performer id
+    // side by side, so a compilation row reads "Various Artists" with a guest's id. Which
+    // entity that credit links to belongs to the whole physical album, exactly as in the
+    // merge paths — this is the page every "All Albums" grid renders.
+    store
+        .with_read_conn(|conn| {
+            overlay_album_artist_links(conn, &mut albums);
+            Ok(())
+        })
+        .map_err(|error| error.to_string())?;
     let has_more = candidates
         .iter()
         .enumerate()

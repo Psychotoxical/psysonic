@@ -294,7 +294,6 @@ fn query_albums(
         library_scopes,
         " AND c.album_id IS NOT NULL AND c.album_id != ''",
     );
-    let aaid = crate::scope_merge::album_artist_id_expr("t.raw_json");
     let sql = format!(
         "WITH fts_hits AS (\
            SELECT f.rowid, {TRACK_FTS_BM25_RANK} AS rank \
@@ -306,8 +305,7 @@ fn query_albums(
          ) \
          SELECT t.server_id, t.album_id, MAX(t.album), MAX(t.artist), MAX(t.album_artist), \
                 MAX(t.artist_id), MAX(t.year), MAX(t.genre), MAX(t.cover_art_id), \
-                MAX(t.starred_at), MAX(t.synced_at), MIN(h.rank) AS best_rank, \
-                MAX({aaid}) AS album_artist_id \
+                MAX(t.starred_at), MAX(t.synced_at), MIN(h.rank) AS best_rank \
          FROM fts_hits h \
          JOIN track t ON t.rowid = h.rowid \
          WHERE t.server_id = ? \
@@ -328,18 +326,17 @@ fn query_albums(
     let mut stmt = conn.prepare(&sql)?;
     let mut out = Vec::new();
     for row in stmt.query_map(rusqlite::params_from_iter(params.iter()), |r| {
-        let (artist, artist_id) = crate::album_compilation_filter::resolve_album_credit(
-            r.get(3)?,
-            r.get(5)?,
-            r.get(4)?,
-            r.get(12)?,
-        );
+        let track_artist: Option<String> = r.get(3)?;
+        let album_artist: Option<String> = r.get(4)?;
         Ok(LibraryAlbumDto {
             server_id: r.get(0)?,
             id: r.get(1)?,
             name: r.get(2)?,
-            artist,
-            artist_id,
+            artist: crate::album_compilation_filter::pick_album_group_artist(
+                track_artist,
+                album_artist,
+            ),
+            artist_id: r.get(5)?,
             song_count: None,
             duration_sec: None,
             year: r.get(6)?,
@@ -352,6 +349,7 @@ fn query_albums(
     })? {
         out.push(row?);
     }
+    crate::browse_support::overlay_album_artist_links(conn, &mut out);
     Ok(out)
 }
 
