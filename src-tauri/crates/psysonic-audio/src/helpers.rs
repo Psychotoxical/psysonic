@@ -300,26 +300,31 @@ pub(crate) fn analysis_cache_track_id(logical_track_id: Option<&str>, url: &str)
     logical.or_else(|| playback_identity(url))
 }
 
-/// Quality-relevant query params of a stream URL — the requested transcode
-/// `format` and `maxBitRate` cap. Auth params (`t`/`s`) rotate per call and
-/// stay excluded. Empty when no transcode is requested.
+/// Identity-relevant query params of a stream URL — the owning account (`u`)
+/// plus the requested transcode `format` and `maxBitRate` cap. Rotating auth
+/// params (`t`/`s`) stay excluded.
 fn stream_quality_signature(url: &str) -> String {
     let Some(q) = url.split('?').nth(1) else {
         return String::new();
     };
     let mut max_bit_rate = "";
     let mut format = "";
+    let mut user = "";
     for pair in q.split('&') {
         if let Some(v) = pair.strip_prefix("maxBitRate=") {
             max_bit_rate = v;
         } else if let Some(v) = pair.strip_prefix("format=") {
             format = v;
+        } else if let Some(v) = pair.strip_prefix("u=") {
+            // Owning account: per-user server transcoding policies can differ,
+            // so bytes are never shared across profiles on one endpoint.
+            user = v;
         }
     }
-    if max_bit_rate.is_empty() && format.is_empty() {
+    if max_bit_rate.is_empty() && format.is_empty() && user.is_empty() {
         return String::new();
     }
-    format!("{max_bit_rate}|{format}")
+    format!("{user}|{max_bit_rate}|{format}")
 }
 
 /// Server base of a Subsonic stream URL — scheme + authority + any path
@@ -1192,6 +1197,22 @@ mod tests {
         assert!(!same_playback_target(
             "https://lan.local/rest/stream.view?id=42",
             "https://public.example/rest/stream.view?id=42",
+        ));
+    }
+
+    #[test]
+    fn same_target_distinguishes_user_accounts_on_one_endpoint() {
+        // Two profiles (accounts) on the same server: per-user transcoding
+        // policies can differ, so completed/preloaded bytes must never be
+        // reused across accounts even when track id and quality match.
+        assert!(!same_playback_target(
+            "https://s/rest/stream.view?id=42&u=alice&t=a1&s=x1",
+            "https://s/rest/stream.view?id=42&u=bob&t=b1&s=x2",
+        ));
+        // Same account with rotating auth still matches.
+        assert!(same_playback_target(
+            "https://s/rest/stream.view?id=42&u=alice&t=a1&s=x1",
+            "https://s/rest/stream.view?id=42&u=alice&t=a2&s=x2",
         ));
     }
 
