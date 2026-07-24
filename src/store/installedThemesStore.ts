@@ -21,6 +21,16 @@ export interface InstalledTheme {
   css: string;
   installedAt: number;
   /**
+   * Absolute on-disk directory of this theme (`<appDataDir>/themes/<id>`) when
+   * it ships local assets, used to rewrite `url("assets/…")` at inject time.
+   * Absent for the vast majority of themes, which have no assets. Repaired at
+   * startup if the profile directory moved (see `healThemeAssetBases`).
+   */
+  assetBase?: string;
+  /** Theme-relative asset paths written to disk (e.g. `assets/logo.svg`), for
+   *  uninstall and update cleanup. Absent when the theme has no assets. */
+  assets?: string[];
+  /**
    * Session-only copy pushed by the dev `--theme-watch` sweep. Never written
    * to storage (see partialize/merge below), so a dev session leaves no trace
    * in the user's installed themes.

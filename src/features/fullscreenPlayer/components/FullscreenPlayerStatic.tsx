@@ -18,6 +18,7 @@ import { FsLyricsApple } from '@/features/fullscreenPlayer/components/FsLyricsAp
 import { FsPlayBtn } from '@/features/fullscreenPlayer/components/FsPlayBtn';
 import { FsClock } from '@/features/fullscreenPlayer/components/FsClock';
 import { FsTimeReadout } from '@/features/fullscreenPlayer/components/FsTimeReadout';
+import { FsVolume } from '@/features/fullscreenPlayer/components/FsVolume';
 import { ownedOverrideValue } from '@/lib/util/ownedEntityKey';
 
 interface Props {
@@ -227,6 +228,13 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
           <FsTimeReadout duration={duration} />
 
           <div className="fsp-actions">
+            <FsVolume
+              className="fsp-volume"
+              buttonClassName="fsp-btn fsp-btn-sm"
+              sliderClassName="fsp-volume-slider"
+              iconSize={20}
+              showTooltip
+            />
             <button className="fsp-btn fsp-btn-sm" onClick={() => setQueueOpen(true)} aria-label={t('queue.title')} data-tooltip={t('queue.title')}>
               <ListMusic size={20} />
             </button>

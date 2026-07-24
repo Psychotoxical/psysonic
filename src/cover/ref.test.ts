@@ -4,9 +4,13 @@ import {
   albumCoverRefForPlayback,
   albumCoverRefForSong,
   albumHasDistinctDiscCovers,
+  forgetAlbumDistinctDiscCovers,
+  navidromeDiscCoverRef,
+  rememberAlbumDiscCount,
   rememberAlbumDistinctDiscCovers,
   radioCoverRef,
   resolveAlbumCoverCacheEntityId,
+  resolveAlbumDiscCount,
   resolveDistinctDiscCoversForAlbum,
 } from './ref';
 
@@ -16,6 +20,36 @@ describe('radioCoverRef', () => {
     expect(ref.cacheEntityId).toBe('ra-shared');
     expect(ref.fetchCoverArtId).toBe('ra-shared');
     expect(ref.serverScope).toMatchObject({ kind: 'server', serverId: 'srv-b' });
+  });
+});
+
+describe('album disc count seed', () => {
+  it('records the distinct disc count from a known tracklist', () => {
+    rememberAlbumDistinctDiscCovers('al-two-disc', [
+      { id: 't1', albumId: 'al-two-disc', coverArt: 'mf-a', discNumber: 1 },
+      { id: 't2', albumId: 'al-two-disc', coverArt: 'mf-b', discNumber: 1 },
+      { id: 't3', albumId: 'al-two-disc', coverArt: 'mf-c', discNumber: 2 },
+    ], 'srv-x');
+    expect(resolveAlbumDiscCount('al-two-disc', 'srv-x')).toBe(2);
+  });
+
+  it('treats a missing disc number as disc 1', () => {
+    rememberAlbumDistinctDiscCovers('al-nodisc', [
+      { id: 't1', albumId: 'al-nodisc', coverArt: 'mf-a', discNumber: undefined },
+      { id: 't2', albumId: 'al-nodisc', coverArt: 'mf-b', discNumber: undefined },
+    ], 'srv-x');
+    expect(resolveAlbumDiscCount('al-nodisc', 'srv-x')).toBe(1);
+  });
+
+  it('remembers an explicit count and forgets it with the distinct verdict', () => {
+    rememberAlbumDiscCount('al-explicit', 3, 'srv-x');
+    expect(resolveAlbumDiscCount('al-explicit', 'srv-x')).toBe(3);
+    forgetAlbumDistinctDiscCovers('al-explicit', 'srv-x');
+    expect(resolveAlbumDiscCount('al-explicit', 'srv-x')).toBeUndefined();
+  });
+
+  it('is undefined for an unseeded album', () => {
+    expect(resolveAlbumDiscCount('al-never-seen', 'srv-x')).toBeUndefined();
   });
 });
 
@@ -108,6 +142,26 @@ describe('resolveDistinctDiscCoversForAlbum', () => {
 
     expect(resolveDistinctDiscCoversForAlbum('shared', 'srv-a')).toBe(true);
     expect(resolveDistinctDiscCoversForAlbum('shared', 'srv-b')).toBe(false);
+  });
+});
+
+describe('navidromeDiscCoverRef', () => {
+  it('builds a per-disc dc- fetch id and cache slot from albumId + discNumber', () => {
+    const ref = navidromeDiscCoverRef('0Za0MjhoHc6moGy2RyHga5', 2);
+    expect(ref?.cacheKind).toBe('album');
+    expect(ref?.cacheEntityId).toBe('dc-0Za0MjhoHc6moGy2RyHga5:2');
+    expect(ref?.fetchCoverArtId).toBe('dc-0Za0MjhoHc6moGy2RyHga5:2');
+  });
+
+  it('gives each disc its own slot (no collision)', () => {
+    const d1 = navidromeDiscCoverRef('al-btw', 1);
+    const d2 = navidromeDiscCoverRef('al-btw', 2);
+    expect(d1?.cacheEntityId).not.toBe(d2?.cacheEntityId);
+  });
+
+  it('returns undefined without a usable album id / disc number', () => {
+    expect(navidromeDiscCoverRef('', 1)).toBeUndefined();
+    expect(navidromeDiscCoverRef('al-1', Number.NaN)).toBeUndefined();
   });
 });
 

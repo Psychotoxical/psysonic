@@ -9,6 +9,7 @@
  */
 
 import type { SubsonicAlbum, SubsonicSong } from '@/lib/api/subsonicTypes';
+import { emitCoverDebug } from '@/lib/api/coverDebug';
 import type { CoverArtRef, CoverCacheKind, CoverServerScope } from './types';
 
 /** Resolved cover identity — maps 1:1 to Rust `CoverEntry`. */
@@ -46,6 +47,24 @@ export function resolveSongFetchCoverArtId(song: CoverArtResolvableSong): string
   if (albumId) return albumId;
   if (cover) return cover;
   return undefined;
+}
+
+/**
+ * True when a song carries a usable cover id of its own — one that resolves to
+ * something other than the bare album id. Navidrome (and other OpenSubsonic
+ * servers) expose embedded per-file art as `mf-*`/`dc-*`/explicit ids; a track
+ * with no art, an id that only echoes its own track id, or the bare album id all
+ * fall back to `albumId` and are NOT disc-specific.
+ *
+ * Used by the multi-disc separator: it renders at most one cover per disc, so it
+ * can safely resolve per-disc from the disc's own track when that track has a
+ * real cover id, without the per-song cache explosion the album-scoped
+ * {@link albumHasDistinctDiscCovers} guard protects against.
+ */
+export function songHasDiscSpecificCover(song: CoverArtResolvableSong): boolean {
+  const albumId = song.albumId?.trim();
+  const fetchId = resolveSongFetchCoverArtId(song);
+  return !!fetchId && fetchId !== albumId;
 }
 
 /**
@@ -113,6 +132,16 @@ export function resolveAlbumCoverEntry(
   }
   const cacheEntityId =
     distinctDiscCovers && fetch !== album ? fetch : album;
+  // Depth-3: album disk slot keyed by a per-file `mf-*` id (distinct-disc path, or
+  // a caller that passed `mf-*` as the album id — e.g. warm without album.id).
+  if (cacheEntityId.startsWith('mf-')) {
+    emitCoverDebug('mf_album_slot_resolve', {
+      albumId: album,
+      fetchCoverArtId: fetch,
+      cacheEntityId,
+      distinctDiscCovers,
+    });
+  }
   return { cacheKind: 'album', cacheEntityId, fetchCoverArtId: fetch };
 }
 

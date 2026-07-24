@@ -618,6 +618,11 @@ export default function OfflineLibrary() {
       disableVirtualization={perfFlags.disableMainstageVirtualLists}
       layoutSignal={layoutSignal}
       warmGridCovers={{
+        // Offline playlist pins may only have a coverArt id; album pins use sourceId.
+        pickAlbumId: (item: OfflineGridItem) =>
+          item.kind === 'card' && item.card.pinSource.kind === 'album'
+            ? item.card.pinSource.sourceId
+            : undefined,
         pickCoverArtId: (item: OfflineGridItem) =>
           item.kind === 'card' ? item.card.coverArt : undefined,
         displayCssPx: OFFLINE_CARD_COVER_CSS_PX,

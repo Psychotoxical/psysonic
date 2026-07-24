@@ -20,6 +20,7 @@ import { FsSeekbar } from './FsSeekbar';
 import { ownedOverrideValue } from '@/lib/util/ownedEntityKey';
 import { FsLyricsMenu } from './FsLyricsMenu';
 import { FsPlayBtn } from './FsPlayBtn';
+import { FsVolume } from './FsVolume';
 import { useFsDynamicAccent } from '@/features/fullscreenPlayer/hooks/useFsDynamicAccent';
 import { useFsIdleFade } from '@/features/fullscreenPlayer/hooks/useFsIdleFade';
 import { useQueueTrackAt } from '@/features/queue';
@@ -242,6 +243,13 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
               <MicVocal size={14} />
             </button>
           </div>
+          <FsVolume
+            className="fs-volume"
+            buttonClassName="fs-btn fs-btn-sm"
+            sliderClassName="fs-volume-slider"
+            iconSize={14}
+            showTooltip
+          />
         </div>
 
       </div>

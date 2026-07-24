@@ -2,9 +2,10 @@ import React, { memo, useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   SkipBack, SkipForward, Play, Pause, Repeat, Repeat1,
-  Volume2, VolumeX, ListMusic, MessageSquare, Shrink,
+  ListMusic, MessageSquare, Shrink,
 } from 'lucide-react';
-import { usePlayerStore, useVolumeToggle, type PlaybackProgressSnapshot } from '@/features/playback';
+import { usePlayerStore, type PlaybackProgressSnapshot } from '@/features/playback';
+import { FsVolume } from './FsVolume';
 import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
 import { useFsArtistBackdrop } from '@/features/fullscreenPlayer/hooks/useFsArtistBackdrop';
@@ -37,30 +38,6 @@ const PrismProgress = memo(function PrismProgress() {
         type="range" min={0} max={1} step={0.001} defaultValue={0}
         aria-label="Seek"
         {...seekHandlers}
-      />
-    </div>
-  );
-});
-
-/** Compact volume — icon toggles mute, hover reveals the slider. */
-const PrismVolume = memo(function PrismVolume() {
-  const { t } = useTranslation();
-  const { volume, setVolume, muted, toggleMute } = useVolumeToggle();
-  return (
-    <div className="fsp2-volume">
-      <button
-        className="fsp2-btn"
-        aria-label={muted ? t('player.unmute') : t('player.mute')}
-        onClick={toggleMute}
-      >
-        {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-      </button>
-      <input
-        className="fsp2-volume-slider"
-        type="range" min={0} max={1} step={0.01}
-        value={volume}
-        onChange={e => setVolume(parseFloat(e.target.value))}
-        aria-label={t('player.volume')}
       />
     </div>
   );
@@ -144,7 +121,11 @@ export default function FullscreenPlayerPrism({ onClose }: { onClose: () => void
 
         {/* Utilities */}
         <div className="fsp2-bar-right">
-          <PrismVolume />
+          <FsVolume
+            className="fsp2-volume"
+            buttonClassName="fsp2-btn"
+            sliderClassName="fsp2-volume-slider"
+          />
           <button
             className={`fsp2-btn${queueOpen ? ' fsp2-btn-active' : ''}`}
             onClick={() => setQueueOpen(o => !o)}

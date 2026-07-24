@@ -1,5 +1,6 @@
 import { useInstalledThemesStore } from '@/store/installedThemesStore';
 import { useThemeStore } from '@/store/themeStore';
+import { removeThemeAssets } from '@/lib/themes/themeAssetStorage';
 
 /**
  * Uninstall a community theme and repair any theme selection that pointed at it.
@@ -18,6 +19,9 @@ export function uninstallTheme(id: string): void {
   const installed = useInstalledThemesStore.getState();
   const wasLight = installed.getInstalled(id)?.mode === 'light';
   installed.uninstall(id);
+  // Drop any on-disk assets. Best-effort and off the critical path — the startup
+  // orphan sweep removes it anyway if this fails.
+  void removeThemeAssets(id);
 
   const t = useThemeStore.getState();
   if (t.theme === id) t.setTheme(wasLight ? 'latte' : 'mocha');

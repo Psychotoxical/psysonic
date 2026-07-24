@@ -22,12 +22,28 @@ vi.mock('@/lib/api/subsonicScrobble', () => ({
   getNowPlayingForServers: getNowPlayingForServersMock,
 }));
 
-vi.mock('@/cover/TrackCoverArtImage', () => ({
-  TrackCoverArtImage: ({ serverScope }: { serverScope: unknown }) => {
-    coverScopes.push(serverScope);
-    return <div data-testid="cover" />;
-  },
+vi.mock('@/cover/CoverArtImage', () => ({
+  CoverArtImage: () => <div data-testid="cover" />,
 }));
+
+vi.mock('@/cover/useLibraryCoverRef', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/cover/useLibraryCoverRef')>();
+  return {
+    ...actual,
+    usePresenceCoverRef: (
+      song: { albumId?: string | null } | null | undefined,
+      serverScope: unknown,
+    ) => {
+      coverScopes.push(serverScope);
+      return {
+        cacheKind: 'album',
+        cacheEntityId: song?.albumId ?? 'x',
+        fetchCoverArtId: song?.albumId ?? 'x',
+        serverScope,
+      };
+    },
+  };
+});
 
 function entry(serverId: string, id: string, username: string) {
   return {

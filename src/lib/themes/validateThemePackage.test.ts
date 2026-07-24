@@ -88,4 +88,12 @@ describe('validateThemePackage', () => {
     const r = validateThemePackage(manifest(), `@keyframes pulse { from {} to {} } ${css()}`);
     expect(hasError(r, /failed the safety check/)).toBe(true);
   });
+
+  it('accepts a theme that references local assets (written separately at import)', () => {
+    const r = validateThemePackage(
+      manifest(),
+      `[data-theme='my-theme'] { background: url("assets/bg.webp"); }`,
+    );
+    expect(r.ok).toBe(true);
+  });
 });

@@ -125,6 +125,25 @@ pub fn library_resolve_cover_entry(
     }
 }
 
+/// Distinct disc count for an album in the local index (`0` when unknown / no live
+/// tracks, `1` for a single-disc release). The frontend gates per-disc cover
+/// resolution (`dc-<albumId>:<discNumber>`) on `> 1` so single-disc albums keep the
+/// shared album cover slot across the queue, playbar and disc separators.
+#[tauri::command]
+#[specta::specta]
+pub fn library_album_disc_count(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    album_id: String,
+) -> Result<u32, String> {
+    let server_id = server_id.trim();
+    let album_id = album_id.trim();
+    if server_id.is_empty() || album_id.is_empty() {
+        return Ok(0);
+    }
+    crate::cover_resolve::album_disc_count(&runtime.store, server_id, album_id)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn library_analysis_backfill_batch(

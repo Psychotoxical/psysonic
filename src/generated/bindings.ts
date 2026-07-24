@@ -20,6 +20,13 @@ export const commands = {
 	cacheEntityId: string,
 	fetchCoverArtId: string,
 } | null, string>(__TAURI_INVOKE("library_resolve_cover_entry", { serverId, entity, entityId })),
+	/**
+	 *  Distinct disc count for an album in the local index (`0` when unknown / no live
+	 *  tracks, `1` for a single-disc release). The frontend gates per-disc cover
+	 *  resolution (`dc-<albumId>:<discNumber>`) on `> 1` so single-disc albums keep the
+	 *  shared album cover slot across the queue, playbar and disc separators.
+	 */
+	libraryAlbumDiscCount: (serverId: string, albumId: string) => typedError<number, string>(__TAURI_INVOKE("library_album_disc_count", { serverId, albumId })),
 	libraryAnalysisBackfillBatch: (serverId: string, cursor: string | null, limit: number | null) => typedError<LibraryAnalysisBackfillBatchDto, string>(__TAURI_INVOKE("library_analysis_backfill_batch", { serverId, cursor, limit })),
 	libraryAnalysisProgress: (serverId: string) => typedError<LibraryAnalysisProgressDto, string>(__TAURI_INVOKE("library_analysis_progress", { serverId })),
 	libraryCountLiveTracks: (serverId: string) => typedError<number, string>(__TAURI_INVOKE("library_count_live_tracks", { serverId })),
@@ -1019,9 +1026,20 @@ export type IcyMetadata = {
 	icy_description: string | null,
 };
 
+export type ImportedThemeAsset = {
+	/**  Theme-relative path, forward-slashed, e.g. `assets/logo.svg`. */
+	rel: string,
+	/**
+	 *  Raw bytes. Assets are small (whitelisted images/fonts, ≤ 1 MB each), so a
+	 *  plain byte array over IPC is fine.
+	 */
+	bytes: number[],
+};
+
 export type ImportedThemeFiles = {
 	manifest: string,
 	css: string,
+	assets: ImportedThemeAsset[],
 };
 
 export type LegacyOfflineMigrationResult = {

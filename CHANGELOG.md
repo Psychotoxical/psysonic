@@ -43,6 +43,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * **Settings → System → Logging** and **PsyLab → Logs** offer basic and verbose debug-depth levels while Debug logging is enabled. Verbose mode adds structured multi-server scope, reachability, music-folder and New Releases diagnostics, with credentials and sensitive URL data redacted.
 
+### Album details — disc covers in the multi-disc separator
+
+**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1336](https://github.com/Psychotoxical/psysonic/pull/1336)**
+
+* Multi-disc albums show each disc's cover next to "CD N" instead of a generic disc icon. Releases with distinct per-disc artwork show each disc's own cover; other albums fall back to the shared album art.
+* On Navidrome, the queue, playbar mini-cover and "Who is listening?" use the same per-disc artwork, so a multi-disc release no longer keeps showing disc 1 everywhere outside the album page.
+* Clearing the cover cache no longer leaves junk `mf-*` directories under the album cover store after browsing All Albums.
+
+### Fullscreen player — volume slider in Minimal and Immersive modes
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1340](https://github.com/Psychotoxical/psysonic/pull/1340)**
+
+* The fullscreen player's volume control, previously only in **Prism** mode, is now also in the **Minimal** and **Immersive** styles — a mute toggle plus an always-visible level slider.
+
+### Theme store — respect a theme's minimum app version
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1344](https://github.com/Psychotoxical/psysonic/pull/1344)**
+
+* A store theme that needs a newer Psysonic now shows "requires a newer version" in place of the install button, and pending updates that need a newer app are held back, instead of the install failing with a generic error. The notice clears once the app itself is updated.
+
+### Themes — bundle local images and fonts
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1345](https://github.com/Psychotoxical/psysonic/pull/1345)**
+
+* Themes can ship their own images and fonts in an `assets/` folder and reference them with a relative `url("assets/…")`, instead of embedding everything as inline data. Assets are written to disk on install and served locally — themes still never reach the network. Works for both Theme Store installs and imported `.zip` themes; uninstalling a theme removes its files.
+
 ## Changed
 
 ### Library index — designed for several live servers at once

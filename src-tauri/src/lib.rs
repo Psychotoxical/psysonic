@@ -163,6 +163,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             // library_upsert_songs_from_api / library_patch_track (serde_json::Value args).
             psysonic_library::browse_support::library_reconcile_album_stars,
             psysonic_library::commands::library_resolve_cover_entry,
+            psysonic_library::commands::library_album_disc_count,
             psysonic_library::commands::library_analysis_backfill_batch,
             psysonic_library::commands::library_analysis_progress,
             psysonic_library::commands::library_count_live_tracks,
@@ -1406,6 +1407,7 @@ pub fn run() {
             psysonic_library::commands::library_analysis_backfill_batch,
             library_analysis_backfill::library_analysis_backfill_configure,
             psysonic_library::commands::library_resolve_cover_entry,
+            psysonic_library::commands::library_album_disc_count,
             cover_cache::cover_cache_peek_batch,
             cover_cache::cover_cache_ensure,
             cover_cache::cover_cache_ensure_batch,
