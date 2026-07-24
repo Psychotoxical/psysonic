@@ -114,7 +114,8 @@ export function useArtistDetailData(
             // "Appears on" is split locally from the same scoped album set, so it
             // works under multi-server scopes and needs no network search (the
             // network path below is disabled once the local index is authoritative).
-            setFeaturedAlbums(multi.appearsOnAlbums);
+            // `?? []` guards against an older payload without the field.
+            setFeaturedAlbums(multi.appearsOnAlbums ?? []);
             setTopSongs(multi.topSongs);
             setLoading(false);
             if (
@@ -152,6 +153,10 @@ export function useArtistDetailData(
             setArtist(local.artist);
             setIsStarred(!!local.artist.starred);
             setAlbums(local.albums);
+            // Preserve the own / appears-on split offline, so the artist page keeps
+            // its "Also featured on" section instead of merging everything into the
+            // main discography.
+            setFeaturedAlbums(local.appearsOnAlbums);
             setTopSongs([]);
             setLoading(false);
             return;
@@ -223,6 +228,7 @@ export function useArtistDetailData(
               setArtist(local.artist);
               setIsStarred(!!local.artist.starred);
               setAlbums(local.albums);
+              setFeaturedAlbums(local.appearsOnAlbums);
               setTopSongs([]);
               setLoading(false);
               return;

@@ -529,7 +529,7 @@ export async function loadArtistFromLocalPlayback(
   serverId: string,
   artistId: string,
   creditMode?: ArtistCreditMode,
-): Promise<{ artist: SubsonicArtist; albums: SubsonicAlbum[] } | null> {
+): Promise<{ artist: SubsonicArtist; albums: SubsonicAlbum[]; appearsOnAlbums: SubsonicAlbum[] } | null> {
   if (!offlineLocalBrowseEnabled(serverId)) return null;
   const localIds = new Set(listBrowsableEntries(serverId).map(e => e.trackId));
   const allTracks = (await fetchBrowsableLocalTrackDtos(serverId)).filter(t => localIds.has(t.id));
@@ -558,5 +558,6 @@ export async function loadArtistFromLocalPlayback(
       serverId,
     };
 
-  return { artist, albums };
+  // Local playback lists downloaded albums only; there is no appears-on split here.
+  return { artist, albums, appearsOnAlbums: [] };
 }

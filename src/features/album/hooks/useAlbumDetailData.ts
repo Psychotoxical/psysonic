@@ -118,7 +118,9 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
             ? await loadArtistFromLocalPlayback(serverId, artistId)
             : await loadArtistFromLibraryIndex(serverId, artistId);
           if (artistLocal && isCurrent()) {
-            setRelatedAlbums(artistLocal.albums.filter(a => ownedEntityKey(a) !== ownedEntityKey(currentAlbum)));
+            // Related albums is an all-albums surface — union the split.
+            setRelatedAlbums([...artistLocal.albums, ...artistLocal.appearsOnAlbums]
+              .filter(a => ownedEntityKey(a) !== ownedEntityKey(currentAlbum)));
             return;
           }
         }

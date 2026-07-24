@@ -23,6 +23,23 @@ pub(crate) fn json_guarded(json_col: &str, expr: &str, fallback: &str) -> String
 /// SQL predicate on any row with a `raw_json` column (album or track).
 pub fn compilation_raw_json_sql(table_alias: &str) -> String {
     let a = table_alias;
+    // A release-type array (OpenSubsonic top-level `releaseTypes` and the
+    // Navidrome-native `tags.releasetype`) contains "Compilation". Both forms are
+    // read, mirroring `usable_release_types_expr`: a track tagged only
+    // `{"tags":{"releasetype":["Compilation"]}}` with no flat album-artist would
+    // otherwise read as non-compilation and land in the main discography. The
+    // `json_type = 'array'` guard keeps a scalar value from matching.
+    let release_type_is_compilation = |path: &str| {
+        format!(
+            "EXISTS ( \
+               SELECT 1 FROM json_each({a}.raw_json, '{p}') AS rt \
+               WHERE json_type({a}.raw_json, '{p}') = 'array' \
+                 AND lower(rt.value) = 'compilation' \
+             )",
+            a = a,
+            p = path,
+        )
+    };
     // `NULL IN (...)` is unknown in SQL — wrap each probe in EXISTS so non-comp rows stay false.
     json_guarded(
         &format!("{a}.raw_json"),
@@ -31,11 +48,9 @@ pub fn compilation_raw_json_sql(table_alias: &str) -> String {
                SELECT 1 WHERE json_extract({a}.raw_json, '$.compilation') IN (1, '1', 'true', 'TRUE') \
              ) OR EXISTS ( \
                SELECT 1 WHERE json_extract({a}.raw_json, '$.isCompilation') IN (1, '1', 'true', 'TRUE') \
-             ) OR EXISTS ( \
-               SELECT 1 FROM json_each({a}.raw_json, '$.releaseTypes') AS rt \
-               WHERE json_type({a}.raw_json, '$.releaseTypes') = 'array' \
-                 AND lower(rt.value) = 'compilation' \
-             )"
+             ) OR {top} OR {nested}",
+            top = release_type_is_compilation("$.releaseTypes"),
+            nested = release_type_is_compilation("$.tags.releasetype"),
         ),
         "0",
     )
@@ -293,6 +308,40 @@ mod tests {
         let sql = compilation_raw_json_sql("t");
         assert!(sql.contains("$.compilation"));
         assert!(sql.contains("$.releaseTypes"));
+        assert!(sql.contains("$.tags.releasetype"));
+    }
+
+    #[test]
+    fn compilation_raw_json_sql_recognizes_every_representation() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute("CREATE TABLE t (raw_json TEXT)", []).unwrap();
+        let sql = format!("SELECT {} FROM t", compilation_raw_json_sql("t"));
+
+        // (raw_json, expected-compilation)
+        let cases: &[(&str, bool)] = &[
+            (r#"{"compilation":1}"#, true),
+            (r#"{"compilation":"true"}"#, true),
+            (r#"{"isCompilation":true}"#, true),
+            (r#"{"releaseTypes":["Album","Compilation"]}"#, true),
+            // Navidrome-native nested tag — the representation the fix adds.
+            (r#"{"tags":{"releasetype":["Compilation"]}}"#, true),
+            (r#"{"tags":{"releasetype":["compilation"]}}"#, true),
+            // Not a compilation.
+            (r#"{"tags":{"releasetype":["Album"]}}"#, false),
+            (r#"{"releaseTypes":["Album"]}"#, false),
+            (r#"{"albumArtist":"Someone"}"#, false),
+            // A scalar (not an array) must not match, and malformed JSON must not
+            // abort — it takes the guarded fallback and simply doesn't match.
+            (r#"{"tags":{"releasetype":"Compilation"}}"#, false),
+            ("{not valid json", false),
+        ];
+
+        for (raw, expected) in cases {
+            conn.execute("DELETE FROM t", []).unwrap();
+            conn.execute("INSERT INTO t (raw_json) VALUES (?1)", [raw]).unwrap();
+            let got: i64 = conn.query_row(&sql, [], |r| r.get(0)).unwrap();
+            assert_eq!(got == 1, *expected, "raw_json={raw}");
+        }
     }
 
     #[test]
