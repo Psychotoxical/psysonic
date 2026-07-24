@@ -144,6 +144,31 @@ pub fn library_album_disc_count(
     crate::cover_resolve::album_disc_count(&runtime.store, server_id, album_id)
 }
 
+/// Hard cap on one `library_resolve_artist_ids` call. A joined credit has a handful of
+/// participants; anything beyond this is a caller bug, and the surplus resolves to
+/// `None` rather than turning a render path into an unbounded query loop.
+const RESOLVE_ARTIST_IDS_MAX: usize = 32;
+
+/// Resolve credit names to indexed artist ids, positionally aligned with `names`.
+///
+/// For rows whose server sent only a joined credit string ("A feat. B") instead of the
+/// structured `artists` list: the frontend splits the string on the server's own
+/// separators and asks here for the ids, so every named artist can be linked and not
+/// just the primary one. Names with no artist row come back as `null`.
+#[tauri::command]
+#[specta::specta]
+pub fn library_resolve_artist_ids(
+    runtime: State<'_, LibraryRuntime>,
+    server_id: String,
+    names: Vec<String>,
+) -> Result<Vec<Option<String>>, String> {
+    let capped = names.len().min(RESOLVE_ARTIST_IDS_MAX);
+    let mut resolved = crate::repos::ArtistRepository::new(&runtime.store)
+        .resolve_ids_by_name(server_id.trim(), &names[..capped])?;
+    resolved.resize(names.len(), None);
+    Ok(resolved)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn library_analysis_backfill_batch(

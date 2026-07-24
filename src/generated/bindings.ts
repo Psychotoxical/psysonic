@@ -27,6 +27,15 @@ export const commands = {
 	 *  shared album cover slot across the queue, playbar and disc separators.
 	 */
 	libraryAlbumDiscCount: (serverId: string, albumId: string) => typedError<number, string>(__TAURI_INVOKE("library_album_disc_count", { serverId, albumId })),
+	/**
+	 *  Resolve credit names to indexed artist ids, positionally aligned with `names`.
+	 * 
+	 *  For rows whose server sent only a joined credit string ("A feat. B") instead of the
+	 *  structured `artists` list: the frontend splits the string on the server's own
+	 *  separators and asks here for the ids, so every named artist can be linked and not
+	 *  just the primary one. Names with no artist row come back as `null`.
+	 */
+	libraryResolveArtistIds: (serverId: string, names: string[]) => typedError<(string | null)[], string>(__TAURI_INVOKE("library_resolve_artist_ids", { serverId, names })),
 	libraryAnalysisBackfillBatch: (serverId: string, cursor: string | null, limit: number | null) => typedError<LibraryAnalysisBackfillBatchDto, string>(__TAURI_INVOKE("library_analysis_backfill_batch", { serverId, cursor, limit })),
 	libraryAnalysisProgress: (serverId: string) => typedError<LibraryAnalysisProgressDto, string>(__TAURI_INVOKE("library_analysis_progress", { serverId })),
 	libraryCountLiveTracks: (serverId: string) => typedError<number, string>(__TAURI_INVOKE("library_count_live_tracks", { serverId })),
