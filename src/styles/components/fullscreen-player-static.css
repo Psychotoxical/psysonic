@@ -329,6 +329,19 @@
   height: 46px;
 }
 
+/* Volume — mute toggle + an always-visible level slider (issue #1327). Shown at a
+   glance like every other control in this permanent toolbar. */
+.fsp-volume {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.fsp-volume-slider {
+  width: 96px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 /* Reused FsPlayBtn (renders .fs-btn.fs-btn-play) — scope its look to this player. */
 .fsp .playback-transport-play-wrap {
   position: relative;

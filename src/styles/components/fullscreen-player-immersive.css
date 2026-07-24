@@ -315,6 +315,19 @@
   height: 28px;
 }
 
+/* Volume — mute toggle + an always-visible level slider (issue #1327). Shown at a
+   glance like every other control in this permanent toolbar. */
+.fs-volume {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.fs-volume-slider {
+  width: 72px;
+  accent-color: var(--dynamic-fs-accent, var(--accent));
+  cursor: pointer;
+}
+
 .fs-btn-play {
   width: 52px;
   height: 52px;
