@@ -47,6 +47,13 @@ export interface RegistryTheme {
    * install. Absent for themes with no floor.
    */
   minAppVersion?: string;
+  /**
+   * Optional local asset files shipped with the theme, discovered by the registry
+   * build. `path` is repo-relative (`themes/<id>/assets/…`); `bytes` is the file
+   * size. The install path fetches and writes each one. Absent for themes with no
+   * assets, which is almost all of them.
+   */
+  assets?: { path: string; bytes: number }[];
 }
 
 export interface Registry {
@@ -162,6 +169,13 @@ export async function fetchThemeCss(relPath: string): Promise<string> {
   const res = await fetch(assetUrl(relPath), { cache: 'no-cache' });
   if (!res.ok) throw new Error(`theme css fetch failed: ${res.status}`);
   return res.text();
+}
+
+/** Fetch a theme asset's raw bytes from GitHub raw (repo-relative path). */
+export async function fetchThemeAssetBytes(relPath: string): Promise<Uint8Array> {
+  const res = await fetch(assetUrl(relPath), { cache: 'no-cache' });
+  if (!res.ok) throw new Error(`theme asset fetch failed: ${res.status}`);
+  return new Uint8Array(await res.arrayBuffer());
 }
 
 /**

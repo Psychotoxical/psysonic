@@ -434,6 +434,8 @@ export const settings = {
   themeImporting: 'Importation…',
   themeImportHint: 'Charge un thème empaqueté en .zip (manifest.json + theme.css).',
   themeImportSuccess: '« {{name}} » importé.',
+  themeImportAssetInvalid: "Une ressource incluse n'a pas passé le contrôle de sécurité, le thème n'a pas été installé.",
+  themeImportAssetError: "Les fichiers de ressources du thème n'ont pas pu être écrits, il n'a pas été installé.",
   themeImportErrorTitle: "Ce thème n'a pas pu être importé",
   themeImportErrorBody: "Il ne correspond pas au format de thème Psysonic. Il a peut-être été conçu pour une autre version, ou le fichier est incomplet — vérifiez que vous avez choisi le bon .zip, ou contactez l'auteur du thème.",
   themeImportErrorDetails: 'Détails techniques',

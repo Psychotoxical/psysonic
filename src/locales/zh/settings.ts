@@ -433,6 +433,8 @@ export const settings = {
   themeImporting: '正在导入…',
   themeImportHint: '加载打包为 .zip 的主题（manifest.json + theme.css）。',
   themeImportSuccess: '已导入“{{name}}”。',
+  themeImportAssetInvalid: '随附的资源未通过安全检查，因此未安装该主题。',
+  themeImportAssetError: '无法写入该主题的资源文件，因此未安装。',
   themeImportErrorTitle: '无法导入此主题',
   themeImportErrorBody: '它不符合 Psysonic 主题格式。可能是为其他版本制作的，或文件不完整——请确认选择了正确的 .zip，或联系主题作者。',
   themeImportErrorDetails: '技术细节',

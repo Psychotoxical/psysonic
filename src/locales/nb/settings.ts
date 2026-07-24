@@ -437,6 +437,8 @@ export const settings = {
   themeImporting: 'Importerer…',
   themeImportHint: 'Laster inn et tema pakket som .zip (manifest.json + theme.css).',
   themeImportSuccess: '«{{name}}» importert.',
+  themeImportAssetInvalid: 'En medfølgende ressurs bestod ikke sikkerhetskontrollen, så temaet ble ikke installert.',
+  themeImportAssetError: 'Temaets ressursfiler kunne ikke skrives, så det ble ikke installert.',
   themeImportErrorTitle: 'Dette temaet kunne ikke importeres',
   themeImportErrorBody: 'Det samsvarer ikke med Psysonic-temaformatet. Det kan være laget for en annen versjon, eller filen er ufullstendig — sjekk at du valgte riktig .zip, eller spør temaets forfatter.',
   themeImportErrorDetails: 'Tekniske detaljer',

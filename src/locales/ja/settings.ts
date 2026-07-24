@@ -486,6 +486,8 @@ export const settings = {
   themeImporting: 'インポート中…',
   themeImportHint: '.zip としてパッケージされたテーマを読み込みます (manifest.json + theme.css)。',
   themeImportSuccess: '"{{name}}" をインポートしました。',
+  themeImportAssetInvalid: '同梱アセットが安全性チェックに通らなかったため、テーマはインストールされませんでした。',
+  themeImportAssetError: 'テーマのアセットファイルを書き込めなかったため、インストールされませんでした。',
   themeImportErrorTitle: 'このテーマはインポートできませんでした',
   themeImportErrorBody: 'Psysonic のテーマ形式と一致しません。別バージョン向けに作られたか、ファイルが不完全な可能性があります。正しい .zip を選んだか確認するか、テーマ作者に問い合わせてください。',
   themeImportErrorDetails: '技術的詳細',

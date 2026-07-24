@@ -492,6 +492,8 @@ export const settings = {
   themeImporting: 'Импортиране…',
   themeImportHint: 'Зареди тема, пакетирана като .zip (manifest.json + theme.css).',
   themeImportSuccess: '„{{name}}“ е импортирана.',
+  themeImportAssetInvalid: 'Приложен ресурс не премина проверката за безопасност, затова темата не беше инсталирана.',
+  themeImportAssetError: 'Файловете с ресурси на темата не можаха да бъдат записани, затова тя не беше инсталирана.',
   themeImportErrorTitle: 'Тази тема не можа да бъде импортирана',
   themeImportErrorBody: 'Не съответства на формата на темите на Psysonic. Може да е направена за друга версия, или файлът е непълен — провери дали си избрал правилния .zip, или се свържи с автора на темата.',
   themeImportErrorDetails: 'Технически подробности',

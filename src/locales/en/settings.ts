@@ -492,6 +492,8 @@ export const settings = {
   themeImporting: 'Importing…',
   themeImportHint: 'Load a theme packaged as a .zip (manifest.json + theme.css).',
   themeImportSuccess: '"{{name}}" imported.',
+  themeImportAssetInvalid: 'A bundled asset failed the safety check, so the theme was not installed.',
+  themeImportAssetError: 'The theme\'s asset files could not be written, so it was not installed.',
   themeImportErrorTitle: 'This theme could not be imported',
   themeImportErrorBody: "It doesn't match the Psysonic theme format. It may have been made for a different version, or the file is incomplete — check that you picked the right .zip, or ask the theme's author.",
   themeImportErrorDetails: 'Technical details',

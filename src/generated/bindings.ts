@@ -1026,9 +1026,20 @@ export type IcyMetadata = {
 	icy_description: string | null,
 };
 
+export type ImportedThemeAsset = {
+	/**  Theme-relative path, forward-slashed, e.g. `assets/logo.svg`. */
+	rel: string,
+	/**
+	 *  Raw bytes. Assets are small (whitelisted images/fonts, ≤ 1 MB each), so a
+	 *  plain byte array over IPC is fine.
+	 */
+	bytes: number[],
+};
+
 export type ImportedThemeFiles = {
 	manifest: string,
 	css: string,
+	assets: ImportedThemeAsset[],
 };
 
 export type LegacyOfflineMigrationResult = {

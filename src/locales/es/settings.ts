@@ -446,6 +446,8 @@ export const settings = {
   themeImporting: 'Importando…',
   themeImportHint: 'Carga un tema empaquetado como .zip (manifest.json + theme.css).',
   themeImportSuccess: '«{{name}}» importado.',
+  themeImportAssetInvalid: 'Un recurso incluido no superó la comprobación de seguridad, por lo que el tema no se instaló.',
+  themeImportAssetError: 'No se pudieron escribir los archivos de recursos del tema, por lo que no se instaló.',
   themeImportErrorTitle: 'No se pudo importar este tema',
   themeImportErrorBody: 'No coincide con el formato de temas de Psysonic. Puede que se haya creado para otra versión o que el archivo esté incompleto: comprueba que elegiste el .zip correcto o pregunta al autor del tema.',
   themeImportErrorDetails: 'Detalles técnicos',

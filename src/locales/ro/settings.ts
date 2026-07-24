@@ -450,6 +450,8 @@ export const settings = {
   themeImporting: 'Se importă…',
   themeImportHint: 'Încarcă o temă împachetată ca .zip (manifest.json + theme.css).',
   themeImportSuccess: '„{{name}}” importată.',
+  themeImportAssetInvalid: 'O resursă inclusă nu a trecut verificarea de siguranță, așa că tema nu a fost instalată.',
+  themeImportAssetError: 'Fișierele de resurse ale temei nu au putut fi scrise, așa că nu a fost instalată.',
   themeImportErrorTitle: 'Această temă nu a putut fi importată',
   themeImportErrorBody: 'Nu corespunde formatului de teme Psysonic. Poate a fost creată pentru altă versiune sau fișierul este incomplet — verifică dacă ai ales arhiva .zip corectă sau întreabă autorul temei.',
   themeImportErrorDetails: 'Detalii tehnice',

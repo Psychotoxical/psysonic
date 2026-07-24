@@ -434,6 +434,8 @@ export const settings = {
   themeImporting: 'Importeren…',
   themeImportHint: 'Laadt een thema verpakt als .zip (manifest.json + theme.css).',
   themeImportSuccess: '"{{name}}" geïmporteerd.',
+  themeImportAssetInvalid: 'Een meegeleverd bestand kwam niet door de veiligheidscontrole, dus het thema is niet geïnstalleerd.',
+  themeImportAssetError: 'De bestanden van het thema konden niet worden weggeschreven, dus het is niet geïnstalleerd.',
   themeImportErrorTitle: 'Dit thema kon niet worden geïmporteerd',
   themeImportErrorBody: 'Het komt niet overeen met het Psysonic-themaformaat. Mogelijk is het voor een andere versie gemaakt of is het bestand onvolledig — controleer of je de juiste .zip hebt gekozen, of vraag de maker van het thema.',
   themeImportErrorDetails: 'Technische details',

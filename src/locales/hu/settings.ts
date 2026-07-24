@@ -492,6 +492,8 @@ export const settings = {
   themeImporting: 'Importálás…',
   themeImportHint: 'Tölts be egy .zip-ként csomagolt témát (manifest.json + theme.css).',
   themeImportSuccess: '„{{name}}" importálva.',
+  themeImportAssetInvalid: 'Egy mellékelt erőforrás nem ment át a biztonsági ellenőrzésen, ezért a téma nem lett telepítve.',
+  themeImportAssetError: 'A téma erőforrásfájljait nem sikerült kiírni, ezért nem lett telepítve.',
   themeImportErrorTitle: 'Ezt a témát nem sikerült importálni',
   themeImportErrorBody: 'Nem felel meg a Psysonic témaformátumának. Lehet, hogy másik verzióhoz készült, vagy a fájl hiányos — ellenőrizd, hogy a megfelelő .zip-et választottad-e, vagy kérdezd meg a téma szerzőjét.',
   themeImportErrorDetails: 'Technikai részletek',

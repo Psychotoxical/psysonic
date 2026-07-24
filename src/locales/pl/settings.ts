@@ -492,6 +492,8 @@ export const settings = {
   themeImporting: 'Importowanie…',
   themeImportHint: 'Załaduj motyw zapakowany jako .zip (manifest.json + theme.css).',
   themeImportSuccess: 'Zaimportowano "{{name}}".',
+  themeImportAssetInvalid: 'Dołączony zasób nie przeszedł kontroli bezpieczeństwa, więc motyw nie został zainstalowany.',
+  themeImportAssetError: 'Nie udało się zapisać plików zasobów motywu, więc nie został zainstalowany.',
   themeImportErrorTitle: 'Ten motyw nie mógł być zaimportowany',
   themeImportErrorBody: 'Nie pasuje do formatu motywów PsySonic. Mógł zostać utworzony dla innej wersji albo plik jest niekompletny — sprawdź, czy wybrano właściwy plik .zip, albo zapytaj autora motywu.',
   themeImportErrorDetails: 'Szczegóły techniczne',
