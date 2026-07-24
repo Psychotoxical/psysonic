@@ -43,6 +43,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * **Settings → System → Logging** and **PsyLab → Logs** offer basic and verbose debug-depth levels while Debug logging is enabled. Verbose mode adds structured multi-server scope, reachability, music-folder and New Releases diagnostics, with credentials and sensitive URL data redacted.
 
+### Fullscreen player — volume slider in Minimal and Immersive modes
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1340](https://github.com/Psychotoxical/psysonic/pull/1340)**
+
+* The fullscreen player's volume control, previously only in **Prism** mode, is now also in the **Minimal** and **Immersive** styles — a mute toggle plus an always-visible level slider.
+
 ## Changed
 
 ### Library index — designed for several live servers at once
