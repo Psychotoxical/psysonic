@@ -2,7 +2,11 @@
  * Tests for uninstallTheme — removing a community theme must repair every
  * selection slot that referenced it (active + scheduler day/night).
  */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// The on-disk asset removal is a best-effort side effect, not under test here.
+vi.mock('@/lib/themes/themeAssetStorage', () => ({ removeThemeAssets: vi.fn().mockResolvedValue(undefined) }));
+
 import { uninstallTheme } from '@/lib/themes/uninstallTheme';
 import { useInstalledThemesStore, type InstalledTheme } from '@/store/installedThemesStore';
 import { useThemeStore } from '@/store/themeStore';

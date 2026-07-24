@@ -5,6 +5,7 @@ import { useLyricsStore } from './store/lyricsStore';
 import { useThemeStore } from './store/themeStore';
 import { useInstalledThemesStore } from './store/installedThemesStore';
 import { gateInjectedThemes, syncInjectedThemes } from '@/lib/themes/themeInjection';
+import { reconcileThemeAssetsOnStartup } from '@/app/themeAssetStartup';
 import { useThemeScheduler } from '@/app/hooks/useThemeScheduler';
 import { useFontStore } from './store/fontStore';
 import { getWindowKind } from './app/windowKind';
@@ -38,6 +39,15 @@ export default function App() {
     // applied.
     gateInjectedThemes([theme, themeDay, themeNight, effectiveTheme]);
   }, [installedThemes, theme, themeDay, themeNight, effectiveTheme]);
+
+  // Once, in the main window: repair a moved profile's asset paths and sweep
+  // orphaned theme directories. Async and best-effort, so it runs after the
+  // first paint (the synchronous startup injection already used the stored
+  // base). Main-window only, to avoid two webviews sweeping at once.
+  useEffect(() => {
+    if (getWindowKind() !== 'main') return;
+    void reconcileThemeAssetsOnStartup();
+  }, []);
 
   // Dev only: `--theme-watch <theme.css | dir>` (debug builds) pushes local
   // theme CSS (+ sibling manifest.json metadata) in on every save. Each

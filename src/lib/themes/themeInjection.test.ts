@@ -49,6 +49,14 @@ describe('validateThemeCss (security floor)', () => {
     expect(validateThemeCss(css, 'x')).not.toBeNull();
   });
 
+  it('accepts a local assets/ url()', () => {
+    expect(validateThemeCss(block('x', `--brand: url("assets/logo.svg");`), 'x')).not.toBeNull();
+  });
+
+  it('rejects an assets/ path that escapes the folder', () => {
+    expect(validateThemeCss(block('x', `--brand: url("assets/../secret.svg");`), 'x')).toBeNull();
+  });
+
   it('rejects @keyframes not namespaced with the theme id', () => {
     expect(validateThemeCss(`@keyframes pulse { from {} to {} } ${block('x')}`, 'x')).toBeNull();
   });

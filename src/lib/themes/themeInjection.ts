@@ -1,4 +1,5 @@
 import type { InstalledTheme } from '@/store/installedThemesStore';
+import { classifyUrlTarget, rewriteAssetUrls } from '@/lib/themes/themeAssets';
 
 /**
  * Runtime CSS injection for installed community themes. Built-in themes are
@@ -23,7 +24,8 @@ const MAX_CSS_BYTES = 256 * 1024;
  *
  *  - can't break out of its `<style>` element (`</style>` / `<script>`),
  *  - can't pull anything off the network — no `@import`, and `url()` may only be
- *    an inline `data:` URI (prevents tracking/exfiltration on every app start),
+ *    an inline `data:` URI or a local `assets/…` path (both stay off the network;
+ *    the relative path is rewritten to an `asset:` URL at inject time),
  *  - no `@property` (would register global custom properties that could clash
  *    with the app or other themes),
  *  - no legacy script-in-CSS vectors (`expression()`, `javascript:`,
@@ -47,12 +49,12 @@ export function validateThemeCss(css: string, id: string): string | null {
   // No legacy script-in-CSS vectors.
   if (/expression\s*\(/i.test(s) || /javascript:/i.test(s) || /-moz-binding/i.test(s)) return null;
 
-  // url() may only be an inline data: URI. Match each `url(` and inspect the
-  // start of its content — a non-data target never starts with `data:`.
+  // url() may only be an inline data: URI or a local `assets/…` path. Match each
+  // `url(` and classify its target; anything else would reach the network.
   const urls = s.match(/url\(\s*['"]?\s*[^'")]*/gi) || [];
   for (const u of urls) {
     const inner = u.replace(/^url\(\s*['"]?\s*/i, '');
-    if (!/^data:/i.test(inner)) return null;
+    if (classifyUrlTarget(inner) === 'reject') return null;
   }
 
   // @keyframes (and vendor-prefixed) must start with `<id>-`.
@@ -68,6 +70,10 @@ export function validateThemeCss(css: string, id: string): string | null {
 export function injectTheme(theme: InstalledTheme): void {
   const clean = validateThemeCss(theme.css, theme.id);
   if (clean == null) return;
+  // Rewrite relative `url("assets/…")` to the theme's on-disk asset directory.
+  // No-op for themes without assets (no base, or no asset urls). Runs after
+  // validation, so we never validate a url() we produced ourselves.
+  const css = theme.assetBase ? rewriteAssetUrls(clean, theme.assetBase) : clean;
   const selector = `style[${ATTR}="${CSS.escape(theme.id)}"]`;
   let el = document.head.querySelector<HTMLStyleElement>(selector);
   if (!el) {
@@ -75,7 +81,7 @@ export function injectTheme(theme: InstalledTheme): void {
     el.setAttribute(ATTR, theme.id);
     document.head.appendChild(el);
   }
-  if (el.textContent !== clean) el.textContent = clean;
+  if (el.textContent !== css) el.textContent = css;
 }
 
 export function removeInjectedTheme(id: string): void {
