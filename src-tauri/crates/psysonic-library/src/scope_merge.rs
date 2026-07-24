@@ -9,7 +9,7 @@ use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
 use crate::album_compilation_filter::{
-    album_credits_artist, compilation_predicate_sql, pick_album_group_artist,
+    album_credits_artist, compilation_predicate_sql, json_guarded, pick_album_group_artist,
     pick_album_group_artist_id, various_artists_label, various_artists_like_sql,
 };
 use crate::artist_sort::{sort_key_for_display_name, DEFAULT_IGNORED_ARTICLES};
@@ -2303,13 +2303,8 @@ fn fetch_artist_candidates(
 /// cannot survive to the frontend, where `ArtistDetail.tsx` lowercases each entry.
 /// The top-level API field stays preferred when it is itself usable.
 ///
-/// The whole expression is wrapped in a lazy `CASE WHEN json_valid(...)` guard:
-/// `track.raw_json` is unconstrained text and the library tolerates invalid JSON
-/// (`LibraryTrackDto::from_row` maps it to `Value::Null`), but the JSON1 functions
-/// (`json_type`/`json_array_length`/`json_each`/`json_extract`) raise `malformed JSON`
-/// on invalid text — which, inside this per-album correlated lookup, would abort the
-/// entire artist-detail query instead of skipping the bad row. The guard makes a
-/// malformed row contribute no release types, so a later valid track still wins.
+/// Wrapped in [`json_guarded`] so a malformed row contributes no release types (and a
+/// later valid track still wins) instead of aborting the whole artist-detail query.
 fn usable_release_types_expr(json_col: &str) -> String {
     let candidate = |path: &str| {
         format!(
@@ -2321,25 +2316,29 @@ fn usable_release_types_expr(json_col: &str) -> String {
             p = path,
         )
     };
-    format!(
-        "CASE WHEN json_valid({c}) THEN COALESCE({top}, {nested}) END",
-        c = json_col,
-        top = candidate("$.releaseTypes"),
-        nested = candidate("$.tags.releasetype"),
+    json_guarded(
+        json_col,
+        &format!(
+            "COALESCE({top}, {nested})",
+            top = candidate("$.releaseTypes"),
+            nested = candidate("$.tags.releasetype"),
+        ),
+        "NULL",
     )
 }
 
 /// The server's album-artist id from a track's `raw_json.albumArtistId`, guarded the
-/// same way as [`usable_release_types_expr`]: JSON1 raises `malformed JSON` on invalid
-/// TEXT, and `track.raw_json` is unconstrained, so one bad row would otherwise abort
-/// the whole query instead of contributing nothing.
+/// same way as [`usable_release_types_expr`] so one malformed row contributes nothing
+/// instead of aborting the whole query.
 fn album_artist_id_expr(json_col: &str) -> String {
-    format!(
-        "CASE WHEN json_valid({c}) \
-              THEN CASE WHEN json_type({c}, '$.albumArtistId') = 'text' \
-                        THEN json_extract({c}, '$.albumArtistId') END \
-              END",
-        c = json_col,
+    json_guarded(
+        json_col,
+        &format!(
+            "CASE WHEN json_type({c}, '$.albumArtistId') = 'text' \
+                  THEN json_extract({c}, '$.albumArtistId') END",
+            c = json_col,
+        ),
+        "NULL",
     )
 }
 
@@ -2350,7 +2349,12 @@ fn album_artist_id_expr(json_col: &str) -> String {
 /// releases (main discography) from appears-on entries.
 pub(crate) struct AlbumSplitMeta {
     pub is_compilation: bool,
-    pub has_album_artist: bool,
+    /// The album's own `album_artist` tag, read across **all** of the album's scoped
+    /// tracks — not just the ones by the artist being viewed. The artist's single
+    /// guest track is often the untagged row, so reading the tag off that row alone
+    /// would report "no album artist" for an album that is plainly credited to
+    /// somebody else, and file it under this artist's discography.
+    pub album_artist: Option<String>,
 }
 
 /// Returns each of the artist's track-derived albums paired with its
@@ -2405,7 +2409,68 @@ fn fetch_albums_for_artist_key(
     // route to appears-on when the album has *no* album-artist tag — a real
     // album_artist that credits the artist (e.g. their own best-of) keeps the album
     // in the main discography, where the frontend groups it under "Compilation".
-    let comp_pred = compilation_predicate_sql("ct", Some("ct.artist"), Some("ct.album_artist"));
+    //
+    // Scoped like `base` (rejoined through `scoped_track`): an album can exist in a
+    // library the user did not select — letting those rows decide the split would
+    // move an album out of the discography on evidence from outside the scope.
+    //
+    // Skipped entirely in `va_mode`: the partition returns every album there, so the
+    // per-album EXISTS (up to four JSON probes per track of every compilation in the
+    // library) would be parsed and thrown away on the heaviest artist page there is.
+    // Every track of the album, whichever physical copy and server it sits on:
+    // `physical_albums` (one small row per physical album, already grouped by
+    // `album_dedup`) drives, `track` is probed through its `(server_id, album_id)`
+    // index. Keyed on `album_dedup` rather than the winning row's `(server_id,
+    // album_id)`, so reordering library scopes — which changes which copy wins
+    // `rn = 1` but no data — cannot move albums between the two lists.
+    //
+    // Scope is applied against the two bind-value CTEs directly, NOT by joining
+    // `scoped_track` or `scope`. `scoped_track` is a UNION ALL over every track in
+    // scope and `CROSS JOIN` pins it as the outer loop, so correlating against it
+    // would scan the whole scope once per album instead of one indexed probe; `scope`
+    // looks small but derives its whole-server half by aggregating the entire `track`
+    // table. `exact_scope`/`whole_scope` are the literal scope rows the caller bound —
+    // a handful of values, no table access.
+    let album_tracks_from = "FROM physical_albums pa \
+           JOIN track ct ON ct.server_id = pa.server_id AND ct.album_id = pa.album_id \
+          WHERE ct.deleted = 0 AND pa.album_dedup = p.album_dedup \
+            AND (EXISTS (SELECT 1 FROM exact_scope es \
+                          WHERE es.server_id = ct.server_id AND es.library_id = ct.library_id) \
+              OR EXISTS (SELECT 1 FROM whole_scope ws WHERE ws.server_id = ct.server_id))";
+    // The album's own `album_artist` tag — see `AlbumSplitMeta` for why it must come
+    // from the whole album rather than the viewed artist's own (often untagged) row.
+    let album_artist_tag = format!(
+        "(SELECT TRIM(ct.album_artist) {album_tracks_from} \
+            AND TRIM(COALESCE(ct.album_artist, '')) <> '' \
+          ORDER BY ct.id ASC LIMIT 1)"
+    );
+    // Compilation signal (compilation / isCompilation / releaseTypes / a Various
+    // Artists credit on the track artist or in raw_json displayArtist). Only consulted
+    // when the album has *no* album-artist tag — a real album_artist that credits the
+    // artist (e.g. their own best-of) keeps the album in the main discography, where
+    // the frontend groups it under "Compilation".
+    //
+    // Computed lazily for exactly that reason: it costs up to four JSON probes per
+    // track of the album, and the partition ignores it whenever the tag is present —
+    // which is the majority of albums. Skipped entirely in `va_mode`, where the
+    // partition keeps every album regardless (the heaviest artist page there is).
+    //
+    // No album-artist column is passed to the predicate: this branch only runs when
+    // no scoped track of the album has a non-empty `album_artist`, so that OR-term
+    // could never be true and would cost a `LIKE` per track for nothing.
+    // In `va_mode` the partition keeps every album, so neither split input is read —
+    // emit constants instead of paying for the per-album probes on the heaviest artist
+    // page there is.
+    let album_artist_col = if va_mode { "NULL" } else { album_artist_tag.as_str() };
+    let comp_col = if va_mode {
+        "0".to_string()
+    } else {
+        format!(
+            "CASE WHEN {album_artist_tag} IS NOT NULL THEN 0 ELSE \
+               EXISTS (SELECT 1 {album_tracks_from} AND {comp_pred}) END",
+            comp_pred = compilation_predicate_sql("ct", Some("ct.artist"), None),
+        )
+    };
     let sql = format!(
         "{cte}, \
          base AS ( \
@@ -2452,10 +2517,8 @@ fn fetch_albums_for_artist_key(
                   ORDER BY tt.id ASC \
                   LIMIT 1) AS release_types, \
                 p.album_artist_id AS album_artist_id, \
-                EXISTS (SELECT 1 FROM track ct \
-                         WHERE ct.server_id = p.server_id AND ct.album_id = p.album_id AND ct.deleted = 0 \
-                           AND {comp_pred}) AS is_compilation, \
-                (TRIM(COALESCE(p.album_artist, '')) <> '') AS has_album_artist \
+                {album_artist_col} AS album_album_artist, \
+                {comp_col} AS is_compilation \
          FROM album_pick p \
          INNER JOIN album_stats st ON p.album_dedup = st.album_dedup \
          WHERE p.rn = 1 \
@@ -2513,8 +2576,13 @@ fn fetch_albums_for_artist_key(
             Ok((
                 dto,
                 AlbumSplitMeta {
-                    is_compilation: r.get::<_, bool>(15)?,
-                    has_album_artist: r.get::<_, bool>(16)?,
+                    // No second emptiness test here: SQL already decided what counts as
+                    // a tag (`TRIM(...) <> ''`), and SQLite's TRIM strips only spaces
+                    // while Rust's `str::trim` strips all Unicode whitespace. Re-testing
+                    // would let a tab-tagged album be "tagged" for the compilation
+                    // short-circuit in SQL and "untagged" for the partition in Rust.
+                    album_artist: r.get::<_, Option<String>>(15)?,
+                    is_compilation: r.get::<_, bool>(16)?,
                 },
             ))
         })?
@@ -2722,30 +2790,43 @@ pub fn artist_detail(
             artist_id,
             va_mode,
         )?;
-        let (own, appears_on): (Vec<_>, Vec<_>) = all_albums.into_iter().partition(|(al, meta)| {
-            // Own = the album credits the artist as its album artist (`al.artist` is
-            // already album-artist-first). A single-artist compilation the artist
-            // owns (their own best-of, tagged album_artist = the artist) therefore
-            // stays in the main discography and lands in the frontend's "Compilation"
-            // release-type group. Only when the album has no album-artist tag at all
-            // (S2 ingest, credit falls back to the track artist) does a compilation
-            // signal route it to appears-on — that is the Various Artists case whose
-            // single per-artist track otherwise resolves the fallback to this artist.
-            let credited = album_credits_artist(al.artist.as_deref(), &artist.name);
-            if meta.has_album_artist {
-                credited
-            } else {
-                credited && !meta.is_compilation
+        let (own, appears_on): (Vec<_>, Vec<_>) = all_albums.into_iter().partition(|(_, meta)| {
+            // The "Various Artists" pseudo-entity has no discography of its own to
+            // separate an appears-on set from: every album on that page *is* a
+            // compilation it heads. Splitting there would eject exactly the albums
+            // the VA union arm gathered — an id-tagged compilation with an empty
+            // `album_artist` carries a compilation signal and would be routed away.
+            if va_mode {
+                return true;
+            }
+            // Own = the album credits this artist as its album artist. A single-artist
+            // compilation the artist owns (their own best-of, tagged album_artist = the
+            // artist) therefore stays in the main discography and lands in the
+            // frontend's "Compilation" release-type group.
+            match meta.album_artist.as_deref() {
+                // Tagged album: the tag is authoritative, so compare against it.
+                Some(tag) => album_credits_artist(Some(tag), &artist.name),
+                // Untagged album (S2 ingest, or simply untagged files): there is no
+                // album-artist claim to weigh, and the album is only in this set
+                // because the artist's own tracks carry this artist's `artist_id` —
+                // the strongest signal available. Do NOT second-guess that with a name
+                // comparison: a server's artist row and its track tag routinely differ
+                // in spelling ("Die drei ???" vs "Die Drei Fragezeichen"), which would
+                // exile an artist's entire catalogue. Only a compilation signal, which
+                // is about the album rather than the spelling, routes it to appears-on.
+                None => !meta.is_compilation,
             }
         });
         let albums: Vec<_> = own.into_iter().map(|(al, _)| al).collect();
         let appears_on_albums: Vec<_> = appears_on.into_iter().map(|(al, _)| al).collect();
-        // A label-linked VA entity's stored `album_count` is often 0 (no track tags
-        // its id), which would contradict the compilation grid we just built. When the
-        // header was seeded from that row, report the count actually returned instead.
-        // Counted after the split: a VA compilation credits the VA label as its album
-        // artist, so it stays in `albums` and the count matches the rendered grid.
-        if seeded_from_anchor {
+        // Keep the header count and the rendered grid in agreement.
+        //
+        // Two ways they drift apart: a label-linked VA entity's stored `album_count` is
+        // often 0 (no track tags its id), and once the split moves releases into
+        // "appears on" the stored/merged count still describes the unsplit set — a
+        // header reading "12 albums" above a grid of 7. Recompute in both cases;
+        // otherwise leave the server-reported value alone.
+        if seeded_from_anchor || !appears_on_albums.is_empty() {
             artist.album_count = Some(albums.len() as i64);
         }
         let tracks = if request.include_tracks {

@@ -2,19 +2,42 @@
 //! `isCompilation`, or `releaseTypes` containing `Compilation`), plus the same
 //! "Various Artists" heuristics the web UI uses when structured flags are absent.
 
+/// Wrap a JSON1 expression so an invalid `raw_json` row yields `fallback` instead of
+/// aborting the statement.
+///
+/// `raw_json` columns are unconstrained TEXT and the library tolerates invalid JSON
+/// (`from_row` maps it to `Value::Null`), but JSON1 (`json_extract`, `json_each`,
+/// `json_type`, `json_array_length`) raises `malformed JSON` on invalid text. Unguarded,
+/// one bad row kills the whole query rather than simply not matching — and inside a
+/// correlated sub-select it takes the caller's entire result set with it. SQLite gives
+/// no short-circuit guarantee for `AND`, so the guard has to be a `CASE`, not a
+/// conjunction. `json_valid(NULL)` is NULL, so a missing column takes the fallback
+/// branch instead of throwing.
+///
+/// Single definition for every guarded JSON expression in this crate — pass `"0"` for
+/// predicates (a non-matching row) and `"NULL"` for value lookups (no value).
+pub(crate) fn json_guarded(json_col: &str, expr: &str, fallback: &str) -> String {
+    format!("(CASE WHEN json_valid({json_col}) THEN ({expr}) ELSE {fallback} END)")
+}
+
 /// SQL predicate on any row with a `raw_json` column (album or track).
 pub fn compilation_raw_json_sql(table_alias: &str) -> String {
     let a = table_alias;
     // `NULL IN (...)` is unknown in SQL — wrap each probe in EXISTS so non-comp rows stay false.
-    format!(
-        "(EXISTS ( \
-           SELECT 1 WHERE json_extract({a}.raw_json, '$.compilation') IN (1, '1', 'true', 'TRUE') \
-         ) OR EXISTS ( \
-           SELECT 1 WHERE json_extract({a}.raw_json, '$.isCompilation') IN (1, '1', 'true', 'TRUE') \
-         ) OR EXISTS ( \
-           SELECT 1 FROM json_each(COALESCE(json_extract({a}.raw_json, '$.releaseTypes'), '[]')) AS rt \
-           WHERE lower(rt.value) = 'compilation' \
-         ))"
+    json_guarded(
+        &format!("{a}.raw_json"),
+        &format!(
+            "EXISTS ( \
+               SELECT 1 WHERE json_extract({a}.raw_json, '$.compilation') IN (1, '1', 'true', 'TRUE') \
+             ) OR EXISTS ( \
+               SELECT 1 WHERE json_extract({a}.raw_json, '$.isCompilation') IN (1, '1', 'true', 'TRUE') \
+             ) OR EXISTS ( \
+               SELECT 1 FROM json_each({a}.raw_json, '$.releaseTypes') AS rt \
+               WHERE json_type({a}.raw_json, '$.releaseTypes') = 'array' \
+                 AND lower(rt.value) = 'compilation' \
+             )"
+        ),
+        "0",
     )
 }
 
@@ -32,9 +55,13 @@ pub fn compilation_predicate_sql(
     album_artist_column: Option<&str>,
 ) -> String {
     let mut parts = vec![compilation_raw_json_sql(table_alias)];
-    parts.push(format!(
-        "lower(trim(coalesce(json_extract({a}.raw_json, '$.displayArtist'), ''))) LIKE '%various artists%'",
-        a = table_alias
+    parts.push(json_guarded(
+        &format!("{table_alias}.raw_json"),
+        &format!(
+            "lower(trim(coalesce(json_extract({table_alias}.raw_json, '$.displayArtist'), ''))) \
+             LIKE '%various artists%'"
+        ),
+        "0",
     ));
     if let Some(col) = artist_column {
         parts.push(various_artists_like_sql(col));
@@ -83,10 +110,10 @@ pub fn various_artists_label(s: &str) -> bool {
 /// album-artist ([`pick_album_group_artist`]), so it is ingest-path agnostic, and
 /// uses Unicode-aware lowercasing because catalogs carry non-ASCII artist names.
 ///
-/// The leading-token rule requires a non-alphanumeric separator after the name so
-/// "Metallica" does not spuriously credit "Metallican"; a genuine band name that
-/// contains the separator ("Mumford & Sons") still matches its own albums by exact
-/// equality.
+/// Beyond an exact (normalized, article-insensitive) match, the name must be followed
+/// by a whitespace-separated collaboration join — see [`CREDIT_JOIN_SYMBOLS`] and
+/// [`CREDIT_JOIN_WORDS`]. A band whose own name merely extends another artist's name
+/// ("Mumford & Sons" vs "Mumford") still matches its own albums by equality.
 pub fn album_credits_artist(album_display_artist: Option<&str>, canonical_artist_name: &str) -> bool {
     let canonical = canonical_artist_name.trim().to_lowercase();
     if canonical.is_empty() {
@@ -96,13 +123,80 @@ pub fn album_credits_artist(album_display_artist: Option<&str>, canonical_artist
         return false;
     };
     let display = display.trim().to_lowercase();
-    if display == canonical {
+    // Identity comparison goes through `norm_part` — the same normalization that
+    // built the `artist_key` this album set was gathered by (NFD fold, combining
+    // marks dropped, alphanumerics only) — after dropping a leading article. A raw
+    // compare would exile an artist's own releases to "appears on" whenever the two
+    // sides spell the name differently: two scoped servers disagreeing on diacritics
+    // ("Röyksopp" vs "Royksopp", "AC/DC" vs "AC-DC"), or the extremely common case of
+    // an entity named "The Beatles" whose albums are tagged `albumartist = Beatles`
+    // (servers derive that from sort names). Both cluster into one artist, so failing
+    // the credit check would empty the whole discography into "appears on".
+    let article_free = |s: &str| {
+        crate::identity::norm_part(&crate::artist_sort::strip_leading_articles(
+            s,
+            crate::artist_sort::DEFAULT_IGNORED_ARTICLES,
+        ))
+    };
+    match (article_free(&display), article_free(&canonical)) {
+        (Some(d), Some(c)) if d == c => return true,
+        _ => {}
+    }
+    // Collaboration credit ("<artist> & <guest>", "<artist> feat. <guest>"): the
+    // album is still headed by the artist. Matched on the raw strings because the
+    // rule needs the separator that `norm_part` strips.
+    //
+    // The remainder must look like a *join*, not merely start with a non-alphanumeric
+    // character: a plain space would credit "Air Supply" to "Air" and "Death Cab for
+    // Cutie" to "Death", filing another band's album under this artist's own
+    // discography. The trailing-boundary requirement also keeps "Metallica" from
+    // crediting "Metallican".
+    let Some(rest) = display.strip_prefix(&canonical) else {
+        return false;
+    };
+    credit_rest_is_collaboration_join(rest)
+}
+
+/// Symbols and words that join a lead credit to a guest credit.
+///
+/// Bare conjunction *words* (`and`, `x`) are deliberately absent: unlike the symbols
+/// they are just as likely to be the middle of a different band's name that happens to
+/// start with this artist's name ("Belle" vs "Belle and Sebastian"). The symbols stay
+/// because real releases depend on them — "Metallica & San Francisco Symphony" is
+/// Metallica's own album and must not leave their discography.
+const CREDIT_JOIN_SYMBOLS: &[char] = &['&', '+', '/', ';', '×'];
+const CREDIT_JOIN_WORDS: &[&str] = &[
+    "feat", "feat.", "ft", "ft.", "featuring", "with", "vs", "vs.", "versus", "meets", "presents",
+];
+
+/// True when the text following a leading artist-name match reads as a collaboration
+/// join rather than the continuation of a longer band name.
+fn credit_rest_is_collaboration_join(rest: &str) -> bool {
+    // The join marker must be whitespace-separated from the artist name — for words so
+    // that "Ex" cannot match inside "Extreme", and for symbols so that a comma running
+    // straight on from the name cannot: "Earth, Wind & Fire" is not an Earth release,
+    // and "Air Supply" is not an Air one.
+    if !rest.starts_with(char::is_whitespace) {
+        return false;
+    }
+    let trimmed = rest.trim_start();
+    if trimmed.is_empty() {
+        // "<artist> " with nothing after it — the names are equal bar whitespace.
         return true;
     }
-    match display.strip_prefix(&canonical) {
-        Some(rest) => rest.starts_with(|ch: char| !ch.is_alphanumeric()),
-        None => false,
+    if trimmed.starts_with(CREDIT_JOIN_SYMBOLS) {
+        return true;
     }
+    // "<artist> (feat. <guest>)" — a bracketed credit is as common as the bare form on
+    // OpenSubsonic servers. The bracket alone proves nothing, so it only opens the door
+    // for the same join words; that keeps "Artist (Live)" or "Artist (Remastered)" out.
+    let word = trimmed
+        .trim_start_matches(['(', '[', '{'])
+        .split_whitespace()
+        .next()
+        .unwrap_or_default()
+        .trim_end_matches(':');
+    CREDIT_JOIN_WORDS.contains(&word)
 }
 
 /// SQL mirror of [`pick_album_group_artist`] over arbitrary column *expressions*
@@ -220,10 +314,25 @@ mod tests {
             "Metallica"
         ));
         assert!(album_credits_artist(Some("Bela B. feat. Smokestack"), "Bela B."));
+        // Bracketed credit — the dominant OpenSubsonic `displayArtist` convention.
+        assert!(album_credits_artist(
+            Some("Some Artist (feat. A Guest)"),
+            "Some Artist"
+        ));
+        // ...but a bracket alone is not a credit: a qualifier must not count.
+        assert!(!album_credits_artist(Some("Some Artist (Live)"), "Some Artist"));
         // A band name that itself contains the separator matches by equality.
         assert!(album_credits_artist(Some("Mumford & Sons"), "Mumford & Sons"));
         // Non-ASCII names fold correctly.
         assert!(album_credits_artist(Some("Чиж & Co"), "Чиж"));
+        // Diacritics and punctuation fold through the same normalization that built
+        // the cluster key, so two servers spelling the name differently still match.
+        assert!(album_credits_artist(Some("Royksopp"), "Röyksopp"));
+        assert!(album_credits_artist(Some("AC-DC"), "AC/DC"));
+        // A leading article on either side is not a different artist: servers commonly
+        // tag `albumartist = Beatles` for the entity "The Beatles".
+        assert!(album_credits_artist(Some("Beatles"), "The Beatles"));
+        assert!(album_credits_artist(Some("The Beatles"), "Beatles"));
     }
 
     #[test]
@@ -232,6 +341,17 @@ mod tests {
         assert!(!album_credits_artist(Some("Another Artist"), "The Band"));
         // A separator is required after the name, so a longer name is not credited.
         assert!(!album_credits_artist(Some("Metallican"), "Metallica"));
+        // A different band whose name merely *extends* this one is not credited: the
+        // join marker has to be whitespace-separated, and a bare conjunction word is
+        // not a join marker at all. Without this the whole catalogue of the longer
+        // band would be filed into this artist's discography.
+        assert!(!album_credits_artist(Some("Air Supply"), "Air"));
+        assert!(!album_credits_artist(Some("Earth, Wind & Fire"), "Earth"));
+        assert!(!album_credits_artist(
+            Some("Death Cab for Cutie"),
+            "Death"
+        ));
+        assert!(!album_credits_artist(Some("Belle and Sebastian"), "Belle"));
         // The artist must lead the credit, not merely appear in it.
         assert!(!album_credits_artist(
             Some("San Francisco Symphony & Metallica"),
