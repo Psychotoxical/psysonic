@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { CoverArtImage } from '@/cover/CoverArtImage';
-import { useTrackCoverRef } from '@/cover/useLibraryCoverRef';
+import { useDiscCoverRef } from '@/cover/useLibraryCoverRef';
 import { coverServerScopeForServerId } from '@/cover/serverScope';
 import { COVER_TRACK_ROW_CSS_PX } from '@/cover/layoutSizes';
 
@@ -12,23 +12,22 @@ export type DiscSeparatorSong = Pick<
 
 /**
  * Cover shown next to a multi-disc separator ("CD N"), resolved from the disc's own
- * first track through the standard track-cover path (`useTrackCoverRef`).
+ * first track via {@link useDiscCoverRef}.
  *
- * This is the same resolver the queue rows, now-playing hero and playbar use: it is
- * album-scoped by default and switches to a per-disc slot only when the library index
- * has recorded genuinely distinct disc covers for the album
- * (`resolveDistinctDiscCoversForAlbum`, seeded from the full tracklist on the album
- * page). So the separator's cover, disk cache slot and fetch id stay identical to every
- * other surface for the same disc — a box set shows each disc's own art, while a
- * single-cover album reuses the shared `al-<albumId>_0` slot the album hero already
- * warmed (no per-disc `mf-*` divergence, and nothing to fall back to offline).
+ * On Navidrome this maps to the server's canonical per-disc artwork id
+ * (`dc-<albumId>:<discNumber>`), so each disc shows its own cover with one cache slot per
+ * disc — correct even when the disc's tracks carry per-track `mf-*` ids that the
+ * album-level distinct-disc heuristic can't recognise, and without needing a per-track
+ * `coverArt`. On other servers it falls back to the standard track-cover path
+ * (per-disc only when the disc's track has a usable disc-specific cover id, else the
+ * shared `al-<albumId>_0` slot).
  *
  * Rendered at `COVER_TRACK_ROW_CSS_PX` on the `dense` surface — the same display tier as
- * the track-row / queue thumbs — so it maps to the exact same on-disk cache entry.
+ * the track-row / queue thumbs.
  */
 export function DiscHeaderCover({ song }: { song: DiscSeparatorSong }) {
   const scope = useMemo(() => coverServerScopeForServerId(song.serverId), [song.serverId]);
-  const coverRef = useTrackCoverRef(song, scope);
+  const coverRef = useDiscCoverRef(song, scope);
   if (!coverRef) return null;
   return (
     <CoverArtImage

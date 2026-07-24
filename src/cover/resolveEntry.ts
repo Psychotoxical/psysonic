@@ -49,6 +49,24 @@ export function resolveSongFetchCoverArtId(song: CoverArtResolvableSong): string
 }
 
 /**
+ * True when a song carries a usable cover id of its own — one that resolves to
+ * something other than the bare album id. Navidrome (and other OpenSubsonic
+ * servers) expose embedded per-file art as `mf-*`/`dc-*`/explicit ids; a track
+ * with no art, an id that only echoes its own track id, or the bare album id all
+ * fall back to `albumId` and are NOT disc-specific.
+ *
+ * Used by the multi-disc separator: it renders at most one cover per disc, so it
+ * can safely resolve per-disc from the disc's own track when that track has a
+ * real cover id, without the per-song cache explosion the album-scoped
+ * {@link albumHasDistinctDiscCovers} guard protects against.
+ */
+export function songHasDiscSpecificCover(song: CoverArtResolvableSong): boolean {
+  const albumId = song.albumId?.trim();
+  const fetchId = resolveSongFetchCoverArtId(song);
+  return !!fetchId && fetchId !== albumId;
+}
+
+/**
  * True only for genuine per-disc artwork: a multi-disc release where each disc
  * has ONE consistent cover and those covers differ between discs (e.g. a box
  * set). It must NOT be tripped by per-song cover ids — Navidrome (and other

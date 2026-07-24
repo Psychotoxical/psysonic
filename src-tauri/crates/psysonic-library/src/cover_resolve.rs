@@ -90,6 +90,32 @@ pub fn album_has_distinct_disc_covers(
     })
 }
 
+/// Number of distinct discs an album spans in the local index (`0` when the album
+/// has no live tracks). `NULL` disc numbers collapse to disc `1`, so a plain
+/// single-disc release reports `1`. The frontend gates per-disc (`dc-<albumId>:<n>`)
+/// cover resolution on `> 1` so single-disc albums keep the shared album slot.
+pub fn album_disc_count(
+    store: &LibraryStore,
+    library_server_id: &str,
+    album_id: &str,
+) -> Result<u32, String> {
+    let album_id = album_id.trim();
+    if album_id.is_empty() {
+        return Ok(0);
+    }
+    store
+        .with_read_conn(|conn| {
+            conn.query_row(
+                "SELECT COUNT(DISTINCT COALESCE(disc_number, 1))
+                 FROM track
+                 WHERE server_id = ?1 AND album_id = ?2 AND deleted = 0",
+                rusqlite::params![library_server_id, album_id],
+                |row| row.get::<_, i64>(0),
+            )
+        })
+        .map(|n| n.max(0) as u32)
+}
+
 pub fn resolve_album_cover_entry(
     store: &LibraryStore,
     library_server_id: &str,
@@ -503,6 +529,45 @@ mod tests {
         let items = cover_backfill_items_for_album(&store, "srv", "al-nav").unwrap();
         let ids: Vec<_> = items.iter().map(|i| i.cache_entity_id.as_str()).collect();
         assert_eq!(ids, vec!["al-nav"]);
+    }
+
+    #[test]
+    fn album_disc_count_reports_distinct_discs() {
+        let store = LibraryStore::open_in_memory();
+        seed_album(&store, "srv", "al-single", None);
+        seed_track(&store, "srv", "s1", "al-single", 1, Some("mf-1"));
+        seed_track(&store, "srv", "s2", "al-single", 1, Some("mf-2"));
+        assert_eq!(album_disc_count(&store, "srv", "al-single").unwrap(), 1);
+
+        seed_album(&store, "srv", "al-multi", None);
+        seed_track(&store, "srv", "m1", "al-multi", 1, Some("mf-a"));
+        seed_track(&store, "srv", "m2", "al-multi", 2, Some("mf-b"));
+        seed_track(&store, "srv", "m3", "al-multi", 3, Some("mf-c"));
+        assert_eq!(album_disc_count(&store, "srv", "al-multi").unwrap(), 3);
+
+        assert_eq!(album_disc_count(&store, "srv", "al-missing").unwrap(), 0);
+    }
+
+    // A NULL disc number collapses to disc 1 — a track with no disc tag alongside a
+    // real disc-2 track must still count as a 2-disc album, not 1.
+    #[test]
+    fn album_disc_count_treats_null_disc_as_one() {
+        let store = LibraryStore::open_in_memory();
+        seed_album(&store, "srv", "al-null", None);
+        store
+            .with_conn_mut("seed_null_disc", |conn| {
+                conn.execute(
+                    "INSERT INTO track (
+                      server_id, id, title, album, album_id, disc_number,
+                      duration_sec, deleted, synced_at, raw_json, cover_art_id
+                    ) VALUES ('srv', 'n1', 't', 'A', 'al-null', NULL, 200, 0, 1, '{}', 'mf-a')",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        seed_track(&store, "srv", "n2", "al-null", 2, Some("mf-b"));
+        assert_eq!(album_disc_count(&store, "srv", "al-null").unwrap(), 2);
     }
 
     #[test]

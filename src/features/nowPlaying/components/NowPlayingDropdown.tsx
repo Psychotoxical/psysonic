@@ -1,4 +1,5 @@
-import { TrackCoverArtImage } from '@/cover/TrackCoverArtImage';
+import { CoverArtImage } from '@/cover/CoverArtImage';
+import { usePresenceCoverRef } from '@/cover/useLibraryCoverRef';
 import { coverServerScopeForServerId } from '@/cover/serverScope';
 import { getNowPlayingForServers } from '@/lib/api/subsonicScrobble';
 import type { SubsonicNowPlaying } from '@/lib/api/subsonicTypes';
@@ -15,6 +16,35 @@ import { useNavigate } from 'react-router-dom';
 import { appendServerQuery } from '@/lib/navigation/detailServerScope';
 import { serverListDisplayLabel } from '@/lib/server/serverDisplayName';
 import { findServerByIdOrIndexKey } from '@/lib/server/serverLookup';
+
+/**
+ * Cover thumb for a presence row. Resolves via {@link usePresenceCoverRef} so a
+ * multi-disc Navidrome album shows the disc the person is actually playing
+ * (`dc-<albumId>:<disc>`), and single-disc / other servers show the shared album
+ * cover — never the track's own `mf-*` art forced into the album cache slot.
+ */
+function PresenceCover({ stream }: { stream: SubsonicNowPlaying }) {
+  const serverScope = useMemo(
+    () => coverServerScopeForServerId(stream.serverId),
+    [stream.serverId],
+  );
+  const coverRef = usePresenceCoverRef(
+    { albumId: stream.albumId, discNumber: stream.discNumber, serverId: stream.serverId },
+    serverScope,
+  );
+  if (!coverRef) {
+    return <PlayCircle size={24} style={{ margin: '12px', color: 'var(--text-muted)' }} />;
+  }
+  return (
+    <CoverArtImage
+      coverRef={coverRef}
+      displayCssPx={50}
+      surface="sparse"
+      alt="Cover"
+      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+    />
+  );
+}
 
 export default function NowPlayingDropdown() {
   const { t } = useTranslation();
@@ -274,20 +304,8 @@ export default function NowPlayingDropdown() {
                   style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', background: 'var(--bg-hover)', padding: '0.5rem', borderRadius: '8px', cursor: stream.albumId ? 'pointer' : 'default' }}
                 >
                   <div style={{ width: '48px', height: '48px', flexShrink: 0, borderRadius: '6px', overflow: 'hidden', background: 'var(--card-placeholder-bg)' }}>
-                    {stream.albumId && stream.coverArt ? (
-                      <TrackCoverArtImage
-                        song={{
-                          id: stream.id,
-                          albumId: stream.albumId,
-                          coverArt: stream.coverArt,
-                          discNumber: undefined,
-                        }}
-                        displayCssPx={50}
-                        surface="sparse"
-                        serverScope={coverServerScopeForServerId(stream.serverId)}
-                        alt="Cover"
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
+                    {stream.albumId ? (
+                      <PresenceCover stream={stream} />
                     ) : (
                       <PlayCircle size={24} style={{ margin: '12px', color: 'var(--text-muted)' }} />
                     )}

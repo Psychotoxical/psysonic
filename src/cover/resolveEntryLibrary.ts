@@ -16,7 +16,7 @@ import {
   resolveSongFetchCoverArtId,
   type CoverEntry,
 } from './resolveEntry';
-import { resolveDistinctDiscCoversForAlbum } from './ref';
+import { rememberAlbumDiscCount, resolveAlbumDiscCount, resolveDistinctDiscCoversForAlbum } from './ref';
 import { coverIndexKeyFromScope } from './storageKeys';
 
 export type LibraryCoverEntryDto = {
@@ -119,6 +119,45 @@ export async function libraryResolveCoverEntry(
   });
 
   inflightResolves.set(key, promise);
+  return promise;
+}
+
+const albumDiscCountInflight = new Map<string, Promise<number>>();
+
+/**
+ * Distinct disc count for an album from the local index, memoized in the sync
+ * {@link resolveAlbumDiscCount} cache so per-disc cover gating stays synchronous
+ * on subsequent renders. Returns `0` when the album is not indexed (treated as
+ * single-disc by callers). Gate the call on the server actually supporting
+ * per-disc art (Navidrome) — there is no reason to query for other servers.
+ */
+export async function resolveLibraryAlbumDiscCount(
+  albumId: string,
+  serverId: string | null | undefined,
+): Promise<number> {
+  const id = albumId.trim();
+  if (!id) return 0;
+  const seeded = resolveAlbumDiscCount(id, serverId);
+  if (seeded != null) return seeded;
+
+  const key = libraryResolveCacheKey(serverId ?? '', 'album', id);
+  const inflight = albumDiscCountInflight.get(key);
+  if (inflight) return inflight;
+
+  const promise = (async () => {
+    try {
+      const sqlServerId = librarySqlServerId(serverId ?? '');
+      const res = await commands.libraryAlbumDiscCount(sqlServerId, id);
+      const count = res.status === 'ok' ? res.data : 0;
+      rememberAlbumDiscCount(id, count, serverId);
+      return count;
+    } catch {
+      return resolveAlbumDiscCount(id, serverId) ?? 0;
+    } finally {
+      albumDiscCountInflight.delete(key);
+    }
+  })();
+  albumDiscCountInflight.set(key, promise);
   return promise;
 }
 
