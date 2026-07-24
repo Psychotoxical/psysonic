@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -41,6 +41,13 @@ import { useArtistDetailData } from './useArtistDetailData';
 
 function routerWrapper({ children }: { children: React.ReactNode }) {
   return React.createElement(MemoryRouter, null, children);
+}
+
+/** Wrapper for routes that name their owning server, as every in-app artist link does. */
+function serverScopedWrapper(entry: string) {
+  return function ServerScopedWrapper({ children }: { children: React.ReactNode }) {
+    return React.createElement(MemoryRouter, { initialEntries: [entry] }, children);
+  };
 }
 
 describe('useArtistDetailData — multi-library selection', () => {
@@ -96,9 +103,50 @@ describe('useArtistDetailData — multi-library selection', () => {
     expect(result.current.topSongs.map(s => s.id)).toEqual(['trk-high', 'trk-low']);
   });
 
-  it('loads artist info under a multi-server scope, scoped to the owning server', async () => {
+  it('loads artist info under a multi-server scope from the server the route names', async () => {
+    tryLoadArtistDetailMultiScopeMock.mockResolvedValue({
+      // The merged header won on another server than the route names; the explicit
+      // route owner still decides, and the request must not be repeated for it.
+      artist: { id: 'art-9', name: 'Merged', serverId: 'srv-1' },
+      albums: [],
+      topSongs: [],
+    });
+    vi.mocked(getArtistInfoForServer).mockResolvedValue(
+      { biography: 'Formed in 2016.' } as Awaited<ReturnType<typeof getArtistInfoForServer>>,
+    );
+
+    const { result } = renderHook(() => useArtistDetailData('art-1'), {
+      wrapper: serverScopedWrapper('/artist/art-1?server=srv-2'),
+    });
+
+    await waitFor(() => expect(result.current.info).toMatchObject({ biography: 'Formed in 2016.' }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(getArtistInfoForServer).toHaveBeenCalledWith('srv-2', 'art-1', { similarArtistCount: undefined });
+    expect(getArtistInfoForServer).toHaveBeenCalledTimes(1);
+    expect(getArtistInfo).not.toHaveBeenCalled();
+  });
+
+  it('asks no server for artist info while a multi-server route has no known owner', async () => {
+    // No `?server=` and a header the loader could not attribute — the active server
+    // would answer for whatever artist carries this id there.
     tryLoadArtistDetailMultiScopeMock.mockResolvedValue({
       artist: { id: 'art-1', name: 'Merged' },
+      albums: [],
+      topSongs: [],
+    });
+
+    const { result } = renderHook(() => useArtistDetailData('art-1'), { wrapper: routerWrapper });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitFor(() => expect(result.current.artist).not.toBeNull());
+    expect(getArtistInfoForServer).not.toHaveBeenCalled();
+    expect(getArtistInfo).not.toHaveBeenCalled();
+    expect(result.current.info).toBeNull();
+  });
+
+  it('loads artist info from the owner the scoped header reports when the route omits it', async () => {
+    tryLoadArtistDetailMultiScopeMock.mockResolvedValue({
+      artist: { id: 'art-2', name: 'Merged', serverId: 'srv-2' },
       albums: [],
       topSongs: [],
     });
@@ -109,10 +157,40 @@ describe('useArtistDetailData — multi-library selection', () => {
     const { result } = renderHook(() => useArtistDetailData('art-1'), { wrapper: routerWrapper });
 
     await waitFor(() => expect(result.current.info).toMatchObject({ biography: 'Formed in 2016.' }));
-    // The owning server is passed explicitly, so a second server in the scope
-    // cannot answer for this artist.
-    expect(getArtistInfoForServer).toHaveBeenCalledWith('srv-1', 'art-1', { similarArtistCount: undefined });
+    // Server and id come from the same resolved row — the active server never answers.
+    expect(getArtistInfoForServer).toHaveBeenCalledWith('srv-2', 'art-2', { similarArtistCount: undefined });
     expect(getArtistInfo).not.toHaveBeenCalled();
+  });
+
+  it('stops the artist-info spinner when a scope change leaves nobody to answer', async () => {
+    // Selecting a second server while the page is open: the route never named an owner
+    // and the header carries none, so the pending active-server request is dropped. The
+    // similar-artists Last.fm fallback waits on this flag.
+    useAuthStore.setState({
+      libraryBrowseServerIds: ['srv-1'],
+      libraryBrowseSelectionByServer: { 'srv-1': ['lib-a'] },
+    });
+    tryLoadArtistDetailMultiScopeMock.mockResolvedValue({
+      artist: { id: 'art-1', name: 'Merged' },
+      albums: [],
+      topSongs: [],
+    });
+    vi.mocked(getArtistInfoForServer).mockImplementation(
+      () => new Promise(() => {}) as ReturnType<typeof getArtistInfoForServer>,
+    );
+
+    const { result } = renderHook(() => useArtistDetailData('art-1'), { wrapper: routerWrapper });
+
+    await waitFor(() => expect(result.current.artistInfoLoading).toBe(true));
+    act(() => {
+      useAuthStore.setState({
+        libraryBrowseServerIds: ['srv-1', 'srv-2'],
+        libraryBrowseScopeVersion: 1,
+      });
+    });
+
+    await waitFor(() => expect(result.current.artistInfoLoading).toBe(false));
+    expect(result.current.info).toBeNull();
   });
 
   it('renders local detail while one server Top Songs request remains pending', async () => {

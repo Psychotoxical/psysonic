@@ -53,6 +53,48 @@ function filterNetworkArtistToLossless(
   };
 }
 
+/** Owning server reported by the artist row the scoped loader resolved. */
+interface ArtistInfoOwner {
+  /** Route artist id this owner was resolved for — a later route keeps its own. */
+  forId: string;
+  serverId: string;
+  artistId: string;
+}
+
+/** Where an identity-bound artist-info request may go, or null while nobody may answer. */
+interface ArtistInfoTarget {
+  serverId: string | null;
+  artistId: string;
+}
+
+/**
+ * Pick who may answer identity-bound artist info (biography, Last.fm link).
+ *
+ * Artist ids are server-local, so such a request has to reach the server the artist
+ * really came from. `?server=` on the route names that owner; without it the artist row
+ * the scoped loader returned names its own. Under a multi-server scope everything else
+ * is a guess — the active server would answer for whatever artist happens to carry that
+ * id there — so nothing is requested until one of the two is known. A single-server
+ * scope has only one candidate and keeps the route-or-active fallback (unscoped when
+ * there is none).
+ */
+function resolveArtistInfoTarget(args: {
+  id: string | undefined;
+  routeServerId: string | null;
+  fallbackServerId: string | null;
+  loadedOwner: ArtistInfoOwner | null;
+  multiServer: boolean;
+}): ArtistInfoTarget | null {
+  const { id, routeServerId, fallbackServerId, loadedOwner, multiServer } = args;
+  if (!id) return null;
+  if (!multiServer) return { serverId: fallbackServerId, artistId: id };
+  if (routeServerId) return { serverId: routeServerId, artistId: id };
+  if (loadedOwner && loadedOwner.forId === id) {
+    return { serverId: loadedOwner.serverId, artistId: loadedOwner.artistId };
+  }
+  return null;
+}
+
 export function useArtistDetailData(
   id: string | undefined,
   options: UseArtistDetailDataOptions = {},
@@ -61,6 +103,9 @@ export function useArtistDetailData(
   const activeServerId = useAuthStore(s => s.activeServerId);
   const [searchParams] = useSearchParams();
   const serverId = readDetailServerId(searchParams, activeServerId);
+  // Same lookup without the active-server fallback: this tells apart a route that names
+  // its owning server from one where `serverId` is only "the active server" standing in.
+  const routeServerId = readDetailServerId(searchParams, null);
   const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
   const { status: connStatus } = useConnectionStatus();
   const audiomuseNavidromeEnabled = useAuthStore(
@@ -74,6 +119,7 @@ export function useArtistDetailData(
     || (connStatus === 'disconnected' && favoritesOfflineEnabled && !!serverId);
 
   const [artist, setArtist] = useState<SubsonicArtist | null>(null);
+  const [artistOwner, setArtistOwner] = useState<ArtistInfoOwner | null>(null);
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [featuredAlbums, setFeaturedAlbums] = useState<SubsonicAlbum[]>([]);
   const [topSongs, setTopSongs] = useState<SubsonicSong[]>([]);
@@ -109,6 +155,12 @@ export function useArtistDetailData(
           if (cancelled) return;
           if (multi) {
             setArtist(multi.artist);
+            // The merged row carries the server it won on, which is the only owner a
+            // route without `?server=` has. This is the sole loader reachable under a
+            // multi-server scope, so no other branch has to report one.
+            setArtistOwner(multi.artist.serverId && multi.artist.id
+              ? { forId: id, serverId: multi.artist.serverId, artistId: multi.artist.id }
+              : null);
             setIsStarred(!!multi.artist.starred);
             setAlbums(multi.albums);
             setTopSongs(multi.topSongs);
@@ -243,19 +295,30 @@ export function useArtistDetailData(
     serverId,
   ]);
 
+  const infoTarget = resolveArtistInfoTarget({
+    id,
+    routeServerId,
+    fallbackServerId: serverId,
+    loadedOwner: artistOwner,
+    multiServer: browseScope.multiServer,
+  });
+  const infoServerId = infoTarget?.serverId ?? null;
+  const infoArtistId = infoTarget?.artistId ?? null;
+
   useEffect(() => {
-    if (!id || preferLocalArtist) return;
-    // The owning server is known here, so the call is scoped to it and cannot read
-    // the wrong server's artist identity. Only the ownerless fallback below has to
-    // stay out of a multi-server scope, where "the active server" is a guess.
-    if (!serverId && browseScope.multiServer) return;
+    if (!id || !infoArtistId || preferLocalArtist) {
+      // Nobody may answer (yet). Drop a spinner left over from a route that had an
+      // owner — the similar-artists Last.fm fallback waits on this flag.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setArtistInfoLoading(false);
+      return;
+    }
     let cancelled = false;
-    // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setArtistInfoLoading(true);
-    (serverId
-      ? getArtistInfoForServer(serverId, id, { similarArtistCount: audiomuseNavidromeEnabled ? 24 : undefined })
-      : getArtistInfo(id, { similarArtistCount: audiomuseNavidromeEnabled ? 24 : undefined }))
+    const infoOptions = { similarArtistCount: audiomuseNavidromeEnabled ? 24 : undefined };
+    (infoServerId
+      ? getArtistInfoForServer(infoServerId, infoArtistId, infoOptions)
+      : getArtistInfo(infoArtistId, infoOptions))
       .then(artistInfo => {
         if (!cancelled) setInfoEntry({ id, value: artistInfo ?? null });
       })
@@ -266,7 +329,7 @@ export function useArtistDetailData(
         if (!cancelled) setArtistInfoLoading(false);
       });
     return () => { cancelled = true; };
-  }, [id, serverId, audiomuseNavidromeEnabled, preferLocalArtist, browseScope.multiServer]);
+  }, [id, infoServerId, infoArtistId, audiomuseNavidromeEnabled, preferLocalArtist]);
 
   useEffect(() => {
     if (!id || !artist || preferLocalArtist || browseScope.multiServer) return;
