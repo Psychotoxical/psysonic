@@ -1,5 +1,5 @@
 import type { SubsonicAlbum, SubsonicOpenArtistRef, SubsonicSong } from '@/lib/api/subsonicTypes';
-import { coerceOpenArtistRefs } from '@/lib/api/openArtistRefs';
+import { coerceOpenArtistRefs, displayArtistRefs } from '@/lib/api/openArtistRefs';
 
 function nonEmpty(refs: SubsonicOpenArtistRef[]): refs is SubsonicOpenArtistRef[] {
   return refs.length > 0;
@@ -8,7 +8,10 @@ function nonEmpty(refs: SubsonicOpenArtistRef[]): refs is SubsonicOpenArtistRef[
 /**
  * Structured album-artist credits without the album-detail Song fallback.
  * Used wherever only the album object is available (cards, rails). Prefers the
- * OpenSubsonic `artists` array; falls back to legacy `artist` + `artistId`.
+ * OpenSubsonic `artists` array; otherwise splits the legacy single `artist` /
+ * `displayArtist` string on the server's own separators, so a joined credit reads as
+ * individual artists here too. Only the first keeps `artistId` — see
+ * {@link displayArtistRefs}.
  */
 export function deriveAlbumArtistRefs(album: SubsonicAlbum): SubsonicOpenArtistRef[] {
   const albumArtists = coerceOpenArtistRefs(album.artists);
@@ -17,6 +20,8 @@ export function deriveAlbumArtistRefs(album: SubsonicAlbum): SubsonicOpenArtistR
   const legacy = album.artist?.trim();
   const name = display || legacy || '—';
   const id = album.artistId?.trim();
+  const split = displayArtistRefs(name, id);
+  if (nonEmpty(split)) return split;
   return id ? [{ id, name }] : [{ name }];
 }
 

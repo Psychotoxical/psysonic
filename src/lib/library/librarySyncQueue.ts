@@ -10,6 +10,7 @@ import { libraryDevEnabled, logLibrarySync } from './libraryDevLog';
 import { invalidateGenreCatalogCache } from './genreCatalogCountsCache';
 import { clearArtistBrowseCatalogCache } from './artistBrowseInflight';
 import { clearAlbumBrowseCatalogCache } from './albumBrowseInflight';
+import { clearArtistIdResolveCache } from './artistIdResolve';
 
 export type LibrarySyncQueueKind = 'full' | 'delta' | 'verify';
 
@@ -62,6 +63,8 @@ function onSyncIdle(payload: LibrarySyncIdlePayload): void {
     invalidateGenreCatalogCache(payload.serverId);
     clearArtistBrowseCatalogCache();
     clearAlbumBrowseCatalogCache();
+    // Artist rows can appear with a sync; a cached "no artist row" must not outlive it.
+    clearArtistIdResolveCache();
   }
   if (payload.source === 'background') return;
   if (!payload.jobId) return;

@@ -9,6 +9,7 @@ import type { CoverArtRef } from '@/cover/types';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { useAlbumDetailBack } from '@/features/album/hooks/useAlbumDetailBack';
+import { useResolvedArtistRefs } from '@/lib/hooks/useResolvedArtistRefs';
 import { useThemeStore } from '@/store/themeStore';
 import StarRating from '@/ui/StarRating';
 import { copyEntityShareLink } from '@/lib/share/copyEntityShareLink';
@@ -226,6 +227,9 @@ export default function AlbumHeader({
   const { open: openLightbox, lightbox } = useCoverLightboxSrc(coverRef, {
     alt: `${info.name} Cover`,
   });
+  // Credits split out of a joined album-artist string carry no id — look them up so
+  // every artist in the header is clickable, not just the primary one.
+  const resolvedArtistRefs = useResolvedArtistRefs(headerArtistRefs, serverId);
 
   const totalDuration = songs.reduce((acc, s) => acc + s.duration, 0);
   const totalSize = songs.reduce((acc, s) => acc + (s.size ?? 0), 0);
@@ -311,7 +315,7 @@ export default function AlbumHeader({
               <h1 className="album-detail-title">{info.name}</h1>
               <p className="album-detail-artist">
                 <OpenArtistRefInline
-                  refs={headerArtistRefs}
+                  refs={resolvedArtistRefs}
                   fallbackName={info.artist}
                   onGoArtist={id => navigate(buildArtistDetailPath(id, { serverId }))}
                   linkClassName="album-detail-artist-link"

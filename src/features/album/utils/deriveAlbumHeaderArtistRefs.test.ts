@@ -25,8 +25,14 @@ describe('deriveAlbumArtistRefs', () => {
     expect(deriveAlbumArtistRefs(album)).toEqual(album.artists);
   });
 
-  it('uses legacy artist + artistId when no structured refs', () => {
-    expect(deriveAlbumArtistRefs(baseAlbum())).toEqual([{ id: 'ar-first', name: 'Joined A / B' }]);
+  it('splits a joined legacy artist credit, keeping the id on the primary', () => {
+    expect(deriveAlbumArtistRefs(baseAlbum()))
+      .toEqual([{ id: 'ar-first', name: 'Joined A' }, { name: 'B' }]);
+  });
+
+  it('uses legacy artist + artistId unchanged when there is nothing to split', () => {
+    expect(deriveAlbumArtistRefs({ ...baseAlbum(), artist: 'Single Artist' }))
+      .toEqual([{ id: 'ar-first', name: 'Single Artist' }]);
   });
 
   it('omits id when artistId is blank', () => {
@@ -74,10 +80,11 @@ describe('deriveAlbumHeaderArtistRefs', () => {
     expect(deriveAlbumHeaderArtistRefs(album, songs)).toEqual(songs[0].albumArtists);
   });
 
-  it('uses legacy artist + artistId when no structured refs', () => {
+  it('splits the legacy artist credit when no structured refs exist anywhere', () => {
     const album = baseAlbum();
     const songs = [makeSubsonicSong({ albumId: album.id, album: album.name })];
-    expect(deriveAlbumHeaderArtistRefs(album, songs)).toEqual([{ id: 'ar-first', name: 'Joined A / B' }]);
+    expect(deriveAlbumHeaderArtistRefs(album, songs))
+      .toEqual([{ id: 'ar-first', name: 'Joined A' }, { name: 'B' }]);
   });
 
   it('omits id when artistId is blank', () => {
