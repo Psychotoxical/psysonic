@@ -439,6 +439,7 @@ export const settings = {
   themeStoreUpdating: 'Aktualisiere…',
   themeStoreUninstall: 'Deinstallieren',
   themeStoreInstallFailed: 'Installation fehlgeschlagen',
+  themeStoreRequiresNewerApp: 'Benötigt Psysonic {{version}}+',
   themeStorePagePrev: 'Vorherige Seite',
   themeStorePageNext: 'Nächste Seite',
   themeStorePageStatus: 'Seite {{page}} von {{total}}',

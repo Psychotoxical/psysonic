@@ -11,6 +11,8 @@ vi.mock('@/lib/themes/themeRegistry', () => ({
   fetchRegistry: vi.fn(),
   fetchThemeCss: vi.fn(async () => 'css'),
   assetUrl: (p: string) => `https://raw.example/${p}`,
+  // Sentinel floor: a theme tagged with this minAppVersion reads as too new.
+  themeRequiresNewerApp: (th: { minAppVersion?: string }) => th.minAppVersion === 'TOO_NEW',
 }));
 
 import { fetchRegistry } from '@/lib/themes/themeRegistry';
@@ -284,5 +286,17 @@ describe('ThemeStoreSection — pagination & refresh', () => {
     await screen.findByText('Zulu');
     // Without the pin, newest-first would order Alpha (06-10) before Zulu (06-01).
     expect(rowNames(container)).toEqual(['Zulu', 'Alpha']);
+  });
+
+  it('replaces the install button with a hint when the theme needs a newer app', async () => {
+    fetchRegistryMock.mockResolvedValue({
+      registry: registryOf([mkTheme('future', 'Future', { minAppVersion: 'TOO_NEW' })]),
+      stale: false,
+    });
+    renderWithProviders(<ThemeStoreSection />);
+
+    await screen.findByText('Future');
+    expect(screen.queryByRole('button', { name: /install/i })).toBeNull();
+    expect(screen.getByText(/requires psysonic/i)).toBeInTheDocument();
   });
 });

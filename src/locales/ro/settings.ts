@@ -441,6 +441,7 @@ export const settings = {
   themeStoreUpdating: 'Se actualizează…',
   themeStoreUninstall: 'Dezinstalează',
   themeStoreInstallFailed: 'Instalarea a eșuat',
+  themeStoreRequiresNewerApp: 'Necesită Psysonic {{version}}+',
   themeStorePagePrev: 'Pagina anterioară',
   themeStorePageNext: 'Pagina următoare',
   themeStorePageStatus: 'Pagina {{page}} din {{total}}',

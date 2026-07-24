@@ -3,7 +3,7 @@
  * stale-on-error fallback, and malformed-cache tolerance.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchRegistry, getCachedRegistry, revalidateRegistry } from '@/lib/themes/themeRegistry';
+import { fetchRegistry, getCachedRegistry, revalidateRegistry, themeRequiresNewerApp } from '@/lib/themes/themeRegistry';
 
 const CACHE_KEY = 'psysonic_theme_registry_cache';
 const NOW = 1_000_000_000;
@@ -145,5 +145,24 @@ describe('revalidateRegistry', () => {
     const seen: string[] = [];
     await expect(revalidateRegistry(r => seen.push(r.generatedAt))).resolves.toBeUndefined();
     expect(seen).toEqual([]);
+  });
+});
+
+describe('themeRequiresNewerApp', () => {
+  it('is false when the theme declares no floor', () => {
+    expect(themeRequiresNewerApp({}, '1.51.0')).toBe(false);
+    expect(themeRequiresNewerApp({ minAppVersion: undefined }, '1.51.0')).toBe(false);
+  });
+
+  it('is true only when the floor is above the running app', () => {
+    expect(themeRequiresNewerApp({ minAppVersion: '1.52.0' }, '1.51.0')).toBe(true);
+    expect(themeRequiresNewerApp({ minAppVersion: '1.51.0' }, '1.51.0')).toBe(false);
+    expect(themeRequiresNewerApp({ minAppVersion: '1.50.0' }, '1.51.0')).toBe(false);
+  });
+
+  it('ignores a pre-release suffix on the running build', () => {
+    // A dev/rc build of the same numeric version still satisfies the floor.
+    expect(themeRequiresNewerApp({ minAppVersion: '1.51.0' }, '1.51.0-dev')).toBe(false);
+    expect(themeRequiresNewerApp({ minAppVersion: '1.52.0' }, '1.51.0-dev')).toBe(true);
   });
 });

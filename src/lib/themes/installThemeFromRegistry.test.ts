@@ -1,15 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/themes/themeRegistry', () => ({ fetchThemeCss: vi.fn() }));
+vi.mock('@/lib/themes/themeRegistry', () => ({
+  fetchThemeCss: vi.fn(),
+  themeRequiresNewerApp: vi.fn(),
+}));
 vi.mock('@/lib/themes/themeInjection', () => ({ validateThemeCss: vi.fn() }));
 
-import { fetchThemeCss, type RegistryTheme } from '@/lib/themes/themeRegistry';
+import { fetchThemeCss, themeRequiresNewerApp, type RegistryTheme } from '@/lib/themes/themeRegistry';
 import { validateThemeCss } from '@/lib/themes/themeInjection';
 import { useInstalledThemesStore } from '@/store/installedThemesStore';
 import { installThemeFromRegistry } from '@/lib/themes/installThemeFromRegistry';
 
 const fetchCss = vi.mocked(fetchThemeCss);
 const validate = vi.mocked(validateThemeCss);
+const requiresNewerApp = vi.mocked(themeRequiresNewerApp);
 
 const TH = {
   id: 'theme-a',
@@ -26,6 +30,8 @@ beforeEach(() => {
   useInstalledThemesStore.setState({ themes: [] });
   fetchCss.mockReset();
   validate.mockReset();
+  requiresNewerApp.mockReset();
+  requiresNewerApp.mockReturnValue(false);
 });
 
 describe('installThemeFromRegistry', () => {
@@ -52,6 +58,14 @@ describe('installThemeFromRegistry', () => {
     fetchCss.mockRejectedValue(new Error('network'));
 
     await expect(installThemeFromRegistry(TH)).resolves.toBe('error');
+    expect(useInstalledThemesStore.getState().isInstalled('theme-a')).toBe(false);
+  });
+
+  it('refuses a theme that needs a newer app, before any fetch', async () => {
+    requiresNewerApp.mockReturnValue(true);
+
+    await expect(installThemeFromRegistry(TH)).resolves.toBe('app-too-old');
+    expect(fetchCss).not.toHaveBeenCalled();
     expect(useInstalledThemesStore.getState().isInstalled('theme-a')).toBe(false);
   });
 });

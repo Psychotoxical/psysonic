@@ -477,6 +477,7 @@ export const settings = {
   themeStoreUpdating: '更新中…',
   themeStoreUninstall: 'アンインストール',
   themeStoreInstallFailed: 'インストールに失敗しました',
+  themeStoreRequiresNewerApp: 'Psysonic {{version}} 以降が必要です',
   themeStorePagePrev: '前のページ',
   themeStorePageNext: '次のページ',
   themeStorePageStatus: '{{page}} / {{total}} ページ',

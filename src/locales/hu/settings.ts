@@ -483,6 +483,7 @@ export const settings = {
   themeStoreUpdating: 'Frissítés…',
   themeStoreUninstall: 'Eltávolítás',
   themeStoreInstallFailed: 'A telepítés sikertelen',
+  themeStoreRequiresNewerApp: 'Psysonic {{version}}+ szükséges',
   themeStorePagePrev: 'Előző oldal',
   themeStorePageNext: 'Következő oldal',
   themeStorePageStatus: '{{page}}. oldal a(z) {{total}}-ból',

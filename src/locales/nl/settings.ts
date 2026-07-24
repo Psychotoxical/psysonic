@@ -425,6 +425,7 @@ export const settings = {
   themeStoreUpdating: 'Bijwerken…',
   themeStoreUninstall: 'Verwijderen',
   themeStoreInstallFailed: 'Installatie mislukt',
+  themeStoreRequiresNewerApp: 'Vereist Psysonic {{version}}+',
   themeStorePagePrev: 'Vorige pagina',
   themeStorePageNext: 'Volgende pagina',
   themeStorePageStatus: 'Pagina {{page}} van {{total}}',

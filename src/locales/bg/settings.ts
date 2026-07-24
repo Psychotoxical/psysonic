@@ -483,6 +483,7 @@ export const settings = {
   themeStoreUpdating: 'Обновяване…',
   themeStoreUninstall: 'Деинсталирай',
   themeStoreInstallFailed: 'Инсталирането се провали',
+  themeStoreRequiresNewerApp: 'Изисква Psysonic {{version}}+',
   themeStorePagePrev: 'Предишна страница',
   themeStorePageNext: 'Следваща страница',
   themeStorePageStatus: 'Страница {{page}} от {{total}}',

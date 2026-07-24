@@ -12,6 +12,7 @@ import { useInstalledThemesStore, type InstalledTheme } from '@/store/installedT
 import {
   assetUrl,
   fetchRegistry,
+  themeRequiresNewerApp,
   type RegistryTheme,
 } from '@/lib/themes/themeRegistry';
 import { installThemeFromRegistry } from '@/lib/themes/installThemeFromRegistry';
@@ -329,7 +330,11 @@ export function ThemeStoreSection() {
           {pageItems.map((th, idx) => {
             const inst = installedMap.get(th.id);
             const isInstalled = !!inst;
-            const updateAvailable = isInstalled && isNewer(th.version, inst!.version);
+            // A theme built for a newer app can't be installed or updated here;
+            // the store shows a "requires a newer version" hint in place of the
+            // button rather than letting the install fail.
+            const requiresNewerApp = themeRequiresNewerApp(th);
+            const updateAvailable = isInstalled && isNewer(th.version, inst!.version) && !requiresNewerApp;
             const isActive = activeTheme === th.id;
             const busy = busyId === th.id;
             const changelogEntries = th.changelog ? sortedChangelog(th.changelog) : [];
@@ -435,7 +440,12 @@ export function ThemeStoreSection() {
                     </div>
                   )}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-                    {!isInstalled && (
+                    {!isInstalled && requiresNewerApp && (
+                      <span role="status" style={{ fontSize: 12, color: 'var(--text-muted)', alignSelf: 'center' }}>
+                        {t('settings.themeStoreRequiresNewerApp', { version: th.minAppVersion })}
+                      </span>
+                    )}
+                    {!isInstalled && !requiresNewerApp && (
                       <button
                         className="btn btn-primary"
                         style={{ fontSize: 12, padding: '4px 12px', display: 'inline-flex', alignItems: 'center', gap: 5 }}

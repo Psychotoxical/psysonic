@@ -428,6 +428,7 @@ export const settings = {
   themeStoreUpdating: 'Oppdaterer…',
   themeStoreUninstall: 'Avinstaller',
   themeStoreInstallFailed: 'Installasjonen mislyktes',
+  themeStoreRequiresNewerApp: 'Krever Psysonic {{version}}+',
   themeStorePagePrev: 'Forrige side',
   themeStorePageNext: 'Neste side',
   themeStorePageStatus: 'Side {{page}} av {{total}}',

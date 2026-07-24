@@ -6,6 +6,9 @@
  * offline against the last-seen catalogue.
  */
 
+import { APP_VERSION } from '@/generated/appVersion';
+import { isNewer } from '@/lib/util/appUpdaterHelpers';
+
 const RAW_BASE = 'https://raw.githubusercontent.com/Psysonic/psysonic-themes/main';
 const REGISTRY_URL = `${RAW_BASE}/registry.json`;
 const CACHE_KEY = 'psysonic_theme_registry_cache';
@@ -36,6 +39,14 @@ export interface RegistryTheme {
    * absent for themes that don't ship one.
    */
   changelog?: Record<string, string[]>;
+  /**
+   * Optional minimum app version the theme needs (`X.Y.Z`). Author-provided in
+   * the manifest and carried through the generated registry. Themes that rely on
+   * a capability a given app build lacks (e.g. local theme assets) set it so the
+   * store can show "requires a newer version" instead of a confusing failed
+   * install. Absent for themes with no floor.
+   */
+  minAppVersion?: string;
 }
 
 export interface Registry {
@@ -151,4 +162,17 @@ export async function fetchThemeCss(relPath: string): Promise<string> {
   const res = await fetch(assetUrl(relPath), { cache: 'no-cache' });
   if (!res.ok) throw new Error(`theme css fetch failed: ${res.status}`);
   return res.text();
+}
+
+/**
+ * True when a theme declares a minimum app version newer than this build, i.e.
+ * the running app is too old to install it correctly. Uses the same numeric
+ * `isNewer` comparison as theme updates, so a pre-release suffix on either side
+ * (`1.51.0-dev`) is ignored. A theme with no floor always returns `false`.
+ */
+export function themeRequiresNewerApp(
+  theme: Pick<RegistryTheme, 'minAppVersion'>,
+  appVersion: string = APP_VERSION,
+): boolean {
+  return !!theme.minAppVersion && isNewer(theme.minAppVersion, appVersion);
 }

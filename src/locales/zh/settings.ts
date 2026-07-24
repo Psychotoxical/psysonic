@@ -424,6 +424,7 @@ export const settings = {
   themeStoreUpdating: '正在更新…',
   themeStoreUninstall: '卸载',
   themeStoreInstallFailed: '安装失败',
+  themeStoreRequiresNewerApp: '需要 Psysonic {{version}} 或更高版本',
   themeStorePagePrev: '上一页',
   themeStorePageNext: '下一页',
   themeStorePageStatus: '第 {{page}} 页，共 {{total}} 页',
