@@ -105,7 +105,11 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
         if (serverId && scopes?.length) {
           const scoped = await tryLoadArtistDetailMultiScope(scopes, serverId, artistId);
           if (scoped && isCurrent()) {
-            setRelatedAlbums(scoped.albums.filter(a => ownedEntityKey(a) !== ownedEntityKey(currentAlbum)));
+            // Union: the split is the artist page's concern. "More by this artist"
+            // showed compilations before and keeps doing so — narrowing it here would
+            // be an unrelated behaviour change on the album page.
+            setRelatedAlbums([...scoped.albums, ...scoped.appearsOnAlbums]
+              .filter(a => ownedEntityKey(a) !== ownedEntityKey(currentAlbum)));
           }
           return;
         }

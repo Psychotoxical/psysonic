@@ -111,7 +111,11 @@ export async function loadArtistFromLibraryIndex(
     })
       .then(response => response.artist.id ? {
         artist: artistToArtist(response.artist),
-        albums: response.albums.map(albumToAlbum).map(album => ({ ...album, serverId })),
+        // Both sets: this index backs listing/lookup, not the artist page's
+        // discography grid, so an album the artist only appears on must stay findable.
+        albums: [...response.albums, ...response.appearsOnAlbums]
+          .map(albumToAlbum)
+          .map(album => ({ ...album, serverId })),
       } : null)
       .finally(() => artistIndexLoads.delete(key));
     artistIndexLoads.set(key, load);

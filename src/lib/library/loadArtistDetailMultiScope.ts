@@ -36,7 +36,7 @@ export async function tryLoadArtistDetailMultiScope(
     return {
       artist: artistToArtist(response.artist),
       albums: response.albums.map(albumToAlbum),
-      appearsOnAlbums: (response.appearsOnAlbums ?? []).map(albumToAlbum),
+      appearsOnAlbums: response.appearsOnAlbums.map(albumToAlbum),
       topSongs: [...response.tracks.map(trackToSong)].sort(
         (a, b) => (b.playCount ?? 0) - (a.playCount ?? 0),
       ),

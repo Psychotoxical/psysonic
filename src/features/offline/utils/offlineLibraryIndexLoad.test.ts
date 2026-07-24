@@ -46,6 +46,7 @@ describe('loadArtistFromLibraryIndex', () => {
     libraryScopeArtistDetailMock.mockResolvedValue({
       artist: { id: 'artist-1', name: 'Artist', albumCount: 1, serverId: 'srv-1' },
       albums: [{ id: 'album-1', name: 'Album', artist: 'Artist', artistId: 'artist-1', serverId: 'srv-1' }],
+      appearsOnAlbums: [],
       tracks: [],
     });
 
@@ -111,6 +112,7 @@ describe('loadArtistFromLibraryIndex', () => {
     libraryScopeArtistDetailMock.mockResolvedValue({
       artist: { id: 'artist-1', name: 'Artist', albumCount: 1, serverId: 'srv-1' },
       albums: [],
+      appearsOnAlbums: [],
       tracks: [{ id: 'track-1', title: 'Track', serverId: 'srv-1', syncedAt: 0, rawJson: {} }],
     });
 
