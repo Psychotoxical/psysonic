@@ -49,6 +49,7 @@ export const musicNetwork = {
     PROBE_FAILED: 'Cette fonctionnalité est indisponible sur ce service.',
     CAPABILITY_UNSUPPORTED: 'Ce service ne prend pas en charge cette fonctionnalité.',
     NETWORK: 'Erreur réseau — vérifiez la connexion ou l’URL.',
+    RESPONSE_NOT_JSON: 'Le service a renvoyé une page web au lieu de données — votre connexion est peut-être bloquée (sortie VPN, proxy ou portail captif).',
     MALOJA_BAD_KEY: 'Clé API Maloja invalide.',
     CUSTOM_URL_INVALID: 'L’URL du serveur est injoignable.',
   },
