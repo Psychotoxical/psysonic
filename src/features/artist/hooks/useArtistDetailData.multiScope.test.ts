@@ -96,6 +96,24 @@ describe('useArtistDetailData — multi-library selection', () => {
     expect(result.current.topSongs.map(s => s.id)).toEqual(['trk-high', 'trk-low']);
   });
 
+  it('routes the scoped appears-on set to featuredAlbums without a network search', async () => {
+    tryLoadArtistDetailMultiScopeMock.mockResolvedValue({
+      artist: { id: 'art-1', name: 'Merged' },
+      albums: [{ id: 'own-1', name: 'Own' }],
+      appearsOnAlbums: [{ id: 'feat-1', name: 'A Comp' }],
+      topSongs: [],
+    });
+
+    const { result } = renderHook(() => useArtistDetailData('art-1'), { wrapper: routerWrapper });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.albums.map(a => a.id)).toEqual(['own-1']);
+    // Appears-on comes from the scoped split, and the network featured search
+    // (searchForServer) must stay suppressed under a browse scope.
+    await waitFor(() => expect(result.current.featuredAlbums.map(a => a.id)).toEqual(['feat-1']));
+    expect(searchForServer).not.toHaveBeenCalled();
+  });
+
   it('renders local detail while one server Top Songs request remains pending', async () => {
     let resolveTopSongs!: (songs: Array<{ id: string; title: string }>) => void;
     loadScopedArtistTopSongsMock.mockImplementation(() => new Promise(resolve => {
@@ -195,6 +213,7 @@ describe('useArtistDetailData — multi-library selection', () => {
     vi.mocked(loadArtistFromLibraryIndex).mockResolvedValue({
       artist: { id: 'art-x', name: 'Album Artist', albumCount: 1, serverId: 'srv-1' },
       albums: [{ id: 'alb-9', name: 'Comp', artist: 'Album Artist', artistId: 'art-x', songCount: 1, duration: 100 }],
+      appearsOnAlbums: [{ id: 'alb-feat', name: 'A Comp', artist: 'Various Artists', artistId: 'va', songCount: 1, duration: 100 }],
     });
 
     const { result } = renderHook(() => useArtistDetailData('art-x'), { wrapper: routerWrapper });
@@ -203,7 +222,11 @@ describe('useArtistDetailData — multi-library selection', () => {
     expect(getArtistForServer).toHaveBeenCalled();
     expect(loadArtistFromLibraryIndex).toHaveBeenCalledWith('srv-1', 'art-x');
     expect(result.current.artist).toMatchObject({ id: 'art-x', name: 'Album Artist' });
-    expect(result.current.albums).toHaveLength(1);
+    // The fallback must not fold appears-on into the main discography — `albums` is
+    // the own set only (finding 3). featuredAlbums is left to the network featured
+    // search here (the server is reachable, getArtist just 404'd); the truly-offline
+    // split is covered at the loader level in offlineLibraryIndexLoad.test.ts.
+    expect(result.current.albums.map(a => a.id)).toEqual(['alb-9']);
   });
 
   it('shows nothing to resolve when both network and local index miss', async () => {

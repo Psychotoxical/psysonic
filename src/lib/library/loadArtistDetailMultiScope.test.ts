@@ -61,6 +61,8 @@ describe('tryLoadArtistDetailMultiScope', () => {
     libraryScopeArtistDetailMock.mockResolvedValue({
       artist: artistDto(),
       albums: [albumDto()],
+      // Always present in the real payload — the backend emits an empty array, never nothing.
+      appearsOnAlbums: [],
       tracks: [
         trackDto({ id: 'low', playCount: 1 }),
         trackDto({ id: 'high', playCount: 99 }),
@@ -95,6 +97,7 @@ describe('tryLoadArtistDetailMultiScope', () => {
     libraryScopeArtistDetailMock.mockResolvedValue({
       artist: artistDto({ id: '' }),
       albums: [],
+      appearsOnAlbums: [],
       tracks: [],
     });
 
@@ -109,6 +112,7 @@ describe('tryLoadArtistDetailMultiScope', () => {
     libraryScopeArtistDetailMock.mockResolvedValue({
       artist: artistDto({ id: 'va', name: 'Various Artists' }),
       albums: [albumDto({ id: 'comp1', name: 'Comp One', artistId: 'va' })],
+      appearsOnAlbums: [],
       tracks: [],
     });
 

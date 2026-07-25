@@ -751,6 +751,42 @@ mod tests {
     }
 
     #[test]
+    fn ordinary_browse_links_a_compilation_card_to_the_album_artist() {
+        // The ordinary All Albums page reads this projection, which stores the display
+        // credit ("Various Artists") next to `MAX(t.artist_id)` — a guest performer. The
+        // card must link to the album-artist entity instead, recovered from the album
+        // even when the projection's representative track carries no `albumArtistId`.
+        let store = LibraryStore::open_in_memory();
+        insert_artist(&store, "s1", "va", "Various Artists");
+        let mut representative = album_track(
+            "s1", "t1", "Performer One", "perf1", "comp", "Comp", "Various Artists", "lib",
+        );
+        representative.raw_json = "{}".into();
+        let mut sibling = album_track(
+            "s1", "t2", "Performer Two", "perf2", "comp", "Comp", "Various Artists", "lib",
+        );
+        sibling.raw_json = r#"{"albumArtistId":"va"}"#.into();
+        TrackRepository::new(&store)
+            .upsert_batch(&[representative, sibling])
+            .unwrap();
+
+        let albums = browse_albums(
+            &store,
+            vec![LibraryScopePair {
+                server_id: "s1".into(),
+                library_id: Some("lib".into()),
+            }],
+        );
+        let card = albums.iter().find(|album| album.id == "comp").expect("comp missing");
+        assert_eq!(card.artist.as_deref(), Some("Various Artists"));
+        assert_eq!(
+            card.artist_id.as_deref(),
+            Some("va"),
+            "the All Albums card must open the album artist, not a track performer"
+        );
+    }
+
+    #[test]
     fn ordinary_browse_reconciles_partial_keys_to_one_canonical_album_partition() {
         let store = LibraryStore::open_in_memory();
         insert_artist(&store, "s1", "artist-1", "Metallica");

@@ -111,6 +111,11 @@ export function useArtistDetailData(
             setArtist(multi.artist);
             setIsStarred(!!multi.artist.starred);
             setAlbums(multi.albums);
+            // "Appears on" is split locally from the same scoped album set, so it
+            // works under multi-server scopes and needs no network search (the
+            // network path below is disabled once the local index is authoritative).
+            // `?? []` guards against an older payload without the field.
+            setFeaturedAlbums(multi.appearsOnAlbums ?? []);
             setTopSongs(multi.topSongs);
             setLoading(false);
             if (
@@ -148,6 +153,10 @@ export function useArtistDetailData(
             setArtist(local.artist);
             setIsStarred(!!local.artist.starred);
             setAlbums(local.albums);
+            // Preserve the own / appears-on split offline, so the artist page keeps
+            // its "Also featured on" section instead of merging everything into the
+            // main discography.
+            setFeaturedAlbums(local.appearsOnAlbums);
             setTopSongs([]);
             setLoading(false);
             return;
@@ -219,6 +228,7 @@ export function useArtistDetailData(
               setArtist(local.artist);
               setIsStarred(!!local.artist.starred);
               setAlbums(local.albums);
+              setFeaturedAlbums(local.appearsOnAlbums);
               setTopSongs([]);
               setLoading(false);
               return;
@@ -265,7 +275,12 @@ export function useArtistDetailData(
   }, [id, serverId, audiomuseNavidromeEnabled, preferLocalArtist, browseScope.multiServer]);
 
   useEffect(() => {
+    // When the local index is authoritative (any selected library scope), the
+    // scoped load above already provides "appears on" locally — including under
+    // multi-server, where this network search is disabled. Only fall back to the
+    // network search when there is no local scope to split from.
     if (!id || !artist || preferLocalArtist || browseScope.multiServer) return;
+    if (serverId && browseScope.pairs.length > 0) return;
     const ownAlbumIds = new Set(albums.map(a => a.id));
     // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect

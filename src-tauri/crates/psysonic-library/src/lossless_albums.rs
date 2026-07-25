@@ -111,9 +111,10 @@ pub fn list_lossless_albums(
 
     let (albums, timing) = store.with_read_conn_timed(|conn| {
         let mut stmt = conn.prepare(&sql)?;
-        let rows = stmt
+        let mut rows = stmt
             .query_map(rusqlite::params_from_iter(params.iter()), map_row)?
             .collect::<rusqlite::Result<Vec<_>>>()?;
+        crate::browse_support::overlay_album_artist_links(conn, &mut rows);
         Ok(rows)
     })?;
     let blocked_by = timing

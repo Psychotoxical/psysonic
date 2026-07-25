@@ -46,6 +46,7 @@ describe('loadArtistFromLibraryIndex', () => {
     libraryScopeArtistDetailMock.mockResolvedValue({
       artist: { id: 'artist-1', name: 'Artist', albumCount: 1, serverId: 'srv-1' },
       albums: [{ id: 'album-1', name: 'Album', artist: 'Artist', artistId: 'artist-1', serverId: 'srv-1' }],
+      appearsOnAlbums: [],
       tracks: [],
     });
 
@@ -64,6 +65,24 @@ describe('loadArtistFromLibraryIndex', () => {
     expect(libraryAdvancedSearchMock).not.toHaveBeenCalled();
     expect(first).toEqual(second);
     expect(first?.albums).toHaveLength(1);
+  });
+
+  it('keeps own releases and appears-on separate rather than unioning them', async () => {
+    const scopes = [{ serverId: 'srv-1', libraryId: 'lib-1' }];
+    libraryScopePairsForServerMock.mockReturnValue(scopes);
+    libraryScopeArtistDetailMock.mockResolvedValue({
+      artist: { id: 'artist-1', name: 'Artist', albumCount: 1, serverId: 'srv-1' },
+      albums: [{ id: 'own-1', name: 'Own', artist: 'Artist', artistId: 'artist-1', serverId: 'srv-1' }],
+      appearsOnAlbums: [{ id: 'feat-1', name: 'A Comp', artist: 'Various Artists', artistId: 'va', serverId: 'srv-1' }],
+      tracks: [],
+    });
+
+    const load = await loadArtistFromLibraryIndex('srv-1', 'artist-1');
+
+    // The split must survive the loader so the artist page can render it offline —
+    // own in `albums`, appears-on in `appearsOnAlbums`, not merged (finding 3).
+    expect(load?.albums.map(a => a.id)).toEqual(['own-1']);
+    expect(load?.appearsOnAlbums.map(a => a.id)).toEqual(['feat-1']);
   });
 
   it('deduplicates album lookup and skips its unused total', async () => {
@@ -111,6 +130,7 @@ describe('loadArtistFromLibraryIndex', () => {
     libraryScopeArtistDetailMock.mockResolvedValue({
       artist: { id: 'artist-1', name: 'Artist', albumCount: 1, serverId: 'srv-1' },
       albums: [],
+      appearsOnAlbums: [],
       tracks: [{ id: 'track-1', title: 'Track', serverId: 'srv-1', syncedAt: 0, rawJson: {} }],
     });
 
