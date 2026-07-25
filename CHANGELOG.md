@@ -159,6 +159,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The quality badge (queue, now-playing hero, mobile player, immersive fullscreen) was built from the track's stored library metadata, so a server-side transcode still read the original file — e.g. "FLAC · 3149 kbps · 24-bit" while actually receiving Opus. It now shows the format the audio engine actually decoded, with the original file's format in a tooltip, and falls back to the stored metadata when no transcode is happening. When the transmitted bitrate is unknown, none is shown instead of a wrong one.
 
+### Music network — a clearer message when a service blocks the connection
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1346](https://github.com/Psychotoxical/psysonic/pull/1346)**
+
+* Connecting a scrobbling service over a route it refuses — a VPN exit node, a proxy, a captive portal — failed with a generic network error and a raw decoder message attached. Psysonic now recognises a webpage arriving where data was expected and says so, pointing at the connection instead of leaving you to guess whether the app or the service is broken. Reported by zunoz on Discord.
+
 
 ## [1.50.0]
 
