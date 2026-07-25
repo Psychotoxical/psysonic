@@ -61,7 +61,11 @@ pub fn list_starred(store: &LibraryStore, server_id: &str) -> Result<LibraryStar
                             .unwrap_or(serde_json::Value::Null),
                     })
                 })?;
-                rows.collect::<rusqlite::Result<Vec<_>>>()?
+                let mut rows = rows.collect::<rusqlite::Result<Vec<_>>>()?;
+                // The `album` row keeps the server's legacy `artistId`, a representative
+                // performer on a compilation — resolve the link from the tracks instead.
+                crate::browse_support::overlay_album_artist_links(conn, &mut rows);
+                rows
             };
 
             let tracks = {

@@ -4,6 +4,7 @@ use rusqlite::{params, OptionalExtension};
 use serde_json::{Map, Value};
 use tauri::State;
 
+use crate::album_compilation_filter::pick_album_group_artist_id;
 use crate::dto::CatalogYearBoundsDto;
 use crate::dto::GenreAlbumCountDto;
 use crate::dto::LibraryAlbumDto;
@@ -58,6 +59,72 @@ pub(crate) fn overlay_album_starred_at_rows(
         album.starred_at =
             read_album_starred_at(conn, &album.server_id, &album.id).unwrap_or(None);
     }
+}
+
+/// Resolve which entity each album card's credit links to, read back from the
+/// **complete physical album** `(server_id, album_id)` instead of one representative
+/// track.
+///
+/// Album-artist tagging lives on tracks and is often partial, so any recovery computed
+/// inside a browse query is only as good as that query's own row pool. Reading the pair
+/// back per physical album keeps three things true that such a pool cannot: the id
+/// belongs to the same server as the returned `server_id` (artist ids are server-local
+/// while cross-server dedup merges equivalent albums), every sibling track counts even
+/// when a genre/search predicate excluded it, and compound-select arms cannot disagree
+/// with each other. Costs one indexed range scan per returned card — `idx_track_album`
+/// is partial, hence the mandatory `deleted = 0` predicate — in the same shape as
+/// [`overlay_album_starred_at_rows`].
+pub(crate) fn overlay_album_artist_links(
+    conn: &rusqlite::Connection,
+    albums: &mut [LibraryAlbumDto],
+) {
+    if albums.is_empty() {
+        return;
+    }
+    let sql = format!(
+        "SELECT MAX(t.album_artist), MAX({album_artist_id}) \
+         FROM track t \
+         WHERE t.server_id = ?1 AND t.album_id = ?2 AND t.deleted = 0",
+        album_artist_id = crate::scope_merge::album_artist_id_expr("t.raw_json"),
+    );
+    let Ok(mut stmt) = conn.prepare_cached(&sql) else {
+        return;
+    };
+    for album in albums.iter_mut() {
+        let owner = stmt
+            .query_row(params![album.server_id, album.id], |r| {
+                Ok((r.get::<_, Option<String>>(0)?, r.get::<_, Option<String>>(1)?))
+            })
+            .optional()
+            .unwrap_or(None);
+        let Some((album_artist, album_artist_id)) = owner else {
+            continue;
+        };
+        // The displayed credit decides, because that is the name on the card; the
+        // album-artist tag only answers whether this album has an album-artist credit
+        // at all. A card crediting the track performer therefore keeps its own id.
+        let tagged = album_artist.is_some_and(|value| !value.trim().is_empty());
+        let credit = if tagged { album.artist.as_deref() } else { None };
+        album.artist_id =
+            pick_album_group_artist_id(album.artist_id.take(), credit, album_artist_id);
+    }
+}
+
+/// [`overlay_album_artist_links`] for callers that hold the store rather than a
+/// connection.
+pub(crate) fn overlay_album_artist_links_for_store(
+    store: &LibraryStore,
+    albums: &mut [LibraryAlbumDto],
+) -> Result<(), String> {
+    if albums.is_empty() {
+        return Ok(());
+    }
+    store
+        .with_read_conn(|conn| {
+            overlay_album_artist_links(conn, albums);
+            Ok(())
+        })
+        .map_err(|e| e.to_string())
 }
 
 /// Album browse/detail: `starred_at` reflects album favorites only (`album.starred_at`).
