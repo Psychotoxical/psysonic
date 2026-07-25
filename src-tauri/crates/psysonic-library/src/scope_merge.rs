@@ -4234,6 +4234,65 @@ mod tests {
     }
 
     #[test]
+    fn artist_detail_appears_on_card_recovers_the_id_from_a_sibling_track() {
+        // Partial album credit: the representative row *does* carry the album-artist
+        // label, but the server only tagged `albumArtistId` on a sibling track. The
+        // card must still link to the album-artist entity — the name alone is not a
+        // link, and falling back to the guest performer's id would open the wrong
+        // artist under a correct-looking credit.
+        //
+        // Distinct from `..._credits_the_headliner_not_the_guest`, where the
+        // representative row is untagged: there the label itself has to be recovered,
+        // so a fix that only reads the label would pass it. Here the label is already
+        // right and only the id is missing, which is exactly the case a query-local
+        // recovery gets wrong and `overlay_album_artist_links` gets right.
+        let store = LibraryStore::open_in_memory();
+        // The viewed artist's only row on this album: tagged, but no id in raw_json.
+        let mut guest = track(
+            "s1", "p1", "Guest Spot", Some("The Band"), "Partial Credit", "alb-partial",
+            Some("art1"), 190, "lib-a", Some(2022), None, None,
+        );
+        guest.album_artist = Some("Headliner".into());
+        // A sibling the viewed artist has no part in — reachable only through the
+        // whole-album read, and the sole carrier of the album-artist id.
+        let mut sibling = track(
+            "s1", "p2", "Title Track", Some("Headliner"), "Partial Credit", "alb-partial",
+            Some("perf2"), 200, "lib-a", Some(2022), None, None,
+        );
+        sibling.album_artist = Some("Headliner".into());
+        sibling.raw_json = r#"{"albumArtistId":"head-id"}"#.into();
+        let own = track(
+            "s1", "o1", "Own", Some("The Band"), "Own Album", "alb-own",
+            Some("art1"), 200, "lib-a", Some(2020), None, None,
+        );
+        seed_and_rebuild(&store, &[guest, sibling, own]);
+
+        let response = artist_detail(
+            &store,
+            &LibraryScopeArtistDetailRequest {
+                scopes: vec![scope_pair("s1", "lib-a")],
+                artist_id: "art1".into(),
+                server_id: "s1".into(),
+                include_tracks: false,
+                top_tracks_limit: None,
+            },
+        )
+        .unwrap();
+
+        let feat = response
+            .appears_on_albums
+            .iter()
+            .find(|a| a.id == "alb-partial")
+            .expect("guested album is an appears-on entry");
+        assert_eq!(feat.artist.as_deref(), Some("Headliner"));
+        assert_eq!(
+            feat.artist_id.as_deref(),
+            Some("head-id"),
+            "the id must come from the sibling row, not the guest performer",
+        );
+    }
+
+    #[test]
     fn artist_detail_appears_on_credit_follows_scope_priority_across_servers() {
         // The viewed artist guests on the same album on two servers, which disagree on
         // the album-artist. The credit and link must come from the priority winner —
