@@ -11,7 +11,8 @@ import { radioCoverRef } from '@/cover/ref';
 import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
 import { usePlaybackTrackCoverRef } from '@/cover/useLibraryCoverRef';
 import MarqueeText from '@/ui/MarqueeText';
-import { OpenArtistRefInline } from '@/ui/OpenArtistRefInline';
+import { ResolvedArtistRefInline } from '@/ui/ResolvedArtistRefInline';
+import { useAuthStore } from '@/store/authStore';
 import StarRating from '@/ui/StarRating';
 import { PlaybackBufferingOverlay } from '@/features/playback/components/PlaybackBufferingOverlay';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
@@ -59,6 +60,8 @@ export function PlayerTrackInfo({
   navigate, openContextMenu, t,
 }: Props) {
   const showBufferingOverlay = usePlayerStore(s => s.isPlaybackBuffering);
+  // `track.serverId` is only stamped on owned/multi-server rows.
+  const activeServerId = useAuthStore(s => s.activeServerId ?? '');
   const networkLabel = useEnrichmentPrimaryLabel() ?? '';
   const networkIcon = useEnrichmentPrimaryIcon();
   const playbackCoverRef = usePlaybackTrackCoverRef(
@@ -165,8 +168,9 @@ export function PlayerTrackInfo({
         />
         {!isRadio && displayArtistRefs && displayArtistRefs.length > 0 ? (
           <div className="marquee-wrap player-track-artist">
-            <OpenArtistRefInline
+            <ResolvedArtistRefInline
               refs={displayArtistRefs}
+              serverId={currentTrack?.serverId ?? activeServerId}
               fallbackName={displayArtist}
               onGoArtist={id => navigate(buildArtistDetailPath(id, {
                 serverId: currentTrack?.serverId,

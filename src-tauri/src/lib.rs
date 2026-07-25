@@ -389,13 +389,36 @@ fn bindings_exporter() -> specta_typescript::Typescript {
     specta_typescript::Typescript::default()
 }
 
+/// Export the typed bindings to `path` with trailing whitespace stripped.
+///
+/// specta renders a blank line inside a command's doc comment as `" * "`, which
+/// `git diff --check` rejects — so without this every command documented in more than
+/// one paragraph would fail the repository hygiene check on a generated file nobody
+/// edits by hand.
+#[cfg(any(debug_assertions, test))]
+fn export_bindings_to(path: &str) {
+    specta_builder()
+        .export(bindings_exporter(), path)
+        .expect("failed to export typescript bindings");
+    let contents = std::fs::read_to_string(path).expect("read exported bindings");
+    let mut cleaned = contents
+        .lines()
+        .map(str::trim_end)
+        .collect::<Vec<_>>()
+        .join("\n");
+    if contents.ends_with('\n') {
+        cleaned.push('\n');
+    }
+    if cleaned != contents {
+        std::fs::write(path, cleaned).expect("rewrite exported bindings");
+    }
+}
+
 /// Regenerate the committed bindings on a debug launch (matches the dev workflow;
 /// the CI freshness gate runs the equivalent export in a test — see `specta_export`).
 #[cfg(debug_assertions)]
 fn export_specta_bindings() {
-    specta_builder()
-        .export(bindings_exporter(), "../src/generated/bindings.ts")
-        .expect("failed to export typescript bindings");
+    export_bindings_to("../src/generated/bindings.ts");
 }
 
 pub fn run() {
@@ -1749,9 +1772,7 @@ mod specta_export {
             std::process::id()
         ));
 
-        super::specta_builder()
-            .export(super::bindings_exporter(), &tmp)
-            .expect("failed to export typescript bindings");
+        super::export_bindings_to(tmp.to_str().expect("temp path is valid UTF-8"));
 
         let generated = std::fs::read_to_string(&tmp).expect("read freshly exported bindings");
         let _ = std::fs::remove_file(&tmp);
@@ -1779,9 +1800,7 @@ mod specta_export {
         // `--include-ignored`) never observes a half-written/truncated file.
         let target = "../src/generated/bindings.ts";
         let tmp = "../src/generated/bindings.ts.regen.tmp";
-        super::specta_builder()
-            .export(super::bindings_exporter(), tmp)
-            .expect("failed to export typescript bindings");
+        super::export_bindings_to(tmp);
         std::fs::rename(tmp, target).expect("failed to move regenerated bindings into place");
     }
 

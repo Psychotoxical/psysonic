@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import type { SubsonicOpenArtistRef } from '@/lib/api/subsonicTypes';
-import { peekArtistIdByName, resolveArtistIdsByName } from '@/lib/library/artistIdResolve';
+import {
+  getArtistIdResolveRevision,
+  peekArtistIdByName,
+  resolveArtistIdsByName,
+  subscribeArtistIdResolve,
+} from '@/lib/library/artistIdResolve';
 
 /**
  * Fill in artist ids for credits that came from splitting a joined display string, so
@@ -12,7 +17,9 @@ import { peekArtistIdByName, resolveArtistIdsByName } from '@/lib/library/artist
  *
  * Resolution is cached process-wide, so the common case (every row of an album crediting
  * the same guest) costs a single lookup, and an already-cached name is applied on the
- * first render with no flicker.
+ * first render with no flicker. The hook follows the cache's revision rather than a
+ * local tick: a row that mounted mid-request, a sync that added the missing artist, and
+ * a retry after a transient backend failure all have to reach an already-mounted row.
  */
 /**
  * @param serverId Owning server. Callers must apply the usual
@@ -38,23 +45,16 @@ export function useResolvedArtistRefs(
   // the second one's lookup.
   const namesKey = JSON.stringify(unresolved);
 
-  // Bump on resolution so the memo below re-reads the cache. The cache itself holds
-  // the values; this is only the render trigger.
-  const [resolvedTick, setResolvedTick] = useState(0);
+  const revision = useSyncExternalStore(subscribeArtistIdResolve, getArtistIdResolveRevision);
 
   useEffect(() => {
     if (!serverId || unresolved.length === 0) return;
     if (unresolved.every(name => peekArtistIdByName(serverId, name) !== undefined)) return;
-    let cancelled = false;
-    void resolveArtistIdsByName(serverId, unresolved).then(() => {
-      if (!cancelled) setResolvedTick(tick => tick + 1);
-    });
-    return () => {
-      cancelled = true;
-    };
-    // `namesKey` stands in for `unresolved`; see above.
+    void resolveArtistIdsByName(serverId, unresolved);
+    // `namesKey` stands in for `unresolved`; `revision` re-runs this after an
+    // invalidation or a scheduled retry, when names can become resolvable again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverId, namesKey]);
+  }, [serverId, namesKey, revision]);
 
   return useMemo(() => {
     if (!serverId || unresolved.length === 0) return refs;
@@ -63,7 +63,7 @@ export function useResolvedArtistRefs(
       const id = peekArtistIdByName(serverId, ref.name);
       return id ? { ...ref, id } : ref;
     });
-    // `resolvedTick` is the signal that the cache changed underneath.
+    // `revision` is the signal that the cache changed underneath.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refs, serverId, namesKey, resolvedTick]);
+  }, [refs, serverId, namesKey, revision]);
 }

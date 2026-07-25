@@ -17,7 +17,10 @@ import { playAlbum, playAlbumShuffled } from '@/features/playback/utils/playback
 import { useLongPressAction } from '@/lib/hooks/useLongPressAction';
 import { LongPressWaveOverlay } from '@/ui/LongPressWaveOverlay';
 import { useTranslation } from 'react-i18next';
-import { albumArtistDisplayName } from '@/features/album/utils/deriveAlbumHeaderArtistRefs';
+import {
+  albumArtistDisplayName, deriveAlbumArtistRefs,
+} from '@/features/album/utils/deriveAlbumHeaderArtistRefs';
+import { ResolvedArtistRefInline } from '@/ui/ResolvedArtistRefInline';
 import { appendServerQuery } from '@/lib/navigation/detailServerScope';
 import { coverServerScopeForOwnerServerId } from '@/cover/serverScope';
 import { wakeCoverBackfillForMissingMetadata } from '@/cover/wakeCoverBackfillForMissingMetadata';
@@ -157,6 +160,7 @@ export default function MostPlayed() {
   const navigate = useNavigate();
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
   const libraryBrowseScopeVersion = useAuthStore(s => s.libraryBrowseScopeVersion);
+  const activeServerId = useAuthStore(s => s.activeServerId ?? '');
   const openContextMenu = usePlayerStore(s => s.openContextMenu);
   const enqueue = usePlayerStore(s => s.enqueue);
 
@@ -309,14 +313,16 @@ export default function MostPlayed() {
                         {t('mostPlayed.plays', { n: (album.playCount ?? 0).toLocaleString() })}
                       </span>
                     </div>
-                    <span
-                      className="mp-album-artist truncate track-artist-link"
-                      onClick={e => {
-                        e.stopPropagation();
-                        navigate(detailPath('artist', album.artistId, album.serverId));
-                      }}
-                    >
-                      {albumArtistDisplayName(album)}
+                    <span className="mp-album-artist truncate">
+                      <ResolvedArtistRefInline
+                        refs={deriveAlbumArtistRefs(album)}
+                        serverId={album.serverId ?? activeServerId}
+                        fallbackName={albumArtistDisplayName(album)}
+                        onGoArtist={id => navigate(detailPath('artist', id, album.serverId))}
+                        as="none"
+                        linkTag="span"
+                        linkClassName="track-artist-link"
+                      />
                     </span>
                   </div>
                   <div className="mp-album-actions">

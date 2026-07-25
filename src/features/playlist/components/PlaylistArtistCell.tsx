@@ -1,37 +1,36 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/trackArtistRefs';
+import { useAuthStore } from '@/store/authStore';
 import { buildArtistDetailPath } from '@/lib/navigation/detailServerScope';
+import { ResolvedArtistRefInline } from '@/ui/ResolvedArtistRefInline';
 
 /**
  * Multi-artist credit for playlist track rows (main list + suggestions).
  * Renders the OpenSubsonic `artists` array as ·-separated, individually
  * navigable links, falling back to the legacy `artist`/`artistId` pair.
  * Mirrors the album track list (TrackRow) so a track reads the same before
- * and after it is added to the playlist.
+ * and after it is added to the playlist — same component, so a guest split out
+ * of a joined credit is linkable and keyboard-reachable here too.
  */
 export function PlaylistArtistCell({ song }: { song: SubsonicSong }) {
   const navigate = useNavigate();
+  const activeServerId = useAuthStore(s => s.activeServerId ?? '');
   const artistRefs = useMemo(() => resolveTrackArtistRefs(song), [song]);
   return (
     <div className="track-artist-cell">
-      {artistRefs.map((a, i) => (
-        <React.Fragment key={a.id ?? a.name ?? i}>
-          {i > 0 && <span className="track-artist-sep">&nbsp;·&nbsp;</span>}
-          <span
-            className={`track-artist${a.id ? ' track-artist-link' : ''}`}
-            style={{ cursor: a.id ? 'pointer' : 'default' }}
-            onClick={e => {
-              if (!a.id) return;
-              e.stopPropagation();
-              navigate(buildArtistDetailPath(a.id, { serverId: song.serverId }));
-            }}
-          >
-            {a.name ?? song.artist}
-          </span>
-        </React.Fragment>
-      ))}
+      <ResolvedArtistRefInline
+        refs={artistRefs}
+        serverId={song.serverId ?? activeServerId}
+        fallbackName={song.artist}
+        onGoArtist={id => navigate(buildArtistDetailPath(id, { serverId: song.serverId }))}
+        as="none"
+        linkTag="span"
+        plainClassName="track-artist"
+        linkClassName="track-artist-link"
+        separatorClassName="track-artist-sep"
+      />
     </div>
   );
 }

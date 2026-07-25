@@ -15,6 +15,8 @@ import { tooltipAttrs } from '@/ui/tooltipAttrs';
 import { OptionalBrowseTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
 import { useTrackListCoverArtEnabled } from '@/cover/useTrackListCoverArtSettings';
 import { resolveIndexKey } from '@/lib/server/serverIndexKey';
+import { useAuthStore } from '@/store/authStore';
+import { ResolvedArtistRefInline } from '@/ui/ResolvedArtistRefInline';
 
 interface Props {
   song: SubsonicSong;
@@ -50,6 +52,7 @@ function SongRow({ song, showBpm }: Props) {
   };
 
   const artistRefs = resolveTrackArtistRefs(song);
+  const activeServerId = useAuthStore(s => s.activeServerId ?? '');
 
   const bpmTooltip =
     song.localBpmSource === 'analysis'
@@ -111,20 +114,16 @@ function SongRow({ song, showBpm }: Props) {
         <span className="song-list-row-title-text truncate">{song.title}</span>
       </div>
       <div className="song-list-row-cell truncate" title={song.artist}>
-        {artistRefs.map((a, i) => (
-          <React.Fragment key={a.id ?? a.name ?? i}>
-            {i > 0 && <span className="track-artist-sep">&nbsp;·&nbsp;</span>}
-            <span
-              className={a.id ? 'track-artist-link' : ''}
-              style={{ cursor: a.id ? 'pointer' : 'default' }}
-              onClick={(e) => {
-                if (!a.id) return;
-                e.stopPropagation();
-                navigateToArtist(a.id, { serverId: song.serverId });
-              }}
-            >{a.name ?? song.artist}</span>
-          </React.Fragment>
-        ))}
+        <ResolvedArtistRefInline
+          refs={artistRefs}
+          serverId={song.serverId ?? activeServerId}
+          fallbackName={song.artist}
+          onGoArtist={id => navigateToArtist(id, { serverId: song.serverId })}
+          as="none"
+          linkTag="span"
+          linkClassName="track-artist-link"
+          separatorClassName="track-artist-sep"
+        />
       </div>
       <div className="song-list-row-cell truncate">
         {song.albumId ? (

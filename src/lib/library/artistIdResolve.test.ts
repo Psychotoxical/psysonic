@@ -15,8 +15,11 @@ vi.mock('@/lib/api/coverCache', () => ({
 
 import {
   __resetArtistIdResolveCacheForTests,
+  clearArtistIdResolveCache,
+  getArtistIdResolveRevision,
   peekArtistIdByName,
   resolveArtistIdsByName,
+  subscribeArtistIdResolve,
 } from '@/lib/library/artistIdResolve';
 
 describe('resolveArtistIdsByName', () => {
@@ -107,6 +110,91 @@ describe('resolveArtistIdsByName', () => {
     expect(hoisted.resolveArtistIds).toHaveBeenCalledTimes(2);
     expect(hoisted.resolveArtistIds.mock.calls[0][1]).toHaveLength(32);
     expect(hoisted.resolveArtistIds.mock.calls[1][1]).toHaveLength(1);
+  });
+
+  // A virtualized row that mounts while the same guest is already being fetched must
+  // not be told "done" before the value exists — it would render as plain text and
+  // nothing would tell it when the original request finished.
+  it('makes a late caller await the request that is already carrying its name', async () => {
+    let release: (value: unknown) => void = () => {};
+    hoisted.resolveArtistIds.mockReturnValue(new Promise(resolve => { release = resolve; }));
+
+    const first = resolveArtistIdsByName('srv', ['Alice']);
+    // Let the flush microtask run so the request is genuinely in flight.
+    await Promise.resolve();
+    await Promise.resolve();
+    let lateSettled = false;
+    const late = resolveArtistIdsByName('srv', ['Alice']).then(() => { lateSettled = true; });
+    await Promise.resolve();
+    expect(lateSettled).toBe(false);
+
+    release({ status: 'ok', data: ['ar-a'] });
+    await Promise.all([first, late]);
+    expect(lateSettled).toBe(true);
+    expect(peekArtistIdByName('srv', 'Alice')).toBe('ar-a');
+    expect(hoisted.resolveArtistIds).toHaveBeenCalledTimes(1);
+  });
+
+  // A lookup issued before a sync describes the pre-sync index. If it lands after the
+  // invalidation it reinstates exactly what the clear was there to remove.
+  it('discards a response that was already in flight when the cache was cleared', async () => {
+    let release: (value: unknown) => void = () => {};
+    hoisted.resolveArtistIds.mockReturnValue(new Promise(resolve => { release = resolve; }));
+
+    const pending = resolveArtistIdsByName('srv', ['Alice']);
+    await Promise.resolve();
+    clearArtistIdResolveCache();
+    release({ status: 'ok', data: [null] });
+    await pending;
+
+    expect(peekArtistIdByName('srv', 'Alice')).toBeUndefined();
+  });
+
+  it('notifies subscribers when values land and when the cache is cleared', async () => {
+    const seen: number[] = [];
+    const unsubscribe = subscribeArtistIdResolve(() => seen.push(getArtistIdResolveRevision()));
+    hoisted.resolveArtistIds.mockResolvedValue({ status: 'ok', data: ['ar-a'] });
+
+    await resolveArtistIdsByName('srv', ['Alice']);
+    expect(seen).toHaveLength(1);
+
+    clearArtistIdResolveCache();
+    expect(seen).toHaveLength(2);
+    expect(seen[1]).toBeGreaterThan(seen[0]);
+    unsubscribe();
+
+    clearArtistIdResolveCache();
+    expect(seen).toHaveLength(2);
+  });
+
+  // Failures stay uncached, but a mounted consumer has nothing that would make it ask
+  // again. One backing-off retry signal is scheduled instead — the usual failure here
+  // is backend contention, so it must not become a tight loop.
+  it('signals a retry after a failure, backing off while it keeps failing', async () => {
+    vi.useFakeTimers();
+    try {
+      const seen: number[] = [];
+      subscribeArtistIdResolve(() => seen.push(getArtistIdResolveRevision()));
+      hoisted.resolveArtistIds.mockResolvedValue({ status: 'error', error: 'db busy' });
+
+      await resolveArtistIdsByName('srv', ['Alice']);
+      expect(seen).toHaveLength(0);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(seen).toHaveLength(1);
+
+      await resolveArtistIdsByName('srv', ['Alice']);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(seen).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(seen).toHaveLength(2);
+
+      hoisted.resolveArtistIds.mockResolvedValue({ status: 'ok', data: ['ar-a'] });
+      await resolveArtistIdsByName('srv', ['Alice']);
+      expect(peekArtistIdByName('srv', 'Alice')).toBe('ar-a');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('scopes the cache per server and ignores blank input', async () => {

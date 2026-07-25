@@ -29,7 +29,7 @@ export const commands = {
 	libraryAlbumDiscCount: (serverId: string, albumId: string) => typedError<number, string>(__TAURI_INVOKE("library_album_disc_count", { serverId, albumId })),
 	/**
 	 *  Resolve credit names to indexed artist ids, positionally aligned with `names`.
-	 * 
+	 *
 	 *  For rows whose server sent only a joined credit string ("A feat. B") instead of the
 	 *  structured `artists` list: the frontend splits the string on the server's own
 	 *  separators and asks here for the ids, so every named artist can be linked and not
@@ -101,10 +101,10 @@ export const commands = {
 	audioPause: () => __TAURI_INVOKE<void>("audio_pause"),
 	/**
 	 *  Resume playback.
-	 * 
+	 *
 	 *  **Warm resume** (`is_hard_paused = false`): download task is still running,
 	 *  buffer has buffered audio.  `sink.play()` suffices.
-	 * 
+	 *
 	 *  **Cold resume** (`is_hard_paused = true`): TCP was dropped.  A fresh 4 MB
 	 *  ring buffer is created, its consumer is sent to `AudioStreamReader` (which
 	 *  swaps it in on the next `read()`), and a new download task is spawned.
@@ -138,7 +138,7 @@ export const commands = {
 	audioPreload: (url: string, durationHint: number | null, analysisTrackId: string | null, serverId: string | null, eager: boolean | null) => typedError<null, string>(__TAURI_INVOKE("audio_preload", { url, durationHint, analysisTrackId, serverId, eager })),
 	/**
 	 *  Play a live internet radio stream.
-	 * 
+	 *
 	 *  Sends `Icy-MetaData: 1` to request inline ICY metadata.
 	 *  Emits `audio:playing` with `duration = 0.0` (sentinel for live stream)
 	 *  and `radio:metadata` whenever the StreamTitle changes.
@@ -166,7 +166,7 @@ export const commands = {
 	 *  Returns the keys of all available audio output devices on the current host.
 	 *  On Linux, ALSA probes unavailable backends (JACK, OSS, dmix) and prints errors to
 	 *  stderr. We suppress fd 2 for the duration of enumeration to keep the terminal clean.
-	 * 
+	 *
 	 *  The user-pinned device is appended when cpal omits it (e.g. HDMI busy while
 	 *  streaming) so the Settings dropdown still matches `audioOutputDevice`.
 	 */
@@ -228,7 +228,7 @@ export const commands = {
 	analysisGetBackfillQueueStats: () => typedError<AnalysisBackfillQueueStatsDto, string>(__TAURI_INVOKE("analysis_get_backfill_queue_stats")),
 	/**
 	 *  Prunes pending analysis work for tracks no longer present in the playback queue.
-	 * 
+	 *
 	 *  Keeps currently-running jobs untouched; only queued (not-yet-started) jobs are removed.
 	 */
 	analysisPrunePendingToTrackIds: (trackIds: string[], serverId: string) => typedError<AnalysisPrunePendingResult, string>(__TAURI_INVOKE("analysis_prune_pending_to_track_ids", { trackIds, serverId })),
@@ -357,10 +357,10 @@ export const commands = {
 	 *  Atomically renames files on the device from their old path to the new fixed-
 	 *  schema path. Intended for the migration flow when switching away from the
 	 *  user-configurable template. All paths are relative to `target_dir`.
-	 * 
+	 *
 	 *  After renaming, removes any directories left empty under `target_dir`
 	 *  (so stale `{OldArtist}/{OldAlbum}/` trees don't linger).
-	 * 
+	 *
 	 *  Returns a per-entry result so the UI can show which renames succeeded
 	 *  and which failed. Does not roll back on partial failure — each `fs::rename`
 	 *  is atomic, so nothing can be half-renamed.
@@ -392,11 +392,11 @@ export const commands = {
 	openFolder: (path: string) => typedError<null, string>(__TAURI_INVOKE("open_folder", { path })),
 	/**
 	 *  Reads embedded synced / unsynced lyrics from a local audio file.
-	 * 
+	 *
 	 *  Priority order:
 	 *    MP3  → ID3v2 SYLT (synchronized, ms timestamps) → ID3v2 USLT (plain)
 	 *    FLAC → Vorbis SYNCEDLYRICS (LRC string)          → Vorbis LYRICS (plain)
-	 * 
+	 *
 	 *  Returns a standard LRC string (`[mm:ss.cc]line\n…`) for synced lyrics,
 	 *  or plain text for unsynced lyrics.  Returns `None` when no lyrics are found.
 	 *  Errors are silenced and mapped to `None` so the frontend falls through to the
@@ -431,11 +431,11 @@ export const commands = {
 	 *  primary URL (and the derived index key changes). Used by the URL-change
 	 *  remigration pipeline (dual-server-address spec §8.3) so cached covers
 	 *  stay reachable under the new key.
-	 * 
+	 *
 	 *  Sanitization: rejects path-separator characters and `..` components — keys
 	 *  flow from `serverIndexKeyFromUrl(url)` which strips schemes and trailing
 	 *  slashes, but defense in depth at the FS boundary is cheap.
-	 * 
+	 *
 	 *  Behaviour:
 	 *  - `old_key == new_key` → no-op success.
 	 *  - Old bucket missing → no-op success (nothing to migrate).
@@ -443,7 +443,7 @@ export const commands = {
 	 *  - Both exist → recursive merge, **prefer existing** in destination (the
 	 *    newer bucket wins on collision; the surviving file count goes up, never
 	 *    loses data).
-	 * 
+	 *
 	 *  Always emits `cover:bucket-renamed` with `{oldKey, newKey}` on success so
 	 *  the frontend in-memory disk-src cache can invalidate stale entries.
 	 */
@@ -518,14 +518,14 @@ export const commands = {
 	migrationRun: (mappings: ServerIndexMapping[]) => typedError<MigrationRunResult, string>(__TAURI_INVOKE("migration_run", { mappings })),
 	/**
 	 *  Resolve a hostname to a deduped list of IP address strings (IPv4 + IPv6).
-	 * 
+	 *
 	 *  Strips a `host:port` suffix before lookup — the form only knows the host.
 	 *  Used by the add/edit-server form to hint whether the entered address
 	 *  classifies as LAN or public (a hostname that resolves to a private range
 	 *  IP suggests the user might want to add a public second address, and
 	 *  vice versa). **Never used for connect** — connect always goes through the
 	 *  existing `pingWithCredentials` path, which carries credentials.
-	 * 
+	 *
 	 *  Returns an empty vec on lookup failure (the UI then shows no hint, by
 	 *  design: a transient DNS hiccup shouldn't block save).
 	 */
@@ -534,13 +534,13 @@ export const commands = {
 	 *  Header-aware connect probe. Runs the Subsonic `ping` over the native
 	 *  reqwest stack instead of the WebView so that per-server custom headers
 	 *  (Cloudflare Access / Pangolin service tokens) ride on the request itself.
-	 * 
+	 *
 	 *  The WebView path can't do this behind an auth gate: a custom header like
 	 *  `Authorization` is not CORS-safelisted, so the browser sends a preflight
 	 *  `OPTIONS` first — and that preflight carries no token, so the gate rejects
 	 *  it and the real request never leaves. Native reqwest never preflights, so
 	 *  the token reaches the origin exactly as it does for streaming / sync.
-	 * 
+	 *
 	 *  `http_context` mirrors `serverHttpContextWireForProfile` for the draft
 	 *  profile being added/edited (endpoints + headers + apply rule); pass `None`
 	 *  for a plain probe with no custom headers. Endpoint/apply matching reuses the
@@ -556,7 +556,7 @@ export const commands = {
 } | null) => typedError<ServerProbeResult, string>(__TAURI_INVOKE("probe_server_connection", { baseUrl, username, password, httpContext })),
 	/**
 	 *  WebView-transport bridge for gated servers (Cloudflare Access, Pangolin, …).
-	 * 
+	 *
 	 *  A custom gate header is not CORS-safelisted, so any Subsonic REST call the
 	 *  WebView makes over `axios`/`fetch` triggers an `OPTIONS` preflight the gate
 	 *  rejects — breaking browse, search, statistics, and every non-media view.
@@ -564,7 +564,7 @@ export const commands = {
 	 *  this runs the request natively (no preflight) with the header applied via
 	 *  the per-server [`ServerHttpContext`], and returns the untouched JSON body
 	 *  for the WebView to parse exactly as it parses an `axios` response.
-	 * 
+	 *
 	 *  The frontend supplies the *full* query (auth params + endpoint args), so no
 	 *  credentials are needed here. `endpoint` is the REST segment including
 	 *  `.view`; `post_form` uses an `application/x-www-form-urlencoded` body.
@@ -610,7 +610,7 @@ export const commands = {
 	closeMiniPlayer: () => typedError<null, string>(__TAURI_INVOKE("close_mini_player")),
 	/**
 	 *  Toggle always-on-top on the mini player window.
-	 * 
+	 *
 	 *  Some window managers (KWin, certain Mutter releases, GNOME-on-Wayland)
 	 *  silently ignore `set_always_on_top(true)` when the internal flag is
 	 *  already `true` — which happens whenever the window was hidden and
@@ -658,11 +658,11 @@ export const commands = {
 	isTilingWmCmd: () => __TAURI_INVOKE<boolean>("is_tiling_wm_cmd"),
 	/**
 	 *  Show (`true`) or fully remove (`false`) the system-tray icon.
-	 * 
+	 *
 	 *  The command is strictly idempotent:
 	 *  - `show=true`  when the icon is already present → no-op (prevents duplicate icons).
 	 *  - `show=false` when the icon is already absent  → no-op.
-	 * 
+	 *
 	 *  For removal, `set_visible(false)` is called explicitly before the handle is
 	 *  dropped because some platforms (Windows notification area, certain Linux DEs)
 	 *  process the OS removal asynchronously — hiding first prevents a brief "ghost"
@@ -671,11 +671,11 @@ export const commands = {
 	toggleTrayIcon: (show: boolean) => typedError<null, string>(__TAURI_INVOKE("toggle_tray_icon", { show })),
 	/**
 	 *  Updates the system-tray icon tooltip with the currently playing track.
-	 * 
+	 *
 	 *  `tooltip` should be a compact "Artist – Title" form (no app suffix needed —
 	 *  the tray icon itself identifies the app). An empty string resets to the
 	 *  default `"Psysonic"` tooltip.
-	 * 
+	 *
 	 *  The text is truncated to 127 chars defensively to stay under the historical
 	 *  Windows `NOTIFYICONDATA.szTip` limit (128 bytes including the null terminator).
 	 *  On Linux the visibility depends on the desktop environment / panel —
@@ -711,14 +711,14 @@ export const commands = {
 	ndSetUserLibraries: (serverUrl: string, token: string, id: string, libraryIds: number[]) => typedError<null, string>(__TAURI_INVOKE("nd_set_user_libraries", { serverUrl, token, id, libraryIds })),
 	/**
 	 *  GET `/api/song/{id}` and return the absolute filesystem `path` field.
-	 * 
+	 *
 	 *  Subsonic `getSong.view` returns at most a relative path (`Artist/Album/track.flac`),
 	 *  or nothing at all on Navidrome. The Navidrome native API exposes the absolute
 	 *  path the server stores the file at — same source Feishin and the Navidrome web
 	 *  client use for their "show file location" feature. Logs in fresh (no token
 	 *  cache yet); the call is occasional (Song Info modal open) so the extra
 	 *  roundtrip is acceptable.
-	 * 
+	 *
 	 *  Returns `Ok(None)` when the response has no `path` field — Navidrome can omit
 	 *  it for non-admin users on some configurations.
 	 */
@@ -734,12 +734,12 @@ export const commands = {
 	fetchUrlBytes: (url: string) => typedError<[number[], string], string>(__TAURI_INVOKE("fetch_url_bytes", { url })),
 	/**
 	 *  Fetch ICY in-stream metadata from a radio stream URL.
-	 * 
+	 *
 	 *  Sends a GET request with `Icy-MetaData: 1` and reads just enough bytes
 	 *  (up to `icy-metaint` audio bytes plus the following metadata block) to
 	 *  extract the `StreamTitle`.  The connection is dropped as soon as the
 	 *  first metadata chunk has been parsed, so bandwidth usage is minimal.
-	 * 
+	 *
 	 *  If `url` is a PLS or M3U playlist file it is resolved to the first direct
 	 *  stream URL before the ICY request is made.
 	 */

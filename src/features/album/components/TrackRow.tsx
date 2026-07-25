@@ -18,7 +18,7 @@ import i18n from '@/lib/i18n';
 import { offlineActionPolicy, type OfflineActionPolicy } from '@/features/offline';
 import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/trackArtistRefs';
 import { buildArtistDetailPath } from '@/lib/navigation/detailServerScope';
-import { useResolvedArtistRefs } from '@/lib/hooks/useResolvedArtistRefs';
+import { ResolvedArtistRefInline } from '@/ui/ResolvedArtistRefInline';
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
 import { sameQueueTrack } from '@/features/playback';
 
@@ -63,26 +63,20 @@ const TrackArtistCell = React.memo(function TrackArtistCell({ song }: { song: Su
   const navigate = useNavigate();
   const activeServerId = useAuthStore(s => s.activeServerId ?? '');
   const baseRefs = React.useMemo(() => resolveTrackArtistRefs(song), [song]);
-  // `song.serverId` is only stamped on owned/multi-server rows.
-  const artistRefs = useResolvedArtistRefs(baseRefs, song.serverId ?? activeServerId);
   return (
     <div className="track-artist-cell">
-      {artistRefs.map((a, i) => (
-        <React.Fragment key={a.id ?? a.name ?? i}>
-          {i > 0 && <span className="track-artist-sep">&nbsp;·&nbsp;</span>}
-          <span
-            className={`track-artist${a.id ? ' track-artist-link' : ''}`}
-            style={{ cursor: a.id ? 'pointer' : 'default' }}
-            onClick={e => {
-              if (!a.id) return;
-              e.stopPropagation();
-              navigate(buildArtistDetailPath(a.id, { serverId: song.serverId }));
-            }}
-          >
-            {a.name ?? song.artist}
-          </span>
-        </React.Fragment>
-      ))}
+      <ResolvedArtistRefInline
+        refs={baseRefs}
+        // `song.serverId` is only stamped on owned/multi-server rows.
+        serverId={song.serverId ?? activeServerId}
+        fallbackName={song.artist}
+        onGoArtist={id => navigate(buildArtistDetailPath(id, { serverId: song.serverId }))}
+        as="none"
+        linkTag="span"
+        plainClassName="track-artist"
+        linkClassName="track-artist-link"
+        separatorClassName="track-artist-sep"
+      />
     </div>
   );
 });

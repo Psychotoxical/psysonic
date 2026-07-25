@@ -36,19 +36,36 @@ const ALBUM_TO_TRACK_RAW_KEYS: &[(&str, &str)] = &[
 /// specific — and never writes an explicit null. Entries are applied in order, so the
 /// canonical `AlbumID3` spelling (`artists` / `displayArtist`) wins over the defensive
 /// `albumArtists` / `displayAlbumArtist` aliases a server might send instead.
+///
+/// "Already carries" means a usable value, not merely a present key: a server emitting
+/// `"albumArtists": null` or `[]` on the song states nothing, and every consumer coerces
+/// those back to "absent" anyway. Treating the key as authoritative would drop the
+/// authoritative ids sitting in the same `getAlbum` response and push the UI back onto
+/// name matching.
 pub fn merge_album_open_subsonic_track_raw(raw_album: &Value, raw_song: &mut Value) {
     let Some(obj) = raw_song.as_object_mut() else {
         return;
     };
     for (album_key, track_key) in ALBUM_TO_TRACK_RAW_KEYS {
-        if obj.contains_key(*track_key) {
+        if obj.get(*track_key).is_some_and(is_usable_participant_value) {
             continue;
         }
         if let Some(v) = raw_album.get(*album_key) {
-            if !v.is_null() {
+            if is_usable_participant_value(v) {
                 obj.insert((*track_key).to_string(), v.clone());
             }
         }
+    }
+}
+
+/// Null, an empty array and an empty/whitespace string all mean "the server said
+/// nothing here".
+fn is_usable_participant_value(value: &Value) -> bool {
+    match value {
+        Value::Null => false,
+        Value::Array(items) => !items.is_empty(),
+        Value::String(text) => !text.trim().is_empty(),
+        _ => true,
     }
 }
 
@@ -373,6 +390,34 @@ mod tests {
             song.get("albumArtists"),
             Some(&json!([{ "id": "ar9", "name": "Track's Own" }]))
         );
+    }
+
+    // A song that carries the key but no value states nothing; the album's list in the
+    // same response is the authoritative one and must not be suppressed by it.
+    #[test]
+    fn merge_album_open_subsonic_track_raw_fills_null_and_empty_song_participants() {
+        let album = json!({
+            "artists": [{ "id": "ar1", "name": "Album Artist" }],
+            "displayArtist": "Album Artist",
+        });
+        for empty in [json!(null), json!([])] {
+            let mut song = json!({ "id": "tr_1", "albumArtists": empty, "displayAlbumArtist": "" });
+            merge_album_open_subsonic_track_raw(&album, &mut song);
+            assert_eq!(
+                song.get("albumArtists"),
+                Some(&json!([{ "id": "ar1", "name": "Album Artist" }]))
+            );
+            assert_eq!(song.get("displayAlbumArtist"), Some(&json!("Album Artist")));
+        }
+    }
+
+    #[test]
+    fn merge_album_open_subsonic_track_raw_ignores_empty_album_participants() {
+        let album = json!({ "artists": [], "displayArtist": "   " });
+        let mut song = json!({ "id": "tr_1" });
+        merge_album_open_subsonic_track_raw(&album, &mut song);
+        assert_eq!(song.get("albumArtists"), None);
+        assert_eq!(song.get("displayAlbumArtist"), None);
     }
 
     #[test]

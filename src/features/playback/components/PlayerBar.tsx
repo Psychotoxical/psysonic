@@ -22,7 +22,6 @@ import PlaybackDelayModal from '@/features/playback/components/PlaybackDelayModa
 import { usePlaybackScheduleRemaining } from '@/features/playback/utils/playbackScheduleFormat';
 import { usePreviewStore } from '@/features/playback/store/previewStore';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
-import { coerceOpenArtistRefs } from '@/lib/api/openArtistRefs';
 import { ownedOverrideValue } from '@/lib/util/ownedEntityKey';
 import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/trackArtistRefs';
 import { PlayerTrackInfo } from '@/features/playback/components/playerBar/PlayerTrackInfo';
@@ -141,7 +140,9 @@ export default function PlayerBar() {
   const showPreviewMeta = isPreviewing && !isRadio && previewingTrack !== null;
   const displayTitle = showPreviewMeta ? previewingTrack!.title : (currentTrack?.title ?? t('player.noTitle'));
   const displayArtist = showPreviewMeta ? previewingTrack!.artist : (currentTrack?.artist ?? '—');
-  const displayArtistRefs = !showPreviewMeta && currentTrack && coerceOpenArtistRefs(currentTrack.artists).length > 0
+  // Not gated on a structured `artists` list: a flat "A feat. B" credit is exactly the
+  // case the split exists for, and the ids for its guests are resolved downstream.
+  const displayArtistRefs = !showPreviewMeta && currentTrack
     ? resolveTrackArtistRefs(currentTrack)
     : undefined;
 

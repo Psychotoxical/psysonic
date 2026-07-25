@@ -8,7 +8,8 @@ import { formatLastSeen } from '@/lib/format/userMgmtHelpers';
 import i18n from '@/lib/i18n';
 import { formatTrackTime } from '@/lib/format/formatDuration';
 import StarRating from '@/ui/StarRating';
-import { OpenArtistRefInline } from '@/ui/OpenArtistRefInline';
+import { ResolvedArtistRefInline } from '@/ui/ResolvedArtistRefInline';
+import { useAuthStore } from '@/store/authStore';
 import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/trackArtistRefs';
 import { OptionalBrowseTrackRowCoverThumb } from '@/cover/TrackRowCoverThumb';
 
@@ -49,6 +50,8 @@ function FavoriteSongRow({
   ratingValue, isPreviewing, previewStarted, orbitActive, cb,
 }: Props) {
   const { t } = useTranslation();
+  // `song.serverId` is only stamped on owned/multi-server rows.
+  const activeServerId = useAuthStore(s => s.activeServerId ?? '');
 
   return (
     <div
@@ -104,8 +107,9 @@ function FavoriteSongRow({
           );
           case 'artist': return (
             <div key="artist" className="track-artist-cell">
-              <OpenArtistRefInline
+              <ResolvedArtistRefInline
                 refs={resolveTrackArtistRefs(song)}
+                serverId={song.serverId ?? activeServerId}
                 fallbackName={song.artist}
                 onGoArtist={id => cb.navArtist(id, song.serverId)}
                 as="none"

@@ -63,9 +63,14 @@ function onSyncIdle(payload: LibrarySyncIdlePayload): void {
     invalidateGenreCatalogCache(payload.serverId);
     clearArtistBrowseCatalogCache();
     clearAlbumBrowseCatalogCache();
-    // Artist rows can appear with a sync; a cached "no artist row" must not outlive it.
-    clearArtistIdResolveCache();
   }
+  // Artist rows can appear with a sync; a cached "no artist row" must not outlive it.
+  // Not gated on `ok`: sync writes incrementally, so a run that inserted artists and
+  // then failed a later pass — or one whose index changes were fine but whose
+  // post-run identity maintenance reported failure — still leaves rows the cache
+  // would otherwise keep denying. Re-reading a few names is cheaper than a guest that
+  // stays unlinkable until restart.
+  clearArtistIdResolveCache();
   if (payload.source === 'background') return;
   if (!payload.jobId) return;
   if (

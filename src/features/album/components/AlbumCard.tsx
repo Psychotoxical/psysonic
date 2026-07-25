@@ -15,7 +15,7 @@ import type { CoverPrefetchPriority } from '@/cover/types';
 import { COVER_DENSE_GRID_MIN_CELL_CSS_PX } from '@/cover/layoutSizes';
 import { resolveCoverDisplayTier } from '@/cover/tiers';
 import { acquireUrl } from '@/cover';
-import { OpenArtistRefInline } from '@/ui/OpenArtistRefInline';
+import { ResolvedArtistRefInline } from '@/ui/ResolvedArtistRefInline';
 import { fetchAlbumTracks, playAlbum, playAlbumShuffled } from '@/features/playback/utils/playback/playAlbum';
 import { useLongPressAction } from '@/lib/hooks/useLongPressAction';
 import { LongPressWaveOverlay } from '@/ui/LongPressWaveOverlay';
@@ -221,8 +221,9 @@ function AlbumCard({
       <div className="album-card-info">
         <p className="album-card-title truncate">{album.name}</p>
         <p className="album-card-artist truncate">
-          <OpenArtistRefInline
+          <ResolvedArtistRefInline
             refs={artistRefs}
+            serverId={album.serverId ?? activeServerId}
             fallbackName={artistLabel}
             onGoArtist={id => navigate(buildArtistDetailPath(id, { serverId: album.serverId }))}
             as="none"

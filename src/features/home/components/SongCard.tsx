@@ -13,7 +13,8 @@ import { useDragDrop } from '@/lib/dnd/DragDropContext';
 import { useOrbitSongRowBehavior } from '@/features/orbit';
 import { useNavigateToAlbum } from '@/features/album';
 import { useNavigateToArtist } from '@/features/artist';
-import { OpenArtistRefInline } from '@/ui/OpenArtistRefInline';
+import { ResolvedArtistRefInline } from '@/ui/ResolvedArtistRefInline';
+import { useAuthStore } from '@/store/authStore';
 import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/trackArtistRefs';
 import { coverServerScopeForServerId } from '@/cover/serverScope';
 import { appendServerQuery } from '@/lib/navigation/detailServerScope';
@@ -64,6 +65,8 @@ function SongCard({
 
   const handleClick = handlePlay;
   const artistRefs = useMemo(() => resolveTrackArtistRefs(song), [song]);
+  // `song.serverId` is only stamped on owned/multi-server rows.
+  const activeServerId = useAuthStore(s => s.activeServerId ?? '');
 
   const handleAlbumClick = (e: React.MouseEvent) => {
     if (!song.albumId) return;
@@ -150,8 +153,9 @@ function SongCard({
       <div className="song-card-info">
         <p className="song-card-title truncate" title={song.title}>{song.title}</p>
         <p className="song-card-artist truncate" title={song.artist}>
-          <OpenArtistRefInline
+          <ResolvedArtistRefInline
             refs={artistRefs}
+            serverId={song.serverId ?? activeServerId}
             fallbackName={song.artist}
             onGoArtist={id => navigateToArtist(id, { serverId: song.serverId })}
             as="none"
