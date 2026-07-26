@@ -248,10 +248,12 @@ describe('useArtistDetailData — multi-library selection', () => {
 
     // A retained owner leaves the info effect's inputs untouched, so it simply does not
     // re-run and the damage stays latent. Any later re-trigger is what surfaces it — the
-    // similar-artists toggle is one the store really drives. With the owner correctly
-    // dropped, there is no one to ask and no request goes out at all.
+    // similar-artists toggle is one the store really drives. It has to name the *stale*
+    // owner: that flag is read for the resolved target, so toggling any other server
+    // would leave the unfixed dependencies unchanged and the test would pass on both
+    // sides. With the owner correctly dropped there is no target, so nothing is asked.
     act(() => {
-      useAuthStore.setState({ audiomuseNavidromeByServer: { 'srv-1': true } });
+      useAuthStore.setState({ audiomuseNavidromeByServer: { 'srv-2': true } });
     });
     await act(async () => { await Promise.resolve(); });
 
