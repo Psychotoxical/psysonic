@@ -150,6 +150,39 @@ describe('resolveArtistIdsByName', () => {
     expect(peekArtistIdByName('srv', 'Alice')).toBeUndefined();
   });
 
+  // The clear notifies while the request is still in flight, so a mounted row re-joins
+  // that very batch — and its answer is then discarded. Without a signal afterwards the
+  // row keeps its unresolved credits until it unmounts.
+  it('signals a retry when a clear retires the answer a mounted consumer awaited', async () => {
+    vi.useFakeTimers();
+    try {
+      const seen: number[] = [];
+      subscribeArtistIdResolve(() => seen.push(getArtistIdResolveRevision()));
+      let release: (value: unknown) => void = () => {};
+      hoisted.resolveArtistIds.mockReturnValue(new Promise(resolve => { release = resolve; }));
+
+      const pending = resolveArtistIdsByName('srv', ['Alice']);
+      await Promise.resolve();
+      clearArtistIdResolveCache();
+      expect(seen).toHaveLength(1);
+
+      release({ status: 'ok', data: ['ar-a'] });
+      await pending;
+      expect(peekArtistIdByName('srv', 'Alice')).toBeUndefined();
+      expect(seen).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(seen).toHaveLength(2);
+
+      hoisted.resolveArtistIds.mockResolvedValue({ status: 'ok', data: ['ar-a'] });
+      await resolveArtistIdsByName('srv', ['Alice']);
+      expect(peekArtistIdByName('srv', 'Alice')).toBe('ar-a');
+      expect(seen).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('notifies subscribers when values land and when the cache is cleared', async () => {
     const seen: number[] = [];
     const unsubscribe = subscribeArtistIdResolve(() => seen.push(getArtistIdResolveRevision()));

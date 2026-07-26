@@ -113,6 +113,7 @@ function scheduleRetryAfterFailure(): void {
 async function runBatch(sqlServerId: string, names: string[], batchGeneration: number): Promise<void> {
   let wrote = false;
   let failed = false;
+  let retired = false;
   for (let start = 0; start < names.length; start += RESOLVE_BATCH_SIZE) {
     const chunk = names.slice(start, start + RESOLVE_BATCH_SIZE);
     try {
@@ -128,6 +129,8 @@ async function runBatch(sqlServerId: string, names: string[], batchGeneration: n
             idByKey.set(cacheKey(sqlServerId, name), res.data[index] ?? null);
           });
           wrote = true;
+        } else {
+          retired = true;
         }
       } else {
         failed = true;
@@ -142,7 +145,12 @@ async function runBatch(sqlServerId: string, names: string[], batchGeneration: n
   if (wrote) {
     retryDelayMs = RETRY_BASE_MS;
     notify();
-  } else if (failed) {
+  } else if (failed || retired) {
+    // A retired batch leaves its names uncached just like a failure does, and the
+    // consumers that awaited it are still mounted holding unresolved credits. The
+    // clear itself already notified them, but that happened while this request was
+    // in flight, so they re-joined *this* batch and its discarded answer is the last
+    // thing they hear. The same backing-off signal covers both cases.
     scheduleRetryAfterFailure();
   }
 }
