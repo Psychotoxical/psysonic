@@ -225,7 +225,10 @@ export default function FolderBrowser() {
         .then(artists => artists.map(artistDtoToFolderEntry))
       : columns[colIndex]?.kind === 'artists'
         ? libraryScopeArtistDetail(serverId, { scopes, artistId: item.id, serverId, includeTracks: false })
-          .then(response => response.albums.map(albumDtoToFolderEntry))
+          // An artist folder lists everything under that artist, including albums they
+          // only appear on — the discography split is an artist-page concern.
+          .then(response => [...response.albums, ...response.appearsOnAlbums]
+            .map(albumDtoToFolderEntry))
         : libraryScopeAlbumDetail(serverId, { scopes, albumId: item.id, serverId })
           .then(response => response.tracks.map(trackDtoToFolderEntry));
 

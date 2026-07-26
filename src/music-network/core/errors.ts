@@ -12,6 +12,7 @@ export type MusicNetworkErrorCode =
   | 'PROBE_FAILED'
   | 'CAPABILITY_UNSUPPORTED'
   | 'NETWORK'
+  | 'RESPONSE_NOT_JSON'
   | 'MALOJA_BAD_KEY'
   | 'CUSTOM_URL_INVALID';
 

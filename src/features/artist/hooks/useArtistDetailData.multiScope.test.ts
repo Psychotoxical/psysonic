@@ -193,6 +193,141 @@ describe('useArtistDetailData — multi-library selection', () => {
     expect(result.current.info).toBeNull();
   });
 
+  it('drops the loaded owner when the scope moves to a different multi-server selection', async () => {
+    // The previous test starts from a single-server fallback and never establishes an
+    // owner, so it cannot catch a *retained* one. Here the first selection legitimately
+    // resolves an owner, then that server leaves the scope and the refreshed load
+    // attributes none — the route names no server either, so nobody may be asked.
+    useAuthStore.setState({
+      servers: [
+        { id: 'srv-1', name: 'S1', url: 'https://s1.test', username: 'u', password: 'p' },
+        { id: 'srv-2', name: 'S2', url: 'https://s2.test', username: 'u', password: 'p' },
+        { id: 'srv-3', name: 'S3', url: 'https://s3.test', username: 'u', password: 'p' },
+      ],
+      musicFoldersByServer: {
+        'srv-1': [{ id: 'lib-a', name: 'A' }],
+        'srv-2': [{ id: 'lib-b', name: 'B' }],
+        'srv-3': [{ id: 'lib-c', name: 'C' }],
+      },
+      libraryBrowseServerIds: ['srv-1', 'srv-2'],
+      libraryBrowseSelectionByServer: { 'srv-1': ['lib-a'], 'srv-2': ['lib-b'] },
+      libraryBrowseScopeVersion: 0,
+    });
+    tryLoadArtistDetailMultiScopeMock.mockResolvedValue({
+      artist: { id: 'art-2', name: 'Merged', serverId: 'srv-2' },
+      albums: [],
+      topSongs: [],
+    });
+    vi.mocked(getArtistInfoForServer).mockResolvedValue(
+      { biography: 'Owned by the second server.' } as Awaited<ReturnType<typeof getArtistInfoForServer>>,
+    );
+
+    const { result } = renderHook(() => useArtistDetailData('art-1'), { wrapper: routerWrapper });
+
+    await waitFor(() => expect(result.current.info).toMatchObject({
+      biography: 'Owned by the second server.',
+    }));
+    expect(getArtistInfoForServer).toHaveBeenCalledWith('srv-2', 'art-2', { similarArtistCount: undefined });
+
+    // srv-2 leaves the selection and the refreshed load resolves to nothing at all —
+    // the branch that returns without ever entering the result handler, so only an
+    // up-front reset can invalidate the owner it left behind.
+    vi.mocked(getArtistInfoForServer).mockClear();
+    vi.mocked(getArtistInfo).mockClear();
+    tryLoadArtistDetailMultiScopeMock.mockResolvedValue(null);
+    act(() => {
+      useAuthStore.setState({
+        libraryBrowseServerIds: ['srv-1', 'srv-3'],
+        libraryBrowseSelectionByServer: { 'srv-1': ['lib-a'], 'srv-3': ['lib-c'] },
+        libraryBrowseScopeVersion: 1,
+      });
+    });
+
+    await waitFor(() => expect(tryLoadArtistDetailMultiScopeMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // A retained owner leaves the info effect's inputs untouched, so it simply does not
+    // re-run and the damage stays latent. Any later re-trigger is what surfaces it — the
+    // similar-artists toggle is one the store really drives. With the owner correctly
+    // dropped, there is no one to ask and no request goes out at all.
+    act(() => {
+      useAuthStore.setState({ audiomuseNavidromeByServer: { 'srv-1': true } });
+    });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(getArtistInfoForServer).not.toHaveBeenCalled();
+    expect(getArtistInfo).not.toHaveBeenCalled();
+    expect(result.current.info).toBeNull();
+  });
+
+  it('asks the resolved owner even under a single-server scope on another server', async () => {
+    // Browsing one server while a different one is active is an ordinary selection. The
+    // scope has a single candidate, so the multi-server guard does not apply — but the
+    // route-or-active fallback would still send the request to the *active* server with
+    // the route id, and Subsonic ids collide freely across servers.
+    useAuthStore.setState({
+      libraryBrowseServerIds: ['srv-2'],
+      libraryBrowseSelectionByServer: { 'srv-2': ['lib-b'] },
+      libraryBrowseScopeVersion: 0,
+    });
+    tryLoadArtistDetailMultiScopeMock.mockResolvedValue({
+      artist: { id: 'art-7', name: 'Merged', serverId: 'srv-2' },
+      albums: [],
+      topSongs: [],
+    });
+    vi.mocked(getArtistInfoForServer).mockResolvedValue(
+      { biography: 'Owned by the second server.' } as Awaited<ReturnType<typeof getArtistInfoForServer>>,
+    );
+
+    const { result } = renderHook(() => useArtistDetailData('art-1'), { wrapper: routerWrapper });
+
+    await waitFor(() => expect(result.current.info).toMatchObject({
+      biography: 'Owned by the second server.',
+    }));
+    expect(getArtistInfoForServer).toHaveBeenCalledWith('srv-2', 'art-7', { similarArtistCount: undefined });
+    expect(getArtistInfo).not.toHaveBeenCalled();
+  });
+
+  it('reads the AudioMuse flag for the owning server, not the active one', async () => {
+    // The flag both decides the requested similar-artist count and, in the page, whether
+    // that list is rendered at all. Keyed on the active server it would ask the owner for
+    // a default-sized set and then refuse to show it.
+    useAuthStore.setState({ audiomuseNavidromeByServer: { 'srv-2': true } });
+    tryLoadArtistDetailMultiScopeMock.mockResolvedValue({
+      artist: { id: 'art-2', name: 'Merged', serverId: 'srv-2' },
+      albums: [],
+      topSongs: [],
+    });
+    vi.mocked(getArtistInfoForServer).mockResolvedValue(
+      { biography: 'Formed in 2016.' } as Awaited<ReturnType<typeof getArtistInfoForServer>>,
+    );
+
+    const { result } = renderHook(() => useArtistDetailData('art-1'), { wrapper: routerWrapper });
+
+    await waitFor(() => expect(result.current.info).not.toBeNull());
+    expect(getArtistInfoForServer).toHaveBeenCalledWith('srv-2', 'art-2', { similarArtistCount: 24 });
+    expect(result.current.audiomuseNavidromeEnabled).toBe(true);
+    expect(result.current.infoServerId).toBe('srv-2');
+  });
+
+  it('routes the scoped appears-on set to featuredAlbums without a network search', async () => {
+    tryLoadArtistDetailMultiScopeMock.mockResolvedValue({
+      artist: { id: 'art-1', name: 'Merged' },
+      albums: [{ id: 'own-1', name: 'Own' }],
+      appearsOnAlbums: [{ id: 'feat-1', name: 'A Comp' }],
+      topSongs: [],
+    });
+
+    const { result } = renderHook(() => useArtistDetailData('art-1'), { wrapper: routerWrapper });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.albums.map(a => a.id)).toEqual(['own-1']);
+    // Appears-on comes from the scoped split, and the network featured search
+    // (searchForServer) must stay suppressed under a browse scope.
+    await waitFor(() => expect(result.current.featuredAlbums.map(a => a.id)).toEqual(['feat-1']));
+    expect(searchForServer).not.toHaveBeenCalled();
+  });
+
   it('renders local detail while one server Top Songs request remains pending', async () => {
     let resolveTopSongs!: (songs: Array<{ id: string; title: string }>) => void;
     loadScopedArtistTopSongsMock.mockImplementation(() => new Promise(resolve => {
@@ -292,6 +427,7 @@ describe('useArtistDetailData — multi-library selection', () => {
     vi.mocked(loadArtistFromLibraryIndex).mockResolvedValue({
       artist: { id: 'art-x', name: 'Album Artist', albumCount: 1, serverId: 'srv-1' },
       albums: [{ id: 'alb-9', name: 'Comp', artist: 'Album Artist', artistId: 'art-x', songCount: 1, duration: 100 }],
+      appearsOnAlbums: [{ id: 'alb-feat', name: 'A Comp', artist: 'Various Artists', artistId: 'va', songCount: 1, duration: 100 }],
     });
 
     const { result } = renderHook(() => useArtistDetailData('art-x'), { wrapper: routerWrapper });
@@ -300,7 +436,11 @@ describe('useArtistDetailData — multi-library selection', () => {
     expect(getArtistForServer).toHaveBeenCalled();
     expect(loadArtistFromLibraryIndex).toHaveBeenCalledWith('srv-1', 'art-x');
     expect(result.current.artist).toMatchObject({ id: 'art-x', name: 'Album Artist' });
-    expect(result.current.albums).toHaveLength(1);
+    // The fallback must not fold appears-on into the main discography — `albums` is
+    // the own set only (finding 3). featuredAlbums is left to the network featured
+    // search here (the server is reachable, getArtist just 404'd); the truly-offline
+    // split is covered at the loader level in offlineLibraryIndexLoad.test.ts.
+    expect(result.current.albums.map(a => a.id)).toEqual(['alb-9']);
   });
 
   it('shows nothing to resolve when both network and local index miss', async () => {

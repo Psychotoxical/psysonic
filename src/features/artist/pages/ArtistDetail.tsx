@@ -134,6 +134,12 @@ export default function ArtistDetail() {
 
   const toggleStar = () => runArtistToggleStar({ artist, isStarred, setIsStarred });
 
+  // The transport buttons deliberately operate on the artist's own releases only.
+  // Falling back to the appears-on set for a guest-only artist was tried and dropped:
+  // those are other artists' full compilations, so "play all" would queue a few
+  // hundred foreign tracks to reach the handful by this artist. Their albums stay
+  // reachable and individually playable through the appears-on section, which is
+  // forced visible below when the discography is empty.
   const handlePlayAll = () => runArtistDetailPlayAll({
     albums, serverId: activeServerId, setPlayAllLoading, playTrack,
   });
@@ -286,8 +292,12 @@ export default function ArtistDetail() {
   // The order the user actually sees: hidden-via-toggle and empty sections
   // are filtered out, so the "first rendered section gets marginTop: 0" rule
   // works regardless of the configured order.
+  // With an empty discography the appears-on section is the only place the artist's
+  // releases exist at all — show it even if the user switched it off, otherwise the
+  // page offers an empty "Albums" grid and no way to reach them.
+  const forceFeaturedSection = albums.length === 0 && featuredAlbums.length > 0;
   const renderableSectionIds = sectionConfig
-    .filter(s => s.visible)
+    .filter(s => s.visible || (forceFeaturedSection && s.id === 'featured'))
     .map(s => s.id)
     .filter(sectionHasData);
   const sectionMt = (id: ArtistSectionId) => renderableSectionIds[0] === id ? '0' : '2rem';

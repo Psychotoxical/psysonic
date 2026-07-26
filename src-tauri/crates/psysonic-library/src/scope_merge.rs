@@ -9,11 +9,14 @@ use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
 use crate::album_compilation_filter::{
-    pick_album_group_artist, pick_album_group_artist_id, various_artists_label,
+    album_credits_artist, compilation_predicate_sql, json_guarded, pick_album_group_artist,
+    pick_album_group_artist_id, resolve_album_credit, various_artists_label,
     various_artists_like_sql,
 };
 use crate::artist_sort::{sort_key_for_display_name, DEFAULT_IGNORED_ARTICLES};
-use crate::browse_support::{overlay_album_starred_at_rows, read_album_starred_at};
+use crate::browse_support::{
+    overlay_album_artist_links, overlay_album_starred_at_rows, read_album_starred_at,
+};
 use crate::dto::{
     LibraryAlbumDto, LibraryArtistDto, LibraryScopeAlbumDetailRequest,
     LibraryScopeAlbumDetailResponse, LibraryScopeArtistDetailRequest,
@@ -338,6 +341,11 @@ pub(crate) fn album_row_to_dto(row: AlbumListRow) -> LibraryAlbumDto {
         starred_at,
         synced_at,
     ) = row;
+    // Credit name only. Which entity that credit links to is resolved afterwards by
+    // `overlay_album_artist_links` from the complete physical album, because no single
+    // representative row (and no window over this query's own candidate pool) can be
+    // trusted for a server-local id: cross-server dedup merges equivalent albums,
+    // track-level filters hide siblings, and compound-select arms do not share windows.
     LibraryAlbumDto {
         server_id,
         id,
@@ -377,6 +385,7 @@ fn overlay_scope_album_stars(
     store
         .with_read_conn(|conn| {
             overlay_album_starred_at_rows(conn, albums);
+            overlay_album_artist_links(conn, albums);
             Ok(())
         })
         .map_err(|e| e.to_string())
@@ -485,6 +494,7 @@ pub fn list_albums(
             .collect::<rusqlite::Result<Vec<_>>>()?;
         let mut albums: Vec<LibraryAlbumDto> = rows.into_iter().map(album_row_to_dto).collect();
         overlay_album_starred_at_rows(conn, &mut albums);
+        overlay_album_artist_links(conn, &mut albums);
         Ok(albums)
     })
 }
@@ -1148,7 +1158,7 @@ pub(crate) fn list_albums_filtered(
            FROM base GROUP BY album_dedup \
          ) \
          {order_sql} \
-         LIMIT ? OFFSET ?",
+         LIMIT ? OFFSET ?"
     );
     binds.push(SqlValue::Integer(i64::from(limit)));
     binds.push(SqlValue::Integer(i64::from(offset)));
@@ -1516,7 +1526,7 @@ pub(crate) fn live_search_albums(
                 cover_art_id, starred_at, synced_at, best_rank \
          FROM album_pick WHERE rn = 1 \
          ORDER BY best_rank \
-         LIMIT ?",
+         LIMIT ?"
     );
     binds.push(SqlValue::Text(fts_match.to_string()));
     binds.push(SqlValue::Integer(crate::live_search::LIVE_SEARCH_FTS_CANDIDATE_CAP));
@@ -1545,7 +1555,9 @@ pub(crate) fn live_search_albums(
                 })
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
-        Ok(rows)
+        let mut albums = rows;
+        overlay_album_artist_links(conn, &mut albums);
+        Ok(albums)
     })
     .map_err(|e| e.to_string())
 }
@@ -2124,24 +2136,19 @@ fn fetch_album_candidates(
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt
         .query_map(params_from_iter(binds.iter()), |r| {
-            let track_artist: Option<String> = r.get(3)?;
-            let track_artist_id: Option<String> = r.get(4)?;
-            let album_artist: Option<String> = r.get(5)?;
-            let album_artist_id: Option<String> = r.get(14)?;
             let pr: i64 = r.get(13)?;
-            // The hero credit (`artist`) prefers the album-artist name; the id it
-            // links to must follow the same choice, or a compilation reads "Various
-            // Artists" yet opens a guest performer (VA hero bug). `album_artist_id`
-            // is the server's album-artist id from `raw_json.albumArtistId`.
-            let artist_id =
-                pick_album_group_artist_id(track_artist_id, album_artist.as_deref(), album_artist_id);
+            // Same shared VA-aware rule as every other album-DTO mapper: the hero
+            // credit prefers the album-artist name and the linked id follows the same
+            // choice (`album_artist_id` = the server's `raw_json.albumArtistId`).
+            let (artist, artist_id) =
+                resolve_album_credit(r.get(3)?, r.get(4)?, r.get(5)?, r.get(14)?);
             Ok((
                 pr,
                 LibraryAlbumDto {
                     server_id: r.get(0)?,
                     id: r.get(1)?,
                     name: r.get(2)?,
-                    artist: pick_album_group_artist(track_artist, album_artist),
+                    artist,
                     artist_id,
                     song_count: Some(r.get(6)?),
                     duration_sec: Some(r.get(7)?),
@@ -2303,13 +2310,8 @@ fn fetch_artist_candidates(
 /// cannot survive to the frontend, where `ArtistDetail.tsx` lowercases each entry.
 /// The top-level API field stays preferred when it is itself usable.
 ///
-/// The whole expression is wrapped in a lazy `CASE WHEN json_valid(...)` guard:
-/// `track.raw_json` is unconstrained text and the library tolerates invalid JSON
-/// (`LibraryTrackDto::from_row` maps it to `Value::Null`), but the JSON1 functions
-/// (`json_type`/`json_array_length`/`json_each`/`json_extract`) raise `malformed JSON`
-/// on invalid text — which, inside this per-album correlated lookup, would abort the
-/// entire artist-detail query instead of skipping the bad row. The guard makes a
-/// malformed row contribute no release types, so a later valid track still wins.
+/// Wrapped in [`json_guarded`] so a malformed row contributes no release types (and a
+/// later valid track still wins) instead of aborting the whole artist-detail query.
 fn usable_release_types_expr(json_col: &str) -> String {
     let candidate = |path: &str| {
         format!(
@@ -2321,11 +2323,14 @@ fn usable_release_types_expr(json_col: &str) -> String {
             p = path,
         )
     };
-    format!(
-        "CASE WHEN json_valid({c}) THEN COALESCE({top}, {nested}) END",
-        c = json_col,
-        top = candidate("$.releaseTypes"),
-        nested = candidate("$.tags.releasetype"),
+    json_guarded(
+        json_col,
+        &format!(
+            "COALESCE({top}, {nested})",
+            top = candidate("$.releaseTypes"),
+            nested = candidate("$.tags.releasetype"),
+        ),
+        "NULL",
     )
 }
 
@@ -2333,7 +2338,7 @@ fn usable_release_types_expr(json_col: &str) -> String {
 /// same way as [`usable_release_types_expr`]: JSON1 raises `malformed JSON` on invalid
 /// TEXT, and `track.raw_json` is unconstrained, so one bad row would otherwise abort
 /// the whole query instead of contributing nothing.
-fn album_artist_id_expr(json_col: &str) -> String {
+pub(crate) fn album_artist_id_expr(json_col: &str) -> String {
     format!(
         "CASE WHEN json_valid({c}) \
               THEN CASE WHEN json_type({c}, '$.albumArtistId') = 'text' \
@@ -2343,6 +2348,24 @@ fn album_artist_id_expr(json_col: &str) -> String {
     )
 }
 
+/// Split inputs for one of the artist's track-derived albums: whether any track
+/// carries an OpenSubsonic/Navidrome compilation signal, and whether the album has
+/// a real album-artist tag (vs. an S2 ingest where the display credit falls back to
+/// the track artist). The caller feeds both to [`album_credits_artist`] to route own
+/// releases (main discography) from appears-on entries.
+pub(crate) struct AlbumSplitMeta {
+    pub is_compilation: bool,
+    /// The album's own `album_artist` tag, read across **all** of the album's scoped
+    /// tracks — not just the ones by the artist being viewed. The artist's single
+    /// guest track is often the untagged row, so reading the tag off that row alone
+    /// would report "no album artist" for an album that is plainly credited to
+    /// somebody else, and file it under this artist's discography.
+    pub album_artist: Option<String>,
+}
+
+/// Returns each of the artist's track-derived albums paired with its
+/// [`AlbumSplitMeta`]. The caller uses that plus [`album_credits_artist`] to split
+/// own releases from appears-on entries.
 fn fetch_albums_for_artist_key(
     conn: &rusqlite::Connection,
     scopes: &[LibraryScopePair],
@@ -2350,7 +2373,7 @@ fn fetch_albums_for_artist_key(
     anchor_server: &str,
     anchor_artist_id: &str,
     va_mode: bool,
-) -> rusqlite::Result<Vec<LibraryAlbumDto>> {
+) -> rusqlite::Result<Vec<(LibraryAlbumDto, AlbumSplitMeta)>> {
     let (scope_cte, scope_binds) = scope_cte_sql(scopes);
     let release_types_expr = usable_release_types_expr("tt.raw_json");
     let (cte, scoped, key_filter, priority) = keyed_detail_track_source(
@@ -2377,23 +2400,110 @@ fn fetch_albums_for_artist_key(
             " UNION ALL \
              SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
                     t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.duration_sec, t.id, \
-                    ck.album_key, s.pr AS pr, {TRACK_DEDUP_KEY} AS track_dedup, \
-                    {album_artist_id} AS album_artist_id \
+                    ck.album_key, s.pr AS pr, {TRACK_DEDUP_KEY} AS track_dedup \
              {va_scoped} AND t.album_id IS NOT NULL AND t.album_id != '' AND {va_pred}",
             va_scoped = scoped_track_join(),
             va_pred = various_artists_like_sql("t.album_artist"),
-            album_artist_id = album_artist_id_expr("t.raw_json"),
         )
     } else {
         String::new()
+    };
+    // Compilation signal (compilation / isCompilation / releaseTypes / a Various
+    // Artists credit in the flat columns or raw_json displayArtist). Only used to
+    // route to appears-on when the album has *no* album-artist tag — a real
+    // album_artist that credits the artist (e.g. their own best-of) keeps the album
+    // in the main discography, where the frontend groups it under "Compilation".
+    //
+    // Scoped like `base` (rejoined through `scoped_track`): an album can exist in a
+    // library the user did not select — letting those rows decide the split would
+    // move an album out of the discography on evidence from outside the scope.
+    //
+    // Skipped entirely in `va_mode`: the partition returns every album there, so the
+    // per-album EXISTS (up to four JSON probes per track of every compilation in the
+    // library) would be parsed and thrown away on the heaviest artist page there is.
+    // Every track of the album, whichever physical copy and server it sits on:
+    // `physical_albums` (one small row per physical album, already grouped by
+    // `album_dedup`) drives, `track` is probed through its `(server_id, album_id)`
+    // index. Keyed on `album_dedup` rather than the winning row's `(server_id,
+    // album_id)`, so reordering library scopes — which changes which copy wins
+    // `rn = 1` but no data — cannot move albums between the two lists.
+    //
+    // Scope is applied against the two bind-value CTEs directly, NOT by joining
+    // `scoped_track` or `scope`. `scoped_track` is a UNION ALL over every track in
+    // scope and `CROSS JOIN` pins it as the outer loop, so correlating against it
+    // would scan the whole scope once per album instead of one indexed probe; `scope`
+    // looks small but derives its whole-server half by aggregating the entire `track`
+    // table. `exact_scope`/`whole_scope` are the literal scope rows the caller bound —
+    // a handful of values, no table access.
+    let album_tracks_from = "FROM physical_albums pa \
+           JOIN track ct ON ct.server_id = pa.server_id AND ct.album_id = pa.album_id \
+          WHERE ct.deleted = 0 AND pa.album_dedup = p.album_dedup \
+            AND (EXISTS (SELECT 1 FROM exact_scope es \
+                          WHERE es.server_id = ct.server_id AND es.library_id = ct.library_id) \
+              OR EXISTS (SELECT 1 FROM whole_scope ws WHERE ws.server_id = ct.server_id))";
+    // `ct`'s scope priority — the best (lowest) rank among the scope rows that admit
+    // it. Ordering the whole-album credit by this instead of raw `ct.id` makes the
+    // choice agree with the priority winner the album card itself is built from, so a
+    // cross-server album whose copies disagree on the album-artist can't be classified
+    // by one server's metadata and displayed with another's (finding 5).
+    let ct_scope_priority = "(SELECT MIN(pr) FROM ( \
+            SELECT es.pr FROM exact_scope es \
+              WHERE es.server_id = ct.server_id AND es.library_id = ct.library_id \
+            UNION ALL \
+            SELECT ws.pr FROM whole_scope ws WHERE ws.server_id = ct.server_id))";
+    // The album's own `album_artist` tag — see `AlbumSplitMeta` for why it must come
+    // from the whole album rather than the viewed artist's own (often untagged) row.
+    // Priority-ordered so it names the same copy the card shows.
+    let album_artist_tag = format!(
+        "(SELECT TRIM(ct.album_artist) {album_tracks_from} \
+            AND TRIM(COALESCE(ct.album_artist, '')) <> '' \
+          ORDER BY {ct_scope_priority} ASC, ct.id ASC LIMIT 1)"
+    );
+    // Compilation signal (compilation / isCompilation / releaseTypes / a Various
+    // Artists credit on the track artist or in raw_json displayArtist). Only consulted
+    // when the album has *no* album-artist tag — a real album_artist that credits the
+    // artist (e.g. their own best-of) keeps the album in the main discography, where
+    // the frontend groups it under "Compilation".
+    //
+    // Computed lazily for exactly that reason: it costs up to four JSON probes per
+    // track of the album, and the partition ignores it whenever the tag is present —
+    // which is the majority of albums. Skipped entirely in `va_mode`, where the
+    // partition keeps every album regardless (the heaviest artist page there is).
+    //
+    // No album-artist column is passed to the predicate: this branch only runs when
+    // no scoped track of the album has a non-empty `album_artist`, so that OR-term
+    // could never be true and would cost a `LIKE` per track for nothing.
+    // In `va_mode` the partition keeps every album, so neither split input is read —
+    // emit constants instead of paying for the per-album probes on the heaviest artist
+    // page there is.
+    let album_artist_col = if va_mode { "NULL" } else { album_artist_tag.as_str() };
+    let comp_col = if va_mode {
+        "0".to_string()
+    } else {
+        format!(
+            "CASE WHEN {album_artist_tag} IS NOT NULL THEN 0 ELSE \
+               EXISTS (SELECT 1 {album_tracks_from} AND {comp_pred}) END",
+            comp_pred = compilation_predicate_sql("ct", Some("ct.artist"), None),
+        )
+    };
+    // Displayed credit name. In `va_mode` the VA union already carries the right
+    // album-artist label on its own rows, so keep the representative. Otherwise use
+    // the priority-consistent whole-album credit — the same value the split classifies
+    // on — so an appears-on card shows the album's headliner, not the viewed artist's
+    // guest-track performer (findings 2 & 5). The entity that credit *links* to is not
+    // selected here: `overlay_album_artist_links` resolves it per physical album once
+    // the rows are known, which stays owner-correct across a cross-server dedup.
+    let display_album_artist = if va_mode {
+        "p.album_artist".to_string()
+    } else {
+        album_artist_tag.clone()
     };
     let sql = format!(
         "{cte}, \
          base AS ( \
             SELECT t.server_id, t.album_id, t.album, t.artist, t.artist_id, t.album_artist, \
                    t.year, t.genre, t.cover_art_id, t.starred_at, t.synced_at, t.duration_sec, t.id, \
-                   ck.album_key, {priority} AS pr, {TRACK_DEDUP_KEY} AS track_dedup, \
-                   {album_artist_id} AS album_artist_id \
+                   ck.album_key, {priority} AS pr, {TRACK_DEDUP_KEY} AS track_dedup \
             {scoped} AND t.album_id IS NOT NULL AND t.album_id != '' {key_filter} \
             {va_arm} \
           ), \
@@ -2420,11 +2530,12 @@ fn fetch_albums_for_artist_key(
          ), \
          album_pick AS ( \
            SELECT b.server_id, b.album_id, b.album, b.artist, b.artist_id, b.album_artist, \
-                  b.album_artist_id, b.year, b.genre, b.cover_art_id, b.starred_at, b.synced_at, b.album_dedup, \
+                  b.year, b.genre, b.cover_art_id, b.starred_at, b.synced_at, b.album_dedup, \
                   ROW_NUMBER() OVER (PARTITION BY b.album_dedup ORDER BY b.pr ASC, b.album_id ASC, b.id ASC) AS rn \
             FROM physical_tracks b \
          ) \
-         SELECT p.server_id, p.album_id, p.album, p.artist, p.artist_id, p.album_artist, \
+         SELECT p.server_id, p.album_id, p.album, p.artist, p.artist_id, \
+                {display_album_artist} AS album_artist, \
                 st.song_count, st.duration_total, p.year, p.genre, p.cover_art_id, p.starred_at, p.synced_at, \
                 (SELECT {release_types_expr} \
                    FROM track tt \
@@ -2432,13 +2543,13 @@ fn fetch_albums_for_artist_key(
                     AND {release_types_expr} IS NOT NULL \
                   ORDER BY tt.id ASC \
                   LIMIT 1) AS release_types, \
-                p.album_artist_id AS album_artist_id \
+                {album_artist_col} AS album_album_artist, \
+                {comp_col} AS is_compilation \
          FROM album_pick p \
          INNER JOIN album_stats st ON p.album_dedup = st.album_dedup \
          WHERE p.rn = 1 \
          ORDER BY p.album COLLATE NOCASE ASC",
         scoped = scoped,
-        album_artist_id = album_artist_id_expr("t.raw_json"),
     );
     let mut binds = scope_binds;
     if let Some(key) = artist_key {
@@ -2460,21 +2571,13 @@ fn fetch_albums_for_artist_key(
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt
         .query_map(params_from_iter(binds.iter()), |r| {
+            // The card's credit name comes from the representative row; which entity
+            // that credit links to is resolved from the whole physical album by
+            // `overlay_album_artist_links` once the page's rows are known.
             let mut dto = album_row_to_dto(map_album_list_row(r)?);
-            // `album_row_to_dto` credits the album-artist name but leaves the id at
-            // the representative track performer. On a compilation the card would
-            // then read "Various Artists" while its artist link and the "go to
-            // artist" action open one guest. Apply the same choice to the id, taking
-            // both the name (column 5) and the album-artist id (column 14) from the
-            // *same* representative track so they cannot originate from different rows.
-            let album_artist: Option<String> = r.get(5)?;
-            dto.artist_id = pick_album_group_artist_id(
-                dto.artist_id.take(),
-                album_artist.as_deref(),
-                r.get::<_, Option<String>>(14)?,
-            );
-            // SQL already guarantees a non-empty array of strings, or NULL; the
-            // client-side re-check is a cheap invariant guard, not new filtering.
+            // Attach the validated release-types array (column 13). SQL already
+            // guarantees a non-empty array of strings, or NULL; the client-side
+            // re-check is a cheap invariant guard, not new filtering.
             dto.raw_json = r
                 .get::<_, Option<String>>(13)?
                 .and_then(|s| serde_json::from_str::<Value>(&s).ok())
@@ -2485,7 +2588,20 @@ fn fetch_albums_for_artist_key(
                     Value::Object(obj)
                 })
                 .unwrap_or(Value::Null);
-            Ok(dto)
+            // Split inputs ride along on the same row (columns 14/15) so the caller
+            // can route own releases vs. appears-on without a second query.
+            Ok((
+                dto,
+                AlbumSplitMeta {
+                    // No second emptiness test here: SQL already decided what counts as
+                    // a tag (`TRIM(...) <> ''`), and SQLite's TRIM strips only spaces
+                    // while Rust's `str::trim` strips all Unicode whitespace. Re-testing
+                    // would let a tab-tagged album be "tagged" for the compilation
+                    // short-circuit in SQL and "untagged" for the partition in Rust.
+                    album_artist: r.get::<_, Option<String>>(14)?,
+                    is_compilation: r.get::<_, bool>(15)?,
+                },
+            ))
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(rows)
@@ -2665,18 +2781,24 @@ pub fn artist_detail(
         // tracks must keep that empty header so the loader's network fallback still
         // fires; seeding it would render a populated-but-album-less page instead. The
         // full-row fetch (with `raw_json` parse) is deferred to exactly this branch.
-        let seeded_from_anchor = if candidates.is_empty() && va_mode {
+        // Seed the header from the anchor artist row when a VA page has no candidate
+        // tracks (side effect: pushes the row and re-merges). The returned flag is no
+        // longer read — the album count is recomputed unconditionally below — but the
+        // seeding itself must still happen.
+        if candidates.is_empty() && va_mode {
             if let Some(row) = lookup_artist_row(conn, server_id, artist_id)? {
                 candidates.push(row);
                 artist = merge_artist_by_priority(&candidates);
-                true
-            } else {
-                false
             }
-        } else {
-            false
-        };
-        let albums = fetch_albums_for_artist_key(
+        }
+        // The track-derived album set contains both the artist's own releases and
+        // every album they only appear on (Various Artists / curated compilations,
+        // other artists' albums with a guest track). Split by the canonical album
+        // artist so the frontend can render "appears on" separately from the main
+        // discography — locally, so it stays correct under multi-server scopes and
+        // needs no network search (the old featured-albums path was network-only
+        // and disabled for multi-server).
+        let all_albums = fetch_albums_for_artist_key(
             conn,
             scopes,
             artist_key.as_deref(),
@@ -2684,12 +2806,49 @@ pub fn artist_detail(
             artist_id,
             va_mode,
         )?;
-        // A label-linked VA entity's stored `album_count` is often 0 (no track tags
-        // its id), which would contradict the compilation grid we just built. When the
-        // header was seeded from that row, report the count actually returned instead.
-        if seeded_from_anchor {
-            artist.album_count = Some(albums.len() as i64);
-        }
+        let (own, appears_on): (Vec<_>, Vec<_>) = all_albums.into_iter().partition(|(_, meta)| {
+            // The "Various Artists" pseudo-entity has no discography of its own to
+            // separate an appears-on set from: every album on that page *is* a
+            // compilation it heads. Splitting there would eject exactly the albums
+            // the VA union arm gathered — an id-tagged compilation with an empty
+            // `album_artist` carries a compilation signal and would be routed away.
+            if va_mode {
+                return true;
+            }
+            // Own = the album credits this artist as its album artist. A single-artist
+            // compilation the artist owns (their own best-of, tagged album_artist = the
+            // artist) therefore stays in the main discography and lands in the
+            // frontend's "Compilation" release-type group.
+            match meta.album_artist.as_deref() {
+                // Tagged album: the tag is authoritative, so compare against it.
+                Some(tag) => album_credits_artist(Some(tag), &artist.name),
+                // Untagged album (S2 ingest, or simply untagged files): there is no
+                // album-artist claim to weigh, and the album is only in this set
+                // because the artist's own tracks carry this artist's `artist_id` —
+                // the strongest signal available. Do NOT second-guess that with a name
+                // comparison: a server's artist row and its track tag routinely differ
+                // in spelling ("Die drei ???" vs "Die Drei Fragezeichen"), which would
+                // exile an artist's entire catalogue. Only a compilation signal, which
+                // is about the album rather than the spelling, routes it to appears-on.
+                None => !meta.is_compilation,
+            }
+        });
+        let mut albums: Vec<_> = own.into_iter().map(|(al, _)| al).collect();
+        let mut appears_on_albums: Vec<_> = appears_on.into_iter().map(|(al, _)| al).collect();
+        // Resolve each card's album-artist link against the whole physical album, for
+        // both halves of the split: an appears-on card is exactly the case where the
+        // representative row is the viewed artist's guest track, so its credit would
+        // otherwise link to that guest instead of the album's headliner.
+        overlay_album_artist_links(conn, &mut albums);
+        overlay_album_artist_links(conn, &mut appears_on_albums);
+        // Keep the header count and the rendered grid in agreement. The hero renders
+        // exactly `albums` (the main discography), so the count is `albums.len()` in
+        // every case: a single server, a cross-server union of own releases, a
+        // label-linked VA page whose stored count is 0, or a split that moved releases
+        // into "appears on". The server/merge-reported value describes the unsplit,
+        // single-server set and drifts from the rendered grid in every multi-source or
+        // split case, so the recompute is unconditional (finding 4).
+        artist.album_count = Some(albums.len() as i64);
         let tracks = if request.include_tracks {
             fetch_scope_deduped_tracks_for_artist_key(
                 conn,
@@ -2728,6 +2887,7 @@ pub fn artist_detail(
         Ok(LibraryScopeArtistDetailResponse {
             artist,
             albums,
+            appears_on_albums,
             tracks,
             top_tracks_server_id,
             top_tracks_fingerprint,
@@ -3392,6 +3552,42 @@ mod tests {
         assert_eq!(solo_detail.album.artist_id.as_deref(), Some("solo"));
     }
 
+    #[test]
+    fn live_search_albums_links_va_card_to_the_album_artist() {
+        // A compilation surfaced in live search must credit "Various Artists" and
+        // link `artist_id` to the album-artist entity — recovered from a sibling
+        // track even when the best-ranked (representative) track carries no
+        // `albumArtistId`. The dedup collapses siblings, so recovery has to run on
+        // the per-track scan (window), not after the group.
+        let store = LibraryStore::open_in_memory();
+        // The best-ranked (representative) track matches the query in *both* title
+        // and album, so it deterministically wins the group — yet it lacks the
+        // album-artist id. Without cross-sibling recovery the card would render
+        // unlinked; the window must lift "va" from the sibling.
+        let mut c1 = va_comp_track("c1", "Comp Anthem", "Perf One", "p1", "Comp One", "comp1", "va");
+        c1.raw_json = "{}".into();
+        // ... its sibling carries the id but matches only via the album title.
+        let c2 = va_comp_track("c2", "Bravo", "Perf Two", "p2", "Comp One", "comp1", "va");
+        // A solo album keeps its own performer id (no album-artist entity).
+        let solo = track(
+            "s1", "solo1", "Comp Solo", Some("Solo Artist"), "Solo Album", "soloalb",
+            Some("solo"), 200, "lib-a", Some(2022), None, None,
+        );
+        seed_and_rebuild(&store, &[c1, c2, solo]);
+
+        let albums =
+            live_search_albums(&store, &[scope_pair("s1", "lib-a")], "Comp*", 20).unwrap();
+        let comp = albums.iter().find(|a| a.id == "comp1").expect("comp missing");
+        assert_eq!(comp.artist.as_deref(), Some("Various Artists"));
+        assert_eq!(
+            comp.artist_id.as_deref(),
+            Some("va"),
+            "VA card must link to the album-artist entity, recovered from a sibling"
+        );
+        let solo_dto = albums.iter().find(|a| a.id == "soloalb").expect("solo missing");
+        assert_eq!(solo_dto.artist_id.as_deref(), Some("solo"));
+    }
+
     /// Inserts the standalone `album` row that a normal S2/`getAlbum` sync writes.
     /// `upsert_album_from_get_album` persists the *legacy* `artistId`, which on a
     /// compilation is a representative performer — the value that must not win over
@@ -3564,6 +3760,97 @@ mod tests {
             "the clean album-artist column must not be demoted below a feat. track credit"
         );
         assert_eq!(detail.album.artist_id.as_deref(), Some("m-id"));
+    }
+
+    /// Seeds one compilation on two servers with *different* server-local VA ids and
+    /// forces them into one cluster, so the dedup has to choose an owner.
+    fn seed_cross_server_compilation(store: &LibraryStore) {
+        let mut s1 = va_comp_track("c1", "Song A", "Perf One", "p1", "Shared Comp", "comp-a", "va-a");
+        s1.library_id = Some("lib-a".into());
+        let mut s2 = va_comp_track("c2", "Song B", "Perf Two", "p2", "Shared Comp", "comp-b", "va-z");
+        s2.server_id = "s2".into();
+        s2.library_id = Some("lib-b".into());
+        seed_and_rebuild(store, &[s1, s2]);
+        store
+            .with_conn_mut("test.force_shared_album_key", |conn| {
+                conn.execute(
+                    "UPDATE cluster.track_cluster_key SET album_key = 'shared-comp' \
+                     WHERE track_id IN ('c1', 'c2')",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn album_grid_links_the_winning_server_own_va_id_across_servers() {
+        // Artist ids are server-local while `album_dedup` merges the same compilation
+        // across servers. Recovering the id from the merged group can hand the
+        // priority winner (`s1`) the *other* server's lexically larger id (`va-z`),
+        // producing a `(server_id, artist_id)` pair no server can resolve.
+        let store = LibraryStore::open_in_memory();
+        seed_cross_server_compilation(&store);
+
+        let albums = list_albums(
+            &store,
+            &LibraryScopeListRequest {
+                scopes: vec![scope_pair("s1", "lib-a"), scope_pair("s2", "lib-b")],
+                sort: None,
+                limit: Some(50),
+                offset: Some(0),
+            },
+        )
+        .unwrap();
+        let comp = albums.iter().find(|a| a.name == "Shared Comp").expect("comp missing");
+        assert_eq!(comp.server_id, "s1", "the first scope owns the representative");
+        assert_eq!(comp.artist.as_deref(), Some("Various Artists"));
+        assert_eq!(
+            comp.artist_id.as_deref(),
+            Some("va-a"),
+            "the link must be the winning server's own VA id, not the other server's"
+        );
+    }
+
+    #[test]
+    fn artist_detail_va_union_recovers_the_id_from_a_sibling_of_both_arms() {
+        // Under `va_mode` a VA-labelled track tagged with the VA id itself qualifies for
+        // both the keyed arm and the label arm. Recovery computed per compound-select
+        // arm cannot see across them, so a duplicate carrying no `albumArtistId` can win
+        // the representative tie and leave the card unlinked.
+        let store = LibraryStore::open_in_memory();
+        // Lowest track id wins the representative tie: a guest performer's row, carrying
+        // no `albumArtistId`. Reached through the label arm only.
+        let mut representative =
+            va_comp_track("a1", "Song A", "Perf One", "p1", "Comp", "comp1", "va");
+        representative.raw_json = "{}".into();
+        // Present in *both* arms (tagged with the VA artist id and VA-labelled) and the
+        // only row that supplies the album-artist id.
+        let mut both_arms = track(
+            "s1", "b1", "Song B", Some("Various Artists"), "Comp", "comp1", Some("va"),
+            200, "lib-a", Some(2020), None, None,
+        );
+        both_arms.album_artist = Some("Various Artists".into());
+        both_arms.raw_json = r#"{"albumArtistId":"va"}"#.into();
+        seed_and_rebuild(&store, &[representative, both_arms]);
+
+        let detail = artist_detail(
+            &store,
+            &LibraryScopeArtistDetailRequest {
+                scopes: vec![scope_pair("s1", "lib-a")],
+                artist_id: "va".into(),
+                server_id: "s1".into(),
+                include_tracks: false,
+                top_tracks_limit: None,
+            },
+        )
+        .unwrap();
+        let comp = detail.albums.iter().find(|a| a.id == "comp1").expect("comp missing");
+        assert_eq!(
+            comp.artist_id.as_deref(),
+            Some("va"),
+            "the id must survive the union, whichever duplicate wins the tie"
+        );
     }
 
     #[test]
@@ -3822,6 +4109,303 @@ mod tests {
         .unwrap();
 
         assert_eq!(response.artist.name, "Skyclad");
+    }
+
+    #[test]
+    fn artist_detail_splits_own_releases_from_appears_on() {
+        // The track-derived album set mixes the artist's own releases with albums
+        // they only appear on. `albums` carries own releases — where the artist is the
+        // album artist, *including their own best-of compilations* (which the frontend
+        // then groups under "Compilation"); Various Artists / other-artist releases the
+        // artist only guests on belong in `appears_on_albums`. The split keys off the
+        // album artist, so it is ingest-path agnostic and multi-server aware without
+        // any network search.
+        let store = LibraryStore::open_in_memory();
+        // Own release: the helper defaults `album_artist` to the track artist.
+        let own_a = track(
+            "s1", "own1", "One", Some("The Band"), "Own Album", "alb-own",
+            Some("art1"), 200, "lib-a", Some(2020), None, None,
+        );
+        let own_b = track(
+            "s1", "own2", "Two", Some("The Band"), "Own Album", "alb-own",
+            Some("art1"), 210, "lib-a", Some(2020), None, None,
+        );
+        // The artist's own best-of: a compilation, but album_artist credits the artist,
+        // so it stays in the main discography (Option B) rather than appears-on.
+        let mut own_comp = track(
+            "s1", "ownc1", "Best Cut", Some("The Band"), "Own Best-Of", "alb-owncomp",
+            Some("art1"), 205, "lib-a", Some(2022), None, None,
+        );
+        own_comp.album_artist = Some("The Band".into());
+        own_comp.raw_json = r#"{"compilation":true}"#.into();
+        // Various Artists compilation with a single track by the artist.
+        let mut comp = track(
+            "s1", "comp1", "Comp Cut", Some("The Band"), "A Compilation", "alb-comp",
+            Some("art1"), 180, "lib-a", Some(2019), None, None,
+        );
+        comp.album_artist = Some("Various Artists".into());
+        // OpenSubsonic/S2 compilation: the flat album_artist is empty and the only
+        // compilation signal lives in raw_json — must still count as appears-on.
+        let mut s2comp = track(
+            "s1", "s2c1", "S2 Comp Cut", Some("The Band"), "An S2 Compilation",
+            "alb-s2comp", Some("art1"), 170, "lib-a", Some(2018), None, None,
+        );
+        s2comp.album_artist = None;
+        s2comp.raw_json = r#"{"compilation":true}"#.into();
+        // Another artist's album the artist only guests on.
+        let mut guest = track(
+            "s1", "guest1", "Guest Spot", Some("The Band"), "Someone Else's Album",
+            "alb-guest", Some("art1"), 190, "lib-a", Some(2021), None, None,
+        );
+        guest.album_artist = Some("Another Artist".into());
+        seed_and_rebuild(&store, &[own_a, own_b, own_comp, comp, s2comp, guest]);
+
+        let response = artist_detail(
+            &store,
+            &LibraryScopeArtistDetailRequest {
+                scopes: vec![scope_pair("s1", "lib-a")],
+                artist_id: "art1".into(),
+                server_id: "s1".into(),
+                include_tracks: false,
+                top_tracks_limit: None,
+            },
+        )
+        .unwrap();
+
+        let own_ids: Vec<&str> = response.albums.iter().map(|a| a.id.as_str()).collect();
+        let appears_ids: Vec<&str> = response
+            .appears_on_albums
+            .iter()
+            .map(|a| a.id.as_str())
+            .collect();
+        assert_eq!(own_ids, ["alb-own", "alb-owncomp"]);
+        assert_eq!(appears_ids, ["alb-comp", "alb-s2comp", "alb-guest"]);
+    }
+
+    #[test]
+    fn artist_detail_appears_on_card_credits_the_headliner_not_the_guest() {
+        // The viewed artist guests on an album with an *untagged* row (no
+        // `album_artist`); another track on the same album carries the headliner and
+        // its `albumArtistId`. The album must land in appears-on, and its card must
+        // show and link the headliner — not the viewed artist's guest-track performer,
+        // which is the row the album representative is built from (findings 2 & 5).
+        let store = LibraryStore::open_in_memory();
+        // The viewed artist's guest track: explicitly untagged album-artist.
+        let mut guest = track(
+            "s1", "g1", "Guest Verse", Some("The Band"), "Someone's Record", "alb-feat",
+            Some("art1"), 190, "lib-a", Some(2021), None, None,
+        );
+        guest.album_artist = None;
+        // Another performer's row on the same album carries the album-artist tag and
+        // the server's albumArtistId. It is not one of the viewed artist's rows, so it
+        // only reaches the query through the whole-album scan.
+        let mut head = track(
+            "s1", "h1", "Title Track", Some("Headliner"), "Someone's Record", "alb-feat",
+            Some("perf2"), 200, "lib-a", Some(2021), None, None,
+        );
+        head.album_artist = Some("Headliner".into());
+        head.raw_json = r#"{"albumArtistId":"head-id"}"#.into();
+        // Give the artist one plain own release so the page is not appears-on-only.
+        let own = track(
+            "s1", "o1", "Own", Some("The Band"), "Own Album", "alb-own",
+            Some("art1"), 200, "lib-a", Some(2020), None, None,
+        );
+        seed_and_rebuild(&store, &[guest, head, own]);
+
+        let response = artist_detail(
+            &store,
+            &LibraryScopeArtistDetailRequest {
+                scopes: vec![scope_pair("s1", "lib-a")],
+                artist_id: "art1".into(),
+                server_id: "s1".into(),
+                include_tracks: false,
+                top_tracks_limit: None,
+            },
+        )
+        .unwrap();
+
+        let feat = response
+            .appears_on_albums
+            .iter()
+            .find(|a| a.id == "alb-feat")
+            .expect("guested album is an appears-on entry");
+        assert_eq!(feat.artist.as_deref(), Some("Headliner"));
+        assert_eq!(feat.artist_id.as_deref(), Some("head-id"));
+    }
+
+    #[test]
+    fn artist_detail_appears_on_card_recovers_the_id_from_a_sibling_track() {
+        // Partial album credit: the representative row *does* carry the album-artist
+        // label, but the server only tagged `albumArtistId` on a sibling track. The
+        // card must still link to the album-artist entity — the name alone is not a
+        // link, and falling back to the guest performer's id would open the wrong
+        // artist under a correct-looking credit.
+        //
+        // Distinct from `..._credits_the_headliner_not_the_guest`, where the
+        // representative row is untagged: there the label itself has to be recovered,
+        // so a fix that only reads the label would pass it. Here the label is already
+        // right and only the id is missing, which is exactly the case a query-local
+        // recovery gets wrong and `overlay_album_artist_links` gets right.
+        let store = LibraryStore::open_in_memory();
+        // The viewed artist's only row on this album: tagged, but no id in raw_json.
+        let mut guest = track(
+            "s1", "p1", "Guest Spot", Some("The Band"), "Partial Credit", "alb-partial",
+            Some("art1"), 190, "lib-a", Some(2022), None, None,
+        );
+        guest.album_artist = Some("Headliner".into());
+        // A sibling the viewed artist has no part in — reachable only through the
+        // whole-album read, and the sole carrier of the album-artist id.
+        let mut sibling = track(
+            "s1", "p2", "Title Track", Some("Headliner"), "Partial Credit", "alb-partial",
+            Some("perf2"), 200, "lib-a", Some(2022), None, None,
+        );
+        sibling.album_artist = Some("Headliner".into());
+        sibling.raw_json = r#"{"albumArtistId":"head-id"}"#.into();
+        let own = track(
+            "s1", "o1", "Own", Some("The Band"), "Own Album", "alb-own",
+            Some("art1"), 200, "lib-a", Some(2020), None, None,
+        );
+        seed_and_rebuild(&store, &[guest, sibling, own]);
+
+        let response = artist_detail(
+            &store,
+            &LibraryScopeArtistDetailRequest {
+                scopes: vec![scope_pair("s1", "lib-a")],
+                artist_id: "art1".into(),
+                server_id: "s1".into(),
+                include_tracks: false,
+                top_tracks_limit: None,
+            },
+        )
+        .unwrap();
+
+        let feat = response
+            .appears_on_albums
+            .iter()
+            .find(|a| a.id == "alb-partial")
+            .expect("guested album is an appears-on entry");
+        assert_eq!(feat.artist.as_deref(), Some("Headliner"));
+        assert_eq!(
+            feat.artist_id.as_deref(),
+            Some("head-id"),
+            "the id must come from the sibling row, not the guest performer",
+        );
+    }
+
+    #[test]
+    fn artist_detail_appears_on_credit_follows_scope_priority_across_servers() {
+        // The viewed artist guests on the same album on two servers, which disagree on
+        // the album-artist. The credit and link must come from the priority winner —
+        // the same copy the card representative is built from — not from whichever
+        // track happens to have the lowest id (finding 5). Reversing the scope order
+        // reverses the winner.
+        let seed = || {
+            let store = LibraryStore::open_in_memory();
+            let mut g1 = track(
+                "s1", "g1", "Verse", Some("Guest"), "Split Record", "s1-rec",
+                Some("guest-id"), 190, "lib-a", Some(2021), None, None,
+            );
+            g1.album_artist = None;
+            let mut h1 = track(
+                "s1", "h1", "Title", Some("Head One"), "Split Record", "s1-rec",
+                Some("p1"), 200, "lib-a", Some(2021), None, None,
+            );
+            h1.album_artist = Some("Head One".into());
+            h1.raw_json = r#"{"albumArtistId":"head-1"}"#.into();
+            let mut g2 = track(
+                "s2", "g2", "Verse", Some("Guest"), "Split Record", "s2-rec",
+                Some("guest-id"), 190, "lib-b", Some(2021), None, None,
+            );
+            g2.album_artist = None;
+            let mut h2 = track(
+                "s2", "h2", "Title", Some("Head Two"), "Split Record", "s2-rec",
+                Some("p2"), 200, "lib-b", Some(2021), None, None,
+            );
+            h2.album_artist = Some("Head Two".into());
+            h2.raw_json = r#"{"albumArtistId":"head-2"}"#.into();
+            seed_and_rebuild(&store, &[g1, h1, g2, h2]);
+            // Force the two physical copies into one deduped album. Conflicting
+            // album-artist tags would otherwise cluster them apart, but the finding is
+            // precisely about a *deduped* album whose copies disagree — so pin a shared
+            // album key on the viewed artist's rows (the ones that drive `album_dedup`).
+            store
+                .with_conn_mut("test.force_shared_album_key", |conn| {
+                    conn.execute(
+                        "UPDATE cluster.track_cluster_key SET album_key = 'shared-rec' \
+                         WHERE track_id IN ('g1', 'g2')",
+                        [],
+                    )?;
+                    Ok(())
+                })
+                .unwrap();
+            store
+        };
+
+        let appears_credit = |scopes: Vec<LibraryScopePair>, server: &str| {
+            let store = seed();
+            let response = artist_detail(
+                &store,
+                &LibraryScopeArtistDetailRequest {
+                    scopes,
+                    artist_id: "guest-id".into(),
+                    server_id: server.into(),
+                    include_tracks: false,
+                    top_tracks_limit: None,
+                },
+            )
+            .unwrap();
+            let a = response
+                .appears_on_albums
+                .into_iter()
+                .find(|a| a.name == "Split Record")
+                .expect("guested album present");
+            (a.artist, a.artist_id)
+        };
+
+        // s1 first → s1's credit wins.
+        assert_eq!(
+            appears_credit(vec![scope_pair("s1", "lib-a"), scope_pair("s2", "lib-b")], "s1"),
+            (Some("Head One".to_string()), Some("head-1".to_string())),
+        );
+        // Reverse the scope order → s2's credit wins.
+        assert_eq!(
+            appears_credit(vec![scope_pair("s2", "lib-b"), scope_pair("s1", "lib-a")], "s2"),
+            (Some("Head Two".to_string()), Some("head-2".to_string())),
+        );
+    }
+
+    #[test]
+    fn artist_detail_album_count_matches_the_rendered_grid() {
+        // Own releases on two servers with no appears-on: the header count must be the
+        // size of the rendered union, not the priority server's local count (finding 4).
+        let store = LibraryStore::open_in_memory();
+        let s1 = track(
+            "s1", "s1a", "One", Some("Solo"), "Album One", "s1-alb1",
+            Some("s1-art"), 200, "lib-a", Some(2020), None, None,
+        );
+        let s2 = track(
+            "s2", "s2a", "Two", Some("Solo"), "Album Two", "s2-alb2",
+            Some("s2-art"), 200, "lib-b", Some(2021), None, None,
+        );
+        seed_and_rebuild(&store, &[s1, s2]);
+
+        let response = artist_detail(
+            &store,
+            &LibraryScopeArtistDetailRequest {
+                scopes: vec![scope_pair("s1", "lib-a"), scope_pair("s2", "lib-b")],
+                artist_id: "s1-art".into(),
+                server_id: "s1".into(),
+                include_tracks: false,
+                top_tracks_limit: None,
+            },
+        )
+        .unwrap();
+
+        // Two distinct own albums across the two servers, no appears-on.
+        assert_eq!(response.albums.len(), 2);
+        assert!(response.appears_on_albums.is_empty());
+        // The header count reflects the rendered union, not one server's local count.
+        assert_eq!(response.artist.album_count, Some(2));
     }
 
     #[test]
@@ -4786,7 +5370,11 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(artist.albums.len(), 2);
+        // Both "Split" albums carry a Various Artists credit, so they are albums the
+        // artist appears on, not part of the main discography — but they still stay
+        // as two separate physical albums (see album_detail below).
+        assert!(artist.albums.is_empty());
+        assert_eq!(artist.appears_on_albums.len(), 2);
 
         let detail = album_detail(
             &store,

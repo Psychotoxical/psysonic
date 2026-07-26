@@ -148,6 +148,8 @@ export interface LibraryScopeAlbumDetailResponse {
 export interface LibraryScopeArtistDetailResponse {
   artist: LibraryArtistDto;
   albums: LibraryAlbumDto[];
+  /** Albums the artist only appears on (compilations, guest tracks). Always sent, empty when none. */
+  appearsOnAlbums: LibraryAlbumDto[];
   tracks: LibraryTrackDto[];
   topTracksServerId?: string | null;
   topTracksFingerprint?: string | null;
@@ -383,6 +385,7 @@ export function libraryScopeArtistDetail(
       serverId: mapServerIdFromIndexKey(response.artist.serverId, serverId),
     },
     albums: mapAlbumsServerId(response.albums, serverId),
+    appearsOnAlbums: mapAlbumsServerId(response.appearsOnAlbums, serverId),
     tracks: mapTracksServerId(response.tracks, serverId),
     topTracksServerId: response.topTracksServerId
       ? mapServerIdFromIndexKey(response.topTracksServerId, serverId)
