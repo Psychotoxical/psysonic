@@ -31,6 +31,14 @@ export interface ArtistDetailDataResult {
   albums: SubsonicAlbum[];
   topSongs: SubsonicSong[];
   info: SubsonicArtistInfo | null;
+  /**
+   * Server `info` was resolved against, or null while nobody may answer. Ids inside
+   * `info` (similar artists) are local to this server, so anything the page derives from
+   * them has to carry it — the active server is a different entity under a browse scope.
+   */
+  infoServerId: string | null;
+  /** True when *that* server has AudioMuse-Navidrome, i.e. when `info.similarArtist` is meant to be shown. */
+  audiomuseNavidromeEnabled: boolean;
   featuredAlbums: SubsonicAlbum[];
   loading: boolean;
   topSongsLoading: boolean;
@@ -72,11 +80,13 @@ interface ArtistInfoTarget {
  *
  * Artist ids are server-local, so such a request has to reach the server the artist
  * really came from. `?server=` on the route names that owner; without it the artist row
- * the scoped loader returned names its own. Under a multi-server scope everything else
- * is a guess — the active server would answer for whatever artist happens to carry that
- * id there — so nothing is requested until one of the two is known. A single-server
- * scope has only one candidate and keeps the route-or-active fallback (unscoped when
- * there is none).
+ * the scoped loader returned names its own. Both beat the route-or-active fallback,
+ * including under a single-server scope: browsing one server while a *different* one is
+ * active is an ordinary selection, and the fallback would then answer from the active
+ * server for whatever artist happens to carry that id there. Only when neither owner is
+ * known does the scope decide — a single-server scope has just one candidate and keeps
+ * the fallback (unscoped when there is none), while under multiple servers any pick
+ * would be a guess, so nothing is requested at all.
  */
 function resolveArtistInfoTarget(args: {
   id: string | undefined;
@@ -87,11 +97,11 @@ function resolveArtistInfoTarget(args: {
 }): ArtistInfoTarget | null {
   const { id, routeServerId, fallbackServerId, loadedOwner, multiServer } = args;
   if (!id) return null;
-  if (!multiServer) return { serverId: fallbackServerId, artistId: id };
   if (routeServerId) return { serverId: routeServerId, artistId: id };
   if (loadedOwner && loadedOwner.forId === id) {
     return { serverId: loadedOwner.serverId, artistId: loadedOwner.artistId };
   }
+  if (!multiServer) return { serverId: fallbackServerId, artistId: id };
   return null;
 }
 
@@ -108,9 +118,6 @@ export function useArtistDetailData(
   const routeServerId = readDetailServerId(searchParams, null);
   const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
   const { status: connStatus } = useConnectionStatus();
-  const audiomuseNavidromeEnabled = useAuthStore(
-    s => !!(serverId && s.audiomuseNavidromeByServer[serverId]),
-  );
   const libraryBrowseScopeVersion = useAuthStore(s => s.libraryBrowseScopeVersion);
   const browseScope = getLibraryBrowseScope();
   const offlineBrowseActive = useOfflineBrowseContext().active && !!serverId;
@@ -140,6 +147,11 @@ export function useArtistDetailData(
     setTopSongs([]);
     setTopSongsLoading(false);
     setFeaturedAlbums([]);
+    // Drop the owner before every scoped load, not only when the next one wins a row.
+    // It is an answer about one particular scope: once the selection changes, or the
+    // refreshed load returns nothing, keeping it would let an ownerless route query a
+    // server that is no longer selected and show that server's artist information.
+    setArtistOwner(null);
 
     (async () => {
       try {
@@ -314,6 +326,14 @@ export function useArtistDetailData(
   });
   const infoServerId = infoTarget?.serverId ?? null;
   const infoArtistId = infoTarget?.artistId ?? null;
+  // Read the AudioMuse flag for the server this page's identity actually resolved to,
+  // not for the active one. They differ whenever the artist is owned elsewhere, and the
+  // flag both parameterises the request below (`similarArtistCount`) and decides in the
+  // page whether the server-provided similar artists are shown at all — keyed on the
+  // wrong server it would ask for a set it then refuses to render.
+  const audiomuseNavidromeEnabled = useAuthStore(
+    s => !!(infoServerId && s.audiomuseNavidromeByServer[infoServerId]),
+  );
 
   useEffect(() => {
     if (!id || !infoArtistId || preferLocalArtist) {
@@ -397,6 +417,7 @@ export function useArtistDetailData(
 
   return {
     artist, setArtist, albums, topSongs, info, featuredAlbums,
+    infoServerId, audiomuseNavidromeEnabled,
     loading, topSongsLoading, artistInfoLoading, featuredLoading,
     isStarred, setIsStarred,
     losslessOnly,

@@ -1,6 +1,6 @@
 import { useCoverArt } from '@/cover/useCoverArt';
 import { useArtistCoverRef } from '@/cover/useLibraryCoverRef';
-import type { SubsonicArtist, SubsonicAlbum } from '@/lib/api/subsonicTypes';
+import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import { useEffect, useState, Fragment, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { AlbumCard } from '@/features/album';
@@ -17,6 +17,7 @@ import {
 
 import { useArtistDetailData } from '@/features/artist/hooks/useArtistDetailData';
 import { useArtistSimilarArtists } from '@/features/artist/hooks/useArtistSimilarArtists';
+import { similarArtistRefs } from '@/features/artist/utils/similarArtistRefs';
 import {
   runArtistDetailPlayAll, runArtistDetailPlayTopSong, runArtistDetailShuffle,
   runArtistDetailStartRadio, runArtistDetailEnqueueAll,
@@ -58,6 +59,7 @@ export default function ArtistDetail() {
   const sourceMusicFoldersByServer = useAuthStore(s => s.musicFoldersByServer);
   const {
     artist, setArtist, albums, topSongs, info, featuredAlbums,
+    infoServerId, audiomuseNavidromeEnabled,
     loading, topSongsLoading, artistInfoLoading, featuredLoading,
     isStarred, setIsStarred,
   } = useArtistDetailData(id, { losslessOnly });
@@ -83,7 +85,9 @@ export default function ArtistDetail() {
     artist,
     info,
     artistInfoLoading,
-    activeServerId,
+    // Same owner the info came from: this hook keys its AudioMuse branch on the server,
+    // and its Last.fm fallback searches that server for the matching artist rows.
+    infoServerId ?? activeServerId,
   );
   const [uploading, setUploading] = useState(false);
   const [similarCollapsed, setSimilarCollapsed] = useState(true);
@@ -93,9 +97,6 @@ export default function ArtistDetail() {
 
   const playTrack = usePlayerStore(state => state.playTrack);
   const enqueue = usePlayerStore(state => state.enqueue);
-  const audiomuseNavidromeEnabled = useAuthStore(
-    s => !!(activeServerId && s.audiomuseNavidromeByServer[activeServerId]),
-  );
   const enrichmentConfigured = useAuthStore(s => s.enrichmentPrimaryId !== null);
   const albumYearOrder = useArtistAlbumYearSortStore(
     s => s.orderByServer[activeServerId] ?? DEFAULT_ARTIST_ALBUM_YEAR_ORDER,
@@ -265,12 +266,7 @@ export default function ArtistDetail() {
     );
   }
 
-  const serverSimilarArtists: SubsonicArtist[] = (info?.similarArtist ?? []).map(sa => ({
-    id: sa.id,
-    name: sa.name,
-    albumCount: sa.albumCount,
-    serverId: 'serverId' in sa && typeof sa.serverId === 'string' ? sa.serverId : activeServerId,
-  }));
+  const serverSimilarArtists = similarArtistRefs(info?.similarArtist, infoServerId, activeServerId);
   const showAudiomuseSimilar = audiomuseNavidromeEnabled && serverSimilarArtists.length > 0;
   const showNetworkSimilar =
     enrichmentConfigured &&
