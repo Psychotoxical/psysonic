@@ -55,9 +55,11 @@ export async function resolveNpDiscography(
   if (await libraryIsReady(serverId)) {
     try {
       const hit = await loadArtistFromLibraryIndex(serverId, artistId);
-      // Empty albums == miss: the index may not carry this artist's albums yet;
+      // Discography is an all-albums surface — union own + appears-on.
+      // Empty == miss: the index may not carry this artist's albums yet;
       // let the network arm try before settling on an empty discography.
-      if (hit && hit.albums.length > 0) return hit.albums;
+      const all = hit ? [...hit.albums, ...hit.appearsOnAlbums] : [];
+      if (all.length > 0) return all;
     } catch { /* index error → network fallback */ }
   }
   if (!shouldAttemptSubsonicForServer(serverId)) return [];
@@ -86,9 +88,10 @@ export async function resolveNpTopSongs(
         if (songs.length > 0) return songs;
       } else {
         const hit = await loadArtistFromLibraryIndex(serverId, artistId);
-        if (hit && hit.albums.length > 0) {
+        const allAlbums = hit ? [...hit.albums, ...hit.appearsOnAlbums] : [];
+        if (allAlbums.length > 0) {
           const perAlbum = await Promise.all(
-            hit.albums.map(a => libraryGetTracksByAlbum(serverId, a.id).catch(() => [])),
+            allAlbums.map(a => libraryGetTracksByAlbum(serverId, a.id).catch(() => [])),
           );
           const songs = perAlbum
             .flat()

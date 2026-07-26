@@ -8,6 +8,8 @@ import type { SubsonicAlbum, SubsonicArtist, SubsonicSong } from '@/lib/api/subs
 export interface ArtistDetailMultiScopePayload {
   artist: SubsonicArtist;
   albums: SubsonicAlbum[];
+  /** Albums the artist only appears on (compilations, guest tracks), split locally. */
+  appearsOnAlbums: SubsonicAlbum[];
   topSongs: SubsonicSong[];
   topTracksServerId: string | null;
   topTracksFingerprint: string | null;
@@ -34,6 +36,7 @@ export async function tryLoadArtistDetailMultiScope(
     return {
       artist: artistToArtist(response.artist),
       albums: response.albums.map(albumToAlbum),
+      appearsOnAlbums: response.appearsOnAlbums.map(albumToAlbum),
       topSongs: [...response.tracks.map(trackToSong)].sort(
         (a, b) => (b.playCount ?? 0) - (a.playCount ?? 0),
       ),

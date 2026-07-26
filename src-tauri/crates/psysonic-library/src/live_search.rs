@@ -349,6 +349,7 @@ fn query_albums(
     })? {
         out.push(row?);
     }
+    crate::browse_support::overlay_album_artist_links(conn, &mut out);
     Ok(out)
 }
 

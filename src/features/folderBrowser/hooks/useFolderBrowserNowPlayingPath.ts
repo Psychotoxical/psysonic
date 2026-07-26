@@ -111,12 +111,16 @@ export function useFolderBrowserNowPlayingPath({
 
       let artistChildren: SubsonicDirectoryEntry[];
       try {
-        artistChildren = (await libraryScopeArtistDetail(root.serverId, {
+        const detail = await libraryScopeArtistDetail(root.serverId, {
           scopes,
           artistId: artistEntry.id,
           serverId: root.serverId,
           includeTracks: false,
-        })).albums.map(albumDtoToFolderEntry);
+        });
+        // Must include appears-on: revealing a track played off a compilation has to
+        // find that album under the artist, otherwise the reveal silently gives up.
+        artistChildren = [...detail.albums, ...detail.appearsOnAlbums]
+          .map(albumDtoToFolderEntry);
       } catch {
         continue;
       }

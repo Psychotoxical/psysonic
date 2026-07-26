@@ -49,6 +49,7 @@ export const musicNetwork = {
     PROBE_FAILED: 'Denne funksjonen er ikke tilgjengelig på denne tjenesten.',
     CAPABILITY_UNSUPPORTED: 'Denne tjenesten støtter ikke den funksjonen.',
     NETWORK: 'Nettverksfeil — sjekk tilkoblingen eller URL-en.',
+    RESPONSE_NOT_JSON: 'Tjenesten returnerte en nettside i stedet for data — tilkoblingen kan være blokkert (VPN-utgang, proxy eller påloggingsportal).',
     MALOJA_BAD_KEY: 'Ugyldig Maloja-API-nøkkel.',
     CUSTOM_URL_INVALID: 'Server-URL-en er utilgjengelig.',
   },

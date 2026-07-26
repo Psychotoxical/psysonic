@@ -81,8 +81,16 @@ export async function resolveArtist(
   serverId: string,
   artistId: string,
 ): Promise<{ artist: SubsonicArtist; albums: SubsonicAlbum[] } | null> {
+  // This facade returns a flat all-albums list for legacy consumers (related
+  // albums, discography), so the local loaders' own/appears-on split is unioned
+  // back into `albums` here. The artist page consumes the loaders directly to keep
+  // the split.
+  const unionAlbums = (
+    load: { artist: SubsonicArtist; albums: SubsonicAlbum[]; appearsOnAlbums?: SubsonicAlbum[] } | null,
+  ) => (load ? { artist: load.artist, albums: [...load.albums, ...(load.appearsOnAlbums ?? [])] } : null);
+
   if (isOfflineBrowseActive() && offlineLocalBrowseEnabled(serverId)) {
-    return loadArtistFromLocalPlayback(serverId, artistId);
+    return unionAlbums(await loadArtistFromLocalPlayback(serverId, artistId));
   }
   const favoritesOffline = useAuthStore.getState().favoritesOfflineEnabled;
   const networkAllowed = shouldAttemptSubsonicForServer(serverId);
@@ -98,7 +106,7 @@ export async function resolveArtist(
   }
 
   try {
-    return await loadArtistFromLibraryIndex(serverId, artistId);
+    return unionAlbums(await loadArtistFromLibraryIndex(serverId, artistId));
   } catch {
     return null;
   }

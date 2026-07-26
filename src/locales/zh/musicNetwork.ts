@@ -49,6 +49,7 @@ export const musicNetwork = {
     PROBE_FAILED: '此服务不支持该功能。',
     CAPABILITY_UNSUPPORTED: '此服务不支持该功能。',
     NETWORK: '网络错误 — 请检查连接或 URL。',
+    RESPONSE_NOT_JSON: '服务返回了网页而不是数据 — 连接可能被拦截（VPN 出口、代理或强制门户）。',
     MALOJA_BAD_KEY: 'Maloja API 密钥无效。',
     CUSTOM_URL_INVALID: '无法访问服务器 URL。',
   },

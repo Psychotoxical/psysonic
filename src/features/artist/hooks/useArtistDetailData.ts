@@ -31,6 +31,14 @@ export interface ArtistDetailDataResult {
   albums: SubsonicAlbum[];
   topSongs: SubsonicSong[];
   info: SubsonicArtistInfo | null;
+  /**
+   * Server `info` was resolved against, or null while nobody may answer. Ids inside
+   * `info` (similar artists) are local to this server, so anything the page derives from
+   * them has to carry it — the active server is a different entity under a browse scope.
+   */
+  infoServerId: string | null;
+  /** True when *that* server has AudioMuse-Navidrome, i.e. when `info.similarArtist` is meant to be shown. */
+  audiomuseNavidromeEnabled: boolean;
   featuredAlbums: SubsonicAlbum[];
   loading: boolean;
   topSongsLoading: boolean;
@@ -53,6 +61,50 @@ function filterNetworkArtistToLossless(
   };
 }
 
+/** Owning server reported by the artist row the scoped loader resolved. */
+interface ArtistInfoOwner {
+  /** Route artist id this owner was resolved for — a later route keeps its own. */
+  forId: string;
+  serverId: string;
+  artistId: string;
+}
+
+/** Where an identity-bound artist-info request may go, or null while nobody may answer. */
+interface ArtistInfoTarget {
+  serverId: string | null;
+  artistId: string;
+}
+
+/**
+ * Pick who may answer identity-bound artist info (biography, Last.fm link).
+ *
+ * Artist ids are server-local, so such a request has to reach the server the artist
+ * really came from. `?server=` on the route names that owner; without it the artist row
+ * the scoped loader returned names its own. Both beat the route-or-active fallback,
+ * including under a single-server scope: browsing one server while a *different* one is
+ * active is an ordinary selection, and the fallback would then answer from the active
+ * server for whatever artist happens to carry that id there. Only when neither owner is
+ * known does the scope decide — a single-server scope has just one candidate and keeps
+ * the fallback (unscoped when there is none), while under multiple servers any pick
+ * would be a guess, so nothing is requested at all.
+ */
+function resolveArtistInfoTarget(args: {
+  id: string | undefined;
+  routeServerId: string | null;
+  fallbackServerId: string | null;
+  loadedOwner: ArtistInfoOwner | null;
+  multiServer: boolean;
+}): ArtistInfoTarget | null {
+  const { id, routeServerId, fallbackServerId, loadedOwner, multiServer } = args;
+  if (!id) return null;
+  if (routeServerId) return { serverId: routeServerId, artistId: id };
+  if (loadedOwner && loadedOwner.forId === id) {
+    return { serverId: loadedOwner.serverId, artistId: loadedOwner.artistId };
+  }
+  if (!multiServer) return { serverId: fallbackServerId, artistId: id };
+  return null;
+}
+
 export function useArtistDetailData(
   id: string | undefined,
   options: UseArtistDetailDataOptions = {},
@@ -61,11 +113,11 @@ export function useArtistDetailData(
   const activeServerId = useAuthStore(s => s.activeServerId);
   const [searchParams] = useSearchParams();
   const serverId = readDetailServerId(searchParams, activeServerId);
+  // Same lookup without the active-server fallback: this tells apart a route that names
+  // its owning server from one where `serverId` is only "the active server" standing in.
+  const routeServerId = readDetailServerId(searchParams, null);
   const favoritesOfflineEnabled = useAuthStore(s => s.favoritesOfflineEnabled);
   const { status: connStatus } = useConnectionStatus();
-  const audiomuseNavidromeEnabled = useAuthStore(
-    s => !!(serverId && s.audiomuseNavidromeByServer[serverId]),
-  );
   const libraryBrowseScopeVersion = useAuthStore(s => s.libraryBrowseScopeVersion);
   const browseScope = getLibraryBrowseScope();
   const offlineBrowseActive = useOfflineBrowseContext().active && !!serverId;
@@ -74,6 +126,7 @@ export function useArtistDetailData(
     || (connStatus === 'disconnected' && favoritesOfflineEnabled && !!serverId);
 
   const [artist, setArtist] = useState<SubsonicArtist | null>(null);
+  const [artistOwner, setArtistOwner] = useState<ArtistInfoOwner | null>(null);
   const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
   const [featuredAlbums, setFeaturedAlbums] = useState<SubsonicAlbum[]>([]);
   const [topSongs, setTopSongs] = useState<SubsonicSong[]>([]);
@@ -94,6 +147,11 @@ export function useArtistDetailData(
     setTopSongs([]);
     setTopSongsLoading(false);
     setFeaturedAlbums([]);
+    // Drop the owner before every scoped load, not only when the next one wins a row.
+    // It is an answer about one particular scope: once the selection changes, or the
+    // refreshed load returns nothing, keeping it would let an ownerless route query a
+    // server that is no longer selected and show that server's artist information.
+    setArtistOwner(null);
 
     (async () => {
       try {
@@ -109,8 +167,19 @@ export function useArtistDetailData(
           if (cancelled) return;
           if (multi) {
             setArtist(multi.artist);
+            // The merged row carries the server it won on, which is the only owner a
+            // route without `?server=` has. This is the sole loader reachable under a
+            // multi-server scope, so no other branch has to report one.
+            setArtistOwner(multi.artist.serverId && multi.artist.id
+              ? { forId: id, serverId: multi.artist.serverId, artistId: multi.artist.id }
+              : null);
             setIsStarred(!!multi.artist.starred);
             setAlbums(multi.albums);
+            // "Appears on" is split locally from the same scoped album set, so it
+            // works under multi-server scopes and needs no network search (the
+            // network path below is disabled once the local index is authoritative).
+            // `?? []` guards against an older payload without the field.
+            setFeaturedAlbums(multi.appearsOnAlbums ?? []);
             setTopSongs(multi.topSongs);
             setLoading(false);
             if (
@@ -148,6 +217,10 @@ export function useArtistDetailData(
             setArtist(local.artist);
             setIsStarred(!!local.artist.starred);
             setAlbums(local.albums);
+            // Preserve the own / appears-on split offline, so the artist page keeps
+            // its "Also featured on" section instead of merging everything into the
+            // main discography.
+            setFeaturedAlbums(local.appearsOnAlbums);
             setTopSongs([]);
             setLoading(false);
             return;
@@ -219,6 +292,7 @@ export function useArtistDetailData(
               setArtist(local.artist);
               setIsStarred(!!local.artist.starred);
               setAlbums(local.albums);
+              setFeaturedAlbums(local.appearsOnAlbums);
               setTopSongs([]);
               setLoading(false);
               return;
@@ -243,15 +317,38 @@ export function useArtistDetailData(
     serverId,
   ]);
 
+  const infoTarget = resolveArtistInfoTarget({
+    id,
+    routeServerId,
+    fallbackServerId: serverId,
+    loadedOwner: artistOwner,
+    multiServer: browseScope.multiServer,
+  });
+  const infoServerId = infoTarget?.serverId ?? null;
+  const infoArtistId = infoTarget?.artistId ?? null;
+  // Read the AudioMuse flag for the server this page's identity actually resolved to,
+  // not for the active one. They differ whenever the artist is owned elsewhere, and the
+  // flag both parameterises the request below (`similarArtistCount`) and decides in the
+  // page whether the server-provided similar artists are shown at all — keyed on the
+  // wrong server it would ask for a set it then refuses to render.
+  const audiomuseNavidromeEnabled = useAuthStore(
+    s => !!(infoServerId && s.audiomuseNavidromeByServer[infoServerId]),
+  );
+
   useEffect(() => {
-    if (!id || preferLocalArtist || browseScope.multiServer) return;
+    if (!id || !infoArtistId || preferLocalArtist) {
+      // Nobody may answer (yet). Drop a spinner left over from a route that had an
+      // owner — the similar-artists Last.fm fallback waits on this flag.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setArtistInfoLoading(false);
+      return;
+    }
     let cancelled = false;
-    // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setArtistInfoLoading(true);
-    (serverId
-      ? getArtistInfoForServer(serverId, id, { similarArtistCount: audiomuseNavidromeEnabled ? 24 : undefined })
-      : getArtistInfo(id, { similarArtistCount: audiomuseNavidromeEnabled ? 24 : undefined }))
+    const infoOptions = { similarArtistCount: audiomuseNavidromeEnabled ? 24 : undefined };
+    (infoServerId
+      ? getArtistInfoForServer(infoServerId, infoArtistId, infoOptions)
+      : getArtistInfo(infoArtistId, infoOptions))
       .then(artistInfo => {
         if (!cancelled) setInfoEntry({ id, value: artistInfo ?? null });
       })
@@ -262,10 +359,15 @@ export function useArtistDetailData(
         if (!cancelled) setArtistInfoLoading(false);
       });
     return () => { cancelled = true; };
-  }, [id, serverId, audiomuseNavidromeEnabled, preferLocalArtist, browseScope.multiServer]);
+  }, [id, infoServerId, infoArtistId, audiomuseNavidromeEnabled, preferLocalArtist]);
 
   useEffect(() => {
+    // When the local index is authoritative (any selected library scope), the
+    // scoped load above already provides "appears on" locally — including under
+    // multi-server, where this network search is disabled. Only fall back to the
+    // network search when there is no local scope to split from.
     if (!id || !artist || preferLocalArtist || browseScope.multiServer) return;
+    if (serverId && browseScope.pairs.length > 0) return;
     const ownAlbumIds = new Set(albums.map(a => a.id));
     // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -315,6 +417,7 @@ export function useArtistDetailData(
 
   return {
     artist, setArtist, albums, topSongs, info, featuredAlbums,
+    infoServerId, audiomuseNavidromeEnabled,
     loading, topSongsLoading, artistInfoLoading, featuredLoading,
     isStarred, setIsStarred,
     losslessOnly,

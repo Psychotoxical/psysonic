@@ -209,9 +209,10 @@ pub fn list_albums_by_genre(
         };
 
         let mut stmt = conn.prepare(&sql)?;
-        let albums = stmt
+        let mut albums = stmt
             .query_map(rusqlite::params_from_iter(params.iter()), map_row)?
             .collect::<rusqlite::Result<Vec<_>>>()?;
+        crate::browse_support::overlay_album_artist_links(conn, &mut albums);
         let has_more = albums.len() as u32 == limit;
         Ok(LibraryGenreAlbumsResponse {
             albums,
@@ -365,6 +366,51 @@ mod tests {
             synced_at: 1,
             raw_json: "{}".into(),
         }
+    }
+
+    #[test]
+    fn genre_filtered_compilation_links_to_the_album_artist_via_an_excluded_sibling() {
+        // Identity is a property of the whole album, not of the rows that passed the
+        // genre predicate: the matching track carries no `albumArtistId`, only a sibling
+        // filtered out by the genre does. The card must still link to the VA entity.
+        let store = LibraryStore::open_in_memory();
+        let mut matching = track("s1", "t1", "comp", "Rock");
+        matching.artist = Some("Performer One".into());
+        matching.artist_id = Some("perf1".into());
+        matching.album_artist = Some("Various Artists".into());
+        let mut excluded = track("s1", "t2", "comp", "Jazz");
+        excluded.artist = Some("Performer Two".into());
+        excluded.artist_id = Some("perf2".into());
+        excluded.album_artist = Some("Various Artists".into());
+        excluded.raw_json = r#"{"albumArtistId":"va"}"#.into();
+        TrackRepository::new(&store)
+            .upsert_batch(&[matching, excluded])
+            .unwrap();
+
+        let rock = list_albums_by_genre(
+            &store,
+            &LibraryGenreAlbumsRequest {
+                server_id: "s1".into(),
+                genre: "Rock".into(),
+                library_scope: Some("lib1".into()),
+                library_scopes: None,
+                sort: vec![LibrarySortClause {
+                    field: "name".into(),
+                    dir: SortDir::Asc,
+                }],
+                limit: 10,
+                offset: 0,
+                include_total: false,
+            },
+        )
+        .unwrap();
+        let card = rock.albums.iter().find(|a| a.id == "comp").expect("comp missing");
+        assert_eq!(card.artist.as_deref(), Some("Various Artists"));
+        assert_eq!(
+            card.artist_id.as_deref(),
+            Some("va"),
+            "the album-artist id must come from the album, not from the filtered rows"
+        );
     }
 
     #[test]

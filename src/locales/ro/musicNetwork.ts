@@ -49,6 +49,7 @@ export const musicNetwork = {
     PROBE_FAILED: 'Această funcție nu este disponibilă pe acest serviciu.',
     CAPABILITY_UNSUPPORTED: 'Acest serviciu nu acceptă această funcție.',
     NETWORK: 'Eroare de rețea — verifică conexiunea sau URL-ul.',
+    RESPONSE_NOT_JSON: 'Serviciul a returnat o pagină web în loc de date — conexiunea poate fi blocată (ieșire VPN, proxy sau portal captiv).',
     MALOJA_BAD_KEY: 'Cheie API Maloja invalidă.',
     CUSTOM_URL_INVALID: 'URL-ul serverului nu poate fi accesat.',
   },
