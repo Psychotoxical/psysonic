@@ -206,6 +206,8 @@ curl -fsSL https://raw.githubusercontent.com/Psysonic/psysonic/main/scripts/inst
 Linux builds are also available through GitHub Releases, AUR and Cachix/Nix.
 
 > **AppImage runs under X11/XWayland** — it pins `GDK_BACKEND=x11` for a stable WebKitGTK stack. For a native-Wayland launch, use the `.deb`, `.rpm`, AUR, or Nix packages, which follow your session's display server.
+>
+> **AppImage uses your system WebKitGTK when you have one** — if `libwebkit2gtk-4.1` is installed, the AppImage launches against it instead of the copy it ships, which is what makes it work on Fedora and the atomic distros (Silverblue, Kinoite, Bluefin), where the bundled build cannot start. Without it the bundled copy is used, unchanged. Should the system one ever misbehave, `PSYSONIC_FORCE_BUNDLED_WEBKIT=1 ./Psysonic_*.AppImage` goes back to the bundled stack.
 
 ## Windows
 

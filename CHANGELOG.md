@@ -37,6 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Fixed
 
+### The AppImage starts on Fedora and the atomic distros again
+
+**By [@netherguy4](https://github.com/netherguy4), PR [#1348](https://github.com/Psysonic/psysonic/pull/1348)**
+
+* On Fedora 42+ and the atomic distros built on it (Silverblue, Kinoite, Bluefin) the AppImage opened an empty window and nothing ever appeared in it. The WebKitGTK copy shipped inside the AppImage cannot start on those systems' newer graphics stack, and it crashed on every launch.
+* The AppImage now launches against your system WebKitGTK whenever one is installed, which is the copy that works there. Systems without one keep using the bundled copy exactly as before, and `PSYSONIC_FORCE_BUNDLED_WEBKIT=1` forces the bundled copy back if you ever need it.
+
 ### Shared Top Albums pictures show their covers again
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1478](https://github.com/Psysonic/psysonic/pull/1478)**
