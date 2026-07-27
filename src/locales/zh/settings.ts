@@ -393,6 +393,8 @@ export const settings = {
   themeStoreNetworkNotice: '主题商店从 GitHub 加载目录和预览。不会发送任何个人数据。',
   themeStoreStatsNotice: '最后更新时间每天更新一次（约 04:17 UTC）。',
   themeStoreSearchPlaceholder: '搜索主题…',
+  themeStoreSpotlightTitle: '随机推荐主题',
+  themeStoreSpotlightShuffle: '换一个',
   themeStoreFilterMode: '按模式筛选',
   themeStoreModeAll: '全部',
   themeStoreModeDark: '深色',

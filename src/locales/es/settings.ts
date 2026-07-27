@@ -406,6 +406,8 @@ export const settings = {
   themeStoreNetworkNotice: 'La tienda de temas carga el catálogo y las vistas previas desde GitHub. No se envían datos personales.',
   themeStoreStatsNotice: 'Las fechas de última modificación se actualizan una vez al día (sobre las 04:17 UTC).',
   themeStoreSearchPlaceholder: 'Buscar temas…',
+  themeStoreSpotlightTitle: 'Tema aleatorio del momento',
+  themeStoreSpotlightShuffle: 'Mostrar otro',
   themeStoreFilterMode: 'Filtrar por modo',
   themeStoreModeAll: 'Todos',
   themeStoreModeDark: 'Oscuro',

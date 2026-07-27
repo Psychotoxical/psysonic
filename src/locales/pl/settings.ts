@@ -452,6 +452,8 @@ export const settings = {
   themeStoreNetworkNotice: 'Sklep motywów wczytuje katalog i podglądy z GitHuba. Żadne dane osobowe nie są wysyłane.',
   themeStoreStatsNotice: 'Daty ostatnich zmian są odświeżane raz dziennie (około 04:17 UTC, czyli 05:17/06:17 czasu polskiego).',
   themeStoreSearchPlaceholder: 'Szukaj motywów…',
+  themeStoreSpotlightTitle: 'Losowy motyw chwili',
+  themeStoreSpotlightShuffle: 'Pokaż inny',
   themeStoreFilterMode: 'Filtruj po trybie',
   themeStoreModeAll: 'Wszystkie',
   themeStoreModeDark: 'Ciemne',

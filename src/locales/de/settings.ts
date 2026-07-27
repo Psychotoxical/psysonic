@@ -408,6 +408,8 @@ export const settings = {
   themeStoreNetworkNotice: 'Der Theme-Store lädt Katalog und Vorschauen von GitHub. Es werden keine persönlichen Daten gesendet.',
   themeStoreStatsNotice: 'Die „Zuletzt geändert“-Daten werden einmal täglich aktualisiert (gegen 04:17 UTC).',
   themeStoreSearchPlaceholder: 'Themes suchen…',
+  themeStoreSpotlightTitle: 'Zufalls-Theme des Augenblicks',
+  themeStoreSpotlightShuffle: 'Anderes zeigen',
   themeStoreFilterMode: 'Nach Modus filtern',
   themeStoreModeAll: 'Alle',
   themeStoreModeDark: 'Dunkel',

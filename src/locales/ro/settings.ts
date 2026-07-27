@@ -410,6 +410,8 @@ export const settings = {
   themeStoreNetworkNotice: 'Theme Store încarcă catalogul și previzualizările de la GitHub. Nu se trimit date personale.',
   themeStoreStatsNotice: 'Datele privind ultima modificare se actualizează o dată pe zi (în jurul orei 04:17 UTC).',
   themeStoreSearchPlaceholder: 'Caută teme…',
+  themeStoreSpotlightTitle: 'Temă aleatorie a momentului',
+  themeStoreSpotlightShuffle: 'Arată alta',
   themeStoreFilterMode: 'Filtrează după mod',
   themeStoreModeAll: 'Toate',
   themeStoreModeDark: 'Întunecat',

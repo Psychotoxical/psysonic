@@ -397,6 +397,8 @@ export const settings = {
   themeStoreNetworkNotice: 'Theme Store laster katalogen og forhåndsvisninger fra GitHub. Ingen personopplysninger sendes.',
   themeStoreStatsNotice: 'Sist endret-datoene oppdateres én gang om dagen (rundt 04:17 UTC).',
   themeStoreSearchPlaceholder: 'Søk i temaer…',
+  themeStoreSpotlightTitle: 'Tilfeldig tema for øyeblikket',
+  themeStoreSpotlightShuffle: 'Vis et annet',
   themeStoreFilterMode: 'Filtrer etter modus',
   themeStoreModeAll: 'Alle',
   themeStoreModeDark: 'Mørk',

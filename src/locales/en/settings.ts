@@ -452,6 +452,8 @@ export const settings = {
   themeStoreNetworkNotice: 'The Theme Store loads its catalogue and previews from GitHub. No personal data is sent.',
   themeStoreStatsNotice: 'Last-changed dates refresh once a day (around 04:17 UTC).',
   themeStoreSearchPlaceholder: 'Search themes…',
+  themeStoreSpotlightTitle: 'Random theme of the moment',
+  themeStoreSpotlightShuffle: 'Show another',
   themeStoreFilterMode: 'Filter by mode',
   themeStoreModeAll: 'All',
   themeStoreModeDark: 'Dark',

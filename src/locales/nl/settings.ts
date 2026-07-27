@@ -394,6 +394,8 @@ export const settings = {
   themeStoreNetworkNotice: 'De Theme Store laadt de catalogus en previews van GitHub. Er worden geen persoonlijke gegevens verzonden.',
   themeStoreStatsNotice: 'De laatst-gewijzigd-datums worden eenmaal per dag bijgewerkt (rond 04:17 UTC).',
   themeStoreSearchPlaceholder: "Thema's zoeken…",
+  themeStoreSpotlightTitle: 'Willekeurig thema van het moment',
+  themeStoreSpotlightShuffle: 'Toon een ander',
   themeStoreFilterMode: 'Filteren op modus',
   themeStoreModeAll: 'Alle',
   themeStoreModeDark: 'Donker',

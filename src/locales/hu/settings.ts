@@ -452,6 +452,8 @@ export const settings = {
   themeStoreNetworkNotice: 'A Témabolt a katalógusát és előnézeteit a GitHubról tölti be. Személyes adat nem kerül elküldésre.',
   themeStoreStatsNotice: 'A legutóbbi módosítás dátumai naponta egyszer frissülnek (kb. 04:17 UTC-kor).',
   themeStoreSearchPlaceholder: 'Témák keresése…',
+  themeStoreSpotlightTitle: 'A pillanat véletlen témája',
+  themeStoreSpotlightShuffle: 'Mutass másikat',
   themeStoreFilterMode: 'Szűrés mód szerint',
   themeStoreModeAll: 'Összes',
   themeStoreModeDark: 'Sötét',

@@ -452,6 +452,8 @@ export const settings = {
   themeStoreNetworkNotice: 'Магазинът за теми зарежда каталога и преглед от GitHub. Не се изпращат лични данни.',
   themeStoreStatsNotice: 'Датите на последна промяна се обновяват веднъж дневно (около 04:17 UTC).',
   themeStoreSearchPlaceholder: 'Търси теми…',
+  themeStoreSpotlightTitle: 'Случайна тема на момента',
+  themeStoreSpotlightShuffle: 'Покажи друга',
   themeStoreFilterMode: 'Филтрирай по режим',
   themeStoreModeAll: 'Всички',
   themeStoreModeDark: 'Тъмна',

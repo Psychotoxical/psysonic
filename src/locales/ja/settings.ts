@@ -446,6 +446,8 @@ export const settings = {
   themeStoreNetworkNotice: 'テーマストアはカタログとプレビューを GitHub から読み込みます。個人データは送信されません。',
   themeStoreStatsNotice: '最終変更日は 1 日 1 回更新されます (04:17 UTC 前後)。',
   themeStoreSearchPlaceholder: 'テーマを検索…',
+  themeStoreSpotlightTitle: 'いま注目のランダムテーマ',
+  themeStoreSpotlightShuffle: '別のテーマを見る',
   themeStoreFilterMode: 'モードで絞り込み',
   themeStoreModeAll: 'すべて',
   themeStoreModeDark: 'ダーク',

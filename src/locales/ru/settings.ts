@@ -462,6 +462,8 @@ export const settings = {
   themeStoreNetworkNotice: 'Магазин тем загружает каталог и превью с GitHub. Личные данные не отправляются.',
   themeStoreStatsNotice: 'Даты последнего изменения обновляются раз в день (около 04:17 UTC).',
   themeStoreSearchPlaceholder: 'Поиск тем…',
+  themeStoreSpotlightTitle: 'Случайная тема момента',
+  themeStoreSpotlightShuffle: 'Показать другую',
   themeStoreFilterMode: 'Фильтр по режиму',
   themeStoreModeAll: 'Все',
   themeStoreModeDark: 'Тёмные',
