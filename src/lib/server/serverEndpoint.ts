@@ -113,6 +113,27 @@ export function allNormalizedAddresses(
 }
 
 /**
+ * Does this profile serve the address a share link points at?
+ *
+ * Share payloads carry the **normalized** address (`serverShareBaseUrl`), which
+ * may be either of the profile's two addresses — for a dual-address profile the
+ * public one, since the recipient is not on the host's LAN. Comparing a raw
+ * `profile.url` against it therefore fails in two ways: it misses a match on
+ * `alternateUrl`, and it misses one where normalization changed the string at
+ * all (an address typed without a scheme is stored verbatim but shared as
+ * `http://…`). Both sides go through `normalizeServerBaseUrl` here so the check
+ * agrees with the link that was built.
+ */
+export function profileServesShareBase(
+  profile: Pick<ServerProfile, 'url' | 'alternateUrl'>,
+  shareBase: string,
+): boolean {
+  const want = normalizeServerBaseUrl(shareBase);
+  if (!want) return false;
+  return allNormalizedAddresses(profile).includes(want);
+}
+
+/**
  * Endpoint list for connect probing — LAN-first, stable within each class.
  * Single-address profiles return one entry; dual-address returns up to two.
  */

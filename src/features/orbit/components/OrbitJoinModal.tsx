@@ -10,6 +10,7 @@ import {
   joinOrbitSession,
 } from '@/features/orbit/utils/orbit';
 import { switchActiveServer } from '@/utils/server/switchActiveServer';
+import { normalizeServerBaseUrl, profileServesShareBase } from '@/lib/server/serverEndpoint';
 import { useOrbitAccountPickerStore } from '@/features/orbit/store/orbitAccountPickerStore';
 import { showToast } from '@/lib/dom/toast';
 
@@ -44,8 +45,7 @@ export default function OrbitJoinModal({ onClose }: Props) {
     if (!parsed) { setError(t('orbit.joinErrInvalid')); return; }
 
     const active = useAuthStore.getState().getActiveServer();
-    const activeUrl = (active?.url ?? '').replace(/\/+$/, '');
-    const wantUrl   = parsed.serverBase.replace(/\/+$/, '');
+    const wantUrl = normalizeServerBaseUrl(parsed.serverBase);
 
     setBusy(true);
     try {
@@ -53,9 +53,9 @@ export default function OrbitJoinModal({ onClose }: Props) {
       // Auto-switch to the link's server if the user has an account for it.
       // Multiple candidates → picker modal. Any existing Orbit binding remains
       // pinned to its original server until its own lifecycle ends.
-      if (activeUrl !== wantUrl) {
+      if (!(active && profileServesShareBase(active, wantUrl))) {
         const candidates = useAuthStore.getState().servers
-          .filter(s => s.url.replace(/\/+$/, '') === wantUrl);
+          .filter(s => profileServesShareBase(s, wantUrl));
         if (candidates.length === 0) {
           setError(t('orbit.toastNoAccountForServer', { url: wantUrl }));
           return;

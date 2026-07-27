@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 import { extractNavidromePublicShareFromText } from '@/lib/share/navidromePublicShareUrl';
 import { decodeSharePayloadFromText } from '@/lib/share/shareLink';
 import { decodeServerMagicStringFromText } from '@/lib/server/serverMagicString';
+import { normalizeServerBaseUrl, profileServesShareBase } from '@/lib/server/serverEndpoint';
 import { applySharePastePayload, applySharePasteQueue } from '@/features/share/applySharePaste';
 import { shareQueueServerContext } from '@/lib/share/shareServerOriginLabel';
 import { showToast } from '@/lib/dom/toast';
@@ -119,8 +120,7 @@ export default function PasteClipboardHandler() {
 
         (async () => {
           const active = useAuthStore.getState().getActiveServer();
-          const activeUrl = (active?.url ?? '').replace(/\/+$/, '');
-          const wantUrl   = orbit.serverBase.replace(/\/+$/, '');
+          const wantUrl = normalizeServerBaseUrl(orbit.serverBase);
 
           // Auto-switch to the link's target server if the user has an
           // account registered for it. No account → clear error. Multiple
@@ -128,9 +128,9 @@ export default function PasteClipboardHandler() {
           // switch itself tears down any lingering orbit session (see
           // switchActiveServer) so the join below starts clean.
           let targetServerId = active?.id ?? '';
-          if (activeUrl !== wantUrl) {
+          if (!(active && profileServesShareBase(active, wantUrl))) {
             const candidates = useAuthStore.getState().servers
-              .filter(s => s.url.replace(/\/+$/, '') === wantUrl);
+              .filter(s => profileServesShareBase(s, wantUrl));
             if (candidates.length === 0) {
               showToast(t('orbit.toastNoAccountForServer', { url: wantUrl }), 5000, 'warning');
               return;
