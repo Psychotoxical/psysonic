@@ -36,6 +36,24 @@ jobs:
         working-directory: src-tauri
         run: cargo test --workspace --all-targets
 
+  # Windows is the second platform the app ships on, and parts of the backend
+  # are cfg-gated to it — SQLite locking behaviour, path handling, and the
+  # `cfg(not(target_os = "linux"))` branches never compile on the ubuntu jobs
+  # above. A test that only fails there used to reach main unnoticed and stayed
+  # red for a week (see the shared-cache fix in psysonic-library's store).
+  test-windows:
+    name: cargo test --workspace (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: cargo test --workspace
+        working-directory: src-tauri
+        run: cargo test --workspace --all-targets
+
   clippy:
     name: cargo clippy --workspace
     runs-on: ubuntu-24.04
