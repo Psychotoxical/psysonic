@@ -14,7 +14,7 @@ Psysonic is built primarily for **Navidrome** and also works with **Gonic**, **A
 
 <a href="https://discord.gg/AMnDRErm4u"><img src="https://img.shields.io/badge/Discord-Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord Community"></a> <a href="https://t.me/+GLBx1_xeH28xYTJi"><img src="https://img.shields.io/badge/Telegram-Community-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Community"></a> <a href="https://ko-fi.com/psychotoxic"><img src="https://img.shields.io/badge/Ko--fi-Support%20Psysonic-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Support Psysonic on Ko-fi"></a>
 
-<a href="https://aur.archlinux.org/packages/psysonic"><img src="https://img.shields.io/badge/AUR-psysonic-1793d1?style=for-the-badge&logo=arch-linux&logoColor=white" alt="AUR psysonic"></a> <a href="https://aur.archlinux.org/packages/psysonic-bin"><img src="https://img.shields.io/badge/AUR-psysonic--bin-1793d1?style=for-the-badge&logo=arch-linux&logoColor=white" alt="AUR psysonic-bin"></a> <a href="https://psysonic.cachix.org"><img src="https://img.shields.io/badge/Cachix-psysonic.cachix.org-5277C3?style=for-the-badge&logo=nixos&logoColor=white" alt="Cachix"></a> <a href="https://github.com/microsoft/winget-pkgs/tree/master/manifests/p/Psychotoxical/Psysonic"><img src="https://img.shields.io/badge/WinGet-psysonic-blue?style=for-the-badge&logo=windows" alt="WinGet psysonic"></a>
+<a href="https://aur.archlinux.org/packages/psysonic"><img src="https://img.shields.io/badge/AUR-psysonic-1793d1?style=for-the-badge&logo=arch-linux&logoColor=white" alt="AUR psysonic"></a> <a href="https://aur.archlinux.org/packages/psysonic-bin"><img src="https://img.shields.io/badge/AUR-psysonic--bin-1793d1?style=for-the-badge&logo=arch-linux&logoColor=white" alt="AUR psysonic-bin"></a> <a href="https://psysonic.cachix.org"><img src="https://img.shields.io/badge/Cachix-psysonic.cachix.org-5277C3?style=for-the-badge&logo=nixos&logoColor=white" alt="Cachix"></a> <a href="https://github.com/microsoft/winget-pkgs/tree/master/manifests/p/Psychotoxical/Psysonic"><img src="https://img.shields.io/badge/WinGet-psysonic-blue?style=for-the-badge&logo=windows" alt="WinGet psysonic"></a> <a href="https://scoop.sh/#/apps?q=psysonic&p=1"><img src="https://img.shields.io/badge/Scoop-psysonic-4a9edc?style=for-the-badge&logo=windows&logoColor=white" alt="Scoop psysonic"></a>
 
 <br><br>
 
@@ -181,7 +181,7 @@ The things you simply expect from a serious music player — and Psysonic does t
 
 | OS      | Support                                                         |
 | ------- | --------------------------------------------------------------- |
-| Windows | Native installer / WinGet                                       |
+| Windows | Native installer / WinGet / Scoop                               |
 | macOS   | Signed DMG                                                      |
 | Linux   | AppImage / DEB / RPM / AUR (`psysonic`, `psysonic-bin`) / NixOS |
 
@@ -206,6 +206,12 @@ or,
 install via Windows Package Manager (WinGet):  
 ```powershell
 winget install Psysonic
+```
+
+or, install via [Scoop](https://scoop.sh/#/apps?q=psysonic&p=1):  
+```powershell
+scoop bucket add extras
+scoop install psysonic
 ```
 
 You can also browse and install it on [winstall.app](https://winstall.app/apps/Psychotoxical.Psysonic).
