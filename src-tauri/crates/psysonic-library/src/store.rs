@@ -251,17 +251,22 @@ impl LibraryStore {
             .expect("cluster attach write");
         let read_conn = Connection::open(&uri).expect("in-memory read connection");
         configure_read_connection(&read_conn).expect("read pragmas");
+        configure_in_memory_read_connection(&read_conn).expect("in-memory read pragmas");
         // Shared-cache identity DB: write connection created schema first.
         crate::identity::attach_cluster_read_memory(&read_conn, &cluster_uri)
             .expect("cluster attach read");
         let mainstage_read_conn =
             Connection::open(&uri).expect("in-memory mainstage read connection");
         configure_read_connection(&mainstage_read_conn).expect("mainstage read pragmas");
+        configure_in_memory_read_connection(&mainstage_read_conn)
+            .expect("in-memory mainstage read pragmas");
         crate::identity::attach_cluster_read_memory(&mainstage_read_conn, &cluster_uri)
             .expect("cluster attach mainstage read");
         let scope_detail_read_conn =
             Connection::open(&uri).expect("in-memory scope detail read connection");
         configure_read_connection(&scope_detail_read_conn).expect("scope detail read pragmas");
+        configure_in_memory_read_connection(&scope_detail_read_conn)
+            .expect("in-memory scope detail read pragmas");
         crate::identity::attach_cluster_read_memory(&scope_detail_read_conn, &cluster_uri)
             .expect("cluster attach scope detail read");
         Self {
@@ -948,6 +953,21 @@ fn configure_write_connection(conn: &Connection) -> rusqlite::Result<()> {
     conn.pragma_update(None, "temp_store", "MEMORY")?;
     conn.pragma_update(None, "foreign_keys", "ON")?;
     Ok(())
+}
+
+/// Extra read pragma for the in-memory store only (tests).
+///
+/// A file-backed database runs in WAL, where a reader and the single writer
+/// never block each other. The in-memory store cannot use WAL, so it shares one
+/// cache across its connections (`cache=shared`) — and shared-cache mode locks
+/// at *table* granularity: a read on a table the write connection is holding
+/// fails with `SQLITE_LOCKED` ("database table is locked"). That is not a busy
+/// condition, so `busy_timeout` never retries it and the read surfaces as a hard
+/// error. Reading uncommitted rows drops the reader's table lock and restores
+/// the concurrency the production WAL path has. Test-only: it never touches a
+/// file-backed connection.
+fn configure_in_memory_read_connection(conn: &Connection) -> rusqlite::Result<()> {
+    conn.pragma_update(None, "read_uncommitted", true)
 }
 
 fn configure_read_connection(conn: &Connection) -> rusqlite::Result<()> {
