@@ -192,6 +192,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Connecting a scrobbling service over a route it refuses — a VPN exit node, a proxy, a captive portal — failed with a generic network error and a raw decoder message attached. Psysonic now recognises a webpage arriving where data was expected and says so, pointing at the connection instead of leaving you to guess whether the app or the service is broken. Reported by zunoz on Discord.
 
+### Orbit — joining a session no longer depends on how the server address was typed
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1356](https://github.com/Psychotoxical/psysonic/pull/1356)**, reported by Sakura on Discord
+
+* Joining an invite could fail with "You don't have access to …" even for guests with a working account on that very server — they could browse and play music, only joining was refused. An invite carries the server address in its full form, while the check compared it against the address exactly as saved, so one entered without `http://` never matched.
+* The same check now also recognises a server saved under its second address. Hosts who configure a local and a public address share invites pointing at the public one, which previously matched no account at all.
+
 
 ## [1.50.0]
 
