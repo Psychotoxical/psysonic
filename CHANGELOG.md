@@ -69,6 +69,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Themes can ship their own images and fonts in an `assets/` folder and reference them with a relative `url("assets/…")`, instead of embedding everything as inline data. Assets are written to disk on install and served locally — themes still never reach the network. Works for both Theme Store installs and imported `.zip` themes; uninstalling a theme removes its files.
 
+### Theme store — a random theme of the moment
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1357](https://github.com/Psychotoxical/psysonic/pull/1357)**
+
+* The store now suggests one theme above the search box, picked from further down the catalogue and preferring themes you have not installed. The store lists themes by last change, so older ones were only ever found by paging to the end. **Show another** picks a different one; installing or applying the suggestion leaves it in place.
+
 ## Changed
 
 ### Library index — designed for several live servers at once
