@@ -1,10 +1,16 @@
-/* Dev-only chrome: shared data dir with prod, but visually unmistakable. */
-html[data-dev-build] .sidebar-brand {
+/* Dev-only chrome: shared data dir with prod, but visually unmistakable.
+ *
+ * The brand block steps aside while the theme watcher is running (`--theme-watch`
+ * sets `data-theme-watch` on the root). Authoring a theme means judging the
+ * sidebar's real colours, and a red bar across the brand makes that impossible —
+ * it also covers exactly the area a theme may replace with its own wordmark.
+ * Every other dev marker below stays put, so a dev build is still unmistakable. */
+html[data-dev-build]:not([data-theme-watch]) .sidebar-brand {
   background: #b91c1c;
   border-bottom-color: rgba(0, 0, 0, 0.22);
 }
 
-html[data-dev-build] .sidebar-brand svg {
+html[data-dev-build]:not([data-theme-watch]) .sidebar-brand svg {
   --logo-color-start: #fff;
   --logo-color-end: #fecaca;
 }

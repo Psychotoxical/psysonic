@@ -78,6 +78,13 @@ export default function App() {
         const css = payload?.css;
         const id = css?.match(/\[data-theme=['"]([^'"]+)['"]\]/)?.[1];
         if (!id) return;
+        // The watcher has spoken, so this dev build is being used to author
+        // themes. Marks the root once so dev-only chrome that would sit on top
+        // of themed surfaces can step aside — see dev-build-chrome.css. Keyed
+        // off the watcher rather than the theme's own `dev` flag: a
+        // store-installed theme being watched keeps `dev: false` (below), and
+        // its author would otherwise still be looking at the marker.
+        document.documentElement.setAttribute('data-theme-watch', 'true');
         // Manifest metadata wins, then a store-installed copy's, then dev
         // placeholders — watched themes keep their real identity, and only
         // the CSS is the live payload. Fresh seeds are marked dev
