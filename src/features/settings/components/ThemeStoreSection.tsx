@@ -252,7 +252,7 @@ export function ThemeStoreSection() {
           entries get seen at all. Sits above the toolbar deliberately — below it
           it would read as a search result. */}
       {!loading && !error && spotlight && (
-        <div style={{ marginBottom: '1rem' }}>
+        <div className="theme-store-spotlight" style={{ marginBottom: '1rem' }}>
           <ThemeSpotlightCard
             theme={spotlight}
             thumbSrc={thumbUrl(spotlight.thumbnail)}

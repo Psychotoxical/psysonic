@@ -20,7 +20,13 @@ import { fetchRegistry } from '@/lib/themes/themeRegistry';
 const fetchRegistryMock = vi.mocked(fetchRegistry);
 
 /** A registry with `n` themes named `Theme 01`…`Theme NN` (zero-padded so the
- *  component's alphabetical sort matches numeric order). */
+ *  component's alphabetical sort matches numeric order).
+ *
+ *  Note for assertions: the store also renders a spotlight card above the
+ *  toolbar holding one theme drawn from this same catalogue (past the first page
+ *  when `n > 12`, otherwise anything). Scope name checks to the rows — via
+ *  `rowNames`/`rows` — instead of querying the whole document, or the spotlight's
+ *  copy of the name makes the assertion ambiguous and randomly red. */
 function makeRegistry(n: number): Registry {
   const themes = Array.from({ length: n }, (_, i) => {
     const num = String(i + 1).padStart(2, '0');
@@ -92,16 +98,19 @@ describe('ThemeStoreSection — pagination & refresh', () => {
     expect(rows(container)).toHaveLength(12);
     expect(screen.getByRole('button', { name: '1', current: 'page' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '3' })).toBeInTheDocument();
-    // Page-2 themes are not rendered yet.
-    expect(screen.queryByText('Theme 13')).not.toBeInTheDocument();
+    // Page-2 themes are not listed yet. Scoped to the rows: the spotlight above
+    // the toolbar shows a theme from further down the catalogue, so a bare
+    // document-wide query would be about the spotlight as much as the page.
+    expect(rowNames(container)).not.toContain('Theme 13');
   });
 
   it('does not paginate when everything fits on one page', async () => {
     fetchRegistryMock.mockResolvedValue({ registry: makeRegistry(8), stale: false });
     const { container } = renderWithProviders(<ThemeStoreSection />);
 
-    await screen.findByText('Theme 01');
-    expect(rows(container)).toHaveLength(8);
+    // A catalogue this small is entirely on page one, so the spotlight has to
+    // fall back to it and may well be showing 'Theme 01' too — wait on the rows.
+    await waitFor(() => expect(rows(container)).toHaveLength(8));
     expect(screen.queryByLabelText('Next page')).not.toBeInTheDocument();
     expect(screen.queryByText(/page 1 of/i)).not.toBeInTheDocument();
   });
@@ -116,8 +125,8 @@ describe('ThemeStoreSection — pagination & refresh', () => {
 
     await user.click(screen.getByLabelText('Next page'));
     expect(screen.getByRole('button', { name: '2', current: 'page' })).toBeInTheDocument();
-    expect(screen.getByText('Theme 13')).toBeInTheDocument();
-    expect(screen.queryByText('Theme 01')).not.toBeInTheDocument();
+    expect(rowNames(container)).toContain('Theme 13');
+    expect(rowNames(container)).not.toContain('Theme 01');
     expect(screen.getByLabelText('Previous page')).toBeEnabled();
 
     await user.click(screen.getByLabelText('Next page'));
@@ -203,7 +212,7 @@ describe('ThemeStoreSection — pagination & refresh', () => {
     const { container } = renderWithProviders(<ThemeStoreSection />);
     const user = userEvent.setup();
 
-    await screen.findByText('Bravo');
+    await waitFor(() => expect(rows(container)).toHaveLength(3));
     // Default sort is newest first: Bravo (06-05) > Charlie (06-03) > Alpha (06-01).
     expect(rowNames(container)).toEqual(['Bravo', 'Charlie', 'Alpha']);
 
@@ -214,15 +223,15 @@ describe('ThemeStoreSection — pagination & refresh', () => {
 
   it('jumps directly to a page via the numbered pager', async () => {
     fetchRegistryMock.mockResolvedValue({ registry: makeRegistry(30), stale: false });
-    renderWithProviders(<ThemeStoreSection />);
+    const { container } = renderWithProviders(<ThemeStoreSection />);
     const user = userEvent.setup();
 
     await screen.findByText('Theme 01');
     await user.click(screen.getByRole('button', { name: '3' }));
 
     // Page 3 holds items 25–30; page 1 is gone and page 3 is marked current.
-    expect(screen.getByText('Theme 25')).toBeInTheDocument();
-    expect(screen.queryByText('Theme 01')).not.toBeInTheDocument();
+    expect(rowNames(container)).toContain('Theme 25');
+    expect(rowNames(container)).not.toContain('Theme 01');
     expect(screen.getByRole('button', { name: '3', current: 'page' })).toBeInTheDocument();
   });
 
@@ -237,7 +246,7 @@ describe('ThemeStoreSection — pagination & refresh', () => {
     const { container } = renderWithProviders(<ThemeStoreSection />);
     const user = userEvent.setup();
 
-    await screen.findByText('With Log');
+    await waitFor(() => expect(rows(container)).toHaveLength(2));
 
     // Exactly one row (the one shipping a changelog) exposes the toggle.
     const toggles = screen.getAllByRole('button', { name: "What's new" });
@@ -286,6 +295,41 @@ describe('ThemeStoreSection — pagination & refresh', () => {
     await screen.findByText('Zulu');
     // Without the pin, newest-first would order Alpha (06-10) before Zulu (06-01).
     expect(rowNames(container)).toEqual(['Zulu', 'Alpha']);
+  });
+
+  it('spotlights a theme from past the first page, above the search box', async () => {
+    // 13 themes: exactly one sits past the first page of 12, so the pick is
+    // determined rather than random and the assertion cannot flake.
+    fetchRegistryMock.mockResolvedValue({ registry: makeRegistry(13), stale: false });
+    const { container } = renderWithProviders(<ThemeStoreSection />);
+
+    // The pick lands one render after the catalogue, so wait for the card itself.
+    await waitFor(() => expect(container.querySelector('.theme-store-spotlight')).not.toBeNull());
+    const spotlight = container.querySelector('.theme-store-spotlight') as HTMLElement;
+    expect(rows(container)).toHaveLength(12);
+    expect(spotlight.textContent).toContain('Theme 13');
+    // The spotlight is the point: that theme is not on the page being browsed.
+    expect(rowNames(container)).not.toContain('Theme 13');
+
+    // It stands above the toolbar, so it reads as a suggestion rather than a hit.
+    const searchBox = screen.getByRole('searchbox');
+    expect(spotlight.compareDocumentPosition(searchBox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('offers a different theme when the spotlight is re-rolled', async () => {
+    fetchRegistryMock.mockResolvedValue({ registry: makeRegistry(30), stale: false });
+    const { container } = renderWithProviders(<ThemeStoreSection />);
+    const user = userEvent.setup();
+
+    // The heading also carries an icon span, so read the name out of the text.
+    const spotlit = () =>
+      container.querySelector('.theme-store-spotlight')?.textContent?.match(/Theme \d\d/)?.[0];
+    await waitFor(() => expect(spotlit()).toBeDefined());
+    const first = spotlit();
+
+    await user.click(screen.getByRole('button', { name: 'Show another' }));
+
+    await waitFor(() => expect(spotlit()).not.toBe(first));
   });
 
   it('replaces the install button with a hint when the theme needs a newer app', async () => {
