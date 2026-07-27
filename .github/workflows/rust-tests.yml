@@ -75,6 +75,23 @@ jobs:
         working-directory: src-tauri
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+  # Same blind spot as `test-windows`: the lints in the Windows-only cfg
+  # branches are invisible to the ubuntu clippy job above.
+  clippy-windows:
+    name: cargo clippy --workspace (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: cargo clippy --workspace
+        working-directory: src-tauri
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
   coverage:
     name: cargo llvm-cov (baseline + hot-path file gate)
     runs-on: ubuntu-24.04

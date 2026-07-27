@@ -111,6 +111,10 @@ pub fn audio_default_output_device_name_for_poll() -> Option<String> {
 
 /// Find a stored per-device EQ key that denotes the same sink as `candidate`
 /// (exact or Linux ALSA logical match).
+// See `dev_io::resolve_effective_default_output_device_name` — the early
+// `return` separates the cfg branches, and only the stripped non-Linux build
+// makes it look redundant.
+#[allow(clippy::needless_return)]
 #[tauri::command]
 #[specta::specta]
 pub fn audio_match_stored_output_device_key(

@@ -171,7 +171,9 @@ fn collect_relevant_proc_stats(self_pid: i32) -> Vec<(i32, String, i32, u64)> {
 }
 
 /// Map a child process name to a stable perf-probe label (Linux `comm` or macOS name).
-#[cfg(any(test, target_os = "linux", target_os = "macos"))]
+// Matches the gating of its only test: `test` alone would define this on
+// Windows test builds, where nothing calls it.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn child_process_memory_label(name: &str) -> &'static str {
     let lower = name.to_ascii_lowercase();
     if lower.contains("webkitwebproces") || lower.contains("web content") || lower.contains("webcontent") {
