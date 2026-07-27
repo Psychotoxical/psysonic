@@ -71,6 +71,8 @@ export default function App() {
         version?: string | null;
         description?: string | null;
         mode?: string | null;
+        /** The watched theme's directory, for `url("assets/…")` rewriting. */
+        assetBase?: string | null;
       };
       const install = (payload: WatchPayload, apply: boolean) => {
         const css = payload?.css;
@@ -80,7 +82,12 @@ export default function App() {
         // placeholders — watched themes keep their real identity, and only
         // the CSS is the live payload. Fresh seeds are marked dev
         // (session-only, never persisted); a store-installed theme being
-        // watched keeps its persisted entry.
+        // watched keeps its persisted entry. `install` replaces the entry
+        // wholesale, so the previous copy's asset fields are carried over —
+        // dropping them would strand its on-disk assets (broken urls, and an
+        // uninstall that leaves the files behind). The watched directory
+        // rides along separately as `devAssetBase`, which wins at inject time
+        // without overwriting where the installed copy lives.
         const prev = useInstalledThemesStore.getState().getInstalled(id);
         useInstalledThemesStore.getState().install({
           id,
@@ -94,6 +101,9 @@ export default function App() {
           tags: prev?.tags,
           css,
           installedAt: prev?.installedAt ?? Date.now(),
+          assetBase: prev?.assetBase,
+          assets: prev?.assets,
+          devAssetBase: payload.assetBase ?? prev?.devAssetBase,
           dev: prev ? prev.dev ?? false : true,
         });
         if (apply) {

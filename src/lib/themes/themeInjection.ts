@@ -72,8 +72,11 @@ export function injectTheme(theme: InstalledTheme): void {
   if (clean == null) return;
   // Rewrite relative `url("assets/…")` to the theme's on-disk asset directory.
   // No-op for themes without assets (no base, or no asset urls). Runs after
-  // validation, so we never validate a url() we produced ourselves.
-  const css = theme.assetBase ? rewriteAssetUrls(clean, theme.assetBase) : clean;
+  // validation, so we never validate a url() we produced ourselves. A dev
+  // `--theme-watch` base wins, so an author editing a checkout sees their
+  // assets rather than the installed copy's.
+  const base = theme.devAssetBase ?? theme.assetBase;
+  const css = base ? rewriteAssetUrls(clean, base) : clean;
   const selector = `style[${ATTR}="${CSS.escape(theme.id)}"]`;
   let el = document.head.querySelector<HTMLStyleElement>(selector);
   if (!el) {

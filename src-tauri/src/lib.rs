@@ -527,6 +527,43 @@ pub fn run() {
                                 }
                             }
 
+                            // Absolute, webview-loadable form of a watched
+                            // path: canonicalize resolves a relative
+                            // `--theme-watch` argument, and the `\\?\` prefix
+                            // Windows canonicalization adds would not survive
+                            // `convertFileSrc` on the frontend.
+                            fn abs_watch_path(p: &std::path::Path) -> String {
+                                let abs =
+                                    std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+                                let s = abs.to_string_lossy().into_owned();
+                                s.strip_prefix(r"\\?\").map(String::from).unwrap_or(s)
+                            }
+
+                            // A watched theme's `url("assets/…")` resolves to
+                            // an `asset:` URL under its own directory, but the
+                            // configured asset-protocol scope only covers the
+                            // app data dirs — a themes checkout lives outside
+                            // it and would 403. Widen the scope at runtime,
+                            // here in the debug-only block, so the shipped
+                            // tauri.conf.json keeps its narrow file access.
+                            {
+                                let dir = match &target {
+                                    WatchTarget::Dir(d) => d.clone(),
+                                    WatchTarget::File(f) => {
+                                        f.parent().map(PathBuf::from).unwrap_or_default()
+                                    }
+                                };
+                                let dir = PathBuf::from(abs_watch_path(&dir));
+                                if let Err(e) =
+                                    app.asset_protocol_scope().allow_directory(&dir, true)
+                                {
+                                    eprintln!(
+                                        "[theme-watch] could not grant asset access to {} — local theme assets will not load: {e}",
+                                        dir.display()
+                                    );
+                                }
+                            }
+
                             // Per-file state: css + manifest mtimes (gate the
                             // reads while both files are unchanged) and last
                             // pushed payload (change detection + ready
@@ -631,6 +668,12 @@ pub fn run() {
                                             .and_then(|v| v.as_str())
                                             .map(String::from)
                                     };
+                                    // The theme's own directory travels with
+                                    // the payload: the frontend rewrites
+                                    // `url("assets/…")` against it, so a
+                                    // watched theme loads its local assets
+                                    // from the checkout instead of falling
+                                    // back to unrewritten (app-root) URLs.
                                     let payload = serde_json::json!({
                                         "css": css,
                                         "name": meta("name"),
@@ -638,6 +681,7 @@ pub fn run() {
                                         "version": meta("version"),
                                         "description": meta("description"),
                                         "mode": meta("mode"),
+                                        "assetBase": f.parent().map(abs_watch_path),
                                     });
                                     let event = match m.get_mut(&f) {
                                         // mtime-only touch — restamp quietly.

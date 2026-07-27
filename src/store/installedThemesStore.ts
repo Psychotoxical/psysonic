@@ -31,6 +31,14 @@ export interface InstalledTheme {
    *  uninstall and update cleanup. Absent when the theme has no assets. */
   assets?: string[];
   /**
+   * Dev `--theme-watch` only: the watched theme's directory on disk, which
+   * takes precedence over `assetBase` at inject time so assets resolve out of
+   * the author's checkout. Kept separate (and stripped from storage, see
+   * partialize) so watching a store-installed theme cannot overwrite the
+   * persisted `assetBase` pointing at its installed copy.
+   */
+  devAssetBase?: string;
+  /**
    * Session-only copy pushed by the dev `--theme-watch` sweep. Never written
    * to storage (see partialize/merge below), so a dev session leaves no trace
    * in the user's installed themes.
@@ -71,13 +79,25 @@ export const useInstalledThemesStore = create<InstalledThemesState>()(
       // storage, and merge keeps the in-memory ones across a rehydrate (the
       // cross-window storage sync rehydrates on every write from the other
       // window — without this, a persisted change would wipe them).
-      partialize: (s) => ({ themes: s.themes.filter((t) => !t.dev) }),
+      // A watched *store-installed* theme is persisted (it is not a dev copy),
+      // so its dev-only asset base is stripped on the way out and restored on
+      // the way back in — the stored entry keeps pointing at its installed
+      // copy either way.
+      partialize: (s) => ({
+        themes: s.themes
+          .filter((t) => !t.dev)
+          .map(({ devAssetBase: _devAssetBase, ...t }) => t),
+      }),
       merge: (persisted, current) => {
         const stored = (persisted as { themes?: InstalledTheme[] } | undefined)?.themes ?? [];
         const dev = current.themes.filter(
           (t) => t.dev && !stored.some((p) => p.id === t.id),
         );
-        return { ...current, themes: [...stored, ...dev] };
+        const rehydrated = stored.map((t) => {
+          const live = current.themes.find((c) => c.id === t.id)?.devAssetBase;
+          return live ? { ...t, devAssetBase: live } : t;
+        });
+        return { ...current, themes: [...rehydrated, ...dev] };
       },
     }
   )
