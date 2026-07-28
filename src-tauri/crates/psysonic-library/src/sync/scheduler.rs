@@ -30,6 +30,11 @@ use crate::store::LibraryStore;
 
 /// Default Mode B threshold per §6.7 (5 % gap before auto reconcile).
 pub const DEFAULT_TOMBSTONE_THRESHOLD_PCT: u32 = 5;
+
+/// Time one census may take inside a tick. Comfortably below the caller's tick
+/// timeout so an unresponsive server cannot turn a healthy delta pass into a
+/// recorded scheduler failure.
+pub const CENSUS_RUN_BUDGET: std::time::Duration = std::time::Duration::from_secs(45);
 const ERROR_RETRY_INTERVAL_MS: i64 = 30_000;
 const MAX_PERSISTED_ERROR_CHARS: usize = 1_000;
 
@@ -349,7 +354,17 @@ impl<'a> BackgroundScheduler<'a> {
             if !self.sleep_enabled {
                 census = census.with_sleep_disabled();
             }
-            match census.run().await {
+            // Its own budget, well inside the tick timeout. Overrunning the
+            // tick turns a successful delta into a recorded scheduler error and
+            // swallows its refresh event; the census giving up early costs
+            // nothing, because the work it did not reach is still there next
+            // time.
+            let outcome = tokio::time::timeout(CENSUS_RUN_BUDGET, census.run())
+                .await
+                .unwrap_or_else(|_| {
+                    Err(SyncError::Transport("census exceeded its time budget".into()))
+                });
+            match outcome {
                 Ok(census_report) => {
                     if census_report.albums_removed > 0
                         || census_report.gaps_filled > 0

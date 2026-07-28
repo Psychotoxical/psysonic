@@ -42,8 +42,35 @@ const ALBUM_TO_TRACK_RAW_KEYS: &[(&str, &str)] = &[
 /// those back to "absent" anyway. Treating the key as authoritative would drop the
 /// authoritative ids sitting in the same `getAlbum` response and push the UI back onto
 /// name matching.
+pub fn merge_album_open_subsonic_track_raw(raw_album: &Value, raw_song: &mut Value) {
+    let Some(obj) = raw_song.as_object_mut() else {
+        return;
+    };
+    for (album_key, track_key) in ALBUM_TO_TRACK_RAW_KEYS {
+        if obj.get(*track_key).is_some_and(is_usable_participant_value) {
+            continue;
+        }
+        if let Some(v) = raw_album.get(*album_key) {
+            if is_usable_participant_value(v) {
+                obj.insert((*track_key).to_string(), v.clone());
+            }
+        }
+    }
+}
+
+/// Null, an empty array and an empty/whitespace string all mean "the server said
+/// nothing here".
+fn is_usable_participant_value(value: &Value) -> bool {
+    match value {
+        Value::Null => false,
+        Value::Array(items) => !items.is_empty(),
+        Value::String(text) => !text.trim().is_empty(),
+        _ => true,
+    }
+}
+
 /// The track rows of a `getAlbum` payload, with the album-level OpenSubsonic
-/// fields merged into each song.
+/// fields merged into each song via `merge_album_open_subsonic_track_raw`.
 ///
 /// Shared so the two callers cannot drift apart — they already had: the S2
 /// crawl passed its library scope and the census did not, which left every
@@ -76,33 +103,6 @@ pub fn album_track_rows(
         ));
     }
     rows
-}
-
-pub fn merge_album_open_subsonic_track_raw(raw_album: &Value, raw_song: &mut Value) {
-    let Some(obj) = raw_song.as_object_mut() else {
-        return;
-    };
-    for (album_key, track_key) in ALBUM_TO_TRACK_RAW_KEYS {
-        if obj.get(*track_key).is_some_and(is_usable_participant_value) {
-            continue;
-        }
-        if let Some(v) = raw_album.get(*album_key) {
-            if is_usable_participant_value(v) {
-                obj.insert((*track_key).to_string(), v.clone());
-            }
-        }
-    }
-}
-
-/// Null, an empty array and an empty/whitespace string all mean "the server said
-/// nothing here".
-fn is_usable_participant_value(value: &Value) -> bool {
-    match value {
-        Value::Null => false,
-        Value::Array(items) => !items.is_empty(),
-        Value::String(text) => !text.trim().is_empty(),
-        _ => true,
-    }
 }
 
 pub fn subsonic_song_to_track_row(

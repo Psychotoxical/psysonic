@@ -32,7 +32,10 @@ use serde_json::Value;
 use super::bandwidth::{ParallelismBudget, PlaybackHint};
 use super::capability::CapabilityFlags;
 use super::error::SyncError;
-use super::ingest_parallel::{fetch_albums_parallel, ParallelAlbumFetchOpts};
+use super::ingest_parallel::{
+    fetch_albums_parallel, retry_fetch, sleep_request_gap, wait_while_bulk_paused,
+    ParallelAlbumFetchOpts,
+};
 use super::mapping::album_track_rows;
 use super::now_unix_ms;
 use crate::repos::TrackRepository;
@@ -296,6 +299,13 @@ impl<'a> AlbumCensusRunner<'a> {
     }
 
     pub async fn run(&self) -> Result<CensusReport, SyncError> {
+        // The projection is backfilled behind a resumable cursor, so until it
+        // finishes it is a prefix of the catalogue. Diffing against a prefix
+        // would report the remainder as gaps and re-fetch albums the index
+        // already holds.
+        if !crate::browse_projection::is_ready(self.store).map_err(SyncError::Storage)? {
+            return Ok(CensusReport::default());
+        }
         let server = self.enumerate_server_albums().await?;
         let local = local_album_inventory(self.store, &self.server_id).map_err(SyncError::Storage)?;
 
@@ -337,16 +347,36 @@ impl<'a> AlbumCensusRunner<'a> {
         };
 
         let mut spent = 0usize;
-        let take = |ids: &[String], spent: &mut usize| -> Vec<String> {
-            let room = self.probe_cap.saturating_sub(*spent);
+        let take = |ids: &[String], room: usize, spent: &mut usize| -> Vec<String> {
+            let room = room.min(self.probe_cap.saturating_sub(*spent));
             let slice = ids.iter().take(room).cloned().collect::<Vec<_>>();
             *spent += slice.len();
             slice
         };
 
-        let to_remove = take(removable, &mut spent);
-        let to_fill = take(&diff.missing_locally, &mut spent);
-        let to_reconcile = take(&diff.needs_track_check, &mut spent);
+        // Each kind of work gets its own share first, so a large backlog of one
+        // never starves the others: a hundred albums that keep answering "still
+        // here" would otherwise consume the whole budget on every run and no
+        // gap would ever be filled. Whatever a share leaves unused is handed on.
+        let share = self.probe_cap.div_ceil(3);
+        let to_remove = take(removable, share, &mut spent);
+        let to_fill = take(&diff.missing_locally, share, &mut spent);
+        let to_reconcile = take(&diff.needs_track_check, share, &mut spent);
+        // Second pass over the same lists with whatever is left.
+        let mut to_remove = to_remove;
+        let mut to_fill = to_fill;
+        let mut to_reconcile = to_reconcile;
+        to_remove.extend(take(&removable[to_remove.len()..], usize::MAX, &mut spent));
+        to_fill.extend(take(
+            &diff.missing_locally[to_fill.len()..],
+            usize::MAX,
+            &mut spent,
+        ));
+        to_reconcile.extend(take(
+            &diff.needs_track_check[to_reconcile.len()..],
+            usize::MAX,
+            &mut spent,
+        ));
         report.deferred = (removable.len() - to_remove.len())
             + (diff.missing_locally.len() - to_fill.len())
             + (diff.needs_track_check.len() - to_reconcile.len());
@@ -356,6 +386,9 @@ impl<'a> AlbumCensusRunner<'a> {
         // so a shifted page cannot delete music.
         for album_id in &to_remove {
             self.check_cancellation()?;
+            wait_while_bulk_paused(&self.budget, self.sleep_enabled, || self.check_cancellation())
+                .await?;
+            sleep_request_gap(&self.budget, self.sleep_enabled).await;
             match self.subsonic.get_album(album_id).await {
                 Err(SubsonicError::NotFound) => {
                     if self.tombstone_album(album_id)? {
@@ -388,12 +421,21 @@ impl<'a> AlbumCensusRunner<'a> {
             .await
             {
                 Ok(fetched) => {
+                    // Count what was written, not what was asked for: an album
+                    // that comes back without songs changes nothing, and
+                    // reporting it as filled would both raise a pointless UI
+                    // refresh and hide that it is still missing.
+                    let filled: std::collections::HashSet<String> = to_fill.iter().cloned().collect();
                     for (album, raw_album) in fetched {
                         self.check_cancellation()?;
-                        self.ingest_album(&album, &raw_album)?;
+                        if self.ingest_album(&album, &raw_album)? {
+                            if filled.contains(&album.id) {
+                                report.gaps_filled += 1;
+                            } else {
+                                report.albums_reconciled += 1;
+                            }
+                        }
                     }
-                    report.gaps_filled = to_fill.len();
-                    report.albums_reconciled = to_reconcile.len();
                 }
                 Err(SyncError::Cancelled) => return Err(SyncError::Cancelled),
                 Err(other) => {
@@ -415,10 +457,22 @@ impl<'a> AlbumCensusRunner<'a> {
         let mut offset: u32 = 0;
         for _ in 0..CENSUS_MAX_PAGES {
             self.check_cancellation()?;
-            let page = self
-                .subsonic
-                .get_album_list2("alphabeticalByName", CENSUS_PAGE_SIZE, offset, None)
+            wait_while_bulk_paused(&self.budget, self.sleep_enabled, || self.check_cancellation())
                 .await?;
+            sleep_request_gap(&self.budget, self.sleep_enabled).await;
+            // Retried like every other bulk fetch in the crate: a transient
+            // failure on page 17 of 26 must not cost the whole pass, because
+            // the run is then deferred for a full interval.
+            let page = retry_fetch(
+                self.sleep_enabled,
+                || self.check_cancellation(),
+                || {
+                    self.subsonic
+                        .get_album_list2("alphabeticalByName", CENSUS_PAGE_SIZE, offset, None)
+                },
+                SyncError::from,
+            )
+            .await?;
             let received = page.len() as u32;
             for summary in page {
                 out.push(AlbumInventoryEntry {
@@ -469,21 +523,38 @@ impl<'a> AlbumCensusRunner<'a> {
     fn drop_stale_projection_row(&self, album_id: &str) -> Result<(), SyncError> {
         self.store
             .with_conn_mut("census.drop_stale_projection_row", |conn| {
-                conn.execute(
-                    "DELETE FROM album_browse_projection \
-                     WHERE server_id = ?1 AND album_id = ?2 \
-                       AND NOT EXISTS (SELECT 1 FROM track \
-                                       WHERE server_id = ?1 AND album_id = ?2 AND deleted = 0)",
-                    rusqlite::params![self.server_id, album_id],
+                let tx = conn.transaction()?;
+                // Refreshing the scope is what removes an album with no live
+                // tracks — and it keeps the composer projection in step, which
+                // a hand-written DELETE on one table would leave behind.
+                let mut stmt = tx.prepare(
+                    "SELECT DISTINCT server_id, library_id FROM album_browse_projection \
+                     WHERE server_id = ?1 AND album_id = ?2",
                 )?;
-                Ok(())
+                let scopes: Vec<(String, String)> = stmt
+                    .query_map(rusqlite::params![self.server_id, album_id], |row| {
+                        Ok((row.get(0)?, row.get(1)?))
+                    })?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                drop(stmt);
+                let affected: std::collections::HashSet<(String, String, String)> = scopes
+                    .into_iter()
+                    .map(|(server_id, library_id)| (server_id, library_id, album_id.to_string()))
+                    .collect();
+                crate::browse_projection::refresh_album_scopes(&tx, affected)?;
+                tx.commit()
             })
             .map_err(SyncError::Storage)
     }
 
     /// Same shape as the S2 ingest: album metadata first, then its songs with
     /// the album-level fields merged in.
-    fn ingest_album(&self, album: &psysonic_integration::subsonic::Album, raw_album: &Value) -> Result<(), SyncError> {
+    /// Returns whether anything was written.
+    fn ingest_album(
+        &self,
+        album: &psysonic_integration::subsonic::Album,
+        raw_album: &Value,
+    ) -> Result<bool, SyncError> {
         let synced_at = now_unix_ms();
         super::album_metadata::upsert_album_from_get_album(
             self.store,
@@ -501,7 +572,7 @@ impl<'a> AlbumCensusRunner<'a> {
             self.library_scope.as_deref(),
         );
         if rows.is_empty() {
-            return Ok(());
+            return Ok(false);
         }
         let repo = TrackRepository::new(self.store);
         // Servers that rebuild their id space on rescan hand back the same
@@ -524,7 +595,7 @@ impl<'a> AlbumCensusRunner<'a> {
         // Track-level removal therefore stays with the paths that confirm per
         // track (the tombstone reconciler and the manual integrity pass); the
         // census removes whole albums, and only after asking about each one.
-        Ok(())
+        Ok(true)
     }
 
     fn check_cancellation(&self) -> Result<(), SyncError> {
