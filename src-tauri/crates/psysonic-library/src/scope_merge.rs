@@ -872,6 +872,28 @@ pub(crate) fn list_artists_layer1_filtered(
 /// Layer-1 scoped browse over the `artist` table (#1209) — drive from the scoped
 /// track set (sargable `scope` CTE join), then join `artist` rows. Avoids a
 /// correlated EXISTS over the full server-wide `artist` table.
+///
+/// The `CROSS JOIN` in `scoped_ids` is what makes that description true rather
+/// than merely intended. `album_scoped` is a CTE, so SQLite has no row estimate
+/// for it, and the only thing tying `artist` to it is a function call
+/// (`psysonic_lower_name`) — not a column it can index on. Left as a plain
+/// `INNER JOIN` the planner drove from `artist` instead and re-scanned the whole
+/// CTE per artist row: on a 172k-track library that is 4.9k × 11.2k rows and the
+/// query never returns. `CROSS JOIN` fixes the order; the `INDEXED BY` then
+/// guarantees the inner lookup uses `(server_id, name_fold)` and fails loudly if
+/// that index is ever dropped.
+///
+/// The multi-scope sibling does not need this: its join carries
+/// `ar.server_id = ac.server_id`, a real column equality the planner can cost.
+///
+/// Held as a constant so a test can assert the two keywords are still there —
+/// dropping either one produces a query that is correct and never returns, which
+/// no result-based test can catch.
+pub(crate) const LAYER1_ARTIST_CREDIT_JOIN_SQL: &str =
+    "CROSS JOIN artist ar INDEXED BY idx_artist_name_fold \
+       ON ar.server_id = ? AND ar.album_count IS NOT NULL \
+       AND ar.name_fold = psysonic_lower_name(ac.credit_name)";
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn list_index_artists_layer1_filtered(
     store: &LibraryStore,
@@ -905,8 +927,7 @@ pub(crate) fn list_index_artists_layer1_filtered(
              scoped_ids AS ( \
                SELECT DISTINCT ar.id \
                FROM album_scoped ac \
-                INNER JOIN artist ar ON ar.server_id = ? AND ar.album_count IS NOT NULL \
-                  AND ar.name_fold = psysonic_lower_name(ac.credit_name) \
+                {LAYER1_ARTIST_CREDIT_JOIN_SQL} \
              )"
         )
     } else {
@@ -5468,6 +5489,47 @@ mod tests {
         assert!(
             plan.iter().any(|detail| detail.contains("idx_artist_name_fold")),
             "expected name-fold index lookup, got: {plan:?}"
+        );
+    }
+
+    /// #1360: the layer-1 artist browse joins a CTE to `artist` through
+    /// `psysonic_lower_name`, which the planner cannot cost. Left to choose, it
+    /// drove from `artist` and re-scanned the CTE per row — on a 172k-track
+    /// library that query never returned.
+    ///
+    /// Unlike the index-choice guard in #1359, a plan assertion **does** work
+    /// here, and it was checked rather than assumed: with the `CROSS` removed
+    /// this same empty database reports `SEARCH ar … / SCAN ac`, the exact bad
+    /// order measured on the real library. Nothing about the choice depends on
+    /// row counts — a CTE has no statistics, so SQLite applies the same default
+    /// estimate whether the table holds three rows or three hundred thousand.
+    ///
+    /// `EXPLAIN` also prepares the statement, so a dropped or narrowed
+    /// `idx_artist_name_fold` fails here too: `INDEXED BY` on an unusable index
+    /// is a prepare-time error.
+    #[test]
+    fn layer1_artist_credit_join_drives_from_the_cte() {
+        let store = LibraryStore::open_in_memory();
+        let sql = format!(
+            "EXPLAIN QUERY PLAN \
+             WITH album_scoped(album_id, credit_name) AS (SELECT NULL, NULL) \
+             SELECT DISTINCT ar.id FROM album_scoped ac {LAYER1_ARTIST_CREDIT_JOIN_SQL}"
+        );
+        let plan: Vec<String> = store
+            .with_read_conn(|conn| {
+                let mut stmt = conn.prepare(&sql)?;
+                let rows = stmt.query_map(rusqlite::params!["s1"], |row| row.get(3))?;
+                rows.collect()
+            })
+            .unwrap();
+
+        let scan_ac = plan.iter().position(|step| step.contains("SCAN ac"));
+        let search_ar = plan
+            .iter()
+            .position(|step| step.contains("SEARCH ar USING INDEX idx_artist_name_fold"));
+        assert!(
+            scan_ac.is_some() && search_ar.is_some() && scan_ac < search_ar,
+            "the CTE must be the outer loop and `artist` the indexed inner lookup, got: {plan:?}"
         );
     }
 

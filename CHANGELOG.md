@@ -212,6 +212,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * On large libraries the page showed its first albums quickly and then sat for roughly three quarters of a minute before loading any more. Leaving the page during that pause could lock the window up entirely. Both are gone; scrolling now loads continuously.
 * Root cause: a database lookup the page performs once per album was scanning the whole track table instead of using its index, which on a library of this size cost close to a second every time.
 
+### Artists — the page that never finished loading
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1360](https://github.com/Psychotoxical/psysonic/pull/1360)**
+
+* On large libraries the Artists page could show nothing but a spinner, indefinitely. It now loads in well under a second.
+* Root cause: the query that collects the artists in the selected music folders was combining two steps in the wrong order, redoing the expensive one once per artist instead of once in total. On a library of this size that meant the query never finished at all.
+
 
 ## [1.50.0]
 
