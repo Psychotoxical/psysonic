@@ -426,10 +426,11 @@ fn rebuild_cluster_keys_on_conn(
     } else {
         ""
     };
-    // The same label test browse filters use, rather than a second opinion on
-    // what "Various Artists" looks like.
+    // The identity-grade test, not the browse filter: a credit that passes here
+    // becomes half of an album key, so `Various` and `Soundtrack` have to fall
+    // out too, not just the one spelling the filter happens to match.
     let va_credit =
-        crate::album_compilation_filter::various_artists_like_sql("MAX(source.album_artist)");
+        crate::album_compilation_filter::collection_credit_sql("MAX(source.album_artist)");
     let select = format!(
         "WITH physical_album AS MATERIALIZED ( \
            SELECT source.server_id, source.album_id, \
@@ -550,7 +551,7 @@ fn apply_identity_invalidations_on_conn(
     // keys or an album's card merges or splits depending on which maintenance
     // pass ran last.
     let va_credit =
-        crate::album_compilation_filter::various_artists_like_sql("MAX(source.album_artist)");
+        crate::album_compilation_filter::collection_credit_sql("MAX(source.album_artist)");
     let select = &format!(
         "WITH invalidated_artist AS MATERIALIZED ( \
                     SELECT entity_id FROM identity_invalidation \
@@ -1207,6 +1208,58 @@ mod tests {
             key.starts_with("physical:2:s1:album-1"),
             "a label credit must not become an identity, got {key}"
         );
+    }
+
+    /// `Various Artists` is one spelling of many. Libraries tag the same thing
+    /// `Various`, `VA`, `Sampler`, `Soundtrack` — and where the browse filter
+    /// missing a spelling only under-reports a compilation, missing one here
+    /// mints an album key, so two unrelated records with the same title merge
+    /// into one card and the user has no way to separate them again.
+    #[test]
+    fn rebuild_keeps_short_collection_labels_concrete() {
+        for (index, label) in ["Various", "VA", "Sampler", "Soundtrack"]
+            .into_iter()
+            .enumerate()
+        {
+            let store = LibraryStore::open_in_memory();
+            let artist_id = format!("artist-label-{index}");
+            TrackRepository::new(&store)
+                .upsert_batch(&[
+                    // The performing test passes: this track's own artist string
+                    // is the label, which is a common tagging style.
+                    physical_album_track_row(
+                        "s1", "t1", "One", label, &artist_id, "Greatest", "album-1", label, "lib-a",
+                    ),
+                    physical_album_track_row(
+                        "s1", "t2", "Two", "Some Band", "artist-band", "Greatest", "album-1",
+                        label, "lib-a",
+                    ),
+                ])
+                .unwrap();
+            store
+                .with_conn_mut("test.label_album_artist", |conn| {
+                    conn.execute(
+                        "INSERT INTO artist (server_id, id, name, synced_at) VALUES \
+                         ('s1', ?1, ?2, 1), ('s1', 'artist-band', 'Some Band', 1)",
+                        rusqlite::params![artist_id, label],
+                    )?;
+                    Ok(())
+                })
+                .unwrap();
+
+            rebuild_cluster_keys(&store, None).unwrap();
+
+            let key = store
+                .with_read_conn(|conn| read_cluster_row(conn, "s1", "t1"))
+                .unwrap()
+                .unwrap()
+                .1
+                .unwrap();
+            assert!(
+                key.starts_with("physical:2:s1:album-1"),
+                "the label {label} must not become an identity, got {key}"
+            );
+        }
     }
 
     #[test]

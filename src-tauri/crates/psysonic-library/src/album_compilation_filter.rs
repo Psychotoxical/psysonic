@@ -63,6 +63,36 @@ pub(crate) fn various_artists_like_sql(column: &str) -> String {
     )
 }
 
+/// Credits that name a collection rather than a performer.
+///
+/// Deliberately separate from [`various_artists_like_sql`], which is a browse
+/// *filter*: there, missing a spelling only under-reports a compilation. This
+/// one guards album **identity** — a credit that survives it becomes half of an
+/// album key, so two unrelated records tagged `Various` / `Soundtrack` and
+/// sharing a title would collapse into one album. The cost of being too strict
+/// is a physical key, which is what such albums had before; the cost of being
+/// too loose is a wrong merge the user cannot undo.
+pub(crate) fn collection_credit_sql(column: &str) -> String {
+    let normalized = format!("lower(trim(coalesce({column}, '')))");
+    let exact = [
+        "various",
+        "various artist",
+        "various artists",
+        "va",
+        "v.a.",
+        "sampler",
+        "compilation",
+        "soundtrack",
+        "original soundtrack",
+        "ost",
+        "unknown artist",
+        "unknown",
+    ]
+    .map(|label| format!("'{label}'"))
+    .join(", ");
+    format!("({normalized} IN ({exact}) OR {normalized} LIKE '%various artists%')")
+}
+
 /// Full compilation predicate for browse filters — JSON flags plus VA artist labels.
 pub fn compilation_predicate_sql(
     table_alias: &str,
