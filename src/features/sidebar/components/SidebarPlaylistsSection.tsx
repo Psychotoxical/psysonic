@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ChevronRight, Folder, PlayCircle, Sparkles } from 'lucide-react';
 import { displayPlaylistName, isSmartPlaylistName } from '@/features/sidebar/utils/sidebarHelpers';

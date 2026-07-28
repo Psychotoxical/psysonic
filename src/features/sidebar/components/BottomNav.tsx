@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Disc3, Search, Music4, AudioLines, MoreHorizontal } from 'lucide-react';
 import { usePlayerStore } from '@/features/playback/store/playerStore';

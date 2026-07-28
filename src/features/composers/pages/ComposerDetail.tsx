@@ -2,7 +2,7 @@ import { star, unstar } from '@/lib/api/subsonicStarRating';
 import { getArtistForServer, getArtistInfoForServer } from '@/lib/api/subsonicArtists';
 import type { SubsonicArtist, SubsonicAlbum, SubsonicArtistInfo } from '@/lib/api/subsonicTypes';
 import { useEffect, useState, useMemo } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router';
 import { AlbumCard } from '@/features/album';
 import { ArtistHeroCover } from '@/cover/artistHero';
 import { artistCoverRef } from '@/cover/ref';

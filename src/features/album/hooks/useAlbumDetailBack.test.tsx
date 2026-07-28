@@ -2,7 +2,7 @@
 import React from 'react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { useAlbumDetailBack } from '@/features/album/hooks/useAlbumDetailBack';
 import { navigateAlbumDetailBack } from '@/lib/navigation/albumDetailNavigation';
 

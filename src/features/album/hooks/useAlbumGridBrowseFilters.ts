@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { useLocation, useNavigationType, type NavigationType } from 'react-router-dom';
+import { useLocation, useNavigationType, type NavigationType } from 'react-router';
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import {
   DEFAULT_ALBUM_BROWSE_RETURN_FILTERS,

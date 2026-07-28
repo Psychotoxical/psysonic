@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useLayoutEffect, useSyncExternalStore } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import { LayoutGrid, List, Images } from 'lucide-react';
 import SelectionToggleButton from '@/ui/SelectionToggleButton';
 import StarFilterButton from '@/ui/StarFilterButton';

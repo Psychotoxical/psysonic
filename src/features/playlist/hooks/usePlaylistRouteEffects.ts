@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import type { Location, NavigateFunction } from 'react-router-dom';
+import type { Location, NavigateFunction } from 'react-router';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 
 export interface PlaylistRouteEffectsDeps {

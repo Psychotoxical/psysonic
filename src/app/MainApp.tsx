@@ -1,7 +1,7 @@
 import { initAudioListeners } from '@/features/playback/store/initAudioListeners';
 import '@/features/playback/store/playbackEngineBridgeRegister'; // installs the playback-engine bridge at boot
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router';
 import { preloadMiniPlayer as preloadMiniPlayerWindow } from '@/lib/api/miniPlayer';
 import { showToast } from '@/lib/dom/toast';
 import { WindowVisibilityProvider } from '@/lib/hooks/useWindowVisibility';

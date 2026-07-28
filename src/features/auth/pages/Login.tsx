@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router';
 import { Wifi, WifiOff, Eye, EyeOff, Server, Globe } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import type { CustomHeaderEntry, CustomHeadersApplyTo, ServerProfile } from '@/store/authStoreTypes';

@@ -15,8 +15,8 @@ import { act, renderHook } from '@testing-library/react';
 // Only the two entry points the hook reads are overridden; everything else in
 // the router keeps working. Replacing the whole module would make this test
 // break on an unrelated import somewhere in the hook's dependency chain.
-vi.mock('react-router-dom', async importOriginal => ({
-  ...(await importOriginal<typeof import('react-router-dom')>()),
+vi.mock('react-router', async importOriginal => ({
+  ...(await importOriginal<typeof import('react-router')>()),
   useNavigationType: () => 'PUSH',
   useLocation: () => ({ pathname: '/new-releases', state: null }),
 }));

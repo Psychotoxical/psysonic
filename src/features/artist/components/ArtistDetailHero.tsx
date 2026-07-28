@@ -26,7 +26,7 @@ import { offlineActionPolicy, type OfflineActionPolicy } from '@/features/offlin
 import EntitySourcePicker from '@/ui/EntitySourcePicker';
 import type { LibraryScopePair } from '@/lib/api/library';
 import type { MusicFolder, ServerProfile } from '@/store/authStoreTypes';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import { buildArtistDetailPath } from '@/lib/navigation/detailServerScope';
 
 interface Props {

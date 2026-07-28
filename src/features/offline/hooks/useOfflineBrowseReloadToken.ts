@@ -1,4 +1,4 @@
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 
 /** Bumps when disconnect fork chooses stay-reload ({@link useOfflineAutoNav}). */
 export function useOfflineBrowseReloadToken(): number | undefined {

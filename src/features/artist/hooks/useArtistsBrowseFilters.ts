@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { useLocation, useNavigationType, type NavigationType } from 'react-router-dom';
+import { useLocation, useNavigationType, type NavigationType } from 'react-router';
 import { useAuthStore } from '@/store/authStore';
 import {
   DEFAULT_ARTIST_BROWSE_RETURN_STATE,

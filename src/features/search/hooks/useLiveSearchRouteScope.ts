@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import { isAlbumsBrowsePath, isNewReleasesBrowsePath } from '@/features/album';
 import { isArtistsBrowsePath } from '@/features/artist';
 import { isTracksBrowsePath } from '@/store/advancedSearchSessionStore';

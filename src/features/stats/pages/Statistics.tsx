@@ -1,7 +1,7 @@
 import { fetchStatisticsLibraryAggregates, fetchStatisticsOverview } from '@/lib/api/subsonicStatistics';
 import type { SubsonicAlbum, SubsonicGenre } from '@/lib/api/subsonicTypes';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { Share2 } from 'lucide-react';
 import { formatHumanHoursMinutes } from '@/lib/format/formatHumanDuration';
 import { AlbumRow } from '@/features/album';
@@ -10,7 +10,7 @@ import PlayerStatisticsPanel from '@/features/stats/components/PlayerStatisticsP
 import StatisticsTabBar from '@/features/stats/components/StatisticsTabBar';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import { getMusicNetworkRuntime, type RecentTrack, type StatsPeriod, type TopItem } from '@/music-network';
 import { useEnrichmentPrimaryLabel } from '@/music-network/ui';
 import { useOfflineBrowseContext } from '@/features/offline';

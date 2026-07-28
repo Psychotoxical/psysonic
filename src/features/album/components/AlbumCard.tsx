@@ -1,6 +1,6 @@
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import React, { memo, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useNavigateToAlbum } from '@/features/album/hooks/useNavigateToAlbum';
 import { Play, ListPlus, HardDriveDownload, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';

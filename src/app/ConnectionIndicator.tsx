@@ -2,7 +2,7 @@ import type React from 'react';
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Trans, useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { Check, ChevronDown, RefreshCw } from 'lucide-react';
 import type { ConnectionStatus } from '@/lib/hooks/useConnectionStatus';
 import { usePlayQueueSyncLedState } from '@/app/hooks/usePlayQueueSyncLedState';

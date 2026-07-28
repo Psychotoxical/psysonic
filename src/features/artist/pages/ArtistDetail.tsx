@@ -2,7 +2,7 @@ import { useCoverArt } from '@/cover/useCoverArt';
 import { useArtistCoverRef } from '@/cover/useLibraryCoverRef';
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import { useEffect, useState, Fragment, useMemo } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router';
 import { AlbumCard } from '@/features/album';
 import { ArrowDownUp } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';

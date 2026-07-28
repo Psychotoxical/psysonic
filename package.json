@@ -2,6 +2,9 @@
   "name": "psysonic",
   "version": "1.51.0-dev",
   "private": true,
+  "engines": {
+    "node": ">=22.22.0"
+  },
   "scripts": {
     "check:css-imports": "node scripts/check-css-import-graph.mjs",
     "prebuild:release-notes": "node scripts/generate-release-notes-bundle.mjs",
@@ -55,7 +58,7 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.6",
     "react-i18next": "^17.0.6",
-    "react-router-dom": "^7.16.0",
+    "react-router": "^8.3.0",
     "zustand": "^5.0.14"
   },
   "devDependencies": {

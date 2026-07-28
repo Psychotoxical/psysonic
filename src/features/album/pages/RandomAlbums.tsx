@@ -11,7 +11,7 @@ import SelectionToggleButton from '@/ui/SelectionToggleButton';
 import AlbumCard from '@/features/album/components/AlbumCard';
 import GenreFilterBar from '@/ui/GenreFilterBar';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { filterAlbumsByMixRatings, getMixMinRatingsConfigFromAuth } from '@/features/playback/utils/mixRatingFilter';

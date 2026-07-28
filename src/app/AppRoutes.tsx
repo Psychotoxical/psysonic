@@ -1,5 +1,5 @@
 import { lazy, useEffect } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { lazyLoadAlbumsPage } from '@/features/album/utils/albumBrowseRoutePrefetch';
 import { lazyLoadArtistsPage } from '@/features/artist/utils/artistBrowseRoutePrefetch';
 import MobilePlayerView from '@/features/nowPlaying/components/MobilePlayerView';

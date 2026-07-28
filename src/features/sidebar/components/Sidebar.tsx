@@ -6,7 +6,7 @@ import { clearOfflinePinTasks } from '@/features/offline';
 import { useDeviceSyncJobStore } from '@/features/deviceSync';
 import { useAuthStore } from '@/store/authStore';
 import { useSidebarStore } from '@/features/sidebar/store/sidebarStore';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { PanelLeft, PanelLeftClose, Trash2 } from 'lucide-react';
 import PsysonicLogo from '@/ui/PsysonicLogo';

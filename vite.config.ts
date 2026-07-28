@@ -59,7 +59,7 @@ export default defineConfig({
         // (helps especially with the Tauri updater pulling deltas).
         manualChunks(id) {
           if (!id.includes("node_modules")) return undefined;
-          if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("/react-router-dom/")) {
+          if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("/react-router/")) {
             return "react";
           }
           if (

@@ -1,7 +1,7 @@
 import { updatePlaylist } from '@/lib/api/subsonicPlaylists';
 import type { SubsonicPlaylist, SubsonicSong } from '@/lib/api/subsonicTypes';
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router';
 import { useTracklistColumns, type ColDef, TRACK_TITLE_FLEX_COL } from '@/lib/hooks/useTracklistColumns';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useShallow } from 'zustand/react/shallow';

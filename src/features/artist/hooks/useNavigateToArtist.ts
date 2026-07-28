@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import { navigateToArtistDetail } from '@/lib/navigation/albumDetailNavigation';
 import type { ArtistDetailPathOptions } from '@/lib/navigation/detailServerScope';
 

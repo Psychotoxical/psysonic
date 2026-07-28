@@ -12,7 +12,7 @@ import { deriveEffectiveLibraryBrowseServerIds } from '@/lib/library/libraryBrow
 import { useUnavailableServerIds } from '@/lib/network/serverReachability';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { appendServerQuery } from '@/lib/navigation/detailServerScope';
 import { serverListDisplayLabel } from '@/lib/server/serverDisplayName';
 import { findServerByIdOrIndexKey } from '@/lib/server/serverLookup';

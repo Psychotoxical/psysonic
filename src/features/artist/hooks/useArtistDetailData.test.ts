@@ -11,7 +11,7 @@
  */
 import { renderHook, act, waitFor } from '@testing-library/react';
 import React from 'react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SubsonicArtistInfo } from '@/lib/api/subsonicTypes';
 
