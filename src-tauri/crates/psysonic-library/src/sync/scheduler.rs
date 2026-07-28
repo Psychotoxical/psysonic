@@ -316,15 +316,6 @@ impl<'a> BackgroundScheduler<'a> {
         // when the next probe lands; we just persist the artist_count
         // we know from the local DB so the tier classifier has data.
         let mut stats = self.load_poll_stats(&sync_state)?;
-        if delta_report.changed_count > 0 {
-            // Re-stamp the local count snapshot so the next tick's
-            // threshold check has fresh data.
-            if let Ok(local) = self.count_local_tracks() {
-                sync_state
-                    .set_local_track_count(&self.server_id, &self.library_scope, local)
-                    .map_err(SyncError::Storage)?;
-            }
-        }
         let mut census_changed_index = false;
         let mut census_left_work = false;
         // The census reconciles what the delta structurally cannot see: a
@@ -332,7 +323,17 @@ impl<'a> BackgroundScheduler<'a> {
         // below the watermark forever. It is server-wide by construction —
         // `getAlbumList2` covers every library — so a scoped scheduler must not
         // run it, or it would read the other libraries' albums as gaps.
-        if self.library_scope.is_empty() && census_is_due(&stats, now_ms) {
+        // The readiness gate has to be *here*, not only inside the run: the slot
+        // below is reserved before the run starts, so a tick during the initial
+        // sync would burn the schedule on a pass that immediately bails, and the
+        // first real census — the one meant to close whatever the ingest left —
+        // would not happen until a full interval later.
+        let index_is_ready = sync_state
+            .get_sync_phase(&self.server_id, "")
+            .map_err(SyncError::Storage)?
+            .as_deref()
+            == Some("ready");
+        if self.library_scope.is_empty() && index_is_ready && census_is_due(&stats, now_ms) {
             // Persist the next slot *before* running. A census that outlives the
             // tick timeout is cancelled mid-flight and would otherwise leave the
             // schedule untouched — every following tick would find it due again
@@ -360,13 +361,19 @@ impl<'a> BackgroundScheduler<'a> {
             // swallows its refresh event; the census giving up early costs
             // nothing, because the work it did not reach is still there next
             // time.
-            let outcome = tokio::time::timeout(CENSUS_RUN_BUDGET, census.run())
-                .await
-                .unwrap_or_else(|_| {
-                    Err(SyncError::Transport("census exceeded its time budget".into()))
-                });
-            match outcome {
-                Ok(census_report) => {
+            match tokio::time::timeout(CENSUS_RUN_BUDGET, census.run()).await {
+                // Cut mid-flight. Every album it already retired was committed
+                // in its own transaction, so the refresh has to fire anyway —
+                // otherwise the surfaces keep rendering albums whose tracks are
+                // gone, and nothing corrects that until something else changes.
+                Err(_) => {
+                    census_changed_index = true;
+                    crate::app_eprintln!(
+                        "[library-sync] census exceeded its time budget; \
+                         work already committed still counts as a change"
+                    );
+                }
+                Ok(Ok(census_report)) => {
                     if census_report.changed_index() || census_report.removal_refused {
                         crate::app_eprintln!(
                             "[library-sync] census: server_albums={} local_albums={} \
@@ -400,13 +407,26 @@ impl<'a> BackgroundScheduler<'a> {
                 // cancellable step in this tick propagates it, and writing
                 // sync_state for a torn-down session is exactly what that
                 // convention prevents.
-                Err(SyncError::Cancelled) => return Err(SyncError::Cancelled),
-                Err(error) => {
+                Ok(Err(SyncError::Cancelled)) => return Err(SyncError::Cancelled),
+                Ok(Err(error)) => {
                     // Any other failure is simply no answer this round; the
                     // delta pass it rode along with has already done its work,
                     // and the slot was reserved before the run started.
                     crate::app_eprintln!("[library-sync] census failed: {error}");
                 }
+            }
+        }
+
+        // After the census, not before it. Retiring an album changes the live
+        // count more than any delta does, and `local_track_count` is one of the
+        // two inputs to the auto-tombstone threshold — stamping it ahead of the
+        // census leaves that threshold reading a number the same tick already
+        // invalidated.
+        if delta_report.changed_count > 0 || census_changed_index {
+            if let Ok(local) = self.count_local_tracks() {
+                sync_state
+                    .set_local_track_count(&self.server_id, &self.library_scope, local)
+                    .map_err(SyncError::Storage)?;
             }
         }
 
@@ -722,6 +742,15 @@ mod tests {
 
         assert_eq!(live_rows(&store, "al-gone"), 0, "the census removed it");
         assert_eq!(live_rows(&store, "al-0"), 1, "the rest is untouched");
+        // Retiring an album moves the live count more than any delta does, and
+        // that count is one of the two inputs to the auto-tombstone threshold.
+        // Left unstamped, the next tick reads a surplus that no longer exists
+        // and burns a full mismatch pass chasing it.
+        assert_eq!(
+            sync_state.get_local_track_count("s1", "").unwrap(),
+            Some(10),
+            "the census must leave the live count matching what it retired"
+        );
 
         let stats = sync_state
             .get_poll_stats_json("s1", "")
@@ -737,13 +766,74 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn a_scoped_scheduler_never_censuses() {
+        // Deliberately the same fixture as the test above, minus the scope: the
+        // enumeration answers, the server-wide row is `ready`, `al-gone` reports
+        // itself gone. Everything the census needs is in place, so the *only*
+        // thing that can hold it back is the scope guard — remove that guard and
+        // this test fails. An earlier version seeded neither the ready phase nor
+        // a non-empty album list, which meant it passed for two unrelated
+        // reasons and could not have caught the guard's removal.
         let server = MockServer::start().await;
-        empty_probe_and_albumlist(&server, 1_716_840_000_000).await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getArtists.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "artists": { "lastModified": 1_716_840_000_000_i64, "ignoredArticles": "", "index": [] }
+                }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbum.view"))
+            .and(wiremock::matchers::query_param("id", "al-gone"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "failed",
+                    "error": { "code": 70, "message": "Album not found" }
+                }
+            })))
+            .mount(&server)
+            .await;
 
         let store = LibraryStore::open_in_memory();
+        for index in 0..10 {
+            seed_album(&store, "s1", &format!("al-{index}"), &format!("t-{index}"));
+        }
         seed_album(&store, "s1", "al-gone", "t-gone");
+        let listed: Vec<_> = (0..10)
+            .map(|index| json!({ "id": format!("al-{index}"), "name": "Album", "songCount": 1 }))
+            .collect();
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .and(wiremock::matchers::query_param("offset", "0"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "albumList2": { "album": listed } }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbum.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "album": { "id": "al-other", "name": "Album", "songCount": 0, "song": [] }
+                }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "albumList2": { "album": [] } }
+            })))
+            .mount(&server)
+            .await;
+
         let sync_state = SyncStateRepository::new(&store);
         sync_state.ensure("s1", "lib-a").unwrap();
+        sync_state.ensure("s1", "").unwrap();
+        sync_state.set_sync_phase("s1", "", "ready").unwrap();
 
         let subsonic = test_subsonic(&server.uri());
         BackgroundScheduler::new(
@@ -761,6 +851,48 @@ mod tests {
         // `getAlbumList2` is server-wide, so a scoped run would read every
         // other library's albums as gaps and this library's as absent.
         assert_eq!(live_rows(&store, "al-gone"), 1);
+    }
+
+    /// The schedule is reserved before the run starts, so the readiness gate has
+    /// to sit next to the reservation and not only inside the run. Otherwise a
+    /// tick taken while the catalogue is still coming in books the next slot for
+    /// a pass that immediately bails, and the first census that could actually
+    /// close the ingest's gaps is a whole interval late.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_tick_before_the_catalogue_is_in_does_not_burn_the_census_slot() {
+        let server = MockServer::start().await;
+        empty_probe_and_albumlist(&server, 1_716_840_000_000).await;
+
+        let store = LibraryStore::open_in_memory();
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "").unwrap();
+        // Not `initial_sync` — that would short-circuit the whole tick as a
+        // sync pass in flight. `idle` is the phase a server sits in before its
+        // first successful sync, and the census must not count it as ready.
+        sync_state.set_sync_phase("s1", "", "idle").unwrap();
+
+        let subsonic = test_subsonic(&server.uri());
+        BackgroundScheduler::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
+        )
+        .with_sleep_disabled()
+        .tick(1_000_000)
+        .await
+        .unwrap();
+
+        let stats = sync_state
+            .get_poll_stats_json("s1", "")
+            .unwrap()
+            .map(|value| serde_json::from_value::<PollStats>(value).unwrap_or_default())
+            .unwrap_or_default();
+        assert_eq!(
+            stats.next_census_at_ms, None,
+            "the slot stays unclaimed, so the first census runs as soon as the index is ready"
+        );
     }
 
     // ── is_due ────────────────────────────────────────────────────────
