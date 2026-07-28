@@ -225,12 +225,11 @@ fn album_census_inventory_on_a_real_library() {
         eprintln!(
             "server {index}: albums={} songs={songs} pages_at_500={} \
              projection_ms={projection_ms} aggregate_ms={aggregate_ms} \
-             drift(missing/absent/counts)={}/{}/{}",
+             drift(missing/absent)={}/{}",
             inventory.len(),
             inventory.len().div_ceil(500),
             drift.missing_locally.len(),
             drift.absent_on_server.len(),
-            drift.needs_track_check.len(),
         );
     }
 }

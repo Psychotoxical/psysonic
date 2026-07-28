@@ -32,10 +32,7 @@ use serde_json::Value;
 use super::bandwidth::{ParallelismBudget, PlaybackHint};
 use super::capability::CapabilityFlags;
 use super::error::SyncError;
-use super::ingest_parallel::{
-    fetch_albums_parallel, retry_fetch, sleep_request_gap, wait_while_bulk_paused,
-    ParallelAlbumFetchOpts,
-};
+use super::ingest_parallel::{retry_fetch, sleep_request_gap, wait_while_bulk_paused};
 use super::mapping::album_track_rows;
 use super::now_unix_ms;
 use crate::repos::TrackRepository;
@@ -55,17 +52,13 @@ pub const CENSUS_ALBUM_PROBE_CAP: usize = 100;
 /// page; without this it would allocate until the tick is killed.
 pub const CENSUS_MAX_PAGES: u32 = 4_000;
 
-/// Smallest duration difference worth reacting to, for albums of one or two
-/// tracks. Above that the allowance grows with the track count.
-pub const CENSUS_DURATION_TOLERANCE_MIN_SEC: i64 = 2;
-
-/// How far a total album duration may differ before the census re-reads the
-/// album. Both sides round per track and then sum, so the error accumulates
-/// with the number of tracks — roughly a second each. A flat allowance would
-/// either flag long albums forever or swallow a swapped track on short ones.
-pub fn duration_tolerance_sec(song_count: i64) -> i64 {
-    song_count.max(CENSUS_DURATION_TOLERANCE_MIN_SEC)
-}
+// Note on what this deliberately does not do: compare the *contents* of an
+// album both sides have. An earlier version flagged albums whose song count or
+// total duration disagreed and re-read them. That check could never settle,
+// because the census does not retire individual tracks (see `ingest_album`) —
+// so a genuine mismatch survived the re-read, was flagged again on the next
+// run, and produced a fetch and a UI refresh every single time. Album presence
+// is a question the census can answer and finish; album contents are not.
 
 /// Ceiling on how much of a server's catalogue one census may remove. A run
 /// that wants to delete more than this is far likelier to be a broken
@@ -88,42 +81,19 @@ pub struct AlbumInventoryEntry {
 /// hint that one album deserves a closer look, not a diff of its tracks.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct CensusDiff {
-    /// The server lists it, the index does not — a gap to fetch.
+    /// The server lists it, the index does not — a gap to fetch. This is how an
+    /// album added on the server reaches the library without a full resync: the
+    /// delta cannot see it, because it only reads forward from a watermark the
+    /// album already sits behind.
     pub missing_locally: Vec<String>,
     /// The index holds it, the server's enumeration does not — a removal
     /// candidate, pending confirmation.
     pub absent_on_server: Vec<String>,
-    /// Both sides have it and disagree on song count or total duration.
-    pub needs_track_check: Vec<String>,
 }
 
 impl CensusDiff {
     pub fn is_empty(&self) -> bool {
-        self.missing_locally.is_empty()
-            && self.absent_on_server.is_empty()
-            && self.needs_track_check.is_empty()
-    }
-}
-
-/// Whether two views of the same album disagree about its contents.
-///
-/// A field neither side reports is not a difference — a server that omits
-/// `songCount` would otherwise make the whole catalogue look changed and put
-/// every album into the follow-up queue on every run. Durations are compared
-/// with an allowance that grows with the track count, because both sides round
-/// per track before summing.
-fn shape_differs(ours: &AlbumInventoryEntry, theirs: &AlbumInventoryEntry) -> bool {
-    if let (Some(mine), Some(other)) = (ours.song_count, theirs.song_count) {
-        if mine != other {
-            return true;
-        }
-    }
-    match (ours.duration_sec, theirs.duration_sec) {
-        (Some(mine), Some(other)) => {
-            let tracks = theirs.song_count.or(ours.song_count).unwrap_or(0);
-            mine.saturating_sub(other).abs() > duration_tolerance_sec(tracks)
-        }
-        _ => false,
+        self.missing_locally.is_empty() && self.absent_on_server.is_empty()
     }
 }
 
@@ -145,13 +115,8 @@ pub fn diff_inventories(
 
     let mut diff = CensusDiff::default();
     for entry in server {
-        match local_by_id.get(entry.album_id.as_str()) {
-            None => diff.missing_locally.push(entry.album_id.clone()),
-            Some(ours) => {
-                if shape_differs(ours, entry) {
-                    diff.needs_track_check.push(entry.album_id.clone());
-                }
-            }
+        if !local_by_id.contains_key(entry.album_id.as_str()) {
+            diff.missing_locally.push(entry.album_id.clone());
         }
     }
     for entry in local {
@@ -162,7 +127,6 @@ pub fn diff_inventories(
 
     diff.missing_locally.sort();
     diff.absent_on_server.sort();
-    diff.needs_track_check.sort();
     diff
 }
 
@@ -218,8 +182,6 @@ pub struct CensusReport {
     pub gaps_filled: usize,
     /// Albums whose rows were tombstoned after `getAlbum` confirmed the loss.
     pub albums_removed: usize,
-    /// Albums re-read because their shape disagreed.
-    pub albums_reconciled: usize,
     /// Candidates left for the next run by the per-run probe cap.
     pub deferred: usize,
     /// True when the removal cap refused this run's candidates outright.
@@ -306,6 +268,18 @@ impl<'a> AlbumCensusRunner<'a> {
         if !crate::browse_projection::is_ready(self.store).map_err(SyncError::Storage)? {
             return Ok(CensusReport::default());
         }
+        // And only for a server whose catalogue is actually in. On an index
+        // whose initial sync never finished, every album the ingest has not
+        // reached yet looks like a gap, and the census would quietly become a
+        // second ingest path — one without strategy selection, without a
+        // resumable cursor, without progress reporting, at a hundred albums per
+        // run. That work belongs to the sync that owns it.
+        let phase = crate::repos::SyncStateRepository::new(self.store)
+            .get_sync_phase(&self.server_id, "")
+            .map_err(SyncError::Storage)?;
+        if phase.as_deref() != Some("ready") {
+            return Ok(CensusReport::default());
+        }
         let server = self.enumerate_server_albums().await?;
         let local = local_album_inventory(self.store, &self.server_id).map_err(SyncError::Storage)?;
 
@@ -346,40 +320,24 @@ impl<'a> AlbumCensusRunner<'a> {
             &[]
         };
 
-        let mut spent = 0usize;
-        let take = |ids: &[String], room: usize, spent: &mut usize| -> Vec<String> {
-            let room = room.min(self.probe_cap.saturating_sub(*spent));
-            let slice = ids.iter().take(room).cloned().collect::<Vec<_>>();
-            *spent += slice.len();
-            slice
-        };
+        // Half the budget is reserved for each kind of work before either may
+        // take the other's share, so a large backlog of one cannot starve the
+        // other: removals used to run first and unbounded, which on a library
+        // with many retired albums meant no new album was ever fetched.
+        let half = self.probe_cap.div_ceil(2);
+        let to_remove_len = removable.len().min(half);
+        let to_fill_len = diff.missing_locally.len().min(half);
+        let mut spare = self.probe_cap.saturating_sub(to_remove_len + to_fill_len);
+        let to_remove_len = to_remove_len + spare.min(removable.len() - to_remove_len);
+        spare = self
+            .probe_cap
+            .saturating_sub(to_remove_len + to_fill_len);
+        let to_fill_len = to_fill_len + spare.min(diff.missing_locally.len() - to_fill_len);
 
-        // Each kind of work gets its own share first, so a large backlog of one
-        // never starves the others: a hundred albums that keep answering "still
-        // here" would otherwise consume the whole budget on every run and no
-        // gap would ever be filled. Whatever a share leaves unused is handed on.
-        let share = self.probe_cap.div_ceil(3);
-        let to_remove = take(removable, share, &mut spent);
-        let to_fill = take(&diff.missing_locally, share, &mut spent);
-        let to_reconcile = take(&diff.needs_track_check, share, &mut spent);
-        // Second pass over the same lists with whatever is left.
-        let mut to_remove = to_remove;
-        let mut to_fill = to_fill;
-        let mut to_reconcile = to_reconcile;
-        to_remove.extend(take(&removable[to_remove.len()..], usize::MAX, &mut spent));
-        to_fill.extend(take(
-            &diff.missing_locally[to_fill.len()..],
-            usize::MAX,
-            &mut spent,
-        ));
-        to_reconcile.extend(take(
-            &diff.needs_track_check[to_reconcile.len()..],
-            usize::MAX,
-            &mut spent,
-        ));
-        report.deferred = (removable.len() - to_remove.len())
-            + (diff.missing_locally.len() - to_fill.len())
-            + (diff.needs_track_check.len() - to_reconcile.len());
+        let to_remove: Vec<String> = removable[..to_remove_len].to_vec();
+        let to_fill: Vec<String> = diff.missing_locally[..to_fill_len].to_vec();
+        report.deferred =
+            (removable.len() - to_remove.len()) + (diff.missing_locally.len() - to_fill.len());
 
         // Rule 2, second half: an album missing from the page run is a
         // candidate. Only `getAlbum` answering "gone" turns it into a removal,
@@ -406,43 +364,35 @@ impl<'a> AlbumCensusRunner<'a> {
             }
         }
 
-        let mut refetch = to_fill.clone();
-        refetch.extend(to_reconcile.iter().cloned());
-        if !refetch.is_empty() {
-            match fetch_albums_parallel(
-                self.subsonic,
-                &refetch,
-                ParallelAlbumFetchOpts {
-                    budget: self.budget,
-                    sleep_enabled: self.sleep_enabled,
-                    cancel: self.cancel.clone(),
-                },
-            )
-            .await
-            {
-                Ok(fetched) => {
-                    // Count what was written, not what was asked for: an album
-                    // that comes back without songs changes nothing, and
-                    // reporting it as filled would both raise a pointless UI
-                    // refresh and hide that it is still missing.
-                    let filled: std::collections::HashSet<String> = to_fill.iter().cloned().collect();
-                    for (album, raw_album) in fetched {
-                        self.check_cancellation()?;
-                        if self.ingest_album(&album, &raw_album)? {
-                            if filled.contains(&album.id) {
-                                report.gaps_filled += 1;
-                            } else {
-                                report.albums_reconciled += 1;
-                            }
-                        }
+        // Albums the server has and the index does not. This is the half that
+        // makes a newly added album appear without a full resync — the delta
+        // reads forward from a watermark such an album already sits behind, so
+        // nothing else in the system will ever fetch it.
+        //
+        // Fetched one at a time on purpose. The parallel helper is
+        // all-or-nothing: one album that answers "gone" between the page walk
+        // and the fetch would discard every other album in the batch, and the
+        // enumeration would hand back the same list on the next run, so the
+        // gap would never close.
+        for album_id in &to_fill {
+            self.check_cancellation()?;
+            wait_while_bulk_paused(&self.budget, self.sleep_enabled, || self.check_cancellation())
+                .await?;
+            sleep_request_gap(&self.budget, self.sleep_enabled).await;
+            match self.subsonic.get_album(album_id).await {
+                Ok(album) => {
+                    let raw = serde_json::to_value(&album).unwrap_or(Value::Null);
+                    if self.ingest_album(&album, &raw)? {
+                        report.gaps_filled += 1;
                     }
                 }
-                Err(SyncError::Cancelled) => return Err(SyncError::Cancelled),
+                Err(SubsonicError::NotFound) => {
+                    // Listed a moment ago, gone now. Nothing to fetch and
+                    // nothing to remove — the index never had it.
+                }
                 Err(other) => {
-                    // The batch is all-or-nothing; a flaky link must not undo
-                    // the removals this run already confirmed.
-                    crate::app_eprintln!("[library-sync] census album fetch failed: {other}");
-                    report.deferred += refetch.len();
+                    crate::app_eprintln!("[library-sync] census could not fetch an album: {other}");
+                    report.deferred += 1;
                 }
             }
         }
@@ -656,62 +606,25 @@ mod tests {
     }
 
     #[test]
-    fn a_changed_song_count_asks_for_a_closer_look() {
+    fn an_album_both_sides_have_is_left_alone_whatever_its_shape() {
+        // The census compares presence, not contents. It does not retire
+        // individual tracks, so a disagreement about an album's size is one it
+        // could never settle: it would re-read the album and fire a refresh on
+        // every run, forever. Album contents belong to the paths that confirm
+        // per track.
         let local = vec![entry("al-1", 10, 2000)];
         let server = vec![entry("al-1", 11, 2200)];
-
-        assert_eq!(
-            diff_inventories(&local, &server).needs_track_check,
-            vec!["al-1"]
-        );
-    }
-
-    #[test]
-    fn one_track_swapped_for_another_still_shows_up() {
-        // The case a count alone cannot see: same number of songs, different
-        // total duration because the replacement is not the same recording.
-        let local = vec![entry("al-1", 10, 2000)];
-        let server = vec![entry("al-1", 10, 2400)];
-
-        assert_eq!(
-            diff_inventories(&local, &server).needs_track_check,
-            vec!["al-1"]
-        );
+        assert!(diff_inventories(&local, &server).is_empty());
     }
 
     #[test]
     fn a_server_that_reports_no_sizes_still_gets_a_presence_check() {
-        // Reading an omitted `songCount` as zero would mark the whole
-        // catalogue as changed and queue every album for a follow-up request,
-        // on every run.
         let local = vec![entry("al-1", 10, 2000), entry("al-2", 4, 800)];
         let server = vec![shapeless_entry("al-1"), shapeless_entry("al-3")];
 
         let diff = diff_inventories(&local, &server);
-        assert!(
-            diff.needs_track_check.is_empty(),
-            "an unknown shape is not a changed shape"
-        );
-        assert_eq!(diff.missing_locally, vec!["al-3"], "presence still compares");
+        assert_eq!(diff.missing_locally, vec!["al-3"]);
         assert_eq!(diff.absent_on_server, vec!["al-2"]);
-    }
-
-    #[test]
-    fn rounding_drift_is_not_a_change() {
-        // Both sides round per track before summing, so a long album can
-        // disagree by seconds while holding the same recordings. Reacting to
-        // that would put those albums in every single census, forever.
-        let local = vec![entry("al-long", 40, 12_000)];
-        let server = vec![entry("al-long", 40, 12_037)];
-        assert!(diff_inventories(&local, &server).is_empty());
-
-        // A two-track single gets no such licence.
-        let local = vec![entry("al-short", 2, 400)];
-        let server = vec![entry("al-short", 2, 420)];
-        assert_eq!(
-            diff_inventories(&local, &server).needs_track_check,
-            vec!["al-short"]
-        );
     }
 
     #[test]
@@ -749,6 +662,14 @@ mod tests {
             SubsonicCredentials::with_static("user", "tok", "salt"),
             reqwest::Client::new(),
         )
+    }
+
+    /// A server whose catalogue is in. The census refuses to run on anything
+    /// else, so every runner test needs it.
+    fn mark_ready(store: &LibraryStore) {
+        let sync_state = crate::repos::SyncStateRepository::new(store);
+        sync_state.ensure("s1", "").unwrap();
+        sync_state.set_sync_phase("s1", "", "ready").unwrap();
     }
 
     /// One album in the index: its live tracks plus the projection row the
@@ -844,6 +765,7 @@ mod tests {
     async fn an_album_the_server_lost_is_removed_after_confirmation() {
         let server = MockServer::start().await;
         let store = LibraryStore::open_in_memory();
+        mark_ready(&store);
         for index in 0..10 {
             seed_album(&store, &format!("al-{index}"), &[&format!("t-{index}")], 100);
         }
@@ -867,6 +789,7 @@ mod tests {
     async fn an_album_missing_from_the_page_run_but_still_there_is_not_touched() {
         let server = MockServer::start().await;
         let store = LibraryStore::open_in_memory();
+        mark_ready(&store);
         for index in 0..10 {
             seed_album(&store, &format!("al-{index}"), &[&format!("t-{index}")], 100);
         }
@@ -893,6 +816,7 @@ mod tests {
     async fn an_empty_enumeration_is_no_answer_at_all() {
         let server = MockServer::start().await;
         let store = LibraryStore::open_in_memory();
+        mark_ready(&store);
         seed_album(&store, "al-1", &["t-1"], 100);
         mount_album_list(&server, Vec::new()).await;
 
@@ -911,6 +835,7 @@ mod tests {
     async fn a_wholesale_purge_is_refused_before_a_single_request() {
         let server = MockServer::start().await;
         let store = LibraryStore::open_in_memory();
+        mark_ready(&store);
         for index in 0..10 {
             seed_album(&store, &format!("al-{index}"), &[&format!("t-{index}")], 100);
         }
@@ -932,6 +857,7 @@ mod tests {
     async fn the_probe_cap_bounds_one_run_and_reports_the_rest() {
         let server = MockServer::start().await;
         let store = LibraryStore::open_in_memory();
+        mark_ready(&store);
         for index in 0..100 {
             seed_album(&store, &format!("al-{index:03}"), &[&format!("t-{index}")], 100);
         }
@@ -961,6 +887,7 @@ mod tests {
     async fn a_stale_projection_row_is_dropped_rather_than_counted() {
         let server = MockServer::start().await;
         let store = LibraryStore::open_in_memory();
+        mark_ready(&store);
         for index in 0..9 {
             seed_album(&store, &format!("al-{index}"), &[&format!("t-{index}")], 100);
         }
@@ -996,6 +923,7 @@ mod tests {
     async fn an_album_the_index_never_got_is_fetched() {
         let server = MockServer::start().await;
         let store = LibraryStore::open_in_memory();
+        mark_ready(&store);
         seed_album(&store, "al-1", &["t-1"], 100);
         mount_album_list(
             &server,

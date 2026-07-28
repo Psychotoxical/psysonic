@@ -426,6 +426,10 @@ fn rebuild_cluster_keys_on_conn(
     } else {
         ""
     };
+    // The same label test browse filters use, rather than a second opinion on
+    // what "Various Artists" looks like.
+    let va_credit =
+        crate::album_compilation_filter::various_artists_like_sql("MAX(source.album_artist)");
     let select = format!(
         "WITH physical_album AS MATERIALIZED ( \
            SELECT source.server_id, source.album_id, \
@@ -448,7 +452,9 @@ fn rebuild_cluster_keys_on_conn(
                          THEN MAX(ar_source.name) END, \
                     CASE WHEN COUNT(NULLIF(TRIM(source.album_artist), '')) = COUNT(*) \
                            AND COUNT(DISTINCT NULLIF(TRIM(source.album_artist), '')) = 1 \
-                           AND SUM(CASE WHEN TRIM(source.album_artist) = TRIM(source.artist) \
+                           AND NOT ({va_credit}) \
+                           AND SUM(CASE WHEN lower(TRIM(source.album_artist)) \
+                                           = lower(TRIM(source.artist)) \
                                         THEN 1 ELSE 0 END) > 0 \
                          THEN MAX(NULLIF(TRIM(source.album_artist), '')) END \
                   ) AS canonical_album_artist, \
@@ -540,7 +546,13 @@ fn apply_identity_invalidations_on_conn(
     let tx = conn.transaction()?;
     reset_affected_rank_partitions(&tx)?;
     capture_invalidated_rank_partitions(&tx, server_id)?;
-    let select = "WITH invalidated_artist AS MATERIALIZED ( \
+    // Same label test as the full rebuild — the two paths must derive identical
+    // keys or an album's card merges or splits depending on which maintenance
+    // pass ran last.
+    let va_credit =
+        crate::album_compilation_filter::various_artists_like_sql("MAX(source.album_artist)");
+    let select = &format!(
+        "WITH invalidated_artist AS MATERIALIZED ( \
                     SELECT entity_id FROM identity_invalidation \
                     WHERE server_id = ?1 AND kind = 'artist' \
                   ), \
@@ -575,7 +587,9 @@ fn apply_identity_invalidations_on_conn(
                                   THEN MAX(ar_source.name) END, \
                              CASE WHEN COUNT(NULLIF(TRIM(source.album_artist), '')) = COUNT(*) \
                                     AND COUNT(DISTINCT NULLIF(TRIM(source.album_artist), '')) = 1 \
-                                    AND SUM(CASE WHEN TRIM(source.album_artist) = TRIM(source.artist) \
+                                    AND NOT ({va_credit}) \
+                                    AND SUM(CASE WHEN lower(TRIM(source.album_artist)) \
+                                                    = lower(TRIM(source.artist)) \
                                                  THEN 1 ELSE 0 END) > 0 \
                                   THEN MAX(NULLIF(TRIM(source.album_artist), '')) END \
                            ) AS canonical_album_artist, \
@@ -600,7 +614,8 @@ fn apply_identity_invalidations_on_conn(
                   LEFT JOIN physical_album \
                     ON physical_album.server_id = t.server_id \
                    AND physical_album.album_id = t.album_id \
-                  WHERE t.server_id = ?1 AND t.id = candidate.entity_id AND t.deleted = 0";
+                  WHERE t.server_id = ?1 AND t.id = candidate.entity_id AND t.deleted = 0"
+    );
     let mut statement = tx.prepare(select)?;
     let mut upsert = tx.prepare_cached(UPSERT_CLUSTER_KEY_SQL)?;
     let mut rows = statement.query(params![server_id])?;
@@ -1145,6 +1160,52 @@ mod tests {
             key,
             build_album_key(Some("Main Act"), "Record").unwrap(),
             "the credited artist performs on the album, so it keeps its identity"
+        );
+    }
+
+    /// The credit-matches-a-performer test is not enough on its own: plenty of
+    /// libraries tag compilation tracks with the label as the track artist too.
+    /// Then the label matches, and two unrelated compilations sharing a title
+    /// would collapse into one album — the exact failure the physical key
+    /// exists to prevent.
+    #[test]
+    fn rebuild_keeps_a_various_artists_compilation_concrete() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                physical_album_track_row(
+                    "s1", "t1", "One", "Various Artists", "artist-va", "Greatest", "album-1",
+                    "Various Artists", "lib-a",
+                ),
+                physical_album_track_row(
+                    "s1", "t2", "Two", "Some Band", "artist-band", "Greatest", "album-1",
+                    "Various Artists", "lib-a",
+                ),
+            ])
+            .unwrap();
+        store
+            .with_conn_mut("test.va_album_artist", |conn| {
+                conn.execute(
+                    "INSERT INTO artist (server_id, id, name, synced_at) VALUES \
+                     ('s1', 'artist-va', 'Various Artists', 1), \
+                     ('s1', 'artist-band', 'Some Band', 1)",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        rebuild_cluster_keys(&store, None).unwrap();
+
+        let key = store
+            .with_read_conn(|conn| read_cluster_row(conn, "s1", "t1"))
+            .unwrap()
+            .unwrap()
+            .1
+            .unwrap();
+        assert!(
+            key.starts_with("physical:2:s1:album-1"),
+            "a label credit must not become an identity, got {key}"
         );
     }
 

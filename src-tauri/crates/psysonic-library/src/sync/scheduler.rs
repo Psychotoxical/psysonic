@@ -369,29 +369,31 @@ impl<'a> BackgroundScheduler<'a> {
                 Ok(census_report) => {
                     if census_report.albums_removed > 0
                         || census_report.gaps_filled > 0
-                        || census_report.albums_reconciled > 0
                         || census_report.removal_refused
                     {
                         crate::app_eprintln!(
                             "[library-sync] census: server_albums={} local_albums={} \
-                             removed={} filled={} reconciled={} deferred={} refused={}",
+                             removed={} filled={} deferred={} refused={}",
                             census_report.server_albums,
                             census_report.local_albums,
                             census_report.albums_removed,
                             census_report.gaps_filled,
-                            census_report.albums_reconciled,
                             census_report.deferred,
                             census_report.removal_refused,
                         );
                     }
-                    census_changed_index = census_report.albums_removed > 0
-                        || census_report.gaps_filled > 0
-                        || census_report.albums_reconciled > 0;
+                    census_changed_index =
+                        census_report.albums_removed > 0 || census_report.gaps_filled > 0;
                     // Work left over by the per-run cap comes back sooner than a
                     // full interval, but not immediately: a candidate that can
                     // never resolve would otherwise turn every tick into a full
                     // enumeration for as long as the app runs.
-                    if census_report.deferred > 0 {
+                    // Come back sooner only when the run both left work behind
+                    // AND got something done. A backlog that cannot be resolved
+                    // — albums the enumeration keeps listing but the server will
+                    // not hand over — would otherwise re-walk the whole
+                    // catalogue every minute for as long as the app is open.
+                    if census_report.deferred > 0 && census_changed_index {
                         census_left_work = true;
                         stats.next_census_at_ms =
                             Some(now_ms.saturating_add(CENSUS_DEFERRED_RETRY_MS));
@@ -706,6 +708,8 @@ mod tests {
         let subsonic = test_subsonic(&server.uri());
         let sync_state = SyncStateRepository::new(&store);
         sync_state.ensure("s1", "").unwrap();
+        // The census only runs for a server whose catalogue is in.
+        sync_state.set_sync_phase("s1", "", "ready").unwrap();
 
         BackgroundScheduler::new(
             &store,
