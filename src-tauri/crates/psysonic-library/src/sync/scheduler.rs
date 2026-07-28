@@ -367,23 +367,20 @@ impl<'a> BackgroundScheduler<'a> {
                 });
             match outcome {
                 Ok(census_report) => {
-                    if census_report.albums_removed > 0
-                        || census_report.gaps_filled > 0
-                        || census_report.removal_refused
-                    {
+                    if census_report.changed_index() || census_report.removal_refused {
                         crate::app_eprintln!(
                             "[library-sync] census: server_albums={} local_albums={} \
-                             removed={} filled={} deferred={} refused={}",
+                             removed={} filled={} stale={} deferred={} refused={}",
                             census_report.server_albums,
                             census_report.local_albums,
                             census_report.albums_removed,
                             census_report.gaps_filled,
+                            census_report.stale_projections_dropped,
                             census_report.deferred,
                             census_report.removal_refused,
                         );
                     }
-                    census_changed_index =
-                        census_report.albums_removed > 0 || census_report.gaps_filled > 0;
+                    census_changed_index = census_report.changed_index();
                     // Work left over by the per-run cap comes back sooner than a
                     // full interval, but not immediately: a candidate that can
                     // never resolve would otherwise turn every tick into a full

@@ -361,24 +361,11 @@ impl<'a> DeltaSyncRunner<'a> {
         if deleted == 0 {
             return Ok(());
         }
-        let live = self
-            .store
-            .with_conn("delta.count_local_tracks", |conn| {
-                if self.library_scope.is_empty() {
-                    conn.query_row(
-                        "SELECT COUNT(*) FROM track WHERE server_id = ?1 AND deleted = 0",
-                        rusqlite::params![self.server_id],
-                        |row| row.get::<_, i64>(0),
-                    )
-                } else {
-                    conn.query_row(
-                        "SELECT COUNT(*) FROM track \
-                         WHERE server_id = ?1 AND library_id = ?2 AND deleted = 0",
-                        rusqlite::params![self.server_id, self.library_scope],
-                        |row| row.get::<_, i64>(0),
-                    )
-                }
-            })
+        // The repository's own counter, not a second copy of the same query: it
+        // reads on a read connection, so counting does not queue behind the
+        // ingest that is very likely still writing when a pass ends.
+        let live = crate::repos::TrackRepository::new(self.store)
+            .count_live_tracks_in_scope(&self.server_id, &self.library_scope)
             .map_err(SyncError::Storage)?;
         sync_state
             .set_local_track_count(&self.server_id, &self.library_scope, live)

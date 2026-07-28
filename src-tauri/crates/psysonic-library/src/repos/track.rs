@@ -271,7 +271,10 @@ impl<'a> TrackRepository<'a> {
         library_scope: &str,
         resync_gen: i64,
     ) -> Result<i64, String> {
-        self.store.with_conn("track.count_resync_generation", |c| {
+        // Read connection: IS-6 runs this after every ingest batch has been
+        // committed, so a reader sees the whole run — and the writer, which on a
+        // large resync has just spent minutes under load, is left alone.
+        self.store.with_read_conn(|c| {
             if library_scope.is_empty() {
                 c.query_row(
                     "SELECT COUNT(*) FROM track \

@@ -184,8 +184,31 @@ pub struct CensusReport {
     pub albums_removed: usize,
     /// Candidates left for the next run by the per-run probe cap.
     pub deferred: usize,
+    /// Albums that were already empty of live rows and only had a stale
+    /// projection entry left. Counted apart from `albums_removed`: nothing was
+    /// lost, so it must not spend the removal cap — but the album did vanish
+    /// from the browse surfaces, so the UI still has to be told.
+    pub stale_projections_dropped: usize,
     /// True when the removal cap refused this run's candidates outright.
     pub removal_refused: bool,
+}
+
+impl CensusReport {
+    /// Whether this run changed anything a surface would render. The refresh
+    /// signal hangs off this — a dropped projection row is invisible to
+    /// `albums_removed` but very visible in the album list.
+    pub fn changed_index(&self) -> bool {
+        self.albums_removed > 0 || self.gaps_filled > 0 || self.stale_projections_dropped > 0
+    }
+}
+
+/// What retiring one confirmed-gone album actually did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RemovalOutcome {
+    /// Live rows were tombstoned.
+    Retired,
+    /// No live rows were left; only the stale projection entry went.
+    StaleProjectionDropped,
 }
 
 /// Reconciles one server's albums against the index. See the module header for
@@ -348,11 +371,12 @@ impl<'a> AlbumCensusRunner<'a> {
                 .await?;
             sleep_request_gap(&self.budget, self.sleep_enabled).await;
             match self.subsonic.get_album(album_id).await {
-                Err(SubsonicError::NotFound) => {
-                    if self.tombstone_album(album_id)? {
-                        report.albums_removed += 1;
+                Err(SubsonicError::NotFound) => match self.tombstone_album(album_id)? {
+                    RemovalOutcome::Retired => report.albums_removed += 1,
+                    RemovalOutcome::StaleProjectionDropped => {
+                        report.stale_projections_dropped += 1
                     }
-                }
+                },
                 Ok(_) => {}
                 // One album that could not be asked is one album left for the
                 // next pass, not a reason to throw away the removals already
@@ -448,23 +472,22 @@ impl<'a> AlbumCensusRunner<'a> {
         Ok(Vec::new())
     }
 
-    /// Returns whether anything was actually retired. An album with no live
-    /// rows left is a stale projection entry: nothing to tombstone, and the
-    /// caller must not count it as a removal or it would spend a probe on the
-    /// same album on every future run.
-    fn tombstone_album(&self, album_id: &str) -> Result<bool, SyncError> {
+    /// An album the server confirmed as gone is retired here — but the two
+    /// cases must stay apart. Only the first lost rows; both changed what the
+    /// browse surfaces show.
+    fn tombstone_album(&self, album_id: &str) -> Result<RemovalOutcome, SyncError> {
         let tracks = TrackRepository::new(self.store);
         let ids = tracks
             .live_track_ids_for_album(&self.server_id, album_id)
             .map_err(SyncError::Storage)?;
         if ids.is_empty() {
             self.drop_stale_projection_row(album_id)?;
-            return Ok(false);
+            return Ok(RemovalOutcome::StaleProjectionDropped);
         }
         tracks
             .apply_tombstone_results(&self.server_id, "", &[], &ids)
             .map_err(SyncError::Storage)?;
-        Ok(true)
+        Ok(RemovalOutcome::Retired)
     }
 
     /// A projection row whose tracks are all gone would otherwise keep the
@@ -906,6 +929,11 @@ mod tests {
         assert_eq!(
             report.albums_removed, 0,
             "nothing was retired, so nothing may be reported as retired"
+        );
+        assert_eq!(report.stale_projections_dropped, 1);
+        assert!(
+            report.changed_index(),
+            "the album left the browse surfaces, so the UI has to hear about it"
         );
         let left: i64 = store
             .with_conn("misc", |c| {
