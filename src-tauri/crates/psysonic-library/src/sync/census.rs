@@ -30,11 +30,12 @@ use psysonic_integration::subsonic::{SubsonicClient, SubsonicError};
 use serde_json::Value;
 
 use super::bandwidth::{ParallelismBudget, PlaybackHint};
+use super::capability::CapabilityFlags;
 use super::error::SyncError;
 use super::ingest_parallel::{fetch_albums_parallel, ParallelAlbumFetchOpts};
-use super::mapping::{merge_album_open_subsonic_track_raw, subsonic_song_to_track_row};
+use super::mapping::album_track_rows;
 use super::now_unix_ms;
-use crate::repos::{TrackRepository, TrackRow};
+use crate::repos::TrackRepository;
 use crate::store::LibraryStore;
 
 /// Albums per `getAlbumList2` page. The Subsonic maximum, so a catalogue costs
@@ -45,6 +46,23 @@ pub const CENSUS_PAGE_SIZE: u32 = 500;
 /// there next time — the census is a repeating pass, not a one-shot repair, and
 /// a desktop player has no business firing thousands of requests in one tick.
 pub const CENSUS_ALBUM_PROBE_CAP: usize = 100;
+
+/// Hard stop on the page walk. A server that ignores `offset` answers every
+/// page with the same full batch, and the loop's only other exit is a short
+/// page; without this it would allocate until the tick is killed.
+pub const CENSUS_MAX_PAGES: u32 = 4_000;
+
+/// Smallest duration difference worth reacting to, for albums of one or two
+/// tracks. Above that the allowance grows with the track count.
+pub const CENSUS_DURATION_TOLERANCE_MIN_SEC: i64 = 2;
+
+/// How far a total album duration may differ before the census re-reads the
+/// album. Both sides round per track and then sum, so the error accumulates
+/// with the number of tracks — roughly a second each. A flat allowance would
+/// either flag long albums forever or swallow a swapped track on short ones.
+pub fn duration_tolerance_sec(song_count: i64) -> i64 {
+    song_count.max(CENSUS_DURATION_TOLERANCE_MIN_SEC)
+}
 
 /// Ceiling on how much of a server's catalogue one census may remove. A run
 /// that wants to delete more than this is far likelier to be a broken
@@ -104,7 +122,13 @@ pub fn diff_inventories(
             Some(ours) => {
                 // Duration catches the case a count cannot: one track removed
                 // and another added between two passes leaves the count intact.
-                if ours.song_count != entry.song_count || ours.duration_sec != entry.duration_sec {
+                // Compared with tolerance, because both sides round per track
+                // before summing and an exact test would flag healthy albums
+                // forever.
+                let drift = ours.duration_sec.saturating_sub(entry.duration_sec).abs();
+                if ours.song_count != entry.song_count
+                    || drift > duration_tolerance_sec(entry.song_count)
+                {
                     diff.needs_track_check.push(entry.album_id.clone());
                 }
             }
@@ -188,6 +212,8 @@ pub struct AlbumCensusRunner<'a> {
     store: &'a LibraryStore,
     subsonic: &'a SubsonicClient,
     server_id: String,
+    library_scope: Option<String>,
+    capability_flags: CapabilityFlags,
     budget: ParallelismBudget,
     cancel: Option<Arc<AtomicBool>>,
     sleep_enabled: bool,
@@ -204,6 +230,8 @@ impl<'a> AlbumCensusRunner<'a> {
             store,
             subsonic,
             server_id: server_id.into(),
+            library_scope: None,
+            capability_flags: CapabilityFlags::new(0),
             budget: ParallelismBudget::resolve(PlaybackHint::Idle),
             cancel: None,
             sleep_enabled: true,
@@ -223,6 +251,30 @@ impl<'a> AlbumCensusRunner<'a> {
 
     pub fn with_probe_cap(mut self, cap: usize) -> Self {
         self.probe_cap = cap;
+        self
+    }
+
+    /// The library a gap-filled track belongs to when the payload does not say.
+    /// Without it the census writes rows with a NULL `library_id`, invisible to
+    /// scoped browse until a later tagging pass happens to pick them up.
+    pub fn with_library_scope(mut self, scope: impl Into<String>) -> Self {
+        let scope = scope.into();
+        self.library_scope = (!scope.is_empty()).then_some(scope);
+        self
+    }
+
+    /// Servers that mint fresh track ids on rescan need the remap path, exactly
+    /// as the delta ingest does — otherwise a rescan makes the census insert a
+    /// second copy of the catalogue instead of recognising the same tracks.
+    pub fn with_capability_flags(mut self, flags: CapabilityFlags) -> Self {
+        self.capability_flags = flags;
+        self
+    }
+
+    /// The tick's parallelism budget. The census is bulk work and has to yield
+    /// to playback like every other bulk pass.
+    pub fn with_budget(mut self, budget: ParallelismBudget) -> Self {
+        self.budget = budget;
         self
     }
 
@@ -289,18 +341,25 @@ impl<'a> AlbumCensusRunner<'a> {
             self.check_cancellation()?;
             match self.subsonic.get_album(album_id).await {
                 Err(SubsonicError::NotFound) => {
-                    self.tombstone_album(album_id)?;
-                    report.albums_removed += 1;
+                    if self.tombstone_album(album_id)? {
+                        report.albums_removed += 1;
+                    }
                 }
                 Ok(_) => {}
-                Err(other) => return Err(SyncError::from(other)),
+                // One album that could not be asked is one album left for the
+                // next pass, not a reason to throw away the removals already
+                // applied and the gap work still to come.
+                Err(other) => {
+                    crate::app_eprintln!("[library-sync] census could not confirm an album: {other}");
+                    report.deferred += 1;
+                }
             }
         }
 
         let mut refetch = to_fill.clone();
         refetch.extend(to_reconcile.iter().cloned());
         if !refetch.is_empty() {
-            let fetched = fetch_albums_parallel(
+            match fetch_albums_parallel(
                 self.subsonic,
                 &refetch,
                 ParallelAlbumFetchOpts {
@@ -309,13 +368,24 @@ impl<'a> AlbumCensusRunner<'a> {
                     cancel: self.cancel.clone(),
                 },
             )
-            .await?;
-            for (album, raw_album) in fetched {
-                self.check_cancellation()?;
-                self.ingest_album(&album, &raw_album)?;
+            .await
+            {
+                Ok(fetched) => {
+                    for (album, raw_album) in fetched {
+                        self.check_cancellation()?;
+                        self.ingest_album(&album, &raw_album)?;
+                    }
+                    report.gaps_filled = to_fill.len();
+                    report.albums_reconciled = to_reconcile.len();
+                }
+                Err(SyncError::Cancelled) => return Err(SyncError::Cancelled),
+                Err(other) => {
+                    // The batch is all-or-nothing; a flaky link must not undo
+                    // the removals this run already confirmed.
+                    crate::app_eprintln!("[library-sync] census album fetch failed: {other}");
+                    report.deferred += refetch.len();
+                }
             }
-            report.gaps_filled = to_fill.len();
-            report.albums_reconciled = to_reconcile.len();
         }
 
         Ok(report)
@@ -326,7 +396,7 @@ impl<'a> AlbumCensusRunner<'a> {
     async fn enumerate_server_albums(&self) -> Result<Vec<AlbumInventoryEntry>, SyncError> {
         let mut out: Vec<AlbumInventoryEntry> = Vec::new();
         let mut offset: u32 = 0;
-        loop {
+        for _ in 0..CENSUS_MAX_PAGES {
             self.check_cancellation()?;
             let page = self
                 .subsonic
@@ -341,23 +411,54 @@ impl<'a> AlbumCensusRunner<'a> {
                 });
             }
             if received < CENSUS_PAGE_SIZE {
-                break;
+                return Ok(out);
             }
             offset = offset.saturating_add(CENSUS_PAGE_SIZE);
         }
-        Ok(out)
+        // Ran out of pages without a short one: the server is not paginating
+        // the way this walk assumes, so the list cannot be trusted as complete.
+        // An incomplete enumeration is exactly what must never reach the diff.
+        crate::app_eprintln!(
+            "[library-sync] census page walk did not terminate after {CENSUS_MAX_PAGES} pages; \
+             discarding the enumeration"
+        );
+        Ok(Vec::new())
     }
 
-    fn tombstone_album(&self, album_id: &str) -> Result<(), SyncError> {
+    /// Returns whether anything was actually retired. An album with no live
+    /// rows left is a stale projection entry: nothing to tombstone, and the
+    /// caller must not count it as a removal or it would spend a probe on the
+    /// same album on every future run.
+    fn tombstone_album(&self, album_id: &str) -> Result<bool, SyncError> {
         let tracks = TrackRepository::new(self.store);
         let ids = tracks
             .live_track_ids_for_album(&self.server_id, album_id)
             .map_err(SyncError::Storage)?;
         if ids.is_empty() {
-            return Ok(());
+            self.drop_stale_projection_row(album_id)?;
+            return Ok(false);
         }
         tracks
             .apply_tombstone_results(&self.server_id, "", &[], &ids)
+            .map_err(SyncError::Storage)?;
+        Ok(true)
+    }
+
+    /// A projection row whose tracks are all gone would otherwise keep the
+    /// album in the local inventory forever, and every census would probe it
+    /// again.
+    fn drop_stale_projection_row(&self, album_id: &str) -> Result<(), SyncError> {
+        self.store
+            .with_conn_mut("census.drop_stale_projection_row", |conn| {
+                conn.execute(
+                    "DELETE FROM album_browse_projection \
+                     WHERE server_id = ?1 AND album_id = ?2 \
+                       AND NOT EXISTS (SELECT 1 FROM track \
+                                       WHERE server_id = ?1 AND album_id = ?2 AND deleted = 0)",
+                    rusqlite::params![self.server_id, album_id],
+                )?;
+                Ok(())
+            })
             .map_err(SyncError::Storage)
     }
 
@@ -373,31 +474,26 @@ impl<'a> AlbumCensusRunner<'a> {
             synced_at,
         )?;
 
-        let raw_songs = raw_album
-            .get("song")
-            .and_then(|s| s.as_array())
-            .cloned()
-            .unwrap_or_default();
-        let mut rows: Vec<TrackRow> = Vec::with_capacity(album.song.len());
-        for (index, song) in album.song.iter().enumerate() {
-            let mut raw = raw_songs
-                .get(index)
-                .cloned()
-                .unwrap_or_else(|| serde_json::to_value(song).unwrap_or(Value::Null));
-            merge_album_open_subsonic_track_raw(raw_album, &mut raw);
-            rows.push(subsonic_song_to_track_row(
-                &self.server_id,
-                song,
-                &raw,
-                synced_at,
-                None,
-            ));
-        }
+        let rows = album_track_rows(
+            &self.server_id,
+            album,
+            raw_album,
+            synced_at,
+            self.library_scope.as_deref(),
+        );
         if rows.is_empty() {
             return Ok(());
         }
         let repo = TrackRepository::new(self.store);
-        repo.upsert_batch(&rows).map_err(SyncError::Storage)?;
+        // Servers that rebuild their id space on rescan hand back the same
+        // music under new ids. Without the remap the census would insert a
+        // second copy of the catalogue and leave the first one live.
+        repo.upsert_batch_with_remap(
+            &rows,
+            self.capability_flags
+                .contains(CapabilityFlags::UNSTABLE_TRACK_IDS),
+        )
+        .map_err(SyncError::Storage)?;
 
         // The album's authoritative track set just arrived: anything still live
         // under this album that it does not mention is gone from the server.
@@ -480,11 +576,29 @@ mod tests {
         // The case a count alone cannot see: same number of songs, different
         // total duration because the replacement is not the same recording.
         let local = vec![entry("al-1", 10, 2000)];
-        let server = vec![entry("al-1", 10, 2043)];
+        let server = vec![entry("al-1", 10, 2400)];
 
         assert_eq!(
             diff_inventories(&local, &server).needs_track_check,
             vec!["al-1"]
+        );
+    }
+
+    #[test]
+    fn rounding_drift_is_not_a_change() {
+        // Both sides round per track before summing, so a long album can
+        // disagree by seconds while holding the same recordings. Reacting to
+        // that would put those albums in every single census, forever.
+        let local = vec![entry("al-long", 40, 12_000)];
+        let server = vec![entry("al-long", 40, 12_037)];
+        assert!(diff_inventories(&local, &server).is_empty());
+
+        // A two-track single gets no such licence.
+        let local = vec![entry("al-short", 2, 400)];
+        let server = vec![entry("al-short", 2, 420)];
+        assert_eq!(
+            diff_inventories(&local, &server).needs_track_check,
+            vec!["al-short"]
         );
     }
 
@@ -700,6 +814,70 @@ mod tests {
         assert!(report.removal_refused);
         assert_eq!(report.albums_removed, 0);
         assert_eq!(live_rows(&store, "al-9"), 1);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn the_probe_cap_bounds_one_run_and_reports_the_rest() {
+        let server = MockServer::start().await;
+        let store = LibraryStore::open_in_memory();
+        for index in 0..100 {
+            seed_album(&store, &format!("al-{index:03}"), &[&format!("t-{index}")], 100);
+        }
+        // Ten of a hundred are gone: well inside the removal cap, well above
+        // the probe cap this run is given.
+        let listed: Vec<_> = (10..100)
+            .map(|i| album_summary(&format!("al-{i:03}"), 1, 100))
+            .collect();
+        mount_album_list(&server, listed).await;
+        for index in 0..10 {
+            mount_album_gone(&server, &format!("al-{index:03}")).await;
+        }
+
+        let report = AlbumCensusRunner::new(&store, &test_subsonic(&server.uri()), "s1")
+            .with_sleep_disabled()
+            .with_probe_cap(3)
+            .run()
+            .await
+            .unwrap();
+
+        assert!(!report.removal_refused, "ten of a hundred is an ordinary cleanup");
+        assert_eq!(report.albums_removed, 3, "one run spends its cap and stops");
+        assert_eq!(report.deferred, 7, "the rest is named, not silently dropped");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_stale_projection_row_is_dropped_rather_than_counted() {
+        let server = MockServer::start().await;
+        let store = LibraryStore::open_in_memory();
+        for index in 0..9 {
+            seed_album(&store, &format!("al-{index}"), &[&format!("t-{index}")], 100);
+        }
+        // An album row with no live tracks behind it: nothing to tombstone.
+        seed_album(&store, "al-stale", &[], 0);
+        let listed: Vec<_> = (0..9).map(|i| album_summary(&format!("al-{i}"), 1, 100)).collect();
+        mount_album_list(&server, listed).await;
+        mount_album_gone(&server, "al-stale").await;
+
+        let report = AlbumCensusRunner::new(&store, &test_subsonic(&server.uri()), "s1")
+            .with_sleep_disabled()
+            .run()
+            .await
+            .unwrap();
+
+        assert_eq!(
+            report.albums_removed, 0,
+            "nothing was retired, so nothing may be reported as retired"
+        );
+        let left: i64 = store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT COUNT(*) FROM album_browse_projection WHERE album_id = 'al-stale'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(left, 0, "or the same album is probed again on every run");
     }
 
     #[tokio::test(flavor = "multi_thread")]

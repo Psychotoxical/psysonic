@@ -26,9 +26,7 @@ use super::ingest_parallel::{
     check_cancel_flag, fetch_albums_parallel, linear_prefetch_depth, retry_fetch,
     sleep_request_gap, wait_while_bulk_paused, LinearPrefetchQueue, ParallelAlbumFetchOpts,
 };
-use super::mapping::{
-    merge_album_open_subsonic_track_raw, navidrome_song_to_track_row, subsonic_song_to_track_row,
-};
+use super::mapping::{navidrome_song_to_track_row, subsonic_song_to_track_row};
 use super::progress::{IngestBatchMetrics, NoopProgress, Progress, ProgressEvent};
 use super::strategy::IngestStrategy;
 use crate::bulk_ingest::{
@@ -406,9 +404,18 @@ impl<'a> InitialSyncRunner<'a> {
             let stamped = tracks
                 .count_resync_generation(&self.server_id, &self.library_scope, gen)
                 .map_err(SyncError::Storage)?;
-            let server_count = sync_state
-                .get_server_track_count(&self.server_id, &self.library_scope)
-                .map_err(SyncError::Storage)?;
+            // `getScanStatus.count` is server-wide — the same reason
+            // `should_auto_reconcile_scope` refuses scoped runs. Comparing a
+            // single library's stamped rows against it would never reach the
+            // coverage floor and would disable IS-7 for scoped syncs entirely,
+            // so a scoped run has no expectation to check and sweeps as before.
+            let server_count = if self.library_scope.is_empty() {
+                sync_state
+                    .get_server_track_count(&self.server_id, &self.library_scope)
+                    .map_err(SyncError::Storage)?
+            } else {
+                None
+            };
             let swept = if resync_sweep_is_safe(stamped, server_count) {
                 tracks
                     .sweep_resync_orphans(&self.server_id, &self.library_scope, gen)
@@ -1295,26 +1302,13 @@ impl<'a> InitialSyncRunner<'a> {
                     &raw_album,
                     synced_at,
                 )?;
-                let raw_songs = raw_album
-                    .get("song")
-                    .and_then(|s| s.as_array())
-                    .cloned()
-                    .unwrap_or_default();
-                let mut rows: Vec<TrackRow> = Vec::with_capacity(album.song.len());
-                for (i, song) in album.song.iter().enumerate() {
-                    let mut raw = raw_songs
-                        .get(i)
-                        .cloned()
-                        .unwrap_or_else(|| serde_json::to_value(song).unwrap_or(Value::Null));
-                    merge_album_open_subsonic_track_raw(&raw_album, &mut raw);
-                    rows.push(subsonic_song_to_track_row(
-                        &self.server_id,
-                        song,
-                        &raw,
-                        synced_at,
-                        self.library_scope_opt(),
-                    ));
-                }
+                let rows: Vec<TrackRow> = super::mapping::album_track_rows(
+                    &self.server_id,
+                    &album,
+                    &raw_album,
+                    synced_at,
+                    self.library_scope_opt(),
+                );
                 if !rows.is_empty() {
                     let (_stats, _timing) =
                         self.write_batch_logged(&rows, "S2", album_offset, cursor.resync_gen)?;
@@ -1901,6 +1895,91 @@ mod tests {
             })
             .unwrap();
         assert_eq!(stale_deleted, 2);
+    }
+
+    /// IS-5 persists the count from the scan-status response it already
+    /// fetches. Without it the sweep guard compares against whatever the
+    /// bind-time probe left behind, which can predate a deliberate deletion.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn the_watermark_pass_persists_the_server_track_count() {
+        let server = MockServer::start().await;
+        // Mounted before the shared fixture, whose scan status carries no
+        // count — the first matching mock answers.
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getScanStatus.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "scanStatus": { "scanning": false, "count": 3, "lastScan": "2024-06-01T12:00:00Z" }
+                }
+            })))
+            .mount(&server)
+            .await;
+        mount_search3_pages(&server, /*total*/ 3, /*batch*/ 10).await;
+        mount_minimal_artists(&server).await;
+
+        let store = LibraryStore::open_in_memory();
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "").unwrap();
+        sync_state.set_server_track_count("s1", "", 999).unwrap();
+
+        let subsonic = test_subsonic(&server.uri());
+        InitialSyncRunner::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK | CapabilityFlags::SCAN_STATUS_AVAILABLE),
+        )
+        .with_sleep_disabled()
+        .run()
+        .await
+        .unwrap();
+
+        assert_eq!(
+            sync_state.get_server_track_count("s1", "").unwrap(),
+            Some(3),
+            "the count from this run's scan status replaces the stale one"
+        );
+    }
+
+    /// A scan in progress reports zero, which is "unknown" — overwriting a good
+    /// count with it would let the sweep guard compare against nothing.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_zero_scan_count_does_not_clobber_a_known_one() {
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getScanStatus.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "scanStatus": { "scanning": true, "count": 0, "lastScan": "2024-06-01T12:00:00Z" }
+                }
+            })))
+            .mount(&server)
+            .await;
+        mount_search3_pages(&server, /*total*/ 3, /*batch*/ 10).await;
+        mount_minimal_artists(&server).await;
+
+        let store = LibraryStore::open_in_memory();
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "").unwrap();
+        sync_state.set_server_track_count("s1", "", 999).unwrap();
+
+        let subsonic = test_subsonic(&server.uri());
+        InitialSyncRunner::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK | CapabilityFlags::SCAN_STATUS_AVAILABLE),
+        )
+        .with_sleep_disabled()
+        .run()
+        .await
+        .unwrap();
+
+        assert_eq!(sync_state.get_server_track_count("s1", "").unwrap(), Some(999));
     }
 
     /// The other half of IS-7: when the ingest visibly failed to cover the

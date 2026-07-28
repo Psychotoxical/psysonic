@@ -23,7 +23,7 @@ use super::error::SyncError;
 use super::poll_stats::{next_interval_ms, PollStats};
 use super::progress::{NoopProgress, Progress};
 use super::census::AlbumCensusRunner;
-use super::poll_stats::{census_is_due, CENSUS_INTERVAL_MS};
+use super::poll_stats::{census_is_due, CENSUS_DEFERRED_RETRY_MS, CENSUS_INTERVAL_MS};
 use super::tombstone::should_auto_reconcile_scope;
 use crate::repos::SyncStateRepository;
 use crate::store::LibraryStore;
@@ -44,6 +44,11 @@ pub struct SchedulerTickReport {
     /// job (`LibraryRuntime::current_job`) is running for this server.
     pub skipped_sync_pass_active: bool,
     pub delta: Option<DeltaSyncReport>,
+    /// The census changed the index this tick. Separate from the delta report
+    /// because the census exists precisely for the case the delta reports
+    /// nothing — without this the surfaces would keep showing an album whose
+    /// tracks were just retired.
+    pub census_changed_index: bool,
     pub next_poll_at_ms: i64,
 }
 
@@ -193,6 +198,7 @@ impl<'a> BackgroundScheduler<'a> {
             skipped_bulk_paused: false,
             skipped_sync_pass_active: false,
             delta: None,
+            census_changed_index: false,
             next_poll_at_ms: now_ms,
         };
 
@@ -314,14 +320,29 @@ impl<'a> BackgroundScheduler<'a> {
                     .map_err(SyncError::Storage)?;
             }
         }
+        let mut census_changed_index = false;
         // The census reconciles what the delta structurally cannot see: a
         // deletion never appears in a changed-list, and a row missed once sits
         // below the watermark forever. It is server-wide by construction —
         // `getAlbumList2` covers every library — so a scoped scheduler must not
         // run it, or it would read the other libraries' albums as gaps.
         if self.library_scope.is_empty() && census_is_due(&stats, now_ms) {
-            let mut census =
-                AlbumCensusRunner::new(self.store, self.subsonic, &self.server_id);
+            // Persist the next slot *before* running. A census that outlives the
+            // tick timeout is cancelled mid-flight and would otherwise leave the
+            // schedule untouched — every following tick would find it due again
+            // and start the same doomed run.
+            stats.next_census_at_ms = Some(now_ms.saturating_add(CENSUS_INTERVAL_MS));
+            sync_state
+                .set_poll_stats_json(
+                    &self.server_id,
+                    &self.library_scope,
+                    &serde_json::to_value(stats).unwrap_or_default(),
+                )
+                .map_err(SyncError::Storage)?;
+
+            let mut census = AlbumCensusRunner::new(self.store, self.subsonic, &self.server_id)
+                .with_capability_flags(self.capability_flags)
+                .with_budget(parallelism);
             if let Some(flag) = &self.cancel {
                 census = census.with_cancellation(Arc::clone(flag));
             }
@@ -347,19 +368,28 @@ impl<'a> BackgroundScheduler<'a> {
                             census_report.removal_refused,
                         );
                     }
-                    // Anything the per-run cap deferred should be picked up
-                    // promptly rather than after a full interval.
-                    stats.next_census_at_ms = Some(if census_report.deferred > 0 {
-                        now_ms
-                    } else {
-                        now_ms.saturating_add(CENSUS_INTERVAL_MS)
-                    });
+                    census_changed_index = census_report.albums_removed > 0
+                        || census_report.gaps_filled > 0
+                        || census_report.albums_reconciled > 0;
+                    // Work left over by the per-run cap comes back sooner than a
+                    // full interval, but not immediately: a candidate that can
+                    // never resolve would otherwise turn every tick into a full
+                    // enumeration for as long as the app runs.
+                    if census_report.deferred > 0 {
+                        stats.next_census_at_ms =
+                            Some(now_ms.saturating_add(CENSUS_DEFERRED_RETRY_MS));
+                    }
                 }
+                // Cancellation means the session is going away — every other
+                // cancellable step in this tick propagates it, and writing
+                // sync_state for a torn-down session is exactly what that
+                // convention prevents.
+                Err(SyncError::Cancelled) => return Err(SyncError::Cancelled),
                 Err(error) => {
-                    // A failed census is simply no answer this round; the delta
-                    // pass it rode along with has already done its own work.
+                    // Any other failure is simply no answer this round; the
+                    // delta pass it rode along with has already done its work,
+                    // and the slot was reserved before the run started.
                     crate::app_eprintln!("[library-sync] census failed: {error}");
-                    stats.next_census_at_ms = Some(now_ms.saturating_add(CENSUS_INTERVAL_MS));
                 }
             }
         }
@@ -385,6 +415,7 @@ impl<'a> BackgroundScheduler<'a> {
             .set_next_poll_at(&self.server_id, &self.library_scope, report.next_poll_at_ms)
             .map_err(SyncError::Storage)?;
 
+        report.census_changed_index = census_changed_index;
         report.delta = Some(delta_report);
         Ok(report)
     }

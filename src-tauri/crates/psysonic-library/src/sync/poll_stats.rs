@@ -102,6 +102,12 @@ impl PollStats {
 /// minute-by-minute answer. One run is a page of album ids per 500 albums.
 pub const CENSUS_INTERVAL_MS: i64 = 15 * 60 * 1000;
 
+/// How soon a run that hit its per-pass cap comes back. Sooner than a full
+/// interval so leftover work drains, but never immediately: a candidate that
+/// can never resolve would otherwise re-enumerate the catalogue on every tick
+/// for as long as the app is open.
+pub const CENSUS_DEFERRED_RETRY_MS: i64 = 60 * 1000;
+
 /// A census that has never run is due immediately — that is what makes the
 /// first pass after an initial sync close whatever gaps the ingest left.
 pub fn census_is_due(stats: &PollStats, now_ms: i64) -> bool {

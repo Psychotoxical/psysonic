@@ -42,6 +42,42 @@ const ALBUM_TO_TRACK_RAW_KEYS: &[(&str, &str)] = &[
 /// those back to "absent" anyway. Treating the key as authoritative would drop the
 /// authoritative ids sitting in the same `getAlbum` response and push the UI back onto
 /// name matching.
+/// The track rows of a `getAlbum` payload, with the album-level OpenSubsonic
+/// fields merged into each song.
+///
+/// Shared so the two callers cannot drift apart — they already had: the S2
+/// crawl passed its library scope and the census did not, which left every
+/// gap-filled track with a NULL `library_id` and invisible to scoped browse.
+pub fn album_track_rows(
+    server_id: &str,
+    album: &psysonic_integration::subsonic::Album,
+    raw_album: &Value,
+    synced_at: i64,
+    library_scope: Option<&str>,
+) -> Vec<TrackRow> {
+    let raw_songs = raw_album
+        .get("song")
+        .and_then(|songs| songs.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let mut rows = Vec::with_capacity(album.song.len());
+    for (index, song) in album.song.iter().enumerate() {
+        let mut raw = raw_songs
+            .get(index)
+            .cloned()
+            .unwrap_or_else(|| serde_json::to_value(song).unwrap_or(Value::Null));
+        merge_album_open_subsonic_track_raw(raw_album, &mut raw);
+        rows.push(subsonic_song_to_track_row(
+            server_id,
+            song,
+            &raw,
+            synced_at,
+            library_scope,
+        ));
+    }
+    rows
+}
+
 pub fn merge_album_open_subsonic_track_raw(raw_album: &Value, raw_song: &mut Value) {
     let Some(obj) = raw_song.as_object_mut() else {
         return;
