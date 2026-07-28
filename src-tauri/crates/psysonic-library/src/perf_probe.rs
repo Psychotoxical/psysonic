@@ -153,6 +153,85 @@ fn artist_browse_first_chunks_on_a_real_library() {
     }
 }
 
+/// The local half of a deletion/gap census: our own album inventory, the set a
+/// `getAlbumList2` page run would be diffed against. Its cost matters more than
+/// the HTTP side — the requests are bounded by the page size, this query would
+/// run on the shared read connection on a fixed cadence, and every browse
+/// surface behind that mutex pays for it.
+///
+/// Reports per server by index, never by address.
+#[test]
+#[ignore = "needs PSYSONIC_PERF_DB pointing at a copy of a real library"]
+fn album_census_inventory_on_a_real_library() {
+    let Some(db) = probe_db_path() else {
+        eprintln!("PSYSONIC_PERF_DB unset or missing — skipping");
+        return;
+    };
+    let store = LibraryStore::open_path_for_test(&db).expect("open probe db");
+
+    let servers: Vec<String> = store
+        .with_read_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT DISTINCT server_id FROM track WHERE deleted = 0 ORDER BY server_id",
+            )?;
+            let rows = stmt
+                .query_map([], |row| row.get::<_, String>(0))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(rows)
+        })
+        .expect("server ids");
+
+    // The aggregate the census deliberately does *not* use, kept as the
+    // baseline the projection is measured against.
+    const AGGREGATE_SQL: &str = "SELECT album_id, COUNT(*) AS song_count, \
+         COALESCE(SUM(duration_sec), 0) AS total_duration \
+         FROM track INDEXED BY idx_track_album \
+         WHERE server_id = ?1 AND deleted = 0 \
+           AND album_id IS NOT NULL AND album_id != '' \
+         GROUP BY album_id";
+
+    for (index, server) in servers.iter().enumerate() {
+        let started = Instant::now();
+        let inventory =
+            crate::sync::census::local_album_inventory(&store, server).expect("inventory");
+        let projection_ms = started.elapsed().as_millis();
+
+        let started = Instant::now();
+        let aggregated = store
+            .with_read_conn(|conn| {
+                let mut stmt = conn.prepare(AGGREGATE_SQL)?;
+                let rows = stmt
+                    .query_map(rusqlite::params![server], |row| {
+                        Ok(crate::sync::census::AlbumInventoryEntry {
+                            album_id: row.get(0)?,
+                            song_count: row.get(1)?,
+                            duration_sec: row.get(2)?,
+                        })
+                    })?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                Ok(rows)
+            })
+            .expect("aggregate");
+        let aggregate_ms = started.elapsed().as_millis();
+
+        // The projection is only a usable stand-in if it agrees with the rows
+        // it summarises — a census run against a stale summary would invent
+        // gaps and removal candidates out of nothing.
+        let drift = crate::sync::census::diff_inventories(&inventory, &aggregated);
+        let songs: i64 = inventory.iter().map(|entry| entry.song_count).sum();
+        eprintln!(
+            "server {index}: albums={} songs={songs} pages_at_500={} \
+             projection_ms={projection_ms} aggregate_ms={aggregate_ms} \
+             drift(missing/absent/counts)={}/{}/{}",
+            inventory.len(),
+            inventory.len().div_ceil(500),
+            drift.missing_locally.len(),
+            drift.absent_on_server.len(),
+            drift.needs_track_check.len(),
+        );
+    }
+}
+
 /// The request the app actually sends on entering /artists: **one** scope, not
 /// all of them. One pair takes `build_layer1_scope_artist`, a different branch
 /// from the multi-scope merge above — measuring the wrong one is how the first

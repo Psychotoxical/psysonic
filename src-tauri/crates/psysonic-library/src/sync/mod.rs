@@ -12,6 +12,7 @@ pub mod backoff;
 pub mod bandwidth;
 pub mod budget;
 pub mod capability;
+pub mod census;
 pub mod cursor;
 pub mod delta;
 pub mod error;
@@ -30,6 +31,10 @@ pub use backoff::{with_jitter, Backoff};
 pub use bandwidth::{ParallelismBudget, PlaybackHint};
 pub use budget::{PassKind, RequestBudget};
 pub use capability::{CapabilityFlags, CapabilityProbe, NavidromeProbeCredentials};
+pub use census::{
+    diff_inventories, local_album_inventory, removal_is_within_cap, AlbumInventoryEntry,
+    CensusDiff, CENSUS_REMOVAL_CAP_PERCENT,
+};
 pub use cursor::{CursorPhase, InitialSyncCursor, StrategyState};
 pub use delta::{DeltaSyncReport, DeltaSyncRunner};
 pub use error::SyncError;
