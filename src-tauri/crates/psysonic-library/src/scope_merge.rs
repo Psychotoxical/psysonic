@@ -5707,10 +5707,10 @@ mod tests {
     }
 
     /// Local benchmark on a real library DB:
-    /// `PSYSONIC_LIBRARY_DB=~/.local/share/.../library.sqlite cargo test --workspace perf_probe_stellmacher_db -- --ignored --nocapture`
+    /// `PSYSONIC_LIBRARY_DB=~/.local/share/.../library.sqlite cargo test --workspace perf_probe_real_db -- --ignored --nocapture`
     #[test]
     #[ignore]
-    fn perf_probe_stellmacher_db() {
+    fn perf_probe_real_db() {
         use std::path::PathBuf;
         use std::time::Instant;
 
