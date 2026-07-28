@@ -402,9 +402,28 @@ impl<'a> InitialSyncRunner<'a> {
         // IS-6 — phase=ready, optional IS-7 orphan sweep, clear cursor, stamp watermarks.
         let finished_at = now_unix_ms();
         if let Some(gen) = cursor.resync_gen {
-            let swept = TrackRepository::new(self.store)
-                .sweep_resync_orphans(&self.server_id, &self.library_scope, gen)
+            let tracks = TrackRepository::new(self.store);
+            let stamped = tracks
+                .count_resync_generation(&self.server_id, &self.library_scope, gen)
                 .map_err(SyncError::Storage)?;
+            let server_count = sync_state
+                .get_server_track_count(&self.server_id, &self.library_scope)
+                .map_err(SyncError::Storage)?;
+            let swept = if resync_sweep_is_safe(stamped, server_count) {
+                tracks
+                    .sweep_resync_orphans(&self.server_id, &self.library_scope, gen)
+                    .map_err(SyncError::Storage)?
+            } else {
+                crate::app_eprintln!(
+                    "[library-sync] IS-7 sweep skipped for `{}`: the ingest re-stamped {} rows \
+                     against a server count of {:?}. Sweeping would soft-delete the shortfall, \
+                     so the index keeps rows this run did not confirm.",
+                    self.server_id,
+                    stamped,
+                    server_count
+                );
+                0
+            };
             if swept > 0 {
                 self.progress.emit(ProgressEvent::Tombstoned {
                     deleted_count: swept,
@@ -1374,6 +1393,16 @@ impl<'a> InitialSyncRunner<'a> {
                         s.last_scan.as_deref(),
                     )
                     .map_err(SyncError::Storage)?;
+                // The same response carries the track count. Persisting it here
+                // keeps IS-7's completeness check honest: without it the sweep
+                // compares against whatever the bind-time probe wrote, which can
+                // be hours old and predate a deliberate server-side deletion.
+                // A scan in progress reports 0, which is "unknown", not "empty".
+                if let Some(count) = s.count.filter(|&c| c > 0) {
+                    sync_state
+                        .set_server_track_count(&self.server_id, &self.library_scope, count)
+                        .map_err(SyncError::Storage)?;
+                }
             }
         }
         Ok(())
@@ -1382,6 +1411,66 @@ impl<'a> InitialSyncRunner<'a> {
 
 fn is_empty_cursor(v: &Value) -> bool {
     matches!(v, Value::Object(o) if o.is_empty())
+}
+
+/// Minimum share of the server's reported catalogue the ingest must have
+/// re-stamped before IS-7 is allowed to soft-delete the remainder.
+pub(crate) const RESYNC_SWEEP_MIN_COVERAGE_PERCENT: i64 = 98;
+
+/// IS-7 deletes exactly what the ingest did not re-stamp, so a bulk pass that
+/// silently loses a page turns into a mass deletion. This gate compares what the
+/// run actually stamped against the count the server reports (refreshed in IS-5,
+/// so it reflects deliberate server-side removals rather than a stale bind-time
+/// snapshot). A catalogue that genuinely shrank stamps ~100 % of the new count
+/// and still sweeps; an ingest that dropped rows does not.
+///
+/// No server count means no signal — the sweep proceeds as before rather than
+/// silently turning itself off on servers without `getScanStatus`.
+pub(crate) fn resync_sweep_is_safe(stamped: i64, server_count: Option<i64>) -> bool {
+    match server_count {
+        Some(expected) if expected > 0 => {
+            stamped.saturating_mul(100) >= expected.saturating_mul(RESYNC_SWEEP_MIN_COVERAGE_PERCENT)
+        }
+        _ => true,
+    }
+}
+
+#[cfg(test)]
+mod sweep_guard_tests {
+    use super::resync_sweep_is_safe;
+
+    #[test]
+    fn a_short_ingest_does_not_get_to_sweep() {
+        // Reproduces a real incident: the ingest re-stamped 168,922 rows while
+        // the server reported 175,169. Unguarded, IS-7 tombstoned the 5,651-row
+        // difference — 473 albums that still existed on the server.
+        assert!(!resync_sweep_is_safe(168_922, Some(175_169)));
+    }
+
+    #[test]
+    fn a_complete_ingest_sweeps() {
+        assert!(resync_sweep_is_safe(175_156, Some(175_156)));
+    }
+
+    #[test]
+    fn a_catalogue_that_genuinely_shrank_still_sweeps() {
+        // The user removed a third of the library server-side: the ingest covers
+        // the new count completely, so the leftovers are real orphans.
+        assert!(resync_sweep_is_safe(70_000, Some(70_000)));
+    }
+
+    #[test]
+    fn a_shortfall_inside_the_tolerance_still_sweeps() {
+        // Tracks added while the pass ran must not disable the sweep.
+        assert!(resync_sweep_is_safe(99_000, Some(100_000)));
+        assert!(!resync_sweep_is_safe(97_000, Some(100_000)));
+    }
+
+    #[test]
+    fn no_server_count_means_no_signal_and_no_new_behaviour() {
+        assert!(resync_sweep_is_safe(0, None));
+        assert!(resync_sweep_is_safe(10, Some(0)));
+    }
 }
 
 use super::now_unix_ms;
@@ -1512,9 +1601,13 @@ mod tests {
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "subsonic-response": {
                     "status": "ok",
+                    // No `count`: these fixtures are about ingest and sweep
+                    // mechanics, not catalogue size, and a count that disagrees
+                    // with the search3 pages is not a server state worth
+                    // asserting against — IS-7 now refuses to sweep on exactly
+                    // that mismatch. Tests that care set the count explicitly.
                     "scanStatus": {
                         "scanning": false,
-                        "count": 1234,
                         "lastScan": "2024-06-01T12:00:00Z"
                     }
                 }
@@ -1808,6 +1901,63 @@ mod tests {
             })
             .unwrap();
         assert_eq!(stale_deleted, 2);
+    }
+
+    /// The other half of IS-7: when the ingest visibly failed to cover the
+    /// catalogue, the leftovers are not orphans — they are the rows the run
+    /// lost. Sweeping them is a mass deletion of live music.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_resync_that_fell_short_does_not_sweep() {
+        let server = MockServer::start().await;
+        mount_search3_pages(&server, /*total*/ 3, /*batch*/ 10).await;
+        mount_minimal_artists(&server).await;
+
+        let store = LibraryStore::open_in_memory();
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "").unwrap();
+        sync_state.set_last_full_sync_at("s1", "", 1).unwrap();
+        // The server holds far more than this run will ingest.
+        sync_state.set_server_track_count("s1", "", 1_000).unwrap();
+
+        store
+            .with_conn_mut("misc", |c| {
+                for id in ["tr_stale_a", "tr_stale_b"] {
+                    c.execute(
+                        "INSERT INTO track (server_id, id, title, album, duration_sec, deleted, synced_at, raw_json, resync_gen) \
+                         VALUES ('s1', ?1, 'stale', 'Al', 1, 0, 1, '{}', 1)",
+                        rusqlite::params![id],
+                    )?;
+                }
+                Ok(())
+            })
+            .unwrap();
+
+        let subsonic = test_subsonic(&server.uri());
+        InitialSyncRunner::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK | CapabilityFlags::SCAN_STATUS_AVAILABLE),
+        )
+        .with_sleep_disabled()
+        .run()
+        .await
+        .unwrap();
+
+        let stale_alive: i64 = store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT COUNT(*) FROM track WHERE id IN ('tr_stale_a', 'tr_stale_b') AND deleted = 0",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(
+            stale_alive, 2,
+            "a short ingest must not turn its own shortfall into tombstones"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]

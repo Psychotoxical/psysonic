@@ -240,6 +240,35 @@ impl<'a> TrackRepository<'a> {
         })
     }
 
+    /// How many live rows the running resync has re-stamped so far. IS-7 uses
+    /// this as its completeness signal: the sweep deletes exactly the live rows
+    /// this count does *not* cover, so a short ingest is a mass deletion.
+    pub fn count_resync_generation(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+        resync_gen: i64,
+    ) -> Result<i64, String> {
+        self.store.with_conn("track.count_resync_generation", |c| {
+            if library_scope.is_empty() {
+                c.query_row(
+                    "SELECT COUNT(*) FROM track \
+                     WHERE server_id = ?1 AND deleted = 0 AND COALESCE(resync_gen, 0) = ?2",
+                    params![server_id, resync_gen],
+                    |row| row.get(0),
+                )
+            } else {
+                c.query_row(
+                    "SELECT COUNT(*) FROM track \
+                     WHERE server_id = ?1 AND library_id = ?2 AND deleted = 0 \
+                       AND COALESCE(resync_gen, 0) = ?3",
+                    params![server_id, library_scope, resync_gen],
+                    |row| row.get(0),
+                )
+            }
+        })
+    }
+
     /// IS-7 — soft-delete live rows not re-stamped during the active resync.
     pub fn sweep_resync_orphans(
         &self,
@@ -1284,6 +1313,22 @@ mod tests {
         let (credit, sort) = album_credit_and_sort(&store, "t1");
         assert_eq!(credit.as_deref(), Some("Various Artists"));
         assert_eq!(sort.as_deref(), Some("Track, The"));
+    }
+
+    #[test]
+    fn count_resync_generation_counts_only_live_rows_of_that_run() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        repo.upsert_batch_initial_ingest_timed(
+            &[row("s1", "a", "A"), row("s1", "b", "B")],
+            Some(2),
+        )
+        .unwrap();
+        repo.upsert_batch_initial_ingest_timed(&[row("s1", "old", "Old")], Some(1))
+            .unwrap();
+
+        assert_eq!(repo.count_resync_generation("s1", "", 2).unwrap(), 2);
+        assert_eq!(repo.count_resync_generation("s1", "", 1).unwrap(), 1);
     }
 
     #[test]
