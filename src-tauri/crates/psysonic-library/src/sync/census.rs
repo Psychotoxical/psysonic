@@ -73,8 +73,11 @@ pub const CENSUS_REMOVAL_CAP_PERCENT: usize = 20;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlbumInventoryEntry {
     pub album_id: String,
-    pub song_count: i64,
-    pub duration_sec: i64,
+    /// `None` when the side did not report it. A server that omits `songCount`
+    /// must not make every album look changed, so an unknown shape means the
+    /// album's presence is compared and its contents are left alone.
+    pub song_count: Option<i64>,
+    pub duration_sec: Option<i64>,
 }
 
 /// What the two inventories disagree about. Nothing here is acted on directly:
@@ -99,6 +102,28 @@ impl CensusDiff {
     }
 }
 
+/// Whether two views of the same album disagree about its contents.
+///
+/// A field neither side reports is not a difference — a server that omits
+/// `songCount` would otherwise make the whole catalogue look changed and put
+/// every album into the follow-up queue on every run. Durations are compared
+/// with an allowance that grows with the track count, because both sides round
+/// per track before summing.
+fn shape_differs(ours: &AlbumInventoryEntry, theirs: &AlbumInventoryEntry) -> bool {
+    if let (Some(mine), Some(other)) = (ours.song_count, theirs.song_count) {
+        if mine != other {
+            return true;
+        }
+    }
+    match (ours.duration_sec, theirs.duration_sec) {
+        (Some(mine), Some(other)) => {
+            let tracks = theirs.song_count.or(ours.song_count).unwrap_or(0);
+            mine.saturating_sub(other).abs() > duration_tolerance_sec(tracks)
+        }
+        _ => false,
+    }
+}
+
 /// Compare the two inventories. Both sides are keyed by the server's album id,
 /// so this is a set comparison plus a per-album shape check; ordering and
 /// duplicates on either side do not matter.
@@ -120,15 +145,7 @@ pub fn diff_inventories(
         match local_by_id.get(entry.album_id.as_str()) {
             None => diff.missing_locally.push(entry.album_id.clone()),
             Some(ours) => {
-                // Duration catches the case a count cannot: one track removed
-                // and another added between two passes leaves the count intact.
-                // Compared with tolerance, because both sides round per track
-                // before summing and an exact test would flag healthy albums
-                // forever.
-                let drift = ours.duration_sec.saturating_sub(entry.duration_sec).abs();
-                if ours.song_count != entry.song_count
-                    || drift > duration_tolerance_sec(entry.song_count)
-                {
+                if shape_differs(ours, entry) {
                     diff.needs_track_check.push(entry.album_id.clone());
                 }
             }
@@ -406,8 +423,10 @@ impl<'a> AlbumCensusRunner<'a> {
             for summary in page {
                 out.push(AlbumInventoryEntry {
                     album_id: summary.id,
-                    song_count: summary.song_count.unwrap_or(0),
-                    duration_sec: summary.duration.unwrap_or(0),
+                    // Kept as reported: an omitted field means "unknown", and
+                    // reading it as zero would mark the whole catalogue changed.
+                    song_count: summary.song_count,
+                    duration_sec: summary.duration,
                 });
             }
             if received < CENSUS_PAGE_SIZE {
@@ -495,20 +514,16 @@ impl<'a> AlbumCensusRunner<'a> {
         )
         .map_err(SyncError::Storage)?;
 
-        // The album's authoritative track set just arrived: anything still live
-        // under this album that it does not mention is gone from the server.
-        let returned: std::collections::HashSet<&str> =
-            album.song.iter().map(|song| song.id.as_str()).collect();
-        let stale: Vec<String> = repo
-            .live_track_ids_for_album(&self.server_id, &album.id)
-            .map_err(SyncError::Storage)?
-            .into_iter()
-            .filter(|id| !returned.contains(id.as_str()))
-            .collect();
-        if !stale.is_empty() {
-            repo.apply_tombstone_results(&self.server_id, "", &[], &stale)
-                .map_err(SyncError::Storage)?;
-        }
+        // Deliberately no track-level sweep here. A `getAlbum` response is
+        // authoritative only for what this request can see: on a server with
+        // several libraries, or a user with access to a subset of them, the
+        // tracks it omits are not gone — they are out of view. Retiring them on
+        // that evidence is the same mistake the module header rules out one
+        // level up, and it would repeat on every run.
+        //
+        // Track-level removal therefore stays with the paths that confirm per
+        // track (the tombstone reconciler and the manual integrity pass); the
+        // census removes whole albums, and only after asking about each one.
         Ok(())
     }
 
@@ -529,8 +544,17 @@ mod tests {
     fn entry(id: &str, songs: i64, duration: i64) -> AlbumInventoryEntry {
         AlbumInventoryEntry {
             album_id: id.into(),
-            song_count: songs,
-            duration_sec: duration,
+            song_count: Some(songs),
+            duration_sec: Some(duration),
+        }
+    }
+
+    /// An album the server lists without saying how big it is.
+    fn shapeless_entry(id: &str) -> AlbumInventoryEntry {
+        AlbumInventoryEntry {
+            album_id: id.into(),
+            song_count: None,
+            duration_sec: None,
         }
     }
 
@@ -582,6 +606,23 @@ mod tests {
             diff_inventories(&local, &server).needs_track_check,
             vec!["al-1"]
         );
+    }
+
+    #[test]
+    fn a_server_that_reports_no_sizes_still_gets_a_presence_check() {
+        // Reading an omitted `songCount` as zero would mark the whole
+        // catalogue as changed and queue every album for a follow-up request,
+        // on every run.
+        let local = vec![entry("al-1", 10, 2000), entry("al-2", 4, 800)];
+        let server = vec![shapeless_entry("al-1"), shapeless_entry("al-3")];
+
+        let diff = diff_inventories(&local, &server);
+        assert!(
+            diff.needs_track_check.is_empty(),
+            "an unknown shape is not a changed shape"
+        );
+        assert_eq!(diff.missing_locally, vec!["al-3"], "presence still compares");
+        assert_eq!(diff.absent_on_server, vec!["al-2"]);
     }
 
     #[test]

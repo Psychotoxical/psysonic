@@ -218,7 +218,10 @@ fn album_census_inventory_on_a_real_library() {
         // it summarises — a census run against a stale summary would invent
         // gaps and removal candidates out of nothing.
         let drift = crate::sync::census::diff_inventories(&inventory, &aggregated);
-        let songs: i64 = inventory.iter().map(|entry| entry.song_count).sum();
+        let songs: i64 = inventory
+            .iter()
+            .filter_map(|entry| entry.song_count)
+            .sum();
         eprintln!(
             "server {index}: albums={} songs={songs} pages_at_500={} \
              projection_ms={projection_ms} aggregate_ms={aggregate_ms} \
