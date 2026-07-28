@@ -184,6 +184,7 @@ impl<'a> DeltaSyncRunner<'a> {
                 .await?;
             report.tombstones_checked = stats.checked;
             report.tombstones_deleted = stats.deleted;
+            self.restamp_local_track_count(&sync_state, stats.deleted)?;
             self.progress.emit(ProgressEvent::Tombstoned {
                 deleted_count: stats.deleted,
                 checked_count: stats.checked,
@@ -240,6 +241,7 @@ impl<'a> DeltaSyncRunner<'a> {
                 let stats = reconciler.reconcile_chunk(budget).await?;
                 report.tombstones_checked = stats.checked;
                 report.tombstones_deleted = stats.deleted;
+                self.restamp_local_track_count(&sync_state, stats.deleted)?;
                 self.progress.emit(ProgressEvent::Tombstoned {
                     deleted_count: stats.deleted,
                     checked_count: stats.checked,
@@ -340,6 +342,46 @@ impl<'a> DeltaSyncRunner<'a> {
     fn stamp_last_delta(&self, sync_state: &SyncStateRepository<'_>) -> Result<(), SyncError> {
         sync_state
             .set_last_delta_sync_at(&self.server_id, &self.library_scope, now_unix_ms())
+            .map_err(SyncError::Storage)
+    }
+
+    /// Refresh the stored live-row count after a pass retired rows.
+    ///
+    /// `local_track_count` is one of the two inputs to the auto-tombstone
+    /// threshold, and nothing on the tombstone path used to write it: the
+    /// scheduler only re-stamps when a delta reported *changes*, and retiring
+    /// rows is not a change in that sense. So the one operation that alters the
+    /// live count the most left the threshold reading a number from before it
+    /// ran — too high by exactly the number of rows removed.
+    fn restamp_local_track_count(
+        &self,
+        sync_state: &SyncStateRepository<'_>,
+        deleted: u32,
+    ) -> Result<(), SyncError> {
+        if deleted == 0 {
+            return Ok(());
+        }
+        let live = self
+            .store
+            .with_conn("delta.count_local_tracks", |conn| {
+                if self.library_scope.is_empty() {
+                    conn.query_row(
+                        "SELECT COUNT(*) FROM track WHERE server_id = ?1 AND deleted = 0",
+                        rusqlite::params![self.server_id],
+                        |row| row.get::<_, i64>(0),
+                    )
+                } else {
+                    conn.query_row(
+                        "SELECT COUNT(*) FROM track \
+                         WHERE server_id = ?1 AND library_id = ?2 AND deleted = 0",
+                        rusqlite::params![self.server_id, self.library_scope],
+                        |row| row.get::<_, i64>(0),
+                    )
+                }
+            })
+            .map_err(SyncError::Storage)?;
+        sync_state
+            .set_local_track_count(&self.server_id, &self.library_scope, live)
             .map_err(SyncError::Storage)
     }
 
@@ -1117,6 +1159,19 @@ mod tests {
             })
             .unwrap();
         assert_eq!(gone_deleted, 1);
+
+        // The threshold that gates this very pass reads `local_track_count`,
+        // and retiring rows is not a "change" the scheduler re-stamps for. Left
+        // alone, the one operation that alters the live count most would leave
+        // the gate reading a number from before it ran.
+        let stored = SyncStateRepository::new(&store)
+            .get_local_track_count("s1", "")
+            .unwrap();
+        assert_eq!(
+            stored,
+            Some(1),
+            "the count must follow the rows the pass retired"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
