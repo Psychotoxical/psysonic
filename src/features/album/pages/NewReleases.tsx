@@ -286,8 +286,14 @@ export default function NewReleases() {
     });
     try {
       await runLoad(async () => {
+        // Genre counts describe the whole scope, not the page being fetched, so
+        // they are identical on every append — which is why the result is
+        // discarded below when appending. Asking for them anyway is not free:
+        // the count query dominates this request (~3.2s against ~35ms for the
+        // feed itself), and every browse read shares one connection, so a
+        // pointless one stalls the rest of the app behind it.
         const data = await loadLocalNewReleases(
-          anchorServerId ?? '', releaseScopes, PAGE_SIZE, offset, genres,
+          anchorServerId ?? '', releaseScopes, PAGE_SIZE, offset, genres, !append,
         );
         emitMultiServerDebug('new_releases_page_load_apply', {
           anchorServerId,

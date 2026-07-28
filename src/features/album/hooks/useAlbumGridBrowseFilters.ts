@@ -85,7 +85,13 @@ export function useAlbumGridBrowseFilters(
 
     useAlbumBrowseSessionStore.getState().clearReturnStash(serverId, surface);
     useLiveSearchScopeStore.getState().setQuery('');
-    setSelectedGenres([]);
+    // Only clear when there is something to clear. A fresh `[]` is a new
+    // reference even when the selection was already empty, and consumers list
+    // `selectedGenres` among their effect dependencies — an unconditional reset
+    // therefore re-runs their loads, each of which is a query on the one shared
+    // browse connection. The restore branch above already guards for the same
+    // reason.
+    if (filtersRef.current.selectedGenres.length > 0) setSelectedGenres([]);
   }, [serverId, surface, navigationType, location.state]);
 
   useEffect(() => {
