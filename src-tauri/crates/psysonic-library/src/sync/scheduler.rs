@@ -22,6 +22,8 @@ use super::delta::{DeltaSyncReport, DeltaSyncRunner};
 use super::error::SyncError;
 use super::poll_stats::{next_interval_ms, PollStats};
 use super::progress::{NoopProgress, Progress};
+use super::census::AlbumCensusRunner;
+use super::poll_stats::{census_is_due, CENSUS_INTERVAL_MS};
 use super::tombstone::should_auto_reconcile_scope;
 use crate::repos::SyncStateRepository;
 use crate::store::LibraryStore;
@@ -312,6 +314,56 @@ impl<'a> BackgroundScheduler<'a> {
                     .map_err(SyncError::Storage)?;
             }
         }
+        // The census reconciles what the delta structurally cannot see: a
+        // deletion never appears in a changed-list, and a row missed once sits
+        // below the watermark forever. It is server-wide by construction —
+        // `getAlbumList2` covers every library — so a scoped scheduler must not
+        // run it, or it would read the other libraries' albums as gaps.
+        if self.library_scope.is_empty() && census_is_due(&stats, now_ms) {
+            let mut census =
+                AlbumCensusRunner::new(self.store, self.subsonic, &self.server_id);
+            if let Some(flag) = &self.cancel {
+                census = census.with_cancellation(Arc::clone(flag));
+            }
+            if !self.sleep_enabled {
+                census = census.with_sleep_disabled();
+            }
+            match census.run().await {
+                Ok(census_report) => {
+                    if census_report.albums_removed > 0
+                        || census_report.gaps_filled > 0
+                        || census_report.albums_reconciled > 0
+                        || census_report.removal_refused
+                    {
+                        crate::app_eprintln!(
+                            "[library-sync] census: server_albums={} local_albums={} \
+                             removed={} filled={} reconciled={} deferred={} refused={}",
+                            census_report.server_albums,
+                            census_report.local_albums,
+                            census_report.albums_removed,
+                            census_report.gaps_filled,
+                            census_report.albums_reconciled,
+                            census_report.deferred,
+                            census_report.removal_refused,
+                        );
+                    }
+                    // Anything the per-run cap deferred should be picked up
+                    // promptly rather than after a full interval.
+                    stats.next_census_at_ms = Some(if census_report.deferred > 0 {
+                        now_ms
+                    } else {
+                        now_ms.saturating_add(CENSUS_INTERVAL_MS)
+                    });
+                }
+                Err(error) => {
+                    // A failed census is simply no answer this round; the delta
+                    // pass it rode along with has already done its own work.
+                    crate::app_eprintln!("[library-sync] census failed: {error}");
+                    stats.next_census_at_ms = Some(now_ms.saturating_add(CENSUS_INTERVAL_MS));
+                }
+            }
+        }
+
         stats.reclassify();
         sync_state
             .set_library_tier(
@@ -485,6 +537,171 @@ mod tests {
             })))
             .mount(server)
             .await;
+    }
+
+    // ── census ────────────────────────────────────────────────────────
+
+    /// One album in the index, with the projection row the census reads.
+    fn seed_album(store: &LibraryStore, server_id: &str, album_id: &str, track_id: &str) {
+        store
+            .with_conn_mut("test.seed_album", |conn| {
+                conn.execute(
+                    "INSERT INTO track (server_id, id, title, album, album_id, duration_sec, \
+                     deleted, synced_at, raw_json) \
+                     VALUES (?1, ?2, 'Title', 'Album', ?3, 100, 0, 1, '{}')",
+                    rusqlite::params![server_id, track_id, album_id],
+                )?;
+                conn.execute(
+                    "INSERT INTO album_browse_projection \
+                     (server_id, library_id, album_id, name, song_count, duration_sec, \
+                      synced_at, representative_track_id) \
+                     VALUES (?1, '', ?2, 'Album', 1, 100, 1, ?3)",
+                    rusqlite::params![server_id, album_id, track_id],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    fn live_rows(store: &LibraryStore, album_id: &str) -> i64 {
+        store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT COUNT(*) FROM track WHERE album_id = ?1 AND deleted = 0",
+                    rusqlite::params![album_id],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap()
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_tick_censuses_and_schedules_the_next_one() {
+        let server = MockServer::start().await;
+        // Only the artists probe from the shared helper — its album-list mock
+        // answers every `getAlbumList2` with an empty page and would shadow the
+        // enumeration this test is about.
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getArtists.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "artists": { "lastModified": 1_716_840_000_000_i64, "ignoredArticles": "", "index": [] }
+                }
+            })))
+            .mount(&server)
+            .await;
+        // The enumeration lists ten of the eleven albums the index holds, and
+        // the missing one answers "gone" when asked directly.
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbum.view"))
+            .and(wiremock::matchers::query_param("id", "al-gone"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "failed",
+                    "error": { "code": 70, "message": "Album not found" }
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let store = LibraryStore::open_in_memory();
+        for index in 0..10 {
+            seed_album(&store, "s1", &format!("al-{index}"), &format!("t-{index}"));
+        }
+        seed_album(&store, "s1", "al-gone", "t-gone");
+        let listed: Vec<_> = (0..10)
+            .map(|i| json!({ "id": format!("al-{i}"), "name": "Album", "songCount": 1, "duration": 100 }))
+            .collect();
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .and(wiremock::matchers::query_param("offset", "0"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "albumList2": { "album": listed } }
+            })))
+            .mount(&server)
+            .await;
+        // The delta crawls the same list, so every other album id needs a valid
+        // answer. Mounted after the `al-gone` mock, which therefore keeps
+        // winning for that one id.
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbum.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "album": { "id": "al-other", "name": "Album", "songCount": 0, "song": [] }
+                }
+            })))
+            .mount(&server)
+            .await;
+        // Everything after the first page — and whatever else asks for an album
+        // list this tick — gets an empty one. Mounted second on purpose: the
+        // first matching mock answers.
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "albumList2": { "album": [] } }
+            })))
+            .mount(&server)
+            .await;
+
+        let subsonic = test_subsonic(&server.uri());
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "").unwrap();
+
+        BackgroundScheduler::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
+        )
+        .with_sleep_disabled()
+        .tick(1_000_000)
+        .await
+        .unwrap();
+
+        assert_eq!(live_rows(&store, "al-gone"), 0, "the census removed it");
+        assert_eq!(live_rows(&store, "al-0"), 1, "the rest is untouched");
+
+        let stats = sync_state
+            .get_poll_stats_json("s1", "")
+            .unwrap()
+            .map(|value| serde_json::from_value::<PollStats>(value).unwrap_or_default())
+            .unwrap_or_default();
+        assert_eq!(
+            stats.next_census_at_ms,
+            Some(1_000_000 + CENSUS_INTERVAL_MS),
+            "a clean run waits a full interval"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_scoped_scheduler_never_censuses() {
+        let server = MockServer::start().await;
+        empty_probe_and_albumlist(&server, 1_716_840_000_000).await;
+
+        let store = LibraryStore::open_in_memory();
+        seed_album(&store, "s1", "al-gone", "t-gone");
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "lib-a").unwrap();
+
+        let subsonic = test_subsonic(&server.uri());
+        BackgroundScheduler::new(
+            &store,
+            &subsonic,
+            "s1",
+            "lib-a",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
+        )
+        .with_sleep_disabled()
+        .tick(1_000_000)
+        .await
+        .unwrap();
+
+        // `getAlbumList2` is server-wide, so a scoped run would read every
+        // other library's albums as gaps and this library's as absent.
+        assert_eq!(live_rows(&store, "al-gone"), 1);
     }
 
     // ── is_due ────────────────────────────────────────────────────────
