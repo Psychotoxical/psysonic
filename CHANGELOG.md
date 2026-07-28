@@ -205,6 +205,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Joining an invite could fail with "You don't have access to …" even for guests with a working account on that very server — they could browse and play music, only joining was refused. An invite carries the server address in its full form, while the check compared it against the address exactly as saved, so one entered without `http://` never matched.
 * The same check now also recognises a server saved under its second address. Hosts who configure a local and a public address share invites pointing at the public one, which previously matched no account at all.
 
+### New Releases — the long pause before more albums appear
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1359](https://github.com/Psychotoxical/psysonic/pull/1359)**
+
+* On large libraries the page showed its first albums quickly and then sat for roughly three quarters of a minute before loading any more. Leaving the page during that pause could lock the window up entirely. Both are gone; scrolling now loads continuously.
+* Root cause: a database lookup the page performs once per album was scanning the whole track table instead of using its index, which on a library of this size cost close to a second every time.
+
 
 ## [1.50.0]
 
