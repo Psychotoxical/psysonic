@@ -240,6 +240,28 @@ impl<'a> TrackRepository<'a> {
         })
     }
 
+    /// Live track ids of one physical album. The census works at album
+    /// granularity and needs the rows behind an album it is about to remove or
+    /// reconcile; `apply_tombstone_results` then does the write, so the
+    /// projection and identity refresh stay on the one path that knows how.
+    pub fn live_track_ids_for_album(
+        &self,
+        server_id: &str,
+        album_id: &str,
+    ) -> Result<Vec<String>, String> {
+        self.store.with_read_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id FROM track INDEXED BY idx_track_album \
+                 WHERE server_id = ?1 AND album_id = ?2 AND deleted = 0 \
+                 ORDER BY id",
+            )?;
+            let rows = stmt
+                .query_map(params![server_id, album_id], |row| row.get::<_, String>(0))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(rows)
+        })
+    }
+
     /// How many live rows the running resync has re-stamped so far. IS-7 uses
     /// this as its completeness signal: the sweep deletes exactly the live rows
     /// this count does *not* cover, so a short ingest is a mass deletion.
