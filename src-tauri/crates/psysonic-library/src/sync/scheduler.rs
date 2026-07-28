@@ -326,6 +326,7 @@ impl<'a> BackgroundScheduler<'a> {
             }
         }
         let mut census_changed_index = false;
+        let mut census_left_work = false;
         // The census reconciles what the delta structurally cannot see: a
         // deletion never appears in a changed-list, and a row missed once sits
         // below the watermark forever. It is server-wide by construction —
@@ -391,6 +392,7 @@ impl<'a> BackgroundScheduler<'a> {
                     // never resolve would otherwise turn every tick into a full
                     // enumeration for as long as the app runs.
                     if census_report.deferred > 0 {
+                        census_left_work = true;
                         stats.next_census_at_ms =
                             Some(now_ms.saturating_add(CENSUS_DEFERRED_RETRY_MS));
                     }
@@ -426,6 +428,16 @@ impl<'a> BackgroundScheduler<'a> {
             .map_err(SyncError::Storage)?;
 
         report.next_poll_at_ms = now_ms + next_interval_ms(&stats) as i64;
+        // The census only runs inside a tick, so its own schedule can never be
+        // finer than the poll interval — on a large library that is tens of
+        // minutes, which would leave the deferred-work retry with no effect at
+        // all. When the census left work behind, pull the next tick forward to
+        // meet it.
+        if census_left_work {
+            if let Some(due) = stats.next_census_at_ms {
+                report.next_poll_at_ms = report.next_poll_at_ms.min(due);
+            }
+        }
         sync_state
             .set_next_poll_at(&self.server_id, &self.library_scope, report.next_poll_at_ms)
             .map_err(SyncError::Storage)?;

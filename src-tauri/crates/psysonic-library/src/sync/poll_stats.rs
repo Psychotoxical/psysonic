@@ -100,6 +100,11 @@ impl PollStats {
 /// than a delta poll: the delta answers "what changed", the census answers
 /// "does the catalogue still match", and the second question does not need a
 /// minute-by-minute answer. One run is a page of album ids per 500 albums.
+///
+/// This is a floor, not a period. The census runs inside a scheduler tick, so
+/// the effective spacing is whichever of the two is longer — on a library
+/// classified `huge` the poll interval alone can be tens of minutes. The
+/// scheduler pulls the next tick forward only when a run left work behind.
 pub const CENSUS_INTERVAL_MS: i64 = 15 * 60 * 1000;
 
 /// How soon a run that hit its per-pass cap comes back. Sooner than a full
