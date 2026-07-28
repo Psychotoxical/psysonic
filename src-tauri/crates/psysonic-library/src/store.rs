@@ -204,6 +204,11 @@ pub struct LibraryStore {
     /// Current holder of `read_conn`, used only to attribute contention in
     /// targeted diagnostics such as the Favorites initial snapshot.
     read_op_owner: Mutex<Option<ReadOpOwner>>,
+    /// Same, for `mainstage_read_conn`. That connection is shared by the
+    /// chronological feeds, their genre counts, the hot-release overlay and the
+    /// sidebar unread badge, so "who is holding it" is the question worth
+    /// answering when a browse page stalls.
+    mainstage_read_op_owner: Mutex<Option<ReadOpOwner>>,
     /// IS-3 bulk ingest in progress — read paths skip write-lock work.
     bulk_ingest_active: AtomicBool,
     /// `swap_database_file` / `restore_database_backup` — fail fast instead of
@@ -229,6 +234,7 @@ impl LibraryStore {
             mainstage_read_conn: Mutex::new(mainstage_read_conn),
             scope_detail_read_conn: Mutex::new(scope_detail_read_conn),
             read_op_owner: Mutex::new(None),
+            mainstage_read_op_owner: Mutex::new(None),
             bulk_ingest_active: AtomicBool::new(false),
             swap_in_progress: AtomicBool::new(false),
         })
@@ -275,6 +281,7 @@ impl LibraryStore {
             mainstage_read_conn: Mutex::new(mainstage_read_conn),
             scope_detail_read_conn: Mutex::new(scope_detail_read_conn),
             read_op_owner: Mutex::new(None),
+            mainstage_read_op_owner: Mutex::new(None),
             bulk_ingest_active: AtomicBool::new(false),
             swap_in_progress: AtomicBool::new(false),
         }
@@ -444,12 +451,37 @@ impl LibraryStore {
 
     /// Isolated reader for wide Mainstage scans. All other browse paths retain
     /// `read_conn`, keeping short local reads responsive while Home loads.
-    pub(crate) fn with_mainstage_read_conn<R>(
+    ///
+    /// Always reports how long the caller queued for the connection and who held
+    /// it. Several unrelated surfaces share this reader — the chronological
+    /// feeds, the genre-count aggregate that accompanies them, the hot-release
+    /// overlay and the sidebar unread badge. When one of them is slow the others
+    /// simply stop, and from the outside that is indistinguishable from a slow
+    /// query of their own. `blocked_by` names the caller that held the lock, so
+    /// the distinction survives into the log. There is deliberately no untimed
+    /// variant: the measurement costs two `Instant::now` calls, and every caller
+    /// here is a surface where the answer has already been needed once.
+    #[track_caller]
+    pub(crate) fn with_mainstage_read_conn_timed<R>(
         &self,
         f: impl FnOnce(&Connection) -> rusqlite::Result<R>,
-    ) -> Result<R, String> {
+    ) -> Result<(R, ReadOpTiming), String> {
+        let blocked_by = self.mainstage_read_op_owner();
+        let lock_start = std::time::Instant::now();
         let conn = self.lock_mainstage_read_conn()?;
-        run_conn_closure(&conn, f)
+        let lock_wait_ms = lock_start.elapsed().as_millis() as u64;
+        let _owner = self.mark_mainstage_read_owner(std::panic::Location::caller());
+        let exec_start = std::time::Instant::now();
+        let value = run_conn_closure(&conn, f)?;
+        let exec_ms = exec_start.elapsed().as_millis() as u64;
+        Ok((
+            value,
+            ReadOpTiming {
+                lock_wait_ms,
+                exec_ms,
+                blocked_by: (lock_wait_ms > 0).then_some(blocked_by).flatten(),
+            },
+        ))
     }
 
     /// Isolated reader for heavy derived reads, which can be much wider than
@@ -483,6 +515,30 @@ impl LibraryStore {
         }
         ReadOpOwnerGuard {
             owner: &self.read_op_owner,
+        }
+    }
+
+    fn mainstage_read_op_owner(&self) -> Option<ReadOpOwner> {
+        match self.mainstage_read_op_owner.lock() {
+            Ok(owner) => *owner,
+            Err(poisoned) => *poisoned.into_inner(),
+        }
+    }
+
+    fn mark_mainstage_read_owner(
+        &self,
+        caller: &'static std::panic::Location<'static>,
+    ) -> ReadOpOwnerGuard<'_> {
+        let owner = ReadOpOwner {
+            file: caller.file(),
+            line: caller.line(),
+        };
+        match self.mainstage_read_op_owner.lock() {
+            Ok(mut current) => *current = Some(owner),
+            Err(poisoned) => *poisoned.into_inner() = Some(owner),
+        }
+        ReadOpOwnerGuard {
+            owner: &self.mainstage_read_op_owner,
         }
     }
 
@@ -1721,7 +1777,7 @@ mod tests {
         let mainstage_store = std::sync::Arc::clone(&store);
         let mainstage = std::thread::spawn(move || {
             mainstage_store
-                .with_mainstage_read_conn(|_| {
+                .with_mainstage_read_conn_timed(|_| {
                     started_tx.send(()).expect("signal mainstage read start");
                     std::thread::sleep(Duration::from_millis(100));
                     Ok(())

@@ -243,7 +243,7 @@ pub fn list_mainstage_albums(
     let requested_results = offset.saturating_add(fetch_limit);
     let initial_candidates = candidate_limit(offset, fetch_limit);
 
-    store.with_mainstage_read_conn(|conn| {
+    let (result, timing) = store.with_mainstage_read_conn_timed(|conn| {
         let genre_counts_start = std::time::Instant::now();
         let genre_counts = if request.include_genre_counts
             && request.feed == LibraryMainstageAlbumFeed::NewReleases
@@ -295,23 +295,41 @@ pub fn list_mainstage_albums(
             albums.truncate(limit as usize);
             overlay_album_starred_at_rows(conn, &mut albums);
             overlay_album_artist_links(conn, &mut albums);
-            if psysonic_core::logging::should_log_debug() {
-                crate::app_deprintln!(
-                    "[frontend][mainstage-browse] {}",
-                    serde_json::json!({
-                        "feed": request.feed,
-                        "scopeCount": scopes.len(),
-                        "includeGenreCounts": request.include_genre_counts,
-                        "genreCountMs": genre_counts_ms,
-                        "feedMs": feed_start.elapsed().as_millis(),
-                        "candidateLimit": bounded_candidates,
-                        "resultCount": albums.len(),
-                    })
-                );
-            }
-            return Ok(LibraryMainstageAlbumsResponse { albums, has_more, genre_counts });
+            let result_count = albums.len();
+            return Ok((
+                LibraryMainstageAlbumsResponse { albums, has_more, genre_counts },
+                genre_counts_ms,
+                feed_start.elapsed().as_millis(),
+                bounded_candidates,
+                result_count,
+            ));
         }
-    }).map_err(|e| e.to_string())
+    })?;
+    let (response, genre_counts_ms, feed_ms, bounded_candidates, result_count) = result;
+    if psysonic_core::logging::should_log_debug() {
+        // `lockWaitMs` separates "this query is slow" from "this query waited
+        // for someone else's". The feeds, their genre counts, the hot-release
+        // overlay and the sidebar badge all share this connection, so the two
+        // look identical from the frontend — it only ever sees total duration.
+        crate::app_deprintln!(
+            "[frontend][mainstage-browse] {}",
+            serde_json::json!({
+                "feed": request.feed,
+                "scopeCount": scopes.len(),
+                "includeGenreCounts": request.include_genre_counts,
+                "genreCountMs": genre_counts_ms,
+                "feedMs": feed_ms,
+                "lockWaitMs": timing.lock_wait_ms,
+                "blockedBy": timing
+                    .blocked_by
+                    .map(|owner| format!("{}:{}", owner.file, owner.line))
+                    .unwrap_or_else(|| "none".to_string()),
+                "candidateLimit": bounded_candidates,
+                "resultCount": result_count,
+            })
+        );
+    }
+    Ok(response)
 }
 
 #[cfg(test)]
