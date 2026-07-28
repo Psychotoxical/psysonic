@@ -1127,7 +1127,12 @@ ON CONFLICT(server_id, id) DO UPDATE SET
   -- playback-derived md5_16kb written via library_patch_track / the analysis
   -- bridge. A non-empty incoming hash still wins.
   content_hash         = COALESCE(NULLIF(excluded.content_hash, ''), track.content_hash),
-  server_updated_at    = excluded.server_updated_at,
+  -- The N1 delta pages `updated_at DESC` and stops at MAX(server_updated_at)
+  -- over the live rows, so this column is the delta's memory of how far it has
+  -- read. `search3` does not carry it: blanking it here either strands the
+  -- delta below a leftover mark or, with no mark at all, makes every tick page
+  -- the whole catalogue. An incoming timestamp still wins.
+  server_updated_at    = COALESCE(excluded.server_updated_at, track.server_updated_at),
   server_created_at    = excluded.server_created_at,
   deleted              = excluded.deleted,
   synced_at            = excluded.synced_at,
@@ -1182,7 +1187,12 @@ ON CONFLICT(server_id, id) DO UPDATE SET
   replay_gain_album_db = excluded.replay_gain_album_db,
   replay_gain_peak     = excluded.replay_gain_peak,
   content_hash         = COALESCE(NULLIF(excluded.content_hash, ''), track.content_hash),
-  server_updated_at    = excluded.server_updated_at,
+  -- The N1 delta pages `updated_at DESC` and stops at MAX(server_updated_at)
+  -- over the live rows, so this column is the delta's memory of how far it has
+  -- read. `search3` does not carry it: blanking it here either strands the
+  -- delta below a leftover mark or, with no mark at all, makes every tick page
+  -- the whole catalogue. An incoming timestamp still wins.
+  server_updated_at    = COALESCE(excluded.server_updated_at, track.server_updated_at),
   server_created_at    = excluded.server_created_at,
   deleted              = 0,
   synced_at            = excluded.synced_at,
@@ -1313,6 +1323,41 @@ mod tests {
         let (credit, sort) = album_credit_and_sort(&store, "t1");
         assert_eq!(credit.as_deref(), Some("Various Artists"));
         assert_eq!(sort.as_deref(), Some("Track, The"));
+    }
+
+    /// `MAX(server_updated_at)` is where the native delta resumes reading. A
+    /// bulk pass that does not carry the timestamp must not erase it, on either
+    /// upsert shape — a resync that blanks it strands the delta.
+    #[test]
+    fn a_bulk_pass_does_not_erase_the_delta_watermark() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        repo.upsert_batch(&[enriched_row("t1")]).unwrap();
+
+        let mut bulk = bulk_row_without_credit("t1");
+        bulk.server_updated_at = None;
+        repo.upsert_batch(&[bulk.clone()]).unwrap();
+        assert_eq!(delta_watermark(&store, "t1"), Some(1_700_000_000));
+
+        repo.upsert_batch_initial_ingest_timed(&[bulk], Some(2))
+            .unwrap();
+        assert_eq!(
+            delta_watermark(&store, "t1"),
+            Some(1_700_000_000),
+            "the resync path must preserve it too"
+        );
+    }
+
+    fn delta_watermark(store: &LibraryStore, id: &str) -> Option<i64> {
+        store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT server_updated_at FROM track WHERE id = ?1",
+                    params![id],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap()
     }
 
     #[test]
