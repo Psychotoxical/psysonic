@@ -429,9 +429,29 @@ fn rebuild_cluster_keys_on_conn(
     let select = format!(
         "WITH physical_album AS MATERIALIZED ( \
            SELECT source.server_id, source.album_id, \
-                  CASE WHEN COUNT(*) = COUNT(ar_source.id) \
-                         AND COUNT(DISTINCT source.artist_id) = 1 \
-                       THEN MAX(ar_source.name) END AS canonical_album_artist, \
+                  COALESCE( \
+                    /* First choice stays the canonical artist entity: it is the \
+                       one that follows a rename, which a stored tag string does \
+                       not. \
+                       Second choice is the album's own credit, when every track \
+                       agrees on one AND that credit actually performs on the \
+                       album. That is the album carrying a correctly tagged \
+                       guest: its track artists are no longer uniform, so the \
+                       entity rule cannot fire, and without this the album lost \
+                       its identity and could not merge with another copy of \
+                       itself. The performing test is what keeps a label credit \
+                       out — a various-artists label matches no track, so a \
+                       compilation keeps its physical key and two unrelated \
+                       compilations sharing a title cannot collapse into one. */ \
+                    CASE WHEN COUNT(*) = COUNT(ar_source.id) \
+                           AND COUNT(DISTINCT source.artist_id) = 1 \
+                         THEN MAX(ar_source.name) END, \
+                    CASE WHEN COUNT(NULLIF(TRIM(source.album_artist), '')) = COUNT(*) \
+                           AND COUNT(DISTINCT NULLIF(TRIM(source.album_artist), '')) = 1 \
+                           AND SUM(CASE WHEN TRIM(source.album_artist) = TRIM(source.artist) \
+                                        THEN 1 ELSE 0 END) > 0 \
+                         THEN MAX(NULLIF(TRIM(source.album_artist), '')) END \
+                  ) AS canonical_album_artist, \
                   MAX(source.album) AS canonical_album \
            FROM track source \
            LEFT JOIN artist ar_source \
@@ -547,9 +567,18 @@ fn apply_identity_invalidations_on_conn(
                   ), \
                   physical_album AS MATERIALIZED ( \
                     SELECT source.server_id, source.album_id, \
-                           CASE WHEN COUNT(*) = COUNT(ar_source.id) \
-                                  AND COUNT(DISTINCT source.artist_id) = 1 \
-                                THEN MAX(ar_source.name) END AS canonical_album_artist, \
+                           /* Same precedence as the full rebuild: the album's \
+                              own credit first, artist_id uniformity second. */ \
+                           COALESCE( \
+                             CASE WHEN COUNT(*) = COUNT(ar_source.id) \
+                                    AND COUNT(DISTINCT source.artist_id) = 1 \
+                                  THEN MAX(ar_source.name) END, \
+                             CASE WHEN COUNT(NULLIF(TRIM(source.album_artist), '')) = COUNT(*) \
+                                    AND COUNT(DISTINCT NULLIF(TRIM(source.album_artist), '')) = 1 \
+                                    AND SUM(CASE WHEN TRIM(source.album_artist) = TRIM(source.artist) \
+                                                 THEN 1 ELSE 0 END) > 0 \
+                                  THEN MAX(NULLIF(TRIM(source.album_artist), '')) END \
+                           ) AS canonical_album_artist, \
                            MAX(source.album) AS canonical_album \
                     FROM invalidated_album ia \
                     CROSS JOIN track source INDEXED BY idx_track_album \
@@ -1070,6 +1099,53 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(row.1, build_album_key(Some("Metallica"), "S&M2"));
+    }
+
+    /// An album credited to one artist that carries a correctly tagged guest on
+    /// one track. Its track artists are no longer uniform, so the entity rule
+    /// cannot fire — and before the album credit was consulted the album fell
+    /// back to a physical key and could no longer merge with another copy of
+    /// itself, which is how one retagged album turned into two cards.
+    #[test]
+    fn rebuild_keys_an_album_with_a_guest_track_by_its_own_credit() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                physical_album_track_row(
+                    "s1", "t1", "One", "Main Act", "artist-main", "Record", "album-1", "Main Act",
+                    "lib-a",
+                ),
+                physical_album_track_row(
+                    "s1", "t2", "Two", "Guest Act", "artist-guest", "Record", "album-1",
+                    "Main Act", "lib-a",
+                ),
+            ])
+            .unwrap();
+        store
+            .with_conn_mut("test.guest_album_artist", |conn| {
+                conn.execute(
+                    "INSERT INTO artist (server_id, id, name, synced_at) VALUES \
+                     ('s1', 'artist-main', 'Main Act', 1), \
+                     ('s1', 'artist-guest', 'Guest Act', 1)",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        rebuild_cluster_keys(&store, None).unwrap();
+
+        let key = store
+            .with_read_conn(|conn| read_cluster_row(conn, "s1", "t1"))
+            .unwrap()
+            .unwrap()
+            .1
+            .unwrap();
+        assert_eq!(
+            key,
+            build_album_key(Some("Main Act"), "Record").unwrap(),
+            "the credited artist performs on the album, so it keeps its identity"
+        );
     }
 
     #[test]
