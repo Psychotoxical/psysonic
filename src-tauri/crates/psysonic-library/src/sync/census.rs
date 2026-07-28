@@ -319,7 +319,20 @@ impl<'a> AlbumCensusRunner<'a> {
             return Ok(report);
         }
 
-        let diff = diff_inventories(&local, &server);
+        let mut diff = diff_inventories(&local, &server);
+        // An album the server itself reports as empty can never produce a track
+        // row, so fetching it leaves the index unchanged and the gap open — and
+        // because the gap list is sorted, the same album would take a slot from
+        // a real gap on every run for the life of the install.
+        let empty_on_server: std::collections::HashSet<&str> = server
+            .iter()
+            .filter(|entry| entry.song_count == Some(0))
+            .map(|entry| entry.album_id.as_str())
+            .collect();
+        if !empty_on_server.is_empty() {
+            diff.missing_locally
+                .retain(|album_id| !empty_on_server.contains(album_id.as_str()));
+        }
         if diff.is_empty() {
             return Ok(report);
         }
@@ -347,9 +360,16 @@ impl<'a> AlbumCensusRunner<'a> {
         // take the other's share, so a large backlog of one cannot starve the
         // other: removals used to run first and unbounded, which on a library
         // with many retired albums meant no new album was ever fetched.
+        // `div_ceil` hands the odd unit to whoever asks first, so both halves
+        // must still be clamped against what the cap has left — otherwise an odd
+        // cap with work on both sides spends one request more than it may.
         let half = self.probe_cap.div_ceil(2);
         let to_remove_len = removable.len().min(half);
-        let to_fill_len = diff.missing_locally.len().min(half);
+        let to_fill_len = diff
+            .missing_locally
+            .len()
+            .min(half)
+            .min(self.probe_cap.saturating_sub(to_remove_len));
         let mut spare = self.probe_cap.saturating_sub(to_remove_len + to_fill_len);
         let to_remove_len = to_remove_len + spare.min(removable.len() - to_remove_len);
         spare = self
@@ -874,6 +894,78 @@ mod tests {
         assert!(report.removal_refused);
         assert_eq!(report.albums_removed, 0);
         assert_eq!(live_rows(&store, "al-9"), 1);
+    }
+
+    /// The existing cap test has no gaps, so it never exercises the split. With
+    /// work on both sides and an odd cap, `div_ceil` hands the spare unit to
+    /// each half and the run spends one request more than the constant allows.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_odd_probe_cap_is_still_a_cap_when_both_halves_have_work() {
+        let server = MockServer::start().await;
+        let store = LibraryStore::open_in_memory();
+        mark_ready(&store);
+        for index in 0..20 {
+            seed_album(&store, &format!("al-{index:03}"), &[&format!("t-{index}")], 100);
+        }
+        // Two removals and two gaps, against a cap of three.
+        let mut listed: Vec<_> = (2..20)
+            .map(|i| album_summary(&format!("al-{i:03}"), 1, 100))
+            .collect();
+        listed.push(album_summary("al-new-0", 1, 100));
+        listed.push(album_summary("al-new-1", 1, 100));
+        mount_album_list(&server, listed).await;
+        for index in 0..2 {
+            mount_album_gone(&server, &format!("al-{index:03}")).await;
+        }
+        mount_album_present(&server, "al-new-0", &["t-new-0"]).await;
+        mount_album_present(&server, "al-new-1", &["t-new-1"]).await;
+
+        let report = AlbumCensusRunner::new(&store, &test_subsonic(&server.uri()), "s1")
+            .with_sleep_disabled()
+            .with_probe_cap(3)
+            .run()
+            .await
+            .unwrap();
+
+        assert_eq!(
+            report.albums_removed + report.gaps_filled,
+            3,
+            "a cap of three means three probes, not four"
+        );
+        assert_eq!(report.deferred, 1, "the fourth candidate is named, not spent");
+    }
+
+    /// An album the server itself reports as empty can never produce a track
+    /// row, so fetching it changes nothing and leaves the gap open. Because the
+    /// gap list is sorted, that album takes the same slot from a real gap on
+    /// every run, for the life of the install.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_album_the_server_reports_as_empty_is_not_treated_as_a_gap() {
+        let server = MockServer::start().await;
+        let store = LibraryStore::open_in_memory();
+        mark_ready(&store);
+        seed_album(&store, "al-have", &["t-have"], 100);
+        mount_album_list(
+            &server,
+            vec![
+                album_summary("al-have", 1, 100),
+                album_summary("al-empty", 0, 0),
+            ],
+        )
+        .await;
+
+        let report = AlbumCensusRunner::new(&store, &test_subsonic(&server.uri()), "s1")
+            .with_sleep_disabled()
+            .run()
+            .await
+            .unwrap();
+
+        assert_eq!(report.gaps_filled, 0);
+        assert_eq!(
+            report.deferred, 0,
+            "not deferred either — it is not work, and reporting it as pending \
+             would keep pulling the next run forward"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
