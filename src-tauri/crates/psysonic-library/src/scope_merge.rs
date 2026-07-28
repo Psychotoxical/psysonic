@@ -1653,18 +1653,34 @@ pub fn search_tracks(
     })
 }
 
+/// The album's cluster key, or `None` when its tracks disagree on one.
+///
+/// `INDEXED BY idx_track_album` is load-bearing. Without it the planner drives
+/// this join from `cluster.track_cluster_key` — an attached database, whose
+/// statistics it weighs separately — and scans `track` on every probe. Measured
+/// against a ~172k-track library that is ~830ms per call, and the New Releases
+/// overlay makes one call per album: 24 albums accounted for 19.9s of a 19.9s
+/// request. The sibling probe in `album_overlay.rs` pins the same index and
+/// costs nothing.
+///
+/// The index is partial (`WHERE deleted = 0`), so the predicate below is part of
+/// the contract rather than just a filter: without it the index does not apply
+/// and SQLite rejects the hint outright.
+pub(crate) const LOOKUP_ALBUM_KEY_SQL: &str =
+    "SELECT CASE WHEN COUNT(*) = COUNT(ck.album_key) \
+                       AND COUNT(DISTINCT ck.album_key) = 1 \
+                 THEN MIN(ck.album_key) END \
+     FROM track t INDEXED BY idx_track_album \
+     INNER JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
+     WHERE t.server_id = ? AND t.album_id = ? AND t.deleted = 0";
+
 pub(crate) fn lookup_album_key(
     conn: &rusqlite::Connection,
     server_id: &str,
     album_id: &str,
 ) -> rusqlite::Result<Option<String>> {
     conn.query_row(
-        "SELECT CASE WHEN COUNT(*) = COUNT(ck.album_key) \
-                           AND COUNT(DISTINCT ck.album_key) = 1 \
-                     THEN MIN(ck.album_key) END \
-         FROM track t \
-         INNER JOIN cluster.track_cluster_key ck ON ck.server_id = t.server_id AND ck.track_id = t.id \
-         WHERE t.server_id = ? AND t.album_id = ? AND t.deleted = 0",
+        LOOKUP_ALBUM_KEY_SQL,
         rusqlite::params![server_id, album_id],
         |r| r.get::<_, Option<String>>(0),
     )
