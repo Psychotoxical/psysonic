@@ -1659,9 +1659,8 @@ pub fn search_tracks(
 /// this join from `cluster.track_cluster_key` — an attached database, whose
 /// statistics it weighs separately — and scans `track` on every probe. Measured
 /// against a ~172k-track library that is ~830ms per call, and the New Releases
-/// overlay makes one call per album: 24 albums accounted for 19.9s of a 19.9s
-/// request. The sibling probe in `album_overlay.rs` pins the same index and
-/// costs nothing.
+/// overlay makes one call per album: 24 albums accounted for **19.9s of a 19.9s
+/// request**, with the rest of that request costing 2ms.
 ///
 /// The index is partial (`WHERE deleted = 0`), so the predicate below is part of
 /// the contract rather than just a filter: without it the index does not apply
