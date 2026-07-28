@@ -1057,12 +1057,18 @@ INSERT INTO track (
 )
 ON CONFLICT(server_id, id) DO UPDATE SET
   title                = excluded.title,
-  title_sort           = excluded.title_sort,
+  -- Same rule as `library_id` below: `search3` omits sortName, so a bulk pass
+  -- must not erase a sort name a richer path already captured.
+  title_sort           = COALESCE(NULLIF(excluded.title_sort, ''), track.title_sort),
   artist               = excluded.artist,
   artist_id            = excluded.artist_id,
   album                = excluded.album,
   album_id             = excluded.album_id,
-  album_artist         = excluded.album_artist,
+  -- Same rule as `library_id` below: `search3` carries no albumArtist, so a
+  -- whole-server bulk pass would otherwise blank the album credit on every row
+  -- the Navidrome-native delta had already enriched. A non-empty incoming
+  -- credit still wins.
+  album_artist         = COALESCE(NULLIF(excluded.album_artist, ''), track.album_artist),
   duration_sec         = excluded.duration_sec,
   track_number         = excluded.track_number,
   disc_number          = excluded.disc_number,
@@ -1114,12 +1120,16 @@ INSERT INTO track (
 )
 ON CONFLICT(server_id, id) DO UPDATE SET
   title                = excluded.title,
-  title_sort           = excluded.title_sort,
+  -- Preserve a prior sort name when the payload omits it (see UPSERT above).
+  title_sort           = COALESCE(NULLIF(excluded.title_sort, ''), track.title_sort),
   artist               = excluded.artist,
   artist_id            = excluded.artist_id,
   album                = excluded.album,
   album_id             = excluded.album_id,
-  album_artist         = excluded.album_artist,
+  -- Preserve a prior album credit when the payload omits it (see UPSERT above).
+  -- This is the resync path, so without it every full resync of a large library
+  -- blanks the album credit the native delta had filled in.
+  album_artist         = COALESCE(NULLIF(excluded.album_artist, ''), track.album_artist),
   duration_sec         = excluded.duration_sec,
   track_number         = excluded.track_number,
   disc_number          = excluded.disc_number,
@@ -1202,6 +1212,78 @@ mod tests {
             synced_at: 1_700_000_500,
             raw_json: r#"{"id":"t1"}"#.into(),
         }
+    }
+
+    /// `search3` — the bulk path every library above the large-library
+    /// threshold takes — returns neither `albumArtist` nor `sortName`. Without
+    /// the COALESCE guards a whole-server pass blanks both on every row a
+    /// richer path had already filled in.
+    fn album_credit_and_sort(store: &LibraryStore, id: &str) -> (Option<String>, Option<String>) {
+        store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT album_artist, title_sort FROM track WHERE id = ?1",
+                    params![id],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+            })
+            .unwrap()
+    }
+
+    fn enriched_row(id: &str) -> TrackRow {
+        let mut enriched = row("s1", id, "Track");
+        enriched.title_sort = Some("Track, A".into());
+        enriched
+    }
+
+    fn bulk_row_without_credit(id: &str) -> TrackRow {
+        let mut bulk = row("s1", id, "Track");
+        bulk.album_artist = None;
+        bulk.title_sort = None;
+        bulk
+    }
+
+    #[test]
+    fn a_bulk_pass_that_omits_the_album_credit_does_not_erase_it() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        repo.upsert_batch(&[enriched_row("t1")]).unwrap();
+
+        repo.upsert_batch(&[bulk_row_without_credit("t1")]).unwrap();
+
+        let (credit, sort) = album_credit_and_sort(&store, "t1");
+        assert_eq!(credit.as_deref(), Some("The Artist"));
+        assert_eq!(sort.as_deref(), Some("Track, A"));
+    }
+
+    #[test]
+    fn the_resync_upsert_preserves_the_album_credit_as_well() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        repo.upsert_batch(&[enriched_row("t1")]).unwrap();
+
+        repo.upsert_batch_initial_ingest_timed(&[bulk_row_without_credit("t1")], Some(2))
+            .unwrap();
+
+        let (credit, sort) = album_credit_and_sort(&store, "t1");
+        assert_eq!(credit.as_deref(), Some("The Artist"));
+        assert_eq!(sort.as_deref(), Some("Track, A"));
+    }
+
+    #[test]
+    fn a_credit_the_server_actually_sends_still_wins() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        repo.upsert_batch(&[enriched_row("t1")]).unwrap();
+
+        let mut retagged = row("s1", "t1", "Track");
+        retagged.album_artist = Some("Various Artists".into());
+        retagged.title_sort = Some("Track, The".into());
+        repo.upsert_batch(&[retagged]).unwrap();
+
+        let (credit, sort) = album_credit_and_sort(&store, "t1");
+        assert_eq!(credit.as_deref(), Some("Various Artists"));
+        assert_eq!(sort.as_deref(), Some("Track, The"));
     }
 
     #[test]
