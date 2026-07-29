@@ -219,6 +219,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * On large libraries the Artists page could show nothing but a spinner, indefinitely. It now loads in well under a second.
 * Root cause: the query that collects the artists in the selected music folders was combining two steps in the wrong order, redoing the expensive one once per artist instead of once in total. On a library of this size that meant the query never finished at all.
 
+### Hot Cache — prefetch mixed-server queues from the right server
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1363](https://github.com/Psychotoxical/psysonic/pull/1363)**
+
+* Hot Cache now downloads each upcoming track from its owning server instead of sending the whole prefetch window to whichever server is currently playing. Replacing the queue can no longer leave a delayed job caching the wrong copy when two servers reuse the same track ID.
+
 
 ## [1.50.0]
 
