@@ -225,6 +225,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Hot Cache now downloads each upcoming track from its owning server instead of sending the whole prefetch window to whichever server is currently playing. Replacing the queue can no longer leave a delayed job caching the wrong copy when two servers reuse the same track ID.
 
+### AppImage — installing through an AppImage manager
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1364](https://github.com/Psychotoxical/psysonic/pull/1364)**, reported by Arutosio
+
+* Handing the AppImage to an AppImage manager or a desktop-integration tool failed with a missing symlink target. The bundle's icon link pointed at a directory that only exists on the machine that built it; it is now relative and resolves wherever the AppImage is unpacked.
+* Starting the AppImage directly was never affected. The 1.50.0 download has also been replaced with a repacked build carrying the corrected link, so it does not have to wait for this release.
+
 
 ## [1.50.0]
 
