@@ -17,6 +17,7 @@ import {
   getEphemeralDiskBytes,
   reconcileEphemeralCache,
 } from '@/lib/cache/ephemeralTierReconcile';
+import { canonicalQueueServerKey } from '@/lib/server/serverIndexKey';
 
 export type LocalPlaybackTier = 'ephemeral' | 'library' | 'favorite-auto';
 
@@ -220,15 +221,20 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
 
         const protectLo = Math.max(0, queueIndex);
         const protectHi = Math.min(queue.length - 1, queueIndex + LOCAL_PLAYBACK_PROTECT_AFTER_CURRENT);
-        const protectedIds = new Set<string>();
+        const queueEntryKey = (ref: QueueItemRef): string => localPlaybackEntryKey(
+          canonicalQueueServerKey(ref.serverId) || activeServerIndexKey,
+          ref.trackId,
+        );
+        const protectedKeys = new Set<string>();
         for (let i = protectLo; i <= protectHi; i++) {
-          protectedIds.add(queue[i].trackId);
+          protectedKeys.add(queueEntryKey(queue[i]));
         }
 
-        const indexOfInQueue = (trackId: string): number | null => {
-          const idx = queue.findIndex(r => r.trackId === trackId);
-          return idx >= 0 ? idx : null;
-        };
+        const queueIndexByKey = new Map<string, number>();
+        queue.forEach((ref, index) => {
+          const key = queueEntryKey(ref);
+          if (!queueIndexByKey.has(key)) queueIndexByKey.set(key, index);
+        });
 
         const entries = { ...get().entries };
         let sum = Object.values(entries)
@@ -243,7 +249,7 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
           const parsed = parseLocalPlaybackEntryKey(key);
           if (!parsed) continue;
           const { serverIndexKey, trackId } = parsed;
-          if (protectedIds.has(trackId) && serverIndexKey === activeServerIndexKey) continue;
+          if (protectedKeys.has(key)) continue;
           if (isHotCachePreviousTrackUnderGrace(trackId, serverIndexKey)) continue;
 
           const lru = lruStamp(meta);
@@ -251,7 +257,7 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
             cands.push({ key, tier: 0, primary: 0, lru });
             continue;
           }
-          const qIdx = indexOfInQueue(trackId);
+          const qIdx = queueIndexByKey.get(key) ?? null;
           if (qIdx === null) {
             cands.push({ key, tier: 1, primary: 0, lru });
           } else if (qIdx > protectHi) {

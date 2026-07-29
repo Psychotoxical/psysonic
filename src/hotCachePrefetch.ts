@@ -281,15 +281,15 @@ async function replanNow() {
   }));
   let projectedOccupied = sumCachedBytesInProtectedWindow(queueItems, queueIndex, hotEntries);
   const jobs: PrefetchJob[] = [];
-  const skipped: { trackId: string; reason: string }[] = [];
+  const skipped: { trackId: string; serverId: string; reason: string }[] = [];
   for (const [index, target] of targets.entries()) {
     const { track: t, serverId } = target;
     if (hasLocalPersistentPlaybackBytes(t.id, serverId)) {
-      skipped.push({ trackId: t.id, reason: 'persistent-local-bytes' });
+      skipped.push({ trackId: t.id, serverId, reason: 'persistent-local-bytes' });
       continue;
     }
     if (hotEntries[entryKey(serverId, t.id)]) {
-      skipped.push({ trackId: t.id, reason: 'already-in-hot-index' });
+      skipped.push({ trackId: t.id, serverId, reason: 'already-in-hot-index' });
       continue;
     }
     const isImmediateNext = index === 0;
@@ -299,7 +299,7 @@ async function replanNow() {
     }
     const est = estimateTrackHotCacheBytes(t);
     if (projectedOccupied + est > maxBytes) {
-      skipped.push({ trackId: t.id, reason: 'budget-cap-rest-deferred' });
+      skipped.push({ trackId: t.id, serverId, reason: 'budget-cap-rest-deferred' });
       break;
     }
     projectedOccupied += est;

@@ -224,6 +224,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1363](https://github.com/Psychotoxical/psysonic/pull/1363)**
 
 * Hot Cache now downloads each upcoming track from its owning server instead of sending the whole prefetch window to whichever server is currently playing. Replacing the queue can no longer leave a delayed job caching the wrong copy when two servers reuse the same track ID.
+* When the cache is full, the current and next tracks stay protected per server, so an identically numbered track on another server cannot evict the queued copy and trigger a download loop.
 
 ### AppImage — installing through an AppImage manager
 
