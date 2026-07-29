@@ -226,6 +226,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Handing the AppImage to an AppImage manager or a desktop-integration tool failed with a missing symlink target. The bundle's icon link pointed at a directory that only exists on the machine that built it; it is now relative and resolves wherever the AppImage is unpacked.
 * Starting the AppImage directly was never affected. The 1.50.0 download has also been replaced with a repacked build carrying the corrected link, so it does not have to wait for this release.
 
+### Library — albums deleted on the server no longer linger in your library
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1365](https://github.com/Psychotoxical/psysonic/pull/1365)**
+
+* Albums and tracks removed on the server could stay in the library indefinitely, and a full resync did not reliably clear them. Psysonic now verifies a server's albums against the index on its background schedule instead of only reacting once enough stale rows have piled up, so a deletion is noticed on its own merits. Albums the index never received arrive the same way.
+* A full resync no longer removes tracks that still exist on the server when the preceding fetch came back incomplete, and a bulk sync no longer drops album credits or the point the incremental sync resumes from.
+* Copies of the same album stop splitting into separate cards when one of them carries a correctly credited guest track, or when a release is tagged as part of a collection.
+
 
 ## [1.50.0]
 
