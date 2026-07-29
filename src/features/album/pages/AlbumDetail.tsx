@@ -8,7 +8,7 @@ import { songToTrack } from '@/lib/media/songToTrack';
 import { shuffleArray } from '@/lib/util/shuffleArray';
 import { ownedEntityKey, ownedOverrideValue } from '@/lib/util/ownedEntityKey';
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router';
 import { downloadZip } from '@/lib/api/downloadZip';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useAuthStore } from '@/store/authStore';

@@ -18,7 +18,7 @@ vi.mock('../store/authStore', () => ({
   useAuthStore: () => authState,
 }));
 
-vi.mock('react-router-dom', () => ({
+vi.mock('react-router', () => ({
   Navigate: ({ to }: { to: string }) => <div data-testid="redirect" data-to={to} />,
 }));
 

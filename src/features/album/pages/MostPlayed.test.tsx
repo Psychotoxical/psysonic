@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import { renderWithProviders } from '@/test/helpers/renderWithProviders';
 import { resetAuthStore, resetPlayerStore } from '@/test/helpers/storeReset';
 import { useAuthStore } from '@/store/authStore';

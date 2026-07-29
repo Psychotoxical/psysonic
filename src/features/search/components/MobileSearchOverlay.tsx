@@ -10,7 +10,7 @@ import React, {
   type SetStateAction,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import { navigatePathWithAlbumReturnTo } from '@/lib/navigation/albumDetailNavigation';
 import { X, Search, Disc3, Users, Music, Music2, Clock, ChevronRight } from 'lucide-react';
 import { usePlayerStore } from '@/features/playback/store/playerStore';

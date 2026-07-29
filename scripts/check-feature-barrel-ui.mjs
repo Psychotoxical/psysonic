@@ -11,9 +11,10 @@
  * from are listed in BOOT_CRITICAL_BARRELS.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = new URL('..', import.meta.url).pathname;
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Barrels whose non-UI surface is imported before or during first paint. */
 const BOOT_CRITICAL_BARRELS = [

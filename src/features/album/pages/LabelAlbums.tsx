@@ -1,7 +1,7 @@
 import { search, searchForServer } from '@/lib/api/subsonicSearch';
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router';
 import { ChevronLeft } from 'lucide-react';
 import AlbumCard from '@/features/album/components/AlbumCard';
 import { useTranslation } from 'react-i18next';

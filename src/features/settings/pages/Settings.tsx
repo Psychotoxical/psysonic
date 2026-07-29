@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import {
   AudioLines, HardDrive, Info, Keyboard, LayoutGrid, Music2, Paintbrush, Palette, Search, Server, Sparkles, Users, X,
 } from 'lucide-react';

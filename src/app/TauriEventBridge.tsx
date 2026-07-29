@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useZipDownloadBridge } from '@/features/offline';
 import { usePreviewBridge } from '@/app/tauriBridge/usePreviewBridge';
 import { useAudioDeviceBridge } from '@/app/tauriBridge/useAudioDeviceBridge';

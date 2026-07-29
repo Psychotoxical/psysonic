@@ -1,5 +1,5 @@
 import { type RefObject } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Users, Disc3, Music, Database, Globe } from 'lucide-react';
 import { useNavigateToAlbum, albumArtistDisplayName } from '@/features/album';

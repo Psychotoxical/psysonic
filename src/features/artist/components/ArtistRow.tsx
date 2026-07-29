@@ -2,7 +2,7 @@ import type { SubsonicArtist } from '@/lib/api/subsonicTypes';
 import React, { useRef, useState, useEffect, useLayoutEffect } from 'react';
 import ArtistCardLocal from '@/features/artist/components/ArtistCardLocal';
 import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 interface Props {
   title: string;

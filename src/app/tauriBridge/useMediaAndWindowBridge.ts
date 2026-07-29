@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { exitApp, pauseRendering } from '@/lib/api/platformShell';
-import type { NavigateFunction } from 'react-router-dom';
+import type { NavigateFunction } from 'react-router';
 import { flushPlayQueuePosition } from '@/features/playback/store/queueSync';
 import { playListenSessionFinalize } from '@/features/playback/store/playListenSession';
 import { playbackReportStopped } from '@/features/playback/store/playbackReportSession';

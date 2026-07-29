@@ -2,7 +2,7 @@ import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import React, { useRef, useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import AlbumCard from '@/features/album/components/AlbumCard';
 import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import { dedupeById } from '@/lib/util/dedupeById';

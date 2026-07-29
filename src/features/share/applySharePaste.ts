@@ -2,7 +2,7 @@ import { getSongForServer } from '@/lib/api/subsonicLibrary';
 import { resolveAlbum, resolveArtist } from '@/features/offline';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { songToTrack } from '@/lib/media/songToTrack';
-import type { Location, NavigateFunction } from 'react-router-dom';
+import type { Location, NavigateFunction } from 'react-router';
 import type { TFunction } from 'i18next';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { navigateToAlbumDetail } from '@/lib/navigation/albumDetailNavigation';

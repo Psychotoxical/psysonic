@@ -1,4 +1,4 @@
-import type { Location, NavigateFunction, NavigationType } from 'react-router-dom';
+import type { Location, NavigateFunction, NavigationType } from 'react-router';
 import {
   isAdvancedSearchPath,
   useAdvancedSearchSessionStore,

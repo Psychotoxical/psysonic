@@ -1,5 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react';
-import { useLocation, useNavigationType } from 'react-router-dom';
+import { useLocation, useNavigationType } from 'react-router';
 import { GENRE_DETAIL_INPAGE_SCROLL_VIEWPORT_ID, readInpageScrollTop } from '@/constants/appScroll';
 import {
   DEFAULT_ALBUM_BROWSE_RETURN_FILTERS,

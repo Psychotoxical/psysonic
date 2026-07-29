@@ -1,6 +1,6 @@
 import type { SubsonicGenre } from '@/lib/api/subsonicTypes';
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Tags } from 'lucide-react';
 import { APP_MAIN_SCROLL_VIEWPORT_ID } from '@/constants/appScroll';

@@ -1,6 +1,6 @@
 import React, { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { SubsonicArtist } from '@/lib/api/subsonicTypes';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
