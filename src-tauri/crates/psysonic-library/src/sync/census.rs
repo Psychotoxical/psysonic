@@ -1335,6 +1335,24 @@ mod tests {
         let store = LibraryStore::open_in_memory();
         mark_ready(&store);
         seed_album(&store, "al-1", &["t-1"], 100);
+        store
+            .with_conn_mut("test.seed_retired_gap", |conn| {
+                conn.execute(
+                    "INSERT INTO track (server_id, id, title, title_sort, album, album_id, \
+                       duration_sec, server_updated_at, deleted, synced_at, raw_json) \
+                     VALUES ('s1', 't-2', 'Old title', 'Old title, The', 'Extended', 'al-2', \
+                       100, 1700000000000, 1, 1, ?1)",
+                    rusqlite::params![json!({
+                        "id": "t-2",
+                        "title": "Old title",
+                        "sortTitle": "Old title, The",
+                        "updatedAt": "2023-11-14T22:13:20Z"
+                    })
+                    .to_string()],
+                )?;
+                Ok(())
+            })
+            .unwrap();
         mount_album_list(
             &server,
             vec![album_summary("al-1", 1, 100), album_summary("al-2", 1, 100)],
@@ -1354,6 +1372,7 @@ mod tests {
                         "song": [{
                             "id": "t-2",
                             "title": "Extended Track",
+                            "sortName": "Extended Track, The",
                             "album": "Extended",
                             "albumId": "al-2",
                             "duration": 100,
@@ -1373,7 +1392,13 @@ mod tests {
             .await
             .unwrap();
 
-        let (track_raw, album_raw, album_starred): (String, String, Option<i64>) = store
+        let (track_raw, album_raw, album_starred, title_sort, server_updated_at): (
+            String,
+            String,
+            Option<i64>,
+            Option<String>,
+            Option<i64>,
+        ) = store
             .with_read_conn(|conn| {
                 Ok((
                     conn.query_row("SELECT raw_json FROM track WHERE id = 't-2'", [], |row| {
@@ -1385,6 +1410,14 @@ mod tests {
                     conn.query_row("SELECT starred_at FROM album WHERE id = 'al-2'", [], |row| {
                         row.get(0)
                     })?,
+                    conn.query_row("SELECT title_sort FROM track WHERE id = 't-2'", [], |row| {
+                        row.get(0)
+                    })?,
+                    conn.query_row(
+                        "SELECT server_updated_at FROM track WHERE id = 't-2'",
+                        [],
+                        |row| row.get(0),
+                    )?,
                 ))
             })
             .unwrap();
@@ -1395,6 +1428,8 @@ mod tests {
         assert!(track_raw.get("contributors").is_some());
         assert_eq!(album_raw["releaseTypes"], json!(["Album"]));
         assert!(album_starred.is_some());
+        assert_eq!(title_sort.as_deref(), Some("Extended Track, The"));
+        assert_eq!(server_updated_at, Some(1_700_000_000_000));
     }
 
     #[test]

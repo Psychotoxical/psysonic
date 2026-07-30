@@ -237,7 +237,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1365](https://github.com/Psychotoxical/psysonic/pull/1365)**
 
-* Albums and tracks removed on the server could stay in the library indefinitely, and a full resync did not reliably clear them. Psysonic now verifies a server's albums against the index on its background schedule instead of only reacting once enough stale rows have piled up, so a deletion is noticed on its own merits. Albums the index never received arrive the same way.
+* Albums and tracks removed on the server could stay in the library indefinitely, and a full resync did not reliably clear them. Psysonic now verifies a server's albums against the index on its background schedule instead of only reacting once enough stale rows have piled up, so a deletion is noticed on its own merits. Albums the index never received arrive the same way. On Navidrome, files still listed under **Missing Files** remain visible through the server API and must be cleared there before Psysonic can retire them.
 * A full resync only sweeps unconfirmed rows when a server-visible track count proves the ingest was complete; otherwise it keeps them and records why the sweep was skipped. Sparse bulk responses also keep richer metadata and the incremental-sync resume point without preventing the server from explicitly clearing those fields later.
 * Copies of the same album stop splitting into separate cards when one carries a correctly credited guest track. Unrelated compilations tagged with collection labels such as “Various” or “Soundtrack” stay separate instead of collapsing by title.
 
@@ -246,6 +246,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1365](https://github.com/Psychotoxical/psysonic/pull/1365)**
 
 * Removing the last profile for a server now stops its URL-keyed background sync session and, when requested, purges the matching local library rows even if another cleanup step fails. If another profile shares that server URL, Psysonic keeps the shared index and rebinds it to the remaining profile instead.
+
+### Offline library — freshly prepared tracks keep the correct sync time
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1365](https://github.com/Psychotoxical/psysonic/pull/1365)**
+
+* Opening or pinning an album no longer stamps its tracks with a seconds-based timestamp that makes them look as if they were indexed in 1970 and moves them to the front of stale-track verification.
 
 ## [1.50.0]
 

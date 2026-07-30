@@ -144,7 +144,8 @@ pub fn subsonic_song_to_track_row(
         id: song.id.clone(),
         title: song.title.clone(),
         title_sort: string_field(raw_value, "sortTitle")
-            .or_else(|| string_field(raw_value, "orderTitle")),
+            .or_else(|| string_field(raw_value, "orderTitle"))
+            .or_else(|| string_field(raw_value, "sortName")),
         artist: song.artist.clone(),
         artist_id: song.artist_id.clone(),
         album: song.album.clone().unwrap_or_default(),
@@ -229,7 +230,9 @@ pub fn navidrome_song_to_track_row(
         server_id: server_id.to_string(),
         id,
         title,
-        title_sort: string_field(raw, "sortTitle").or_else(|| string_field(raw, "orderTitle")),
+        title_sort: string_field(raw, "sortTitle")
+            .or_else(|| string_field(raw, "orderTitle"))
+            .or_else(|| string_field(raw, "sortName")),
         artist: string_field(raw, "artist"),
         artist_id: string_field(raw, "artistId"),
         album: string_field(raw, "album").unwrap_or_default(),
@@ -499,7 +502,7 @@ mod tests {
             "artist": "World",
             "displayAlbumArtist": "World & Guests",
             "albumId": "al_1",
-            "sortTitle": "Hello, The",
+            "sortName": "Hello, The",
             "duration": 240,
             "track": 3,
             "year": 2024,
@@ -546,6 +549,7 @@ mod tests {
         let raw = json!({
             "id": "tr_1",
             "title": "Hello",
+            "sortTitle": "Hello, The",
             "artist": "World",
             "artistId": "ar_1",
             "album": "An Album",
@@ -571,6 +575,7 @@ mod tests {
         });
         let row = navidrome_song_to_track_row("s1", &raw, 9_999, None).unwrap();
         assert_eq!(row.id, "tr_1");
+        assert_eq!(row.title_sort.as_deref(), Some("Hello, The"));
         assert_eq!(row.track_number, Some(3));
         assert_eq!(row.isrc.as_deref(), Some("USRC17607839"));
         assert_eq!(row.mbid_recording.as_deref(), Some("mb-1"));

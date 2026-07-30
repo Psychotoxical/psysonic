@@ -573,23 +573,26 @@ pub fn library_upsert_songs_from_api(
     server_id: String,
     songs: Vec<serde_json::Value>,
 ) -> Result<u32, String> {
+    upsert_songs_from_api(&runtime.store, &server_id, songs)
+}
+
+fn upsert_songs_from_api(
+    store: &LibraryStore,
+    server_id: &str,
+    songs: Vec<serde_json::Value>,
+) -> Result<u32, String> {
     use crate::sync::subsonic_song_to_track_row;
     use psysonic_integration::subsonic::Song;
 
     if songs.is_empty() {
         return Ok(0);
     }
-    let synced_at = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|e| e.to_string())?
-        .as_secs() as i64;
-    let repo = TrackRepository::new(&runtime.store);
+    let synced_at = now_unix_ms();
+    let repo = TrackRepository::new(store);
     let mut rows = Vec::with_capacity(songs.len());
     for raw in songs {
         let song: Song = serde_json::from_value(raw.clone()).map_err(|e| e.to_string())?;
-        rows.push(subsonic_song_to_track_row(
-            &server_id, &song, &raw, synced_at, None,
-        ));
+        rows.push(subsonic_song_to_track_row(server_id, &song, &raw, synced_at, None));
     }
     repo.upsert_batch(&rows)?;
     Ok(rows.len() as u32)
@@ -2315,6 +2318,41 @@ mod tests {
         assert_eq!(dto.id, "tr_1");
         assert_eq!(dto.album_id.as_deref(), Some("al_1"));
         assert_eq!(dto.track_number, Some(5));
+    }
+
+    #[test]
+    fn api_song_upsert_stamps_epoch_milliseconds() {
+        let store = LibraryStore::open_in_memory();
+        let before = now_unix_ms();
+        let inserted = upsert_songs_from_api(
+            &store,
+            "s1",
+            vec![serde_json::json!({
+                "id": "tr_1",
+                "title": "Track",
+                "album": "Album",
+                "albumId": "al_1",
+                "duration": 120
+            })],
+        )
+        .unwrap();
+        let after = now_unix_ms();
+
+        let synced_at: i64 = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT synced_at FROM track WHERE server_id = 's1' AND id = 'tr_1'",
+                    [],
+                    |row| row.get(0),
+                )
+            })
+            .unwrap();
+        assert_eq!(inserted, 1);
+        assert!(synced_at >= before && synced_at <= after);
+        assert!(
+            synced_at > 1_000_000_000_000,
+            "timestamp must be milliseconds"
+        );
     }
 
     #[test]

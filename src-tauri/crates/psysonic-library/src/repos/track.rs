@@ -1278,13 +1278,13 @@ INSERT INTO track (
 ON CONFLICT(server_id, id) DO UPDATE SET
   title                = excluded.title,
   title_sort           = CASE
-    WHEN ?37 != 0
-     AND json_valid(excluded.raw_json)
+    WHEN json_valid(excluded.raw_json)
      AND (json_type(excluded.raw_json, '$.sortTitle') IS NOT NULL
-       OR json_type(excluded.raw_json, '$.orderTitle') IS NOT NULL)
+       OR json_type(excluded.raw_json, '$.orderTitle') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.sortName') IS NOT NULL)
       THEN excluded.title_sort
-    WHEN ?37 != 0 THEN COALESCE(NULLIF(excluded.title_sort, ''), track.title_sort)
-    ELSE excluded.title_sort
+    WHEN excluded.title_sort IS NOT NULL THEN excluded.title_sort
+    ELSE track.title_sort
   END,
   artist               = excluded.artist,
   artist_id            = excluded.artist_id,
@@ -1329,12 +1329,11 @@ ON CONFLICT(server_id, id) DO UPDATE SET
   -- bridge. A non-empty incoming hash still wins.
   content_hash         = COALESCE(NULLIF(excluded.content_hash, ''), track.content_hash),
   server_updated_at    = CASE
-    WHEN ?37 != 0
-     AND json_valid(excluded.raw_json)
+    WHEN json_valid(excluded.raw_json)
      AND json_type(excluded.raw_json, '$.updatedAt') IS NOT NULL
       THEN excluded.server_updated_at
-    WHEN ?37 != 0 THEN COALESCE(excluded.server_updated_at, track.server_updated_at)
-    ELSE excluded.server_updated_at
+    WHEN excluded.server_updated_at IS NOT NULL THEN excluded.server_updated_at
+    ELSE track.server_updated_at
   END,
   server_created_at    = excluded.server_created_at,
   deleted              = excluded.deleted,
@@ -1362,13 +1361,13 @@ INSERT INTO track (
 ON CONFLICT(server_id, id) DO UPDATE SET
   title                = excluded.title,
   title_sort           = CASE
-    WHEN ?38 != 0
-     AND json_valid(excluded.raw_json)
+    WHEN json_valid(excluded.raw_json)
      AND (json_type(excluded.raw_json, '$.sortTitle') IS NOT NULL
-       OR json_type(excluded.raw_json, '$.orderTitle') IS NOT NULL)
+       OR json_type(excluded.raw_json, '$.orderTitle') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.sortName') IS NOT NULL)
       THEN excluded.title_sort
-    WHEN ?38 != 0 THEN COALESCE(NULLIF(excluded.title_sort, ''), track.title_sort)
-    ELSE excluded.title_sort
+    WHEN excluded.title_sort IS NOT NULL THEN excluded.title_sort
+    ELSE track.title_sort
   END,
   artist               = excluded.artist,
   artist_id            = excluded.artist_id,
@@ -1407,12 +1406,11 @@ ON CONFLICT(server_id, id) DO UPDATE SET
   replay_gain_peak     = excluded.replay_gain_peak,
   content_hash         = COALESCE(NULLIF(excluded.content_hash, ''), track.content_hash),
   server_updated_at    = CASE
-    WHEN ?38 != 0
-     AND json_valid(excluded.raw_json)
+    WHEN json_valid(excluded.raw_json)
      AND json_type(excluded.raw_json, '$.updatedAt') IS NOT NULL
       THEN excluded.server_updated_at
-    WHEN ?38 != 0 THEN COALESCE(excluded.server_updated_at, track.server_updated_at)
-    ELSE excluded.server_updated_at
+    WHEN excluded.server_updated_at IS NOT NULL THEN excluded.server_updated_at
+    ELSE track.server_updated_at
   END,
   server_created_at    = excluded.server_created_at,
   deleted              = 0,
@@ -1558,14 +1556,74 @@ mod tests {
     }
 
     #[test]
-    fn an_authoritative_payload_can_clear_album_credit_and_sort() {
+    fn an_authoritative_payload_clears_credit_but_keeps_unobserved_sync_fields() {
         let store = LibraryStore::open_in_memory();
         let repo = TrackRepository::new(&store);
-        repo.upsert_batch(&[enriched_row("t1")]).unwrap();
+        let mut enriched = enriched_row("t1");
+        enriched.server_updated_at = Some(1_700_000_000_000);
+        enriched.raw_json = serde_json::json!({
+            "id": "t1",
+            "albumArtist": "The Artist",
+            "sortTitle": "Track, A",
+            "updatedAt": "2023-11-14T22:13:20Z"
+        })
+        .to_string();
+        repo.upsert_batch(&[enriched]).unwrap();
 
-        repo.upsert_batch(&[bulk_row_without_credit("t1")]).unwrap();
+        let mut authoritative = bulk_row_without_credit("t1");
+        authoritative.server_updated_at = None;
+        authoritative.raw_json = serde_json::json!({ "id": "t1", "title": "Track" }).to_string();
+        repo.upsert_batch(&[authoritative]).unwrap();
 
-        assert_eq!(album_credit_and_sort(&store, "t1"), (None, None));
+        let values: (Option<String>, Option<String>, Option<i64>) = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT album_artist, title_sort, server_updated_at FROM track WHERE id = 't1'",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+            })
+            .unwrap();
+        assert_eq!(
+            values,
+            (None, Some("Track, A".into()), Some(1_700_000_000_000))
+        );
+    }
+
+    #[test]
+    fn authoritative_explicit_nulls_clear_sort_and_watermark() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        let mut enriched = enriched_row("t1");
+        enriched.server_updated_at = Some(1_700_000_000_000);
+        enriched.raw_json = serde_json::json!({
+            "id": "t1",
+            "sortTitle": "Track, A",
+            "updatedAt": "2023-11-14T22:13:20Z"
+        })
+        .to_string();
+        repo.upsert_batch(&[enriched]).unwrap();
+
+        let mut cleared = bulk_row_without_credit("t1");
+        cleared.server_updated_at = None;
+        cleared.raw_json = serde_json::json!({
+            "id": "t1",
+            "sortTitle": null,
+            "updatedAt": null
+        })
+        .to_string();
+        repo.upsert_batch(&[cleared]).unwrap();
+
+        let values: (Option<String>, Option<i64>) = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT title_sort, server_updated_at FROM track WHERE id = 't1'",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+            })
+            .unwrap();
+        assert_eq!(values, (None, None));
     }
 
     #[test]
