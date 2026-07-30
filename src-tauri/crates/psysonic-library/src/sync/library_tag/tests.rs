@@ -141,6 +141,7 @@ async fn tag_library_membership_tags_by_album_and_respects_prior_tags() {
     Mock::given(method("GET"))
         .and(path("/rest/getAlbumList2.view"))
         .and(query_param("musicFolderId", "1"))
+        .and(query_param("offset", "0"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "subsonic-response": {
                 "status": "ok",
@@ -151,12 +152,31 @@ async fn tag_library_membership_tags_by_album_and_respects_prior_tags() {
         .await;
     Mock::given(method("GET"))
         .and(path("/rest/getAlbumList2.view"))
+        .and(query_param("musicFolderId", "1"))
+        .and(query_param("offset", "1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "subsonic-response": { "status": "ok", "albumList2": { "album": [] } }
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/rest/getAlbumList2.view"))
         .and(query_param("musicFolderId", "2"))
+        .and(query_param("offset", "0"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "subsonic-response": {
                 "status": "ok",
                 "albumList2": { "album": [{ "id": "alb-b", "name": "B" }] }
             }
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/rest/getAlbumList2.view"))
+        .and(query_param("musicFolderId", "2"))
+        .and(query_param("offset", "1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "subsonic-response": { "status": "ok", "albumList2": { "album": [] } }
         })))
         .mount(&server)
         .await;
@@ -217,7 +237,6 @@ async fn tag_library_membership_skips_when_no_progress_possible() {
         .expect(1)
         .mount(&server)
         .await;
-
     let store = LibraryStore::open_in_memory();
     TrackRepository::new(&store)
         .upsert_batch(&[track_row("srv", "orphan", "no-album")])
@@ -267,6 +286,16 @@ async fn tag_library_membership_resumes_from_persisted_page_cursor() {
                 "status": "ok",
                 "albumList2": { "album": [{ "id": "last-album", "name": "Last" }] }
             }
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/rest/getAlbumList2.view"))
+        .and(query_param("musicFolderId", "1"))
+        .and(query_param("offset", (resume_offset + 1).to_string()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "subsonic-response": { "status": "ok", "albumList2": { "album": [] } }
         })))
         .expect(1)
         .mount(&server)

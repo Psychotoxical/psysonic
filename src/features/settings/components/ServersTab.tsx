@@ -15,6 +15,7 @@ import type { ServerProfile } from '@/store/authStoreTypes';
 import { pingWithCredentialsForProfile, scheduleInstantMixProbeForServer } from '@/lib/api/subsonic';
 import {
   clearServerHttpContext,
+  syncAllServerHttpContexts,
   syncServerHttpContextForProfile,
 } from '@/lib/server/syncServerHttpContext';
 import { type ServerMagicPayload } from '@/lib/server/serverMagicString';
@@ -172,19 +173,25 @@ export function ServersTab({
     // §5.6: when a local library index exists for this server, let the
     // user keep the cached rows (offline use) or delete them. OK =
     // delete the cache, Cancel = keep it.
+    const indexKey = serverIndexKeyForProfile(server);
+    const replacement = auth.servers.find(
+      candidate => candidate.id !== server.id && serverIndexKeyForProfile(candidate) === indexKey,
+    );
     const hadIndex = useLibraryIndexStore.getState().isIndexEnabled(server.id);
-    const purgeLibrary = hadIndex && confirm(t('settings.confirmDeleteServerLibrary'));
+    const purgeLibrary = !replacement && hadIndex && confirm(t('settings.confirmDeleteServerLibrary'));
 
     auth.removeServer(server.id);
-    try {
-      await clearServerHttpContext(server);
-      await librarySyncClearSession(server.id);
-      if (purgeLibrary) {
-        await libraryDeleteServerData(server.id);
-      }
-    } catch {
-      /* best-effort — server already removed from the store */
+    if (replacement) {
+      const remainingServers = useAuthStore.getState().servers;
+      await Promise.allSettled([
+        syncAllServerHttpContexts(remainingServers),
+        bootstrapIndexedServer(replacement),
+      ]);
+      return;
     }
+    const cleanup = [clearServerHttpContext(server), librarySyncClearSession(indexKey)];
+    if (purgeLibrary) cleanup.push(libraryDeleteServerData(indexKey));
+    await Promise.allSettled(cleanup);
   };
 
   const closeAddServerForm = () => {

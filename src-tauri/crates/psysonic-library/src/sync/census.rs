@@ -22,9 +22,11 @@
 //!    after a direct `getAlbum` confirms the album is gone, and only within a
 //!    cap on how much a single run may take out.
 
-use std::collections::HashMap;
+use std::collections::HashSet;
+use std::future::Future;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 
 use psysonic_integration::subsonic::{SubsonicClient, SubsonicError};
 use serde_json::Value;
@@ -32,7 +34,9 @@ use serde_json::Value;
 use super::bandwidth::{ParallelismBudget, PlaybackHint};
 use super::capability::CapabilityFlags;
 use super::error::SyncError;
-use super::ingest_parallel::{retry_fetch, sleep_request_gap, wait_while_bulk_paused};
+use super::ingest_parallel::{
+    next_album_list_offset, retry_fetch, sleep_request_gap, wait_while_bulk_paused,
+};
 use super::mapping::album_track_rows;
 use super::now_unix_ms;
 use crate::repos::TrackRepository;
@@ -64,6 +68,12 @@ pub const CENSUS_MAX_PAGES: u32 = 4_000;
 /// that wants to delete more than this is far likelier to be a broken
 /// enumeration than a user who deleted that much between two passes.
 pub const CENSUS_REMOVAL_CAP_PERCENT: usize = 20;
+
+/// Percentage-only caps make ordinary deletions impossible in small
+/// libraries (one album out of four is already 25%). Every removal still needs
+/// a direct `getAlbum` NotFound, so allow a small absolute floor while keeping
+/// the large-catalogue circuit breaker.
+pub const CENSUS_MIN_REMOVAL_CAP_ALBUMS: usize = 10;
 
 /// One album as either side of the census sees it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,26 +114,24 @@ pub fn diff_inventories(
     local: &[AlbumInventoryEntry],
     server: &[AlbumInventoryEntry],
 ) -> CensusDiff {
-    let local_by_id: HashMap<&str, &AlbumInventoryEntry> = local
-        .iter()
-        .map(|entry| (entry.album_id.as_str(), entry))
-        .collect();
-    let server_by_id: HashMap<&str, &AlbumInventoryEntry> = server
-        .iter()
-        .map(|entry| (entry.album_id.as_str(), entry))
-        .collect();
+    let local_by_id: HashSet<&str> = local.iter().map(|entry| entry.album_id.as_str()).collect();
+    let server_by_id: HashSet<&str> = server.iter().map(|entry| entry.album_id.as_str()).collect();
 
     let mut diff = CensusDiff::default();
+    let mut missing_locally = HashSet::new();
     for entry in server {
-        if !local_by_id.contains_key(entry.album_id.as_str()) {
-            diff.missing_locally.push(entry.album_id.clone());
+        if !local_by_id.contains(entry.album_id.as_str()) {
+            missing_locally.insert(entry.album_id.clone());
         }
     }
+    diff.missing_locally.extend(missing_locally);
+    let mut absent_on_server = HashSet::new();
     for entry in local {
-        if !server_by_id.contains_key(entry.album_id.as_str()) {
-            diff.absent_on_server.push(entry.album_id.clone());
+        if !server_by_id.contains(entry.album_id.as_str()) {
+            absent_on_server.insert(entry.album_id.clone());
         }
     }
+    diff.absent_on_server.extend(absent_on_server);
 
     diff.missing_locally.sort();
     diff.absent_on_server.sort();
@@ -139,7 +147,11 @@ pub fn removal_is_within_cap(candidates: usize, local_albums: usize, cap_percent
     if local_albums == 0 {
         return false;
     }
-    candidates.saturating_mul(100) <= local_albums.saturating_mul(cap_percent)
+    let percentage_limit = local_albums.saturating_mul(cap_percent).div_ceil(100);
+    let limit = percentage_limit
+        .max(CENSUS_MIN_REMOVAL_CAP_ALBUMS)
+        .min(local_albums);
+    candidates <= limit
 }
 
 /// The index's own album inventory for one server, aggregated across its
@@ -191,6 +203,14 @@ pub struct CensusReport {
     pub stale_projections_dropped: usize,
     /// True when the removal cap refused this run's candidates outright.
     pub removal_refused: bool,
+    /// The deadline expired before the server album inventory was complete.
+    /// There is no safe diff or known backlog to resume in this state, so the
+    /// scheduler must not turn it into the short retry used for confirmed work.
+    pub enumeration_incomplete: bool,
+    /// The runner stopped before the scheduler's outer timeout. Work already
+    /// committed is represented by the normal counters; remaining work is safe
+    /// to retry because no partial enumeration reaches the diff.
+    pub budget_exhausted: bool,
 }
 
 impl CensusReport {
@@ -200,15 +220,6 @@ impl CensusReport {
     pub fn changed_index(&self) -> bool {
         self.albums_removed > 0 || self.gaps_filled > 0 || self.stale_projections_dropped > 0
     }
-}
-
-/// What retiring one confirmed-gone album actually did.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RemovalOutcome {
-    /// Live rows were tombstoned.
-    Retired,
-    /// No live rows were left; only the stale projection entry went.
-    StaleProjectionDropped,
 }
 
 /// Reconciles one server's albums against the index. See the module header for
@@ -223,6 +234,7 @@ pub struct AlbumCensusRunner<'a> {
     cancel: Option<Arc<AtomicBool>>,
     sleep_enabled: bool,
     probe_cap: usize,
+    deadline: Option<Instant>,
 }
 
 impl<'a> AlbumCensusRunner<'a> {
@@ -241,6 +253,7 @@ impl<'a> AlbumCensusRunner<'a> {
             cancel: None,
             sleep_enabled: true,
             probe_cap: CENSUS_ALBUM_PROBE_CAP,
+            deadline: None,
         }
     }
 
@@ -256,6 +269,11 @@ impl<'a> AlbumCensusRunner<'a> {
 
     pub fn with_probe_cap(mut self, cap: usize) -> Self {
         self.probe_cap = cap;
+        self
+    }
+
+    pub fn with_deadline(mut self, deadline: Instant) -> Self {
+        self.deadline = Some(deadline);
         self
     }
 
@@ -303,14 +321,21 @@ impl<'a> AlbumCensusRunner<'a> {
         if phase.as_deref() != Some("ready") {
             return Ok(CensusReport::default());
         }
-        let server = self.enumerate_server_albums().await?;
         let local = local_album_inventory(self.store, &self.server_id).map_err(SyncError::Storage)?;
-
         let mut report = CensusReport {
-            server_albums: server.len(),
             local_albums: local.len(),
             ..CensusReport::default()
         };
+        let server = match self.enumerate_server_albums().await? {
+            AlbumEnumeration::Complete(server) => server,
+            AlbumEnumeration::Invalid => return Ok(report),
+            AlbumEnumeration::BudgetExhausted => {
+                report.budget_exhausted = true;
+                report.enumeration_incomplete = true;
+                return Ok(report);
+            }
+        };
+        report.server_albums = server.len();
 
         // Rule 1. An empty enumeration is not the statement "this server has no
         // music" — it is the absence of an answer, and acting on it would
@@ -385,18 +410,32 @@ impl<'a> AlbumCensusRunner<'a> {
         // Rule 2, second half: an album missing from the page run is a
         // candidate. Only `getAlbum` answering "gone" turns it into a removal,
         // so a shifted page cannot delete music.
-        for album_id in &to_remove {
+        let mut confirmed_gone = Vec::new();
+        for (index, album_id) in to_remove.iter().enumerate() {
+            if self.deadline_reached() {
+                report.budget_exhausted = true;
+                report.deferred += to_remove.len() - index;
+                break;
+            }
             self.check_cancellation()?;
             wait_while_bulk_paused(&self.budget, self.sleep_enabled, || self.check_cancellation())
                 .await?;
             sleep_request_gap(&self.budget, self.sleep_enabled).await;
-            match self.subsonic.get_album(album_id).await {
-                Err(SubsonicError::NotFound) => match self.tombstone_album(album_id)? {
-                    RemovalOutcome::Retired => report.albums_removed += 1,
-                    RemovalOutcome::StaleProjectionDropped => {
-                        report.stale_projections_dropped += 1
-                    }
-                },
+            if self.deadline_reached() {
+                report.budget_exhausted = true;
+                report.deferred += to_remove.len() - index;
+                break;
+            }
+            let Some(result) = self
+                .await_before_deadline(self.subsonic.get_album(album_id))
+                .await
+            else {
+                report.budget_exhausted = true;
+                report.deferred += to_remove.len() - index;
+                break;
+            };
+            match result {
+                Err(SubsonicError::NotFound) => confirmed_gone.push(album_id.clone()),
                 Ok(_) => {}
                 // One album that could not be asked is one album left for the
                 // next pass, not a reason to throw away the removals already
@@ -406,6 +445,13 @@ impl<'a> AlbumCensusRunner<'a> {
                     report.deferred += 1;
                 }
             }
+        }
+        if !confirmed_gone.is_empty() {
+            let (retired, stale) = TrackRepository::new(self.store)
+                .tombstone_albums(&self.server_id, &confirmed_gone)
+                .map_err(SyncError::Storage)?;
+            report.albums_removed = retired;
+            report.stale_projections_dropped = stale;
         }
 
         // Albums the server has and the index does not. This is the half that
@@ -418,14 +464,31 @@ impl<'a> AlbumCensusRunner<'a> {
         // and the fetch would discard every other album in the batch, and the
         // enumeration would hand back the same list on the next run, so the
         // gap would never close.
-        for album_id in &to_fill {
+        for (index, album_id) in to_fill.iter().enumerate() {
+            if self.deadline_reached() {
+                report.budget_exhausted = true;
+                report.deferred += to_fill.len() - index;
+                break;
+            }
             self.check_cancellation()?;
             wait_while_bulk_paused(&self.budget, self.sleep_enabled, || self.check_cancellation())
                 .await?;
             sleep_request_gap(&self.budget, self.sleep_enabled).await;
-            match self.subsonic.get_album(album_id).await {
-                Ok(album) => {
-                    let raw = serde_json::to_value(&album).unwrap_or(Value::Null);
+            if self.deadline_reached() {
+                report.budget_exhausted = true;
+                report.deferred += to_fill.len() - index;
+                break;
+            }
+            let Some(result) = self
+                .await_before_deadline(self.subsonic.get_album_with_raw(album_id))
+                .await
+            else {
+                report.budget_exhausted = true;
+                report.deferred += to_fill.len() - index;
+                break;
+            };
+            match result {
+                Ok((album, raw)) => {
                     if self.ingest_album(&album, &raw)? {
                         report.gaps_filled += 1;
                     }
@@ -446,29 +509,53 @@ impl<'a> AlbumCensusRunner<'a> {
 
     /// Page through the server's albums. Any failing page aborts the whole run:
     /// a partial list would make every album it never reached look absent.
-    async fn enumerate_server_albums(&self) -> Result<Vec<AlbumInventoryEntry>, SyncError> {
+    async fn enumerate_server_albums(&self) -> Result<AlbumEnumeration, SyncError> {
         let mut out: Vec<AlbumInventoryEntry> = Vec::new();
+        let mut seen = HashSet::new();
         let mut offset: u32 = 0;
         for _ in 0..CENSUS_MAX_PAGES {
+            if self.deadline_reached() {
+                return Ok(AlbumEnumeration::BudgetExhausted);
+            }
             self.check_cancellation()?;
             wait_while_bulk_paused(&self.budget, self.sleep_enabled, || self.check_cancellation())
                 .await?;
             sleep_request_gap(&self.budget, self.sleep_enabled).await;
+            if self.deadline_reached() {
+                return Ok(AlbumEnumeration::BudgetExhausted);
+            }
             // Retried like every other bulk fetch in the crate: a transient
             // failure on page 17 of 26 must not cost the whole pass, because
             // the run is then deferred for a full interval.
-            let page = retry_fetch(
-                self.sleep_enabled,
-                || self.check_cancellation(),
-                || {
-                    self.subsonic
-                        .get_album_list2("alphabeticalByName", CENSUS_PAGE_SIZE, offset, None)
-                },
-                SyncError::from,
-            )
-            .await?;
-            let received = page.len() as u32;
+            let Some(page) = self
+                .await_before_deadline(retry_fetch(
+                    self.sleep_enabled,
+                    || self.check_cancellation(),
+                    || {
+                        self.subsonic.get_album_list2(
+                            "alphabeticalByName",
+                            CENSUS_PAGE_SIZE,
+                            offset,
+                            None,
+                        )
+                    },
+                    SyncError::from,
+                ))
+                .await
+            else {
+                return Ok(AlbumEnumeration::BudgetExhausted);
+            };
+            let page = page?;
+            let received = page.len();
+            if received == 0 {
+                return Ok(AlbumEnumeration::Complete(out));
+            }
+            let mut new_ids = 0usize;
             for summary in page {
+                if !seen.insert(summary.id.clone()) {
+                    continue;
+                }
+                new_ids += 1;
                 out.push(AlbumInventoryEntry {
                     album_id: summary.id,
                     // Kept as reported: an omitted field means "unknown", and
@@ -477,10 +564,14 @@ impl<'a> AlbumCensusRunner<'a> {
                     duration_sec: summary.duration,
                 });
             }
-            if received < CENSUS_PAGE_SIZE {
-                return Ok(out);
+            if new_ids == 0 {
+                crate::app_eprintln!(
+                    "[library-sync] census album page did not advance at offset {offset}; \
+                     discarding the enumeration"
+                );
+                return Ok(AlbumEnumeration::Invalid);
             }
-            offset = offset.saturating_add(CENSUS_PAGE_SIZE);
+            offset = next_album_list_offset(offset, received).unwrap_or(offset);
         }
         // Ran out of pages without a short one: the server is not paginating
         // the way this walk assumes, so the list cannot be trusted as complete.
@@ -489,55 +580,7 @@ impl<'a> AlbumCensusRunner<'a> {
             "[library-sync] census page walk did not terminate after {CENSUS_MAX_PAGES} pages; \
              discarding the enumeration"
         );
-        Ok(Vec::new())
-    }
-
-    /// An album the server confirmed as gone is retired here — but the two
-    /// cases must stay apart. Only the first lost rows; both changed what the
-    /// browse surfaces show.
-    fn tombstone_album(&self, album_id: &str) -> Result<RemovalOutcome, SyncError> {
-        let tracks = TrackRepository::new(self.store);
-        let ids = tracks
-            .live_track_ids_for_album(&self.server_id, album_id)
-            .map_err(SyncError::Storage)?;
-        if ids.is_empty() {
-            self.drop_stale_projection_row(album_id)?;
-            return Ok(RemovalOutcome::StaleProjectionDropped);
-        }
-        tracks
-            .apply_tombstone_results(&self.server_id, "", &[], &ids)
-            .map_err(SyncError::Storage)?;
-        Ok(RemovalOutcome::Retired)
-    }
-
-    /// A projection row whose tracks are all gone would otherwise keep the
-    /// album in the local inventory forever, and every census would probe it
-    /// again.
-    fn drop_stale_projection_row(&self, album_id: &str) -> Result<(), SyncError> {
-        self.store
-            .with_conn_mut("census.drop_stale_projection_row", |conn| {
-                let tx = conn.transaction()?;
-                // Refreshing the scope is what removes an album with no live
-                // tracks — and it keeps the composer projection in step, which
-                // a hand-written DELETE on one table would leave behind.
-                let mut stmt = tx.prepare(
-                    "SELECT DISTINCT server_id, library_id FROM album_browse_projection \
-                     WHERE server_id = ?1 AND album_id = ?2",
-                )?;
-                let scopes: Vec<(String, String)> = stmt
-                    .query_map(rusqlite::params![self.server_id, album_id], |row| {
-                        Ok((row.get(0)?, row.get(1)?))
-                    })?
-                    .collect::<rusqlite::Result<Vec<_>>>()?;
-                drop(stmt);
-                let affected: std::collections::HashSet<(String, String, String)> = scopes
-                    .into_iter()
-                    .map(|(server_id, library_id)| (server_id, library_id, album_id.to_string()))
-                    .collect();
-                crate::browse_projection::refresh_album_scopes(&tx, affected)?;
-                tx.commit()
-            })
-            .map_err(SyncError::Storage)
+        Ok(AlbumEnumeration::Invalid)
     }
 
     /// Same shape as the S2 ingest: album metadata first, then its songs with
@@ -599,6 +642,34 @@ impl<'a> AlbumCensusRunner<'a> {
         }
         Ok(())
     }
+
+    fn deadline_reached(&self) -> bool {
+        self.deadline.is_some_and(|deadline| Instant::now() >= deadline)
+    }
+
+    /// Bound the in-flight future as well as the gaps between requests. Without
+    /// this, one stalled HTTP response can outlive the census budget and the
+    /// scheduler loses the exact report for work already committed.
+    async fn await_before_deadline<F>(&self, future: F) -> Option<F::Output>
+    where
+        F: Future,
+    {
+        let Some(deadline) = self.deadline else {
+            return Some(future.await);
+        };
+        if Instant::now() >= deadline {
+            return None;
+        }
+        tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), future)
+            .await
+            .ok()
+    }
+}
+
+enum AlbumEnumeration {
+    Complete(Vec<AlbumInventoryEntry>),
+    Invalid,
+    BudgetExhausted,
 }
 
 #[cfg(test)]
@@ -626,6 +697,15 @@ mod tests {
     fn identical_inventories_produce_nothing() {
         let side = vec![entry("al-1", 10, 2000), entry("al-2", 4, 800)];
         assert!(diff_inventories(&side, &side).is_empty());
+    }
+
+    #[test]
+    fn duplicate_server_entries_do_not_duplicate_gap_work() {
+        let server = vec![entry("al-1", 10, 2000), entry("al-1", 10, 2000)];
+
+        let diff = diff_inventories(&[], &server);
+
+        assert_eq!(diff.missing_locally, vec!["al-1"]);
     }
 
     #[test]
@@ -681,6 +761,12 @@ mod tests {
     fn the_cap_lets_an_ordinary_cleanup_through() {
         assert!(removal_is_within_cap(30, 12_746, CENSUS_REMOVAL_CAP_PERCENT));
         assert!(removal_is_within_cap(0, 0, CENSUS_REMOVAL_CAP_PERCENT));
+    }
+
+    #[test]
+    fn the_cap_does_not_block_ordinary_small_library_deletions() {
+        assert!(removal_is_within_cap(1, 4, CENSUS_REMOVAL_CAP_PERCENT));
+        assert!(removal_is_within_cap(4, 4, CENSUS_REMOVAL_CAP_PERCENT));
     }
 
     #[test]
@@ -750,6 +836,7 @@ mod tests {
     }
 
     async fn mount_album_list(server: &MockServer, albums: Vec<serde_json::Value>) {
+        let next_offset = albums.len();
         Mock::given(wm_method("GET"))
             .and(wm_path("/rest/getAlbumList2.view"))
             .and(query_param("offset", "0"))
@@ -758,6 +845,16 @@ mod tests {
             })))
             .mount(server)
             .await;
+        if next_offset > 0 {
+            Mock::given(wm_method("GET"))
+                .and(wm_path("/rest/getAlbumList2.view"))
+                .and(query_param("offset", next_offset.to_string()))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "subsonic-response": { "status": "ok", "albumList2": { "album": [] } }
+                })))
+                .mount(server)
+                .await;
+        }
     }
 
     async fn mount_album_gone(server: &MockServer, album_id: &str) {
@@ -772,6 +869,116 @@ mod tests {
             })))
             .mount(server)
             .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_expired_budget_returns_an_exact_no_change_report() {
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&server)
+            .await;
+        let store = LibraryStore::open_in_memory();
+        mark_ready(&store);
+        seed_album(&store, "al-1", &["t-1"], 100);
+
+        let report = AlbumCensusRunner::new(&store, &test_subsonic(&server.uri()), "s1")
+            .with_sleep_disabled()
+            .with_deadline(Instant::now())
+            .run()
+            .await
+            .unwrap();
+
+        assert!(report.budget_exhausted);
+        assert!(report.enumeration_incomplete);
+        assert_eq!(report.deferred, 0);
+        assert!(!report.changed_index());
+        assert_eq!(live_rows(&store, "al-1"), 1);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_in_flight_enumeration_request_cannot_outlive_the_budget() {
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_delay(std::time::Duration::from_secs(5))
+                    .set_body_json(json!({
+                        "subsonic-response": { "status": "ok", "albumList2": { "album": [] } }
+                    })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let store = LibraryStore::open_in_memory();
+        mark_ready(&store);
+        seed_album(&store, "al-1", &["t-1"], 100);
+
+        let report = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            AlbumCensusRunner::new(&store, &test_subsonic(&server.uri()), "s1")
+                .with_sleep_disabled()
+                .with_deadline(Instant::now() + std::time::Duration::from_millis(500))
+                .run(),
+        )
+        .await
+        .expect("the census must enforce its own deadline")
+        .unwrap();
+
+        assert!(report.budget_exhausted);
+        assert!(report.enumeration_incomplete);
+        assert_eq!(report.deferred, 0, "the runner does not know a resumable backlog yet");
+        assert_eq!(live_rows(&store, "al-1"), 1);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_in_flight_gap_probe_returns_an_exact_deferred_report() {
+        let server = MockServer::start().await;
+        let store = LibraryStore::open_in_memory();
+        mark_ready(&store);
+        seed_album(&store, "al-1", &["t-1"], 100);
+        mount_album_list(
+            &server,
+            vec![album_summary("al-1", 1, 100), album_summary("al-2", 1, 100)],
+        )
+        .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbum.view"))
+            .and(query_param("id", "al-2"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_delay(std::time::Duration::from_secs(5))
+                    .set_body_json(json!({
+                        "subsonic-response": {
+                            "status": "ok",
+                            "album": { "id": "al-2", "name": "Album", "song": [] }
+                        }
+                    })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let report = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            AlbumCensusRunner::new(&store, &test_subsonic(&server.uri()), "s1")
+                .with_sleep_disabled()
+                .with_deadline(Instant::now() + std::time::Duration::from_secs(1))
+                .run(),
+        )
+        .await
+        .expect("the gap probe must not outlive the census deadline")
+        .unwrap();
+
+        assert!(report.budget_exhausted);
+        assert!(!report.enumeration_incomplete);
+        assert_eq!(report.server_albums, 2);
+        assert_eq!(report.deferred, 1);
+        assert!(!report.changed_index());
+        assert_eq!(live_rows(&store, "al-2"), 0);
     }
 
     async fn mount_album_present(server: &MockServer, album_id: &str, song_ids: &[&str]) {
@@ -879,10 +1086,11 @@ mod tests {
         let server = MockServer::start().await;
         let store = LibraryStore::open_in_memory();
         mark_ready(&store);
-        for index in 0..10 {
+        for index in 0..20 {
             seed_album(&store, &format!("al-{index}"), &[&format!("t-{index}")], 100);
         }
-        // Only one album survives the enumeration — nine of ten would go.
+        // Only one album survives the enumeration — nineteen of twenty exceeds
+        // both the percentage cap and the small-library floor.
         mount_album_list(&server, vec![album_summary("al-0", 1, 100)]).await;
 
         let report = AlbumCensusRunner::new(&store, &test_subsonic(&server.uri()), "s1")
@@ -893,7 +1101,7 @@ mod tests {
 
         assert!(report.removal_refused);
         assert_eq!(report.albums_removed, 0);
-        assert_eq!(live_rows(&store, "al-9"), 1);
+        assert_eq!(live_rows(&store, "al-19"), 1);
     }
 
     /// The existing cap test has no gaps, so it never exercises the split. With
@@ -1064,6 +1272,129 @@ mod tests {
             2,
             "the delta cannot reach below its watermark; the census can"
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_server_clamped_page_size_does_not_truncate_the_census() {
+        let server = MockServer::start().await;
+        let store = LibraryStore::open_in_memory();
+        mark_ready(&store);
+        seed_album(&store, "al-1", &["t-1"], 100);
+
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .and(query_param("offset", "0"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "albumList2": { "album": [
+                        album_summary("al-1", 1, 100),
+                        album_summary("al-2", 1, 100)
+                    ] }
+                }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .and(query_param("offset", "2"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "albumList2": { "album": [album_summary("al-3", 1, 100)] }
+                }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .and(query_param("offset", "3"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "albumList2": { "album": [] } }
+            })))
+            .mount(&server)
+            .await;
+        mount_album_present(&server, "al-2", &["t-2"]).await;
+        mount_album_present(&server, "al-3", &["t-3"]).await;
+
+        let report = AlbumCensusRunner::new(&store, &test_subsonic(&server.uri()), "s1")
+            .with_sleep_disabled()
+            .run()
+            .await
+            .unwrap();
+
+        assert_eq!(report.server_albums, 3);
+        assert_eq!(report.gaps_filled, 2);
+        assert_eq!(live_rows(&store, "al-2"), 1);
+        assert_eq!(live_rows(&store, "al-3"), 1);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_gap_fill_keeps_raw_album_and_song_extensions() {
+        let server = MockServer::start().await;
+        let store = LibraryStore::open_in_memory();
+        mark_ready(&store);
+        seed_album(&store, "al-1", &["t-1"], 100);
+        mount_album_list(
+            &server,
+            vec![album_summary("al-1", 1, 100), album_summary("al-2", 1, 100)],
+        )
+        .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbum.view"))
+            .and(query_param("id", "al-2"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "album": {
+                        "id": "al-2",
+                        "name": "Extended",
+                        "starred": "2026-07-30T12:00:00Z",
+                        "releaseTypes": ["Album"],
+                        "song": [{
+                            "id": "t-2",
+                            "title": "Extended Track",
+                            "album": "Extended",
+                            "albumId": "al-2",
+                            "duration": 100,
+                            "replayGain": { "trackGain": -7.25 },
+                            "contributors": [{ "role": "producer", "artist": { "id": "p1", "name": "Producer" } }],
+                            "tags": { "mood": ["Calm"] }
+                        }]
+                    }
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        AlbumCensusRunner::new(&store, &test_subsonic(&server.uri()), "s1")
+            .with_sleep_disabled()
+            .run()
+            .await
+            .unwrap();
+
+        let (track_raw, album_raw, album_starred): (String, String, Option<i64>) = store
+            .with_read_conn(|conn| {
+                Ok((
+                    conn.query_row("SELECT raw_json FROM track WHERE id = 't-2'", [], |row| {
+                        row.get(0)
+                    })?,
+                    conn.query_row("SELECT raw_json FROM album WHERE id = 'al-2'", [], |row| {
+                        row.get(0)
+                    })?,
+                    conn.query_row("SELECT starred_at FROM album WHERE id = 'al-2'", [], |row| {
+                        row.get(0)
+                    })?,
+                ))
+            })
+            .unwrap();
+        let track_raw: Value = serde_json::from_str(&track_raw).unwrap();
+        let album_raw: Value = serde_json::from_str(&album_raw).unwrap();
+        assert_eq!(track_raw["replayGain"]["trackGain"], json!(-7.25));
+        assert_eq!(track_raw["tags"]["mood"], json!(["Calm"]));
+        assert!(track_raw.get("contributors").is_some());
+        assert_eq!(album_raw["releaseTypes"], json!(["Album"]));
+        assert!(album_starred.is_some());
     }
 
     #[test]

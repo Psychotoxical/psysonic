@@ -10,7 +10,7 @@
 
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use psysonic_core::server_http::ServerHttpRegistry;
 use psysonic_integration::subsonic::SubsonicClient;
@@ -22,7 +22,7 @@ use super::delta::{DeltaSyncReport, DeltaSyncRunner};
 use super::error::SyncError;
 use super::poll_stats::{next_interval_ms, PollStats};
 use super::progress::{NoopProgress, Progress};
-use super::census::AlbumCensusRunner;
+use super::census::{AlbumCensusRunner, CensusReport};
 use super::poll_stats::{census_is_due, CENSUS_DEFERRED_RETRY_MS, CENSUS_INTERVAL_MS};
 use super::tombstone::should_auto_reconcile_scope;
 use crate::repos::SyncStateRepository;
@@ -37,6 +37,10 @@ pub const DEFAULT_TOMBSTONE_THRESHOLD_PCT: u32 = 5;
 pub const CENSUS_RUN_BUDGET: std::time::Duration = std::time::Duration::from_secs(45);
 const ERROR_RETRY_INTERVAL_MS: i64 = 30_000;
 const MAX_PERSISTED_ERROR_CHARS: usize = 1_000;
+
+fn census_needs_early_retry(report: &CensusReport) -> bool {
+    report.changed_index() && (report.budget_exhausted || report.deferred > 0)
+}
 
 /// Outcome of one scheduler tick — what happened plus the resolved
 /// `next_poll_at` so the caller can re-schedule its timer.
@@ -298,6 +302,19 @@ impl<'a> BackgroundScheduler<'a> {
         }
         let delta_report = runner.run().await?;
 
+        // `deferred_scanning` means the server explicitly told us its catalogue
+        // is in flux. Album enumeration and NotFound probes are least reliable
+        // in that window, so do not let the tagging or census paths reinterpret
+        // transient scan state as missing local data.
+        if delta_report.deferred_scanning {
+            report.next_poll_at_ms = now_ms.saturating_add(ERROR_RETRY_INTERVAL_MS);
+            sync_state
+                .set_next_poll_at(&self.server_id, &self.library_scope, report.next_poll_at_ms)
+                .map_err(SyncError::Storage)?;
+            report.delta = Some(delta_report);
+            return Ok(report);
+        }
+
         // Tag empty `library_id` rows after background delta — new bulk-ingested
         // tracks arrive without folder metadata until this pass runs.
         super::library_tag::run_tag_pass_best_effort(
@@ -334,10 +351,9 @@ impl<'a> BackgroundScheduler<'a> {
             .as_deref()
             == Some("ready");
         if self.library_scope.is_empty() && index_is_ready && census_is_due(&stats, now_ms) {
-            // Persist the next slot *before* running. A census that outlives the
-            // tick timeout is cancelled mid-flight and would otherwise leave the
-            // schedule untouched — every following tick would find it due again
-            // and start the same doomed run.
+            // Persist the next slot *before* running. A process exit or the
+            // scheduler's outer timeout must not leave every following tick
+            // finding the same census immediately due.
             stats.next_census_at_ms = Some(now_ms.saturating_add(CENSUS_INTERVAL_MS));
             sync_state
                 .set_poll_stats_json(
@@ -349,35 +365,28 @@ impl<'a> BackgroundScheduler<'a> {
 
             let mut census = AlbumCensusRunner::new(self.store, self.subsonic, &self.server_id)
                 .with_capability_flags(self.capability_flags)
-                .with_budget(parallelism);
+                .with_budget(parallelism)
+                .with_deadline(Instant::now() + CENSUS_RUN_BUDGET);
             if let Some(flag) = &self.cancel {
                 census = census.with_cancellation(Arc::clone(flag));
             }
             if !self.sleep_enabled {
                 census = census.with_sleep_disabled();
             }
-            // Its own budget, well inside the tick timeout. Overrunning the
-            // tick turns a successful delta into a recorded scheduler error and
-            // swallows its refresh event; the census giving up early costs
-            // nothing, because the work it did not reach is still there next
-            // time.
-            match tokio::time::timeout(CENSUS_RUN_BUDGET, census.run()).await {
-                // Cut mid-flight. Every album it already retired was committed
-                // in its own transaction, so the refresh has to fire anyway —
-                // otherwise the surfaces keep rendering albums whose tracks are
-                // gone, and nothing corrects that until something else changes.
-                Err(_) => {
-                    census_changed_index = true;
-                    crate::app_eprintln!(
-                        "[library-sync] census exceeded its time budget; \
-                         work already committed still counts as a change"
-                    );
-                }
-                Ok(Ok(census_report)) => {
-                    if census_report.changed_index() || census_report.removal_refused {
+            // The runner observes its own deadline and returns a partial report
+            // before the scheduler's outer timeout. This preserves the exact
+            // refresh signal for work already committed instead of guessing
+            // that every timeout changed the index.
+            match census.run().await {
+                Ok(census_report) => {
+                    if census_report.changed_index()
+                        || census_report.removal_refused
+                        || census_report.budget_exhausted
+                    {
                         crate::app_eprintln!(
                             "[library-sync] census: server_albums={} local_albums={} \
-                             removed={} filled={} stale={} deferred={} refused={}",
+                             removed={} filled={} stale={} deferred={} refused={} budget_exhausted={} \
+                             enumeration_incomplete={}",
                             census_report.server_albums,
                             census_report.local_albums,
                             census_report.albums_removed,
@@ -385,6 +394,8 @@ impl<'a> BackgroundScheduler<'a> {
                             census_report.stale_projections_dropped,
                             census_report.deferred,
                             census_report.removal_refused,
+                            census_report.budget_exhausted,
+                            census_report.enumeration_incomplete,
                         );
                     }
                     census_changed_index = census_report.changed_index();
@@ -397,7 +408,7 @@ impl<'a> BackgroundScheduler<'a> {
                     // — albums the enumeration keeps listing but the server will
                     // not hand over — would otherwise re-walk the whole
                     // catalogue every minute for as long as the app is open.
-                    if census_report.deferred > 0 && census_changed_index {
+                    if census_needs_early_retry(&census_report) {
                         census_left_work = true;
                         stats.next_census_at_ms =
                             Some(now_ms.saturating_add(CENSUS_DEFERRED_RETRY_MS));
@@ -407,8 +418,8 @@ impl<'a> BackgroundScheduler<'a> {
                 // cancellable step in this tick propagates it, and writing
                 // sync_state for a torn-down session is exactly what that
                 // convention prevents.
-                Ok(Err(SyncError::Cancelled)) => return Err(SyncError::Cancelled),
-                Ok(Err(error)) => {
+                Err(SyncError::Cancelled) => return Err(SyncError::Cancelled),
+                Err(error) => {
                     // Any other failure is simply no answer this round; the
                     // delta pass it rode along with has already done its work,
                     // and the slot was reserved before the run started.
@@ -422,7 +433,11 @@ impl<'a> BackgroundScheduler<'a> {
         // two inputs to the auto-tombstone threshold — stamping it ahead of the
         // census leaves that threshold reading a number the same tick already
         // invalidated.
-        if delta_report.changed_count > 0 || census_changed_index {
+        // Delta already re-stamps after a tombstone pass. Avoid issuing the
+        // same count query again when a tick both ingested and retired rows.
+        if (delta_report.changed_count > 0 && delta_report.tombstones_deleted == 0)
+            || census_changed_index
+        {
             if let Ok(local) = self.count_local_tracks() {
                 sync_state
                     .set_local_track_count(&self.server_id, &self.library_scope, local)
@@ -765,6 +780,55 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn an_active_server_scan_skips_tagging_and_census() {
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getScanStatus.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "scanStatus": { "scanning": true, "count": 10 }
+                }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "albumList2": { "album": [] } }
+            })))
+            .expect(0)
+            .mount(&server)
+            .await;
+
+        let store = LibraryStore::open_in_memory();
+        seed_album(&store, "s1", "al-local", "t-local");
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "").unwrap();
+        sync_state.set_sync_phase("s1", "", "ready").unwrap();
+        sync_state.set_library_tier("s1", "", "huge").unwrap();
+
+        let subsonic = test_subsonic(&server.uri());
+        let report = BackgroundScheduler::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(CapabilityFlags::SCAN_STATUS_AVAILABLE),
+        )
+        .with_sleep_disabled()
+        .tick(1_000_000)
+        .await
+        .unwrap();
+
+        assert!(report.delta.as_ref().is_some_and(|delta| delta.deferred_scanning));
+        assert!(!report.census_changed_index);
+        assert_eq!(live_rows(&store, "al-local"), 1);
+        assert_eq!(report.next_poll_at_ms, 1_030_000);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn a_scoped_scheduler_never_censuses() {
         // Deliberately the same fixture as the test above, minus the scope: the
         // enumeration answers, the server-wide row is `ready`, `al-gone` reports
@@ -893,6 +957,31 @@ mod tests {
             stats.next_census_at_ms, None,
             "the slot stays unclaimed, so the first census runs as soon as the index is ready"
         );
+    }
+
+    #[test]
+    fn only_a_census_that_made_progress_gets_the_early_retry() {
+        let enumeration_timeout = CensusReport {
+            budget_exhausted: true,
+            enumeration_incomplete: true,
+            ..CensusReport::default()
+        };
+        assert!(!census_needs_early_retry(&enumeration_timeout));
+
+        let probe_timeout = CensusReport {
+            budget_exhausted: true,
+            deferred: 1,
+            ..CensusReport::default()
+        };
+        assert!(!census_needs_early_retry(&probe_timeout));
+
+        let partial_progress = CensusReport {
+            gaps_filled: 1,
+            budget_exhausted: true,
+            deferred: 1,
+            ..CensusReport::default()
+        };
+        assert!(census_needs_early_retry(&partial_progress));
     }
 
     // ── is_due ────────────────────────────────────────────────────────

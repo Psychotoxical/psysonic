@@ -10,7 +10,11 @@ const mocks = vi.hoisted(() => ({
   ensureConnectUrlResolved: vi.fn(),
   pingWithCredentialsForProfile: vi.fn(),
   syncServerHttpContextForProfile: vi.fn(),
+  syncAllServerHttpContexts: vi.fn(),
+  clearServerHttpContext: vi.fn(),
   invalidateReachableEndpointCache: vi.fn(),
+  librarySyncClearSession: vi.fn(),
+  libraryDeleteServerData: vi.fn(),
 }));
 
 vi.mock('@/lib/library/hooks/useLibraryIndexSync', () => ({
@@ -30,8 +34,14 @@ vi.mock('@/lib/api/subsonic', () => ({
 }));
 
 vi.mock('@/lib/server/syncServerHttpContext', () => ({
-  clearServerHttpContext: vi.fn(),
+  clearServerHttpContext: mocks.clearServerHttpContext,
+  syncAllServerHttpContexts: mocks.syncAllServerHttpContexts,
   syncServerHttpContextForProfile: mocks.syncServerHttpContextForProfile,
+}));
+
+vi.mock('@/lib/api/library', () => ({
+  librarySyncClearSession: mocks.librarySyncClearSession,
+  libraryDeleteServerData: mocks.libraryDeleteServerData,
 }));
 
 vi.mock('@/lib/server/serverEndpoint', () => ({
@@ -90,7 +100,7 @@ vi.mock('@/lib/hooks/useListReorderDnd', () => ({
 }));
 
 vi.mock('@/features/settings/components/AddServerForm', () => ({
-  AddServerForm: ({ editingServer, onSave }: {
+  AddServerForm: ({ editingServer, onSave, onDelete }: {
     editingServer?: { url: string; name: string; username: string; password: string };
     onSave: (data: {
       name: string;
@@ -98,15 +108,19 @@ vi.mock('@/features/settings/components/AddServerForm', () => ({
       username: string;
       password: string;
     }) => void;
+    onDelete?: () => void;
   }) => editingServer ? (
-    <button type="button" onClick={() => onSave({
-      name: editingServer.name,
-      url: editingServer.url,
-      username: editingServer.username,
-      password: `${editingServer.password}-new`,
-    })}>
-      save-edit
-    </button>
+    <>
+      <button type="button" onClick={() => onSave({
+        name: editingServer.name,
+        url: editingServer.url,
+        username: editingServer.username,
+        password: `${editingServer.password}-new`,
+      })}>
+        save-edit
+      </button>
+      <button type="button" onClick={onDelete}>delete-edit</button>
+    </>
   ) : null,
 }));
 
@@ -124,7 +138,11 @@ beforeEach(() => {
   mocks.ensureConnectUrlResolved.mockReset();
   mocks.pingWithCredentialsForProfile.mockReset();
   mocks.syncServerHttpContextForProfile.mockReset().mockResolvedValue(undefined);
+  mocks.syncAllServerHttpContexts.mockReset().mockResolvedValue(undefined);
+  mocks.clearServerHttpContext.mockReset().mockResolvedValue(undefined);
   mocks.invalidateReachableEndpointCache.mockReset();
+  mocks.librarySyncClearSession.mockReset().mockResolvedValue(undefined);
+  mocks.libraryDeleteServerData.mockReset().mockResolvedValue(undefined);
   useAuthStore.setState({
     activeServerId: 'a',
     isLoggedIn: true,
@@ -211,5 +229,65 @@ describe('ServersTab profile edit bootstrap ordering', () => {
       firstPing.resolve({ ok: true, type: 'navidrome', serverVersion: '0.55.0', openSubsonic: true });
     });
     expect(mocks.bootstrapIndexedServer).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ServersTab profile removal', () => {
+  it('clears and purges the captured index key even if HTTP cleanup fails', async () => {
+    const profile = {
+      id: '11111111-1111-4111-8111-111111111111',
+      name: 'A',
+      url: 'https://a.test',
+      username: 'user',
+      password: 'password',
+    };
+    useAuthStore.setState({ activeServerId: profile.id, servers: [profile] });
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+    mocks.clearServerHttpContext.mockRejectedValueOnce(new Error('registry unavailable'));
+    const user = userEvent.setup();
+    const view = renderWithProviders(<ServersTab initialInvite={null} />);
+
+    await user.click(view.container.querySelector(`#settings-edit-server-${profile.id}`)!);
+    await user.click(screen.getByRole('button', { name: 'delete-edit' }));
+
+    await waitFor(() => {
+      expect(mocks.librarySyncClearSession).toHaveBeenCalledWith('a.test');
+      expect(mocks.libraryDeleteServerData).toHaveBeenCalledWith('a.test');
+    });
+    expect(mocks.clearServerHttpContext).toHaveBeenCalledWith(profile);
+    expect(useAuthStore.getState().servers).toEqual([]);
+  });
+
+  it('rebinds a shared index key instead of clearing another profile data', async () => {
+    const removed = {
+      id: '11111111-1111-4111-8111-111111111111',
+      name: 'Primary',
+      url: 'https://a.test',
+      username: 'first',
+      password: 'first-password',
+    };
+    const replacement = {
+      id: '22222222-2222-4222-8222-222222222222',
+      name: 'Replacement',
+      url: 'https://a.test/',
+      username: 'second',
+      password: 'second-password',
+    };
+    useAuthStore.setState({ activeServerId: removed.id, servers: [removed, replacement] });
+    const confirmMock = vi.fn().mockReturnValue(true);
+    vi.stubGlobal('confirm', confirmMock);
+    const user = userEvent.setup();
+    const view = renderWithProviders(<ServersTab initialInvite={null} />);
+
+    await user.click(view.container.querySelector(`#settings-edit-server-${removed.id}`)!);
+    await user.click(screen.getByRole('button', { name: 'delete-edit' }));
+
+    await waitFor(() => expect(mocks.bootstrapIndexedServer).toHaveBeenCalledWith(replacement));
+    expect(mocks.syncAllServerHttpContexts).toHaveBeenCalledWith([replacement]);
+    expect(mocks.clearServerHttpContext).not.toHaveBeenCalled();
+    expect(mocks.librarySyncClearSession).not.toHaveBeenCalled();
+    expect(mocks.libraryDeleteServerData).not.toHaveBeenCalled();
+    expect(confirmMock).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().servers).toEqual([replacement]);
   });
 });

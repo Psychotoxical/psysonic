@@ -580,8 +580,8 @@ fn apply_identity_invalidations_on_conn(
                   ), \
                   physical_album AS MATERIALIZED ( \
                     SELECT source.server_id, source.album_id, \
-                           /* Same precedence as the full rebuild: the album's \
-                              own credit first, artist_id uniformity second. */ \
+                            /* Same precedence as the full rebuild: canonical \
+                               artist entity first, album credit fallback. */ \
                            COALESCE( \
                              CASE WHEN COUNT(*) = COUNT(ar_source.id) \
                                     AND COUNT(DISTINCT source.artist_id) = 1 \
@@ -1217,9 +1217,22 @@ mod tests {
     /// into one card and the user has no way to separate them again.
     #[test]
     fn rebuild_keeps_short_collection_labels_concrete() {
-        for (index, label) in ["Various", "VA", "Sampler", "Soundtrack"]
-            .into_iter()
-            .enumerate()
+        for (index, label) in [
+            "Various",
+            "VA",
+            "V.A",
+            "Sampler",
+            "Soundtrack",
+            "Compilations",
+            "Original Motion Picture Soundtrack",
+            "Original Score",
+            "Diversos Artistas",
+            "Artistes Variés",
+            "Vários Artistas",
+            "Verschiedene Künstler",
+        ]
+        .into_iter()
+        .enumerate()
         {
             let store = LibraryStore::open_in_memory();
             let artist_id = format!("artist-label-{index}");

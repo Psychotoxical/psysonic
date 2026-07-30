@@ -23,14 +23,12 @@ use std::time::Duration;
 use psysonic_core::server_http::ServerHttpRegistry;
 use psysonic_integration::navidrome::queries::nd_list_songs_internal;
 use psysonic_integration::subsonic::SubsonicClient;
-use serde_json::Value;
 
 use super::backoff::{jitter_salt, with_jitter, Backoff};
 use super::capability::{CapabilityFlags, NavidromeProbeCredentials};
 use super::error::SyncError;
-use super::mapping::{
-    merge_album_open_subsonic_track_raw, navidrome_song_to_track_row, subsonic_song_to_track_row,
-};
+use super::ingest_parallel::next_album_list_offset;
+use super::mapping::navidrome_song_to_track_row;
 use super::progress::{NoopProgress, Progress, ProgressEvent};
 use super::strategy::IngestStrategy;
 use super::tombstone::TombstoneReconciler;
@@ -565,26 +563,13 @@ impl<'a> DeltaSyncRunner<'a> {
                         &raw_album,
                         synced_at,
                     )?;
-                    let raw_songs = raw_album
-                        .get("song")
-                        .and_then(|s| s.as_array())
-                        .cloned()
-                        .unwrap_or_default();
-                    let mut rows: Vec<TrackRow> = Vec::with_capacity(album.song.len());
-                    for (i, song) in album.song.iter().enumerate() {
-                        let mut raw = raw_songs
-                            .get(i)
-                            .cloned()
-                            .unwrap_or_else(|| serde_json::to_value(song).unwrap_or(Value::Null));
-                        merge_album_open_subsonic_track_raw(&raw_album, &mut raw);
-                        rows.push(subsonic_song_to_track_row(
-                            &self.server_id,
-                            song,
-                            &raw,
-                            synced_at,
-                            self.library_scope_opt(),
-                        ));
-                    }
+                    let rows: Vec<TrackRow> = super::mapping::album_track_rows(
+                        &self.server_id,
+                        &album,
+                        &raw_album,
+                        synced_at,
+                        self.library_scope_opt(),
+                    );
                     if !rows.is_empty() {
                         let (changed, remapped) = self.write_batch(&rows)?;
                         report.changed_count = report.changed_count.saturating_add(changed);
@@ -592,10 +577,7 @@ impl<'a> DeltaSyncRunner<'a> {
                     }
                 }
 
-                if page_len < self.batch_size {
-                    break;
-                }
-                offset = offset.saturating_add(self.batch_size);
+                offset = next_album_list_offset(offset, page_len as usize).unwrap_or(offset);
             }
         }
         Ok(())

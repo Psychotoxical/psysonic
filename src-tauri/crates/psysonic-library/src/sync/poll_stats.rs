@@ -37,6 +37,21 @@ impl LibraryTier {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResyncSweepSkipReason {
+    MissingExpectedCount,
+    IncompleteIngest,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResyncSweepSkip {
+    pub at_ms: i64,
+    pub stamped_tracks: i64,
+    pub expected_tracks: Option<i64>,
+    pub reason: ResyncSweepSkipReason,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct PollStats {
     /// Last successful `getArtists.index` cardinality, or
@@ -61,6 +76,10 @@ pub struct PollStats {
     /// behaviour a first run wants anyway.
     #[serde(default)]
     pub next_census_at_ms: Option<i64>,
+    /// Durable diagnostic for a resync whose destructive orphan sweep was not
+    /// authorised by a complete server-visible count.
+    #[serde(default)]
+    pub last_resync_sweep_skip: Option<ResyncSweepSkip>,
 }
 
 impl PollStats {
@@ -279,5 +298,20 @@ mod tests {
         // as a fresh stats object.
         let s: PollStats = serde_json::from_str("{}").unwrap();
         assert_eq!(s, PollStats::default());
+    }
+
+    #[test]
+    fn resync_sweep_skip_round_trips_with_scheduler_stats() {
+        let stats = PollStats {
+            last_resync_sweep_skip: Some(ResyncSweepSkip {
+                at_ms: 123,
+                stamped_tracks: 98,
+                expected_tracks: Some(100),
+                reason: ResyncSweepSkipReason::IncompleteIngest,
+            }),
+            ..PollStats::default()
+        };
+        let json = serde_json::to_value(stats).unwrap();
+        assert_eq!(serde_json::from_value::<PollStats>(json).unwrap(), stats);
     }
 }

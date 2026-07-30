@@ -829,7 +829,8 @@ pub fn run() {
                                         flags,
                                     )
                                     .with_playback_hint(hint)
-                                    .with_http_registry(Some(Arc::clone(&registry)));
+                                    .with_http_registry(Some(Arc::clone(&registry)))
+                                    .with_cancellation(Arc::clone(&runtime.scheduler_cancel));
                                 if let Some(tok) = session.navidrome_token.clone() {
                                     sched = sched.with_navidrome_credentials(
                                         psysonic_library::sync::capability::NavidromeProbeCredentials {
@@ -1803,6 +1804,16 @@ mod scheduler_driver_tests {
             ..completed
         };
         assert!(scheduler_idle_payload(&deferred, "s1", "").is_none());
+
+        let census_only = psysonic_library::sync::scheduler::SchedulerTickReport {
+            census_changed_index: true,
+            delta: Some(psysonic_library::sync::delta::DeltaSyncReport {
+                up_to_date: true,
+                ..Default::default()
+            }),
+            ..skipped
+        };
+        assert!(scheduler_idle_payload(&census_only, "s1", "").is_some());
     }
 }
 

@@ -8,6 +8,7 @@
 //! progress emit + the cancellation token; PR-3b only ships the
 //! library-side function the shell will call.
 
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -23,10 +24,14 @@ use super::capability::{CapabilityFlags, NavidromeProbeCredentials};
 use super::cursor::{CursorPhase, InitialSyncCursor, StrategyState};
 use super::error::SyncError;
 use super::ingest_parallel::{
-    check_cancel_flag, fetch_albums_parallel, linear_prefetch_depth, retry_fetch,
-    sleep_request_gap, wait_while_bulk_paused, LinearPrefetchQueue, ParallelAlbumFetchOpts,
+    check_cancel_flag, fetch_albums_parallel, linear_prefetch_depth, next_album_list_offset,
+    retry_fetch, sleep_request_gap, wait_while_bulk_paused, LinearPrefetchQueue,
+    ParallelAlbumFetchOpts,
 };
-use super::mapping::{navidrome_song_to_track_row, subsonic_song_to_track_row};
+use super::mapping::{
+    navidrome_song_to_track_row, sparse_song_raw_fallback, subsonic_song_to_track_row,
+};
+use super::poll_stats::{PollStats, ResyncSweepSkip, ResyncSweepSkipReason};
 use super::progress::{IngestBatchMetrics, NoopProgress, Progress, ProgressEvent};
 use super::strategy::IngestStrategy;
 use crate::bulk_ingest::{
@@ -391,10 +396,20 @@ impl<'a> InitialSyncRunner<'a> {
 
         // IS-5 — watermarks (server_last_scan_iso, server_track_count,
         // artists_last_modified_ms) so DS-0 polls can short-circuit.
+        let mut fresh_server_track_count = None;
         if cursor.phase == CursorPhase::Watermarks {
-            self.run_watermark_pass(&sync_state).await?;
+            fresh_server_track_count = self.run_watermark_pass(&sync_state).await?;
             cursor.phase = CursorPhase::Done;
             self.persist_cursor(&sync_state, &cursor)?;
+        }
+        // A process may stop after persisting `Done` but before IS-7. Re-probe
+        // instead of falling back to the older bind-time count: only a fresh,
+        // non-scanning response may authorize the destructive sweep.
+        if cursor.phase == CursorPhase::Done
+            && cursor.resync_gen.is_some()
+            && fresh_server_track_count.is_none()
+        {
+            fresh_server_track_count = self.run_watermark_pass(&sync_state).await?;
         }
 
         // IS-6 — phase=ready, optional IS-7 orphan sweep, clear cursor, stamp watermarks.
@@ -404,23 +419,34 @@ impl<'a> InitialSyncRunner<'a> {
             let stamped = tracks
                 .count_resync_generation(&self.server_id, &self.library_scope, gen)
                 .map_err(SyncError::Storage)?;
-            // `getScanStatus.count` is server-wide — the same reason
-            // `should_auto_reconcile_scope` refuses scoped runs. Comparing a
-            // single library's stamped rows against it would never reach the
-            // coverage floor and would disable IS-7 for scoped syncs entirely,
-            // so a scoped run has no expectation to check and sweeps as before.
-            let server_count = if self.library_scope.is_empty() {
-                sync_state
-                    .get_server_track_count(&self.server_id, &self.library_scope)
-                    .map_err(SyncError::Storage)?
-            } else {
-                None
-            };
+            // `getScanStatus.count` is server-wide, so it cannot authorise a
+            // scoped sweep. Without a scope-visible count the safe result is to
+            // keep unconfirmed rows and let direct verification retire them.
+            let server_count = self
+                .library_scope
+                .is_empty()
+                .then_some(fresh_server_track_count)
+                .flatten();
             let swept = if resync_sweep_is_safe(stamped, server_count) {
+                self.persist_resync_sweep_skip(&sync_state, None)?;
                 tracks
                     .sweep_resync_orphans(&self.server_id, &self.library_scope, gen)
                     .map_err(SyncError::Storage)?
             } else {
+                let reason = if server_count.is_some() {
+                    ResyncSweepSkipReason::IncompleteIngest
+                } else {
+                    ResyncSweepSkipReason::MissingExpectedCount
+                };
+                self.persist_resync_sweep_skip(
+                    &sync_state,
+                    Some(ResyncSweepSkip {
+                        at_ms: finished_at,
+                        stamped_tracks: stamped,
+                        expected_tracks: server_count,
+                        reason,
+                    }),
+                )?;
                 crate::app_eprintln!(
                     "[library-sync] IS-7 sweep skipped for `{}`: the ingest re-stamped {} rows \
                      against a server count of {:?}. Sweeping would soft-delete the shortfall, \
@@ -575,6 +601,24 @@ impl<'a> InitialSyncRunner<'a> {
             .map_err(SyncError::Storage)
     }
 
+    fn persist_resync_sweep_skip(
+        &self,
+        sync_state: &SyncStateRepository<'_>,
+        diagnostic: Option<ResyncSweepSkip>,
+    ) -> Result<(), SyncError> {
+        let mut stats = sync_state
+            .get_poll_stats_json(&self.server_id, &self.library_scope)
+            .map_err(SyncError::Storage)?
+            .and_then(|value| serde_json::from_value::<PollStats>(value).ok())
+            .unwrap_or_default();
+        stats.last_resync_sweep_skip = diagnostic;
+        let value = serde_json::to_value(stats)
+            .map_err(|error| SyncError::Storage(format!("serialize poll stats: {error}")))?;
+        sync_state
+            .set_poll_stats_json(&self.server_id, &self.library_scope, &value)
+            .map_err(SyncError::Storage)
+    }
+
     fn check_cancellation(&self) -> Result<(), SyncError> {
         if let Some(flag) = &self.cancel {
             if flag.load(Ordering::SeqCst) {
@@ -627,10 +671,18 @@ impl<'a> InitialSyncRunner<'a> {
         &self,
         rows: &[TrackRow],
         resync_gen: Option<i64>,
+        sparse_payload: bool,
     ) -> Result<WriteOpTiming, SyncError> {
-        TrackRepository::new(self.store)
-            .upsert_batch_initial_ingest_timed(rows, resync_gen)
-            .map_err(SyncError::Storage)
+        let tracks = TrackRepository::new(self.store);
+        if sparse_payload {
+            tracks
+                .upsert_sparse_batch_initial_ingest_timed(rows, resync_gen)
+                .map_err(SyncError::Storage)
+        } else {
+            tracks
+                .upsert_batch_initial_ingest_timed(rows, resync_gen)
+                .map_err(SyncError::Storage)
+        }
     }
 
     fn write_batch_logged(
@@ -639,8 +691,9 @@ impl<'a> InitialSyncRunner<'a> {
         label: &str,
         offset: u32,
         resync_gen: Option<i64>,
+        sparse_payload: bool,
     ) -> Result<(RemapStats, WriteOpTiming), SyncError> {
-        let timing = self.write_batch_timed(rows, resync_gen)?;
+        let timing = self.write_batch_timed(rows, resync_gen, sparse_payload)?;
         let total_ms = timing.total_ms();
         if total_ms >= 500 {
             crate::app_eprintln!(
@@ -882,7 +935,7 @@ impl<'a> InitialSyncRunner<'a> {
             })
             .collect();
         let (_stats, _timing) =
-            self.write_batch_logged(&rows, "N1", offset, ctx.cursor.resync_gen)?;
+            self.write_batch_logged(&rows, "N1", offset, ctx.cursor.resync_gen, false)?;
         ctx.report.ingested_count = ctx.report.ingested_count.saturating_add(rows.len() as u32);
 
         let next_offset = offset.saturating_add(self.batch_size);
@@ -934,7 +987,9 @@ impl<'a> InitialSyncRunner<'a> {
         } else {
             Some(self.library_scope.clone())
         };
+        let resync_gen = cursor.resync_gen;
         *cursor = InitialSyncCursor::fresh(IngestStrategy::S1, scope);
+        cursor.resync_gen = resync_gen;
         report.ingested_count = 0;
         report.strategy = Some(cursor.strategy.clone());
         self.persist_cursor(sync_state, cursor)?;
@@ -968,7 +1023,47 @@ impl<'a> InitialSyncRunner<'a> {
             self.batch_size
         );
         let mut batch_count: u32 = 0;
-        if prefetch <= 1 {
+        // Learn the server's effective page size before creating a fixed-step
+        // prefetch queue. Some Subsonic servers clamp `songCount`; treating a
+        // clamped first page as EOF or advancing by the requested size skips a
+        // contiguous range of songs.
+        wait_while_bulk_paused(&budget, self.sleep_enabled, || self.check_cancellation()).await?;
+        self.check_cancellation()?;
+        sleep_request_gap(&budget, self.sleep_enabled).await;
+        let fetch_start = std::time::Instant::now();
+        let (first_result, first_raw_body) = match self.fetch_s1_page(offset).await {
+            Err(e) if is_fetch_failure(&e) => {
+                return self.fall_back_s1_to_s2(cursor, report, sync_state).await;
+            }
+            other => other?,
+        };
+        if first_result.song.is_empty() {
+            self.persist_cursor(sync_state, cursor)?;
+            return Ok(());
+        }
+        let first_page_size = first_result.song.len() as u32;
+        let mut seen_song_ids: HashSet<String> = first_result
+            .song
+            .iter()
+            .map(|song| song.id.clone())
+            .collect();
+        offset = self
+            .ingest_s1_page(
+                &first_result,
+                &first_raw_body,
+                offset,
+                fetch_start.elapsed().as_millis() as u32,
+                &mut IngestPageCtx {
+                    cursor,
+                    report,
+                    sync_state,
+                    batch_count: &mut batch_count,
+                    force_persist: false,
+                },
+            )
+            .await?;
+
+        if prefetch <= 1 || first_page_size < self.batch_size {
             loop {
                 wait_while_bulk_paused(&budget, self.sleep_enabled, || self.check_cancellation())
                     .await?;
@@ -985,6 +1080,13 @@ impl<'a> InitialSyncRunner<'a> {
                 if result.song.is_empty() {
                     break;
                 }
+                let mut page_advanced = false;
+                for song in &result.song {
+                    page_advanced |= seen_song_ids.insert(song.id.clone());
+                }
+                if !page_advanced {
+                    return self.fall_back_s1_to_s2(cursor, report, sync_state).await;
+                }
                 offset = self
                     .ingest_s1_page(
                         &result,
@@ -996,13 +1098,10 @@ impl<'a> InitialSyncRunner<'a> {
                             report,
                             sync_state,
                             batch_count: &mut batch_count,
-                            force_persist: (result.song.len() as u32) < self.batch_size,
+                            force_persist: false,
                         },
                     )
                     .await?;
-                if (result.song.len() as u32) < self.batch_size {
-                    break;
-                }
             }
             self.persist_cursor(sync_state, cursor)?;
             return Ok(());
@@ -1071,6 +1170,13 @@ impl<'a> InitialSyncRunner<'a> {
             if result.song.is_empty() {
                 break;
             }
+            let mut page_advanced = false;
+            for song in &result.song {
+                page_advanced |= seen_song_ids.insert(song.id.clone());
+            }
+            if !page_advanced {
+                return self.fall_back_s1_to_s2(cursor, report, sync_state).await;
+            }
 
             offset = self
                 .ingest_s1_page(
@@ -1132,7 +1238,7 @@ impl<'a> InitialSyncRunner<'a> {
             let raw = raw_songs
                 .get(i)
                 .cloned()
-                .unwrap_or_else(|| serde_json::to_value(song).unwrap_or(Value::Null));
+                .unwrap_or_else(|| sparse_song_raw_fallback(song));
             rows.push(subsonic_song_to_track_row(
                 &self.server_id,
                 song,
@@ -1143,10 +1249,10 @@ impl<'a> InitialSyncRunner<'a> {
         }
         let row_count = rows.len() as u32;
         let (_stats, write_timing) =
-            self.write_batch_logged(&rows, "S1", offset, ctx.cursor.resync_gen)?;
+            self.write_batch_logged(&rows, "S1", offset, ctx.cursor.resync_gen, true)?;
         ctx.report.ingested_count = ctx.report.ingested_count.saturating_add(row_count);
 
-        let next_offset = offset.saturating_add(self.batch_size);
+        let next_offset = offset.saturating_add(row_count);
         ctx.cursor.strategy_state = StrategyState::LinearOffset {
             offset: next_offset,
         };
@@ -1202,7 +1308,9 @@ impl<'a> InitialSyncRunner<'a> {
         } else {
             Some(self.library_scope.clone())
         };
+        let resync_gen = cursor.resync_gen;
         *cursor = InitialSyncCursor::fresh(IngestStrategy::S2, scope);
+        cursor.resync_gen = resync_gen;
         report.ingested_count = 0;
         report.strategy = Some(cursor.strategy.clone());
         self.persist_cursor(sync_state, cursor)?;
@@ -1238,6 +1346,7 @@ impl<'a> InitialSyncRunner<'a> {
         );
         let mut batch_count: u32 = 0;
         let mut resume_from = resume_album_id;
+        let mut seen_album_ids = HashSet::new();
 
         loop {
             wait_while_bulk_paused(&budget, self.sleep_enabled, || self.check_cancellation())
@@ -1260,6 +1369,15 @@ impl<'a> InitialSyncRunner<'a> {
             .await?;
             if albums.is_empty() {
                 break;
+            }
+            let mut page_advanced = false;
+            for album in &albums {
+                page_advanced |= seen_album_ids.insert(album.id.clone());
+            }
+            if !page_advanced {
+                return Err(SyncError::Transport(format!(
+                    "S2 album list did not advance at offset {album_offset}"
+                )));
             }
 
             let mut album_ids: Vec<String> = Vec::with_capacity(albums.len());
@@ -1311,7 +1429,13 @@ impl<'a> InitialSyncRunner<'a> {
                 );
                 if !rows.is_empty() {
                     let (_stats, _timing) =
-                        self.write_batch_logged(&rows, "S2", album_offset, cursor.resync_gen)?;
+                        self.write_batch_logged(
+                            &rows,
+                            "S2",
+                            album_offset,
+                            cursor.resync_gen,
+                            false,
+                        )?;
                     report.ingested_count = report.ingested_count.saturating_add(rows.len() as u32);
                     batch_count += 1;
                     self.progress.emit(ProgressEvent::IngestPage {
@@ -1328,17 +1452,13 @@ impl<'a> InitialSyncRunner<'a> {
                 self.persist_cursor(sync_state, cursor)?;
             }
 
-            album_offset = album_offset.saturating_add(self.batch_size);
+            album_offset = next_album_list_offset(album_offset, albums.len()).unwrap_or(album_offset);
             cursor.strategy_state = StrategyState::AlbumCrawl {
                 album_offset,
                 current_album_id: None,
             };
             cursor.ingested_count = report.ingested_count;
             self.persist_cursor(sync_state, cursor)?;
-
-            if (albums.len() as u32) < self.batch_size {
-                break;
-            }
         }
         Ok(())
     }
@@ -1374,7 +1494,8 @@ impl<'a> InitialSyncRunner<'a> {
     async fn run_watermark_pass(
         &self,
         sync_state: &SyncStateRepository<'_>,
-    ) -> Result<(), SyncError> {
+    ) -> Result<Option<i64>, SyncError> {
+        let mut fresh_server_track_count = None;
         if self
             .capability_flags
             .contains(CapabilityFlags::SCAN_STATUS_AVAILABLE)
@@ -1391,15 +1512,21 @@ impl<'a> InitialSyncRunner<'a> {
                 // keeps IS-7's completeness check honest: without it the sweep
                 // compares against whatever the bind-time probe wrote, which can
                 // be hours old and predate a deliberate server-side deletion.
-                // A scan in progress reports 0, which is "unknown", not "empty".
-                if let Some(count) = s.count.filter(|&c| c > 0) {
-                    sync_state
-                        .set_server_track_count(&self.server_id, &self.library_scope, count)
-                        .map_err(SyncError::Storage)?;
+                // A count observed during a scan is a moving partial result, not
+                // proof that the ingest covered the catalogue. Outside a scan,
+                // zero is meaningful: it lets a full resync retire the final
+                // rows after the user deliberately empties a server.
+                if !s.scanning {
+                    if let Some(count) = s.count.filter(|&c| c >= 0) {
+                        sync_state
+                            .set_server_track_count(&self.server_id, &self.library_scope, count)
+                            .map_err(SyncError::Storage)?;
+                        fresh_server_track_count = Some(count);
+                    }
                 }
             }
         }
-        Ok(())
+        Ok(fresh_server_track_count)
     }
 }
 
@@ -1407,25 +1534,20 @@ fn is_empty_cursor(v: &Value) -> bool {
     matches!(v, Value::Object(o) if o.is_empty())
 }
 
-/// Minimum share of the server's reported catalogue the ingest must have
-/// re-stamped before IS-7 is allowed to soft-delete the remainder.
-pub(crate) const RESYNC_SWEEP_MIN_COVERAGE_PERCENT: i64 = 98;
-
 /// IS-7 deletes exactly what the ingest did not re-stamp, so a bulk pass that
 /// silently loses a page turns into a mass deletion. This gate compares what the
 /// run actually stamped against the count the server reports (refreshed in IS-5,
 /// so it reflects deliberate server-side removals rather than a stale bind-time
-/// snapshot). A catalogue that genuinely shrank stamps ~100 % of the new count
+/// snapshot). A catalogue that genuinely shrank stamps 100 % of the new count
 /// and still sweeps; an ingest that dropped rows does not.
 ///
-/// No server count means no signal — the sweep proceeds as before rather than
-/// silently turning itself off on servers without `getScanStatus`.
+/// No server count means no completeness proof. The ingest still completes,
+/// but the destructive sweep stays off and the census/manual verifier handles
+/// deletions with direct confirmation instead.
 pub(crate) fn resync_sweep_is_safe(stamped: i64, server_count: Option<i64>) -> bool {
     match server_count {
-        Some(expected) if expected > 0 => {
-            stamped.saturating_mul(100) >= expected.saturating_mul(RESYNC_SWEEP_MIN_COVERAGE_PERCENT)
-        }
-        _ => true,
+        Some(expected) if expected >= 0 => stamped == expected,
+        _ => false,
     }
 }
 
@@ -1454,16 +1576,24 @@ mod sweep_guard_tests {
     }
 
     #[test]
-    fn a_shortfall_inside_the_tolerance_still_sweeps() {
-        // Tracks added while the pass ran must not disable the sweep.
-        assert!(resync_sweep_is_safe(99_000, Some(100_000)));
-        assert!(!resync_sweep_is_safe(97_000, Some(100_000)));
+    fn any_unexplained_shortfall_keeps_the_destructive_sweep_off() {
+        assert!(!resync_sweep_is_safe(99_999, Some(100_000)));
     }
 
     #[test]
-    fn no_server_count_means_no_signal_and_no_new_behaviour() {
-        assert!(resync_sweep_is_safe(0, None));
-        assert!(resync_sweep_is_safe(10, Some(0)));
+    fn an_overcount_is_not_completeness_proof() {
+        assert!(!resync_sweep_is_safe(100_001, Some(100_000)));
+    }
+
+    #[test]
+    fn a_confirmed_empty_catalogue_can_sweep_the_last_rows() {
+        assert!(resync_sweep_is_safe(0, Some(0)));
+    }
+
+    #[test]
+    fn no_server_count_cannot_authorize_a_destructive_sweep() {
+        assert!(!resync_sweep_is_safe(0, None));
+        assert!(!resync_sweep_is_safe(10, Some(-1)));
     }
 }
 
@@ -1541,38 +1671,81 @@ mod tests {
         )
     }
 
+    fn test_track_row(id: &str, title: &str) -> TrackRow {
+        TrackRow {
+            server_id: "s1".into(),
+            id: id.into(),
+            title: title.into(),
+            title_sort: None,
+            artist: None,
+            artist_id: None,
+            album: "Album".into(),
+            album_id: None,
+            album_artist: None,
+            duration_sec: 1,
+            track_number: None,
+            disc_number: None,
+            year: None,
+            genre: None,
+            suffix: None,
+            bit_rate: None,
+            size_bytes: None,
+            cover_art_id: None,
+            starred_at: None,
+            user_rating: None,
+            play_count: None,
+            played_at: None,
+            server_path: None,
+            library_id: None,
+            isrc: None,
+            mbid_recording: None,
+            bpm: None,
+            replay_gain_track_db: None,
+            replay_gain_album_db: None,
+            replay_gain_peak: None,
+            content_hash: None,
+            server_updated_at: None,
+            server_created_at: None,
+            deleted: false,
+            synced_at: 1,
+            raw_json: "{}".into(),
+        }
+    }
+
     async fn mount_search3_pages(server: &MockServer, total: u32, batch: u32) {
-        // Two-page test fixture: first page returns `batch` songs,
-        // second page returns the remainder, third page returns empty.
-        for page in 0u32..=2 {
-            let offset = page * batch;
-            let body = if offset >= total {
-                json!({ "subsonic-response": { "status": "ok", "searchResult3": {} } })
-            } else {
-                let remaining = (total - offset).min(batch);
-                let songs: Vec<_> = (0..remaining)
-                    .map(|i| {
-                        json!({
-                            "id": format!("tr_{:04}", offset + i),
-                            "title": format!("Title {}", offset + i),
-                            "duration": 200_i64 + (offset + i) as i64,
-                        })
+        let mut offset = 0;
+        while offset < total {
+            let received = (total - offset).min(batch);
+            let songs: Vec<_> = (0..received)
+                .map(|i| {
+                    json!({
+                        "id": format!("tr_{:04}", offset + i),
+                        "title": format!("Title {}", offset + i),
+                        "duration": 200_i64 + (offset + i) as i64,
                     })
-                    .collect();
-                json!({
+                })
+                .collect();
+            Mock::given(wm_method("GET"))
+                .and(wm_path("/rest/search3.view"))
+                .and(query_param("songOffset", offset.to_string()))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                     "subsonic-response": {
                         "status": "ok",
                         "searchResult3": { "song": songs }
                     }
-                })
-            };
-            Mock::given(wm_method("GET"))
-                .and(wm_path("/rest/search3.view"))
-                .and(query_param("songOffset", offset.to_string()))
-                .respond_with(ResponseTemplate::new(200).set_body_json(body))
+                })))
                 .mount(server)
                 .await;
+            offset += received;
         }
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/search3.view"))
+            .and(query_param("songOffset", total.to_string()))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "searchResult3": {} }
+            })))
+            .mount(server)
+            .await;
     }
 
     async fn mount_minimal_artists(server: &MockServer) {
@@ -1635,7 +1808,7 @@ mod tests {
             .unwrap();
     }
 
-    fn assert_scoped_resync_preserved_other_library(store: &LibraryStore, new_id: &str) {
+    fn assert_scoped_resync_kept_unconfirmed_rows(store: &LibraryStore, new_id: &str) {
         let (stale_deleted, other_deleted, new_library): (i64, i64, String) = store
             .with_read_conn(|conn| {
                 Ok((
@@ -1653,9 +1826,20 @@ mod tests {
                 ))
             })
             .unwrap();
-        assert_eq!(stale_deleted, 1);
+        assert_eq!(stale_deleted, 0);
         assert_eq!(other_deleted, 0);
         assert_eq!(new_library, "lib-a");
+        let stats: PollStats = serde_json::from_value(
+            SyncStateRepository::new(store)
+                .get_poll_stats_json("s1", "lib-a")
+                .unwrap()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            stats.last_resync_sweep_skip.map(|skip| skip.reason),
+            Some(ResyncSweepSkipReason::MissingExpectedCount)
+        );
     }
 
     fn current_bulk_pragmas(store: &LibraryStore) -> BulkIngestPragmas {
@@ -1838,9 +2022,78 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn s1_continues_when_the_server_clamps_song_count() {
+        let server = MockServer::start().await;
+        for (offset, ids) in [
+            (0, vec!["tr_0", "tr_1"]),
+            (2, vec!["tr_2", "tr_3"]),
+            (4, vec!["tr_4"]),
+        ] {
+            let songs: Vec<_> = ids
+                .into_iter()
+                .map(|id| json!({ "id": id, "title": id, "duration": 100 }))
+                .collect();
+            Mock::given(wm_method("GET"))
+                .and(wm_path("/rest/search3.view"))
+                .and(query_param("songOffset", offset.to_string()))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "subsonic-response": {
+                        "status": "ok",
+                        "searchResult3": { "song": songs }
+                    }
+                })))
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/search3.view"))
+            .and(query_param("songOffset", "5"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "searchResult3": {} }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        mount_minimal_artists(&server).await;
+
+        let store = LibraryStore::open_in_memory();
+        let report = InitialSyncRunner::new(
+            &store,
+            &test_subsonic(&server.uri()),
+            "s1",
+            "",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
+        )
+        .with_batch_size(5)
+        .with_sleep_disabled()
+        .run()
+        .await
+        .unwrap();
+
+        assert_eq!(report.ingested_count, 5);
+        let live: i64 = store
+            .with_read_conn(|conn| {
+                conn.query_row("SELECT COUNT(*) FROM track WHERE deleted = 0", [], |row| row.get(0))
+            })
+            .unwrap();
+        assert_eq!(live, 5);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn full_resync_sweeps_orphans_not_seen_in_ingest() {
         let server = MockServer::start().await;
         mount_search3_pages(&server, /*total*/ 3, /*batch*/ 10).await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getScanStatus.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "scanStatus": { "scanning": false, "count": 3, "lastScan": "2024-06-01T12:00:00Z" }
+                }
+            })))
+            .mount(&server)
+            .await;
         mount_minimal_artists(&server).await;
 
         let store = LibraryStore::open_in_memory();
@@ -1943,17 +2196,17 @@ mod tests {
         );
     }
 
-    /// A scan in progress reports zero, which is "unknown" — overwriting a good
-    /// count with it would let the sweep guard compare against nothing.
+    /// Any count observed during a scan is a moving partial result. Even a
+    /// positive value must not replace the last stable count or authorize IS-7.
     #[tokio::test(flavor = "multi_thread")]
-    async fn a_zero_scan_count_does_not_clobber_a_known_one() {
+    async fn an_active_scan_count_does_not_clobber_a_known_one() {
         let server = MockServer::start().await;
         Mock::given(wm_method("GET"))
             .and(wm_path("/rest/getScanStatus.view"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "subsonic-response": {
                     "status": "ok",
-                    "scanStatus": { "scanning": true, "count": 0, "lastScan": "2024-06-01T12:00:00Z" }
+                    "scanStatus": { "scanning": true, "count": 100, "lastScan": "2024-06-01T12:00:00Z" }
                 }
             })))
             .mount(&server)
@@ -1989,6 +2242,16 @@ mod tests {
     async fn a_resync_that_fell_short_does_not_sweep() {
         let server = MockServer::start().await;
         mount_search3_pages(&server, /*total*/ 3, /*batch*/ 10).await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getScanStatus.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "scanStatus": { "scanning": false, "count": 1000, "lastScan": "2024-06-01T12:00:00Z" }
+                }
+            })))
+            .mount(&server)
+            .await;
         mount_minimal_artists(&server).await;
 
         let store = LibraryStore::open_in_memory();
@@ -2037,6 +2300,17 @@ mod tests {
             stale_alive, 2,
             "a short ingest must not turn its own shortfall into tombstones"
         );
+        let stats: PollStats = serde_json::from_value(
+            sync_state
+                .get_poll_stats_json("s1", "")
+                .unwrap()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            stats.last_resync_sweep_skip.map(|skip| skip.reason),
+            Some(ResyncSweepSkipReason::IncompleteIngest)
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -2045,6 +2319,7 @@ mod tests {
         Mock::given(wm_method("GET"))
             .and(wm_path("/rest/search3.view"))
             .and(query_param("musicFolderId", "lib-a"))
+            .and(query_param("songOffset", "0"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "subsonic-response": {
                     "status": "ok",
@@ -2052,6 +2327,15 @@ mod tests {
                         "song": [{ "id": "a-new", "title": "A new", "duration": 100 }]
                     }
                 }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/search3.view"))
+            .and(query_param("musicFolderId", "lib-a"))
+            .and(query_param("songOffset", "1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "searchResult3": {} }
             })))
             .mount(&server)
             .await;
@@ -2072,7 +2356,7 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(report.strategy.as_deref(), Some("s1"));
-        assert_scoped_resync_preserved_other_library(&store, "a-new");
+        assert_scoped_resync_kept_unconfirmed_rows(&store, "a-new");
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -2081,11 +2365,21 @@ mod tests {
         Mock::given(wm_method("GET"))
             .and(wm_path("/rest/getAlbumList2.view"))
             .and(query_param("musicFolderId", "lib-a"))
+            .and(query_param("offset", "0"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "subsonic-response": {
                     "status": "ok",
                     "albumList2": { "album": [{ "id": "album-new", "name": "New" }] }
                 }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .and(query_param("musicFolderId", "lib-a"))
+            .and(query_param("offset", "1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "albumList2": { "album": [] } }
             })))
             .mount(&server)
             .await;
@@ -2121,7 +2415,7 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(report.strategy.as_deref(), Some("s2"));
-        assert_scoped_resync_preserved_other_library(&store, "a-new");
+        assert_scoped_resync_kept_unconfirmed_rows(&store, "a-new");
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -2149,7 +2443,10 @@ mod tests {
             };
             Mock::given(wm_method("GET"))
                 .and(wm_path("/rest/search3.view"))
-                .and(query_param("songOffset", (page * 10).to_string()))
+                .and(query_param(
+                    "songOffset",
+                    if page == 0 { "0" } else { "1" },
+                ))
                 .respond_with(ResponseTemplate::new(200).set_body_json(body))
                 .mount(&server)
                 .await;
@@ -2269,7 +2566,10 @@ mod tests {
             };
             Mock::given(wm_method("GET"))
                 .and(wm_path("/rest/search3.view"))
-                .and(query_param("songOffset", (page * 10).to_string()))
+                .and(query_param(
+                    "songOffset",
+                    if page == 0 { "0" } else { "1" },
+                ))
                 .respond_with(ResponseTemplate::new(200).set_body_json(body))
                 .mount(&server)
                 .await;
@@ -2802,9 +3102,22 @@ mod tests {
             .await;
         // S1 restarts from offset 0 and ingests all 5 songs.
         mount_search3_pages(&server, /*total*/ 5, /*batch*/ 2).await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getScanStatus.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "scanStatus": { "scanning": false, "count": 5 }
+                }
+            })))
+            .mount(&server)
+            .await;
         mount_minimal_artists(&server).await;
 
         let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[test_track_row("stale", "Stale")])
+            .unwrap();
         let nav = NavidromeProbeCredentials {
             server_url: server.uri(),
             bearer_token: "nd-tok".into(),
@@ -2836,10 +3149,16 @@ mod tests {
         // 5 distinct songs — N1's two rows were re-upserted, not duplicated.
         let count: i64 = store
             .with_conn("misc", |c| {
-                c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0))
+                c.query_row("SELECT COUNT(*) FROM track WHERE deleted = 0", [], |r| r.get(0))
             })
             .unwrap();
         assert_eq!(count, 5);
+        let stale_deleted: i64 = store
+            .with_read_conn(|conn| {
+                conn.query_row("SELECT deleted FROM track WHERE id = 'stale'", [], |row| row.get(0))
+            })
+            .unwrap();
+        assert_eq!(stale_deleted, 1, "fallback must preserve the resync generation");
         // Server learned the flag so future syncs skip N1.
         let sync_state = SyncStateRepository::new(&store);
         assert_eq!(
@@ -2932,15 +3251,31 @@ mod tests {
             })))
             .mount(&server)
             .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getScanStatus.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "scanStatus": { "scanning": false, "count": 1 }
+                }
+            })))
+            .mount(&server)
+            .await;
         mount_minimal_artists(&server).await;
 
         let store = LibraryStore::open_in_memory();
+        let mut stale = test_track_row("stale", "Stale");
+        stale.album = "Old".into();
+        TrackRepository::new(&store).upsert_batch(&[stale]).unwrap();
         let report = InitialSyncRunner::new(
             &store,
             &test_subsonic(&server.uri()),
             "s1",
             "",
-            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
+            flags(
+                CapabilityFlags::SUBSONIC_SEARCH3_BULK
+                    | CapabilityFlags::SCAN_STATUS_AVAILABLE,
+            ),
         )
         .with_batch_size(1)
         .with_sleep_disabled()
@@ -2955,10 +3290,16 @@ mod tests {
         );
         let count: i64 = store
             .with_conn("misc", |c| {
-                c.query_row("SELECT COUNT(*) FROM track", [], |r| r.get(0))
+                c.query_row("SELECT COUNT(*) FROM track WHERE deleted = 0", [], |r| r.get(0))
             })
             .unwrap();
         assert_eq!(count, 1, "the S2 album crawl ingested the track");
+        let stale_deleted: i64 = store
+            .with_read_conn(|conn| {
+                conn.query_row("SELECT deleted FROM track WHERE id = 'stale'", [], |row| row.get(0))
+            })
+            .unwrap();
+        assert_eq!(stale_deleted, 1, "fallback must preserve the resync generation");
     }
 
     // ── S3 explicitly unsupported in v1 ───────────────────────────────
