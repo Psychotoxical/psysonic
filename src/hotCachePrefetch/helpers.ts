@@ -1,5 +1,6 @@
 import { frontendDebugLog } from '@/lib/api/debugLog';
 import type { QueueItemRef, Track } from '@/lib/media/trackTypes';
+import { canonicalQueueServerKey } from '@/lib/server/serverIndexKey';
 import { useAuthStore } from '../store/authStore';
 import { HOT_CACHE_PROTECT_AFTER_CURRENT, type HotCacheEntry } from '@/features/playback/store/hotCacheStore';
 
@@ -22,13 +23,14 @@ export function entryKey(serverId: string, trackId: string): string {
 export function sumCachedBytesInProtectedWindow(
   queue: QueueItemRef[],
   queueIndex: number,
-  serverId: string,
   entries: Record<string, HotCacheEntry>,
 ): number {
   const protectLo = Math.max(0, queueIndex);
   const protectHi = Math.min(queue.length - 1, queueIndex + HOT_CACHE_PROTECT_AFTER_CURRENT);
   let sum = 0;
   for (let i = protectLo; i <= protectHi; i++) {
+    const serverId = canonicalQueueServerKey(queue[i].serverId) || queue[i].serverId;
+    if (!serverId) continue;
     const e = entries[entryKey(serverId, queue[i].trackId)];
     if (e) sum += e.sizeBytes || 0;
   }

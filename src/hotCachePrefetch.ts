@@ -1,5 +1,8 @@
 import { buildStreamUrlForServer } from '@/lib/api/subsonicStreamUrl';
-import { getPlaybackCacheServerKey } from '@/features/playback/utils/playback/playbackServer';
+import {
+  getPlaybackCacheServerKey,
+  playbackCacheKeyForRef,
+} from '@/features/playback/utils/playback/playbackServer';
 import type { QueueItemRef } from '@/lib/media/trackTypes';
 import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';
 import { invoke } from '@tauri-apps/api/core';
@@ -137,11 +140,15 @@ async function runWorker() {
       const player = usePlayerStore.getState();
       const { queueItems, queueIndex } = player;
       const upcomingRefs = queueItems.slice(queueIndex + 1, queueIndex + 1 + PREFETCH_AHEAD);
-      const wantIds = new Set(upcomingRefs.map(r => r.trackId));
-      if (!wantIds.has(job.trackId)) {
+      const jobKey = entryKey(job.serverId, job.trackId);
+      const jobRef = upcomingRefs.find(ref => (
+        entryKey(playbackCacheKeyForRef(ref), ref.trackId) === jobKey
+      ));
+      if (!jobRef) {
         hotCacheFrontendDebug({
           event: 'prefetch-skip-job',
           trackId: job.trackId,
+          serverId: job.serverId,
           reason: 'not-in-upcoming-window',
           queueIndex,
           window: PREFETCH_AHEAD,
@@ -152,20 +159,14 @@ async function runWorker() {
       // Thin-state: the upcoming window sits inside the resolver-warm range, so
       // resolveQueueTrack returns the full Track (placeholder only on a cold
       // miss, where the size estimate falls back to the bitrate heuristic).
-      const jobRef = upcomingRefs.find(r => r.trackId === job.trackId);
-      if (!jobRef) {
-        hotCacheFrontendDebug({
-          event: 'prefetch-skip-job',
-          trackId: job.trackId,
-          reason: 'track-not-in-queue',
-        });
-        continue;
-      }
       const track = resolveQueueTrack(jobRef);
       const hotEntries = selectHotCacheEntries(useLocalPlaybackStore.getState().entries);
-      const occupied = sumCachedBytesInProtectedWindow(queueItems, queueIndex, job.serverId, hotEntries);
+      const occupied = sumCachedBytesInProtectedWindow(queueItems, queueIndex, hotEntries);
       const est = estimateTrackHotCacheBytes(track);
-      const isImmediateNext = queueItems[queueIndex + 1]?.trackId === job.trackId;
+      const immediateNextRef = queueItems[queueIndex + 1];
+      const isImmediateNext = immediateNextRef
+        ? entryKey(playbackCacheKeyForRef(immediateNextRef), immediateNextRef.trackId) === jobKey
+        : false;
       if (!isImmediateNext && occupied + est > maxBytes) {
         hotCacheFrontendDebug({
           event: 'prefetch-skip-job',
@@ -255,7 +256,6 @@ async function replanNow() {
   const playbackSid = getPlaybackCacheServerKey();
   if (!auth.isLoggedIn || !auth.hotCacheEnabled || !playbackSid) return;
 
-  const serverId = playbackSid;
   const maxBytes = Math.max(0, auth.hotCacheMaxMb) * 1024 * 1024;
   const mediaDir = getMediaDir();
   if (maxBytes <= 0) return;
@@ -266,7 +266,7 @@ async function replanNow() {
     return;
   }
 
-  await useHotCacheStore.getState().evictToFit(queueItems, queueIndex, maxBytes, serverId, mediaDir);
+  await useHotCacheStore.getState().evictToFit(queueItems, queueIndex, maxBytes, playbackSid, mediaDir);
 
   // Must read entries after eviction: the pre-evict snapshot still lists removed keys and would
   // skip prefetch for upcoming tracks that no longer have on-disk rows.
@@ -275,28 +275,31 @@ async function replanNow() {
   // Thin-state: resolve only the small upcoming window (within the resolver-warm
   // range) to full Tracks for the size estimates / suffix.
   const targetRefs = queueItems.slice(queueIndex + 1, queueIndex + 1 + PREFETCH_AHEAD);
-  const targets = targetRefs.map(r => resolveQueueTrack(r));
-  const immediateNextId = queueItems[queueIndex + 1]?.trackId;
-  let projectedOccupied = sumCachedBytesInProtectedWindow(queueItems, queueIndex, serverId, hotEntries);
+  const targets = targetRefs.map(ref => ({
+    track: resolveQueueTrack(ref),
+    serverId: playbackCacheKeyForRef(ref),
+  }));
+  let projectedOccupied = sumCachedBytesInProtectedWindow(queueItems, queueIndex, hotEntries);
   const jobs: PrefetchJob[] = [];
-  const skipped: { trackId: string; reason: string }[] = [];
-  for (const t of targets) {
+  const skipped: { trackId: string; serverId: string; reason: string }[] = [];
+  for (const [index, target] of targets.entries()) {
+    const { track: t, serverId } = target;
     if (hasLocalPersistentPlaybackBytes(t.id, serverId)) {
-      skipped.push({ trackId: t.id, reason: 'persistent-local-bytes' });
+      skipped.push({ trackId: t.id, serverId, reason: 'persistent-local-bytes' });
       continue;
     }
     if (hotEntries[entryKey(serverId, t.id)]) {
-      skipped.push({ trackId: t.id, reason: 'already-in-hot-index' });
+      skipped.push({ trackId: t.id, serverId, reason: 'already-in-hot-index' });
       continue;
     }
-    const isImmediateNext = t.id === immediateNextId;
+    const isImmediateNext = index === 0;
     if (isImmediateNext) {
       jobs.push({ trackId: t.id, serverId, suffix: t.suffix || 'mp3' });
       continue;
     }
     const est = estimateTrackHotCacheBytes(t);
     if (projectedOccupied + est > maxBytes) {
-      skipped.push({ trackId: t.id, reason: 'budget-cap-rest-deferred' });
+      skipped.push({ trackId: t.id, serverId, reason: 'budget-cap-rest-deferred' });
       break;
     }
     projectedOccupied += est;
