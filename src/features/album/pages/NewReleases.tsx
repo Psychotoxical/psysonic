@@ -361,12 +361,31 @@ export default function NewReleases() {
     requestNextPage(offset => load(offset, true, selectedGenres));
   }, [gridHasMore, genreFiltered, textSearchActive, isBlocked, requestNextPage, load, selectedGenres]);
 
+  // The sentinel lives inside a 400px rootMargin, so after a page is appended it
+  // usually stays visible, and an IntersectionObserver only reports *changes* —
+  // no second callback arrives and pagination stalls until the user scrolls away
+  // and back. The flag below carries that standing visibility so the page can
+  // ask for the next one itself.
+  const sentinelIntersectingRef = useRef(false);
+  const pagedAlbumCountRef = useRef(0);
+
   const bindLoadMoreSentinel = useInpageScrollSentinel({
     active: gridHasMore,
     getScrollRoot,
     scrollRootEl: scrollBodyEl,
     onIntersect: loadMore,
+    intersectingRef: sentinelIntersectingRef,
   });
+
+  // Keyed to the album count, never to a loading transition: a request that fails
+  // or returns nothing leaves the count untouched, so the chain stops instead of
+  // re-issuing the same failing page forever.
+  useEffect(() => {
+    if (displayAlbums.length === pagedAlbumCountRef.current) return;
+    pagedAlbumCountRef.current = displayAlbums.length;
+    if (!gridHasMore || !sentinelIntersectingRef.current) return;
+    loadMore();
+  }, [displayAlbums.length, gridHasMore, loadMore]);
 
   const { isScrollRestorePending } = useAlbumBrowseScrollRestore({
     serverId,
