@@ -29,7 +29,10 @@ import {
   applyGaplessQueueAdvance,
   maybeReconcileGaplessFromProgress,
 } from '@/features/playback/store/gaplessQueueAdvance';
-import { noteEngineProgressForGapless } from '@/features/playback/store/gaplessProgressTracking';
+import {
+  noteEngineProgressForGapless,
+  resetGaplessProgressTracking,
+} from '@/features/playback/store/gaplessProgressTracking';
 import { showToast } from '@/lib/dom/toast';
 import { useAuthStore } from '@/store/authStore';
 import { indexKeyBelongsToServer } from '@/store/localPlaybackResolve';
@@ -128,6 +131,12 @@ export function handleAudioPlaying(duration: number): void {
   clearQueueNaturallyEnded();
   setDeferHotCachePrefetch(false);
   resetProgressEmitThrottles();
+  // A (re)started stream has no position history. The engine reports near zero
+  // while it rebuilds, and keeping the pre-pause position on record makes that
+  // look like a decoder boundary — the gapless reconciler would then advance the
+  // queue on every resume, leaving the display ahead of the audio (#1368).
+  // Gapless transitions do not pass through here; they arrive as track_switched.
+  resetGaplessProgressTracking();
   usePlayerStore.setState({ isPlaying: true, isPlaybackBuffering: false });
   notifyLibraryPlaybackHint('playing');
   const { currentTrack: track, queueItems, queueIndex } = usePlayerStore.getState();

@@ -8,6 +8,7 @@ import {
   seedQueueResolver,
 } from '@/features/playback/store/queueTrackResolver';
 import { _resetGaplessPreloadStateForTest } from '@/features/playback/store/gaplessPreloadState';
+import { handleAudioPlaying } from '@/features/playback/store/audioEventHandlers';
 import { setSeekTarget, _resetSeekTargetStateForTest } from '@/features/playback/store/seekTargetState';
 import {
   _resetPlaybackProgressForTest,
@@ -132,6 +133,19 @@ describe('maybeReconcileGaplessFromProgress', () => {
   it('no-ops on mid-track position regressions (not a gapless boundary)', () => {
     noteEngineProgressForGapless(170);
     maybeReconcileGaplessFromProgress(100, 200);
+
+    expect(usePlayerStore.getState().currentTrack?.id).toBe('t1');
+    expect(usePlayerStore.getState().queueIndex).toBe(0);
+  });
+
+  // Reported as #1368: after the output stream is released on idle, resuming
+  // rebuilds it from zero while the pre-pause position is still on record. That
+  // looks exactly like a decoder boundary, so the queue advanced on every
+  // resume and the display ran several tracks ahead of the audio.
+  it('no-ops when the engine restarts the stream after an idle release', () => {
+    noteEngineProgressForGapless(252);
+    handleAudioPlaying(300);
+    maybeReconcileGaplessFromProgress(0.3, 300);
 
     expect(usePlayerStore.getState().currentTrack?.id).toBe('t1');
     expect(usePlayerStore.getState().queueIndex).toBe(0);
