@@ -253,6 +253,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Opening or pinning an album no longer stamps its tracks with a seconds-based timestamp that makes them look as if they were indexed in 1970 and moves them to the front of stale-track verification.
 
+### Album grids — scrolling no longer stalls partway down the list
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1367](https://github.com/Psychotoxical/psysonic/pull/1367)**
+
+* New Releases and Lossless Albums stopped fetching further albums after a few pages, and only picked up again once you scrolled up and back down. Both now keep loading while you are at the bottom of the list, and stop once it is exhausted.
+
 ## [1.50.0]
 
 ## Added
