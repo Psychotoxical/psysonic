@@ -163,6 +163,18 @@
   text-overflow: ellipsis;
 }
 
+.fsp2-pill-artist-link {
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+.fsp2-pill-artist-link:hover {
+  text-decoration: underline;
+}
+.fsp2-pill-artist-plain {
+  color: inherit;
+}
+
 /* Integrated progress line at the pill's bottom edge; the range input is a
    transparent full-cover overlay so the whole pill scrubs. */
 .fsp2-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; }

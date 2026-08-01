@@ -16,8 +16,7 @@ import {
 } from 'lucide-react';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useCachedUrl } from '@/ui/CachedImage';
-import { OpenArtistRefInline } from '@/ui/OpenArtistRefInline';
-import { buildArtistDetailPath } from '@/lib/navigation/detailServerScope';
+import { TrackArtistLinks } from '@/ui/TrackArtistLinks';
 import { formatTrackTime } from '@/lib/format/formatDuration';
 import { ownedOverrideValue } from '@/lib/util/ownedEntityKey';
 import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';
@@ -381,38 +380,10 @@ export default function MobilePlayerView() {
         <div className="mp-meta-text">
           <div className="mp-title truncate">{currentTrack.title}</div>
           <div className="mp-artist truncate">
-            {currentTrack.artists && currentTrack.artists.length > 0 ? (
-              <OpenArtistRefInline
-                refs={currentTrack.artists}
-                fallbackName={currentTrack.artist}
-                onGoArtist={id => { void navigatePlaybackLibrary(buildArtistDetailPath(id, {
-                  serverId: currentTrack.serverId,
-                })); }}
-                as="none"
-                linkTag="span"
-                linkClassName="mp-artist-link"
-              />
-            ) : (
-              <span
-                role={currentTrack.artistId ? 'link' : undefined}
-                tabIndex={currentTrack.artistId ? 0 : undefined}
-                onClick={() => currentTrack.artistId && void navigatePlaybackLibrary(
-                  buildArtistDetailPath(currentTrack.artistId, { serverId: currentTrack.serverId }),
-                )}
-                onKeyDown={e => {
-                  if (!currentTrack.artistId) return;
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    void navigatePlaybackLibrary(buildArtistDetailPath(currentTrack.artistId, {
-                      serverId: currentTrack.serverId,
-                    }));
-                  }
-                }}
-                style={{ cursor: currentTrack.artistId ? 'pointer' : 'default' }}
-              >
-                {currentTrack.artist}
-              </span>
-            )}
+            <TrackArtistLinks
+              track={currentTrack}
+              onNavigate={navigatePlaybackLibrary}
+            />
           </div>
           {(() => {
             const fmt = effectiveAudioFormat(currentTrack, resolvedStreamFormat);

@@ -1,4 +1,5 @@
 import { queueSongStar, playbackCoverArtForAlbum, usePlayerStore } from '@/features/playback';
+import { usePlaybackLibraryNavigate } from '@/features/playback/hooks/usePlaybackLibraryNavigate';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
 import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
 import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
@@ -7,6 +8,7 @@ import {
   ChevronDown, Repeat, Repeat1, Square, Heart, MicVocal,
 } from 'lucide-react';
 import { useCachedUrl } from '@/ui/CachedImage';
+import { TrackArtistLinks } from '@/ui/TrackArtistLinks';
 import { getCachedBlob } from '@/cover/imageCache';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
@@ -31,6 +33,7 @@ interface FullscreenPlayerProps {
 
 export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   const { t } = useTranslation();
+  const navigatePlaybackLibrary = usePlaybackLibraryNavigate();
   const currentTrack       = usePlayerStore(s => s.currentTrack);
   const resolvedStreamFormat = usePlayerStore(s => s.resolvedStreamFormat);
   const repeatMode         = usePlayerStore(s => s.repeatMode);
@@ -186,7 +189,17 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
         <p className="fs-track-title">{currentTrack?.title ?? '—'}</p>
 
         {/* Artist — secondary, below track */}
-        <p className="fs-artist-name">{currentTrack?.artist ?? '—'}</p>
+        {currentTrack ? (
+          <TrackArtistLinks
+            track={currentTrack}
+            onNavigate={navigatePlaybackLibrary}
+            outerClassName="fs-artist-name"
+            linkClassName="fs-artist-link"
+            plainClassName="fs-artist-name-plain"
+          />
+        ) : (
+          <p className="fs-artist-name">—</p>
+        )}
 
         {/* Metadata row */}
         {metaParts.length > 0 && (

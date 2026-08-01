@@ -6,9 +6,11 @@ import {
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { queueSongStar, queueSongRating } from '@/features/playback/store/pendingStarSync';
+import { usePlaybackLibraryNavigate } from '@/features/playback/hooks/usePlaybackLibraryNavigate';
 import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
 import { useCachedUrl } from '@/ui/CachedImage';
+import { TrackArtistLinks } from '@/ui/TrackArtistLinks';
 import { useFsArtistBackdrop } from '@/features/fullscreenPlayer/hooks/useFsArtistBackdrop';
 import { useFsIdleFade } from '@/features/fullscreenPlayer/hooks/useFsIdleFade';
 import { useQueueTrackAt } from '@/features/queue';
@@ -55,6 +57,7 @@ function FsBackground({ url }: { url: string }) {
 
 export default function FullscreenPlayerStatic({ onClose }: Props) {
   const { t } = useTranslation();
+  const navigatePlaybackLibrary = usePlaybackLibraryNavigate();
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const repeatMode = usePlayerStore(s => s.repeatMode);
   const next = usePlayerStore(s => s.next);
@@ -169,7 +172,17 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
           </div>
           <div className="fsp-info-text">
             <p className="fsp-title">{currentTrack?.title ?? '—'}</p>
-            <p className="fsp-artist">{currentTrack?.artist ?? '—'}</p>
+            {currentTrack ? (
+              <TrackArtistLinks
+                track={currentTrack}
+                onNavigate={navigatePlaybackLibrary}
+                outerClassName="fsp-artist"
+                linkClassName="fsp-artist-link"
+                plainClassName="fsp-artist-plain"
+              />
+            ) : (
+              <p className="fsp-artist">—</p>
+            )}
             {currentTrack && (
               <div className="fsp-meta">
                 {metaParts.map((part, i) => (

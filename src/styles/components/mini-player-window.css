@@ -161,6 +161,10 @@
   text-decoration: underline;
 }
 
+.mini-player__artist-plain {
+  color: inherit;
+}
+
 .mini-player__toolbar {
   display: flex;
   align-items: center;

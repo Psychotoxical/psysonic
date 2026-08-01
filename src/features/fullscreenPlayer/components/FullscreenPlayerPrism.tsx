@@ -5,9 +5,11 @@ import {
   ListMusic, MessageSquare, Shrink,
 } from 'lucide-react';
 import { usePlayerStore, type PlaybackProgressSnapshot } from '@/features/playback';
+import { usePlaybackLibraryNavigate } from '@/features/playback/hooks/usePlaybackLibraryNavigate';
 import { FsVolume } from './FsVolume';
 import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
+import { TrackArtistLinks } from '@/ui/TrackArtistLinks';
 import { useFsArtistBackdrop } from '@/features/fullscreenPlayer/hooks/useFsArtistBackdrop';
 import { useImperativeSeek } from '@/features/fullscreenPlayer/hooks/useImperativeSeek';
 import { useFsDynamicAccent } from '@/features/fullscreenPlayer/hooks/useFsDynamicAccent';
@@ -45,6 +47,7 @@ const PrismProgress = memo(function PrismProgress() {
 
 export default function FullscreenPlayerPrism({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
+  const navigatePlaybackLibrary = usePlaybackLibraryNavigate();
 
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const isPlaying    = usePlayerStore(s => s.isPlaying);
@@ -113,7 +116,16 @@ export default function FullscreenPlayerPrism({ onClose }: { onClose: () => void
           <div className="fsp2-pill-info">
             <span className="fsp2-pill-title">{currentTrack?.title ?? '—'}</span>
             <span className="fsp2-pill-sub">
-              {[currentTrack?.album, currentTrack?.artist].filter(Boolean).join(' · ')}
+              {currentTrack?.album && <span>{currentTrack.album}</span>}
+              {currentTrack?.album && currentTrack?.artist && <span> · </span>}
+              {currentTrack?.artist && (
+                <TrackArtistLinks
+                  track={currentTrack}
+                  onNavigate={navigatePlaybackLibrary}
+                  linkClassName="fsp2-pill-artist-link"
+                  plainClassName="fsp2-pill-artist-plain"
+                />
+              )}
             </span>
           </div>
           <PrismProgress />
