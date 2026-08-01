@@ -6,11 +6,10 @@ import {
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { queueSongStar, queueSongRating } from '@/features/playback/store/pendingStarSync';
-import { usePlaybackLibraryNavigate } from '@/features/playback/hooks/usePlaybackLibraryNavigate';
+import { TrackArtistLinks, usePlaybackLibraryNavigate } from '@/features/playback';
 import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
 import { useCachedUrl } from '@/ui/CachedImage';
-import { TrackArtistLinks } from '@/ui/TrackArtistLinks';
 import { useFsArtistBackdrop } from '@/features/fullscreenPlayer/hooks/useFsArtistBackdrop';
 import { useFsIdleFade } from '@/features/fullscreenPlayer/hooks/useFsIdleFade';
 import { useQueueTrackAt } from '@/features/queue';

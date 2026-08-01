@@ -6,7 +6,7 @@ import { effectiveAudioFormat } from '@/lib/media/streamFormat';
 import { getPlaybackProgressSnapshot, subscribePlaybackProgress } from '@/features/playback/store/playbackProgress';
 import React, { useState, useCallback, useRef, useEffect, useSyncExternalStore, CSSProperties } from 'react';
 import { useNavigate } from 'react-router';
-import { usePlaybackLibraryNavigate } from '@/features/playback/hooks/usePlaybackLibraryNavigate';
+import { TrackArtistLinks, usePlaybackLibraryNavigate } from '@/features/playback';
 import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useCachedUrl } from '@/ui/CachedImage';
-import { TrackArtistLinks } from '@/ui/TrackArtistLinks';
 import { formatTrackTime } from '@/lib/format/formatDuration';
 import { ownedOverrideValue } from '@/lib/util/ownedEntityKey';
 import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';

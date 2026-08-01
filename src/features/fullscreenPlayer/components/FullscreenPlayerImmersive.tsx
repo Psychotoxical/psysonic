@@ -1,5 +1,4 @@
-import { queueSongStar, playbackCoverArtForAlbum, usePlayerStore } from '@/features/playback';
-import { usePlaybackLibraryNavigate } from '@/features/playback/hooks/usePlaybackLibraryNavigate';
+import { queueSongStar, playbackCoverArtForAlbum, usePlayerStore, usePlaybackLibraryNavigate, TrackArtistLinks } from '@/features/playback';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
 import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
 import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
@@ -8,7 +7,6 @@ import {
   ChevronDown, Repeat, Repeat1, Square, Heart, MicVocal,
 } from 'lucide-react';
 import { useCachedUrl } from '@/ui/CachedImage';
-import { TrackArtistLinks } from '@/ui/TrackArtistLinks';
 import { getCachedBlob } from '@/cover/imageCache';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';

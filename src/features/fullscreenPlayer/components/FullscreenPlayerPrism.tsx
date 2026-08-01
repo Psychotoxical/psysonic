@@ -4,12 +4,10 @@ import {
   SkipBack, SkipForward, Play, Pause, Repeat, Repeat1,
   ListMusic, MessageSquare, Shrink,
 } from 'lucide-react';
-import { usePlayerStore, type PlaybackProgressSnapshot } from '@/features/playback';
-import { usePlaybackLibraryNavigate } from '@/features/playback/hooks/usePlaybackLibraryNavigate';
+import { usePlayerStore, type PlaybackProgressSnapshot, usePlaybackLibraryNavigate, TrackArtistLinks } from '@/features/playback';
 import { FsVolume } from './FsVolume';
 import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
-import { TrackArtistLinks } from '@/ui/TrackArtistLinks';
 import { useFsArtistBackdrop } from '@/features/fullscreenPlayer/hooks/useFsArtistBackdrop';
 import { useImperativeSeek } from '@/features/fullscreenPlayer/hooks/useImperativeSeek';
 import { useFsDynamicAccent } from '@/features/fullscreenPlayer/hooks/useFsDynamicAccent';
