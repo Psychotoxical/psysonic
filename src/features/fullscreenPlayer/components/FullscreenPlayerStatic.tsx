@@ -175,7 +175,10 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
             {currentTrack ? (
               <TrackArtistLinks
                 track={currentTrack}
-                onNavigate={navigatePlaybackLibrary}
+                onNavigate={to => {
+                  onClose();
+                  void navigatePlaybackLibrary(to);
+                }}
                 outerClassName="fsp-artist"
                 linkClassName="fsp-artist-link"
                 plainClassName="fsp-artist-plain"

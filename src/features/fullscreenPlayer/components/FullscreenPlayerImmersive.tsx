@@ -192,7 +192,10 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
         {currentTrack ? (
           <TrackArtistLinks
             track={currentTrack}
-            onNavigate={navigatePlaybackLibrary}
+            onNavigate={to => {
+              onClose();
+              void navigatePlaybackLibrary(to);
+            }}
             outerClassName="fs-artist-name"
             linkClassName="fs-artist-link"
             plainClassName="fs-artist-name-plain"

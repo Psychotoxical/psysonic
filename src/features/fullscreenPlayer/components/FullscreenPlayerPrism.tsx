@@ -121,7 +121,10 @@ export default function FullscreenPlayerPrism({ onClose }: { onClose: () => void
               {currentTrack?.artist && (
                 <TrackArtistLinks
                   track={currentTrack}
-                  onNavigate={navigatePlaybackLibrary}
+                  onNavigate={to => {
+                    onClose();
+                    void navigatePlaybackLibrary(to);
+                  }}
                   linkClassName="fsp2-pill-artist-link"
                   plainClassName="fsp2-pill-artist-plain"
                 />

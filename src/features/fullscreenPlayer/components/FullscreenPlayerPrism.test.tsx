@@ -42,6 +42,20 @@ describe('FullscreenPlayerPrism', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('clicking an artist link closes the fullscreen player', () => {
+    usePlayerStore.setState({
+      currentTrack: makeTrack({
+        artist: 'Primary feat. Guest',
+        artistId: 'primary-id',
+        artists: [{ id: 'primary-id', name: 'Primary' }, { id: 'guest-id', name: 'Guest' }],
+      }),
+    });
+    const onClose = vi.fn();
+    const { getByRole } = renderWithProviders(<FullscreenPlayerPrism onClose={onClose} />);
+    fireEvent.click(getByRole('link', { name: 'Guest' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('the volume button mutes the player', () => {
     usePlayerStore.setState({ currentTrack: makeTrack(), volume: 0.7 });
     const { getByLabelText } = renderWithProviders(<FullscreenPlayerPrism onClose={() => {}} />);
