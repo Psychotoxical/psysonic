@@ -75,6 +75,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The store now suggests one theme above the search box, picked from further down the catalogue and preferring themes you have not installed. The store lists themes by last change, so older ones were only ever found by paging to the end. **Show another** picks a different one; installing or applying the suggestion leaves it in place.
 
+### Player views — click any artist of a credit
+
+**By [@enncoded](https://github.com/enncoded), PR [#1371](https://github.com/Psychotoxical/psysonic/pull/1371)**
+
+* Artist names link to the artist page in all three fullscreen styles, the detached mini player and the mobile layout — until now only album and queue rows offered this. Clicking one in fullscreen closes the overlay so the artist page is right there.
+* Joined credits such as "Primary feat. Guest" read as separate artists, including the bullet separator Navidrome uses when a track carries only plural artist tags. Names like AC/DC stay intact.
+
 ## Changed
 
 ### Library index — designed for several live servers at once

@@ -504,6 +504,13 @@ const CONTRIBUTOR_ENTRIES = [
       'Now-playing badge shows the real decoded stream format on server transcode (PR #1338)',
     ],
   },
+  {
+    github: 'enncoded',
+    since: '1.51.0',
+    contributions: [
+      'Clickable artist credits in the fullscreen, mini and mobile players (PR #1371)',
+    ],
+  },
 ] as const;
 
 // PR number of a contributor's first listed contribution, used as the
