@@ -33,6 +33,13 @@ describe('splitDisplayArtistName', () => {
     expect(splitDisplayArtistName('Alice; Bob')).toEqual(['Alice', 'Bob']);
   });
 
+  it('splits on the joiner Navidrome inserts between only-plural artists', () => {
+    // When a track has only plural ARTISTS tags (no singular ARTIST), Navidrome
+    // builds the display name with its default Scanner.ArtistJoiner — " • ".
+    expect(splitDisplayArtistName('Alice • Bob')).toEqual(['Alice', 'Bob']);
+    expect(splitDisplayArtistName('Alice • Bob • Carol')).toEqual(['Alice', 'Bob', 'Carol']);
+  });
+
   it('splits a credit with several guests', () => {
     expect(splitDisplayArtistName('Alice feat. Bob / Carol')).toEqual(['Alice', 'Bob', 'Carol']);
   });
