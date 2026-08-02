@@ -154,6 +154,15 @@
   opacity: 1;
 }
 
+/* Never cover the custom title bar: it carries `data-tauri-drag-region` (the
+   only place the OS window can be dragged from) and the window controls. The
+   `--titlebar-height` variable is declared on :root unconditionally, so this
+   has to key off the shell actually rendering a title bar rather than reading
+   the variable directly. */
+body:has(.app-shell[data-titlebar]) .psy-viz-overlay {
+  top: var(--titlebar-height, 0px);
+}
+
 /* On mobile the bottom nav sits below the player bar as well. */
 .app-shell[data-mobile] ~ .psy-viz-overlay,
 body:has(.app-shell[data-mobile]) .psy-viz-overlay {

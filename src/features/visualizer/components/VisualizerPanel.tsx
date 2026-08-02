@@ -41,6 +41,7 @@ export default function VisualizerPanel({
   const isExpanded = expandedSurface === surface;
 
   const collapse = useCallback(() => setExpandedSurface(null), [setExpandedSurface]);
+  const stopCardDrag = useCallback((e: React.MouseEvent) => e.stopPropagation(), []);
   const onExpandClick = useCallback(() => toggleExpanded(surface), [toggleExpanded, surface]);
 
   // Escape collapses, matching every other full-window surface in the app.
@@ -111,6 +112,13 @@ export default function VisualizerPanel({
         data-mode={mode}
         role="region"
         aria-label={t('visualizer.title', 'Visualizer')}
+        // A portal moves the DOM node but not the React tree, so events still
+        // bubble to this component's ancestors — on Now Playing that is the
+        // card's drag source, which is mousedown-based. Without this, dragging
+        // anywhere on a full-window visualizer starts repositioning the card
+        // behind it. A card that fills the window has no meaningful position to
+        // drag to anyway.
+        onMouseDown={stopCardDrag}
       >
         <VisualizerCanvas artUrl={artUrl} artKey={artKey} className="psy-viz-canvas-full" />
         {controls}
