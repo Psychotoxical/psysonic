@@ -93,6 +93,26 @@ export function audioSetNormalization(args: {
   return commands.audioSetNormalization(args.engine, args.targetLufs, args.preAnalysisAttenuationDb);
 }
 
+/**
+ * Start/stop the visualizer spectrum feed (`audio:spectrum` events).
+ *
+ * Idempotent on the Rust side; the frontend keeps one refcount across every
+ * mounted visualizer surface (`features/visualizer/utils/spectrumSubscription`)
+ * so the FFT task only runs while something is actually watching.
+ */
+export function audioSpectrumSetActive(args: {
+  active: boolean;
+  fps?: number | null;
+  /** Envelope responsiveness, 0 (smooth tails) to 1 (snappy). */
+  responsiveness?: number | null;
+}): Promise<void> {
+  return commands.audioSpectrumSetActive(
+    args.active,
+    args.fps ?? null,
+    args.responsiveness ?? null,
+  );
+}
+
 export function audioPreviewStop(): Promise<void> {
   return commands.audioPreviewStop();
 }

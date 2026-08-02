@@ -24,6 +24,7 @@ import { FsVolume } from './FsVolume';
 import { useFsDynamicAccent } from '@/features/fullscreenPlayer/hooks/useFsDynamicAccent';
 import { useFsIdleFade } from '@/features/fullscreenPlayer/hooks/useFsIdleFade';
 import { useQueueTrackAt } from '@/features/queue';
+import { VisualizerPanel } from '@/features/visualizer';
 
 interface FullscreenPlayerProps {
   onClose: () => void;
@@ -213,6 +214,10 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
             ))}
           </div>
         )}
+
+        {/* Visualizer strip — sits between the metadata and the transport so it
+            reads as part of the info cluster, not as a competing surface. */}
+        <VisualizerPanel surface="fullscreen" className="fs-visualizer" />
 
         {/* Controls */}
         <div className="fs-controls" ref={fsControlsRef}>

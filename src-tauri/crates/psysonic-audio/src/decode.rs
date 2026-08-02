@@ -20,6 +20,7 @@ use symphonia::core::{
 use super::codec::{psysonic_codec_registry, try_make_radio_decoder};
 use super::playback_rate::{PlaybackRateAtomics, PlaybackRateSource};
 use super::sources::*;
+use super::spectrum::SpectrumTapSource;
 
 // ─── SizedCursorSource — correct byte_len for seekable in-memory sources ──────
 //
@@ -792,8 +793,11 @@ pub(crate) fn parse_gapless_info(data: &[u8]) -> GaplessInfo {
     GaplessInfo { delay_samples: delay, total_valid_samples: total_valid }
 }
 
-pub(crate) type BuiltSourceStack =
-    PriorityBoostSource<CountingSource<NotifyingSource<TriggeredFadeOut<EqualPowerFadeIn<EqSource<DynSource>>>>>>;
+pub(crate) type BuiltSourceStack = PriorityBoostSource<
+    CountingSource<
+        NotifyingSource<SpectrumTapSource<TriggeredFadeOut<EqualPowerFadeIn<EqSource<DynSource>>>>>,
+    >,
+>;
 
 /// Result of build_source: the fully-wrapped source plus metadata and control Arcs.
 pub(crate) struct BuiltSource {
@@ -905,7 +909,10 @@ pub(crate) fn build_source(
     let eq_src = EqSource::new(rate_dyn, eq_gains, eq_enabled, eq_pre_gain);
     let fade_in = EqualPowerFadeIn::new(eq_src, fade_in_dur);
     let fade_out = TriggeredFadeOut::new(fade_in, fadeout_trigger.clone(), fadeout_samples.clone());
-    let notifying = NotifyingSource::new(fade_out, done_flag);
+    // Visualizer tap: post-EQ/post-fade so it mirrors what is actually heard,
+    // pre-sink so it does not collapse when the user lowers the volume.
+    let tapped = SpectrumTapSource::new(fade_out);
+    let notifying = NotifyingSource::new(tapped, done_flag);
     let counting = CountingSource::new(notifying, sample_counter);
     let boosted = PriorityBoostSource::new(counting);
 
@@ -976,7 +983,8 @@ pub(crate) fn build_streaming_source(
     let eq_src = EqSource::new(rate_dyn, eq_gains, eq_enabled, eq_pre_gain);
     let fade_in = EqualPowerFadeIn::new(eq_src, fade_in_dur);
     let fade_out = TriggeredFadeOut::new(fade_in, fadeout_trigger.clone(), fadeout_samples.clone());
-    let notifying = NotifyingSource::new(fade_out, done_flag);
+    let tapped = SpectrumTapSource::new(fade_out);
+    let notifying = NotifyingSource::new(tapped, done_flag);
     let counting = match count_gate {
         Some(gate) => CountingSource::new_gated(notifying, sample_counter, gate),
         None => CountingSource::new(notifying, sample_counter),

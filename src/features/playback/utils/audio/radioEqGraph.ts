@@ -14,6 +14,8 @@ type RadioEqGraph = {
 };
 
 let graph: RadioEqGraph | null = null;
+/** Visualizer tap, created lazily off `graph.masterGain`. */
+let analyserNode: AnalyserNode | null = null;
 let sharedContext: AudioContext | null = null;
 let pendingMasterVolume = 1;
 let eqStoreUnsub: (() => void) | null = null;
@@ -194,6 +196,35 @@ export function shouldUseRadioEqGraph(): boolean {
 }
 
 /**
+ * Analyser tap for the visualizer, wired as a dead-end branch off the master
+ * gain so it observes the stream without altering the output path.
+ *
+ * Deliberately returns null when the EQ graph is not attached: creating one
+ * just for the visualizer would require `createMediaElementSource`, which
+ * permanently hijacks element output and goes silent on streams without CORS
+ * (issue #1276). Radio therefore visualizes only while EQ is enabled — local
+ * and Subsonic playback is unaffected, since that path taps the Rust engine.
+ */
+export function getRadioSpectrumAnalyser(): AnalyserNode | null {
+  if (!graph) {
+    analyserNode = null;
+    return null;
+  }
+  if (!analyserNode) {
+    try {
+      analyserNode = graph.context.createAnalyser();
+      analyserNode.fftSize = 2048;
+      // Smoothing is applied by the shared renderer so both feeds behave alike.
+      analyserNode.smoothingTimeConstant = 0;
+      graph.masterGain.connect(analyserNode);
+    } catch {
+      analyserNode = null;
+    }
+  }
+  return analyserNode;
+}
+
+/**
  * Live EQ store → Web Audio graph. Toggling EQ/presets/sliders updates filter
  * nodes instantly — no stream restart (issue #1276).
  */
@@ -227,6 +258,7 @@ export function _radioEqGraphForTest(): RadioEqGraph | null {
 export function _resetRadioEqGraphForTest(): void {
   eqStoreUnsub?.();
   eqStoreUnsub = null;
+  analyserNode = null;
   if (graph) {
     void graph.context.close();
     graph = null;

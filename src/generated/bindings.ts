@@ -131,6 +131,15 @@ export const commands = {
 	 */
 	audioSetAutodjSuppress: (enabled: boolean) => __TAURI_INVOKE<void>("audio_set_autodj_suppress", { enabled }),
 	audioSetNormalization: (engine: string, targetLufs: number | null, preAnalysisAttenuationDb: number | null) => __TAURI_INVOKE<void>("audio_set_normalization", { engine, targetLufs, preAnalysisAttenuationDb }),
+	/**
+	 *  Start or stop the spectrum feed.
+	 *
+	 *  Idempotent by design: the frontend keeps a single refcount across every
+	 *  mounted visualizer surface and calls this only on the 0↔1 edges, but a
+	 *  duplicate `true` (a reload that lost the previous count, for instance) just
+	 *  replaces the running task rather than stacking a second one.
+	 */
+	audioSpectrumSetActive: (active: boolean, fps: number | null, responsiveness: number | null) => __TAURI_INVOKE<void>("audio_spectrum_set_active", { active, fps, responsiveness }),
 	/**  Proxy: fetches https://autoeq.app/entries via Rust to bypass WebView CORS restrictions. */
 	autoeqEntries: () => typedError<string, string>(__TAURI_INVOKE("autoeq_entries")),
 	/**  Fetches the AutoEQ FixedBandEQ profile for a specific headphone from GitHub raw content. */

@@ -9,7 +9,8 @@ export type NpCardId =
   | 'credits'
   | 'artist'
   | 'discography'
-  | 'tour';
+  | 'tour'
+  | 'visualizer';
 
 export interface NpCardConfig {
   id: NpCardId;
@@ -17,9 +18,10 @@ export interface NpCardConfig {
   visible: boolean;
 }
 
-export const NP_CARD_IDS: NpCardId[] = ['album', 'topSongs', 'credits', 'artist', 'discography', 'tour'];
+export const NP_CARD_IDS: NpCardId[] = ['album', 'topSongs', 'credits', 'artist', 'discography', 'tour', 'visualizer'];
 
 export const DEFAULT_NP_LAYOUT: NpCardConfig[] = [
+  { id: 'visualizer',  column: 'left',  visible: true },
   { id: 'album',       column: 'left',  visible: true },
   { id: 'topSongs',    column: 'left',  visible: true },
   { id: 'credits',     column: 'left',  visible: true },

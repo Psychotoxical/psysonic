@@ -18,6 +18,7 @@ import { SettingsSubCard, SettingsField, SettingsValue } from '@/features/settin
 import { SettingsSegmented, type SegmentedOption } from '@/features/settings/components/SettingsSegmented';
 import { SeekbarPreview } from '@/features/waveform';
 import WindowButtonPreview from '@/features/settings/components/WindowButtonPreview';
+import { VisualizerSection } from '@/features/settings/components/VisualizerSection';
 
 export function AppearanceTab() {
   const { t } = useTranslation();
@@ -387,6 +388,8 @@ export function AppearanceTab() {
           </SettingsGroup>
         </div>
       </SettingsSubSection>
+
+      <VisualizerSection t={t} />
     </>
   );
 }

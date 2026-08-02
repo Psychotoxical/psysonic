@@ -1,0 +1,34 @@
+export const visualizer = {
+  title: 'Visualizer',
+  modeBars: 'Spectrum',
+  modeScope: 'Oscilloscope',
+  modeRadial: 'Radial scope',
+  modeStereo: 'Stereo field',
+  switchMode: 'Switch visualizer mode',
+  expand: 'Fill the window',
+  collapse: 'Exit full window',
+  settings: {
+    section: 'Visualizer',
+    description:
+      'Animates the frequencies of the track as it plays. Analysis runs in the audio engine and only while a visualizer is on screen.',
+    enable: 'Enable visualizer',
+    enableHint: 'Show the visualizer on the Now Playing page and in the fullscreen player.',
+    mode: 'Default mode',
+    sensitivity: 'Sensitivity',
+    sensitivityHint: 'Lifts quiet passages without clipping loud ones.',
+    responsiveness: 'Responsiveness',
+    responsivenessHint:
+      'How quickly the bars fall. Higher is snappier and tracks transients; lower leaves smoother tails.',
+    peaks: 'Peak caps',
+    peaksHint: 'Winamp-style markers that hang at each band’s recent maximum.',
+    colorSource: 'Colours',
+    colorSourceHint:
+      'Album art pulls the cover’s own palette — its dominant hue, a second hue and its brightest highlight. Theme uses the active theme’s accent ramp. Either way the colours are adapted to the theme background.',
+    colorSourceAlbum: 'Album art',
+    colorSourceTheme: 'Theme',
+    frameRate: 'Frame rate',
+    frameRateHint: 'Lower rates cost less CPU. The animation stays smooth either way.',
+    radioNote:
+      'Internet radio is visualized only while the equalizer is enabled, because that is when the stream is routed through the audio graph.',
+  },
+};

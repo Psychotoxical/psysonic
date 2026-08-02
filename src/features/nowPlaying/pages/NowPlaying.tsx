@@ -34,6 +34,7 @@ import TopSongsCard from '@/features/nowPlaying/components/TopSongsCard';
 import CreditsCard from '@/features/nowPlaying/components/CreditsCard';
 import TourCard from '@/features/nowPlaying/components/TourCard';
 import DiscographyCard from '@/features/nowPlaying/components/DiscographyCard';
+import { VisualizerPanel } from '@/features/visualizer';
 import { useNowPlayingFetchers } from '@/features/nowPlaying/hooks/useNowPlayingFetchers';
 import { useNowPlayingStarLove } from '@/features/nowPlaying/hooks/useNowPlayingStarLove';
 import { useArtistInfoBatch } from '@/features/artist';
@@ -348,6 +349,7 @@ export default function NowPlaying() {
                       onEnable={handleEnableBandsintown}
                     />
                   );
+                  case 'visualizer': return <VisualizerPanel surface="nowPlaying" />;
                 }
               };
               const cardLabel = (id: NpCardId): string => {
@@ -358,6 +360,7 @@ export default function NowPlaying() {
                   artist: 'nowPlaying.aboutArtist',
                   discography: 'nowPlaying.discography',
                   tour: 'nowPlayingInfo.onTour',
+                  visualizer: 'visualizer.title',
                 };
                 return t(k[id]);
               };

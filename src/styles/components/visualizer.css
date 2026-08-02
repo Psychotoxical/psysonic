@@ -1,0 +1,170 @@
+/* ─── Visualizer ───
+   Canvas surface + chrome for the spectrum/oscilloscope visualizer.
+   The canvas paints its own colours (derived from the album art in JS); these
+   rules only own layout, the container frame and the control affordances. */
+
+.psy-viz-panel {
+  position: relative;
+  width: 100%;
+  min-height: 140px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--bg-card) 88%, transparent);
+  border: 1px solid var(--border-subtle);
+  isolation: isolate;
+}
+
+.psy-viz-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Backing-store size is set in JS from the device pixel ratio. */
+}
+
+/* The radial scope's feedback trail needs a flat, opaque field to decay onto —
+   a translucent card would let page content bleed through the ghost. It takes
+   the theme's app background rather than a fixed dark colour so the mode still
+   belongs to the active theme; the palette is contrast-adapted against this
+   same surface in JS, so the trail stays visible on light themes too. */
+.psy-viz-panel[data-mode='radial'],
+.psy-viz-panel[data-mode='stereo'],
+.psy-viz-panel[data-mode='scope'] {
+  background: var(--bg-app);
+}
+
+.psy-viz-panel .psy-viz-canvas {
+  min-height: 140px;
+}
+
+/* ─── Controls ─── */
+
+.psy-viz-controls {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: flex;
+  gap: var(--space-2);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  z-index: 2;
+}
+
+.psy-viz-panel:hover .psy-viz-controls,
+.psy-viz-panel:focus-within .psy-viz-controls,
+.psy-viz-overlay:hover .psy-viz-controls,
+.psy-viz-overlay:focus-within .psy-viz-controls {
+  opacity: 1;
+}
+
+/* Keyboard users never trigger :hover — never hide a focused control. */
+.psy-viz-controls:focus-within {
+  opacity: 1;
+}
+
+.psy-viz-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 28px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
+  background: color-mix(in srgb, var(--bg-card) 72%, transparent);
+  backdrop-filter: blur(8px);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.psy-viz-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-card);
+}
+
+.psy-viz-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.psy-viz-btn-label {
+  white-space: nowrap;
+}
+
+/* ─── Fullscreen-player strips ───
+   Inside the fullscreen players the panel sits on the artwork backdrop, so it
+   drops its card frame and reads as part of the artwork instead of a widget
+   pasted on top. */
+
+.psy-viz-panel.fs-visualizer,
+.psy-viz-panel.fsp-visualizer {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  min-height: 0;
+  height: 72px;
+  margin-bottom: var(--space-3);
+}
+
+.psy-viz-panel.fs-visualizer .psy-viz-canvas,
+.psy-viz-panel.fsp-visualizer .psy-viz-canvas {
+  min-height: 0;
+  height: 72px;
+}
+
+.psy-viz-panel.fs-visualizer .psy-viz-btn,
+.psy-viz-panel.fsp-visualizer .psy-viz-btn {
+  background: color-mix(in srgb, #000 46%, transparent);
+  border-color: color-mix(in srgb, #fff 18%, transparent);
+  color: color-mix(in srgb, #fff 78%, transparent);
+}
+
+.psy-viz-panel.fs-visualizer .psy-viz-btn:hover,
+.psy-viz-panel.fsp-visualizer .psy-viz-btn:hover {
+  color: #fff;
+  background: color-mix(in srgb, #000 68%, transparent);
+}
+
+/* ─── Expanded overlay ───
+   Fills the window but stops above the player bar, so transport controls stay
+   reachable while the visuals take the screen. Sits above the fullscreen
+   player (z-index 9000) since either surface can expand into it. */
+
+.psy-viz-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: var(--player-height, 80px);
+  z-index: 9500;
+  background: var(--bg-app);
+  display: flex;
+}
+
+.psy-viz-overlay .psy-viz-canvas-full {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.psy-viz-overlay .psy-viz-controls {
+  top: var(--space-4);
+  right: var(--space-4);
+  /* Always discoverable here: there is no other chrome to hint at an exit. */
+  opacity: 1;
+}
+
+/* On mobile the bottom nav sits below the player bar as well. */
+.app-shell[data-mobile] ~ .psy-viz-overlay,
+body:has(.app-shell[data-mobile]) .psy-viz-overlay {
+  bottom: calc(var(--player-height, 80px) + var(--bottomnav-height, 56px));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .psy-viz-btn {
+    transition: none;
+  }
+  .psy-viz-controls {
+    transition: none;
+  }
+}

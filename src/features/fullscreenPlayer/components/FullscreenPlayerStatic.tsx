@@ -21,6 +21,7 @@ import { FsClock } from '@/features/fullscreenPlayer/components/FsClock';
 import { FsTimeReadout } from '@/features/fullscreenPlayer/components/FsTimeReadout';
 import { FsVolume } from '@/features/fullscreenPlayer/components/FsVolume';
 import { ownedOverrideValue } from '@/lib/util/ownedEntityKey';
+import { VisualizerPanel } from '@/features/visualizer';
 
 interface Props {
   onClose: () => void;
@@ -225,6 +226,9 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
             )}
           </div>
         </div>
+
+        {/* Visualizer strip, above the transport row. */}
+        <VisualizerPanel surface="fullscreen" className="fsp-visualizer" />
 
         <div className="fsp-controls" ref={controlsRef}>
           <div className="fsp-transport">
