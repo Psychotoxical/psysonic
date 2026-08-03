@@ -14,8 +14,10 @@ export const visualizer = {
     section: 'Visualizer',
     description:
       'Animates the frequencies of the track as it plays. Analysis runs in the audio engine and only while a visualizer is on screen.',
-    enable: 'Enable visualizer',
-    enableHint: 'Show the visualizer on the Now Playing page and in the fullscreen player.',
+    enableNowPlaying: 'Show on Now Playing',
+    enableNowPlayingHint: 'Adds the visualizer as a card on the Now Playing page.',
+    enableFullscreen: 'Show in the fullscreen player',
+    enableFullscreenHint: 'Adds the visualizer to every fullscreen player style.',
     mode: 'Default mode',
     sensitivity: 'Sensitivity',
     sensitivityHint: 'Lifts quiet passages without clipping loud ones.',

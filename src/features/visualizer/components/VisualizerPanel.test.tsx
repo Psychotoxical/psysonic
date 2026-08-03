@@ -74,7 +74,8 @@ function TransientLauncher() {
 
 function reset(over: Record<string, unknown> = {}): void {
   useVisualizerStore.setState({
-    enabled: true,
+    enabledNowPlaying: true,
+    enabledFullscreen: true,
     mode: 'bars',
     expandedSurface: null,
     ...over,
@@ -225,10 +226,24 @@ describe('VisualizerPanel expanded overlay', () => {
   });
 
   it('renders nothing at all when the visualizer is disabled', () => {
-    reset({ enabled: false });
+    reset({ enabledNowPlaying: false });
     const { container } = renderWithProviders(<VisualizerPanel surface="nowPlaying" />);
     expect(container.querySelector('.psy-viz-panel')).toBeNull();
     expect(document.body.querySelector('.psy-viz-overlay')).toBeNull();
+  });
+
+  it('reads the switch of the surface it is mounted on', () => {
+    // The two surfaces are independent: switching off the page behind the
+    // fullscreen player must not take the fullscreen panel with it.
+    reset({ enabledNowPlaying: false, enabledFullscreen: true });
+    const { container } = renderWithProviders(<VisualizerPanel surface="fullscreen" />);
+    expect(container.querySelector('.psy-viz-panel')).not.toBeNull();
+  });
+
+  it('renders nothing on fullscreen when only that surface is off', () => {
+    reset({ enabledNowPlaying: true, enabledFullscreen: false });
+    const { container } = renderWithProviders(<VisualizerPanel surface="fullscreen" />);
+    expect(container.querySelector('.psy-viz-panel')).toBeNull();
   });
 
   it('uses an explicit palette-art override', () => {

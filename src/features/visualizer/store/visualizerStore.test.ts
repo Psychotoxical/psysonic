@@ -9,9 +9,22 @@ import {
   useVisualizerStore,
 } from './visualizerStore';
 
+/**
+ * Run the store's own rehydrate hook over a persisted-shaped object, the way
+ * the persist middleware does on startup. Its declared return type includes
+ * `void`, so it is narrowed here rather than at every call site.
+ */
+function rehydratePersisted(stored: Record<string, unknown>): void {
+  const hook = useVisualizerStore.persist.getOptions().onRehydrateStorage?.(
+    useVisualizerStore.getState(),
+  ) as ((state?: unknown, error?: unknown) => void) | undefined;
+  hook?.(stored, undefined);
+}
+
 function reset(): void {
   useVisualizerStore.setState({
-    enabled: true,
+    enabledNowPlaying: true,
+    enabledFullscreen: true,
     mode: 'bars',
     sensitivity: 1,
     responsiveness: DEFAULT_RESPONSIVENESS,
@@ -128,19 +141,28 @@ describe('visualizerStore', () => {
     expect(useVisualizerStore.getState().expandedSurface).toBe('fullscreen');
   });
 
-  it('collapses when the visualizer is disabled', () => {
+  it('collapses when the expanded surface is switched off', () => {
     const s = useVisualizerStore.getState();
     s.toggleExpanded('fullscreen');
-    s.setEnabled(false);
+    s.setSurfaceEnabled('fullscreen', false);
     expect(useVisualizerStore.getState().expandedSurface).toBeNull();
   });
 
-  it('keeps the expanded surface when re-enabling without one', () => {
+  it('leaves an expanded surface alone when the other one is switched off', () => {
     const s = useVisualizerStore.getState();
-    s.setEnabled(false);
-    s.setEnabled(true);
+    s.toggleExpanded('fullscreen');
+    s.setSurfaceEnabled('nowPlaying', false);
+    // Switching off Now Playing must not close a fullscreen overlay.
+    expect(useVisualizerStore.getState().expandedSurface).toBe('fullscreen');
+    expect(useVisualizerStore.getState().enabledFullscreen).toBe(true);
+  });
+
+  it('keeps the expanded surface cleared when re-enabling without one', () => {
+    const s = useVisualizerStore.getState();
+    s.setSurfaceEnabled('fullscreen', false);
+    s.setSurfaceEnabled('fullscreen', true);
     expect(useVisualizerStore.getState().expandedSurface).toBeNull();
-    expect(useVisualizerStore.getState().enabled).toBe(true);
+    expect(useVisualizerStore.getState().enabledFullscreen).toBe(true);
   });
 
   it('does not persist the expanded surface', () => {
@@ -154,5 +176,33 @@ describe('visualizerStore', () => {
     expect(persisted).not.toContain('expandedSurface');
     expect(persisted).toContain('mode');
     expect(persisted).toContain('sensitivity');
+    expect(persisted).toContain('enabledNowPlaying');
+    expect(persisted).toContain('enabledFullscreen');
+  });
+
+  it('carries a legacy master switch onto both surfaces', () => {
+    // Installs from before the split persisted a single `enabled` flag. Anyone
+    // who had switched the visualizer off must not find it running again.
+    const stored: Record<string, unknown> = {
+      ...useVisualizerStore.getState(),
+      enabled: false,
+    };
+
+    rehydratePersisted(stored);
+
+    expect(stored.enabledNowPlaying).toBe(false);
+    expect(stored.enabledFullscreen).toBe(false);
+    expect(stored.enabled).toBeUndefined();
+  });
+
+  it('defaults both surfaces on for a fresh install', () => {
+    const stored: Record<string, unknown> = { ...useVisualizerStore.getState() };
+    delete stored.enabledNowPlaying;
+    delete stored.enabledFullscreen;
+
+    rehydratePersisted(stored);
+
+    expect(stored.enabledNowPlaying).toBe(true);
+    expect(stored.enabledFullscreen).toBe(true);
   });
 });

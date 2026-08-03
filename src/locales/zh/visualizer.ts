@@ -13,8 +13,10 @@ export const visualizer = {
     section: '音频可视化',
     description:
       '在播放时动态显示曲目的频率。分析在音频引擎中执行，并且仅在可视化界面显示时运行。',
-    enable: '启用音频可视化',
-    enableHint: '在“正在播放”页面和全屏播放器中显示可视化效果。',
+    enableNowPlaying: '在“正在播放”中显示',
+    enableNowPlayingHint: '在“正在播放”页面中以卡片形式添加可视化效果。',
+    enableFullscreen: '在全屏播放器中显示',
+    enableFullscreenHint: '为所有全屏播放器样式添加可视化效果。',
     mode: '默认模式',
     sensitivity: '灵敏度',
     sensitivityHint: '增强安静段落，同时避免响亮段落削波。',

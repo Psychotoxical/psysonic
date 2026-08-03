@@ -27,7 +27,7 @@ const RadioView = memo(function RadioView({
   visualizerPaused = false,
 }: RadioViewProps) {
   const { t } = useTranslation();
-  const visualizerEnabled = useVisualizerStore(state => state.enabled);
+  const visualizerEnabled = useVisualizerStore(state => state.enabledNowPlaying);
   const radioVisualizerAvailable = useSyncExternalStore(
     subscribeRadioSpectrumAvailability,
     getRadioSpectrumAvailability,

@@ -25,8 +25,8 @@ vi.mock('@/features/playback', () => ({
 }));
 
 vi.mock('@/features/visualizer', () => ({
-  useVisualizerStore: (selector: (state: { enabled: boolean }) => unknown) => (
-    selector({ enabled: testState.visualizerEnabled })
+  useVisualizerStore: (selector: (state: { enabledNowPlaying: boolean }) => unknown) => (
+    selector({ enabledNowPlaying: testState.visualizerEnabled })
   ),
   VisualizerPanel: (props: Record<string, unknown>) => {
     testState.visualizerPanel(props);

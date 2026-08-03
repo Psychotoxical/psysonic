@@ -14,8 +14,10 @@ export const visualizer = {
     section: 'Vizualizáló',
     description:
       'Lejátszás közben megjeleníti a zeneszám frekvenciáit. Az elemzés a hangmotorban fut, és csak akkor, amikor a vizualizáló látható.',
-    enable: 'Vizualizáló engedélyezése',
-    enableHint: 'Megjeleníti a vizualizálót a Most szól oldalon és a teljes képernyős lejátszóban.',
+    enableNowPlaying: 'Megjelenítés a Most szól oldalon',
+    enableNowPlayingHint: 'Kártyaként adja hozzá a vizualizálót a Most szól oldalhoz.',
+    enableFullscreen: 'Megjelenítés a teljes képernyős lejátszóban',
+    enableFullscreenHint: 'Hozzáadja a vizualizálót az összes teljes képernyős lejátszóstílushoz.',
     mode: 'Alapértelmezett mód',
     sensitivity: 'Érzékenység',
     sensitivityHint: 'Kiemeli a halk részeket a hangos részek levágása nélkül.',

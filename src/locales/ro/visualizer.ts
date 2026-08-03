@@ -14,8 +14,10 @@ export const visualizer = {
     section: 'Vizualizator',
     description:
       'Animează frecvențele piesei în timpul redării. Analiza rulează în motorul audio numai cât timp un vizualizator este afișat.',
-    enable: 'Activează vizualizatorul',
-    enableHint: 'Afișează vizualizatorul în Acum se redă și în playerul pe ecran complet.',
+    enableNowPlaying: 'Afișează în Se Redă Acum',
+    enableNowPlayingHint: 'Adaugă vizualizatorul ca un card în pagina Se Redă Acum.',
+    enableFullscreen: 'Afișează în playerul pe ecran complet',
+    enableFullscreenHint: 'Adaugă vizualizatorul în toate stilurile playerului pe ecran complet.',
     mode: 'Mod implicit',
     sensitivity: 'Sensibilitate',
     sensitivityHint: 'Ridică pasajele silențioase fără a tăia pasajele puternice.',

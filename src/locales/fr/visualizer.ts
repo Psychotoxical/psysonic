@@ -14,8 +14,10 @@ export const visualizer = {
     section: 'Visualiseur',
     description:
       'Anime les fréquences du morceau pendant la lecture. L’analyse s’exécute dans le moteur audio uniquement lorsqu’un visualiseur est affiché.',
-    enable: 'Activer le visualiseur',
-    enableHint: 'Affiche le visualiseur dans Lecture en cours et dans le lecteur plein écran.',
+    enableNowPlaying: 'Afficher dans En cours',
+    enableNowPlayingHint: 'Ajoute le visualiseur sous forme de carte sur la page En cours.',
+    enableFullscreen: 'Afficher dans le lecteur plein écran',
+    enableFullscreenHint: 'Ajoute le visualiseur à tous les styles du lecteur plein écran.',
     mode: 'Mode par défaut',
     sensitivity: 'Sensibilité',
     sensitivityHint: 'Rehausse les passages calmes sans écrêter les passages forts.',

@@ -124,7 +124,9 @@ export default function VisualizerPanel({
   artKey: artKeyOverride,
 }: VisualizerPanelProps): React.ReactElement | null {
   const { t } = useTranslation();
-  const enabled = useVisualizerStore(s => s.enabled);
+  const enabled = useVisualizerStore(
+    s => (surface === 'fullscreen' ? s.enabledFullscreen : s.enabledNowPlaying),
+  );
   const mode = useVisualizerStore(s => s.mode);
   const cycleMode = useVisualizerStore(s => s.cycleMode);
   const expandedSurface = useVisualizerStore(s => s.expandedSurface);

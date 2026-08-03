@@ -18,10 +18,15 @@ interface Props {
  */
 export function VisualizerSection({ t }: Props) {
   const {
-    enabled, mode, sensitivity, responsiveness, fps, showPeaks, colorSource,
-    setEnabled, setMode, setSensitivity, setResponsiveness, setFps,
+    enabledNowPlaying, enabledFullscreen,
+    mode, sensitivity, responsiveness, fps, showPeaks, colorSource,
+    setSurfaceEnabled, setMode, setSensitivity, setResponsiveness, setFps,
     setShowPeaks, setColorSource,
   } = useVisualizerStore();
+
+  // The settings below apply to every surface, so one switched-on surface is
+  // enough to make them worth showing.
+  const anySurfaceEnabled = enabledNowPlaying || enabledFullscreen;
 
   const modes: SegmentedOption<VisualizerMode>[] = [
     { id: 'bars', label: t('visualizer.modeBars') },
@@ -30,12 +35,12 @@ export function VisualizerSection({ t }: Props) {
     { id: 'stereo', label: t('visualizer.modeStereo') },
   ];
 
-  // SettingsSegmented keys on strings, so the rate round-trips through one.
   const colorSources: SegmentedOption<VisualizerColorSource>[] = [
     { id: 'album', label: t('visualizer.settings.colorSourceAlbum') },
     { id: 'theme', label: t('visualizer.settings.colorSourceTheme') },
   ];
 
+  // SettingsSegmented keys on strings, so the rate round-trips through one.
   const rates: SegmentedOption<string>[] = VISUALIZER_FPS_OPTIONS.map(rate => ({
     id: String(rate),
     label: `${rate} fps`,
@@ -53,15 +58,25 @@ export function VisualizerSection({ t }: Props) {
           </div>
 
           <SettingsToggle
-            label={t('visualizer.settings.enable')}
-            desc={t('visualizer.settings.enableHint')}
-            checked={enabled}
-            onChange={setEnabled}
-            searchText={`${t('visualizer.settings.section')} ${t('visualizer.settings.enable')}`}
+            label={t('visualizer.settings.enableNowPlaying')}
+            desc={t('visualizer.settings.enableNowPlayingHint')}
+            checked={enabledNowPlaying}
+            onChange={v => setSurfaceEnabled('nowPlaying', v)}
+            searchText={`${t('visualizer.settings.section')} ${t('visualizer.settings.enableNowPlaying')}`}
           />
 
-          {enabled && (
+          <SettingsToggle
+            label={t('visualizer.settings.enableFullscreen')}
+            desc={t('visualizer.settings.enableFullscreenHint')}
+            checked={enabledFullscreen}
+            onChange={v => setSurfaceEnabled('fullscreen', v)}
+            searchText={`${t('visualizer.settings.section')} ${t('visualizer.settings.enableFullscreen')}`}
+          />
+
+          {anySurfaceEnabled && (
             <>
+              {/* Two sub-cards, not one per control: what the visualizer looks
+                  like, then what it costs to run. */}
               <SettingsSubCard>
                 <SettingsField label={t('visualizer.settings.mode')} row>
                   <SettingsSegmented
@@ -69,8 +84,27 @@ export function VisualizerSection({ t }: Props) {
                     value={mode}
                     onChange={setMode}
                     ariaLabel={t('visualizer.settings.mode')}
+                    className="settings-segmented-auto"
                   />
                 </SettingsField>
+                <SettingsField
+                  label={t('visualizer.settings.colorSource')}
+                  desc={t('visualizer.settings.colorSourceHint')}
+                  row
+                >
+                  <SettingsSegmented
+                    options={colorSources}
+                    value={colorSource}
+                    onChange={setColorSource}
+                    ariaLabel={t('visualizer.settings.colorSource')}
+                  />
+                </SettingsField>
+                <SettingsToggle
+                  label={t('visualizer.settings.peaks')}
+                  desc={t('visualizer.settings.peaksHint')}
+                  checked={showPeaks}
+                  onChange={setShowPeaks}
+                />
               </SettingsSubCard>
 
               <SettingsSubCard>
@@ -88,15 +122,9 @@ export function VisualizerSection({ t }: Props) {
                     value={sensitivity}
                     onChange={e => setSensitivity(Number(e.target.value))}
                     aria-label={t('visualizer.settings.sensitivity')}
-                    aria-valuemin={MIN_SENSITIVITY}
-                    aria-valuemax={MAX_SENSITIVITY}
-                    aria-valuenow={sensitivity}
                   />
                   <SettingsValue>{sensitivity.toFixed(1)}×</SettingsValue>
                 </SettingsField>
-              </SettingsSubCard>
-
-              <SettingsSubCard>
                 <SettingsField
                   label={t('visualizer.settings.responsiveness')}
                   desc={t('visualizer.settings.responsivenessHint')}
@@ -111,15 +139,9 @@ export function VisualizerSection({ t }: Props) {
                     value={responsiveness}
                     onChange={e => setResponsiveness(Number(e.target.value))}
                     aria-label={t('visualizer.settings.responsiveness')}
-                    aria-valuemin={0}
-                    aria-valuemax={1}
-                    aria-valuenow={responsiveness}
                   />
                   <SettingsValue>{Math.round(responsiveness * 100)}%</SettingsValue>
                 </SettingsField>
-              </SettingsSubCard>
-
-              <SettingsSubCard>
                 <SettingsField
                   label={t('visualizer.settings.frameRate')}
                   desc={t('visualizer.settings.frameRateHint')}
@@ -130,28 +152,6 @@ export function VisualizerSection({ t }: Props) {
                     value={String(fps)}
                     onChange={id => setFps(Number(id))}
                     ariaLabel={t('visualizer.settings.frameRate')}
-                  />
-                </SettingsField>
-              </SettingsSubCard>
-
-              <SettingsToggle
-                label={t('visualizer.settings.peaks')}
-                desc={t('visualizer.settings.peaksHint')}
-                checked={showPeaks}
-                onChange={setShowPeaks}
-              />
-
-              <SettingsSubCard>
-                <SettingsField
-                  label={t('visualizer.settings.colorSource')}
-                  desc={t('visualizer.settings.colorSourceHint')}
-                  row
-                >
-                  <SettingsSegmented
-                    options={colorSources}
-                    value={colorSource}
-                    onChange={setColorSource}
-                    ariaLabel={t('visualizer.settings.colorSource')}
                   />
                 </SettingsField>
               </SettingsSubCard>

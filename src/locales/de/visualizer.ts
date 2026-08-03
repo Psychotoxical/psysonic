@@ -14,8 +14,10 @@ export const visualizer = {
     section: 'Visualizer',
     description:
       'Animiert die Frequenzen des laufenden Titels. Die Analyse läuft in der Audio-Engine und nur, solange ein Visualizer sichtbar ist.',
-    enable: 'Visualizer aktivieren',
-    enableHint: 'Zeigt den Visualizer unter „Aktueller Titel“ und im Vollbild-Player.',
+    enableNowPlaying: 'In Now Playing anzeigen',
+    enableNowPlayingHint: 'Fügt den Visualizer als Karte auf der Seite „Now Playing“ hinzu.',
+    enableFullscreen: 'Im Vollbild-Player anzeigen',
+    enableFullscreenHint: 'Fügt den Visualizer in allen Vollbild-Player-Stilen hinzu.',
     mode: 'Standardmodus',
     sensitivity: 'Empfindlichkeit',
     sensitivityHint: 'Hebt leise Passagen an, ohne laute zu übersteuern.',

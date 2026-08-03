@@ -14,8 +14,10 @@ export const visualizer = {
     section: 'ビジュアライザー',
     description:
       '再生中の曲の周波数をアニメーション表示します。解析はオーディオエンジン内で、ビジュアライザーが画面に表示されている間だけ実行されます。',
-    enable: 'ビジュアライザーを有効にする',
-    enableHint: '再生中ページと全画面プレーヤーにビジュアライザーを表示します。',
+    enableNowPlaying: 'Now Playing に表示',
+    enableNowPlayingHint: 'Now Playing ページにビジュアライザーをカードとして追加します。',
+    enableFullscreen: '全画面プレーヤーに表示',
+    enableFullscreenHint: 'すべての全画面プレーヤースタイルにビジュアライザーを追加します。',
     mode: '既定のモード',
     sensitivity: '感度',
     sensitivityHint: '大きな音をクリップせずに静かな部分を持ち上げます。',

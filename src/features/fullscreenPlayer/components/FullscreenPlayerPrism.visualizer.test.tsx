@@ -30,7 +30,12 @@ function PrismHarness() {
 
 beforeEach(() => {
   resetAllStores();
-  useVisualizerStore.setState({ enabled: true, mode: 'bars', expandedSurface: null });
+  useVisualizerStore.setState({
+    enabledNowPlaying: true,
+    enabledFullscreen: true,
+    mode: 'bars',
+    expandedSurface: null,
+  });
   const id = useAuthStore.getState().addServer({
     name: 'T', url: 'https://x.test', username: 'u', password: 'p',
   });

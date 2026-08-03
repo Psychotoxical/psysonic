@@ -14,8 +14,10 @@ export const visualizer = {
     section: 'Visualisering',
     description:
       'Animerer frekvensene i sporet mens det spilles. Analysen kjører i lydmotoren og bare mens en visualisering er synlig.',
-    enable: 'Aktiver visualisering',
-    enableHint: 'Vis visualiseringen på Spilles nå-siden og i fullskjermspilleren.',
+    enableNowPlaying: 'Vis på Spilles nå',
+    enableNowPlayingHint: 'Legger visualiseringen til som et kort på Spilles nå-siden.',
+    enableFullscreen: 'Vis i fullskjermspilleren',
+    enableFullscreenHint: 'Legger visualiseringen til i alle stilene for fullskjermspilleren.',
     mode: 'Standardmodus',
     sensitivity: 'Følsomhet',
     sensitivityHint: 'Løfter stille partier uten å klippe de sterke.',

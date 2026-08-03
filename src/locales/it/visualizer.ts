@@ -14,8 +14,10 @@ export const visualizer = {
     section: 'Visualizzatore',
     description:
       'Anima le frequenze del brano durante la riproduzione. L’analisi viene eseguita nel motore audio solo quando un visualizzatore è visibile.',
-    enable: 'Attiva visualizzatore',
-    enableHint: 'Mostra il visualizzatore in In riproduzione e nel lettore a schermo intero.',
+    enableNowPlaying: 'Mostra in In Riproduzione',
+    enableNowPlayingHint: 'Aggiunge il visualizzatore come scheda nella pagina In Riproduzione.',
+    enableFullscreen: 'Mostra nel lettore a schermo intero',
+    enableFullscreenHint: 'Aggiunge il visualizzatore a tutti gli stili del lettore a schermo intero.',
     mode: 'Modalità predefinita',
     sensitivity: 'Sensibilità',
     sensitivityHint: 'Amplifica i passaggi silenziosi senza tagliare quelli più forti.',

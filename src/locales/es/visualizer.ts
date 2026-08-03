@@ -14,8 +14,10 @@ export const visualizer = {
     section: 'Visualizador',
     description:
       'Anima las frecuencias de la pista mientras se reproduce. El análisis se ejecuta en el motor de audio y solo cuando hay un visualizador en pantalla.',
-    enable: 'Activar el visualizador',
-    enableHint: 'Muestra el visualizador en Ahora suena y en el reproductor a pantalla completa.',
+    enableNowPlaying: 'Mostrar en Reproduciendo Ahora',
+    enableNowPlayingHint: 'Añade el visualizador como tarjeta en la página Reproduciendo Ahora.',
+    enableFullscreen: 'Mostrar en el reproductor a pantalla completa',
+    enableFullscreenHint: 'Añade el visualizador a todos los estilos del reproductor a pantalla completa.',
     mode: 'Modo predeterminado',
     sensitivity: 'Sensibilidad',
     sensitivityHint: 'Realza los pasajes suaves sin recortar los más fuertes.',

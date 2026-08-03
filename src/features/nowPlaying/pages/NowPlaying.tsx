@@ -167,7 +167,7 @@ export default function NowPlaying() {
 
   // ── Widget layout (drag-to-reorder, hide/show, reset) ────────────────────
   const layoutCards   = useNpLayoutStore(s => s.cards);
-  const visualizerEnabled = useVisualizerStore(s => s.enabled);
+  const visualizerEnabled = useVisualizerStore(s => s.enabledNowPlaying);
   const activeLayoutCards = useMemo(
     () => availableNpCards(layoutCards, { visualizerEnabled }),
     [layoutCards, visualizerEnabled],

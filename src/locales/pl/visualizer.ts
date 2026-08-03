@@ -14,8 +14,10 @@ export const visualizer = {
     section: 'Wizualizator',
     description:
       'Animuje częstotliwości utworu podczas odtwarzania. Analiza działa w silniku audio tylko wtedy, gdy wizualizator jest widoczny.',
-    enable: 'Włącz wizualizator',
-    enableHint: 'Pokazuje wizualizator na stronie Teraz odtwarzane i w odtwarzaczu pełnoekranowym.',
+    enableNowPlaying: 'Pokaż na stronie Teraz odtwarzane',
+    enableNowPlayingHint: 'Dodaje wizualizator jako kartę na stronie Teraz odtwarzane.',
+    enableFullscreen: 'Pokaż w odtwarzaczu pełnoekranowym',
+    enableFullscreenHint: 'Dodaje wizualizator do wszystkich stylów odtwarzacza pełnoekranowego.',
     mode: 'Tryb domyślny',
     sensitivity: 'Czułość',
     sensitivityHint: 'Wzmacnia ciche fragmenty bez obcinania głośnych.',

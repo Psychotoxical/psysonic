@@ -14,8 +14,10 @@ export const visualizer = {
     section: 'Visualizer',
     description:
       'Animeert de frequenties van het nummer tijdens het afspelen. De analyse draait in de audio-engine en alleen zolang een visualizer zichtbaar is.',
-    enable: 'Visualizer inschakelen',
-    enableHint: 'Toont de visualizer op Nu afspelen en in de speler op volledig scherm.',
+    enableNowPlaying: 'Tonen op Nu bezig',
+    enableNowPlayingHint: 'Voegt de visualizer als kaart toe aan de pagina Nu bezig.',
+    enableFullscreen: 'Tonen in de speler op volledig scherm',
+    enableFullscreenHint: 'Voegt de visualizer toe aan alle stijlen van de speler op volledig scherm.',
     mode: 'Standaardmodus',
     sensitivity: 'Gevoeligheid',
     sensitivityHint: 'Versterkt stille passages zonder luide passages af te kappen.',

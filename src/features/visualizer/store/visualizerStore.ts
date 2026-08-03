@@ -39,8 +39,14 @@ export function clampFps(v: number): number {
 }
 
 interface VisualizerState {
-  /** Master switch. Off means no surface mounts and Rust never runs the FFT. */
-  enabled: boolean;
+  /**
+   * Per-surface switches. A surface that is off does not mount its panel, and
+   * with every surface off Rust never runs the FFT at all — the visualizer is
+   * wanted in the fullscreen player far more often than on the page behind it,
+   * so the two are separate.
+   */
+  enabledNowPlaying: boolean;
+  enabledFullscreen: boolean;
   mode: VisualizerMode;
   /** Gamma on band levels; 1 is neutral. */
   sensitivity: number;
@@ -60,7 +66,7 @@ interface VisualizerState {
    */
   expandedSurface: VisualizerSurface | null;
 
-  setEnabled: (v: boolean) => void;
+  setSurfaceEnabled: (surface: VisualizerSurface, v: boolean) => void;
   setMode: (mode: VisualizerMode) => void;
   cycleMode: () => void;
   setSensitivity: (v: number) => void;
@@ -75,7 +81,8 @@ interface VisualizerState {
 export const useVisualizerStore = create<VisualizerState>()(
   persist(
     (set) => ({
-      enabled: true,
+      enabledNowPlaying: true,
+      enabledFullscreen: true,
       mode: 'bars',
       sensitivity: 1,
       responsiveness: DEFAULT_RESPONSIVENESS,
@@ -84,11 +91,12 @@ export const useVisualizerStore = create<VisualizerState>()(
       colorSource: 'album',
       expandedSurface: null,
 
-      setEnabled: (v) => set((s) => ({
-        enabled: v,
+      setSurfaceEnabled: (surface, v) => set((s) => ({
+        ...(surface === 'fullscreen' ? { enabledFullscreen: v } : { enabledNowPlaying: v }),
         // Leaving the expanded state set while disabling would keep an empty
-        // overlay pinned over the app.
-        expandedSurface: v ? s.expandedSurface : null,
+        // overlay pinned over the app. Only the surface being switched off
+        // clears it — the other one may legitimately still be expanded.
+        expandedSurface: !v && s.expandedSurface === surface ? null : s.expandedSurface,
       })),
       setMode: (mode) => set({ mode }),
       cycleMode: () => set((s) => {
@@ -108,7 +116,8 @@ export const useVisualizerStore = create<VisualizerState>()(
     {
       name: 'psysonic_visualizer',
       partialize: (s) => ({
-        enabled: s.enabled,
+        enabledNowPlaying: s.enabledNowPlaying,
+        enabledFullscreen: s.enabledFullscreen,
         mode: s.mode,
         sensitivity: s.sensitivity,
         responsiveness: s.responsiveness,
@@ -134,6 +143,17 @@ export const useVisualizerStore = create<VisualizerState>()(
           state.colorSource = legacy === false ? 'theme' : 'album';
         }
         delete (state as unknown as { useAlbumColors?: boolean }).useAlbumColors;
+        // Migration: one master `enabled` switch became a per-surface pair.
+        // Carry an existing opt-out across to both rather than turning the
+        // visualizer back on for someone who had switched it off.
+        const legacyEnabled = (state as unknown as { enabled?: boolean }).enabled;
+        if (typeof legacyEnabled === 'boolean') {
+          state.enabledNowPlaying = legacyEnabled;
+          state.enabledFullscreen = legacyEnabled;
+        }
+        delete (state as unknown as { enabled?: boolean }).enabled;
+        if (typeof state.enabledNowPlaying !== 'boolean') state.enabledNowPlaying = true;
+        if (typeof state.enabledFullscreen !== 'boolean') state.enabledFullscreen = true;
         state.expandedSurface = null;
       },
     },
