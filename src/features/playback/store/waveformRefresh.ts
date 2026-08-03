@@ -20,6 +20,8 @@ export type WaveformCachePayload = {
   updatedAt: number;
 };
 
+const waveformRefreshInflight = new Map<string, Promise<void>>();
+
 /**
  * Fetch the cached waveform row for `trackId` from Rust and apply its bins
  * to the player store — but only if (a) the refresh generation snapshot
@@ -56,6 +58,17 @@ export async function refreshWaveformForTrack(inputRef: AnalysisTrackRef): Promi
   if (!trackId || !inputRef.serverIndexKey) return;
   const ref = analysisTrackRef(trackId, inputRef.serverIndexKey);
   const gen = getWaveformRefreshGen(ref);
+  const inflightKey = `${analysisTrackRefKey(ref)}|${gen}`;
+  const existing = waveformRefreshInflight.get(inflightKey);
+  if (existing) return existing;
+  const job = runRefreshWaveformForTrack(ref, gen)
+    .finally(() => { waveformRefreshInflight.delete(inflightKey); });
+  waveformRefreshInflight.set(inflightKey, job);
+  return job;
+}
+
+async function runRefreshWaveformForTrack(ref: AnalysisTrackRef, gen: number): Promise<void> {
+  const { trackId } = ref;
   try {
     const res = await commands.analysisGetWaveformForTrack(trackId, ref.serverIndexKey);
     if (res.status === 'error') throw new Error(res.error);
@@ -82,4 +95,9 @@ export async function refreshWaveformForTrack(inputRef: AnalysisTrackRef): Promi
   } catch {
     // best-effort; seekbar falls back to placeholder waveform
   }
+}
+
+/** Test-only: drop pending refresh promises so each spec starts clean. */
+export function _resetWaveformRefreshInflightForTest(): void {
+  waveformRefreshInflight.clear();
 }

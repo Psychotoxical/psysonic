@@ -664,7 +664,7 @@ pub(crate) async fn ranged_download_task(
         };
         let track_key = crate::helpers::playback_identity(&url_for_emit)
             .unwrap_or_else(|| url_for_emit.clone());
-        if !crate::ipc::partial_loudness_should_emit(&track_key, provisional_db) {
+        if !crate::ipc::partial_loudness_should_emit(&track_key, gen, provisional_db) {
             return;
         }
         let _ = app_for_emit.emit(

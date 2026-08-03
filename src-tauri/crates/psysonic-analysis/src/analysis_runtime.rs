@@ -112,7 +112,8 @@ pub enum AnalysisBackfillEnqueueKind {
     RunningSkipped,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub enum EnqueueSeedFromUrlOutcome {
     Enqueued,
     AlreadyReserved,

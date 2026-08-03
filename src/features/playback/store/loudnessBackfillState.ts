@@ -49,6 +49,12 @@ export function resetBackfillAttempts(ref: AnalysisTrackRef): void {
   analysisBackfillAttemptsByTrackId[analysisTrackRefKey(ref)] = 0;
 }
 
+/** Restore the previous count when Rust declines an enqueue without starting work. */
+export function restoreBackfillAttempts(ref: AnalysisTrackRef, attempts: number): void {
+  if (!ref.trackId || !ref.serverIndexKey) return;
+  analysisBackfillAttemptsByTrackId[analysisTrackRefKey(ref)] = attempts;
+}
+
 export function resetLoudnessBackfillState(ref: AnalysisTrackRef): void {
   if (!ref.trackId || !ref.serverIndexKey) return;
   const key = analysisTrackRefKey(ref);

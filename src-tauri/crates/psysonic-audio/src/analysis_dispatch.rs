@@ -276,6 +276,28 @@ fn provenance_from_trusted_bytes(bytes: &[u8], trusted: &str) -> StreamProvenanc
     }
 }
 
+fn should_fetch_trusted_original(in_cpu_pipeline: bool, plan_has_work: bool) -> bool {
+    !in_cpu_pipeline && plan_has_work
+}
+
+fn trusted_original_fetch_needed(
+    app: &AppHandle,
+    server_id: &str,
+    track_id: &str,
+    trusted_md5_16kb: &str,
+) -> bool {
+    should_fetch_trusted_original(
+        psysonic_analysis::analysis_runtime::analysis_track_in_cpu_pipeline(server_id, track_id),
+        psysonic_analysis::track_analysis_plan::plan_track_analysis(
+            app,
+            server_id,
+            track_id,
+            trusted_md5_16kb,
+        )
+        .any(),
+    )
+}
+
 pub(crate) async fn dispatch_track_analysis_bytes(
     app: &AppHandle,
     origin: TrackAnalysisOrigin,
@@ -349,6 +371,12 @@ pub(crate) async fn dispatch_track_analysis_bytes(
                     }
                     bytes
                 } else {
+                    if !trusted_original_fetch_needed(app, server_id, track_id, &trusted) {
+                        crate::app_deprintln!(
+                            "[analysis][dispatch] skip raw original fetch track_id={track_id}: analysis complete or already queued"
+                        );
+                        return Ok(provenance);
+                    }
                     crate::app_deprintln!(
                         "[analysis][dispatch] captured bytes differ from trusted original track_id={track_id}; fetching bounded raw original"
                     );
@@ -580,6 +608,13 @@ mod provenance_tests {
             provenance_from_trusted_bytes(&vec![9u8; 20 * 1024], &trusted),
             StreamProvenance::Transcoded,
         );
+    }
+
+    #[test]
+    fn raw_original_fetch_requires_work_outside_the_cpu_pipeline() {
+        assert!(should_fetch_trusted_original(false, true));
+        assert!(!should_fetch_trusted_original(true, true));
+        assert!(!should_fetch_trusted_original(false, false));
     }
 
     #[test]

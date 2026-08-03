@@ -210,7 +210,7 @@ export const commands = {
 	analysisListFailedTracks: (serverId: string, limit: number | null) => typedError<AnalysisFailedTrackDto[], string>(__TAURI_INVOKE("analysis_list_failed_tracks", { serverId, limit })),
 	analysisClearFailedTracks: (serverId: string, trackIds: string[] | null) => typedError<number, string>(__TAURI_INVOKE("analysis_clear_failed_tracks", { serverId, trackIds })),
 	analysisMigrateServerIndexKeys: (mappings: AnalysisServerKeyMigrationDto[]) => typedError<null, string>(__TAURI_INVOKE("analysis_migrate_server_index_keys", { mappings })),
-	analysisEnqueueSeedFromUrl: (trackId: string, url: string, force: boolean | null, serverId: string | null, priority: string | null) => typedError<null, string>(__TAURI_INVOKE("analysis_enqueue_seed_from_url", { trackId, url, force, serverId, priority })),
+	analysisEnqueueSeedFromUrl: (trackId: string, url: string, force: boolean | null, serverId: string | null, priority: string | null) => typedError<EnqueueSeedFromUrlOutcome, string>(__TAURI_INVOKE("analysis_enqueue_seed_from_url", { trackId, url, force, serverId, priority })),
 	analysisSetPlaybackPriorityHints: (middleTrackRefs: AnalysisPriorityHintDto[]) => typedError<null, string>(__TAURI_INVOKE("analysis_set_playback_priority_hints", { middleTrackRefs })),
 	analysisSetPipelineParallelism: (workers: number) => typedError<null, string>(__TAURI_INVOKE("analysis_set_pipeline_parallelism", { workers })),
 	analysisGetPipelineQueueStats: () => typedError<AnalysisPipelineQueueStatsDto, string>(__TAURI_INVOKE("analysis_get_pipeline_queue_stats")),
@@ -961,6 +961,8 @@ export type CustomHeaderEntryWire = {
 export type CustomHeadersApplyTo = "local" | "public" | "both";
 
 export type EndpointKind = "local" | "public";
+
+export type EnqueueSeedFromUrlOutcome = "enqueued" | "alreadyReserved" | "skipped" | "unsupported";
 
 /**  Cached user rating together with the time it was fetched from its owner. */
 export type EntityUserRatingDto = {

@@ -34,6 +34,7 @@ const hoisted = vi.hoisted(() => {
     markBackfillInFlightMock: vi.fn(),
     clearBackfillInFlightMock: vi.fn(),
     resetBackfillAttemptsMock: vi.fn(),
+    restoreBackfillAttemptsMock: vi.fn(),
     isTrackInsideWindowMock: vi.fn(() => true),
   };
 });
@@ -63,6 +64,7 @@ vi.mock('@/features/playback/store/loudnessBackfillState', () => ({
   isBackfillInFlight: hoisted.isBackfillInFlightMock,
   markBackfillInFlight: hoisted.markBackfillInFlightMock,
   resetBackfillAttempts: hoisted.resetBackfillAttemptsMock,
+  restoreBackfillAttempts: hoisted.restoreBackfillAttemptsMock,
 }));
 vi.mock('@/features/playback/store/loudnessBackfillWindow', () => ({
   LOUDNESS_BACKFILL_WINDOW_AHEAD: 5,
@@ -94,6 +96,7 @@ beforeEach(() => {
   hoisted.markBackfillInFlightMock.mockClear();
   hoisted.clearBackfillInFlightMock.mockClear();
   hoisted.resetBackfillAttemptsMock.mockClear();
+  hoisted.restoreBackfillAttemptsMock.mockClear();
   hoisted.getBackfillAttemptsMock.mockReset();
   hoisted.getBackfillAttemptsMock.mockReturnValue(0);
   hoisted.isBackfillInFlightMock.mockReset();
@@ -157,6 +160,20 @@ describe('refreshLoudnessForTrack', () => {
       serverId: 'server-a',
       url: 'https://mock/server-a/stream/t1',
     });
+  });
+
+  it('restores the attempt count and does not report queued when Rust skips the enqueue', async () => {
+    hoisted.invokeMock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce('skipped');
+    await refreshLoudnessForTrack(ref('t1'));
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(hoisted.restoreBackfillAttemptsMock).toHaveBeenCalledWith(ref('t1'), 0);
+    expect(hoisted.emitDebugMock).toHaveBeenCalledWith('backfill:skipped', {
+      trackId: 't1',
+      attempt: 1,
+    });
+    expect(hoisted.emitDebugMock.mock.calls.some(c => c[0] === 'backfill:queued')).toBe(false);
   });
 
   it('skips backfill when outside the prefetch window', async () => {
