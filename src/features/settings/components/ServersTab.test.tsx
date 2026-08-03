@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   pingWithCredentialsForProfile: vi.fn(),
   syncServerHttpContextForProfile: vi.fn(async () => undefined),
   invalidateReachableEndpointCache: vi.fn(),
+  onPersisted: vi.fn(),
 }));
 
 vi.mock('@/lib/library/hooks/useLibraryIndexSync', () => ({
@@ -100,14 +101,14 @@ vi.mock('@/features/settings/components/AddServerForm', () => ({
       url: string;
       username: string;
       password: string;
-    }) => void;
+    }, onPersisted?: () => void) => void;
   }) => editingServer ? (
     <button type="button" onClick={() => onSave({
       name: editingServer.name,
       url: editingServer.url,
       username: editingServer.username,
       password: `${editingServer.password}-new`,
-    })}>
+    }, mocks.onPersisted)}>
       save-edit
     </button>
   ) : null,
@@ -128,6 +129,7 @@ beforeEach(() => {
   mocks.pingWithCredentialsForProfile.mockReset();
   mocks.syncServerHttpContextForProfile.mockReset().mockResolvedValue(undefined);
   mocks.invalidateReachableEndpointCache.mockReset();
+  mocks.onPersisted.mockReset();
   useAuthStore.setState({
     activeServerId: 'a',
     isLoggedIn: true,
@@ -158,6 +160,7 @@ describe('ServersTab profile edit bootstrap ordering', () => {
     await user.click(screen.getByRole('button', { name: 'save-edit' }));
 
     expect(mocks.invalidateReachableEndpointCache).toHaveBeenCalledWith('a');
+    expect(mocks.onPersisted).toHaveBeenCalledTimes(1);
     expect(mocks.bootstrapIndexedServer).not.toHaveBeenCalled();
 
     await act(async () => {
