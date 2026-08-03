@@ -18,6 +18,7 @@ import { SettingsSubCard, SettingsField, SettingsValue } from '@/features/settin
 import { SettingsSegmented, type SegmentedOption } from '@/features/settings/components/SettingsSegmented';
 import { SeekbarPreview } from '@/features/waveform';
 import WindowButtonPreview from '@/features/settings/components/WindowButtonPreview';
+import { VisualizerSection } from '@/features/settings/components/VisualizerSection';
 
 export function AppearanceTab() {
   const { t } = useTranslation();
@@ -227,6 +228,7 @@ export function AppearanceTab() {
                       options={options}
                       value={String(activePct)}
                       onChange={id => fontStore.setUiScale(parseInt(id, 10) / 100)}
+                      ariaLabel={t('settings.uiScaleLabel')}
                     />
                   );
                 })()}
@@ -300,6 +302,7 @@ export function AppearanceTab() {
                 options={fullscreenPlayerStyleOptions}
                 value={auth.fullscreenPlayerStyle}
                 onChange={auth.setFullscreenPlayerStyle}
+                ariaLabel={t('settings.fullscreenPlayerStyle')}
               />
             </SettingsField>
           </SettingsGroup>
@@ -387,6 +390,8 @@ export function AppearanceTab() {
           </SettingsGroup>
         </div>
       </SettingsSubSection>
+
+      <VisualizerSection t={t} />
     </>
   );
 }

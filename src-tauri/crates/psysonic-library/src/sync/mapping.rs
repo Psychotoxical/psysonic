@@ -9,21 +9,126 @@ use psysonic_integration::subsonic::Song;
 /// Project a Subsonic `Song` plus its raw JSON sub-tree into a
 /// `TrackRow`. `raw_value` is what `track.raw_json` stores verbatim so
 /// OpenSubsonic extensions survive (spec §5.1 / ADR-7).
+/// Album-level OpenSubsonic fields copied onto each track `raw_json` during
+/// S2/getAlbum ingest, as `(album key, track key)`.
+///
+/// Most are the same name on both sides. The artist participants are NOT: on an
+/// album, `artists`/`displayArtist` describe the *album* artist, while on a track
+/// those same names mean the *track* performer. Copying them across unchanged would
+/// credit every song of a compilation to the album artist. They map onto the track's
+/// album-artist fields instead, which is where the album header reads them from
+/// (`deriveAlbumHeaderArtistRefs`).
+const ALBUM_TO_TRACK_RAW_KEYS: &[(&str, &str)] = &[
+    ("compilation", "compilation"),
+    ("isCompilation", "isCompilation"),
+    ("releaseTypes", "releaseTypes"),
+    ("artists", "albumArtists"),
+    ("albumArtists", "albumArtists"),
+    ("displayArtist", "displayAlbumArtist"),
+    ("displayAlbumArtist", "displayAlbumArtist"),
+];
+
 /// Copy album-level OpenSubsonic fields onto each track `raw_json` during S2/getAlbum
-/// ingest so track-grouped album browse can filter compilations.
+/// ingest, so track-grouped album browse can filter compilations and the album header
+/// can show individually linkable artists instead of one joined credit string.
+///
+/// Never overwrites a value the track already carries — the track's own field is more
+/// specific — and never writes an explicit null. Entries are applied in order, so the
+/// canonical `AlbumID3` spelling (`artists` / `displayArtist`) wins over the defensive
+/// `albumArtists` / `displayAlbumArtist` aliases a server might send instead.
+///
+/// "Already carries" means a usable value, not merely a present key: a server emitting
+/// `"albumArtists": null` or `[]` on the song states nothing, and every consumer coerces
+/// those back to "absent" anyway. Treating the key as authoritative would drop the
+/// authoritative ids sitting in the same `getAlbum` response and push the UI back onto
+/// name matching.
 pub fn merge_album_open_subsonic_track_raw(raw_album: &Value, raw_song: &mut Value) {
     let Some(obj) = raw_song.as_object_mut() else {
         return;
     };
-    for key in ["compilation", "isCompilation", "releaseTypes"] {
-        if obj.contains_key(key) {
+    for (album_key, track_key) in ALBUM_TO_TRACK_RAW_KEYS {
+        if obj.get(*track_key).is_some_and(is_usable_participant_value) {
             continue;
         }
-        if let Some(v) = raw_album.get(key) {
-            if !v.is_null() {
-                obj.insert(key.to_string(), v.clone());
+        if let Some(v) = raw_album.get(*album_key) {
+            if is_usable_participant_value(v) {
+                obj.insert((*track_key).to_string(), v.clone());
             }
         }
+    }
+}
+
+/// Null, an empty array and an empty/whitespace string all mean "the server said
+/// nothing here".
+fn is_usable_participant_value(value: &Value) -> bool {
+    match value {
+        Value::Null => false,
+        Value::Array(items) => !items.is_empty(),
+        Value::String(text) => !text.trim().is_empty(),
+        _ => true,
+    }
+}
+
+/// The track rows of a `getAlbum` payload, with the album-level OpenSubsonic
+/// fields merged into each song via `merge_album_open_subsonic_track_raw`.
+///
+/// Shared so the two callers cannot drift apart — they already had: the S2
+/// crawl passed its library scope and the census did not, which left every
+/// gap-filled track with a NULL `library_id` and invisible to scoped browse.
+pub fn album_track_rows(
+    server_id: &str,
+    album: &psysonic_integration::subsonic::Album,
+    raw_album: &Value,
+    synced_at: i64,
+    library_scope: Option<&str>,
+) -> Vec<TrackRow> {
+    let raw_songs = raw_album
+        .get("song")
+        .and_then(|songs| songs.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let mut rows = Vec::with_capacity(album.song.len());
+    for (index, song) in album.song.iter().enumerate() {
+        let mut raw = raw_songs
+            .get(index)
+            .cloned()
+            .unwrap_or_else(|| serde_json::to_value(song).unwrap_or(Value::Null));
+        merge_album_open_subsonic_track_raw(raw_album, &mut raw);
+        rows.push(subsonic_song_to_track_row(
+            server_id,
+            song,
+            &raw,
+            synced_at,
+            library_scope,
+        ));
+    }
+    rows
+}
+
+/// A typed `Song` is only a fallback when a sparse endpoint did not expose its
+/// raw song subtree. Serde serializes absent optional fields as JSON nulls;
+/// leaving those in would turn "not observed" into an explicit clear in the
+/// sparse upsert contract.
+pub(crate) fn sparse_song_raw_fallback(song: &Song) -> Value {
+    let mut raw = serde_json::to_value(song).unwrap_or(Value::Null);
+    remove_null_fields(&mut raw);
+    raw
+}
+
+fn remove_null_fields(value: &mut Value) {
+    match value {
+        Value::Object(object) => {
+            object.retain(|_, child| !child.is_null());
+            for child in object.values_mut() {
+                remove_null_fields(child);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                remove_null_fields(item);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -38,12 +143,18 @@ pub fn subsonic_song_to_track_row(
         server_id: server_id.to_string(),
         id: song.id.clone(),
         title: song.title.clone(),
-        title_sort: None,
+        title_sort: string_field(raw_value, "sortTitle")
+            .or_else(|| string_field(raw_value, "orderTitle"))
+            .or_else(|| string_field(raw_value, "sortName")),
         artist: song.artist.clone(),
         artist_id: song.artist_id.clone(),
         album: song.album.clone().unwrap_or_default(),
         album_id: song.album_id.clone(),
-        album_artist: song.album_artist.clone(),
+        album_artist: song
+            .album_artist
+            .clone()
+            .or_else(|| string_field(raw_value, "displayAlbumArtist"))
+            .or_else(|| string_field(raw_value, "albumArtist")),
         duration_sec: song.duration.unwrap_or(0),
         track_number: song.track_number,
         disc_number: song.disc_number,
@@ -75,7 +186,10 @@ pub fn subsonic_song_to_track_row(
             .and_then(|rg| rg.get("trackPeak"))
             .and_then(|v| v.as_f64()),
         content_hash: None,
-        server_updated_at: None,
+        server_updated_at: raw_value
+            .get("updatedAt")
+            .and_then(Value::as_str)
+            .and_then(parse_iso_ms_str),
         server_created_at: raw_value
             .get("created")
             .or_else(|| raw_value.get("createdAt"))
@@ -116,7 +230,9 @@ pub fn navidrome_song_to_track_row(
         server_id: server_id.to_string(),
         id,
         title,
-        title_sort: string_field(raw, "sortTitle").or_else(|| string_field(raw, "orderTitle")),
+        title_sort: string_field(raw, "sortTitle")
+            .or_else(|| string_field(raw, "orderTitle"))
+            .or_else(|| string_field(raw, "sortName")),
         artist: string_field(raw, "artist"),
         artist_id: string_field(raw, "artistId"),
         album: string_field(raw, "album").unwrap_or_default(),
@@ -310,17 +426,88 @@ mod tests {
         assert_eq!(song.get("releaseTypes"), Some(&json!(["Compilation"])));
     }
 
+    // The album header reads its individually linkable credits from the track's
+    // `albumArtists`; without this the header falls back to the joined display string
+    // ("Ice Nine Kills feat. Shavo") and cannot link the guest.
+    #[test]
+    fn merge_album_open_subsonic_track_raw_maps_album_participants_to_album_fields() {
+        let album = json!({
+            "artists": [{ "id": "ar1", "name": "Ice Nine Kills" }, { "id": "ar2", "name": "Shavo" }],
+            "displayArtist": "Ice Nine Kills feat. Shavo",
+        });
+        let mut song = json!({ "id": "tr_1", "title": "A Work of Art" });
+        merge_album_open_subsonic_track_raw(&album, &mut song);
+        assert_eq!(
+            song.get("albumArtists"),
+            Some(&json!([{ "id": "ar1", "name": "Ice Nine Kills" }, { "id": "ar2", "name": "Shavo" }]))
+        );
+        assert_eq!(
+            song.get("displayAlbumArtist"),
+            Some(&json!("Ice Nine Kills feat. Shavo"))
+        );
+        // The track performer fields must stay untouched: on an album these names mean
+        // the album artist, so copying them across would credit every song of a
+        // compilation to it.
+        assert_eq!(song.get("artists"), None);
+        assert_eq!(song.get("displayArtist"), None);
+    }
+
+    #[test]
+    fn merge_album_open_subsonic_track_raw_keeps_track_own_album_artists() {
+        let album = json!({ "artists": [{ "id": "ar1", "name": "Album Artist" }] });
+        let mut song = json!({
+            "id": "tr_1",
+            "albumArtists": [{ "id": "ar9", "name": "Track's Own" }],
+        });
+        merge_album_open_subsonic_track_raw(&album, &mut song);
+        assert_eq!(
+            song.get("albumArtists"),
+            Some(&json!([{ "id": "ar9", "name": "Track's Own" }]))
+        );
+    }
+
+    // A song that carries the key but no value states nothing; the album's list in the
+    // same response is the authoritative one and must not be suppressed by it.
+    #[test]
+    fn merge_album_open_subsonic_track_raw_fills_null_and_empty_song_participants() {
+        let album = json!({
+            "artists": [{ "id": "ar1", "name": "Album Artist" }],
+            "displayArtist": "Album Artist",
+        });
+        for empty in [json!(null), json!([])] {
+            let mut song = json!({ "id": "tr_1", "albumArtists": empty, "displayAlbumArtist": "" });
+            merge_album_open_subsonic_track_raw(&album, &mut song);
+            assert_eq!(
+                song.get("albumArtists"),
+                Some(&json!([{ "id": "ar1", "name": "Album Artist" }]))
+            );
+            assert_eq!(song.get("displayAlbumArtist"), Some(&json!("Album Artist")));
+        }
+    }
+
+    #[test]
+    fn merge_album_open_subsonic_track_raw_ignores_empty_album_participants() {
+        let album = json!({ "artists": [], "displayArtist": "   " });
+        let mut song = json!({ "id": "tr_1" });
+        merge_album_open_subsonic_track_raw(&album, &mut song);
+        assert_eq!(song.get("albumArtists"), None);
+        assert_eq!(song.get("displayAlbumArtist"), None);
+    }
+
     #[test]
     fn subsonic_song_maps_hot_columns_and_keeps_raw_json() {
         let raw = json!({
             "id": "tr_1",
             "title": "Hello",
             "artist": "World",
+            "displayAlbumArtist": "World & Guests",
             "albumId": "al_1",
+            "sortName": "Hello, The",
             "duration": 240,
             "track": 3,
             "year": 2024,
             "created": "2024-01-01T00:00:00Z",
+            "updatedAt": "2024-06-01T00:00:00Z",
             "musicBrainzId": "mb-1",
             "replayGain": { "trackGain": -1.2, "albumGain": -0.8, "trackPeak": 0.91 }
         });
@@ -328,15 +515,33 @@ mod tests {
         let row = subsonic_song_to_track_row("s1", &song, &raw, 1_000, Some("lib-fb"));
         assert_eq!(row.id, "tr_1");
         assert_eq!(row.album_id.as_deref(), Some("al_1"));
+        assert_eq!(row.album_artist.as_deref(), Some("World & Guests"));
+        assert_eq!(row.title_sort.as_deref(), Some("Hello, The"));
         assert_eq!(row.duration_sec, 240);
         assert_eq!(row.mbid_recording.as_deref(), Some("mb-1"));
         assert_eq!(row.replay_gain_track_db, Some(-1.2));
         assert_eq!(row.replay_gain_album_db, Some(-0.8));
         assert_eq!(row.replay_gain_peak, Some(0.91));
         assert!(row.server_created_at.unwrap_or(0) > 0);
+        assert!(row.server_updated_at.unwrap_or(0) > 0);
         // Fallback library_id kicks in when the song didn't ship one.
         assert_eq!(row.library_id.as_deref(), Some("lib-fb"));
         assert!(row.raw_json.contains("replayGain"));
+    }
+
+    #[test]
+    fn sparse_typed_fallback_does_not_invent_explicit_nulls() {
+        let song: Song = serde_json::from_value(json!({
+            "id": "tr_1",
+            "title": "Hello"
+        }))
+        .unwrap();
+
+        let raw = sparse_song_raw_fallback(&song);
+
+        assert_eq!(raw.get("id"), Some(&json!("tr_1")));
+        assert!(raw.get("albumArtist").is_none());
+        assert!(raw.get("updatedAt").is_none());
     }
 
     #[test]
@@ -344,6 +549,7 @@ mod tests {
         let raw = json!({
             "id": "tr_1",
             "title": "Hello",
+            "sortTitle": "Hello, The",
             "artist": "World",
             "artistId": "ar_1",
             "album": "An Album",
@@ -369,6 +575,7 @@ mod tests {
         });
         let row = navidrome_song_to_track_row("s1", &raw, 9_999, None).unwrap();
         assert_eq!(row.id, "tr_1");
+        assert_eq!(row.title_sort.as_deref(), Some("Hello, The"));
         assert_eq!(row.track_number, Some(3));
         assert_eq!(row.isrc.as_deref(), Some("USRC17607839"));
         assert_eq!(row.mbid_recording.as_deref(), Some("mb-1"));

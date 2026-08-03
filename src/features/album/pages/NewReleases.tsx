@@ -7,7 +7,7 @@ import SelectionToggleButton from '@/ui/SelectionToggleButton';
 import AlbumCard from '@/features/album/components/AlbumCard';
 import GenreFilterBar from '@/ui/GenreFilterBar';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import { useAuthStore } from '@/store/authStore';
 import { useUnavailableServerIds } from '@/lib/network/serverReachability';
 import { useOfflineStore } from '@/features/offline';
@@ -286,8 +286,14 @@ export default function NewReleases() {
     });
     try {
       await runLoad(async () => {
+        // Genre counts describe the whole scope, not the page being fetched, so
+        // they are identical on every append — which is why the result is
+        // discarded below when appending. Asking for them anyway is not free:
+        // the count query dominates this request (~3.2s against ~35ms for the
+        // feed itself), and every browse read shares one connection, so a
+        // pointless one stalls the rest of the app behind it.
         const data = await loadLocalNewReleases(
-          anchorServerId ?? '', releaseScopes, PAGE_SIZE, offset, genres,
+          anchorServerId ?? '', releaseScopes, PAGE_SIZE, offset, genres, !append,
         );
         emitMultiServerDebug('new_releases_page_load_apply', {
           anchorServerId,
@@ -355,12 +361,31 @@ export default function NewReleases() {
     requestNextPage(offset => load(offset, true, selectedGenres));
   }, [gridHasMore, genreFiltered, textSearchActive, isBlocked, requestNextPage, load, selectedGenres]);
 
+  // The sentinel lives inside a 400px rootMargin, so after a page is appended it
+  // usually stays visible, and an IntersectionObserver only reports *changes* —
+  // no second callback arrives and pagination stalls until the user scrolls away
+  // and back. The flag below carries that standing visibility so the page can
+  // ask for the next one itself.
+  const sentinelIntersectingRef = useRef(false);
+  const pagedAlbumCountRef = useRef(0);
+
   const bindLoadMoreSentinel = useInpageScrollSentinel({
     active: gridHasMore,
     getScrollRoot,
     scrollRootEl: scrollBodyEl,
     onIntersect: loadMore,
+    intersectingRef: sentinelIntersectingRef,
   });
+
+  // Keyed to the album count, never to a loading transition: a request that fails
+  // or returns nothing leaves the count untouched, so the chain stops instead of
+  // re-issuing the same failing page forever.
+  useEffect(() => {
+    if (displayAlbums.length === pagedAlbumCountRef.current) return;
+    pagedAlbumCountRef.current = displayAlbums.length;
+    if (!gridHasMore || !sentinelIntersectingRef.current) return;
+    loadMore();
+  }, [displayAlbums.length, gridHasMore, loadMore]);
 
   const { isScrollRestorePending } = useAlbumBrowseScrollRestore({
     serverId,

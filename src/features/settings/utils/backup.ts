@@ -22,6 +22,8 @@ const BACKUP_KEYS = [
   'psysonic_queue_visible',
   'psysonic_lastfm_loved_cache',
   'psysonic_home',
+  'psysonic_visualizer',
+  'psysonic_np_layout',
 ];
 
 function collectStores(): Record<string, unknown> {
@@ -46,6 +48,12 @@ function buildSettingsManifest() {
     created_at: new Date().toISOString(),
     stores: collectStores(),
   };
+}
+
+export function restoreBackupStores(stores: Record<string, unknown>): void {
+  for (const [key, value] of Object.entries(stores)) {
+    localStorage.setItem(key, JSON.stringify(value));
+  }
 }
 
 export async function pickBackupExportPath(mode: BackupExportMode): Promise<string | null> {
@@ -100,9 +108,7 @@ export async function importAnyBackupFromPath(path: string): Promise<ImportedBac
     const raw = await readTextFile(path);
     const manifest = JSON.parse(raw);
     if (typeof manifest.version === 'number' && manifest.stores && typeof manifest.stores === 'object') {
-      for (const [key, value] of Object.entries(manifest.stores as Record<string, unknown>)) {
-        localStorage.setItem(key, JSON.stringify(value));
-      }
+      restoreBackupStores(manifest.stores as Record<string, unknown>);
       window.location.reload();
       return 'config';
     }
@@ -112,9 +118,7 @@ export async function importAnyBackupFromPath(path: string): Promise<ImportedBac
 
   try {
     const stores = await invoke<Record<string, unknown>>('backup_import_full', { sourcePath: path });
-    for (const [key, value] of Object.entries(stores)) {
-      localStorage.setItem(key, JSON.stringify(value));
-    }
+    restoreBackupStores(stores);
     window.location.reload();
     return 'full';
   } catch {
@@ -149,9 +153,7 @@ export async function importBackup(): Promise<void> {
     throw new Error('invalid_backup');
   }
 
-  for (const [key, value] of Object.entries(manifest.stores)) {
-    localStorage.setItem(key, JSON.stringify(value));
-  }
+  restoreBackupStores(manifest.stores as Record<string, unknown>);
 
   window.location.reload();
 }
@@ -189,9 +191,7 @@ export async function importFullBackup(): Promise<void> {
   });
   if (!path || typeof path !== 'string') return;
   const stores = await invoke<Record<string, unknown>>('backup_import_full', { sourcePath: path });
-  for (const [key, value] of Object.entries(stores)) {
-    localStorage.setItem(key, JSON.stringify(value));
-  }
+  restoreBackupStores(stores);
   window.location.reload();
 }
 

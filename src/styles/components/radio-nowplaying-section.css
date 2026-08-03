@@ -6,6 +6,56 @@
   width: 100%;
 }
 
+.np-radio-visualizer {
+  height: clamp(160px, 28vh, 280px);
+}
+
+.np-radio-visualizer .psy-viz-canvas {
+  min-height: 0;
+  height: 100%;
+}
+
+.np-radio-visualizer-unavailable {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 84px;
+  padding: 16px 18px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-card) 88%, transparent);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.np-radio-visualizer-unavailable > svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+  opacity: 0.75;
+}
+
+.np-radio-visualizer-unavailable > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.np-radio-visualizer-unavailable strong {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.np-radio-visualizer-unavailable span {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 520px), (max-height: 620px) {
+  .np-radio-visualizer {
+    height: 140px;
+  }
+}
+
 .np-badge-live {
   background: rgba(239, 68, 68, 0.25);
   color: #f87171;
@@ -261,4 +311,3 @@
   color: var(--danger);
   background: var(--bg-hover);
 }
-

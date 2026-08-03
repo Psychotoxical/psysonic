@@ -14,6 +14,11 @@ import {
   readAlbumBrowseCatalogCache,
   storeAlbumBrowseCatalogCache,
 } from './albumBrowseInflight';
+import {
+  __resetArtistIdResolveCacheForTests,
+  peekArtistIdByName,
+  resolveArtistIdsByName,
+} from './artistIdResolve';
 
 function mockSyncStart() {
   const start = vi.fn(async (args: unknown) => {
@@ -36,6 +41,7 @@ function mockSyncStart() {
 describe('librarySyncQueue', () => {
   beforeEach(() => {
     resetLibrarySyncQueueForTests();
+    __resetArtistIdResolveCacheForTests();
   });
 
   it('runs queued syncs one server at a time', async () => {
@@ -168,6 +174,33 @@ describe('librarySyncQueue', () => {
 
     expect(readArtistBrowseCatalogCache('artist-key')).toBeUndefined();
     expect(readAlbumBrowseCatalogCache('album-key')).toBeUndefined();
+  });
+
+  // Sync writes incrementally: a run can insert artist rows and still report failure
+  // on a later pass. A cached "no artist row" from before that run would then survive
+  // the very write that created the row, leaving the guest unlinkable until restart.
+  it('drops cached artist-id misses even when the sync-idle reports failure', async () => {
+    onInvoke('library_resolve_artist_ids', async () => [null]);
+    await resolveArtistIdsByName('s1', ['Guest']);
+    expect(peekArtistIdByName('s1', 'Guest')).toBeNull();
+
+    onInvoke('library_sync_start', async (args: unknown) => {
+      const { serverId } = args as { serverId: string };
+      queueMicrotask(() =>
+        emitTauriEvent('library:sync-idle', {
+          serverId,
+          libraryScope: '',
+          kind: 'initial_sync',
+          jobId: 'j-fail',
+          ok: false,
+          error: 'boom',
+        }),
+      );
+      return { jobId: 'j-fail', serverId, kind: 'initial_sync' };
+    });
+    await expect(enqueueLibrarySync({ serverId: 's1', kind: 'full' })).rejects.toThrow('boom');
+
+    expect(peekArtistIdByName('s1', 'Guest')).toBeUndefined();
   });
 
   it('routes verify through library_sync_verify_integrity', async () => {

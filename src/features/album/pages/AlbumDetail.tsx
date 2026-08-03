@@ -8,7 +8,7 @@ import { songToTrack } from '@/lib/media/songToTrack';
 import { shuffleArray } from '@/lib/util/shuffleArray';
 import { ownedEntityKey, ownedOverrideValue } from '@/lib/util/ownedEntityKey';
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router';
 import { downloadZip } from '@/lib/api/downloadZip';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { useAuthStore } from '@/store/authStore';
@@ -533,7 +533,17 @@ const handleShuffleAll = () => {
       {relatedAlbums.length > 0 && (
         <div className="album-related">
           <div className="album-related-divider" />
-          <h2 className="section-title album-related-title">{t('albumDetail.moreByArtist', { artist: info.artist })}</h2>
+          {/* Name the artist this grid was actually loaded for (`info.artistId`), not
+              the joined credit string and not simply the first ref — the server's
+              `artists` order is arbitrary, so the first entry can be a guest while the
+              related albums belong to the album artist. */}
+          <h2 className="section-title album-related-title">
+            {t('albumDetail.moreByArtist', {
+              artist: headerArtistRefs.find(ref => ref.id && ref.id === info.artistId)?.name
+                ?? headerArtistRefs[0]?.name
+                ?? info.artist,
+            })}
+          </h2>
           <VirtualCardGrid
             items={relatedAlbums}
             itemKey={a => ownedEntityKey(a)}

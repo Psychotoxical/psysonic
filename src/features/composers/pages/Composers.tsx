@@ -1,6 +1,6 @@
 import type { SubsonicArtist } from '@/lib/api/subsonicTypes';
 import { useEffect, useCallback, useRef, useMemo } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import { LayoutGrid, List } from 'lucide-react';
 import StarFilterButton from '@/ui/StarFilterButton';
 import { usePlayerStore } from '@/features/playback/store/playerStore';

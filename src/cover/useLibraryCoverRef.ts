@@ -7,15 +7,20 @@ import {
   albumCoverRefForPlayback,
   albumCoverRefForSong,
   artistCoverRef,
+  navidromeDiscCoverRef,
+  resolveAlbumDiscCount,
   resolveDistinctDiscCoversForAlbum,
   resolvePlaybackCoverScope,
 } from './ref';
+import { songHasDiscSpecificCover } from './resolveEntry';
+import { isNavidromeServer } from '@/lib/server/subsonicServerIdentity';
 import { coverServerScopeForServerId } from './serverScope';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
 import { queueItemRefMatchesTrack } from '@/features/playback/utils/playback/queueIdentity';
 import {
   resolveAlbumCoverRefFromLibrary,
   resolveArtistCoverRefFromLibrary,
+  resolveLibraryAlbumDiscCount,
   resolveTrackCoverRefFromLibrary,
 } from './resolveEntryLibrary';
 import { COVER_SCOPE_ACTIVE, coverScopeKey, type CoverArtRef, type CoverServerScope } from './types';
@@ -40,6 +45,98 @@ function applySyncRef<T extends CoverArtRef | null | undefined>(
   });
 }
 
+/**
+ * Is the given server a Navidrome instance? Accepts either a profile id or a
+ * library index key (queue refs carry the latter), resolving one to the other so
+ * per-disc gating works from any cover surface.
+ */
+function useServerIsNavidrome(serverId: string | null | undefined): boolean {
+  return useAuthStore(s => {
+    if (!serverId) return false;
+    let identity = s.subsonicServerIdentityByServer[serverId];
+    if (!identity) {
+      const profileId = resolveServerIdForIndexKey(serverId);
+      if (profileId) identity = s.subsonicServerIdentityByServer[profileId];
+    }
+    return isNavidromeServer(identity);
+  });
+}
+
+function albumMultiDiscKey(albumId: string, serverId: string | null | undefined): string {
+  return `${serverId ?? ''}\u0000${albumId}`;
+}
+
+/**
+ * Does this album span more than one disc? Reads the synchronous seed remembered
+ * from a known tracklist / prior index lookup first, then (only when `enabled`,
+ * i.e. the server supports per-disc art) resolves the count from the local index.
+ * Kept keyed to the resolved album so a stale async result never leaks onto a
+ * different album while the next lookup is in flight.
+ */
+function useAlbumMultiDisc(
+  albumId: string | null | undefined,
+  serverId: string | null | undefined,
+  enabled: boolean,
+): boolean {
+  const seededMulti = useMemo(() => {
+    const al = albumId?.trim();
+    if (!al) return undefined;
+    const count = resolveAlbumDiscCount(al, serverId);
+    return count == null ? undefined : count > 1;
+  }, [albumId, serverId]);
+
+  const [fetched, setFetched] = useState<{ key: string; multi: boolean } | undefined>(undefined);
+
+  useEffect(() => {
+    const al = albumId?.trim();
+    if (!enabled || !al || seededMulti != null) return;
+    let cancelled = false;
+    void resolveLibraryAlbumDiscCount(al, serverId).then(count => {
+      if (!cancelled) setFetched({ key: albumMultiDiscKey(al, serverId), multi: count > 1 });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [albumId, serverId, enabled, seededMulti]);
+
+  if (!enabled) return false;
+  if (seededMulti != null) return seededMulti;
+  const al = albumId?.trim();
+  if (al && fetched && fetched.key === albumMultiDiscKey(al, serverId)) return fetched.multi;
+  return false;
+}
+
+/**
+ * Per-disc cover ref for a track — the server's canonical `dc-<albumId>:<disc>` slot,
+ * but only on Navidrome and only for genuine multi-disc albums. Returns `undefined`
+ * otherwise so the caller keeps the shared album-scoped cover (single-disc albums,
+ * non-Navidrome servers). This is what makes the queue, playbar mini-cover and
+ * album track rows show the right disc art, matching the disc separators.
+ */
+function useMultiDiscScopedCoverRef(
+  albumId: string | null | undefined,
+  discNumber: number | null | undefined,
+  serverId: string | null | undefined,
+  serverScope: CoverServerScope,
+  enabled = true,
+): CoverArtRef | undefined {
+  const isNavidrome = useServerIsNavidrome(serverId);
+  // Gate the disc-count lookup on both Navidrome (only it serves `dc-*` art) and the
+  // caller opting into library resolution — browse rails (`libraryResolve: false`)
+  // must stay IPC-free and album-scoped, exactly like main.
+  const resolveDiscScope = enabled && isNavidrome;
+  const multiDisc = useAlbumMultiDisc(albumId, serverId, resolveDiscScope);
+  const scopeKey = coverScopeKey(serverScope);
+  return useMemo(() => {
+    if (!resolveDiscScope || !multiDisc) return undefined;
+    const al = albumId?.trim();
+    if (!al || discNumber == null) return undefined;
+    return navidromeDiscCoverRef(al, discNumber, serverScope);
+    // serverScope keyed via the stable `scopeKey` string.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolveDiscScope, multiDisc, albumId, discNumber, scopeKey]);
+}
+
 export type LibraryCoverRefOptions = {
   /**
    * When false, use API/index `coverArt` only — no per-mount `library_resolve_cover_entry`.
@@ -47,6 +144,15 @@ export type LibraryCoverRefOptions = {
    * detail headers and queue rows that need per-disc slots from SQLite.
    */
   libraryResolve?: boolean;
+  /**
+   * Force per-disc cover resolution regardless of the album-level
+   * `resolveDistinctDiscCoversForAlbum` verdict. Opt-in for surfaces that render at
+   * most **one cover per disc** (the multi-disc separator), where resolving the disc's
+   * own art carries no per-song cache-explosion risk. Callers should gate this on
+   * {@link songHasDiscSpecificCover} so the album-fallback shapes still resolve
+   * `al-<albumId>_0`; do NOT enable it on per-song surfaces (queue rows, track rows).
+   */
+  forceDistinctDiscCovers?: boolean;
 };
 
 /** Album grid / card — sync fallback, then local library index when indexed. */
@@ -217,6 +323,7 @@ export function useTrackCoverRef(
   options?: LibraryCoverRefOptions,
 ): CoverArtRef | undefined {
   const libraryResolve = options?.libraryResolve !== false;
+  const forceDistinctDiscCovers = options?.forceDistinctDiscCovers === true;
   const scopeKey = coverScopeKey(serverScope);
   const songId = song?.id;
   const albumId = song?.albumId;
@@ -225,8 +332,21 @@ export function useTrackCoverRef(
   const serverId = song?.serverId;
 
   const distinctDiscCovers = useMemo(
-    () => (albumId?.trim() ? resolveDistinctDiscCoversForAlbum(albumId, serverId) : false),
-    [albumId, serverId],
+    () =>
+      forceDistinctDiscCovers
+      || (albumId?.trim() ? resolveDistinctDiscCoversForAlbum(albumId, serverId) : false),
+    [albumId, serverId, forceDistinctDiscCovers],
+  );
+
+  // Navidrome multi-disc albums: prefer the canonical per-disc slot over the
+  // album-scoped ref so a track's row shows its own disc art (matches the queue).
+  // Gated on libraryResolve so browse rails stay IPC-free / album-scoped like main.
+  const discScopedRef = useMultiDiscScopedCoverRef(
+    albumId,
+    discNumber,
+    serverId,
+    serverScope,
+    libraryResolve,
   );
 
   const syncRef = useMemo(() => {
@@ -282,7 +402,50 @@ export function useTrackCoverRef(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [song, songId, albumId, coverArt, discNumber, scopeKey, syncRef, libraryResolve, distinctDiscCovers]);
 
-  return libraryResolve ? ref : syncRef;
+  return discScopedRef ?? (libraryResolve ? ref : syncRef);
+}
+
+/**
+ * Cover for a multi-disc separator ("CD N") — resolved from the disc's representative
+ * (first) track. On Navidrome it uses the server's canonical per-disc artwork id
+ * (`dc-<albumId>:<discNumber>` via {@link navidromeDiscCoverRef}): one cache slot per
+ * disc, correct per-disc art even when the disc's tracks carry per-track `mf-*` ids that
+ * the album-level `resolveDistinctDiscCoversForAlbum` heuristic can't recognise, and it
+ * needs no per-track `coverArt` (so it also works from the local index).
+ *
+ * On non-Navidrome servers `dc-*` is unavailable, so it falls back to the standard
+ * track-cover path, forcing per-disc resolution only when the disc's own track carries a
+ * usable disc-specific cover id ({@link songHasDiscSpecificCover}); otherwise it stays
+ * album-scoped (`al-<albumId>_0`), matching the queue / hero.
+ *
+ * Only for surfaces that render at most ONE cover per disc — do not use per song.
+ */
+export function useDiscCoverRef(
+  song: Pick<SubsonicSong, 'id' | 'albumId' | 'coverArt' | 'discNumber' | 'serverId'>,
+  serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
+): CoverArtRef | undefined {
+  const isNavidrome = useServerIsNavidrome(song.serverId);
+  const scopeKey = coverScopeKey(serverScope);
+  const albumId = song.albumId;
+  const discNumber = song.discNumber;
+
+  const discRef = useMemo(() => {
+    if (!isNavidrome) return undefined;
+    const al = albumId?.trim();
+    if (!al || discNumber == null) return undefined;
+    return navidromeDiscCoverRef(al, discNumber, serverScope);
+    // serverScope keyed via the stable `scopeKey` string.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNavidrome, albumId, discNumber, scopeKey]);
+
+  // Non-Navidrome fallback: per-disc from the disc's own track only when it carries a
+  // usable disc-specific cover id; the standard resolver otherwise stays album-scoped.
+  const fallbackRef = useTrackCoverRef(song, serverScope, {
+    forceDistinctDiscCovers: !isNavidrome && songHasDiscSpecificCover(song),
+    libraryResolve: !isNavidrome,
+  });
+
+  return discRef ?? fallbackRef;
 }
 
 /** Now playing / queue — playback server scope + library-backed multi-CD. */
@@ -326,6 +489,10 @@ export function usePlaybackTrackCoverRef(
   const coverArt = track?.coverArt;
   const discNumber = track?.discNumber;
   const serverId = track?.serverId;
+
+  // Navidrome multi-disc albums: the playbar mini-cover / queue rows follow the
+  // playing track's disc via its canonical `dc-<albumId>:<disc>` slot.
+  const discScopedRef = useMultiDiscScopedCoverRef(albumId, discNumber, serverId, scope);
 
   const syncRef = useMemo(() => {
     if (!albumId?.trim() || !track) return undefined;
@@ -375,5 +542,27 @@ export function usePlaybackTrackCoverRef(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [track, trackId, albumId, coverArt, discNumber, serverId, scopeKey, syncRef]);
 
-  return ref;
+  return discScopedRef ?? ref;
+}
+
+/**
+ * "Who is listening" presence rows — the cover for a track someone else is
+ * playing. Follows the same disc logic as the queue/playbar: the canonical
+ * `dc-<albumId>:<disc>` slot for genuine multi-disc Navidrome albums (so a disc-2
+ * track shows disc-2 art), otherwise the shared album cover. It deliberately does
+ * NOT feed the playing track's per-file `mf-*` id into the album slot the grid and
+ * hero also use — that would thrash / pollute the album cover cache.
+ */
+export function usePresenceCoverRef(
+  song: Pick<SubsonicSong, 'albumId' | 'discNumber' | 'serverId'> | null | undefined,
+  serverScope: CoverServerScope = COVER_SCOPE_ACTIVE,
+): CoverArtRef | null {
+  const albumId = song?.albumId;
+  const discNumber = song?.discNumber;
+  const serverId = song?.serverId;
+  const discScopedRef = useMultiDiscScopedCoverRef(albumId, discNumber, serverId, serverScope);
+  const albumRef = useAlbumCoverRef(albumId ?? null, undefined, serverScope, {
+    libraryResolve: true,
+  });
+  return discScopedRef ?? albumRef;
 }

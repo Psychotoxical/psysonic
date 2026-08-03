@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { commands } from '@/generated/bindings';
 import { linuxWaylandTextRenderSettingsAvailable } from '@/lib/api/platformShell';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';

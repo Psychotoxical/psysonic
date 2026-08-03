@@ -13,6 +13,8 @@ interface Props {
   linkTag?: 'button' | 'span';
   outerClassName?: string;
   linkClassName?: string;
+  /** Applied to every name, linked or not — track cells style both alike. */
+  plainClassName?: string;
   separatorClassName?: string;
 }
 
@@ -29,9 +31,11 @@ export function OpenArtistRefInline({
   linkTag = 'button',
   outerClassName,
   linkClassName,
+  plainClassName,
   separatorClassName = 'open-artist-ref-sep',
 }: Props) {
   const list = refs.length > 0 ? refs : [{ name: fallbackName }];
+  const linked = [plainClassName, linkClassName].filter(Boolean).join(' ') || undefined;
   const inner = (
     <>
       {list.map((a, i) => (
@@ -42,7 +46,7 @@ export function OpenArtistRefInline({
               <span
                 role="link"
                 tabIndex={0}
-                className={linkClassName}
+                className={linked}
                 onClick={e => {
                   e.stopPropagation();
                   onGoArtist(a.id!);
@@ -60,7 +64,7 @@ export function OpenArtistRefInline({
             ) : (
               <button
                 type="button"
-                className={linkClassName}
+                className={linked}
                 onClick={e => {
                   e.stopPropagation();
                   onGoArtist(a.id!);
@@ -70,7 +74,7 @@ export function OpenArtistRefInline({
               </button>
             )
           ) : (
-            <span>{a.name ?? fallbackName}</span>
+            <span className={plainClassName}>{a.name ?? fallbackName}</span>
           )}
         </Fragment>
       ))}

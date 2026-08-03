@@ -10,7 +10,7 @@
 
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use psysonic_core::server_http::ServerHttpRegistry;
 use psysonic_integration::subsonic::SubsonicClient;
@@ -22,14 +22,25 @@ use super::delta::{DeltaSyncReport, DeltaSyncRunner};
 use super::error::SyncError;
 use super::poll_stats::{next_interval_ms, PollStats};
 use super::progress::{NoopProgress, Progress};
+use super::census::{AlbumCensusRunner, CensusReport};
+use super::poll_stats::{census_is_due, CENSUS_DEFERRED_RETRY_MS, CENSUS_INTERVAL_MS};
 use super::tombstone::should_auto_reconcile_scope;
 use crate::repos::SyncStateRepository;
 use crate::store::LibraryStore;
 
 /// Default Mode B threshold per §6.7 (5 % gap before auto reconcile).
 pub const DEFAULT_TOMBSTONE_THRESHOLD_PCT: u32 = 5;
+
+/// Time one census may take inside a tick. Comfortably below the caller's tick
+/// timeout so an unresponsive server cannot turn a healthy delta pass into a
+/// recorded scheduler failure.
+pub const CENSUS_RUN_BUDGET: std::time::Duration = std::time::Duration::from_secs(45);
 const ERROR_RETRY_INTERVAL_MS: i64 = 30_000;
 const MAX_PERSISTED_ERROR_CHARS: usize = 1_000;
+
+fn census_needs_early_retry(report: &CensusReport) -> bool {
+    report.changed_index() && (report.budget_exhausted || report.deferred > 0)
+}
 
 /// Outcome of one scheduler tick — what happened plus the resolved
 /// `next_poll_at` so the caller can re-schedule its timer.
@@ -42,6 +53,11 @@ pub struct SchedulerTickReport {
     /// job (`LibraryRuntime::current_job`) is running for this server.
     pub skipped_sync_pass_active: bool,
     pub delta: Option<DeltaSyncReport>,
+    /// The census changed the index this tick. Separate from the delta report
+    /// because the census exists precisely for the case the delta reports
+    /// nothing — without this the surfaces would keep showing an album whose
+    /// tracks were just retired.
+    pub census_changed_index: bool,
     pub next_poll_at_ms: i64,
 }
 
@@ -191,6 +207,7 @@ impl<'a> BackgroundScheduler<'a> {
             skipped_bulk_paused: false,
             skipped_sync_pass_active: false,
             delta: None,
+            census_changed_index: false,
             next_poll_at_ms: now_ms,
         };
 
@@ -285,6 +302,19 @@ impl<'a> BackgroundScheduler<'a> {
         }
         let delta_report = runner.run().await?;
 
+        // `deferred_scanning` means the server explicitly told us its catalogue
+        // is in flux. Album enumeration and NotFound probes are least reliable
+        // in that window, so do not let the tagging or census paths reinterpret
+        // transient scan state as missing local data.
+        if delta_report.deferred_scanning {
+            report.next_poll_at_ms = now_ms.saturating_add(ERROR_RETRY_INTERVAL_MS);
+            sync_state
+                .set_next_poll_at(&self.server_id, &self.library_scope, report.next_poll_at_ms)
+                .map_err(SyncError::Storage)?;
+            report.delta = Some(delta_report);
+            return Ok(report);
+        }
+
         // Tag empty `library_id` rows after background delta — new bulk-ingested
         // tracks arrive without folder metadata until this pass runs.
         super::library_tag::run_tag_pass_best_effort(
@@ -303,15 +333,118 @@ impl<'a> BackgroundScheduler<'a> {
         // when the next probe lands; we just persist the artist_count
         // we know from the local DB so the tier classifier has data.
         let mut stats = self.load_poll_stats(&sync_state)?;
-        if delta_report.changed_count > 0 {
-            // Re-stamp the local count snapshot so the next tick's
-            // threshold check has fresh data.
+        let mut census_changed_index = false;
+        let mut census_left_work = false;
+        // The census reconciles what the delta structurally cannot see: a
+        // deletion never appears in a changed-list, and a row missed once sits
+        // below the watermark forever. It is server-wide by construction —
+        // `getAlbumList2` covers every library — so a scoped scheduler must not
+        // run it, or it would read the other libraries' albums as gaps.
+        // The readiness gate has to be *here*, not only inside the run: the slot
+        // below is reserved before the run starts, so a tick during the initial
+        // sync would burn the schedule on a pass that immediately bails, and the
+        // first real census — the one meant to close whatever the ingest left —
+        // would not happen until a full interval later.
+        let index_is_ready = sync_state
+            .get_sync_phase(&self.server_id, "")
+            .map_err(SyncError::Storage)?
+            .as_deref()
+            == Some("ready");
+        if self.library_scope.is_empty() && index_is_ready && census_is_due(&stats, now_ms) {
+            // Persist the next slot *before* running. A process exit or the
+            // scheduler's outer timeout must not leave every following tick
+            // finding the same census immediately due.
+            stats.next_census_at_ms = Some(now_ms.saturating_add(CENSUS_INTERVAL_MS));
+            sync_state
+                .set_poll_stats_json(
+                    &self.server_id,
+                    &self.library_scope,
+                    &serde_json::to_value(stats).unwrap_or_default(),
+                )
+                .map_err(SyncError::Storage)?;
+
+            let mut census = AlbumCensusRunner::new(self.store, self.subsonic, &self.server_id)
+                .with_capability_flags(self.capability_flags)
+                .with_budget(parallelism)
+                .with_deadline(Instant::now() + CENSUS_RUN_BUDGET);
+            if let Some(flag) = &self.cancel {
+                census = census.with_cancellation(Arc::clone(flag));
+            }
+            if !self.sleep_enabled {
+                census = census.with_sleep_disabled();
+            }
+            // The runner observes its own deadline and returns a partial report
+            // before the scheduler's outer timeout. This preserves the exact
+            // refresh signal for work already committed instead of guessing
+            // that every timeout changed the index.
+            match census.run().await {
+                Ok(census_report) => {
+                    if census_report.changed_index()
+                        || census_report.removal_refused
+                        || census_report.budget_exhausted
+                    {
+                        crate::app_eprintln!(
+                            "[library-sync] census: server_albums={} local_albums={} \
+                             removed={} filled={} stale={} deferred={} refused={} budget_exhausted={} \
+                             enumeration_incomplete={}",
+                            census_report.server_albums,
+                            census_report.local_albums,
+                            census_report.albums_removed,
+                            census_report.gaps_filled,
+                            census_report.stale_projections_dropped,
+                            census_report.deferred,
+                            census_report.removal_refused,
+                            census_report.budget_exhausted,
+                            census_report.enumeration_incomplete,
+                        );
+                    }
+                    census_changed_index = census_report.changed_index();
+                    // Work left over by the per-run cap comes back sooner than a
+                    // full interval, but not immediately: a candidate that can
+                    // never resolve would otherwise turn every tick into a full
+                    // enumeration for as long as the app runs.
+                    // Come back sooner only when the run both left work behind
+                    // AND got something done. A backlog that cannot be resolved
+                    // — albums the enumeration keeps listing but the server will
+                    // not hand over — would otherwise re-walk the whole
+                    // catalogue every minute for as long as the app is open.
+                    if census_needs_early_retry(&census_report) {
+                        census_left_work = true;
+                        stats.next_census_at_ms =
+                            Some(now_ms.saturating_add(CENSUS_DEFERRED_RETRY_MS));
+                    }
+                }
+                // Cancellation means the session is going away — every other
+                // cancellable step in this tick propagates it, and writing
+                // sync_state for a torn-down session is exactly what that
+                // convention prevents.
+                Err(SyncError::Cancelled) => return Err(SyncError::Cancelled),
+                Err(error) => {
+                    // Any other failure is simply no answer this round; the
+                    // delta pass it rode along with has already done its work,
+                    // and the slot was reserved before the run started.
+                    crate::app_eprintln!("[library-sync] census failed: {error}");
+                }
+            }
+        }
+
+        // After the census, not before it. Retiring an album changes the live
+        // count more than any delta does, and `local_track_count` is one of the
+        // two inputs to the auto-tombstone threshold — stamping it ahead of the
+        // census leaves that threshold reading a number the same tick already
+        // invalidated.
+        // Delta already re-stamps after a tombstone pass. Avoid issuing the
+        // same count query again when a tick both ingested and retired rows.
+        if (delta_report.changed_count > 0 && delta_report.tombstones_deleted == 0)
+            || census_changed_index
+        {
             if let Ok(local) = self.count_local_tracks() {
                 sync_state
                     .set_local_track_count(&self.server_id, &self.library_scope, local)
                     .map_err(SyncError::Storage)?;
             }
         }
+
         stats.reclassify();
         sync_state
             .set_library_tier(
@@ -329,10 +462,21 @@ impl<'a> BackgroundScheduler<'a> {
             .map_err(SyncError::Storage)?;
 
         report.next_poll_at_ms = now_ms + next_interval_ms(&stats) as i64;
+        // The census only runs inside a tick, so its own schedule can never be
+        // finer than the poll interval — on a large library that is tens of
+        // minutes, which would leave the deferred-work retry with no effect at
+        // all. When the census left work behind, pull the next tick forward to
+        // meet it.
+        if census_left_work {
+            if let Some(due) = stats.next_census_at_ms {
+                report.next_poll_at_ms = report.next_poll_at_ms.min(due);
+            }
+        }
         sync_state
             .set_next_poll_at(&self.server_id, &self.library_scope, report.next_poll_at_ms)
             .map_err(SyncError::Storage)?;
 
+        report.census_changed_index = census_changed_index;
         report.delta = Some(delta_report);
         Ok(report)
     }
@@ -485,6 +629,359 @@ mod tests {
             })))
             .mount(server)
             .await;
+    }
+
+    // ── census ────────────────────────────────────────────────────────
+
+    /// One album in the index, with the projection row the census reads.
+    fn seed_album(store: &LibraryStore, server_id: &str, album_id: &str, track_id: &str) {
+        store
+            .with_conn_mut("test.seed_album", |conn| {
+                conn.execute(
+                    "INSERT INTO track (server_id, id, title, album, album_id, duration_sec, \
+                     deleted, synced_at, raw_json) \
+                     VALUES (?1, ?2, 'Title', 'Album', ?3, 100, 0, 1, '{}')",
+                    rusqlite::params![server_id, track_id, album_id],
+                )?;
+                conn.execute(
+                    "INSERT INTO album_browse_projection \
+                     (server_id, library_id, album_id, name, song_count, duration_sec, \
+                      synced_at, representative_track_id) \
+                     VALUES (?1, '', ?2, 'Album', 1, 100, 1, ?3)",
+                    rusqlite::params![server_id, album_id, track_id],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    fn live_rows(store: &LibraryStore, album_id: &str) -> i64 {
+        store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT COUNT(*) FROM track WHERE album_id = ?1 AND deleted = 0",
+                    rusqlite::params![album_id],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap()
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_tick_censuses_and_schedules_the_next_one() {
+        let server = MockServer::start().await;
+        // Only the artists probe from the shared helper — its album-list mock
+        // answers every `getAlbumList2` with an empty page and would shadow the
+        // enumeration this test is about.
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getArtists.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "artists": { "lastModified": 1_716_840_000_000_i64, "ignoredArticles": "", "index": [] }
+                }
+            })))
+            .mount(&server)
+            .await;
+        // The enumeration lists ten of the eleven albums the index holds, and
+        // the missing one answers "gone" when asked directly.
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbum.view"))
+            .and(wiremock::matchers::query_param("id", "al-gone"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "failed",
+                    "error": { "code": 70, "message": "Album not found" }
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let store = LibraryStore::open_in_memory();
+        for index in 0..10 {
+            seed_album(&store, "s1", &format!("al-{index}"), &format!("t-{index}"));
+        }
+        seed_album(&store, "s1", "al-gone", "t-gone");
+        let listed: Vec<_> = (0..10)
+            .map(|i| json!({ "id": format!("al-{i}"), "name": "Album", "songCount": 1, "duration": 100 }))
+            .collect();
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .and(wiremock::matchers::query_param("offset", "0"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "albumList2": { "album": listed } }
+            })))
+            .mount(&server)
+            .await;
+        // The delta crawls the same list, so every other album id needs a valid
+        // answer. Mounted after the `al-gone` mock, which therefore keeps
+        // winning for that one id.
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbum.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "album": { "id": "al-other", "name": "Album", "songCount": 0, "song": [] }
+                }
+            })))
+            .mount(&server)
+            .await;
+        // Everything after the first page — and whatever else asks for an album
+        // list this tick — gets an empty one. Mounted second on purpose: the
+        // first matching mock answers.
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "albumList2": { "album": [] } }
+            })))
+            .mount(&server)
+            .await;
+
+        let subsonic = test_subsonic(&server.uri());
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "").unwrap();
+        // The census only runs for a server whose catalogue is in.
+        sync_state.set_sync_phase("s1", "", "ready").unwrap();
+
+        BackgroundScheduler::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
+        )
+        .with_sleep_disabled()
+        .tick(1_000_000)
+        .await
+        .unwrap();
+
+        assert_eq!(live_rows(&store, "al-gone"), 0, "the census removed it");
+        assert_eq!(live_rows(&store, "al-0"), 1, "the rest is untouched");
+        // Retiring an album moves the live count more than any delta does, and
+        // that count is one of the two inputs to the auto-tombstone threshold.
+        // Left unstamped, the next tick reads a surplus that no longer exists
+        // and burns a full mismatch pass chasing it.
+        assert_eq!(
+            sync_state.get_local_track_count("s1", "").unwrap(),
+            Some(10),
+            "the census must leave the live count matching what it retired"
+        );
+
+        let stats = sync_state
+            .get_poll_stats_json("s1", "")
+            .unwrap()
+            .map(|value| serde_json::from_value::<PollStats>(value).unwrap_or_default())
+            .unwrap_or_default();
+        assert_eq!(
+            stats.next_census_at_ms,
+            Some(1_000_000 + CENSUS_INTERVAL_MS),
+            "a clean run waits a full interval"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_active_server_scan_skips_tagging_and_census() {
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getScanStatus.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "scanStatus": { "scanning": true, "count": 10 }
+                }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "albumList2": { "album": [] } }
+            })))
+            .expect(0)
+            .mount(&server)
+            .await;
+
+        let store = LibraryStore::open_in_memory();
+        seed_album(&store, "s1", "al-local", "t-local");
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "").unwrap();
+        sync_state.set_sync_phase("s1", "", "ready").unwrap();
+        sync_state.set_library_tier("s1", "", "huge").unwrap();
+
+        let subsonic = test_subsonic(&server.uri());
+        let report = BackgroundScheduler::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(CapabilityFlags::SCAN_STATUS_AVAILABLE),
+        )
+        .with_sleep_disabled()
+        .tick(1_000_000)
+        .await
+        .unwrap();
+
+        assert!(report.delta.as_ref().is_some_and(|delta| delta.deferred_scanning));
+        assert!(!report.census_changed_index);
+        assert_eq!(live_rows(&store, "al-local"), 1);
+        assert_eq!(report.next_poll_at_ms, 1_030_000);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_scoped_scheduler_never_censuses() {
+        // Deliberately the same fixture as the test above, minus the scope: the
+        // enumeration answers, the server-wide row is `ready`, `al-gone` reports
+        // itself gone. Everything the census needs is in place, so the *only*
+        // thing that can hold it back is the scope guard — remove that guard and
+        // this test fails. An earlier version seeded neither the ready phase nor
+        // a non-empty album list, which meant it passed for two unrelated
+        // reasons and could not have caught the guard's removal.
+        let server = MockServer::start().await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getArtists.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "artists": { "lastModified": 1_716_840_000_000_i64, "ignoredArticles": "", "index": [] }
+                }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbum.view"))
+            .and(wiremock::matchers::query_param("id", "al-gone"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "failed",
+                    "error": { "code": 70, "message": "Album not found" }
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let store = LibraryStore::open_in_memory();
+        for index in 0..10 {
+            seed_album(&store, "s1", &format!("al-{index}"), &format!("t-{index}"));
+        }
+        seed_album(&store, "s1", "al-gone", "t-gone");
+        let listed: Vec<_> = (0..10)
+            .map(|index| json!({ "id": format!("al-{index}"), "name": "Album", "songCount": 1 }))
+            .collect();
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .and(wiremock::matchers::query_param("offset", "0"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "albumList2": { "album": listed } }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbum.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": {
+                    "status": "ok",
+                    "album": { "id": "al-other", "name": "Album", "songCount": 0, "song": [] }
+                }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(wm_method("GET"))
+            .and(wm_path("/rest/getAlbumList2.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "subsonic-response": { "status": "ok", "albumList2": { "album": [] } }
+            })))
+            .mount(&server)
+            .await;
+
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "lib-a").unwrap();
+        sync_state.ensure("s1", "").unwrap();
+        sync_state.set_sync_phase("s1", "", "ready").unwrap();
+
+        let subsonic = test_subsonic(&server.uri());
+        BackgroundScheduler::new(
+            &store,
+            &subsonic,
+            "s1",
+            "lib-a",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
+        )
+        .with_sleep_disabled()
+        .tick(1_000_000)
+        .await
+        .unwrap();
+
+        // `getAlbumList2` is server-wide, so a scoped run would read every
+        // other library's albums as gaps and this library's as absent.
+        assert_eq!(live_rows(&store, "al-gone"), 1);
+    }
+
+    /// The schedule is reserved before the run starts, so the readiness gate has
+    /// to sit next to the reservation and not only inside the run. Otherwise a
+    /// tick taken while the catalogue is still coming in books the next slot for
+    /// a pass that immediately bails, and the first census that could actually
+    /// close the ingest's gaps is a whole interval late.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_tick_before_the_catalogue_is_in_does_not_burn_the_census_slot() {
+        let server = MockServer::start().await;
+        empty_probe_and_albumlist(&server, 1_716_840_000_000).await;
+
+        let store = LibraryStore::open_in_memory();
+        let sync_state = SyncStateRepository::new(&store);
+        sync_state.ensure("s1", "").unwrap();
+        // Not `initial_sync` — that would short-circuit the whole tick as a
+        // sync pass in flight. `idle` is the phase a server sits in before its
+        // first successful sync, and the census must not count it as ready.
+        sync_state.set_sync_phase("s1", "", "idle").unwrap();
+
+        let subsonic = test_subsonic(&server.uri());
+        BackgroundScheduler::new(
+            &store,
+            &subsonic,
+            "s1",
+            "",
+            flags(CapabilityFlags::SUBSONIC_SEARCH3_BULK),
+        )
+        .with_sleep_disabled()
+        .tick(1_000_000)
+        .await
+        .unwrap();
+
+        let stats = sync_state
+            .get_poll_stats_json("s1", "")
+            .unwrap()
+            .map(|value| serde_json::from_value::<PollStats>(value).unwrap_or_default())
+            .unwrap_or_default();
+        assert_eq!(
+            stats.next_census_at_ms, None,
+            "the slot stays unclaimed, so the first census runs as soon as the index is ready"
+        );
+    }
+
+    #[test]
+    fn only_a_census_that_made_progress_gets_the_early_retry() {
+        let enumeration_timeout = CensusReport {
+            budget_exhausted: true,
+            enumeration_incomplete: true,
+            ..CensusReport::default()
+        };
+        assert!(!census_needs_early_retry(&enumeration_timeout));
+
+        let probe_timeout = CensusReport {
+            budget_exhausted: true,
+            deferred: 1,
+            ..CensusReport::default()
+        };
+        assert!(!census_needs_early_retry(&probe_timeout));
+
+        let partial_progress = CensusReport {
+            gaps_filled: 1,
+            budget_exhausted: true,
+            deferred: 1,
+            ..CensusReport::default()
+        };
+        assert!(census_needs_early_retry(&partial_progress));
     }
 
     // ── is_due ────────────────────────────────────────────────────────

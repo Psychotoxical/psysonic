@@ -42,6 +42,8 @@ pub mod mood_groups;
 pub mod most_played;
 pub mod orphan_cleanup;
 pub mod payload;
+#[cfg(test)]
+mod perf_probe;
 pub mod random_artists;
 pub mod repos;
 pub mod runtime;

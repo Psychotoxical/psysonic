@@ -16,7 +16,8 @@ import { useQueueTrackEnrichment } from '@/features/queue/hooks/useQueueTrackEnr
 import { QueueLufsTargetMenu } from '@/features/queue/components/QueueLufsTargetMenu';
 import { PlaybackBufferingOverlay } from '@/features/playback/components/PlaybackBufferingOverlay';
 import { CoverArtImage } from '@/cover/CoverArtImage';
-import { OpenArtistRefInline } from '@/ui/OpenArtistRefInline';
+import { ResolvedArtistRefInline } from '@/ui/ResolvedArtistRefInline';
+import { useAuthStore } from '@/store/authStore';
 import { usePlaybackTrackCoverRef } from '@/cover/useLibraryCoverRef';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/trackArtistRefs';
@@ -60,6 +61,8 @@ export function QueueCurrentTrack({
   const coverRef = usePlaybackTrackCoverRef(currentTrack);
   const directCoverUrl = currentTrack?.directCoverArtUrl;
   const artistRefs = resolveTrackArtistRefs(currentTrack);
+  // `track.serverId` is only stamped on owned/multi-server rows.
+  const activeServerId = useAuthStore(s => s.activeServerId ?? '');
   const enrichment = useQueueTrackEnrichment(currentTrack.id);
   const bpmTech = formatQueueBpmTech(enrichment, t);
   const moodLine = formatQueueMoodLabels(enrichment.moodLabels, t);
@@ -238,8 +241,9 @@ export function QueueCurrentTrack({
         <div className="queue-current-info">
           <h3 className="truncate">{currentTrack.title}</h3>
           <div className="queue-current-sub truncate">
-            <OpenArtistRefInline
+            <ResolvedArtistRefInline
               refs={artistRefs}
+              serverId={currentTrack.serverId ?? activeServerId}
               fallbackName={currentTrack.artist}
               onGoArtist={id => navigate(buildArtistDetailPath(id, {
                 serverId: currentTrack.serverId,

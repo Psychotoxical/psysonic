@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import ConfirmModal from './ConfirmModal';
 import { readThemeMigrationNotice, clearThemeMigrationNotice } from '@/lib/themes/themeMigration';

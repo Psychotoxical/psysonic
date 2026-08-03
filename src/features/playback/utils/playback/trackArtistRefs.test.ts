@@ -30,6 +30,26 @@ describe('resolveTrackArtistRefs', () => {
       artists: { id: 'a1', name: 'Solo' } as unknown as Track['artists'],
     })).toEqual([{ id: 'a1', name: 'Solo' }]);
   });
+
+  // Rows from the bulk initial-sync path carry only the flat tag, so the track list
+  // would otherwise print the whole "A feat. B" credit as one artist.
+  it('splits a joined legacy credit, keeping the id on the primary artist', () => {
+    expect(resolveTrackArtistRefs({ artist: 'Alice feat. Bob', artistId: 'ar-alice' }))
+      .toEqual([{ id: 'ar-alice', name: 'Alice' }, { name: 'Bob' }]);
+  });
+
+  it('leaves an unsplittable credit and its id alone', () => {
+    expect(resolveTrackArtistRefs({ artist: 'AC/DC', artistId: 'ar-acdc' }))
+      .toEqual([{ id: 'ar-acdc', name: 'AC/DC' }]);
+  });
+
+  it('prefers the structured list over splitting the display string', () => {
+    expect(resolveTrackArtistRefs({
+      artist: 'Alice feat. Bob',
+      artistId: 'ar-alice',
+      artists: [{ id: 'a1', name: 'Alice' }, { id: 'a2', name: 'Bob' }],
+    })).toEqual([{ id: 'a1', name: 'Alice' }, { id: 'a2', name: 'Bob' }]);
+  });
 });
 
 describe('primaryTrackArtistRef', () => {

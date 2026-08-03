@@ -226,6 +226,8 @@ pub fn composer_detail(
             albums.push(row.album);
         }
     }
+    // Same projection columns as All Albums, so the same compilation mislink applies.
+    crate::browse_support::overlay_album_artist_links_for_store(store, &mut albums)?;
     Ok(LibraryScopeComposerDetailResponse {
         composer: LibraryArtistDto {
             server_id: server_id.to_string(),

@@ -22,11 +22,14 @@ export const GRID_COVER_WARM_LIMIT = 120;
 export const GRID_COVER_PRIME_ALL_MAX = 48;
 
 /** Props for `VirtualCardGrid` `warmGridCovers` on album-style pages. */
-export function albumGridWarmCovers<T extends { coverArt?: string | null }>(
+export function albumGridWarmCovers<T extends { id?: string; coverArt?: string | null }>(
   displayCssPx: number = COVER_DENSE_GRID_MIN_CELL_CSS_PX,
   limit: number = GRID_COVER_WARM_LIMIT,
 ) {
   return {
+    // Album id is required for the cache slot — Navidrome `coverArt` is often a
+    // per-file `mf-*` id; warming with only that id creates a junk album dir.
+    pickAlbumId: (item: T) => item.id,
     pickCoverArtId: (item: T) => item.coverArt,
     displayCssPx,
     limit,

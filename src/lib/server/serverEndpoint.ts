@@ -34,6 +34,15 @@ export type PickReachableResult =
     }
   | { ok: false; reason: 'unreachable' };
 
+/** Whether either normalized profile address matches a shared server base URL. */
+export function profileServesShareBase(
+  profile: Pick<ServerProfile, 'url' | 'alternateUrl'>,
+  shareBase: string,
+): boolean {
+  const wantedBase = normalizeServerBaseUrl(shareBase);
+  return Boolean(wantedBase) && allNormalizedAddresses(profile).includes(wantedBase);
+}
+
 /**
  * URL to embed in **shares** (Orbit invites, entity / queue share payloads,
  * magic strings). Different from the connect URL: a guest opening the share

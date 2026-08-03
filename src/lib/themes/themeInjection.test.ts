@@ -3,7 +3,12 @@
  * Community themes are free-form; the floor only blocks the hard safety
  * invariants (network, scripts, breakout, unscoped @keyframes, size).
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@tauri-apps/api/core', () => ({
+  convertFileSrc: (p: string) => `https://asset.localhost/${encodeURIComponent(p)}`,
+}));
+
 import {
   validateThemeCss,
   injectTheme,
@@ -49,6 +54,14 @@ describe('validateThemeCss (security floor)', () => {
     expect(validateThemeCss(css, 'x')).not.toBeNull();
   });
 
+  it('accepts a local assets/ url()', () => {
+    expect(validateThemeCss(block('x', `--brand: url("assets/logo.svg");`), 'x')).not.toBeNull();
+  });
+
+  it('rejects an assets/ path that escapes the folder', () => {
+    expect(validateThemeCss(block('x', `--brand: url("assets/../secret.svg");`), 'x')).toBeNull();
+  });
+
   it('rejects @keyframes not namespaced with the theme id', () => {
     expect(validateThemeCss(`@keyframes pulse { from {} to {} } ${block('x')}`, 'x')).toBeNull();
   });
@@ -85,6 +98,30 @@ describe('validateThemeCss (security floor)', () => {
     expect(validateThemeCss(`/* hi */ ${block('x')}`, 'x')).not.toBeNull();
     // A comment cannot smuggle an @import past the floor.
     expect(validateThemeCss(`${block('x')} /* */ @import 'x';`, 'x')).toBeNull();
+  });
+});
+
+describe('injectTheme asset rewriting', () => {
+  const withAssets = (over: Partial<InstalledTheme>): InstalledTheme => ({
+    ...mk('x', `[data-theme='x']{ background: url("assets/logo.svg"); }`),
+    ...over,
+  });
+  const css = () => document.head.querySelector(`style[${ATTR}="x"]`)?.textContent ?? '';
+
+  it('leaves asset urls alone without a base', () => {
+    injectTheme(withAssets({}));
+    expect(css()).toContain('url("assets/logo.svg")');
+  });
+
+  it('rewrites against the installed copy-s base', () => {
+    injectTheme(withAssets({ assetBase: '/data/themes/x' }));
+    expect(css()).toContain(encodeURIComponent('/data/themes/x/assets/logo.svg'));
+  });
+
+  it('prefers the dev watch base over the installed one', () => {
+    injectTheme(withAssets({ assetBase: '/data/themes/x', devAssetBase: '/checkout/themes/x' }));
+    expect(css()).toContain(encodeURIComponent('/checkout/themes/x/assets/logo.svg'));
+    expect(css()).not.toContain(encodeURIComponent('/data/themes/x/assets/logo.svg'));
   });
 });
 

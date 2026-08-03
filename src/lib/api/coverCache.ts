@@ -1,6 +1,7 @@
 import { commands } from '@/generated/bindings';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
+import { emitCoverDebug } from '@/lib/api/coverDebug';
 import { coverIndexKeyFromRef, coverStorageKeyFromRef } from '@/cover/storageKeys';
 import { connectBaseUrlForServer } from '@/lib/server/serverEndpoint';
 import { serverIndexKeyForProfile } from '@/lib/server/serverIndexKey';
@@ -161,6 +162,16 @@ export async function coverCacheEnsure(
   _priority?: string,
   opts?: CoverEnsureOpts,
 ): Promise<CoverCacheEnsureResult> {
+  // Depth-3: UI ensure that keys an album cache dir by a per-file `mf-*` id.
+  if (ref.cacheKind === 'album' && ref.cacheEntityId.startsWith('mf-')) {
+    emitCoverDebug('mf_album_slot_ensure', {
+      cacheEntityId: ref.cacheEntityId,
+      fetchCoverArtId: ref.fetchCoverArtId,
+      tier,
+      serverScopeKind: ref.serverScope.kind,
+      serverId: ref.serverScope.kind === 'server' ? ref.serverScope.serverId : undefined,
+    });
+  }
   const res = await commands.coverCacheEnsure(ensureArgsFromRef(ref, tier, opts));
   if (res.status === 'error') throw new Error(res.error);
   // Generated `tier` widens to number; local result keeps the CoverArtTier union.

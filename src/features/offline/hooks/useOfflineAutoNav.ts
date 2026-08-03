@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { Location, NavigateFunction } from 'react-router-dom';
+import type { Location, NavigateFunction } from 'react-router';
 import { resolveOfflineDisconnectNavAction } from '@/features/offline/utils/offlineBrowseRouting';
 
 type ConnStatus = 'connected' | 'disconnected' | 'connecting' | 'unknown';

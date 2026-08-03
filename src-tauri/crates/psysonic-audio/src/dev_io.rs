@@ -520,6 +520,11 @@ pub(crate) fn effective_default_output_device_name_for_poll() -> Option<String> 
     resolve_effective_default_output_device_name(false)
 }
 
+// The early `return` is what separates the two cfg branches below. On a
+// non-Linux build the second branch is stripped, leaving a lone block that
+// clippy then reads as a needless return — so the lint is an artefact of the
+// expansion, not of the code as written.
+#[allow(clippy::needless_return)]
 fn resolve_effective_default_output_device_name(enumerate_devices: bool) -> Option<String> {
     // Windows/macOS: single cpal default query (pre-#1274). Full `output_devices()`
     // enumeration contends with WASAPI/CoreAudio and is only needed for Linux/PipeWire

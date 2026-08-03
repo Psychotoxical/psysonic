@@ -36,6 +36,24 @@ jobs:
         working-directory: src-tauri
         run: cargo test --workspace --all-targets
 
+  # Windows is the second platform the app ships on, and parts of the backend
+  # are cfg-gated to it — SQLite locking behaviour, path handling, and the
+  # `cfg(not(target_os = "linux"))` branches never compile on the ubuntu jobs
+  # above. A test that only fails there used to reach main unnoticed and stayed
+  # red for a week (see the shared-cache fix in psysonic-library's store).
+  test-windows:
+    name: cargo test --workspace (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: cargo test --workspace
+        working-directory: src-tauri
+        run: cargo test --workspace --all-targets
+
   clippy:
     name: cargo clippy --workspace
     runs-on: ubuntu-24.04
@@ -47,6 +65,23 @@ jobs:
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
             libasound2-dev cmake
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: cargo clippy --workspace
+        working-directory: src-tauri
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  # Same blind spot as `test-windows`: the lints in the Windows-only cfg
+  # branches are invisible to the ubuntu clippy job above.
+  clippy-windows:
+    name: cargo clippy --workspace (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy

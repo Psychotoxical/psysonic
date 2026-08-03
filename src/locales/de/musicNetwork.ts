@@ -49,6 +49,7 @@ export const musicNetwork = {
     PROBE_FAILED: 'Diese Funktion ist bei diesem Dienst nicht verfügbar.',
     CAPABILITY_UNSUPPORTED: 'Dieser Dienst unterstützt diese Funktion nicht.',
     NETWORK: 'Netzwerkfehler — prüfe Verbindung oder URL.',
+    RESPONSE_NOT_JSON: 'Der Dienst hat eine Webseite statt Daten geliefert — die Verbindung wird möglicherweise blockiert (VPN-Ausgang, Proxy oder Captive Portal).',
     MALOJA_BAD_KEY: 'Ungültiger Maloja-API-Schlüssel.',
     CUSTOM_URL_INVALID: 'Die Server-URL ist nicht erreichbar.',
   },

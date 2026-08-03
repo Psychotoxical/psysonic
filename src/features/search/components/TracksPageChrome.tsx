@@ -13,7 +13,7 @@ import { ndListSongs, ndInvalidateSongsCache } from '@/lib/api/navidromeBrowse';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import { useNavigateToAlbum } from '@/features/album';
 import { useNavigateToArtist } from '@/features/artist';
-import { OpenArtistRefInline } from '@/ui/OpenArtistRefInline';
+import { ResolvedArtistRefInline } from '@/ui/ResolvedArtistRefInline';
 import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/trackArtistRefs';
 
 const RANDOM_RAIL_SIZE = 18;
@@ -146,8 +146,9 @@ export default function TracksPageChrome({
             </span>
             <h2 className="tracks-hero-title" title={hero.title}>{hero.title}</h2>
             <p className="tracks-hero-meta">
-              <OpenArtistRefInline
+              <ResolvedArtistRefInline
                 refs={heroArtistRefs}
+                serverId={hero.serverId ?? activeServerId}
                 fallbackName={hero.artist}
                 onGoArtist={id => navigateToArtist(id, { serverId: hero.serverId ?? activeServerId })}
                 as="none"

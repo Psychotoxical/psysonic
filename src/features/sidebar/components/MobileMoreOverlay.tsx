@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Settings, HardDriveDownload } from 'lucide-react';
 import { useSidebarStore } from '@/features/sidebar';

@@ -24,7 +24,10 @@ pub(crate) const KEY_SEP: char = '\u{001f}';
 /// v3: artist keys use the canonical artist entity name when the track has an artist id.
 /// v4: physical albums use one canonical or server-qualified album key.
 /// v5: materialized album browse rows use the same physical-album identity partition.
-pub const NORM_VERSION: &str = "5";
+/// v6: an album's uniform performing credit is a fallback when artist-id
+///     uniformity cannot derive a key, so a correctly tagged guest track no
+///     longer costs the album its identity.
+pub const NORM_VERSION: &str = "6";
 
 /// Normalize one identity field. Returns `None` when input is empty/whitespace-only
 /// or when normalization strips everything (punctuation-only, etc.).

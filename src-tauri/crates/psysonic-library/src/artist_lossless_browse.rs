@@ -142,9 +142,10 @@ pub fn get_artist_lossless_browse(
 
     let albums = store.with_read_conn(|conn| {
         let mut stmt = conn.prepare(&albums_sql)?;
-        let rows = stmt
+        let mut rows = stmt
             .query_map(rusqlite::params_from_iter(album_params.iter()), map_album_row)?
             .collect::<rusqlite::Result<Vec<_>>>()?;
+        crate::browse_support::overlay_album_artist_links(conn, &mut rows);
         Ok(rows)
     })?;
 

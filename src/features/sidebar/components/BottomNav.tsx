@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Disc3, Search, Music4, AudioLines, MoreHorizontal } from 'lucide-react';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
@@ -22,7 +22,11 @@ export default function BottomNav() {
 
   return (
     <>
-      <nav className="bottom-nav" aria-label="Mobile navigation">
+      <nav
+        className="bottom-nav"
+        aria-label="Mobile navigation"
+        data-visualizer-overlay-exempt="shell"
+      >
         {NAV_ITEMS.map(({ to, end, icon: Icon, labelKey }) => (
           <NavLink
             key={to}

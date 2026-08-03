@@ -1,12 +1,13 @@
 import React from 'react';
 import { AudioLines, ChevronRight, Heart, Play, Square } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import type { ColDef } from '@/lib/hooks/useTracklistColumns';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import type { Track } from '@/lib/media/trackTypes';
 import { songToTrack } from '@/lib/media/songToTrack';
 import { useSelectionStore } from '@/store/selectionStore';
+import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { previewInputFromSong, usePreviewStore } from '@/features/playback/store/previewStore';
 import StarRating from '@/ui/StarRating';
@@ -17,6 +18,7 @@ import i18n from '@/lib/i18n';
 import { offlineActionPolicy, type OfflineActionPolicy } from '@/features/offline';
 import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/trackArtistRefs';
 import { buildArtistDetailPath } from '@/lib/navigation/detailServerScope';
+import { ResolvedArtistRefInline } from '@/ui/ResolvedArtistRefInline';
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
 import { sameQueueTrack } from '@/features/playback';
 
@@ -50,6 +52,36 @@ interface TrackRowProps {
 }
 
 /**
+ * Artist cell of a tracklist row. Its own component because resolving the credits
+ * needs hooks, which cannot live inside the column `switch`.
+ *
+ * A credit split out of a joined string ("A feat. B") carries no id of its own; the
+ * ids are looked up in the local index so every artist is clickable, not just the
+ * primary one. Names with no artist row stay plain text.
+ */
+const TrackArtistCell = React.memo(function TrackArtistCell({ song }: { song: SubsonicSong }) {
+  const navigate = useNavigate();
+  const activeServerId = useAuthStore(s => s.activeServerId ?? '');
+  const baseRefs = React.useMemo(() => resolveTrackArtistRefs(song), [song]);
+  return (
+    <div className="track-artist-cell">
+      <ResolvedArtistRefInline
+        refs={baseRefs}
+        // `song.serverId` is only stamped on owned/multi-server rows.
+        serverId={song.serverId ?? activeServerId}
+        fallbackName={song.artist}
+        onGoArtist={id => navigate(buildArtistDetailPath(id, { serverId: song.serverId }))}
+        as="none"
+        linkTag="span"
+        plainClassName="track-artist"
+        linkClassName="track-artist-link"
+        separatorClassName="track-artist-sep"
+      />
+    </div>
+  );
+});
+
+/**
  * Memoised tracklist row. Subscribes to its own selection + preview state
  * via primitive selectors so only this row re-renders when the user
  * toggles selection or starts/stops a preview.
@@ -77,7 +109,6 @@ export const TrackRow = React.memo(function TrackRow({
 }: TrackRowProps) {
   const policy = actionPolicy ?? offlineActionPolicy('trackRow', false);
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const showBitrate = useThemeStore(s => s.showBitrate);
   const songKey = ownedEntityKey(song);
   const isSelected = useSelectionStore(s => s.selectedIds.has(songKey));
@@ -141,29 +172,8 @@ export const TrackRow = React.memo(function TrackRow({
             <span className="track-title">{song.title}</span>
           </div>
         );
-      case 'artist': {
-        const artistRefs = resolveTrackArtistRefs(song);
-        return (
-          <div key="artist" className="track-artist-cell">
-            {artistRefs.map((a, i) => (
-              <React.Fragment key={a.id ?? a.name ?? i}>
-                {i > 0 && <span className="track-artist-sep">&nbsp;·&nbsp;</span>}
-                <span
-                  className={`track-artist${a.id ? ' track-artist-link' : ''}`}
-                  style={{ cursor: a.id ? 'pointer' : 'default' }}
-                  onClick={e => {
-                    if (!a.id) return;
-                    e.stopPropagation();
-                    navigate(buildArtistDetailPath(a.id, { serverId: song.serverId }));
-                  }}
-                >
-                  {a.name ?? song.artist}
-                </span>
-              </React.Fragment>
-            ))}
-          </div>
-        );
-      }
+      case 'artist':
+        return <TrackArtistCell key="artist" song={song} />;
       case 'favorite':
         return (
           <div key="favorite" className="track-star-cell">

@@ -51,6 +51,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Offline pins, favourites sync and hot-cache prefetch use the original-stream path; confirmed Navidrome profiles request `format=raw`, while other servers keep the existing uncapped request. Transcoded live bytes are not promoted as original files, and completed-stream reuse stays isolated by endpoint, account, format and bitrate cap.
 * Waveform, loudness and enrichment may analyse the played stream, but canonical results stay anchored to the original file's validated raw fingerprint. Different bitrate representations share one track revision, and a failed original probe cannot overwrite library identity.
 
+### Album details — disc covers in the multi-disc separator
+
+**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1336](https://github.com/Psychotoxical/psysonic/pull/1336)**
+
+* Multi-disc albums show each disc's cover next to "CD N" instead of a generic disc icon. Releases with distinct per-disc artwork show each disc's own cover; other albums fall back to the shared album art.
+* On Navidrome, the queue, playbar mini-cover and "Who is listening?" use the same per-disc artwork, so a multi-disc release no longer keeps showing disc 1 everywhere outside the album page.
+* Clearing the cover cache no longer leaves junk `mf-*` directories under the album cover store after browsing All Albums.
+
+### Fullscreen player — volume slider in Minimal and Immersive modes
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1340](https://github.com/Psychotoxical/psysonic/pull/1340)**
+
+* The fullscreen player's volume control, previously only in **Prism** mode, is now also in the **Minimal** and **Immersive** styles — a mute toggle plus an always-visible level slider.
+
+### Theme store — respect a theme's minimum app version
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1344](https://github.com/Psychotoxical/psysonic/pull/1344)**
+
+* A store theme that needs a newer Psysonic now shows "requires a newer version" in place of the install button, and pending updates that need a newer app are held back, instead of the install failing with a generic error. The notice clears once the app itself is updated.
+
+### Themes — bundle local images and fonts
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1345](https://github.com/Psychotoxical/psysonic/pull/1345)**
+
+* Themes can ship their own images and fonts in an `assets/` folder and reference them with a relative `url("assets/…")`, instead of embedding everything as inline data. Assets are written to disk on install and served locally — themes still never reach the network. Works for both Theme Store installs and imported `.zip` themes; uninstalling a theme removes its files.
+
+### Theme store — a random theme of the moment
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1357](https://github.com/Psychotoxical/psysonic/pull/1357)**
+
+* The store now suggests one theme above the search box, picked from further down the catalogue and preferring themes you have not installed. The store lists themes by last change, so older ones were only ever found by paging to the end. **Show another** picks a different one; installing or applying the suggestion leaves it in place.
+
+### Player views — click any artist of a credit
+
+**By [@enncoded](https://github.com/enncoded), PR [#1371](https://github.com/Psychotoxical/psysonic/pull/1371)**
+
+* Artist names link to the artist page in all three fullscreen styles, the detached mini player and the mobile layout — until now only album and queue rows offered this. Clicking one in fullscreen closes the overlay so the artist page is right there.
+* Joined credits such as "Primary feat. Guest" read as separate artists, including the bullet separator Navidrome uses when a track carries only plural artist tags. Names like AC/DC stay intact.
+
+### Audio visualizer — spectrum, scopes and fullscreen views
+
+**By [@Manwe-777](https://github.com/Manwe-777), PR [#1375](https://github.com/Psychotoxical/psysonic/pull/1375)**
+
+* **Now Playing** and every fullscreen-player style can show a responsive spectrum, oscilloscope, radial scope or stereo field, with cover-derived or theme colours and an expanded window view.
+* Sensitivity, response, frame rate and peak markers are configurable under **Settings → Appearance → Visualizer**. Internet radio is supported while its equalizer audio graph is active.
+
+### Visualizer — separate switches for Now Playing and the fullscreen player
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1378](https://github.com/Psychotoxical/psysonic/pull/1378)**
+
+* The visualizer can now be switched on for the fullscreen player alone, or for **Now Playing** alone, under **Settings → Appearance → Visualizer**. An existing off setting is kept as it was.
+* The section's controls are grouped into two panels, and long option names such as the radial scope are no longer cut off in translated interfaces.
+
 ## Changed
 
 ### Library index — designed for several live servers at once
@@ -128,12 +181,121 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Playing a multi-disc album from the header no longer interleaves the discs (disc 1 track 1, disc 2 track 1, disc 1 track 2, …). Tracks queue in disc-then-track order, so disc 1 plays in full before disc 2. Tracks without a disc number are treated as disc 1, matching the track list.
 
+### Artist details — Various Artists shows every compilation
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1335](https://github.com/Psychotoxical/psysonic/pull/1335)**
+
+* The "Various Artists" artist page lists every compilation again, instead of only the few tracks tagged directly with the Various Artists id. Compilations link to the artist through their album-artist label, which the local index now follows across all selected servers.
+* A compilation's album header links to "Various Artists" rather than to one of the individual track performers.
+
 ### Now playing — show the real streamed format when the server transcodes
 
 **By [@Manwe-777](https://github.com/Manwe-777), PR [#1338](https://github.com/Psychotoxical/psysonic/pull/1338)**
 
 * The quality badge (queue, now-playing hero, mobile player, immersive fullscreen) was built from the track's stored library metadata, so a server-side transcode still read the original file — e.g. "FLAC · 3149 kbps · 24-bit" while actually receiving Opus. It now shows the format the audio engine actually decoded, with the original file's format in a tooltip, and falls back to the stored metadata when no transcode is happening. When the transmitted bitrate is unknown, none is shown instead of a wrong one.
 
+### Various Artists cards — link to the compilation, not a guest performer
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1339](https://github.com/Psychotoxical/psysonic/pull/1339)**
+
+* Clicking "Various Artists" on a New Releases card, a browse grid or a search result opened one of the compilation's guest performers instead of the Various Artists overview. Every album card now links to the album-artist, matching the artist page and album header. The link is recovered from any track on the compilation, so it resolves even when the representative track carries no album-artist tag.
+
+### Artist details — separate guest appearances from the discography
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1341](https://github.com/Psychotoxical/psysonic/pull/1341)**
+
+* An artist page derived every album from that artist's own tracks, so Various Artists compilations, split releases and other artists' albums they only guest on sat in the main discography. Those now appear under **Also featured on**, while the artist's own releases — including their own best-of compilations — stay in the discography.
+* Albums with no album-artist tag are kept with the artist that owns their tracks, so a catalogue whose files spell the artist name differently from the server's artist entry no longer empties into the featured section.
+
+### Artist credits — separate and link each artist of a joined credit
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1342](https://github.com/Psychotoxical/psysonic/pull/1342)**
+
+* A release credited to several artists showed one joined label ("A feat. B") in the album header and track lists, while the home rails already showed them separated. Every surface now separates them, and each artist links to their own page instead of only the first one. Albums whose server provides a structured artist list are unaffected.
+* Splitting follows the server's own tagging rules, so an artist name containing a slash stays intact and a comma-joined credit is left as one entry. For reliably separated credits, tag multi-valued **ARTISTS** / **ALBUMARTISTS** rather than relying on separators.
+
+### Artist details — biography and Last.fm link are back under a multi-server scope
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1343](https://github.com/Psychotoxical/psysonic/pull/1343)**
+
+* The "About the artist" section and the Last.fm link vanished from artist pages as soon as more than one server was selected in the library scope. Both are shown again, with the artist information read from the server that owns the artist.
+* Everything the page derives from that information now follows the same owner: the similar artists it lists open the right artist instead of an unrelated one on the active server, and the setting that decides whether the server's own suggestions are used is read for the owning server too. This also applies when browsing a single server while a different one is active.
+
+### Music network — a clearer message when a service blocks the connection
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1346](https://github.com/Psychotoxical/psysonic/pull/1346)**
+
+* Connecting a scrobbling service over a route it refuses — a VPN exit node, a proxy, a captive portal — failed with a generic network error and a raw decoder message attached. Psysonic now recognises a webpage arriving where data was expected and says so, pointing at the connection instead of leaving you to guess whether the app or the service is broken. Reported by zunoz on Discord.
+
+### Orbit — joining a session no longer depends on how the server address was typed
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1356](https://github.com/Psychotoxical/psysonic/pull/1356)**, reported by Sakura on Discord
+
+* Joining an invite could fail with "You don't have access to …" even for guests with a working account on that very server — they could browse and play music, only joining was refused. An invite carries the server address in its full form, while the check compared it against the address exactly as saved, so one entered without `http://` never matched.
+* The same check now also recognises a server saved under its second address. Hosts who configure a local and a public address share invites pointing at the public one, which previously matched no account at all.
+
+### New Releases — the long pause before more albums appear
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1359](https://github.com/Psychotoxical/psysonic/pull/1359)**
+
+* On large libraries the page showed its first albums quickly and then sat for roughly three quarters of a minute before loading any more. Leaving the page during that pause could lock the window up entirely. Both are gone; scrolling now loads continuously.
+* Root cause: a database lookup the page performs once per album was scanning the whole track table instead of using its index, which on a library of this size cost close to a second every time.
+
+### Artists — the page that never finished loading
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1360](https://github.com/Psychotoxical/psysonic/pull/1360)**
+
+* On large libraries the Artists page could show nothing but a spinner, indefinitely. It now loads in well under a second.
+* Root cause: the query that collects the artists in the selected music folders was combining two steps in the wrong order, redoing the expensive one once per artist instead of once in total. On a library of this size that meant the query never finished at all.
+
+### Hot Cache — prefetch mixed-server queues from the right server
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1363](https://github.com/Psychotoxical/psysonic/pull/1363)**
+
+* Hot Cache now downloads each upcoming track from its owning server instead of sending the whole prefetch window to whichever server is currently playing. Replacing the queue can no longer leave a delayed job caching the wrong copy when two servers reuse the same track ID.
+* When the cache is full, the current and next tracks stay protected per server, so an identically numbered track on another server cannot evict the queued copy and trigger a download loop.
+
+### AppImage — installing through an AppImage manager
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1364](https://github.com/Psychotoxical/psysonic/pull/1364)**, reported by Arutosio
+
+* Handing the AppImage to an AppImage manager or a desktop-integration tool failed with a missing symlink target. The bundle's icon link pointed at a directory that only exists on the machine that built it; it is now relative and resolves wherever the AppImage is unpacked.
+* Starting the AppImage directly was never affected. The 1.50.0 download has also been replaced with a repacked build carrying the corrected link, so it does not have to wait for this release.
+
+### Library — albums deleted on the server no longer linger in your library
+
+**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1365](https://github.com/Psychotoxical/psysonic/pull/1365)**
+
+* Albums and tracks removed on the server could stay in the library indefinitely, and a full resync did not reliably clear them. Psysonic now verifies a server's albums against the index on its background schedule instead of only reacting once enough stale rows have piled up, so a deletion is noticed on its own merits. Albums the index never received arrive the same way. On Navidrome, files still listed under **Missing Files** remain visible through the server API and must be cleared there before Psysonic can retire them.
+* A full resync only sweeps unconfirmed rows when a server-visible track count proves the ingest was complete; otherwise it keeps them and records why the sweep was skipped. Sparse bulk responses also keep richer metadata and the incremental-sync resume point without preventing the server from explicitly clearing those fields later.
+* Copies of the same album stop splitting into separate cards when one carries a correctly credited guest track. Unrelated compilations tagged with collection labels such as “Various” or “Soundtrack” stay separate instead of collapsing by title.
+
+### Servers — removing a profile clears its local library state
+
+**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1365](https://github.com/Psychotoxical/psysonic/pull/1365)**
+
+* Removing the last profile for a server now stops its URL-keyed background sync session and, when requested, purges the matching local library rows even if another cleanup step fails. If another profile shares that server URL, Psysonic keeps the shared index and rebinds it to the remaining profile instead.
+
+### Offline library — freshly prepared tracks keep the correct sync time
+
+**By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1365](https://github.com/Psychotoxical/psysonic/pull/1365)**
+
+* Opening or pinning an album no longer stamps its tracks with a seconds-based timestamp that makes them look as if they were indexed in 1970 and moves them to the front of stale-track verification.
+
+### Album grids — scrolling no longer stalls partway down the list
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1367](https://github.com/Psychotoxical/psysonic/pull/1367)**
+
+* New Releases and Lossless Albums stopped fetching further albums after a few pages, and only picked up again once you scrolled up and back down. Both now keep loading while you are at the bottom of the list, and stop once it is exhausted.
+
+### Buttons — outlines are visible without hovering first
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1379](https://github.com/Psychotoxical/psysonic/pull/1379)**
+
+* Secondary buttons such as **Back** on artist and album pages, **Cancel** in the server form and the connect actions under **Music Network** showed no outline until the pointer was over them. They now look clickable at rest. Reported by zunoz.
+* The row for a custom HTTP header no longer pushes its remove button onto a second line where it filled a whole column and looked like another input field.
+* On a genre page, the add-to-queue button now matches the height of **Play** and carries a proper label for screen readers.
+* Internet radio shows its sort picker next to the browse and add buttons instead of on a separate line below them.
 
 ## [1.50.0]
 

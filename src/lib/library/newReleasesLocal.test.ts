@@ -30,7 +30,7 @@ describe('loadLocalNewReleases', () => {
       limit: 30,
       offset: 60,
       genres: [],
-      includeGenreCounts: true,
+      includeGenreCounts: false,
     });
     expect(result.albums.map(album => [album.serverId, album.id])).toEqual([
       ['server-b', 'newer'],
@@ -61,7 +61,19 @@ describe('loadLocalNewReleases', () => {
       limit: 30,
       offset: 0,
       genres: [],
-      includeGenreCounts: true,
+      includeGenreCounts: false,
     });
+  });
+
+  // The count query costs ~100x the feed it accompanies and every browse read
+  // shares one connection, so it has to be asked for, never assumed.
+  it('leaves genre counts off unless the caller asks for them', async () => {
+    libraryScopeListMainstageAlbums.mockResolvedValue({ albums: [], hasMore: false, genreCounts: [] });
+
+    await loadLocalNewReleases('server-a', [{ serverId: 'server-a', libraryId: 'a1' }], 30, 0, []);
+    expect(libraryScopeListMainstageAlbums.mock.calls[0][1].includeGenreCounts).toBe(false);
+
+    await loadLocalNewReleases('server-a', [{ serverId: 'server-a', libraryId: 'a1' }], 30, 0, [], true);
+    expect(libraryScopeListMainstageAlbums.mock.calls[1][1].includeGenreCounts).toBe(true);
   });
 });

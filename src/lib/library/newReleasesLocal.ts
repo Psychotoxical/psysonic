@@ -3,13 +3,24 @@ import { albumToAlbum } from '@/lib/library/advancedSearchLocal';
 import type { GenreAlbumCountRow } from '@/lib/api/library/dto';
 import { describeMultiServerError, emitMultiServerDebug } from '@/lib/library/multiServerDebug';
 
+/**
+ * Reads the new-releases feed out of the local index.
+ *
+ * `includeGenreCounts` defaults to **off**, and deliberately so: the count query
+ * dominates the request — roughly 3.2s against 35ms for the feed itself on a
+ * large library — while every browse read shares a single connection, so one
+ * unnecessary count stalls whatever the app does next. Only the caller that
+ * actually renders a genre filter should ask for it, and only when it is about
+ * to use the result. Both callers that got this wrong (the sidebar unread badge,
+ * and this feed's own pagination) did so by leaving the argument off.
+ */
 export async function loadLocalNewReleases(
   anchorServerId: string,
   scopes: LibraryScopePair[],
   limit: number,
   offset = 0,
   genres: string[] = [],
-  includeGenreCounts = true,
+  includeGenreCounts = false,
 ): Promise<{ albums: ReturnType<typeof albumToAlbum>[]; hasMore: boolean; genreCounts: GenreAlbumCountRow[] }> {
   if (!anchorServerId) {
     emitMultiServerDebug('new_releases_local_skip', {

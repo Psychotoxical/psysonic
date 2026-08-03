@@ -15,6 +15,7 @@ import { TrackRow } from '@/features/album/components/TrackRow';
 import { AlbumTrackListMobile } from '@/features/album/components/AlbumTrackListMobile';
 import { TracklistColumnPicker } from '@/ui/TracklistColumnPicker';
 import { TracklistHeaderRow } from '@/features/album/components/TracklistHeaderRow';
+import { DiscHeaderCover } from '@/features/album/components/DiscHeaderCover';
 import { offlineActionPolicy, type OfflineActionPolicy } from '@/features/offline';
 import { ownedEntityKey, ownedOverrideValue } from '@/lib/util/ownedEntityKey';
 
@@ -167,7 +168,7 @@ export default function AlbumTrackList({
         <div key={discNum}>
           {isMultiDisc && (
             <div className="disc-header">
-              <span className="disc-icon">💿</span>
+              <DiscHeaderCover song={discs.get(discNum)![0]} />
               CD {discNum}
               {discTitleByNum.get(discNum) && (
                 <span className="disc-subtitle">{discTitleByNum.get(discNum)}</span>

@@ -80,6 +80,7 @@ describe('FolderBrowser', () => {
     libraryScopeArtistDetailMock.mockResolvedValue({
       artist: { serverId: 'server-a', id: 'artist-a', name: 'Artist A' },
       albums: [{ serverId: 'server-a', id: 'album-a', name: 'Album A', artist: 'Artist A', artistId: 'artist-a', syncedAt: 1, rawJson: {} }],
+      appearsOnAlbums: [],
       tracks: [],
     });
     libraryScopeAlbumDetailMock.mockResolvedValue({

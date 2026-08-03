@@ -74,10 +74,15 @@ fn scheduler_idle_payload(
     server_id: &str,
     library_scope: &str,
 ) -> Option<psysonic_library::LibrarySyncIdlePayload> {
-    report
+    // The census is the half that runs when the delta has nothing to report —
+    // a server-side deletion never appears in a changed-list — so its work has
+    // to raise the same refresh signal, or the surfaces keep showing an album
+    // whose tracks were just retired.
+    (report
         .delta
         .as_ref()
         .is_some_and(|delta| !delta.deferred_scanning && !delta.up_to_date)
+        || report.census_changed_index)
         .then(|| {
             psysonic_library::LibrarySyncIdlePayload::ok(
                 server_id,
@@ -163,6 +168,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             // library_upsert_songs_from_api / library_patch_track (serde_json::Value args).
             psysonic_library::browse_support::library_reconcile_album_stars,
             psysonic_library::commands::library_resolve_cover_entry,
+            psysonic_library::commands::library_album_disc_count,
+            psysonic_library::commands::library_resolve_artist_ids,
             psysonic_library::commands::library_analysis_backfill_batch,
             psysonic_library::commands::library_analysis_progress,
             psysonic_library::commands::library_count_live_tracks,
@@ -213,6 +220,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             audio::mix_commands::audio_begin_outgoing_fade,
             audio::mix_commands::audio_set_autodj_suppress,
             audio::mix_commands::audio_set_normalization,
+            audio::spectrum::audio_spectrum_set_active,
             audio::autoeq_commands::autoeq_entries,
             audio::autoeq_commands::autoeq_fetch_profile,
             audio::preload_commands::audio_preload,
@@ -388,13 +396,36 @@ fn bindings_exporter() -> specta_typescript::Typescript {
     specta_typescript::Typescript::default()
 }
 
+/// Export the typed bindings to `path` with trailing whitespace stripped.
+///
+/// specta renders a blank line inside a command's doc comment as `" * "`, which
+/// `git diff --check` rejects — so without this every command documented in more than
+/// one paragraph would fail the repository hygiene check on a generated file nobody
+/// edits by hand.
+#[cfg(any(debug_assertions, test))]
+fn export_bindings_to(path: &str) {
+    specta_builder()
+        .export(bindings_exporter(), path)
+        .expect("failed to export typescript bindings");
+    let contents = std::fs::read_to_string(path).expect("read exported bindings");
+    let mut cleaned = contents
+        .lines()
+        .map(str::trim_end)
+        .collect::<Vec<_>>()
+        .join("\n");
+    if contents.ends_with('\n') {
+        cleaned.push('\n');
+    }
+    if cleaned != contents {
+        std::fs::write(path, cleaned).expect("rewrite exported bindings");
+    }
+}
+
 /// Regenerate the committed bindings on a debug launch (matches the dev workflow;
 /// the CI freshness gate runs the equivalent export in a test — see `specta_export`).
 #[cfg(debug_assertions)]
 fn export_specta_bindings() {
-    specta_builder()
-        .export(bindings_exporter(), "../src/generated/bindings.ts")
-        .expect("failed to export typescript bindings");
+    export_bindings_to("../src/generated/bindings.ts");
 }
 
 pub fn run() {
@@ -503,6 +534,43 @@ pub fn run() {
                                 }
                             }
 
+                            // Absolute, webview-loadable form of a watched
+                            // path: canonicalize resolves a relative
+                            // `--theme-watch` argument, and the `\\?\` prefix
+                            // Windows canonicalization adds would not survive
+                            // `convertFileSrc` on the frontend.
+                            fn abs_watch_path(p: &std::path::Path) -> String {
+                                let abs =
+                                    std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+                                let s = abs.to_string_lossy().into_owned();
+                                s.strip_prefix(r"\\?\").map(String::from).unwrap_or(s)
+                            }
+
+                            // A watched theme's `url("assets/…")` resolves to
+                            // an `asset:` URL under its own directory, but the
+                            // configured asset-protocol scope only covers the
+                            // app data dirs — a themes checkout lives outside
+                            // it and would 403. Widen the scope at runtime,
+                            // here in the debug-only block, so the shipped
+                            // tauri.conf.json keeps its narrow file access.
+                            {
+                                let dir = match &target {
+                                    WatchTarget::Dir(d) => d.clone(),
+                                    WatchTarget::File(f) => {
+                                        f.parent().map(PathBuf::from).unwrap_or_default()
+                                    }
+                                };
+                                let dir = PathBuf::from(abs_watch_path(&dir));
+                                if let Err(e) =
+                                    app.asset_protocol_scope().allow_directory(&dir, true)
+                                {
+                                    eprintln!(
+                                        "[theme-watch] could not grant asset access to {} — local theme assets will not load: {e}",
+                                        dir.display()
+                                    );
+                                }
+                            }
+
                             // Per-file state: css + manifest mtimes (gate the
                             // reads while both files are unchanged) and last
                             // pushed payload (change detection + ready
@@ -607,6 +675,12 @@ pub fn run() {
                                             .and_then(|v| v.as_str())
                                             .map(String::from)
                                     };
+                                    // The theme's own directory travels with
+                                    // the payload: the frontend rewrites
+                                    // `url("assets/…")` against it, so a
+                                    // watched theme loads its local assets
+                                    // from the checkout instead of falling
+                                    // back to unrewritten (app-root) URLs.
                                     let payload = serde_json::json!({
                                         "css": css,
                                         "name": meta("name"),
@@ -614,6 +688,7 @@ pub fn run() {
                                         "version": meta("version"),
                                         "description": meta("description"),
                                         "mode": meta("mode"),
+                                        "assetBase": f.parent().map(abs_watch_path),
                                     });
                                     let event = match m.get_mut(&f) {
                                         // mtime-only touch — restamp quietly.
@@ -756,7 +831,8 @@ pub fn run() {
                                         flags,
                                     )
                                     .with_playback_hint(hint)
-                                    .with_http_registry(Some(Arc::clone(&registry)));
+                                    .with_http_registry(Some(Arc::clone(&registry)))
+                                    .with_cancellation(Arc::clone(&runtime.scheduler_cancel));
                                 if let Some(tok) = session.navidrome_token.clone() {
                                     sched = sched.with_navidrome_credentials(
                                         psysonic_library::sync::capability::NavidromeProbeCredentials {
@@ -1287,6 +1363,7 @@ pub fn run() {
             audio::mix_commands::audio_begin_outgoing_fade,
             audio::mix_commands::audio_set_autodj_suppress,
             audio::mix_commands::audio_set_normalization,
+            audio::spectrum::audio_spectrum_set_active,
             audio::device_commands::audio_list_devices,
             audio::device_commands::audio_canonicalize_selected_device,
             audio::device_commands::audio_default_output_device_name,
@@ -1408,6 +1485,8 @@ pub fn run() {
             psysonic_library::commands::library_analysis_backfill_batch,
             library_analysis_backfill::library_analysis_backfill_configure,
             psysonic_library::commands::library_resolve_cover_entry,
+            psysonic_library::commands::library_album_disc_count,
+            psysonic_library::commands::library_resolve_artist_ids,
             cover_cache::cover_cache_peek_batch,
             cover_cache::cover_cache_ensure,
             cover_cache::cover_cache_ensure_batch,
@@ -1686,6 +1765,7 @@ mod scheduler_driver_tests {
             skipped_bulk_paused: false,
             skipped_sync_pass_active: false,
             delta: None,
+            census_changed_index: false,
             next_poll_at_ms: 1,
         };
         assert!(scheduler_idle_payload(&skipped, "s1", "").is_none());
@@ -1698,6 +1778,7 @@ mod scheduler_driver_tests {
                 up_to_date: true,
                 ..Default::default()
             }),
+            census_changed_index: false,
             next_poll_at_ms: 1,
         };
         assert!(scheduler_idle_payload(&up_to_date, "s1", "").is_none());
@@ -1710,6 +1791,7 @@ mod scheduler_driver_tests {
                 changed_count: 1,
                 ..Default::default()
             }),
+            census_changed_index: false,
             next_poll_at_ms: 1,
         };
         let payload = scheduler_idle_payload(&completed, "s1", "scope").unwrap();
@@ -1726,6 +1808,16 @@ mod scheduler_driver_tests {
             ..completed
         };
         assert!(scheduler_idle_payload(&deferred, "s1", "").is_none());
+
+        let census_only = psysonic_library::sync::scheduler::SchedulerTickReport {
+            census_changed_index: true,
+            delta: Some(psysonic_library::sync::delta::DeltaSyncReport {
+                up_to_date: true,
+                ..Default::default()
+            }),
+            ..skipped
+        };
+        assert!(scheduler_idle_payload(&census_only, "s1", "").is_some());
     }
 }
 
@@ -1747,9 +1839,7 @@ mod specta_export {
             std::process::id()
         ));
 
-        super::specta_builder()
-            .export(super::bindings_exporter(), &tmp)
-            .expect("failed to export typescript bindings");
+        super::export_bindings_to(tmp.to_str().expect("temp path is valid UTF-8"));
 
         let generated = std::fs::read_to_string(&tmp).expect("read freshly exported bindings");
         let _ = std::fs::remove_file(&tmp);
@@ -1777,9 +1867,7 @@ mod specta_export {
         // `--include-ignored`) never observes a half-written/truncated file.
         let target = "../src/generated/bindings.ts";
         let tmp = "../src/generated/bindings.ts.regen.tmp";
-        super::specta_builder()
-            .export(super::bindings_exporter(), tmp)
-            .expect("failed to export typescript bindings");
+        super::export_bindings_to(tmp);
         std::fs::rename(tmp, target).expect("failed to move regenerated bindings into place");
     }
 

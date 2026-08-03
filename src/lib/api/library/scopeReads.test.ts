@@ -377,6 +377,7 @@ describe('libraryScopeArtistDetail', () => {
           rawJson: {},
         },
         albums: [],
+        appearsOnAlbums: [],
         tracks: [],
         topTracksServerId: 's2.example',
         topTracksFingerprint: 'tracks-v1',

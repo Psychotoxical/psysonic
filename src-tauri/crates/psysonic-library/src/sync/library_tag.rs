@@ -15,6 +15,7 @@ use crate::repos::TrackRepository;
 use crate::store::LibraryStore;
 
 use super::error::SyncError;
+use super::ingest_parallel::next_album_list_offset;
 use super::now_unix_ms;
 use super::progress::{Progress, ProgressEvent};
 
@@ -311,14 +312,7 @@ pub async fn tag_library_membership(
                 .map_err(SyncError::Storage)?;
             tracks_tagged += tagged;
 
-            if page.len() < ALBUM_PAGE_SIZE as usize {
-                folders_processed += 1;
-                if let Some(next_folder) = folders.get(folder_index + 1) {
-                    write_tag_cursor(store, server_id, &hash, &next_folder.id, 0)?;
-                }
-                break;
-            }
-            offset = offset.saturating_add(ALBUM_PAGE_SIZE);
+            offset = next_album_list_offset(offset, page.len()).unwrap_or(offset);
             write_tag_cursor(store, server_id, &hash, &folder.id, offset)?;
         }
     }

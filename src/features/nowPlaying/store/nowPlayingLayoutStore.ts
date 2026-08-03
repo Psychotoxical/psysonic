@@ -9,7 +9,8 @@ export type NpCardId =
   | 'credits'
   | 'artist'
   | 'discography'
-  | 'tour';
+  | 'tour'
+  | 'visualizer';
 
 export interface NpCardConfig {
   id: NpCardId;
@@ -17,9 +18,10 @@ export interface NpCardConfig {
   visible: boolean;
 }
 
-export const NP_CARD_IDS: NpCardId[] = ['album', 'topSongs', 'credits', 'artist', 'discography', 'tour'];
+export const NP_CARD_IDS: NpCardId[] = ['album', 'topSongs', 'credits', 'artist', 'discography', 'tour', 'visualizer'];
 
 export const DEFAULT_NP_LAYOUT: NpCardConfig[] = [
+  { id: 'visualizer',  column: 'left',  visible: true },
   { id: 'album',       column: 'left',  visible: true },
   { id: 'topSongs',    column: 'left',  visible: true },
   { id: 'credits',     column: 'left',  visible: true },
@@ -28,10 +30,24 @@ export const DEFAULT_NP_LAYOUT: NpCardConfig[] = [
   { id: 'tour',        column: 'right', visible: true },
 ];
 
+/** Runtime feature filtering keeps optional cards out of the layout UI without
+ * deleting their persisted position/visibility preference. */
+export function availableNpCards(
+  cards: NpCardConfig[],
+  options: { visualizerEnabled: boolean },
+): NpCardConfig[] {
+  return options.visualizerEnabled ? cards : cards.filter(card => card.id !== 'visualizer');
+}
+
 interface NpLayoutStore {
   cards: NpCardConfig[];
-  /** Move a card to a column at a given insertion index (0-based within that column). */
-  moveCard: (id: NpCardId, toColumn: NpColumn, toIndex: number) => void;
+  /** Move a card to a visible insertion index while preserving hidden-card placement. */
+  moveCard: (
+    id: NpCardId,
+    toColumn: NpColumn,
+    toIndex: number,
+    visibleCardIds: readonly NpCardId[],
+  ) => void;
   setVisible: (id: NpCardId, visible: boolean) => void;
   reset: () => void;
 }
@@ -41,7 +57,7 @@ export const useNpLayoutStore = create<NpLayoutStore>()(
     (set) => ({
       cards: DEFAULT_NP_LAYOUT,
 
-      moveCard: (id, toColumn, toIndex) => set((s) => {
+      moveCard: (id, toColumn, toIndex, visibleCardIds) => set((s) => {
         const target = s.cards.find(c => c.id === id);
         if (!target) return s;
         const without = s.cards.filter(c => c.id !== id);
@@ -49,8 +65,20 @@ export const useNpLayoutStore = create<NpLayoutStore>()(
         const right = without.filter(c => c.column === 'right');
         const moved: NpCardConfig = { ...target, column: toColumn };
         const targetBucket = toColumn === 'left' ? left : right;
-        const clamped = Math.max(0, Math.min(toIndex, targetBucket.length));
-        targetBucket.splice(clamped, 0, moved);
+        const visibleIdSet = new Set(visibleCardIds);
+        const visibleTargetBucket = targetBucket.filter(card => visibleIdSet.has(card.id));
+        const clamped = Math.max(0, Math.min(toIndex, visibleTargetBucket.length));
+        const nextVisible = visibleTargetBucket[clamped];
+        let insertionIndex = targetBucket.length;
+        if (nextVisible) {
+          insertionIndex = targetBucket.findIndex(card => card.id === nextVisible.id);
+        } else {
+          const lastVisible = visibleTargetBucket[visibleTargetBucket.length - 1];
+          if (lastVisible) {
+            insertionIndex = targetBucket.findIndex(card => card.id === lastVisible.id) + 1;
+          }
+        }
+        targetBucket.splice(insertionIndex, 0, moved);
         return { cards: [...left, ...right] };
       }),
 

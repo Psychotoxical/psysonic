@@ -37,6 +37,21 @@ impl LibraryTier {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResyncSweepSkipReason {
+    MissingExpectedCount,
+    IncompleteIngest,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResyncSweepSkip {
+    pub at_ms: i64,
+    pub stamped_tracks: i64,
+    pub expected_tracks: Option<i64>,
+    pub reason: ResyncSweepSkipReason,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct PollStats {
     /// Last successful `getArtists.index` cardinality, or
@@ -54,6 +69,17 @@ pub struct PollStats {
     /// Resolved tier from the inputs above.
     #[serde(default)]
     pub library_tier: LibraryTier,
+    /// When the next album census may run, in epoch ms. Lives here rather than
+    /// in its own `sync_state` column because this blob is already persisted
+    /// per server and scope, and `serde(default)` makes it additive — a row
+    /// written before this field existed reads back as "due now", which is the
+    /// behaviour a first run wants anyway.
+    #[serde(default)]
+    pub next_census_at_ms: Option<i64>,
+    /// Durable diagnostic for a resync whose destructive orphan sweep was not
+    /// authorised by a complete server-visible count.
+    #[serde(default)]
+    pub last_resync_sweep_skip: Option<ResyncSweepSkip>,
 }
 
 impl PollStats {
@@ -86,6 +112,32 @@ impl PollStats {
     /// the threshold.
     pub fn reclassify(&mut self) {
         self.library_tier = classify_tier(self.artist_count, self.ewma_bytes);
+    }
+}
+
+/// How long a census result is considered current. Deliberately far longer
+/// than a delta poll: the delta answers "what changed", the census answers
+/// "does the catalogue still match", and the second question does not need a
+/// minute-by-minute answer. One run is a page of album ids per 500 albums.
+///
+/// This is a floor, not a period. The census runs inside a scheduler tick, so
+/// the effective spacing is whichever of the two is longer — on a library
+/// classified `huge` the poll interval alone can be tens of minutes. The
+/// scheduler pulls the next tick forward only when a run left work behind.
+pub const CENSUS_INTERVAL_MS: i64 = 15 * 60 * 1000;
+
+/// How soon a run that hit its per-pass cap comes back. Sooner than a full
+/// interval so leftover work drains, but never immediately: a candidate that
+/// can never resolve would otherwise re-enumerate the catalogue on every tick
+/// for as long as the app is open.
+pub const CENSUS_DEFERRED_RETRY_MS: i64 = 60 * 1000;
+
+/// A census that has never run is due immediately — that is what makes the
+/// first pass after an initial sync close whatever gaps the ingest left.
+pub fn census_is_due(stats: &PollStats, now_ms: i64) -> bool {
+    match stats.next_census_at_ms {
+        None => true,
+        Some(due) => now_ms >= due,
     }
 }
 
@@ -246,5 +298,20 @@ mod tests {
         // as a fresh stats object.
         let s: PollStats = serde_json::from_str("{}").unwrap();
         assert_eq!(s, PollStats::default());
+    }
+
+    #[test]
+    fn resync_sweep_skip_round_trips_with_scheduler_stats() {
+        let stats = PollStats {
+            last_resync_sweep_skip: Some(ResyncSweepSkip {
+                at_ms: 123,
+                stamped_tracks: 98,
+                expected_tracks: Some(100),
+                reason: ResyncSweepSkipReason::IncompleteIngest,
+            }),
+            ..PollStats::default()
+        };
+        let json = serde_json::to_value(stats).unwrap();
+        assert_eq!(serde_json::from_value::<PollStats>(json).unwrap(), stats);
     }
 }

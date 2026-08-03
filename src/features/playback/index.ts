@@ -14,5 +14,13 @@ export {
   playbackProfileIdForTrack,
 } from './utils/playback/playbackServer';
 export { useVolumeToggle } from './hooks/useVolumeToggle';
+export { usePlaybackLibraryNavigate } from './hooks/usePlaybackLibraryNavigate';
+export { TrackArtistLinks } from './components/TrackArtistLinks';
+/** Visualizer tap and reactive availability for internet radio. */
+export {
+  getRadioSpectrumAnalyser,
+  getRadioSpectrumAvailability,
+  subscribeRadioSpectrumAvailability,
+} from './utils/audio/radioEqGraph';
 export { sameQueueTrack } from './utils/playback/queueIdentity';
 export { queueTrackIdsForServerProfile } from './utils/playback/trackServerScope';

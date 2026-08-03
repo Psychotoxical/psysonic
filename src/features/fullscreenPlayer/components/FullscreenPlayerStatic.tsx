@@ -6,6 +6,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { queueSongStar, queueSongRating } from '@/features/playback/store/pendingStarSync';
+import { TrackArtistLinks, usePlaybackLibraryNavigate } from '@/features/playback';
 import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
 import { useCachedUrl } from '@/ui/CachedImage';
@@ -18,7 +19,10 @@ import { FsLyricsApple } from '@/features/fullscreenPlayer/components/FsLyricsAp
 import { FsPlayBtn } from '@/features/fullscreenPlayer/components/FsPlayBtn';
 import { FsClock } from '@/features/fullscreenPlayer/components/FsClock';
 import { FsTimeReadout } from '@/features/fullscreenPlayer/components/FsTimeReadout';
+import { FsVolume } from '@/features/fullscreenPlayer/components/FsVolume';
 import { ownedOverrideValue } from '@/lib/util/ownedEntityKey';
+import { VisualizerPanel } from '@/features/visualizer';
+import { prepareTransientUiOpen } from '@/lib/dom/transientUi';
 
 interface Props {
   onClose: () => void;
@@ -54,6 +58,7 @@ function FsBackground({ url }: { url: string }) {
 
 export default function FullscreenPlayerStatic({ onClose }: Props) {
   const { t } = useTranslation();
+  const navigatePlaybackLibrary = usePlaybackLibraryNavigate();
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const repeatMode = usePlayerStore(s => s.repeatMode);
   const next = usePlayerStore(s => s.next);
@@ -134,6 +139,7 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
       role="dialog"
       aria-modal="true"
       aria-label={t('player.fullscreen')}
+      data-visualizer-overlay-host="fullscreen"
       data-idle={isIdle}
       onMouseMove={handleMouseMove}
     >
@@ -168,7 +174,20 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
           </div>
           <div className="fsp-info-text">
             <p className="fsp-title">{currentTrack?.title ?? '—'}</p>
-            <p className="fsp-artist">{currentTrack?.artist ?? '—'}</p>
+            {currentTrack ? (
+              <TrackArtistLinks
+                track={currentTrack}
+                onNavigate={to => {
+                  onClose();
+                  void navigatePlaybackLibrary(to);
+                }}
+                outerClassName="fsp-artist"
+                linkClassName="fsp-artist-link"
+                plainClassName="fsp-artist-plain"
+              />
+            ) : (
+              <p className="fsp-artist">—</p>
+            )}
             {currentTrack && (
               <div className="fsp-meta">
                 {metaParts.map((part, i) => (
@@ -210,7 +229,18 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
           </div>
         </div>
 
-        <div className="fsp-controls" ref={controlsRef}>
+        {/* Visualizer strip, above the transport row. */}
+        <VisualizerPanel
+          surface="fullscreen"
+          className="fsp-visualizer"
+          paused={queueOpen}
+        />
+
+        <div
+          className="fsp-controls"
+          ref={controlsRef}
+          data-visualizer-transport="fullscreen"
+        >
           <div className="fsp-transport">
             <button className="fsp-btn" onClick={() => previous()} aria-label={t('player.prev')} data-tooltip={t('player.prev')}>
               <SkipBack size={20} />
@@ -227,12 +257,30 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
           <FsTimeReadout duration={duration} />
 
           <div className="fsp-actions">
-            <button className="fsp-btn fsp-btn-sm" onClick={() => setQueueOpen(true)} aria-label={t('queue.title')} data-tooltip={t('queue.title')}>
+            <FsVolume
+              className="fsp-volume"
+              buttonClassName="fsp-btn fsp-btn-sm"
+              sliderClassName="fsp-volume-slider"
+              iconSize={20}
+              showTooltip
+            />
+            <button
+              className="fsp-btn fsp-btn-sm"
+              onClick={() => {
+                prepareTransientUiOpen();
+                setQueueOpen(true);
+              }}
+              aria-label={t('queue.title')}
+              data-tooltip={t('queue.title')}
+            >
               <ListMusic size={20} />
             </button>
             <button
               className={`fsp-btn fsp-btn-sm${lyricsOpen ? ' active' : ''}`}
-              onClick={() => setLyricsOpen(v => !v)}
+              onClick={() => {
+                if (!lyricsOpen) prepareTransientUiOpen();
+                setLyricsOpen(v => !v);
+              }}
               aria-label={t('player.lyrics')}
               data-tooltip={t('player.lyrics')}
             >
@@ -263,7 +311,9 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
         </div>
 
         {/* True waveform seekbar (cucadmuh's idea) instead of the thin bar. */}
-        <WaveformSeek trackId={currentTrack?.id} />
+        <div data-visualizer-overlay-exempt="fullscreen">
+          <WaveformSeek trackId={currentTrack?.id} />
+        </div>
       </div>
 
       {queueOpen && <FsQueueModal onClose={() => setQueueOpen(false)} />}

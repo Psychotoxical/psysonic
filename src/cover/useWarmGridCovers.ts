@@ -12,7 +12,7 @@ const DEFAULT_LIMIT = 120;
  * Peek after mount (non-blocking); ensure disk misses for the warmed viewport slice.
  */
 export function useWarmGridCovers(
-  items: ReadonlyArray<{ coverArt?: string | null }>,
+  items: ReadonlyArray<{ id?: string; coverArt?: string | null }>,
   displayCssPx: number,
   opts?: {
     limit?: number;
@@ -31,7 +31,7 @@ export function useWarmGridCovers(
       return `${displayCssPx}:${opts.warmKey}`;
     }
     const slice = items.slice(0, limit);
-    return `${displayCssPx}:${slice.map(a => a.coverArt ?? '').join('\u0001')}`;
+    return `${displayCssPx}:${slice.map(a => `${a.id ?? ''}\u0002${a.coverArt ?? ''}`).join('\u0001')}`;
   }, [items, displayCssPx, limit, opts?.warmKey]);
 
   useEffect(() => {

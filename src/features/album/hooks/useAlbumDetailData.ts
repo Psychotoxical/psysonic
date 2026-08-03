@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import { useAuthStore } from '@/store/authStore';
 import {
@@ -105,7 +105,11 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
         if (serverId && scopes?.length) {
           const scoped = await tryLoadArtistDetailMultiScope(scopes, serverId, artistId);
           if (scoped && isCurrent()) {
-            setRelatedAlbums(scoped.albums.filter(a => ownedEntityKey(a) !== ownedEntityKey(currentAlbum)));
+            // Union: the split is the artist page's concern. "More by this artist"
+            // showed compilations before and keeps doing so — narrowing it here would
+            // be an unrelated behaviour change on the album page.
+            setRelatedAlbums([...scoped.albums, ...scoped.appearsOnAlbums]
+              .filter(a => ownedEntityKey(a) !== ownedEntityKey(currentAlbum)));
           }
           return;
         }
@@ -114,7 +118,9 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
             ? await loadArtistFromLocalPlayback(serverId, artistId)
             : await loadArtistFromLibraryIndex(serverId, artistId);
           if (artistLocal && isCurrent()) {
-            setRelatedAlbums(artistLocal.albums.filter(a => ownedEntityKey(a) !== ownedEntityKey(currentAlbum)));
+            // Related albums is an all-albums surface — union the split.
+            setRelatedAlbums([...artistLocal.albums, ...artistLocal.appearsOnAlbums]
+              .filter(a => ownedEntityKey(a) !== ownedEntityKey(currentAlbum)));
             return;
           }
         }

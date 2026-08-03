@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import {
   Camera, ChevronLeft, Download, FileUp, Globe, HardDriveDownload, ListPlus,
   Loader2, Lock, Pencil, Play, Search, Shuffle, Sparkles, Trash2,

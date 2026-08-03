@@ -2,7 +2,7 @@ import { getGenresForServer } from '@/lib/api/subsonicGenres';
 import type { SubsonicGenre } from '@/lib/api/subsonicTypes';
 import type { ResultType, SearchOpts, Results } from '@/features/search/searchBrowseTypes';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router';
 import { SlidersVertical, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import AdvancedSearchFilterPanel from '@/features/search/components/AdvancedSearchFilterPanel';

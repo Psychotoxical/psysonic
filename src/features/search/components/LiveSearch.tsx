@@ -1,7 +1,7 @@
 import type { SearchResults } from '@/lib/api/subsonicTypes';
 import { songToTrack } from '@/lib/media/songToTrack';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router';
 import { useNavigateToAlbum } from '@/features/album';
 import { Search, TextSearch } from 'lucide-react';
 import { usePlayerStore } from '@/features/playback/store/playerStore';

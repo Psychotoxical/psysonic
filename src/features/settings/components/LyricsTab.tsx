@@ -42,6 +42,7 @@ export function LyricsTab() {
             options={lyricsStyleOptions}
             value={sidebarLyricsStyle}
             onChange={setSidebarLyricsStyle}
+            ariaLabel={t('settings.sidebarLyricsStyle')}
           />
           <SettingsSubCard style={{ marginTop: '0.85rem' }}>
             <SettingsField desc={t(lyricsStyleDescKey)} />

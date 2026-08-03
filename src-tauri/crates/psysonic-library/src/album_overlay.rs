@@ -13,6 +13,23 @@ use crate::store::LibraryStore;
 
 const MAX_OVERLAY_ALBUMS: usize = 128;
 
+/// Where an overlay resolution spent its time.
+///
+/// The two probes scale with the album count, the representative query with the
+/// number of identity groups, so a single total cannot say which one to fix.
+#[derive(Default)]
+struct OverlayPhases {
+    lookup_key_ms: u128,
+    /// Time inside `indexed_album_exists`, together with how often it actually
+    /// ran. The call is short-circuited whenever the key probe already found a
+    /// key, so a duration alone cannot distinguish "fast" from "never called" —
+    /// and reading `0` as "this variant is cheap" would be an unmeasured claim.
+    exists_ms: u128,
+    exists_calls: usize,
+    representatives_ms: u128,
+    representative_groups: usize,
+}
+
 fn indexed_album_exists(
     conn: &rusqlite::Connection,
     server_id: &str,
@@ -92,12 +109,13 @@ pub fn resolve_album_overlay(
         ));
     }
 
-    store
-        .with_mainstage_read_conn(|conn| {
+    let ((resolutions, phases), timing) = store
+        .with_mainstage_read_conn_timed(|conn| {
             let mut group_by_identity = HashMap::<String, u32>::new();
             let mut representative_group_keys = HashMap::<u32, String>::new();
             let mut direct_representatives = HashMap::<u32, (String, String)>::new();
             let mut groups = Vec::with_capacity(request.albums.len());
+            let mut phases = OverlayPhases::default();
 
             for album in &request.albums {
                 let server_id = album.server_id.trim();
@@ -109,9 +127,21 @@ pub fn resolve_album_overlay(
                     ));
                 }
 
+                let lookup_started = std::time::Instant::now();
                 let indexed_key = lookup_album_key(conn, server_id, album_id)?;
-                let exists =
-                    indexed_key.is_some() || indexed_album_exists(conn, server_id, album_id)?;
+                phases.lookup_key_ms += lookup_started.elapsed().as_millis();
+                // Written out rather than short-circuited with `||`, so the
+                // fallback probe is only timed when it is actually run.
+                let exists = match indexed_key.is_some() {
+                    true => true,
+                    false => {
+                        let started = std::time::Instant::now();
+                        let found = indexed_album_exists(conn, server_id, album_id)?;
+                        phases.exists_ms += started.elapsed().as_millis();
+                        phases.exists_calls += 1;
+                        found
+                    }
+                };
                 let artist = album
                     .artist
                     .as_deref()
@@ -143,8 +173,11 @@ pub fn resolve_album_overlay(
             }
 
             let representative_groups = representative_group_keys.into_iter().collect::<Vec<_>>();
+            phases.representative_groups = representative_groups.len();
+            let representatives_started = std::time::Instant::now();
             let representatives = resolve_representatives(conn, scopes, &representative_groups)?;
-            Ok(groups
+            phases.representatives_ms = representatives_started.elapsed().as_millis();
+            let resolutions = groups
                 .into_iter()
                 .map(|group| {
                     let representative = representatives
@@ -156,9 +189,36 @@ pub fn resolve_album_overlay(
                         representative_id: representative.map(|value| value.1.clone()),
                     }
                 })
-                .collect())
-        })
-        .map_err(|error| error.to_string())
+                .collect::<Vec<_>>();
+            Ok((resolutions, phases))
+        })?;
+    if psysonic_core::logging::should_log_debug() {
+        // This runs on the same connection as the chronological feeds and their
+        // genre counts. A large `lockWaitMs` here means the overlay was ready
+        // and queuing, not slow — the frontend cannot tell those apart, since it
+        // only observes the round trip. The phase fields split the per-album
+        // probes from the single representative query, which scale with
+        // different inputs.
+        crate::app_deprintln!(
+            "[frontend][album-overlay] {}",
+            serde_json::json!({
+                "albumCount": request.albums.len(),
+                "scopeCount": scopes.len(),
+                "lockWaitMs": timing.lock_wait_ms,
+                "queryMs": timing.exec_ms,
+                "lookupKeyMs": phases.lookup_key_ms,
+                "existsMs": phases.exists_ms,
+                "existsCalls": phases.exists_calls,
+                "representativesMs": phases.representatives_ms,
+                "representativeGroups": phases.representative_groups,
+                "blockedBy": timing
+                    .blocked_by
+                    .map(|owner| format!("{}:{}", owner.file, owner.line))
+                    .unwrap_or_else(|| "none".to_string()),
+            })
+        );
+    }
+    Ok(resolutions)
 }
 
 #[cfg(test)]
@@ -236,6 +296,64 @@ mod tests {
             resolution.representative_server_id.as_deref() == Some("s1")
                 && resolution.representative_id.as_deref() == Some("a-priority")
         }));
+    }
+
+    /// The overlay probes one album key per candidate, so this query runs once
+    /// per album on a New Releases page. Left to the planner it drives the join
+    /// from the attached cluster database and scans `track` on every probe:
+    /// ~830ms per call against a ~172k-track library, 19.9s of a 19.9s request
+    /// for 24 albums.
+    ///
+    /// The hint is asserted on the statement text, not on the query plan. A plan
+    /// assertion passes here for the wrong reason: the test database holds a
+    /// handful of rows, so SQLite picks the index either way and the test stays
+    /// green with the hint removed — verified by removing it. Only the text can
+    /// distinguish "we told it" from "it guessed right on toy data".
+    #[test]
+    fn album_key_lookup_pins_the_partial_track_index() {
+        let sql = crate::scope_merge::LOOKUP_ALBUM_KEY_SQL;
+        assert!(
+            sql.contains("track t INDEXED BY idx_track_album"),
+            "album key lookup no longer pins the partial track index: {sql}"
+        );
+        // The index is partial; without this predicate SQLite rejects the hint.
+        assert!(
+            sql.contains("t.deleted = 0"),
+            "album key lookup dropped the predicate the partial index needs: {sql}"
+        );
+    }
+
+    /// Complements the text assertion above: proves the pinned index is one
+    /// SQLite actually accepts here, so the hint cannot be a statement that
+    /// fails at runtime against the real schema.
+    #[test]
+    fn album_key_lookup_uses_the_partial_track_index() {
+        let store = LibraryStore::open_in_memory();
+        insert_album_track(&store, "s1", "t-plan", "a-plan", "l1");
+        ensure_cluster_keys_built(&store, "s1").unwrap();
+
+        let plan = store
+            .with_mainstage_read_conn_timed(|conn| {
+                let mut stmt = conn.prepare(&format!(
+                    "EXPLAIN QUERY PLAN {}",
+                    crate::scope_merge::LOOKUP_ALBUM_KEY_SQL
+                ))?;
+                let details = stmt
+                    .query_map(params!["s1", "a-plan"], |row| row.get::<_, String>(3))?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                Ok(details)
+            })
+            .unwrap()
+            .0;
+
+        assert!(
+            plan.iter().any(|detail| detail.contains("idx_track_album")),
+            "album key lookup stopped using the partial track index: {plan:#?}"
+        );
+        assert!(
+            !plan.iter().any(|detail| detail.contains("SCAN track")),
+            "album key lookup fell back to scanning track: {plan:#?}"
+        );
     }
 
     #[test]

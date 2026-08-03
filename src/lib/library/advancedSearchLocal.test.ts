@@ -506,4 +506,74 @@ describe('albumToAlbum', () => {
     });
     expect(album.created).toBe('2023-11-14T22:13:20.000Z');
   });
+
+  it('keeps the resolved album artist when raw_json carries the legacy performer', () => {
+    // The backend resolves a compilation's hot columns to the album-artist entity,
+    // while raw_json still holds the server's legacy `artist` / `artistId` — a
+    // representative performer. Letting those win would relink a Various Artists
+    // album to a single guest.
+    const album = albumToAlbum({
+      serverId: 's1',
+      id: 'comp1',
+      name: 'Comp One',
+      artist: 'Various Artists',
+      artistId: 'va',
+      songCount: 2,
+      durationSec: 400,
+      year: null,
+      genre: null,
+      coverArtId: null,
+      starredAt: null,
+      syncedAt: 0,
+      rawJson: { id: 'comp1', artist: 'Perf One', artistId: 'p1' },
+    });
+    expect(album.artistId).toBe('va');
+    expect(album.artist).toBe('Various Artists');
+  });
+
+  it('still fills an empty album artist from raw_json', () => {
+    const album = albumToAlbum({
+      serverId: 's1', id: 'al1', name: 'Album', artist: null, artistId: null,
+      songCount: 1, durationSec: 100, year: null, genre: null, coverArtId: null,
+      starredAt: null, syncedAt: 0, rawJson: { artist: 'Artist', artistId: 'ar1' },
+    });
+    expect(album.artistId).toBe('ar1');
+    expect(album.artist).toBe('Artist');
+  });
+
+  it('fills an empty artistId from raw_json for a non-VA album with a set name', () => {
+    // A resolved credit but an empty hot id, with the id living only in raw_json:
+    // this must still link (distinct from the VA-unlink case below).
+    const album = albumToAlbum({
+      serverId: 's1', id: 'al1', name: 'Album', artist: 'Solo Artist', artistId: null,
+      songCount: 1, durationSec: 100, year: null, genre: null, coverArtId: null,
+      starredAt: null, syncedAt: 0, rawJson: { artistId: 'solo' },
+    });
+    expect(album.artistId).toBe('solo');
+    expect(album.artist).toBe('Solo Artist');
+  });
+
+  it('does not relink a VA album whose credit lives only in raw_json', () => {
+    // Empty hot artist columns, with the "Various Artists" credit and a legacy
+    // performer id both in raw_json: fill the name from raw, but keep it unlinked.
+    const album = albumToAlbum({
+      serverId: 's1', id: 'comp1', name: 'Comp', artist: null, artistId: null,
+      songCount: 2, durationSec: 400, year: null, genre: null, coverArtId: null,
+      starredAt: null, syncedAt: 0, rawJson: { artist: 'Various Artists', artistId: 'p1' },
+    });
+    expect(album.artist).toBe('Various Artists');
+    expect(album.artistId ?? '').toBe('');
+  });
+
+  it('keeps a Various Artists album unlinked even when raw_json carries an id', () => {
+    // The backend intentionally left artistId blank for a VA compilation with no
+    // album-artist id; raw_json's legacy performer id must not re-link it.
+    const album = albumToAlbum({
+      serverId: 's1', id: 'comp1', name: 'Comp', artist: 'Various Artists', artistId: null,
+      songCount: 2, durationSec: 400, year: null, genre: null, coverArtId: null,
+      starredAt: null, syncedAt: 0, rawJson: { artistId: 'p1' },
+    });
+    expect(album.artistId ?? '').toBe('');
+    expect(album.artist).toBe('Various Artists');
+  });
 });

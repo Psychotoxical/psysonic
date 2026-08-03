@@ -1,5 +1,5 @@
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import { ensurePlaybackServerActive } from '@/features/playback/utils/playback/playbackServer';
 import { navigatePathWithAlbumReturnTo, shouldSkipMainScrollResetOnRouteChange } from '@/lib/navigation/albumDetailNavigation';
 import { getCurrentWebview } from '@tauri-apps/api/webview';

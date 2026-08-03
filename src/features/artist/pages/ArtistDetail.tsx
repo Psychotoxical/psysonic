@@ -1,8 +1,8 @@
 import { useCoverArt } from '@/cover/useCoverArt';
 import { useArtistCoverRef } from '@/cover/useLibraryCoverRef';
-import type { SubsonicArtist, SubsonicAlbum } from '@/lib/api/subsonicTypes';
+import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import { useEffect, useState, Fragment, useMemo } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router';
 import { AlbumCard } from '@/features/album';
 import { ArrowDownUp } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
@@ -17,6 +17,7 @@ import {
 
 import { useArtistDetailData } from '@/features/artist/hooks/useArtistDetailData';
 import { useArtistSimilarArtists } from '@/features/artist/hooks/useArtistSimilarArtists';
+import { similarArtistRefs } from '@/features/artist/utils/similarArtistRefs';
 import {
   runArtistDetailPlayAll, runArtistDetailPlayTopSong, runArtistDetailShuffle,
   runArtistDetailStartRadio, runArtistDetailEnqueueAll,
@@ -58,6 +59,7 @@ export default function ArtistDetail() {
   const sourceMusicFoldersByServer = useAuthStore(s => s.musicFoldersByServer);
   const {
     artist, setArtist, albums, topSongs, info, featuredAlbums,
+    infoServerId, audiomuseNavidromeEnabled,
     loading, topSongsLoading, artistInfoLoading, featuredLoading,
     isStarred, setIsStarred,
   } = useArtistDetailData(id, { losslessOnly });
@@ -83,7 +85,9 @@ export default function ArtistDetail() {
     artist,
     info,
     artistInfoLoading,
-    activeServerId,
+    // Same owner the info came from: this hook keys its AudioMuse branch on the server,
+    // and its Last.fm fallback searches that server for the matching artist rows.
+    infoServerId ?? activeServerId,
   );
   const [uploading, setUploading] = useState(false);
   const [similarCollapsed, setSimilarCollapsed] = useState(true);
@@ -93,9 +97,6 @@ export default function ArtistDetail() {
 
   const playTrack = usePlayerStore(state => state.playTrack);
   const enqueue = usePlayerStore(state => state.enqueue);
-  const audiomuseNavidromeEnabled = useAuthStore(
-    s => !!(activeServerId && s.audiomuseNavidromeByServer[activeServerId]),
-  );
   const enrichmentConfigured = useAuthStore(s => s.enrichmentPrimaryId !== null);
   const albumYearOrder = useArtistAlbumYearSortStore(
     s => s.orderByServer[activeServerId] ?? DEFAULT_ARTIST_ALBUM_YEAR_ORDER,
@@ -134,6 +135,12 @@ export default function ArtistDetail() {
 
   const toggleStar = () => runArtistToggleStar({ artist, isStarred, setIsStarred });
 
+  // The transport buttons deliberately operate on the artist's own releases only.
+  // Falling back to the appears-on set for a guest-only artist was tried and dropped:
+  // those are other artists' full compilations, so "play all" would queue a few
+  // hundred foreign tracks to reach the handful by this artist. Their albums stay
+  // reachable and individually playable through the appears-on section, which is
+  // forced visible below when the discography is empty.
   const handlePlayAll = () => runArtistDetailPlayAll({
     albums, serverId: activeServerId, setPlayAllLoading, playTrack,
   });
@@ -259,12 +266,7 @@ export default function ArtistDetail() {
     );
   }
 
-  const serverSimilarArtists: SubsonicArtist[] = (info?.similarArtist ?? []).map(sa => ({
-    id: sa.id,
-    name: sa.name,
-    albumCount: sa.albumCount,
-    serverId: 'serverId' in sa && typeof sa.serverId === 'string' ? sa.serverId : activeServerId,
-  }));
+  const serverSimilarArtists = similarArtistRefs(info?.similarArtist, infoServerId, activeServerId);
   const showAudiomuseSimilar = audiomuseNavidromeEnabled && serverSimilarArtists.length > 0;
   const showNetworkSimilar =
     enrichmentConfigured &&
@@ -286,8 +288,12 @@ export default function ArtistDetail() {
   // The order the user actually sees: hidden-via-toggle and empty sections
   // are filtered out, so the "first rendered section gets marginTop: 0" rule
   // works regardless of the configured order.
+  // With an empty discography the appears-on section is the only place the artist's
+  // releases exist at all — show it even if the user switched it off, otherwise the
+  // page offers an empty "Albums" grid and no way to reach them.
+  const forceFeaturedSection = albums.length === 0 && featuredAlbums.length > 0;
   const renderableSectionIds = sectionConfig
-    .filter(s => s.visible)
+    .filter(s => s.visible || (forceFeaturedSection && s.id === 'featured'))
     .map(s => s.id)
     .filter(sectionHasData);
   const sectionMt = (id: ArtistSectionId) => renderableSectionIds[0] === id ? '0' : '2rem';

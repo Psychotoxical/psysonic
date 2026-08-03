@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import { navigateToComposerDetail } from '@/lib/navigation/albumDetailNavigation';
 
 /** Navigate to composer detail, remembering the current page for the back button. */

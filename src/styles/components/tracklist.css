@@ -626,9 +626,22 @@ html[data-track-previews-randommix="off"]   [data-preview-loc="randomMix"]   .pl
   margin-top: 0;
 }
 
-.disc-icon {
-  font-size: 18px;
+/* Album / per-disc cover in the multi-disc separator (replaces the old CD glyph).
+   Sized here because `.track-row-cover-thumb` only carries dimensions in
+   track-row / queue contexts; box sets with distinct disc art resolve per disc
+   via the library cover resolver. */
+.disc-header .track-row-cover-thumb {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--bg-hover);
 }
+
+/* While the cover is missing or loading, `CoverArtImage` renders an empty
+   `[data-cover-provisional]` div that keeps `.track-row-cover-thumb`; the
+   `background` above is the placeholder square. */
 
 /* Per-disc subtitle (OpenSubsonic `discTitles`), e.g. "Sessions" on a deluxe CD 3. */
 .disc-subtitle {

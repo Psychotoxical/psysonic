@@ -5,6 +5,7 @@ import { useLyricsStore } from './store/lyricsStore';
 import { useThemeStore } from './store/themeStore';
 import { useInstalledThemesStore } from './store/installedThemesStore';
 import { gateInjectedThemes, syncInjectedThemes } from '@/lib/themes/themeInjection';
+import { reconcileThemeAssetsOnStartup } from '@/app/themeAssetStartup';
 import { useThemeScheduler } from '@/app/hooks/useThemeScheduler';
 import { useFontStore } from './store/fontStore';
 import { getWindowKind } from './app/windowKind';
@@ -39,6 +40,15 @@ export default function App() {
     gateInjectedThemes([theme, themeDay, themeNight, effectiveTheme]);
   }, [installedThemes, theme, themeDay, themeNight, effectiveTheme]);
 
+  // Once, in the main window: repair a moved profile's asset paths and sweep
+  // orphaned theme directories. Async and best-effort, so it runs after the
+  // first paint (the synchronous startup injection already used the stored
+  // base). Main-window only, to avoid two webviews sweeping at once.
+  useEffect(() => {
+    if (getWindowKind() !== 'main') return;
+    void reconcileThemeAssetsOnStartup();
+  }, []);
+
   // Dev only: `--theme-watch <theme.css | dir>` (debug builds) pushes local
   // theme CSS (+ sibling manifest.json metadata) in on every save. Each
   // payload is installed under the id in its `[data-theme='<id>']` selector —
@@ -61,16 +71,30 @@ export default function App() {
         version?: string | null;
         description?: string | null;
         mode?: string | null;
+        /** The watched theme's directory, for `url("assets/…")` rewriting. */
+        assetBase?: string | null;
       };
       const install = (payload: WatchPayload, apply: boolean) => {
         const css = payload?.css;
         const id = css?.match(/\[data-theme=['"]([^'"]+)['"]\]/)?.[1];
         if (!id) return;
+        // The watcher has spoken, so this dev build is being used to author
+        // themes. Marks the root once so dev-only chrome that would sit on top
+        // of themed surfaces can step aside — see dev-build-chrome.css. Keyed
+        // off the watcher rather than the theme's own `dev` flag: a
+        // store-installed theme being watched keeps `dev: false` (below), and
+        // its author would otherwise still be looking at the marker.
+        document.documentElement.setAttribute('data-theme-watch', 'true');
         // Manifest metadata wins, then a store-installed copy's, then dev
         // placeholders — watched themes keep their real identity, and only
         // the CSS is the live payload. Fresh seeds are marked dev
         // (session-only, never persisted); a store-installed theme being
-        // watched keeps its persisted entry.
+        // watched keeps its persisted entry. `install` replaces the entry
+        // wholesale, so the previous copy's asset fields are carried over —
+        // dropping them would strand its on-disk assets (broken urls, and an
+        // uninstall that leaves the files behind). The watched directory
+        // rides along separately as `devAssetBase`, which wins at inject time
+        // without overwriting where the installed copy lives.
         const prev = useInstalledThemesStore.getState().getInstalled(id);
         useInstalledThemesStore.getState().install({
           id,
@@ -84,6 +108,9 @@ export default function App() {
           tags: prev?.tags,
           css,
           installedAt: prev?.installedAt ?? Date.now(),
+          assetBase: prev?.assetBase,
+          assets: prev?.assets,
+          devAssetBase: payload.assetBase ?? prev?.devAssetBase,
           dev: prev ? prev.dev ?? false : true,
         });
         if (apply) {

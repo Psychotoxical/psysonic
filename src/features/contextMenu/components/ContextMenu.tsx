@@ -16,7 +16,7 @@ import {
 import { useContextMenuKeyboardNav } from '@/features/contextMenu/hooks/useContextMenuKeyboardNav';
 import { useContextMenuRating } from '@/features/contextMenu/hooks/useContextMenuRating';
 import { usePlaybackLibraryNavigate } from '@/features/playback/hooks/usePlaybackLibraryNavigate';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useOfflineBrowseContext } from '@/features/offline';
 import {
   offlineActionPolicy,

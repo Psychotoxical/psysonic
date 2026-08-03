@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { AudioLines, ChevronRight, HardDriveDownload, Settings } from 'lucide-react';
 import type { SidebarItemConfig } from '@/features/sidebar/store/sidebarStore';

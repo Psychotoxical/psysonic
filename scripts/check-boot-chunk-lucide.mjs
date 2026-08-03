@@ -9,9 +9,11 @@
  * Run after `npm run build` — no Tauri compile needed.
  */
 import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const DIST = join(new URL('..', import.meta.url).pathname, 'dist/assets');
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const DIST = join(ROOT, 'dist/assets');
 
 /** Chunk filename prefixes that must stay lucide-free. */
 const BOOT_CHUNK_PREFIXES = ['authStore-', 'offline-'];

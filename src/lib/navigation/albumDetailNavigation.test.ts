@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import type { NavigationType } from 'react-router-dom';
+import type { NavigationType } from 'react-router';
 import {
   buildReturnToFromLocation,
   navigateAlbumDetailBack,

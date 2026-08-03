@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import { useLocation, useNavigationType, type NavigationType } from 'react-router-dom';
+import { useLocation, useNavigationType, type NavigationType } from 'react-router';
 import {
   clearGenreDetailReturnStash,
   peekAlbumBrowseScrollRestore,

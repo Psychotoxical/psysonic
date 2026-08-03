@@ -1,6 +1,6 @@
 import { Gem } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 
 export default function LosslessModeBanner() {
   const { t } = useTranslation();

@@ -45,6 +45,7 @@ import { tray } from './tray';
 import { licenses } from './licenses';
 import { migration } from './migration';
 import { discordBanner } from './discordBanner';
+import { visualizer } from './visualizer';
 
 export const plTranslation = {
   sidebar,
@@ -94,4 +95,5 @@ export const plTranslation = {
   licenses,
   migration,
   discordBanner,
+  visualizer,
 };

@@ -49,6 +49,7 @@ export const musicNetwork = {
     PROBE_FAILED: 'Ez a funkció nem érhető el ennél a szolgáltatásnál.',
     CAPABILITY_UNSUPPORTED: 'Ez a szolgáltatás nem támogatja ezt a funkciót.',
     NETWORK: 'Hálózati hiba — ellenőrizd a kapcsolatot vagy az URL-t.',
+    RESPONSE_NOT_JSON: 'A szolgáltatás adatok helyett egy weboldalt küldött — a kapcsolat blokkolva lehet (VPN-kilépőpont, proxy vagy beléptető portál).',
     MALOJA_BAD_KEY: 'Érvénytelen Maloja API-kulcs.',
     CUSTOM_URL_INVALID: 'A szerver URL nem érhető el.',
   },

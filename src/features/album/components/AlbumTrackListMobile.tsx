@@ -6,6 +6,7 @@ import { songToTrack } from '@/lib/media/songToTrack';
 import { formatLongDuration } from '@/lib/format/formatDuration';
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
 import { sameQueueTrack } from '@/features/playback';
+import { DiscHeaderCover } from '@/features/album/components/DiscHeaderCover';
 
 interface Props {
   discNums: number[];
@@ -49,7 +50,7 @@ export function AlbumTrackListMobile({
         <div key={discNum}>
           {isMultiDisc && (
             <div className="disc-header">
-              <span className="disc-icon">💿</span> CD {discNum}
+              <DiscHeaderCover song={discs.get(discNum)![0]} /> CD {discNum}
               {discTitleByNum.get(discNum) && (
                 <span className="disc-subtitle">{discTitleByNum.get(discNum)}</span>
               )}

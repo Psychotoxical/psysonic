@@ -1,21 +1,87 @@
+use std::collections::{HashMap, HashSet};
+
+use rusqlite::types::Value;
 use rusqlite::{params, params_from_iter, OptionalExtension, Transaction};
 
 use crate::genre_tags::{self, genres_for_track_raw_json};
 use crate::store::{LibraryStore, WriteOpTiming};
 
-fn sync_track_genre_row(tx: &Transaction<'_>, row: &TrackRow) -> rusqlite::Result<()> {
-    if row.deleted {
-        return genre_tags::delete_track_genre_for_track(tx, &row.server_id, &row.id);
+struct TrackGenreState {
+    track_id: String,
+    raw_json: String,
+    genre: Option<String>,
+    album_id: Option<String>,
+    library_id: Option<String>,
+    deleted: bool,
+}
+
+fn sync_track_genre_state(
+    tx: &Transaction<'_>,
+    server_id: &str,
+    state: &TrackGenreState,
+) -> rusqlite::Result<()> {
+    if state.deleted {
+        return genre_tags::delete_track_genre_for_track(tx, server_id, &state.track_id);
     }
-    let genres = genres_for_track_raw_json(&row.raw_json, row.genre.as_deref());
+    let genres = genres_for_track_raw_json(&state.raw_json, state.genre.as_deref());
     genre_tags::replace_track_genre_rows(
         tx,
-        &row.server_id,
-        &row.id,
-        row.album_id.as_deref(),
-        row.library_id.as_deref(),
+        server_id,
+        &state.track_id,
+        state.album_id.as_deref(),
+        state.library_id.as_deref(),
         &genres,
     )
+}
+
+/// Rebuild the genre projection from the rows SQLite actually committed. This
+/// matters for sparse payloads: the upsert may preserve `raw_json` and
+/// `library_id`, so projecting the incoming row would immediately disagree
+/// with the authoritative stored row.
+fn sync_persisted_track_genre_rows(
+    tx: &Transaction<'_>,
+    rows: &[TrackRow],
+) -> rusqlite::Result<()> {
+    let mut ids_by_server: HashMap<&str, HashSet<&str>> = HashMap::new();
+    for row in rows {
+        ids_by_server
+            .entry(row.server_id.as_str())
+            .or_default()
+            .insert(row.id.as_str());
+    }
+    for (server_id, ids) in ids_by_server {
+        let ids: Vec<&str> = ids.into_iter().collect();
+        for chunk in ids.chunks(400) {
+            let placeholders = (2..chunk.len() + 2)
+                .map(|index| format!("?{index}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let sql = format!(
+                "SELECT id, raw_json, genre, album_id, library_id, deleted FROM track \
+                 WHERE server_id = ?1 AND id IN ({placeholders})"
+            );
+            let mut binds = Vec::with_capacity(chunk.len() + 1);
+            binds.push(Value::Text(server_id.to_string()));
+            binds.extend(chunk.iter().map(|id| Value::Text((*id).to_string())));
+            let persisted: Vec<TrackGenreState> = tx
+                .prepare(&sql)?
+                .query_map(params_from_iter(binds.iter()), |row| {
+                    Ok(TrackGenreState {
+                        track_id: row.get(0)?,
+                        raw_json: row.get(1)?,
+                        genre: row.get(2)?,
+                        album_id: row.get(3)?,
+                        library_id: row.get(4)?,
+                        deleted: row.get::<_, i64>(5)? != 0,
+                    })
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            for state in persisted {
+                sync_track_genre_state(tx, server_id, &state)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 /// One row of the `track` table — every hot column from spec §5.1 plus
@@ -110,6 +176,23 @@ impl<'a> TrackRepository<'a> {
         rows: &[TrackRow],
         resync_gen: Option<i64>,
     ) -> Result<WriteOpTiming, String> {
+        self.upsert_batch_initial_ingest_timed_with_source(rows, resync_gen, false)
+    }
+
+    pub(crate) fn upsert_sparse_batch_initial_ingest_timed(
+        &self,
+        rows: &[TrackRow],
+        resync_gen: Option<i64>,
+    ) -> Result<WriteOpTiming, String> {
+        self.upsert_batch_initial_ingest_timed_with_source(rows, resync_gen, true)
+    }
+
+    fn upsert_batch_initial_ingest_timed_with_source(
+        &self,
+        rows: &[TrackRow],
+        resync_gen: Option<i64>,
+        sparse_payload: bool,
+    ) -> Result<WriteOpTiming, String> {
         if rows.is_empty() {
             return Ok(WriteOpTiming::default());
         }
@@ -164,6 +247,7 @@ impl<'a> TrackRepository<'a> {
                                 r.synced_at,
                                 r.raw_json,
                                 gen,
+                                if sparse_payload { 1_i64 } else { 0 },
                             ])?;
                         } else {
                             upsert.execute(params![
@@ -203,11 +287,12 @@ impl<'a> TrackRepository<'a> {
                                 if r.deleted { 1_i64 } else { 0 },
                                 r.synced_at,
                                 r.raw_json,
+                                if sparse_payload { 1_i64 } else { 0 },
                             ])?;
                         }
-                        sync_track_genre_row(&tx, r)?;
                     }
                     drop(upsert);
+                    sync_persisted_track_genre_rows(&tx, rows)?;
                     crate::identity::mark_cluster_keys_dirty(
                         &tx,
                         rows.iter().map(|row| row.server_id.as_str()),
@@ -235,6 +320,140 @@ impl<'a> TrackRepository<'a> {
                      WHERE server_id = ?1 AND library_id = ?2",
                     params![server_id, library_scope],
                     |r| r.get(0),
+                )
+            }
+        })
+    }
+
+    /// Retire confirmed-gone physical albums in one transaction.
+    ///
+    /// The census may confirm up to 100 albums in one run. Applying each one
+    /// through `apply_tombstone_results` would take the writer 100 times and
+    /// rebuild album/composer projections 100 times. This keeps the same
+    /// invalidation path but batches the rows and projection refresh.
+    pub(crate) fn tombstone_albums(
+        &self,
+        server_id: &str,
+        album_ids: &[String],
+    ) -> Result<(usize, usize), String> {
+        if album_ids.is_empty() {
+            return Ok((0, 0));
+        }
+        let placeholders = (2..album_ids.len() + 2)
+            .map(|index| format!("?{index}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let mut binds = Vec::with_capacity(album_ids.len() + 1);
+        binds.push(Value::Text(server_id.to_string()));
+        binds.extend(album_ids.iter().cloned().map(Value::Text));
+
+        self.store.with_conn_mut("track.tombstone_albums", |conn| {
+            let tx = conn.transaction()?;
+            let track_sql = format!(
+                "SELECT id, album_id, COALESCE(library_id, '') FROM track INDEXED BY idx_track_album \
+                 WHERE server_id = ?1 AND album_id IN ({placeholders}) AND deleted = 0"
+            );
+            let live_rows: Vec<(String, String, String)> = tx
+                .prepare(&track_sql)?
+                .query_map(params_from_iter(binds.iter()), |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            let retired_albums: HashSet<String> = live_rows
+                .iter()
+                .map(|(_, album_id, _)| album_id.clone())
+                .collect();
+            let track_ids: Vec<String> = live_rows
+                .iter()
+                .map(|(track_id, _, _)| track_id.clone())
+                .collect();
+            let mut affected: HashSet<crate::browse_projection::AlbumScope> = live_rows
+                .iter()
+                .map(|(_, album_id, library_id)| {
+                    (
+                        server_id.to_string(),
+                        library_id.clone(),
+                        album_id.clone(),
+                    )
+                })
+                .collect();
+
+            let projection_sql = format!(
+                "SELECT DISTINCT library_id, album_id FROM album_browse_projection \
+                 WHERE server_id = ?1 AND album_id IN ({placeholders})"
+            );
+            let projection_rows: Vec<(String, String)> = tx
+                .prepare(&projection_sql)?
+                .query_map(params_from_iter(binds.iter()), |row| {
+                    Ok((row.get(0)?, row.get(1)?))
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            let projected_albums: HashSet<String> = projection_rows
+                .iter()
+                .map(|(_, album_id)| album_id.clone())
+                .collect();
+            affected.extend(projection_rows.into_iter().map(|(library_id, album_id)| {
+                (server_id.to_string(), library_id, album_id)
+            }));
+
+            if !track_ids.is_empty() {
+                let now = now_unix_ms();
+                let delete_genres_sql = format!(
+                    "DELETE FROM track_genre WHERE server_id = ?1 AND track_id IN ( \
+                       SELECT id FROM track INDEXED BY idx_track_album \
+                       WHERE server_id = ?1 AND album_id IN ({placeholders}) AND deleted = 0 \
+                     )"
+                );
+                tx.execute(&delete_genres_sql, params_from_iter(binds.iter()))?;
+                let tombstone_sql = format!(
+                    "UPDATE track SET deleted = 1, synced_at = ?{} \
+                     WHERE server_id = ?1 AND album_id IN ({placeholders}) AND deleted = 0",
+                    album_ids.len() + 2
+                );
+                let mut update_binds = binds.clone();
+                update_binds.push(Value::Integer(now));
+                tx.execute(&tombstone_sql, params_from_iter(update_binds.iter()))?;
+                crate::identity::record_tracks(
+                    &tx,
+                    track_ids.iter().map(|track_id| (server_id, track_id.as_str())),
+                )?;
+            }
+            crate::identity::record_album_scopes(&tx, &affected)?;
+            crate::browse_projection::refresh_album_scopes(&tx, affected)?;
+            tx.commit()?;
+
+            let stale = projected_albums.difference(&retired_albums).count();
+            Ok((retired_albums.len(), stale))
+        })
+    }
+
+    /// How many live rows the running resync has re-stamped so far. IS-7 uses
+    /// this as its completeness signal: the sweep deletes exactly the live rows
+    /// this count does *not* cover, so a short ingest is a mass deletion.
+    pub fn count_resync_generation(
+        &self,
+        server_id: &str,
+        library_scope: &str,
+        resync_gen: i64,
+    ) -> Result<i64, String> {
+        // Read connection: IS-6 runs this after every ingest batch has been
+        // committed, so a reader sees the whole run — and the writer, which on a
+        // large resync has just spent minutes under load, is left alone.
+        self.store.with_read_conn(|c| {
+            if library_scope.is_empty() {
+                c.query_row(
+                    "SELECT COUNT(*) FROM track \
+                     WHERE server_id = ?1 AND deleted = 0 AND COALESCE(resync_gen, 0) = ?2",
+                    params![server_id, resync_gen],
+                    |row| row.get(0),
+                )
+            } else {
+                c.query_row(
+                    "SELECT COUNT(*) FROM track \
+                     WHERE server_id = ?1 AND library_id = ?2 AND deleted = 0 \
+                       AND COALESCE(resync_gen, 0) = ?3",
+                    params![server_id, library_scope, resync_gen],
+                    |row| row.get(0),
                 )
             }
         })
@@ -770,8 +989,8 @@ impl<'a> TrackRepository<'a> {
                         if r.deleted { 1_i64 } else { 0 },
                         r.synced_at,
                         r.raw_json,
+                        0_i64,
                     ])?;
-                    sync_track_genre_row(&tx, r)?;
 
                     if let Some(old_id) = detected_old {
                         affected_album_scopes.extend(
@@ -812,6 +1031,7 @@ impl<'a> TrackRepository<'a> {
 
                 drop(upsert);
                 drop(remap_lookup);
+                sync_persisted_track_genre_rows(&tx, rows)?;
                 crate::identity::record_tracks(
                     &tx,
                     rows.iter()
@@ -1057,12 +1277,28 @@ INSERT INTO track (
 )
 ON CONFLICT(server_id, id) DO UPDATE SET
   title                = excluded.title,
-  title_sort           = excluded.title_sort,
+  title_sort           = CASE
+    WHEN json_valid(excluded.raw_json)
+     AND (json_type(excluded.raw_json, '$.sortTitle') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.orderTitle') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.sortName') IS NOT NULL)
+      THEN excluded.title_sort
+    WHEN excluded.title_sort IS NOT NULL THEN excluded.title_sort
+    ELSE track.title_sort
+  END,
   artist               = excluded.artist,
   artist_id            = excluded.artist_id,
   album                = excluded.album,
   album_id             = excluded.album_id,
-  album_artist         = excluded.album_artist,
+  album_artist         = CASE
+    WHEN ?37 != 0
+     AND json_valid(excluded.raw_json)
+     AND (json_type(excluded.raw_json, '$.albumArtist') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.displayAlbumArtist') IS NOT NULL)
+      THEN excluded.album_artist
+    WHEN ?37 != 0 THEN COALESCE(NULLIF(excluded.album_artist, ''), track.album_artist)
+    ELSE excluded.album_artist
+  END,
   duration_sec         = excluded.duration_sec,
   track_number         = excluded.track_number,
   disc_number          = excluded.disc_number,
@@ -1092,11 +1328,21 @@ ON CONFLICT(server_id, id) DO UPDATE SET
   -- playback-derived md5_16kb written via library_patch_track / the analysis
   -- bridge. A non-empty incoming hash still wins.
   content_hash         = COALESCE(NULLIF(excluded.content_hash, ''), track.content_hash),
-  server_updated_at    = excluded.server_updated_at,
+  server_updated_at    = CASE
+    WHEN json_valid(excluded.raw_json)
+     AND json_type(excluded.raw_json, '$.updatedAt') IS NOT NULL
+      THEN excluded.server_updated_at
+    WHEN excluded.server_updated_at IS NOT NULL THEN excluded.server_updated_at
+    ELSE track.server_updated_at
+  END,
   server_created_at    = excluded.server_created_at,
   deleted              = excluded.deleted,
   synced_at            = excluded.synced_at,
-  raw_json             = excluded.raw_json
+  raw_json             = CASE
+    WHEN ?37 != 0 AND json_valid(track.raw_json) AND json_valid(excluded.raw_json)
+      THEN json_patch(track.raw_json, excluded.raw_json)
+    ELSE excluded.raw_json
+  END
 "#;
 
 const UPSERT_INITIAL_RESYNC_SQL: &str = r#"
@@ -1114,12 +1360,28 @@ INSERT INTO track (
 )
 ON CONFLICT(server_id, id) DO UPDATE SET
   title                = excluded.title,
-  title_sort           = excluded.title_sort,
+  title_sort           = CASE
+    WHEN json_valid(excluded.raw_json)
+     AND (json_type(excluded.raw_json, '$.sortTitle') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.orderTitle') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.sortName') IS NOT NULL)
+      THEN excluded.title_sort
+    WHEN excluded.title_sort IS NOT NULL THEN excluded.title_sort
+    ELSE track.title_sort
+  END,
   artist               = excluded.artist,
   artist_id            = excluded.artist_id,
   album                = excluded.album,
   album_id             = excluded.album_id,
-  album_artist         = excluded.album_artist,
+  album_artist         = CASE
+    WHEN ?38 != 0
+     AND json_valid(excluded.raw_json)
+     AND (json_type(excluded.raw_json, '$.albumArtist') IS NOT NULL
+       OR json_type(excluded.raw_json, '$.displayAlbumArtist') IS NOT NULL)
+      THEN excluded.album_artist
+    WHEN ?38 != 0 THEN COALESCE(NULLIF(excluded.album_artist, ''), track.album_artist)
+    ELSE excluded.album_artist
+  END,
   duration_sec         = excluded.duration_sec,
   track_number         = excluded.track_number,
   disc_number          = excluded.disc_number,
@@ -1143,11 +1405,21 @@ ON CONFLICT(server_id, id) DO UPDATE SET
   replay_gain_album_db = excluded.replay_gain_album_db,
   replay_gain_peak     = excluded.replay_gain_peak,
   content_hash         = COALESCE(NULLIF(excluded.content_hash, ''), track.content_hash),
-  server_updated_at    = excluded.server_updated_at,
+  server_updated_at    = CASE
+    WHEN json_valid(excluded.raw_json)
+     AND json_type(excluded.raw_json, '$.updatedAt') IS NOT NULL
+      THEN excluded.server_updated_at
+    WHEN excluded.server_updated_at IS NOT NULL THEN excluded.server_updated_at
+    ELSE track.server_updated_at
+  END,
   server_created_at    = excluded.server_created_at,
   deleted              = 0,
   synced_at            = excluded.synced_at,
-  raw_json             = excluded.raw_json,
+  raw_json             = CASE
+    WHEN ?38 != 0 AND json_valid(track.raw_json) AND json_valid(excluded.raw_json)
+      THEN json_patch(track.raw_json, excluded.raw_json)
+    ELSE excluded.raw_json
+  END,
   resync_gen           = excluded.resync_gen
 "#;
 
@@ -1202,6 +1474,366 @@ mod tests {
             synced_at: 1_700_000_500,
             raw_json: r#"{"id":"t1"}"#.into(),
         }
+    }
+
+    /// `search3` — the bulk path every library above the large-library
+    /// threshold takes — returns neither `albumArtist` nor `sortName`. Without
+    /// the COALESCE guards a whole-server pass blanks both on every row a
+    /// richer path had already filled in.
+    fn album_credit_and_sort(store: &LibraryStore, id: &str) -> (Option<String>, Option<String>) {
+        store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT album_artist, title_sort FROM track WHERE id = ?1",
+                    params![id],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+            })
+            .unwrap()
+    }
+
+    fn enriched_row(id: &str) -> TrackRow {
+        let mut enriched = row("s1", id, "Track");
+        enriched.title_sort = Some("Track, A".into());
+        enriched
+    }
+
+    fn bulk_row_without_credit(id: &str) -> TrackRow {
+        let mut bulk = row("s1", id, "Track");
+        bulk.album_artist = None;
+        bulk.title_sort = None;
+        bulk
+    }
+
+    #[test]
+    fn a_bulk_pass_that_omits_the_album_credit_does_not_erase_it() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        repo.upsert_batch(&[enriched_row("t1")]).unwrap();
+
+        repo.upsert_sparse_batch_initial_ingest_timed(
+            &[bulk_row_without_credit("t1")],
+            None,
+        )
+        .unwrap();
+
+        let (credit, sort) = album_credit_and_sort(&store, "t1");
+        assert_eq!(credit.as_deref(), Some("The Artist"));
+        assert_eq!(sort.as_deref(), Some("Track, A"));
+    }
+
+    #[test]
+    fn the_resync_upsert_preserves_the_album_credit_as_well() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        repo.upsert_batch(&[enriched_row("t1")]).unwrap();
+
+        repo.upsert_sparse_batch_initial_ingest_timed(
+            &[bulk_row_without_credit("t1")],
+            Some(2),
+        )
+            .unwrap();
+
+        let (credit, sort) = album_credit_and_sort(&store, "t1");
+        assert_eq!(credit.as_deref(), Some("The Artist"));
+        assert_eq!(sort.as_deref(), Some("Track, A"));
+    }
+
+    #[test]
+    fn a_credit_the_server_actually_sends_still_wins() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        repo.upsert_batch(&[enriched_row("t1")]).unwrap();
+
+        let mut retagged = row("s1", "t1", "Track");
+        retagged.album_artist = Some("Various Artists".into());
+        retagged.title_sort = Some("Track, The".into());
+        repo.upsert_batch(&[retagged]).unwrap();
+
+        let (credit, sort) = album_credit_and_sort(&store, "t1");
+        assert_eq!(credit.as_deref(), Some("Various Artists"));
+        assert_eq!(sort.as_deref(), Some("Track, The"));
+    }
+
+    #[test]
+    fn an_authoritative_payload_clears_credit_but_keeps_unobserved_sync_fields() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        let mut enriched = enriched_row("t1");
+        enriched.server_updated_at = Some(1_700_000_000_000);
+        enriched.raw_json = serde_json::json!({
+            "id": "t1",
+            "albumArtist": "The Artist",
+            "sortTitle": "Track, A",
+            "updatedAt": "2023-11-14T22:13:20Z"
+        })
+        .to_string();
+        repo.upsert_batch(&[enriched]).unwrap();
+
+        let mut authoritative = bulk_row_without_credit("t1");
+        authoritative.server_updated_at = None;
+        authoritative.raw_json = serde_json::json!({ "id": "t1", "title": "Track" }).to_string();
+        repo.upsert_batch(&[authoritative]).unwrap();
+
+        let values: (Option<String>, Option<String>, Option<i64>) = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT album_artist, title_sort, server_updated_at FROM track WHERE id = 't1'",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+            })
+            .unwrap();
+        assert_eq!(
+            values,
+            (None, Some("Track, A".into()), Some(1_700_000_000_000))
+        );
+    }
+
+    #[test]
+    fn authoritative_explicit_nulls_clear_sort_and_watermark() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        let mut enriched = enriched_row("t1");
+        enriched.server_updated_at = Some(1_700_000_000_000);
+        enriched.raw_json = serde_json::json!({
+            "id": "t1",
+            "sortTitle": "Track, A",
+            "updatedAt": "2023-11-14T22:13:20Z"
+        })
+        .to_string();
+        repo.upsert_batch(&[enriched]).unwrap();
+
+        let mut cleared = bulk_row_without_credit("t1");
+        cleared.server_updated_at = None;
+        cleared.raw_json = serde_json::json!({
+            "id": "t1",
+            "sortTitle": null,
+            "updatedAt": null
+        })
+        .to_string();
+        repo.upsert_batch(&[cleared]).unwrap();
+
+        let values: (Option<String>, Option<i64>) = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT title_sort, server_updated_at FROM track WHERE id = 't1'",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+            })
+            .unwrap();
+        assert_eq!(values, (None, None));
+    }
+
+    #[test]
+    fn a_sparse_payload_keeps_raw_fields_it_did_not_observe() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        let mut enriched = enriched_row("t1");
+        enriched.raw_json = serde_json::json!({
+            "id": "t1",
+            "albumArtist": "The Artist",
+            "sortTitle": "Track, A",
+            "updatedAt": "2023-11-14T22:13:20Z",
+            "tags": { "mood": ["Calm"] }
+        })
+        .to_string();
+        repo.upsert_batch(&[enriched]).unwrap();
+
+        let mut sparse = bulk_row_without_credit("t1");
+        sparse.server_updated_at = None;
+        sparse.raw_json = serde_json::json!({ "id": "t1", "title": "Track" }).to_string();
+        repo.upsert_sparse_batch_initial_ingest_timed(&[sparse], None)
+            .unwrap();
+
+        let raw: String = store
+            .with_read_conn(|conn| {
+                conn.query_row("SELECT raw_json FROM track WHERE id = 't1'", [], |row| row.get(0))
+            })
+            .unwrap();
+        let raw: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(raw["albumArtist"], "The Artist");
+        assert_eq!(raw["sortTitle"], "Track, A");
+        assert_eq!(raw["tags"]["mood"], serde_json::json!(["Calm"]));
+    }
+
+    #[test]
+    fn sparse_merge_keeps_genre_projection_aligned_with_the_committed_row() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        let mut enriched = enriched_row("t1");
+        enriched.raw_json = serde_json::json!({
+            "id": "t1",
+            "genres": [{ "name": "Ambient" }, { "name": "Drone" }]
+        })
+        .to_string();
+        repo.upsert_batch(&[enriched]).unwrap();
+
+        let mut sparse = bulk_row_without_credit("t1");
+        sparse.genre = None;
+        sparse.library_id = None;
+        sparse.raw_json = serde_json::json!({ "id": "t1", "title": "Track" }).to_string();
+        repo.upsert_sparse_batch_initial_ingest_timed(&[sparse], None)
+            .unwrap();
+
+        let genres: Vec<(String, Option<String>)> = store
+            .with_read_conn(|conn| {
+                conn.prepare(
+                    "SELECT genre, library_id FROM track_genre \
+                     WHERE server_id = 's1' AND track_id = 't1' ORDER BY genre",
+                )?
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+                .collect::<rusqlite::Result<Vec<_>>>()
+            })
+            .unwrap();
+        assert_eq!(
+            genres,
+            vec![
+                ("Ambient".into(), Some("lib-1".into())),
+                ("Drone".into(), Some("lib-1".into())),
+            ]
+        );
+    }
+
+    #[test]
+    fn explicit_nulls_clear_preserved_sparse_fields() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        let mut enriched = enriched_row("t1");
+        enriched.raw_json = serde_json::json!({
+            "id": "t1",
+            "albumArtist": "The Artist",
+            "sortTitle": "Track, A",
+            "updatedAt": "2023-11-14T22:13:20Z"
+        })
+        .to_string();
+        repo.upsert_batch(&[enriched]).unwrap();
+
+        let mut cleared = bulk_row_without_credit("t1");
+        cleared.server_updated_at = None;
+        cleared.raw_json = serde_json::json!({
+            "id": "t1",
+            "albumArtist": null,
+            "sortTitle": null,
+            "updatedAt": null
+        })
+        .to_string();
+        repo.upsert_sparse_batch_initial_ingest_timed(&[cleared], None)
+            .unwrap();
+
+        let values: (Option<String>, Option<String>, Option<i64>) = store
+            .with_read_conn(|conn| {
+                conn.query_row(
+                    "SELECT album_artist, title_sort, server_updated_at FROM track WHERE id = 't1'",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+            })
+            .unwrap();
+        assert_eq!(values, (None, None, None));
+    }
+
+    /// `MAX(server_updated_at)` is where the native delta resumes reading. A
+    /// bulk pass that does not carry the timestamp must not erase it, on either
+    /// upsert shape — a resync that blanks it strands the delta.
+    #[test]
+    fn a_bulk_pass_does_not_erase_the_delta_watermark() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        repo.upsert_batch(&[enriched_row("t1")]).unwrap();
+
+        let mut bulk = bulk_row_without_credit("t1");
+        bulk.server_updated_at = None;
+        repo.upsert_sparse_batch_initial_ingest_timed(&[bulk.clone()], None)
+            .unwrap();
+        assert_eq!(delta_watermark(&store, "t1"), Some(1_700_000_000));
+
+        repo.upsert_sparse_batch_initial_ingest_timed(&[bulk], Some(2))
+            .unwrap();
+        assert_eq!(
+            delta_watermark(&store, "t1"),
+            Some(1_700_000_000),
+            "the resync path must preserve it too"
+        );
+    }
+
+    fn delta_watermark(store: &LibraryStore, id: &str) -> Option<i64> {
+        store
+            .with_conn("misc", |c| {
+                c.query_row(
+                    "SELECT server_updated_at FROM track WHERE id = ?1",
+                    params![id],
+                    |r| r.get(0),
+                )
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn count_resync_generation_counts_only_live_rows_of_that_run() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        repo.upsert_batch_initial_ingest_timed(
+            &[row("s1", "a", "A"), row("s1", "b", "B")],
+            Some(2),
+        )
+        .unwrap();
+        repo.upsert_batch_initial_ingest_timed(&[row("s1", "old", "Old")], Some(1))
+            .unwrap();
+
+        assert_eq!(repo.count_resync_generation("s1", "", 2).unwrap(), 2);
+        assert_eq!(repo.count_resync_generation("s1", "", 1).unwrap(), 1);
+    }
+
+    #[test]
+    fn tombstone_albums_batches_live_rows_and_stale_projection_cleanup() {
+        let store = LibraryStore::open_in_memory();
+        let repo = TrackRepository::new(&store);
+        let first = row("s1", "t1", "One");
+        let mut second = row("s1", "t2", "Two");
+        second.album_id = Some("al2".into());
+        repo.upsert_batch(&[first, second]).unwrap();
+        store
+            .with_conn_mut("test.stale_album_projection", |conn| {
+                conn.execute(
+                    "INSERT INTO album_browse_projection \
+                     (server_id, library_id, album_id, name, song_count, duration_sec, \
+                      synced_at, representative_track_id) \
+                     VALUES ('s1', '', 'stale', 'Stale', 0, 0, 1, 'missing')",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        let outcome = repo
+            .tombstone_albums("s1", &["al1".into(), "al2".into(), "stale".into()])
+            .unwrap();
+
+        assert_eq!(outcome, (2, 1));
+        let live: i64 = store
+            .with_read_conn(|conn| {
+                conn.query_row("SELECT COUNT(*) FROM track WHERE deleted = 0", [], |row| {
+                    row.get(0)
+                })
+            })
+            .unwrap();
+        assert_eq!(live, 0);
+        let projections: i64 = store
+            .with_read_conn(|conn| {
+                conn.query_row("SELECT COUNT(*) FROM album_browse_projection", [], |row| {
+                    row.get(0)
+                })
+            })
+            .unwrap();
+        assert_eq!(projections, 0);
+        let genre_rows: i64 = store
+            .with_read_conn(|conn| {
+                conn.query_row("SELECT COUNT(*) FROM track_genre", [], |row| row.get(0))
+            })
+            .unwrap();
+        assert_eq!(genre_rows, 0);
     }
 
     #[test]

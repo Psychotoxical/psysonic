@@ -10,13 +10,36 @@ type RadioEqGraph = {
   source: MediaElementAudioSourceNode;
   preGainNode: GainNode;
   bands: BiquadFilterNode[];
+  /** Post-EQ, pre-volume branch point shared by output and visualizer. */
+  analysisSource: AudioNode;
   masterGain: GainNode;
 };
 
 let graph: RadioEqGraph | null = null;
+/** Visualizer tap, created lazily off the post-EQ, pre-volume branch. */
+let analyserNode: AnalyserNode | null = null;
 let sharedContext: AudioContext | null = null;
 let pendingMasterVolume = 1;
 let eqStoreUnsub: (() => void) | null = null;
+let radioSpectrumAvailable = false;
+const radioSpectrumListeners = new Set<() => void>();
+
+function setRadioSpectrumAvailable(available: boolean): void {
+  if (radioSpectrumAvailable === available) return;
+  radioSpectrumAvailable = available;
+  for (const listener of radioSpectrumListeners) listener();
+}
+
+/** Stable external-store snapshot for radio visualizer surfaces. */
+export function getRadioSpectrumAvailability(): boolean {
+  return radioSpectrumAvailable;
+}
+
+/** Subscribe to graph/analyser attachment changes without per-frame React state. */
+export function subscribeRadioSpectrumAvailability(listener: () => void): () => void {
+  radioSpectrumListeners.add(listener);
+  return () => radioSpectrumListeners.delete(listener);
+}
 
 function clampVolume(v: number): number {
   return Math.max(0, Math.min(1, v));
@@ -119,6 +142,7 @@ export async function tryAttachRadioEqGraph(audio: HTMLAudioElement): Promise<bo
   if (graph) {
     syncMasterGain(graph);
     await resumeRadioEqContext().catch(() => {});
+    setRadioSpectrumAvailable(true);
     return true;
   }
 
@@ -151,22 +175,27 @@ export async function tryAttachRadioEqGraph(audio: HTMLAudioElement): Promise<bo
       tail.connect(band);
       tail = band;
     }
-    tail.connect(masterGain);
+    const analysisSource = tail;
+    analysisSource.connect(masterGain);
     masterGain.connect(context.destination);
 
     // Create the source last — once it exists the element output is hijacked.
     const source = context.createMediaElementSource(audio);
     source.connect(preGainNode);
 
-    graph = { context, source, preGainNode, bands, masterGain };
+    graph = { context, source, preGainNode, bands, analysisSource, masterGain };
     const { gains, enabled, preGain: preGainDb } = useEqStore.getState();
     applyEqToGraph(graph, gains, enabled, preGainDb);
     syncMasterGain(graph);
+    // The analyser itself remains lazy; publish graph availability so a mounted
+    // radio surface can wake and create the tap on its next sample.
+    setRadioSpectrumAvailable(true);
     return true;
   } catch (err) {
     console.warn('[psysonic] radio Web Audio EQ attach failed:', err);
     audio.removeAttribute('crossorigin');
     graph = null;
+    setRadioSpectrumAvailable(false);
     return false;
   }
 }
@@ -191,6 +220,40 @@ export function applyRadioOutputVolume(volume: number, graphActive: boolean): vo
 
 export function shouldUseRadioEqGraph(): boolean {
   return useEqStore.getState().enabled;
+}
+
+/**
+ * Analyser tap for the visualizer, wired as a dead-end branch after EQ but
+ * before the output-volume gain so radio and native playback share one level
+ * contract.
+ *
+ * Deliberately returns null when the EQ graph is not attached: creating one
+ * just for the visualizer would require `createMediaElementSource`, which
+ * permanently hijacks element output and goes silent on streams without CORS
+ * (issue #1276). Radio therefore visualizes only while EQ is enabled — local
+ * and Subsonic playback is unaffected, since that path taps the Rust engine.
+ */
+export function getRadioSpectrumAnalyser(): AnalyserNode | null {
+  if (!graph) {
+    analyserNode = null;
+    setRadioSpectrumAvailable(false);
+    return null;
+  }
+  if (!analyserNode) {
+    try {
+      analyserNode = graph.context.createAnalyser();
+      analyserNode.fftSize = 2048;
+      analyserNode.minDecibels = -60;
+      analyserNode.maxDecibels = 0;
+      // Smoothing is applied by the shared renderer so both feeds behave alike.
+      analyserNode.smoothingTimeConstant = 0;
+      graph.analysisSource.connect(analyserNode);
+    } catch {
+      analyserNode = null;
+    }
+  }
+  setRadioSpectrumAvailable(analyserNode != null);
+  return analyserNode;
 }
 
 /**
@@ -227,6 +290,7 @@ export function _radioEqGraphForTest(): RadioEqGraph | null {
 export function _resetRadioEqGraphForTest(): void {
   eqStoreUnsub?.();
   eqStoreUnsub = null;
+  analyserNode = null;
   if (graph) {
     void graph.context.close();
     graph = null;
@@ -236,6 +300,7 @@ export function _resetRadioEqGraphForTest(): void {
     sharedContext = null;
   }
   pendingMasterVolume = 1;
+  setRadioSpectrumAvailable(false);
 }
 
 export { clampBandGain, clampPreGainDb, dbToLinear };

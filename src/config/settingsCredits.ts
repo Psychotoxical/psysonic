@@ -210,6 +210,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Playlists browse — scoped header search by playlist name (PR #1308)',
       'True simultaneous multi-server support — unified catalogue, mixed-server playback, owner-safe actions, source fallback, and incremental indexing (PR #1326)',
       'Multi-server scope recovery and redacted selectable-depth diagnostics for reachability, music folders, and New Releases (PR #1331)',
+      'Cover pipeline — Navidrome per-disc art in queue, playbar and Who is listening?; All Albums warm no longer creates mf-* album dirs (PR #1336)',
     ],
   },
   {
@@ -433,6 +434,10 @@ const CONTRIBUTOR_ENTRIES = [
       'Fullscreen player style — selectable Minimal or Immersive view, with the artist backdrop, cover-derived accent, and rail/Apple lyrics (PR #1249)',
       'Word-by-word lyrics from the server via OpenSubsonic songLyrics v2, no third-party backend needed (PR #1265)',
       'Artist page — add the whole discography to the queue (PR #1321)',
+      'Fullscreen player — volume slider added to the Minimal and Immersive styles (PR #1340)',
+      'Multi-disc albums — disc covers next to "CD N" in the album track list (PR #1336)',
+      'Theme Store — a random theme of the moment, surfacing older themes above the search box (PR #1357)',
+      'Visualizer — separate switches for Now Playing and the fullscreen player (PR #1378)',
     ],
   },
   {
@@ -499,6 +504,14 @@ const CONTRIBUTOR_ENTRIES = [
     contributions: [
       'Now-playing badge shows the real decoded stream format on server transcode (PR #1338)',
       'Per-address Navidrome streaming quality with original-stream analysis and cache isolation (PR #1334)',
+      'Audio visualizer across Now Playing, radio and fullscreen player surfaces (PR #1375)',
+    ],
+  },
+  {
+    github: 'enncoded',
+    since: '1.51.0',
+    contributions: [
+      'Clickable artist credits in the fullscreen, mini and mobile players (PR #1371)',
     ],
   },
 ] as const;

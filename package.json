@@ -2,6 +2,9 @@
   "name": "psysonic",
   "version": "1.51.0-dev",
   "private": true,
+  "engines": {
+    "node": ">=22.22.0"
+  },
   "scripts": {
     "check:css-imports": "node scripts/check-css-import-graph.mjs",
     "prebuild:release-notes": "node scripts/generate-release-notes-bundle.mjs",
@@ -52,15 +55,15 @@
     "lucide-react": "^1.17.0",
     "md5": "^2.3.0",
     "papaparse": "^5.5.3",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.6",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "react-i18next": "^17.0.6",
-    "react-router-dom": "^7.16.0",
+    "react-router": "^8.3.0",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@tauri-apps/cli": "^2.11.2",
+    "@tauri-apps/cli": "^2.11.4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",

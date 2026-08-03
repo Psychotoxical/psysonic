@@ -2,7 +2,9 @@ import { coverCachePeekBatch } from '@/lib/api/coverCache';
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import { coverEnsureQueued, ensureArtistBackdropQueued } from './ensureQueue';
 import { getDiskSrcForGrid, rememberGridDiskSrc } from './diskSrcLookup';
+import { emitCoverDebug } from '@/lib/api/coverDebug';
 import { albumCoverRef, artistCoverRef } from './ref';
+import { isFetchOnlyCoverId } from './resolveEntry';
 import {
   coverServerScopeForOwnerServerId,
   coverServerScopeForServerId,
@@ -12,6 +14,22 @@ import { resolveAlbumCoverRefFromLibrary } from './resolveEntryLibrary';
 import { coverStorageKeyFromRef } from './storageKeys';
 import { resolveCoverDisplayTier } from './tiers';
 import type { CoverArtRef, CoverArtTier, CoverPrefetchPriority, CoverSurfaceKind } from './types';
+
+/** Album disk slot id — never a per-file `mf-*` / `tr-*` fetch-only cover id. */
+function albumWarmEntityId(
+  albumId: string | null | undefined,
+  coverArt: string | null | undefined,
+): string | undefined {
+  const id = albumId?.trim();
+  if (id) return id;
+  const cover = coverArt?.trim();
+  if (!cover) return undefined;
+  if (isFetchOnlyCoverId(cover)) {
+    emitCoverDebug('warm_skip_fetch_only_cover', { coverArt: cover });
+    return undefined;
+  }
+  return cover;
+}
 import { useThemeStore } from '../store/themeStore';
 import { deriveAlbumArtistRefs } from '@/features/album/utils/deriveAlbumHeaderArtistRefs';
 import { getHeroBackdropUpgrade, recordHeroBackdropUpgrade } from './heroBackdropMemory';
@@ -72,7 +90,7 @@ export function collectAlbumCoverWarmItems(
   const out: CoverWarmItem[] = [];
   for (const a of albums) {
     if (out.length >= limit) break;
-    const entityId = a.id ?? a.coverArt;
+    const entityId = albumWarmEntityId(a.id, a.coverArt);
     if (!entityId) continue;
     // Grid warm/peek uses API coverArt ids — avoids N sequential library_resolve IPC.
     out.push(coverWarmItem(entityId, a.coverArt ?? entityId, displayCssPx, surface, a.serverId));
@@ -230,7 +248,7 @@ export async function ensureAlbumCoverMisses(
 
   const needEnsure: Array<{ ref: CoverArtRef }> = [];
   for (const album of slice) {
-    const entityId = album.id ?? album.coverArt;
+    const entityId = albumWarmEntityId(album.id, album.coverArt);
     if (!entityId) continue;
     const coverArt = album.coverArt ?? entityId;
     const ref = albumCoverRef(
@@ -443,7 +461,7 @@ async function predecodeWarmAlbums(
   const urls: string[] = [];
   for (const album of albums) {
     if (!album.coverArt || urls.length >= limit) continue;
-    const entityId = album.id ?? album.coverArt;
+    const entityId = albumWarmEntityId(album.id, album.coverArt);
     if (!entityId) continue;
     const ref = albumCoverRef(
       entityId,

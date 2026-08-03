@@ -2,9 +2,10 @@ import React, { memo, useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   SkipBack, SkipForward, Play, Pause, Repeat, Repeat1,
-  Volume2, VolumeX, ListMusic, MessageSquare, Shrink,
+  ListMusic, MessageSquare, Shrink,
 } from 'lucide-react';
-import { usePlayerStore, useVolumeToggle, type PlaybackProgressSnapshot } from '@/features/playback';
+import { usePlayerStore, type PlaybackProgressSnapshot, usePlaybackLibraryNavigate, TrackArtistLinks } from '@/features/playback';
+import { FsVolume } from './FsVolume';
 import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
 import { useFsArtistBackdrop } from '@/features/fullscreenPlayer/hooks/useFsArtistBackdrop';
@@ -14,6 +15,8 @@ import { useFsIdleFade } from '@/features/fullscreenPlayer/hooks/useFsIdleFade';
 import { FsTimeReadout } from './FsTimeReadout';
 import { FsLyricsApple } from './FsLyricsApple';
 import { FsQueueModal } from './FsQueueModal';
+import { VisualizerPanel } from '@/features/visualizer';
+import { prepareTransientUiOpen } from '@/lib/dom/transientUi';
 
 /** The now-playing pill's integrated progress line — imperative width + scrub seek. */
 const PrismProgress = memo(function PrismProgress() {
@@ -30,7 +33,10 @@ const PrismProgress = memo(function PrismProgress() {
   const seekHandlers = useImperativeSeek({ paint, previewPaint });
 
   return (
-    <div className="fsp2-progress">
+    <div
+      className="fsp2-progress"
+      data-visualizer-overlay-exempt="fullscreen"
+    >
       <div className="fsp2-progress-played" ref={playedRef} />
       <input
         ref={inputRef}
@@ -42,32 +48,9 @@ const PrismProgress = memo(function PrismProgress() {
   );
 });
 
-/** Compact volume — icon toggles mute, hover reveals the slider. */
-const PrismVolume = memo(function PrismVolume() {
-  const { t } = useTranslation();
-  const { volume, setVolume, muted, toggleMute } = useVolumeToggle();
-  return (
-    <div className="fsp2-volume">
-      <button
-        className="fsp2-btn"
-        aria-label={muted ? t('player.unmute') : t('player.mute')}
-        onClick={toggleMute}
-      >
-        {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-      </button>
-      <input
-        className="fsp2-volume-slider"
-        type="range" min={0} max={1} step={0.01}
-        value={volume}
-        onChange={e => setVolume(parseFloat(e.target.value))}
-        aria-label={t('player.volume')}
-      />
-    </div>
-  );
-});
-
 export default function FullscreenPlayerPrism({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
+  const navigatePlaybackLibrary = usePlaybackLibraryNavigate();
 
   const currentTrack = usePlayerStore(s => s.currentTrack);
   const isPlaying    = usePlayerStore(s => s.isPlaying);
@@ -100,6 +83,7 @@ export default function FullscreenPlayerPrism({ onClose }: { onClose: () => void
       role="dialog"
       aria-modal="true"
       aria-label={t('player.fullscreen')}
+      data-visualizer-overlay-host="fullscreen"
       data-idle={isIdle}
       onMouseMove={handleMouseMove}
       style={dynamicAccent ? ({ '--dynamic-fs-accent': dynamicAccent } as React.CSSProperties) : undefined}
@@ -113,9 +97,15 @@ export default function FullscreenPlayerPrism({ onClose }: { onClose: () => void
         </div>
       )}
 
+      <VisualizerPanel
+        surface="fullscreen"
+        className="fsp2-visualizer"
+        paused={queueOpen}
+      />
+
       <div className="fsp2-bar">
         {/* Transport + time */}
-        <div className="fsp2-bar-left">
+        <div className="fsp2-bar-left" data-visualizer-transport="fullscreen">
           <button className="fsp2-btn" onClick={previous} aria-label={t('player.prev')}><SkipBack size={18} /></button>
           <button className="fsp2-btn fsp2-btn-play" onClick={togglePlay} aria-label={isPlaying ? t('player.pause') : t('player.play')}>
             {isPlaying ? <Pause size={20} /> : <Play size={20} />}
@@ -136,25 +126,47 @@ export default function FullscreenPlayerPrism({ onClose }: { onClose: () => void
           <div className="fsp2-pill-info">
             <span className="fsp2-pill-title">{currentTrack?.title ?? '—'}</span>
             <span className="fsp2-pill-sub">
-              {[currentTrack?.album, currentTrack?.artist].filter(Boolean).join(' · ')}
+              {currentTrack?.album && <span>{currentTrack.album}</span>}
+              {currentTrack?.album && currentTrack?.artist && <span> · </span>}
+              {currentTrack?.artist && (
+                <TrackArtistLinks
+                  track={currentTrack}
+                  onNavigate={to => {
+                    onClose();
+                    void navigatePlaybackLibrary(to);
+                  }}
+                  linkClassName="fsp2-pill-artist-link"
+                  plainClassName="fsp2-pill-artist-plain"
+                />
+              )}
             </span>
           </div>
           <PrismProgress />
         </div>
 
         {/* Utilities */}
-        <div className="fsp2-bar-right">
-          <PrismVolume />
+        <div className="fsp2-bar-right" data-visualizer-transport="fullscreen">
+          <FsVolume
+            className="fsp2-volume"
+            buttonClassName="fsp2-btn"
+            sliderClassName="fsp2-volume-slider"
+          />
           <button
             className={`fsp2-btn${queueOpen ? ' fsp2-btn-active' : ''}`}
-            onClick={() => setQueueOpen(o => !o)}
+            onClick={() => {
+              if (!queueOpen) prepareTransientUiOpen();
+              setQueueOpen(o => !o);
+            }}
             aria-label={t('queue.title')}
           >
             <ListMusic size={18} />
           </button>
           <button
             className={`fsp2-btn${lyricsOpen ? ' fsp2-btn-active' : ''}`}
-            onClick={() => setLyricsOpen(o => !o)}
+            onClick={() => {
+              if (!lyricsOpen) prepareTransientUiOpen();
+              setLyricsOpen(o => !o);
+            }}
             aria-label={t('player.fsLyricsToggle')}
           >
             <MessageSquare size={18} />

@@ -228,13 +228,32 @@ export default function LosslessAlbums() {
     return () => { cancelled = true; };
   }, [activeServerId, indexEnabled, loadMoreNetwork, serverId, sort, librarySyncRevision]);
 
+  // An IntersectionObserver reports changes, and a sentinel inside the rootMargin
+  // stays visible after a page is appended — so no second callback arrives and
+  // pagination halts until the user scrolls away and back. The flag carries that
+  // standing visibility so the page can ask for the next one itself.
+  const sentinelIntersectingRef = useRef(false);
+  const pagedAlbumCountRef = useRef(0);
+
   const bindLoadMoreSentinel = useInpageScrollSentinel({
     active: hasMore && useLocalIndex !== null,
     getScrollRoot,
     scrollRootEl: scrollBodyEl,
     onIntersect: () => { void loadMore(); },
     rootMargin: '200px',
+    intersectingRef: sentinelIntersectingRef,
   });
+
+  // Keyed to the album count, never to a loading transition. The Navidrome song
+  // walk can return a page that yields no new album while still reporting more to
+  // come; keying off the count stops the chain there instead of walking the whole
+  // catalogue back to back.
+  useEffect(() => {
+    if (albums.length === pagedAlbumCountRef.current) return;
+    pagedAlbumCountRef.current = albums.length;
+    if (!hasMore || useLocalIndex === null || !sentinelIntersectingRef.current) return;
+    void loadMore();
+  }, [albums.length, hasMore, useLocalIndex, loadMore]);
 
   const handleEnqueueSelected = async () => {
     if (selectedAlbums.length === 0) return;

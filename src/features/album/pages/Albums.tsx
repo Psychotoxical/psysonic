@@ -15,7 +15,7 @@ import StarFilterButton from '@/ui/StarFilterButton';
 import LosslessFilterButton from '@/ui/LosslessFilterButton';
 import SortDropdown from '@/ui/SortDropdown';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import { useOfflineStore } from '@/features/offline';
 import { useDownloadModalStore } from '@/features/offline';
 import { usePlayerStore } from '@/features/playback/store/playerStore';

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, RefreshCw, Trash2, WifiOff } from 'lucide-react';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
 import CoverLightbox from '@/ui/CoverLightbox';
 import { useThemeAnimationRisk } from '@/features/settings/hooks/useThemeAnimationRisk';
 import { AnimatedThemeBadge } from '@/features/settings/components/AnimatedThemeBadge';
+import { ThemeSpotlightCard } from '@/features/settings/components/ThemeSpotlightCard';
 import CustomSelect from '@/ui/CustomSelect';
 import { formatRelativeTime } from '@/lib/format/relativeTime';
 import { useThemeStore } from '@/store/themeStore';
@@ -12,8 +13,11 @@ import { useInstalledThemesStore, type InstalledTheme } from '@/store/installedT
 import {
   assetUrl,
   fetchRegistry,
+  themeRequiresNewerApp,
   type RegistryTheme,
 } from '@/lib/themes/themeRegistry';
+import { compareThemesByName, compareThemesByNewest } from '@/lib/themes/themeCatalogSort';
+import { pickSpotlightTheme } from '@/lib/themes/pickSpotlightTheme';
 import { installThemeFromRegistry } from '@/lib/themes/installThemeFromRegistry';
 import { uninstallTheme } from '@/lib/themes/uninstallTheme';
 import { isNewer } from '@/lib/util/appUpdaterHelpers';
@@ -73,7 +77,35 @@ export function ThemeStoreSection() {
   const [failedId, setFailedId] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ src: string; name: string } | null>(null);
   const [openChangelogIds, setOpenChangelogIds] = useState<Set<string>>(() => new Set());
+  const [spotlightId, setSpotlightId] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
+  // Mirrors `spotlightId` so the roll below reads the current pick without
+  // closing over render state — that would make `load` unstable and drag the
+  // whole fetch into the mount effect's dependencies.
+  const spotlightIdRef = useRef<string | null>(null);
+
+  /**
+   * Choose the spotlight theme. `keep` holds the current pick when it is still in
+   * the catalogue — a registry refresh must not swap the card out from under the
+   * user; only the shuffle button asks for a different one.
+   *
+   * Every input is read imperatively so a pick made from an async callback
+   * reflects what is installed and applied *now*, not at call time.
+   */
+  const rollSpotlight = useCallback((catalog: RegistryTheme[], keep: boolean) => {
+    const current = spotlightIdRef.current;
+    if (keep && current && catalog.some(th => th.id === current)) return;
+    const next = pickSpotlightTheme({
+      themes: catalog,
+      installedIds: new Set(useInstalledThemesStore.getState().themes.map(th => th.id)),
+      activeThemeId: useThemeStore.getState().theme,
+      excludeId: keep ? null : current,
+      frontPageSize: PAGE_SIZE,
+      random: Math.random(),
+    });
+    spotlightIdRef.current = next?.id ?? null;
+    setSpotlightId(spotlightIdRef.current);
+  }, []);
 
   const toggleChangelog = (id: string) =>
     setOpenChangelogIds(prev => {
@@ -109,6 +141,11 @@ export function ThemeStoreSection() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(false); }, []);
 
+  // Pick the spotlight once the catalogue arrives. `keep` makes every later run a
+  // no-op while the pick is still in the catalogue, so neither a refresh nor an
+  // install swaps the card; only the shuffle button does.
+  useEffect(() => { if (themes) rollSpotlight(themes, true); }, [themes, rollSpotlight]);
+
   const installedMap = useMemo(() => {
     const m = new Map<string, InstalledTheme>();
     for (const it of installed) m.set(it.id, it);
@@ -130,14 +167,8 @@ export function ThemeStoreSection() {
         (th.tags || []).some(tag => tag.includes(q))
       );
     });
-    // Name is the stable tie-breaker — keeps ordering deterministic when many
-    // themes share the same last-modified date.
-    const byName = (a: RegistryTheme, b: RegistryTheme) => a.name.localeCompare(b.name);
-    const bySort =
-      sortMode === 'name'
-        ? byName
-        : (a: RegistryTheme, b: RegistryTheme) =>
-            (b.updatedAt || '').localeCompare(a.updatedAt || '') || byName(a, b);
+    // Shared with the spotlight pick so both walk the catalogue in one order.
+    const bySort = sortMode === 'name' ? compareThemesByName : compareThemesByNewest;
     // Installed themes with a pending update float to the top (in either sort
     // mode) so the user finds them instead of hunting through the catalogue.
     const hasUpdate = (th: RegistryTheme) => {
@@ -146,6 +177,13 @@ export function ThemeStoreSection() {
     };
     return matched.sort((a, b) => Number(hasUpdate(b)) - Number(hasUpdate(a)) || bySort(a, b));
   }, [themes, query, mode, sortMode, animFilter, installedMap]);
+
+  // The spotlight is held by id, not by object, so installing or applying it
+  // re-renders the same card instead of rolling a different theme.
+  const spotlight = useMemo(
+    () => (themes && spotlightId ? themes.find(th => th.id === spotlightId) ?? null : null),
+    [themes, spotlightId],
+  );
 
   // A changed filter can shrink the result set below the current page; reset to
   // the first page whenever the query or mode filter changes.
@@ -209,6 +247,26 @@ export function ThemeStoreSection() {
       <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 1rem', lineHeight: 1.5 }}>
         {t('settings.themeStoreNetworkNotice')}{' '}{t('settings.themeStoreStatsNotice')}
       </p>
+
+      {/* Spotlight: one theme from past the first page, so the catalogue's older
+          entries get seen at all. Sits above the toolbar deliberately — below it
+          it would read as a search result. */}
+      {!loading && !error && spotlight && (
+        <div className="theme-store-spotlight" style={{ marginBottom: '1rem' }}>
+          <ThemeSpotlightCard
+            theme={spotlight}
+            thumbSrc={thumbUrl(spotlight.thumbnail)}
+            installed={installedMap.has(spotlight.id)}
+            active={activeTheme === spotlight.id}
+            busy={busyId === spotlight.id}
+            showAnimatedBadge={animRisk}
+            onInstall={() => handleInstall(spotlight)}
+            onApply={() => setTheme(spotlight.id)}
+            onShuffle={() => { if (themes) rollSpotlight(themes, false); }}
+            onEnlarge={() => setLightbox({ src: thumbUrl(spotlight.thumbnail), name: spotlight.name })}
+          />
+        </div>
+      )}
 
       {/* Toolbar: search + mode filter + refresh. Hidden when offline with no
           catalogue to browse — the offline banner below stands in for it. */}
@@ -329,7 +387,11 @@ export function ThemeStoreSection() {
           {pageItems.map((th, idx) => {
             const inst = installedMap.get(th.id);
             const isInstalled = !!inst;
-            const updateAvailable = isInstalled && isNewer(th.version, inst!.version);
+            // A theme built for a newer app can't be installed or updated here;
+            // the store shows a "requires a newer version" hint in place of the
+            // button rather than letting the install fail.
+            const requiresNewerApp = themeRequiresNewerApp(th);
+            const updateAvailable = isInstalled && isNewer(th.version, inst!.version) && !requiresNewerApp;
             const isActive = activeTheme === th.id;
             const busy = busyId === th.id;
             const changelogEntries = th.changelog ? sortedChangelog(th.changelog) : [];
@@ -435,7 +497,12 @@ export function ThemeStoreSection() {
                     </div>
                   )}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-                    {!isInstalled && (
+                    {!isInstalled && requiresNewerApp && (
+                      <span role="status" style={{ fontSize: 12, color: 'var(--text-muted)', alignSelf: 'center' }}>
+                        {t('settings.themeStoreRequiresNewerApp', { version: th.minAppVersion })}
+                      </span>
+                    )}
+                    {!isInstalled && !requiresNewerApp && (
                       <button
                         className="btn btn-primary"
                         style={{ fontSize: 12, padding: '4px 12px', display: 'inline-flex', alignItems: 'center', gap: 5 }}

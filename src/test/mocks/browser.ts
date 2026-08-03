@@ -15,21 +15,70 @@ import { vi } from 'vitest';
 
 // ─── ResizeObserver ──────────────────────────────────────────────────────────
 class MockResizeObserver implements ResizeObserver {
+  static instances: MockResizeObserver[] = [];
+  readonly callback: ResizeObserverCallback;
   observe = vi.fn<(target: Element) => void>();
   unobserve = vi.fn<(target: Element) => void>();
   disconnect = vi.fn<() => void>();
+
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback;
+    MockResizeObserver.instances.push(this);
+  }
+
+  emit(): void {
+    this.callback([], this as unknown as ResizeObserver);
+  }
+}
+
+export function latestResizeObserver(): MockResizeObserver | undefined {
+  return MockResizeObserver.instances[MockResizeObserver.instances.length - 1];
 }
 
 // ─── IntersectionObserver ────────────────────────────────────────────────────
+/**
+ * Records every instance and keeps its callback, so a test can drive an
+ * intersection instead of only asserting that the observer was constructed.
+ * Infinite-scroll code reacts to visibility *changes*, which is untestable
+ * against a stub that never reports one.
+ */
 class MockIntersectionObserver implements IntersectionObserver {
+  static instances: MockIntersectionObserver[] = [];
   readonly root: Element | Document | null = null;
   readonly rootMargin: string = '0px';
   readonly scrollMargin: string = '0px';
   readonly thresholds: ReadonlyArray<number> = [];
+  readonly callback: IntersectionObserverCallback;
   observe = vi.fn<(target: Element) => void>();
   unobserve = vi.fn<(target: Element) => void>();
   disconnect = vi.fn<() => void>();
   takeRecords = vi.fn<() => IntersectionObserverEntry[]>(() => []);
+
+  constructor(callback: IntersectionObserverCallback) {
+    this.callback = callback;
+    MockIntersectionObserver.instances.push(this);
+  }
+
+  /** Report a visibility change the way the browser would. */
+  emit(isIntersecting: boolean): void {
+    this.callback(
+      [{ isIntersecting } as IntersectionObserverEntry],
+      this as unknown as IntersectionObserver,
+    );
+  }
+}
+
+/**
+ * The observer most recently constructed, for tests that drive intersections.
+ * Returns `undefined` when nothing observed — callers should assert on that
+ * rather than get a `TypeError` from an implicit non-null assumption.
+ */
+export function latestIntersectionObserver(): MockIntersectionObserver | undefined {
+  return MockIntersectionObserver.instances[MockIntersectionObserver.instances.length - 1];
+}
+
+export function intersectionObserverCount(): number {
+  return MockIntersectionObserver.instances.length;
 }
 
 // ─── matchMedia ──────────────────────────────────────────────────────────────
@@ -119,6 +168,9 @@ export function resetBrowserMocks(): void {
   clipboardMock.readText.mockClear();
   createObjectUrlMock.mockClear();
   revokeObjectUrlMock.mockClear();
+  MockResizeObserver.instances = [];
+  // Unbounded across a whole run otherwise: every observed sentinel adds one.
+  MockIntersectionObserver.instances = [];
 }
 
 export { clipboardMock, createObjectUrlMock, revokeObjectUrlMock };

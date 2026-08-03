@@ -22,7 +22,6 @@ import PlaybackDelayModal from '@/features/playback/components/PlaybackDelayModa
 import { usePlaybackScheduleRemaining } from '@/features/playback/utils/playbackScheduleFormat';
 import { usePreviewStore } from '@/features/playback/store/previewStore';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
-import { coerceOpenArtistRefs } from '@/lib/api/openArtistRefs';
 import { ownedOverrideValue } from '@/lib/util/ownedEntityKey';
 import { resolveTrackArtistRefs } from '@/features/playback/utils/playback/trackArtistRefs';
 import { PlayerTrackInfo } from '@/features/playback/components/playerBar/PlayerTrackInfo';
@@ -37,6 +36,10 @@ import {
   usePlayerBarLayoutStore,
   type PlayerBarLayoutItemId,
 } from '@/features/playback/store/playerBarLayoutStore';
+import {
+  TRANSIENT_UI_CLOSE_EVENT,
+  prepareTransientUiOpen,
+} from '@/lib/dom/transientUi';
 
 export default function PlayerBar() {
   const { t } = useTranslation();
@@ -101,11 +104,21 @@ export default function PlayerBar() {
     setSuppressOverflowTooltip,
   } = useUtilityOverflowMenu(playerBarRef, floatingPlayerBar);
 
+  const toggleEqualizer = useCallback(() => {
+    if (!eqOpen) prepareTransientUiOpen();
+    setEqOpen(!eqOpen);
+  }, [eqOpen]);
+
   useEffect(() => {
-    const onToggleEqualizer = () => setEqOpen(v => !v);
+    const onToggleEqualizer = () => toggleEqualizer();
+    const onCloseTransientUi = () => setEqOpen(false);
     window.addEventListener('psy:toggle-equalizer', onToggleEqualizer);
-    return () => window.removeEventListener('psy:toggle-equalizer', onToggleEqualizer);
-  }, []);
+    window.addEventListener(TRANSIENT_UI_CLOSE_EVENT, onCloseTransientUi);
+    return () => {
+      window.removeEventListener('psy:toggle-equalizer', onToggleEqualizer);
+      window.removeEventListener(TRANSIENT_UI_CLOSE_EVENT, onCloseTransientUi);
+    };
+  }, [toggleEqualizer]);
 
   const { delayModalOpen, setDelayModalOpen, playPauseBind } = usePlaybackDelayPress(togglePlay);
   const transportAnchorRef = useRef<HTMLDivElement>(null);
@@ -141,7 +154,9 @@ export default function PlayerBar() {
   const showPreviewMeta = isPreviewing && !isRadio && previewingTrack !== null;
   const displayTitle = showPreviewMeta ? previewingTrack!.title : (currentTrack?.title ?? t('player.noTitle'));
   const displayArtist = showPreviewMeta ? previewingTrack!.artist : (currentTrack?.artist ?? '—');
-  const displayArtistRefs = !showPreviewMeta && currentTrack && coerceOpenArtistRefs(currentTrack.artists).length > 0
+  // Not gated on a structured `artists` list: a flat "A feat. B" credit is exactly the
+  // case the split exists for, and the ids for its guests are resolved downstream.
+  const displayArtistRefs = !showPreviewMeta && currentTrack
     ? resolveTrackArtistRefs(currentTrack)
     : undefined;
 
@@ -159,6 +174,7 @@ export default function PlayerBar() {
     setVolume(Math.max(0, Math.min(1, volume + delta)));
 
     if (utilityOverflow) {
+      if (!utilityMenuOpen) prepareTransientUiOpen();
       setSuppressOverflowTooltip(true);
       setUtilityMenuMode('volume');
       setUtilityMenuOpen(true);
@@ -171,7 +187,7 @@ export default function PlayerBar() {
         volumeWheelMenuTimerRef.current = null;
       }, 1000);
     }
-  }, [volume, setVolume, utilityOverflow, setSuppressOverflowTooltip, setUtilityMenuMode, setUtilityMenuOpen, volumeWheelMenuTimerRef]);
+  }, [volume, setVolume, utilityOverflow, utilityMenuOpen, setSuppressOverflowTooltip, setUtilityMenuMode, setUtilityMenuOpen, volumeWheelMenuTimerRef]);
 
   const volumeStyle = {
     background: `linear-gradient(to right, var(--volume-accent, var(--accent)) ${volume * 100}%, var(--bg-elevated) ${volume * 100}%)`,
@@ -185,6 +201,7 @@ export default function PlayerBar() {
       style={floatingPlayerBar ? floatingStyle : undefined}
       role="region"
       aria-label={t('player.regionLabel')}
+      data-visualizer-transport="shell"
     >
 
       <PlayerTrackInfo
@@ -246,6 +263,7 @@ export default function PlayerBar() {
             ref={utilityBtnRef}
             className={`player-btn player-btn-sm${utilityMenuOpen ? ' active' : ''}`}
             onClick={() => {
+              if (!utilityMenuOpen) prepareTransientUiOpen();
               setUtilityMenuMode('full');
               setUtilityMenuOpen(v => !v);
               if (volumeWheelMenuTimerRef.current != null) {
@@ -270,7 +288,7 @@ export default function PlayerBar() {
           {isLayoutVisible('equalizer') && (
             <button
               className={`player-btn player-btn-sm player-eq-btn ${eqOpen ? 'active' : ''}`}
-              onClick={() => setEqOpen(v => !v)}
+              onClick={toggleEqualizer}
               aria-label={t('player.equalizer')}
               data-tooltip={t('player.equalizer')}
             >

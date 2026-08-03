@@ -38,6 +38,8 @@ mod hi_res_blend;
 mod ipc;
 pub mod preview;
 mod sources;
+pub mod spectrum;
+mod spectrum_dsp;
 mod state;
 mod stream;
 

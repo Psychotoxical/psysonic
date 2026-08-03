@@ -4,7 +4,7 @@ use rusqlite::types::Value as SqlValue;
 use rusqlite::params_from_iter;
 
 use crate::album_compilation_filter::pick_album_group_artist;
-use crate::browse_support::overlay_album_starred_at_rows;
+use crate::browse_support::{overlay_album_artist_links, overlay_album_starred_at_rows};
 use crate::dto::{
     GenreAlbumCountDto, LibraryAlbumDto, LibraryMainstageAlbumFeed,
     LibraryMainstageAlbumsRequest, LibraryMainstageAlbumsResponse, LibraryScopePair,
@@ -203,8 +203,10 @@ fn map_mainstage_album(
     r: &rusqlite::Row<'_>,
     include_catalog_created_at: bool,
 ) -> rusqlite::Result<(LibraryAlbumDto, u32)> {
-    let track_artist = r.get(3)?;
-    let album_artist = r.get(5)?;
+    // Credit name only — `overlay_album_artist_links` resolves which entity that credit
+    // links to once the feed's rows are known, from the whole physical album.
+    let track_artist: Option<String> = r.get(3)?;
+    let album_artist: Option<String> = r.get(5)?;
     Ok((
         LibraryAlbumDto {
             server_id: r.get(0)?,
@@ -241,7 +243,7 @@ pub fn list_mainstage_albums(
     let requested_results = offset.saturating_add(fetch_limit);
     let initial_candidates = candidate_limit(offset, fetch_limit);
 
-    store.with_mainstage_read_conn(|conn| {
+    let (result, timing) = store.with_mainstage_read_conn_timed(|conn| {
         let genre_counts_start = std::time::Instant::now();
         let genre_counts = if request.include_genre_counts
             && request.feed == LibraryMainstageAlbumFeed::NewReleases
@@ -292,23 +294,42 @@ pub fn list_mainstage_albums(
             let has_more = albums.len() > limit as usize;
             albums.truncate(limit as usize);
             overlay_album_starred_at_rows(conn, &mut albums);
-            if psysonic_core::logging::should_log_debug() {
-                crate::app_deprintln!(
-                    "[frontend][mainstage-browse] {}",
-                    serde_json::json!({
-                        "feed": request.feed,
-                        "scopeCount": scopes.len(),
-                        "includeGenreCounts": request.include_genre_counts,
-                        "genreCountMs": genre_counts_ms,
-                        "feedMs": feed_start.elapsed().as_millis(),
-                        "candidateLimit": bounded_candidates,
-                        "resultCount": albums.len(),
-                    })
-                );
-            }
-            return Ok(LibraryMainstageAlbumsResponse { albums, has_more, genre_counts });
+            overlay_album_artist_links(conn, &mut albums);
+            let result_count = albums.len();
+            return Ok((
+                LibraryMainstageAlbumsResponse { albums, has_more, genre_counts },
+                genre_counts_ms,
+                feed_start.elapsed().as_millis(),
+                bounded_candidates,
+                result_count,
+            ));
         }
-    }).map_err(|e| e.to_string())
+    })?;
+    let (response, genre_counts_ms, feed_ms, bounded_candidates, result_count) = result;
+    if psysonic_core::logging::should_log_debug() {
+        // `lockWaitMs` separates "this query is slow" from "this query waited
+        // for someone else's". The feeds, their genre counts, the hot-release
+        // overlay and the sidebar badge all share this connection, so the two
+        // look identical from the frontend — it only ever sees total duration.
+        crate::app_deprintln!(
+            "[frontend][mainstage-browse] {}",
+            serde_json::json!({
+                "feed": request.feed,
+                "scopeCount": scopes.len(),
+                "includeGenreCounts": request.include_genre_counts,
+                "genreCountMs": genre_counts_ms,
+                "feedMs": feed_ms,
+                "lockWaitMs": timing.lock_wait_ms,
+                "blockedBy": timing
+                    .blocked_by
+                    .map(|owner| format!("{}:{}", owner.file, owner.line))
+                    .unwrap_or_else(|| "none".to_string()),
+                "candidateLimit": bounded_candidates,
+                "resultCount": result_count,
+            })
+        );
+    }
+    Ok(response)
 }
 
 #[cfg(test)]
@@ -448,6 +469,69 @@ mod tests {
             vec!["New", "Mid", "Old"]
         );
         assert_eq!(response.albums[0].raw_json["createdMs"], 300);
+    }
+
+    #[test]
+    fn new_release_va_card_links_to_the_album_artist_not_a_performer() {
+        // Reported on the mainstage: clicking "Various Artists" on a New Releases card
+        // opened a random performer from the compilation. The card credit is the
+        // album-artist, so the linked id must follow it (album-artist id from
+        // raw_json.albumArtistId), not the representative track's performer id.
+        let store = LibraryStore::open_in_memory();
+        let mut t = track("s1", "t1", "Christmas Comp", "comp1", "l1", Some(300));
+        t.artist = Some("A Guest Performer".into());
+        t.artist_id = Some("perf1".into());
+        t.album_artist = Some("Various Artists".into());
+        t.raw_json = r#"{"albumArtistId":"va"}"#.into();
+        TrackRepository::new(&store).upsert_batch(&[t]).unwrap();
+
+        let response = list_mainstage_albums(
+            &store,
+            &request(vec![scope("s1", "l1")], LibraryMainstageAlbumFeed::NewReleases),
+        )
+        .unwrap();
+        let card = response.albums.iter().find(|a| a.id == "comp1").unwrap();
+        assert_eq!(card.artist.as_deref(), Some("Various Artists"));
+        assert_eq!(
+            card.artist_id.as_deref(),
+            Some("va"),
+            "the VA card must link to the album-artist entity, not a track performer"
+        );
+    }
+
+    #[test]
+    fn new_release_va_card_recovers_the_album_artist_id_from_a_sibling_track() {
+        // Realistic partial tagging: the representative track (smallest ALBUM_PICK_KEY)
+        // carries no albumArtistId, a sibling carries "va". The card must still link to
+        // the VA entity (recovered via `MAX(...) OVER (PARTITION BY album_dedup)`), not
+        // go unlinked. The window is not a GROUP BY aggregate, so the credit *name*,
+        // cover and year still come from the single-MIN(_pick) representative row.
+        let store = LibraryStore::open_in_memory();
+        let mut t1 = track("s1", "t1", "Comp", "comp1", "l1", Some(300));
+        t1.artist = Some("Performer One".into());
+        t1.artist_id = Some("perf1".into());
+        t1.album_artist = Some("Various Artists".into());
+        t1.raw_json = "{}".into(); // representative: no album-artist id
+        let mut t2 = track("s1", "t2", "Comp", "comp1", "l1", Some(300));
+        t2.artist = Some("Performer Two".into());
+        t2.artist_id = Some("perf2".into());
+        t2.album_artist = Some("Various Artists".into());
+        t2.raw_json = r#"{"albumArtistId":"va"}"#.into();
+        TrackRepository::new(&store).upsert_batch(&[t1, t2]).unwrap();
+
+        let response = list_mainstage_albums(
+            &store,
+            &request(vec![scope("s1", "l1")], LibraryMainstageAlbumFeed::NewReleases),
+        )
+        .unwrap();
+        let card = response.albums.iter().find(|a| a.id == "comp1").unwrap();
+        // Credit name comes from the representative (t1); the link is recovered.
+        assert_eq!(card.artist.as_deref(), Some("Various Artists"));
+        assert_eq!(
+            card.artist_id.as_deref(),
+            Some("va"),
+            "the VA link must be recovered from a sibling when the representative lacks it"
+        );
     }
 
     #[test]

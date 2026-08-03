@@ -66,6 +66,7 @@ export function TrackTransitionsBlock({ t }: Props) {
         options={transitions}
         value={mode}
         onChange={setTransitionMode}
+        ariaLabel={t('settings.transitionsTitle')}
         disabled={hostControlled}
         style={hostControlled ? { opacity: 0.45, pointerEvents: 'none' } : undefined}
       />
@@ -100,6 +101,7 @@ export function TrackTransitionsBlock({ t }: Props) {
               options={overlapCapOptions}
               value={auth.autodjOverlapCapMode}
               onChange={auth.setAutodjOverlapCapMode}
+              ariaLabel={t('settings.autodjOverlapCapTitle')}
               disabled={hostControlled}
             />
             {auth.autodjOverlapCapMode === 'limit' && (

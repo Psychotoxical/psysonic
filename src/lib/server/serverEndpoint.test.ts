@@ -14,6 +14,7 @@ import {
   isLanUrl,
   normalizeServerBaseUrl,
   pickReachableBaseUrl,
+  profileServesShareBase,
   serverAddressEndpoints,
   serverShareBaseUrl,
   subscribeConnectCache,
@@ -167,6 +168,51 @@ describe('allNormalizedAddresses', () => {
         alternateUrl: '',
       }),
     ).toEqual(['https://music.example.com']);
+  });
+});
+
+describe('profileServesShareBase', () => {
+  // A share payload always carries the normalized address, so a profile whose
+  // stored url is not in that form still has to match — the reported Orbit
+  // join failure was exactly this (address typed without a scheme).
+  it('matches an address stored without a scheme', () => {
+    expect(
+      profileServesShareBase({ url: '203.0.113.7:4533' }, 'http://203.0.113.7:4533'),
+    ).toBe(true);
+  });
+
+  it('matches a trailing-slash address', () => {
+    expect(
+      profileServesShareBase({ url: 'https://music.example.com/' }, 'https://music.example.com'),
+    ).toBe(true);
+  });
+
+  it('matches on the alternate address, not just the primary', () => {
+    expect(
+      profileServesShareBase(
+        { url: 'http://192.168.0.10:4533', alternateUrl: 'https://music.example.com' },
+        'https://music.example.com',
+      ),
+    ).toBe(true);
+  });
+
+  it('normalizes the share base too', () => {
+    expect(
+      profileServesShareBase({ url: 'https://music.example.com' }, 'https://music.example.com/'),
+    ).toBe(true);
+  });
+
+  it('rejects a different server', () => {
+    expect(
+      profileServesShareBase(
+        { url: 'https://music.example.com', alternateUrl: 'http://192.168.0.10:4533' },
+        'https://other.example.com',
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects an empty share base', () => {
+    expect(profileServesShareBase({ url: 'https://music.example.com' }, '')).toBe(false);
   });
 });
 

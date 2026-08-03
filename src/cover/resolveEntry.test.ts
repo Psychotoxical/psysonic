@@ -7,6 +7,7 @@ import {
   resolveArtistCoverEntry,
   resolveSongFetchCoverArtId,
   resolveTrackCoverEntry,
+  songHasDiscSpecificCover,
 } from './resolveEntry';
 import { albumCoverRef } from './ref';
 
@@ -96,6 +97,42 @@ describe('resolveSongFetchCoverArtId', () => {
     expect(
       resolveSongFetchCoverArtId({ id: 'tr-1', coverArt: 'tr-1', albumId: 'al-42' }),
     ).toBe('al-42');
+  });
+});
+
+describe('songHasDiscSpecificCover', () => {
+  it('true for a usable mf-* cover id that differs from the album id', () => {
+    expect(
+      songHasDiscSpecificCover({ id: 't1', albumId: 'al-1', coverArt: 'mf-t1_abab' }),
+    ).toBe(true);
+  });
+
+  it('false for the album-fallback shapes (missing / echo / bare album id)', () => {
+    // missing coverArt → resolves to albumId
+    expect(songHasDiscSpecificCover({ id: 't1', albumId: 'al-1' })).toBe(false);
+    // coverArt echoes the track id → resolves to albumId
+    expect(
+      songHasDiscSpecificCover({ id: 'tr-1', albumId: 'al-1', coverArt: 'tr-1' }),
+    ).toBe(false);
+    // coverArt is the bare album id → not disc-specific
+    expect(
+      songHasDiscSpecificCover({ id: 't1', albumId: 'al-1', coverArt: 'al-1' }),
+    ).toBe(false);
+  });
+
+  it('drives per-disc resolution for the separator: mf-* differs by disc but shares the album bucket unless forced', () => {
+    // Navidrome hands each track a per-track mf id; the disc separator forces
+    // distinct so each disc gets its own cache slot instead of colliding on al-<albumId>_0.
+    const disc1 = { id: 'd1t1', albumId: 'al-btw', coverArt: 'mf-d1t1_aba4' };
+    const disc2 = { id: 'd2t1', albumId: 'al-btw', coverArt: 'mf-d2t1_abab' };
+    expect(songHasDiscSpecificCover(disc1)).toBe(true);
+    expect(songHasDiscSpecificCover(disc2)).toBe(true);
+    // album-scoped (distinct=false) collapses both discs onto one cache slot → the bug.
+    expect(resolveTrackCoverEntry(disc1, false)?.cacheEntityId).toBe('al-btw');
+    expect(resolveTrackCoverEntry(disc2, false)?.cacheEntityId).toBe('al-btw');
+    // forced distinct gives each disc its own slot + fetch id → each disc's own cover.
+    expect(resolveTrackCoverEntry(disc1, true)?.cacheEntityId).toBe('mf-d1t1_aba4');
+    expect(resolveTrackCoverEntry(disc2, true)?.cacheEntityId).toBe('mf-d2t1_abab');
   });
 });
 

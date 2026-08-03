@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { TRANSIENT_UI_CLOSE_EVENT } from '@/lib/dom/transientUi';
 
 /** Wires the utility-overflow Ellipsis button + its portaled menu:
  *  - watches the player-bar width via ResizeObserver and flips `utilityOverflow`
@@ -40,6 +41,19 @@ export function useUtilityOverflowMenu(
       window.removeEventListener('resize', updateOverflow);
     };
   }, [floatingPlayerBar, playerBarRef]);
+
+  useEffect(() => {
+    const closeTransientUi = () => {
+      setUtilityMenuOpen(false);
+      setSuppressOverflowTooltip(false);
+      if (volumeWheelMenuTimerRef.current != null) {
+        window.clearTimeout(volumeWheelMenuTimerRef.current);
+        volumeWheelMenuTimerRef.current = null;
+      }
+    };
+    window.addEventListener(TRANSIENT_UI_CLOSE_EVENT, closeTransientUi);
+    return () => window.removeEventListener(TRANSIENT_UI_CLOSE_EVENT, closeTransientUi);
+  }, []);
 
   useEffect(() => {
     // React Compiler set-state-in-effect rule: state set from a DOM/layout measurement.

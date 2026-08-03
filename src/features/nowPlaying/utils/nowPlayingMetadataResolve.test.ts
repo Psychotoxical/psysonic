@@ -47,6 +47,8 @@ const artistDetail = ({
 }) => ({
   artist: { serverId: 's1', id: 'ar1', name: 'Artist One', syncedAt: 0, rawJson: {} },
   albums,
+  // Always present in the real payload — the backend emits an empty array, never nothing.
+  appearsOnAlbums: [],
   tracks,
 });
 

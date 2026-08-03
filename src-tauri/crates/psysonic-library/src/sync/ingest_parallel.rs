@@ -42,6 +42,17 @@ pub async fn sleep_request_gap(budget: &ParallelismBudget, sleep_enabled: bool) 
     }
 }
 
+/// Advance an offset-paged album list by what the server actually returned.
+/// Some Subsonic servers clamp the requested page size, so only an empty page
+/// is a portable end marker.
+pub fn next_album_list_offset(offset: u32, received: usize) -> Option<u32> {
+    if received == 0 {
+        return None;
+    }
+    let received = u32::try_from(received).unwrap_or(u32::MAX);
+    Some(offset.saturating_add(received))
+}
+
 pub async fn wait_while_bulk_paused(
     budget: &ParallelismBudget,
     sleep_enabled: bool,
@@ -222,5 +233,12 @@ mod tests {
         assert_eq!(linear_prefetch_depth(&idle), 4);
         let playing = ParallelismBudget::resolve(super::super::bandwidth::PlaybackHint::Playing);
         assert_eq!(linear_prefetch_depth(&playing), 1);
+    }
+
+    #[test]
+    fn album_list_offset_uses_the_received_page_size() {
+        assert_eq!(next_album_list_offset(0, 100), Some(100));
+        assert_eq!(next_album_list_offset(100, 37), Some(137));
+        assert_eq!(next_album_list_offset(137, 0), None);
     }
 }

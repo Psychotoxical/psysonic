@@ -32,7 +32,7 @@ import {
 } from './libraryReady';
 import { logLibrarySearch, timed } from './libraryDevLog';
 import { isLosslessSuffix } from './losslessFormats';
-import { albumIsCompilation } from './albumCompilation';
+import { albumIsCompilation, isVariousArtistsLabel } from './albumCompilation';
 import { OXIMEDIA_MOOD_SEARCH_ENABLED } from './trackEnrichment';
 import { trackToSong } from './trackDtoMapping';
 import { getLibraryBrowseScope, type LibraryBrowseScope } from './libraryBrowseScope';
@@ -167,11 +167,38 @@ function buildRequest(
   };
 }
 
-/** Merge `raw_json` without stale `starred` reviving a cleared hot column. */
+/**
+ * `raw_json` augments the DTO, but the album-artist identity is not an augmentation
+ * field — the backend resolves it into the hot `artist`/`artistId` columns for EVERY
+ * album (`overlay_priority_album_row` + `pick_album_group_artist_id` run for VA and
+ * non-VA alike), while `raw_json` still carries the server's legacy `artist`/`artistId`
+ * (a representative performer on a compilation). So the hot columns are authoritative
+ * for these two keys on all albums and must not be overwritten by the legacy pair;
+ * this deliberately differs from every other raw key, which stays pure augmentation.
+ * Trusting the hot columns here is exactly what keeps the frontend link in step with
+ * the backend resolution — narrowing it to VA only would re-introduce a front/back
+ * mismatch for non-VA albums.
+ *
+ * `artistId` has two empty-string cases that must be told apart: a Various Artists
+ * album the backend deliberately left unlinked (keep it blank, do not open a guest)
+ * versus a plain album whose id lives only in `raw_json` (fill it). So suppress the
+ * raw `artistId` only when the hot id is already set or the credit is a VA label.
+ */
 function mergeAlbumRawJson(base: SubsonicAlbum, raw: Partial<SubsonicAlbum>): SubsonicAlbum {
   const merged = { ...base } as SubsonicAlbum & Record<string, unknown>;
+  const artistNameSet = typeof base.artist === 'string' && base.artist.trim() !== '';
+  const artistIdSet = typeof base.artistId === 'string' && base.artistId.trim() !== '';
+  // Test the VA label against the *effective* credit — the hot column, or `raw_json`
+  // when the hot column is empty. Otherwise an album with a blank hot artist but a
+  // "Various Artists" credit only in raw_json would fill the name from raw and then
+  // let raw's legacy performer id link it, the exact mislink this guard prevents.
+  const rawArtist = typeof raw.artist === 'string' ? raw.artist : '';
+  const effectiveArtist = artistNameSet ? base.artist : rawArtist;
+  const isVariousArtists = isVariousArtistsLabel(effectiveArtist);
   for (const [key, value] of Object.entries(raw)) {
     if (key === 'starred') continue;
+    if (key === 'artist' && artistNameSet) continue;
+    if (key === 'artistId' && (artistIdSet || isVariousArtists)) continue;
     if (value != null && value !== '') merged[key] = value;
   }
   return merged;

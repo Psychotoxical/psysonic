@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Disc3, Play, ListPlus, Loader2 } from 'lucide-react';
 import { AlbumCard } from '@/features/album';
@@ -196,10 +196,15 @@ export default function GenreDetail() {
                   <span className="toolbar-btn-label">{t('common.play')}</span>
                 </span>
               </button>
+              {/* Stretch instead of a fixed height: this button holds only an
+                  icon, so its content box is shorter than the play button's
+                  text line and it would otherwise sit smaller beside it. */}
               <button
                 className="btn btn-surface"
+                style={{ alignSelf: 'stretch' }}
                 onClick={handleEnqueueAll}
                 disabled={bulkLoading}
+                aria-label={t('genres.addToQueue')}
                 data-tooltip={t('genres.addToQueue')}
               >
                 <ListPlus size={16} />

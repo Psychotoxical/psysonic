@@ -4,6 +4,9 @@ import { renderHook, waitFor } from '@testing-library/react';
 vi.mock('@/lib/themes/themeRegistry', () => ({
   fetchRegistry: vi.fn(),
   getCachedRegistry: vi.fn(() => null),
+  // Sentinel floor so the filter wiring can be exercised without the real
+  // app-version comparison: any theme tagged with this minAppVersion is "too new".
+  themeRequiresNewerApp: (th: { minAppVersion?: string }) => th.minAppVersion === 'TOO_NEW',
 }));
 
 import { fetchRegistry, type Registry } from '@/lib/themes/themeRegistry';
@@ -16,8 +19,10 @@ function inst(id: string, version: string): InstalledTheme {
   return { id, name: id, author: 'x', version, description: '', mode: 'dark', css: '', installedAt: 0 };
 }
 
-function registry(themes: { id: string; version: string }[]): Registry {
-  return { themes: themes.map(t => ({ id: t.id, name: t.id, version: t.version })) } as unknown as Registry;
+function registry(themes: { id: string; version: string; minAppVersion?: string }[]): Registry {
+  return {
+    themes: themes.map(t => ({ id: t.id, name: t.id, version: t.version, minAppVersion: t.minAppVersion })),
+  } as unknown as Registry;
 }
 
 beforeEach(() => {
@@ -55,6 +60,18 @@ describe('useThemeUpdates', () => {
   it('ignores registry themes the user has not installed', async () => {
     useInstalledThemesStore.setState({ themes: [inst('a', '1.0.0')] });
     fetchRegistryMock.mockResolvedValue({ registry: registry([{ id: 'z', version: '9.0.0' }]), stale: false });
+
+    const { result } = renderHook(() => useThemeUpdates());
+    await waitFor(() => expect(fetchRegistryMock).toHaveBeenCalled());
+    expect(result.current).toEqual([]);
+  });
+
+  it('does not offer an update the current app is too old to install', async () => {
+    useInstalledThemesStore.setState({ themes: [inst('a', '1.0.0')] });
+    fetchRegistryMock.mockResolvedValue({
+      registry: registry([{ id: 'a', version: '2.0.0', minAppVersion: 'TOO_NEW' }]),
+      stale: false,
+    });
 
     const { result } = renderHook(() => useThemeUpdates());
     await waitFor(() => expect(fetchRegistryMock).toHaveBeenCalled());

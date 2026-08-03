@@ -42,7 +42,7 @@ export function PlayerPlaybackRate({ t }: Props) {
   const setSpeed = usePlaybackRateStore(s => s.setSpeed);
   const orbitRole = useOrbitStore(s => s.role);
   const orbitPhase = useOrbitStore(s => s.phase);
-  const { open, setOpen, popStyle, btnRef, popRef } = usePlayerBarAnchoredPopover(POPOVER_WIDTH);
+  const { open, toggleOpen, popStyle, btnRef, popRef } = usePlayerBarAnchoredPopover(POPOVER_WIDTH);
 
   const orbitActive = isOrbitPlaybackSyncActive(orbitRole, orbitPhase);
   const effectActive = isPlaybackRateApplied(enabled, strategy, speed, pitchSemitones, orbitActive);
@@ -70,7 +70,7 @@ export function PlayerPlaybackRate({ t }: Props) {
         ref={btnRef}
         type="button"
         className={`player-btn player-btn-sm player-playback-rate-btn${open ? ' active' : ''}${effectActive ? ' player-playback-rate-btn--live' : ''}`}
-        onClick={() => setOpen(v => !v)}
+        onClick={toggleOpen}
         onWheel={handleWheel}
         aria-label={t('player.playbackRate')}
         aria-expanded={open}

@@ -15,7 +15,7 @@ use rusqlite::{params, OptionalExtension};
 use serde_json::Value;
 
 use crate::album_compilation_filter::sql_display_artist_from;
-use crate::browse_support::overlay_album_level_starred_at;
+use crate::browse_support::{overlay_album_artist_links_for_store, overlay_album_level_starred_at};
 use crate::dto::{
     ArtistCreditMode, LibraryAdvancedSearchRequest, LibraryAdvancedSearchResponse, LibraryAlbumDto,
     LibraryArtistDto,
@@ -1141,6 +1141,7 @@ fn build_album_from_tracks(
         map_album_from_tracks,
     )?;
     overlay_album_level_starred_at(store, &req.server_id, &mut albums)?;
+    overlay_album_artist_links_for_store(store, &mut albums)?;
     Ok((albums, total))
 }
 
@@ -1622,6 +1623,7 @@ fn build_album_from_fts(
         Ok((albums, total))
     })?;
     overlay_album_level_starred_at(store, &req.server_id, &mut albums)?;
+    overlay_album_artist_links_for_store(store, &mut albums)?;
     Ok((albums, total))
 }
 

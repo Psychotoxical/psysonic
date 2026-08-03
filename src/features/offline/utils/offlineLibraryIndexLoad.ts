@@ -15,7 +15,14 @@ import {
   trackToSong,
 } from '@/lib/library/advancedSearchLocal';
 
-type ArtistIndexLoad = { artist: SubsonicArtist; albums: SubsonicAlbum[] } | null;
+type ArtistIndexLoad = {
+  artist: SubsonicArtist;
+  /** The artist's own discography (main grid). */
+  albums: SubsonicAlbum[];
+  /** Albums the artist only appears on. Kept separate so the artist page can render
+   *  the split offline; legacy all-album consumers union the two arrays. */
+  appearsOnAlbums: SubsonicAlbum[];
+} | null;
 type AlbumIndexLoad = { album: SubsonicAlbum; songs: SubsonicSong[] } | null;
 
 const albumIndexLoads = new Map<string, Promise<AlbumIndexLoad>>();
@@ -111,7 +118,14 @@ export async function loadArtistFromLibraryIndex(
     })
       .then(response => response.artist.id ? {
         artist: artistToArtist(response.artist),
-        albums: response.albums.map(albumToAlbum).map(album => ({ ...album, serverId })),
+        // Keep the split intact so the artist page can render "appears on" offline;
+        // legacy all-album consumers union the two arrays themselves.
+        albums: response.albums
+          .map(albumToAlbum)
+          .map(album => ({ ...album, serverId })),
+        appearsOnAlbums: response.appearsOnAlbums
+          .map(albumToAlbum)
+          .map(album => ({ ...album, serverId })),
       } : null)
       .finally(() => artistIndexLoads.delete(key));
     artistIndexLoads.set(key, load);
@@ -146,6 +160,8 @@ export async function loadArtistFromLibraryIndex(
       albumCount: albums.length,
     },
     albums,
+    // The all-library search fallback has no scoped split to work from.
+    appearsOnAlbums: [],
   };
 }
 

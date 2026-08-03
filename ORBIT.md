@@ -21,6 +21,7 @@ No external servers, no relays, no accounts on yet another platform — Orbit pi
 - [How it works (technical)](#how-it-works-technical)
   - [Design goals](#design-goals)
   - [Playlists as transport](#playlists-as-transport)
+  - [The invite link](#the-invite-link)
   - [The host tick](#the-host-tick)
   - [The guest tick](#the-guest-tick)
   - [Data flow](#data-flow)
@@ -94,13 +95,20 @@ Open via the gear icon in the session bar (host only):
 - **Reshuffle every** — 1 / 5 / 10 / 15 / 30 min preset picker. Disabled when auto-reshuffle is off.
 - **Shuffle now** — one-shot manual shuffle + bumps the next-auto-shuffle timer.
 
+One setting group is shared without appearing in this popover: the host's **track transitions** (crossfade, gapless, AutoDJ smooth-skip and the overlap cap). They are mirrored into the session automatically and refreshed every tick, so a mid-session change reaches the guests. Guests adopt the host's values for the duration and get their own back when they leave — their local transition controls are disabled while a session is running, with a note explaining why. The reason is timing: these settings decide *when* one track ends and the next begins, so if each client used its own, the timelines would drift apart at every single track boundary.
+
 ### Participants
 
 Click the participant count in the session bar. Opens a popover:
 
 - Host row at the top with a crown icon.
 - Each connected guest with a user icon, username, and join timestamp.
-- Host-only actions per guest: **Remove** (drops them from the session, can re-join via the invite link) vs. **Ban** (permanently blocked for the lifetime of the session). Both confirm before firing.
+- Host-only actions per guest:
+  - **Remove** — drops them from the session; they can re-join via the invite link.
+  - **Ban** — permanently blocked for the lifetime of the session.
+  - **Mute** — they stay in the session and keep showing up in the participants list, but new suggestions from them are dropped during the host's sweep. Symmetric: the host can un-mute at any time. The guest's own UI reads the same flag and disables its Suggest controls, so it reads as a clear muted state rather than silent failures.
+
+  Remove and Ban confirm before firing.
 
 Guests see the same list but read-only — no action buttons.
 
@@ -123,7 +131,7 @@ Every screen with the session bar has a `?` icon between settings and X that ope
 - **Separate accounts.** Each participant needs their own Navidrome user. If a host and guest log in as the same user, their outbox playlists collide and suggestions get lost. This is a hard limit of the current design — Orbit identifies participants by username.
 - **Public server address for remote guests.** Guests outside your home network need your server reachable at a public hostname. The start modal warns you if you're currently connected via a LAN address.
 - **Host presence matters.** Guests auto-leave after 5 minutes of no host activity. Shorter reconnects (network blips, phone screen off, whatever) are invisible.
-- **Session size.** State is bounded to ~4 KB per playlist comment. In practice that's plenty for a session name, participants list, and a suggestion history; there's no hard cap on tracks through the actual playback queue.
+- **Session size.** State is bounded to ~4 KB per playlist comment. Two caps keep it there: the suggestion history holds the 64 most recent entries, and the published upcoming queue is capped at 30 tracks (with a `+ N more` count for the rest). Neither limits the host's own playback queue, which is local and unbounded.
 
 ---
 
@@ -142,38 +150,69 @@ Every session creates two kinds of playlists on the server (names are stable and
 
 | Playlist | Who owns it | What's in it |
 |---|---|---|
-| `__psyorbit_<sid>` | host | Canonical session state (4 KB JSON blob) in the playlist **comment**. Track list is always empty. |
+| `__psyorbit_<sid>__` | host | Canonical session state (4 KB JSON blob) in the playlist **comment**. Track list is always empty. |
 | `__psyorbit_<sid>_from_<user>__` | each participant | Outbox. Comment holds a heartbeat timestamp; the track list holds pending guest suggestions. |
 
+`<sid>` is 8 lowercase hex characters. Note the trailing `__` on **both** names — it terminates the session name as well as the outbox name, which is what lets a single pattern recognise either.
+
 All playlists are marked `public: true` so every participant can read them via the normal Subsonic endpoints (`getPlaylist.view`, `getPlaylists.view`). Psysonic filters `__psyorbit_*` out of its own UI (Playlists page, pickers, context menu), but the Navidrome web client will show them while a session is active.
+
+### The invite link
+
+An invite is a magic string, not a URL — it survives being pasted into chat clients that mangle custom schemes:
+
+```
+psysonic2-<base64url>
+```
+
+`<base64url>` is standard Base64 of the UTF-8 JSON below with `+`→`-`, `/`→`_` and padding stripped:
+
+```json
+{ "v": 1, "srv": "https://music.example.com", "k": "orbit", "sid": "a3f01c7d" }
+```
+
+- **`v` here is the share-payload version (1), not the session-state version (3).** They are independent.
+- `srv` is normalised at encode time: trimmed, `http://` prepended when no scheme is present, trailing slash removed. A host with both a LAN and a public address publishes whichever one its share settings select — for a remote guest that must be the public one.
+- `sid` must match `^[0-9a-f]{8}$`; it is lowercased on decode.
+- The token is located by searching the pasted text for the prefix and then matching `[A-Za-z0-9_-]+`, so an invite still works when it arrives wrapped in a sentence.
+- On decode, `srv` must parse as a URL with an `http:` or `https:` scheme — anything else is rejected before it reaches the join path.
+
+Both paste paths (`Ctrl+V` anywhere, and the Join modal) then check the decoded `srv` against every address of every known server profile, normalising both sides before comparing. Comparing raw strings here is a trap: an address stored without a scheme never matches an invite that carries one.
 
 ### The host tick
 
 Fired every 2.5 s from `useOrbitHost`:
 
 1. **Sweep all outboxes.** List every `__psyorbit_<sid>_from_<user>__` playlist. For each one, read the current tracklist (= new suggestions from that guest) and the heartbeat timestamp from the comment.
-2. **Apply snapshots to state.** Rebuild the `participants` array from heartbeat freshness (anyone with a heartbeat < 30 s old is "alive"). Append new suggestions to `state.queue` as `OrbitQueueItem { trackId, addedBy, addedAt }`.
+2. **Apply snapshots to state.** Rebuild the `participants` array from heartbeat freshness (anyone with a heartbeat < 30 s old is "alive"). Append new suggestions to `state.queue` as `OrbitQueueItem { trackId, addedBy, addedAt }`, deduped by `(user, trackId)` and skipping muted or over-cap guests. `maxUsers` is enforced here — the host is the only writer, so it's the only place the cap can actually hold; earliest joiners win.
 3. **Clear each swept outbox's tracklist** (heartbeat stays). Single-pass consume — a track the host has seen is the host's problem now, not the outbox's.
-4. **Merge into player queue** (when auto-approve is on, and the suggestion isn't host-authored or already merged). Each merged track gets sprinkled at a random position in the upcoming range so host picks and guest suggestions interleave.
-5. **Maybe shuffle.** If auto-shuffle is on and the interval elapsed, Fisher–Yates-reorder the upcoming play queue + rewrite `state.lastShuffle`.
-6. **Snapshot playback.** Write `isPlaying`, `positionMs`, `positionAt` (wall-clock), `currentTrack`, and a 30-item slice of the upcoming play queue (`playQueue`) into the state blob.
+4. **Merge into player queue** (when auto-approve is on, and the suggestion isn't host-authored, already merged, or declined). Each merged track gets sprinkled at a random position in the upcoming range so host picks and guest suggestions interleave.
+5. **Maybe shuffle.** If auto-shuffle is on and the interval elapsed, two lists move: `state.queue` (the guest-facing suggestion history) and the host's own upcoming play queue, both Fisher–Yates. `state.lastShuffle` is rewritten even when a list was too short to reorder, so the interval can't turn into a tight retry loop.
+6. **Snapshot playback.** Write `isPlaying`, `positionMs`, `positionAt` (wall-clock), `currentTrack`, a 30-item slice of the upcoming play queue (`playQueue`) plus its untruncated length (`playQueueTotal`), and a refreshed copy of the host's transition prefs into the state blob.
 7. **Write.** Serialise and push to the session playlist's comment via `updatePlaylist.view`.
+
+Two details that matter for anyone reimplementing this:
+
+- **The tick is not the only trigger.** A play/pause flip on the host pushes state immediately, out of band. Without it the worst case between "host hits pause" and "guest stops" is a host tick plus a guest tick — up to 5 s, long enough to be audible.
+- **Pushes never overlap.** Mount, timer and the play/pause subscription all feed the same coalescing runner: while a push is in flight, further triggers collapse into exactly one follow-up run. A slow run that already swept and cleared an outbox must not lose its write to a faster one, or those suggestions are gone.
 
 Host also writes a heartbeat to its own outbox every 10 s so the participants pipeline treats the host symmetrically.
 
 ### The guest tick
 
-Fired from `useOrbitGuest` — fast polling (500 ms) until the first successful sync lands, then steady 2.5 s:
+Fired from `useOrbitGuest` — fast polling (500 ms) until the first successful sync lands, then steady 2.5 s. In order:
 
-1. **Read the session playlist comment** via `getPlaylist.view`. Parse the OrbitState.
-2. **Check for session death:** comment empty → session-ended; `state.ended === true` → session-ended; `state.positionAt` older than 5 min → host-timeout.
-3. **Check kick / remove:** if the local username is in `state.kicked` or has a fresh entry in `state.removed`, transition to the appropriate exit modal.
-4. **Reconcile pending suggestions.** For every trackId the local client has submitted, check if it's appeared in `state.playQueue` or `state.currentTrack`. If so, drop it from the local "pending" list (the UI hides it automatically).
-5. **Auto-sync to host.** Three cases:
-   - Different track at host → load it locally (`playTrack`), seek to `estimateLivePosition(state, now)`, mirror `isPlaying`. Never touches the local player if the guest has locally diverged (paused on their own).
+1. **Read the session playlist comment** via `getPlaylist.view`. Parse the OrbitState. An unreadable result (playlist deleted, empty comment, unparseable JSON, version mismatch) is treated as session-ended — the host almost certainly ended the session and the `ended: true` write was missed because we polled after the subsequent delete.
+2. **Host-timeout check.** `state.positionAt` older than 5 min → host-timeout exit. This runs *before* the `ended` check: a host that stopped writing never gets to set `ended` in the first place.
+3. **Reconcile pending suggestions.** For every trackId the local client has submitted, check whether it appeared in `state.playQueue` or `state.currentTrack` — the host's *playable* queue, not `state.queue`, which is the suggestion history and fills up even under manual approval. If so, drop it from the local pending list.
+   Then handle the lost-update race: a suggestion still missing from `state.queue` past a grace window was probably wiped by a racing sweep-clear, so re-send it (the host dedupes by `(user, trackId)`, so this is idempotent). Give up after 45 s so the row can't hang forever.
+4. **Check session end:** `state.ended === true` → exit modal.
+5. **Check kick / remove:** local username in `state.kicked` → kicked. An entry in `state.removed` counts only when its timestamp is newer than our own join time, otherwise a stale marker from a previous session-life would bounce us straight back out on re-join.
+6. **Auto-sync to host.** Three cases:
+   - Different track at host → load it locally (`playTrack`), seek to `estimateLivePosition(state, now)`, mirror `isPlaying`. Never touches the local player if the guest has locally diverged (paused on their own). A track that simply ended does *not* count as divergence — it's told apart from a manual pause by the playback position sitting at ~0.
    - Same track, play/pause flipped at host → mirror only if the guest hasn't locally diverged since the last tick.
    - First tick after join → mirror unconditionally (initial sync).
-6. **Heartbeat tick** (independent, every 10 s): write `{ ts: Date.now() }` into the guest outbox comment.
+7. **Heartbeat tick** (independent, every 10 s): write `{ ts: Date.now() }` into the guest outbox comment.
 
 ### Data flow
 
@@ -228,12 +267,12 @@ player.enqueueAt ──► playQueue snapshot ──► session playlist ──�
 
 ### State shape
 
-All relevant types in `src/api/orbit.ts`:
+All relevant types in `src/features/orbit/api/orbit.ts`:
 
 ```ts
 interface OrbitState {
   v: 3;
-  sid: string;                 // 8 hex chars
+  sid: string;                 // 8 lowercase hex chars
   host: string;                // navidrome username
   name: string;                // human-readable session name
   started: number;             // ms since epoch
@@ -242,19 +281,19 @@ interface OrbitState {
   isPlaying: boolean;
   positionMs: number;
   positionAt: number;          // wall-clock ms of the last snapshot
-  queue: OrbitQueueItem[];     // suggestion history
-  playQueue: OrbitQueueItem[]; // 30-item slice of host's upcoming
-  playQueueTotal: number;
-  participants: OrbitParticipant[];
-  kicked: string[];
-  removed: { user: string; at: number }[];
+  queue: OrbitQueueItem[];     // suggestion history (64 most recent)
   lastShuffle: number;
-  settings: {
-    autoApprove: boolean;
-    autoShuffle: boolean;
-    shuffleIntervalMin: 1 | 5 | 10 | 15 | 30;
-  };
-  ended: boolean;
+  participants: OrbitParticipant[];
+  kicked: string[];            // banned for the session's lifetime
+
+  // Optional on the wire — a session hosted by an older build simply omits
+  // them, and a reader must cope with their absence rather than reject.
+  playQueue?: { trackId: string; addedBy: string }[];  // ≤30 upcoming, no addedAt
+  playQueueTotal?: number;     // untruncated length, for a "+ N more" hint
+  removed?: { user: string; at: number }[];            // soft-remove markers, 60 s TTL
+  ended?: boolean;
+  settings?: OrbitSettings;
+  suggestionBlocked?: string[];                        // muted usernames
 }
 
 interface OrbitQueueItem {
@@ -262,18 +301,63 @@ interface OrbitQueueItem {
   addedBy: string;             // navidrome username
   addedAt: number;
 }
+
+interface OrbitParticipant {
+  user: string;
+  joinedAt: number;
+  lastHeartbeat: number;
+}
+
+interface OrbitSettings {
+  autoApprove: boolean;
+  autoShuffle: boolean;
+  shuffleIntervalMin?: 1 | 5 | 10 | 15 | 30;   // absent → 15
+  transitions?: OrbitTransitionSettings;
+}
+
+/**
+ * The host's crossfade / gapless / AutoDJ prefs, mirrored so guests blend
+ * tracks the same way. Otherwise every client uses its own transition
+ * settings and the track boundary lands at a different moment on each one,
+ * re-introducing exactly the drift Catch Up exists to fix.
+ */
+interface OrbitTransitionSettings {
+  crossfadeEnabled: boolean;
+  crossfadeSecs: number;
+  crossfadeTrimSilence: boolean;
+  autodjSmoothSkip: boolean;
+  gaplessEnabled: boolean;
+  autodjOverlapCapMode?: 'auto' | 'limit';
+  autodjOverlapCapSec?: number;
+}
+
+/** The outbox playlist's comment. */
+interface OrbitOutboxMeta {
+  ts: number;                  // wall-clock ms of this heartbeat
+}
 ```
 
-The state blob is size-bounded to 4 KB (serialised JSON). `serialiseOrbitState` throws `OrbitStateTooLarge` above the budget so callers can trim optional fields and retry.
+**Version handling is strict today:** `parseOrbitState` rejects any blob whose `v` is not exactly `3`, so a client that publishes a higher version is invisible to every current build rather than partially understood. Additive fields are therefore introduced as *optional* and do not bump `v`.
+
+Readers should be liberal about the rest: the outbox parser already ignores everything in the comment except `ts`, and `currentTrack` is not validated field-by-field — a malformed item degrades attribution in the UI, not correctness.
+
+**Size budget.** The blob is capped at 4 KB of serialised JSON. The write path (`serialiseOrbitStateForWire`) does not throw when it would overflow — it sheds, in order: oldest entries from the suggestion history, then the tail of the published `playQueue`, retrying after each drop. Only the *published* blob shrinks; the host's local state keeps everything. This matters more than it looks: an earlier version threw instead, the host swallowed the error and retried the same too-large state forever, and every guest froze and eventually timed out. `serialiseOrbitState` (the throwing variant, `OrbitStateTooLarge`) still exists for callers that want to handle the overflow themselves.
 
 ### Cleanup
 
 Two layers of defense against orphaned playlists:
 
 1. **Explicit exit.** `endOrbitSession` (host) or `leaveOrbitSession` (guest) deletes the participant's own playlists synchronously. The happy path.
-2. **App-start orphan sweep.** Every app launch runs `cleanupOrphanedOrbitPlaylists`: lists every `__psyorbit_*` playlist the current user owns, parses the heartbeat from the comment, deletes anything with a heartbeat older than 5 minutes (or `ended: true`, or an unparseable comment). The current local session is always protected.
+2. **App-start orphan sweep.** Every app launch runs `cleanupOrphanedOrbitPlaylists` across **every** configured server, not just the active one. Per server it lists all `__psyorbit_*` playlists, skips any owned by someone else, and decides per entry:
+   - **Name doesn't match** `^__psyorbit_([a-f0-9]+)(_from_.+)?__$` → assumed corrupt, deleted.
+   - **It's the session running on this device** → never touched.
+   - Otherwise read a timestamp — `positionAt` for a session playlist, `ts` for an outbox — and delete when `ended: true` or the timestamp is older than 5 minutes.
+
+   When the comment yields no usable timestamp (missing, unparseable, wrong shape), the sweep falls back to Navidrome's own `changed` field before deciding. Without that fallback a playlist created seconds ago — the one belonging to the session that is currently starting up — looks exactly like a dead one.
 
 The 5-minute TTL is a conservative compromise: long enough to survive a brief app restart (and a session running on another device of yours), short enough that a dead session doesn't clutter the server indefinitely.
+
+The name pattern is load-bearing: the trailing `__` has to sit outside the optional `_from_…` group. An earlier version kept it inside, so a bare session name never matched, fell into the corrupt branch, and deleted live sessions running on the user's other devices.
 
 ### Security & privacy
 
@@ -296,7 +380,7 @@ The 5-minute TTL is a conservative compromise: long enough to survive a brief ap
 - **Single-click on song row in-session.** Swallowed; shows "Double-click to add" toast.
 - **Multiple accounts on target server.** Paste flow opens an account picker modal. Keyboard-navigable.
 - **Server switch while in session.** The session remains bound to its original server; changing the visible active server cannot redirect playlist reads, writes, suggestions or cleanup.
-- **Initial sync race.** The guest's first tick retries on 500 ms cadence until the player state actually matches the host's last-known track (up to 2 s per attempt, then falls through with a best-effort mirror).
+- **Initial sync race.** The guest's first tick retries on a 500 ms cadence until the sync actually lands. Each attempt waits up to 5 s for the engine to report the track genuinely playing — `isPlaying` alone isn't enough, because it flips synchronously before a single sample has been produced, so the check also requires playback position to have moved past ~0.1 s. A failed attempt returns without recording an anchor, so the fast poll simply tries again. There is deliberately **no** blind apply at the deadline: seeking into a not-yet-ready engine silently no-ops, and the guest then plays from 0:00 while believing it is synced.
 - **`positionAt` stale on join.** Seek fraction is clamped to [0, 0.99] — prevents `audio:ended` from firing at the very start of a join.
 - **Outbox deletion mid-session** (cleanup race): host sees the guest drop out on the next sweep; guest's next heartbeat recreates the outbox if they're still connected.
 - **Session playlist deleted** (cleanup race while the guest's local store says it's still active): guest treats as "ended", shows the exit modal.
@@ -305,40 +389,67 @@ The 5-minute TTL is a conservative compromise: long enough to survive a brief ap
 
 ## Code map
 
+Everything lives under `src/features/orbit/`, reached from outside through the feature barrel `src/features/orbit/index.ts`. Paths below are relative to that folder unless stated otherwise.
+
 ### State and types
-- `src/api/orbit.ts` — `OrbitState`, `OrbitQueueItem`, `OrbitSettings`, serialise/parse helpers, `estimateLivePosition`.
-- `src/store/orbitStore.ts` — local session state: role, phase, session/playlist ids, `pendingSuggestions`, `mergedSuggestionKeys`, `declinedSuggestionKeys`.
+- `api/orbit.ts` — `OrbitState`, `OrbitQueueItem`, `OrbitParticipant`, `OrbitSettings`, `OrbitTransitionSettings`, playlist naming, wire constants, `makeInitialOrbitState`, `parseOrbitState`, `estimateLivePosition`. No imports of its own — pure protocol.
+- `store/orbitStore.ts` — local session state: role, phase, session/playlist ids, `pendingSuggestions`, `mergedSuggestionKeys`, `declinedSuggestionKeys`, binding revision.
+- `utils/constants.ts` — cadences and TTLs: heartbeat liveness, orphan TTL, shuffle interval, history cap, soft-remove TTL.
+
+### Protocol logic
+- `utils/orbit.ts` — internal re-export hub; the rest of the feature imports from here rather than from individual modules.
+- `utils/helpers.ts` — session-id generation, state serialisation with the 4 KB shed strategy, outbox-name parsing, `suggestionKey`, the coalescing runner.
+- `utils/stateMath.ts` — pure state folds: participant rebuild with `maxUsers` enforcement, suggestion dedupe, soft-remove ageing, shuffle, drift computation.
+- `utils/remote.ts` — read/write the state blob and heartbeats; locate a session playlist by id.
+- `utils/sweep.ts` — host-side outbox enumeration, read and single-pass clear.
+- `utils/moderation.ts` — `kickOrbitParticipant` (ban), `removeOrbitParticipant` (soft remove), `setOrbitSuggestionBlocked` (mute).
+- `utils/cleanup.ts` — app-start orphan sweep across all configured servers.
+- `utils/pendingResend.ts` — guest-side mitigation for the outbox lost-update race.
+- `utils/shareLink.ts` — build and parse invite magic strings, on top of `src/lib/share/shareLink.ts`.
+- `utils/transitions.ts` — read the host's transition prefs; adopt, then restore the guest's own on leave.
+- `utils/orbitServerScope.ts` · `utils/sessionActive.ts` — server-binding and session-liveness predicates used as guards throughout.
+- `utils/orbitNames.ts` — random session-name generator for the start modal.
+- `utils/orbitDiag.ts` — in-memory event log feeding the diagnostics popover.
 
 ### Lifecycle
-- `src/utils/orbit.ts` — `startOrbitSession`, `joinOrbitSession`, `endOrbitSession`, `leaveOrbitSession`, `suggestOrbitTrack`, `approveOrbitSuggestion`, `declineOrbitSuggestion`, `hostEnqueueToOrbit`, `cleanupOrphanedOrbitPlaylists`, `effectiveShuffleIntervalMs`.
-- `src/utils/orbitBulkGuard.ts` — standalone confirm-dialog helper invoked from `playerStore` when `>1` tracks land in the queue while a session is active.
-- `src/utils/server/switchActiveServer.ts` — switches the active account without tearing down the source-bound Orbit session.
+- `utils/host.ts` — `startOrbitSession`, `endOrbitSession`, `updateOrbitSettings`, `triggerOrbitShuffleNow`, `hostEnqueueToOrbit`.
+- `utils/guest.ts` — `joinOrbitSession`, `leaveOrbitSession`, `suggestOrbitTrack`, `ensureTrackInOutbox`, plus the suggest gate (`evaluateOrbitSuggestGate`, which is what surfaces the muted state) and — despite the file name — the host's `approveOrbitSuggestion` / `declineOrbitSuggestion`, since both act on a guest's suggestion.
+- `utils/orbitBulkGuard.ts` — confirm-dialog gate invoked when more than one track lands in the queue during a session. Registers the Orbit runtime on module init.
+- `src/store/orbitRuntime.ts` — neutral seam the audio core reads instead of importing the feature; the feature registers itself here at boot.
+- `src/utils/server/switchActiveServer.ts` — switches the active account without tearing down the source-bound session.
 
 ### Hooks
-- `src/hooks/useOrbitHost.ts` — host state tick + outbox sweep + merge pipeline + heartbeat.
-- `src/hooks/useOrbitGuest.ts` — guest state pull + auto-sync + heartbeat + host-timeout detection.
-- `src/hooks/useOrbitSongRowBehavior.ts` — shared double-click-to-add behaviour for song lists.
+- `hooks/useOrbitHost.ts` — host state tick, outbox sweep, merge pipeline, event-driven push on play/pause.
+- `hooks/useOrbitGuest.ts` — guest state pull, auto-sync, host-timeout detection, pending reconciliation.
+- `hooks/useOrbitOutboxHeartbeat.ts` — shared 10 s heartbeat writer for both roles.
+- `hooks/useOrbitSongRowBehavior.ts` — double-click-to-add behaviour for song lists.
+- `hooks/useOrbitBodyAttrs.ts` · `hooks/usePlaybackRateOrbitSync.ts` — body attributes for session-scoped styling; local playback-rate suppression.
 
 ### UI — session bar and popovers
-- `src/components/OrbitSessionBar.tsx` — topbar strip with name, counts, shuffle timer, settings/share/help/catch-up/exit buttons.
-- `src/components/OrbitSettingsPopover.tsx` — host settings (auto-approve, auto-shuffle, interval, manual shuffle).
-- `src/components/OrbitSharePopover.tsx` — host-only invite-link popover with copy button.
-- `src/components/OrbitParticipantsPopover.tsx` — participant list with kick/ban (host-only actions).
+- `components/OrbitSessionBar.tsx` — topbar strip with name, counts, shuffle timer, settings/share/help/catch-up/exit buttons.
+- `components/OrbitSettingsPopover.tsx` — host settings (auto-approve, auto-shuffle, interval, manual shuffle).
+- `components/OrbitSharePopover.tsx` — host-only invite-link popover with copy button.
+- `components/OrbitParticipantsPopover.tsx` — participant list with remove/ban/mute (host-only actions).
+- `components/OrbitDiagnosticsPopover.tsx` — live event log for debugging a session.
 
 ### UI — modals
-- `src/components/OrbitStartModal.tsx` — session creation wizard.
-- `src/components/OrbitJoinModal.tsx` — manual invite-link paste + join.
-- `src/components/OrbitAccountPicker.tsx` — multi-account disambiguation when joining.
-- `src/components/OrbitExitModal.tsx` — session-ended / kicked / removed / host-timeout exit notice.
-- `src/components/OrbitHelpModal.tsx` — 9-section help walk-through (keyboard-navigable).
-- `src/components/OrbitStartTrigger.tsx` — "Psy Orbit" button in the header + launch popover (create / join / help).
+- `components/OrbitStartModal.tsx` — session creation wizard.
+- `components/OrbitJoinModal.tsx` — manual invite-link paste + join.
+- `components/OrbitAccountPicker.tsx` — multi-account disambiguation when joining.
+- `components/OrbitExitModal.tsx` — session-ended / kicked / removed / host-timeout exit notice.
+- `components/OrbitHelpModal.tsx` — 9-section help walk-through (keyboard-navigable).
+- `components/OrbitStartTrigger.tsx` — "Psy Orbit" button in the header + launch popover (create / join / help).
+- `components/OrbitWordmark.tsx` — the Orbit lockup used by the trigger and modals.
 
 ### UI — queue views
-- `src/components/OrbitQueueHead.tsx` — shared header strip (session name, participants, host-presence badge).
-- `src/components/OrbitGuestQueue.tsx` — guest-side queue view (current track, pending suggestions, upcoming).
-- `src/components/HostApprovalQueue.tsx` — host-side approval strip with accept/decline.
+- `components/OrbitQueueHead.tsx` — shared header strip (session name, participants, host-presence badge).
+- `components/OrbitGuestQueue.tsx` — guest-side queue view (current track, pending suggestions, upcoming).
+- `components/HostApprovalQueue.tsx` — host-side approval strip with accept/decline.
 
 ### Supporting
-- `src/store/confirmModalStore.ts` + `src/components/GlobalConfirmModal.tsx` — promise-based confirm dialog used by the bulk-gate.
-- `src/store/helpModalStore.ts` + `src/components/OrbitHelpModal.tsx` — shared help-modal state.
-- `src/store/orbitAccountPickerStore.ts` + `src/components/OrbitAccountPicker.tsx` — account picker for multi-account server switch.
+- `store/helpModalStore.ts` · `store/orbitAccountPickerStore.ts` — help-modal state, account picker for multi-account joins.
+- `store/orbitSession.ts` — `isInOrbitSession()`, the predicate the queue and bulk-action paths gate on.
+- `src/store/confirmModalStore.ts` + `src/ui/GlobalConfirmModal.tsx` — promise-based confirm dialog used by the bulk gate.
+- `src/lib/api/subsonicPlaylists.ts` — every playlist call Orbit makes goes through here.
+- `src/styles/components/orbit-session-top-strip.css` — session bar styling.
+- `src/locales/*/orbit.ts` — user-facing strings, one file per locale.

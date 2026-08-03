@@ -12,6 +12,7 @@ pub mod backoff;
 pub mod bandwidth;
 pub mod budget;
 pub mod capability;
+pub mod census;
 pub mod cursor;
 pub mod delta;
 pub mod error;

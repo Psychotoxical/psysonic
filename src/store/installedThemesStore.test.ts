@@ -62,6 +62,37 @@ describe('installedThemesStore', () => {
     expect(useInstalledThemesStore.getState().getInstalled('real')?.version).toBe('2.0.0');
   });
 
+  it('keeps a watched theme-s dev asset base out of persisted storage', () => {
+    useInstalledThemesStore.getState().install(
+      theme('real', { assetBase: '/data/themes/real', devAssetBase: '/checkout/themes/real' }),
+    );
+    const raw = localStorage.getItem('psysonic_installed_themes');
+    const stored = JSON.parse(raw ?? '{}') as { state?: { themes?: InstalledTheme[] } };
+    expect(stored.state?.themes?.[0].devAssetBase).toBeUndefined();
+    // The installed copy's own base survives — only the dev overlay is dropped.
+    expect(stored.state?.themes?.[0].assetBase).toBe('/data/themes/real');
+    expect(useInstalledThemesStore.getState().getInstalled('real')?.devAssetBase).toBe(
+      '/checkout/themes/real',
+    );
+  });
+
+  it('restores the dev asset base on rehydrate', async () => {
+    useInstalledThemesStore.getState().install(
+      theme('real', { assetBase: '/data/themes/real', devAssetBase: '/checkout/themes/real' }),
+    );
+    localStorage.setItem(
+      'psysonic_installed_themes',
+      JSON.stringify({
+        state: { themes: [theme('real', { assetBase: '/data/themes/real' })] },
+        version: 1,
+      }),
+    );
+    await useInstalledThemesStore.persist.rehydrate();
+    const t = useInstalledThemesStore.getState().getInstalled('real');
+    expect(t?.devAssetBase).toBe('/checkout/themes/real');
+    expect(t?.assetBase).toBe('/data/themes/real');
+  });
+
   it('drops a dev theme on rehydrate when storage has a real install of the same id', async () => {
     useInstalledThemesStore.getState().install(theme('x', { dev: true }));
     localStorage.setItem(

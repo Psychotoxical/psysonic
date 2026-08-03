@@ -7,7 +7,7 @@ import SongRail from '@/features/home/components/SongRail';
 import BecauseYouLikeRail from '@/features/home/components/BecauseYouLikeRail';
 import { LosslessAlbumsRail } from '@/features/album';
 import { useTranslation } from 'react-i18next';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router';
 import { ChevronRight } from 'lucide-react';
 import { useHomeStore } from '@/features/home/store/homeStore';
 import { useAuthStore } from '@/store/authStore';

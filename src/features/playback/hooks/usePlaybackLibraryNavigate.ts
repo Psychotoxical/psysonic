@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import { ensurePlaybackServerActive } from '@/features/playback/utils/playback/playbackServer';
 import { navigatePathWithAlbumReturnTo } from '@/lib/navigation/albumDetailNavigation';
 

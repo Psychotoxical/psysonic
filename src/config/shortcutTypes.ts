@@ -1,7 +1,7 @@
 // Shared types for the shortcut-action subsystem. The contract overview lives
 // in the barrel, `shortcutActions.ts`.
 
-import type { NavigateOptions } from 'react-router-dom';
+import type { NavigateOptions } from 'react-router';
 
 export type TranslateLike = (key: string, options?: Record<string, unknown>) => string;
 
