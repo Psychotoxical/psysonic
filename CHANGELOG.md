@@ -280,6 +280,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * New Releases and Lossless Albums stopped fetching further albums after a few pages, and only picked up again once you scrolled up and back down. Both now keep loading while you are at the bottom of the list, and stop once it is exhausted.
 
+### Buttons — outlines are visible without hovering first
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1379](https://github.com/Psychotoxical/psysonic/pull/1379)**
+
+* Secondary buttons such as **Back** on artist and album pages, **Cancel** in the server form and the connect actions under **Music Network** showed no outline until the pointer was over them. They now look clickable at rest. Reported by zunoz.
+* The row for a custom HTTP header no longer pushes its remove button onto a second line where it filled a whole column and looked like another input field.
+* On a genre page, the add-to-queue button now matches the height of **Play** and carries a proper label for screen readers.
+* Internet radio shows its sort picker next to the browse and add buttons instead of on a separate line below them.
+
 ## [1.50.0]
 
 ## Added
