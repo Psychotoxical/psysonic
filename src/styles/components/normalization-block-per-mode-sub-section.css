@@ -10,6 +10,17 @@
   font-size: 13px;
   padding: 8px 16px;
 }
+/*
+ * Equal widths assume labels of roughly equal length. Where they are not — a
+ * translated list where one option is several times longer than another —
+ * `flex: 1 1 0` still shrinks every segment to the same width, while `.btn`
+ * keeps `white-space: nowrap` and centres its text, so the longest label loses
+ * characters at both ends. This variant lets each segment keep its content
+ * width and wrap onto the next line instead.
+ */
+.settings-segmented-auto > .btn {
+  flex: 0 0 auto;
+}
 .settings-segmented > .btn-ghost {
   border: 1px solid var(--border-subtle);
   background: color-mix(in srgb, var(--text-primary) 4%, transparent);
@@ -36,6 +47,15 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+
+/*
+ * The block's own `gap` only spaces its children. Sections that stack two
+ * cards need the same separation between them as `.settings-group` siblings
+ * get from each other.
+ */
+.settings-norm-block + .settings-norm-block {
+  margin-top: var(--space-3);
 }
 
 .settings-norm-field {
