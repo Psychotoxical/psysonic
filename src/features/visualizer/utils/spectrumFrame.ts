@@ -231,9 +231,13 @@ function downsampleWaveform(target: Float32Array, bytes: Uint8Array): void {
 }
 
 /**
- * Decode a payload into `frame` in place. Returns false when the payload is
+ * Decode a payload into `frame` in place. Returns false when the bands are
  * unusable (wrong size, corrupt base64), leaving the frame untouched so the
  * renderer keeps showing the last good state instead of flashing to zero.
+ *
+ * The waveforms are guarded on their own: usable bands with a corrupt waveform
+ * still update the bars, and the previous trace is left in place rather than
+ * being zero-filled.
  */
 export function applyPayload(frame: SpectrumFrame, payload: SpectrumPayload): boolean {
   const bands = decodeBase64(payload.bands);
@@ -242,11 +246,21 @@ export function applyPayload(frame: SpectrumFrame, payload: SpectrumPayload): bo
 
   writeUnit(frame.bands, bands);
   writeUnit(frame.peaks, peaks);
-  writeSigned(frame.waveformLeft, decodeBase64(payload.waveformLeft));
-  writeSigned(frame.waveformRight, decodeBase64(payload.waveformRight));
-  // Scope and radial modes use one trace. Select the louder whole-window
-  // channel (left on ties) so legitimate side information cannot cancel out.
-  writePhaseSafeMono(frame.waveform, frame.waveformLeft, frame.waveformRight);
+
+  // A silent window still carries a full mid-scale buffer from the emitter, so
+  // an empty decode here only ever means a corrupt payload. Keep the previous
+  // trace instead: `writeSigned` would zero-fill it, flashing scope, radial and
+  // stereo to a flat line while the bands beside them stay valid.
+  const waveformLeft = decodeBase64(payload.waveformLeft);
+  const waveformRight = decodeBase64(payload.waveformRight);
+  if (waveformLeft.length > 0 && waveformRight.length > 0) {
+    writeSigned(frame.waveformLeft, waveformLeft);
+    writeSigned(frame.waveformRight, waveformRight);
+    // Scope and radial modes use one trace. Select the louder whole-window
+    // channel (left on ties) so legitimate side information cannot cancel out.
+    writePhaseSafeMono(frame.waveform, frame.waveformLeft, frame.waveformRight);
+  }
+
   frame.rms = Number.isFinite(payload.rms) ? payload.rms : 0;
   frame.peak = Number.isFinite(payload.peak) ? payload.peak : 0;
   frame.sampleRate = payload.sampleRate ?? 0;

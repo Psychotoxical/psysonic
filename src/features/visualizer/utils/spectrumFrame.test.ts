@@ -94,6 +94,31 @@ describe('applyPayload', () => {
     expect(applyPayload(frame, payload({ bands: '', peaks: '' }))).toBe(false);
   });
 
+  it('keeps the last waveform when only the waveform arrays are corrupt', () => {
+    const frame = createFrame();
+    const wave = new Array(128).fill(128);
+    wave[0] = 255;
+    wave[1] = 1;
+    applyPayload(frame, payload({ waveformLeft: b64(wave), waveformRight: b64(wave) }));
+    const lastGood = Array.from(frame.waveform);
+
+    const bands = new Array(64).fill(0);
+    bands[0] = 255;
+    const accepted = applyPayload(frame, payload({
+      bands: b64(bands),
+      peaks: b64(bands),
+      waveformLeft: '',
+      waveformRight: '',
+    }));
+
+    // Bands are usable, so the bars keep updating rather than freezing.
+    expect(accepted).toBe(true);
+    expect(frame.bands[0]).toBe(1);
+    // The trace must survive instead of being zero-filled into a flat line.
+    expect(Array.from(frame.waveform)).toEqual(lastGood);
+    expect(frame.waveform[0]).toBeCloseTo(1, 2);
+  });
+
   it('replaces non-finite scalars with zero', () => {
     const frame = createFrame();
     applyPayload(frame, payload({ rms: NaN, peak: Infinity }));
