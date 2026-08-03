@@ -466,24 +466,9 @@ pub(crate) fn url_stream_cap_kbps(url: &str) -> Option<u32> {
     })
 }
 
-/// Whether a stream URL requests ANY server-side transcode: a `maxBitRate`
-/// cap, or an explicit `format` target other than `raw`. Such a stream's bytes
-/// must never be treated as the original file.
-pub(crate) fn url_requests_transcode(url: &str) -> bool {
-    if url_stream_cap_kbps(url).is_some() {
-        return true;
-    }
-    let Some(query) = url.split_once('?').map(|(_, q)| q) else {
-        return false;
-    };
-    query.split('&').any(|kv| {
-        matches!(kv.split_once('='), Some(("format", v)) if !v.is_empty() && v != "raw")
-    })
-}
-
 #[cfg(test)]
 mod url_param_tests {
-    use super::{url_requests_transcode, url_stream_cap_kbps};
+    use super::url_stream_cap_kbps;
 
     #[test]
     fn parses_max_bit_rate_from_stream_url() {
@@ -496,14 +481,5 @@ mod url_param_tests {
         assert_eq!(url_stream_cap_kbps("https://s.example/rest/stream.view?id=t1&u=a"), None);
         assert_eq!(url_stream_cap_kbps("https://s.example/rest/stream.view?id=t1&maxBitRate=0"), None);
         assert_eq!(url_stream_cap_kbps("psysonic-local:///library/t1.flac"), None);
-    }
-
-    #[test]
-    fn format_param_counts_as_transcode_request() {
-        assert!(url_requests_transcode("https://s/rest/stream.view?id=t&format=opus"));
-        assert!(url_requests_transcode("https://s/rest/stream.view?id=t&maxBitRate=128"));
-        assert!(!url_requests_transcode("https://s/rest/stream.view?id=t&format=raw"));
-        assert!(!url_requests_transcode("https://s/rest/stream.view?id=t"));
-        assert!(!url_requests_transcode("psysonic-local:///library/t1.flac"));
     }
 }

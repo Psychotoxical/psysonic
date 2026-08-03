@@ -498,21 +498,50 @@ impl AnalysisCache {
     /// row is active, so `get_latest_*` reads can never surface a stale
     /// variant (e.g. a pre-fix transcode-derived row) for the track.
     pub fn delete_other_fingerprints(&self, key: &TrackKey) -> Result<usize, String> {
-        let conn = self
+        let mut conn = self
             .conn
             .lock()
             .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
         let mut removed = 0usize;
-        for table in ["waveform_cache", "loudness_cache", "analysis_track"] {
-            removed += conn
-                .execute(
-                    &format!(
-                        "DELETE FROM {table} WHERE server_id = ?1 AND track_id = ?2 AND md5_16kb != ?3"
-                    ),
-                    rusqlite::params![key.server_id, key.track_id, key.md5_16kb],
-                )
-                .map_err(|e| e.to_string())?;
+        for track_id in track_id_cache_variants(&key.track_id) {
+            for table in ["waveform_cache", "loudness_cache", "analysis_track"] {
+                removed += tx
+                    .execute(
+                        &format!(
+                            "DELETE FROM {table} WHERE server_id = ?1 AND track_id = ?2 AND md5_16kb != ?3"
+                        ),
+                        rusqlite::params![key.server_id, track_id, key.md5_16kb],
+                    )
+                    .map_err(|e| e.to_string())?;
+            }
         }
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(removed)
+    }
+
+    /// Delete one exact `(server, track, fingerprint)` variant. Used when a
+    /// trusted revision finishes after a newer revision already superseded it.
+    pub fn delete_fingerprint(&self, key: &TrackKey) -> Result<usize, String> {
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|_| "analysis_cache lock poisoned".to_string())?;
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        let mut removed = 0usize;
+        for track_id in track_id_cache_variants(&key.track_id) {
+            for table in ["waveform_cache", "loudness_cache", "analysis_track"] {
+                removed += tx
+                    .execute(
+                        &format!(
+                            "DELETE FROM {table} WHERE server_id = ?1 AND track_id = ?2 AND md5_16kb = ?3"
+                        ),
+                        rusqlite::params![key.server_id, track_id, key.md5_16kb],
+                    )
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+        tx.commit().map_err(|e| e.to_string())?;
         Ok(removed)
     }
 

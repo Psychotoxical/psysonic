@@ -1,13 +1,13 @@
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use tauri::{Emitter, Manager};
 
 use psysonic_core::ports::PlaybackQueryHandle;
-use psysonic_core::server_http::{apply_optional_registry_headers, ServerHttpRegistry};
-use psysonic_core::user_agent::subsonic_wire_user_agent;
+use psysonic_core::server_http::ServerHttpRegistry;
 use psysonic_core::track_enrichment::TrackEnrichmentOutcome;
+use psysonic_core::user_agent::subsonic_wire_user_agent;
 
 use crate::analysis_cache;
 
@@ -110,6 +110,14 @@ pub enum AnalysisBackfillEnqueueKind {
     DuplicateSkipped,
     /// High-priority request but that track is already being downloaded+seeded.
     RunningSkipped,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EnqueueSeedFromUrlOutcome {
+    Enqueued,
+    AlreadyReserved,
+    Skipped,
+    Unsupported,
 }
 
 /// One queued HTTP-backfill job: `(track_id, url, server_id)`. Dedup is by
@@ -368,6 +376,56 @@ pub fn analysis_backfill_shared(app: &tauri::AppHandle) -> Arc<AnalysisBackfillS
 
 use crate::track_analysis_plan::plan_track_analysis;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TrustedRevisionGeneration {
+    revision: String,
+    generation: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrustedAnalysisRevision {
+    pub md5_16kb: String,
+    pub generation: u64,
+    /// Library `track.server_id` scope for `content_hash` repair when it differs
+    /// from the analysis-cache scope (offline dual-address/library paths).
+    pub content_hash_server_id: Option<String>,
+}
+
+#[derive(Default)]
+struct TrustedActivationState {
+    current_by_track: HashMap<String, TrustedRevisionGeneration>,
+}
+
+static TRUSTED_ACTIVATION_GENERATION: AtomicU64 = AtomicU64::new(0);
+static TRUSTED_ACTIVATIONS: OnceLock<Mutex<TrustedActivationState>> = OnceLock::new();
+
+fn canonical_activation_key(server_id: &str, track_id: &str) -> String {
+    let canonical_track_id = track_id.strip_prefix("stream:").unwrap_or(track_id);
+    seed_key(server_id, canonical_track_id)
+}
+
+pub fn begin_trusted_revision(server_id: &str, track_id: &str, revision: &str) -> u64 {
+    let key = canonical_activation_key(server_id, track_id);
+    let mut state = TRUSTED_ACTIVATIONS
+        .get_or_init(|| Mutex::new(TrustedActivationState::default()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    if let Some(current) = state.current_by_track.get(&key) {
+        if current.revision == revision {
+            return current.generation;
+        }
+    }
+    let generation = TRUSTED_ACTIVATION_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
+    state.current_by_track.insert(
+        key,
+        TrustedRevisionGeneration {
+            revision: revision.to_string(),
+            generation,
+        },
+    );
+    generation
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EnqueueTrackAnalysisOutcome {
     /// Waveform, LUFS, and enrichment facts are all current.
@@ -392,60 +450,134 @@ pub async fn enqueue_track_analysis(
     format_hint: Option<&str>,
     priority: AnalysisBackfillPriority,
 ) -> Result<EnqueueTrackAnalysisOutcome, String> {
-    enqueue_track_analysis_with_fetch(app, server_id, track_id, bytes, format_hint, None, priority, 0).await
+    enqueue_track_analysis_with_fetch(
+        app,
+        server_id,
+        track_id,
+        bytes,
+        format_hint,
+        None,
+        priority,
+        0,
+        None,
+    )
+    .await
 }
 
 
-/// Analysis is already COMPLETE under a verified (trusted-original)
-/// fingerprint — no decode needed, but the surrounding state may still be
-/// stale: `track.content_hash` can hold a pre-probe transcode hash (readiness
-/// and remap key off it), and a newer transcode-variant row can shadow the
-/// trusted row in latest-row reads. Repair both: re-record the hash and purge
-/// every other-fingerprint row for the track.
-fn repair_complete_trusted_identity<R: tauri::Runtime>(
+/// Activate a trusted revision only while it is still the latest registered
+/// revision for the canonical `(server, track)`. The guard remains locked
+/// across content-hash repair and variant purge so reverse completions cannot
+/// interleave their destructive activation steps.
+fn activate_trusted_identity<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
-    server_id: &str,
+    cache_server_id: &str,
+    content_hash_server_id: &str,
     track_id: &str,
     content_hash: &str,
-) {
-    if server_id.is_empty() {
-        return;
+    generation: u64,
+) -> bool {
+    if cache_server_id.is_empty() {
+        return false;
     }
-    if let Some(sink) = app.try_state::<psysonic_core::ports::ContentHashSink>() {
-        sink.record_content_hash(server_id, track_id, content_hash);
+    let activation_key = canonical_activation_key(cache_server_id, track_id);
+    let state = TRUSTED_ACTIVATIONS
+        .get_or_init(|| Mutex::new(TrustedActivationState::default()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    let current = state.current_by_track.get(&activation_key);
+    let is_current = current.is_some_and(|current| {
+        current.revision == content_hash && current.generation == generation
+    });
+
+    let key = analysis_cache::TrackKey {
+        server_id: cache_server_id.to_string(),
+        track_id: track_id.to_string(),
+        md5_16kb: content_hash.to_string(),
+    };
+    if !is_current {
+        let superseded_by_other_revision = current
+            .is_some_and(|current| current.revision != content_hash);
+        if superseded_by_other_revision {
+            if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
+                match cache.delete_fingerprint(&key) {
+                    Ok(n) if n > 0 => crate::app_deprintln!(
+                        "[analysis] discarded {n} stale trusted rows track_id={track_id} hash={content_hash}"
+                    ),
+                    Ok(_) => {}
+                    Err(e) => {
+                        crate::app_eprintln!("[analysis] stale trusted cleanup failed: {e}")
+                    }
+                }
+            }
+        }
+        return false;
     }
+
     if let Some(cache) = app.try_state::<analysis_cache::AnalysisCache>() {
-        let key = analysis_cache::TrackKey {
-            server_id: server_id.to_string(),
-            track_id: track_id.to_string(),
-            md5_16kb: content_hash.to_string(),
-        };
         match cache.delete_other_fingerprints(&key) {
             Ok(n) if n > 0 => crate::app_deprintln!(
-                "[analysis] complete-repair purged {n} stale fingerprint rows track_id={track_id}"
+                "[analysis] trusted activation purged {n} stale fingerprint rows track_id={track_id}"
             ),
             Ok(_) => {}
-            Err(e) => crate::app_eprintln!("[analysis] complete-repair purge failed: {e}"),
+            Err(e) => {
+                crate::app_eprintln!("[analysis] trusted activation purge failed: {e}");
+                return false;
+            }
         }
     }
+    if let Some(sink) = app.try_state::<psysonic_core::ports::ContentHashSink>() {
+        sink.record_content_hash(content_hash_server_id, track_id, content_hash);
+    }
+    true
 }
 
-/// Like [`enqueue_track_analysis`] but for TRANSCODED playback bytes whose
-/// original fingerprint was verified via a raw-prefix probe: the analysis is
-/// computed from `bytes` but planned/stored under `trusted_md5_16kb`, so every
-/// bitrate representation of the same original resolves to one analysis row.
+fn activate_trusted_enrichment<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    cache_server_id: &str,
+    content_hash_server_id: &str,
+    track_id: &str,
+    content_hash: &str,
+    generation: u64,
+    outcome: TrackEnrichmentOutcome,
+) -> bool {
+    if matches!(outcome, TrackEnrichmentOutcome::Failed) {
+        return false;
+    }
+    activate_trusted_identity(
+        app,
+        cache_server_id,
+        content_hash_server_id,
+        track_id,
+        content_hash,
+        generation,
+    )
+}
+
+/// Like [`enqueue_track_analysis`] but with a verified original fingerprint.
+/// `bytes` must be that original representation; a mismatched capture is
+/// rejected rather than stored under another revision's identity.
 pub async fn enqueue_track_analysis_trusted(
     app: &tauri::AppHandle,
     server_id: &str,
     track_id: &str,
     bytes: &[u8],
     format_hint: Option<&str>,
-    trusted_md5_16kb: String,
+    trusted_revision: TrustedAnalysisRevision,
     priority: AnalysisBackfillPriority,
 ) -> Result<EnqueueTrackAnalysisOutcome, String> {
     enqueue_track_analysis_with_fetch(
-        app, server_id, track_id, bytes, format_hint, Some(trusted_md5_16kb), priority, 0,
-    ).await
+        app,
+        server_id,
+        track_id,
+        bytes,
+        format_hint,
+        Some(trusted_revision),
+        priority,
+        0,
+        None,
+    )
+    .await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -455,17 +587,24 @@ async fn enqueue_track_analysis_with_fetch(
     track_id: &str,
     bytes: &[u8],
     format_hint: Option<&str>,
-    trusted_md5_16kb: Option<String>,
+    trusted_revision: Option<TrustedAnalysisRevision>,
     priority: AnalysisBackfillPriority,
     fetch_ms: u64,
+    cpu_admitted: Option<tokio::sync::oneshot::Sender<()>>,
 ) -> Result<EnqueueTrackAnalysisOutcome, String> {
     if bytes.is_empty() {
         return Ok(EnqueueTrackAnalysisOutcome::Complete);
     }
+    if let Some(trusted) = trusted_revision.as_ref() {
+        if !crate::raw_probe::bytes_match_trusted(bytes, &trusted.md5_16kb) {
+            return Err("trusted original fingerprint does not match analysis bytes".to_string());
+        }
+    }
     // Trusted-original identity wins: planning against it reuses an existing
-    // complete result for the original even when `bytes` are a fresh transcode.
-    let content_hash = trusted_md5_16kb
-        .clone()
+    // complete result for the original.
+    let content_hash = trusted_revision
+        .as_ref()
+        .map(|trusted| trusted.md5_16kb.clone())
         .unwrap_or_else(|| analysis_cache::md5_first_16kb(bytes));
     let plan = plan_track_analysis(app, server_id, track_id, &content_hash);
     if !plan.any() {
@@ -474,8 +613,19 @@ async fn enqueue_track_analysis_with_fetch(
             track_id,
             content_hash
         );
-        if trusted_md5_16kb.is_some() {
-            repair_complete_trusted_identity(app, server_id, track_id, &content_hash);
+        if let Some(trusted) = trusted_revision.as_ref() {
+            let content_hash_server_id = trusted
+                .content_hash_server_id
+                .as_deref()
+                .unwrap_or(server_id);
+            activate_trusted_identity(
+                app,
+                server_id,
+                content_hash_server_id,
+                track_id,
+                &content_hash,
+                trusted.generation,
+            );
         }
         return Ok(EnqueueTrackAnalysisOutcome::Complete);
     }
@@ -494,9 +644,10 @@ async fn enqueue_track_analysis_with_fetch(
             track_id.to_string(),
             bytes.to_vec(),
             format_hint.map(str::to_string),
-            trusted_md5_16kb,
+            trusted_revision,
             priority,
             fetch_ms,
+            cpu_admitted,
         )
         .await?;
         return Ok(EnqueueTrackAnalysisOutcome::QueuedFullSeed);
@@ -527,6 +678,21 @@ async fn enqueue_track_analysis_with_fetch(
                 let _ = cache.touch_track_status(&key, "failed");
             }
             return Err("track enrichment failed".to_string());
+        }
+        if let Some(trusted) = trusted_revision.as_ref() {
+            let content_hash_server_id = trusted
+                .content_hash_server_id
+                .as_deref()
+                .unwrap_or(server_id);
+            activate_trusted_enrichment(
+                app,
+                server_id,
+                content_hash_server_id,
+                track_id,
+                &content_hash,
+                trusted.generation,
+                outcome,
+            );
         }
         let bpm_ms = bpm_started.elapsed().as_millis() as u64;
         emit_analysis_track_perf(app, track_id, fetch_ms, 0, bpm_ms);
@@ -597,6 +763,7 @@ pub async fn enqueue_offline_library_analysis_from_file(
     track_id: &str,
     file_path: &std::path::Path,
     explicit_priority: Option<AnalysisBackfillPriority>,
+    verified_original: bool,
 ) -> Result<(), String> {
     use tokio::io::AsyncReadExt;
 
@@ -612,6 +779,11 @@ pub async fn enqueue_offline_library_analysis_from_file(
         return Ok(());
     }
     let content_hash = analysis_cache::md5_first_16kb(&prefix);
+    let trusted_revision = verified_original.then(|| TrustedAnalysisRevision {
+        md5_16kb: content_hash.clone(),
+        generation: begin_trusted_revision(server_index_key, track_id, &content_hash),
+        content_hash_server_id: Some(library_server_id.to_string()),
+    });
     let plan = plan_track_analysis_offline_library(
         app,
         &[server_index_key, library_server_id],
@@ -626,6 +798,19 @@ pub async fn enqueue_offline_library_analysis_from_file(
             server_index_key,
             library_server_id,
         );
+        if let Some(trusted) = trusted_revision.as_ref() {
+            activate_trusted_identity(
+                app,
+                server_index_key,
+                trusted
+                    .content_hash_server_id
+                    .as_deref()
+                    .unwrap_or(server_index_key),
+                track_id,
+                &trusted.md5_16kb,
+                trusted.generation,
+            );
+        }
         return Ok(());
     }
     let bytes = tokio::fs::read(file_path)
@@ -649,6 +834,7 @@ pub async fn enqueue_offline_library_analysis_from_file(
         priority,
         plan,
         fetch_ms: 0,
+        trusted_revision,
     })
     .await?;
     Ok(())
@@ -664,6 +850,7 @@ struct OfflineLibraryAnalysisEnqueue<'a> {
     priority: AnalysisBackfillPriority,
     plan: psysonic_core::track_analysis::TrackAnalysisPlan,
     fetch_ms: u64,
+    trusted_revision: Option<TrustedAnalysisRevision>,
 }
 
 async fn enqueue_track_analysis_offline_library_with_plan(
@@ -688,9 +875,10 @@ async fn enqueue_track_analysis_offline_library_with_plan(
             args.track_id.to_string(),
             args.bytes.to_vec(),
             args.format_hint.map(str::to_string),
-            None,
+            args.trusted_revision,
             args.priority,
             args.fetch_ms,
+            None,
         )
         .await?;
         return Ok(EnqueueTrackAnalysisOutcome::QueuedFullSeed);
@@ -721,6 +909,20 @@ async fn enqueue_track_analysis_offline_library_with_plan(
                 let _ = cache.touch_track_status(&key, "failed");
             }
             return Err("track enrichment failed".to_string());
+        }
+        if let Some(trusted) = args.trusted_revision.as_ref() {
+            activate_trusted_enrichment(
+                args.app,
+                args.cache_server_id,
+                trusted
+                    .content_hash_server_id
+                    .as_deref()
+                    .unwrap_or(args.cache_server_id),
+                args.track_id,
+                &trusted.md5_16kb,
+                trusted.generation,
+                outcome,
+            );
         }
         let bpm_ms = bpm_started.elapsed().as_millis() as u64;
         emit_analysis_track_perf(args.app, args.track_id, args.fetch_ms, 0, bpm_ms);
@@ -753,34 +955,93 @@ fn analysis_http_client() -> &'static reqwest::Client {
     })
 }
 
-async fn analysis_backfill_download_bytes(
-    app: &tauri::AppHandle,
+const ANALYSIS_BACKFILL_DOWNLOAD_MAX_BYTES: usize = 64 * 1024 * 1024;
+
+async fn analysis_backfill_download_trusted_original<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     server_id: &str,
+    track_id: &str,
     url: &str,
-) -> Result<(Vec<u8>, u64), String> {
-    let fetch_started = std::time::Instant::now();
+) -> Result<(Vec<u8>, u64, TrustedAnalysisRevision), String> {
     let registry = app
         .try_state::<Arc<ServerHttpRegistry>>()
         .map(|s| Arc::clone(&*s));
-    let request = apply_optional_registry_headers(
+    let trusted = match crate::raw_probe::resolve_trusted_identity(
+        analysis_http_client(),
         registry.as_deref(),
         Some(server_id),
         url,
-        analysis_http_client().get(url),
-    );
-    let response = request
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    if !response.status().is_success() {
-        return Err(format!("HTTP {}", response.status().as_u16()));
-    }
-    let bytes = response.bytes().await.map_err(|e| e.to_string())?;
-    if bytes.is_empty() {
-        return Err("empty response".to_string());
-    }
+    )
+    .await
+    {
+        crate::raw_probe::TrustedProbeVerdict::Trusted(hash) => hash,
+        crate::raw_probe::TrustedProbeVerdict::SkipCanonicalWrites => {
+            return Err("raw original identity unavailable".to_string());
+        }
+    };
+    let generation = begin_trusted_revision(server_id, track_id, &trusted);
+
+    let fetch_started = std::time::Instant::now();
+    let bytes = crate::raw_probe::fetch_trusted_original_bytes(
+        analysis_http_client(),
+        registry.as_deref(),
+        Some(server_id),
+        url,
+        &trusted,
+        ANALYSIS_BACKFILL_DOWNLOAD_MAX_BYTES,
+    )
+    .await
+    .ok_or_else(|| "raw original unavailable or exceeds analysis cap".to_string())?;
     let fetch_ms = fetch_started.elapsed().as_millis() as u64;
-    Ok((bytes.to_vec(), fetch_ms))
+    Ok((
+        bytes,
+        fetch_ms,
+        TrustedAnalysisRevision {
+            md5_16kb: trusted,
+            generation,
+            content_hash_server_id: None,
+        },
+    ))
+}
+
+async fn process_analysis_backfill_job(
+    app: &tauri::AppHandle,
+    server_id: &str,
+    track_id: &str,
+    url: &str,
+    cpu_admitted: tokio::sync::oneshot::Sender<()>,
+) -> Result<bool, String> {
+    let (bytes, fetch_ms, trusted) =
+        analysis_backfill_download_trusted_original(app, server_id, track_id, url).await?;
+    let priority = analysis_backfill_resolve_priority(app, server_id, track_id, None);
+    let outcome = enqueue_track_analysis_with_fetch(
+        app,
+        server_id,
+        track_id,
+        &bytes,
+        None,
+        Some(trusted),
+        priority,
+        fetch_ms,
+        Some(cpu_admitted),
+    )
+    .await?;
+    Ok(!matches!(outcome, EnqueueTrackAnalysisOutcome::Complete))
+}
+
+fn release_backfill_reservation(
+    shared: &AnalysisBackfillShared,
+    server_id: &str,
+    track_id: &str,
+) {
+    {
+        let mut state = shared
+            .state
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        state.finish_job(&seed_key(server_id, track_id));
+    }
+    shared.ping_worker();
 }
 
 async fn analysis_backfill_worker_loop(
@@ -867,71 +1128,31 @@ async fn spawn_backfill_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisBackf
         let app = app.clone();
         let shared = shared.clone();
         tauri::async_runtime::spawn(async move {
-            let download_result = analysis_backfill_download_bytes(&app, &server_id, &url).await;
-            {
-                let mut st = shared
-                    .state
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner());
-                st.finish_job(&seed_key(&server_id, &track_id));
-            }
-            shared.ping_worker();
-
-            let result = match download_result {
-                Ok((bytes, fetch_ms)) => {
-                    crate::app_deprintln!(
-                        "[analysis] backfill worker={}/{}: fetched track_id={} fetch_ms={}",
-                        worker_slot,
-                        max,
-                        track_id,
-                        fetch_ms
-                    );
-                    let priority = analysis_backfill_resolve_priority(&app, &server_id, &track_id, None);
-                    // Backfill fetches through plain `stream.view`, which a
-                    // server-forced transcode policy can rewrite just like the
-                    // playback stream — establish the ORIGINAL's identity via
-                    // the same raw-prefix probe as playback. Probe failure
-                    // keeps the legacy bytes-hash path (non-Navidrome servers).
-                    let registry = app
-                        .try_state::<Arc<ServerHttpRegistry>>()
-                        .map(|s| Arc::clone(&*s));
-                    let trusted = match crate::raw_probe::resolve_trusted_identity(
-                        analysis_http_client(),
-                        registry.as_deref(),
-                        Some(server_id.as_str()),
-                        &url,
-                    )
-                    .await
-                    {
-                        crate::raw_probe::TrustedProbeVerdict::Trusted(h) => Some(h),
-                        crate::raw_probe::TrustedProbeVerdict::SkipCanonicalWrites => {
-                            crate::app_deprintln!(
-                                "[analysis] backfill skip track_id={}: stream identity unverified — no canonical writes",
-                                track_id
-                            );
-                            return;
-                        }
-                    };
-                    match enqueue_track_analysis_with_fetch(
-                        &app,
-                        &server_id,
-                        &track_id,
-                        &bytes,
-                        None,
-                        trusted,
-                        priority,
-                        fetch_ms,
-                    )
-                    .await
-                    {
-                        Ok(outcome) => {
-                            Ok(!matches!(outcome, EnqueueTrackAnalysisOutcome::Complete))
-                        }
-                        Err(e) => Err(e),
-                    }
+            // Keep the HTTP reservation through capability/provenance checks,
+            // the full raw fetch, and CPU queue admission. Releasing it earlier
+            // allows a duplicate full download before the CPU queue sees the job.
+            let (cpu_admitted_tx, cpu_admitted_rx) = tokio::sync::oneshot::channel();
+            let process = process_analysis_backfill_job(
+                &app,
+                &server_id,
+                &track_id,
+                &url,
+                cpu_admitted_tx,
+            );
+            tokio::pin!(process);
+            let mut released = false;
+            let result = tokio::select! {
+                biased;
+                result = &mut process => result,
+                Ok(()) = cpu_admitted_rx => {
+                    release_backfill_reservation(&shared, &server_id, &track_id);
+                    released = true;
+                    process.await
                 }
-                Err(e) => Err(e),
             };
+            if !released {
+                release_backfill_reservation(&shared, &server_id, &track_id);
+            }
 
             match &result {
                 Ok(has_loudness) => crate::app_deprintln!(
@@ -1086,6 +1307,37 @@ pub fn analysis_emits_ui_events(priority: AnalysisBackfillPriority) -> bool {
 }
 
 /// Enqueue HTTP download + analysis seed (native coordinator + optional UI invoke).
+fn resolve_backfill_server_id(url: &str, server_id_hint: Option<&str>) -> String {
+    if let Some(hint) = server_id_hint.map(str::trim).filter(|hint| !hint.is_empty()) {
+        return hint.to_string();
+    }
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return String::new();
+    };
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
+        return String::new();
+    }
+    let host = parsed.host_str().unwrap_or_default();
+    if host.is_empty() {
+        return String::new();
+    }
+    let mut base_path = parsed.path().to_string();
+    if let Some(idx) = base_path.find("/rest") {
+        base_path.truncate(idx);
+    }
+    while base_path.ends_with('/') {
+        base_path.pop();
+    }
+    let mut base = host.to_string();
+    if let Some(port) = parsed.port() {
+        base.push_str(&format!(":{port}"));
+    }
+    if !base_path.is_empty() {
+        base.push_str(&base_path);
+    }
+    base
+}
+
 pub fn enqueue_seed_from_url(
     app: &tauri::AppHandle,
     track_id: &str,
@@ -1093,38 +1345,27 @@ pub fn enqueue_seed_from_url(
     server_id_hint: Option<&str>,
     explicit_priority: Option<AnalysisBackfillPriority>,
     force: bool,
-) -> Result<(), String> {
+) -> Result<EnqueueSeedFromUrlOutcome, String> {
     if track_id.trim().is_empty() || url.trim().is_empty() {
-        return Ok(());
+        return Ok(EnqueueSeedFromUrlOutcome::Skipped);
     }
-    let server_id = if let Ok(parsed) = reqwest::Url::parse(url) {
-        if parsed.scheme() == "http" || parsed.scheme() == "https" {
-            let host = parsed.host_str().unwrap_or_default();
-            let mut base_path = parsed.path().to_string();
-            if let Some(idx) = base_path.find("/rest") {
-                base_path.truncate(idx);
-            }
-            while base_path.ends_with('/') {
-                base_path.pop();
-            }
-            if host.is_empty() {
-                server_id_hint.unwrap_or("").to_string()
-            } else {
-                let mut base = host.to_string();
-                if let Some(port) = parsed.port() {
-                    base.push_str(&format!(":{port}"));
-                }
-                if !base_path.is_empty() {
-                    base.push_str(&base_path);
-                }
-                base
-            }
-        } else {
-            server_id_hint.unwrap_or("").to_string()
+    let server_id = resolve_backfill_server_id(url, server_id_hint);
+    let is_http = url.starts_with("http://") || url.starts_with("https://");
+    if is_http {
+        let registry = app
+            .try_state::<Arc<ServerHttpRegistry>>()
+            .map(|s| Arc::clone(&*s));
+        if !crate::raw_probe::raw_stream_supported(
+            registry.as_deref(),
+            Some(server_id.as_str()).filter(|s| !s.is_empty()),
+            url,
+        ) {
+            crate::app_deprintln!(
+                "[analysis] backfill unsupported track_id={track_id}: endpoint has no trusted raw-stream capability"
+            );
+            return Ok(EnqueueSeedFromUrlOutcome::Unsupported);
         }
-    } else {
-        server_id_hint.unwrap_or("").to_string()
-    };
+    }
     if !force {
         if let Some(playback) = app.try_state::<PlaybackQueryHandle>() {
             if playback.ranged_loudness_backfill_should_defer(track_id) {
@@ -1132,7 +1373,7 @@ pub fn enqueue_seed_from_url(
                     "[analysis] backfill skip track_id={} reason=ranged_playback_will_seed",
                     track_id
                 );
-                return Ok(());
+                return Ok(EnqueueSeedFromUrlOutcome::Skipped);
             }
         }
     }
@@ -1144,14 +1385,14 @@ pub fn enqueue_seed_from_url(
                         "[analysis] backfill skip (no server scope): {}",
                         track_id
                     );
-                    return Ok(());
+                    return Ok(EnqueueSeedFromUrlOutcome::Skipped);
                 }
                 if !track_analysis_needs_work(app, &server_id, track_id)? {
                     crate::app_deprintln!(
                         "[analysis] backfill skip (analysis complete): {}",
                         track_id
                     );
-                    return Ok(());
+                    return Ok(EnqueueSeedFromUrlOutcome::Skipped);
                 }
                 crate::app_deprintln!(
                     "[analysis] backfill enqueue (analysis pending) track_id={}",
@@ -1179,6 +1420,7 @@ pub fn enqueue_seed_from_url(
                 "[analysis] backfill enqueued: track_id={} priority={resolved:?}",
                 tid_log,
             );
+            Ok(EnqueueSeedFromUrlOutcome::Enqueued)
         }
         AnalysisBackfillEnqueueKind::ReorderedHigher => {
             shared.ping_worker();
@@ -1186,10 +1428,12 @@ pub fn enqueue_seed_from_url(
                 "[analysis] backfill bumped tier track_id={} priority={resolved:?}",
                 tid_log,
             );
+            Ok(EnqueueSeedFromUrlOutcome::Enqueued)
         }
-        AnalysisBackfillEnqueueKind::DuplicateSkipped | AnalysisBackfillEnqueueKind::RunningSkipped => {}
+        AnalysisBackfillEnqueueKind::DuplicateSkipped | AnalysisBackfillEnqueueKind::RunningSkipped => {
+            Ok(EnqueueSeedFromUrlOutcome::AlreadyReserved)
+        }
     }
-    Ok(())
 }
 
 // ─── Full-track waveform + loudness: CPU seed queue (parallel decode workers) ─
@@ -1218,9 +1462,9 @@ struct AnalysisCpuSeedJob {
     track_id: String,
     bytes: Vec<u8>,
     format_hint: Option<String>,
-    /// Verified fingerprint of the ORIGINAL file when `bytes` are a transcoded
-    /// representation (raw-prefix probe). `None` = bytes ARE the original.
-    trusted_md5_16kb: Option<String>,
+    /// Verified fingerprint of the ORIGINAL file represented by `bytes`.
+    /// `None` means the bytes own their identity (local/offline paths).
+    trusted_revision: Option<TrustedAnalysisRevision>,
     /// Content revision this job represents: the trusted fingerprint when
     /// present, else the bytes' own fingerprint. Part of the dedup identity —
     /// a submission for a DIFFERENT revision of the same track must never be
@@ -1326,7 +1570,7 @@ impl AnalysisCpuSeedQueueState {
         track_id: String,
         bytes: Vec<u8>,
         format_hint: Option<String>,
-        trusted_md5_16kb: Option<String>,
+        trusted_revision: Option<TrustedAnalysisRevision>,
         priority: AnalysisBackfillPriority,
         fetch_ms: u64,
     ) -> (
@@ -1338,8 +1582,9 @@ impl AnalysisCpuSeedQueueState {
         // Subsonic id on two servers is two different files, and a different
         // revision of one track is different content — neither may share or
         // follow another job's decode.
-        let revision = trusted_md5_16kb
-            .clone()
+        let revision = trusted_revision
+            .as_ref()
+            .map(|trusted| trusted.md5_16kb.clone())
             .unwrap_or_else(|| analysis_cache::md5_first_16kb(&bytes));
         let key = seed_revision_key(&server_id, &track_id, &revision);
 
@@ -1356,7 +1601,7 @@ impl AnalysisCpuSeedQueueState {
             job.server_id = server_id;
             job.bytes = bytes;
             job.format_hint = format_hint;
-            job.trusted_md5_16kb = trusted_md5_16kb;
+            job.trusted_revision = trusted_revision;
             job.revision = revision;
             job.fetch_ms = fetch_ms;
             job.waiters.push(done_tx);
@@ -1375,7 +1620,7 @@ impl AnalysisCpuSeedQueueState {
             track_id: track_id.clone(),
             bytes,
             format_hint,
-            trusted_md5_16kb,
+            trusted_revision,
             revision,
             waiters: vec![done_tx],
             fetch_ms,
@@ -1569,14 +1814,19 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
             let sid = job.server_id.clone();
             let sid_for_event = sid.clone();
             let tid = job.track_id.clone();
+            let tid_for_decode = tid.clone();
             let bytes = job.bytes;
             let format_hint = job.format_hint;
-            let trusted_md5_16kb = job.trusted_md5_16kb;
+            let trusted_for_activation = job.trusted_revision.clone();
+            let trusted_md5_16kb = job
+                .trusted_revision
+                .as_ref()
+                .map(|trusted| trusted.md5_16kb.clone());
             let seed_result = tokio::task::spawn_blocking(move || {
                 analysis_cache::seed_from_bytes_execute(
                     &app_for_decode,
                     &sid,
-                    &tid,
+                    &tid_for_decode,
                     &bytes,
                     format_hint.as_deref(),
                     trusted_md5_16kb.as_deref(),
@@ -1585,6 +1835,28 @@ async fn spawn_cpu_seed_slots(app: &tauri::AppHandle, shared: &Arc<AnalysisCpuSe
             })
             .await
             .unwrap_or_else(|e| Err(format!("cpu-seed spawn_blocking: {e}")));
+
+            if let (Some(trusted), Ok((outcome, _))) =
+                (trusted_for_activation.as_ref(), seed_result.as_ref())
+            {
+                if matches!(
+                    outcome,
+                    analysis_cache::SeedFromBytesOutcome::Upserted
+                        | analysis_cache::SeedFromBytesOutcome::SkippedWaveformCacheHit
+                ) {
+                    activate_trusted_identity(
+                        &app_for_events,
+                        &sid_for_event,
+                        trusted
+                            .content_hash_server_id
+                            .as_deref()
+                            .unwrap_or(&sid_for_event),
+                        &tid,
+                        &trusted.md5_16kb,
+                        trusted.generation,
+                    );
+                }
+            }
 
             let mut extra = followers
                 .lock()
@@ -1692,23 +1964,35 @@ pub fn prune_analysis_queues(
 /// Cache-hit skips (`SkippedWaveformCacheHit`) omit the event so the frontend does not
 /// re-run loudness refresh / waveform IPC for rows that were already current.
 #[allow(clippy::too_many_arguments)]
-pub async fn submit_analysis_cpu_seed(
+async fn submit_analysis_cpu_seed(
     app: tauri::AppHandle,
     server_id: String,
     track_id: String,
     bytes: Vec<u8>,
     format_hint: Option<String>,
-    trusted_md5_16kb: Option<String>,
+    trusted_revision: Option<TrustedAnalysisRevision>,
     priority: AnalysisBackfillPriority,
     fetch_ms: u64,
+    cpu_admitted: Option<tokio::sync::oneshot::Sender<()>>,
 ) -> Result<analysis_cache::SeedFromBytesOutcome, String> {
     let shared = analysis_cpu_seed_shared(&app);
     let rx = {
         let mut st = shared.state.lock().unwrap_or_else(|e| e.into_inner());
-        let (kind, rx) = st.enqueue(server_id, track_id.clone(), bytes, format_hint, trusted_md5_16kb, priority, fetch_ms);
+        let (kind, rx) = st.enqueue(
+            server_id,
+            track_id.clone(),
+            bytes,
+            format_hint,
+            trusted_revision,
+            priority,
+            fetch_ms,
+        );
         crate::app_deprintln!("[analysis] cpu-seed submit: kind={kind:?} priority={priority:?}");
         drop(st);
         shared.ping_worker();
+        if let Some(admitted) = cpu_admitted {
+            let _ = admitted.send(());
+        }
         rx
     };
     let (outcome, _timings) = match rx.await {
@@ -1721,6 +2005,117 @@ pub async fn submit_analysis_cpu_seed(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn trusted_revision(md5_16kb: &str, generation: u64) -> Option<TrustedAnalysisRevision> {
+        Some(TrustedAnalysisRevision {
+            md5_16kb: md5_16kb.to_string(),
+            generation,
+            content_hash_server_id: None,
+        })
+    }
+
+    struct RawOriginalResponder {
+        body: Vec<u8>,
+    }
+
+    impl wiremock::Respond for RawOriginalResponder {
+        fn respond(&self, request: &wiremock::Request) -> wiremock::ResponseTemplate {
+            if request
+                .headers
+                .get(reqwest::header::RANGE.as_str())
+                .is_some()
+            {
+                let end = self
+                    .body
+                    .len()
+                    .saturating_sub(1)
+                    .min(crate::raw_probe::RAW_PROBE_RANGE_END as usize);
+                return wiremock::ResponseTemplate::new(206)
+                    .insert_header(
+                        "Content-Range",
+                        format!("bytes 0-{end}/{}", self.body.len()).as_str(),
+                    )
+                    .set_body_bytes(self.body[..=end].to_vec());
+            }
+            wiremock::ResponseTemplate::new(200).set_body_bytes(self.body.clone())
+        }
+    }
+
+    #[tokio::test]
+    async fn backfill_probes_then_downloads_only_the_raw_original() {
+        use psysonic_core::server_http::{
+            EndpointKind, ServerHttpContextSyncWire, ServerHttpEndpointWire,
+        };
+        use tauri::Manager;
+        use wiremock::matchers::{method, path, query_param};
+        use wiremock::{Mock, MockServer};
+
+        let server = MockServer::start().await;
+        let mut original = vec![0x66; 24 * 1024];
+        original[..4].copy_from_slice(b"fLaC");
+        Mock::given(method("GET"))
+            .and(path("/rest/stream.view"))
+            .and(query_param("format", "raw"))
+            .respond_with(RawOriginalResponder {
+                body: original.clone(),
+            })
+            .mount(&server)
+            .await;
+
+        let registry = ServerHttpRegistry::new();
+        registry.sync(ServerHttpContextSyncWire {
+            server_id: "canonical-server".into(),
+            app_server_id: "profile-id".into(),
+            endpoints: vec![ServerHttpEndpointWire {
+                url: server.uri(),
+                kind: EndpointKind::Public,
+            }],
+            custom_headers: Vec::new(),
+            custom_headers_apply_to: None,
+            supports_raw_stream: true,
+        });
+        let app = tauri::test::mock_app();
+        app.handle().manage(Arc::new(registry));
+        let stream_url = format!(
+            "{}/rest/stream.view?id=t1&maxBitRate=128",
+            server.uri()
+        );
+
+        let (bytes, _, trusted) = analysis_backfill_download_trusted_original(
+            app.handle(),
+            "canonical-server",
+            "t1",
+            &stream_url,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(bytes, original);
+        assert_eq!(trusted.md5_16kb, analysis_cache::md5_first_16kb(&bytes));
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(requests.len(), 2, "one prefix probe plus one full raw fetch");
+        assert!(requests.iter().all(|request| {
+            request.url.query_pairs().any(|(key, value)| key == "format" && value == "raw")
+        }));
+    }
+
+    #[test]
+    fn explicit_backfill_server_hint_beats_url_transport_scope() {
+        assert_eq!(
+            resolve_backfill_server_id(
+                "https://lan.example:4533/nav/rest/stream.view?id=t1",
+                Some("canonical.example/nav"),
+            ),
+            "canonical.example/nav"
+        );
+        assert_eq!(
+            resolve_backfill_server_id(
+                "https://lan.example:4533/nav/rest/stream.view?id=t1",
+                None,
+            ),
+            "lan.example:4533/nav"
+        );
+    }
 
     // ── AnalysisBackfillQueueState ────────────────────────────────────────────
 
@@ -1979,7 +2374,7 @@ mod tests {
             "dup".into(),
             vec![1, 2, 3],
             None,
-            Some("rev-x".into()),
+            trusted_revision("rev-x", 1),
             AnalysisBackfillPriority::Low,
             0,
         );
@@ -1988,7 +2383,7 @@ mod tests {
             "dup".into(),
             vec![4, 5, 6],
             None,
-            Some("rev-x".into()),
+            trusted_revision("rev-x", 1),
             AnalysisBackfillPriority::Low,
             0,
         );
@@ -2011,12 +2406,18 @@ mod tests {
             "t1".into(),
             vec![1],
             None,
-            Some("revision-a".into()),
+            trusted_revision("revision-a", 1),
             AnalysisBackfillPriority::Low,
             0,
         );
         let job_a = s.try_pop_next().unwrap();
-        assert_eq!(job_a.trusted_md5_16kb.as_deref(), Some("revision-a"));
+        assert_eq!(
+            job_a
+                .trusted_revision
+                .as_ref()
+                .map(|trusted| trusted.md5_16kb.as_str()),
+            Some("revision-a")
+        );
         // Mirror the worker: mark revision A as running.
         s.running.insert(
             seed_revision_key(&job_a.server_id, &job_a.track_id, &job_a.revision),
@@ -2028,7 +2429,7 @@ mod tests {
             "t1".into(),
             vec![2],
             None,
-            Some("revision-b".into()),
+            trusted_revision("revision-b", 2),
             AnalysisBackfillPriority::Low,
             0,
         );
@@ -2038,7 +2439,13 @@ mod tests {
             "a different content revision must not be swallowed as a follower"
         );
         let job_b = s.try_pop_next().expect("revision B queued as its own job");
-        assert_eq!(job_b.trusted_md5_16kb.as_deref(), Some("revision-b"));
+        assert_eq!(
+            job_b
+                .trusted_revision
+                .as_ref()
+                .map(|trusted| trusted.md5_16kb.as_str()),
+            Some("revision-b")
+        );
         assert_eq!(job_b.bytes, vec![2]);
     }
 
@@ -2233,19 +2640,26 @@ mod complete_repair_tests {
     use crate::analysis_cache::{AnalysisCache, LoudnessEntry, TrackKey, WaveformEntry};
     use tauri::Manager;
 
-    fn key(md5: &str) -> TrackKey {
+    fn key_for(server_id: &str, track_id: &str, md5: &str) -> TrackKey {
         TrackKey {
-            server_id: "srv".into(),
-            track_id: "t1".into(),
+            server_id: server_id.into(),
+            track_id: track_id.into(),
             md5_16kb: md5.into(),
         }
     }
 
-    fn seed_complete_row(cache: &AnalysisCache, md5: &str, updated_at: i64) {
-        cache.touch_track_status(&key(md5), "ready").unwrap();
+    fn seed_complete_row_for(
+        cache: &AnalysisCache,
+        server_id: &str,
+        track_id: &str,
+        md5: &str,
+        updated_at: i64,
+    ) {
+        let key = key_for(server_id, track_id, md5);
+        cache.touch_track_status(&key, "ready").unwrap();
         cache
-            .upsert_waveform(&key(md5), &WaveformEntry {
-                bins: vec![1, 2, 3],
+            .upsert_waveform(&key, &WaveformEntry {
+                bins: vec![1, 2, 3, 4, 5, 6],
                 bin_count: 3,
                 is_partial: false,
                 known_until_sec: 100.0,
@@ -2254,7 +2668,7 @@ mod complete_repair_tests {
             })
             .unwrap();
         cache
-            .upsert_loudness(&key(md5), &LoudnessEntry {
+            .upsert_loudness(&key, &LoudnessEntry {
                 integrated_lufs: -14.0,
                 true_peak: 0.5,
                 recommended_gain_db: 0.0,
@@ -2274,22 +2688,118 @@ mod complete_repair_tests {
         let app = tauri::test::mock_app();
         app.handle().manage(AnalysisCache::open_in_memory());
         let cache = app.handle().state::<AnalysisCache>();
+        let server_id = "srv-complete-repair";
 
-        seed_complete_row(&cache, "trusted-fp", 100);
-        seed_complete_row(&cache, "stale-transcode-fp", 200); // newer wins reads today
+        seed_complete_row_for(&cache, server_id, "t1", "trusted-fp", 100);
+        seed_complete_row_for(&cache, server_id, "t1", "stale-transcode-fp", 200); // newer wins reads today
 
         assert_eq!(
-            cache.get_latest_md5_16kb_for_track("srv", "t1").unwrap().as_deref(),
+            cache.get_latest_md5_16kb_for_track(server_id, "t1").unwrap().as_deref(),
             Some("stale-transcode-fp"),
             "precondition: the stale variant is what reads currently select"
         );
 
-        repair_complete_trusted_identity(app.handle(), "srv", "t1", "trusted-fp");
+        let generation = begin_trusted_revision(server_id, "t1", "trusted-fp");
+        activate_trusted_identity(
+            app.handle(),
+            server_id,
+            server_id,
+            "t1",
+            "trusted-fp",
+            generation,
+        );
 
         assert_eq!(
-            cache.get_latest_md5_16kb_for_track("srv", "t1").unwrap().as_deref(),
+            cache.get_latest_md5_16kb_for_track(server_id, "t1").unwrap().as_deref(),
             Some("trusted-fp"),
             "the stale variant must be purged on the complete-repair path"
+        );
+    }
+
+    #[test]
+    fn trusted_revisions_completing_in_reverse_keep_the_newer_result() {
+        let app = tauri::test::mock_app();
+        app.handle().manage(AnalysisCache::open_in_memory());
+        let recorded = Arc::new(Mutex::new(Vec::<String>::new()));
+        let recorded_for_sink = recorded.clone();
+        app.handle().manage(psysonic_core::ports::ContentHashSink::new(
+            move |_, _, hash| recorded_for_sink.lock().unwrap().push(hash.to_string()),
+        ));
+        let cache = app.handle().state::<AnalysisCache>();
+
+        let older_generation =
+            begin_trusted_revision("srv-reverse", "stream:t1", "older-fp");
+        let newer_generation = begin_trusted_revision("srv-reverse", "t1", "newer-fp");
+        seed_complete_row_for(&cache, "srv-reverse", "t1", "newer-fp", 200);
+        assert!(activate_trusted_identity(
+            app.handle(),
+            "srv-reverse",
+            "srv-reverse",
+            "t1",
+            "newer-fp",
+            newer_generation,
+        ));
+
+        seed_complete_row_for(&cache, "srv-reverse", "t1", "older-fp", 300);
+        assert!(!activate_trusted_identity(
+            app.handle(),
+            "srv-reverse",
+            "srv-reverse",
+            "stream:t1",
+            "older-fp",
+            older_generation,
+        ));
+
+        assert!(cache
+            .content_cache_coverage("srv-reverse", "t1", "newer-fp")
+            .unwrap()
+            .complete());
+        assert!(!cache
+            .content_cache_coverage("srv-reverse", "t1", "older-fp")
+            .unwrap()
+            .has_waveform);
+        assert_eq!(&*recorded.lock().unwrap(), &["newer-fp".to_string()]);
+    }
+
+    #[test]
+    fn successful_trusted_enrichment_repairs_hash_and_purges_variants() {
+        let app = tauri::test::mock_app();
+        app.handle().manage(AnalysisCache::open_in_memory());
+        let recorded = Arc::new(Mutex::new(Vec::<(String, String)>::new()));
+        let recorded_for_sink = recorded.clone();
+        app.handle().manage(psysonic_core::ports::ContentHashSink::new(
+            move |server_id, _, hash| {
+                recorded_for_sink
+                    .lock()
+                    .unwrap()
+                    .push((server_id.to_string(), hash.to_string()))
+            },
+        ));
+        let cache = app.handle().state::<AnalysisCache>();
+        let server_id = "srv-enrichment-repair";
+        seed_complete_row_for(&cache, server_id, "t1", "trusted-enrichment", 100);
+        seed_complete_row_for(&cache, server_id, "t1", "stale-enrichment", 200);
+        let generation = begin_trusted_revision(server_id, "t1", "trusted-enrichment");
+
+        assert!(activate_trusted_enrichment(
+            app.handle(),
+            server_id,
+            "library-scope",
+            "t1",
+            "trusted-enrichment",
+            generation,
+            TrackEnrichmentOutcome::Applied,
+        ));
+        assert_eq!(
+            cache
+                .get_latest_md5_16kb_for_track(server_id, "t1")
+                .unwrap()
+                .as_deref(),
+            Some("trusted-enrichment")
+        );
+        assert_eq!(
+            &*recorded.lock().unwrap(),
+            &[("library-scope".to_string(), "trusted-enrichment".to_string())]
         );
     }
 }

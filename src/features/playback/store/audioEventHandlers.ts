@@ -98,6 +98,7 @@ import {
   sameQueueTrack,
 } from '@/features/playback/utils/playback/queueIdentity';
 import { reportPlaybackSourceFailure } from '@/features/playback/store/playbackAlternativeStore';
+import type { StreamProvenance } from '@/lib/media/streamFormat';
 
 // Silence-aware crossfade (A-tail): guards the early advance to once per play
 // generation so a single playback instance triggers at most one trim-advance
@@ -158,6 +159,13 @@ export type AudioFormatPayload = {
   lossless: boolean;
 };
 
+export type AudioStreamProvenancePayload = {
+  trackId: string;
+  serverId: string;
+  generation: number;
+  provenance: StreamProvenance;
+};
+
 /**
  * The engine resolved the real codec/format of the live stream. Stamp it with
  * the track playing right now (audio:format fires just after audio:playing, so
@@ -167,7 +175,8 @@ export type AudioFormatPayload = {
  * format (see `effectiveAudioFormat`).
  */
 export function handleAudioFormat(payload: AudioFormatPayload): void {
-  const cur = usePlayerStore.getState().currentTrack;
+  const state = usePlayerStore.getState();
+  const cur = state.currentTrack;
   if (!cur || !payload?.codec) return;
   // Identity guard: the engine resolves format asynchronously, so an event may
   // land after a skip, or a duplicate Subsonic id on another server may collide.
@@ -184,7 +193,7 @@ export function handleAudioFormat(payload: AudioFormatPayload): void {
   // overwrite (or resurrect) format state. Keyed off a monotonic floor that
   // SURVIVES format clears — same-track replays wipe `resolvedStreamFormat`,
   // so the object itself cannot carry the guard.
-  const floor = usePlayerStore.getState().streamFormatGenerationFloor;
+  const floor = state.streamFormatGenerationFloor;
   if (payload.generation != null && payload.generation < floor) return;
   usePlayerStore.setState({
     streamFormatGenerationFloor: payload.generation != null
@@ -192,6 +201,7 @@ export function handleAudioFormat(payload: AudioFormatPayload): void {
       : floor,
     resolvedStreamFormat: {
       trackId: cur.id,
+      serverId: payload.serverId ?? undefined,
       generation: payload.generation ?? undefined,
       codec: payload.codec,
       sampleRate: payload.sampleRate ?? undefined,
@@ -206,6 +216,25 @@ export function handleAudioFormat(payload: AudioFormatPayload): void {
       streamCapKbps: payload.streamCapKbps === undefined
         ? effectiveStreamCapKbps(cur.serverId)
         : (payload.streamCapKbps ?? 0),
+    },
+  });
+}
+
+/** Merge trusted HTTP stream provenance only into the exact format instance. */
+export function handleAudioStreamProvenance(payload: AudioStreamProvenancePayload): void {
+  if (!payload || !['original', 'transcoded', 'unknown'].includes(payload.provenance)) return;
+  const state = usePlayerStore.getState();
+  const cur = state.currentTrack;
+  const resolved = state.resolvedStreamFormat;
+  if (!cur || !resolved) return;
+  if (payload.trackId !== cur.id || resolved.trackId !== payload.trackId) return;
+  if (cur.serverId != null && !indexKeyBelongsToServer(payload.serverId, cur.serverId)) return;
+  if (resolved.serverId !== payload.serverId) return;
+  if (resolved.generation == null || resolved.generation !== payload.generation) return;
+  usePlayerStore.setState({
+    resolvedStreamFormat: {
+      ...resolved,
+      provenance: payload.provenance,
     },
   });
 }

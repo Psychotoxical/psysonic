@@ -39,6 +39,9 @@ pub struct AudioEngine {
     pub current: Arc<Mutex<AudioCurrent>>,
     /// Monotonically incremented on each audio_play (non-chain) / audio_stop call.
     pub generation: Arc<AtomicU64>,
+    /// Invalidates background byte/gapless preloads without superseding the
+    /// currently playing source or stopping its progress task.
+    pub(crate) preload_epoch: Arc<AtomicU64>,
     pub http_client: Arc<RwLock<reqwest::Client>>,
     pub eq_gains: Arc<[AtomicU32; 10]>,
     pub eq_enabled: Arc<AtomicBool>,
@@ -468,6 +471,7 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
             fadeout_samples: None,
         })),
         generation: Arc::new(AtomicU64::new(0)),
+        preload_epoch: Arc::new(AtomicU64::new(0)),
         http_client: Arc::new(RwLock::new(
             reqwest::Client::builder()
                 .timeout(Duration::from_secs(30))

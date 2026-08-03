@@ -22,6 +22,9 @@ pub(crate) struct ChainedInfo {
     pub(crate) analysis_track_id: Option<String>,
     /// Playback server scope for analysis writes.
     pub(crate) server_id: Option<String>,
+    /// Main playback generation shared with the predecessor. Gapless advances
+    /// do not bump it, so provenance events can remain identity-qualified.
+    pub(crate) generation: u64,
     /// Raw file bytes (shared with the chained decoder). Lets manual skip reuse
     /// them instead of re-downloading after dropping the Sink queue.
     pub(crate) raw_bytes: Arc<Vec<u8>>,
@@ -33,6 +36,9 @@ pub(crate) struct ChainedInfo {
     pub(crate) base_volume: f32,
     /// Set by NotifyingSource when this chained track's source is exhausted.
     pub(crate) source_done: Arc<AtomicBool>,
+    /// Stops this queued source when preload configuration is invalidated,
+    /// without touching the source that is currently audible.
+    pub(crate) cancel: Arc<AtomicBool>,
     /// Atomic sample counter for this chained source (swapped into
     /// samples_played on transition).
     pub(crate) sample_counter: Arc<AtomicU64>,

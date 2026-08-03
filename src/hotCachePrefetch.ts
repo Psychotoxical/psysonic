@@ -1,9 +1,9 @@
-import { buildStreamUrlForServer } from '@/lib/api/subsonicStreamUrl';
+import { buildOriginalStreamUrlForServer } from '@/lib/api/subsonicStreamUrl';
 import { getPlaybackCacheServerKey } from '@/features/playback/utils/playback/playbackServer';
 import type { QueueItemRef } from '@/lib/media/trackTypes';
 import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';
 import { invoke } from '@tauri-apps/api/core';
-import { useAuthStore } from './store/authStore';
+import { serverSupportsRawStream, useAuthStore } from './store/authStore';
 import { selectHotCacheEntries, useHotCacheStore } from '@/features/playback/store/hotCacheStore';
 import { useLocalPlaybackStore } from './store/localPlaybackStore';
 import { getMediaDir } from '@/lib/media/mediaDir';
@@ -17,7 +17,6 @@ import {
 import {
   PREFETCH_AHEAD,
   type PrefetchJob,
-  entryKey,
   sumCachedBytesInProtectedWindow,
   estimateTrackHotCacheBytes,
   hotCacheFrontendDebug,
@@ -28,7 +27,10 @@ import {
   resetAnalysisPruneState,
 } from './hotCachePrefetch/analysisPrune';
 import { reconcileEphemeralCache } from '@/lib/cache/ephemeralTierReconcile';
-import { hasLocalPersistentPlaybackBytes } from '@/store/localPlaybackResolve';
+import {
+  findEphemeralEntry,
+  hasLocalPersistentPlaybackBytes,
+} from '@/store/localPlaybackResolve';
 
 /** Periodic index↔disk sync (stale rows + empty dirs); unindexed files evicted only on budget pressure. */
 const EPHEMERAL_MAINTENANCE_MS = 10 * 60 * 1000;
@@ -38,6 +40,12 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let graceEvictTimer: ReturnType<typeof setTimeout> | null = null;
 const pendingQueue: PrefetchJob[] = [];
 let workerRunning = false;
+
+function hotCacheEntrySatisfiesOriginalRequirement(trackId: string, serverId: string): boolean {
+  const entry = findEphemeralEntry(trackId, serverId);
+  if (!entry?.localPath) return false;
+  return !serverSupportsRawStream(serverId) || entry.originalBytesVerified === true;
+}
 
 function scheduleEvictAfterPreviousGrace(): void {
   if (graceEvictTimer) {
@@ -60,8 +68,7 @@ export function scheduleHotCachePrefetchForTrack(track: { id: string; suffix?: s
   const auth = useAuthStore.getState();
   if (!auth.isLoggedIn || !auth.hotCacheEnabled || !serverId) return;
   if (hasLocalPersistentPlaybackBytes(track.id, serverId)) return;
-  const hotIndex = selectHotCacheEntries(useLocalPlaybackStore.getState().entries);
-  if (hotIndex[entryKey(serverId, track.id)]) return;
+  if (hotCacheEntrySatisfiesOriginalRequirement(track.id, serverId)) return;
   enqueueJobs([{ trackId: track.id, serverId, suffix: track.suffix || 'mp3' }]);
 }
 
@@ -124,8 +131,7 @@ async function runWorker() {
         });
         continue;
       }
-      const hotIndex = selectHotCacheEntries(useLocalPlaybackStore.getState().entries);
-      if (hotIndex[entryKey(job.serverId, job.trackId)]) {
+      if (hotCacheEntrySatisfiesOriginalRequirement(job.trackId, job.serverId)) {
         hotCacheFrontendDebug({
           event: 'prefetch-skip-job',
           trackId: job.trackId,
@@ -178,11 +184,16 @@ async function runWorker() {
         continue;
       }
 
-      const url = buildStreamUrlForServer(job.serverId, job.trackId);
+      const url = buildOriginalStreamUrlForServer(job.serverId, job.trackId);
       try {
         const mediaDir = getMediaDir();
         hotCacheFrontendDebug({ event: 'prefetch-invoke', trackId: job.trackId });
-        const res = await invoke<{ path: string; size: number; layoutFingerprint: string }>('download_track_local', {
+        const res = await invoke<{
+          path: string;
+          size: number;
+          layoutFingerprint: string;
+          originalBytesVerified: boolean;
+        }>('download_track_local', {
           tier: 'ephemeral',
           trackId: job.trackId,
           serverIndexKey: job.serverId,
@@ -200,6 +211,8 @@ async function runWorker() {
           'prefetch',
           res.layoutFingerprint,
           job.suffix,
+          0,
+          res.originalBytesVerified,
         );
         hotCacheFrontendDebug({ event: 'prefetch-stored', trackId: job.trackId, sizeBytes: res.size });
         const fresh = usePlayerStore.getState();
@@ -285,7 +298,7 @@ async function replanNow() {
       skipped.push({ trackId: t.id, reason: 'persistent-local-bytes' });
       continue;
     }
-    if (hotEntries[entryKey(serverId, t.id)]) {
+    if (hotCacheEntrySatisfiesOriginalRequirement(t.id, serverId)) {
       skipped.push({ trackId: t.id, reason: 'already-in-hot-index' });
       continue;
     }

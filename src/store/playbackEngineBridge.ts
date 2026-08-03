@@ -18,6 +18,8 @@ export interface PlaybackEngineBridge {
   clearQueueServerForPlayback(): void;
   /** Re-apply ReplayGain/normalization to the currently playing track. */
   updateReplayGainForCurrentTrack(): void;
+  /** Invalidate native byte/gapless preloads after URL-affecting inputs change. */
+  invalidatePreloads(): Promise<void>;
 }
 
 let bridge: PlaybackEngineBridge | null = null;
@@ -41,4 +43,8 @@ export function clearQueueServerForPlayback(): void {
 
 export function updateReplayGainForCurrentTrack(): void {
   bridge?.updateReplayGainForCurrentTrack();
+}
+
+export function invalidatePlaybackPreloads(): Promise<void> {
+  return bridge ? bridge.invalidatePreloads() : Promise.resolve();
 }

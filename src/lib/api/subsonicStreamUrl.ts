@@ -2,7 +2,7 @@ import md5 from 'md5';
 import { coverStorageKeyFromRef } from '@/cover/storageKeys';
 import { coverEntryToRef, resolveAlbumCoverEntry } from '@/cover/resolveEntry';
 import type { CoverArtTier } from '@/cover/types';
-import { useAuthStore } from '@/store/authStore';
+import { serverSupportsRawStream, useAuthStore } from '@/store/authStore';
 import { connectBaseUrlForServer } from '@/lib/server/serverEndpoint';
 import { findServerByIdOrIndexKey } from '@/lib/server/serverLookup';
 import { restBaseFromUrl, SUBSONIC_CLIENT, secureRandomSalt } from '@/lib/api/subsonicClient';
@@ -43,8 +43,8 @@ function streamUrlFromProfile(
     f: 'json',
   });
   // Ask the server to transcode the live stream down to this ceiling. Omitted
-  // when 0 ("Original") so the server streams the source untouched. Only the
-  // live playback path passes a cap — prefetch/analysis always send 0.
+  // when 0 ("No bitrate cap"); the server may still apply its own transcode
+  // policy. Only the live playback path passes a cap.
   if (maxBitRateKbps > 0) p.set('maxBitRate', String(maxBitRateKbps));
   // Explicit transcode target ('' / 'auto' = omit; server picks its default).
   if (transcodeFormat && transcodeFormat !== 'auto') p.set('format', transcodeFormat);
@@ -57,6 +57,21 @@ export function buildStreamUrlForServer(serverId: string, id: string, maxBitRate
   // Dual-address: route the stream through the cached connect endpoint.
   return streamUrlFromProfile(
     connectBaseUrlForServer(server), server.username, server.password, id, maxBitRateKbps, transcodeFormat,
+  );
+}
+
+/**
+ * URL for producers that need the original media bytes. Navidrome's verified
+ * `format=raw` contract bypasses server/player transcoding; unknown and other
+ * server types retain the ordinary uncapped stream request.
+ */
+export function buildOriginalStreamUrlForServer(serverId: string, id: string): string {
+  const server = findServerByIdOrIndexKey(serverId);
+  if (!server || !serverSupportsRawStream(serverId)) {
+    return buildStreamUrlForServer(serverId, id);
+  }
+  return streamUrlFromProfile(
+    connectBaseUrlForServer(server), server.username, server.password, id, 0, 'raw',
   );
 }
 

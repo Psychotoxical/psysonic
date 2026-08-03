@@ -498,6 +498,7 @@ const CONTRIBUTOR_ENTRIES = [
     since: '1.51.0',
     contributions: [
       'Now-playing badge shows the real decoded stream format on server transcode (PR #1338)',
+      'Per-address Navidrome streaming quality with original-stream analysis and cache isolation (PR #1334)',
     ],
   },
 ] as const;

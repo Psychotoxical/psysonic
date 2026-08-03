@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   bootstrapIndexedServer: vi.fn(),
   ensureConnectUrlResolved: vi.fn(),
   pingWithCredentialsForProfile: vi.fn(),
-  syncServerHttpContextForProfile: vi.fn(),
+  syncServerHttpContextForProfile: vi.fn(async () => undefined),
   invalidateReachableEndpointCache: vi.fn(),
 }));
 
@@ -31,6 +31,7 @@ vi.mock('@/lib/api/subsonic', () => ({
 
 vi.mock('@/lib/server/syncServerHttpContext', () => ({
   clearServerHttpContext: vi.fn(),
+  setServerHttpContextIdentitySource: vi.fn(),
   syncServerHttpContextForProfile: mocks.syncServerHttpContextForProfile,
 }));
 

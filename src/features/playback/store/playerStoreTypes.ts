@@ -34,7 +34,6 @@ export interface PlayerState {
   currentPlaybackSource: PlaybackSourceKind | null;
   /**
    * Server-qualified queue identity for which `audio_preload` finished into the engine RAM slot.
-   * Legacy engine events may temporarily provide a raw Subsonic track id.
    * Cleared after a successful `audio_play` consumed that preload, or when starting another track.
    */
   enginePreloadedTrackId: string | null;

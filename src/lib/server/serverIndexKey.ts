@@ -1,16 +1,10 @@
-import type { ServerProfile } from '@/store/authStoreTypes';
 import { useAuthStore } from '@/store/authStore';
-import { serverProfileBaseUrl } from '@/lib/server/serverBaseUrl';
+import {
+  serverIndexKeyForProfile,
+  serverIndexKeyFromUrl,
+} from '@/lib/server/serverBaseUrl';
 
-/** Stable index key derived from a server URL (host + optional path, no scheme). */
-export function serverIndexKeyFromUrl(urlRaw: string): string {
-  const base = serverProfileBaseUrl({ url: urlRaw });
-  return base.replace(/^https?:\/\//, '');
-}
-
-export function serverIndexKeyForProfile(server: Pick<ServerProfile, 'url'>): string {
-  return serverIndexKeyFromUrl(server.url);
-}
+export { serverIndexKeyForProfile, serverIndexKeyFromUrl } from '@/lib/server/serverBaseUrl';
 
 const SERVER_PROFILE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 

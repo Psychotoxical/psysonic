@@ -14,6 +14,7 @@ import {
   buildCoverArtUrl,
   buildCoverArtUrlForServer,
   buildDownloadUrl,
+  buildOriginalStreamUrlForServer,
   buildStreamUrl,
   coverArtCacheKey,
   coverArtCacheKeyForServer,
@@ -294,6 +295,31 @@ describe('buildStreamUrl', () => {
     const id = 'AC/DC — Back in Black';
     const url = new URL(buildStreamUrl(id));
     expect(url.searchParams.get('id')).toBe(id);
+  });
+});
+
+describe('buildOriginalStreamUrlForServer', () => {
+  it('requests Navidrome raw bytes without a bitrate cap', () => {
+    const serverId = setUpServer();
+    useAuthStore.getState().setSubsonicServerIdentity(serverId, { type: 'navidrome' });
+    useAuthStore.getState().setStreamQualityForAddress('https://music.example.com', 64);
+
+    const url = new URL(buildOriginalStreamUrlForServer('music.example.com', 'track-raw'));
+    expect(url.searchParams.get('format')).toBe('raw');
+    expect(url.searchParams.has('maxBitRate')).toBe(false);
+  });
+
+  it('keeps the ordinary uncapped URL for unknown and non-Navidrome profiles', () => {
+    const serverId = setUpServer();
+
+    const unknown = new URL(buildOriginalStreamUrlForServer(serverId, 'track-unknown'));
+    expect(unknown.searchParams.has('format')).toBe(false);
+    expect(unknown.searchParams.has('maxBitRate')).toBe(false);
+
+    useAuthStore.getState().setSubsonicServerIdentity(serverId, { type: 'gonic' });
+    const nonNavidrome = new URL(buildOriginalStreamUrlForServer(serverId, 'track-gonic'));
+    expect(nonNavidrome.searchParams.has('format')).toBe(false);
+    expect(nonNavidrome.searchParams.has('maxBitRate')).toBe(false);
   });
 });
 

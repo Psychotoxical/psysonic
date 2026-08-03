@@ -5,8 +5,13 @@ import type {
   CustomHeadersValidationResult,
   ServerProfile,
 } from '@/store/authStoreTypes';
-import { serverIndexKeyForProfile } from '@/lib/server/serverIndexKey';
-import { normalizeServerBaseUrl, serverAddressEndpoints, type ServerEndpointKind } from '@/lib/server/serverEndpoint';
+import { serverIndexKeyForProfile } from '@/lib/server/serverBaseUrl';
+import {
+  normalizeServerBaseUrl,
+  serverAddressEndpoints,
+  type ServerEndpointKind,
+} from '@/lib/server/serverAddress';
+import { isNavidromeServer, type SubsonicServerIdentity } from '@/lib/server/subsonicServerIdentity';
 
 export const DEFAULT_CUSTOM_HEADERS_APPLY_TO: CustomHeadersApplyTo = 'public';
 
@@ -174,12 +179,14 @@ export function serverHttpContextWireForProfile(
     ServerProfile,
     'id' | 'url' | 'alternateUrl' | 'customHeaders' | 'customHeadersApplyTo'
   >,
+  identity?: SubsonicServerIdentity,
 ): {
   serverId: string;
   appServerId: string;
   endpoints: ServerHttpEndpointWire[];
   customHeaders: CustomHeaderEntry[];
   customHeadersApplyTo: CustomHeadersApplyTo;
+  supportsRawStream: boolean;
 } {
   return {
     serverId: serverIndexKeyForProfile(server),
@@ -187,5 +194,6 @@ export function serverHttpContextWireForProfile(
     endpoints: serverAddressEndpoints(server).map(e => ({ url: e.url, kind: e.kind })),
     customHeaders: server.customHeaders ?? [],
     customHeadersApplyTo: server.customHeadersApplyTo ?? DEFAULT_CUSTOM_HEADERS_APPLY_TO,
+    supportsRawStream: isNavidromeServer(identity),
   };
 }

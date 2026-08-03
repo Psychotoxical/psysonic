@@ -328,6 +328,7 @@ pub fn analysis_enqueue_seed_from_url(
         explicit,
         force.unwrap_or(false),
     )
+    .map(|_| ())
 }
 
 #[derive(Debug, Clone, serde::Deserialize, specta::Type)]

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { useAuthStore } from '@/store/authStore';
+import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
 import { useOfflineJobStore } from '@/features/offline/store/offlineJobStore';
 import { FAVORITES_OFFLINE_JOB_ID } from '@/features/offline/utils/favoritesOfflineConstants';
 import {
@@ -15,6 +16,9 @@ const getStarredForServerMock = vi.fn(async (_serverId: string) => ({
 }));
 
 const isActiveServerReachableMock = vi.fn(() => true);
+const buildOriginalStreamUrlForServerMock = vi.hoisted(() => vi.fn(
+  (serverId: string, trackId: string) => `https://original.test/${serverId}/${trackId}`,
+));
 
 vi.mock('@/lib/network/activeServerReachability', () => ({
   isActiveServerReachable: () => isActiveServerReachableMock(),
@@ -22,6 +26,10 @@ vi.mock('@/lib/network/activeServerReachability', () => ({
 
 vi.mock('@/lib/api/subsonicStarRating', () => ({
   getStarredForServer: (serverId: string) => getStarredForServerMock(serverId),
+}));
+
+vi.mock('@/lib/api/subsonicStreamUrl', () => ({
+  buildOriginalStreamUrlForServer: buildOriginalStreamUrlForServerMock,
 }));
 
 vi.mock('@/lib/api/subsonicLibrary', () => ({
@@ -55,7 +63,10 @@ describe('onFavoritesOfflineStarChange', () => {
     isActiveServerReachableMock.mockReturnValue(true);
     getStarredForServerMock.mockClear();
     invokeMock.mockClear();
+    invokeMock.mockImplementation(async () => ({}));
+    buildOriginalStreamUrlForServerMock.mockClear();
     useOfflineJobStore.setState({ jobs: [], pinQueue: [], bulkProgress: {} });
+    useLocalPlaybackStore.setState({ entries: {} });
     useAuthStore.setState({
       favoritesOfflineEnabled: true,
       activeServerId: 'srv-a',
@@ -82,6 +93,28 @@ describe('onFavoritesOfflineStarChange', () => {
     await vi.advanceTimersByTimeAsync(700);
     expect(getStarredForServerMock).toHaveBeenCalledWith('srv-b');
     expect(getStarredForServerMock).not.toHaveBeenCalledWith('srv-a');
+  });
+
+  it('downloads favorite tracks with the shared original-stream URL', async () => {
+    invokeMock.mockImplementation(async (cmd: string) => cmd === 'download_track_local'
+      ? {
+        path: '/media/favorites/t1.mp3',
+        size: 123,
+        layoutFingerprint: 'layout',
+        originalBytesVerified: true,
+      }
+      : {});
+
+    onFavoritesOfflineStarChange('t1', 'song', true, 'srv-b');
+    await vi.advanceTimersByTimeAsync(700);
+
+    expect(buildOriginalStreamUrlForServerMock).toHaveBeenCalledWith('srv-b', 't1');
+    expect(invokeMock).toHaveBeenCalledWith(
+      'download_track_local',
+      expect.objectContaining({ url: 'https://original.test/srv-b/t1' }),
+    );
+    expect(useLocalPlaybackStore.getState().getEntry('t1', 'b.test')?.originalBytesVerified)
+      .toBe(true);
   });
 
   it('aborts in-flight favorites Rust downloads when a star change reschedules sync', async () => {

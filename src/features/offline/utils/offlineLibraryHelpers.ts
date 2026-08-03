@@ -2,7 +2,7 @@ import type { LibraryTrackDto } from '@/lib/api/library';
 import { libraryGetTrack, libraryGetTracksBatchChunked } from '@/lib/api/library';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import type { CoverServerScope } from '@/cover/types';
-import { useAuthStore } from '@/store/authStore';
+import { serverSupportsRawStream, useAuthStore } from '@/store/authStore';
 import type { LocalPlaybackEntry, PinnedGroup, PinSource } from '@/store/localPlaybackStore';
 import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
 import { findLocalPlaybackEntry, hasLocalLibraryBytes } from '@/store/localPlaybackResolve';
@@ -25,6 +25,15 @@ export interface OfflineLibraryCard {
   year?: number;
 }
 
+/** Legacy Navidrome pins are usable offline but must refresh before qualifying as original. */
+export function localEntrySatisfiesOriginalRequirement(
+  entry: LocalPlaybackEntry | null,
+  serverId: string,
+): boolean {
+  if (!entry?.localPath) return false;
+  return !serverSupportsRawStream(serverId) || entry.originalBytesVerified === true;
+}
+
 export function resolveOfflineAlbumMeta(
   albumId: string,
   serverId: string,
@@ -40,7 +49,10 @@ export function pendingOfflinePinSongs<T extends { id: string }>(
   songs: T[],
   serverId: string,
 ): T[] {
-  return songs.filter(s => !hasLocalLibraryBytes(s.id, serverId));
+  return songs.filter(s => !localEntrySatisfiesOriginalRequirement(
+    findLocalPlaybackEntry(s.id, serverId),
+    serverId,
+  ));
 }
 
 /** True when every track in the offline pin group has local library-tier bytes. */
@@ -50,7 +62,10 @@ export function isOfflinePinComplete(
   songIds?: string[],
 ): boolean {
   if (songIds?.length) {
-    return songIds.every(tid => hasLocalLibraryBytes(tid, serverId));
+    return songIds.every(tid => localEntrySatisfiesOriginalRequirement(
+      findLocalPlaybackEntry(tid, serverId),
+      serverId,
+    ));
   }
   const server = useAuthStore.getState().servers.find(s => s.id === serverId);
   const indexKey = server ? (serverIndexKeyForProfile(server) || serverId) : serverId;
@@ -62,7 +77,10 @@ export function isOfflinePinComplete(
     ? meta.trackIds
     : (groupTrackIds ?? []);
   if (trackIds.length === 0) return false;
-  return trackIds.every(tid => hasLocalLibraryBytes(tid, serverId));
+  return trackIds.every(tid => localEntrySatisfiesOriginalRequirement(
+    findLocalPlaybackEntry(tid, serverId),
+    serverId,
+  ));
 }
 
 /** @deprecated Use {@link reconcileLibraryTierForAlbum} from `./libraryTierReconcile`. */

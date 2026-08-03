@@ -572,6 +572,7 @@ mod tests {
             url: chain_url.clone(),
             analysis_track_id: Some("next-track".into()),
             server_id: Some("srv-1".into()),
+            generation: 1,
             raw_bytes: Arc::new(Vec::new()),
             resolved_format: Some(crate::decode::ResolvedCodecInfo {
                 codec_name: "flac",
@@ -584,6 +585,7 @@ mod tests {
             replay_gain_linear: 1.0,
             base_volume: 1.0,
             source_done: chained_done,
+            cancel: Arc::new(AtomicBool::new(false)),
             sample_counter: chained_samples,
         });
 

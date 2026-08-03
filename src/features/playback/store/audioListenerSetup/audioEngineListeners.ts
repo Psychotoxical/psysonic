@@ -1,5 +1,4 @@
 import { listen } from '@tauri-apps/api/event';
-import { streamUrlTrackId } from '@/features/playback/utils/playback/resolvePlaybackUrl';
 import { normalizationAlmostEqual } from '@/features/playback/utils/audio/normalizationCompare';
 import {
   normalizeAnalysisTrackId,
@@ -11,8 +10,10 @@ import {
   handleAudioFormat,
   handleAudioPlaying,
   handleAudioProgress,
+  handleAudioStreamProvenance,
   handleAudioTrackSwitched,
   type AudioFormatPayload,
+  type AudioStreamProvenancePayload,
   type NormalizationStatePayload,
 } from '@/features/playback/store/audioEventHandlers';
 import {
@@ -60,6 +61,9 @@ export function setupAudioEngineListeners(): () => void {
   const pending = [
     listen<number>('audio:playing', ({ payload }) => handleAudioPlaying(payload)),
     listen<AudioFormatPayload>('audio:format', ({ payload }) => handleAudioFormat(payload)),
+    listen<AudioStreamProvenancePayload>('audio:stream-provenance', ({ payload }) => {
+      handleAudioStreamProvenance(payload);
+    }),
     listen<{ current_time: number; duration: number; buffering?: boolean }>('audio:progress', ({ payload }) => {
       if (import.meta.env.DEV) {
         _devEventCount++;
@@ -187,27 +191,21 @@ export function setupAudioEngineListeners(): () => void {
       });
     }),
     listen<PreloadEventPayload>('audio:preload-ready', ({ payload }) => {
-      const tid = payload.trackId ?? streamUrlTrackId(payload.url);
+      const tid = normalizeAnalysisTrackId(payload.trackId);
+      const pendingIdentity = getBytePreloadingId();
+      const pendingUrl = getBytePreloadingUrl();
       if (import.meta.env.DEV) {
         console.info('[psysonic][preload-ready]', {
           payload,
-          parsedTrackId: tid,
+          normalizedTrackId: tid,
+          pendingIdentity,
+          pendingUrl,
           prevEnginePreloadedTrackId: usePlayerStore.getState().enginePreloadedTrackId,
         });
       }
-      if (tid) {
-        const pendingIdentity = getBytePreloadingId();
-        const pendingUrl = getBytePreloadingUrl();
-        usePlayerStore.setState({
-          enginePreloadedTrackId: pendingUrl === payload.url
-            && queueIdentityContainsTrackId(pendingIdentity, tid)
-            ? pendingIdentity
-            : tid,
-        });
-      }
-      else if (import.meta.env.DEV) {
-        console.warn('[psysonic][preload-ready] could not parse track id from payload URL');
-      }
+      if (!tid || !pendingIdentity || pendingUrl !== payload.url) return;
+      if (!queueIdentityContainsTrackId(pendingIdentity, tid)) return;
+      usePlayerStore.setState({ enginePreloadedTrackId: pendingIdentity });
     }),
     listen<PreloadEventPayload>('audio:preload-cancelled', ({ payload }) => {
       if (import.meta.env.DEV) {

@@ -66,12 +66,12 @@ pub fn seed_from_bytes_execute<R: Runtime>(
     let (outcome, md5_16kb) =
         seed_from_bytes_into_cache(&cache, server_id, track_id, bytes, format_hint, trusted_md5_16kb)?;
     let seed_ms = seed_started.elapsed().as_millis() as u64;
-    // E2 bridge (analysis → library content_hash): once the playback-derived
-    // md5_16kb is known — whether freshly written or already cached — record it
-    // as `track.content_hash` via the registered sink. Decoupled from
-    // psysonic-library through the psysonic-core port; a no-op when the library
-    // has no row for this (server_id, track_id). Skipped when no server is known.
+    // E2 bridge for byte-owned originals (local/offline paths). Trusted HTTP
+    // revisions activate in `analysis_runtime` after its per-track generation
+    // guard approves the completion, so an older decode cannot overwrite or
+    // purge a newer trusted result.
     if !server_id.is_empty()
+        && trusted_md5_16kb.is_none()
         && matches!(
             outcome,
             SeedFromBytesOutcome::Upserted | SeedFromBytesOutcome::SkippedWaveformCacheHit
@@ -79,22 +79,6 @@ pub fn seed_from_bytes_execute<R: Runtime>(
     {
         if let Some(sink) = app.try_state::<psysonic_core::ports::ContentHashSink>() {
             sink.record_content_hash(server_id, track_id, &md5_16kb);
-        }
-        // A verified (trusted-original) row is now active: purge rows under any
-        // other fingerprint so latest-row reads can't surface a stale variant.
-        if trusted_md5_16kb.is_some() {
-            let key = TrackKey {
-                server_id: server_id.to_string(),
-                track_id: track_id.to_string(),
-                md5_16kb: md5_16kb.clone(),
-            };
-            match cache.delete_other_fingerprints(&key) {
-                Ok(n) if n > 0 => crate::app_deprintln!(
-                    "[analysis] purged {n} stale fingerprint rows track_id={track_id}"
-                ),
-                Ok(_) => {}
-                Err(e) => crate::app_eprintln!("[analysis] variant purge failed: {e}"),
-            }
         }
     }
     let bpm_ms = if !server_id.is_empty() {
@@ -153,9 +137,13 @@ pub fn seed_from_bytes_into_cache(
     trusted_md5_16kb: Option<&str>,
 ) -> Result<(SeedFromBytesOutcome, String), String> {
     let started = Instant::now();
-    // Write under the playback server's scope. When the bytes are a transcoded
-    // representation, the verified ORIGINAL fingerprint keys the row instead of
-    // the transcode's own hash — every bitrate resolves to one analysis row.
+    if let Some(trusted) = trusted_md5_16kb {
+        if md5_first_16kb(bytes) != trusted {
+            return Err("trusted original fingerprint does not match analysis bytes".to_string());
+        }
+    }
+    // Write under the playback server's scope. A trusted identity is accepted
+    // only when the analysed bytes carry that exact original prefix.
     let key = TrackKey {
         server_id: server_id.to_string(),
         track_id: track_id.to_string(),
@@ -1039,42 +1027,40 @@ mod tests {
 
     #[test]
     fn trusted_fingerprint_keys_analysis_under_the_original() {
-        // Transcoded playback bytes analyzed under the ORIGINAL's verified
-        // fingerprint — never under the transcode's own hash.
+        // The verified fingerprint must describe the analysed original bytes.
         let cache = AnalysisCache::open_in_memory();
         let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
-        let original_md5 = "trusted-original-fp";
+        let original_md5 = md5_first_16kb(&wav);
         let (outcome, md5) = seed_from_bytes_into_cache(
-            &cache, "server-a", "capped-track", &wav, None, Some(original_md5),
+            &cache, "server-a", "original-track", &wav, None, Some(&original_md5),
         )
         .unwrap();
         assert_eq!(outcome, SeedFromBytesOutcome::Upserted);
         assert_eq!(md5, original_md5, "row keyed under the trusted original fingerprint");
-        assert_ne!(md5, md5_first_16kb(&wav), "not keyed under the transcode's own hash");
     }
 
     #[test]
-    fn different_bitrate_representations_share_one_analysis_row() {
-        // Two different transcodes of the same original (different bytes) must
-        // resolve to ONE analysis row — no per-bitrate variants.
+    fn mismatched_representation_is_rejected_for_a_trusted_fingerprint() {
         let cache = AnalysisCache::open_in_memory();
-        let original_md5 = "shared-original-fp";
-        let rep_128 = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
+        let original = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
+        let original_md5 = md5_first_16kb(&original);
         let (first, _) = seed_from_bytes_into_cache(
-            &cache, "server-a", "track-x", &rep_128, None, Some(original_md5),
+            &cache, "server-a", "track-x", &original, None, Some(&original_md5),
         )
         .unwrap();
         assert_eq!(first, SeedFromBytesOutcome::Upserted);
-        let rep_320 = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.5), 44_100);
-        let (second, _) = seed_from_bytes_into_cache(
-            &cache, "server-a", "track-x", &rep_320, None, Some(original_md5),
+        let transformed = build_mono_pcm16_wav(&sine_440_at_minus_6db(48_000, 1.5), 48_000);
+        assert_ne!(md5_first_16kb(&transformed), original_md5);
+        let err = seed_from_bytes_into_cache(
+            &cache,
+            "server-a",
+            "track-x",
+            &transformed,
+            None,
+            Some(&original_md5),
         )
-        .unwrap();
-        assert_eq!(
-            second,
-            SeedFromBytesOutcome::SkippedWaveformCacheHit,
-            "same trusted fingerprint reuses the existing analysis row"
-        );
+        .unwrap_err();
+        assert!(err.contains("does not match analysis bytes"));
     }
 
     #[test]
@@ -1083,20 +1069,21 @@ mod tests {
         // must disappear once a verified trusted row is active, so latest-row
         // reads can never surface it again.
         let cache = AnalysisCache::open_in_memory();
-        let wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
+        let stale_wav = build_mono_pcm16_wav(&sine_440_at_minus_6db(48_000, 1.0), 48_000);
         // Stale variant written under the transcode's own hash (legacy path).
         let (first, stale_md5) =
-            seed_from_bytes_into_cache(&cache, "srv", "t1", &wav, None, None).unwrap();
+            seed_from_bytes_into_cache(&cache, "srv", "t1", &stale_wav, None, None).unwrap();
         assert_eq!(first, SeedFromBytesOutcome::Upserted);
         // Verified seed under the trusted original fingerprint.
-        let trusted = "trusted-original-fp";
+        let original = build_mono_pcm16_wav(&sine_440_at_minus_6db(44_100, 1.0), 44_100);
+        let trusted = md5_first_16kb(&original);
         let (second, _) =
-            seed_from_bytes_into_cache(&cache, "srv", "t1", &wav, None, Some(trusted)).unwrap();
+            seed_from_bytes_into_cache(&cache, "srv", "t1", &original, None, Some(&trusted)).unwrap();
         assert_eq!(second, SeedFromBytesOutcome::Upserted);
         let key = TrackKey {
             server_id: "srv".into(),
             track_id: "t1".into(),
-            md5_16kb: trusted.into(),
+            md5_16kb: trusted.clone(),
         };
         let removed = cache.delete_other_fingerprints(&key).unwrap();
         assert!(removed > 0, "stale rows deleted");
@@ -1107,7 +1094,7 @@ mod tests {
         };
         assert!(!cache.loudness_row_exists_for_key(&stale_key).unwrap_or(true));
         // The trusted row survives.
-        let cov = cache.content_cache_coverage("srv", "t1", trusted).unwrap();
+        let cov = cache.content_cache_coverage("srv", "t1", &trusted).unwrap();
         assert!(cov.has_waveform);
     }
 

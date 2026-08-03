@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use psysonic_analysis::analysis_runtime::{
     analysis_pipeline_queue_stats, analysis_set_pipeline_parallelism, enqueue_seed_from_url,
-    AnalysisBackfillPriority,
+    AnalysisBackfillPriority, EnqueueSeedFromUrlOutcome,
 };
 use psysonic_integration::subsonic::build_stream_view_url;
 use psysonic_library::analysis_backfill::{
@@ -122,6 +122,29 @@ enum CoordinatorStep {
     Sleep(Duration),
     /// Park until configure or sync-idle wakes the task (no idle polling).
     Park,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+struct EnqueueBatchSummary {
+    admitted_or_reserved: usize,
+    unsupported: usize,
+}
+
+impl EnqueueBatchSummary {
+    fn observe(&mut self, outcome: EnqueueSeedFromUrlOutcome) {
+        match outcome {
+            EnqueueSeedFromUrlOutcome::Enqueued
+            | EnqueueSeedFromUrlOutcome::AlreadyReserved => {
+                self.admitted_or_reserved += 1;
+            }
+            EnqueueSeedFromUrlOutcome::Unsupported => self.unsupported += 1,
+            EnqueueSeedFromUrlOutcome::Skipped => {}
+        }
+    }
+
+    fn capability_blocked(self) -> bool {
+        self.unsupported > 0 && self.admitted_or_reserved == 0
+    }
 }
 
 async fn coordinator_sleep(worker: &LibraryAnalysisBackfillWorker, duration: Duration) {
@@ -263,7 +286,6 @@ async fn coordinator_tick(
     *worker.cursor.lock().await = batch.next_cursor.clone();
     *worker.scan_phase.lock().await = next_phase;
 
-    let enqueued_count = batch.track_ids.len();
     let track_ids = batch.track_ids.clone();
     let index_key = session.server_index_key.clone();
     let server_url = session.server_url.clone();
@@ -271,20 +293,34 @@ async fn coordinator_tick(
     let password = session.password.clone();
     let app_for_enqueue = app.clone();
 
-    let _ = tauri::async_runtime::spawn_blocking(move || {
+    let enqueue_summary = tauri::async_runtime::spawn_blocking(move || {
+        let mut summary = EnqueueBatchSummary::default();
         for track_id in &track_ids {
             let url = build_stream_view_url(&server_url, &username, &password, track_id);
-            let _ = enqueue_seed_from_url(
+            if let Ok(outcome) = enqueue_seed_from_url(
                 &app_for_enqueue,
                 track_id,
                 &url,
                 Some(index_key.as_str()),
                 Some(AnalysisBackfillPriority::Low),
                 false,
-            );
+            ) {
+                summary.observe(outcome);
+            }
         }
+        summary
     })
-    .await;
+    .await
+    .unwrap_or_default();
+
+    if enqueue_summary.capability_blocked() {
+        *worker.cursor.lock().await = None;
+        *worker.scan_phase.lock().await = AnalysisBackfillScanPhase::Candidates;
+        *worker.exhausted_streak.lock().await = 0;
+        return CoordinatorStep::Sleep(Duration::from_millis(COMPLETED_RECHECK_MS));
+    }
+
+    let enqueued_count = enqueue_summary.admitted_or_reserved;
 
     if enqueued_count > 0 {
         *worker.exhausted_streak.lock().await = 0;
@@ -380,4 +416,30 @@ pub fn spawn_coordinator(app: &AppHandle, worker: Arc<LibraryAnalysisBackfillWor
     tauri::async_runtime::spawn(async move {
         run_coordinator_forever(app, worker).await;
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unsupported_batch_is_not_counted_as_enqueued_and_requests_a_pause() {
+        let mut summary = EnqueueBatchSummary::default();
+        summary.observe(EnqueueSeedFromUrlOutcome::Unsupported);
+        summary.observe(EnqueueSeedFromUrlOutcome::Unsupported);
+
+        assert_eq!(summary.admitted_or_reserved, 0);
+        assert_eq!(summary.unsupported, 2);
+        assert!(summary.capability_blocked());
+    }
+
+    #[test]
+    fn existing_reservation_keeps_coordinator_from_treating_batch_as_blocked() {
+        let mut summary = EnqueueBatchSummary::default();
+        summary.observe(EnqueueSeedFromUrlOutcome::AlreadyReserved);
+        summary.observe(EnqueueSeedFromUrlOutcome::Unsupported);
+
+        assert_eq!(summary.admitted_or_reserved, 1);
+        assert!(!summary.capability_blocked());
+    }
 }

@@ -192,6 +192,7 @@ mod tests {
                 fadeout_samples: None,
             })),
             generation: Arc::new(AtomicU64::new(0)),
+            preload_epoch: Arc::new(AtomicU64::new(0)),
             http_client: Arc::new(RwLock::new(reqwest::Client::new())),
             eq_gains: Arc::new(std::array::from_fn(|_| AtomicU32::new(0))),
             eq_enabled: Arc::new(AtomicBool::new(false)),

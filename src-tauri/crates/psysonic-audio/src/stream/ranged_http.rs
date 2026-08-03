@@ -28,8 +28,8 @@ use super::{
     TRACK_STREAM_PROMOTE_MAX_BYTES,
 };
 use crate::analysis_dispatch::{
-    dispatch_track_analysis_bytes, analysis_priority_for_app, resolve_server_id_for_app,
-    spawn_track_analysis_file, TrackAnalysisOrigin,
+    analysis_priority_for_app, dispatch_track_analysis_bytes, resolve_server_id_for_app,
+    spawn_track_analysis_file, TrackAnalysisDispatchOptions, TrackAnalysisOrigin,
 };
 use crate::helpers::{install_stream_completed_spill, write_stream_spill_file};
 use crate::state::StreamCompletedSpill;
@@ -827,18 +827,25 @@ pub(crate) async fn ranged_download_task(
             if let Some(track_id) = cache_track_id {
                 let sid = resolve_server_id_for_app(&app, server_id.as_deref());
                 let priority = analysis_priority_for_app(&app, &sid, &track_id, None);
-                if let Err(e) = dispatch_track_analysis_bytes(
+                let guard = (gen, gen_arc.clone());
+                match dispatch_track_analysis_bytes(
                     &app,
                     TrackAnalysisOrigin::StreamDownloadComplete,
                     &sid,
                     &track_id,
                     data.clone(),
                     Some(&url),
-                    priority,
+                    TrackAnalysisDispatchOptions {
+                        priority,
+                        generation_guard: Some(&guard),
+                    },
                 )
                 .await
                 {
-                    crate::app_eprintln!("[analysis] ranged seed failed for {track_id}: {e}");
+                    Ok(_) => {}
+                    Err(e) => {
+                        crate::app_eprintln!("[analysis] ranged seed failed for {track_id}: {e}");
+                    }
                 }
             }
             if gen_arc.load(Ordering::SeqCst) != gen {

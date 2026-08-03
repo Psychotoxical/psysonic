@@ -8,7 +8,7 @@
 //! yields the same `md5_16kb` fingerprint the untranscoded playback path would
 //! compute, so all bitrate representations resolve to one analysis identity.
 //!
-//! Probe contract (per PR #1334 review): accept the prefix only when the
+//! Probe contract: accept the prefix only when the
 //! response is `206 Partial Content`, its `Content-Range` starts at byte zero
 //! and matches the body length, and the body is not a Subsonic JSON/XML error
 //! envelope. On any failure the caller must treat the stream as having NO
@@ -22,6 +22,7 @@ use psysonic_core::server_http::{apply_optional_registry_headers, ServerHttpRegi
 pub const RAW_PROBE_RANGE_END: u64 = 16 * 1024 - 1;
 
 const RAW_PROBE_TIMEOUT: Duration = Duration::from_secs(10);
+const RAW_FULL_FETCH_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Rebuild a `stream.view` URL as a raw-original probe URL: same track + auth,
 /// no transcode params, `format=raw`. Returns `None` for non-HTTP or
@@ -43,6 +44,49 @@ pub fn build_raw_probe_url(stream_url: &str) -> Option<String> {
         .collect();
     params.push("format=raw");
     Some(format!("{base}?{}", params.join("&")))
+}
+
+/// Whether the request endpoint belongs to a registered profile whose current
+/// saved identity explicitly supports Navidrome's `format=raw` contract.
+pub fn raw_stream_supported(
+    registry: Option<&ServerHttpRegistry>,
+    server_id: Option<&str>,
+    stream_url: &str,
+) -> bool {
+    registry.is_some_and(|registry| {
+        registry.supports_raw_stream_for_request(server_id, stream_url)
+    })
+}
+
+/// Whether this exact request is the capability-bound Navidrome raw-original
+/// path. The value is intentionally case-sensitive because Navidrome's private
+/// contract requires lowercase `format=raw`.
+pub fn is_verified_raw_stream_request(
+    registry: Option<&ServerHttpRegistry>,
+    server_id: Option<&str>,
+    stream_url: &str,
+) -> bool {
+    if !raw_stream_supported(registry, server_id, stream_url) {
+        return false;
+    }
+    reqwest::Url::parse(stream_url).is_ok_and(|url| {
+        let mut formats = url
+            .query_pairs()
+            .filter(|(key, _)| key == "format")
+            .map(|(_, value)| value);
+        matches!(formats.next().as_deref(), Some("raw")) && formats.next().is_none()
+    })
+}
+
+fn capability_gated_raw_url(
+    registry: Option<&ServerHttpRegistry>,
+    server_id: Option<&str>,
+    stream_url: &str,
+) -> Option<String> {
+    if !raw_stream_supported(registry, server_id, stream_url) {
+        return None;
+    }
+    build_raw_probe_url(stream_url)
 }
 
 /// Whether the body is a Subsonic error envelope rather than media bytes
@@ -101,10 +145,15 @@ pub async fn fetch_trusted_original_md5(
     server_id: Option<&str>,
     stream_url: &str,
 ) -> Option<String> {
-    let probe_url = build_raw_probe_url(stream_url)?;
+    let probe_url = capability_gated_raw_url(registry, server_id, stream_url)?;
     // Same reverse-proxy gate headers as playback itself — a probe through
     // Pangolin/Cloudflare Access must not 403 while the stream succeeds.
-    let req = apply_optional_registry_headers(registry, server_id, &probe_url, client.get(&probe_url));
+    let req = apply_optional_registry_headers(
+        registry,
+        server_id,
+        &probe_url,
+        client.get(&probe_url),
+    );
     let mut resp = req
         .header("Range", format!("bytes=0-{RAW_PROBE_RANGE_END}"))
         .timeout(RAW_PROBE_TIMEOUT)
@@ -127,12 +176,20 @@ pub async fn fetch_trusted_original_md5(
     };
     // Stream the body with a hard cap — never trust the headers alone.
     let mut body: Vec<u8> = Vec::with_capacity(expected_len);
-    while let Ok(Some(chunk)) = resp.chunk().await {
-        if body.len() + chunk.len() > expected_len {
-            crate::app_deprintln!("[analysis][raw-probe] rejected: body exceeds advertised range");
-            return None;
+    loop {
+        match resp.chunk().await {
+            Ok(Some(chunk)) => {
+                if body.len() + chunk.len() > expected_len {
+                    crate::app_deprintln!(
+                        "[analysis][raw-probe] rejected: body exceeds advertised range"
+                    );
+                    return None;
+                }
+                body.extend_from_slice(&chunk);
+            }
+            Ok(None) => break,
+            Err(_) => return None,
         }
-        body.extend_from_slice(&chunk);
     }
     if !validate_prefix_body(&body, expected_len) {
         crate::app_deprintln!(
@@ -142,6 +199,67 @@ pub async fn fetch_trusted_original_md5(
         return None;
     }
     Some(crate::analysis_cache::md5_first_16kb(&body))
+}
+
+/// Fetch the complete verified original through `format=raw`, bounded by the
+/// caller's existing analysis-size cap. The full body must still match the
+/// trusted prefix to protect against a revision change between requests.
+pub async fn fetch_trusted_original_bytes(
+    client: &reqwest::Client,
+    registry: Option<&ServerHttpRegistry>,
+    server_id: Option<&str>,
+    stream_url: &str,
+    trusted_md5_16kb: &str,
+    max_bytes: usize,
+) -> Option<Vec<u8>> {
+    if max_bytes == 0 || trusted_md5_16kb.is_empty() {
+        return None;
+    }
+    let raw_url = capability_gated_raw_url(registry, server_id, stream_url)?;
+    let request = apply_optional_registry_headers(
+        registry,
+        server_id,
+        &raw_url,
+        client.get(&raw_url),
+    );
+    let mut response = request
+        .timeout(RAW_FULL_FETCH_TIMEOUT)
+        .send()
+        .await
+        .ok()?;
+    if response.status() != reqwest::StatusCode::OK
+        || response
+            .content_length()
+            .is_some_and(|length| length > max_bytes as u64)
+    {
+        return None;
+    }
+
+    let mut body = Vec::with_capacity(
+        response
+            .content_length()
+            .unwrap_or(0)
+            .min(max_bytes as u64) as usize,
+    );
+    loop {
+        match response.chunk().await {
+            Ok(Some(chunk)) => {
+                if body.len().saturating_add(chunk.len()) > max_bytes {
+                    return None;
+                }
+                body.extend_from_slice(&chunk);
+            }
+            Ok(None) => break,
+            Err(_) => return None,
+        }
+    }
+    if body.is_empty()
+        || looks_like_subsonic_error(&body)
+        || !bytes_match_trusted(&body, trusted_md5_16kb)
+    {
+        return None;
+    }
+    Some(body)
 }
 
 
@@ -199,8 +317,31 @@ mod byte_match_tests {
 #[cfg(test)]
 mod capability_tests {
     use super::*;
+    use psysonic_core::server_http::{
+        CustomHeaderEntryWire, CustomHeadersApplyTo, EndpointKind,
+        ServerHttpContextSyncWire, ServerHttpEndpointWire,
+    };
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn registry_for(endpoint: &str, supports_raw_stream: bool) -> ServerHttpRegistry {
+        let registry = ServerHttpRegistry::new();
+        registry.sync(ServerHttpContextSyncWire {
+            server_id: "server-key".into(),
+            app_server_id: "profile-id".into(),
+            endpoints: vec![ServerHttpEndpointWire {
+                url: endpoint.into(),
+                kind: EndpointKind::Public,
+            }],
+            custom_headers: vec![CustomHeaderEntryWire {
+                name: "X-Gate".into(),
+                value: "token".into(),
+            }],
+            custom_headers_apply_to: Some(CustomHeadersApplyTo::Public),
+            supports_raw_stream,
+        });
+        registry
+    }
 
     #[tokio::test]
     async fn first_probe_failure_produces_no_canonical_verdict() {
@@ -213,11 +354,40 @@ mod capability_tests {
             .mount(&server)
             .await;
         let url = format!("{}/rest/stream.view?id=t1", server.uri());
+        let registry = registry_for(&server.uri(), true);
         let got = resolve_trusted_identity(
-            &reqwest::Client::new(), None, Some("fresh-server"), &url,
+            &reqwest::Client::new(), Some(&registry), Some("server-key"), &url,
         )
         .await;
         assert_eq!(got, TrustedProbeVerdict::SkipCanonicalWrites);
+    }
+
+    #[tokio::test]
+    async fn unknown_or_non_navidrome_endpoint_never_issues_raw_request() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/rest/stream.view"))
+            .respond_with(ResponseTemplate::new(206))
+            .mount(&server)
+            .await;
+        let url = format!("{}/rest/stream.view?id=t1", server.uri());
+
+        let unknown = resolve_trusted_identity(
+            &reqwest::Client::new(), None, Some("server-key"), &url,
+        )
+        .await;
+        let unsupported_registry = registry_for(&server.uri(), false);
+        let unsupported = resolve_trusted_identity(
+            &reqwest::Client::new(),
+            Some(&unsupported_registry),
+            Some("server-key"),
+            &url,
+        )
+        .await;
+
+        assert_eq!(unknown, TrustedProbeVerdict::SkipCanonicalWrites);
+        assert_eq!(unsupported, TrustedProbeVerdict::SkipCanonicalWrites);
+        assert!(server.received_requests().await.unwrap().is_empty());
     }
 }
 
@@ -246,6 +416,42 @@ mod tests {
     fn probe_url_rejects_local_and_non_stream_urls() {
         assert_eq!(build_raw_probe_url("psysonic-local:///library/t.flac"), None);
         assert_eq!(build_raw_probe_url("https://s.example/rest/getCoverArt.view?id=c"), None);
+    }
+
+    #[test]
+    fn verified_raw_request_requires_capability_endpoint_and_exact_raw_value() {
+        use psysonic_core::server_http::{
+            EndpointKind, ServerHttpContextSyncWire, ServerHttpEndpointWire,
+        };
+
+        let registry = ServerHttpRegistry::new();
+        registry.sync(ServerHttpContextSyncWire {
+            server_id: "server-key".into(),
+            app_server_id: "profile-id".into(),
+            endpoints: vec![ServerHttpEndpointWire {
+                url: "https://s.example".into(),
+                kind: EndpointKind::Public,
+            }],
+            custom_headers: Vec::new(),
+            custom_headers_apply_to: None,
+            supports_raw_stream: true,
+        });
+
+        assert!(is_verified_raw_stream_request(
+            Some(&registry),
+            Some("server-key"),
+            "https://s.example/rest/stream.view?id=t1&format=raw",
+        ));
+        assert!(!is_verified_raw_stream_request(
+            Some(&registry),
+            Some("server-key"),
+            "https://s.example/rest/stream.view?id=t1&format=RAW",
+        ));
+        assert!(!is_verified_raw_stream_request(
+            Some(&registry),
+            Some("server-key"),
+            "https://other.example/rest/stream.view?id=t1&format=raw",
+        ));
     }
 
     #[test]
@@ -285,8 +491,31 @@ mod tests {
 #[cfg(test)]
 mod http_tests {
     use super::*;
+    use psysonic_core::server_http::{
+        CustomHeaderEntryWire, CustomHeadersApplyTo, EndpointKind,
+        ServerHttpContextSyncWire, ServerHttpEndpointWire,
+    };
     use wiremock::matchers::{header, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn registry_for(endpoint: &str) -> ServerHttpRegistry {
+        let registry = ServerHttpRegistry::new();
+        registry.sync(ServerHttpContextSyncWire {
+            server_id: "server-key".into(),
+            app_server_id: "profile-id".into(),
+            endpoints: vec![ServerHttpEndpointWire {
+                url: endpoint.into(),
+                kind: EndpointKind::Public,
+            }],
+            custom_headers: vec![CustomHeaderEntryWire {
+                name: "X-Gate".into(),
+                value: "token".into(),
+            }],
+            custom_headers_apply_to: Some(CustomHeadersApplyTo::Public),
+            supports_raw_stream: true,
+        });
+        registry
+    }
 
     fn prefix(len: usize) -> Vec<u8> {
         // "fLaC"-leading media-ish bytes — never mistaken for an error envelope.
@@ -303,6 +532,7 @@ mod http_tests {
             .and(path("/rest/stream.view"))
             .and(query_param("format", "raw"))
             .and(header("Range", "bytes=0-16383"))
+            .and(header("X-Gate", "token"))
             .respond_with(
                 ResponseTemplate::new(206)
                     .insert_header("Content-Range", "bytes 0-16383/9999999")
@@ -311,7 +541,14 @@ mod http_tests {
             .mount(&server)
             .await;
         let url = format!("{}/rest/stream.view?id=t1&u=a&maxBitRate=128", server.uri());
-        let got = fetch_trusted_original_md5(&reqwest::Client::new(), None, None, &url).await;
+        let registry = registry_for(&server.uri());
+        let got = fetch_trusted_original_md5(
+            &reqwest::Client::new(),
+            Some(&registry),
+            Some("server-key"),
+            &url,
+        )
+        .await;
         assert_eq!(got, Some(crate::analysis_cache::md5_first_16kb(&body)));
     }
 
@@ -325,7 +562,14 @@ mod http_tests {
             .mount(&server)
             .await;
         let url = format!("{}/rest/stream.view?id=t1&maxBitRate=128", server.uri());
-        let got = fetch_trusted_original_md5(&reqwest::Client::new(), None, None, &url).await;
+        let registry = registry_for(&server.uri());
+        let got = fetch_trusted_original_md5(
+            &reqwest::Client::new(),
+            Some(&registry),
+            Some("server-key"),
+            &url,
+        )
+        .await;
         assert_eq!(got, None);
     }
 
@@ -346,7 +590,87 @@ mod http_tests {
             .mount(&server)
             .await;
         let url = format!("{}/rest/stream.view?id=t1&maxBitRate=128", server.uri());
-        let got = fetch_trusted_original_md5(&reqwest::Client::new(), None, None, &url).await;
+        let registry = registry_for(&server.uri());
+        let got = fetch_trusted_original_md5(
+            &reqwest::Client::new(),
+            Some(&registry),
+            Some("server-key"),
+            &url,
+        )
+        .await;
         assert_eq!(got, None);
+    }
+
+    #[tokio::test]
+    async fn full_raw_fetch_requires_the_trusted_prefix_and_size_cap() {
+        let server = MockServer::start().await;
+        let original = prefix(24 * 1024);
+        let trusted = crate::analysis_cache::md5_first_16kb(&original);
+        let registry = registry_for(&server.uri());
+        let url = format!("{}/rest/stream.view?id=t1&maxBitRate=128", server.uri());
+
+        Mock::given(method("GET"))
+            .and(path("/rest/stream.view"))
+            .and(query_param("format", "raw"))
+            .and(header("X-Gate", "token"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(original.clone()))
+            .mount(&server)
+            .await;
+
+        let fetched = fetch_trusted_original_bytes(
+            &reqwest::Client::new(),
+            Some(&registry),
+            Some("server-key"),
+            &url,
+            &trusted,
+            original.len(),
+        )
+        .await;
+        assert_eq!(fetched.as_deref(), Some(original.as_slice()));
+
+        let oversized = fetch_trusted_original_bytes(
+            &reqwest::Client::new(),
+            Some(&registry),
+            Some("server-key"),
+            &url,
+            &trusted,
+            original.len() - 1,
+        )
+        .await;
+        assert_eq!(oversized, None);
+
+        let wrong_prefix = fetch_trusted_original_bytes(
+            &reqwest::Client::new(),
+            Some(&registry),
+            Some("server-key"),
+            &url,
+            "different-revision",
+            original.len(),
+        )
+        .await;
+        assert_eq!(wrong_prefix, None);
+
+        let partial_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/rest/stream.view"))
+            .respond_with(
+                ResponseTemplate::new(206)
+                    .insert_header("Content-Range", "bytes 0-16383/24576")
+                    .set_body_bytes(original[..16 * 1024].to_vec()),
+            )
+            .mount(&partial_server)
+            .await;
+        let partial_registry = registry_for(&partial_server.uri());
+        let partial_url = format!("{}/rest/stream.view?id=t1", partial_server.uri());
+        let partial = fetch_trusted_original_bytes(
+            &reqwest::Client::new(),
+            Some(&partial_registry),
+            Some("server-key"),
+            &partial_url,
+            &trusted,
+            original.len(),
+        )
+        .await;
+        assert_eq!(partial, None, "partial responses are not complete originals");
     }
 }

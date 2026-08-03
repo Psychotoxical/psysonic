@@ -21,6 +21,21 @@ use super::{
     maybe_arm_stream_playback, TRACK_STREAM_MAX_RECONNECTS, TRACK_STREAM_PROMOTE_MAX_BYTES,
 };
 
+fn finish_legacy_stream_download(
+    completed: Option<PreloadedTrack>,
+    promote_cache_slot: &Mutex<Option<PreloadedTrack>>,
+    playback_armed: &AtomicBool,
+    done: &AtomicBool,
+    after_publish: impl FnOnce(),
+) {
+    if let Some(completed) = completed {
+        *promote_cache_slot.lock().unwrap() = Some(completed);
+    }
+    playback_armed.store(true, Ordering::SeqCst);
+    done.store(true, Ordering::SeqCst);
+    after_publish();
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn track_download_task(
     gen: u64,
@@ -166,47 +181,89 @@ pub(crate) async fn track_download_task(
                 }
             }
         }
-        if !capture_over_limit && !capture.is_empty() {
+        let (completed, analysis_capture) = if !capture_over_limit && !capture.is_empty() {
             if gen_arc.load(Ordering::SeqCst) != gen {
                 done.store(true, Ordering::SeqCst);
                 return;
             }
-            if let Some(track_id) = cache_track_id {
-                crate::app_deprintln!(
-                    "[stream] legacy stream: capture complete track_id={} capture_mib={:.2} — full-track analysis (cpu-seed queue)",
-                    track_id,
-                    capture.len() as f64 / (1024.0 * 1024.0)
-                );
-                let sid = crate::analysis_dispatch::resolve_server_id_for_app(
-                    &app,
-                    server_id.as_deref(),
-                );
-                    let priority = crate::analysis_dispatch::analysis_priority_for_app(&app, &sid, &track_id, None);
-                if let Err(e) = crate::analysis_dispatch::dispatch_track_analysis_bytes(
-                    &app,
-                    crate::analysis_dispatch::TrackAnalysisOrigin::StreamDownloadComplete,
-                    &sid,
-                    &track_id,
-                    capture.clone(),
-                    Some(&url),
-                    priority,
-                )
-                .await
-                {
-                    crate::app_eprintln!("[analysis] track seed failed for {track_id}: {e}");
+            let analysis_capture = cache_track_id.as_ref().map(|_| capture.clone());
+            (
+                Some(PreloadedTrack {
+                    url: url.clone(),
+                    data: capture,
+                }),
+                analysis_capture,
+            )
+        } else {
+            (None, None)
+        };
+        finish_legacy_stream_download(
+            completed,
+            &promote_cache_slot,
+            &playback_armed,
+            &done,
+            || {
+                if let (Some(track_id), Some(capture)) = (cache_track_id, analysis_capture) {
+                    crate::app_deprintln!(
+                        "[stream] legacy stream: capture complete track_id={} capture_mib={:.2} — full-track analysis (cpu-seed queue)",
+                        track_id,
+                        capture.len() as f64 / (1024.0 * 1024.0)
+                    );
+                    let sid = crate::analysis_dispatch::resolve_server_id_for_app(
+                        &app,
+                        server_id.as_deref(),
+                    );
+                    let priority = crate::analysis_dispatch::analysis_priority_for_app(
+                        &app, &sid, &track_id, None,
+                    );
+                    crate::analysis_dispatch::spawn_track_analysis_bytes(
+                        app,
+                        crate::analysis_dispatch::TrackAnalysisOrigin::StreamDownloadComplete,
+                        sid,
+                        track_id,
+                        capture,
+                        Some(url),
+                        priority,
+                        Some((gen, gen_arc)),
+                    );
                 }
-            }
-            if gen_arc.load(Ordering::SeqCst) != gen {
-                done.store(true, Ordering::SeqCst);
-                return;
-            }
-            *promote_cache_slot.lock().unwrap() = Some(PreloadedTrack {
-                url: url.clone(),
-                data: capture,
-            });
-        }
-        playback_armed.store(true, Ordering::SeqCst);
-        done.store(true, Ordering::SeqCst);
+            },
+        );
         return;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn completion_publishes_before_analysis_callback() {
+        let body = vec![0xAB; 2048];
+        let done = Arc::new(AtomicBool::new(false));
+        let completed = Arc::new(Mutex::new(None));
+        let playback_armed = Arc::new(AtomicBool::new(false));
+        let analysis_started = AtomicBool::new(false);
+
+        finish_legacy_stream_download(
+            Some(PreloadedTrack {
+                url: "https://example.test/stream".to_string(),
+                data: body.clone(),
+            }),
+            &completed,
+            &playback_armed,
+            &done,
+            || {
+                let completed = completed.lock().unwrap();
+                assert_eq!(completed.as_ref().unwrap().data, body);
+                assert!(playback_armed.load(Ordering::SeqCst));
+                assert!(done.load(Ordering::SeqCst));
+                analysis_started.store(true, Ordering::SeqCst);
+            },
+        );
+
+        assert!(analysis_started.load(Ordering::SeqCst));
+        assert!(done.load(Ordering::SeqCst));
+        assert!(playback_armed.load(Ordering::SeqCst));
     }
 }

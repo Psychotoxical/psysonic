@@ -34,8 +34,10 @@ export default function CustomSelect({
   const [dropStyle, setDropStyle] = useState<React.CSSProperties>({});
   // Keyboard navigation: index of the highlighted option while the list is open.
   const [activeIndex, setActiveIndex] = useState(-1);
-  // Stable, render-pure id for aria-activedescendant / option ids.
-  const listboxId = `custom-select-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  // Stable, render-pure ids for the combobox/listbox relationship.
+  const baseId = `custom-select-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const triggerId = `${baseId}-trigger`;
+  const listboxId = `${baseId}-listbox`;
 
   const selected = options.find(o => o.value === value);
 
@@ -89,6 +91,13 @@ export default function CustomSelect({
         if (open) {
           e.preventDefault();
           commitActive();
+        }
+        break;
+      case 'Tab':
+        if (open) {
+          const opt = options[activeIndex];
+          if (opt && !opt.disabled) onChange(opt.value);
+          setOpen(false);
         }
         break;
       default:
@@ -161,8 +170,10 @@ export default function CustomSelect({
   return (
     <>
       <button
+        id={triggerId}
         ref={triggerRef}
         type="button"
+        role="combobox"
         className={`custom-select-trigger ${className}`}
         style={style}
         disabled={disabled}
@@ -185,6 +196,7 @@ export default function CustomSelect({
           className="custom-select-dropdown"
           style={dropStyle}
           role="listbox"
+          aria-labelledby={triggerId}
         >
           {options.reduce<React.ReactNode[]>((acc, opt, i) => {
             const prevGroup = i > 0 ? options[i - 1].group : undefined;
@@ -201,7 +213,8 @@ export default function CustomSelect({
                 id={`${listboxId}-opt-${i}`}
                 className={`custom-select-option ${opt.value === value ? 'selected' : ''} ${i === activeIndex ? 'active' : ''} ${opt.disabled ? 'disabled' : ''}`}
                 role="option"
-                aria-selected={opt.value === value}
+                aria-disabled={opt.disabled || undefined}
+                aria-selected={i === activeIndex}
                 onMouseEnter={() => { if (!opt.disabled) setActiveIndex(i); }}
                 onMouseDown={() => { if (!opt.disabled) { onChange(opt.value); setOpen(false); } }}
               >

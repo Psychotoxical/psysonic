@@ -1,5 +1,5 @@
 /**
- * Identity guarantees for the `audio:format` event (cucadmuh review, #4).
+ * Identity guarantees for native stream-format and provenance events.
  *
  * The engine resolves a stream's real format asynchronously; by the time the
  * event reaches the frontend the user may have skipped, or a different server
@@ -13,7 +13,10 @@ const streamCapMock = { kbps: 0 };
 vi.mock('@/features/playback/utils/playback/streamQualityResolve', () => ({
   effectiveStreamCapKbps: () => streamCapMock.kbps,
 }));
-import { handleAudioFormat } from '@/features/playback/store/audioEventHandlers';
+import {
+  handleAudioFormat,
+  handleAudioStreamProvenance,
+} from '@/features/playback/store/audioEventHandlers';
 import { usePlayerStore } from '@/features/playback/store/playerStore';
 import { resetPlayerStore, resetAuthStore } from '@/test/helpers/storeReset';
 import type { Track } from '@/lib/media/trackTypes';
@@ -112,5 +115,39 @@ describe('audio:format event identity', () => {
       trackId: 'a', serverId: 's1', streamCapKbps: null, codec: 'flac', lossless: true,
     });
     expect(usePlayerStore.getState().resolvedStreamFormat?.streamCapKbps).toBe(0);
+  });
+});
+
+describe('audio:stream-provenance event identity', () => {
+  it('merges provenance into the exact track/server/generation format', () => {
+    usePlayerStore.setState({ currentTrack: track('a', 's1') });
+    handleAudioFormat({
+      trackId: 'a', serverId: 's1', generation: 9, codec: 'mp3', lossless: false,
+    });
+
+    handleAudioStreamProvenance({
+      trackId: 'a', serverId: 's1', generation: 9, provenance: 'transcoded',
+    });
+
+    expect(usePlayerStore.getState().resolvedStreamFormat?.provenance).toBe('transcoded');
+  });
+
+  it('rejects stale, cross-track, and cross-server provenance events', () => {
+    usePlayerStore.setState({ currentTrack: track('a', 's1') });
+    handleAudioFormat({
+      trackId: 'a', serverId: 's1', generation: 9, codec: 'flac', lossless: true,
+    });
+
+    handleAudioStreamProvenance({
+      trackId: 'a', serverId: 's1', generation: 8, provenance: 'transcoded',
+    });
+    handleAudioStreamProvenance({
+      trackId: 'b', serverId: 's1', generation: 9, provenance: 'transcoded',
+    });
+    handleAudioStreamProvenance({
+      trackId: 'a', serverId: 's2', generation: 9, provenance: 'transcoded',
+    });
+
+    expect(usePlayerStore.getState().resolvedStreamFormat?.provenance).toBeUndefined();
   });
 });

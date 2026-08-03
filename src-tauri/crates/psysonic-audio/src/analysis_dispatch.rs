@@ -7,13 +7,14 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use tauri::{AppHandle, Manager};
+use serde::Serialize;
+use tauri::{AppHandle, Emitter, Manager};
+use url::Url;
 
 use psysonic_analysis::analysis_runtime::AnalysisBackfillPriority;
 
 use crate::engine::{analysis_track_id_is_current_playback, AudioEngine};
 use crate::helpers::{analysis_cache_track_id, current_playback_server_id_str};
-use url::Url;
 use crate::state::ChainedInfo;
 use crate::stream::{LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES, TRACK_STREAM_PROMOTE_MAX_BYTES};
 
@@ -29,6 +30,85 @@ pub(crate) enum TrackAnalysisOrigin {
     GaplessTransition,
 }
 
+/// Whether the bytes captured from the live stream are the original file,
+/// a server transcode, or unverifiable on this server/endpoint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum StreamProvenance {
+    Original,
+    Transcoded,
+    Unknown,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StreamProvenanceEvent {
+    track_id: String,
+    server_id: String,
+    generation: u64,
+    provenance: StreamProvenance,
+}
+
+pub(crate) type GenerationGuard = (u64, Arc<AtomicU64>);
+
+pub(crate) struct TrackAnalysisDispatchOptions<'a> {
+    pub(crate) priority: AnalysisBackfillPriority,
+    pub(crate) generation_guard: Option<&'a GenerationGuard>,
+}
+
+fn is_http_stream_url(stream_url: Option<&str>) -> bool {
+    stream_url.is_some_and(|u| u.starts_with("http://") || u.starts_with("https://"))
+}
+
+fn live_capture_origin(origin: TrackAnalysisOrigin) -> bool {
+    matches!(
+        origin,
+        TrackAnalysisOrigin::InMemoryReplay
+            | TrackAnalysisOrigin::StreamDownloadComplete
+            | TrackAnalysisOrigin::StreamSpillFile
+            | TrackAnalysisOrigin::GaplessTransition
+    )
+}
+
+fn generation_guard_is_current(guard: &GenerationGuard) -> bool {
+    guard.1.load(Ordering::SeqCst) == guard.0
+}
+
+fn provenance_event_generation(
+    origin: TrackAnalysisOrigin,
+    stream_url: Option<&str>,
+    generation_guard: Option<&GenerationGuard>,
+) -> Option<u64> {
+    if !live_capture_origin(origin) || !is_http_stream_url(stream_url) {
+        return None;
+    }
+    let guard = generation_guard?;
+    generation_guard_is_current(guard).then_some(guard.0)
+}
+
+pub(crate) fn emit_stream_provenance_if_current(
+    app: &AppHandle,
+    origin: TrackAnalysisOrigin,
+    server_id: &str,
+    track_id: &str,
+    stream_url: Option<&str>,
+    provenance: StreamProvenance,
+    generation_guard: Option<&GenerationGuard>,
+) {
+    let Some(generation) = provenance_event_generation(origin, stream_url, generation_guard) else {
+        return;
+    };
+    let _ = app.emit(
+        "audio:stream-provenance",
+        StreamProvenanceEvent {
+            track_id: track_id.to_string(),
+            server_id: server_id.to_string(),
+            generation,
+            provenance,
+        },
+    );
+}
+
 fn max_bytes_for_origin(origin: TrackAnalysisOrigin) -> usize {
     match origin {
         TrackAnalysisOrigin::LocalFilePlayback => LOCAL_FILE_PLAYBACK_SEED_MAX_BYTES,
@@ -41,9 +121,16 @@ pub(crate) fn resolve_analysis_server_id(
     explicit: Option<&str>,
     engine: Option<&AudioEngine>,
 ) -> String {
-    let pinned = engine.map(current_playback_server_id_str).filter(|s| !s.is_empty());
+    let pinned = engine
+        .map(current_playback_server_id_str)
+        .filter(|s| !s.is_empty());
     let url_derived = engine
-        .and_then(|e| e.current_playback_url.lock().ok().and_then(|g| (*g).clone()))
+        .and_then(|e| {
+            e.current_playback_url
+                .lock()
+                .ok()
+                .and_then(|g| (*g).clone())
+        })
         .and_then(|url| server_id_from_playback_url(&url));
     resolve_analysis_scope(explicit, pinned.as_deref(), url_derived.as_deref())
 }
@@ -147,10 +234,7 @@ pub(crate) fn analysis_priority_for_app(
 
 /// Gapless boundary: chained track became audible — run unified analysis if needed.
 pub(crate) fn spawn_gapless_transition_analysis(app: &AppHandle, info: &ChainedInfo) {
-    let track_id = analysis_cache_track_id(
-        info.analysis_track_id.as_deref(),
-        &info.url,
-    );
+    let track_id = analysis_cache_track_id(info.analysis_track_id.as_deref(), &info.url);
     let Some(track_id) = track_id else {
         return;
     };
@@ -171,7 +255,7 @@ pub(crate) fn spawn_gapless_transition_analysis(app: &AppHandle, info: &ChainedI
         bytes,
         Some(info.url.clone()),
         priority,
-        None,
+        Some((info.generation, engine.generation.clone())),
     );
 }
 
@@ -181,12 +265,17 @@ pub(crate) fn spawn_gapless_transition_analysis(app: &AppHandle, info: &ChainedI
 /// Every HTTP stream is treated as potentially transcoded — the server may
 /// force transcoding without any client-visible URL marker — so canonical
 /// identity is established by a raw-prefix probe of the original
-/// (`format=raw`, Navidrome-verified). Probe outcomes:
-/// - success → analysis stored under the trusted ORIGINAL fingerprint;
-/// - failure + the URL requested a transcode → seed skipped entirely
-///   (no canonical writes from bytes with no verified identity);
-/// - failure + plain URL → legacy bytes-hash path (non-Navidrome servers,
-///   where the raw contract does not exist and bytes are assumed original).
+/// (`format=raw`, capability-gated). Captured bytes are analysed only when they
+/// match that prefix; otherwise the bounded full raw original is fetched and
+/// analysed instead. Any probe/fetch failure skips canonical writes.
+fn provenance_from_trusted_bytes(bytes: &[u8], trusted: &str) -> StreamProvenance {
+    if psysonic_analysis::raw_probe::bytes_match_trusted(bytes, trusted) {
+        StreamProvenance::Original
+    } else {
+        StreamProvenance::Transcoded
+    }
+}
+
 pub(crate) async fn dispatch_track_analysis_bytes(
     app: &AppHandle,
     origin: TrackAnalysisOrigin,
@@ -194,31 +283,34 @@ pub(crate) async fn dispatch_track_analysis_bytes(
     track_id: &str,
     bytes: Vec<u8>,
     stream_url: Option<&str>,
-    priority: AnalysisBackfillPriority,
-) -> Result<(), String> {
+    options: TrackAnalysisDispatchOptions<'_>,
+) -> Result<StreamProvenance, String> {
+    let TrackAnalysisDispatchOptions {
+        priority,
+        generation_guard,
+    } = options;
+    let is_http_stream = is_http_stream_url(stream_url);
     let track_id = track_id.trim();
     if track_id.is_empty() {
-        return Ok(());
+        return Ok(if is_http_stream {
+            StreamProvenance::Unknown
+        } else {
+            StreamProvenance::Original
+        });
     }
     if bytes.is_empty() {
-        return Ok(());
+        return Ok(if is_http_stream {
+            StreamProvenance::Unknown
+        } else {
+            StreamProvenance::Original
+        });
     }
     let max = max_bytes_for_origin(origin);
-    if bytes.len() > max {
-        crate::app_deprintln!(
-            "[analysis][dispatch] skip origin={origin:?} track_id={track_id} bytes={} max={max}",
-            bytes.len(),
-        );
-        return Ok(());
-    }
     crate::app_deprintln!(
         "[analysis][dispatch] origin={origin:?} track_id={track_id} server_id={} size_mib={:.2} priority={priority:?}",
         if server_id.is_empty() { "''" } else { server_id },
         bytes.len() as f64 / (1024.0 * 1024.0),
     );
-    let is_http_stream = stream_url
-        .is_some_and(|u| u.starts_with("http://") || u.starts_with("https://"));
-    let transcode_requested = stream_url.is_some_and(crate::play_input::url_requests_transcode);
     if is_http_stream {
         let client = app
             .try_state::<AudioEngine>()
@@ -235,20 +327,69 @@ pub(crate) async fn dispatch_track_analysis_bytes(
             stream_url.unwrap_or_default(),
         )
         .await;
-        let _ = transcode_requested; // provenance rule applies to all HTTP streams
         match verdict {
             TrustedProbeVerdict::Trusted(trusted) => {
-                return psysonic_analysis::analysis_runtime::enqueue_track_analysis_trusted(
+                let provenance = provenance_from_trusted_bytes(&bytes, &trusted);
+                emit_stream_provenance_if_current(
+                    app,
+                    origin,
+                    server_id,
+                    track_id,
+                    stream_url,
+                    provenance,
+                    generation_guard,
+                );
+                let analysis_bytes = if provenance == StreamProvenance::Original {
+                    if bytes.len() > max {
+                        crate::app_deprintln!(
+                            "[analysis][dispatch] skip origin={origin:?} track_id={track_id} bytes={} max={max}",
+                            bytes.len(),
+                        );
+                        return Ok(provenance);
+                    }
+                    bytes
+                } else {
+                    crate::app_deprintln!(
+                        "[analysis][dispatch] captured bytes differ from trusted original track_id={track_id}; fetching bounded raw original"
+                    );
+                    let Some(original) = psysonic_analysis::raw_probe::fetch_trusted_original_bytes(
+                        &client,
+                        registry.as_deref(),
+                        Some(server_id).filter(|s| !s.is_empty()),
+                        stream_url.unwrap_or_default(),
+                        &trusted,
+                        max,
+                    )
+                    .await
+                    else {
+                        crate::app_deprintln!(
+                            "[analysis][dispatch] skip origin={origin:?} track_id={track_id}: raw original unavailable or exceeds cap"
+                        );
+                        return Ok(provenance);
+                    };
+                    original
+                };
+                let trusted_generation =
+                    psysonic_analysis::analysis_runtime::begin_trusted_revision(
+                        server_id,
+                        track_id,
+                        &trusted,
+                    );
+                psysonic_analysis::analysis_runtime::enqueue_track_analysis_trusted(
                     app,
                     server_id,
                     track_id,
-                    &bytes,
+                    &analysis_bytes,
                     None,
-                    trusted,
+                    psysonic_analysis::analysis_runtime::TrustedAnalysisRevision {
+                        md5_16kb: trusted,
+                        generation: trusted_generation,
+                        content_hash_server_id: None,
+                    },
                     priority,
                 )
                 .await
-                .map(|_| ());
+                .map(|_| provenance)
             }
             TrustedProbeVerdict::SkipCanonicalWrites => {
                 // No positive provenance for these HTTP-stream bytes (the
@@ -257,20 +398,37 @@ pub(crate) async fn dispatch_track_analysis_bytes(
                 crate::app_deprintln!(
                     "[analysis][dispatch] skip origin={origin:?} track_id={track_id}: stream identity unverified — no canonical writes"
                 );
-                return Ok(());
+                emit_stream_provenance_if_current(
+                    app,
+                    origin,
+                    server_id,
+                    track_id,
+                    stream_url,
+                    StreamProvenance::Unknown,
+                    generation_guard,
+                );
+                Ok(StreamProvenance::Unknown)
             }
         }
+    } else {
+        if bytes.len() > max {
+            crate::app_deprintln!(
+                "[analysis][dispatch] skip origin={origin:?} track_id={track_id} bytes={} max={max}",
+                bytes.len(),
+            );
+            return Ok(StreamProvenance::Original);
+        }
+        psysonic_analysis::analysis_runtime::enqueue_track_analysis(
+            app,
+            server_id,
+            track_id,
+            &bytes,
+            None,
+            priority,
+        )
+        .await
+        .map(|_| StreamProvenance::Original)
     }
-    psysonic_analysis::analysis_runtime::enqueue_track_analysis(
-        app,
-        server_id,
-        track_id,
-        &bytes,
-        None,
-        priority,
-    )
-    .await
-    .map(|_| ())
 }
 
 /// Non-blocking wrapper with optional play-generation supersede guard.
@@ -283,31 +441,38 @@ pub(crate) fn spawn_track_analysis_bytes(
     bytes: Vec<u8>,
     stream_url: Option<String>,
     priority: AnalysisBackfillPriority,
-    generation_guard: Option<(u64, Arc<AtomicU64>)>,
+    generation_guard: Option<GenerationGuard>,
 ) {
     if track_id.trim().is_empty() || bytes.is_empty() {
         return;
     }
     tokio::spawn(async move {
-        if let Some((gen, gen_arc)) = generation_guard {
-            if gen_arc.load(Ordering::SeqCst) != gen {
-                return;
-            }
+        if generation_guard
+            .as_ref()
+            .is_some_and(|guard| !generation_guard_is_current(guard))
+        {
+            return;
         }
-        if let Err(e) = dispatch_track_analysis_bytes(
+        match dispatch_track_analysis_bytes(
             &app,
             origin,
             &server_id,
             &track_id,
             bytes,
             stream_url.as_deref(),
-            priority,
+            TrackAnalysisDispatchOptions {
+                priority,
+                generation_guard: generation_guard.as_ref(),
+            },
         )
         .await
         {
-            crate::app_eprintln!(
-                "[analysis][dispatch] failed origin={origin:?} track_id={track_id}: {e}"
-            );
+            Ok(_) => {}
+            Err(e) => {
+                crate::app_eprintln!(
+                    "[analysis][dispatch] failed origin={origin:?} track_id={track_id}: {e}"
+                );
+            }
         }
     });
 }
@@ -324,40 +489,48 @@ pub(crate) fn spawn_track_analysis_file(
     // same provenance requirements as the live stream they came from.
     stream_url: Option<String>,
     priority: AnalysisBackfillPriority,
-    generation_guard: Option<(u64, Arc<AtomicU64>)>,
+    generation_guard: Option<GenerationGuard>,
 ) {
     if track_id.trim().is_empty() {
         return;
     }
     tokio::spawn(async move {
-        if let Some((gen, gen_arc)) = &generation_guard {
-            if gen_arc.load(Ordering::SeqCst) != *gen {
-                return;
-            }
+        if generation_guard
+            .as_ref()
+            .is_some_and(|guard| !generation_guard_is_current(guard))
+        {
+            return;
         }
         let bytes = match tokio::fs::read(&file_path).await {
             Ok(b) if !b.is_empty() => b,
             _ => return,
         };
-        if let Some((gen, gen_arc)) = generation_guard {
-            if gen_arc.load(Ordering::SeqCst) != gen {
-                return;
-            }
+        if generation_guard
+            .as_ref()
+            .is_some_and(|guard| !generation_guard_is_current(guard))
+        {
+            return;
         }
-        if let Err(e) = dispatch_track_analysis_bytes(
+        match dispatch_track_analysis_bytes(
             &app,
             origin,
             &server_id,
             &track_id,
             bytes,
             stream_url.as_deref(),
-            priority,
+            TrackAnalysisDispatchOptions {
+                priority,
+                generation_guard: generation_guard.as_ref(),
+            },
         )
         .await
         {
-            crate::app_eprintln!(
-                "[analysis][dispatch] file failed origin={origin:?} track_id={track_id}: {e}"
-            );
+            Ok(_) => {}
+            Err(e) => {
+                crate::app_eprintln!(
+                    "[analysis][dispatch] file failed origin={origin:?} track_id={track_id}: {e}"
+                );
+            }
         }
     });
 }
@@ -388,5 +561,67 @@ mod scope_tests {
         );
         assert_eq!(resolve_analysis_scope(None, None, Some("lan.local")), "lan.local");
         assert_eq!(resolve_analysis_scope(Some("  "), None, None), "");
+    }
+}
+
+#[cfg(test)]
+mod provenance_tests {
+    use super::*;
+
+    #[test]
+    fn trusted_prefix_distinguishes_original_from_transcoded_capture() {
+        let original = vec![7u8; 20 * 1024];
+        let trusted = psysonic_analysis::analysis_cache::md5_first_16kb(&original);
+        assert_eq!(
+            provenance_from_trusted_bytes(&original, &trusted),
+            StreamProvenance::Original,
+        );
+        assert_eq!(
+            provenance_from_trusted_bytes(&vec![9u8; 20 * 1024], &trusted),
+            StreamProvenance::Transcoded,
+        );
+    }
+
+    #[test]
+    fn live_http_provenance_requires_a_current_generation_guard() {
+        let generation = Arc::new(AtomicU64::new(6));
+        let guard = (6, generation.clone());
+        assert_eq!(
+            provenance_event_generation(
+                TrackAnalysisOrigin::InMemoryReplay,
+                Some("https://example.test/rest/stream.view?id=t1"),
+                Some(&guard),
+            ),
+            Some(6),
+        );
+        assert_eq!(
+            provenance_event_generation(
+                TrackAnalysisOrigin::PrefetchOrCacheFile,
+                Some("https://example.test/rest/stream.view?id=t1"),
+                Some(&guard),
+            ),
+            None,
+            "prefetch analysis must not create a live now-playing event",
+        );
+        assert_eq!(
+            provenance_event_generation(
+                TrackAnalysisOrigin::LocalFilePlayback,
+                Some("psysonic-local:///music/t1.flac"),
+                Some(&guard),
+            ),
+            None,
+            "local originals do not need a stream-provenance event",
+        );
+
+        generation.store(7, Ordering::SeqCst);
+        assert_eq!(
+            provenance_event_generation(
+                TrackAnalysisOrigin::StreamDownloadComplete,
+                Some("https://example.test/rest/stream.view?id=t1"),
+                Some(&guard),
+            ),
+            None,
+            "superseded captures must not emit stale provenance",
+        );
     }
 }

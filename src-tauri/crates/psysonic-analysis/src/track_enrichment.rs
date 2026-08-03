@@ -44,8 +44,8 @@ pub fn run_track_enrichment_if_needed<R: Runtime>(
     let Some(port) = app.try_state::<TrackEnrichmentPort>() else {
         return TrackEnrichmentOutcome::SkippedNoPort;
     };
-    // Transcoded bytes carry the verified original fingerprint so facts stay
-    // keyed/current against the original file, not the transcode.
+    // Trusted original bytes carry their verified fingerprint so facts stay
+    // keyed/current against the same canonical file revision.
     let content_hash = trusted_md5_16kb
         .map(str::to_string)
         .unwrap_or_else(|| md5_first_16kb(bytes));

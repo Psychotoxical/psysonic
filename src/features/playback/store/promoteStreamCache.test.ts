@@ -81,6 +81,7 @@ describe('promoteCompletedStreamToHotCache', () => {
       path: '/media/cache/t1.mp3',
       size: 1234,
       layoutFingerprint: 'fp1',
+      originalBytesVerified: true,
     });
     await promoteCompletedStreamToHotCache(track('t1', { suffix: 'flac' }), 'srv', null);
     expect(invokeMock).toHaveBeenCalledWith('promote_stream_cache_to_local', {
@@ -94,7 +95,9 @@ describe('promoteCompletedStreamToHotCache', () => {
   });
 
   it('defaults suffix to mp3', async () => {
-    invokeMock.mockResolvedValueOnce({ path: '/p', size: 1, layoutFingerprint: '' });
+    invokeMock.mockResolvedValueOnce({
+      path: '/p', size: 1, layoutFingerprint: '', originalBytesVerified: true,
+    });
     await promoteCompletedStreamToHotCache(track('t1'), 'srv', null);
     expect(invokeMock.mock.calls[0][1]?.suffix).toBe('mp3');
   });
@@ -104,6 +107,7 @@ describe('promoteCompletedStreamToHotCache', () => {
       path: '/media/cache/t1.mp3',
       size: 5678,
       layoutFingerprint: 'fp',
+      originalBytesVerified: true,
     });
     await promoteCompletedStreamToHotCache(track('t1'), 'srv', null);
     expect(setEntryMock).toHaveBeenCalledWith(
@@ -115,6 +119,7 @@ describe('promoteCompletedStreamToHotCache', () => {
       'fp',
       'mp3',
       0,
+      true,
     );
   });
 

@@ -121,6 +121,11 @@ export const commands = {
 	autoeqFetchProfile: (name: string, source: string, rig: string | null, form: string) => typedError<string, string>(__TAURI_INVOKE("autoeq_fetch_profile", { name, source, rig, form })),
 	audioPreload: (url: string, durationHint: number | null, analysisTrackId: string | null, serverId: string | null, eager: boolean | null) => typedError<null, string>(__TAURI_INVOKE("audio_preload", { url, durationHint, analysisTrackId, serverId, eager })),
 	/**
+	 *  Drop byte and gapless successor preloads after their URL-affecting inputs
+	 *  change. The main playback generation and currently audible source stay live.
+	 */
+	audioInvalidatePreloads: () => __TAURI_INVOKE<void>("audio_invalidate_preloads"),
+	/**
 	 *  Play a live internet radio stream.
 	 * 
 	 *  Sends `Icy-MetaData: 1` to request inline ICY metadata.
@@ -275,6 +280,7 @@ export const commands = {
 	path: string,
 	size: number,
 	layoutFingerprint: string,
+	originalBytesVerified: boolean,
 } | null, string>(__TAURI_INVOKE("promote_stream_cache_to_local", { trackId, serverIndexKey, libraryServerId, url, suffix, mediaDir })),
 	/**
 	 *  Scan `psysonic-offline/{segment}/{trackId}.ext`, verify each id in the library
@@ -537,6 +543,7 @@ export const commands = {
 	endpoints: ServerHttpEndpointWire[],
 	customHeaders?: CustomHeaderEntryWire[],
 	customHeadersApplyTo?: CustomHeadersApplyTo | null,
+	supportsRawStream?: boolean,
 } | null) => typedError<ServerProbeResult, string>(__TAURI_INVOKE("probe_server_connection", { baseUrl, username, password, httpContext })),
 	/**
 	 *  WebView-transport bridge for gated servers (Cloudflare Access, Pangolin, …).
@@ -559,6 +566,7 @@ export const commands = {
 	endpoints: ServerHttpEndpointWire[],
 	customHeaders?: CustomHeaderEntryWire[],
 	customHeadersApplyTo?: CustomHeadersApplyTo | null,
+	supportsRawStream?: boolean,
 } | null) => typedError<string, string>(__TAURI_INVOKE("subsonic_proxy_request", { baseUrl, endpoint, params, postForm, timeoutMs, httpContext })),
 	serverHttpContextClear: (serverId: string, appServerId: string) => typedError<null, string>(__TAURI_INVOKE("server_http_context_clear", { serverId, appServerId })),
 	serverHttpContextSync: (wire: ServerHttpContextSyncWire) => typedError<null, string>(__TAURI_INVOKE("server_http_context_sync", { wire })),
@@ -1222,6 +1230,7 @@ export type LocalTrackDownloadResult = {
 	path: string,
 	size: number,
 	layoutFingerprint: string,
+	originalBytesVerified: boolean,
 };
 
 export type LogLineDto = {
@@ -1421,6 +1430,7 @@ export type ServerHttpContextSyncWire = {
 	endpoints: ServerHttpEndpointWire[],
 	customHeaders?: CustomHeaderEntryWire[],
 	customHeadersApplyTo?: CustomHeadersApplyTo | null,
+	supportsRawStream?: boolean,
 };
 
 export type ServerHttpEndpointWire = {

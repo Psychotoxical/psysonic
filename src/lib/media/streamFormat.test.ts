@@ -89,23 +89,50 @@ describe('effectiveAudioFormat', () => {
     expect(fmt.bitDepth).toBe(24);
   });
 
-  it('detects a same-codec transcode when a cap below the stored bitrate is set (#6)', () => {
-    // Navidrome capping mp3@320 → mp3@128: codec is unchanged, so codec
-    // comparison alone misses it. A cap below the stored bitrate reveals it.
+  it('shows a forced same-codec transcode when native provenance proves it', () => {
     const mp3 = { id: 't1', suffix: 'mp3', bitRate: 320, samplingRate: 44100, bitDepth: undefined };
-    const fmt = effectiveAudioFormat(mp3, resolved({ codec: 'mp3', sampleRate: 44100, streamCapKbps: 128 }));
+    const fmt = effectiveAudioFormat(mp3, resolved({
+      codec: 'mp3', sampleRate: 44100, streamCapKbps: 128, provenance: 'transcoded',
+    }));
     expect(fmt.transcoded).toBe(true);
     expect(fmt.formatLabel).toBe('MP3');
     expect(fmt.bitRate).toBe(128);
     expect(fmt.bitRateIsCap).toBe(true);
   });
 
-  it('does NOT flag a transcode when the cap is above the stored bitrate', () => {
-    // Stored 96 kbps, cap 128 → server streams the original untouched.
-    const mp3 = { id: 't1', suffix: 'mp3', bitRate: 96, samplingRate: 44100, bitDepth: undefined };
-    const fmt = effectiveAudioFormat(mp3, resolved({ codec: 'mp3', sampleRate: 44100, streamCapKbps: 128 }));
+  it('uses provenance for same-family M4A/AAC and OGG/Opus transcodes', () => {
+    const m4a = effectiveAudioFormat(
+      { id: 't1', suffix: 'm4a', bitRate: 900, samplingRate: 48000, bitDepth: 24 },
+      resolved({ codec: 'aac', streamCapKbps: 192, provenance: 'transcoded' }),
+    );
+    const ogg = effectiveAudioFormat(
+      { id: 't1', suffix: 'ogg', bitRate: 320, samplingRate: 48000, bitDepth: undefined },
+      resolved({ codec: 'opus', streamCapKbps: 128, provenance: 'transcoded' }),
+    );
+    expect(m4a).toMatchObject({ transcoded: true, formatLabel: 'AAC', bitRate: 192 });
+    expect(ogg).toMatchObject({ transcoded: true, formatLabel: 'OPUS', bitRate: 128 });
+  });
+
+  it('keeps matching-format direct play original even when a cap was requested', () => {
+    const mp3 = { id: 't1', suffix: 'mp3', bitRate: 320, samplingRate: 44100, bitDepth: undefined };
+    const fmt = effectiveAudioFormat(mp3, resolved({
+      codec: 'mp3', sampleRate: 44100, streamCapKbps: 128, provenance: 'original',
+    }));
     expect(fmt.transcoded).toBe(false);
-    expect(fmt.bitRate).toBe(96);
+    expect(fmt.bitRate).toBe(320);
+    expect(fmt.bitRateIsCap).toBe(false);
+  });
+
+  it('does not use an unknown or absent provenance cap as proof of transcode', () => {
+    const mp3 = { id: 't1', suffix: 'mp3', bitRate: 320, samplingRate: 44100, bitDepth: undefined };
+    const unknown = effectiveAudioFormat(mp3, resolved({
+      codec: 'mp3', sampleRate: 44100, streamCapKbps: 128, provenance: 'unknown',
+    }));
+    const absent = effectiveAudioFormat(mp3, resolved({
+      codec: 'mp3', sampleRate: 44100, streamCapKbps: 128,
+    }));
+    expect(unknown).toMatchObject({ transcoded: false, bitRate: 320, bitRateIsCap: false });
+    expect(absent).toMatchObject({ transcoded: false, bitRate: 320, bitRateIsCap: false });
   });
 
   it('prefers the decoded sample rate when the codec is unchanged', () => {

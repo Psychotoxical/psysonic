@@ -5,9 +5,10 @@
  * stream down to at most that bitrate (kbps); the server picks its configured
  * transcoder/format. Sources already at or below the cap are streamed as-is.
  *
- * This only governs the *live playback* stream — hot-cache prefetch, offline
- * downloads, and loudness/waveform analysis always pull the original file (see
- * `resolvePlaybackUrl`).
+ * This only governs the *live playback* stream. Original-byte producers use
+ * the shared original-stream URL path: confirmed Navidrome profiles request
+ * `format=raw`; unknown and non-Navidrome profiles keep the ordinary uncapped
+ * stream request.
  */
 export const STREAM_MAX_BITRATE_OPTIONS = [0, 320, 256, 192, 128, 96, 64] as const;
 

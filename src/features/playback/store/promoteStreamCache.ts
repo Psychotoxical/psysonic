@@ -25,7 +25,12 @@ export async function promoteCompletedStreamToHotCache(
   if (streamRequestsTranscode(serverIndexKey)) return;
   try {
     const libraryServerId = librarySqlServerId(serverIndexKey);
-    const res = await invoke<{ path: string; size: number; layoutFingerprint: string } | null>(
+    const res = await invoke<{
+      path: string;
+      size: number;
+      layoutFingerprint: string;
+      originalBytesVerified: boolean;
+    } | null>(
       'promote_stream_cache_to_local',
       {
         trackId: track.id,
@@ -52,6 +57,7 @@ export async function promoteCompletedStreamToHotCache(
       res.layoutFingerprint,
       track.suffix || 'mp3',
       cap,
+      res.originalBytesVerified,
     );
   } catch {
     // best-effort promotion; normal hot-cache prefetch remains fallback

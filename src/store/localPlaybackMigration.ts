@@ -89,6 +89,7 @@ export function importLegacyLocalPlayback(
           pinSource: pinSourceForTrack(serverIndexKey, trackId, albums)
             ?? pinSourceForTrack(legacyServer, trackId, albums),
           suffix: meta.suffix || 'mp3',
+          originalBytesVerified: false,
         };
       }
     }
@@ -117,6 +118,7 @@ export function importLegacyLocalPlayback(
           cachedAt: meta.cachedAt ?? Date.now(),
           lastPlayedAt: meta.lastPlayedAt,
           suffix: 'mp3',
+          originalBytesVerified: false,
         };
       }
     }

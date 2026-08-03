@@ -44,16 +44,16 @@ export function ServerStreamQualityRows({ server, t }: { server: ServerProfile; 
           {addresses.map((address) => (
             <div
               key={address}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginTop: '0.5rem' }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginTop: '0.5rem', flexWrap: 'wrap', minWidth: 0 }}
             >
               <span
-                style={{ fontSize: 13, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                style={{ fontSize: 13, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '1 1 12rem', minWidth: 0 }}
                 title={address}
               >
                 {address}
               </span>
-              <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-                <div style={{ minWidth: 170 }}>
+              <div style={{ display: 'flex', gap: '0.5rem', flex: '1 1 18rem', flexWrap: 'wrap', minWidth: 0 }}>
+                <div style={{ flex: '1 1 170px', minWidth: 0 }}>
                   <CustomSelect
                     ariaLabel={`${t('settings.streamQualityTitle')} · ${address}`}
                     value={String(streamQualityByAddress[address] ?? 0)}
@@ -66,7 +66,7 @@ export function ServerStreamQualityRows({ server, t }: { server: ServerProfile; 
                     }))}
                   />
                 </div>
-                <div style={{ minWidth: 110 }}>
+                <div style={{ flex: '1 1 110px', minWidth: 0 }}>
                   <CustomSelect
                     ariaLabel={`${t('settings.streamFormatLabel')} · ${address}`}
                     value={streamFormatByAddress[address] ?? 'auto'}

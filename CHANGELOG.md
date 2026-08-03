@@ -13,14 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 
-### Streaming quality — per-address Navidrome transcode caps and real decoded-format display
-
-**By [@Manwe-777](https://github.com/Manwe-777), PR [#1334](https://github.com/Psychotoxical/psysonic/pull/1334)**
-
-* Ask Navidrome to transcode the live stream down to a bitrate cap (320…64 kbps) with an optional target format (MP3 / Opus / AAC) — useful on slow or remote links (VPN, mobile tethering) where lossless streams stall. Configured per saved server **address**: a LAN endpoint and a public reverse proxy can use different caps, and playback applies the setting of the address currently connected. The control appears on saved servers whose identity probe reports Navidrome; offline, cached and pinned tracks always play at original quality.
-* Now-playing surfaces (queue, hero, mobile, immersive fullscreen) show the **actually decoded** stream format instead of the library file's stored metadata — a server-side transcode (forced or requested) reads e.g. `OPUS · ≤320 kbps · 48 kHz` with the original shown in a tooltip. Format events carry the track/server/generation identity and the cap the stream was opened with, including across gapless transitions.
-* Analysis stays anchored to the original file: for transcoded streams, waveform/loudness/BPM are computed from the played bytes but stored under the original's fingerprint (verified via a `format=raw` ranged probe), so every bitrate representation shares one analysis record and the library's content identity is never overwritten by a transcode. Transcoded bytes are never promoted into the hot cache, and completed-stream reuse is quality-aware.
-
 ### True simultaneous multi-server support — use every server as one music library
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1326](https://github.com/Psychotoxical/psysonic/pull/1326)**
@@ -50,6 +42,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1331](https://github.com/Psychotoxical/psysonic/pull/1331)**
 
 * **Settings → System → Logging** and **PsyLab → Logs** offer basic and verbose debug-depth levels while Debug logging is enabled. Verbose mode adds structured multi-server scope, reachability, music-folder and New Releases diagnostics, with credentials and sensitive URL data redacted.
+
+### Streaming quality — per-address Navidrome bitrate and format controls
+
+**By [@Manwe-777](https://github.com/Manwe-777), PR [#1334](https://github.com/Psychotoxical/psysonic/pull/1334)**
+
+* Saved Navidrome servers can request no bitrate cap or a 320…64 kbps ceiling, with Auto / MP3 / Opus / AAC as the target format. Settings are stored per address, so LAN and public endpoints can use different quality profiles and playback follows the connected endpoint.
+* Offline pins, favourites sync and hot-cache prefetch use the original-stream path; confirmed Navidrome profiles request `format=raw`, while other servers keep the existing uncapped request. Transcoded live bytes are not promoted as original files, and completed-stream reuse stays isolated by endpoint, account, format and bitrate cap.
+* Waveform, loudness and enrichment may analyse the played stream, but canonical results stay anchored to the original file's validated raw fingerprint. Different bitrate representations share one track revision, and a failed original probe cannot overwrite library identity.
 
 ## Changed
 

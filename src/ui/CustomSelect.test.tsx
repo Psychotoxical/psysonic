@@ -5,7 +5,8 @@
  * pointing at the highlighted option.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import CustomSelect from '@/ui/CustomSelect';
 
 const OPTIONS = [
@@ -16,58 +17,77 @@ const OPTIONS = [
 
 function renderSelect(onChange = vi.fn(), value = 'a') {
   render(
-    <CustomSelect value={value} options={OPTIONS} onChange={onChange} ariaLabel="pick" />,
+    <>
+      <CustomSelect value={value} options={OPTIONS} onChange={onChange} ariaLabel="pick" />
+      <button type="button">After</button>
+    </>,
   );
-  return { trigger: screen.getByRole('button', { name: 'pick' }), onChange };
+  return {
+    trigger: screen.getByRole('combobox', { name: 'pick' }),
+    after: screen.getByRole('button', { name: 'After' }),
+    onChange,
+  };
 }
 
 describe('CustomSelect keyboard operation', () => {
-  it('ArrowDown opens the listbox with the selected option highlighted', () => {
+  it('links the combobox to its listbox and active option', async () => {
+    const user = userEvent.setup();
     const { trigger } = renderSelect();
-    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+    trigger.focus();
+    await user.keyboard('{ArrowDown}');
     const listbox = screen.getByRole('listbox');
-    expect(listbox).toBeTruthy();
+    expect(trigger).toHaveAttribute('aria-controls', listbox.id);
+    expect(listbox).toHaveAttribute('aria-labelledby', trigger.id);
     const active = trigger.getAttribute('aria-activedescendant');
     expect(active).toBeTruthy();
     expect(document.getElementById(active!)?.textContent).toBe('Alpha');
+    expect(document.getElementById(active!)).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('arrow keys move the highlight, skipping disabled options', () => {
+  it('moves the active selection with arrows while exposing disabled options', async () => {
+    const user = userEvent.setup();
     const { trigger } = renderSelect();
-    fireEvent.keyDown(trigger, { key: 'ArrowDown' }); // open on Alpha
-    fireEvent.keyDown(trigger, { key: 'ArrowDown' }); // skips disabled Beta
+    trigger.focus();
+    await user.keyboard('{ArrowDown}{ArrowDown}');
     const active = trigger.getAttribute('aria-activedescendant');
     expect(document.getElementById(active!)?.textContent).toBe('Gamma');
     expect(document.getElementById(active!)?.className).toContain('active');
+    expect(screen.getByRole('option', { name: 'Alpha' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('option', { name: 'Beta' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('option', { name: 'Gamma' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('Enter selects the highlighted option and closes the list', () => {
+  it('Enter selects the highlighted option and closes the list', async () => {
+    const user = userEvent.setup();
     const { trigger, onChange } = renderSelect();
-    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
-    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
-    fireEvent.keyDown(trigger, { key: 'Enter' });
+    trigger.focus();
+    await user.keyboard('{ArrowDown}{ArrowDown}{Enter}');
     expect(onChange).toHaveBeenCalledWith('c');
     expect(screen.queryByRole('listbox')).toBeNull();
+    expect(trigger).toHaveFocus();
   });
 
-  it('Home and End jump to the first and last enabled options', () => {
+  it('Home and End jump to the first and last enabled options', async () => {
+    const user = userEvent.setup();
     const { trigger } = renderSelect(vi.fn(), 'c');
-    fireEvent.keyDown(trigger, { key: 'ArrowDown' }); // open on Gamma
-    fireEvent.keyDown(trigger, { key: 'Home' });
+    trigger.focus();
+    await user.keyboard('{ArrowDown}{Home}');
     let active = trigger.getAttribute('aria-activedescendant');
     expect(document.getElementById(active!)?.textContent).toBe('Alpha');
-    fireEvent.keyDown(trigger, { key: 'End' });
+    await user.keyboard('{End}');
     active = trigger.getAttribute('aria-activedescendant');
     expect(document.getElementById(active!)?.textContent).toBe('Gamma');
   });
 
-  it('never highlights a disabled option via keyboard', () => {
-    const { trigger, onChange } = renderSelect();
-    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
-    for (let i = 0; i < 6; i++) fireEvent.keyDown(trigger, { key: 'ArrowDown' });
-    const active = trigger.getAttribute('aria-activedescendant');
-    expect(document.getElementById(active!)?.textContent).not.toBe('Beta');
-    fireEvent.keyDown(trigger, { key: 'Enter' });
-    expect(onChange).not.toHaveBeenCalledWith('b');
+  it('Tab commits the active option, closes, and moves focus onward', async () => {
+    const user = userEvent.setup();
+    const { trigger, after, onChange } = renderSelect();
+    trigger.focus();
+    await user.keyboard('{ArrowDown}{ArrowDown}');
+    await user.tab();
+
+    expect(onChange).toHaveBeenCalledWith('c');
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(after).toHaveFocus();
   });
 });

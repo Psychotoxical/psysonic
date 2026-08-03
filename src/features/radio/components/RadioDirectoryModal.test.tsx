@@ -64,7 +64,7 @@ describe('RadioDirectoryModal owner-scoped creation', () => {
       />,
     );
 
-    expect(view.queryByRole('button', { name: 'Servers' })).not.toBeInTheDocument();
+    expect(view.queryByRole('combobox', { name: 'Servers' })).not.toBeInTheDocument();
     fireEvent.click(await view.findByText('Directory Station'));
 
     await waitFor(() => expect(mocks.uploadBytesForServer).toHaveBeenCalledWith(
@@ -99,7 +99,7 @@ describe('RadioDirectoryModal owner-scoped creation', () => {
       />,
     );
 
-    const serverSelect = view.getByRole('button', { name: 'Servers' });
+    const serverSelect = view.getByRole('combobox', { name: 'Servers' });
     expect(serverSelect).toHaveTextContent('Server A');
     await user.click(serverSelect);
     await user.click(view.getByRole('option', { name: 'Server B' }));

@@ -309,6 +309,17 @@ describe('audio preload events', () => {
     expect(getBytePreloadingId()).toBe(identity);
 
     emitTauriEvent('audio:preload-ready', {
+      url: 'https://a.test/stream?id=shared',
+      trackId: 'shared',
+    });
+    expect(usePlayerStore.getState().enginePreloadedTrackId).toBeNull();
+
+    // URL parsing is intentionally not an identity fallback: the native event
+    // must name the track and match the exact pending request URL.
+    emitTauriEvent('audio:preload-ready', { url: currentUrl });
+    expect(usePlayerStore.getState().enginePreloadedTrackId).toBeNull();
+
+    emitTauriEvent('audio:preload-ready', {
       url: currentUrl,
       trackId: 'shared',
     });

@@ -258,6 +258,77 @@ describe('audio modes — gapless / crossfade mutual exclusion (regression §4.3
 });
 
 describe('per-address streaming quality lifecycle', () => {
+  it('preserves identity and address settings on a normalized full-profile save', () => {
+    const id = useAuthStore.getState().addServer({
+      name: 'Dual',
+      url: 'https://lan.test',
+      alternateUrl: 'https://public.test/',
+      shareUsesLocalUrl: false,
+      username: 'u',
+      password: 'p',
+      customHeaders: [{ name: 'X-Access', value: 'one' }],
+      customHeadersApplyTo: 'public',
+    });
+    const st = () => useAuthStore.getState();
+    st().setStreamQualityForAddress('https://lan.test', 320);
+    st().setStreamFormatForAddress('https://lan.test', 'mp3');
+    st().setStreamQualityForAddress('https://public.test', 96);
+    st().setStreamFormatForAddress('https://public.test', 'opus');
+    st().setSubsonicServerIdentity(id, { type: 'navidrome', serverVersion: '0.58.0' });
+
+    st().updateServer(id, {
+      name: 'Dual renamed',
+      url: 'https://public.test',
+      alternateUrl: 'https://lan.test/',
+      shareUsesLocalUrl: true,
+      username: 'next-user',
+      password: 'next-password',
+      customHeaders: [{ name: 'X-Access', value: 'two' }],
+      customHeadersApplyTo: 'both',
+    });
+
+    expect(st().subsonicServerIdentityByServer[id]?.type).toBe('navidrome');
+    expect(st().streamQualityByAddress).toMatchObject({
+      'https://lan.test': 320,
+      'https://public.test': 96,
+    });
+    expect(st().streamFormatByAddress).toMatchObject({
+      'https://lan.test': 'mp3',
+      'https://public.test': 'opus',
+    });
+  });
+
+  it('still invalidates identity and prunes removed addresses on a full-profile edit', () => {
+    const id = useAuthStore.getState().addServer({
+      name: 'Dual',
+      url: 'https://lan.test',
+      alternateUrl: 'https://public.test',
+      username: 'u',
+      password: 'p',
+    });
+    const st = () => useAuthStore.getState();
+    st().setStreamQualityForAddress('https://lan.test', 320);
+    st().setStreamQualityForAddress('https://public.test', 96);
+    st().setStreamFormatForAddress('https://public.test', 'opus');
+    st().setSubsonicServerIdentity(id, { type: 'navidrome' });
+
+    st().updateServer(id, {
+      name: 'Dual',
+      url: 'https://lan.test/',
+      alternateUrl: 'https://remote.test',
+      shareUsesLocalUrl: false,
+      username: 'u',
+      password: 'p',
+      customHeaders: [],
+      customHeadersApplyTo: 'public',
+    });
+
+    expect(st().subsonicServerIdentityByServer[id]).toBeUndefined();
+    expect(st().streamQualityByAddress['https://lan.test']).toBe(320);
+    expect(st().streamQualityByAddress['https://public.test']).toBeUndefined();
+    expect(st().streamFormatByAddress['https://public.test']).toBeUndefined();
+  });
+
   it('drops the cap and format when the address is edited (unverified until re-probed)', () => {
     const { a } = addThree();
     const st = () => useAuthStore.getState();

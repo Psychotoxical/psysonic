@@ -49,7 +49,7 @@
   transition: background 0.1s;
 }
 .custom-select-option.active,
-.custom-select-option:hover {
+.custom-select-option:not(.disabled):hover {
   background: var(--menu-item-hover);
 }
 .custom-select-option.selected {
@@ -357,4 +357,3 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
-

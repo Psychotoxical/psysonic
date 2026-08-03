@@ -3,11 +3,11 @@ import { librarySqlServerId } from '@/lib/api/coverCache';
 import { getAlbumForServer } from '@/lib/api/subsonicLibrary';
 import { getArtistForServer } from '@/lib/api/subsonicArtists';
 import { getStarredForServer } from '@/lib/api/subsonicStarRating';
-import { buildStreamUrlForServer } from '@/lib/api/subsonicStreamUrl';
+import { buildOriginalStreamUrlForServer } from '@/lib/api/subsonicStreamUrl';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
 import { invoke } from '@tauri-apps/api/core';
 import i18n from '@/lib/i18n';
-import { useAuthStore } from '@/store/authStore';
+import { serverSupportsRawStream, useAuthStore } from '@/store/authStore';
 import { cancelledDownloads, useOfflineJobStore } from '@/features/offline/store/offlineJobStore';
 import { useFavoritesOfflineSyncStore } from '@/features/offline/store/favoritesOfflineSyncStore';
 import { useLocalPlaybackStore } from '@/store/localPlaybackStore';
@@ -25,8 +25,8 @@ import { favoritesServerIds } from '@/features/offline/utils/favoritesOfflineBro
 import { loadAlbumFromLibraryIndex } from '@/features/offline/utils/offlineLibraryIndexLoad';
 import {
   entryBelongsToServer,
+  findFavoriteAutoEntry,
   hasLocalLibraryBytes,
-  hasLocalFavoriteAutoBytes,
 } from '@/store/localPlaybackResolve';
 
 const CONCURRENCY = 2;
@@ -142,7 +142,12 @@ export async function collectStarredSongs(serverId: string): Promise<SubsonicSon
 }
 
 function pendingFavoriteAutoSongs(songs: SubsonicSong[], serverId: string): SubsonicSong[] {
-  return songs.filter(s => !hasLocalLibraryBytes(s.id, serverId) && !hasLocalFavoriteAutoBytes(s.id, serverId));
+  return songs.filter((song) => {
+    if (hasLocalLibraryBytes(song.id, serverId)) return false;
+    const existing = findFavoriteAutoEntry(song.id, serverId);
+    if (!existing?.localPath) return true;
+    return serverSupportsRawStream(serverId) && existing.originalBytesVerified !== true;
+  });
 }
 
 async function pruneOrphanFavoriteAuto(
@@ -313,18 +318,30 @@ async function runFavoritesOfflineSyncOneServer(serverId: string, token: number)
           if (cancelledDownloads.has(FAVORITES_OFFLINE_JOB_ID)) {
             return { song, error: 'CANCELLED' };
           }
-          if (hasLocalLibraryBytes(song.id, serverId) || hasLocalFavoriteAutoBytes(song.id, serverId)) {
+          const existingFavorite = findFavoriteAutoEntry(song.id, serverId);
+          if (
+            hasLocalLibraryBytes(song.id, serverId)
+            || (
+              existingFavorite?.localPath
+              && (!serverSupportsRawStream(serverId) || existingFavorite.originalBytesVerified === true)
+            )
+          ) {
             return { song, error: null };
           }
           try {
-            const res = await invoke<{ path: string; size: number; layoutFingerprint: string }>(
+            const res = await invoke<{
+              path: string;
+              size: number;
+              layoutFingerprint: string;
+              originalBytesVerified: boolean;
+            }>(
               'download_track_local',
               {
                 tier: 'favorite-auto',
                 trackId: song.id,
                 serverIndexKey,
                 libraryServerId,
-                url: buildStreamUrlForServer(serverId, song.id),
+                url: buildOriginalStreamUrlForServer(serverId, song.id),
                 suffix,
                 mediaDir,
                 downloadId,
@@ -346,6 +363,7 @@ async function runFavoritesOfflineSyncOneServer(serverId: string, token: number)
               layoutFingerprint: res.layoutFingerprint,
               tier: 'favorite-auto',
               suffix,
+              originalBytesVerified: res.originalBytesVerified,
             });
             return { song, error: null };
           } catch (err) {
