@@ -21,6 +21,30 @@ export type WaveformCachePayload = {
 };
 
 const waveformRefreshInflight = new Map<string, Promise<void>>();
+const waveformReadByTrack = new Map<string, {
+  gen: number;
+  promise: Promise<number[] | null>;
+}>();
+
+function readWaveformBins(ref: AnalysisTrackRef, gen: number): Promise<number[] | null> {
+  const key = analysisTrackRefKey(ref);
+  const existing = waveformReadByTrack.get(key);
+  if (existing?.gen === gen) return existing.promise;
+
+  const promise = commands.analysisGetWaveformForTrack(ref.trackId, ref.serverIndexKey)
+    .then(res => {
+      if (res.status === 'error') throw new Error(res.error);
+      const bins = res.data ? coerceWaveformBins(res.data.bins) : null;
+      return bins && bins.length > 0 ? bins : null;
+    });
+  waveformReadByTrack.set(key, { gen, promise });
+  void promise.catch(() => {
+    if (waveformReadByTrack.get(key)?.promise === promise) {
+      waveformReadByTrack.delete(key);
+    }
+  });
+  return promise;
+}
 
 /**
  * Fetch the cached waveform row for `trackId` from Rust and apply its bins
@@ -43,11 +67,7 @@ export async function fetchWaveformBins(
   if (!trackId || !inputRef.serverIndexKey) return null;
   try {
     const ref = analysisTrackRef(trackId, inputRef.serverIndexKey);
-    const res = await commands.analysisGetWaveformForTrack(trackId, ref.serverIndexKey);
-    if (res.status === 'error') throw new Error(res.error);
-    const row = res.data;
-    const bins = row ? coerceWaveformBins(row.bins) : null;
-    return bins && bins.length > 0 ? bins : null;
+    return await readWaveformBins(ref, getWaveformRefreshGen(ref));
   } catch {
     return null;
   }
@@ -68,11 +88,8 @@ export async function refreshWaveformForTrack(inputRef: AnalysisTrackRef): Promi
 }
 
 async function runRefreshWaveformForTrack(ref: AnalysisTrackRef, gen: number): Promise<void> {
-  const { trackId } = ref;
   try {
-    const res = await commands.analysisGetWaveformForTrack(trackId, ref.serverIndexKey);
-    if (res.status === 'error') throw new Error(res.error);
-    const row = res.data;
+    const bins = await readWaveformBins(ref, gen);
     if (getWaveformRefreshGen(ref) !== gen) return;
     // Never apply bins for a non-current track (e.g. gapless byte-preload fetches the neighbour).
     const state = usePlayerStore.getState();
@@ -82,7 +99,6 @@ async function runRefreshWaveformForTrack(ref: AnalysisTrackRef, gen: number): P
       state.queueItems?.[state.queueIndex],
     );
     if (analysisTrackRefKey(currentRef) !== analysisTrackRefKey(ref)) return;
-    const bins = row ? coerceWaveformBins(row.bins) : null;
     if (!bins || bins.length === 0) {
       usePlayerStore.setState({
         waveformBins: null,
@@ -100,4 +116,5 @@ async function runRefreshWaveformForTrack(ref: AnalysisTrackRef, gen: number): P
 /** Test-only: drop pending refresh promises so each spec starts clean. */
 export function _resetWaveformRefreshInflightForTest(): void {
   waveformRefreshInflight.clear();
+  waveformReadByTrack.clear();
 }

@@ -37,6 +37,7 @@ vi.mock('@/features/playback/store/waveformRefreshGen', () => ({
 
 import {
   _resetWaveformRefreshInflightForTest,
+  fetchWaveformBins,
   refreshWaveformForTrack,
 } from '@/features/playback/store/waveformRefresh';
 import { analysisTrackRef } from '@/features/playback/store/analysisTrackRef';
@@ -82,6 +83,17 @@ describe('refreshWaveformForTrack', () => {
     resolveFetch({ bins: [1, 2, 3] });
     await Promise.all([first, second]);
     expect(hoisted.playerSetStateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('shares a cached miss with silence-aware playback reads in the same generation', async () => {
+    setCurrent('t1');
+    hoisted.invokeMock.mockResolvedValueOnce(null);
+
+    await refreshWaveformForTrack(ref('t1'));
+    const bins = await fetchWaveformBins(ref('t1'));
+
+    expect(bins).toBeNull();
+    expect(hoisted.invokeMock).toHaveBeenCalledTimes(1);
   });
 
   it('starts a new read after the refresh generation changes', async () => {
