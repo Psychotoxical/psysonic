@@ -134,10 +134,9 @@ export const commands = {
 	/**
 	 *  Start or stop the spectrum feed.
 	 *
-	 *  Idempotent by design: the frontend keeps a single refcount across every
-	 *  mounted visualizer surface and calls this only on the 0↔1 edges, but a
-	 *  duplicate `true` (a reload that lost the previous count, for instance) just
-	 *  replaces the running task rather than stacking a second one.
+	 *  Idempotent by design: only the inactive→active edge starts an analyzer task.
+	 *  Repeated `true` calls update FPS/responsiveness atomics in place, preserving
+	 *  the running analyzer's envelope state; `false` stops the current generation.
 	 */
 	audioSpectrumSetActive: (active: boolean, fps: number | null, responsiveness: number | null) => __TAURI_INVOKE<void>("audio_spectrum_set_active", { active, fps, responsiveness }),
 	/**  Proxy: fetches https://autoeq.app/entries via Rust to bypass WebView CORS restrictions. */

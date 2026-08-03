@@ -22,6 +22,7 @@ import { FsTimeReadout } from '@/features/fullscreenPlayer/components/FsTimeRead
 import { FsVolume } from '@/features/fullscreenPlayer/components/FsVolume';
 import { ownedOverrideValue } from '@/lib/util/ownedEntityKey';
 import { VisualizerPanel } from '@/features/visualizer';
+import { prepareTransientUiOpen } from '@/lib/dom/transientUi';
 
 interface Props {
   onClose: () => void;
@@ -138,6 +139,7 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
       role="dialog"
       aria-modal="true"
       aria-label={t('player.fullscreen')}
+      data-visualizer-overlay-host="fullscreen"
       data-idle={isIdle}
       onMouseMove={handleMouseMove}
     >
@@ -228,9 +230,17 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
         </div>
 
         {/* Visualizer strip, above the transport row. */}
-        <VisualizerPanel surface="fullscreen" className="fsp-visualizer" />
+        <VisualizerPanel
+          surface="fullscreen"
+          className="fsp-visualizer"
+          paused={queueOpen}
+        />
 
-        <div className="fsp-controls" ref={controlsRef}>
+        <div
+          className="fsp-controls"
+          ref={controlsRef}
+          data-visualizer-transport="fullscreen"
+        >
           <div className="fsp-transport">
             <button className="fsp-btn" onClick={() => previous()} aria-label={t('player.prev')} data-tooltip={t('player.prev')}>
               <SkipBack size={20} />
@@ -254,12 +264,23 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
               iconSize={20}
               showTooltip
             />
-            <button className="fsp-btn fsp-btn-sm" onClick={() => setQueueOpen(true)} aria-label={t('queue.title')} data-tooltip={t('queue.title')}>
+            <button
+              className="fsp-btn fsp-btn-sm"
+              onClick={() => {
+                prepareTransientUiOpen();
+                setQueueOpen(true);
+              }}
+              aria-label={t('queue.title')}
+              data-tooltip={t('queue.title')}
+            >
               <ListMusic size={20} />
             </button>
             <button
               className={`fsp-btn fsp-btn-sm${lyricsOpen ? ' active' : ''}`}
-              onClick={() => setLyricsOpen(v => !v)}
+              onClick={() => {
+                if (!lyricsOpen) prepareTransientUiOpen();
+                setLyricsOpen(v => !v);
+              }}
               aria-label={t('player.lyrics')}
               data-tooltip={t('player.lyrics')}
             >
@@ -290,7 +311,9 @@ export default function FullscreenPlayerStatic({ onClose }: Props) {
         </div>
 
         {/* True waveform seekbar (cucadmuh's idea) instead of the thin bar. */}
-        <WaveformSeek trackId={currentTrack?.id} />
+        <div data-visualizer-overlay-exempt="fullscreen">
+          <WaveformSeek trackId={currentTrack?.id} />
+        </div>
       </div>
 
       {queueOpen && <FsQueueModal onClose={() => setQueueOpen(false)} />}

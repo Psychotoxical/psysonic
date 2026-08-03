@@ -13,6 +13,14 @@ const hoisted = vi.hoisted(() => {
     playerSetStateMock: vi.fn(),
     playerStateGet,
     eqEnabled: false,
+    eqSubscriber: null as ((
+      state: { enabled: boolean },
+      previous: { enabled: boolean },
+    ) => void) | null,
+    applyRadioEqSettingsMock: vi.fn(),
+    applyRadioOutputVolumeMock: vi.fn(),
+    isRadioEqGraphActiveMock: vi.fn(() => false),
+    tryAttachRadioEqGraphMock: vi.fn(() => Promise.resolve(false)),
   };
 });
 
@@ -20,7 +28,10 @@ vi.mock('@/lib/dom/toast', () => ({ showToast: hoisted.showToastMock }));
 vi.mock('@/store/eqStore', () => ({
   useEqStore: {
     getState: () => ({ enabled: hoisted.eqEnabled, gains: [], preGain: 0 }),
-    subscribe: vi.fn(() => vi.fn()),
+    subscribe: vi.fn((listener: typeof hoisted.eqSubscriber) => {
+      hoisted.eqSubscriber = listener;
+      return () => { hoisted.eqSubscriber = null; };
+    }),
   },
 }));
 vi.mock('@/features/playback/store/playerStore', () => ({
@@ -30,19 +41,21 @@ vi.mock('@/features/playback/store/playerStore', () => ({
   },
 }));
 vi.mock('@/features/playback/utils/audio/radioEqGraph', () => ({
-  applyRadioEqSettings: vi.fn(),
-  applyRadioOutputVolume: vi.fn(),
-  isRadioEqGraphActive: vi.fn(() => false),
+  applyRadioEqSettings: hoisted.applyRadioEqSettingsMock,
+  applyRadioOutputVolume: hoisted.applyRadioOutputVolumeMock,
+  isRadioEqGraphActive: hoisted.isRadioEqGraphActiveMock,
   resumeRadioEqContext: vi.fn(() => Promise.resolve()),
   setRadioEqMasterVolume: vi.fn(),
   shouldUseRadioEqGraph: vi.fn(() => hoisted.eqEnabled),
-  tryAttachRadioEqGraph: vi.fn(() => Promise.resolve(false)),
+  tryAttachRadioEqGraph: hoisted.tryAttachRadioEqGraphMock,
   warmRadioEqContextFromUserGesture: vi.fn(),
 }));
 
 import {
   _radioAudioForTest,
+  _radioGraphActiveForTest,
   _resetRadioPlayerForTest,
+  bindRadioEqAttachOnEnable,
   clearRadioReconnectTimer,
   pauseRadio,
   playRadioStream,
@@ -60,6 +73,13 @@ let pausedSpy: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   vi.useFakeTimers();
   hoisted.eqEnabled = false;
+  hoisted.eqSubscriber = null;
+  hoisted.applyRadioEqSettingsMock.mockClear();
+  hoisted.applyRadioOutputVolumeMock.mockClear();
+  hoisted.isRadioEqGraphActiveMock.mockReset();
+  hoisted.isRadioEqGraphActiveMock.mockReturnValue(false);
+  hoisted.tryAttachRadioEqGraphMock.mockReset();
+  hoisted.tryAttachRadioEqGraphMock.mockResolvedValue(false);
   hoisted.showToastMock.mockClear();
   hoisted.playerSetStateMock.mockClear();
   hoisted.playerStateGet.mockReset();
@@ -157,6 +177,25 @@ describe('setRadioVolume', () => {
     expect(audio.volume).toBe(1);
     setRadioVolume(-1);
     expect(audio.volume).toBe(0);
+  });
+});
+
+describe('bindRadioEqAttachOnEnable', () => {
+  it('attaches during an active radio session without restarting the stream', async () => {
+    hoisted.playerStateGet.mockReturnValue({ currentRadio: { id: 'r1' } });
+    hoisted.tryAttachRadioEqGraphMock.mockResolvedValue(true);
+    const cleanup = bindRadioEqAttachOnEnable();
+    hoisted.eqEnabled = true;
+
+    hoisted.eqSubscriber?.({ enabled: true }, { enabled: false });
+
+    await vi.waitFor(() => expect(hoisted.tryAttachRadioEqGraphMock).toHaveBeenCalledWith(audio));
+    await vi.waitFor(() => expect(hoisted.applyRadioOutputVolumeMock).toHaveBeenCalledWith(1, true));
+    expect(_radioGraphActiveForTest()).toBe(true);
+    expect(hoisted.applyRadioEqSettingsMock).toHaveBeenCalledWith([], true, 0);
+    expect(loadSpy).not.toHaveBeenCalled();
+    expect(playSpy).not.toHaveBeenCalled();
+    cleanup();
   });
 });
 

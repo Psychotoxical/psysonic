@@ -82,6 +82,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Artist names link to the artist page in all three fullscreen styles, the detached mini player and the mobile layout — until now only album and queue rows offered this. Clicking one in fullscreen closes the overlay so the artist page is right there.
 * Joined credits such as "Primary feat. Guest" read as separate artists, including the bullet separator Navidrome uses when a track carries only plural artist tags. Names like AC/DC stay intact.
 
+### Audio visualizer — spectrum, scopes and fullscreen views
+
+**By [@Manwe-777](https://github.com/Manwe-777), PR [#1375](https://github.com/Psychotoxical/psysonic/pull/1375)**
+
+* **Now Playing** and every fullscreen-player style can show a responsive spectrum, oscilloscope, radial scope or stereo field, with cover-derived or theme colours and an expanded window view.
+* Sensitivity, response, frame rate and peak markers are configurable under **Settings → Appearance → Visualizer**. Internet radio is supported while its equalizer audio graph is active.
+
 ## Changed
 
 ### Library index — designed for several live servers at once

@@ -7,6 +7,9 @@ export const visualizer = {
   switchMode: 'Switch visualizer mode',
   expand: 'Fill the window',
   collapse: 'Exit full window',
+  radioUnavailableTitle: 'Radio visualizer unavailable',
+  radioUnavailableHint:
+    'Radio visualization becomes available when this station connects to the equalizer audio graph. Some streams do not support that route.',
   settings: {
     section: 'Visualizer',
     description:
@@ -29,6 +32,6 @@ export const visualizer = {
     frameRate: 'Frame rate',
     frameRateHint: 'Lower rates cost less CPU. The animation stays smooth either way.',
     radioNote:
-      'Internet radio is visualized only while the equalizer is enabled, because that is when the stream is routed through the audio graph.',
+      'Internet radio can be visualized after the station connects to the equalizer audio graph. Some streams do not support that route.',
   },
 };

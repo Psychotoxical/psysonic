@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  TRANSIENT_UI_CLOSE_EVENT,
+  prepareTransientUiOpen,
+} from '@/lib/dom/transientUi';
 
 /** Fixed popover anchored above a player-bar trigger (overflow menu / speed btn). */
 export function usePlayerBarAnchoredPopover(width: number, zIndex = 10050) {
@@ -31,6 +35,12 @@ export function usePlayerBarAnchoredPopover(width: number, zIndex = 10050) {
   }, [open, updatePopStyle]);
 
   useEffect(() => {
+    const closeTransientUi = () => setOpen(false);
+    window.addEventListener(TRANSIENT_UI_CLOSE_EVENT, closeTransientUi);
+    return () => window.removeEventListener(TRANSIENT_UI_CLOSE_EVENT, closeTransientUi);
+  }, []);
+
+  useEffect(() => {
     if (!open) return;
     const onReposition = () => updatePopStyle();
     window.addEventListener('resize', onReposition);
@@ -59,5 +69,10 @@ export function usePlayerBarAnchoredPopover(width: number, zIndex = 10050) {
     };
   }, [open]);
 
-  return { open, setOpen, popStyle, btnRef, popRef };
+  const toggleOpen = useCallback(() => {
+    if (!open) prepareTransientUiOpen();
+    setOpen(!open);
+  }, [open]);
+
+  return { open, setOpen, toggleOpen, popStyle, btnRef, popRef };
 }

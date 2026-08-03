@@ -5,6 +5,11 @@ vi.mock('@/ui/CachedImage', async () => {
   const actual = await vi.importActual<typeof import('@/ui/CachedImage')>('@/ui/CachedImage');
   return { ...actual, useCachedUrl: vi.fn((url: string) => (url ? `mock://${url}` : '')) };
 });
+vi.mock('@/features/visualizer', () => ({
+  VisualizerPanel: ({ paused }: { paused?: boolean }) => (
+    <div role="region" aria-label="Visualizer" data-paused={paused ? 'true' : 'false'} />
+  ),
+}));
 
 import FullscreenPlayerStatic from './FullscreenPlayerStatic';
 import { renderWithProviders } from '@/test/helpers/renderWithProviders';
@@ -13,6 +18,7 @@ import { useAuthStore } from '@/store/authStore';
 import { resetAllStores } from '@/test/helpers/storeReset';
 import { makeTrack } from '@/test/helpers/factories';
 import { onInvoke, registerDefaultCoverInvokeHandlers } from '@/test/mocks/tauri';
+import { TRANSIENT_UI_OPEN_EVENT } from '@/lib/dom/transientUi';
 
 beforeEach(() => {
   resetAllStores();
@@ -29,9 +35,14 @@ beforeEach(() => {
 describe('FullscreenPlayerStatic', () => {
   it('renders the labelled fullscreen dialog and close button', () => {
     usePlayerStore.setState({ currentTrack: makeTrack() });
-    const { getByLabelText } = renderWithProviders(<FullscreenPlayerStatic onClose={() => {}} />);
+    const { container, getByLabelText } = renderWithProviders(<FullscreenPlayerStatic onClose={() => {}} />);
     expect(getByLabelText('Fullscreen Player')).toBeInTheDocument();
     expect(getByLabelText('Close Fullscreen')).toBeInTheDocument();
+    expect(getByLabelText('Visualizer')).toBeInTheDocument();
+    expect(
+      container.querySelector('.waveform-seek-container')
+        ?.closest('[data-visualizer-overlay-exempt="fullscreen"]'),
+    ).not.toBeNull();
   });
 
   it('clicking Close calls the onClose prop', () => {
@@ -54,5 +65,17 @@ describe('FullscreenPlayerStatic', () => {
     const { getByRole } = renderWithProviders(<FullscreenPlayerStatic onClose={onClose} />);
     fireEvent.click(getByRole('link', { name: 'Guest' }));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('announces before opening the queue overlay', () => {
+    usePlayerStore.setState({ currentTrack: makeTrack() });
+    const onTransientOpen = vi.fn();
+    window.addEventListener(TRANSIENT_UI_OPEN_EVENT, onTransientOpen);
+    const { getByLabelText } = renderWithProviders(<FullscreenPlayerStatic onClose={() => {}} />);
+
+    fireEvent.click(getByLabelText('Queue'));
+
+    expect(onTransientOpen).toHaveBeenCalledTimes(1);
+    window.removeEventListener(TRANSIENT_UI_OPEN_EVENT, onTransientOpen);
   });
 });

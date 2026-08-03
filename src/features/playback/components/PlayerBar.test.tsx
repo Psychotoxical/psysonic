@@ -44,7 +44,11 @@ import { useAuthStore } from '@/store/authStore';
 import { resetAllStores } from '@/test/helpers/storeReset';
 import { makeTrack, seedQueue } from '@/test/helpers/factories';
 import { onInvoke, registerDefaultCoverInvokeHandlers } from '@/test/mocks/tauri';
-import { fireEvent } from '@testing-library/react';
+import { act, fireEvent } from '@testing-library/react';
+import {
+  TRANSIENT_UI_OPEN_EVENT,
+  requestTransientUiClose,
+} from '@/lib/dom/transientUi';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -155,6 +159,8 @@ describe('PlayerBar — current track context menu', () => {
     const track = makeTrack({ id: 'cur', albumId: 'alb-1' });
     usePlayerStore.setState({ currentTrack: track, isPlaying: true });
     const spy = vi.spyOn(usePlayerStore.getState(), 'openContextMenu');
+    const onTransientOpen = vi.fn();
+    window.addEventListener(TRANSIENT_UI_OPEN_EVENT, onTransientOpen);
 
     const { container } = renderWithProviders(<PlayerBar />);
     const trackName = container.querySelector('.player-track-name');
@@ -166,6 +172,54 @@ describe('PlayerBar — current track context menu', () => {
     expect(item).toBe(track);
     expect(type).toBe('song');
     expect(pin).toBe(true);
+    expect(onTransientOpen).toHaveBeenCalledTimes(1);
+    window.removeEventListener(TRANSIENT_UI_OPEN_EVENT, onTransientOpen);
+  });
+});
+
+describe('PlayerBar — transient UI', () => {
+  it('announces before the equalizer opens', () => {
+    const onTransientOpen = vi.fn();
+    window.addEventListener(TRANSIENT_UI_OPEN_EVENT, onTransientOpen);
+    renderWithProviders(<PlayerBar />);
+
+    act(() => window.dispatchEvent(new Event('psy:toggle-equalizer')));
+
+    expect(document.querySelector('.eq-popup')).not.toBeNull();
+    expect(onTransientOpen).toHaveBeenCalledTimes(1);
+    window.removeEventListener(TRANSIENT_UI_OPEN_EVENT, onTransientOpen);
+  });
+
+  it('announces before the utility overflow menu opens', () => {
+    const onTransientOpen = vi.fn();
+    window.addEventListener(TRANSIENT_UI_OPEN_EVENT, onTransientOpen);
+    const { getByLabelText } = renderWithProviders(<PlayerBar />);
+
+    fireEvent.click(getByLabelText('More options'));
+
+    expect(document.querySelector('.player-overflow-menu')).not.toBeNull();
+    expect(onTransientOpen).toHaveBeenCalledTimes(1);
+    window.removeEventListener(TRANSIENT_UI_OPEN_EVENT, onTransientOpen);
+  });
+
+  it('closes the equalizer when covering UI is requested', () => {
+    renderWithProviders(<PlayerBar />);
+    act(() => window.dispatchEvent(new Event('psy:toggle-equalizer')));
+    expect(document.querySelector('.eq-popup')).not.toBeNull();
+
+    act(() => requestTransientUiClose());
+
+    expect(document.querySelector('.eq-popup')).toBeNull();
+  });
+
+  it('closes the utility overflow menu when covering UI is requested', () => {
+    const { getByLabelText } = renderWithProviders(<PlayerBar />);
+    fireEvent.click(getByLabelText('More options'));
+    expect(document.querySelector('.player-overflow-menu')).not.toBeNull();
+
+    act(() => requestTransientUiClose());
+
+    expect(document.querySelector('.player-overflow-menu')).toBeNull();
   });
 });
 

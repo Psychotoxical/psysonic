@@ -212,5 +212,6 @@
 
 @media (max-width: 900px) {
   .fsp2-lyrics-panel { left: 3vw; width: auto; }
+  .fsp2-player:has(.fsp2-visualizer) .fsp2-lyrics-panel { bottom: 176px; }
   .fsp2-pill { display: none; }
 }

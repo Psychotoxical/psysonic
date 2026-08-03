@@ -25,6 +25,7 @@ import { useFsDynamicAccent } from '@/features/fullscreenPlayer/hooks/useFsDynam
 import { useFsIdleFade } from '@/features/fullscreenPlayer/hooks/useFsIdleFade';
 import { useQueueTrackAt } from '@/features/queue';
 import { VisualizerPanel } from '@/features/visualizer';
+import { prepareTransientUiOpen } from '@/lib/dom/transientUi';
 
 interface FullscreenPlayerProps {
   onClose: () => void;
@@ -132,6 +133,7 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
       role="dialog"
       aria-modal="true"
       aria-label={t('player.fullscreen')}
+      data-visualizer-overlay-host="fullscreen"
       data-idle={isIdle}
       data-lyrics={isAppleMode || undefined}
       onMouseMove={handleMouseMove}
@@ -220,7 +222,11 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
         <VisualizerPanel surface="fullscreen" className="fs-visualizer" />
 
         {/* Controls */}
-        <div className="fs-controls" ref={fsControlsRef}>
+        <div
+          className="fs-controls"
+          ref={fsControlsRef}
+          data-visualizer-transport="fullscreen"
+        >
           <button className="fs-btn fs-btn-sm" onClick={stop} aria-label={t('player.stop')} data-tooltip={t('player.stop')}>
             <Square size={13} fill="currentColor" />
           </button>
@@ -254,7 +260,10 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
             <button
               ref={lyricsMenuTriggerRef}
               className={`fs-btn fs-btn-sm${lyricsMenuOpen ? ' active' : ''}`}
-              onClick={() => setLyricsMenuOpen(v => !v)}
+              onClick={() => {
+                if (!lyricsMenuOpen) prepareTransientUiOpen();
+                setLyricsMenuOpen(v => !v);
+              }}
               aria-label={t('player.fsLyricsToggle')}
               data-tooltip={lyricsMenuOpen ? undefined : t('player.fsLyricsToggle')}
               style={{ color: showFullscreenLyrics ? (dynamicAccent ?? 'var(--accent)') : 'rgba(255,255,255,0.35)' }}

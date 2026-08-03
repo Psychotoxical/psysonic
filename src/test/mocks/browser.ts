@@ -15,9 +15,24 @@ import { vi } from 'vitest';
 
 // ─── ResizeObserver ──────────────────────────────────────────────────────────
 class MockResizeObserver implements ResizeObserver {
+  static instances: MockResizeObserver[] = [];
+  readonly callback: ResizeObserverCallback;
   observe = vi.fn<(target: Element) => void>();
   unobserve = vi.fn<(target: Element) => void>();
   disconnect = vi.fn<() => void>();
+
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback;
+    MockResizeObserver.instances.push(this);
+  }
+
+  emit(): void {
+    this.callback([], this as unknown as ResizeObserver);
+  }
+}
+
+export function latestResizeObserver(): MockResizeObserver | undefined {
+  return MockResizeObserver.instances[MockResizeObserver.instances.length - 1];
 }
 
 // ─── IntersectionObserver ────────────────────────────────────────────────────
@@ -153,6 +168,7 @@ export function resetBrowserMocks(): void {
   clipboardMock.readText.mockClear();
   createObjectUrlMock.mockClear();
   revokeObjectUrlMock.mockClear();
+  MockResizeObserver.instances = [];
   // Unbounded across a whole run otherwise: every observed sentinel adds one.
   MockIntersectionObserver.instances = [];
 }

@@ -68,6 +68,7 @@ export const SETTINGS_INDEX: SearchIndexEntry[] = [
   { tab: 'appearance',     titleKey: 'settings.uiScaleTitle',             keywords: 'ui scale zoom dpi size' },
   { tab: 'appearance',     titleKey: 'settings.font',                     keywords: 'font typography typeface' },
   { tab: 'appearance',     titleKey: 'settings.seekbarStyle',             keywords: 'seekbar progress bar waveform reduced animations performance gpu fps low-end framerate cap' },
+  { tab: 'appearance',     titleKey: 'visualizer.settings.section',       keywords: 'visualizer visualiser spectrum oscilloscope radial stereo analyser analyzer fft bars audio animation' },
   { tab: 'input',          titleKey: 'settings.inputKeybindingsTitle',    keywords: 'keybindings shortcuts hotkeys keyboard' },
   { tab: 'input',          titleKey: 'settings.globalShortcutsTitle',     keywords: 'global shortcuts hotkeys system-wide media keys' },
   { tab: 'system',         titleKey: 'settings.language',                 keywords: 'language locale translation i18n' },

@@ -427,7 +427,7 @@ function drawScopeRing(
   ctx.lineWidth = Math.max(1.4, Math.min(4, 1.4 + frame.rms * 4));
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  setGlow(ctx, rgbToCss(options.palette.tip, 0.9), 12, true);
+  setGlow(ctx, rgbToCss(options.palette.tip, 0.9), 12, !options.reducedMotion);
 
   // Point on the ring for sample `i`, wrapping so the ring closes without a
   // visible seam where the analysis window begins.
@@ -572,7 +572,12 @@ function drawChannelRing(
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   ctx.lineWidth = Math.max(1.4, Math.min(4.5, 1.4 + rms * 5));
-  setGlow(ctx, rgbToCss(options.palette.tip, 0.85), Math.min(18, height * 0.07), true);
+  setGlow(
+    ctx,
+    rgbToCss(options.palette.tip, 0.85),
+    Math.min(18, height * 0.07),
+    !options.reducedMotion,
+  );
 
   const pointAt = (i: number): { x: number; y: number; intensity: number } => {
     // Clamped read, so the sweep can include the closing endpoint at +90°.

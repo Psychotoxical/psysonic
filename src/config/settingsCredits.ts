@@ -502,6 +502,7 @@ const CONTRIBUTOR_ENTRIES = [
     since: '1.51.0',
     contributions: [
       'Now-playing badge shows the real decoded stream format on server transcode (PR #1338)',
+      'Audio visualizer across Now Playing, radio and fullscreen player surfaces (PR #1375)',
     ],
   },
   {

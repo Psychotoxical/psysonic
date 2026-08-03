@@ -5,6 +5,9 @@ vi.mock('@/ui/CachedImage', async () => {
   const actual = await vi.importActual<typeof import('@/ui/CachedImage')>('@/ui/CachedImage');
   return { ...actual, useCachedUrl: vi.fn((url: string) => (url ? `mock://${url}` : '')) };
 });
+vi.mock('@/features/visualizer', () => ({
+  VisualizerPanel: () => <div role="region" aria-label="Visualizer" />,
+}));
 
 import FullscreenPlayerImmersive from './FullscreenPlayerImmersive';
 import { renderWithProviders } from '@/test/helpers/renderWithProviders';
@@ -13,6 +16,7 @@ import { useAuthStore } from '@/store/authStore';
 import { resetAllStores } from '@/test/helpers/storeReset';
 import { makeTrack } from '@/test/helpers/factories';
 import { onInvoke, registerDefaultCoverInvokeHandlers } from '@/test/mocks/tauri';
+import { TRANSIENT_UI_OPEN_EVENT } from '@/lib/dom/transientUi';
 
 beforeEach(() => {
   resetAllStores();
@@ -32,6 +36,10 @@ describe('FullscreenPlayerImmersive', () => {
     const { getByLabelText } = renderWithProviders(<FullscreenPlayerImmersive onClose={() => {}} />);
     expect(getByLabelText('Fullscreen Player')).toBeInTheDocument();
     expect(getByLabelText('Close Fullscreen')).toBeInTheDocument();
+    expect(getByLabelText('Visualizer')).toBeInTheDocument();
+    expect(
+      getByLabelText('Seek').closest('[data-visualizer-overlay-exempt="fullscreen"]'),
+    ).not.toBeNull();
   });
 
   it('clicking Close calls the onClose prop', () => {
@@ -62,5 +70,17 @@ describe('FullscreenPlayerImmersive', () => {
     const { getByLabelText } = renderWithProviders(<FullscreenPlayerImmersive onClose={() => {}} />);
     fireEvent.click(getByLabelText('Stop'));
     expect(stopSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('announces before opening the lyrics settings popover', () => {
+    usePlayerStore.setState({ currentTrack: makeTrack() });
+    const onTransientOpen = vi.fn();
+    window.addEventListener(TRANSIENT_UI_OPEN_EVENT, onTransientOpen);
+    const { getByLabelText } = renderWithProviders(<FullscreenPlayerImmersive onClose={() => {}} />);
+
+    fireEvent.click(getByLabelText('Lyrics in fullscreen'));
+
+    expect(onTransientOpen).toHaveBeenCalledTimes(1);
+    window.removeEventListener(TRANSIENT_UI_OPEN_EVENT, onTransientOpen);
   });
 });

@@ -25,12 +25,30 @@ let refCount = 0;
 let params: SpectrumFeedParams = { fps: 60, responsiveness: 0.65 };
 /** Serialises the boundary calls so a fast mount/unmount can't land out of order. */
 let pending: Promise<void> = Promise.resolve();
+/** Slider bursts collapse to the newest values before crossing the IPC boundary. */
+let queuedParams: SpectrumFeedParams | null = null;
+let paramFlushScheduled = false;
+let resetGeneration = 0;
 
-function push(active: boolean): void {
-  const snapshot = { ...params };
+function push(active: boolean, snapshot: SpectrumFeedParams = params): void {
+  const command = { ...snapshot };
   pending = pending
-    .then(() => audioSpectrumSetActive({ active, ...snapshot }))
+    .then(() => audioSpectrumSetActive({ active, ...command }))
     .catch(() => { /* visualizer is cosmetic — never break the caller */ });
+}
+
+function scheduleParamsPush(): void {
+  queuedParams = { ...params };
+  if (paramFlushScheduled) return;
+  paramFlushScheduled = true;
+  const generation = resetGeneration;
+  queueMicrotask(() => {
+    if (generation !== resetGeneration) return;
+    paramFlushScheduled = false;
+    const snapshot = queuedParams;
+    queuedParams = null;
+    if (refCount > 0 && snapshot) push(true, snapshot);
+  });
 }
 
 /**
@@ -38,16 +56,21 @@ function push(active: boolean): void {
  * a no-op so a double-invoked React cleanup can't drive the count negative.
  */
 export function acquireSpectrumFeed(next: SpectrumFeedParams): () => void {
+  const changed = next.fps !== params.fps || next.responsiveness !== params.responsiveness;
   params = { ...next };
   refCount += 1;
   if (refCount === 1) push(true);
+  else if (changed) scheduleParamsPush();
 
   let released = false;
   return () => {
     if (released) return;
     released = true;
     refCount = Math.max(0, refCount - 1);
-    if (refCount === 0) push(false);
+    if (refCount === 0) {
+      queuedParams = null;
+      push(false);
+    }
   };
 }
 
@@ -55,7 +78,7 @@ export function acquireSpectrumFeed(next: SpectrumFeedParams): () => void {
 export function setSpectrumFeedParams(next: SpectrumFeedParams): void {
   if (next.fps === params.fps && next.responsiveness === params.responsiveness) return;
   params = { ...next };
-  if (refCount > 0) push(true);
+  if (refCount > 0) scheduleParamsPush();
 }
 
 export function _spectrumFeedRefCountForTest(): number {
@@ -63,7 +86,10 @@ export function _spectrumFeedRefCountForTest(): number {
 }
 
 export function _resetSpectrumFeedForTest(): void {
+  resetGeneration += 1;
   refCount = 0;
   params = { fps: 60, responsiveness: 0.65 };
   pending = Promise.resolve();
+  queuedParams = null;
+  paramFlushScheduled = false;
 }

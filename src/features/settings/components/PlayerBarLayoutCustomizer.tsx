@@ -123,6 +123,7 @@ export function PlayerBarLayoutCustomizer() {
         ]}
         value={trackInfoMode}
         onChange={setTrackInfoMode}
+        ariaLabel={t('settings.playerBarTrackInfo')}
       />
     </div>
   );

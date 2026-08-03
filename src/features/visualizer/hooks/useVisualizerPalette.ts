@@ -5,7 +5,12 @@ import {
   swatchesFromObjectUrl,
   type CoverSwatches,
 } from '@/features/visualizer/utils/coverPalette';
-import { buildPalette, type VisualizerPalette } from '@/features/visualizer/utils/visualizerColors';
+import {
+  buildPalette,
+  resolveCssColor,
+  rgbToCss,
+  type VisualizerPalette,
+} from '@/features/visualizer/utils/visualizerColors';
 import type { VisualizerColorSource } from '@/features/visualizer/store/visualizerStore';
 
 /**
@@ -34,7 +39,8 @@ interface ThemeColors {
 function readCssVar(name: string): string | null {
   try {
     const value = getComputedStyle(document.documentElement).getPropertyValue(name);
-    return value.trim() || null;
+    const resolved = resolveCssColor(value);
+    return resolved ? rgbToCss(resolved) : null;
   } catch {
     return null;
   }

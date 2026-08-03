@@ -16,7 +16,11 @@ export {
 export { useVolumeToggle } from './hooks/useVolumeToggle';
 export { usePlaybackLibraryNavigate } from './hooks/usePlaybackLibraryNavigate';
 export { TrackArtistLinks } from './components/TrackArtistLinks';
-/** Visualizer tap for internet radio (null unless the Web Audio EQ graph is attached). */
-export { getRadioSpectrumAnalyser } from './utils/audio/radioEqGraph';
+/** Visualizer tap and reactive availability for internet radio. */
+export {
+  getRadioSpectrumAnalyser,
+  getRadioSpectrumAvailability,
+  subscribeRadioSpectrumAvailability,
+} from './utils/audio/radioEqGraph';
 export { sameQueueTrack } from './utils/playback/queueIdentity';
 export { queueTrackIdsForServerProfile } from './utils/playback/trackServerScope';

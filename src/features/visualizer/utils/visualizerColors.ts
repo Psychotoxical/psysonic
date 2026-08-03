@@ -5,8 +5,8 @@
  * the immersive fullscreen player uses) with the theme accent as a fallback, so
  * the bars belong to whatever is playing instead of fighting the current theme.
  *
- * Pure module — no DOM reads happen here; the caller resolves CSS values and
- * passes strings in.
+ * Palette math stays pure. `resolveCssColor` is the narrow browser adapter used
+ * by the theme hook to canonicalise free-form community-theme CSS colours.
  */
 
 export type Rgb = [number, number, number];
@@ -20,25 +20,33 @@ function clampChannel(v: number): number {
 }
 
 /**
- * Parse the CSS colour forms this app actually produces: `rgb()`/`rgba()` from
- * `extractCoverColors`, and hex from theme variables. Returns null for anything
- * else (named colours, `color-mix()`, …) so callers fall back deliberately
- * rather than rendering black.
+ * Parse canonical sRGB forms produced by cover extraction and browser computed
+ * styles. Free-form author syntax is handled by `resolveCssColor` below.
  */
 export function parseCssColor(input: string | null | undefined): Rgb | null {
   if (!input) return null;
   const value = input.trim();
   if (!value) return null;
 
-  const fn = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(value);
+  const fn = /^rgba?\((.*)\)$/i.exec(value);
   if (fn) {
-    return [clampChannel(Number(fn[1])), clampChannel(Number(fn[2])), clampChannel(Number(fn[3]))];
+    const channels = fn[1]!.split('/')[0]!.replace(/,/g, ' ').trim().split(/\s+/);
+    if (channels.length >= 3) {
+      const parsed = channels.slice(0, 3).map(channel => {
+        const percent = channel.endsWith('%');
+        const number = Number.parseFloat(channel);
+        return percent ? (number * 255) / 100 : number;
+      });
+      if (parsed.every(Number.isFinite)) {
+        return [clampChannel(parsed[0]!), clampChannel(parsed[1]!), clampChannel(parsed[2]!)];
+      }
+    }
   }
 
-  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value);
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(value);
   if (hex) {
     const h = hex[1]!;
-    if (h.length === 3) {
+    if (h.length === 3 || h.length === 4) {
       return [
         parseInt(h[0]! + h[0]!, 16),
         parseInt(h[1]! + h[1]!, 16),
@@ -52,7 +60,97 @@ export function parseCssColor(input: string | null | undefined): Rgb | null {
     ];
   }
 
+  // Chromium commonly serialises computed color-mix() values this way.
+  const srgb = /^color\(\s*srgb\s+([^)]*)\)$/i.exec(value);
+  if (srgb) {
+    const channels = srgb[1]!.split('/')[0]!.trim().split(/\s+/);
+    if (channels.length >= 3) {
+      const parsed = channels.slice(0, 3).map(channel => {
+        const percent = channel.endsWith('%');
+        const number = Number.parseFloat(channel);
+        return percent ? (number * 255) / 100 : number * 255;
+      });
+      if (parsed.every(Number.isFinite)) {
+        return [clampChannel(parsed[0]!), clampChannel(parsed[1]!), clampChannel(parsed[2]!)];
+      }
+    }
+  }
+
   return null;
+}
+
+export type CssColorComputer = (value: string) => string | null;
+
+function computeBrowserCssColor(value: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const host = document.body ?? document.documentElement;
+  if (!host) return null;
+
+  const probe = document.createElement('span');
+  probe.style.position = 'absolute';
+  probe.style.pointerEvents = 'none';
+  probe.style.backgroundColor = value;
+  if (!probe.style.backgroundColor) return null;
+
+  host.appendChild(probe);
+  try {
+    const computed = getComputedStyle(probe).backgroundColor.trim();
+    return computed && computed !== 'transparent' && computed !== 'rgba(0, 0, 0, 0)'
+      ? computed
+      : null;
+  } catch {
+    return null;
+  } finally {
+    probe.remove();
+  }
+}
+
+/** Let the browser parse modern CSS syntax, then sample one pixel if computed
+ * style preserves a non-rgb colour space such as oklch(). */
+function sampleBrowserCssColor(value: string): Rgb | null {
+  if (typeof document === 'undefined') return null;
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+
+    ctx.fillStyle = '#010203';
+    ctx.fillStyle = value;
+    const first = ctx.fillStyle;
+    ctx.fillStyle = '#040506';
+    ctx.fillStyle = value;
+    const second = ctx.fillStyle;
+    if (first !== second) return null;
+
+    ctx.clearRect(0, 0, 1, 1);
+    ctx.fillRect(0, 0, 1, 1);
+    const pixel = ctx.getImageData(0, 0, 1, 1).data;
+    if ((pixel[3] ?? 0) === 0) return null;
+    return [pixel[0] ?? 0, pixel[1] ?? 0, pixel[2] ?? 0];
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve any colour syntax accepted by the current WebView. The injectable
+ * computer keeps modern-colour fixtures deterministic under jsdom. */
+export function resolveCssColor(
+  input: string | null | undefined,
+  compute: CssColorComputer = computeBrowserCssColor,
+): Rgb | null {
+  if (!input) return null;
+  const value = input.trim();
+  if (!value) return null;
+  const direct = parseCssColor(value);
+  if (direct) return direct;
+
+  const computed = compute(value);
+  if (!computed) return null;
+  return parseCssColor(computed)
+    ?? sampleBrowserCssColor(computed)
+    ?? sampleBrowserCssColor(value);
 }
 
 export function rgbToCss(rgb: Rgb, alpha = 1): string {

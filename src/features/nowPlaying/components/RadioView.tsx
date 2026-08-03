@@ -1,8 +1,13 @@
-import React, { memo } from 'react';
+import React, { memo, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Cast, Clock, Radio, SkipForward, Users } from 'lucide-react';
+import { AudioLines, Cast, Clock, Radio, SkipForward, Users } from 'lucide-react';
 import type { useRadioMetadata } from '@/features/radio';
-import { usePlayerStore } from '@/features/playback/store/playerStore';
+import {
+  getRadioSpectrumAvailability,
+  subscribeRadioSpectrumAvailability,
+  usePlayerStore,
+} from '@/features/playback';
+import { useVisualizerStore, VisualizerPanel } from '@/features/visualizer';
 import { formatTrackTime } from '@/lib/format/formatDuration';
 
 type NonNullStoreField<K extends keyof ReturnType<typeof usePlayerStore.getState>> =
@@ -12,10 +17,23 @@ interface RadioViewProps {
   radioMeta: ReturnType<typeof useRadioMetadata>;
   currentRadio: NonNullStoreField<'currentRadio'>;
   resolvedCover: string;
+  visualizerPaused?: boolean;
 }
 
-const RadioView = memo(function RadioView({ radioMeta, currentRadio, resolvedCover }: RadioViewProps) {
+const RadioView = memo(function RadioView({
+  radioMeta,
+  currentRadio,
+  resolvedCover,
+  visualizerPaused = false,
+}: RadioViewProps) {
   const { t } = useTranslation();
+  const visualizerEnabled = useVisualizerStore(state => state.enabled);
+  const radioVisualizerAvailable = useSyncExternalStore(
+    subscribeRadioSpectrumAvailability,
+    getRadioSpectrumAvailability,
+    getRadioSpectrumAvailability,
+  );
+  const visualizerArt = resolvedCover || radioMeta.currentArt || '';
   return (
     <div className="np-radio-section">
       <div className="np-hero-card">
@@ -56,6 +74,27 @@ const RadioView = memo(function RadioView({ radioMeta, currentRadio, resolvedCov
         </div>
         <div style={{ flex: 1 }} />
       </div>
+
+      {visualizerEnabled && (radioVisualizerAvailable ? (
+        <VisualizerPanel
+          surface="nowPlaying"
+          paused={visualizerPaused}
+          className="np-radio-visualizer"
+          artUrl={visualizerArt}
+          artKey={visualizerArt}
+        />
+      ) : (
+        <div className="np-radio-visualizer-unavailable" role="status">
+          <AudioLines size={22} aria-hidden="true" />
+          <div>
+            <strong>{t('visualizer.radioUnavailableTitle', 'Radio visualizer unavailable')}</strong>
+            <span>{t(
+              'visualizer.radioUnavailableHint',
+              'Radio visualization becomes available when this station connects to the equalizer audio graph. Some streams do not support that route.',
+            )}</span>
+          </div>
+        </div>
+      ))}
 
       {radioMeta.nextSong && (
         <div className="np-info-card">

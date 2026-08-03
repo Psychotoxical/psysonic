@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-  applyAnalyserData,
   applyPayload,
   applySensitivity,
   clearFrame,
   copyFrame,
   createFrame,
   decodeBase64,
-  foldLogBands,
   interpolateFrames,
   resizeFrame,
   type SpectrumPayload,
@@ -207,87 +205,6 @@ describe('applySensitivity', () => {
   });
 });
 
-describe('foldLogBands', () => {
-  it('produces one value per output band', () => {
-    const out = new Float32Array(64);
-    foldLogBands(out, new Uint8Array(1024).fill(255));
-    expect(out.length).toBe(64);
-    expect(Array.from(out).every(v => v === 1)).toBe(true);
-  });
-
-  it('zeroes the output when there are no bins', () => {
-    const out = new Float32Array(64).fill(1);
-    foldLogBands(out, new Uint8Array(0));
-    expect(Array.from(out).every(v => v === 0)).toBe(true);
-  });
-
-  it('keeps the peak of each band rather than the mean', () => {
-    const bins = new Uint8Array(1024);
-    // One hot bin surrounded by silence must still light its band fully.
-    bins[900] = 255;
-    const out = new Float32Array(64);
-    foldLogBands(out, bins);
-    expect(Math.max(...out)).toBe(1);
-  });
-
-  it('maps low bins to low bands', () => {
-    const bins = new Uint8Array(1024);
-    bins[2] = 255;
-    const out = new Float32Array(64);
-    foldLogBands(out, bins);
-    const loudest = out.indexOf(Math.max(...out) as never);
-    expect(loudest).toBeLessThan(16);
-  });
-
-  it('does not read DC', () => {
-    const bins = new Uint8Array(1024);
-    bins[0] = 255;
-    const out = new Float32Array(64);
-    foldLogBands(out, bins);
-    expect(Math.max(...out)).toBe(0);
-  });
-
-  it('handles an empty output array', () => {
-    expect(() => foldLogBands(new Float32Array(0), new Uint8Array(64))).not.toThrow();
-  });
-});
-
-describe('applyAnalyserData', () => {
-  it('derives rms and peak from the time-domain data', () => {
-    const frame = createFrame();
-    const freq = new Uint8Array(1024);
-    // Sized from the frame: a short buffer leaves the tail zeroed and drags
-    // the RMS down, which is a property of the fixture, not the code.
-    const time = new Uint8Array(frame.waveform.length).fill(255);
-    applyAnalyserData(frame, freq, time);
-    expect(frame.peak).toBeCloseTo(1, 2);
-    expect(frame.rms).toBeCloseTo(1, 2);
-  });
-
-  it('reports silence for a centred trace', () => {
-    const frame = createFrame();
-    applyAnalyserData(frame, new Uint8Array(1024), new Uint8Array(128).fill(128));
-    expect(frame.rms).toBe(0);
-    expect(frame.peak).toBe(0);
-  });
-
-  it('keeps peak caps at or above the live bands', () => {
-    const frame = createFrame();
-    applyAnalyserData(frame, new Uint8Array(1024).fill(255), new Uint8Array(128).fill(128));
-    for (let i = 0; i < frame.bands.length; i++) {
-      expect(frame.peaks[i]).toBeGreaterThanOrEqual(frame.bands[i]!);
-    }
-  });
-
-  it('decays the caps once the signal drops', () => {
-    const frame = createFrame();
-    applyAnalyserData(frame, new Uint8Array(1024).fill(255), new Uint8Array(128).fill(128));
-    const held = frame.peaks[10]!;
-    applyAnalyserData(frame, new Uint8Array(1024), new Uint8Array(128).fill(128));
-    expect(frame.peaks[10]!).toBeLessThan(held);
-  });
-});
-
 describe('stereo waveforms', () => {
   it('keeps the channels separate', () => {
     const frame = createFrame();
@@ -300,26 +217,36 @@ describe('stereo waveforms', () => {
     expect(frame.waveformRight[0]).toBeCloseTo(-1, 2);
   });
 
-  it('derives the mono trace as the mean of the pair', () => {
+  it('uses the louder channel as the mono display trace', () => {
     const frame = createFrame();
     const left = new Array(128).fill(128);
     const right = new Array(128).fill(128);
     left[0] = 255;   // +1
     right[0] = 128;  //  0
     applyPayload(frame, payload({ waveformLeft: b64(left), waveformRight: b64(right) }));
-    expect(frame.waveform[0]).toBeCloseTo(0.5, 2);
+    expect(frame.waveform[0]).toBeCloseTo(1, 2);
   });
 
-  it('cancels the mono trace for out-of-phase channels', () => {
+  it('keeps equal anti-phase channels visible in mono display modes', () => {
     const frame = createFrame();
     const left = new Array(128).fill(255);
     const right = new Array(128).fill(1);
     applyPayload(frame, payload({ waveformLeft: b64(left), waveformRight: b64(right) }));
-    expect(frame.waveform[0]).toBeCloseTo(0, 2);
-    // ...but the channel traces still carry full signal, which is the point of
-    // sending them separately.
+    expect(Math.abs(frame.waveform[0]!)).toBeCloseTo(1, 2);
+    // Ties consistently choose left, avoiding frame-to-frame channel flicker.
+    expect(frame.waveform[0]).toBeCloseTo(frame.waveformLeft[0]!, 5);
     expect(Math.abs(frame.waveformLeft[0]!)).toBeCloseTo(1, 2);
     expect(Math.abs(frame.waveformRight[0]!)).toBeCloseTo(1, 2);
+  });
+
+  it('uses the right trace when it carries more window energy', () => {
+    const frame = createFrame();
+    const left = new Array(128).fill(128);
+    const right = new Array(128).fill(128);
+    left[0] = 160;
+    right[0] = 255;
+    applyPayload(frame, payload({ waveformLeft: b64(left), waveformRight: b64(right) }));
+    expect(frame.waveform[0]).toBeCloseTo(frame.waveformRight[0]!, 5);
   });
 
   it('clears both channels', () => {
@@ -351,15 +278,6 @@ describe('stereo waveforms', () => {
     expect(out.waveformLeft[0]).toBe(-1);
   });
 
-  it('mirrors the mono trace onto both channels for the radio feed', () => {
-    // A single AnalyserNode taps the summed output — there is no separation to
-    // report, and silently showing an empty right channel would be a lie.
-    const frame = createFrame();
-    const time = new Uint8Array(128).fill(255);
-    applyAnalyserData(frame, new Uint8Array(1024), time);
-    expect(frame.waveformLeft[0]).toBeCloseTo(frame.waveform[0]!, 5);
-    expect(frame.waveformRight[0]).toBeCloseTo(frame.waveform[0]!, 5);
-  });
 });
 
 describe('resizeFrame', () => {

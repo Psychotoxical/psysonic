@@ -141,6 +141,17 @@ pub(crate) fn magnitudes(re: &[f32], im: &[f32], out: &mut [f32]) {
     }
 }
 
+/// Combine independent linear-channel FFT magnitudes as average per-bin power.
+/// Keeping channel combination after the FFT prevents phase cancellation and
+/// cannot synthesize intermodulation products that were absent from both lanes.
+pub(crate) fn combine_power_magnitudes(left: &[f32], right: &[f32], out: &mut [f32]) {
+    for (i, slot) in out.iter_mut().enumerate() {
+        let left = left.get(i).copied().unwrap_or(0.0);
+        let right = right.get(i).copied().unwrap_or(0.0);
+        *slot = ((left * left + right * right) * 0.5).sqrt();
+    }
+}
+
 // ── Band mapping ─────────────────────────────────────────────────────────────
 
 /// Inclusive bin range and tilt gain for one display band.
@@ -153,8 +164,9 @@ pub(crate) struct Band {
 
 /// Log-spaced band layout for one sample rate.
 pub(crate) fn band_layout(sample_rate: u32) -> Vec<Band> {
-    let nyquist = (sample_rate as f32 / 2.0).max(1_000.0);
-    let bin_hz = sample_rate as f32 / FFT_SIZE as f32;
+    let effective_rate = sample_rate.max(1);
+    let nyquist = (effective_rate as f32 / 2.0).max(1_000.0);
+    let bin_hz = effective_rate as f32 / FFT_SIZE as f32;
     let max_bin = FFT_SIZE / 2 - 1;
 
     let lo_hz = BAND_MIN_HZ;
@@ -162,28 +174,25 @@ pub(crate) fn band_layout(sample_rate: u32) -> Vec<Band> {
     let ratio = (hi_hz / lo_hz).ln() / BAND_COUNT as f32;
 
     let mut bands = Vec::with_capacity(BAND_COUNT);
-    let mut prev_hi: Option<usize> = None;
     for b in 0..BAND_COUNT {
         let f_lo = lo_hz * (ratio * b as f32).exp();
         let f_hi = lo_hz * (ratio * (b + 1) as f32).exp();
 
-        let mut lo = (f_lo / bin_hz).floor() as usize;
-        let mut hi = (f_hi / bin_hz).ceil() as usize;
-        // Skip DC — it carries offset, not music.
-        lo = lo.max(1).min(max_bin);
-        hi = hi.max(lo).min(max_bin);
-        // Below the point where bands are narrower than one bin, neighbouring
-        // bands would otherwise share a bin and move in lockstep. Nudge each
-        // band past the previous one so the low end still has visible detail.
-        if let Some(p) = prev_hi {
-            if lo <= p && p < max_bin {
-                lo = p + 1;
-                hi = hi.max(lo);
-            }
-        }
-        prev_hi = Some(hi);
-
         let centre = (f_lo * f_hi).sqrt().max(1.0);
+        // Select FFT-bin centres that actually lie in this half-open frequency
+        // interval. If the interval is narrower than one bin, use the nearest
+        // real bin and let adjacent display bands share it. Assigning each such
+        // band a unique higher bin invents resolution and relabels midrange
+        // energy as bass, especially at high sample rates.
+        let first = (f_lo / bin_hz).ceil() as usize;
+        let last = ((f_hi / bin_hz).ceil() as usize).saturating_sub(1);
+        let (lo, hi) = if first <= last && first <= max_bin {
+            (first.max(1), last.min(max_bin))
+        } else {
+            let nearest = ((centre / bin_hz).round() as usize).clamp(1, max_bin);
+            (nearest, nearest)
+        };
+
         let tilt_db = (TILT_DB_PER_OCTAVE * (centre / TILT_REF_HZ).log2()).clamp(0.0, TILT_MAX_DB);
         bands.push(Band { lo, hi, tilt_db });
     }
@@ -342,7 +351,7 @@ pub(crate) fn quantize(levels: &[f32]) -> Vec<u8> {
         .collect()
 }
 
-/// Decimate the analysis window to [`WAVE_COUNT`] points for the oscilloscope.
+/// Decimate one folded stereo lane to [`WAVE_COUNT`] points for the oscilloscope.
 /// Each output point is the bucket's largest-magnitude sample, so a zero
 /// crossing between two loud peaks can't alias the trace flat.
 pub(crate) fn downsample_waveform(samples: &[f32]) -> Vec<u8> {
@@ -491,6 +500,32 @@ mod tests {
         );
     }
 
+    #[test]
+    fn stereo_power_combination_keeps_real_tones_without_products() {
+        let sample_rate = 48_000.0;
+        let left = windowed_spectrum(750.0, sample_rate, 1.0);
+        let right = windowed_spectrum(2_250.0, sample_rate, 1.0);
+        let mut combined = vec![0.0; FFT_SIZE / 2];
+        combine_power_magnitudes(&left, &right, &mut combined);
+
+        let bin = |frequency: f32| (frequency / (sample_rate / FFT_SIZE as f32)).round() as usize;
+        let left_component = combined[bin(750.0)];
+        let right_component = combined[bin(2_250.0)];
+        let product_3750 = combined[bin(3_750.0)];
+        let product_5250 = combined[bin(5_250.0)];
+
+        assert!(left_component > 0.65, "750 Hz component was {left_component}");
+        assert!(right_component > 0.65, "2250 Hz component was {right_component}");
+        assert!(
+            product_3750 < right_component * 0.01,
+            "invented 3750 Hz product {product_3750} rivalled real tone {right_component}"
+        );
+        assert!(
+            product_5250 < right_component * 0.01,
+            "invented 5250 Hz product {product_5250} rivalled real tone {right_component}"
+        );
+    }
+
     // ── Level mapping ────────────────────────────────────────────────────────
 
     #[test]
@@ -553,13 +588,42 @@ mod tests {
 
     #[test]
     fn band_layout_is_ascending_and_non_degenerate() {
-        let layout = band_layout(48_000);
-        // Each band must start no earlier than the previous one, and the layout
-        // must actually span a range rather than collapsing onto one bin.
-        for pair in layout.windows(2) {
-            assert!(pair[1].lo >= pair[0].lo, "bands not ascending: {pair:?}");
+        for rate in [44_100, 48_000, 96_000, 192_000] {
+            let layout = band_layout(rate);
+            // Quantised bands may share bins, but neither edge may move
+            // backwards and the full layout must still span a useful range.
+            for pair in layout.windows(2) {
+                assert!(pair[1].lo >= pair[0].lo, "rate {rate} lo moved backwards: {pair:?}");
+                assert!(pair[1].hi >= pair[0].hi, "rate {rate} hi moved backwards: {pair:?}");
+            }
+            assert!(layout[BAND_COUNT - 1].hi > layout[0].hi * 4);
         }
-        assert!(layout[BAND_COUNT - 1].hi > layout[0].hi * 4);
+    }
+
+    #[test]
+    fn unresolved_low_bands_share_real_bins_instead_of_being_displaced() {
+        // Band 18 is centred near 70 Hz. A 2,048-point FFT cannot resolve every
+        // neighbouring log band there, particularly at high sample rates, so
+        // this band must stay on the nearest physical bin rather than being
+        // forced to bin 19 merely to make the display bands unique.
+        let band_index = 18usize;
+        let ratio = (BAND_MAX_HZ / BAND_MIN_HZ).ln() / BAND_COUNT as f32;
+        let centre = BAND_MIN_HZ * (ratio * (band_index as f32 + 0.5)).exp();
+
+        for rate in [44_100u32, 48_000, 96_000, 192_000] {
+            let layout = band_layout(rate);
+            let nearest = ((centre / (rate as f32 / FFT_SIZE as f32)).round() as usize)
+                .clamp(1, FFT_SIZE / 2 - 1);
+            let band = layout[band_index];
+            assert!(
+                band.lo <= nearest && nearest <= band.hi,
+                "rate {rate}: nominal {centre:.2} Hz band mapped to {band:?}, nearest bin is {nearest}"
+            );
+            assert!(
+                layout[..32].windows(2).any(|pair| pair[0].lo == pair[1].lo),
+                "rate {rate}: unresolved bass bands were incorrectly forced unique"
+            );
+        }
     }
 
     #[test]
@@ -615,25 +679,28 @@ mod tests {
     }
 
     #[test]
-    fn a_tone_lights_the_band_containing_it() {
-        let sample_rate = 48_000u32;
-        let layout = band_layout(sample_rate);
-        let freq = 1_000.0;
-        let mags = windowed_spectrum(freq, sample_rate as f32, 1.0);
-        let mut bands = vec![0.0; BAND_COUNT];
-        bands_from_magnitudes(&mags, &layout, &mut bands);
-
-        let bin = (freq / (sample_rate as f32 / FFT_SIZE as f32)).round() as usize;
-        let expected = layout
-            .iter()
-            .position(|b| bin >= b.lo && bin <= b.hi)
-            .unwrap();
-        let (loudest, _) = bands
-            .iter()
-            .enumerate()
-            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-            .unwrap();
-        assert_eq!(loudest, expected, "1 kHz tone should light its own band");
+    fn representative_tones_keep_their_log_positions_across_sample_rates() {
+        // These expected positions come directly from the documented
+        // 28 Hz..16 kHz logarithmic display axis, not from the generated bin
+        // layout. The former forced-unique mapping put 1 kHz around band 41 at
+        // 48 kHz and around band 10 at 192 kHz instead of near band 72.
+        for sample_rate in [44_100u32, 48_000, 96_000, 192_000] {
+            let layout = band_layout(sample_rate);
+            for (freq, expected) in [(1_000.0, 72usize), (8_000.0, 114usize)] {
+                let mags = windowed_spectrum(freq, sample_rate as f32, 1.0);
+                let mut bands = vec![0.0; BAND_COUNT];
+                bands_from_magnitudes(&mags, &layout, &mut bands);
+                let (loudest, _) = bands
+                    .iter()
+                    .enumerate()
+                    .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                    .unwrap();
+                assert!(
+                    loudest.abs_diff(expected) <= 4,
+                    "rate {sample_rate}, tone {freq} Hz: band {loudest}, expected near {expected}"
+                );
+            }
+        }
     }
 
     #[test]

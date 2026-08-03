@@ -15,7 +15,7 @@ import { useRadioMetadata } from '@/features/radio';
 import { useDragDrop } from '@/lib/dnd/DragDropContext';
 import OverlayScrollArea from '@/ui/OverlayScrollArea';
 import {
-  useNpLayoutStore, NP_CARD_IDS,
+  useNpLayoutStore, NP_CARD_IDS, availableNpCards,
   type NpCardId, type NpColumn,
 } from '@/features/nowPlaying/store/nowPlayingLayoutStore';
 
@@ -34,7 +34,7 @@ import TopSongsCard from '@/features/nowPlaying/components/TopSongsCard';
 import CreditsCard from '@/features/nowPlaying/components/CreditsCard';
 import TourCard from '@/features/nowPlaying/components/TourCard';
 import DiscographyCard from '@/features/nowPlaying/components/DiscographyCard';
-import { VisualizerPanel } from '@/features/visualizer';
+import { VisualizerPanel, useVisualizerStore } from '@/features/visualizer';
 import { useNowPlayingFetchers } from '@/features/nowPlaying/hooks/useNowPlayingFetchers';
 import { useNowPlayingStarLove } from '@/features/nowPlaying/hooks/useNowPlayingStarLove';
 import { useArtistInfoBatch } from '@/features/artist';
@@ -59,6 +59,7 @@ export default function NowPlaying() {
   const showLyrics              = useLyricsStore(s => s.showLyrics);
   const activeTab               = useLyricsStore(s => s.activeTab);
   const isQueueVisible          = usePlayerStore(s => s.isQueueVisible);
+  const isFullscreenOpen        = usePlayerStore(s => s.isFullscreenOpen);
   const toggleQueue             = usePlayerStore(s => s.toggleQueue);
   const enableBandsintown    = useAuthStore(s => s.enableBandsintown);
   const setEnableBandsintown = useAuthStore(s => s.setEnableBandsintown);
@@ -166,6 +167,15 @@ export default function NowPlaying() {
 
   // ── Widget layout (drag-to-reorder, hide/show, reset) ────────────────────
   const layoutCards   = useNpLayoutStore(s => s.cards);
+  const visualizerEnabled = useVisualizerStore(s => s.enabled);
+  const activeLayoutCards = useMemo(
+    () => availableNpCards(layoutCards, { visualizerEnabled }),
+    [layoutCards, visualizerEnabled],
+  );
+  const visibleCardIds = useMemo(
+    () => activeLayoutCards.filter(card => card.visible).map(card => card.id),
+    [activeLayoutCards],
+  );
   const moveCard      = useNpLayoutStore(s => s.moveCard);
   const setCardVisible = useNpLayoutStore(s => s.setVisible);
   const resetLayout   = useNpLayoutStore(s => s.reset);
@@ -179,10 +189,14 @@ export default function NowPlaying() {
     if (!dndActive || !dndPayload) return null;
     try {
       const parsed = JSON.parse(dndPayload.data);
-      if (parsed?.kind === 'np-card' && NP_CARD_IDS.includes(parsed.id)) return parsed.id as NpCardId;
+      if (
+        parsed?.kind === 'np-card'
+        && NP_CARD_IDS.includes(parsed.id)
+        && (parsed.id !== 'visualizer' || visualizerEnabled)
+      ) return parsed.id as NpCardId;
     } catch { /* not a card payload */ }
     return null;
-  }, [dndActive, dndPayload]);
+  }, [dndActive, dndPayload, visualizerEnabled]);
 
   // Clear the drop indicator when the drag ends (no psy-drop on our target)
   // React Compiler set-state-in-effect rule: local state synced with store/prop inputs when the effect’s dependencies change.
@@ -213,17 +227,21 @@ export default function NowPlaying() {
       const ce = evt as CustomEvent<{ data: string }>;
       try {
         const parsed = JSON.parse(ce.detail?.data ?? '');
-        if (parsed?.kind !== 'np-card' || !NP_CARD_IDS.includes(parsed.id)) return;
+        if (
+          parsed?.kind !== 'np-card'
+          || !NP_CARD_IDS.includes(parsed.id)
+          || (parsed.id === 'visualizer' && !visualizerEnabled)
+        ) return;
         const over = dragOverRef.current;
         if (over) {
-          moveCard(parsed.id as NpCardId, over.col, over.idx);
+          moveCard(parsed.id as NpCardId, over.col, over.idx, visibleCardIds);
         }
       } catch { /* ignore non-card drops */ }
       setDragOver(null);
     };
     document.addEventListener('psy-drop', onPsyDrop as EventListener);
     return () => document.removeEventListener('psy-drop', onPsyDrop as EventListener);
-  }, [draggingCardId, moveCard]);
+  }, [draggingCardId, moveCard, visibleCardIds, visualizerEnabled]);
 
   // Close layout menu on outside click
   useEffect(() => {
@@ -246,7 +264,7 @@ export default function NowPlaying() {
         measureDeps={[
           !!currentTrack,
           !!currentRadio,
-          layoutCards,
+          activeLayoutCards,
           enableBandsintown,
           tourEvents.length,
           discography.length,
@@ -254,7 +272,12 @@ export default function NowPlaying() {
         ]}
       >
         {currentRadio && !currentTrack ? (
-          <RadioView radioMeta={radioMeta} currentRadio={currentRadio} resolvedCover={resolvedRadioCover} />
+          <RadioView
+            radioMeta={radioMeta}
+            currentRadio={currentRadio}
+            resolvedCover={resolvedRadioCover}
+            visualizerPaused={isFullscreenOpen}
+          />
         ) : currentTrack ? (
           <div className="np-dash">
             <Hero
@@ -349,7 +372,9 @@ export default function NowPlaying() {
                       onEnable={handleEnableBandsintown}
                     />
                   );
-                  case 'visualizer': return <VisualizerPanel surface="nowPlaying" />;
+                  case 'visualizer': return (
+                    <VisualizerPanel surface="nowPlaying" paused={isFullscreenOpen} />
+                  );
                 }
               };
               const cardLabel = (id: NpCardId): string => {
@@ -364,10 +389,10 @@ export default function NowPlaying() {
                 };
                 return t(k[id]);
               };
-              const visibleCards = layoutCards.filter(c => c.visible);
-              const hiddenCards  = layoutCards.filter(c => !c.visible);
+              const visibleCards = activeLayoutCards.filter(c => c.visible);
+              const hiddenCards  = activeLayoutCards.filter(c => !c.visible);
               const renderColumn = (col: NpColumn) => {
-                const cards = layoutCards.filter(c =>
+                const cards = activeLayoutCards.filter(c =>
                   c.column === col && c.visible && c.id !== draggingCardId,
                 );
                 const isOver = dragOver?.col === col;

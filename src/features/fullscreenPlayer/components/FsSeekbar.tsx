@@ -32,7 +32,10 @@ export const FsSeekbar = memo(function FsSeekbar({ duration }: { duration: numbe
   const seekHandlers = useImperativeSeek({ paint, previewPaint });
 
   return (
-    <div className="fs-seekbar-wrap">
+    <div
+      className="fs-seekbar-wrap"
+      data-visualizer-overlay-exempt="fullscreen"
+    >
       <div className="fs-seekbar-times">
         <span ref={timeRef} />
         <span>{formatTrackTime(duration)}</span>

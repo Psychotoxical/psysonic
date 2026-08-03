@@ -228,6 +228,7 @@ export function AppearanceTab() {
                       options={options}
                       value={String(activePct)}
                       onChange={id => fontStore.setUiScale(parseInt(id, 10) / 100)}
+                      ariaLabel={t('settings.uiScaleLabel')}
                     />
                   );
                 })()}
@@ -301,6 +302,7 @@ export function AppearanceTab() {
                 options={fullscreenPlayerStyleOptions}
                 value={auth.fullscreenPlayerStyle}
                 onChange={auth.setFullscreenPlayerStyle}
+                ariaLabel={t('settings.fullscreenPlayerStyle')}
               />
             </SettingsField>
           </SettingsGroup>

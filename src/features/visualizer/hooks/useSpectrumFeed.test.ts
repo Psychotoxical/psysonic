@@ -1,24 +1,62 @@
-/**
- * Latency-focused tests for the spectrum feed.
- *
- * The original implementation always lerped between the last two arrivals,
- * which structurally held the display a full emit period behind the audio: at
- * the instant a frame landed it drew the *previous* one. These tests pin the
- * fix — at normal emit rates the newest frame is what gets drawn.
- */
+import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderHook } from '@testing-library/react';
 
-const { listenMock, setActiveMock } = vi.hoisted(() => ({
-  listenMock: vi.fn(),
-  setActiveMock: vi.fn(async () => undefined),
+const hoisted = vi.hoisted(() => {
+  type PlayerSnapshot = {
+    currentRadio: { id: string } | null;
+    isPlaying: boolean;
+  };
+  const playerState: PlayerSnapshot = { currentRadio: null, isPlaying: true };
+  const playerListeners = new Set<(
+    state: PlayerSnapshot,
+    previous: PlayerSnapshot,
+  ) => void>();
+  const playerStore = {
+    getState: vi.fn(() => playerState),
+    subscribe: vi.fn((listener: (state: PlayerSnapshot, previous: PlayerSnapshot) => void) => {
+      playerListeners.add(listener);
+      return () => playerListeners.delete(listener);
+    }),
+  };
+
+  return {
+    listenMock: vi.fn(),
+    setActiveMock: vi.fn(async () => undefined),
+    getRadioSpectrumAnalyserMock: vi.fn<() => AnalyserNode | null>(() => null),
+    radioSpectrumAvailable: false,
+    radioSpectrumListeners: new Set<() => void>(),
+    playerState,
+    playerListeners,
+    playerStore,
+    setPlayerState(next: Partial<PlayerSnapshot>) {
+      const previous = { ...playerState };
+      Object.assign(playerState, next);
+      for (const listener of playerListeners) listener(playerState, previous);
+    },
+    setRadioSpectrumAvailable(available: boolean) {
+      this.radioSpectrumAvailable = available;
+      for (const listener of this.radioSpectrumListeners) listener();
+    },
+  };
+});
+
+vi.mock('@tauri-apps/api/event', () => ({ listen: hoisted.listenMock }));
+vi.mock('@/lib/api/audio', () => ({ audioSpectrumSetActive: hoisted.setActiveMock }));
+vi.mock('@/features/playback', () => ({
+  getRadioSpectrumAnalyser: hoisted.getRadioSpectrumAnalyserMock,
+  getRadioSpectrumAvailability: () => hoisted.radioSpectrumAvailable,
+  subscribeRadioSpectrumAvailability: (listener: () => void) => {
+    hoisted.radioSpectrumListeners.add(listener);
+    return () => hoisted.radioSpectrumListeners.delete(listener);
+  },
+  usePlayerStore: hoisted.playerStore,
 }));
-vi.mock('@tauri-apps/api/event', () => ({ listen: listenMock }));
-vi.mock('@/lib/api/audio', () => ({ audioSpectrumSetActive: setActiveMock }));
-vi.mock('@/features/playback', () => ({ getRadioSpectrumAnalyser: () => null }));
 
 import { useSpectrumFeed } from './useSpectrumFeed';
-import { _resetSpectrumFeedForTest } from '@/features/visualizer/utils/spectrumSubscription';
+import {
+  _resetSpectrumFeedForTest,
+  _spectrumFeedRefCountForTest,
+} from '@/features/visualizer/utils/spectrumSubscription';
 import type { SpectrumPayload } from '@/features/visualizer/utils/spectrumFrame';
 
 /** Emit a payload whose first band sits at `level` (0..1). */
@@ -39,47 +77,65 @@ function frameAt(level: number): SpectrumPayload {
   };
 }
 
+function makeRadioAnalyser(level = 255): AnalyserNode {
+  return {
+    frequencyBinCount: 1024,
+    fftSize: 2048,
+    context: { sampleRate: 48_000 },
+    getByteFrequencyData: vi.fn((target: Uint8Array) => target.fill(level)),
+    getByteTimeDomainData: vi.fn((target: Uint8Array) => target.fill(128)),
+  } as unknown as AnalyserNode;
+}
+
 const PARAMS = { fps: 60, responsiveness: 0.65 };
 
 describe('useSpectrumFeed', () => {
   let emit: (payload: SpectrumPayload) => void;
+  let unlisten: ReturnType<typeof vi.fn>;
   let now = 0;
 
   beforeEach(() => {
     _resetSpectrumFeedForTest();
-    setActiveMock.mockClear();
-    listenMock.mockClear();
+    hoisted.setActiveMock.mockClear();
+    hoisted.listenMock.mockClear();
+    hoisted.getRadioSpectrumAnalyserMock.mockReset();
+    hoisted.getRadioSpectrumAnalyserMock.mockReturnValue(null);
+    hoisted.playerStore.getState.mockClear();
+    hoisted.playerStore.subscribe.mockClear();
+    hoisted.playerListeners.clear();
+    hoisted.radioSpectrumListeners.clear();
+    hoisted.radioSpectrumAvailable = false;
+    hoisted.playerState.currentRadio = null;
+    hoisted.playerState.isPlaying = true;
     now = 1_000;
     vi.spyOn(performance, 'now').mockImplementation(() => now);
+    unlisten = vi.fn();
 
-    listenMock.mockImplementation(async (_event: string, cb: (e: { payload: unknown }) => void) => {
-      emit = (payload) => cb({ payload });
-      return () => {};
-    });
+    hoisted.listenMock.mockImplementation(
+      async (_event: string, cb: (e: { payload: unknown }) => void) => {
+        emit = (payload) => cb({ payload });
+        return unlisten;
+      },
+    );
   });
 
   it('draws the newest frame at 60 fps instead of lagging a frame behind', async () => {
     const { result } = renderHook(() => useSpectrumFeed(true, PARAMS));
-    await vi.waitFor(() => expect(listenMock).toHaveBeenCalled());
+    await vi.waitFor(() => expect(hoisted.listenMock).toHaveBeenCalled());
 
-    // Two arrivals ~16 ms apart, i.e. a normal 60 fps feed.
     now = 1_000;
     emit(frameAt(0.2));
     now = 1_016;
     emit(frameAt(0.9));
-
-    // Sample at the very instant the second frame landed.
     result.current.current.sample(now);
 
-    // The old lerp would have rendered 0.2 here — the previous frame.
     expect(result.current.current.frame.bands[0]).toBeCloseTo(0.9, 2);
   });
 
   it('still interpolates when frames arrive slower than the display', async () => {
     const { result } = renderHook(() => useSpectrumFeed(true, { ...PARAMS, fps: 15 }));
-    await vi.waitFor(() => expect(listenMock).toHaveBeenCalled());
+    await vi.waitFor(() => expect(hoisted.listenMock).toHaveBeenCalled());
 
-    // ~66 ms apart: sparse enough that smoothing is worth a frame of latency.
     now = 1_000;
     emit(frameAt(0));
     now = 1_066;
@@ -97,7 +153,7 @@ describe('useSpectrumFeed', () => {
 
   it('reports signal while frames flow', async () => {
     const { result } = renderHook(() => useSpectrumFeed(true, PARAMS));
-    await vi.waitFor(() => expect(listenMock).toHaveBeenCalled());
+    await vi.waitFor(() => expect(hoisted.listenMock).toHaveBeenCalled());
 
     now = 1_000;
     emit(frameAt(0.5));
@@ -107,9 +163,23 @@ describe('useSpectrumFeed', () => {
     expect(result.current.current.hasSignal).toBe(true);
   });
 
-  it('fades out and drops the signal flag when frames stop', async () => {
+  it('wakes a quiescent renderer when a fresh native frame arrives', async () => {
     const { result } = renderHook(() => useSpectrumFeed(true, PARAMS));
-    await vi.waitFor(() => expect(listenMock).toHaveBeenCalled());
+    await vi.waitFor(() => expect(hoisted.listenMock).toHaveBeenCalled());
+    const wake = vi.fn();
+    const unsubscribe = result.current.current.subscribe(wake);
+
+    emit(frameAt(0.5));
+    expect(wake).toHaveBeenCalledTimes(1);
+
+    unsubscribe();
+    emit(frameAt(0.6));
+    expect(wake).toHaveBeenCalledTimes(1);
+  });
+
+  it('fades out by elapsed time and quiesces when frames stop', async () => {
+    const { result } = renderHook(() => useSpectrumFeed(true, PARAMS));
+    await vi.waitFor(() => expect(hoisted.listenMock).toHaveBeenCalled());
 
     now = 1_000;
     emit(frameAt(0.8));
@@ -119,35 +189,153 @@ describe('useSpectrumFeed', () => {
     const lit = result.current.current.frame.bands[0]!;
     expect(lit).toBeGreaterThan(0.5);
 
-    // Well past the staleness window.
     result.current.current.sample(now + 2_000);
     expect(result.current.current.hasSignal).toBe(false);
-    expect(result.current.current.frame.bands[0]!).toBeLessThan(lit);
+    expect(result.current.current.shouldAnimate).toBe(false);
+    expect(result.current.current.frame.bands[0]!).toBe(0);
   });
 
-  it('subscribes on mount and releases on unmount', async () => {
+  it('never lets a stale radio analyser overwrite fresh native playback', async () => {
+    const analyser = makeRadioAnalyser();
+    hoisted.getRadioSpectrumAnalyserMock.mockReturnValue(analyser);
+    hoisted.playerState.currentRadio = { id: 'radio' };
+
+    const { result } = renderHook(() => useSpectrumFeed(true, PARAMS));
+    await vi.waitFor(() => expect(hoisted.listenMock).toHaveBeenCalled());
+
+    result.current.current.sample(now);
+    expect(analyser.getByteFrequencyData).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      hoisted.setPlayerState({ currentRadio: null, isPlaying: true });
+    });
+    now = 1_016;
+    emit(frameAt(0.6));
+    now = 1_032;
+    emit(frameAt(0.6));
+    result.current.current.sample(now);
+
+    expect(result.current.current.frame.bands[0]).toBeCloseTo(0.6, 2);
+    expect(analyser.getByteFrequencyData).toHaveBeenCalledTimes(1);
+  });
+
+  it('samples radio at the requested analysis rate', async () => {
+    const analyser = makeRadioAnalyser();
+    hoisted.getRadioSpectrumAnalyserMock.mockReturnValue(analyser);
+    hoisted.playerState.currentRadio = { id: 'radio' };
+
+    const { result } = renderHook(() => useSpectrumFeed(true, { ...PARAMS, fps: 30 }));
+    await vi.waitFor(() => expect(hoisted.listenMock).toHaveBeenCalled());
+
+    result.current.current.sample(1_000);
+    result.current.current.sample(1_016);
+    result.current.current.sample(1_034);
+
+    expect(analyser.getByteFrequencyData).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not acquire the native feed while radio owns playback', async () => {
+    hoisted.playerState.currentRadio = { id: 'radio' };
+    renderHook(() => useSpectrumFeed(true, PARAMS));
+    await vi.waitFor(() => expect(hoisted.listenMock).toHaveBeenCalled());
+
+    expect(_spectrumFeedRefCountForTest()).toBe(0);
+    expect(hoisted.setActiveMock).not.toHaveBeenCalled();
+  });
+
+  it('hands the native lease across radio source transitions', async () => {
+    const { result } = renderHook(() => useSpectrumFeed(true, PARAMS));
+    await vi.waitFor(() => expect(_spectrumFeedRefCountForTest()).toBe(1));
+
+    act(() => hoisted.setPlayerState({ currentRadio: { id: 'radio' } }));
+    await vi.waitFor(() => expect(_spectrumFeedRefCountForTest()).toBe(0));
+    await vi.waitFor(() => expect(hoisted.setActiveMock).toHaveBeenCalledWith({
+      active: false,
+      ...PARAMS,
+    }));
+
+    act(() => hoisted.setPlayerState({ currentRadio: null }));
+    await vi.waitFor(() => expect(_spectrumFeedRefCountForTest()).toBe(1));
+    expect(hoisted.setActiveMock).toHaveBeenCalledWith({ active: true, ...PARAMS });
+    expect(result.current.current.shouldAnimate).toBe(true);
+  });
+
+  it('wakes a quiescent radio renderer when the analyser attaches', async () => {
+    hoisted.playerState.currentRadio = { id: 'radio' };
+    const { result } = renderHook(() => useSpectrumFeed(true, PARAMS));
+    await vi.waitFor(() => expect(hoisted.listenMock).toHaveBeenCalled());
+    const wake = vi.fn();
+    result.current.current.subscribe(wake);
+
+    act(() => hoisted.setRadioSpectrumAvailable(true));
+
+    expect(wake).toHaveBeenCalledTimes(1);
+    expect(result.current.current.shouldAnimate).toBe(true);
+  });
+
+  it('does not poll the radio analyser while radio playback is paused', async () => {
+    const analyser = makeRadioAnalyser();
+    hoisted.getRadioSpectrumAnalyserMock.mockReturnValue(analyser);
+    hoisted.playerState.currentRadio = { id: 'radio' };
+    hoisted.playerState.isPlaying = false;
+
+    const { result } = renderHook(() => useSpectrumFeed(true, PARAMS));
+    await vi.waitFor(() => expect(hoisted.listenMock).toHaveBeenCalled());
+    result.current.current.sample(1_000);
+
+    expect(analyser.getByteFrequencyData).not.toHaveBeenCalled();
+    expect(result.current.current.shouldAnimate).toBe(false);
+  });
+
+  it('updates params without replacing the listener or feed lease', async () => {
+    const { rerender } = renderHook(
+      ({ params }) => useSpectrumFeed(true, params),
+      { initialProps: { params: PARAMS } },
+    );
+    await vi.waitFor(() => expect(hoisted.listenMock).toHaveBeenCalledTimes(1));
+    expect(_spectrumFeedRefCountForTest()).toBe(1);
+    hoisted.setActiveMock.mockClear();
+
+    rerender({ params: { fps: 30, responsiveness: 0.9 } });
+    await vi.waitFor(() => expect(hoisted.setActiveMock).toHaveBeenCalledWith({
+      active: true,
+      fps: 30,
+      responsiveness: 0.9,
+    }));
+
+    expect(hoisted.listenMock).toHaveBeenCalledTimes(1);
+    expect(hoisted.playerStore.subscribe).toHaveBeenCalledTimes(1);
+    expect(unlisten).not.toHaveBeenCalled();
+    expect(_spectrumFeedRefCountForTest()).toBe(1);
+  });
+
+  it('subscribes on mount and releases every listener on unmount', async () => {
     const { unmount } = renderHook(() => useSpectrumFeed(true, PARAMS));
     await vi.waitFor(() =>
-      expect(setActiveMock).toHaveBeenCalledWith({ active: true, ...PARAMS }),
+      expect(hoisted.setActiveMock).toHaveBeenCalledWith({ active: true, ...PARAMS }),
     );
+    expect(hoisted.playerListeners.size).toBe(1);
 
-    setActiveMock.mockClear();
+    hoisted.setActiveMock.mockClear();
     unmount();
     await vi.waitFor(() =>
-      expect(setActiveMock).toHaveBeenCalledWith({ active: false, ...PARAMS }),
+      expect(hoisted.setActiveMock).toHaveBeenCalledWith({ active: false, ...PARAMS }),
     );
+    expect(unlisten).toHaveBeenCalledTimes(1);
+    expect(hoisted.playerListeners.size).toBe(0);
   });
 
   it('never subscribes while inactive', async () => {
     renderHook(() => useSpectrumFeed(false, PARAMS));
     await Promise.resolve();
-    expect(setActiveMock).not.toHaveBeenCalled();
-    expect(listenMock).not.toHaveBeenCalled();
+    expect(hoisted.setActiveMock).not.toHaveBeenCalled();
+    expect(hoisted.listenMock).not.toHaveBeenCalled();
+    expect(hoisted.playerStore.subscribe).not.toHaveBeenCalled();
   });
 
   it('ignores a corrupt payload rather than blanking the display', async () => {
     const { result } = renderHook(() => useSpectrumFeed(true, PARAMS));
-    await vi.waitFor(() => expect(listenMock).toHaveBeenCalled());
+    await vi.waitFor(() => expect(hoisted.listenMock).toHaveBeenCalled());
 
     now = 1_000;
     emit(frameAt(0.7));

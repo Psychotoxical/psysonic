@@ -64,7 +64,12 @@ export function VisualizerSection({ t }: Props) {
             <>
               <SettingsSubCard>
                 <SettingsField label={t('visualizer.settings.mode')} row>
-                  <SettingsSegmented options={modes} value={mode} onChange={setMode} />
+                  <SettingsSegmented
+                    options={modes}
+                    value={mode}
+                    onChange={setMode}
+                    ariaLabel={t('visualizer.settings.mode')}
+                  />
                 </SettingsField>
               </SettingsSubCard>
 
@@ -82,6 +87,7 @@ export function VisualizerSection({ t }: Props) {
                     step={0.1}
                     value={sensitivity}
                     onChange={e => setSensitivity(Number(e.target.value))}
+                    aria-label={t('visualizer.settings.sensitivity')}
                     aria-valuemin={MIN_SENSITIVITY}
                     aria-valuemax={MAX_SENSITIVITY}
                     aria-valuenow={sensitivity}
@@ -104,6 +110,7 @@ export function VisualizerSection({ t }: Props) {
                     step={0.05}
                     value={responsiveness}
                     onChange={e => setResponsiveness(Number(e.target.value))}
+                    aria-label={t('visualizer.settings.responsiveness')}
                     aria-valuemin={0}
                     aria-valuemax={1}
                     aria-valuenow={responsiveness}
@@ -122,6 +129,7 @@ export function VisualizerSection({ t }: Props) {
                     options={rates}
                     value={String(fps)}
                     onChange={id => setFps(Number(id))}
+                    ariaLabel={t('visualizer.settings.frameRate')}
                   />
                 </SettingsField>
               </SettingsSubCard>
@@ -143,6 +151,7 @@ export function VisualizerSection({ t }: Props) {
                     options={colorSources}
                     value={colorSource}
                     onChange={setColorSource}
+                    ariaLabel={t('visualizer.settings.colorSource')}
                   />
                 </SettingsField>
               </SettingsSubCard>

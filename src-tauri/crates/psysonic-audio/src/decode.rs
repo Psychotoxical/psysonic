@@ -909,8 +909,9 @@ pub(crate) fn build_source(
     let eq_src = EqSource::new(rate_dyn, eq_gains, eq_enabled, eq_pre_gain);
     let fade_in = EqualPowerFadeIn::new(eq_src, fade_in_dur);
     let fade_out = TriggeredFadeOut::new(fade_in, fadeout_trigger.clone(), fadeout_samples.clone());
-    // Visualizer tap: post-EQ/post-fade so it mirrors what is actually heard,
-    // pre-sink so it does not collapse when the user lowers the volume.
+    // Per-track visualizer tap: post-EQ/post-fade and pre-sink volume. During a
+    // crossfade its exclusive lease follows the incoming track/metadata; rodio
+    // mixes the two players later, so this is intentionally not a post-mix sum.
     let tapped = SpectrumTapSource::new(fade_out);
     let notifying = NotifyingSource::new(tapped, done_flag);
     let counting = CountingSource::new(notifying, sample_counter);
@@ -983,6 +984,7 @@ pub(crate) fn build_streaming_source(
     let eq_src = EqSource::new(rate_dyn, eq_gains, eq_enabled, eq_pre_gain);
     let fade_in = EqualPowerFadeIn::new(eq_src, fade_in_dur);
     let fade_out = TriggeredFadeOut::new(fade_in, fadeout_trigger.clone(), fadeout_samples.clone());
+    // Same per-track/incoming-lease semantics as `build_source` above.
     let tapped = SpectrumTapSource::new(fade_out);
     let notifying = NotifyingSource::new(tapped, done_flag);
     let counting = match count_gate {

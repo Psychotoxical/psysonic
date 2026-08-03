@@ -45,6 +45,7 @@ import { tray } from './tray';
 import { licenses } from './licenses';
 import { migration } from './migration';
 import { discordBanner } from './discordBanner';
+import { visualizer } from './visualizer';
 
 export const jaTranslation = {
   sidebar,
@@ -94,4 +95,5 @@ export const jaTranslation = {
   licenses,
   migration,
   discordBanner,
+  visualizer,
 };

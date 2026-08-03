@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createFrame, type SpectrumFrame } from './spectrumFrame';
+import { applyPayload, createFrame, type SpectrumFrame } from './spectrumFrame';
 import { buildPalette } from './visualizerColors';
 import {
   bassEnergy,
@@ -50,6 +50,22 @@ function stubContext() {
 
 type Ctx = ReturnType<typeof stubContext>;
 
+function recordShadows(ctx: Ctx): { blurs: number[]; colors: string[] } {
+  const blurs: number[] = [];
+  const colors: string[] = [];
+  Object.defineProperty(ctx, 'shadowBlur', {
+    configurable: true,
+    get: () => blurs[blurs.length - 1] ?? 0,
+    set: (value: number) => { blurs.push(value); },
+  });
+  Object.defineProperty(ctx, 'shadowColor', {
+    configurable: true,
+    get: () => colors[colors.length - 1] ?? '',
+    set: (value: string) => { colors.push(value); },
+  });
+  return { blurs, colors };
+}
+
 function options(over: Partial<RenderOptions> = {}): RenderOptions {
   return {
     palette: buildPalette({ cover: null, themeAccent: 'rgb(140, 90, 240)', surface: '#0a0a0e' }),
@@ -69,6 +85,25 @@ function loudFrame(): SpectrumFrame {
   }
   frame.rms = 0.5;
   frame.peak = 1;
+  return frame;
+}
+
+function antiPhaseFrame(): SpectrumFrame {
+  const frame = createFrame(1, 128);
+  const left = Array.from({ length: 128 }, (_, i) => i % 2 === 0 ? 255 : 1);
+  const right = left.map(value => value === 255 ? 1 : 255);
+  const b64 = (bytes: number[]) => btoa(String.fromCharCode(...bytes));
+  applyPayload(frame, {
+    bands: b64([0]),
+    peaks: b64([0]),
+    waveformLeft: b64(left),
+    waveformRight: b64(right),
+    rms: 1,
+    peak: 1,
+    bandCount: 1,
+    waveCount: 128,
+    sampleRate: 48_000,
+  });
   return frame;
 }
 
@@ -272,6 +307,17 @@ describe('drawScope', () => {
     drawScope(asCtx(ctx), 0, 0, loudFrame(), options());
     expect(ctx.stroke).not.toHaveBeenCalled();
   });
+
+  it('draws a non-flat trace for anti-phase stereo', () => {
+    const ctx = stubContext();
+    drawScope(
+      asCtx(ctx), 640, 200, antiPhaseFrame(),
+      options({ reducedMotion: true }), createRendererState(),
+    );
+    const ys = [...ctx.moveTo.mock.calls, ...ctx.lineTo.mock.calls]
+      .map(call => call[1] as number);
+    expect(ys.some(y => Math.abs(y - 100) > 1)).toBe(true);
+  });
 });
 
 describe('renderFrame', () => {
@@ -355,6 +401,7 @@ describe('drawRadialScope', () => {
 
   it('falls back to a plain ring under reduced motion', () => {
     const ctx = stubContext();
+    const shadows = recordShadows(ctx);
     const state = createRendererState();
     drawRadialScope(asCtx(ctx), 400, 400, loudFrame(), options({ reducedMotion: true }), state);
     // No feedback buffer at all — that persistence is what the preference asks
@@ -362,6 +409,8 @@ describe('drawRadialScope', () => {
     expect(state.buffer).toBeNull();
     expect(ctx.drawImage).not.toHaveBeenCalled();
     expect(ctx.stroke).toHaveBeenCalled();
+    expect(shadows.blurs.every(value => value === 0)).toBe(true);
+    expect(shadows.colors.every(value => value === 'transparent')).toBe(true);
   });
 
   it('closes the ring by wrapping back to the first sample', () => {
@@ -421,6 +470,21 @@ describe('drawRadialScope', () => {
     const ctx = stubContext();
     drawRadialScope(asCtx(ctx), 0, 0, loudFrame(), options(), createRendererState());
     expect(ctx.stroke).not.toHaveBeenCalled();
+  });
+
+  it('draws a modulated ring for anti-phase stereo', () => {
+    const ctx = stubContext();
+    const size = 400;
+    drawRadialScope(
+      asCtx(ctx), size, size, antiPhaseFrame(),
+      options({ reducedMotion: true }), createRendererState(),
+    );
+    const radii = [...ctx.moveTo.mock.calls, ...ctx.lineTo.mock.calls].map((call) => {
+      const x = call[0] as number;
+      const y = call[1] as number;
+      return Math.hypot(x - size / 2, y - size / 2);
+    });
+    expect(Math.max(...radii) - Math.min(...radii)).toBeGreaterThan(10);
   });
 });
 
@@ -612,6 +676,19 @@ describe('drawStereoRings', () => {
     }
     return frame;
   }
+
+  it('disables glow as well as persistence under reduced motion', () => {
+    const ctx = stubContext();
+    const shadows = recordShadows(ctx);
+    const state = createRendererState();
+    drawStereoRings(
+      asCtx(ctx), 400, 300, stereoFrame(0.6, 0.6),
+      options({ reducedMotion: true }), state,
+    );
+    expect(state.buffer).toBeNull();
+    expect(shadows.blurs.every(value => value === 0)).toBe(true);
+    expect(shadows.colors.every(value => value === 'transparent')).toBe(true);
+  });
 
   it('anchors each arc to its own edge', () => {
     const { xs, leftPts } = reaches(stereoFrame(0.6, 0.6), 400, 300);

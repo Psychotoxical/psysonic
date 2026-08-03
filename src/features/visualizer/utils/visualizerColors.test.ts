@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   adjustLightness,
   buildPalette,
@@ -10,6 +10,7 @@ import {
   luminance,
   mixRgb,
   parseCssColor,
+  resolveCssColor,
   rgbToCss,
   rgbToHsl,
   shiftHue,
@@ -27,6 +28,11 @@ describe('parseCssColor', () => {
     expect(parseCssColor('rgba(12, 34, 56, 0.5)')).toEqual([12, 34, 56]);
   });
 
+  it('parses percentage rgb and computed color(srgb) forms', () => {
+    expect(parseCssColor('rgb(50% 25% 0% / 0.5)')).toEqual([128, 64, 0]);
+    expect(parseCssColor('color(srgb 0.5 0.25 1)')).toEqual([128, 64, 255]);
+  });
+
   it('parses long and short hex', () => {
     expect(parseCssColor('#8b5cf6')).toEqual([139, 92, 246]);
     expect(parseCssColor('#abc')).toEqual([170, 187, 204]);
@@ -36,7 +42,7 @@ describe('parseCssColor', () => {
     expect(parseCssColor('  #8B5CF6 ')).toEqual([139, 92, 246]);
   });
 
-  it('returns null for values it cannot read', () => {
+  it('returns null for author syntax that still needs browser resolution', () => {
     expect(parseCssColor('rebeccapurple')).toBeNull();
     expect(parseCssColor('color-mix(in srgb, red, blue)')).toBeNull();
     expect(parseCssColor('')).toBeNull();
@@ -46,6 +52,23 @@ describe('parseCssColor', () => {
 
   it('clamps out-of-gamut channels', () => {
     expect(parseCssColor('rgb(300, 20, 40)')).toEqual([255, 20, 40]);
+  });
+});
+
+describe('resolveCssColor', () => {
+  it.each([
+    ['hsl(270 50% 40%)', 'rgb(102, 51, 153)', [102, 51, 153]],
+    ['rebeccapurple', 'rgb(102, 51, 153)', [102, 51, 153]],
+    ['oklch(62% 0.2 250)', 'rgb(40, 121, 230)', [40, 121, 230]],
+    ['color-mix(in srgb, red 35%, blue)', 'color(srgb 0.35 0 0.65)', [89, 0, 166]],
+  ])('accepts browser-computed community theme colour %s', (input, computed, expected) => {
+    const compute = vi.fn(() => computed);
+    expect(resolveCssColor(input, compute)).toEqual(expected);
+    expect(compute).toHaveBeenCalledWith(input);
+  });
+
+  it('returns null when the WebView rejects the value', () => {
+    expect(resolveCssColor('definitely-not-a-colour', () => null)).toBeNull();
   });
 });
 

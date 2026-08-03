@@ -17,7 +17,7 @@
 /** Wire payload of the `audio:spectrum` event. Mirrors `SpectrumPayload` in
  *  `src-tauri/crates/psysonic-audio/src/spectrum.rs`. */
 export interface SpectrumPayload {
-  /** base64 bytes, `bandCount` long — 0..255 over a −72..0 dB range. */
+  /** base64 bytes, `bandCount` long — 0..255 over a -60..0 dB range. */
   bands: string;
   /** base64 bytes, `bandCount` long — falling peak caps. */
   peaks: string;
@@ -50,6 +50,19 @@ export interface SpectrumFrame {
  *  the common case avoids one reallocation. */
 export const DEFAULT_BAND_COUNT = 128;
 export const DEFAULT_WAVE_COUNT = 256;
+
+/** Shared display contract with `spectrum_dsp.rs`. */
+export const SPECTRUM_FLOOR_DB = -60;
+export const SPECTRUM_MIN_HZ = 28;
+export const SPECTRUM_MAX_HZ = 16_000;
+
+const DEFAULT_RESPONSIVENESS = 0.65;
+const TILT_DB_PER_OCTAVE = 3;
+const TILT_REF_HZ = 200;
+const TILT_MAX_DB = 18;
+const FRAME_SILENCE_EPSILON = 0.0005;
+/** Equivalent to the old 0.86-per-60-Hz-frame fade, but independent of FPS. */
+const IDLE_DECAY_TAU_SECONDS = 0.11;
 
 /** Sanity ceiling on payload-driven sizes, so a malformed frame can't make the
  *  renderer allocate unbounded arrays. */
@@ -123,6 +136,7 @@ export function clearFrame(frame: SpectrumFrame): void {
   frame.waveformRight.fill(0);
   frame.rms = 0;
   frame.peak = 0;
+  frame.sampleRate = 0;
 }
 
 function writeUnit(target: Float32Array, bytes: Uint8Array): void {
@@ -135,6 +149,85 @@ function writeSigned(target: Float32Array, bytes: Uint8Array): void {
   const n = Math.min(target.length, bytes.length);
   for (let i = 0; i < n; i++) target[i] = (bytes[i]! - 128) / 127;
   for (let i = n; i < target.length; i++) target[i] = 0;
+}
+
+/**
+ * Pick one channel for mono display modes using whole-window energy. A stable
+ * channel choice preserves right-only and anti-phase stereo without switching
+ * polarity sample-by-sample or feeding a nonlinear signal into the FFT.
+ */
+function writePhaseSafeMono(
+  target: Float32Array,
+  left: Float32Array,
+  right: Float32Array,
+): void {
+  let leftEnergy = 0;
+  let rightEnergy = 0;
+  const n = Math.min(target.length, left.length, right.length);
+  for (let i = 0; i < n; i++) {
+    leftEnergy += left[i]! * left[i]!;
+    rightEnergy += right[i]! * right[i]!;
+  }
+  const source = rightEnergy > leftEnergy ? right : left;
+  target.set(source.subarray(0, target.length));
+}
+
+/** Scratch retained by the radio feed so smoothing never allocates per frame. */
+export interface SpectrumEnvelopeState {
+  targetBands: Float32Array;
+  peakHold: Float32Array;
+}
+
+export function createSpectrumEnvelopeState(
+  bandCount = DEFAULT_BAND_COUNT,
+): SpectrumEnvelopeState {
+  return {
+    targetBands: new Float32Array(bandCount),
+    peakHold: new Float32Array(bandCount),
+  };
+}
+
+function ensureEnvelopeSize(state: SpectrumEnvelopeState, bandCount: number): void {
+  if (state.targetBands.length === bandCount) return;
+  state.targetBands = new Float32Array(bandCount);
+  state.peakHold = new Float32Array(bandCount);
+}
+
+function smoothingProfile(responsiveness: number): {
+  attackTau: number;
+  decayTau: number;
+  peakHold: number;
+  peakFall: number;
+} {
+  const r = Number.isFinite(responsiveness)
+    ? Math.max(0, Math.min(1, responsiveness))
+    : DEFAULT_RESPONSIVENESS;
+  const lerp = (a: number, b: number): number => a + (b - a) * r;
+  return {
+    attackTau: lerp(0.014, 0.0015),
+    decayTau: lerp(0.20, 0.03),
+    peakHold: lerp(0.70, 0.20),
+    peakFall: lerp(0.55, 1.80),
+  };
+}
+
+function downsampleWaveform(target: Float32Array, bytes: Uint8Array): void {
+  if (bytes.length === 0) {
+    target.fill(0);
+    return;
+  }
+
+  const bucket = bytes.length / target.length;
+  for (let i = 0; i < target.length; i++) {
+    const start = Math.floor(i * bucket);
+    const end = Math.max(start + 1, Math.floor((i + 1) * bucket));
+    let extreme = 128;
+    for (let j = start; j < Math.min(end, bytes.length); j++) {
+      const sample = bytes[j] ?? 128;
+      if (Math.abs(sample - 128) > Math.abs(extreme - 128)) extreme = sample;
+    }
+    target[i] = Math.max(-1, Math.min(1, (extreme - 128) / 127));
+  }
 }
 
 /**
@@ -151,11 +244,9 @@ export function applyPayload(frame: SpectrumFrame, payload: SpectrumPayload): bo
   writeUnit(frame.peaks, peaks);
   writeSigned(frame.waveformLeft, decodeBase64(payload.waveformLeft));
   writeSigned(frame.waveformRight, decodeBase64(payload.waveformRight));
-  // Mono is derived rather than transmitted — exact, and one array less on the
-  // wire every frame.
-  for (let i = 0; i < frame.waveform.length; i++) {
-    frame.waveform[i] = ((frame.waveformLeft[i] ?? 0) + (frame.waveformRight[i] ?? 0)) / 2;
-  }
+  // Scope and radial modes use one trace. Select the louder whole-window
+  // channel (left on ties) so legitimate side information cannot cancel out.
+  writePhaseSafeMono(frame.waveform, frame.waveformLeft, frame.waveformRight);
   frame.rms = Number.isFinite(payload.rms) ? payload.rms : 0;
   frame.peak = Number.isFinite(payload.peak) ? payload.peak : 0;
   frame.sampleRate = payload.sampleRate ?? 0;
@@ -167,60 +258,144 @@ export function applyAnalyserData(
   frame: SpectrumFrame,
   freqBytes: Uint8Array,
   timeBytes: Uint8Array,
+  sampleRate: number,
+  dtSeconds: number,
+  responsiveness: number,
+  envelope: SpectrumEnvelopeState,
 ): void {
-  // AnalyserNode gives linearly-spaced bins; fold them onto the same number of
-  // log-spaced bands the Rust path uses so both feeds render identically.
-  foldLogBands(frame.bands, freqBytes);
-  for (let i = 0; i < frame.peaks.length; i++) {
-    frame.peaks[i] = Math.max(frame.bands[i]!, frame.peaks[i]! - 0.015);
+  ensureEnvelopeSize(envelope, frame.bands.length);
+  // AnalyserNode gives linearly-spaced bins over an explicitly configured
+  // -60..0 dB range. Fold and tilt them exactly like the native analyser.
+  foldLogBands(envelope.targetBands, freqBytes, sampleRate);
+
+  const dt = Number.isFinite(dtSeconds) ? Math.max(0.001, Math.min(0.5, dtSeconds)) : 1 / 60;
+  const profile = smoothingProfile(responsiveness);
+  const attack = 1 - Math.exp(-dt / profile.attackTau);
+  const decay = 1 - Math.exp(-dt / profile.decayTau);
+  for (let i = 0; i < frame.bands.length; i++) {
+    const target = envelope.targetBands[i] ?? 0;
+    const current = frame.bands[i] ?? 0;
+    const coefficient = target > current ? attack : decay;
+    const next = current + (target - current) * coefficient;
+    frame.bands[i] = Math.abs(next) < FRAME_SILENCE_EPSILON ? 0 : next;
+
+    if (next >= (frame.peaks[i] ?? 0)) {
+      frame.peaks[i] = next;
+      envelope.peakHold[i] = profile.peakHold;
+    } else if ((envelope.peakHold[i] ?? 0) > 0) {
+      envelope.peakHold[i] = Math.max(0, (envelope.peakHold[i] ?? 0) - dt);
+    } else {
+      frame.peaks[i] = Math.max(next, (frame.peaks[i] ?? 0) - profile.peakFall * dt, 0);
+    }
   }
+
   // A single AnalyserNode taps the summed output, so radio has no channel
   // separation to offer — both traces show the same signal.
-  writeSigned(frame.waveform, timeBytes);
+  downsampleWaveform(frame.waveform, timeBytes);
   frame.waveformLeft.set(frame.waveform.subarray(0, frame.waveformLeft.length));
   frame.waveformRight.set(frame.waveform.subarray(0, frame.waveformRight.length));
 
   let sumSq = 0;
   let peak = 0;
-  for (let i = 0; i < frame.waveform.length; i++) {
-    const v = frame.waveform[i]!;
+  for (let i = 0; i < timeBytes.length; i++) {
+    const v = Math.max(-1, Math.min(1, ((timeBytes[i] ?? 128) - 128) / 127));
     sumSq += v * v;
     peak = Math.max(peak, Math.abs(v));
   }
-  frame.rms = frame.waveform.length > 0 ? Math.sqrt(sumSq / frame.waveform.length) : 0;
+  frame.rms = timeBytes.length > 0 ? Math.sqrt(sumSq / timeBytes.length) : 0;
   frame.peak = peak;
+  frame.sampleRate = sampleRate;
 }
 
 /**
  * Collapse linear FFT bins onto log-spaced bands, taking the peak of each
  * band's bins (matching `bands_from_magnitudes` on the Rust side).
  */
-export function foldLogBands(out: Float32Array, bins: Uint8Array): void {
+export function foldLogBands(
+  out: Float32Array,
+  bins: Uint8Array,
+  sampleRate = 48_000,
+): void {
   const n = out.length;
   if (n === 0) return;
-  if (bins.length === 0) {
+  if (bins.length < 2) {
     out.fill(0);
     return;
   }
-  // Same 28 Hz..16 kHz span as the Rust layout, expressed as a fraction of the
-  // bin array so it holds for any analyser size or sample rate.
-  const minRatio = 0.0012;
-  const ratio = Math.log(1 / minRatio) / n;
-  let prevHi = 0;
+
+  const rate = Number.isFinite(sampleRate) && sampleRate > 0 ? sampleRate : 48_000;
+  const fftSize = bins.length * 2;
+  const binHz = rate / fftSize;
+  const hiHz = Math.max(
+    SPECTRUM_MIN_HZ * 4,
+    Math.min(SPECTRUM_MAX_HZ, rate / 2 * 0.94),
+  );
+  const ratio = Math.log(hiHz / SPECTRUM_MIN_HZ) / n;
+
   for (let b = 0; b < n; b++) {
-    let lo = Math.floor(minRatio * Math.exp(ratio * b) * bins.length);
-    let hi = Math.ceil(minRatio * Math.exp(ratio * (b + 1)) * bins.length);
-    lo = Math.max(1, Math.min(lo, bins.length - 1));
-    hi = Math.max(lo, Math.min(hi, bins.length - 1));
-    if (lo <= prevHi && prevHi + 1 < bins.length) {
-      lo = prevHi + 1;
-      hi = Math.max(lo, hi);
+    const lowHz = SPECTRUM_MIN_HZ * Math.exp(ratio * b);
+    const highHz = SPECTRUM_MIN_HZ * Math.exp(ratio * (b + 1));
+    const first = Math.ceil(lowHz / binHz);
+    const last = Math.ceil(highHz / binHz) - 1;
+    const maxBin = bins.length - 1;
+    let lo: number;
+    let hi: number;
+    if (first <= last && first <= maxBin) {
+      lo = Math.max(first, 1);
+      hi = Math.min(last, maxBin);
+    } else {
+      const nearest = Math.max(1, Math.min(maxBin, Math.round(Math.sqrt(lowHz * highHz) / binHz)));
+      lo = nearest;
+      hi = nearest;
     }
-    prevHi = hi;
-    let peak = 0;
-    for (let i = lo; i <= hi; i++) peak = Math.max(peak, bins[i]!);
-    out[b] = peak / 255;
+    let peakByte = 0;
+    for (let i = lo; i <= hi; i++) peakByte = Math.max(peakByte, bins[i]!);
+
+    const centreHz = Math.sqrt(lowHz * highHz);
+    const tiltDb = Math.max(
+      0,
+      Math.min(TILT_MAX_DB, TILT_DB_PER_OCTAVE * Math.log2(centreHz / TILT_REF_HZ)),
+    );
+    // getByteFrequencyData maps minDecibels..maxDecibels linearly to 0..255.
+    out[b] = peakByte === 0
+      ? 0
+      : Math.max(0, Math.min(1, peakByte / 255 + tiltDb / -SPECTRUM_FLOOR_DB));
   }
+}
+
+/**
+ * Fade a stale display frame using elapsed time rather than display-frame count.
+ * Returns true while any visible energy remains and another draw is useful.
+ */
+export function decayFrameToSilence(frame: SpectrumFrame, dtSeconds: number): boolean {
+  const dt = Number.isFinite(dtSeconds) ? Math.max(0, dtSeconds) : 0;
+  const factor = Math.exp(-dt / IDLE_DECAY_TAU_SECONDS);
+  let hasEnergy = false;
+
+  const decay = (values: Float32Array): void => {
+    for (let i = 0; i < values.length; i++) {
+      const next = (values[i] ?? 0) * factor;
+      if (Math.abs(next) <= FRAME_SILENCE_EPSILON) {
+        values[i] = 0;
+      } else {
+        values[i] = next;
+        hasEnergy = true;
+      }
+    }
+  };
+
+  decay(frame.bands);
+  decay(frame.peaks);
+  decay(frame.waveform);
+  decay(frame.waveformLeft);
+  decay(frame.waveformRight);
+  frame.rms *= factor;
+  frame.peak *= factor;
+  if (frame.rms <= FRAME_SILENCE_EPSILON) frame.rms = 0;
+  else hasEnergy = true;
+  if (frame.peak <= FRAME_SILENCE_EPSILON) frame.peak = 0;
+  else hasEnergy = true;
+  return hasEnergy;
 }
 
 /** Copy `src` into `out` in place. */

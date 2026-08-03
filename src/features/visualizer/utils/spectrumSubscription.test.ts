@@ -94,6 +94,25 @@ describe('spectrumSubscription', () => {
     expect(_spectrumFeedRefCountForTest()).toBe(1);
   });
 
+  it('coalesces a slider burst to one in-place parameter update', async () => {
+    acquireSpectrumFeed(at(60));
+    await settle();
+    setActiveMock.mockClear();
+
+    setSpectrumFeedParams({ fps: 45, responsiveness: 0.2 });
+    setSpectrumFeedParams({ fps: 30, responsiveness: 0.4 });
+    setSpectrumFeedParams({ fps: 60, responsiveness: 0.9 });
+    await settle();
+
+    expect(setActiveMock).toHaveBeenCalledTimes(1);
+    expect(setActiveMock).toHaveBeenCalledWith({
+      active: true,
+      fps: 60,
+      responsiveness: 0.9,
+    });
+    expect(_spectrumFeedRefCountForTest()).toBe(1);
+  });
+
   it('ignores a rate change to the rate already in use', async () => {
     acquireSpectrumFeed(at(60));
     await settle();
