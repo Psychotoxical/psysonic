@@ -41,7 +41,7 @@ export function ServerStreamQualityEditor({
     <div className="form-group" style={{ marginBottom: '0.75rem' }}>
       <button
         type="button"
-        className="btn btn-ghost"
+        className="btn btn-ghost btn-ghost--flat"
         style={{ fontSize: 13, padding: '4px 0' }}
         onClick={() => onOpenChange(!open)}
         aria-expanded={open}

@@ -234,6 +234,19 @@ describe('AddServerForm — streaming quality', () => {
     })).toHaveTextContent('96 kbps');
   });
 
+  it('renders its disclosure with the same flat chrome as the one above it', () => {
+    renderWithProviders(
+      <AddServerForm editingServer={editingServer} onSave={vi.fn()} onCancel={vi.fn()} />,
+    );
+
+    // `.btn-ghost` carries a resting border and tint; `btn-ghost--flat` opts out.
+    // Both disclosures sit in the same form with `padding: 4px 0`, so an outline
+    // on one of them would box its text and split two identical controls.
+    for (const name of [/Custom HTTP headers/i, /Streaming Quality/]) {
+      expect(screen.getByRole('button', { name })).toHaveClass('btn-ghost--flat');
+    }
+  });
+
   it('applies staged per-address values only after a successful save', async () => {
     const onSave = vi.fn(async (_data, onPersisted?: () => void) => {
       onPersisted?.();
