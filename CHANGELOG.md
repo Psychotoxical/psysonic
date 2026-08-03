@@ -89,6 +89,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Now Playing** and every fullscreen-player style can show a responsive spectrum, oscilloscope, radial scope or stereo field, with cover-derived or theme colours and an expanded window view.
 * Sensitivity, response, frame rate and peak markers are configurable under **Settings → Appearance → Visualizer**. Internet radio is supported while its equalizer audio graph is active.
 
+### Visualizer — separate switches for Now Playing and the fullscreen player
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1378](https://github.com/Psychotoxical/psysonic/pull/1378)**
+
+* The visualizer can now be switched on for the fullscreen player alone, or for **Now Playing** alone, under **Settings → Appearance → Visualizer**. An existing off setting is kept as it was.
+* The section's controls are grouped into two panels, and long option names such as the radial scope are no longer cut off in translated interfaces.
+
 ## Changed
 
 ### Library index — designed for several live servers at once

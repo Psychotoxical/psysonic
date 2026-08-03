@@ -437,6 +437,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Fullscreen player — volume slider added to the Minimal and Immersive styles (PR #1340)',
       'Multi-disc albums — disc covers next to "CD N" in the album track list (PR #1336)',
       'Theme Store — a random theme of the moment, surfacing older themes above the search box (PR #1357)',
+      'Visualizer — separate switches for Now Playing and the fullscreen player (PR #1378)',
     ],
   },
   {
