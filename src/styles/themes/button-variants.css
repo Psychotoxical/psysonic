@@ -33,13 +33,30 @@
 }
 
 .btn-ghost {
-  background: transparent;
+  background: var(--button-ghost-bg);
   color: var(--text-secondary);
+  border: 1px solid var(--button-ghost-border);
 }
 
 .btn-ghost:hover {
   background: var(--button-hover);
   color: var(--text-primary);
+}
+
+/**
+ * Opt out for ghost buttons that must stay flat: an icon repeated in every row
+ * of a list (the track star), or a close cross sitting on top of a surface that
+ * already has its own frame. Outlining those would add a box per list row.
+ *
+ * New cases set `btn-ghost--flat`; the component classes below are the ones
+ * that already existed when the outline moved into `.btn-ghost`.
+ */
+.btn-ghost--flat,
+.btn-ghost.track-star-btn,
+.btn-ghost.modal-close,
+.btn-ghost.song-info-close {
+  background: transparent;
+  border-color: transparent;
 }
 
 .btn-surface {

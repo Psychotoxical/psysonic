@@ -21,19 +21,13 @@
 .settings-segmented-auto > .btn {
   flex: 0 0 auto;
 }
-.settings-segmented > .btn-ghost {
-  border: 1px solid var(--border-subtle);
-  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
-}
+/* The resting outline now comes from `.btn-ghost` itself; only the accent-tinted
+   hover is specific to a segmented group. */
 .settings-segmented > .btn-ghost:hover {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border-subtle));
   background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
-.settings-norm-block .btn-ghost {
-  border: 1px solid var(--border-subtle);
-  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
-}
 .settings-norm-block .btn-ghost:hover {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border-subtle));
   background: color-mix(in srgb, var(--accent) 8%, transparent);

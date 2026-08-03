@@ -65,6 +65,11 @@
   --input-border: var(--border);
   --input-focus-border: var(--accent);
   --button-hover: var(--bg-hover);
+  /* Ghost buttons carry their own outline so they read as clickable at rest,
+     not only on hover. Themes can retune the pair; a button that is meant to
+     stay flat opts out with `btn-ghost--flat` rather than redefining these. */
+  --button-ghost-border: var(--border-subtle);
+  --button-ghost-bg: color-mix(in srgb, var(--text-primary) 4%, transparent);
   --slider-track: var(--bg-elevated);
   --slider-thumb: var(--text-primary);
   --slider-thumb-hover: var(--accent);
