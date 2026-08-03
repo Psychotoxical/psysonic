@@ -61,7 +61,6 @@ pub fn audio_update_replay_gain(
             logical_for_loudness.as_deref(),
             &server_for_loudness,
             ResolveLoudnessCacheOpts {
-                touch_waveform: false,
                 log_soft_misses: false,
             },
         )

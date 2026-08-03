@@ -24,7 +24,7 @@ use tauri::{AppHandle, Emitter};
 use super::super::engine::PlaybackHttpHeaders;
 use super::super::state::PreloadedTrack;
 use super::{
-    RADIO_YIELD_MS, TRACK_READ_TIMEOUT_SECS, TRACK_STREAM_MAX_RECONNECTS,
+    AnalysisSeedHoldGuard, RADIO_YIELD_MS, TRACK_READ_TIMEOUT_SECS, TRACK_STREAM_MAX_RECONNECTS,
     TRACK_STREAM_PROMOTE_MAX_BYTES,
 };
 use crate::analysis_dispatch::{
@@ -33,23 +33,6 @@ use crate::analysis_dispatch::{
 };
 use crate::helpers::{install_stream_completed_spill, write_stream_spill_file};
 use crate::state::StreamCompletedSpill;
-
-/// Clears `AudioEngine::ranged_loudness_seed_hold` only if it still matches this play.
-struct RangedLoudnessSeedHoldClear {
-    slot: Arc<Mutex<Option<(String, u64)>>>,
-    tid: String,
-    gen: u64,
-}
-
-impl Drop for RangedLoudnessSeedHoldClear {
-    fn drop(&mut self) {
-        if let Ok(mut g) = self.slot.lock() {
-            if matches!(&*g, Some((t, gen)) if t == &self.tid && *gen == self.gen) {
-                *g = None;
-            }
-        }
-    }
-}
 
 /// Minimum bytes fetched per on-demand Range request. A seek often triggers a
 /// short read; fetching a window amortizes the HTTP round-trip and lets the few
@@ -340,11 +323,6 @@ impl MediaSource for RangedHttpSource {
     fn is_seekable(&self) -> bool { true }
     fn byte_len(&self) -> Option<u64> { Some(self.total_size) }
 }
-
-/// Slot used to coordinate "ranged playback seeds on completion → defer HTTP
-/// backfill for that track" between [`ranged_download_task`] and the analysis
-/// runtime; the inner `(track_id, deadline_unix_ms)` describes the active hold.
-pub(crate) type LoudnessSeedHold = Arc<Mutex<Option<(String, u64)>>>;
 
 /// Outcome of [`ranged_http_download_loop`] — total bytes written to the buffer
 /// plus the reason the loop stopped. The wrapper task uses this to decide
@@ -637,30 +615,16 @@ pub(crate) async fn ranged_download_task(
     cache_track_id: Option<String>,
     // Playback server scope for the analysis-cache write key (empty/`None` → legacy '').
     server_id: Option<String>,
+    needs_partial_loudness: bool,
     http_headers: PlaybackHttpHeaders,
-    // When `Some`, ranged playback seeds on completion — defer HTTP backfill for that
-    // track; `None` for large files where ranged skips seed (needs backfill).
-    loudness_seed_hold: Option<LoudnessSeedHold>,
+    // Armed synchronously before this task is spawned so frontend refresh cannot
+    // race a duplicate HTTP backfill ahead of the downloader.
+    _analysis_seed_hold: Option<AnalysisSeedHoldGuard>,
     playback_armed: Arc<AtomicBool>,
     format_hint: Option<String>,
     tail_ready: Arc<AtomicBool>,
     tail_filled_from: Arc<AtomicU64>,
 ) {
-    let _ranged_loudness_hold_clear = match (loudness_seed_hold.as_ref(), cache_track_id.as_ref()) {
-        (Some(slot), Some(tid)) => {
-            let t = tid.clone();
-            {
-                let mut g = slot.lock().unwrap();
-                *g = Some((t.clone(), gen));
-            }
-            Some(RangedLoudnessSeedHoldClear {
-                slot: Arc::clone(slot),
-                tid: t,
-                gen,
-            })
-        }
-        _ => None,
-    };
     let total_size = buf.lock().unwrap().len();
     let dl_started = Instant::now();
     let mut last_partial_loudness_emit = Instant::now() - Duration::from_secs(5);
@@ -675,7 +639,8 @@ pub(crate) async fn ranged_download_task(
     );
 
     let on_partial = |downloaded: usize, total: usize| {
-        if downloaded < crate::helpers::PARTIAL_LOUDNESS_MIN_BYTES
+        if !needs_partial_loudness
+            || downloaded < crate::helpers::PARTIAL_LOUDNESS_MIN_BYTES
             || total == 0
             || last_partial_loudness_emit.elapsed()
                 < Duration::from_millis(crate::helpers::PARTIAL_LOUDNESS_EMIT_INTERVAL_MS)

@@ -1368,9 +1368,9 @@ pub fn enqueue_seed_from_url(
     }
     if !force {
         if let Some(playback) = app.try_state::<PlaybackQueryHandle>() {
-            if playback.ranged_loudness_backfill_should_defer(track_id) {
+            if playback.analysis_backfill_should_defer(track_id) {
                 crate::app_deprintln!(
-                    "[analysis] backfill skip track_id={} reason=ranged_playback_will_seed",
+                    "[analysis] backfill skip track_id={} reason=playback_stream_will_seed",
                     track_id
                 );
                 return Ok(EnqueueSeedFromUrlOutcome::Skipped);

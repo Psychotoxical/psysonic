@@ -63,6 +63,9 @@ pub(super) struct PlayInputContext<'a> {
     /// Playback server scope for the analysis-cache write key (empty/`None` →
     /// legacy `''`). Rides alongside `cache_id_for_tasks` into every seed path.
     pub server_id: Option<&'a str>,
+    /// Final loudness is absent for this playback identity, so stream progress
+    /// may emit provisional gain hints while loudness mode is active.
+    pub needs_partial_loudness: bool,
     /// `Some(bytes)` when manual-skip onto a pre-chained track reuses bytes
     /// from the chained-info block.
     pub reuse_chained_bytes: Option<Vec<u8>>,
@@ -316,8 +319,15 @@ async fn open_ranged_or_streaming_input(
             gen: ctx.gen,
             format_hint: stream_hint.clone(),
         });
-        let loudness_hold_for_defer = (total_usize <= super::stream::TRACK_STREAM_PROMOTE_MAX_BYTES)
-            .then_some(state.ranged_loudness_seed_hold.clone());
+        let analysis_seed_hold = (total_usize <= super::stream::TRACK_STREAM_PROMOTE_MAX_BYTES)
+            .then(|| {
+                super::stream::AnalysisSeedHoldGuard::arm(
+                    Some(&state.playback_analysis_seed_hold),
+                    ctx.cache_id_for_tasks,
+                    ctx.gen,
+                )
+            })
+            .flatten();
         tokio::spawn(ranged_download_task(
             ctx.gen,
             state.generation.clone(),
@@ -336,8 +346,9 @@ async fn open_ranged_or_streaming_input(
             state.loudness_pre_analysis_attenuation_db.clone(),
             ctx.cache_id_for_tasks.map(|s| s.to_string()),
             ctx.server_id.map(|s| s.to_string()),
+            ctx.needs_partial_loudness,
             http_headers.clone(),
-            loudness_hold_for_defer,
+            analysis_seed_hold,
             playback_armed,
             stream_hint.clone(),
             tail_ready.clone(),
@@ -396,6 +407,11 @@ async fn open_ranged_or_streaming_input(
     let done = Arc::new(AtomicBool::new(false));
     state.stream_playback_armed.store(false, Ordering::SeqCst);
     let playback_armed = state.stream_playback_armed.clone();
+    let analysis_seed_hold = super::stream::AnalysisSeedHoldGuard::arm(
+        Some(&state.playback_analysis_seed_hold),
+        ctx.cache_id_for_tasks,
+        ctx.gen,
+    );
     tokio::spawn(track_download_task(
         ctx.gen,
         state.generation.clone(),
@@ -406,11 +422,9 @@ async fn open_ranged_or_streaming_input(
         prod,
         done.clone(),
         state.stream_completed_cache.clone(),
-        state.normalization_engine.clone(),
-        state.normalization_target_lufs.clone(),
-        state.loudness_pre_analysis_attenuation_db.clone(),
         ctx.cache_id_for_tasks.map(|s| s.to_string()),
         ctx.server_id.map(|s| s.to_string()),
+        analysis_seed_hold,
         http_headers,
         playback_armed,
     ));

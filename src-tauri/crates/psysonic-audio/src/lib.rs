@@ -67,4 +67,4 @@ pub fn register_post_sleep_audio_recovery(app: tauri::AppHandle) {
     let _ = app;
 }
 
-pub use engine::{analysis_track_id_is_current_playback, ranged_loudness_backfill_should_defer, stop_audio_engine};
+pub use engine::{analysis_track_id_is_current_playback, playback_analysis_backfill_should_defer, stop_audio_engine};

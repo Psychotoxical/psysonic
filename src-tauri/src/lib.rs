@@ -856,7 +856,7 @@ pub fn run() {
                     move |track_id| {
                         app_defer
                             .try_state::<crate::audio::AudioEngine>()
-                            .is_some_and(|e| crate::audio::ranged_loudness_backfill_should_defer(&e, track_id))
+                            .is_some_and(|e| crate::audio::playback_analysis_backfill_should_defer(&e, track_id))
                     },
                 );
                 app.manage(handle);

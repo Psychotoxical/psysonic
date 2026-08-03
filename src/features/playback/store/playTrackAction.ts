@@ -459,7 +459,6 @@ export function runPlayTrack(
         enginePreloadedTrackId: keepPreloadHint ? trackForPlay.id : null,
       });
       void refreshWaveformForTrack(analysisRef);
-      void refreshLoudnessForTrack(analysisRef, { syncPlayingEngine: false });
     };
 
     if (deferInterruptUi) {
@@ -497,10 +496,6 @@ export function runPlayTrack(
         enginePreloadedTrackId: keepPreloadHint ? trackForPlay.id : null,
       });
       void refreshWaveformForTrack(analysisRef);
-      void refreshLoudnessForTrack(
-        analysisRef,
-        wantInterruptBlend ? { syncPlayingEngine: false } : undefined,
-      );
     }
 
     setDeferHotCachePrefetch(true);
@@ -580,6 +575,10 @@ export function runPlayTrack(
       })
         .then(() => {
           if (getPlayGeneration() !== gen) return;
+          // `audio_play` has bound the source and installed its analysis-seed
+          // hold. Refreshing now lets a live stream suppress a parallel HTTP
+          // backfill while still populating the frontend loudness cache.
+          void refreshLoudnessForTrack(analysisRef, { syncPlayingEngine: false });
           if (wantInterruptBlend) {
             get().updateReplayGainForCurrentTrack();
           }

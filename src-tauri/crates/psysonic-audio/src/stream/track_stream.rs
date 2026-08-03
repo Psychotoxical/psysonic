@@ -6,9 +6,9 @@
 //! - response stream ends, or
 //! - response emits an error.
 
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use futures_util::StreamExt;
 use ringbuf::HeapProd;
@@ -18,7 +18,8 @@ use tauri::AppHandle;
 use super::super::engine::PlaybackHttpHeaders;
 use super::super::state::PreloadedTrack;
 use super::{
-    maybe_arm_stream_playback, TRACK_STREAM_MAX_RECONNECTS, TRACK_STREAM_PROMOTE_MAX_BYTES,
+    AnalysisSeedHoldGuard, TRACK_STREAM_MAX_RECONNECTS, TRACK_STREAM_PROMOTE_MAX_BYTES,
+    maybe_arm_stream_playback,
 };
 
 fn finish_legacy_stream_download(
@@ -47,12 +48,10 @@ pub(crate) async fn track_download_task(
     mut prod: HeapProd<u8>,
     done: Arc<AtomicBool>,
     promote_cache_slot: Arc<Mutex<Option<PreloadedTrack>>>,
-    normalization_engine: Arc<AtomicU32>,
-    normalization_target_lufs: Arc<AtomicU32>,
-    loudness_pre_analysis_attenuation_db: Arc<AtomicU32>,
     cache_track_id: Option<String>,
     // Playback server scope for the analysis-cache write key (empty/`None` → legacy '').
     server_id: Option<String>,
+    _analysis_seed_hold: Option<AnalysisSeedHoldGuard>,
     http_headers: PlaybackHttpHeaders,
     playback_armed: Arc<AtomicBool>,
 ) {
@@ -61,7 +60,6 @@ pub(crate) async fn track_download_task(
     let mut next_response: Option<reqwest::Response> = Some(initial_response);
     let mut capture: Vec<u8> = Vec::new();
     let mut capture_over_limit = false;
-    let mut last_partial_loudness_emit = Instant::now() - Duration::from_secs(5);
     'outer: loop {
         let response = if let Some(r) = next_response.take() {
             r
@@ -153,26 +151,6 @@ pub(crate) async fn track_download_task(
                         } else {
                             capture.clear();
                             capture_over_limit = true;
-                        }
-                    }
-                    if !capture_over_limit
-                        && last_partial_loudness_emit.elapsed() >= Duration::from_millis(crate::helpers::PARTIAL_LOUDNESS_EMIT_INTERVAL_MS)
-                    {
-                        last_partial_loudness_emit = Instant::now();
-                        if normalization_engine.load(Ordering::Relaxed) == 2 {
-                            let target_lufs = f32::from_bits(normalization_target_lufs.load(Ordering::Relaxed));
-                            let pre_db = f32::from_bits(
-                                loudness_pre_analysis_attenuation_db.load(Ordering::Relaxed),
-                            )
-                            .clamp(-24.0, 0.0);
-                            crate::helpers::emit_partial_loudness_from_bytes(
-                                &app,
-                                &url,
-                                server_id.as_deref(),
-                                &capture,
-                                target_lufs,
-                                pre_db,
-                            );
                         }
                     }
                     offset += pushed;

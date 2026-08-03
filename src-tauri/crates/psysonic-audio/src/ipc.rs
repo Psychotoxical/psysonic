@@ -55,9 +55,8 @@ pub(crate) fn maybe_emit_normalization_state(app: &AppHandle, payload: Normaliza
 
 /// Last `analysis:loudness-partial` gain emitted per track-identity, used to
 /// suppress emits whose gain hasn't moved meaningfully (≥ 0.1 dB). The partial
-/// heuristic in `emit_partial_loudness_from_bytes` and the ranged-progress curve
-/// both produce values that drift by hundredths of a dB even on identical input,
-/// so the time-based throttle alone is not enough to keep the loop quiet.
+/// ranged-progress curve produces values that drift by hundredths of a dB, so
+/// the time-based throttle alone is not enough to keep the loop quiet.
 pub(crate) static LAST_PARTIAL_LOUDNESS_EMIT: OnceLock<Mutex<std::collections::HashMap<String, f32>>> = OnceLock::new();
 pub(crate) const PARTIAL_LOUDNESS_DELTA_THRESHOLD_DB: f32 = 0.1;
 

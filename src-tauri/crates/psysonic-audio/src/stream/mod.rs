@@ -17,6 +17,8 @@ mod ranged_http;
 mod reader;
 mod track_stream;
 
+use std::sync::{Arc, Mutex};
+
 pub(crate) use mp4::{
     container_hint_is_mp4, isobmff_buffer_looks_complete, log_isobmff_buffer_diagnostic,
     mp4_needs_tail_prefetch, mp4_suspect_zero_holes,
@@ -43,6 +45,50 @@ pub(crate) use radio::{RadioLiveState, RadioSharedFlags, radio_download_task};
 pub(crate) use ranged_http::{OnDemand, RangedHttpSource, ranged_download_task};
 pub(crate) use reader::AudioStreamReader;
 pub(crate) use track_stream::track_download_task;
+
+pub(crate) type AnalysisSeedHold = Arc<Mutex<Option<(String, u64)>>>;
+
+/// Keeps HTTP backfill from downloading the same original while a playback
+/// stream is already collecting bytes that will seed analysis on completion.
+pub(crate) struct AnalysisSeedHoldGuard {
+    slot: AnalysisSeedHold,
+    track_id: String,
+    generation: u64,
+}
+
+impl AnalysisSeedHoldGuard {
+    pub(crate) fn arm(
+        slot: Option<&AnalysisSeedHold>,
+        track_id: Option<&str>,
+        generation: u64,
+    ) -> Option<Self> {
+        let slot = slot?;
+        let track_id = track_id?.trim();
+        if track_id.is_empty() {
+            return None;
+        }
+        if let Ok(mut guard) = slot.lock() {
+            *guard = Some((track_id.to_string(), generation));
+        } else {
+            return None;
+        }
+        Some(Self {
+            slot: Arc::clone(slot),
+            track_id: track_id.to_string(),
+            generation,
+        })
+    }
+}
+
+impl Drop for AnalysisSeedHoldGuard {
+    fn drop(&mut self) {
+        if let Ok(mut guard) = self.slot.lock() {
+            if matches!(&*guard, Some((track_id, generation)) if track_id == &self.track_id && *generation == self.generation) {
+                *guard = None;
+            }
+        }
+    }
+}
 
 // ── Shared tuning constants ──────────────────────────────────────────────────
 
@@ -139,3 +185,33 @@ pub(crate) async fn wait_for_ranged_mp4_probe_ready(gate: &RangedMp4ProbeGate) -
 
 /// Sleep interval when ring buffer is empty (prevents CPU spin).
 pub(crate) const RADIO_YIELD_MS: u64 = 2;
+
+#[cfg(test)]
+mod analysis_seed_hold_tests {
+    use super::*;
+
+    #[test]
+    fn guard_sets_and_clears_matching_generation() {
+        let slot: AnalysisSeedHold = Arc::new(Mutex::new(None));
+        let guard = AnalysisSeedHoldGuard::arm(Some(&slot), Some("track-1"), 7)
+            .expect("valid track should arm hold");
+        assert_eq!(*slot.lock().unwrap(), Some(("track-1".to_string(), 7)));
+
+        drop(guard);
+        assert_eq!(*slot.lock().unwrap(), None);
+    }
+
+    #[test]
+    fn stale_guard_does_not_clear_newer_playback_hold() {
+        let slot: AnalysisSeedHold = Arc::new(Mutex::new(None));
+        let stale = AnalysisSeedHoldGuard::arm(Some(&slot), Some("track-1"), 7)
+            .expect("valid track should arm hold");
+        let current = AnalysisSeedHoldGuard::arm(Some(&slot), Some("track-2"), 8)
+            .expect("new playback should replace hold");
+
+        drop(stale);
+        assert_eq!(*slot.lock().unwrap(), Some(("track-2".to_string(), 8)));
+        drop(current);
+        assert_eq!(*slot.lock().unwrap(), None);
+    }
+}

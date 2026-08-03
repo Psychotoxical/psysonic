@@ -9,72 +9,6 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::engine::AudioEngine;
-use crate::ipc::{
-    partial_loudness_should_emit, PartialLoudnessPayload, PARTIAL_LOUDNESS_DELTA_THRESHOLD_DB,
-};
-
-pub(crate) fn emit_partial_loudness_from_bytes(
-    app: &AppHandle,
-    url: &str,
-    server_id: Option<&str>,
-    bytes: &[u8],
-    target_lufs: f32,
-    pre_analysis_attenuation_db: f32,
-) {
-    if bytes.len() < PARTIAL_LOUDNESS_MIN_BYTES {
-        crate::app_deprintln!(
-            "[normalization] partial-loudness skip reason=insufficient-bytes bytes={} min_bytes={}",
-            bytes.len(),
-            PARTIAL_LOUDNESS_MIN_BYTES
-        );
-        return;
-    }
-    // Lightweight fallback based on buffered bytes count to keep CPU low.
-    let mb = bytes.len() as f32 / (1024.0 * 1024.0);
-    let pre_floor = pre_analysis_attenuation_db.clamp(-24.0, 0.0);
-    // Target-derived hint (e.g. -12 LUFS → -1 dB). Old `(hint).clamp(pre, 0)` left
-    // the hint when it lay inside [pre, 0] — e.g. -1 with pre=-6, so AAC/M4A
-    // streaming often sat at -1 dB until full analysis. Combine with user trim:
-    // stricter (more negative) pre wins; milder pre still caps vs the hint.
-    let heuristic_floor = (target_lufs + 11.0).clamp(-6.0, 0.0);
-    let floor_db = if pre_floor < heuristic_floor {
-        pre_floor
-    } else {
-        pre_floor.max(heuristic_floor)
-    };
-    let gain_db = (-(mb * 0.7)).max(floor_db).min(0.0);
-    let track_key = playback_identity(url).unwrap_or_else(|| url.to_string());
-    if !partial_loudness_should_emit(&track_key, gain_db) {
-        crate::app_deprintln!(
-            "[normalization] partial-loudness skip reason=delta-below-threshold gain_db={:.2} threshold_db={:.2} track_id={:?}",
-            gain_db,
-            PARTIAL_LOUDNESS_DELTA_THRESHOLD_DB,
-            playback_identity(url)
-        );
-        return;
-    }
-    crate::app_deprintln!(
-        "[normalization] partial-loudness emit bytes={} gain_db={:.2} target_lufs={:.2} track_id={:?}",
-        bytes.len(),
-        gain_db,
-        target_lufs,
-        playback_identity(url)
-    );
-    let _ = app.emit(
-        "analysis:loudness-partial",
-        PartialLoudnessPayload {
-            track_id: playback_identity(url),
-            server_index_key: {
-                let sid = crate::analysis_dispatch::resolve_server_id_for_app(app, server_id);
-                (!sid.is_empty()).then_some(sid)
-            },
-            gain_db,
-            target_lufs,
-            is_partial: true,
-        },
-    );
-}
-
 pub(crate) fn provisional_loudness_gain_from_progress(
     downloaded: usize,
     total_size: usize,
@@ -364,10 +298,6 @@ pub(crate) fn same_playback_target(a_url: &str, b_url: &str) -> bool {
 
 #[derive(Clone, Copy)]
 pub(crate) struct ResolveLoudnessCacheOpts {
-    /// When false, skip `get_latest_waveform_for_track` — `audio_update_replay_gain` runs
-    /// on every partial-LUFS tick; loudness gain does not depend on waveform, and the extra
-    /// SQLite read was pure overhead on the IPC path.
-    pub(crate) touch_waveform: bool,
     /// When false, omit `cache-miss` / `cache-invalid` debug lines (still log hits and errors).
     pub(crate) log_soft_misses: bool,
 }
@@ -375,7 +305,6 @@ pub(crate) struct ResolveLoudnessCacheOpts {
 impl Default for ResolveLoudnessCacheOpts {
     fn default() -> Self {
         Self {
-            touch_waveform: true,
             log_soft_misses: true,
         }
     }
@@ -434,9 +363,6 @@ pub(crate) fn resolve_loudness_gain_from_cache_impl(
 /// recommended gain in dB, or `None` for any miss / non-finite / error case.
 /// Pulled out so tests can drive every branch via `AnalysisCache::open_in_memory()`.
 ///
-/// `opts.touch_waveform` keeps parity with production behaviour: when binding
-/// a track, we also touch `get_latest_waveform_for_track` so the SQLite
-/// connection's row cache is warm for the next IPC tick.
 pub(crate) fn resolve_loudness_gain_with_cache(
     cache: &psysonic_analysis::analysis_cache::AnalysisCache,
     server_id: &str,
@@ -444,10 +370,6 @@ pub(crate) fn resolve_loudness_gain_with_cache(
     target_lufs: f32,
     opts: ResolveLoudnessCacheOpts,
 ) -> Option<f32> {
-    if opts.touch_waveform {
-        // Bind / preload: verify waveform context exists alongside loudness lookup.
-        let _ = cache.get_latest_waveform_for_track(server_id, track_id);
-    }
     match cache.get_latest_loudness_for_track(server_id, track_id) {
         Ok(Some(row)) if row.integrated_lufs.is_finite() => {
             let recommended = psysonic_analysis::analysis_cache::recommended_gain_for_target(
@@ -552,6 +474,13 @@ pub(crate) struct TrackGainInputs {
     /// post-`loudness_gain_db_after_resolve` value, otherwise the raw cache
     /// resolution (or `None` when not in normalisation mode).
     pub(crate) effective_loudness_db: Option<f32>,
+}
+
+impl TrackGainInputs {
+    /// Partial stream hints are only useful until a final SQLite loudness row exists.
+    pub(crate) fn needs_partial_loudness(self) -> bool {
+        self.cache_loudness_db.is_none()
+    }
 }
 
 /// Read engine state + resolve the loudness cache for a track that's about to
@@ -1592,16 +1521,21 @@ mod tests {
     }
 
     #[test]
-    fn resolve_with_cache_touch_waveform_false_does_not_panic() {
-        // Smoke: opts.touch_waveform=false must not cause an SQL error or panic.
-        let cache = AnalysisCache::open_in_memory();
-        upsert_loudness_row(&cache, "abc", -20.0, -14.0);
-        let opts = ResolveLoudnessCacheOpts {
-            touch_waveform: false,
-            log_soft_misses: false,
+    fn cached_gain_disables_partial_loudness_hints() {
+        let cached = TrackGainInputs {
+            target_lufs: -14.0,
+            norm_mode: 2,
+            cache_loudness_db: Some(-6.0),
+            effective_loudness_db: Some(-6.0),
         };
-        let g = resolve_loudness_gain_with_cache(&cache, "", "abc", -14.0, opts);
-        assert!(g.is_some());
+        let uncached = TrackGainInputs {
+            cache_loudness_db: None,
+            effective_loudness_db: Some(-4.5),
+            ..cached
+        };
+
+        assert!(!cached.needs_partial_loudness());
+        assert!(uncached.needs_partial_loudness());
     }
 }
 

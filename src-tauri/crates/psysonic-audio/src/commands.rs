@@ -198,6 +198,13 @@ pub async fn audio_play(
     *state.current_playback_server_id.lock().unwrap() = analysis_server_id.map(str::to_string);
 
     let format_hint = url_format_hint(&url);
+    let gain_inputs = resolve_track_gain_inputs(
+        &state,
+        &app,
+        &url,
+        logical_trim.as_deref(),
+        loudness_gain_db,
+    );
 
     let play_input = match select_play_input(
         PlayInputContext {
@@ -208,6 +215,7 @@ pub async fn audio_play(
             format_hint: format_hint.as_deref(),
             cache_id_for_tasks: cache_id_for_tasks.as_deref(),
             server_id: analysis_server_id,
+            needs_partial_loudness: gain_inputs.needs_partial_loudness(),
             reuse_chained_bytes,
         },
         &state,
@@ -232,7 +240,6 @@ pub async fn audio_play(
         return Ok(());
     }
 
-    let gain_inputs = resolve_track_gain_inputs(&state, &app, &url, logical_trim.as_deref(), loudness_gain_db);
     let (gain_linear, effective_volume) = compute_gain(
         gain_inputs.norm_mode,
         replay_gain_db,

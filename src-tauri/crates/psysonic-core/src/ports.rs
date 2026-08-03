@@ -43,9 +43,9 @@ impl PlaybackQueryHandle {
         (self.is_playing)(track_id)
     }
 
-    /// `true` if a ranged HTTP playback for `track_id` is mid-flight and will
+    /// `true` if an HTTP playback for `track_id` is mid-flight and will
     /// seed analysis on completion — the backfill enqueue should defer.
-    pub fn ranged_loudness_backfill_should_defer(&self, track_id: &str) -> bool {
+    pub fn analysis_backfill_should_defer(&self, track_id: &str) -> bool {
         (self.should_defer_backfill)(track_id)
     }
 }
