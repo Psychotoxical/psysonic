@@ -16,7 +16,8 @@ import { fadeOut } from '@/features/playback/utils/playback/fadeOut';
 import { invalidateRadioCoverArtCache } from '@/cover/radioCoverInvalidation';
 import { useTranslation } from 'react-i18next';
 import { showToast } from '@/lib/dom/toast';
-import RadioToolbar from '@/features/radio/components/RadioToolbar';
+import RadioToolbar, { type RadioSortBy } from '@/features/radio/components/RadioToolbar';
+import CustomSelect from '@/ui/CustomSelect';
 import AlphabetFilterBar from '@/features/radio/components/AlphabetFilterBar';
 import RadioCard from '@/features/radio/components/RadioCard';
 import RadioEditModal from '@/features/radio/components/RadioEditModal';
@@ -72,7 +73,13 @@ export default function InternetRadio() {
   const mutationGenerationRef = useRef(0);
   const reloadGenerationByServerRef = useRef(new Map<string, number>());
 
-  const [sortBy, setSortBy] = useState<'manual' | 'az' | 'za' | 'newest'>('manual');
+  const [sortBy, setSortBy] = useState<RadioSortBy>('manual');
+  const sortOptions = [
+    { value: 'manual', label: t('radio.sortManual') },
+    { value: 'az', label: t('radio.sortAZ') },
+    { value: 'za', label: t('radio.sortZA') },
+    { value: 'newest', label: t('radio.sortNewest') },
+  ];
   const [activeFilter, setActiveFilter] = useState('all');
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(() => {
@@ -348,7 +355,15 @@ export default function InternetRadio() {
       {/* ── Header ── */}
       <div className="playlists-header">
         <h1 className="page-title" style={{ marginBottom: 0 }}>{t('radio.title')}</h1>
-        <div className="compact-action-bar" style={{ display: 'flex', gap: 8 }}>
+        <div className="compact-action-bar" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {stations.length > 0 && (
+            <CustomSelect
+              value={sortBy}
+              options={sortOptions}
+              onChange={v => setSortBy(v as RadioSortBy)}
+              style={{ width: 'max-content', minWidth: 130, maxWidth: 220, flexShrink: 0 }}
+            />
+          )}
           {targetServerId && (<>
               <button className="btn btn-primary" onClick={() => setDirectoryOpen(true)} aria-label={t('radio.browseDirectory')} data-tooltip={t('radio.browseDirectory')}>
                 <Search size={14} /> <span className="compact-btn-label">{t('radio.browseDirectory')}</span>
@@ -366,9 +381,7 @@ export default function InternetRadio() {
       ) : (
         <>
           <RadioToolbar
-            sortBy={sortBy}
             activeFilter={activeFilter}
-            onSortChange={setSortBy}
             onFilterChange={f => { setActiveFilter(f); setActiveLetter(null); }}
           />
           <AlphabetFilterBar
