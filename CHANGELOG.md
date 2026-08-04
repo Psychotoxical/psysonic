@@ -106,6 +106,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The visualizer can now be switched on for the fullscreen player alone, or for **Now Playing** alone, under **Settings → Appearance → Visualizer**. An existing off setting is kept as it was.
 * The section's controls are grouped into two panels, and long option names such as the radial scope are no longer cut off in translated interfaces.
 
+### Performance benchmarks — measure real pages from the CLI
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1382](https://github.com/Psychotoxical/psysonic/pull/1382)**
+
+* `psysonic benchmark run` drives the running desktop app through representative core or all-page scenarios, with realistic and isolated profiles plus repeatable run counts.
+* JSON reports retain route readiness, React work, quiet time, long tasks and environment details, then compare each run with the previous matching report.
+
 ## Changed
 
 ### Library index — designed for several live servers at once
@@ -123,6 +130,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Psysonic tracks readiness, sync progress and reachability independently for every configured server. Available servers remain browsable while another selected server is offline, still indexing or recovering from an interrupted sync.
 * Full and delta sync preserve source ownership through remaps, deletions and tombstones; no-op syncs avoid unnecessary catalogue refreshes, and stale multi-server state is repaired automatically.
 * Scope indicators retain the total server count when one is unavailable, while the Library picker reports selected music libraries instead of server profiles.
+
+### Library browsing — less repeated work on large catalogues
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1382](https://github.com/Psychotoxical/psysonic/pull/1382)**
+
+* Home, Albums, Artists, New Releases, Lossless Albums and Search reuse bounded local results instead of repeating large scoped reads while routes mount, paginate or restore their session.
+* Browse pages coordinate cover traffic and background catalogue work more carefully, so the first useful content appears before non-visible enrichment and prefetch work.
 
 ## Fixed
 
@@ -305,6 +319,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The row for a custom HTTP header no longer pushes its remove button onto a second line where it filled a whole column and looked like another input field.
 * On a genre page, the add-to-queue button now matches the height of **Play** and carries a proper label for screen readers.
 * Internet radio shows its sort picker next to the browse and add buttons instead of on a separate line below them.
+
+### Genres — accurate scoped counts without the long detail-page wait
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1382](https://github.com/Psychotoxical/psysonic/pull/1382)**
+
+* Genre Detail no longer presents the first 60 loaded albums as the total. Multi-server pages show a cached value immediately when available, then settle on the exact de-duplicated count.
+* All Albums genre counters follow every selected server and music folder instead of the active server or a temporary server-wide fallback. Genre album pages now drive from the indexed genre rows, cutting the measured first-page database read from about 1.1 seconds to about 0.37 seconds on a large three-server library.
 
 ## [1.50.0]
 
