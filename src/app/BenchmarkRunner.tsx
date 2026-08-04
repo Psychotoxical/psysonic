@@ -6,6 +6,7 @@ import { commands } from '@/generated/bindings';
 import { APP_MAIN_SCROLL_VIEWPORT_ID, mainRouteInpageScrollViewportId } from '@/constants/appScroll';
 import { deriveLibraryBrowseScope } from '@/lib/library/libraryBrowseScope';
 import { useAuthStore } from '@/store/authStore';
+import { useMigrationStore } from '@/store/migrationStore';
 import { getAlbumBrowseTraceSnapshot } from '@/lib/library/albumBrowseDebug';
 import { getArtistBrowseTraceSnapshot } from '@/lib/library/artistBrowseDebug';
 import { getFavoritesBrowseTraceSnapshot } from '@/lib/library/favoritesBrowseDebug';
@@ -17,6 +18,7 @@ import {
 } from '@/features/home/store/mainstageDiagnosticStore';
 import {
   getPsyLabDebugTraceOverrides,
+  refreshPsyLabDebugTraceSubscribers,
   setPsyLabDebugTraceOverrides,
   type PsyLabDebugTraces,
 } from '@/lib/perf/psyLabDebugTraces';
@@ -30,6 +32,7 @@ import {
 } from '@/cover/coverTraffic';
 import { benchmarkRouteMatchesLocation, resolveBenchmarkRoutes } from './benchmarkRoutes';
 import {
+  benchmarkRouteTerminalSteps,
   beginBenchmarkReactCollection,
   benchmarkSectionsReady,
   finishBenchmarkReactCollection,
@@ -42,6 +45,8 @@ import {
 
 const ROUTE_TIMEOUT_MS = 30_000;
 const STABLE_WINDOW_MS = 700;
+const CPU_SNAPSHOT_TIMEOUT_MS = 2_000;
+const MIGRATION_READY_TIMEOUT_MS = 60_000;
 const BENCHMARK_TRACE_OVERRIDES: PsyLabDebugTraces = {
   albumsBrowse: true,
   artistsBrowse: true,
@@ -52,6 +57,27 @@ const BENCHMARK_TRACE_OVERRIDES: PsyLabDebugTraces = {
 
 function nextFrame(): Promise<void> {
   return new Promise(resolve => requestAnimationFrame(() => resolve()));
+}
+
+function waitForMigrationReady(): Promise<void> {
+  if (useMigrationStore.getState().phase === 'completed') return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      unsubscribe();
+      reject(new Error('benchmark startup timed out waiting for migrations'));
+    }, MIGRATION_READY_TIMEOUT_MS);
+    const unsubscribe = useMigrationStore.subscribe(state => {
+      if (state.phase === 'completed') {
+        window.clearTimeout(timeout);
+        unsubscribe();
+        resolve();
+      } else if (state.phase === 'error') {
+        window.clearTimeout(timeout);
+        unsubscribe();
+        reject(new Error(state.lastError ?? 'benchmark startup migration failed'));
+      }
+    });
+  });
 }
 
 function waitForPath(route: string, timeoutMs: number): Promise<number> {
@@ -73,27 +99,33 @@ function waitForPath(route: string, timeoutMs: number): Promise<number> {
 }
 
 function semanticRouteReady(route: string): boolean {
-  if (route === '/albums') {
-    return getAlbumBrowseTraceSnapshot().some(entry => entry.step === 'ui_loading_false');
-  }
-  if (route === '/artists') {
-    return getArtistBrowseTraceSnapshot().some(entry => entry.step === 'loading_false');
-  }
-  if (route === '/tracks') {
-    return getTrackBrowseTraceSnapshot().some(entry => (
-      entry.step === 'load_effect_done' ||
-      entry.step === 'load_more_done' ||
-      entry.step === 'load_more_error'
-    ));
-  }
-  if (route === '/favorites') {
-    return getFavoritesBrowseTraceSnapshot().some(entry => entry.step === 'load_complete');
-  }
   if (route === '/') {
     const sections = Object.values(useMainstageDiagnosticStore.getState().sections);
     return benchmarkSectionsReady(sections.map(section => section.status));
   }
-  return true;
+  const terminalSteps = benchmarkRouteTerminalSteps(route);
+  if (terminalSteps.length === 0) return true;
+  const entries = route === '/albums'
+    ? getAlbumBrowseTraceSnapshot()
+    : route === '/artists'
+      ? getArtistBrowseTraceSnapshot()
+      : route === '/tracks'
+        ? getTrackBrowseTraceSnapshot()
+        : getFavoritesBrowseTraceSnapshot();
+  return entries.some(entry => terminalSteps.includes(entry.step));
+}
+
+function currentRoute(): string {
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+}
+
+function routeReadinessDetails(route: string): unknown {
+  if (route === '/') return useMainstageDiagnosticStore.getState().sections;
+  if (route === '/albums') return getAlbumBrowseTraceSnapshot().slice(-12);
+  if (route === '/artists') return getArtistBrowseTraceSnapshot().slice(-12);
+  if (route === '/tracks') return getTrackBrowseTraceSnapshot().slice(-12);
+  if (route === '/favorites') return getFavoritesBrowseTraceSnapshot().slice(-12);
+  return undefined;
 }
 
 function waitForRouteReadiness(route: string, timeoutMs: number): Promise<{ durationMs: number; timedOut: boolean }> {
@@ -162,7 +194,13 @@ function routeScrollMetrics(route: string): { scrollHeight: number; viewportHeig
 }
 
 async function cpuSnapshot(): Promise<unknown> {
-  const result = await commands.performanceCpuSnapshot(false);
+  let timeoutId: number | undefined;
+  const timeout = new Promise<{ status: 'timeout' }>(resolve => {
+    timeoutId = window.setTimeout(() => resolve({ status: 'timeout' }), CPU_SNAPSHOT_TIMEOUT_MS);
+  });
+  const result = await Promise.race([commands.performanceCpuSnapshot(false), timeout]);
+  if (timeoutId != null) window.clearTimeout(timeoutId);
+  if (result.status === 'timeout') return { error: 'cpu snapshot timed out' };
   return result.status === 'ok' ? result.data : { error: result.error };
 }
 
@@ -199,6 +237,7 @@ export default function BenchmarkRunner() {
       let reportPayload: BenchmarkReport | Record<string, unknown>;
       try {
         document.documentElement.setAttribute('data-benchmark-running', 'true');
+        await waitForMigrationReady();
         routeResolution = await resolveBenchmarkRoutes(request.scenario);
         const routes = routeResolution.routes;
         const initialLogs = await commands.tailRuntimeLogs(null, 1);
@@ -211,14 +250,22 @@ export default function BenchmarkRunner() {
         if (request.profile === 'isolated') {
           await coverTrafficSetBenchmarkHold(true);
         }
+        navigate('/__benchmark-transition');
+        await waitForPath('/__benchmark-transition', ROUTE_TIMEOUT_MS);
+        await nextFrame();
+        await nextFrame();
         for (let iteration = 1; iteration <= request.runs; iteration += 1) {
           for (const route of routes) {
-            navigate('/__benchmark-transition');
-            await waitForPath('/__benchmark-transition', ROUTE_TIMEOUT_MS);
-            await nextFrame();
-            await nextFrame();
+            if (request.profile === 'isolated') {
+              navigate('/__benchmark-transition');
+              await waitForPath('/__benchmark-transition', ROUTE_TIMEOUT_MS);
+              await nextFrame();
+              await nextFrame();
+            }
+            const fromRoute = currentRoute();
+            const cpuBefore = await cpuSnapshot();
             const totalStarted = performance.now();
-            const resourceStarted = performance.getEntriesByType('resource').length;
+            const resourceStartedAt = totalStarted;
             const longTasks: number[] = [];
             const longTaskObserver = typeof PerformanceObserver !== 'undefined'
               ? new PerformanceObserver(list => {
@@ -230,42 +277,50 @@ export default function BenchmarkRunner() {
             } catch {
               longTaskObserver?.disconnect();
             }
-            const cpuBefore = await cpuSnapshot();
             beginBenchmarkReactCollection(route);
             if (route === '/') useMainstageDiagnosticStore.getState().reset();
             navigate(route);
             let navigationMs = 0;
-            let stable = { durationMs: ROUTE_TIMEOUT_MS, mutationCount: 0, timedOut: true };
+            let readiness = { durationMs: ROUTE_TIMEOUT_MS, timedOut: true };
+            let quiet = { durationMs: 0, mutationCount: 0, timedOut: false };
             try {
               navigationMs = await waitForPath(route, ROUTE_TIMEOUT_MS);
               await nextFrame();
               await nextFrame();
-              const readiness = await waitForRouteReadiness(route, ROUTE_TIMEOUT_MS);
-              const domStable = await waitForRouteStability(route);
-              stable = {
-                durationMs: readiness.durationMs + domStable.durationMs,
-                mutationCount: domStable.mutationCount,
-                timedOut: readiness.timedOut || domStable.timedOut,
-              };
+              if (route === '/') {
+                refreshPsyLabDebugTraceSubscribers();
+                await nextFrame();
+              }
+              readiness = await waitForRouteReadiness(route, ROUTE_TIMEOUT_MS);
+              quiet = await waitForRouteStability(route);
             } catch {
-              stable.timedOut = true;
+              readiness.timedOut = true;
             }
             longTaskObserver?.disconnect();
             const commits = finishBenchmarkReactCollection(route);
             const host = document.querySelector('.app-shell-route-host');
             const images = host ? [...host.querySelectorAll('img')] : [];
             const scroll = routeScrollMetrics(route);
-            const resources = performance.getEntriesByType('resource').slice(resourceStarted);
+            const resources = performance.getEntriesByType('resource')
+              .filter(entry => entry.startTime >= resourceStartedAt);
+            const totalMs = Math.round(performance.now() - totalStarted);
             const cpuAfter = await cpuSnapshot();
             pages.push({
               route,
+              fromRoute,
+              actualRoute: currentRoute(),
               iteration,
               temperature: iteration === 1 ? 'cold' : 'warm',
               navigationMs,
-              stableMs: stable.durationMs,
-              totalMs: Math.round(performance.now() - totalStarted),
-              timedOut: stable.timedOut,
-              mutationCount: stable.mutationCount,
+              readinessMs: readiness.durationMs,
+              quietAfterReadyMs: quiet.durationMs,
+              stableMs: readiness.durationMs + quiet.durationMs,
+              totalMs,
+              timedOut: readiness.timedOut || quiet.timedOut,
+              readinessTimedOut: readiness.timedOut,
+              stabilityTimedOut: quiet.timedOut,
+              readinessDetails: routeReadinessDetails(route),
+              mutationCount: quiet.mutationCount,
               longTaskCount: longTasks.length,
               longTaskTotalMs: Math.round(longTasks.reduce((sum, value) => sum + value, 0)),
               resourceCount: resources.length,

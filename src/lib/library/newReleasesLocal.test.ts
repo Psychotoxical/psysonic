@@ -76,4 +76,20 @@ describe('loadLocalNewReleases', () => {
     await loadLocalNewReleases('server-a', [{ serverId: 'server-a', libraryId: 'a1' }], 30, 0, [], true);
     expect(libraryScopeListMainstageAlbums.mock.calls[1][1].includeGenreCounts).toBe(true);
   });
+
+  it('joins identical in-flight requests', async () => {
+    let resolve!: (value: { albums: never[]; hasMore: boolean; genreCounts: never[] }) => void;
+    const pending = new Promise<{ albums: never[]; hasMore: boolean; genreCounts: never[] }>(res => {
+      resolve = res;
+    });
+    libraryScopeListMainstageAlbums.mockReturnValue(pending);
+    const scopes = [{ serverId: 'server-a', libraryId: 'a1' }];
+
+    const first = loadLocalNewReleases('server-a', scopes, 30, 0, [], true);
+    const second = loadLocalNewReleases('server-a', scopes, 30, 0, [], true);
+    expect(libraryScopeListMainstageAlbums).toHaveBeenCalledTimes(1);
+
+    resolve({ albums: [], hasMore: false, genreCounts: [] });
+    await expect(Promise.all([first, second])).resolves.toHaveLength(2);
+  });
 });

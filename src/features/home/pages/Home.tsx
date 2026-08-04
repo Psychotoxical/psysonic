@@ -16,7 +16,11 @@ import {
   getMixMinRatingsConfigFromAuth,
 } from '@/features/playback/utils/mixRatingFilter';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
-import { isPsyLabDebugTraceEnabled, usePsyLabDebugTraces } from '@/lib/perf/psyLabDebugTraces';
+import {
+  usePsyLabDebugTraceEnabled,
+  usePsyLabDebugTraceRevision,
+  usePsyLabDebugTraces,
+} from '@/lib/perf/psyLabDebugTraces';
 import { bumpPerfCounter } from '@/lib/perf/perfTelemetry';
 import { useLibraryCoverPrefetch } from '@/cover/useLibraryCoverPrefetch';
 import { primeAlbumCoversForDisplay, warmHomeMainstageCovers } from '@/cover/warmDiskPeek';
@@ -98,7 +102,8 @@ export default function Home() {
   const homeSongRailsDisabled = perfFlags.disableMainstageRails || perfFlags.disableHomeSongRails;
   const homeRailArtworkDisabled = perfFlags.disableMainstageRailArtwork || perfFlags.disableHomeRailArtwork;
   const mainstageDiagnosticsVisible = usePsyLabDebugTraces().mainstage;
-  const mainstageDiagnosticsEnabled = isPsyLabDebugTraceEnabled('mainstage');
+  const mainstageDiagnosticsEnabled = usePsyLabDebugTraceEnabled('mainstage');
+  const mainstageDiagnosticsRevision = usePsyLabDebugTraceRevision();
   const homeSections = useHomeStore(s => s.sections);
   const diagnosticEnabled = useMainstageDiagnosticStore(useShallow(state => ({
     hero: state.sections.hero.enabled,
@@ -186,6 +191,7 @@ export default function Home() {
   const displayedSnapshotRef = useRef<HomeFeedSnapshot | null>(initialFeed);
   const feedLoadVersionRef = useRef(0);
   const appliedSyncRevisionRef = useRef(librarySyncRevision);
+  const previousConnStatusRef = useRef(connStatus);
   const activeScopeRef = useRef({ scopeKey, scopeVersion });
 
   useLayoutEffect(() => {
@@ -240,12 +246,34 @@ export default function Home() {
   );
 
   useEffect(() => {
+    void mainstageDiagnosticsRevision;
+    if (!mainstageDiagnosticsEnabled) return;
+    const displayed = displayedSnapshotRef.current;
+    if (!displayed || displayed.scopeKey !== scopeKey || displayed.scopeVersion !== scopeVersion) return;
+    reportCachedHomeDiagnostics(
+      displayed,
+      id => (homeSections.find(section => section.id === id)?.visible ?? true) && diagnosticEnabled[id],
+      finishDiagnostic,
+    );
+  }, [
+    diagnosticEnabled,
+    finishDiagnostic,
+    homeSections,
+    mainstageDiagnosticsEnabled,
+    mainstageDiagnosticsRevision,
+    scopeKey,
+    scopeVersion,
+  ]);
+
+  useEffect(() => {
     if (!migrationReady || serverIds.length === 0 || !scopeKey || !anchorServerId) return;
     let cancelled = false;
     const loadVersion = ++feedLoadVersionRef.current;
     const isCurrentLoad = () => !cancelled && feedLoadVersionRef.current === loadVersion;
     const syncRefresh = appliedSyncRevisionRef.current !== librarySyncRevision;
     appliedSyncRevisionRef.current = librarySyncRevision;
+    const reconnectRefresh = previousConnStatusRef.current !== 'connected' && connStatus === 'connected';
+    previousConnStatusRef.current = connStatus;
     const startFreshHomeFeed = () => {
       const mixCfg = getMixMinRatingsConfigFromAuth();
       const albumMix =
@@ -371,9 +399,9 @@ export default function Home() {
           limit: 6,
         });
       }
-      // Keep cached content for first paint, then refresh this visit as soon as
-      // the independent server bundle is ready.
-      if (!offlineBrowseActive || syncRefresh) {
+      // The cache TTL owns ordinary revisit freshness. Avoid reshuffling and
+      // rerendering the full Mainstage unless library data changed or connectivity recovered.
+      if (syncRefresh || reconnectRefresh) {
         void (async () => {
           try {
             const freshLoad = startFreshHomeFeed();

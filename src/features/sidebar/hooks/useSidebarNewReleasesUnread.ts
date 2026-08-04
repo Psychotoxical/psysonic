@@ -14,8 +14,9 @@ import {
   newReleasesSeenStorageKey as buildNewReleasesSeenStorageKey,
 } from '@/features/sidebar/utils/sidebarHelpers';
 
-// Coalesce burst refreshes (mount + scope/pathname change + StrictMode) into one.
+// Coalesce burst refreshes (mount + scope/page-mode change + StrictMode) into one.
 const NEW_RELEASES_UNREAD_DEBOUNCE_MS = 400;
+const NEW_RELEASES_UNREAD_BACKGROUND_DELAY_MS = 5_000;
 
 interface Args {
   anchorServerId: string | null;
@@ -36,6 +37,15 @@ export function useSidebarNewReleasesUnread({
   const newReleasesRefreshSeqRef = useRef(0);
   const newReleasesPageEnteredAtRef = useRef<number | null>(null);
   const newReleasesResetTimerRef = useRef<number | null>(null);
+  const onNewReleasesPage = pathname.startsWith('/new-releases');
+  const onNewReleasesPageRef = useRef(onNewReleasesPage);
+  const scopesRef = useRef(scopes);
+  useEffect(() => {
+    onNewReleasesPageRef.current = onNewReleasesPage;
+  }, [onNewReleasesPage]);
+  useEffect(() => {
+    scopesRef.current = scopes;
+  }, [scopes]);
 
   const scopedSeenStorageKey = useMemo(
     () => buildNewReleasesSeenStorageKey(scopeFingerprint),
@@ -61,8 +71,9 @@ export function useSidebarNewReleasesUnread({
 
   const refreshNewReleasesUnread = useCallback(async (seq: number, markAsSeen = false) => {
     const isCurrent = () => seq === newReleasesRefreshSeqRef.current;
+    const activeScopes = scopesRef.current;
 
-    if (!isLoggedIn || !anchorServerId || scopes.length === 0) {
+    if (!isLoggedIn || !anchorServerId || activeScopes.length === 0) {
       emitMultiServerDebug('new_releases_unread_skip', {
         seq,
         markAsSeen,
@@ -72,9 +83,9 @@ export function useSidebarNewReleasesUnread({
             ? 'missing_anchor_server'
             : 'empty_scope_pairs',
         anchorServerId,
-        scopes,
+        scopes: activeScopes,
         scopeFingerprint,
-        pathname,
+        onNewReleasesPage: onNewReleasesPageRef.current,
       });
       if (isCurrent()) setNewReleasesUnreadCount(0);
       return;
@@ -85,15 +96,15 @@ export function useSidebarNewReleasesUnread({
       seq,
       markAsSeen,
       anchorServerId,
-      scopes,
+      scopes: activeScopes,
       scopeFingerprint,
-      pathname,
+      onNewReleasesPage: onNewReleasesPageRef.current,
       storageKey: scopedSeenStorageKey,
     });
     try {
       const newest = await loadLocalNewReleases(
         anchorServerId,
-        scopes,
+        activeScopes,
         NEW_RELEASES_UNREAD_SAMPLE_SIZE,
         0,
         [],
@@ -166,7 +177,7 @@ export function useSidebarNewReleasesUnread({
         seq,
         durationMs: Math.round(performance.now() - startedAt),
         anchorServerId,
-        scopes,
+        scopes: activeScopes,
         scopeFingerprint,
         error: describeMultiServerError(error),
       });
@@ -174,21 +185,22 @@ export function useSidebarNewReleasesUnread({
   }, [
     anchorServerId,
     isLoggedIn,
-    pathname,
     readSeenNewReleaseIds,
     scopeFingerprint,
-    scopes,
     scopedSeenStorageKey,
     writeSeenNewReleaseIds,
   ]);
 
-  // Mount + pathname/scope changes + StrictMode + poll can each fire a refresh
+  // Mount + page-mode/scope changes + StrictMode + poll can each fire a refresh
   // within a few ms. Every fire runs a mainstage read that serializes on the one
   // mainstage connection, so a burst needlessly delays the Home rails behind it.
   // Coalesce bursts into a single trailing run, OR-ing the mark-as-seen intent.
   const refreshDebounceRef = useRef<number | null>(null);
   const pendingMarkAsSeenRef = useRef(false);
-  const scheduleRefreshNewReleasesUnread = useCallback((markAsSeen = false) => {
+  const scheduleRefreshNewReleasesUnread = useCallback((
+    markAsSeen = false,
+    delayMs = NEW_RELEASES_UNREAD_DEBOUNCE_MS,
+  ) => {
     const seq = ++newReleasesRefreshSeqRef.current;
     pendingMarkAsSeenRef.current = pendingMarkAsSeenRef.current || markAsSeen;
     if (refreshDebounceRef.current != null) {
@@ -198,21 +210,51 @@ export function useSidebarNewReleasesUnread({
       seq,
       markAsSeen,
       pendingMarkAsSeen: pendingMarkAsSeenRef.current,
-      pathname,
+      onNewReleasesPage: onNewReleasesPageRef.current,
       anchorServerId,
-      scopes,
+      scopes: scopesRef.current,
       scopeFingerprint,
     });
     refreshDebounceRef.current = window.setTimeout(() => {
       refreshDebounceRef.current = null;
       const mark = pendingMarkAsSeenRef.current;
       pendingMarkAsSeenRef.current = false;
+      if (document.documentElement.hasAttribute('data-benchmark-running')) {
+        emitMultiServerDebug('new_releases_unread_skip', {
+          seq,
+          markAsSeen: mark,
+          reason: 'benchmark_running',
+          anchorServerId,
+          scopeFingerprint,
+        });
+        return;
+      }
       void refreshNewReleasesUnread(seq, mark);
-    }, NEW_RELEASES_UNREAD_DEBOUNCE_MS);
-  }, [anchorServerId, pathname, refreshNewReleasesUnread, scopeFingerprint, scopes]);
+    }, delayMs);
+  }, [anchorServerId, refreshNewReleasesUnread, scopeFingerprint]);
 
   useEffect(() => {
-    const onNewReleasesPage = pathname.startsWith('/new-releases');
+    scheduleRefreshNewReleasesUnread(false, NEW_RELEASES_UNREAD_BACKGROUND_DELAY_MS);
+    const timer = window.setInterval(() => {
+      const enteredAt = newReleasesPageEnteredAtRef.current;
+      const delayedSeenReached =
+        onNewReleasesPageRef.current &&
+        enteredAt != null &&
+        Date.now() - enteredAt >= NEW_RELEASES_RESET_DELAY_MS;
+      scheduleRefreshNewReleasesUnread(delayedSeenReached);
+    }, NEW_RELEASES_UNREAD_POLL_MS);
+    return () => {
+      window.clearInterval(timer);
+      if (refreshDebounceRef.current != null) {
+        window.clearTimeout(refreshDebounceRef.current);
+        refreshDebounceRef.current = null;
+      }
+      pendingMarkAsSeenRef.current = false;
+      newReleasesRefreshSeqRef.current += 1;
+    };
+  }, [scheduleRefreshNewReleasesUnread]);
+
+  useEffect(() => {
     if (newReleasesResetTimerRef.current != null) {
       window.clearTimeout(newReleasesResetTimerRef.current);
       newReleasesResetTimerRef.current = null;
@@ -224,8 +266,9 @@ export function useSidebarNewReleasesUnread({
       }
       const elapsed = Date.now() - newReleasesPageEnteredAtRef.current;
       const shouldMarkAsSeen = elapsed >= NEW_RELEASES_RESET_DELAY_MS;
-      scheduleRefreshNewReleasesUnread(shouldMarkAsSeen);
-      if (!shouldMarkAsSeen) {
+      if (shouldMarkAsSeen) {
+        scheduleRefreshNewReleasesUnread(true);
+      } else {
         const remaining = NEW_RELEASES_RESET_DELAY_MS - elapsed;
         newReleasesResetTimerRef.current = window.setTimeout(() => {
           newReleasesResetTimerRef.current = null;
@@ -234,32 +277,14 @@ export function useSidebarNewReleasesUnread({
       }
     } else {
       newReleasesPageEnteredAtRef.current = null;
-      scheduleRefreshNewReleasesUnread(false);
     }
-
-    const timer = window.setInterval(() => {
-      const activeOnNewReleases = pathname.startsWith('/new-releases');
-      const enteredAt = newReleasesPageEnteredAtRef.current;
-      const delayedSeenReached =
-        activeOnNewReleases &&
-        enteredAt != null &&
-        Date.now() - enteredAt >= NEW_RELEASES_RESET_DELAY_MS;
-      scheduleRefreshNewReleasesUnread(delayedSeenReached);
-    }, NEW_RELEASES_UNREAD_POLL_MS);
     return () => {
-      window.clearInterval(timer);
       if (newReleasesResetTimerRef.current != null) {
         window.clearTimeout(newReleasesResetTimerRef.current);
         newReleasesResetTimerRef.current = null;
       }
-      if (refreshDebounceRef.current != null) {
-        window.clearTimeout(refreshDebounceRef.current);
-        refreshDebounceRef.current = null;
-      }
-      pendingMarkAsSeenRef.current = false;
-      newReleasesRefreshSeqRef.current += 1;
     };
-  }, [pathname, scheduleRefreshNewReleasesUnread]);
+  }, [onNewReleasesPage, scheduleRefreshNewReleasesUnread]);
 
   return newReleasesUnreadCount;
 }

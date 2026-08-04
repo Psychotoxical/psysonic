@@ -18,9 +18,11 @@ const DEFAULT_TRACES: PsyLabDebugTraces = {
 
 let traces: PsyLabDebugTraces = { ...DEFAULT_TRACES };
 let runtimeOverrides: Partial<PsyLabDebugTraces> = {};
+let traceRevision = 0;
 const listeners = new Set<() => void>();
 
 function emit(): void {
+  traceRevision += 1;
   listeners.forEach(fn => fn());
 }
 
@@ -77,6 +79,10 @@ export function subscribePsyLabDebugTraces(cb: () => void): () => void {
   return () => listeners.delete(cb);
 }
 
+export function refreshPsyLabDebugTraceSubscribers(): void {
+  emit();
+}
+
 export function isPsyLabDebugTraceEnabled(id: PsyLabDebugTraceId): boolean {
   return runtimeOverrides[id] ?? traces[id];
 }
@@ -88,6 +94,7 @@ export function getPsyLabDebugTraceOverrides(): Partial<PsyLabDebugTraces> {
 /** Runtime-only trace overrides for automated diagnostics; never persist or alter the PsyLab UI. */
 export function setPsyLabDebugTraceOverrides(next: Partial<PsyLabDebugTraces> | null): Promise<void> {
   runtimeOverrides = next ? { ...next } : {};
+  emit();
   return Promise.all((Object.keys(DEFAULT_TRACES) as PsyLabDebugTraceId[]).map(id => (
     syncTraceToBackend(id, isPsyLabDebugTraceEnabled(id))
   ))).then(() => {});
@@ -109,4 +116,16 @@ export function resetPsyLabDebugTraces(): void {
 
 export function usePsyLabDebugTraces(): PsyLabDebugTraces {
   return useSyncExternalStore(subscribePsyLabDebugTraces, getPsyLabDebugTraces, () => DEFAULT_TRACES);
+}
+
+export function usePsyLabDebugTraceEnabled(id: PsyLabDebugTraceId): boolean {
+  return useSyncExternalStore(
+    subscribePsyLabDebugTraces,
+    () => isPsyLabDebugTraceEnabled(id),
+    () => DEFAULT_TRACES[id],
+  );
+}
+
+export function usePsyLabDebugTraceRevision(): number {
+  return useSyncExternalStore(subscribePsyLabDebugTraces, () => traceRevision, () => 0);
 }

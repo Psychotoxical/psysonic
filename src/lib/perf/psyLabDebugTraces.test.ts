@@ -1,3 +1,4 @@
+import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/generated/bindings', () => ({
@@ -10,9 +11,12 @@ vi.mock('@/generated/bindings', () => ({
 import {
   getPsyLabDebugTraces,
   isPsyLabDebugTraceEnabled,
+  refreshPsyLabDebugTraceSubscribers,
   resetPsyLabDebugTraces,
   setPsyLabDebugTrace,
   setPsyLabDebugTraceOverrides,
+  usePsyLabDebugTraceEnabled,
+  usePsyLabDebugTraceRevision,
 } from './psyLabDebugTraces';
 
 describe('PsyLab debug trace runtime overrides', () => {
@@ -44,5 +48,30 @@ describe('PsyLab debug trace runtime overrides', () => {
     expect(isPsyLabDebugTraceEnabled('albumsBrowse')).toBe(true);
     await setPsyLabDebugTraceOverrides(null);
     expect(isPsyLabDebugTraceEnabled('albumsBrowse')).toBe(false);
+  });
+
+  it('updates effective trace subscribers when runtime overrides change', async () => {
+    const { result } = renderHook(() => usePsyLabDebugTraceEnabled('mainstage'));
+    expect(result.current).toBe(false);
+
+    await act(async () => {
+      await setPsyLabDebugTraceOverrides({ mainstage: true });
+    });
+    expect(result.current).toBe(true);
+    expect(getPsyLabDebugTraces().mainstage).toBe(false);
+
+    await act(async () => {
+      await setPsyLabDebugTraceOverrides(null);
+    });
+    expect(result.current).toBe(false);
+  });
+
+  it('can explicitly replay diagnostics after a benchmark store reset', () => {
+    const { result } = renderHook(() => usePsyLabDebugTraceRevision());
+    const before = result.current;
+
+    act(() => refreshPsyLabDebugTraceSubscribers());
+
+    expect(result.current).toBe(before + 1);
   });
 });

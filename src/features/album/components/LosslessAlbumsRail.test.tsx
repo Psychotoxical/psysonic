@@ -28,6 +28,7 @@ vi.mock('@/features/album/components/AlbumRow', () => ({
 }));
 
 import LosslessAlbumsRail from '@/features/album/components/LosslessAlbumsRail';
+import { resetLosslessRailCacheForTests } from '@/features/album/components/losslessAlbumsRailCache';
 
 const album = (serverId: string, id: string) => ({
   serverId,
@@ -50,6 +51,7 @@ describe('LosslessAlbumsRail multi-server scope', () => {
     localMock.mockReset();
     networkMock.mockReset();
     resetLibraryLocalReadSingleFlightsForTests();
+    resetLosslessRailCacheForTests();
     revisionState.value = 0;
   });
 
@@ -114,6 +116,32 @@ describe('LosslessAlbumsRail multi-server scope', () => {
     await waitFor(() => expect(screen.getByTestId('albums')).toHaveTextContent('active:local'));
     expect(localMock).toHaveBeenCalledWith('active', 20, 0);
     expect(networkMock).not.toHaveBeenCalled();
+  });
+
+  it('reuses a fresh scope result after remount without another database read', async () => {
+    localMock.mockResolvedValue({ albums: [album('srv-a', 'cached')], hasMore: false });
+    const first = renderWithProviders(<LosslessAlbumsRail serverIds={['srv-a']} scopeVersion={3} />);
+    await waitFor(() => expect(screen.getByTestId('albums')).toHaveTextContent('srv-a:cached'));
+    expect(localMock).toHaveBeenCalledTimes(1);
+    first.unmount();
+    localMock.mockClear();
+
+    const onDiagnosticResult = vi.fn();
+    renderWithProviders(
+      <LosslessAlbumsRail
+        serverIds={['srv-a']}
+        scopeVersion={3}
+        onDiagnosticResult={onDiagnosticResult}
+      />,
+    );
+
+    expect(screen.getByTestId('albums')).toHaveTextContent('srv-a:cached');
+    await waitFor(() => expect(onDiagnosticResult).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'ready',
+      durationMs: 0,
+      detail: 'cache',
+    })));
+    expect(localMock).not.toHaveBeenCalled();
   });
 
   it('reports timeout when every server misses the aggregate deadline', async () => {

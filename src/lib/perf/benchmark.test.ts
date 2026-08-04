@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  benchmarkRouteTerminalSteps,
   benchmarkSectionsReady,
   summarizeBenchmarkPages,
   type BenchmarkPageResult,
@@ -8,12 +9,18 @@ import {
 function page(route: string, totalMs: number): BenchmarkPageResult {
   return {
     route,
+    fromRoute: '/from',
+    actualRoute: route,
     iteration: 1,
     temperature: 'warm',
     navigationMs: 1,
+    readinessMs: totalMs - 1,
+    quietAfterReadyMs: 0,
     stableMs: totalMs - 1,
     totalMs,
     timedOut: false,
+    readinessTimedOut: false,
+    stabilityTimedOut: false,
     mutationCount: 0,
     longTaskCount: 0,
     longTaskTotalMs: 0,
@@ -32,12 +39,19 @@ function page(route: string, totalMs: number): BenchmarkPageResult {
 
 describe('summarizeBenchmarkPages', () => {
   it('groups routes, computes medians, and sorts slowest first', () => {
+    const coldAlbums = { ...page('/albums', 100), temperature: 'cold' as const };
     expect(summarizeBenchmarkPages([
-      page('/albums', 100), page('/albums', 300), page('/artists', 500),
+      coldAlbums, page('/albums', 300), page('/artists', 500),
     ])).toMatchObject([
-      { route: '/artists', medianTotalMs: 500, samples: 1 },
-      { route: '/albums', medianTotalMs: 200, samples: 2 },
+      { route: '/artists', medianTotalMs: 500, warmMedianTotalMs: 500, samples: 1 },
+      { route: '/albums', coldTotalMs: 100, warmMedianTotalMs: 300, medianTotalMs: 200, samples: 2 },
     ]);
+  });
+});
+
+describe('benchmarkRouteTerminalSteps', () => {
+  it('uses the visible Artists loading transition for readiness', () => {
+    expect(benchmarkRouteTerminalSteps('/artists')).toEqual(['ui_loading_false']);
   });
 });
 

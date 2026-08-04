@@ -11,6 +11,7 @@ vi.mock('@/lib/library/newReleasesLocal', () => ({
 import { useSidebarNewReleasesUnread } from '@/features/sidebar/hooks/useSidebarNewReleasesUnread';
 
 const DEBOUNCE_MS = 400;
+const BACKGROUND_DELAY_MS = 5_000;
 
 function releases(...ids: string[]) {
   return {
@@ -30,6 +31,7 @@ describe('useSidebarNewReleasesUnread', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     loadLocalNewReleasesMock.mockReset();
+    document.documentElement.removeAttribute('data-benchmark-running');
   });
 
   afterEach(() => {
@@ -56,7 +58,7 @@ describe('useSidebarNewReleasesUnread', () => {
       { initialProps: { anchorServerId: 'old', scopeFingerprint: 'old' } },
     );
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(DEBOUNCE_MS); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(BACKGROUND_DELAY_MS); });
     expect(loadLocalNewReleasesMock).toHaveBeenCalledTimes(1);
 
     view.rerender({ anchorServerId: 'new', scopeFingerprint: 'new' });
@@ -66,7 +68,7 @@ describe('useSidebarNewReleasesUnread', () => {
     });
     expect(view.result.current).toBe(0);
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(DEBOUNCE_MS); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(BACKGROUND_DELAY_MS); });
     expect(loadLocalNewReleasesMock).toHaveBeenCalledTimes(2);
     expect(loadLocalNewReleasesMock.mock.calls[1]?.[5]).toBe(false);
     expect(view.result.current).toBe(0);
@@ -88,14 +90,57 @@ describe('useSidebarNewReleasesUnread', () => {
       { initialProps: { pathname: '/new-releases' } },
     );
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(DEBOUNCE_MS); });
-    expect(view.result.current).toBe(1);
-
-    await act(async () => { await vi.advanceTimersByTimeAsync(5_000 - DEBOUNCE_MS); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(BACKGROUND_DELAY_MS - DEBOUNCE_MS); });
     view.rerender({ pathname: '/' });
     await act(async () => { await vi.advanceTimersByTimeAsync(DEBOUNCE_MS); });
 
+    expect(loadLocalNewReleasesMock).toHaveBeenCalledTimes(1);
+    expect(loadLocalNewReleasesMock.mock.calls[0]?.[5]).toBe(false);
     expect(view.result.current).toBe(1);
     expect(JSON.parse(localStorage.getItem(storageKey) ?? '[]')).toEqual(['seen']);
+  });
+
+  it('does not refresh when navigating between unrelated pages', async () => {
+    localStorage.setItem(newReleasesSeenStorageKey('scope'), JSON.stringify(['seen']));
+    loadLocalNewReleasesMock.mockResolvedValue(releases('seen'));
+
+    const view = renderHook(
+      ({ pathname }) => useSidebarNewReleasesUnread({
+        anchorServerId: 'server',
+        scopes: [{ serverId: 'server', libraryId: 'library' }],
+        scopeFingerprint: 'scope',
+        isLoggedIn: true,
+        pathname,
+      }),
+      { initialProps: { pathname: '/' } },
+    );
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(BACKGROUND_DELAY_MS); });
+    expect(loadLocalNewReleasesMock).toHaveBeenCalledTimes(1);
+
+    view.rerender({ pathname: '/artists' });
+    await act(async () => { await vi.advanceTimersByTimeAsync(DEBOUNCE_MS * 2); });
+    expect(loadLocalNewReleasesMock).toHaveBeenCalledTimes(1);
+
+    view.rerender({ pathname: '/new-releases' });
+    await act(async () => { await vi.advanceTimersByTimeAsync(DEBOUNCE_MS); });
+    expect(loadLocalNewReleasesMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_000 + DEBOUNCE_MS); });
+    expect(loadLocalNewReleasesMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not run background unread maintenance during a benchmark', async () => {
+    document.documentElement.setAttribute('data-benchmark-running', 'true');
+    renderHook(() => useSidebarNewReleasesUnread({
+      anchorServerId: 'server',
+      scopes: [{ serverId: 'server', libraryId: 'library' }],
+      scopeFingerprint: 'scope',
+      isLoggedIn: true,
+      pathname: '/',
+    }));
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(BACKGROUND_DELAY_MS); });
+    expect(loadLocalNewReleasesMock).not.toHaveBeenCalled();
   });
 });

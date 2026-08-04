@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useLibraryIndexStore } from '@/store/libraryIndexStore';
 import { runLocalSongScopeBrowse } from '@/lib/library/advancedSearchLocal';
 import { resetAuthStore } from '@/test/helpers/storeReset';
+import { clearSongBrowsePageCache } from '@/features/search/hooks/songBrowsePageCache';
 
 const { browseScopeState, readyLibraryServerKeysMock, revisionState } = vi.hoisted(() => ({
   browseScopeState: {
@@ -102,6 +103,7 @@ function seedMultiServerScope() {
 
 describe('useSongBrowseList restore hold', () => {
   beforeEach(() => {
+    clearSongBrowsePageCache();
     resetAuthStore();
     useAuthStore.setState({ activeServerId: 'srv-1' });
     useLibraryIndexStore.setState({ masterEnabled: true });
@@ -214,6 +216,7 @@ describe('useSongBrowseList restore hold', () => {
 
 describe('useSongBrowseList scoped browse', () => {
   beforeEach(() => {
+    clearSongBrowsePageCache();
     resetAuthStore();
     useAuthStore.setState({ activeServerId: 'srv-1' });
     useLibraryIndexStore.setState({ masterEnabled: true });
@@ -273,6 +276,78 @@ describe('useSongBrowseList scoped browse', () => {
       expect.objectContaining({ anchorServerId: 'srv-1' }),
     );
     expect(result.current.hasMore).toBe(false);
+  });
+
+  it('reuses a resolved local first page on a warm remount', async () => {
+    seedMultiServerScope();
+    readyLibraryServerKeysMock.mockResolvedValue(['a.test', 'b.test']);
+    vi.mocked(runLocalSongScopeBrowse).mockResolvedValue({
+      songs: [{ id: 'cached', title: 'Cached' } as SubsonicSong],
+      hasMore: true,
+      nextCursor: 'cursor-1',
+    });
+
+    const first = renderHook(() => useSongBrowseList({ enabled: true, searchQuery: '' }));
+    await waitFor(() => expect(first.result.current.songs.map(song => song.id)).toEqual(['cached']));
+    first.unmount();
+
+    const second = renderHook(() => useSongBrowseList({ enabled: true, searchQuery: '' }));
+    await waitFor(() => expect(second.result.current.songs.map(song => song.id)).toEqual(['cached']));
+
+    expect(runLocalSongScopeBrowse).toHaveBeenCalledTimes(1);
+    expect(second.result.current.browseCursor).toBe('cursor-1');
+  });
+
+  it('retries when multi-server readiness changes during the first page request', async () => {
+    seedMultiServerScope();
+    readyLibraryServerKeysMock.mockResolvedValue(['a.test', 'b.test']);
+    vi.mocked(runLocalSongScopeBrowse)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        songs: [{ id: 'ready', title: 'Ready' } as SubsonicSong],
+        hasMore: false,
+        nextCursor: null,
+      });
+
+    const { result } = renderHook(() => useSongBrowseList({ enabled: true, searchQuery: '' }));
+
+    await waitFor(() => expect(result.current.songs.map(song => song.id)).toEqual(['ready']));
+    expect(runLocalSongScopeBrowse).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries a transient readiness change when the sentinel loads the next page', async () => {
+    seedMultiServerScope();
+    readyLibraryServerKeysMock.mockResolvedValue(['a.test', 'b.test']);
+    vi.mocked(runLocalSongScopeBrowse)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        songs: [{ id: 'next', title: 'Next' } as SubsonicSong],
+        hasMore: false,
+        nextCursor: null,
+      });
+    const { result } = renderHook(() => useSongBrowseList({
+      enabled: true,
+      searchQuery: '',
+      initialRestore: {
+        browseScopeFingerprint: 'a,b',
+        librarySyncRevision: 0,
+        query: '',
+        songs: [stashedSong],
+        offset: 1,
+        hasMore: true,
+        browseCursor: null,
+        localSearchMode: true,
+        browseUnsupported: false,
+        hasSearched: true,
+      },
+    }));
+
+    await act(async () => {
+      await result.current.loadMore();
+    });
+
+    expect(result.current.songs.map(song => song.id)).toEqual(['stashed', 'next']);
+    expect(runLocalSongScopeBrowse).toHaveBeenCalledTimes(2);
   });
 
   it('preserves multi-server results until every selected index is ready', async () => {

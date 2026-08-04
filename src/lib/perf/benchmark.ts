@@ -16,12 +16,19 @@ export interface BenchmarkReactCommit {
 
 export interface BenchmarkPageResult {
   route: string;
+  fromRoute: string;
+  actualRoute: string;
   iteration: number;
   temperature: 'cold' | 'warm';
   navigationMs: number;
+  readinessMs: number;
+  quietAfterReadyMs: number;
   stableMs: number;
   totalMs: number;
   timedOut: boolean;
+  readinessTimedOut: boolean;
+  stabilityTimedOut: boolean;
+  readinessDetails?: unknown;
   mutationCount: number;
   longTaskCount: number;
   longTaskTotalMs: number;
@@ -69,14 +76,29 @@ export interface BenchmarkReport {
 export interface BenchmarkSummaryRow {
   route: string;
   samples: number;
+  coldTotalMs: number;
+  warmMedianTotalMs: number;
   medianTotalMs: number;
   maxTotalMs: number;
+  medianReadinessMs: number;
+  medianQuietAfterReadyMs: number;
   medianReactMs: number;
   medianLongTaskMs: number;
   timeouts: number;
 }
 
 const BENCHMARK_TERMINAL_STATUSES = new Set(['ready', 'empty', 'error', 'timeout']);
+
+const BENCHMARK_ROUTE_TERMINAL_STEPS: Record<string, readonly string[]> = {
+  '/albums': ['ui_loading_false'],
+  '/artists': ['ui_loading_false'],
+  '/tracks': ['load_effect_done', 'load_more_done', 'load_more_error'],
+  '/favorites': ['load_complete'],
+};
+
+export function benchmarkRouteTerminalSteps(route: string): readonly string[] {
+  return BENCHMARK_ROUTE_TERMINAL_STEPS[route] ?? [];
+}
 
 export function benchmarkSectionsReady(statuses: readonly string[]): boolean {
   return statuses.some(status => BENCHMARK_TERMINAL_STATUSES.has(status))
@@ -123,8 +145,12 @@ export function summarizeBenchmarkPages(pages: BenchmarkPageResult[]): Benchmark
   return [...routes.entries()].map(([route, rows]) => ({
     route,
     samples: rows.length,
+    coldTotalMs: rows.find(row => row.temperature === 'cold')?.totalMs ?? 0,
+    warmMedianTotalMs: median(rows.filter(row => row.temperature === 'warm').map(row => row.totalMs)),
     medianTotalMs: median(rows.map(row => row.totalMs)),
     maxTotalMs: Math.max(...rows.map(row => row.totalMs)),
+    medianReadinessMs: median(rows.map(row => row.readinessMs)),
+    medianQuietAfterReadyMs: median(rows.map(row => row.quietAfterReadyMs)),
     medianReactMs: median(rows.map(row => row.reactActualDurationMs)),
     medianLongTaskMs: median(rows.map(row => row.longTaskTotalMs)),
     timeouts: rows.filter(row => row.timedOut).length,
@@ -142,10 +168,10 @@ export function formatBenchmarkMarkdown(report: Omit<BenchmarkReport, 'markdown'
     `- Runs: ${report.runs}`,
     `- Servers: ${report.environment.selectedServerCount} selected / ${report.environment.serverCount} configured`,
     '',
-    '| Route | Samples | Median total | Max total | Median React | Median long tasks | Timeouts |',
-    '|---|---:|---:|---:|---:|---:|---:|',
+    '| Route | Samples | Cold total | Warm median | Median readiness | Median quiet | Max total | Median React | Median long tasks | Timeouts |',
+    '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|',
     ...report.summary.map(row => (
-      `| ${row.route} | ${row.samples} | ${row.medianTotalMs} ms | ${row.maxTotalMs} ms | ${row.medianReactMs} ms | ${row.medianLongTaskMs} ms | ${row.timeouts} |`
+      `| ${row.route} | ${row.samples} | ${row.coldTotalMs} ms | ${row.warmMedianTotalMs} ms | ${row.medianReadinessMs} ms | ${row.medianQuietAfterReadyMs} ms | ${row.maxTotalMs} ms | ${row.medianReactMs} ms | ${row.medianLongTaskMs} ms | ${row.timeouts} |`
     )),
     ...(report.skippedRoutes.length > 0 ? [
       '',
@@ -156,10 +182,10 @@ export function formatBenchmarkMarkdown(report: Omit<BenchmarkReport, 'markdown'
     '',
     '## Samples',
     '',
-    '| Route | Run | Cache | Navigation | Stable | Total | React commits | React time | Long tasks | DOM nodes | Images pending |',
-    '|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|',
+    '| From | Route | Actual | Run | Cache | Activation | Readiness | Quiet | Total | React commits | React time | Long tasks | DOM nodes | Images pending |',
+    '|---|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|',
     ...report.pages.map(page => (
-      `| ${page.route} | ${page.iteration} | ${page.temperature} | ${page.navigationMs} ms | ${page.stableMs} ms | ${page.totalMs} ms | ${page.reactCommitCount} | ${page.reactActualDurationMs} ms | ${page.longTaskTotalMs} ms | ${page.domNodeCount} | ${page.incompleteImageCount} |`
+      `| ${page.fromRoute} | ${page.route} | ${page.actualRoute} | ${page.iteration} | ${page.temperature} | ${page.navigationMs} ms | ${page.readinessMs} ms | ${page.quietAfterReadyMs} ms | ${page.totalMs} ms | ${page.reactCommitCount} | ${page.reactActualDurationMs} ms | ${page.longTaskTotalMs} ms | ${page.domNodeCount} | ${page.incompleteImageCount} |`
     )),
   ];
   return lines.join('\n');

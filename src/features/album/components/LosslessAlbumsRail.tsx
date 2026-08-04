@@ -9,6 +9,10 @@ import { runLocalLosslessAlbums } from '@/lib/library/browseTextSearch';
 import { LOSSLESS_MODE_QUERY } from '@/lib/library/losslessMode';
 import { runLibraryLocalReadSingleFlight } from '@/lib/library/localReadSingleFlight';
 import { useLibraryScopeSyncRevision } from '@/store/offlineLocalLibrarySyncRevision';
+import {
+  readLosslessRailCache,
+  writeLosslessRailCache,
+} from '@/features/album/components/losslessAlbumsRailCache';
 
 interface Props {
   /** Ordered Home scope. Omit to preserve the legacy active-server rail. */
@@ -86,7 +90,15 @@ export default function LosslessAlbumsRail({
     return [...new Set(requested.filter(Boolean))];
   }, [activeServerId, serverIds]);
   const librarySyncRevision = useLibraryScopeSyncRevision(orderedServerIds);
-  const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
+  const cacheKey = useMemo(() => JSON.stringify([
+    orderedServerIds,
+    scopeVersion,
+    librarySyncRevision,
+    indexEnabled,
+  ]), [indexEnabled, librarySyncRevision, orderedServerIds, scopeVersion]);
+  const [albums, setAlbums] = useState<SubsonicAlbum[]>(() => (
+    readLosslessRailCache(cacheKey)?.albums ?? []
+  ));
   const reportDiagnostic = useEffectEvent((result: LosslessAlbumsDiagnosticResult) => {
     onDiagnosticResult?.(result);
   });
@@ -95,6 +107,17 @@ export default function LosslessAlbumsRail({
     let cancelled = false;
     (async () => {
       const startedAt = performance.now();
+      const cached = readLosslessRailCache(cacheKey);
+      if (cached) {
+        setAlbums(cached.albums);
+        reportDiagnostic({
+          status: cached.status,
+          durationMs: 0,
+          itemCount: cached.albums.length,
+          detail: 'cache',
+        });
+        return;
+      }
       reportDiagnostic({ status: 'loading' });
       if (orderedServerIds.length === 0) {
         setAlbums([]);
@@ -187,6 +210,9 @@ export default function LosslessAlbumsRail({
           : statuses.includes('error')
             ? 'error'
             : 'empty';
+      if (status === 'ready' || status === 'empty') {
+        writeLosslessRailCache(cacheKey, { albums: nextAlbums, status });
+      }
       reportDiagnostic({
         status,
         durationMs: performance.now() - startedAt,
@@ -195,7 +221,7 @@ export default function LosslessAlbumsRail({
       });
     })();
     return () => { cancelled = true; };
-  }, [indexEnabled, orderedServerIds, scopeVersion, librarySyncRevision]);
+  }, [cacheKey, indexEnabled, orderedServerIds, scopeVersion, librarySyncRevision]);
 
   if (albums.length === 0) return null;
 
