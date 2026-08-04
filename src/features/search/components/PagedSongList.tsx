@@ -54,6 +54,7 @@ export default function PagedSongList({ songs, hasMore, loadingMore, onLoadMore,
         <InpageScrollSentinel
           bindSentinel={bindSentinel}
           loading={loadingMore}
+          itemCount={songs.length}
           style={{ padding: '1rem', height: 'auto', margin: 0 }}
         />
       )}

@@ -13,12 +13,18 @@ import {
   readLosslessRailCache,
   writeLosslessRailCache,
 } from '@/features/album/components/losslessAlbumsRailCache';
+import {
+  browseScopeLibraryIdsForServer,
+  type LibraryBrowseScopePair,
+} from '@/lib/library/libraryBrowseScope';
 
 interface Props {
   /** Ordered Home scope. Omit to preserve the legacy active-server rail. */
   serverIds?: readonly string[];
   /** Bump when per-server library selections change without changing serverIds. */
   scopeVersion?: number;
+  /** Explicit Home browse scope. Omit to preserve the legacy active-server rail. */
+  scopes?: readonly LibraryBrowseScopePair[];
   disableArtwork?: boolean;
   artworkSize?: number;
   windowArtworkByViewport?: boolean;
@@ -76,6 +82,7 @@ function roundRobinAlbums(groups: SubsonicAlbum[][]): SubsonicAlbum[] {
 export default function LosslessAlbumsRail({
   serverIds,
   scopeVersion = 0,
+  scopes,
   disableArtwork = false,
   artworkSize,
   windowArtworkByViewport,
@@ -148,6 +155,9 @@ export default function LosslessAlbumsRail({
         });
         const quota = quotas[index];
         if (quota <= 0) return finish([], 'empty', 'local');
+        const explicitLibraryIds = scopes
+          ? browseScopeLibraryIdsForServer(scopes, serverId)
+          : [];
 
         if (indexEnabled) {
           try {
@@ -160,8 +170,13 @@ export default function LosslessAlbumsRail({
                 serverId,
                 quota,
               ]),
-              () => runLocalLosslessAlbums(serverId, quota, 0),
+              () => scopes
+                ? runLocalLosslessAlbums(serverId, quota, 0, scopes)
+                : runLocalLosslessAlbums(serverId, quota, 0),
             ), LOSSLESS_LOCAL_READ_DEADLINE_MS);
+            if (localResult.status === 'timeout' && explicitLibraryIds.length > 0) {
+              return finish([], 'timeout', 'local', 'selected scope');
+            }
             const local = localResult.status === 'ready' ? localResult.value : null;
             if (local?.albums.length) {
               return finish(
@@ -173,9 +188,17 @@ export default function LosslessAlbumsRail({
                   : undefined,
               );
             }
+            if (explicitLibraryIds.length > 0) {
+              return finish([], 'empty', 'local', 'selected scope');
+            }
           } catch {
-            // Fall through to the network path; aggregate status records failure if it also fails.
+            if (explicitLibraryIds.length > 0) {
+              return finish([], 'error', 'local', 'selected scope');
+            }
+            // Fall through to the network path for whole-server scopes.
           }
+        } else if (explicitLibraryIds.length > 0) {
+          return finish([], 'error', 'local', 'selected scope requires local index');
         }
 
         try {
@@ -221,7 +244,7 @@ export default function LosslessAlbumsRail({
       });
     })();
     return () => { cancelled = true; };
-  }, [cacheKey, indexEnabled, orderedServerIds, scopeVersion, librarySyncRevision]);
+  }, [cacheKey, indexEnabled, orderedServerIds, scopeVersion, librarySyncRevision, scopes]);
 
   if (albums.length === 0) return null;
 

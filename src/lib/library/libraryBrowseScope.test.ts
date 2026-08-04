@@ -2,16 +2,29 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { useAuthStore } from '@/store/authStore';
 import { resetAuthStore } from '@/test/helpers/storeReset';
 import {
+  browseScopeLibraryIdsForServer,
   deriveEntitySourceScopes,
   deriveEffectiveLibraryBrowseServerIds,
   deriveLibraryBrowseIndexScopes,
   deriveLibraryBrowseScope,
   getLibraryBrowseScope,
+  hasConfiguredLibraryBrowseScope,
 } from './libraryBrowseScope';
 
 beforeEach(resetAuthStore);
 
 describe('getLibraryBrowseScope', () => {
+  it('derives per-server ids from explicit scope pairs', () => {
+    const scopes = [
+      { serverId: 'a', libraryId: 'a2' },
+      { serverId: 'a', libraryId: 'a1' },
+      { serverId: 'b', libraryId: null },
+    ];
+
+    expect(browseScopeLibraryIdsForServer(scopes, 'a')).toEqual(['a2', 'a1']);
+    expect(browseScopeLibraryIdsForServer(scopes, 'b')).toEqual([]);
+  });
+
   it('builds exact and whole-server pairs in server and folder priority order', () => {
     useAuthStore.setState({
       servers: [
@@ -111,7 +124,7 @@ describe('getLibraryBrowseScope', () => {
     expect(scope).toEqual({
       anchorServerId: 'active',
       serverIds: ['active'],
-      pairs: [],
+      pairs: [{ serverId: 'active', libraryId: null }],
       fingerprint: JSON.stringify([['active', [null]]]),
       multiServer: false,
     });
@@ -126,12 +139,26 @@ describe('getLibraryBrowseScope', () => {
       libraryBrowseSelectionByServer: { active: ['two'] },
     };
 
-    expect(deriveLibraryBrowseScope(state).fingerprint)
-      .toBe(JSON.stringify([['active', ['two']]]));
+    expect(deriveLibraryBrowseScope(state)).toMatchObject({
+      pairs: [{ serverId: 'active', libraryId: 'two' }],
+      fingerprint: JSON.stringify([['active', ['two']]]),
+    });
     expect(deriveLibraryBrowseScope({
       ...state,
       libraryBrowseSelectionByServer: { active: ['one'] },
     }).fingerprint).toBe(JSON.stringify([['active', ['one']]]));
+  });
+
+  it('distinguishes configured membership from the active-server fallback', () => {
+    useAuthStore.setState({
+      servers: [{ id: 'active', name: 'Active', url: 'https://active.test', username: 'u', password: 'p' }],
+      activeServerId: 'active',
+      libraryBrowseServerIds: [],
+    });
+    expect(hasConfiguredLibraryBrowseScope()).toBe(false);
+
+    useAuthStore.setState({ libraryBrowseServerIds: ['active'] });
+    expect(hasConfiguredLibraryBrowseScope()).toBe(true);
   });
 
   it('uses configured source membership even when servers are unavailable', () => {

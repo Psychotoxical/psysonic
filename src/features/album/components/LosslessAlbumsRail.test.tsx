@@ -118,6 +118,29 @@ describe('LosslessAlbumsRail multi-server scope', () => {
     expect(networkMock).not.toHaveBeenCalled();
   });
 
+  it('keeps selected-library Home scopes local instead of leaking through the unscoped network fallback', async () => {
+    localMock.mockResolvedValue(null);
+    const onDiagnosticResult = vi.fn();
+    const scopes = [{ serverId: 'srv-a', libraryId: 'library-a' }];
+
+    renderWithProviders(
+      <LosslessAlbumsRail
+        serverIds={['srv-a']}
+        scopeVersion={5}
+        scopes={scopes}
+        onDiagnosticResult={onDiagnosticResult}
+      />,
+    );
+
+    await waitFor(() => expect(onDiagnosticResult).toHaveBeenLastCalledWith(expect.objectContaining({
+      status: 'empty',
+      itemCount: 0,
+      detail: expect.stringContaining('selected scope'),
+    })));
+    expect(localMock).toHaveBeenCalledWith('srv-a', 20, 0, scopes);
+    expect(networkMock).not.toHaveBeenCalled();
+  });
+
   it('reuses a fresh scope result after remount without another database read', async () => {
     localMock.mockResolvedValue({ albums: [album('srv-a', 'cached')], hasMore: false });
     const first = renderWithProviders(<LosslessAlbumsRail serverIds={['srv-a']} scopeVersion={3} />);

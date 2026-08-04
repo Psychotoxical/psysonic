@@ -31,6 +31,7 @@ import {
   coverTrafficSetBenchmarkHold,
 } from '@/cover/coverTraffic';
 import { benchmarkRouteMatchesLocation, resolveBenchmarkRoutes } from './benchmarkRoutes';
+import { runBenchmarkInteractions } from './benchmarkInteractions';
 import {
   benchmarkRouteTerminalSteps,
   beginBenchmarkReactCollection,
@@ -41,6 +42,7 @@ import {
   type BenchmarkPageResult,
   type BenchmarkReport,
   type BenchmarkRunRequest,
+  type BenchmarkRendererStartupTiming,
 } from '@/lib/perf/benchmark';
 
 const ROUTE_TIMEOUT_MS = 30_000;
@@ -54,6 +56,21 @@ const BENCHMARK_TRACE_OVERRIDES: PsyLabDebugTraces = {
   tracksBrowse: true,
   mainstage: true,
 };
+const BENCHMARK_RUNNER_MODULE_READY_MS = Math.round(performance.now());
+
+function rendererNavigationTiming(): Pick<
+  BenchmarkRendererStartupTiming,
+  'navigationType' | 'responseEndMs' | 'domInteractiveMs' | 'domContentLoadedMs' | 'loadEventMs'
+> {
+  const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+  return {
+    navigationType: navigation?.type ?? null,
+    responseEndMs: navigation ? Math.round(navigation.responseEnd) : null,
+    domInteractiveMs: navigation ? Math.round(navigation.domInteractive) : null,
+    domContentLoadedMs: navigation ? Math.round(navigation.domContentLoadedEventEnd) : null,
+    loadEventMs: navigation?.loadEventEnd ? Math.round(navigation.loadEventEnd) : null,
+  };
+}
 
 function nextFrame(): Promise<void> {
   return new Promise(resolve => requestAnimationFrame(() => resolve()));
@@ -221,6 +238,7 @@ export default function BenchmarkRunner() {
       if (!request) return;
       if (runningRef.current) return;
       runningRef.current = true;
+      const requestAcceptedMs = performance.now();
       originalPathRef.current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
       const startedAt = new Date().toISOString();
       const id = reportId();
@@ -233,12 +251,42 @@ export default function BenchmarkRunner() {
       const previousRuntimeDebugOverride = getRuntimeDebugLoggingOverride();
       const previousCoverHold = coverTrafficBenchmarkHoldActive();
       let previousLoggingMode: string | null = null;
-      let routeResolution = { routes: [] as string[], skippedRoutes: [] as { route: string; reason: string }[] };
+      let routeResolution = {
+        routes: [] as string[],
+        skippedRoutes: [] as { route: string; reason: string }[],
+        searchQuery: null as string | null,
+      };
+      let migrationReadyMs = requestAcceptedMs;
+      let routeResolutionStartedMs = requestAcceptedMs;
+      let routeResolutionCompletedMs = requestAcceptedMs;
+      let instrumentationStartedMs = requestAcceptedMs;
+      let instrumentationReadyMs = requestAcceptedMs;
+      let transitionStartedMs = requestAcceptedMs;
+      let benchmarkReadyMs = requestAcceptedMs;
+      const buildRendererStartup = (): BenchmarkRendererStartupTiming => ({
+        ...rendererNavigationTiming(),
+        runnerModuleReadyMs: BENCHMARK_RUNNER_MODULE_READY_MS,
+        requestAcceptedMs: Math.round(requestAcceptedMs),
+        migrationReadyMs: Math.round(migrationReadyMs),
+        routeResolutionCompletedMs: Math.round(routeResolutionCompletedMs),
+        instrumentationReadyMs: Math.round(instrumentationReadyMs),
+        benchmarkReadyMs: Math.round(benchmarkReadyMs),
+        phases: {
+          requestToMigrationReadyMs: Math.round(migrationReadyMs - requestAcceptedMs),
+          routeResolutionMs: Math.round(routeResolutionCompletedMs - routeResolutionStartedMs),
+          instrumentationSetupMs: Math.round(instrumentationReadyMs - instrumentationStartedMs),
+          transitionSetupMs: Math.round(benchmarkReadyMs - transitionStartedMs),
+        },
+      });
       let reportPayload: BenchmarkReport | Record<string, unknown>;
       try {
         document.documentElement.setAttribute('data-benchmark-running', 'true');
         await waitForMigrationReady();
+        migrationReadyMs = performance.now();
+        routeResolutionStartedMs = migrationReadyMs;
         routeResolution = await resolveBenchmarkRoutes(request.scenario);
+        routeResolutionCompletedMs = performance.now();
+        instrumentationStartedMs = routeResolutionCompletedMs;
         const routes = routeResolution.routes;
         const initialLogs = await commands.tailRuntimeLogs(null, 1);
         let logSeq = initialLogs.lastSeq;
@@ -250,10 +298,13 @@ export default function BenchmarkRunner() {
         if (request.profile === 'isolated') {
           await coverTrafficSetBenchmarkHold(true);
         }
+        instrumentationReadyMs = performance.now();
+        transitionStartedMs = instrumentationReadyMs;
         navigate('/__benchmark-transition');
         await waitForPath('/__benchmark-transition', ROUTE_TIMEOUT_MS);
         await nextFrame();
         await nextFrame();
+        benchmarkReadyMs = performance.now();
         for (let iteration = 1; iteration <= request.runs; iteration += 1) {
           for (const route of routes) {
             if (request.profile === 'isolated') {
@@ -305,6 +356,7 @@ export default function BenchmarkRunner() {
               .filter(entry => entry.startTime >= resourceStartedAt);
             const totalMs = Math.round(performance.now() - totalStarted);
             const cpuAfter = await cpuSnapshot();
+            const interactions = await runBenchmarkInteractions(route, routeResolution.searchQuery);
             pages.push({
               route,
               fromRoute,
@@ -333,6 +385,7 @@ export default function BenchmarkRunner() {
               incompleteImageCount: images.filter(image => !image.complete).length,
               scrollHeight: scroll.scrollHeight,
               viewportHeight: scroll.viewportHeight,
+              interactions,
               cpuBefore,
               cpuAfter,
             });
@@ -342,7 +395,7 @@ export default function BenchmarkRunner() {
         logSeq = logTail.lastSeq;
         const summary = summarizeBenchmarkPages(pages);
         const reportWithoutMarkdown = {
-          schemaVersion: 1 as const,
+          schemaVersion: 2 as const,
           id,
           startedAt,
           finishedAt: new Date().toISOString(),
@@ -360,6 +413,7 @@ export default function BenchmarkRunner() {
             selectedServerCount: initialBrowseScope.serverIds.length,
             libraryScopeFingerprint: initialBrowseScope.fingerprint || null,
           },
+          rendererStartup: buildRendererStartup(),
           pages,
           skippedRoutes: routeResolution.skippedRoutes,
           logs: logTail.lines.map(line => line.text),
@@ -371,13 +425,14 @@ export default function BenchmarkRunner() {
         };
       } catch (error) {
         reportPayload = {
-          schemaVersion: 1,
+          schemaVersion: 2,
           id,
           startedAt,
           finishedAt: new Date().toISOString(),
           scenario: request.scenario,
           runs: request.runs,
           profile: request.profile,
+          rendererStartup: buildRendererStartup(),
           error: error instanceof Error ? error.message : String(error),
           pages,
           skippedRoutes: routeResolution.skippedRoutes,

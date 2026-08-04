@@ -63,6 +63,7 @@ export function libraryListAlbumsByGenre(
       limit: request.limit ?? 50,
       offset: request.offset ?? 0,
       includeTotal: request.includeTotal ?? false,
+      countOnly: request.countOnly ?? false,
     },
   }).then(response => ({
     ...response,

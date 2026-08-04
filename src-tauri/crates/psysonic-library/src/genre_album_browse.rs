@@ -107,7 +107,7 @@ pub fn list_albums_by_genre(
         });
     }
 
-    let limit = req.limit.max(1);
+    let limit = if req.count_only { 0 } else { req.limit.max(1) };
     let offset = req.offset;
 
     let scope_pairs = ordered_library_scope_pairs(
@@ -207,6 +207,14 @@ pub fn list_albums_by_genre(
         } else {
             None
         };
+        if legacy.count_only {
+            return Ok(LibraryGenreAlbumsResponse {
+                albums: Vec::new(),
+                has_more: false,
+                total,
+                source: "local".to_string(),
+            });
+        }
 
         let mut stmt = conn.prepare(&sql)?;
         let mut albums = stmt
@@ -279,7 +287,7 @@ fn list_albums_by_genre_layer1_scope(
     };
     Ok(LibraryGenreAlbumsResponse {
         albums: albums.clone(),
-        has_more: albums.len() as u32 == limit,
+        has_more: limit > 0 && albums.len() as u32 == limit,
         total,
         source: "local".to_string(),
     })
@@ -308,7 +316,7 @@ fn list_albums_by_genre_multi_scope(
         offset,
         !req.include_total,
     )?;
-    let has_more = albums.len() as u32 == limit;
+    let has_more = limit > 0 && albums.len() as u32 == limit;
     Ok(LibraryGenreAlbumsResponse {
         albums,
         has_more,
@@ -401,6 +409,7 @@ mod tests {
                 limit: 10,
                 offset: 0,
                 include_total: false,
+                count_only: false,
             },
         )
         .unwrap();
@@ -442,6 +451,7 @@ mod tests {
                 limit: 10,
                 offset: 0,
                 include_total: true,
+                count_only: false,
             },
         )
         .unwrap();
@@ -459,11 +469,43 @@ mod tests {
                 limit: 1,
                 offset: 0,
                 include_total: true,
+                count_only: false,
             },
         )
         .unwrap();
         assert_eq!(all.total, Some(3));
         assert!(all.has_more);
+    }
+
+    #[test]
+    fn count_only_returns_the_total_without_album_rows() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                track("s1", "t1", "al_a", "Rock"),
+                track("s1", "t2", "al_b", "Rock"),
+            ])
+            .unwrap();
+
+        let response = list_albums_by_genre(
+            &store,
+            &LibraryGenreAlbumsRequest {
+                server_id: "s1".into(),
+                genre: "Rock".into(),
+                library_scope: Some("lib1".into()),
+                library_scopes: None,
+                sort: vec![],
+                limit: 50,
+                offset: 0,
+                include_total: true,
+                count_only: true,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(response.total, Some(2));
+        assert!(response.albums.is_empty());
+        assert!(!response.has_more);
     }
 
     #[test]
@@ -489,6 +531,7 @@ mod tests {
                 limit: 10,
                 offset: 0,
                 include_total: true,
+                count_only: false,
             },
         )
         .unwrap();
@@ -507,6 +550,7 @@ mod tests {
                 limit: 10,
                 offset: 0,
                 include_total: true,
+                count_only: false,
             },
         )
         .unwrap();

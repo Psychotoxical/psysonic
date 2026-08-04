@@ -1906,6 +1906,8 @@ mod specta_export {
             "audioscrobbler_request",
             "listenbrainz_request",
             "maloja_request",
+            "benchmark_publish_run",
+            "benchmark_take_pending_request",
             "backup_export_full",
             "backup_import_full",
             "cli_publish_library_list",

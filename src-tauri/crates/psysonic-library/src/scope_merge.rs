@@ -640,6 +640,9 @@ pub(crate) fn list_albums_layer1_filtered(
                 Ok(n.max(0) as u32)
             })?
         };
+        if limit == 0 {
+            return Ok((Vec::new(), total));
+        }
         params.push(SqlValue::Integer(i64::from(limit)));
         params.push(SqlValue::Integer(i64::from(offset)));
         let albums = store.with_read_conn(|conn| {
@@ -692,6 +695,9 @@ pub(crate) fn list_albums_layer1_filtered(
                     Ok(n.max(0) as u32)
                 })?
             };
+            if limit == 0 {
+                return Ok((Vec::new(), total));
+            }
             params.push(SqlValue::Integer(i64::from(limit)));
             params.push(SqlValue::Integer(i64::from(offset)));
             let albums = store.with_read_conn(|conn| {
@@ -771,6 +777,9 @@ pub(crate) fn list_albums_layer1_filtered(
             Ok(n.max(0) as u32)
         })?
     };
+    if limit == 0 {
+        return Ok((Vec::new(), total));
+    }
 
     binds.push(SqlValue::Integer(i64::from(limit)));
     binds.push(SqlValue::Integer(i64::from(offset)));
@@ -1181,6 +1190,9 @@ pub(crate) fn list_albums_filtered(
             Ok(n.max(0) as u32)
         })?
     };
+    if limit == 0 {
+        return Ok((Vec::new(), total));
+    }
 
     let sql = format!(
         "{cte}, \

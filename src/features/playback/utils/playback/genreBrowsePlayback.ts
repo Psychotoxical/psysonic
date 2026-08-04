@@ -27,6 +27,7 @@ import { fetchGenreAlbumTotal } from '@/lib/library/genreAlbumBrowse';
 import { libraryIsReady } from '@/lib/library/libraryReady';
 import { fetchGenreAlbumCountsDeduped } from '@/lib/library/albumBrowseGenreCountsCache';
 import type { LibraryBrowseIndexScope } from '@/lib/library/libraryBrowseScope';
+import type { LibraryBrowseScope } from '@/lib/library/libraryBrowseScope';
 import {
   fetchOfflineLocalGenreCatalog,
   isOfflineBrowseActive,
@@ -192,6 +193,7 @@ export async function fetchGenreAlbumCount(
   genre: string,
   indexEnabled: boolean,
   sort: AlbumBrowseSort = 'alphabeticalByName',
+  browseScope?: LibraryBrowseScope,
 ): Promise<number | null> {
   if (!genre.trim()) return null;
   if (indexEnabled && serverId) {
@@ -202,16 +204,18 @@ export async function fetchGenreAlbumCount(
       );
       return match?.albumCount ?? null;
     }
-    const scopeKey = libraryScopeCacheKeyForServer(serverId);
-    const cached = lookupGenreAlbumCount(serverId, genre, scopeKey);
-    if (cached != null) return cached;
-    const inflight = getInflightGenreCatalog(genreCatalogCacheKey(serverId, scopeKey));
-    if (inflight) {
-      const catalog = await inflight;
-      const match = catalog.find(g => g.value.localeCompare(genre, undefined, { sensitivity: 'accent' }) === 0);
-      if (match?.albumCount != null) return match.albumCount;
+    if (!browseScope?.multiServer) {
+      const scopeKey = libraryScopeCacheKeyForServer(serverId);
+      const cached = lookupGenreAlbumCount(serverId, genre, scopeKey);
+      if (cached != null) return cached;
+      const inflight = getInflightGenreCatalog(genreCatalogCacheKey(serverId, scopeKey));
+      if (inflight) {
+        const catalog = await inflight;
+        const match = catalog.find(g => g.value.localeCompare(genre, undefined, { sensitivity: 'accent' }) === 0);
+        if (match?.albumCount != null) return match.albumCount;
+      }
     }
-    const localTotal = await fetchGenreAlbumTotal(serverId, genre, indexEnabled, sort);
+    const localTotal = await fetchGenreAlbumTotal(serverId, genre, indexEnabled, sort, browseScope);
     if (localTotal != null) return localTotal;
     return null;
   }

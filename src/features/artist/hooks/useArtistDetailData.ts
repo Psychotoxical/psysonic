@@ -16,7 +16,10 @@ import { readDetailServerId } from '@/lib/navigation/detailServerScope';
 import { runLocalArtistLosslessBrowse } from '@/lib/library/browseTextSearch';
 import { isLosslessSuffix } from '@/lib/library/losslessFormats';
 import { tryLoadArtistDetailMultiScope } from '@/lib/library/loadArtistDetailMultiScope';
-import { getLibraryBrowseScope } from '@/lib/library/libraryBrowseScope';
+import {
+  getLibraryBrowseScope,
+  hasConfiguredLibraryBrowseScope,
+} from '@/lib/library/libraryBrowseScope';
 import { loadScopedArtistTopSongs } from '@/lib/library/loadScopedArtistTopSongs';
 import { shouldAttemptSubsonicForServer } from '@/lib/network/subsonicNetworkGuard';
 
@@ -156,11 +159,12 @@ export function useArtistDetailData(
     (async () => {
       try {
         const currentBrowseScope = getLibraryBrowseScope();
+        const currentBrowseScopeConfigured = hasConfiguredLibraryBrowseScope();
         if (offlineBrowseActive && !preferLocalBytesOnly) {
           setLoading(false);
           return;
         }
-        if (serverId && currentBrowseScope.pairs.length > 0) {
+        if (serverId && currentBrowseScopeConfigured && currentBrowseScope.pairs.length > 0) {
           const multi = losslessOnly
             ? await tryLoadArtistDetailMultiScope(currentBrowseScope.pairs, serverId, id, null)
             : await tryLoadArtistDetailMultiScope(currentBrowseScope.pairs, serverId, id);
@@ -367,7 +371,7 @@ export function useArtistDetailData(
     // multi-server, where this network search is disabled. Only fall back to the
     // network search when there is no local scope to split from.
     if (!id || !artist || preferLocalArtist || browseScope.multiServer) return;
-    if (serverId && browseScope.pairs.length > 0) return;
+    if (serverId && hasConfiguredLibraryBrowseScope() && browseScope.pairs.length > 0) return;
     const ownAlbumIds = new Set(albums.map(a => a.id));
     // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect

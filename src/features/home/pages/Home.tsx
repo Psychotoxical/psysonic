@@ -339,22 +339,25 @@ export default function Home() {
     const applyChronologicalResult = (
       section: 'recent' | 'recentlyPlayed',
       result: HomeChronologicalFeedResult,
+      applyToDisplay = true,
     ) => {
       if (result.status !== 'success' || !isCurrentLoad()) return;
       const displayed = displayedSnapshotRef.current;
       if (displayed?.scopeKey !== scopeKey || displayed.scopeVersion !== scopeVersion) return;
-      const nextDisplayed = patchHomeChronologicalFeed(displayed, section, result);
-      applyFeedSnapshot(nextDisplayed);
       patchHomeFeedCache(scopeKey, scopeVersion, snapshot => (
         patchHomeChronologicalFeed(snapshot, section, result)
       ));
+      if (applyToDisplay) applyFeedSnapshot(patchHomeChronologicalFeed(displayed, section, result));
       if (mainstageDiagnosticsEnabled) finishDiagnostic(section, {
         status: result.albums.length > 0 ? 'ready' : 'empty',
         durationMs: result.durationMs,
         itemCount: result.albums.length,
       });
     };
-    const patchChronologicalFeeds = (chronological: ReturnType<typeof startFreshHomeFeed>['chronological']) => {
+    const patchChronologicalFeeds = (
+      chronological: ReturnType<typeof startFreshHomeFeed>['chronological'],
+      applyToDisplay = true,
+    ) => {
       const pending: Promise<void>[] = [];
       if (chronological.recent) {
         pending.push(chronological.recent.then(result => {
@@ -364,7 +367,7 @@ export default function Home() {
             itemCount: 0,
             detail: result.status === 'error' ? result.detail : undefined,
           });
-          applyChronologicalResult('recent', result);
+          applyChronologicalResult('recent', result, applyToDisplay);
         }));
       }
       if (chronological.recentlyPlayed) {
@@ -375,7 +378,7 @@ export default function Home() {
             itemCount: 0,
             detail: result.status === 'error' ? result.detail : undefined,
           });
-          applyChronologicalResult('recentlyPlayed', result);
+          applyChronologicalResult('recentlyPlayed', result, applyToDisplay);
         }));
       }
       return Promise.all(pending).then(() => undefined);
@@ -399,9 +402,9 @@ export default function Home() {
           limit: 6,
         });
       }
-      // The cache TTL owns ordinary revisit freshness. Avoid reshuffling and
-      // rerendering the full Mainstage unless library data changed or connectivity recovered.
-      if (syncRefresh || reconnectRefresh) {
+      // Keep this visit stable, but prepare a fresh snapshot so the next visit
+      // is instant. Sync/reconnect refreshes also update the currently visible feed.
+      if (!offlineBrowseActive || syncRefresh || reconnectRefresh) {
         void (async () => {
           try {
             const freshLoad = startFreshHomeFeed();
@@ -414,8 +417,9 @@ export default function Home() {
             );
             if (isHomeFeedSnapshotEmpty(fresh)) return;
             writeHomeFeedCache(fresh);
-            applyFeedSnapshot(fresh);
-            void patchChronologicalFeeds(freshLoad.chronological);
+            const applyCurrentRefresh = syncRefresh || reconnectRefresh;
+            if (applyCurrentRefresh) applyFeedSnapshot(fresh);
+            void patchChronologicalFeeds(freshLoad.chronological, applyCurrentRefresh);
             void warmHomeMainstageCovers(homeSnapshotForEnabledCoverWarm(
               fresh,
               getEffectiveEnabledSections(),
@@ -731,11 +735,12 @@ export default function Home() {
             {!homeAlbumRowsDisabled && isVisible('becauseYouLike') && (
               <MainstageDiagnosticFrame sectionId="becauseYouLike" label={t('home.becauseYouLike')} active={mainstageDiagnosticsVisible}>
                 {becauseYouLikeHasSeed && <BecauseYouLikeRail
-                mostPlayed={mostPlayed}
-                recentlyPlayed={recentlyPlayed}
-                starred={starred}
-                scopeKey={scopeKey}
-                scopeVersion={scopeVersion}
+                  mostPlayed={mostPlayed}
+                  recentlyPlayed={recentlyPlayed}
+                  starred={starred}
+                  scopeKey={scopeKey}
+                  scopeVersion={scopeVersion}
+                  scopes={scopes}
                   disableArtwork={!becauseYouLikeArtworkEnabled}
                   onDiagnosticResult={mainstageDiagnosticsEnabled
                     ? result => reportAutonomousDiagnostic('becauseYouLike', result)
@@ -847,11 +852,12 @@ export default function Home() {
             {!homeAlbumRowsDisabled && isVisible('losslessAlbums') && (
               <MainstageDiagnosticFrame sectionId="losslessAlbums" label={t('home.losslessAlbums')} active={mainstageDiagnosticsVisible}>
                 <LosslessAlbumsRail
-                serverIds={serverIds}
-                scopeVersion={scopeVersion}
-                disableArtwork={!losslessAlbumsArtworkEnabled}
-                artworkSize={HOME_ALBUM_ROW_ARTWORK_SIZE}
-                windowArtworkByViewport={HOME_ARTWORK_WINDOWING}
+                  serverIds={serverIds}
+                  scopeVersion={scopeVersion}
+                  scopes={scopes}
+                  disableArtwork={!losslessAlbumsArtworkEnabled}
+                  artworkSize={HOME_ALBUM_ROW_ARTWORK_SIZE}
+                  windowArtworkByViewport={HOME_ARTWORK_WINDOWING}
                   initialArtworkBudget={HOME_ALBUM_ROW_INITIAL_ARTWORK_BUDGET}
                   onDiagnosticResult={mainstageDiagnosticsEnabled
                     ? result => reportAutonomousDiagnostic('losslessAlbums', result)

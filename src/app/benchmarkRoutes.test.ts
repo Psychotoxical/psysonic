@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SubsonicAlbum, SubsonicArtist, SubsonicPlaylist } from '@/lib/api/subsonicTypes';
 import {
   benchmarkRouteMatchesLocation,
+  benchmarkSearchQueryFromCandidates,
   benchmarkStaticRoutesForScenario,
   buildDynamicBenchmarkRoutes,
 } from './benchmarkRoutes';
@@ -87,5 +88,14 @@ describe('benchmark routes', () => {
     };
     expect(benchmarkRouteMatchesLocation('/album/album-1?server=srv-1', location)).toBe(true);
     expect(benchmarkRouteMatchesLocation('/album/album-1?server=srv-2', location)).toBe(false);
+  });
+
+  it('uses a real indexed artist or album name for search interactions', () => {
+    expect(benchmarkSearchQueryFromCandidates(
+      [{ name: '  Real Artist  ' }],
+      [{ name: 'Real Album' }],
+    )).toBe('Real Artist');
+    expect(benchmarkSearchQueryFromCandidates([], [{ name: '  Real Album  ' }])).toBe('Real Album');
+    expect(benchmarkSearchQueryFromCandidates([{ name: '   ' }], [])).toBeNull();
   });
 });

@@ -489,7 +489,11 @@ export default function Composers() {
         )}
 
         {!loading && hasMore && (
-          <InpageScrollSentinel bindSentinel={bindSentinel} loading={loadingMore} />
+          <InpageScrollSentinel
+            bindSentinel={bindSentinel}
+            loading={loadingMore}
+            itemCount={visible.length}
+          />
         )}
 
         {!loading && filtered.length === 0 && (

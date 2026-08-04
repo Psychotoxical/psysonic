@@ -423,6 +423,7 @@ export type LibraryGenreAlbumsRequest = {
   limit?: number;
   offset?: number;
   includeTotal?: boolean;
+  countOnly?: boolean;
 };
 
 export type LibraryGenreAlbumsResponse = {

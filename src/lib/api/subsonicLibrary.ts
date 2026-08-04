@@ -228,21 +228,37 @@ export async function getRandomSongsForServer(
   size = 50,
   genre?: string,
   timeout = 15000,
+  explicitLibraryIds?: readonly string[],
 ): Promise<SubsonicSong[]> {
   if (!shouldAttemptSubsonicForServer(serverId)) return [];
-  const params: Record<string, string | number> = {
-    size,
-    _t: Date.now(),
-    ...libraryFilterParamsForServer(serverId),
+  const fetchForLibrary = async (libraryId?: string): Promise<SubsonicSong[]> => {
+    const params: Record<string, string | number> = {
+      size,
+      _t: Date.now(),
+      ...(libraryId
+        ? { musicFolderId: libraryId }
+        : explicitLibraryIds
+          ? {}
+          : libraryFilterParamsForServer(serverId)),
+    };
+    if (genre) params.genre = genre;
+    const data = await apiForServer<{ randomSongs: { song: SubsonicSong[] } }>(
+      serverId,
+      'getRandomSongs.view',
+      params,
+      timeout,
+    );
+    return data.randomSongs?.song ?? [];
   };
-  if (genre) params.genre = genre;
-  const data = await apiForServer<{ randomSongs: { song: SubsonicSong[] } }>(
-    serverId,
-    'getRandomSongs.view',
-    params,
-    timeout,
-  );
-  const songs = await filterSongsToServerLibrary(data.randomSongs?.song ?? [], serverId);
+  const rawSongs = explicitLibraryIds && explicitLibraryIds.length > 1
+    ? (await Promise.all(explicitLibraryIds.map(libraryId => (
+        fetchForLibrary(libraryId).catch(() => [])
+      )))).flat()
+    : await fetchForLibrary(explicitLibraryIds?.[0]);
+  const scopedSongs = explicitLibraryIds
+    ? rawSongs
+    : await filterSongsToServerLibrary(rawSongs, serverId);
+  const songs = [...new Map(scopedSongs.map(song => [song.id, song])).values()].slice(0, size);
   const ownerServerKey = resolveIndexKey(serverId);
   return songs.map(song => ({ ...song, serverId: ownerServerKey }));
 }
@@ -271,8 +287,14 @@ export async function getAlbumListForServer(
   offset = 0,
   extra: Record<string, unknown> = {},
   timeout = 15000,
+  explicitLibraryIds?: readonly string[],
 ): Promise<SubsonicAlbum[]> {
   if (!shouldAttemptSubsonicForServer(serverId)) return [];
+  const scopeParams = explicitLibraryIds === undefined
+    ? libraryFilterParamsForServer(serverId)
+    : explicitLibraryIds.length === 0
+      ? {}
+      : { musicFolderId: explicitLibraryIds.length === 1 ? explicitLibraryIds[0]! : explicitLibraryIds };
   const data = await apiForServer<{ albumList2: { album: SubsonicAlbum[] } }>(
     serverId,
     'getAlbumList2.view',
@@ -281,7 +303,7 @@ export async function getAlbumListForServer(
       size,
       offset,
       _t: Date.now(),
-      ...libraryFilterParamsForServer(serverId),
+      ...scopeParams,
       ...extra,
     },
     timeout,

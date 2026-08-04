@@ -15,22 +15,22 @@ vi.mock('@/lib/api/subsonicClient', () => ({
 }));
 
 vi.mock('./libraryReady', () => ({
-  libraryIsReady: vi.fn(),
+  readyLibraryServerKeys: vi.fn(),
 }));
 
 import { libraryListAlbumsByGenre } from '@/lib/api/library';
 import { getAlbumsByGenre } from '@/lib/api/subsonicGenres';
-import { libraryIsReady } from './libraryReady';
+import { readyLibraryServerKeys } from './libraryReady';
 
 describe('genreAlbumBrowse', () => {
   beforeEach(() => {
-    vi.mocked(libraryIsReady).mockReset();
+    vi.mocked(readyLibraryServerKeys).mockReset();
     vi.mocked(libraryListAlbumsByGenre).mockReset();
     vi.mocked(getAlbumsByGenre).mockReset();
   });
 
   it('loads albums from the local genre browse command when the index is ready', async () => {
-    vi.mocked(libraryIsReady).mockResolvedValue(true);
+    vi.mocked(readyLibraryServerKeys).mockResolvedValue(['srv-1']);
     vi.mocked(libraryListAlbumsByGenre).mockResolvedValue({
       source: 'local',
       hasMore: true,
@@ -62,8 +62,24 @@ describe('genreAlbumBrowse', () => {
     expect(page.hasMore).toBe(true);
   });
 
+  it('joins identical in-flight local page reads', async () => {
+    vi.mocked(readyLibraryServerKeys).mockResolvedValue(['srv-1']);
+    vi.mocked(libraryListAlbumsByGenre).mockResolvedValue({
+      source: 'local',
+      hasMore: true,
+      albums: [],
+    });
+
+    await Promise.all([
+      fetchGenreAlbumPage('srv-1', 'Rock', true, 0, 60, 'alphabeticalByName'),
+      fetchGenreAlbumPage('srv-1', 'Rock', true, 0, 60, 'alphabeticalByName'),
+    ]);
+
+    expect(libraryListAlbumsByGenre).toHaveBeenCalledTimes(1);
+  });
+
   it('falls back to Subsonic byGenre when the local index is unavailable', async () => {
-    vi.mocked(libraryIsReady).mockResolvedValue(false);
+    vi.mocked(readyLibraryServerKeys).mockResolvedValue(null);
     vi.mocked(getAlbumsByGenre).mockResolvedValue([
       { id: 'al-1', name: 'A', artist: 'X', artistId: 'x', songCount: 1, duration: 1 },
     ]);
@@ -82,13 +98,13 @@ describe('genreAlbumBrowse', () => {
 
     const page = await fetchGenreAlbumPage('srv-1', 'Rock', false, 0, 60, 'alphabeticalByName');
 
-    expect(libraryIsReady).not.toHaveBeenCalled();
+    expect(readyLibraryServerKeys).not.toHaveBeenCalled();
     expect(getAlbumsByGenre).toHaveBeenCalledWith('Rock', 60, 0);
     expect(page.albums).toHaveLength(1);
   });
 
   it('reads album totals from the local genre browse command when needed', async () => {
-    vi.mocked(libraryIsReady).mockResolvedValue(true);
+    vi.mocked(readyLibraryServerKeys).mockResolvedValue(['srv-1']);
     vi.mocked(libraryListAlbumsByGenre).mockResolvedValue({
       source: 'local',
       hasMore: false,
@@ -97,5 +113,54 @@ describe('genreAlbumBrowse', () => {
     });
 
     await expect(fetchGenreAlbumTotal('srv-1', 'Rock', true, 'alphabeticalByName')).resolves.toBe(42);
+    expect(libraryListAlbumsByGenre).toHaveBeenCalledWith(expect.objectContaining({
+      includeTotal: true,
+      countOnly: true,
+    }));
+  });
+
+  it('uses the selected multi-server browse scope for pages and totals', async () => {
+    vi.mocked(readyLibraryServerKeys).mockResolvedValue(['srv-2', 'srv-1']);
+    vi.mocked(libraryListAlbumsByGenre).mockResolvedValue({
+      source: 'local',
+      hasMore: false,
+      total: 84,
+      albums: [],
+    });
+    const browseScope = {
+      anchorServerId: 'srv-2',
+      serverIds: ['srv-2', 'srv-1'],
+      pairs: [
+        { serverId: 'srv-2', libraryId: null },
+        { serverId: 'srv-1', libraryId: 'lib-a' },
+      ],
+      fingerprint: 'scope',
+      multiServer: true,
+    };
+
+    await fetchGenreAlbumPage(
+      'srv-2',
+      'Rock',
+      true,
+      0,
+      60,
+      'alphabeticalByName',
+      browseScope,
+    );
+    await expect(fetchGenreAlbumTotal(
+      'srv-2',
+      'Rock',
+      true,
+      'alphabeticalByName',
+      browseScope,
+    )).resolves.toBe(84);
+
+    expect(readyLibraryServerKeys).toHaveBeenCalledWith(['srv-2', 'srv-1']);
+    expect(libraryListAlbumsByGenre).toHaveBeenCalledWith(expect.objectContaining({
+      serverId: 'srv-2',
+      libraryScope: undefined,
+      libraryScopes: browseScope.pairs,
+      countOnly: true,
+    }));
   });
 });

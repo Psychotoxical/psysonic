@@ -7,7 +7,10 @@ import {
 } from '@/lib/api/library/scopeReads';
 import { albumToAlbum } from '@/lib/library/advancedSearchLocal';
 import { runLocalRandomArtists, runLocalRandomSongs } from '@/lib/library/browseTextSearch';
-import { deriveEffectiveLibraryBrowseServerIds } from '@/lib/library/libraryBrowseScope';
+import {
+  browseScopeLibraryIdsForServer,
+  deriveEffectiveLibraryBrowseServerIds,
+} from '@/lib/library/libraryBrowseScope';
 import { readyLibraryServerKeys } from '@/lib/library/libraryReady';
 import { runLibraryLocalReadSingleFlight } from '@/lib/library/localReadSingleFlight';
 import { resolveIndexKey } from '@/lib/server/serverIndexKey';
@@ -371,12 +374,21 @@ async function loadServerAlbums(
   serverId: string,
   type: Parameters<typeof getAlbumListForServer>[1],
   size: number,
+  scopes: readonly LibraryScopePair[],
   deps: HomeFeedLoaderDeps,
 ): Promise<TimedServerItems<OwnedAlbum>> {
   const startedAt = nowMs();
   if (size <= 0) return { items: [], durationMs: 0, outcome: 'skipped' };
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const request = deps.getAlbumListForServer(serverId, type, size, 0, {}, HOME_REQUEST_TIMEOUT_MS)
+  const request = deps.getAlbumListForServer(
+    serverId,
+    type,
+    size,
+    0,
+    {},
+    HOME_REQUEST_TIMEOUT_MS,
+    browseScopeLibraryIdsForServer(scopes, serverId),
+  )
     .then(albums => ({ albums, outcome: albums.length > 0 ? 'rows' as const : 'empty' as const }))
     .catch(() => ({ albums: [] as SubsonicAlbum[], outcome: 'error' as const }));
   const result = await Promise.race([
@@ -397,6 +409,7 @@ async function loadServerArtists(
   serverId: string,
   size: number,
   scopeFlightKey: string,
+  scopes: readonly LibraryScopePair[],
   deps: HomeFeedLoaderDeps,
 ): Promise<TimedServerItems<OwnedArtist>> {
   const startedAt = nowMs();
@@ -410,7 +423,7 @@ async function loadServerArtists(
       const local = await withinDeadline(
         runLibraryLocalReadSingleFlight(
           JSON.stringify(['home-artists', scopeFlightKey, serverId, size]),
-          () => deps.runLocalRandomArtists(serverId, size),
+          () => deps.runLocalRandomArtists(serverId, size, scopes),
         ),
         null,
         Math.min(HOME_LOCAL_READ_TIMEOUT_MS, remainingHomeDeadline(startedAt)),
@@ -424,7 +437,11 @@ async function loadServerArtists(
       if (remainingMs <= 0) {
         return { artists: [] as SubsonicArtist[], source: 'network' as const, outcome: 'timeout' as const };
       }
-      const artists = await deps.getArtistsForServer(serverId, remainingMs);
+      const artists = await deps.getArtistsForServer(
+        serverId,
+        remainingMs,
+        browseScopeLibraryIdsForServer(scopes, serverId),
+      );
       return { artists, source: 'network' as const, outcome: artists.length > 0 ? 'rows' as const : 'empty' as const };
     } catch {
       return { artists: [] as SubsonicArtist[], source: 'network' as const, outcome: 'error' as const };
@@ -446,6 +463,7 @@ async function loadServerSongs(
   serverId: string,
   size: number,
   scopeFlightKey: string,
+  scopes: readonly LibraryScopePair[],
   deps: HomeFeedLoaderDeps,
 ): Promise<TimedServerItems<OwnedSong>> {
   if (size <= 0) return { items: [], durationMs: 0, outcome: 'skipped' };
@@ -458,7 +476,7 @@ async function loadServerSongs(
     const local = await withinDeadline(
       runLibraryLocalReadSingleFlight(
         JSON.stringify(['home-songs', scopeFlightKey, serverId, size]),
-        () => deps.runLocalRandomSongs(serverId, size),
+        () => deps.runLocalRandomSongs(serverId, size, scopes),
       ),
       null,
       Math.min(HOME_LOCAL_READ_TIMEOUT_MS, remainingHomeDeadline(startedAt)),
@@ -470,7 +488,13 @@ async function loadServerSongs(
     if (remainingMs <= 0) {
       return { songs: [] as SubsonicSong[], source: 'network' as const, outcome: 'timeout' as const };
     }
-    const songs = await deps.getRandomSongsForServer(serverId, size, undefined, remainingMs);
+    const songs = await deps.getRandomSongsForServer(
+      serverId,
+      size,
+      undefined,
+      remainingMs,
+      browseScopeLibraryIdsForServer(scopes, serverId),
+    );
     return { songs, source: 'network' as const, outcome: songs.length > 0 ? 'rows' as const : 'empty' as const };
   })();
   const result = await withinHomeDeadline(
@@ -529,7 +553,7 @@ export async function loadHomeFeedWithStatus(options: LoadHomeFeedOptions): Prom
   ]);
   const loadAlbumGroups = (type: Parameters<typeof getAlbumListForServer>[1], quotas: number[]) => (
     Promise.all(options.serverIds.map((serverId, index) => (
-      loadServerAlbums(serverId, type, quotas[index] ?? 0, deps)
+      loadServerAlbums(serverId, type, quotas[index] ?? 0, options.scopes, deps)
     )))
   );
 
@@ -597,7 +621,7 @@ export async function loadHomeFeedWithStatus(options: LoadHomeFeedOptions): Prom
   const artistsStartedAt = nowMs();
   const artistsPromise = enabled.discoverArtists
     ? Promise.all(options.serverIds.map((serverId, index) => (
-      loadServerArtists(serverId, artistQuotas[index] ?? 0, scopeFlightKey, deps)
+      loadServerArtists(serverId, artistQuotas[index] ?? 0, scopeFlightKey, options.scopes, deps)
     ))).then(groups => {
         const items = dedupeOwned(stableRoundRobin(
           groups.map((group, index) => deps.shuffle(group.items).slice(0, artistQuotas[index] ?? 0)),
@@ -614,7 +638,7 @@ export async function loadHomeFeedWithStatus(options: LoadHomeFeedOptions): Prom
   const songsStartedAt = nowMs();
   const songsPromise = enabled.discoverSongs
     ? Promise.all(options.serverIds.map((serverId, index) => (
-        loadServerSongs(serverId, songQuotas[index] ?? 0, scopeFlightKey, deps)
+        loadServerSongs(serverId, songQuotas[index] ?? 0, scopeFlightKey, options.scopes, deps)
       ))).then(groups => {
         const items = dedupeOwned(stableRoundRobin(groups.map(group => group.items), HOME_DISCOVER_SONGS_SIZE));
         report('discoverSongs', {
@@ -722,6 +746,7 @@ export async function loadMoreHomeAlbums(options: LoadMoreHomeAlbumsOptions): Pr
           options.snapshot.offsets[section][serverId] ?? 0,
           {},
           HOME_REQUEST_TIMEOUT_MS,
+          browseScopeLibraryIdsForServer(options.scopes, serverId),
         ).then(items => items.map(item => ({ ...item, serverId }))),
         [] as OwnedAlbum[],
       ),

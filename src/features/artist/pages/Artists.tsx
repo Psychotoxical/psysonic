@@ -412,6 +412,10 @@ export default function Artists() {
   return (
     <div
       className={`content-body animate-fade-in mainstage-inpage-split${mainstageHeaderTight ? ' mainstage-inpage--header-tight' : ''}`}
+      data-benchmark-filter-starred={starredOnly ? 'true' : 'false'}
+      data-benchmark-filter-credit={creditMode}
+      data-benchmark-loading={loading || gridLoadingMore ? 'true' : 'false'}
+      data-benchmark-result-count={visible.length}
     >
       {artistsBrowseDiagnosticsEnabled && (
         <div className="mainstage-diagnostic-copy-all">
@@ -447,8 +451,9 @@ export default function Artists() {
                   />
                   <button
                     type="button"
-                    className={`btn btn-surface${creditMode === 'track' ? ' btn-sort-active' : ''}`}
-                    onClick={() => setCreditMode(nextArtistCreditMode(creditMode))}
+                     className={`btn btn-surface${creditMode === 'track' ? ' btn-sort-active' : ''}`}
+                     onClick={() => setCreditMode(nextArtistCreditMode(creditMode))}
+                     data-benchmark-filter="credit"
                     data-tooltip={
                       creditMode === 'album'
                         ? t('artists.browse.creditMode.tooltipTrack')
@@ -589,7 +594,11 @@ export default function Artists() {
         )}
 
         {!loading && gridHasMore && (
-          <InpageScrollSentinel bindSentinel={bindLoadMoreSentinel} loading={gridLoadingMore} />
+          <InpageScrollSentinel
+            bindSentinel={bindLoadMoreSentinel}
+            loading={gridLoadingMore}
+            itemCount={visible.length}
+          />
         )}
 
         {!loading && !pendingLetterMatch && filtered.length === 0 && (

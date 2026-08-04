@@ -14,6 +14,40 @@ export interface BenchmarkReactCommit {
   commitTimeMs: number;
 }
 
+export type BenchmarkInteractionKind = 'search' | 'filter' | 'pagination';
+export type BenchmarkInteractionStatus = 'completed' | 'skipped' | 'timeout' | 'error';
+
+export interface BenchmarkInteractionResult {
+  name: string;
+  kind: BenchmarkInteractionKind;
+  status: BenchmarkInteractionStatus;
+  durationMs: number;
+  semanticMs: number;
+  quietAfterSemanticMs: number;
+  mutationCount: number;
+  details?: Record<string, unknown>;
+}
+
+export interface BenchmarkRendererStartupTiming {
+  navigationType: string | null;
+  responseEndMs: number | null;
+  domInteractiveMs: number | null;
+  domContentLoadedMs: number | null;
+  loadEventMs: number | null;
+  runnerModuleReadyMs: number;
+  requestAcceptedMs: number;
+  migrationReadyMs: number;
+  routeResolutionCompletedMs: number;
+  instrumentationReadyMs: number;
+  benchmarkReadyMs: number;
+  phases: {
+    requestToMigrationReadyMs: number;
+    routeResolutionMs: number;
+    instrumentationSetupMs: number;
+    transitionSetupMs: number;
+  };
+}
+
 export interface BenchmarkPageResult {
   route: string;
   fromRoute: string;
@@ -42,6 +76,7 @@ export interface BenchmarkPageResult {
   incompleteImageCount: number;
   scrollHeight: number;
   viewportHeight: number;
+  interactions: BenchmarkInteractionResult[];
   cpuBefore?: unknown;
   cpuAfter?: unknown;
 }
@@ -52,7 +87,7 @@ export interface BenchmarkSkippedRoute {
 }
 
 export interface BenchmarkReport {
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: string;
   startedAt: string;
   finishedAt: string;
@@ -66,6 +101,7 @@ export interface BenchmarkReport {
     selectedServerCount: number;
     libraryScopeFingerprint: string | null;
   };
+  rendererStartup: BenchmarkRendererStartupTiming;
   pages: BenchmarkPageResult[];
   skippedRoutes: BenchmarkSkippedRoute[];
   logs: string[];
@@ -158,6 +194,9 @@ export function summarizeBenchmarkPages(pages: BenchmarkPageResult[]): Benchmark
 }
 
 export function formatBenchmarkMarkdown(report: Omit<BenchmarkReport, 'markdown'>): string {
+  const interactions = report.pages.flatMap(page => (
+    page.interactions.map(interaction => ({ route: page.route, iteration: page.iteration, ...interaction }))
+  ));
   const lines = [
     `# Psysonic benchmark ${report.id}`,
     '',
@@ -167,6 +206,20 @@ export function formatBenchmarkMarkdown(report: Omit<BenchmarkReport, 'markdown'
     `- Profile: ${report.profile}`,
     `- Runs: ${report.runs}`,
     `- Servers: ${report.environment.selectedServerCount} selected / ${report.environment.serverCount} configured`,
+    '',
+    '## Renderer startup',
+    '',
+    `- Navigation type: ${report.rendererStartup.navigationType ?? 'unknown'}`,
+    `- DOM interactive: ${report.rendererStartup.domInteractiveMs ?? 'n/a'} ms`,
+    `- DOM content loaded: ${report.rendererStartup.domContentLoadedMs ?? 'n/a'} ms`,
+    `- Window load: ${report.rendererStartup.loadEventMs ?? 'n/a'} ms`,
+    `- Benchmark runner module ready: ${report.rendererStartup.runnerModuleReadyMs} ms`,
+    `- Benchmark request accepted: ${report.rendererStartup.requestAcceptedMs} ms`,
+    `- Migrations ready: ${report.rendererStartup.migrationReadyMs} ms`,
+    `- Route resolution: ${report.rendererStartup.phases.routeResolutionMs} ms`,
+    `- Instrumentation setup: ${report.rendererStartup.phases.instrumentationSetupMs} ms`,
+    `- Transition setup: ${report.rendererStartup.phases.transitionSetupMs} ms`,
+    `- Benchmark ready: ${report.rendererStartup.benchmarkReadyMs} ms`,
     '',
     '| Route | Samples | Cold total | Warm median | Median readiness | Median quiet | Max total | Median React | Median long tasks | Timeouts |',
     '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|',
@@ -187,6 +240,16 @@ export function formatBenchmarkMarkdown(report: Omit<BenchmarkReport, 'markdown'
     ...report.pages.map(page => (
       `| ${page.fromRoute} | ${page.route} | ${page.actualRoute} | ${page.iteration} | ${page.temperature} | ${page.navigationMs} ms | ${page.readinessMs} ms | ${page.quietAfterReadyMs} ms | ${page.totalMs} ms | ${page.reactCommitCount} | ${page.reactActualDurationMs} ms | ${page.longTaskTotalMs} ms | ${page.domNodeCount} | ${page.incompleteImageCount} |`
     )),
+    ...(interactions.length > 0 ? [
+      '',
+      '## Interactions',
+      '',
+      '| Route | Run | Interaction | Kind | Status | Semantic | Quiet | Total | Mutations |',
+      '|---|---:|---|---|---|---:|---:|---:|---:|',
+      ...interactions.map(interaction => (
+        `| ${interaction.route} | ${interaction.iteration} | ${interaction.name} | ${interaction.kind} | ${interaction.status} | ${interaction.semanticMs} ms | ${interaction.quietAfterSemanticMs} ms | ${interaction.durationMs} ms | ${interaction.mutationCount} |`
+      )),
+    ] : []),
   ];
   return lines.join('\n');
 }

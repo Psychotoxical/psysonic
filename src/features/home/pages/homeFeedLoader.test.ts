@@ -253,6 +253,7 @@ describe('homeFeedLoader failure isolation', () => {
       _offset: number,
       _extra: Record<string, unknown>,
       _timeout: number,
+      _libraryIds?: readonly string[],
     ) => {
       return Array.from({ length: size }, (_, index) => album(serverId, `${type}-${index}`));
     });
@@ -445,6 +446,37 @@ describe('homeFeedLoader failure isolation', () => {
     }
   });
 
+  it('passes the explicit Home library scope to every album request', async () => {
+    const getAlbumListForServer = vi.fn(async (
+      _serverId: string,
+      _type: string,
+      _size: number,
+      _offset: number,
+      _extra: Record<string, unknown>,
+      _timeout: number,
+      _libraryIds?: readonly string[],
+    ) => []);
+
+    await loadHomeFeed({
+      serverIds: ['a', 'b'], scopeKey: 'scope', scopeVersion: 1, randomSize: 20,
+      anchorServerId: 'a',
+      scopes: [{ serverId: 'a', libraryId: 'lib-a' }, { serverId: 'b', libraryId: null }],
+      showArtists: false, showSongs: false, mixConfig,
+      deps: {
+        getAlbumListForServer: getAlbumListForServer as never,
+        filterAlbumsByMixRatingsAcrossServers: vi.fn(async albums => albums),
+        shuffle: items => items,
+      },
+    });
+
+    const callsForA = getAlbumListForServer.mock.calls.filter(call => call[0] === 'a');
+    const callsForB = getAlbumListForServer.mock.calls.filter(call => call[0] === 'b');
+    expect(callsForA.length).toBeGreaterThan(0);
+    expect(callsForB.length).toBeGreaterThan(0);
+    expect(callsForA.every(call => JSON.stringify(call[6]) === JSON.stringify(['lib-a']))).toBe(true);
+    expect(callsForB.every(call => JSON.stringify(call[6]) === JSON.stringify([]))).toBe(true);
+  });
+
   it('uses local random artists before the network and records each server source', async () => {
     const getArtistsForServer = vi.fn(async (serverId: string, _timeout?: number) => [
       { id: `network-${serverId}`, name: `Network ${serverId}` },
@@ -469,8 +501,8 @@ describe('homeFeedLoader failure isolation', () => {
       },
     });
 
-    expect(runLocalRandomArtists).toHaveBeenCalledWith('a', 8);
-    expect(runLocalRandomArtists).toHaveBeenCalledWith('b', 8);
+    expect(runLocalRandomArtists).toHaveBeenCalledWith('a', 8, []);
+    expect(runLocalRandomArtists).toHaveBeenCalledWith('b', 8, []);
     expect(getArtistsForServer).toHaveBeenCalledTimes(1);
     const networkTimeout = getArtistsForServer.mock.calls[0]?.[1] ?? 0;
     expect(networkTimeout).toBeGreaterThan(0);
@@ -527,10 +559,10 @@ describe('homeFeedLoader failure isolation', () => {
     await vi.advanceTimersByTimeAsync(1);
     const result = await request;
     expect(getArtistsForServer).toHaveBeenCalledWith(
-      'a', HOME_REQUEST_TIMEOUT_MS - HOME_LOCAL_READ_TIMEOUT_MS,
+      'a', HOME_REQUEST_TIMEOUT_MS - HOME_LOCAL_READ_TIMEOUT_MS, [],
     );
     expect(getRandomSongsForServer).toHaveBeenCalledWith(
-      'a', 18, undefined, HOME_REQUEST_TIMEOUT_MS - HOME_LOCAL_READ_TIMEOUT_MS,
+      'a', 18, undefined, HOME_REQUEST_TIMEOUT_MS - HOME_LOCAL_READ_TIMEOUT_MS, [],
     );
     expect(result.randomArtists.map(item => item.id)).toEqual(['network-artist']);
     expect(result.discoverSongs.map(item => item.id)).toEqual(['network-song']);
@@ -545,6 +577,7 @@ describe('homeFeedLoader failure isolation', () => {
       _offset: number,
       _extra: Record<string, unknown>,
       _timeout: number,
+      _libraryIds?: readonly string[],
     ) => (
       serverId === 'a'
         ? [album('a', 'existing'), album('a', 'new-a')]
@@ -552,14 +585,18 @@ describe('homeFeedLoader failure isolation', () => {
     ));
     const result = await loadMoreHomeAlbums({
       snapshot: snapshot(), section: 'starred', mixConfig,
-      anchorServerId: 'a', scopes: [],
+      anchorServerId: 'a',
+      scopes: [{ serverId: 'a', libraryId: 'lib-a' }, { serverId: 'b', libraryId: null }],
       deps: {
         getAlbumListForServer: getAlbumListForServer as never,
         filterAlbumsByMixRatingsAcrossServers: vi.fn(async albums => albums),
       },
     });
-    expect(getAlbumListForServer.mock.calls.map(call => [call[0], call[3], call[5]]))
-      .toEqual([['a', 2, HOME_REQUEST_TIMEOUT_MS], ['b', 3, HOME_REQUEST_TIMEOUT_MS]]);
+    expect(getAlbumListForServer.mock.calls.map(call => [call[0], call[3], call[4], call[5], call[6]]))
+      .toEqual([
+        ['a', 2, {}, HOME_REQUEST_TIMEOUT_MS, ['lib-a']],
+        ['b', 3, {}, HOME_REQUEST_TIMEOUT_MS, []],
+      ]);
     expect(result.starred.map(item => `${item.serverId}:${item.id}`))
       .toEqual(['a:existing', 'b:existing', 'a:new-a']);
     expect(result.offsets.starred).toEqual({ a: 4, b: 4 });

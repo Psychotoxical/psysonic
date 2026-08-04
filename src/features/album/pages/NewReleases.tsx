@@ -507,7 +507,11 @@ export default function NewReleases() {
               )}
             />
             {gridHasMore && (
-              <InpageScrollSentinel bindSentinel={bindLoadMoreSentinel} loading={loadingGrid} />
+              <InpageScrollSentinel
+                bindSentinel={bindLoadMoreSentinel}
+                loading={loadingGrid}
+                itemCount={displayAlbums.length}
+              />
             )}
             </div>
             {isScrollRestorePending && (

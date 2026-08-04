@@ -31,6 +31,8 @@ import {
 } from '@/lib/navigation/albumDetailNavigation';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import { runBulkEnqueue, runBulkPlayAll, runBulkShuffle } from '@/features/playback/utils/playback/runBulkPlay';
+import { deriveLibraryBrowseScope } from '@/lib/library/libraryBrowseScope';
+import { useUnavailableServerIds } from '@/lib/network/serverReachability';
 
 export default function GenreDetail() {
   const { name } = useParams<{ name: string }>();
@@ -40,7 +42,30 @@ export default function GenreDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const musicLibraryFilterVersion = useAuthStore(s => s.musicLibraryFilterVersion);
-  const serverId = useAuthStore(s => s.activeServerId ?? '');
+  const activeServerId = useAuthStore(s => s.activeServerId ?? '');
+  const servers = useAuthStore(s => s.servers);
+  const libraryBrowseServerIds = useAuthStore(s => s.libraryBrowseServerIds);
+  const musicFoldersByServer = useAuthStore(s => s.musicFoldersByServer);
+  const libraryBrowseSelectionByServer = useAuthStore(s => s.libraryBrowseSelectionByServer);
+  const unavailableServerIds = useUnavailableServerIds();
+  const browseScope = useMemo(
+    () => deriveLibraryBrowseScope({
+      servers,
+      activeServerId: activeServerId || null,
+      libraryBrowseServerIds,
+      musicFoldersByServer,
+      libraryBrowseSelectionByServer,
+    }, unavailableServerIds),
+    [
+      activeServerId,
+      libraryBrowseSelectionByServer,
+      libraryBrowseServerIds,
+      musicFoldersByServer,
+      servers,
+      unavailableServerIds,
+    ],
+  );
+  const serverId = browseScope.anchorServerId ?? activeServerId;
   const indexEnabled = useLibraryIndexStore(s => s.isIndexEnabled(serverId));
   const playTrack = usePlayerStore(s => s.playTrack);
   const enqueue = usePlayerStore(s => s.enqueue);
@@ -69,6 +94,7 @@ export default function GenreDetail() {
     indexEnabled,
     sort,
     musicLibraryFilterVersion,
+    browseScope,
     getScrollRoot,
     scrollBodyEl,
     restoreDisplayCount,
@@ -97,19 +123,23 @@ export default function GenreDetail() {
 
   useEffect(() => {
     if (!genre || !serverId) return;
-    const cached = lookupGenreAlbumCount(serverId, genre, libraryScopeCacheKeyForServer(serverId));
+    const cached = browseScope.multiServer
+      ? null
+      : lookupGenreAlbumCount(serverId, genre, libraryScopeCacheKeyForServer(serverId));
     // React Compiler set-state-in-effect rule: state set from a timer/animation callback.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (cached != null) setAlbumCount(cached);
-  }, [serverId, genre, musicLibraryFilterVersion]);
+    setAlbumCount(cached);
+  }, [serverId, genre, musicLibraryFilterVersion, browseScope.fingerprint, browseScope.multiServer]);
 
   useEffect(() => {
     if (!genre || loading) return;
-    const cached = lookupGenreAlbumCount(serverId, genre, libraryScopeCacheKeyForServer(serverId));
+    const cached = browseScope.multiServer
+      ? null
+      : lookupGenreAlbumCount(serverId, genre, libraryScopeCacheKeyForServer(serverId));
     if (cached != null) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      void fetchGenreAlbumCount(serverId, genre, indexEnabled, sort).then(count => {
+      void fetchGenreAlbumCount(serverId, genre, indexEnabled, sort, browseScope).then(count => {
         if (!cancelled) setAlbumCount(count);
       });
     }, 0);
@@ -117,7 +147,7 @@ export default function GenreDetail() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [serverId, genre, indexEnabled, sort, musicLibraryFilterVersion, loading]);
+  }, [serverId, genre, indexEnabled, sort, musicLibraryFilterVersion, browseScope, loading]);
 
   const fetchGenreTracks = useCallback(
     (shuffle?: boolean) => fetchGenreTracksForPlayback(serverId, genre, {
@@ -255,7 +285,11 @@ export default function GenreDetail() {
                 )}
               />
               {hasMore && (
-                <InpageScrollSentinel bindSentinel={bindLoadMoreSentinel} loading={loadingMore} />
+                <InpageScrollSentinel
+                  bindSentinel={bindLoadMoreSentinel}
+                  loading={loadingMore}
+                  itemCount={displayAlbums.length}
+                />
               )}
             </div>
             {isScrollRestorePending && (

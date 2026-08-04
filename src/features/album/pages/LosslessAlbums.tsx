@@ -416,7 +416,11 @@ export default function LosslessAlbums() {
               )}
             />
             {hasMore && useLocalIndex !== null && (
-              <InpageScrollSentinel bindSentinel={bindLoadMoreSentinel} loading={loading} />
+              <InpageScrollSentinel
+                bindSentinel={bindLoadMoreSentinel}
+                loading={loading}
+                itemCount={displayAlbums.length}
+              />
             )}
           </>
         )}

@@ -84,6 +84,32 @@ fn comparison_with_previous(previous: &Value, current: &Value) -> Value {
     })
 }
 
+fn has_matching_run_configuration(previous: &Value, current: &Value) -> bool {
+    ["scenario", "profile", "runs"]
+        .into_iter()
+        .all(|key| previous.get(key) == current.get(key))
+}
+
+fn latest_matching_history_entry(history: &str, current: &Value) -> Option<Value> {
+    history.lines().rev().find_map(|line| {
+        let candidate = serde_json::from_str::<Value>(line).ok()?;
+        has_matching_run_configuration(&candidate, current).then_some(candidate)
+    })
+}
+
+fn previous_comparable_run(root: &std::path::Path, current: &Value) -> Option<Value> {
+    if let Ok(history) = std::fs::read_to_string(root.join("history.ndjson")) {
+        if let Some(candidate) = latest_matching_history_entry(&history, current) {
+            return Some(candidate);
+        }
+    }
+
+    std::fs::read_to_string(root.join("latest.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .filter(|candidate| has_matching_run_configuration(candidate, current))
+}
+
 fn append_history(root: &std::path::Path, payload: &Value, report_path: &std::path::Path) -> Result<(), String> {
     let path = root.join("history.ndjson");
     let row = serde_json::json!({
@@ -117,9 +143,7 @@ pub(crate) fn benchmark_publish_run(
         .ok_or_else(|| "benchmark payload has no id".to_string())?
         .to_string();
     let root = benchmark_root(&app)?;
-    let previous = std::fs::read_to_string(root.join("latest.json"))
-        .ok()
-        .and_then(|text| serde_json::from_str::<Value>(&text).ok());
+    let previous = previous_comparable_run(&root, &payload);
     if let Some(previous) = previous.as_ref() {
         let comparison = comparison_with_previous(previous, &payload);
         if let Some(object) = payload.as_object_mut() {
@@ -147,4 +171,78 @@ pub(crate) fn publish_latest_to_cli<R: tauri::Runtime>(app: &tauri::AppHandle<R>
         &std::fs::read_to_string(&latest_path).map_err(|e| e.to_string())?
     ).map_err(|e| e.to_string())?;
     crate::cli::write_benchmark_cli_response(&response_for_report(&latest_path, &payload))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn report(id: &str, scenario: &str, profile: &str, runs: u64, total_ms: i64) -> Value {
+        serde_json::json!({
+            "id": id,
+            "scenario": scenario,
+            "profile": profile,
+            "runs": runs,
+            "summary": [{
+                "route": "/",
+                "medianTotalMs": total_ms,
+            }],
+        })
+    }
+
+    #[test]
+    fn latest_matching_history_entry_uses_latest_matching_configuration() {
+        let rows = [
+            report("core-1", "core-pages", "realistic", 1, 100),
+            report("all-1", "all-pages", "realistic", 1, 200),
+            report("all-2", "all-pages", "realistic", 2, 300),
+            report("all-isolated", "all-pages", "isolated", 1, 400),
+        ];
+        let history = rows
+            .iter()
+            .map(|row| serde_json::to_string(row).expect("serialize history row"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let current = report("current", "all-pages", "realistic", 1, 250);
+        let previous = latest_matching_history_entry(&history, &current)
+            .expect("matching benchmark run");
+
+        assert_eq!(previous.get("id").and_then(Value::as_str), Some("all-1"));
+        assert_eq!(
+            comparison_with_previous(&previous, &current),
+            serde_json::json!({
+                "previousId": "all-1",
+                "rows": [{
+                    "route": "/",
+                    "previousMedianMs": 200,
+                    "currentMedianMs": 250,
+                    "deltaMs": 50,
+                    "deltaPercent": 25.0,
+                }],
+            })
+        );
+    }
+
+    #[test]
+    fn run_configuration_requires_matching_scenario_profile_and_runs() {
+        let current = report("current", "all-pages", "realistic", 1, 250);
+
+        assert!(!has_matching_run_configuration(
+            &report("previous", "core-pages", "realistic", 1, 100),
+            &current,
+        ));
+        assert!(!has_matching_run_configuration(
+            &report("previous", "all-pages", "isolated", 1, 100),
+            &current,
+        ));
+        assert!(!has_matching_run_configuration(
+            &report("previous", "all-pages", "realistic", 2, 100),
+            &current,
+        ));
+        assert!(has_matching_run_configuration(
+            &report("previous", "all-pages", "realistic", 1, 100),
+            &current,
+        ));
+    }
 }

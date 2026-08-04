@@ -53,6 +53,7 @@ interface DynamicRouteCandidates {
 export interface BenchmarkRouteResolution {
   routes: string[];
   skippedRoutes: BenchmarkSkippedRoute[];
+  searchQuery: string | null;
 }
 
 function ownedEntity<T extends { serverId?: string }>(
@@ -123,16 +124,31 @@ export function buildDynamicBenchmarkRoutes(
     'no owned playlist available',
   );
 
-  return { routes, skippedRoutes };
+  return {
+    routes,
+    skippedRoutes,
+    searchQuery: benchmarkSearchQueryFromCandidates(candidates.artists, candidates.albums),
+  };
+}
+
+export function benchmarkSearchQueryFromCandidates(
+  artists: readonly Pick<SubsonicArtist, 'name'>[],
+  albums: readonly Pick<SubsonicAlbum, 'name'>[],
+): string | null {
+  const candidate = [...artists, ...albums]
+    .map(row => row.name.trim())
+    .find(name => name.length > 0);
+  return candidate ?? null;
 }
 
 async function resolveScopeRows<T>(
   anchorServerId: string,
   scopes: LibraryScopePair[],
+  limit: number,
   load: (serverId: string, request: { scopes: LibraryScopePair[]; sort: string; limit: number }) => Promise<T[]>,
 ): Promise<T[]> {
   try {
-    return await load(anchorServerId, { scopes, sort: 'name', limit: 200 });
+    return await load(anchorServerId, { scopes, sort: 'name', limit });
   } catch {
     return [];
   }
@@ -140,27 +156,38 @@ async function resolveScopeRows<T>(
 
 export async function resolveBenchmarkRoutes(scenario: string): Promise<BenchmarkRouteResolution> {
   const staticRoutes = benchmarkStaticRoutesForScenario(scenario);
-  if (scenario !== 'all-pages') return { routes: staticRoutes, skippedRoutes: [] };
-
   const auth = useAuthStore.getState();
   const scope = deriveLibraryBrowseScope(auth, new Set());
   const anchorServerId = scope.anchorServerId;
   if (!anchorServerId) {
     return {
       routes: staticRoutes,
-      skippedRoutes: DYNAMIC_ROUTE_TEMPLATES.map(route => ({
-        route,
-        reason: 'no active library scope available',
-      })),
+      skippedRoutes: scenario === 'all-pages'
+        ? DYNAMIC_ROUTE_TEMPLATES.map(route => ({
+            route,
+            reason: 'no active library scope available',
+          }))
+        : [],
+      searchQuery: null,
     };
   }
 
   const scopes = scope.pairs.length > 0 ? scope.pairs : libraryScopePairsForServer(anchorServerId);
+  const rowLimit = scenario === 'all-pages' ? 200 : 20;
   const [albumRows, artistRows, composerRows] = await Promise.all([
-    resolveScopeRows(anchorServerId, scopes, libraryScopeListAlbums),
-    resolveScopeRows(anchorServerId, scopes, libraryScopeListArtists),
-    resolveScopeRows(anchorServerId, scopes, libraryScopeListComposers),
+    resolveScopeRows(anchorServerId, scopes, rowLimit, libraryScopeListAlbums),
+    resolveScopeRows(anchorServerId, scopes, rowLimit, libraryScopeListArtists),
+    scenario === 'all-pages'
+      ? resolveScopeRows(anchorServerId, scopes, rowLimit, libraryScopeListComposers)
+      : Promise.resolve([]),
   ]);
+  const searchQuery = benchmarkSearchQueryFromCandidates(
+    artistRows.map(artistToArtist),
+    albumRows.map(albumToAlbum),
+  );
+  if (scenario !== 'all-pages') {
+    return { routes: staticRoutes, skippedRoutes: [], searchQuery };
+  }
 
   let playlists = usePlaylistStore.getState().playlists;
   if (!ownedEntity(playlists, new Set(auth.servers.map(server => server.id)))) {
@@ -183,6 +210,7 @@ export async function resolveBenchmarkRoutes(scenario: string): Promise<Benchmar
   return {
     routes: [...staticRoutes, ...dynamic.routes],
     skippedRoutes: dynamic.skippedRoutes,
+    searchQuery,
   };
 }
 

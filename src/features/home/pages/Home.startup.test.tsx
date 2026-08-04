@@ -247,16 +247,22 @@ describe('Home startup feed loading', () => {
     expect(screen.getByTestId('home-hero')).toHaveTextContent('fresh');
   });
 
-  it('uses a fresh cached feed without revalidating on an ordinary revisit', async () => {
+  it('keeps a fresh cached feed visible while preparing the next visit in the background', async () => {
     const { savedAt: _savedAt, ...cached } = snapshot('cached');
     writeHomeFeedCache(cached);
+    homeMocks.loadHomeFeedWithStatus.mockResolvedValue({
+      snapshot: snapshot('next-visit'),
+      emptySnapshotReliable: true,
+    });
     homeMocks.connection.status = 'connected';
     useMigrationStore.setState({ phase: 'completed' });
 
     renderWithProviders(<Home />);
 
     expect(screen.getByTestId('home-hero')).toHaveTextContent('cached');
-    await waitFor(() => expect(homeMocks.loadHomeFeedWithStatus).not.toHaveBeenCalled());
+    await waitFor(() => expect(homeMocks.loadHomeFeedWithStatus).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(readHomeFeedCache('scope', 1)?.heroAlbums[0]?.name).toBe('next-visit'));
+    expect(screen.getByTestId('home-hero')).toHaveTextContent('cached');
   });
 
   it('replays diagnostics without restarting an in-flight cold feed', async () => {

@@ -1,5 +1,4 @@
 import { getArtistForServer, getArtistInfoForServer } from '@/lib/api/subsonicArtists';
-import { filterAlbumsToServerLibrary } from '@/lib/api/subsonicLibrary';
 import { resolveAlbum, resolveMediaServerId } from '@/features/offline';
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import { songToTrack } from '@/lib/media/songToTrack';
@@ -25,6 +24,10 @@ import { formatHumanHoursMinutes } from '@/lib/format/formatHumanDuration';
 import { AlbumRow, albumArtistDisplayName, useNavigateToAlbum } from '@/features/album';
 import { coverServerScopeForServerId } from '@/cover/serverScope';
 import { appendServerQuery } from '@/lib/navigation/detailServerScope';
+import {
+  browseScopeLibraryIdsForServer,
+  type LibraryBrowseScopePair,
+} from '@/lib/library/libraryBrowseScope';
 
 const ANCHOR_HISTORY_KEY_PREFIX = 'psysonic_because_anchor_history:';
 const PICKS_HISTORY_KEY_PREFIX = 'psysonic_because_picks:';
@@ -92,6 +95,7 @@ function readJsonArray(key: string | null): string[] {
 async function resolvePicks(
   candidate: BecauseYouLikeAnchor,
   recentPicks: Set<string>,
+  scopes: readonly LibraryBrowseScopePair[],
 ): Promise<SubsonicAlbum[] | null> {
   const info = await getArtistInfoForServer(candidate.serverId, candidate.id, {
     similarArtistCount: SIMILAR_FETCH,
@@ -100,15 +104,15 @@ async function resolvePicks(
   if (similar.length === 0) return null;
 
   const sampled = shuffleArray(similar).slice(0, SIMILAR_PICK);
+  const libraryIds = browseScopeLibraryIdsForServer(scopes, candidate.serverId);
   const results = await Promise.all(
-    sampled.map(s => getArtistForServer(candidate.serverId, s.id).catch(() => null)),
+    sampled.map(s => getArtistForServer(candidate.serverId, s.id, { libraryIds }).catch(() => null)),
   );
 
   const picks: SubsonicAlbum[] = [];
   for (const r of results) {
     if (!r) continue;
-    const albums = (await filterAlbumsToServerLibrary(r.albums, candidate.serverId))
-      .map(album => ({ ...album, serverId: candidate.serverId }));
+    const albums = r.albums.map(album => ({ ...album, serverId: candidate.serverId }));
     if (albums.length === 0) continue;
     const fresh = albums.filter(a => !recentPicks.has(ownedEntityKey(candidate.serverId, a.id)));
     const choice = fresh.length > 0 ? fresh : albums;
@@ -137,6 +141,7 @@ type FetchBecauseOutcome =
  */
 async function fetchBecauseYouLike(
   pool: BecauseYouLikeAnchor[],
+  scopes: readonly LibraryBrowseScopePair[],
   anchorHistKey: string | null,
   picksHistKey: string | null,
 ): Promise<FetchBecauseOutcome> {
@@ -169,7 +174,7 @@ async function fetchBecauseYouLike(
     const raced = await Promise.all(
       tryList.slice(0, 2).map(async candidate => {
         try {
-          const picks = await resolvePicks(candidate, recentPicks);
+          const picks = await resolvePicks(candidate, recentPicks, scopes);
           return picks ? { candidate, picks } : null;
         } catch {
           hadError = true;
@@ -183,7 +188,7 @@ async function fetchBecauseYouLike(
 
   for (const candidate of tryList) {
     try {
-      const picks = await resolvePicks(candidate, recentPicks);
+      const picks = await resolvePicks(candidate, recentPicks, scopes);
       if (!picks) continue;
       return { status: 'ready', result: buildResult(candidate, picks) };
     } catch {
@@ -206,13 +211,14 @@ async function fillBecauseReserve(
   pool: BecauseYouLikeAnchor[],
   scopeKey: string,
   scopeVersion: number,
+  scopes: readonly LibraryBrowseScopePair[],
   anchorHistKey: string | null,
   picksHistKey: string | null,
 ): Promise<void> {
   if (_becauseReserveFilling) return;
   _becauseReserveFilling = true;
   try {
-    const outcome = await fetchBecauseYouLike(pool, anchorHistKey, picksHistKey);
+    const outcome = await fetchBecauseYouLike(pool, scopes, anchorHistKey, picksHistKey);
     if (outcome.status === 'ready') {
       const { result } = outcome;
       _becauseReserve = { scopeKey, scopeVersion, ...result };
@@ -307,6 +313,7 @@ interface Props {
   starred?: SubsonicAlbum[];
   scopeKey: string;
   scopeVersion: number;
+  scopes: readonly LibraryBrowseScopePair[];
   disableArtwork?: boolean;
   onDiagnosticResult?: (result: BecauseYouLikeDiagnosticResult) => void;
 }
@@ -373,6 +380,7 @@ export default function BecauseYouLikeRail({
   starred,
   scopeKey,
   scopeVersion,
+  scopes,
   disableArtwork = false,
   onDiagnosticResult,
 }: Props) {
@@ -525,7 +533,7 @@ export default function BecauseYouLikeRail({
         });
         setRefreshing(false);
         // Pre-fetch the next batch so the next visit is also instant.
-        void fillBecauseReserve(pool, scopeKey, scopeVersion, anchorHistKey, picksHistKey);
+        void fillBecauseReserve(pool, scopeKey, scopeVersion, scopes, anchorHistKey, picksHistKey);
         return;
       }
 
@@ -535,7 +543,7 @@ export default function BecauseYouLikeRail({
       if (snap && snap.recs.length > 0) {
         reportFinal('ready', snap.recs.length, 'cache');
         setRefreshing(false);
-        void fillBecauseReserve(pool, scopeKey, scopeVersion, anchorHistKey, picksHistKey);
+        void fillBecauseReserve(pool, scopeKey, scopeVersion, scopes, anchorHistKey, picksHistKey);
         return;
       }
 
@@ -551,7 +559,7 @@ export default function BecauseYouLikeRail({
 
       let outcome: FetchBecauseOutcome;
       try {
-        outcome = await fetchBecauseYouLike(pool, anchorHistKey, picksHistKey);
+        outcome = await fetchBecauseYouLike(pool, scopes, anchorHistKey, picksHistKey);
       } catch (error) {
         reportFinal('error', 0, error instanceof Error ? error.message : 'network');
         if (!cancelled) {
@@ -585,7 +593,7 @@ export default function BecauseYouLikeRail({
         });
         setRefreshing(false);
         // Pre-fetch next batch so the next visit is instant.
-        void fillBecauseReserve(pool, scopeKey, scopeVersion, anchorHistKey, picksHistKey);
+        void fillBecauseReserve(pool, scopeKey, scopeVersion, scopes, anchorHistKey, picksHistKey);
       } else {
         reportFinal(outcome.status, 0, 'network');
         // Network failed — restore session cache if available.
