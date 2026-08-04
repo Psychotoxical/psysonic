@@ -1,7 +1,7 @@
 import {
   entityUserRatingKey,
-  rememberEntityUserRating,
   parseSubsonicEntityStarRating,
+  putLocalEntityUserRatings,
   resolveEntityUserRatings,
   type EntityUserRatingRef,
 } from '@/lib/api/subsonicRatings';
@@ -230,14 +230,18 @@ async function filterAlbumsByMixRatingsWithPrefetch<T extends SubsonicAlbum>(
     ...(needAlbum ? albums.map(a => ({ serverId, entityKind: 'album' as const, entityId: a.id })) : []),
   ];
   const payloadRatingRefs: EntityUserRatingRef[] = [];
+  const payloadRatings: Array<EntityUserRatingRef & { rating: number }> = [];
   for (const album of albums) {
     if (needAlbum) {
       const ref = { serverId, entityKind: 'album' as const, entityId: album.id };
       const rating = parseSubsonicEntityStarRating(album);
-      rememberEntityUserRating(ref, rating);
-      if (rating !== undefined) payloadRatingRefs.push(ref);
+      if (rating !== undefined) {
+        payloadRatingRefs.push(ref);
+        payloadRatings.push({ ...ref, rating });
+      }
     }
   }
+  putLocalEntityUserRatings(payloadRatings);
   const ratings = await resolveEntityUserRatings(refs, payloadRatingRefs);
   return albums.filter(a =>
     passesMixMinRatingsForAlbum(a, c, {
@@ -259,14 +263,18 @@ export async function filterAlbumsByMixRatingsAcrossServers<T extends SubsonicAl
     if (c.minAlbum > 0) refs.push({ serverId: album.serverId, entityKind: 'album', entityId: album.id });
   }
   const payloadRatingRefs: EntityUserRatingRef[] = [];
+  const payloadRatings: Array<EntityUserRatingRef & { rating: number }> = [];
   for (const album of albums) {
     if (c.minAlbum > 0) {
       const ref = { serverId: album.serverId, entityKind: 'album' as const, entityId: album.id };
       const rating = parseSubsonicEntityStarRating(album);
-      rememberEntityUserRating(ref, rating);
-      if (rating !== undefined) payloadRatingRefs.push(ref);
+      if (rating !== undefined) {
+        payloadRatingRefs.push(ref);
+        payloadRatings.push({ ...ref, rating });
+      }
     }
   }
+  putLocalEntityUserRatings(payloadRatings);
   const ratings = await resolveEntityUserRatings(refs, payloadRatingRefs);
   return albums.filter(album => passesMixMinRatingsForAlbum(album, c, {
     artistUserRating: ratings.get(entityUserRatingKey({ serverId: album.serverId, entityKind: 'artist', entityId: album.artistId })),

@@ -125,6 +125,9 @@ export default function SearchBrowsePage() {
     return filterStarredSearchResults(results, starredOverrides);
   }, [results, starredOnly, starredOverrides]);
   const [loading, setLoading] = useState(false);
+  const benchmarkSearchRunRef = useRef(0);
+  const [benchmarkSubmittedQuery, setBenchmarkSubmittedQuery] = useState<string | null>(null);
+  const [benchmarkCompletedQuery, setBenchmarkCompletedQuery] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(
     () => restoreContextMatches ? restoreStash.hasSearched : false,
   );
@@ -664,7 +667,7 @@ export default function SearchBrowsePage() {
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     const effectiveType = trackFilterActive ? 'songs' : resultType;
-    runSearch({
+    const search = {
       query,
       genre,
       yearFrom,
@@ -674,6 +677,16 @@ export default function SearchBrowsePage() {
       moodGroup,
       losslessOnly,
       resultType: effectiveType,
+    };
+    if (!document.documentElement.hasAttribute('data-benchmark-running')) {
+      void runSearch(search);
+      return;
+    }
+    const runId = ++benchmarkSearchRunRef.current;
+    setBenchmarkSubmittedQuery(query.trim());
+    setBenchmarkCompletedQuery(null);
+    void runSearch(search).finally(() => {
+      if (benchmarkSearchRunRef.current === runId) setBenchmarkCompletedQuery(query.trim());
     });
   };
 
@@ -684,6 +697,13 @@ export default function SearchBrowsePage() {
       className={`content-body${skipEnterAnimationRef.current ? '' : ' animate-fade-in'}${showTracksChrome ? ' tracks-page' : ''}`}
       style={{ position: 'relative' }}
       data-advanced-search-root
+      data-benchmark-search-state={benchmarkSubmittedQuery == null
+        ? 'idle'
+        : benchmarkCompletedQuery === benchmarkSubmittedQuery ? 'ready' : 'loading'}
+      data-benchmark-search-query={benchmarkSubmittedQuery ?? ''}
+      data-benchmark-result-count={filteredResults
+        ? filteredResults.artists.length + filteredResults.albums.length + filteredResults.songs.length
+        : 0}
     >
       <div style={{ visibility: isLeaveRestorePending ? 'hidden' : 'visible' }}>
       <div className={showTracksChrome ? 'tracks-hub-stack' : undefined}>

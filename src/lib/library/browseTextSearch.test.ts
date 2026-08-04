@@ -26,6 +26,7 @@ import {
   filterBrowseArtistsByNameQuery,
   raceBrowseWithLocalFallback,
   runLocalRandomArtists,
+  runLocalRandomSongs,
 } from './browseTextSearch';
 
 describe('filterBrowseArtistsByNameQuery', () => {
@@ -143,5 +144,54 @@ describe('runLocalRandomArtists', () => {
     await expect(runLocalRandomArtists('server-a', 16)).resolves.toBeNull();
     expect(libraryIsReady).not.toHaveBeenCalled();
     expect(libraryListRandomArtists).not.toHaveBeenCalled();
+  });
+
+  it('uses explicit browse scopes for local random artists', async () => {
+    libraryIsReady.mockResolvedValue(true);
+    libraryAdvancedSearch.mockResolvedValue({
+      source: 'local',
+      artists: [{ serverId: 'server-a', id: 'artist-a', name: 'Artist A', rawJson: {} }],
+    });
+    const scopes = [{ serverId: 'server-a', libraryId: 'library-a' }];
+
+    await expect(runLocalRandomArtists('server-a', 16, scopes)).resolves.toEqual([
+      expect.objectContaining({ serverId: 'server-a', id: 'artist-a' }),
+    ]);
+    expect(libraryAdvancedSearch).toHaveBeenCalledWith(expect.objectContaining({
+      serverId: 'server-a',
+      libraryScope: 'library-a',
+      libraryScopes: scopes,
+      entityTypes: ['artist'],
+      sort: [{ field: 'random', dir: 'asc' }],
+    }));
+    expect(libraryListRandomArtists).not.toHaveBeenCalled();
+  });
+});
+
+describe('runLocalRandomSongs', () => {
+  beforeEach(() => {
+    libraryAdvancedSearch.mockReset();
+    libraryIsReady.mockReset();
+  });
+
+  it('uses explicit browse scopes instead of the global music selection', async () => {
+    libraryIsReady.mockResolvedValue(true);
+    libraryAdvancedSearch.mockResolvedValue({
+      source: 'local',
+      tracks: [{
+        serverId: 'server-a', id: 'song-a', title: 'Song', artist: 'Artist', album: 'Album', rawJson: {},
+      }],
+    });
+    const scopes = [{ serverId: 'server-a', libraryId: 'library-a' }];
+
+    await expect(runLocalRandomSongs('server-a', 18, scopes)).resolves.toEqual([
+      expect.objectContaining({ serverId: 'server-a', id: 'song-a' }),
+    ]);
+    expect(libraryAdvancedSearch).toHaveBeenCalledWith(expect.objectContaining({
+      serverId: 'server-a',
+      libraryScope: 'library-a',
+      libraryScopes: scopes,
+      entityTypes: ['track'],
+    }));
   });
 });

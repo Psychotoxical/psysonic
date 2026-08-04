@@ -77,6 +77,20 @@ describe('explicit-server artist wrappers', () => {
     expect(apiForServerMock).toHaveBeenNthCalledWith(2, 'srv-artists', 'getArtists.view', { musicFolderId: 'folder-b' }, 3210);
   });
 
+  it('uses an explicit browse selection instead of the global music selection', async () => {
+    librarySelectionMock.mockReturnValue(['global-folder']);
+    apiForServerMock.mockResolvedValue({ artists: { index: { artist: [artist] } } });
+
+    await getArtistsForServer('srv-artists', 3210, ['browse-folder']);
+
+    expect(apiForServerMock).toHaveBeenCalledWith(
+      'srv-artists',
+      'getArtists.view',
+      { musicFolderId: 'browse-folder' },
+      3210,
+    );
+  });
+
   it('forwards artist-detail timeout and stamps artist and albums', async () => {
     apiForServerMock.mockResolvedValue({ artist: { ...artist, album: [album] } });
 
@@ -89,6 +103,30 @@ describe('explicit-server artist wrappers', () => {
       'getArtist.view',
       expect.objectContaining({ id: 'artist-1' }),
       4567,
+    );
+  });
+
+  it('merges artist-detail albums across explicit browse libraries', async () => {
+    librarySelectionMock.mockReturnValue(['global-folder']);
+    apiForServerMock
+      .mockResolvedValueOnce({ artist: { ...artist, album: [album] } })
+      .mockResolvedValueOnce({ artist: { ...artist, album: [{ ...album, id: 'album-2' }] } });
+
+    await expect(getArtistForServer('srv-detail', 'artist-1', {
+      timeout: 4567,
+      libraryIds: ['browse-a', 'browse-b'],
+    })).resolves.toEqual({
+      artist: { ...artist, serverId: 'srv-detail' },
+      albums: [
+        { ...album, serverId: 'srv-detail' },
+        { ...album, id: 'album-2', serverId: 'srv-detail' },
+      ],
+    });
+    expect(apiForServerMock).toHaveBeenNthCalledWith(
+      1, 'srv-detail', 'getArtist.view', { id: 'artist-1', musicFolderId: 'browse-a' }, 4567,
+    );
+    expect(apiForServerMock).toHaveBeenNthCalledWith(
+      2, 'srv-detail', 'getArtist.view', { id: 'artist-1', musicFolderId: 'browse-b' }, 4567,
     );
   });
 

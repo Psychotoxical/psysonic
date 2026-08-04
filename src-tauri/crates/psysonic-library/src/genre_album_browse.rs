@@ -6,7 +6,6 @@
 use crate::dto::{
     LibraryAlbumDto, LibraryGenreAlbumsRequest, LibraryGenreAlbumsResponse, LibraryScopePair,
     LibrarySortClause, SortDir, multi_library_merge_enabled, ordered_library_scope_pairs,
-    scoped_layer1_eligible,
 };
 use crate::scope_merge;
 use crate::search::library_scope_sargable_equals_sql;
@@ -107,7 +106,7 @@ pub fn list_albums_by_genre(
         });
     }
 
-    let limit = req.limit.max(1);
+    let limit = if req.count_only { 0 } else { req.limit.max(1) };
     let offset = req.offset;
 
     let scope_pairs = ordered_library_scope_pairs(
@@ -122,11 +121,8 @@ pub fn list_albums_by_genre(
     if multi_library_merge_enabled(&scope_pairs) {
         crate::scope_merge::ensure_cluster_keys_for_scopes(store, &scope_pairs)?;
     }
-    if scoped_layer1_eligible(&scope_pairs) {
-        return list_albums_by_genre_layer1_scope(store, req, &scope_pairs, genre, limit, offset);
-    }
-    if multi_library_merge_enabled(&scope_pairs) {
-        return list_albums_by_genre_multi_scope(store, req, &scope_pairs, genre, limit, offset);
+    if !scope_pairs.is_empty() {
+        return list_albums_by_genre_scoped(store, req, &scope_pairs, genre, limit, offset);
     }
 
     let mut legacy = req.clone();
@@ -207,6 +203,14 @@ pub fn list_albums_by_genre(
         } else {
             None
         };
+        if legacy.count_only {
+            return Ok(LibraryGenreAlbumsResponse {
+                albums: Vec::new(),
+                has_more: false,
+                total,
+                source: "local".to_string(),
+            });
+        }
 
         let mut stmt = conn.prepare(&sql)?;
         let mut albums = stmt
@@ -227,7 +231,7 @@ fn genre_multi_scope_order_sql(sort: &[LibrarySortClause]) -> String {
     let mut keys: Vec<String> = Vec::new();
     for s in sort {
         let col = match s.field.as_str() {
-            "name" => "album COLLATE NOCASE".to_string(),
+            "name" => "name COLLATE NOCASE".to_string(),
             "artist" => "artist COLLATE NOCASE".to_string(),
             "year" => "year".to_string(),
             _ => continue,
@@ -239,13 +243,85 @@ fn genre_multi_scope_order_sql(sort: &[LibrarySortClause]) -> String {
         keys.push(format!("{col} {dir}"));
     }
     if keys.is_empty() {
-        keys.push("album COLLATE NOCASE ASC".to_string());
+        keys.push("name COLLATE NOCASE ASC".to_string());
     }
     keys.push("album_id ASC".to_string());
     format!("ORDER BY {}", keys.join(", "))
 }
 
-fn list_albums_by_genre_layer1_scope(
+fn scoped_genre_album_cte(
+    scopes: &[LibraryScopePair],
+    genre: &str,
+) -> (String, Vec<SqlValue>) {
+    let (scope_cte, mut binds) = scope_merge::scope_cte_sql(scopes);
+    binds.push(SqlValue::Text(genre.to_string()));
+    let cte = format!(
+        "{scope_cte}, \
+         genre_filter(value) AS (VALUES (?)), \
+         genre_album_candidates AS MATERIALIZED ( \
+           SELECT tg.server_id, t.library_id, tg.album_id, s.pr \
+           FROM exact_scope s \
+           CROSS JOIN genre_filter gf \
+           INNER JOIN track_genre tg INDEXED BY idx_track_genre_browse \
+             ON tg.server_id = s.server_id AND tg.genre = gf.value COLLATE NOCASE \
+           INNER JOIN track t INDEXED BY sqlite_autoindex_track_1 \
+             ON t.server_id = tg.server_id AND t.id = tg.track_id \
+            AND t.album_id = tg.album_id AND t.library_id = s.library_id \
+           WHERE t.deleted = 0 AND tg.album_id IS NOT NULL AND tg.album_id != '' \
+           GROUP BY tg.server_id, t.library_id, tg.album_id, s.pr \
+           UNION ALL \
+           SELECT tg.server_id, t.library_id, tg.album_id, s.pr \
+           FROM whole_scope s \
+           CROSS JOIN genre_filter gf \
+           INNER JOIN track_genre tg INDEXED BY idx_track_genre_browse \
+             ON tg.server_id = s.server_id AND tg.genre = gf.value COLLATE NOCASE \
+           INNER JOIN track t INDEXED BY sqlite_autoindex_track_1 \
+             ON t.server_id = tg.server_id AND t.id = tg.track_id \
+            AND t.album_id = tg.album_id \
+           WHERE t.deleted = 0 AND tg.album_id IS NOT NULL AND tg.album_id != '' \
+           GROUP BY tg.server_id, t.library_id, tg.album_id, s.pr \
+         ), \
+         physical AS MATERIALIZED ( \
+           SELECT p.*, c.pr, \
+                  COALESCE(NULLIF(p.identity_key, ''), \
+                           p.server_id || X'1F' || p.library_id || X'1F' || p.album_id) AS album_dedup \
+           FROM genre_album_candidates c \
+           INNER JOIN album_browse_projection p \
+             ON p.server_id = c.server_id \
+            AND p.library_id = c.library_id \
+            AND p.album_id = c.album_id \
+         ), \
+         ranked AS MATERIALIZED ( \
+           SELECT physical.*, ROW_NUMBER() OVER ( \
+             PARTITION BY album_dedup ORDER BY pr, server_id, library_id, album_id \
+           ) AS album_rank \
+           FROM physical \
+         )"
+    );
+    (cte, binds)
+}
+
+fn map_scoped_genre_album_row(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<scope_merge::AlbumListRow> {
+    Ok((
+        row.get(0)?,
+        row.get(1)?,
+        row.get(2)?,
+        row.get(3)?,
+        row.get(4)?,
+        None,
+        row.get(5)?,
+        row.get(6)?,
+        row.get(7)?,
+        row.get(8)?,
+        row.get(9)?,
+        row.get(10)?,
+        row.get(11)?,
+    ))
+}
+
+fn list_albums_by_genre_scoped(
     store: &LibraryStore,
     req: &LibraryGenreAlbumsRequest,
     scopes: &[LibraryScopePair],
@@ -253,70 +329,59 @@ fn list_albums_by_genre_layer1_scope(
     limit: u32,
     offset: u32,
 ) -> Result<LibraryGenreAlbumsResponse, String> {
-    let extra_where = "EXISTS (SELECT 1 FROM track_genre tg \
-         WHERE tg.server_id = t.server_id AND tg.track_id = t.id \
-           AND tg.genre = ? COLLATE NOCASE)";
-    let extra_params = vec![SqlValue::Text(genre.to_string())];
-    // Plain-identifier keys, so the same string is correct for both the grouped and
-    // the dedup shape (SQLite resolves a bare ORDER BY name to the result alias).
+    let (cte, binds) = scoped_genre_album_cte(scopes, genre);
     let order = genre_multi_scope_order_sql(&req.sort);
-    let (albums, total_count) = scope_merge::list_albums_layer1_filtered(
-        store,
-        scopes,
-        extra_where,
-        &extra_params,
-        &order,
-        &order,
-        limit,
-        offset,
-        !req.include_total,
-        true,
-    )?;
     let total = if req.include_total {
-        Some(total_count)
+        let count_sql = format!("{cte} SELECT COUNT(*) FROM ranked WHERE album_rank = 1");
+        Some(store.with_read_conn(|conn| {
+            let count: i64 = conn.query_row(
+                &count_sql,
+                rusqlite::params_from_iter(binds.iter()),
+                |row| row.get(0),
+            )?;
+            Ok(count.max(0) as u32)
+        })?)
     } else {
         None
     };
-    Ok(LibraryGenreAlbumsResponse {
-        albums: albums.clone(),
-        has_more: albums.len() as u32 == limit,
-        total,
-        source: "local".to_string(),
-    })
-}
+    if limit == 0 {
+        return Ok(LibraryGenreAlbumsResponse {
+            albums: Vec::new(),
+            has_more: false,
+            total,
+            source: "local".to_string(),
+        });
+    }
 
-fn list_albums_by_genre_multi_scope(
-    store: &LibraryStore,
-    req: &LibraryGenreAlbumsRequest,
-    scopes: &[LibraryScopePair],
-    genre: &str,
-    limit: u32,
-    offset: u32,
-) -> Result<LibraryGenreAlbumsResponse, String> {
-    let extra_where = "EXISTS (SELECT 1 FROM track_genre tg \
-         WHERE tg.server_id = t.server_id AND tg.track_id = t.id \
-           AND tg.genre = ? COLLATE NOCASE)";
-    let extra_params = vec![SqlValue::Text(genre.to_string())];
-    let order = genre_multi_scope_order_sql(&req.sort);
-    let (albums, total_count) = scope_merge::list_albums_filtered(
-        store,
-        scopes,
-        extra_where,
-        &extra_params,
-        &order,
-        limit,
-        offset,
-        !req.include_total,
-    )?;
+    let sql = format!(
+        "{cte} \
+         SELECT server_id, album_id, name, artist, artist_id, song_count, duration_sec, \
+                year, genre, cover_art_id, starred_at, synced_at \
+         FROM ranked WHERE album_rank = 1 \
+         {order} LIMIT ? OFFSET ?"
+    );
+    let mut page_binds = binds;
+    page_binds.push(SqlValue::Integer(i64::from(limit)));
+    page_binds.push(SqlValue::Integer(i64::from(offset)));
+    let albums = store.with_read_conn(|conn| {
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt
+            .query_map(
+                rusqlite::params_from_iter(page_binds.iter()),
+                map_scoped_genre_album_row,
+            )?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows
+            .into_iter()
+            .map(scope_merge::album_row_to_dto)
+            .collect::<Vec<_>>())
+    })?;
     let has_more = albums.len() as u32 == limit;
+    let (albums, _) = scope_merge::finish_scope_album_list(store, albums, total.unwrap_or(0))?;
     Ok(LibraryGenreAlbumsResponse {
         albums,
         has_more,
-        total: if req.include_total {
-            Some(total_count)
-        } else {
-            None
-        },
+        total,
         source: "local".to_string(),
     })
 }
@@ -401,6 +466,7 @@ mod tests {
                 limit: 10,
                 offset: 0,
                 include_total: false,
+                count_only: false,
             },
         )
         .unwrap();
@@ -442,6 +508,7 @@ mod tests {
                 limit: 10,
                 offset: 0,
                 include_total: true,
+                count_only: false,
             },
         )
         .unwrap();
@@ -459,11 +526,76 @@ mod tests {
                 limit: 1,
                 offset: 0,
                 include_total: true,
+                count_only: false,
             },
         )
         .unwrap();
         assert_eq!(all.total, Some(3));
         assert!(all.has_more);
+    }
+
+    #[test]
+    fn count_only_returns_the_total_without_album_rows() {
+        let store = LibraryStore::open_in_memory();
+        TrackRepository::new(&store)
+            .upsert_batch(&[
+                track("s1", "t1", "al_a", "Rock"),
+                track("s1", "t2", "al_b", "Rock"),
+            ])
+            .unwrap();
+
+        let response = list_albums_by_genre(
+            &store,
+            &LibraryGenreAlbumsRequest {
+                server_id: "s1".into(),
+                genre: "Rock".into(),
+                library_scope: Some("lib1".into()),
+                library_scopes: None,
+                sort: vec![],
+                limit: 50,
+                offset: 0,
+                include_total: true,
+                count_only: true,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(response.total, Some(2));
+        assert!(response.albums.is_empty());
+        assert!(!response.has_more);
+    }
+
+    #[test]
+    fn scoped_genre_query_drives_from_the_genre_index() {
+        let store = LibraryStore::open_in_memory();
+        let scopes = vec![LibraryScopePair {
+            server_id: "s1".into(),
+            library_id: Some("lib1".into()),
+        }];
+        let (cte, binds) = scoped_genre_album_cte(&scopes, "Rock");
+        let sql = format!(
+            "EXPLAIN QUERY PLAN {cte} SELECT COUNT(*) FROM ranked WHERE album_rank = 1"
+        );
+
+        let details = store
+            .with_read_conn(|conn| {
+                let mut stmt = conn.prepare(&sql)?;
+                let rows = stmt.query_map(
+                    rusqlite::params_from_iter(binds.iter()),
+                    |row| row.get::<_, String>(3),
+                )?;
+                rows.collect::<rusqlite::Result<Vec<_>>>()
+            })
+            .unwrap();
+
+        assert!(
+            details.iter().any(|detail| detail.contains("idx_track_genre_browse")),
+            "query plan must use the genre-first browse index: {details:?}"
+        );
+        assert!(
+            !details.iter().any(|detail| detail == "SCAN t"),
+            "query plan must not drive from a full track scan: {details:?}"
+        );
     }
 
     #[test]
@@ -489,6 +621,7 @@ mod tests {
                 limit: 10,
                 offset: 0,
                 include_total: true,
+                count_only: false,
             },
         )
         .unwrap();
@@ -507,6 +640,7 @@ mod tests {
                 limit: 10,
                 offset: 0,
                 include_total: true,
+                count_only: false,
             },
         )
         .unwrap();

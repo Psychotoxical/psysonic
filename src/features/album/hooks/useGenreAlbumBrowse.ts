@@ -9,6 +9,7 @@ import {
 } from '@/lib/library/genreAlbumBrowse';
 import { useClientSliceInfiniteScroll } from '@/lib/hooks/useClientSliceInfiniteScroll';
 import { useInpageScrollSentinel } from '@/lib/hooks/useInpageScrollSentinel';
+import type { LibraryBrowseScope } from '@/lib/library/libraryBrowseScope';
 
 const CLIENT_SLICE_PAGE_SIZE = GENRE_ALBUM_FIRST_PAGE;
 
@@ -25,6 +26,7 @@ export function useGenreAlbumBrowse(
   indexEnabled: boolean,
   sort: AlbumBrowseSort,
   musicLibraryFilterVersion: number,
+  browseScope: LibraryBrowseScope,
   getScrollRoot?: () => HTMLElement | null,
   scrollRootEl?: HTMLElement | null,
   restoreDisplayCount?: number,
@@ -40,7 +42,7 @@ export function useGenreAlbumBrowse(
   const loadPendingRef = useRef(false);
   const loadMoreRef = useRef<() => void>(() => {});
   const browseSessionRef = useRef({ key: '', restoreDisplayCount: undefined as number | undefined });
-  const browseKey = `${serverId}:${genre}`;
+  const browseKey = `${serverId}:${genre}:${browseScope.fingerprint}`;
   // React Compiler refs rule: ref read imperatively outside reactive rendering; not used to compute the render output.
   // eslint-disable-next-line react-hooks/refs
   if (browseSessionRef.current.key !== browseKey) {
@@ -65,6 +67,7 @@ export function useGenreAlbumBrowse(
       sort,
       genre,
       musicLibraryFilterVersion,
+      browseScope.fingerprint,
       serverId,
       indexEnabled,
     ],
@@ -100,6 +103,7 @@ export function useGenreAlbumBrowse(
         offset,
         pageSize,
         sort,
+        browseScope,
       );
       if (generation !== loadGenerationRef.current) return;
       if (append) {
@@ -119,7 +123,7 @@ export function useGenreAlbumBrowse(
         setCatalogLoadingMore(false);
       }
     }
-  }, [serverId, genre, indexEnabled, sort]);
+  }, [serverId, genre, indexEnabled, sort, browseScope]);
 
   useEffect(() => {
     if (!genre) {
@@ -157,7 +161,7 @@ export function useGenreAlbumBrowse(
     // sessionRestoreDisplayCount is read once to restore the prior visible count;
     // the catalog load must not re-run when it later changes, so it is excluded.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverId, genre, indexEnabled, sort, musicLibraryFilterVersion, loadCatalogChunk]);
+  }, [serverId, genre, indexEnabled, sort, musicLibraryFilterVersion, browseScope.fingerprint, loadCatalogChunk]);
 
   const loadMore = useCallback(() => {
     if (!genre || loadingRef.current || loadPendingRef.current) return;
@@ -174,13 +178,24 @@ export function useGenreAlbumBrowse(
   // eslint-disable-next-line react-hooks/refs
   loadMoreRef.current = loadMore;
 
+  const sentinelIntersectingRef = useRef(false);
+  const paginationProgressRef = useRef('');
+
   const bindLoadMoreSentinel = useInpageScrollSentinel({
     active: hasMore,
     getScrollRoot,
     scrollRootEl,
     onIntersect: () => loadMoreRef.current(),
-    drainSignal: loadingMore,
+    intersectingRef: sentinelIntersectingRef,
   });
+
+  useEffect(() => {
+    const progress = `${albums.length}:${displayAlbums.length}`;
+    if (paginationProgressRef.current === progress) return;
+    paginationProgressRef.current = progress;
+    if (!hasMore || !sentinelIntersectingRef.current) return;
+    loadMoreRef.current();
+  }, [albums.length, displayAlbums.length, hasMore]);
 
   return {
     albums,

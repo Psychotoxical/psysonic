@@ -84,8 +84,12 @@ async function fetchArtistsForServerWithParams(
 }
 
 /** Merge explicit-server artist indexes per folder because many servers ignore multi `musicFolderId`. */
-export async function getArtistsForServer(serverId: string, timeout = 15000): Promise<SubsonicArtist[]> {
-  const libraryIds = librarySelectionForServer(serverId);
+export async function getArtistsForServer(
+  serverId: string,
+  timeout = 15000,
+  explicitLibraryIds?: readonly string[],
+): Promise<SubsonicArtist[]> {
+  const libraryIds = explicitLibraryIds ?? librarySelectionForServer(serverId);
   if (libraryIds.length <= 1) {
     return fetchArtistsForServerWithParams(
       serverId,
@@ -113,18 +117,42 @@ export async function getArtist(id: string): Promise<{ artist: SubsonicArtist; a
 export async function getArtistForServer(
   serverId: string,
   id: string,
-  options?: { timeout?: number },
+  options?: { timeout?: number; libraryIds?: readonly string[] },
 ): Promise<{ artist: SubsonicArtist; albums: SubsonicAlbum[] }> {
-  const data = await apiForServer<{ artist: SubsonicArtist & { album: SubsonicAlbum[] } }>(
-    serverId,
-    'getArtist.view',
-    { id, ...libraryFilterParamsForServer(serverId) },
-    options?.timeout,
-  );
-  const { album, ...rawArtist } = data.artist;
-  const artist = { ...rawArtist, serverId };
-  const albums = (album ?? []).map(entry => ({ ...entry, serverId }));
-  return { artist, albums };
+  const libraryIds = options?.libraryIds ?? librarySelectionForServer(serverId);
+  const fetchForLibrary = async (libraryId?: string) => {
+    const data = await apiForServer<{ artist: SubsonicArtist & { album: SubsonicAlbum[] } }>(
+      serverId,
+      'getArtist.view',
+      {
+        id,
+        ...(libraryId
+          ? { musicFolderId: libraryId }
+          : options?.libraryIds
+            ? {}
+            : libraryFilterParamsForServer(serverId)),
+      },
+      options?.timeout,
+    );
+    const { album, ...rawArtist } = data.artist;
+    return {
+      artist: { ...rawArtist, serverId },
+      albums: (album ?? []).map(entry => ({ ...entry, serverId })),
+    };
+  };
+  if (options?.libraryIds === undefined) return fetchForLibrary();
+  if (libraryIds.length <= 1) return fetchForLibrary(libraryIds[0]);
+
+  const responses = await Promise.all(libraryIds.map(libraryId => (
+    fetchForLibrary(libraryId).catch(() => null)
+  )));
+  const first = responses.find(response => response != null);
+  if (!first) throw new Error('Artist unavailable in selected libraries');
+  const albums = new Map<string, SubsonicAlbum>();
+  for (const response of responses) {
+    for (const album of response?.albums ?? []) albums.set(album.id, album);
+  }
+  return { artist: first.artist, albums: [...albums.values()] };
 }
 
 export async function getArtistInfo(id: string, options?: { similarArtistCount?: number }): Promise<SubsonicArtistInfo> {

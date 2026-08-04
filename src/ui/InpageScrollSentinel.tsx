@@ -10,6 +10,7 @@ const DEFAULT_STYLE: CSSProperties = {
 type InpageScrollSentinelProps = {
   bindSentinel: RefCallback<HTMLDivElement | null>;
   loading?: boolean;
+  itemCount?: number;
   style?: CSSProperties;
 };
 
@@ -17,10 +18,17 @@ type InpageScrollSentinelProps = {
 export default function InpageScrollSentinel({
   bindSentinel,
   loading = false,
+  itemCount,
   style,
 }: InpageScrollSentinelProps) {
   return (
-    <div ref={bindSentinel} style={{ ...DEFAULT_STYLE, ...style }}>
+    <div
+      ref={bindSentinel}
+      data-benchmark-scroll-sentinel
+      data-benchmark-loading={loading ? 'true' : 'false'}
+      data-benchmark-item-count={itemCount}
+      style={{ ...DEFAULT_STYLE, ...style }}
+    >
       {loading && <div className="spinner" style={{ width: 20, height: 20 }} />}
     </div>
   );

@@ -3,6 +3,14 @@ import { albumToAlbum } from '@/lib/library/advancedSearchLocal';
 import type { GenreAlbumCountRow } from '@/lib/api/library/dto';
 import { describeMultiServerError, emitMultiServerDebug } from '@/lib/library/multiServerDebug';
 
+type LocalNewReleasesResult = {
+  albums: ReturnType<typeof albumToAlbum>[];
+  hasMore: boolean;
+  genreCounts: GenreAlbumCountRow[];
+};
+
+const inflightRequests = new Map<string, Promise<LocalNewReleasesResult>>();
+
 /**
  * Reads the new-releases feed out of the local index.
  *
@@ -21,7 +29,7 @@ export async function loadLocalNewReleases(
   offset = 0,
   genres: string[] = [],
   includeGenreCounts = false,
-): Promise<{ albums: ReturnType<typeof albumToAlbum>[]; hasMore: boolean; genreCounts: GenreAlbumCountRow[] }> {
+): Promise<LocalNewReleasesResult> {
   if (!anchorServerId) {
     emitMultiServerDebug('new_releases_local_skip', {
       reason: 'missing_anchor_server',
@@ -36,6 +44,26 @@ export async function loadLocalNewReleases(
   const effectiveScopes = scopes.length > 0
     ? scopes
     : [{ serverId: anchorServerId, libraryId: null }];
+  const requestKey = JSON.stringify({
+    anchorServerId,
+    scopes: effectiveScopes,
+    limit,
+    offset,
+    genres,
+    includeGenreCounts,
+  });
+  const existing = inflightRequests.get(requestKey);
+  if (existing) {
+    emitMultiServerDebug('new_releases_local_request_join_inflight', {
+      anchorServerId,
+      effectiveScopes,
+      limit,
+      offset,
+      genres,
+      includeGenreCounts,
+    });
+    return existing;
+  }
   const startedAt = performance.now();
   emitMultiServerDebug('new_releases_local_request_start', {
     anchorServerId,
@@ -47,52 +75,59 @@ export async function loadLocalNewReleases(
     genres,
     includeGenreCounts,
   });
-  try {
-    const response = await libraryScopeListMainstageAlbums(anchorServerId, {
-      scopes: effectiveScopes,
-      feed: 'newReleases',
-      limit,
-      offset,
-      genres,
-      includeGenreCounts,
-    });
-    const albums = response.albums.map(albumToAlbum);
-    const ownerCounts = Object.fromEntries([...new Set(albums.map(album => album.serverId ?? ''))]
-      .filter(Boolean)
-      .map(serverId => [serverId, albums.filter(album => album.serverId === serverId).length]));
-    emitMultiServerDebug('new_releases_local_request_done', {
-      anchorServerId,
-      effectiveScopes,
-      defensiveFallbackUsed: scopes.length === 0,
-      durationMs: Math.round(performance.now() - startedAt),
-      albumCount: albums.length,
-      ownerCounts,
-      hasMore: response.hasMore,
-      genreCount: response.genreCounts?.length ?? 0,
-      sampleAlbums: response.albums.slice(0, 10).map(album => ({
-        serverId: album.serverId,
-        id: album.id,
-        name: album.name,
-        year: album.year ?? null,
-        syncedAt: album.syncedAt,
-        createdMs: album.rawJson && typeof album.rawJson === 'object'
-          ? (album.rawJson as Record<string, unknown>).createdMs ?? null
-          : null,
-      })),
-    });
-    return {
-      albums,
-      hasMore: response.hasMore,
-      genreCounts: response.genreCounts,
-    };
-  } catch (error) {
-    emitMultiServerDebug('new_releases_local_request_error', {
-      anchorServerId,
-      effectiveScopes,
-      defensiveFallbackUsed: scopes.length === 0,
-      durationMs: Math.round(performance.now() - startedAt),
-      error: describeMultiServerError(error),
-    });
-    throw error;
-  }
+  const request = (async (): Promise<LocalNewReleasesResult> => {
+    try {
+      const response = await libraryScopeListMainstageAlbums(anchorServerId, {
+        scopes: effectiveScopes,
+        feed: 'newReleases',
+        limit,
+        offset,
+        genres,
+        includeGenreCounts,
+      });
+      const albums = response.albums.map(albumToAlbum);
+      const ownerCounts = Object.fromEntries([...new Set(albums.map(album => album.serverId ?? ''))]
+        .filter(Boolean)
+        .map(serverId => [serverId, albums.filter(album => album.serverId === serverId).length]));
+      emitMultiServerDebug('new_releases_local_request_done', {
+        anchorServerId,
+        effectiveScopes,
+        defensiveFallbackUsed: scopes.length === 0,
+        durationMs: Math.round(performance.now() - startedAt),
+        albumCount: albums.length,
+        ownerCounts,
+        hasMore: response.hasMore,
+        genreCount: response.genreCounts?.length ?? 0,
+        sampleAlbums: response.albums.slice(0, 10).map(album => ({
+          serverId: album.serverId,
+          id: album.id,
+          name: album.name,
+          year: album.year ?? null,
+          syncedAt: album.syncedAt,
+          createdMs: album.rawJson && typeof album.rawJson === 'object'
+            ? (album.rawJson as Record<string, unknown>).createdMs ?? null
+            : null,
+        })),
+      });
+      return {
+        albums,
+        hasMore: response.hasMore,
+        genreCounts: response.genreCounts,
+      };
+    } catch (error) {
+      emitMultiServerDebug('new_releases_local_request_error', {
+        anchorServerId,
+        effectiveScopes,
+        defensiveFallbackUsed: scopes.length === 0,
+        durationMs: Math.round(performance.now() - startedAt),
+        error: describeMultiServerError(error),
+      });
+      throw error;
+    }
+  })();
+  inflightRequests.set(requestKey, request);
+  void request.finally(() => {
+    if (inflightRequests.get(requestKey) === request) inflightRequests.delete(requestKey);
+  });
+  return request;
 }

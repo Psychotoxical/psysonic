@@ -3,10 +3,9 @@ import { waitFor } from '@testing-library/react';
 import type { SubsonicAlbum } from '@/lib/api/subsonicTypes';
 import { renderWithProviders } from '@/test/helpers/renderWithProviders';
 
-const { artistInfoMock, artistMock, filterMock, readCacheMock, writeCacheMock, primeMock } = vi.hoisted(() => ({
+const { artistInfoMock, artistMock, readCacheMock, writeCacheMock, primeMock } = vi.hoisted(() => ({
   artistInfoMock: vi.fn(),
   artistMock: vi.fn(),
-  filterMock: vi.fn(),
   readCacheMock: vi.fn(),
   writeCacheMock: vi.fn(),
   primeMock: vi.fn(),
@@ -16,7 +15,6 @@ vi.mock('@/lib/api/subsonicArtists', () => ({
   getArtistInfoForServer: artistInfoMock,
   getArtistForServer: artistMock,
 }));
-vi.mock('@/lib/api/subsonicLibrary', () => ({ filterAlbumsToServerLibrary: filterMock }));
 vi.mock('@/features/home/store/becauseYouLikeCache', () => ({
   readBecauseYouLikeCache: readCacheMock,
   writeBecauseYouLikeCache: writeCacheMock,
@@ -66,13 +64,11 @@ describe('BecauseYouLikeRail diagnostics', () => {
   beforeEach(() => {
     artistInfoMock.mockReset();
     artistMock.mockReset();
-    filterMock.mockReset();
     readCacheMock.mockReset();
     writeCacheMock.mockReset();
     primeMock.mockReset();
     readCacheMock.mockReturnValue(null);
     primeMock.mockResolvedValue(undefined);
-    filterMock.mockImplementation(async (albums: SubsonicAlbum[]) => albums);
   });
 
   it('reports cached content immediately and keeps background reserve completion silent', async () => {
@@ -92,6 +88,7 @@ describe('BecauseYouLikeRail diagnostics', () => {
         mostPlayed={[album('srv-a', 'seed', 'Seed')]}
         scopeKey="scope"
         scopeVersion={1}
+        scopes={[{ serverId: 'srv-a', libraryId: 'lib-a' }]}
         onDiagnosticResult={onDiagnosticResult}
       />,
     );
@@ -123,6 +120,7 @@ describe('BecauseYouLikeRail diagnostics', () => {
         mostPlayed={[album('srv-a', 'seed', 'Seed')]}
         scopeKey="scope"
         scopeVersion={2}
+        scopes={[{ serverId: 'srv-a', libraryId: 'lib-a' }]}
         onDiagnosticResult={onDiagnosticResult}
       />,
     );
@@ -133,5 +131,30 @@ describe('BecauseYouLikeRail diagnostics', () => {
       detail: 'generation 1: network',
       durationMs: expect.any(Number),
     })));
+  });
+
+  it('requests recommendation albums from the anchor server browse scope', async () => {
+    artistInfoMock.mockResolvedValue({
+      similarArtist: [{ id: 'similar', name: 'Similar', serverId: 'srv-a' }],
+    });
+    artistMock.mockResolvedValue({
+      artist: { id: 'similar', name: 'Similar', serverId: 'srv-a' },
+      albums: [album('srv-a', 'similar', 'Similar')],
+    });
+
+    renderWithProviders(
+      <BecauseYouLikeRail
+        mostPlayed={[album('srv-a', 'seed', 'Seed')]}
+        scopeKey="scope-scoped"
+        scopeVersion={3}
+        scopes={[{ serverId: 'srv-a', libraryId: 'lib-a' }]}
+      />,
+    );
+
+    await waitFor(() => expect(artistMock).toHaveBeenCalledWith(
+      'srv-a',
+      'similar',
+      { libraryIds: ['lib-a'] },
+    ));
   });
 });

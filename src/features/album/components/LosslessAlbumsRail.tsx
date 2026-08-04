@@ -9,12 +9,22 @@ import { runLocalLosslessAlbums } from '@/lib/library/browseTextSearch';
 import { LOSSLESS_MODE_QUERY } from '@/lib/library/losslessMode';
 import { runLibraryLocalReadSingleFlight } from '@/lib/library/localReadSingleFlight';
 import { useLibraryScopeSyncRevision } from '@/store/offlineLocalLibrarySyncRevision';
+import {
+  readLosslessRailCache,
+  writeLosslessRailCache,
+} from '@/features/album/components/losslessAlbumsRailCache';
+import {
+  browseScopeLibraryIdsForServer,
+  type LibraryBrowseScopePair,
+} from '@/lib/library/libraryBrowseScope';
 
 interface Props {
   /** Ordered Home scope. Omit to preserve the legacy active-server rail. */
   serverIds?: readonly string[];
   /** Bump when per-server library selections change without changing serverIds. */
   scopeVersion?: number;
+  /** Explicit Home browse scope. Omit to preserve the legacy active-server rail. */
+  scopes?: readonly LibraryBrowseScopePair[];
   disableArtwork?: boolean;
   artworkSize?: number;
   windowArtworkByViewport?: boolean;
@@ -72,6 +82,7 @@ function roundRobinAlbums(groups: SubsonicAlbum[][]): SubsonicAlbum[] {
 export default function LosslessAlbumsRail({
   serverIds,
   scopeVersion = 0,
+  scopes,
   disableArtwork = false,
   artworkSize,
   windowArtworkByViewport,
@@ -86,7 +97,15 @@ export default function LosslessAlbumsRail({
     return [...new Set(requested.filter(Boolean))];
   }, [activeServerId, serverIds]);
   const librarySyncRevision = useLibraryScopeSyncRevision(orderedServerIds);
-  const [albums, setAlbums] = useState<SubsonicAlbum[]>([]);
+  const cacheKey = useMemo(() => JSON.stringify([
+    orderedServerIds,
+    scopeVersion,
+    librarySyncRevision,
+    indexEnabled,
+  ]), [indexEnabled, librarySyncRevision, orderedServerIds, scopeVersion]);
+  const [albums, setAlbums] = useState<SubsonicAlbum[]>(() => (
+    readLosslessRailCache(cacheKey)?.albums ?? []
+  ));
   const reportDiagnostic = useEffectEvent((result: LosslessAlbumsDiagnosticResult) => {
     onDiagnosticResult?.(result);
   });
@@ -95,6 +114,17 @@ export default function LosslessAlbumsRail({
     let cancelled = false;
     (async () => {
       const startedAt = performance.now();
+      const cached = readLosslessRailCache(cacheKey);
+      if (cached) {
+        setAlbums(cached.albums);
+        reportDiagnostic({
+          status: cached.status,
+          durationMs: 0,
+          itemCount: cached.albums.length,
+          detail: 'cache',
+        });
+        return;
+      }
       reportDiagnostic({ status: 'loading' });
       if (orderedServerIds.length === 0) {
         setAlbums([]);
@@ -125,6 +155,9 @@ export default function LosslessAlbumsRail({
         });
         const quota = quotas[index];
         if (quota <= 0) return finish([], 'empty', 'local');
+        const explicitLibraryIds = scopes
+          ? browseScopeLibraryIdsForServer(scopes, serverId)
+          : [];
 
         if (indexEnabled) {
           try {
@@ -137,8 +170,13 @@ export default function LosslessAlbumsRail({
                 serverId,
                 quota,
               ]),
-              () => runLocalLosslessAlbums(serverId, quota, 0),
+              () => scopes
+                ? runLocalLosslessAlbums(serverId, quota, 0, scopes)
+                : runLocalLosslessAlbums(serverId, quota, 0),
             ), LOSSLESS_LOCAL_READ_DEADLINE_MS);
+            if (localResult.status === 'timeout' && explicitLibraryIds.length > 0) {
+              return finish([], 'timeout', 'local', 'selected scope');
+            }
             const local = localResult.status === 'ready' ? localResult.value : null;
             if (local?.albums.length) {
               return finish(
@@ -150,9 +188,17 @@ export default function LosslessAlbumsRail({
                   : undefined,
               );
             }
+            if (explicitLibraryIds.length > 0) {
+              return finish([], 'empty', 'local', 'selected scope');
+            }
           } catch {
-            // Fall through to the network path; aggregate status records failure if it also fails.
+            if (explicitLibraryIds.length > 0) {
+              return finish([], 'error', 'local', 'selected scope');
+            }
+            // Fall through to the network path for whole-server scopes.
           }
+        } else if (explicitLibraryIds.length > 0) {
+          return finish([], 'error', 'local', 'selected scope requires local index');
         }
 
         try {
@@ -187,6 +233,9 @@ export default function LosslessAlbumsRail({
           : statuses.includes('error')
             ? 'error'
             : 'empty';
+      if (status === 'ready' || status === 'empty') {
+        writeLosslessRailCache(cacheKey, { albums: nextAlbums, status });
+      }
       reportDiagnostic({
         status,
         durationMs: performance.now() - startedAt,
@@ -195,7 +244,7 @@ export default function LosslessAlbumsRail({
       });
     })();
     return () => { cancelled = true; };
-  }, [indexEnabled, orderedServerIds, scopeVersion, librarySyncRevision]);
+  }, [cacheKey, indexEnabled, orderedServerIds, scopeVersion, librarySyncRevision, scopes]);
 
   if (albums.length === 0) return null;
 

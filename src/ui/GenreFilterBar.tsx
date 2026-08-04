@@ -28,7 +28,7 @@ interface GenreFilterBarProps {
   onSelectionChange: (selected: string[]) => void;
   /**
    * When set, only these genres are listed (e.g. from the current non-genre filters).
-   * `undefined` = full server genre list from `getGenres`.
+   * `undefined` = full server genre list from `getGenres`; `null` = loading.
    */
   catalogGenres?: GenreFilterOption[] | null;
 }
@@ -49,10 +49,10 @@ export default function GenreFilterBar({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (catalogGenres != null) {
+    if (catalogGenres !== undefined) {
       // React Compiler set-state-in-effect rule: state set from an async result resolved in this effect.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setGenreRows(mergeGenreRows(catalogGenres, selected));
+      setGenreRows(mergeGenreRows(catalogGenres ?? [], selected));
       return;
     }
     let cancelled = false;

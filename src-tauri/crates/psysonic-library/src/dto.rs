@@ -439,6 +439,8 @@ pub struct LibraryGenreAlbumsRequest {
     pub offset: u32,
     #[serde(default)]
     pub include_total: bool,
+    #[serde(default)]
+    pub count_only: bool,
 }
 
 fn default_genre_album_limit() -> u32 {

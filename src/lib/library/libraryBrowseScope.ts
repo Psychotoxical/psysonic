@@ -41,6 +41,16 @@ export interface LibraryBrowseIndexScope {
   libraryIds: string[];
 }
 
+/** Ordered concrete library ids for one server; empty means the whole server. */
+export function browseScopeLibraryIdsForServer(
+  scopes: readonly LibraryBrowseScopePair[],
+  serverId: string,
+): string[] {
+  const matching = scopes.filter(scope => scope.serverId === serverId);
+  if (matching.length === 0 || matching.some(scope => scope.libraryId === null)) return [];
+  return [...new Set(matching.flatMap(scope => scope.libraryId ? [scope.libraryId] : []))];
+}
+
 type LibraryBrowseServerOrderSource = Pick<
   LibraryBrowseScopeSource,
   'servers' | 'activeServerId' | 'libraryBrowseServerIds'
@@ -112,7 +122,11 @@ export function deriveLibraryBrowseScope(
   if (fingerprintEntries.length === 0) {
     for (const serverId of fallbackServerIds) {
       const selection = state.libraryBrowseSelectionByServer[serverId] ?? [];
-      fingerprintEntries.push([serverId, selection.length > 0 ? selection : [null]]);
+      const libraryIds = selection.length > 0 ? selection : [null];
+      fingerprintEntries.push([serverId, libraryIds]);
+      for (const libraryId of libraryIds) {
+        pairs.push({ serverId, libraryId });
+      }
     }
   }
 
@@ -132,11 +146,18 @@ export function deriveEntitySourceScopes(
   state: LibraryBrowseScopeSource,
   anchorServerId: string,
 ): LibraryBrowseScopePair[] {
-  const configured = deriveLibraryBrowseScope(state, new Set()).pairs;
+  const configured = deriveOrderedLibraryBrowseServerIds(state).length > 0
+    ? deriveLibraryBrowseScope(state, new Set()).pairs
+    : [];
   if (configured.length > 0) return configured;
   return anchorServerId ? [{ serverId: anchorServerId, libraryId: null }] : [];
 }
 
 export function getLibraryBrowseScope(): LibraryBrowseScope {
   return deriveLibraryBrowseScope(readLibraryBrowseScopeSource());
+}
+
+/** Whether the user configured authoritative browse membership instead of using the active-server fallback. */
+export function hasConfiguredLibraryBrowseScope(): boolean {
+  return deriveOrderedLibraryBrowseServerIds(readLibraryBrowseScopeSource()).length > 0;
 }
