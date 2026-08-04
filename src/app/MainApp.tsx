@@ -41,6 +41,7 @@ import ErrorBoundary from '@/app/ErrorBoundary';
 import BlockingMigrationGate from './BlockingMigrationGate';
 import RequireAuth from './RequireAuth';
 import { useMigrationStore } from '../store/migrationStore';
+import BenchmarkRunner from './BenchmarkRunner';
 
 const Login = lazy(() => import('@/features/auth/pages/Login'));
 
@@ -195,7 +196,8 @@ export default function MainApp() {
       <BrowserRouter>
         <BlockingMigrationGate>
           <PasteClipboardHandler />
-          <TauriEventBridge />
+           <TauriEventBridge />
+          <BenchmarkRunner />
           <Suspense fallback={null}>
             <Routes>
               <Route path="/login" element={<Login />} />

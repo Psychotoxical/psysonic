@@ -5,13 +5,13 @@ import { resetPlayerStore } from '@/test/helpers/storeReset';
 
 vi.mock('@/lib/api/subsonicRatings', () => ({
   entityUserRatingKey: ({ serverId, entityKind, entityId }: { serverId: string; entityKind: string; entityId: string }) => `${serverId}\u0001${entityKind}\u0001${entityId}`,
-  rememberEntityUserRating: vi.fn(),
+  putLocalEntityUserRatings: vi.fn(),
   resolveEntityUserRatings: vi.fn(),
   parseSubsonicEntityStarRating: vi.fn((entity: { userRating?: unknown; rating?: unknown }) => entity.userRating ?? entity.rating),
 }));
 vi.mock('@/store/authStore', () => ({ useAuthStore: { getState: () => ({ activeServerId: 'server-a' }) } }));
 
-import { resolveEntityUserRatings } from '@/lib/api/subsonicRatings';
+import { putLocalEntityUserRatings, resolveEntityUserRatings } from '@/lib/api/subsonicRatings';
 import {
   enrichSongsForMixRatingFilter,
   filterAlbumsByMixRatingsAcrossServers,
@@ -35,6 +35,7 @@ beforeEach(() => {
   resetPlayerStore();
   vi.mocked(resolveEntityUserRatings).mockReset();
   vi.mocked(resolveEntityUserRatings).mockResolvedValue(new Map());
+  vi.mocked(putLocalEntityUserRatings).mockReset();
 });
 
 describe('filterAlbumsByMixRatingsAcrossServers', () => {
@@ -59,6 +60,24 @@ describe('filterAlbumsByMixRatingsAcrossServers', () => {
       'server-b:keep-b', 'server-a:keep-a', 'server-b:shared',
     ]);
     expect(resolveEntityUserRatings).toHaveBeenCalledTimes(1);
+  });
+
+  it('persists payload ratings in one batch instead of one invoke per album', async () => {
+    const albums: Array<SubsonicAlbum & { serverId: string }> = [
+      { ...album({ id: 'a', name: 'A', artistId: 'aa', serverId: 'server-a' }), userRating: 3 },
+      { ...album({ id: 'b', name: 'B', artistId: 'bb', serverId: 'server-b' }), userRating: 5 },
+    ];
+
+    await filterAlbumsByMixRatingsAcrossServers(
+      albums,
+      { enabled: true, minSong: 0, minAlbum: 1, minArtist: 0 },
+    );
+
+    expect(putLocalEntityUserRatings).toHaveBeenCalledTimes(1);
+    expect(putLocalEntityUserRatings).toHaveBeenCalledWith([
+      { serverId: 'server-a', entityKind: 'album', entityId: 'a', rating: 3 },
+      { serverId: 'server-b', entityKind: 'album', entityId: 'b', rating: 5 },
+    ]);
   });
 });
 

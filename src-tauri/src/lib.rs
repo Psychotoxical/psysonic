@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 pub mod cli;
+mod benchmark;
 mod cover_cache;
 mod lib_commands;
 mod library_identity_maintenance;
@@ -1310,6 +1311,8 @@ pub fn run() {
             cli_publish_library_list,
             cli_publish_server_list,
             cli_publish_search_results,
+            benchmark::benchmark_publish_run,
+            benchmark::benchmark_take_pending_request,
             set_window_decorations,
             set_linux_webkit_smooth_scrolling,
             linux_wayland_gpu_font_tuning_active,

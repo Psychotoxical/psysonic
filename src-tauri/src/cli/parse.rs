@@ -33,6 +33,8 @@ pub enum MixCliMode {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CliCommand {
+    BenchmarkRun(BenchmarkCliRequest),
+    BenchmarkLatest,
     Player(PlayerCliCmd),
     AudioDeviceList,
     /// `None` → follow host default output (same as Settings “system default”).
@@ -47,6 +49,14 @@ pub enum CliCommand {
         scope: SearchCliScope,
         query: String,
     },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BenchmarkCliRequest {
+    pub scenario: String,
+    pub runs: u32,
+    pub profile: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -289,6 +299,47 @@ fn parse_player_cli_at(args: &[String], pos: usize) -> Option<PlayerCliCmd> {
 
 /// Parse transport / playback / device / mix `psysonic --player …` argv.
 pub fn parse_cli_command(args: &[String]) -> Option<CliCommand> {
+    if args.get(1).map(String::as_str) == Some("benchmark") {
+        return match args.get(2).map(String::as_str) {
+            Some("latest") => Some(CliCommand::BenchmarkLatest),
+            Some("run") => {
+                let mut scenario = "all-pages".to_string();
+                let mut runs = 2u32;
+                let mut profile = "realistic".to_string();
+                let mut index = 3usize;
+                while index < args.len() {
+                    match args[index].as_str() {
+                        "--scenario" => {
+                            scenario = args.get(index + 1)?.clone();
+                            index += 2;
+                        }
+                        "--runs" => {
+                            runs = args.get(index + 1)?.parse().ok()?;
+                            if !(1..=20).contains(&runs) {
+                                return None;
+                            }
+                            index += 2;
+                        }
+                        "--profile" => {
+                            profile = args.get(index + 1)?.clone();
+                            if profile != "realistic" && profile != "isolated" {
+                                return None;
+                            }
+                            index += 2;
+                        }
+                        "--json" | "--quiet" | "-q" => index += 1,
+                        _ => return None,
+                    }
+                }
+                Some(CliCommand::BenchmarkRun(BenchmarkCliRequest {
+                    scenario,
+                    runs,
+                    profile,
+                }))
+            }
+            _ => None,
+        };
+    }
     let pos = args.iter().position(|a| a == "--player")?;
     let verb = args.get(pos + 1)?.as_str();
     match verb {
@@ -398,5 +449,31 @@ mod tests {
     #[test]
     fn volume_rejects_out_of_range_absolute() {
         assert_eq!(parse_player(&["--player", "volume", "101"]), None);
+    }
+
+    #[test]
+    fn benchmark_run_defaults_and_options() {
+        let defaults = vec!["psysonic", "benchmark", "run"]
+            .into_iter().map(String::from).collect::<Vec<_>>();
+        assert_eq!(
+            parse_cli_command(&defaults),
+            Some(CliCommand::BenchmarkRun(BenchmarkCliRequest {
+                scenario: "all-pages".into(),
+                runs: 2,
+                profile: "realistic".into(),
+            }))
+        );
+        let configured = vec![
+            "psysonic", "benchmark", "run", "--scenario", "core-pages",
+            "--runs", "3", "--profile", "isolated", "--json",
+        ].into_iter().map(String::from).collect::<Vec<_>>();
+        assert_eq!(
+            parse_cli_command(&configured),
+            Some(CliCommand::BenchmarkRun(BenchmarkCliRequest {
+                scenario: "core-pages".into(),
+                runs: 3,
+                profile: "isolated".into(),
+            }))
+        );
     }
 }

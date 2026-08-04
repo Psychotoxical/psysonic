@@ -12,8 +12,8 @@ pub use linux_forward::*;
 pub use parse::*;
 pub use presenters::print_audio_devices_human;
 use exchange::{
-    print_library_cli_stdout, print_search_cli_stdout, print_server_list_cli_stdout,
-    read_library_cli_response_blocking, read_search_cli_response_blocking,
+    print_benchmark_cli_stdout, print_library_cli_stdout, print_search_cli_stdout, print_server_list_cli_stdout,
+    read_benchmark_cli_response_blocking, read_library_cli_response_blocking, read_search_cli_response_blocking,
     read_server_list_cli_response_blocking,
 };
 use parse::{cli_action_registry_entries, cli_registry_entry_by_command};
@@ -110,6 +110,10 @@ pub fn print_help(program: &str) {
     eprintln!("  {program} --logs                      Print recent log lines and exit.");
     eprintln!("  {program} --logs --tail <lines>       Print the last <lines> entries.");
     eprintln!("  {program} --logs --tail <lines> -f    Keep streaming new lines.\n");
+    eprintln!("── Benchmark ──");
+    eprintln!("  {program} benchmark run [--scenario all-pages|core-pages] [--runs 1-20]");
+    eprintln!("      [--profile realistic|isolated] [--json]");
+    eprintln!("  {program} benchmark latest [--json]\n");
     eprintln!("── Remote commands (--player …) ──");
     eprintln!("  Require the main Psysonic process. Same flags on Linux, Windows, and macOS.");
     eprintln!("  Linux: a second CLI process can forward over D-Bus without opening another window.");
@@ -287,6 +291,17 @@ pub fn run_info_and_exit(args: &[String]) -> ! {
 pub fn handle_cli_on_primary_instance<R: Runtime>(app: &AppHandle<R>, argv: &[String]) -> bool {
     use tauri::Manager;
     match parse_cli_command(argv) {
+        Some(CliCommand::BenchmarkRun(request)) => {
+            let _ = crate::benchmark::queue_request(app, &request);
+            true
+        }
+        Some(CliCommand::BenchmarkLatest) => {
+            let response = crate::benchmark::publish_latest_to_cli(app);
+            if let Err(error) = response {
+                let _ = write_benchmark_cli_response(&serde_json::json!({ "ready": true, "error": error }));
+            }
+            true
+        }
         Some(CliCommand::Player(cmd)) => {
             emit_player_cli_cmd(app, cmd);
             true
@@ -357,6 +372,28 @@ pub fn spawn_deferred_cli_argv_handler<R: Runtime>(app: &AppHandle<R>) {
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(500));
         match cmd {
+            CliCommand::BenchmarkRun(request) => {
+                let _ = std::fs::remove_file(cli_benchmark_response_path());
+                let _ = crate::benchmark::queue_request(&handle, &request);
+                let text = read_benchmark_cli_response_blocking(Duration::from_secs(60 * 30));
+                print_benchmark_cli_stdout(&text, json_out);
+                if !quiet {
+                    println!("OK: {ok_line} (applied after startup)");
+                }
+                std::process::exit(0);
+            }
+            CliCommand::BenchmarkLatest => {
+                let _ = std::fs::remove_file(cli_benchmark_response_path());
+                if let Err(error) = crate::benchmark::publish_latest_to_cli(&handle) {
+                    let _ = write_benchmark_cli_response(&serde_json::json!({ "ready": true, "error": error }));
+                }
+                let text = read_benchmark_cli_response_blocking(Duration::from_secs(3));
+                print_benchmark_cli_stdout(&text, json_out);
+                if !quiet {
+                    println!("OK: {ok_line} (applied after startup)");
+                }
+                std::process::exit(0);
+            }
             CliCommand::Player(c) => {
                 emit_player_cli_cmd(&handle, c);
             }
@@ -426,6 +463,11 @@ pub fn spawn_deferred_cli_argv_handler<R: Runtime>(app: &AppHandle<R>) {
 
 pub fn describe_cli_command(cmd: &CliCommand) -> String {
     match cmd {
+        CliCommand::BenchmarkRun(request) => format!(
+            "benchmark run scenario={} runs={} profile={}",
+            request.scenario, request.runs, request.profile,
+        ),
+        CliCommand::BenchmarkLatest => "benchmark latest".into(),
         CliCommand::Player(c) => describe_player_cli_cmd(c),
         CliCommand::AudioDeviceList => "audio-device list".into(),
         CliCommand::AudioDeviceSet(None) => "audio-device set default".into(),
@@ -548,4 +590,3 @@ pub fn emit_player_cli_cmd<R: Runtime>(app: &AppHandle<R>, cmd: PlayerCliCmd) {
         PlayerCliCmd::NoArgCommand(_) => {}
     }
 }
-

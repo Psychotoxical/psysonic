@@ -435,7 +435,7 @@ import { runLocalAlbumBrowse, type AlbumBrowseQuery } from './albumBrowseLoad';
 import { GENRE_ALBUM_FETCH_LIMIT } from './albumBrowseTypes';
 
 /**
- * Random track sample from the local `track` table — SQLite `ORDER BY RANDOM() LIMIT N`.
+ * Random track sample from the local `track` table using the backend's bounded window path.
  * Returns null when the index is unavailable (caller falls back to the network).
  */
 export async function runLocalRandomSongs(

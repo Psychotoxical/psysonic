@@ -8,9 +8,10 @@ use serde_json::Value;
 
 use super::describe_cli_command;
 use super::exchange::{
-    cli_audio_device_response_path, cli_library_response_path, cli_search_response_path,
-    cli_server_list_path, print_library_cli_stdout, print_search_cli_stdout,
-    print_server_list_cli_stdout, read_library_cli_response_blocking,
+    cli_audio_device_response_path, cli_benchmark_response_path, cli_library_response_path,
+    cli_search_response_path, cli_server_list_path, print_benchmark_cli_stdout,
+    print_library_cli_stdout, print_search_cli_stdout, print_server_list_cli_stdout,
+    read_benchmark_cli_response_blocking, read_library_cli_response_blocking,
     read_search_cli_response_blocking, read_server_list_cli_response_blocking,
 };
 use super::parse::{parse_cli_command, wants_cli_json_output, wants_quiet, CliCommand};
@@ -104,6 +105,9 @@ pub fn linux_try_forward_player_cli_secondary(args: &[String]) -> Result<LinuxPl
         Some(CliCommand::Search { .. }) => {
             let _ = std::fs::remove_file(cli_search_response_path());
         }
+        Some(CliCommand::BenchmarkRun(_)) | Some(CliCommand::BenchmarkLatest) => {
+            let _ = std::fs::remove_file(cli_benchmark_response_path());
+        }
         _ => {}
     }
 
@@ -151,6 +155,12 @@ pub fn linux_try_forward_player_cli_secondary(args: &[String]) -> Result<LinuxPl
             if let Some(cmd) = parse_cli_command(args) {
                 println!("OK: {}", describe_cli_command(&cmd));
             }
+        }
+    } else if matches!(parse_cli_command(args), Some(CliCommand::BenchmarkRun(_)) | Some(CliCommand::BenchmarkLatest)) {
+        let text = read_benchmark_cli_response_blocking(Duration::from_secs(60 * 30));
+        print_benchmark_cli_stdout(&text, wants_cli_json_output(args));
+        if !wants_quiet(args) {
+            println!("OK: {}", parse_cli_command(args).as_ref().map(describe_cli_command).unwrap_or_default());
         }
     } else if !wants_quiet(args) {
         if let Some(cmd) = parse_cli_command(args) {
