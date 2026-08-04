@@ -21,6 +21,7 @@ import {
 
 export type AlbumDetailLocationState = {
   returnTo?: string;
+  returnState?: AlbumDetailLocationState;
 };
 
 export type AlbumsBrowseRestoreLocationState = {
@@ -157,14 +158,17 @@ function browseReturnRestoreState(returnTo: string): AlbumsBrowseRestoreLocation
   return undefined;
 }
 
-function buildReturnTo(
+function buildDetailLocationState(
   location: Pick<Location, 'pathname' | 'search' | 'hash' | 'state'>,
-): string {
-  const existing = readAlbumDetailReturnTo(location.state);
+): AlbumDetailLocationState {
+  const returnTo = buildReturnToFromLocation(location);
   const onDetail = isAlbumDetailPath(location.pathname)
     || isArtistDetailPath(location.pathname)
     || isComposerDetailPath(location.pathname);
-  return onDetail && existing ? existing : buildReturnToFromLocation(location);
+  const existing = readAlbumDetailReturnTo(location.state);
+  return onDetail && existing
+    ? { returnTo, returnState: location.state as AlbumDetailLocationState }
+    : { returnTo };
 }
 
 function saveSearchLeaveIfNeeded(
@@ -182,9 +186,8 @@ export function navigateToAlbumDetail(
   opts?: ArtistDetailPathOptions,
 ): void {
   saveSearchLeaveIfNeeded(location);
-  const returnTo = buildReturnTo(location);
   navigate(buildAlbumDetailPath(albumId, opts), {
-    state: { returnTo } satisfies AlbumDetailLocationState,
+    state: buildDetailLocationState(location),
   });
 }
 
@@ -195,9 +198,8 @@ export function navigateToArtistDetail(
   opts?: ArtistDetailPathOptions,
 ): void {
   saveSearchLeaveIfNeeded(location);
-  const returnTo = buildReturnTo(location);
   navigate(buildArtistDetailPath(artistId, opts), {
-    state: { returnTo } satisfies AlbumDetailLocationState,
+    state: buildDetailLocationState(location),
   });
 }
 
@@ -208,9 +210,8 @@ export function navigateToComposerDetail(
   opts?: ArtistDetailPathOptions,
 ): void {
   saveSearchLeaveIfNeeded(location);
-  const returnTo = buildReturnTo(location);
   navigate(buildComposerDetailPath(composerId, opts), {
-    state: { returnTo } satisfies AlbumDetailLocationState,
+    state: buildDetailLocationState(location),
   });
 }
 
@@ -237,7 +238,9 @@ export function navigateAlbumDetailBack(
   const returnTo = readAlbumDetailReturnTo(location.state);
   if (returnTo) {
     const restoreState = browseReturnRestoreState(returnTo);
-    navigate(returnTo, restoreState ? { state: restoreState } : undefined);
+    const returnState = (location.state as AlbumDetailLocationState | null)?.returnState;
+    const state = readAlbumDetailReturnTo(returnState) ? returnState : restoreState;
+    navigate(returnTo, state ? { state } : undefined);
     return;
   }
   if (window.history.length > 1) navigate(-1);
