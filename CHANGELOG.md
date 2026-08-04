@@ -320,6 +320,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * On a genre page, the add-to-queue button now matches the height of **Play** and carries a proper label for screen readers.
 * Internet radio shows its sort picker next to the browse and add buttons instead of on a separate line below them.
 
+### Linux — recognise MangoWM as a tiling window manager
+
+**By [@Leinad745](https://github.com/Leinad745), PR [#1380](https://github.com/Psychotoxical/psysonic/pull/1380)**
+
+* Psysonic now detects MangoWM as a tiling environment and leaves window decoration to the compositor instead of adding its custom title bar.
+
 ### Composers — names outside A–Z can be found again
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1381](https://github.com/Psychotoxical/psysonic/pull/1381)**
@@ -333,6 +339,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Genre Detail no longer presents the first 60 loaded albums as the total. Multi-server pages show a cached value immediately when available, then settle on the exact de-duplicated count.
 * All Albums genre counters follow every selected server and music folder instead of the active server or a temporary server-wide fallback. Genre album pages now drive from the indexed genre rows, cutting the measured first-page database read from about 1.1 seconds to about 0.37 seconds on a large three-server library.
+
+### Back navigation — return to the page you just left
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1383](https://github.com/Psychotoxical/psysonic/pull/1383)**
+
+* Back from an album opened on an artist page now returns to that artist, and Back from a related album returns to the previous album. A second Back continues to the original Albums or Artists page with its browse state intact.
 
 ## [1.50.0]
 

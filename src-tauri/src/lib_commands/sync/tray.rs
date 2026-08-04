@@ -442,7 +442,7 @@ pub(crate) fn is_tiling_wm() -> bool {
         let desktop = desktop.to_lowercase();
         let tiling_wms = [
             "hyprland", "niri", "sway", "i3", "bspwm", "awesome", "openbox",
-            "xmonad", "dwm", "qtile", "herbstluftwm", "leftwm",
+            "xmonad", "dwm", "qtile", "herbstluftwm", "leftwm", "mango",
         ];
         if tiling_wms.iter().any(|&wm| desktop.contains(wm)) {
             return true;

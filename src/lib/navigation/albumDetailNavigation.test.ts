@@ -51,7 +51,7 @@ describe('albumDetailNavigation', () => {
     });
   });
 
-  it('preserves returnTo when opening a related album', () => {
+  it('returns from a related album to the immediate album detail', () => {
     const navigate = vi.fn();
     navigateToAlbumDetail(
       navigate,
@@ -63,7 +63,33 @@ describe('albumDetailNavigation', () => {
       },
       'child',
     );
-    expect(navigate).toHaveBeenCalledWith('/album/child', { state: { returnTo: '/albums' } });
+    expect(navigate).toHaveBeenCalledWith('/album/child', {
+      state: {
+        returnTo: '/album/parent',
+        returnState: { returnTo: '/albums' },
+      },
+    });
+  });
+
+  it('returns from an artist album to the immediate artist detail', () => {
+    const navigate = vi.fn();
+    navigateToAlbumDetail(
+      navigate,
+      {
+        pathname: '/artist/art-1',
+        search: '?server=srv-b',
+        hash: '',
+        state: { returnTo: '/artists?letter=A' },
+      },
+      'alb-1',
+      { serverId: 'srv-b' },
+    );
+    expect(navigate).toHaveBeenCalledWith('/album/alb-1?server=srv-b', {
+      state: {
+        returnTo: '/artist/art-1?server=srv-b',
+        returnState: { returnTo: '/artists?letter=A' },
+      },
+    });
   });
 
   it('routes album paths through returnTo helper', () => {
@@ -80,6 +106,19 @@ describe('albumDetailNavigation', () => {
     const navigate = vi.fn();
     navigateAlbumDetailBack(navigate, { state: { returnTo: '/genres/Rock' } });
     expect(navigate).toHaveBeenCalledWith('/genres/Rock', { state: { albumBrowseRestore: true } });
+  });
+
+  it('restores the previous detail return state', () => {
+    const navigate = vi.fn();
+    navigateAlbumDetailBack(navigate, {
+      state: {
+        returnTo: '/album/parent',
+        returnState: { returnTo: '/albums' },
+      },
+    });
+    expect(navigate).toHaveBeenCalledWith('/album/parent', {
+      state: { returnTo: '/albums' },
+    });
   });
 
   it('flags All Albums return for browse restore', () => {
