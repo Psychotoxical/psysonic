@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AlbumBrowseQuery } from './albumBrowseTypes';
 
 const libraryGetGenreAlbumCounts = vi.fn();
-const libraryIsReady = vi.fn();
+const readyLibraryServerKeys = vi.fn();
 const libraryScopeForServer = vi.fn();
 const librarySelectionForServer = vi.fn();
 const runLocalAlbumBrowse = vi.fn();
@@ -12,7 +12,14 @@ vi.mock('@/lib/api/library', () => ({
 }));
 
 vi.mock('./libraryReady', () => ({
-  libraryIsReady: (...args: unknown[]) => libraryIsReady(...args),
+  readyLibraryServerKeys: (...args: unknown[]) => readyLibraryServerKeys(...args),
+}));
+
+const getLibraryBrowseScope = vi.fn();
+
+vi.mock('./libraryBrowseScope', async importOriginal => ({
+  ...(await importOriginal<typeof import('./libraryBrowseScope')>()),
+  getLibraryBrowseScope: () => getLibraryBrowseScope(),
 }));
 
 vi.mock('@/lib/api/subsonicClient', () => ({
@@ -36,9 +43,16 @@ const baseQuery: AlbumBrowseQuery = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  libraryIsReady.mockResolvedValue(true);
+  readyLibraryServerKeys.mockResolvedValue(['srv-1']);
   libraryScopeForServer.mockReturnValue('lib-a');
   librarySelectionForServer.mockReturnValue(['lib-a']);
+  getLibraryBrowseScope.mockReturnValue({
+    anchorServerId: 'srv-1',
+    serverIds: [],
+    pairs: [],
+    fingerprint: '',
+    multiServer: false,
+  });
 });
 
 describe('fetchAlbumBrowseGenreOptions', () => {
@@ -96,6 +110,37 @@ describe('fetchAlbumBrowseGenreOptions', () => {
       libraryScopes: ['lib-a', 'lib-b'],
     });
     expect(runLocalAlbumBrowse).not.toHaveBeenCalled();
+  });
+
+  it('merges genre counts from every server in the album browse scope', async () => {
+    readyLibraryServerKeys.mockResolvedValue(['srv-1', 'srv-2']);
+    getLibraryBrowseScope.mockReturnValue({
+      anchorServerId: 'srv-1',
+      serverIds: ['srv-1', 'srv-2'],
+      pairs: [
+        { serverId: 'srv-1', libraryId: 'lib-a' },
+        { serverId: 'srv-2', libraryId: null },
+      ],
+      fingerprint: 'scope',
+      multiServer: true,
+    });
+    libraryGetGenreAlbumCounts.mockImplementation(async (args: { serverId: string }) =>
+      args.serverId === 'srv-1'
+        ? [{ value: 'Rock', albumCount: 2, songCount: 5 }]
+        : [
+            { value: 'rock', albumCount: 3, songCount: 7 },
+            { value: 'Jazz', albumCount: 1, songCount: 2 },
+          ]);
+
+    await expect(fetchAlbumBrowseGenreOptions('srv-1', true, baseQuery)).resolves.toEqual([
+      { genre: 'Rock', count: 5 },
+      { genre: 'Jazz', count: 1 },
+    ]);
+    expect(libraryGetGenreAlbumCounts).toHaveBeenCalledWith({
+      serverId: 'srv-1',
+      libraryScope: 'lib-a',
+    });
+    expect(libraryGetGenreAlbumCounts).toHaveBeenCalledWith({ serverId: 'srv-2' });
   });
 
   it('derives genres from filtered albums when combined filters are active', async () => {

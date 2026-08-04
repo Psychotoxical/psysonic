@@ -11,6 +11,7 @@ import {
   coverTrafficBackgroundPaused,
   coverTrafficBeginGridPagination,
   coverTrafficBeginNavigation,
+  coverTrafficSetBenchmarkHold,
   coverTrafficEndGridPagination,
   coverTrafficEndNavigation,
   coverTrafficGridPaginationDepth,
@@ -41,6 +42,22 @@ describe('coverTraffic navigation hold', () => {
     coverTrafficEndNavigation();
     coverTrafficEndNavigation();
     expect(coverTrafficBackgroundPaused()).toBe(false);
+  });
+});
+
+describe('coverTraffic benchmark hold', () => {
+  beforeEach(() => {
+    __test_resetCoverTraffic();
+    vi.mocked(libraryCoverBackfillSetUiPriority).mockClear();
+  });
+
+  it('releases without clearing an active navigation hold', () => {
+    coverTrafficBeginNavigation();
+    void coverTrafficSetBenchmarkHold(true);
+    void coverTrafficSetBenchmarkHold(false);
+
+    expect(coverTrafficBackgroundPaused()).toBe(true);
+    expect(libraryCoverBackfillSetUiPriority).toHaveBeenLastCalledWith(true);
   });
 });
 

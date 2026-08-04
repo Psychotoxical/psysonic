@@ -456,7 +456,13 @@ export default function Albums() {
   };
 
   return (
-    <div className={`content-body animate-fade-in mainstage-inpage-split${mainstageHeaderTight ? ' mainstage-inpage--header-tight' : ''}`}>
+    <div
+      className={`content-body animate-fade-in mainstage-inpage-split${mainstageHeaderTight ? ' mainstage-inpage--header-tight' : ''}`}
+      data-benchmark-filter-starred={starredOnly ? 'true' : 'false'}
+      data-benchmark-filter-compilation={compFilter}
+      data-benchmark-loading={loading || loadingMore ? 'true' : 'false'}
+      data-benchmark-result-count={displayAlbums.length}
+    >
       {albumsBrowseDiagnosticsEnabled && (
         <div className="mainstage-diagnostic-copy-all">
           <button
@@ -511,7 +517,7 @@ export default function Albums() {
 
                   <GenreFilterBar
                     selected={selectedGenres}
-                    catalogGenres={browseData.genreCatalogActive ? browseData.genreCatalogOptions : null}
+                    catalogGenres={browseData.genreCatalogActive ? browseData.genreCatalogOptions : undefined}
                     onSelectionChange={setSelectedGenres}
                   />
 
@@ -524,6 +530,7 @@ export default function Albums() {
                   <button
                     className={`btn btn-surface${compFilter !== 'all' ? ' btn-sort-active' : ''}`}
                     onClick={cycleCompFilter}
+                    data-benchmark-filter="compilation"
                     data-tooltip={
                       compFilter === 'all' ? t('albums.compilationTooltipAll')
                       : compFilter === 'only' ? t('albums.compilationTooltipOnly')
@@ -632,7 +639,11 @@ export default function Albums() {
                 </div>
               )}
               {hasMore && (
-                <InpageScrollSentinel bindSentinel={bindLoadMoreSentinel} loading={loadingMore} />
+                <InpageScrollSentinel
+                  bindSentinel={bindLoadMoreSentinel}
+                  loading={loadingMore}
+                  itemCount={displayAlbums.length}
+                />
               )}
             </div>
             {isScrollRestorePending && (

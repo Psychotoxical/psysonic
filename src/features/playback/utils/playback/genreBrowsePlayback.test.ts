@@ -7,6 +7,7 @@ import {
   fetchLocalGenreTracksForPlayback,
   filterGenresWithContent,
   GENRE_PLAYBACK_QUEUE_CAP,
+  lookupScopedGenreAlbumCount,
 } from './genreBrowsePlayback';
 
 vi.mock('@/lib/api/library', () => ({
@@ -135,6 +136,40 @@ describe('genreBrowsePlayback', () => {
     await expect(fetchGenreAlbumCount('srv-1', 'Rock', true)).resolves.toBe(42);
   });
 
+  it('uses the exact merged total instead of an active-server cache for multi-server browse', async () => {
+    vi.mocked(libraryIsReady).mockResolvedValue(true);
+    vi.mocked(libraryGetGenreAlbumCounts).mockResolvedValue([
+      { value: 'Rock', albumCount: 42, songCount: 900 },
+    ]);
+    await fetchGenreCatalog('srv-1', true);
+    vi.mocked(fetchGenreAlbumTotal).mockResolvedValue(84);
+    const browseScope = {
+      anchorServerId: 'srv-1',
+      serverIds: ['srv-1', 'srv-2'],
+      pairs: [
+        { serverId: 'srv-1', libraryId: 'music' },
+        { serverId: 'srv-2', libraryId: null },
+      ],
+      fingerprint: 'scope',
+      multiServer: true,
+    };
+
+    await expect(fetchGenreAlbumCount(
+      'srv-1',
+      'Rock',
+      true,
+      'alphabeticalByName',
+      browseScope,
+    )).resolves.toBe(84);
+    expect(fetchGenreAlbumTotal).toHaveBeenCalledWith(
+      'srv-1',
+      'Rock',
+      true,
+      'alphabeticalByName',
+      browseScope,
+    );
+  });
+
   it('falls back to scoped genre list album count when local index is off', async () => {
     vi.mocked(fetchGenreAlbumTotal).mockResolvedValue(null);
     vi.mocked(getGenres).mockResolvedValue([
@@ -224,6 +259,47 @@ describe('genreBrowsePlayback', () => {
     });
     expect(libraryGetGenreAlbumCounts).toHaveBeenCalledWith({ serverId: 'srv-b' });
     expect(getGenres).not.toHaveBeenCalled();
+  });
+
+  it('uses the scoped catalog provisionally but fetches an exact multi-server total', async () => {
+    vi.mocked(libraryGetGenreAlbumCounts).mockImplementation(async args => {
+      const request = args as { serverId: string };
+      return request.serverId === 'srv-a'
+        ? [{ value: 'Rock', albumCount: 2, songCount: 5 }]
+        : [{ value: 'rock', albumCount: 3, songCount: 7 }];
+    });
+    const browseScope = {
+      anchorServerId: 'srv-a',
+      serverIds: ['srv-a', 'srv-b'],
+      pairs: [
+        { serverId: 'srv-a', libraryId: 'lib-a' },
+        { serverId: 'srv-b', libraryId: null },
+      ],
+      fingerprint: 'scope',
+      multiServer: true,
+    };
+
+    await fetchScopedGenreCatalog([
+      { serverId: 'srv-a', libraryIds: ['lib-a'] },
+      { serverId: 'srv-b', libraryIds: [] },
+    ]);
+
+    expect(lookupScopedGenreAlbumCount(browseScope, 'ROCK')).toBe(5);
+    vi.mocked(fetchGenreAlbumTotal).mockResolvedValue(99);
+    await expect(fetchGenreAlbumCount(
+      'srv-a',
+      'Rock',
+      true,
+      'alphabeticalByName',
+      browseScope,
+    )).resolves.toBe(99);
+    expect(fetchGenreAlbumTotal).toHaveBeenCalledWith(
+      'srv-a',
+      'Rock',
+      true,
+      'alphabeticalByName',
+      browseScope,
+    );
   });
 
   it('retains successful local genre counts when another selected index fails', async () => {

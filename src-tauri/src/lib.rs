@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 pub mod cli;
+mod benchmark;
 mod cover_cache;
 mod lib_commands;
 mod library_identity_maintenance;
@@ -97,8 +98,8 @@ fn scheduler_idle_payload(
 /// `None` if souvlaki failed to initialize (e.g. no D-Bus session on Linux).
 type MprisControls = Mutex<Option<souvlaki::MediaControls>>;
 
-/// Release builds only: focus or CLI-hand off when a second instance is launched.
-#[cfg(not(debug_assertions))]
+/// Focus or CLI-hand off when a second instance of the same build channel launches.
+#[cfg(any(target_os = "linux", not(debug_assertions)))]
 fn on_second_instance<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     argv: Vec<String>,
@@ -471,7 +472,17 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init());
 
-    #[cfg(not(debug_assertions))]
+    #[cfg(target_os = "linux")]
+    let builder = builder.plugin(
+        tauri_plugin_single_instance::Builder::new()
+            .dbus_id(crate::cli::linux_single_instance_dbus_id())
+            .callback(on_second_instance)
+            .build(),
+    );
+
+    // The upstream plugin only exposes a custom namespace on Linux. Keep debug
+    // unrestricted elsewhere so an installed production build can run beside it.
+    #[cfg(all(not(target_os = "linux"), not(debug_assertions)))]
     let builder = builder.plugin(tauri_plugin_single_instance::init(on_second_instance));
 
     builder
@@ -1310,6 +1321,8 @@ pub fn run() {
             cli_publish_library_list,
             cli_publish_server_list,
             cli_publish_search_results,
+            benchmark::benchmark_publish_run,
+            benchmark::benchmark_take_pending_request,
             set_window_decorations,
             set_linux_webkit_smooth_scrolling,
             linux_wayland_gpu_font_tuning_active,
@@ -1894,6 +1907,8 @@ mod specta_export {
             "audioscrobbler_request",
             "listenbrainz_request",
             "maloja_request",
+            "benchmark_publish_run",
+            "benchmark_take_pending_request",
             "backup_export_full",
             "backup_import_full",
             "cli_publish_library_list",

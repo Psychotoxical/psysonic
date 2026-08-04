@@ -17,7 +17,6 @@ import {
   fetchOfflineLocalStarredArtists,
   offlineLocalBrowseEnabled,
 } from '@/features/offline';
-import { scheduleAlbumBrowseBackgroundWork } from '@/lib/library/albumBrowseBackground';
 import {
   artistBrowseTimed,
   emitArtistsBrowseDebug,
@@ -349,9 +348,8 @@ export function useArtistsBrowseCatalog({
               setBrowseMode('slice');
               setCatalogArtists(preview.artists);
               catalogOffsetRef.current = preview.artists.length;
-              const needsTail =
-                preview.hasMore && preview.artists.length < ARTIST_CATALOG_CHUNK_SIZE;
-              setCatalogHasMore(needsTail || preview.hasMore);
+              setCatalogHasMore(preview.hasMore);
+              storeArtistBrowseCatalogCache(loadKey, preview);
               setLoading(false);
               emitArtistsBrowseDebug('loading_false', {
                 source: 'slice_bootstrap',
@@ -363,47 +361,6 @@ export function useArtistsBrowseCatalog({
                 artistCount: preview.artists.length,
                 hasMore: preview.hasMore,
               });
-              if (needsTail) {
-                const tailOffset = preview.artists.length;
-                const tailSize = ARTIST_CATALOG_CHUNK_SIZE - tailOffset;
-                scheduleAlbumBrowseBackgroundWork(() => {
-                  void (async () => {
-                    catalogLoadingRef.current = true;
-                    try {
-                      const tail = await fetchArtistBrowseCatalogDeduped(loadKey, () =>
-                        artistBrowseTimed(
-                          'local_catalog_tail',
-                          () => fetchLocalArtistCatalogChunk(
-                            serverId,
-                            tailOffset,
-                            tailSize,
-                            creditMode,
-                            letterFilter,
-                            { libraryScopes: libraryScopesRef.current },
-                          ),
-                          { creditMode, letterFilter, chunkSize: tailSize, offset: tailOffset },
-                        ),
-                      );
-                      if (generation !== loadGenerationRef.current || tail == null) return;
-                      storeArtistBrowseCatalogCache(loadKey, {
-                        artists: dedupeById([...preview.artists, ...tail.artists]),
-                        hasMore: tail.hasMore,
-                      });
-                      setCatalogArtists(prev => dedupeById([...prev, ...tail.artists]));
-                      catalogOffsetRef.current = preview.artists.length + tail.artists.length;
-                      setCatalogHasMore(tail.hasMore);
-                      emitArtistsBrowseDebug('catalog_tail_done', {
-                        artistCount: tail.artists.length,
-                        hasMore: tail.hasMore,
-                      });
-                    } finally {
-                      catalogLoadingRef.current = false;
-                    }
-                  })();
-                });
-              } else {
-                storeArtistBrowseCatalogCache(loadKey, preview);
-              }
               return;
             }
           }

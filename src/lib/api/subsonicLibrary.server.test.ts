@@ -76,6 +76,22 @@ describe('explicit-server library wrappers', () => {
     );
   });
 
+  it('lets an explicit browse scope override the global album-list scope', async () => {
+    apiForServerMock.mockResolvedValue({ albumList2: { album: [] } });
+
+    await getAlbumListForServer('srv-a', 'random', 12, 0, {}, 4321, []);
+    expect(apiForServerMock.mock.calls[0]?.[2]).not.toHaveProperty('musicFolderId');
+
+    apiForServerMock.mockClear();
+    await getAlbumListForServer('srv-a', 'random', 12, 0, {}, 4321, ['browse-folder']);
+    expect(apiForServerMock).toHaveBeenCalledWith(
+      'srv-a',
+      'getAlbumList2.view',
+      expect.objectContaining({ musicFolderId: 'browse-folder' }),
+      4321,
+    );
+  });
+
   it('guards, scopes, filters, times out, and stamps random songs', async () => {
     apiForServerMock.mockImplementation(async (_serverId: string, endpoint: string) => {
       if (endpoint === 'getRandomSongs.view') {
@@ -93,6 +109,33 @@ describe('explicit-server library wrappers', () => {
       'srv-random',
       'getRandomSongs.view',
       expect.objectContaining({ size: 8, genre: 'Rock', musicFolderId: 'folder-1' }),
+      2468,
+    );
+  });
+
+  it('fans out random songs across explicit browse libraries without using the global scope', async () => {
+    apiForServerMock
+      .mockResolvedValueOnce({ randomSongs: { song: [song] } })
+      .mockResolvedValueOnce({ randomSongs: { song: [{ ...song, id: 'song-2' }] } });
+
+    await expect(getRandomSongsForServer(
+      'srv-random', 8, undefined, 2468, ['browse-a', 'browse-b'],
+    )).resolves.toEqual([
+      { ...song, serverId: 'random.example' },
+      { ...song, id: 'song-2', serverId: 'random.example' },
+    ]);
+    expect(apiForServerMock).toHaveBeenNthCalledWith(
+      1,
+      'srv-random',
+      'getRandomSongs.view',
+      expect.objectContaining({ size: 8, musicFolderId: 'browse-a' }),
+      2468,
+    );
+    expect(apiForServerMock).toHaveBeenNthCalledWith(
+      2,
+      'srv-random',
+      'getRandomSongs.view',
+      expect.objectContaining({ size: 8, musicFolderId: 'browse-b' }),
       2468,
     );
   });

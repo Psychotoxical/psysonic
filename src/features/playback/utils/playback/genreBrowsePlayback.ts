@@ -27,6 +27,8 @@ import { fetchGenreAlbumTotal } from '@/lib/library/genreAlbumBrowse';
 import { libraryIsReady } from '@/lib/library/libraryReady';
 import { fetchGenreAlbumCountsDeduped } from '@/lib/library/albumBrowseGenreCountsCache';
 import type { LibraryBrowseIndexScope } from '@/lib/library/libraryBrowseScope';
+import type { LibraryBrowseScope } from '@/lib/library/libraryBrowseScope';
+import { browseScopeLibraryIdsForServer } from '@/lib/library/libraryBrowseScope';
 import {
   fetchOfflineLocalGenreCatalog,
   isOfflineBrowseActive,
@@ -104,6 +106,23 @@ export function peekScopedGenreCatalog(
     catalogs.push(cached);
   }
   return mergeGenreCatalogs(catalogs);
+}
+
+export function lookupScopedGenreAlbumCount(
+  scope: LibraryBrowseScope,
+  genre: string,
+): number | null {
+  const catalog = peekScopedGenreCatalog(
+    scope.serverIds.map(serverId => ({
+      serverId,
+      libraryIds: browseScopeLibraryIdsForServer(scope.pairs, serverId),
+    })),
+    true,
+  );
+  const match = catalog?.find(
+    row => row.value.localeCompare(genre, undefined, { sensitivity: 'accent' }) === 0,
+  );
+  return match?.albumCount ?? null;
 }
 
 /** One local indexed GROUP BY per selected server; failures retain the other owners' counts. */
@@ -192,6 +211,7 @@ export async function fetchGenreAlbumCount(
   genre: string,
   indexEnabled: boolean,
   sort: AlbumBrowseSort = 'alphabeticalByName',
+  browseScope?: LibraryBrowseScope,
 ): Promise<number | null> {
   if (!genre.trim()) return null;
   if (indexEnabled && serverId) {
@@ -202,16 +222,22 @@ export async function fetchGenreAlbumCount(
       );
       return match?.albumCount ?? null;
     }
-    const scopeKey = libraryScopeCacheKeyForServer(serverId);
-    const cached = lookupGenreAlbumCount(serverId, genre, scopeKey);
-    if (cached != null) return cached;
-    const inflight = getInflightGenreCatalog(genreCatalogCacheKey(serverId, scopeKey));
-    if (inflight) {
-      const catalog = await inflight;
-      const match = catalog.find(g => g.value.localeCompare(genre, undefined, { sensitivity: 'accent' }) === 0);
-      if (match?.albumCount != null) return match.albumCount;
+    if (browseScope && !browseScope.multiServer) {
+      const cached = lookupScopedGenreAlbumCount(browseScope, genre);
+      if (cached != null) return cached;
     }
-    const localTotal = await fetchGenreAlbumTotal(serverId, genre, indexEnabled, sort);
+    if (!browseScope?.multiServer) {
+      const scopeKey = libraryScopeCacheKeyForServer(serverId);
+      const cached = lookupGenreAlbumCount(serverId, genre, scopeKey);
+      if (cached != null) return cached;
+      const inflight = getInflightGenreCatalog(genreCatalogCacheKey(serverId, scopeKey));
+      if (inflight) {
+        const catalog = await inflight;
+        const match = catalog.find(g => g.value.localeCompare(genre, undefined, { sensitivity: 'accent' }) === 0);
+        if (match?.albumCount != null) return match.albumCount;
+      }
+    }
+    const localTotal = await fetchGenreAlbumTotal(serverId, genre, indexEnabled, sort, browseScope);
     if (localTotal != null) return localTotal;
     return null;
   }

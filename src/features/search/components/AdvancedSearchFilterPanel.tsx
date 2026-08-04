@@ -123,6 +123,7 @@ export default function AdvancedSearchFilterPanel({
               type="text"
               value={query}
               onChange={e => setQuery(e.target.value)}
+              data-benchmark-search-input
               placeholder={t('search.advancedSearchPlaceholder')}
               style={{ flex: 1 }}
               autoFocus={autoFocusQuery}
@@ -297,6 +298,7 @@ export default function AdvancedSearchFilterPanel({
               className="btn btn-primary"
               type="submit"
               disabled={loading}
+              data-benchmark-search-submit
               style={{ minWidth: 100 }}
             >
               {loading

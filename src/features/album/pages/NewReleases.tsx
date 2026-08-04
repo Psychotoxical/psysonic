@@ -48,6 +48,7 @@ import {
 } from '@/lib/library/multiServerDebug';
 import { mergeHotNewReleases } from '@/features/album/utils/hotNewReleases';
 import { useHotNewReleaseOverlay } from '@/features/album/hooks/useHotNewReleaseOverlay';
+import { useNewReleaseGenreCounts } from '@/features/album/hooks/useNewReleaseGenreCounts';
 
 const PAGE_SIZE = 30;
 
@@ -110,7 +111,6 @@ export default function NewReleases() {
 
   const [albums, setAlbums] = useState<SubsonicAlbum[]>(() => initialAlbums ?? []);
   const [hasMore, setHasMore] = useState(() => initialHasMore ?? true);
-  const [genreCounts, setGenreCounts] = useState<Array<{ genre: string; count: number }>>([]);
   const {
     scrollBodyEl,
     bindScrollBody: bindNewReleasesScrollBody,
@@ -123,6 +123,14 @@ export default function NewReleases() {
     requestNextPage,
     isBlocked,
   } = useAsyncInpagePagination(PAGE_SIZE, { initialLoading: initialAlbums == null });
+  const genreCounts = useNewReleaseGenreCounts({
+    anchorServerId,
+    scopes: releaseScopes,
+    scopeFingerprint: releaseScopeFingerprint,
+    musicLibraryFilterVersion,
+    feedReady: !loading,
+    enabled: !scopedSearchQuery,
+  });
   const [selectionMode, setSelectionMode] = useState(false);
   const genreFiltered = selectedGenres.length > 0;
   const hotOverlay = useHotNewReleaseOverlay(
@@ -286,14 +294,8 @@ export default function NewReleases() {
     });
     try {
       await runLoad(async () => {
-        // Genre counts describe the whole scope, not the page being fetched, so
-        // they are identical on every append — which is why the result is
-        // discarded below when appending. Asking for them anyway is not free:
-        // the count query dominates this request (~3.2s against ~35ms for the
-        // feed itself), and every browse read shares one connection, so a
-        // pointless one stalls the rest of the app behind it.
         const data = await loadLocalNewReleases(
-          anchorServerId ?? '', releaseScopes, PAGE_SIZE, offset, genres, !append,
+          anchorServerId ?? '', releaseScopes, PAGE_SIZE, offset, genres, false,
         );
         emitMultiServerDebug('new_releases_page_load_apply', {
           anchorServerId,
@@ -309,7 +311,6 @@ export default function NewReleases() {
         if (append) setAlbums(prev => [...prev, ...data.albums]);
         else setAlbums(data.albums);
         setHasMore(data.hasMore);
-        if (!append) setGenreCounts(data.genreCounts.map(row => ({ genre: row.value, count: row.albumCount })));
       });
     } catch (error) {
       emitMultiServerDebug('new_releases_page_load_error', {
@@ -506,7 +507,11 @@ export default function NewReleases() {
               )}
             />
             {gridHasMore && (
-              <InpageScrollSentinel bindSentinel={bindLoadMoreSentinel} loading={loadingGrid} />
+              <InpageScrollSentinel
+                bindSentinel={bindLoadMoreSentinel}
+                loading={loadingGrid}
+                itemCount={displayAlbums.length}
+              />
             )}
             </div>
             {isScrollRestorePending && (

@@ -211,6 +211,7 @@ const CONTRIBUTOR_ENTRIES = [
       'True simultaneous multi-server support — unified catalogue, mixed-server playback, owner-safe actions, source fallback, and incremental indexing (PR #1326)',
       'Multi-server scope recovery and redacted selectable-depth diagnostics for reachability, music folders, and New Releases (PR #1331)',
       'Cover pipeline — Navidrome per-disc art in queue, playbar and Who is listening?; All Albums warm no longer creates mf-* album dirs (PR #1336)',
+      'Performance benchmark CLI and faster scoped library browsing (PR #1382)',
     ],
   },
   {

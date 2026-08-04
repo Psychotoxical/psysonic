@@ -195,13 +195,17 @@ pub fn run_advanced_search(
         req.library_scope.as_deref(),
         req.library_scopes.as_deref(),
     )?;
+    let single_scope_random_track = scope_pairs.len() == 1
+        && req.entity_types.len() == 1
+        && req.entity_types[0] == EntityKind::Track
+        && is_fast_random_track_sample(req, text_input.as_deref(), &scalar, offset);
     // Any >1-library scope dedups album/artist rows via cluster keys, including
     // the Layer-1 same-server path — build keys first so dedup works on a cold
     // index (idempotent; only rebuilds when needed).
-    if multi_library_merge_enabled(&scope_pairs) {
+    if multi_library_merge_enabled(&scope_pairs) && !single_scope_random_track {
         crate::scope_merge::ensure_cluster_keys_for_scopes(store, &scope_pairs)?;
     }
-    if scoped_layer1_eligible(&scope_pairs) {
+    if scoped_layer1_eligible(&scope_pairs) && !single_scope_random_track {
         return run_advanced_search_layer1_scope(
             store,
             req,
@@ -213,7 +217,7 @@ pub fn run_advanced_search(
             skip_totals,
         );
     }
-    if multi_library_merge_enabled(&scope_pairs) {
+    if multi_library_merge_enabled(&scope_pairs) && !single_scope_random_track {
         return run_advanced_search_multi_scope(
             store,
             req,
@@ -227,6 +231,7 @@ pub fn run_advanced_search(
     }
 
     let mut legacy = req.clone();
+    legacy.library_scopes = None;
     if legacy.library_scope.is_none() {
         if let Some(pair) = scope_pairs.first() {
             legacy.library_scope = pair.library_id.clone();
@@ -468,6 +473,7 @@ fn build_layer1_scope_track(
     let order = order_clause(&req.sort, EntityKind::Track)
         .unwrap_or_else(|| "ORDER BY t.title COLLATE NOCASE ASC, t.id ASC".to_string());
     let bpm_resolved = scalar.iter().any(|c| c.field == "bpm");
+    let random_window = is_fast_random_track_sample(req, text, scalar, offset);
     scope_merge::list_tracks_layer1_filtered(
         store,
         scopes,
@@ -478,6 +484,7 @@ fn build_layer1_scope_track(
         offset,
         skip_totals,
         bpm_resolved,
+        random_window,
     )
 }
 
@@ -676,6 +683,7 @@ fn build_multi_scope_track(
         applied,
     )?;
     let order = deduped_track_order_sql(&req.sort);
+    let random_window = is_fast_random_track_sample(req, text, scalar, offset);
     scope_merge::list_tracks_filtered(
         store,
         scopes,
@@ -686,6 +694,7 @@ fn build_multi_scope_track(
         offset,
         skip_totals,
         bpm_resolved,
+        random_window,
     )
 }
 
@@ -925,6 +934,10 @@ fn build_track(
             skip_totals,
             map_track,
         );
+    }
+
+    if is_fast_random_track_sample(req, text, scalar, offset) {
+        return query_random_track_rows(store, &cols, &w, limit, map_track);
     }
 
     let order = order_clause(&req.sort, EntityKind::Track)
@@ -1973,6 +1986,66 @@ where
     })
 }
 
+fn query_random_track_rows<T, F>(
+    store: &LibraryStore,
+    select_cols: &str,
+    w: &WhereBuilder,
+    limit: u32,
+    map: F,
+) -> Result<(Vec<T>, u32), String>
+where
+    F: Fn(&rusqlite::Row<'_>) -> rusqlite::Result<T> + Copy,
+{
+    let where_sql = w.where_sql();
+    store.with_read_conn(|conn| {
+        let bounds_sql = format!(
+            "SELECT MIN(t.rowid), MAX(t.rowid) FROM track t WHERE {where_sql}"
+        );
+        let (min_rowid, max_rowid): (Option<i64>, Option<i64>) = conn.query_row(
+            &bounds_sql,
+            rusqlite::params_from_iter(w.params.iter()),
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        let (Some(min_rowid), Some(max_rowid)) = (min_rowid, max_rowid) else {
+            return Ok((Vec::new(), 0));
+        };
+        let pivot = random_rowid_pivot(min_rowid, max_rowid);
+
+        let collect = |comparison: &str, pivot: i64, page_limit: u32| -> rusqlite::Result<Vec<T>> {
+            let page_sql = format!(
+                "SELECT {select_cols} FROM track t WHERE {where_sql} \
+                 AND t.rowid {comparison} ? ORDER BY t.rowid LIMIT ?"
+            );
+            let mut page_params: Vec<SqlValue> = w.params.clone();
+            page_params.push(SqlValue::Integer(pivot));
+            page_params.push(SqlValue::Integer(i64::from(page_limit)));
+            let mut stmt = conn.prepare(&page_sql)?;
+            let rows = stmt
+                .query_map(rusqlite::params_from_iter(page_params.iter()), |row| map(row))?
+                .collect::<rusqlite::Result<Vec<T>>>()?;
+            Ok(rows)
+        };
+
+        let mut rows = collect(">=", pivot, limit)?;
+        if rows.len() < limit as usize {
+            let remaining = limit.saturating_sub(rows.len() as u32);
+            rows.extend(collect("<", pivot, remaining)?);
+        }
+        Ok((rows, 0))
+    })
+}
+
+fn random_rowid_pivot(min_rowid: i64, max_rowid: i64) -> i64 {
+    if min_rowid >= max_rowid {
+        return min_rowid;
+    }
+    let span = (max_rowid - min_rowid) as u128 + 1;
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_nanos());
+    min_rowid + (nanos % span) as i64
+}
+
 /// Track search with FTS rowid prefilter — MATCH param is bound first (subquery in `from`).
 #[allow(clippy::too_many_arguments)]
 fn query_rows_fts<T, F>(
@@ -2240,11 +2313,27 @@ pub(crate) fn sort_column(field: &str, entity: EntityKind) -> Option<&'static st
         ("year", EntityKind::Album) => Some("a.year"),
         ("artist", EntityKind::Album) => Some("a.artist COLLATE NOCASE"),
         ("name", EntityKind::Artist) => Some("COALESCE(ar.name_sort, ar.name) COLLATE NOCASE"),
-        // SQLite built-in: ORDER BY RANDOM() LIMIT N — fast pseudo-random sample,
-        // no index scan needed beyond the row-id range. Direction is ignored.
+        // General filtered random sorts retain SQLite's full-set shuffle. The
+        // unfiltered Home track sample uses a bounded random window instead.
         ("random", _) => Some("RANDOM()"),
         _ => None,
     }
+}
+
+fn is_fast_random_track_sample(
+    req: &LibraryAdvancedSearchRequest,
+    text: Option<&str>,
+    scalar: &[&LibraryFilterClause],
+    offset: u32,
+) -> bool {
+    req.skip_totals
+        && offset == 0
+        && text.is_none()
+        && scalar.is_empty()
+        && req.starred_only != Some(true)
+        && req.restrict_album_ids.as_ref().is_none_or(Vec::is_empty)
+        && req.sort.len() == 1
+        && req.sort[0].field == "random"
 }
 
 fn compilation_filter_fragment(
@@ -2417,6 +2506,84 @@ mod tests {
             artist_credit_mode: None,
             artist_letter_bucket: None,
         }
+    }
+
+    #[test]
+    fn unfiltered_random_track_request_uses_bounded_sample_path() {
+        let store = LibraryStore::open_in_memory();
+        let tracks = (0..12)
+            .map(|index| {
+                track(
+                    "s1",
+                    &format!("t-{index:02}"),
+                    &format!("Song {index}"),
+                    "Artist",
+                    "Album",
+                )
+            })
+            .collect::<Vec<_>>();
+        TrackRepository::new(&store).upsert_batch(&tracks).unwrap();
+
+        let mut r = req("s1", &[EntityKind::Track]);
+        r.sort = vec![LibrarySortClause {
+            field: "random".into(),
+            dir: SortDir::Asc,
+        }];
+        r.limit = 4;
+        r.skip_totals = true;
+        r.library_scopes = Some(vec![LibraryScopePair {
+            server_id: "s1".into(),
+            library_id: None,
+        }]);
+
+        assert!(is_fast_random_track_sample(&r, None, &[], 0));
+        let response = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(response.tracks.len(), 4);
+        assert_eq!(response.totals.tracks, 0);
+
+        r.offset = 1;
+        assert!(!is_fast_random_track_sample(&r, None, &[], 1));
+    }
+
+    #[test]
+    fn random_rowid_pivot_stays_inside_bounds() {
+        assert_eq!(random_rowid_pivot(7, 7), 7);
+        assert!((10..=25).contains(&random_rowid_pivot(10, 25)));
+    }
+
+    #[test]
+    fn scoped_random_track_request_uses_bounded_sample_path() {
+        let store = LibraryStore::open_in_memory();
+        let tracks = (0..12)
+            .map(|index| {
+                scoped_track(
+                    "s1",
+                    &format!("t-{index:02}"),
+                    &format!("Song {index}"),
+                    "Artist",
+                    "Album",
+                    "album",
+                    if index % 2 == 0 { "lib-a" } else { "lib-b" },
+                    None,
+                    None,
+                    None,
+                )
+            })
+            .collect::<Vec<_>>();
+        TrackRepository::new(&store).upsert_batch(&tracks).unwrap();
+
+        let mut r = req("s1", &[EntityKind::Track]);
+        r.library_scopes = Some(vec![scope_pair("s1", "lib-a"), scope_pair("s1", "lib-b")]);
+        r.sort = vec![LibrarySortClause {
+            field: "random".into(),
+            dir: SortDir::Asc,
+        }];
+        r.limit = 4;
+        r.skip_totals = true;
+
+        let response = run_advanced_search(&store, &r).unwrap();
+        assert_eq!(response.tracks.len(), 4);
+        assert_eq!(response.totals.tracks, 0);
     }
 
     fn insert_artist_with_album_count(

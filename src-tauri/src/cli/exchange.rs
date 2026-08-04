@@ -53,6 +53,15 @@ pub fn cli_search_response_path() -> PathBuf {
     std::env::temp_dir().join("psysonic-cli-search.json")
 }
 
+pub fn cli_benchmark_response_path() -> PathBuf {
+    if let Ok(dir) = std::env::var("XDG_RUNTIME_DIR") {
+        if !dir.is_empty() {
+            return PathBuf::from(dir).join("psysonic-cli-benchmark.json");
+        }
+    }
+    std::env::temp_dir().join("psysonic-cli-benchmark.json")
+}
+
 // ─── Snapshot writer ─────────────────────────────────────────────────────────
 
 pub fn write_cli_snapshot(payload: &Value) -> Result<(), String> {
@@ -202,6 +211,73 @@ pub(super) fn print_search_cli_stdout(text: &str, json_out: bool) {
         print_search_human(&v);
     } else {
         println!("{}", text.trim());
+    }
+}
+
+pub fn write_benchmark_cli_response(payload: &Value) -> Result<(), String> {
+    let path = cli_benchmark_response_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let data = serde_json::to_string_pretty(payload).map_err(|e| e.to_string())?;
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, &data).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+pub(super) fn read_benchmark_cli_response_blocking(max_wait: Duration) -> String {
+    let path = cli_benchmark_response_path();
+    let deadline = Instant::now() + max_wait;
+    loop {
+        if let Ok(text) = std::fs::read_to_string(&path) {
+            if serde_json::from_str::<Value>(&text)
+                .ok()
+                .and_then(|value| value.get("ready").and_then(Value::as_bool)) == Some(true)
+            {
+                return text;
+            }
+        }
+        if Instant::now() >= deadline {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    std::fs::read_to_string(&path).unwrap_or_else(|_| "{}".into())
+}
+
+pub(super) fn print_benchmark_cli_stdout(text: &str, json_out: bool) {
+    if json_out {
+        println!("{}", text.trim());
+        return;
+    }
+    let Ok(value) = serde_json::from_str::<Value>(text) else {
+        println!("{}", text.trim());
+        return;
+    };
+    if let Some(error) = value.get("error").and_then(Value::as_str) {
+        eprintln!("NOT OK: {error}");
+        return;
+    }
+    if let Some(path) = value.get("path").and_then(Value::as_str) {
+        println!("Benchmark report: {path}");
+    }
+    if let Some(rows) = value.get("summary").and_then(Value::as_array) {
+        for row in rows.iter().take(10) {
+            let route = row.get("route").and_then(Value::as_str).unwrap_or("?");
+            let median = row.get("medianTotalMs").and_then(Value::as_u64).unwrap_or(0);
+            let max = row.get("maxTotalMs").and_then(Value::as_u64).unwrap_or(0);
+            println!("  {route:<24} median {median:>6} ms  max {max:>6} ms");
+        }
+    }
+    if let Some(rows) = value.pointer("/comparison/rows").and_then(Value::as_array) {
+        println!("Compared with previous run:");
+        for row in rows.iter().take(10) {
+            let route = row.get("route").and_then(Value::as_str).unwrap_or("?");
+            let delta = row.get("deltaMs").and_then(Value::as_i64).unwrap_or(0);
+            let percent = row.get("deltaPercent").and_then(Value::as_f64).unwrap_or(0.0);
+            println!("  {route:<24} {delta:>+6} ms  {percent:>+6.0}%");
+        }
     }
 }
 

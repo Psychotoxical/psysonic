@@ -65,8 +65,8 @@ describe('runLocalAdvancedSearch', () => {
     expect(res).toBeNull();
   });
 
-  it('passes libraryScope from the sidebar music library filter', async () => {
-    useAuthStore.setState({ musicLibraryFilterByServer: { s1: 'lib7' } });
+  it('passes the authoritative browse library scope', async () => {
+    useAuthStore.setState({ libraryBrowseSelectionByServer: { s1: ['lib7'] } });
     ready();
     let captured: unknown;
     onInvoke('library_advanced_search', (args) => {
@@ -82,7 +82,6 @@ describe('runLocalAdvancedSearch', () => {
     await runLocalAdvancedSearch('s1', opts({ query: 'x' }), 100);
     expect(captured).toMatchObject({
       request: {
-        libraryScope: 'lib7',
         libraryScopes: [{ serverId: 's1', libraryId: 'lib7' }],
       },
     });
@@ -90,8 +89,7 @@ describe('runLocalAdvancedSearch', () => {
 
   it('passes ordered libraryScopes for multi-library selection', async () => {
     useAuthStore.setState({
-      musicLibrarySelectionByServer: { s1: ['lib-b', 'lib-a'] },
-      musicLibraryFilterByServer: { s1: 'lib-b' },
+      libraryBrowseSelectionByServer: { s1: ['lib-b', 'lib-a'] },
     });
     ready();
     let captured: unknown;

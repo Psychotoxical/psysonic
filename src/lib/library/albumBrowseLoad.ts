@@ -23,7 +23,7 @@ import { runLocalAlbumBrowse, runLocalAlbumScopeBrowse } from './albumBrowseLoca
 import { fetchAlbumBrowseNetwork } from './albumBrowseNetwork';
 import { fetchStarredAlbumBrowse } from './albumBrowseStarredFetch';
 import { librarySelectionForServer } from '@/lib/api/subsonicClient';
-import { libraryIsReady } from './libraryReady';
+import { readyLibraryServerKeys } from './libraryReady';
 import type {
   AlbumBrowseFetchCallbacks,
   AlbumBrowsePageResult,
@@ -34,6 +34,25 @@ import { GENRE_ALBUM_FETCH_LIMIT } from './albumBrowseTypes';
 import { albumBrowseTimed, emitAlbumBrowseDebug } from './albumBrowseDebug';
 import { fetchGenreAlbumCountsDeduped } from './albumBrowseGenreCountsCache';
 import { getLibraryBrowseScope } from './libraryBrowseScope';
+
+function mergeScopedGenreOptions(
+  catalogs: readonly GenreFilterOption[][],
+): GenreFilterOption[] {
+  const merged = new Map<string, GenreFilterOption>();
+  for (const catalog of catalogs) {
+    for (const row of catalog) {
+      const key = row.genre.toLocaleLowerCase();
+      const previous = merged.get(key);
+      merged.set(key, {
+        genre: previous?.genre ?? row.genre,
+        count: (previous?.count ?? 0) + row.count,
+      });
+    }
+  }
+  return [...merged.values()].sort(
+    (a, b) => b.count - a.count || a.genre.localeCompare(b.genre),
+  );
+}
 
 /** Unfiltered browse: paint a small SQL page first, then grow the catalog buffer. */
 export function albumBrowseBootstrapEligible(query: AlbumBrowseQuery): boolean {
@@ -76,6 +95,7 @@ export async function fetchAlbumBrowseGenreOptions(
 ): Promise<GenreFilterOption[]> {
   const withoutGenre: AlbumBrowseQuery = { ...query, genres: [] };
   const selection = librarySelectionForServer(serverId);
+  const browseScope = getLibraryBrowseScope();
   const hasCombinedFilters =
     albumBrowseHasServerFilters(withoutGenre) || query.compFilter !== 'all';
 
@@ -84,8 +104,32 @@ export async function fetchAlbumBrowseGenreOptions(
   // multi-scope CTE sample. For multi-library selection we sum counts per library —
   // cross-library album duplicates are counted once per library (a cosmetic hint),
   // but the genre set stays correct and each query is an indexed GROUP BY.
-  if (indexEnabled && serverId && !hasCombinedFilters && (await libraryIsReady(serverId))) {
+  if (
+    indexEnabled
+    && serverId
+    && !hasCombinedFilters
+    && await readyLibraryServerKeys(browseScope.serverIds.length > 0 ? browseScope.serverIds : [serverId])
+  ) {
     try {
+      if (browseScope.pairs.length > 0) {
+        const catalogs = await Promise.all(browseScope.serverIds.map(async scopedServerId => {
+          const pairs = browseScope.pairs.filter(pair => pair.serverId === scopedServerId);
+          const wholeServer = pairs.some(pair => pair.libraryId == null);
+          const libraryIds = wholeServer
+            ? []
+            : [...new Set(pairs.flatMap(pair => pair.libraryId ? [pair.libraryId] : []))];
+          const rows = await fetchGenreAlbumCountsDeduped({
+            serverId: scopedServerId,
+            ...(libraryIds.length === 1
+              ? { libraryScope: libraryIds[0] }
+              : libraryIds.length > 1
+                ? { libraryScopes: libraryIds }
+                : {}),
+          });
+          return rows.map(row => ({ genre: row.value, count: row.albumCount }));
+        }));
+        return mergeScopedGenreOptions(catalogs);
+      }
       if (selection.length === 0) {
         const rows = await albumBrowseTimed(
           'genre_album_counts',

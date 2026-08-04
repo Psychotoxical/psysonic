@@ -30,9 +30,38 @@ import { emitTrackBrowseDebug, trackBrowseTimed } from '@/lib/library/trackBrows
 import { useLibraryScopeSyncRevision } from '@/store/offlineLocalLibrarySyncRevision';
 import { readyLibraryServerKeys } from '@/lib/library/libraryReady';
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
+import {
+  readSongBrowsePageCache,
+  writeSongBrowsePageCache,
+} from '@/features/search/hooks/songBrowsePageCache';
 
 const PAGE_SIZE = 50;
 const BROWSE_READINESS_CHANGED = Symbol('browse-readiness-changed');
+const BROWSE_READINESS_RETRY_DELAY_MS = 250;
+const BROWSE_READINESS_RETRY_LIMIT = 20;
+
+async function withBrowseReadinessRetry<T>(
+  run: () => Promise<T>,
+  isStale: () => boolean,
+): Promise<T> {
+  let readinessRetries = 0;
+  while (true) {
+    try {
+      return await run();
+    } catch (error) {
+      if (
+        error !== BROWSE_READINESS_CHANGED
+        || isStale()
+        || readinessRetries >= BROWSE_READINESS_RETRY_LIMIT
+      ) {
+        throw error;
+      }
+      readinessRetries += 1;
+      emitTrackBrowseDebug('browse_readiness_retry', { attempt: readinessRetries });
+      await new Promise(resolve => window.setTimeout(resolve, BROWSE_READINESS_RETRY_DELAY_MS));
+    }
+  }
+}
 
 type BrowseAllPage = {
   songs: SubsonicSong[];
@@ -60,6 +89,15 @@ async function fetchBrowseAllPage(
     String(offset),
     cursor ?? '',
   ].join('\u0001');
+  const cached = readSongBrowsePageCache(key);
+  if (cached) {
+    emitTrackBrowseDebug('browse_page_cache_hit', {
+      offset,
+      cursor: cursor != null,
+      songCount: cached.songs.length,
+    });
+    return { ...cached, local: true };
+  }
   const existing = browseAllPageInflight.get(key);
   if (existing) return existing;
   const request = (async (): Promise<BrowseAllPage> => {
@@ -70,14 +108,21 @@ async function fetchBrowseAllPage(
       () => runLocalSongScopeBrowse(browseServerId, PAGE_SIZE, cursor, browseScope),
       { offset, cursor: cursor != null },
     );
-    if (scoped) return { ...scoped, local: true };
+    if (scoped) {
+      writeSongBrowsePageCache(key, scoped);
+      return { ...scoped, local: true };
+    }
     if (browseScope.multiServer) throw BROWSE_READINESS_CHANGED;
     const local = await trackBrowseTimed(
       'local_advanced_page',
       () => runLocalSongBrowse(browseServerId, offset, PAGE_SIZE, browseScope),
       { offset },
     );
-    if (local) return { songs: local, hasMore: local.length === PAGE_SIZE, local: true };
+    if (local) {
+      const page = { songs: local, hasMore: local.length === PAGE_SIZE };
+      writeSongBrowsePageCache(key, page);
+      return { ...page, local: true };
+    }
     try {
       const songs = await trackBrowseTimed(
         'network_navidrome_page',
@@ -95,9 +140,10 @@ async function fetchBrowseAllPage(
     }
   })();
   browseAllPageInflight.set(key, request);
-  void request.finally(() => {
+  const clearInflight = () => {
     if (browseAllPageInflight.get(key) === request) browseAllPageInflight.delete(key);
-  });
+  };
+  void request.then(clearInflight, clearInflight);
   return request;
 }
 
@@ -363,7 +409,10 @@ export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseS
           indexEnabled,
           offset: 0,
         });
-        const page = await fetchSongPage(debouncedQuery, 0, isStale);
+        const page = await withBrowseReadinessRetry(
+          () => fetchSongPage(debouncedQuery, 0, isStale),
+          isStale,
+        );
         if (isStale()) return;
         loadedScopeFingerprintRef.current = browseScope.fingerprint;
         loadedSyncRevisionRef.current = librarySyncRevision;
@@ -412,7 +461,10 @@ export function useSongBrowseList({ enabled, searchQuery, initialRestore }: UseS
       cursor: browseCursorRef.current != null,
     });
     try {
-      const page = await fetchSongPage(debouncedQuery, offset, isStale);
+      const page = await withBrowseReadinessRetry(
+        () => fetchSongPage(debouncedQuery, offset, isStale),
+        isStale,
+      );
       if (isStale()) return;
       if (page.length === 0) {
         setHasMore(false);

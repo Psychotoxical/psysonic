@@ -49,7 +49,11 @@ import {
 import { artistBrowseTimed, emitArtistsBrowseDebug } from './artistBrowseDebug';
 import { raceSearchSources, type SearchRaceWinner } from './searchRace';
 import type { LibraryScopePair } from '@/lib/api/library/scopeReads';
-import { getLibraryBrowseScope, type LibraryBrowseScope } from './libraryBrowseScope';
+import {
+  browseScopeLibraryIdsForServer,
+  getLibraryBrowseScope,
+  type LibraryBrowseScope,
+} from './libraryBrowseScope';
 
 export type { LibrarySearchSurface };
 
@@ -435,19 +439,26 @@ import { runLocalAlbumBrowse, type AlbumBrowseQuery } from './albumBrowseLoad';
 import { GENRE_ALBUM_FETCH_LIMIT } from './albumBrowseTypes';
 
 /**
- * Random track sample from the local `track` table — SQLite `ORDER BY RANDOM() LIMIT N`.
+ * Random track sample from the local `track` table using the backend's bounded window path.
  * Returns null when the index is unavailable (caller falls back to the network).
  */
 export async function runLocalRandomSongs(
   serverId: string | null | undefined,
   limit: number,
+  scopes?: readonly LibraryScopePair[],
 ): Promise<SubsonicSong[] | null> {
   if (!serverId || !(await libraryIsReady(serverId))) return null;
   try {
+    const explicitScopes = scopes?.filter(scope => scope.serverId === serverId);
+    const libraryIds = scopes
+      ? browseScopeLibraryIdsForServer(scopes, serverId)
+      : librarySelectionForServer(serverId);
     const resp = await libraryAdvancedSearch({
       serverId,
-      libraryScope: libraryScopeForServer(serverId) ?? undefined,
-      libraryScopes: libraryScopePairsForServer(serverId),
+      libraryScope: libraryIds.length === 1 ? libraryIds[0] : undefined,
+      libraryScopes: scopes
+        ? (explicitScopes?.length ? [...explicitScopes] : [{ serverId, libraryId: null }])
+        : libraryScopePairsForServer(serverId),
       entityTypes: ['track'],
       sort: [{ field: 'random', dir: 'asc' }],
       limit,
@@ -466,6 +477,7 @@ export async function runLocalLosslessAlbums(
   serverId: string | null | undefined,
   limit: number,
   offset: number,
+  scopes?: readonly LibraryScopePair[],
 ): Promise<{
   albums: SubsonicAlbum[];
   hasMore: boolean;
@@ -475,11 +487,14 @@ export async function runLocalLosslessAlbums(
   if (!serverId || !(await libraryIsReady(serverId))) return null;
   const readyCheckMs = Math.round(performance.now() - readyStartedAt);
   try {
+    const libraryIds = scopes
+      ? browseScopeLibraryIdsForServer(scopes, serverId)
+      : librarySelectionForServer(serverId);
     const queryStartedAt = performance.now();
     const resp = await libraryListLosslessAlbums({
       serverId,
-      libraryScope: libraryScopeForServer(serverId) ?? undefined,
-      libraryScopes: librarySelectionForServer(serverId),
+      libraryScope: libraryIds.length === 1 ? libraryIds[0] : undefined,
+      libraryScopes: libraryIds,
       limit,
       offset,
     });
@@ -554,11 +569,31 @@ export async function runLocalRandomAlbums(
 export async function runLocalRandomArtists(
   serverId: string | null | undefined,
   limit: number,
+  scopes?: readonly LibraryScopePair[],
 ): Promise<SubsonicArtist[] | null> {
-  if (!serverId || librarySelectionForServer(serverId).length > 0 || !(await libraryIsReady(serverId))) {
-    return null;
-  }
+  if (!serverId) return null;
+  const libraryIds = scopes
+    ? browseScopeLibraryIdsForServer(scopes, serverId)
+    : librarySelectionForServer(serverId);
+  if (!scopes && libraryIds.length > 0) return null;
+  if (!(await libraryIsReady(serverId))) return null;
   try {
+    if (libraryIds.length > 0) {
+      const serverScopes = scopes?.filter(scope => scope.serverId === serverId)
+        ?? libraryScopePairsForServer(serverId);
+      const resp = await libraryAdvancedSearch({
+        serverId,
+        libraryScope: libraryIds.length === 1 ? libraryIds[0] : undefined,
+        libraryScopes: serverScopes,
+        entityTypes: ['artist'],
+        sort: [{ field: 'random', dir: 'asc' }],
+        limit,
+        offset: 0,
+        skipTotals: true,
+      });
+      if (resp.source !== 'local') return null;
+      return resp.artists.map(artistToArtist);
+    }
     return (await libraryListRandomArtists(serverId, limit)).map(artistToArtist);
   } catch {
     return null;

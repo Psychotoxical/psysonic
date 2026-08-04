@@ -24,7 +24,10 @@ import {
 } from '@/lib/network/subsonicNetworkGuard';
 import { tryLoadAlbumDetailMultiScope } from '@/features/album/hooks/loadAlbumDetailMultiScope';
 import { tryLoadArtistDetailMultiScope } from '@/lib/library/loadArtistDetailMultiScope';
-import { getLibraryBrowseScope } from '@/lib/library/libraryBrowseScope';
+import {
+  getLibraryBrowseScope,
+  hasConfiguredLibraryBrowseScope,
+} from '@/lib/library/libraryBrowseScope';
 import type { LibraryScopePair } from '@/lib/api/library/scopeReads';
 import { ownedEntityKey } from '@/lib/util/ownedEntityKey';
 import { useLibraryScopeSyncRevision } from '@/store/offlineLocalLibrarySyncRevision';
@@ -137,6 +140,7 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
 
     void (async () => {
       const browseScope = getLibraryBrowseScope();
+      const browseScopeConfigured = hasConfiguredLibraryBrowseScope();
       if (offlineBrowseActive && detailServerId) {
         const local = await resolveAlbum(detailServerId, id);
         if (local) {
@@ -154,7 +158,7 @@ export function useAlbumDetailData(id: string | undefined): UseAlbumDetailDataRe
         return;
       }
 
-      if (detailServerId && browseScope.pairs.length > 0) {
+      if (detailServerId && browseScopeConfigured && browseScope.pairs.length > 0) {
         const multi = await tryLoadAlbumDetailMultiScope(browseScope.pairs, detailServerId, id);
         if (multi) {
           if (!applyAlbumPayload(multi)) return;

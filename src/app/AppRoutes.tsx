@@ -1,4 +1,4 @@
-import { lazy, useEffect } from 'react';
+import { lazy, Profiler, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { lazyLoadAlbumsPage } from '@/features/album/utils/albumBrowseRoutePrefetch';
 import { lazyLoadArtistsPage } from '@/features/artist/utils/artistBrowseRoutePrefetch';
@@ -9,6 +9,7 @@ import { useAuthStore } from '../store/authStore';
 import { useLuckyMixAvailable } from '@/features/randomMix';
 import { resolveStartRoute } from '@/features/sidebar';
 import { scheduleStartupSplashDismiss } from './startupSplash';
+import { recordBenchmarkReactCommit } from '@/lib/perf/benchmark';
 
 // Route-level lazy loading: keeps the non-page graph (shell, player, stores) in
 // the entry chunk; each page is fetched when its route is first visited.
@@ -75,6 +76,18 @@ export default function AppRoutes() {
   }, [location.pathname]);
 
   return (
+    <Profiler
+      id="app-routes"
+      onRender={(_id, phase, actualDuration, baseDuration, startTime, commitTime) => {
+        recordBenchmarkReactCommit({
+          phase,
+          actualDurationMs: actualDuration,
+          baseDurationMs: baseDuration,
+          startTimeMs: startTime,
+          commitTimeMs: commitTime,
+        });
+      }}
+    >
     <Routes>
       <Route path="/" element={<MainstageRoute />} />
       <Route path="/albums" element={<Albums />} />
@@ -109,6 +122,8 @@ export default function AppRoutes() {
       <Route path="/radio" element={<InternetRadio />} />
       <Route path="/folders" element={<FolderBrowser />} />
       <Route path="/device-sync" element={<DeviceSync />} />
+      <Route path="/__benchmark-transition" element={null} />
     </Routes>
+    </Profiler>
   );
 }

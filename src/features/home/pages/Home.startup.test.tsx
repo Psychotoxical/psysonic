@@ -9,6 +9,8 @@ const homeMocks = vi.hoisted(() => ({
   loadHomeFeedWithStatus: vi.fn(),
   loadHomeChronologicalFeed: vi.fn(),
   loadMoreHomeAlbums: vi.fn(),
+  mainstageTrace: { enabled: false, revision: 0 },
+  reportCachedHomeDiagnostics: vi.fn(),
   scope: { key: 'scope', version: 1 },
   unavailableServerIds: new Set<string>(),
 }));
@@ -64,7 +66,9 @@ vi.mock('@/lib/perf/perfFlags', () => ({
   }),
 }));
 vi.mock('@/lib/perf/psyLabDebugTraces', () => ({
-  usePsyLabDebugTraces: () => ({ mainstage: false }),
+  usePsyLabDebugTraceEnabled: () => homeMocks.mainstageTrace.enabled,
+  usePsyLabDebugTraceRevision: () => homeMocks.mainstageTrace.revision,
+  usePsyLabDebugTraces: () => ({ mainstage: homeMocks.mainstageTrace.enabled }),
 }));
 vi.mock('@/lib/perf/perfTelemetry', () => ({ bumpPerfCounter: vi.fn() }));
 vi.mock('@/cover/useLibraryCoverPrefetch', () => ({ useLibraryCoverPrefetch: vi.fn() }));
@@ -116,12 +120,16 @@ vi.mock('@/store/offlineLocalLibrarySyncRevision', () => ({
 vi.mock('@/features/home/pages/homeDiagnosticHelpers', () => ({
   homeSnapshotForEnabledCoverWarm: (snapshot: HomeFeedSnapshot) => snapshot,
   preserveDisabledHomeSections: (snapshot: HomeFeedSnapshot) => snapshot,
-  reportCachedHomeDiagnostics: vi.fn(),
+  reportCachedHomeDiagnostics: homeMocks.reportCachedHomeDiagnostics,
 }));
 vi.mock('@/app/startupSplash', () => ({ scheduleStartupSplashDismiss: vi.fn() }));
 
 import Home from '@/features/home/pages/Home';
-import { clearHomeFeedCache, readHomeFeedCache } from '@/features/home/store/homeFeedCache';
+import {
+  clearHomeFeedCache,
+  readHomeFeedCache,
+  writeHomeFeedCache,
+} from '@/features/home/store/homeFeedCache';
 import { useHomeStore, DEFAULT_HOME_SECTIONS } from '@/features/home/store/homeStore';
 import { useAuthStore } from '@/store/authStore';
 import { useMigrationStore } from '@/store/migrationStore';
@@ -173,6 +181,9 @@ describe('Home startup feed loading', () => {
     homeMocks.loadHomeFeedWithStatus.mockReset();
     homeMocks.loadHomeChronologicalFeed.mockReset();
     homeMocks.loadMoreHomeAlbums.mockReset();
+    homeMocks.mainstageTrace.enabled = false;
+    homeMocks.mainstageTrace.revision = 0;
+    homeMocks.reportCachedHomeDiagnostics.mockReset();
     homeMocks.loadHomeChronologicalFeed.mockResolvedValue({
       status: 'success', albums: [], hasMore: false, durationMs: 0,
     });
@@ -234,6 +245,44 @@ describe('Home startup feed loading', () => {
     });
     await waitFor(() => expect(readHomeFeedCache('scope', 1)?.heroAlbums[0]?.name).toBe('fresh'));
     expect(screen.getByTestId('home-hero')).toHaveTextContent('fresh');
+  });
+
+  it('keeps a fresh cached feed visible while preparing the next visit in the background', async () => {
+    const { savedAt: _savedAt, ...cached } = snapshot('cached');
+    writeHomeFeedCache(cached);
+    homeMocks.loadHomeFeedWithStatus.mockResolvedValue({
+      snapshot: snapshot('next-visit'),
+      emptySnapshotReliable: true,
+    });
+    homeMocks.connection.status = 'connected';
+    useMigrationStore.setState({ phase: 'completed' });
+
+    renderWithProviders(<Home />);
+
+    expect(screen.getByTestId('home-hero')).toHaveTextContent('cached');
+    await waitFor(() => expect(homeMocks.loadHomeFeedWithStatus).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(readHomeFeedCache('scope', 1)?.heroAlbums[0]?.name).toBe('next-visit'));
+    expect(screen.getByTestId('home-hero')).toHaveTextContent('cached');
+  });
+
+  it('replays diagnostics without restarting an in-flight cold feed', async () => {
+    const coldFeed = deferred<{ snapshot: HomeFeedSnapshot; emptySnapshotReliable: boolean }>();
+    homeMocks.mainstageTrace.enabled = true;
+    homeMocks.connection.status = 'connected';
+    homeMocks.loadHomeFeedWithStatus.mockReturnValue(coldFeed.promise);
+    useMigrationStore.setState({ phase: 'completed' });
+
+    const view = renderWithProviders(<Home />);
+    await waitFor(() => expect(homeMocks.loadHomeFeedWithStatus).toHaveBeenCalledTimes(1));
+
+    homeMocks.mainstageTrace.revision += 1;
+    view.rerender(<Home />);
+
+    await waitFor(() => expect(homeMocks.loadHomeFeedWithStatus).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      coldFeed.resolve({ snapshot: snapshot('fresh'), emptySnapshotReliable: true });
+      await coldFeed.promise;
+    });
   });
 
   it('does not apply a load-more result after the active scope changes', async () => {

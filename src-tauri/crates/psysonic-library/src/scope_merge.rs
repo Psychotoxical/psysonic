@@ -7,6 +7,7 @@ use rusqlite::{params_from_iter, OptionalExtension};
 use serde_json::Value;
 use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
 use std::hash::{Hash, Hasher};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::album_compilation_filter::{
     album_credits_artist, compilation_predicate_sql, json_guarded, pick_album_group_artist,
@@ -29,6 +30,17 @@ use crate::search::{
     aliased_track_columns, fts_query_meets_min_len, fts_track_match_query, PAGE_LIMIT_MAX,
 };
 use crate::store::LibraryStore;
+
+pub(crate) fn random_window_offset(total: u32, limit: u32) -> u32 {
+    let window_count = total.saturating_sub(limit).saturating_add(1);
+    if window_count <= 1 {
+        return 0;
+    }
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_nanos());
+    (nanos % u128::from(window_count)) as u32
+}
 
 /// NULL `album_key` rows never merge — fall back to a per-server album id.
 pub(crate) const ALBUM_DEDUP_KEY: &str = "CASE WHEN ck.album_key IS NOT NULL THEN ck.album_key \
@@ -391,7 +403,7 @@ fn overlay_scope_album_stars(
         .map_err(|e| e.to_string())
 }
 
-fn finish_scope_album_list(
+pub(crate) fn finish_scope_album_list(
     store: &LibraryStore,
     mut albums: Vec<LibraryAlbumDto>,
     total: u32,
@@ -628,6 +640,9 @@ pub(crate) fn list_albums_layer1_filtered(
                 Ok(n.max(0) as u32)
             })?
         };
+        if limit == 0 {
+            return Ok((Vec::new(), total));
+        }
         params.push(SqlValue::Integer(i64::from(limit)));
         params.push(SqlValue::Integer(i64::from(offset)));
         let albums = store.with_read_conn(|conn| {
@@ -680,6 +695,9 @@ pub(crate) fn list_albums_layer1_filtered(
                     Ok(n.max(0) as u32)
                 })?
             };
+            if limit == 0 {
+                return Ok((Vec::new(), total));
+            }
             params.push(SqlValue::Integer(i64::from(limit)));
             params.push(SqlValue::Integer(i64::from(offset)));
             let albums = store.with_read_conn(|conn| {
@@ -759,6 +777,9 @@ pub(crate) fn list_albums_layer1_filtered(
             Ok(n.max(0) as u32)
         })?
     };
+    if limit == 0 {
+        return Ok((Vec::new(), total));
+    }
 
     binds.push(SqlValue::Integer(i64::from(limit)));
     binds.push(SqlValue::Integer(i64::from(offset)));
@@ -1074,6 +1095,7 @@ pub(crate) fn list_tracks_layer1_filtered(
     offset: u32,
     skip_totals: bool,
     bpm_resolved: bool,
+    random_window: bool,
 ) -> Result<(Vec<LibraryTrackDto>, u32), String> {
     let scopes = non_empty_scopes(scopes)?;
     let (cte, scope_binds) = scope_cte_sql(scopes);
@@ -1086,7 +1108,7 @@ pub(crate) fn list_tracks_layer1_filtered(
         aliased_track_columns("t")
     };
 
-    let total = if skip_totals {
+    let matching_total = if skip_totals && !random_window {
         0u32
     } else {
         let count_sql = format!("{cte} SELECT COUNT(*) {base_where}");
@@ -1100,9 +1122,17 @@ pub(crate) fn list_tracks_layer1_filtered(
         })?
     };
 
-    let sql = format!("{cte} SELECT {cols} {base_where} {order_sql} LIMIT ? OFFSET ?");
+    let total = if skip_totals { 0 } else { matching_total };
+    let page_offset = if random_window {
+        random_window_offset(matching_total, limit)
+    } else {
+        offset
+    };
+    let page_order = if random_window { "" } else { order_sql };
+
+    let sql = format!("{cte} SELECT {cols} {base_where} {page_order} LIMIT ? OFFSET ?");
     binds.push(SqlValue::Integer(i64::from(limit)));
-    binds.push(SqlValue::Integer(i64::from(offset)));
+    binds.push(SqlValue::Integer(i64::from(page_offset)));
 
     let tracks = store.with_read_conn(|conn| {
         let mut stmt = conn.prepare(&sql)?;
@@ -1160,6 +1190,9 @@ pub(crate) fn list_albums_filtered(
             Ok(n.max(0) as u32)
         })?
     };
+    if limit == 0 {
+        return Ok((Vec::new(), total));
+    }
 
     let sql = format!(
         "{cte}, \
@@ -1278,6 +1311,7 @@ pub(crate) fn list_tracks_filtered(
     offset: u32,
     skip_totals: bool,
     bpm_resolved: bool,
+    random_window: bool,
 ) -> Result<(Vec<LibraryTrackDto>, u32), String> {
     let scopes = non_empty_scopes(scopes)?;
     let (cte, scope_binds) = scope_cte_sql(scopes);
@@ -1291,7 +1325,7 @@ pub(crate) fn list_tracks_filtered(
     };
     let plain_cols = plain_track_columns_sql();
 
-    let total = if skip_totals {
+    let matching_total = if skip_totals && !random_window {
         0u32
     } else {
         let count_sql = format!(
@@ -1309,6 +1343,14 @@ pub(crate) fn list_tracks_filtered(
         })?
     };
 
+    let total = if skip_totals { 0 } else { matching_total };
+    let page_offset = if random_window {
+        random_window_offset(matching_total, limit)
+    } else {
+        offset
+    };
+    let page_order = if random_window { "" } else { order_sql };
+
     let sql = format!(
         "{cte}, \
          ranked AS ( \
@@ -1317,11 +1359,11 @@ pub(crate) fn list_tracks_filtered(
            {base_where} \
          ) \
          SELECT {plain_cols} FROM ranked WHERE rn = 1 \
-         {order_sql} \
+         {page_order} \
          LIMIT ? OFFSET ?",
     );
     binds.push(SqlValue::Integer(i64::from(limit)));
-    binds.push(SqlValue::Integer(i64::from(offset)));
+    binds.push(SqlValue::Integer(i64::from(page_offset)));
 
     let tracks = store.with_read_conn(|conn| {
         let mut stmt = conn.prepare(&sql)?;
@@ -2936,6 +2978,13 @@ mod tests {
     use super::*;
     use crate::identity::rebuild_cluster_keys;
     use crate::repos::track::{TrackRepository, TrackRow};
+
+    #[test]
+    fn random_window_offset_stays_within_a_full_page_range() {
+        assert_eq!(random_window_offset(0, 6), 0);
+        assert_eq!(random_window_offset(6, 6), 0);
+        assert!(random_window_offset(100, 6) <= 94);
+    }
 
     fn scope_pair(server: &str, lib: &str) -> LibraryScopePair {
         LibraryScopePair {

@@ -62,6 +62,16 @@ export function createMainstageDiagnosticSections(): Record<HomeSectionId, Mains
   ) as Record<HomeSectionId, MainstageDiagnosticSectionState>;
 }
 
+export function snapshotMainstageDiagnosticSections(): Record<HomeSectionId, MainstageDiagnosticSectionState> {
+  return structuredClone(useMainstageDiagnosticStore.getState().sections);
+}
+
+export function restoreMainstageDiagnosticSections(
+  sections: Record<HomeSectionId, MainstageDiagnosticSectionState>,
+): void {
+  useMainstageDiagnosticStore.setState({ sections: structuredClone(sections) });
+}
+
 export const useMainstageDiagnosticStore = create<MainstageDiagnosticStore>((set) => ({
   sections: createMainstageDiagnosticSections(),
 
