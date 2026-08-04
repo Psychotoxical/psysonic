@@ -31,8 +31,20 @@ fn tauri_identifier() -> &'static str {
     .as_str()
 }
 
+fn single_instance_dbus_id_for(identifier: &str, debug: bool) -> String {
+    if debug {
+        format!("{identifier}.Debug")
+    } else {
+        identifier.to_string()
+    }
+}
+
+pub fn linux_single_instance_dbus_id() -> String {
+    single_instance_dbus_id_for(tauri_identifier(), cfg!(debug_assertions))
+}
+
 fn single_instance_bus_name() -> String {
-    format!("{}.SingleInstance", tauri_identifier())
+    format!("{}.SingleInstance", linux_single_instance_dbus_id())
 }
 
 fn single_instance_object_path(dbus_name: &str) -> String {
@@ -171,4 +183,21 @@ pub fn linux_try_forward_player_cli_secondary(args: &[String]) -> Result<LinuxPl
     }
 
     Ok(LinuxPlayerForwardResult::Forwarded)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::single_instance_dbus_id_for;
+
+    #[test]
+    fn debug_and_release_use_separate_dbus_namespaces() {
+        assert_eq!(
+            single_instance_dbus_id_for("dev.psysonic.player", false),
+            "dev.psysonic.player"
+        );
+        assert_eq!(
+            single_instance_dbus_id_for("dev.psysonic.player", true),
+            "dev.psysonic.player.Debug"
+        );
+    }
 }

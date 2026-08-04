@@ -98,8 +98,7 @@ fn scheduler_idle_payload(
 /// `None` if souvlaki failed to initialize (e.g. no D-Bus session on Linux).
 type MprisControls = Mutex<Option<souvlaki::MediaControls>>;
 
-/// Release builds only: focus or CLI-hand off when a second instance is launched.
-#[cfg(not(debug_assertions))]
+/// Focus or CLI-hand off when a second instance of the same build channel launches.
 fn on_second_instance<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     argv: Vec<String>,
@@ -472,7 +471,17 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init());
 
-    #[cfg(not(debug_assertions))]
+    #[cfg(target_os = "linux")]
+    let builder = builder.plugin(
+        tauri_plugin_single_instance::Builder::new()
+            .dbus_id(crate::cli::linux_single_instance_dbus_id())
+            .callback(on_second_instance)
+            .build(),
+    );
+
+    // The upstream plugin only exposes a custom namespace on Linux. Keep debug
+    // unrestricted elsewhere so an installed production build can run beside it.
+    #[cfg(all(not(target_os = "linux"), not(debug_assertions)))]
     let builder = builder.plugin(tauri_plugin_single_instance::init(on_second_instance));
 
     builder
