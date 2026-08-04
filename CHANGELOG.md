@@ -320,6 +320,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * On a genre page, the add-to-queue button now matches the height of **Play** and carries a proper label for screen readers.
 * Internet radio shows its sort picker next to the browse and add buttons instead of on a separate line below them.
 
+### Linux — recognise MangoWM as a tiling window manager
+
+**By [@Leinad745](https://github.com/Leinad745), PR [#1380](https://github.com/Psychotoxical/psysonic/pull/1380)**
+
+* Psysonic now detects MangoWM as a tiling environment and leaves window decoration to the compositor instead of adding its custom title bar.
+
 ### Genres — accurate scoped counts without the long detail-page wait
 
 **By [@cucadmuh](https://github.com/cucadmuh), PR [#1382](https://github.com/Psychotoxical/psysonic/pull/1382)**

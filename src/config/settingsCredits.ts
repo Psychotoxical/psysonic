@@ -515,6 +515,13 @@ const CONTRIBUTOR_ENTRIES = [
       'Clickable artist credits in the fullscreen, mini and mobile players (PR #1371)',
     ],
   },
+  {
+    github: 'Leinad745',
+    since: '1.51.0',
+    contributions: [
+      'MangoWM tiling window manager detection (PR #1380)',
+    ],
+  },
 ] as const;
 
 // PR number of a contributor's first listed contribution, used as the
