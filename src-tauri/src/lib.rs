@@ -99,6 +99,7 @@ fn scheduler_idle_payload(
 type MprisControls = Mutex<Option<souvlaki::MediaControls>>;
 
 /// Focus or CLI-hand off when a second instance of the same build channel launches.
+#[cfg(any(target_os = "linux", not(debug_assertions)))]
 fn on_second_instance<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     argv: Vec<String>,
