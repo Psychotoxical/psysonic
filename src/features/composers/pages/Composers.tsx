@@ -17,7 +17,7 @@ import { useNavigateToComposer } from '@/features/composers/hooks/useNavigateToC
 import { peekComposerBrowseScrollRestore } from '@/features/composers/store/composerBrowseSessionStore';
 import { useScopedBrowseSearchQuery } from '@/store/liveSearchScopeStore';
 import { readComposerBrowseRestore } from '@/lib/navigation/albumDetailNavigation';
-import { ALL_SENTINEL, artistLetterBucket } from '@/features/artist';
+import { ALL_SENTINEL, ALPHABET, OTHER_BUCKET, artistLetterBucket, compareBuckets } from '@/features/artist';
 import { useLibraryIgnoredArticles } from '@/lib/library/hooks/useLibraryIgnoredArticles';
 import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import { VirtualCardGrid } from '@/ui/VirtualCardGrid';
@@ -28,8 +28,6 @@ import { useInpageScrollViewport } from '@/lib/hooks/useInpageScrollViewport';
 import InpageScrollSentinel from '@/ui/InpageScrollSentinel';
 import { ownedEntityKey, ownedOverrideValue } from '@/lib/util/ownedEntityKey';
 import { useComposerCatalog } from '@/features/composers/hooks/useComposerCatalog';
-
-const ALPHABET = [ALL_SENTINEL, '#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')];
 
 const COMPOSER_LIST_LETTER_ROW_EST = 48;
 const COMPOSER_LIST_ROW_EST = 64;
@@ -185,7 +183,7 @@ export default function Composers() {
       if (!g[key]) g[key] = [];
       g[key].push(a);
     }
-    return { groups: g, letters: Object.keys(g).sort() };
+    return { groups: g, letters: Object.keys(g).sort(compareBuckets) };
   }, [visible, viewMode, ignoredArticles]);
 
   const composerListFlatRows = useMemo((): ComposerListFlatRow[] => {
@@ -336,7 +334,7 @@ export default function Composers() {
                 onClick={() => setLetterFilter(l)}
                 className={`artists-alpha-btn${letterFilter === l ? ' artists-alpha-btn--active' : ''}`}
               >
-                {l === ALL_SENTINEL ? t('artists.all') : l}
+                {l === ALL_SENTINEL ? t('artists.all') : l === OTHER_BUCKET ? t('artists.other') : l}
               </button>
             ))}
           </div>
@@ -395,7 +393,7 @@ export default function Composers() {
             <>
               {letters.map(letter => (
                 <div key={letter} style={{ marginBottom: '1.5rem' }}>
-                  <h3 className="letter-heading">{letter}</h3>
+                  <h3 className="letter-heading">{letter === OTHER_BUCKET ? t('artists.other') : letter}</h3>
                   <div className="artist-list">
                     {groups[letter].map(artist => (
                       <button
@@ -445,7 +443,7 @@ export default function Composers() {
                           transform: `translateY(${vi.start - composerListScrollMargin}px)`,
                         }}
                       >
-                        <h3 className="letter-heading">{row.letter}</h3>
+                        <h3 className="letter-heading">{row.letter === OTHER_BUCKET ? t('artists.other') : row.letter}</h3>
                       </div>
                     );
                   }
