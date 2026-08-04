@@ -290,6 +290,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * New Releases and Lossless Albums stopped fetching further albums after a few pages, and only picked up again once you scrolled up and back down. Both now keep loading while you are at the bottom of the list, and stop once it is exhausted.
 
+### Playback — the displayed track no longer runs ahead of the audio
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1369](https://github.com/Psychotoxical/psysonic/pull/1369)**, reported by [@moldavia](https://github.com/moldavia)
+
+* Resuming after a long pause could leave Now Playing several tracks ahead of what you were hearing, with a flat waveform to match, until you clicked back through the queue. Pausing long enough releases the audio stream, and restarting it was mistaken for a track change; that no longer moves the queue.
+* Long-running stream seek recovery no longer mistakes an unresolved position jump for a gapless track change.
+
 ### Buttons — outlines are visible without hovering first
 
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1379](https://github.com/Psychotoxical/psysonic/pull/1379)**
