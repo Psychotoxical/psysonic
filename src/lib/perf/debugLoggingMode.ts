@@ -11,6 +11,7 @@ export type DebugLoggingDepth = 1 | 3;
 
 let debugLoggingModeSource: () => boolean = () => false;
 let debugLoggingDepthSource: () => DebugLoggingDepth = () => 1;
+let runtimeDebugLoggingOverride = false;
 
 export function setDebugLoggingModeSource(source: () => boolean): void {
   debugLoggingModeSource = source;
@@ -21,7 +22,16 @@ export function setDebugLoggingDepthSource(source: () => DebugLoggingDepth): voi
 }
 
 export function isDebugLoggingModeActive(): boolean {
-  return debugLoggingModeSource();
+  return runtimeDebugLoggingOverride || debugLoggingModeSource();
+}
+
+export function getRuntimeDebugLoggingOverride(): boolean {
+  return runtimeDebugLoggingOverride;
+}
+
+/** Enable debug instrumentation without changing the user's persisted logging setting. */
+export function setRuntimeDebugLoggingOverride(enabled: boolean): void {
+  runtimeDebugLoggingOverride = enabled;
 }
 
 export function isDebugLoggingDepthEnabled(requiredDepth: DebugLoggingDepth = 1): boolean {

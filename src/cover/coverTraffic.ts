@@ -16,15 +16,16 @@ let navigationHoldDepth = 0;
 /** Album grid SQL page fetch — pause middle/low cover work until rows settle. */
 let gridPaginationHoldDepth = 0;
 let serverSwitchHold = false;
+let benchmarkHold = false;
 let resumeTimer: ReturnType<typeof setTimeout> | null = null;
 let serverSwitchEndTimer: ReturnType<typeof setTimeout> | null = null;
 
 const NAVIGATION_QUIET_MS = 400;
 const SERVER_SWITCH_QUIET_MS = 700;
 
-function syncBackfillUiPriority(): void {
-  const hold = navigationHoldDepth > 0 || serverSwitchHold;
-  void libraryCoverBackfillSetUiPriority(hold);
+function syncBackfillUiPriority(): Promise<void> {
+  const hold = navigationHoldDepth > 0 || serverSwitchHold || benchmarkHold;
+  return libraryCoverBackfillSetUiPriority(hold);
 }
 
 function pauseLibraryBackfillSession(): void {
@@ -42,7 +43,7 @@ function pauseLibraryBackfillSession(): void {
 export function coverTrafficBeginNavigation(): void {
   navigationHoldDepth += 1;
   cancelVisibleCoverWork();
-  syncBackfillUiPriority();
+  void syncBackfillUiPriority();
 }
 
 export function coverTrafficEndNavigation(): void {
@@ -68,7 +69,7 @@ export function coverTrafficBeginServerSwitch(): void {
   }
   cancelVisibleCoverWork();
   pauseLibraryBackfillSession();
-  syncBackfillUiPriority();
+  void syncBackfillUiPriority();
 }
 
 export function coverTrafficEndServerSwitch(): void {
@@ -76,12 +77,22 @@ export function coverTrafficEndServerSwitch(): void {
   serverSwitchEndTimer = setTimeout(() => {
     serverSwitchHold = false;
     serverSwitchEndTimer = null;
-    syncBackfillUiPriority();
+    void syncBackfillUiPriority();
   }, SERVER_SWITCH_QUIET_MS);
 }
 
 export function coverTrafficBackgroundPaused(): boolean {
-  return navigationHoldDepth > 0 || gridPaginationHoldDepth > 0 || serverSwitchHold;
+  return navigationHoldDepth > 0 || gridPaginationHoldDepth > 0 || serverSwitchHold || benchmarkHold;
+}
+
+/** Keep background cover work paused for an isolated benchmark without clobbering other holds. */
+export function coverTrafficSetBenchmarkHold(hold: boolean): Promise<void> {
+  benchmarkHold = hold;
+  return syncBackfillUiPriority();
+}
+
+export function coverTrafficBenchmarkHoldActive(): boolean {
+  return benchmarkHold;
 }
 
 /** @internal Diagnostics / tests — album grid SQL hold depth. */
@@ -98,7 +109,7 @@ function scheduleNavigationResume(): void {
   if (resumeTimer) clearTimeout(resumeTimer);
   resumeTimer = setTimeout(() => {
     resumeTimer = null;
-    syncBackfillUiPriority();
+    void syncBackfillUiPriority();
   }, NAVIGATION_QUIET_MS);
 }
 
@@ -107,6 +118,7 @@ export function __test_resetCoverTraffic(): void {
   navigationHoldDepth = 0;
   gridPaginationHoldDepth = 0;
   serverSwitchHold = false;
+  benchmarkHold = false;
   if (resumeTimer) clearTimeout(resumeTimer);
   if (serverSwitchEndTimer) clearTimeout(serverSwitchEndTimer);
   resumeTimer = null;

@@ -39,6 +39,11 @@ export interface BenchmarkPageResult {
   cpuAfter?: unknown;
 }
 
+export interface BenchmarkSkippedRoute {
+  route: string;
+  reason: string;
+}
+
 export interface BenchmarkReport {
   schemaVersion: 1;
   id: string;
@@ -55,6 +60,7 @@ export interface BenchmarkReport {
     libraryScopeFingerprint: string | null;
   };
   pages: BenchmarkPageResult[];
+  skippedRoutes: BenchmarkSkippedRoute[];
   logs: string[];
   summary: BenchmarkSummaryRow[];
   markdown: string;
@@ -141,6 +147,12 @@ export function formatBenchmarkMarkdown(report: Omit<BenchmarkReport, 'markdown'
     ...report.summary.map(row => (
       `| ${row.route} | ${row.samples} | ${row.medianTotalMs} ms | ${row.maxTotalMs} ms | ${row.medianReactMs} ms | ${row.medianLongTaskMs} ms | ${row.timeouts} |`
     )),
+    ...(report.skippedRoutes.length > 0 ? [
+      '',
+      '## Skipped routes',
+      '',
+      ...report.skippedRoutes.map(row => `- ${row.route}: ${row.reason}`),
+    ] : []),
     '',
     '## Samples',
     '',

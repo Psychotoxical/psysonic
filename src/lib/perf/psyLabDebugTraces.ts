@@ -17,6 +17,7 @@ const DEFAULT_TRACES: PsyLabDebugTraces = {
 };
 
 let traces: PsyLabDebugTraces = { ...DEFAULT_TRACES };
+let runtimeOverrides: Partial<PsyLabDebugTraces> = {};
 const listeners = new Set<() => void>();
 
 function emit(): void {
@@ -32,12 +33,13 @@ function persistTraces(next: PsyLabDebugTraces): void {
   }
 }
 
-function syncTraceToBackend(id: PsyLabDebugTraceId, enabled: boolean): void {
+function syncTraceToBackend(id: PsyLabDebugTraceId, enabled: boolean): Promise<void> {
   if (id === 'albumsBrowse') {
-    void commands.setPsylabAlbumsBrowseTrace(enabled).catch(() => {});
+    return commands.setPsylabAlbumsBrowseTrace(enabled).then(() => {}).catch(() => {});
   } else if (id === 'artistsBrowse') {
-    void commands.setPsylabArtistsBrowseTrace(enabled).catch(() => {});
+    return commands.setPsylabArtistsBrowseTrace(enabled).then(() => {}).catch(() => {});
   }
+  return Promise.resolve();
 }
 
 function setTraces(next: PsyLabDebugTraces): void {
@@ -62,7 +64,7 @@ export function initializePsyLabDebugTraces(): void {
   const fromStorage = safeParseTraces(window.localStorage.getItem(STORAGE_KEY));
   traces = { ...DEFAULT_TRACES, ...fromStorage };
   for (const id of Object.keys(DEFAULT_TRACES) as PsyLabDebugTraceId[]) {
-    syncTraceToBackend(id, traces[id]);
+    void syncTraceToBackend(id, traces[id]);
   }
 }
 
@@ -76,20 +78,32 @@ export function subscribePsyLabDebugTraces(cb: () => void): () => void {
 }
 
 export function isPsyLabDebugTraceEnabled(id: PsyLabDebugTraceId): boolean {
-  return traces[id];
+  return runtimeOverrides[id] ?? traces[id];
+}
+
+export function getPsyLabDebugTraceOverrides(): Partial<PsyLabDebugTraces> {
+  return { ...runtimeOverrides };
+}
+
+/** Runtime-only trace overrides for automated diagnostics; never persist or alter the PsyLab UI. */
+export function setPsyLabDebugTraceOverrides(next: Partial<PsyLabDebugTraces> | null): Promise<void> {
+  runtimeOverrides = next ? { ...next } : {};
+  return Promise.all((Object.keys(DEFAULT_TRACES) as PsyLabDebugTraceId[]).map(id => (
+    syncTraceToBackend(id, isPsyLabDebugTraceEnabled(id))
+  ))).then(() => {});
 }
 
 export function setPsyLabDebugTrace(id: PsyLabDebugTraceId, enabled: boolean): void {
   if (traces[id] === enabled) return;
   const next = { ...traces, [id]: enabled };
   setTraces(next);
-  syncTraceToBackend(id, enabled);
+  void syncTraceToBackend(id, isPsyLabDebugTraceEnabled(id));
 }
 
 export function resetPsyLabDebugTraces(): void {
   setTraces({ ...DEFAULT_TRACES });
   for (const id of Object.keys(DEFAULT_TRACES) as PsyLabDebugTraceId[]) {
-    syncTraceToBackend(id, false);
+    void syncTraceToBackend(id, isPsyLabDebugTraceEnabled(id));
   }
 }
 

@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   MAINSTAGE_DIAGNOSTIC_SECTION_IDS,
   createMainstageDiagnosticSections,
+  restoreMainstageDiagnosticSections,
+  snapshotMainstageDiagnosticSections,
   useMainstageDiagnosticStore,
 } from '@/features/home/store/mainstageDiagnosticStore';
 
@@ -86,5 +88,33 @@ describe('mainstageDiagnosticStore', () => {
 
     expect(useMainstageDiagnosticStore.getState().sections).toEqual(createMainstageDiagnosticSections());
     expect(localStorage.length).toBe(0);
+  });
+
+  it('restores user toggles and diagnostic results after temporary collection', () => {
+    useMainstageDiagnosticStore.getState().setEnabled('recent', false);
+    useMainstageDiagnosticStore.getState().finish('hero', {
+      status: 'ready',
+      durationMs: 42,
+      itemCount: 3,
+      detail: 'before benchmark',
+    });
+    const snapshot = snapshotMainstageDiagnosticSections();
+
+    useMainstageDiagnosticStore.getState().reset();
+    useMainstageDiagnosticStore.getState().finish('hero', {
+      status: 'timeout',
+      durationMs: 30_000,
+    });
+    restoreMainstageDiagnosticSections(snapshot);
+
+    const sections = useMainstageDiagnosticStore.getState().sections;
+    expect(sections.recent).toMatchObject({ enabled: false, status: 'disabled' });
+    expect(sections.hero).toMatchObject({
+      enabled: true,
+      status: 'ready',
+      durationMs: 42,
+      itemCount: 3,
+      detail: 'before benchmark',
+    });
   });
 });

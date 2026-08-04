@@ -10,12 +10,25 @@ import { getAlbumBrowseTraceSnapshot } from '@/lib/library/albumBrowseDebug';
 import { getArtistBrowseTraceSnapshot } from '@/lib/library/artistBrowseDebug';
 import { getFavoritesBrowseTraceSnapshot } from '@/lib/library/favoritesBrowseDebug';
 import { getTrackBrowseTraceSnapshot } from '@/lib/library/trackBrowseDebug';
-import { useMainstageDiagnosticStore } from '@/features/home/store/mainstageDiagnosticStore';
 import {
-  getPsyLabDebugTraces,
-  setPsyLabDebugTrace,
-  type PsyLabDebugTraceId,
+  restoreMainstageDiagnosticSections,
+  snapshotMainstageDiagnosticSections,
+  useMainstageDiagnosticStore,
+} from '@/features/home/store/mainstageDiagnosticStore';
+import {
+  getPsyLabDebugTraceOverrides,
+  setPsyLabDebugTraceOverrides,
+  type PsyLabDebugTraces,
 } from '@/lib/perf/psyLabDebugTraces';
+import {
+  getRuntimeDebugLoggingOverride,
+  setRuntimeDebugLoggingOverride,
+} from '@/lib/perf/debugLoggingMode';
+import {
+  coverTrafficBenchmarkHoldActive,
+  coverTrafficSetBenchmarkHold,
+} from '@/cover/coverTraffic';
+import { benchmarkRouteMatchesLocation, resolveBenchmarkRoutes } from './benchmarkRoutes';
 import {
   beginBenchmarkReactCollection,
   benchmarkSectionsReady,
@@ -27,18 +40,15 @@ import {
   type BenchmarkRunRequest,
 } from '@/lib/perf/benchmark';
 
-const SCENARIOS: Record<string, readonly string[]> = {
-  'core-pages': ['/', '/albums', '/artists', '/tracks', '/favorites'],
-  'all-pages': [
-    '/', '/albums', '/artists', '/composers', '/tracks', '/favorites',
-    '/new-releases', '/genres', '/playlists', '/most-played',
-    '/lossless-albums', '/folders', '/statistics', '/help', '/settings',
-    '/whats-new', '/offline', '/radio',
-  ],
-};
-
 const ROUTE_TIMEOUT_MS = 30_000;
 const STABLE_WINDOW_MS = 700;
+const BENCHMARK_TRACE_OVERRIDES: PsyLabDebugTraces = {
+  albumsBrowse: true,
+  artistsBrowse: true,
+  favoritesBrowse: true,
+  tracksBrowse: true,
+  mainstage: true,
+};
 
 function nextFrame(): Promise<void> {
   return new Promise(resolve => requestAnimationFrame(() => resolve()));
@@ -48,7 +58,7 @@ function waitForPath(route: string, timeoutMs: number): Promise<number> {
   const started = performance.now();
   return new Promise((resolve, reject) => {
     const poll = () => {
-      if (window.location.pathname === route) {
+      if (benchmarkRouteMatchesLocation(route, window.location)) {
         resolve(Math.round(performance.now() - started));
         return;
       }
@@ -173,25 +183,33 @@ export default function BenchmarkRunner() {
       if (!request) return;
       if (runningRef.current) return;
       runningRef.current = true;
-      document.documentElement.setAttribute('data-benchmark-running', 'true');
-      originalPathRef.current = window.location.pathname;
-      const routes = SCENARIOS[request.scenario] ?? SCENARIOS['core-pages'];
+      originalPathRef.current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
       const startedAt = new Date().toISOString();
       const id = reportId();
       const pages: BenchmarkPageResult[] = [];
       const initialAuth = useAuthStore.getState();
       const initialBrowseScope = deriveLibraryBrowseScope(initialAuth, new Set());
-      const initialLogs = await commands.tailRuntimeLogs(null, 1);
-      let logSeq = initialLogs.lastSeq;
-      const previousLoggingMode = await commands.getLoggingMode();
-      const previousTraces = getPsyLabDebugTraces();
+      const mainstageSnapshot = snapshotMainstageDiagnosticSections();
+      const previousBenchmarkAttribute = document.documentElement.getAttribute('data-benchmark-running');
+      const previousTraceOverrides = getPsyLabDebugTraceOverrides();
+      const previousRuntimeDebugOverride = getRuntimeDebugLoggingOverride();
+      const previousCoverHold = coverTrafficBenchmarkHoldActive();
+      let previousLoggingMode: string | null = null;
+      let routeResolution = { routes: [] as string[], skippedRoutes: [] as { route: string; reason: string }[] };
+      let reportPayload: BenchmarkReport | Record<string, unknown>;
       try {
+        document.documentElement.setAttribute('data-benchmark-running', 'true');
+        routeResolution = await resolveBenchmarkRoutes(request.scenario);
+        const routes = routeResolution.routes;
+        const initialLogs = await commands.tailRuntimeLogs(null, 1);
+        let logSeq = initialLogs.lastSeq;
+        previousLoggingMode = await commands.getLoggingMode();
         await commands.setLoggingMode('debug');
-        for (const trace of Object.keys(previousTraces) as PsyLabDebugTraceId[]) {
-          setPsyLabDebugTrace(trace, true);
-        }
+        setRuntimeDebugLoggingOverride(true);
+        await setPsyLabDebugTraceOverrides(BENCHMARK_TRACE_OVERRIDES);
+        useMainstageDiagnosticStore.getState().reset();
         if (request.profile === 'isolated') {
-          await commands.libraryCoverBackfillSetUiPriority(true);
+          await coverTrafficSetBenchmarkHold(true);
         }
         for (let iteration = 1; iteration <= request.runs; iteration += 1) {
           for (const route of routes) {
@@ -288,40 +306,45 @@ export default function BenchmarkRunner() {
             libraryScopeFingerprint: initialBrowseScope.fingerprint || null,
           },
           pages,
+          skippedRoutes: routeResolution.skippedRoutes,
           logs: logTail.lines.map(line => line.text),
           summary,
         };
-        const report: BenchmarkReport = {
+        reportPayload = {
           ...reportWithoutMarkdown,
           markdown: formatBenchmarkMarkdown(reportWithoutMarkdown),
         };
-        await invoke('benchmark_publish_run', { payload: report });
       } catch (error) {
-        await invoke('benchmark_publish_run', {
-          payload: {
-            schemaVersion: 1,
-            id,
-            startedAt,
-            finishedAt: new Date().toISOString(),
-            scenario: request.scenario,
-            runs: request.runs,
-            profile: request.profile,
-            error: error instanceof Error ? error.message : String(error),
-            pages,
-          },
-        }).catch(() => {});
+        reportPayload = {
+          schemaVersion: 1,
+          id,
+          startedAt,
+          finishedAt: new Date().toISOString(),
+          scenario: request.scenario,
+          runs: request.runs,
+          profile: request.profile,
+          error: error instanceof Error ? error.message : String(error),
+          pages,
+          skippedRoutes: routeResolution.skippedRoutes,
+        };
       } finally {
-        if (request.profile === 'isolated') {
-          await commands.libraryCoverBackfillSetUiPriority(false).catch(() => {});
-        }
-        await commands.setLoggingMode(previousLoggingMode).catch(() => {});
-        for (const trace of Object.keys(previousTraces) as PsyLabDebugTraceId[]) {
-          setPsyLabDebugTrace(trace, previousTraces[trace]);
+        await coverTrafficSetBenchmarkHold(previousCoverHold).catch(() => {});
+        await setPsyLabDebugTraceOverrides(previousTraceOverrides);
+        setRuntimeDebugLoggingOverride(previousRuntimeDebugOverride);
+        restoreMainstageDiagnosticSections(mainstageSnapshot);
+        if (previousLoggingMode != null) {
+          await commands.setLoggingMode(previousLoggingMode).catch(() => {});
         }
         navigate(originalPathRef.current);
-        document.documentElement.removeAttribute('data-benchmark-running');
+        await waitForPath(originalPathRef.current, ROUTE_TIMEOUT_MS).catch(() => {});
+        if (previousBenchmarkAttribute == null) {
+          document.documentElement.removeAttribute('data-benchmark-running');
+        } else {
+          document.documentElement.setAttribute('data-benchmark-running', previousBenchmarkAttribute);
+        }
         runningRef.current = false;
       }
+      await invoke('benchmark_publish_run', { payload: reportPayload }).catch(() => {});
     };
     listen('cli:benchmark-run', () => { void runPending(); }).then(value => {
       unlisten = value;

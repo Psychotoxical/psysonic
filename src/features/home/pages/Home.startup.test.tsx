@@ -64,6 +64,7 @@ vi.mock('@/lib/perf/perfFlags', () => ({
   }),
 }));
 vi.mock('@/lib/perf/psyLabDebugTraces', () => ({
+  isPsyLabDebugTraceEnabled: () => false,
   usePsyLabDebugTraces: () => ({ mainstage: false }),
 }));
 vi.mock('@/lib/perf/perfTelemetry', () => ({ bumpPerfCounter: vi.fn() }));
