@@ -51,6 +51,7 @@ vi.mock('@/store/orbitRuntime', async (importOriginal) => ({
 }));
 
 import { usePlayerStore } from '@/features/playback/store/playerStore';
+import { useAuthStore } from '@/store/authStore';
 import {
   emitTauriEvent,
   onInvoke,
@@ -66,6 +67,15 @@ import {
 import { queueTrackIdentityKey } from '@/features/playback/utils/playback/queueIdentity';
 import { usePlaybackAlternativeStore } from '@/features/playback/store/playbackAlternativeStore';
 import { bumpPlayGeneration } from '@/features/playback/store/engineState';
+import {
+  _resetGaplessProgressTrackingForTest,
+  noteEngineProgressForGapless,
+} from '@/features/playback/store/gaplessProgressTracking';
+import {
+  SEEK_TARGET_GUARD_TIMEOUT_MS,
+  _resetSeekTargetStateForTest,
+  setSeekTarget,
+} from '@/features/playback/store/seekTargetState';
 
 function stubPlaybackInvokes(): void {
   onInvoke('audio_play', () => undefined);
@@ -88,6 +98,8 @@ beforeEach(() => {
   resetPlayerStore();
   resetAuthStore();
   _resetGaplessPreloadStateForTest();
+  _resetGaplessProgressTrackingForTest();
+  _resetSeekTargetStateForTest();
   stubPlaybackInvokes();
   cleanupListeners = initAudioListeners();
 });
@@ -130,6 +142,38 @@ describe('audio:progress', () => {
     emitTauriEvent('audio:progress', { current_time: 50, duration: 0 });
     // Falls back to track.duration = 200, so progress = 50/200 = 0.25.
     expect(usePlayerStore.getState().progress).toBeCloseTo(0.25, 5);
+  });
+
+  it('does not advance the queue when an idle resume starts a fresh timeline', () => {
+    const queue = makeTracks(2).map((track, index) => ({
+      ...track,
+      duration: index === 0 ? 300 : track.duration,
+    }));
+    seedQueue(queue, { index: 0, currentTrack: queue[0] });
+    useAuthStore.setState({ gaplessEnabled: true });
+    usePlayerStore.setState({ isPlaying: true });
+    noteEngineProgressForGapless(252);
+
+    emitTauriEvent('audio:playing', 300);
+    emitTauriEvent('audio:progress', { current_time: 0.3, duration: 300 });
+
+    expect(usePlayerStore.getState().currentTrack?.id).toBe(queue[0].id);
+    expect(usePlayerStore.getState().queueIndex).toBe(0);
+  });
+
+  it('does not reconcile across an expired seek guard', () => {
+    const queue = makeTracks(2);
+    seedQueue(queue, { index: 0, currentTrack: queue[0] });
+    useAuthStore.setState({ gaplessEnabled: true });
+    usePlayerStore.setState({ isPlaying: true });
+    noteEngineProgressForGapless(100);
+    setSeekTarget(20);
+    vi.advanceTimersByTime(SEEK_TARGET_GUARD_TIMEOUT_MS + 1);
+
+    emitTauriEvent('audio:progress', { current_time: 0.3, duration: queue[0].duration });
+
+    expect(usePlayerStore.getState().currentTrack?.id).toBe(queue[0].id);
+    expect(usePlayerStore.getState().queueIndex).toBe(0);
   });
 });
 

@@ -269,6 +269,9 @@ export function handleAudioProgress(
       // If a seek command hangs while streaming is stalled, do not freeze UI.
       if (Date.now() - getSeekTargetSetAt() <= SEEK_TARGET_GUARD_TIMEOUT_MS) return;
       clearSeekTarget();
+      // The old and current positions straddle an unresolved seek, so they are
+      // not evidence of a decoder boundary. Rebase before gapless reconciliation.
+      resetGaplessProgressTracking();
     } else {
       clearSeekTarget();
       noteEngineProgressForGapless(current_time);
