@@ -403,7 +403,7 @@ fn overlay_scope_album_stars(
         .map_err(|e| e.to_string())
 }
 
-fn finish_scope_album_list(
+pub(crate) fn finish_scope_album_list(
     store: &LibraryStore,
     mut albums: Vec<LibraryAlbumDto>,
     total: u32,

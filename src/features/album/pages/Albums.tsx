@@ -517,7 +517,7 @@ export default function Albums() {
 
                   <GenreFilterBar
                     selected={selectedGenres}
-                    catalogGenres={browseData.genreCatalogActive ? browseData.genreCatalogOptions : null}
+                    catalogGenres={browseData.genreCatalogActive ? browseData.genreCatalogOptions : undefined}
                     onSelectionChange={setSelectedGenres}
                   />
 

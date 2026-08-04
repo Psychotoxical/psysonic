@@ -22,6 +22,7 @@ import { usePlayerStore } from '@/features/playback/store/playerStore';
 import {
   fetchGenreAlbumCount,
   fetchGenreTracksForPlayback,
+  lookupScopedGenreAlbumCount,
 } from '@/features/playback/utils/playback/genreBrowsePlayback';
 import { lookupGenreAlbumCount } from '@/lib/library/genreCatalogCountsCache';
 import { libraryScopeCacheKeyForServer } from '@/lib/api/subsonicClient';
@@ -33,6 +34,7 @@ import { usePerfProbeFlags } from '@/lib/perf/perfFlags';
 import { runBulkEnqueue, runBulkPlayAll, runBulkShuffle } from '@/features/playback/utils/playback/runBulkPlay';
 import { deriveLibraryBrowseScope } from '@/lib/library/libraryBrowseScope';
 import { useUnavailableServerIds } from '@/lib/network/serverReachability';
+import { resolveGenreHeaderCount } from './genreHeaderCount';
 
 export default function GenreDetail() {
   const { name } = useParams<{ name: string }>();
@@ -123,20 +125,18 @@ export default function GenreDetail() {
 
   useEffect(() => {
     if (!genre || !serverId) return;
-    const cached = browseScope.multiServer
-      ? null
-      : lookupGenreAlbumCount(serverId, genre, libraryScopeCacheKeyForServer(serverId));
+    const cached = lookupScopedGenreAlbumCount(browseScope, genre)
+      ?? lookupGenreAlbumCount(serverId, genre, libraryScopeCacheKeyForServer(serverId));
     // React Compiler set-state-in-effect rule: state set from a timer/animation callback.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setAlbumCount(cached);
-  }, [serverId, genre, musicLibraryFilterVersion, browseScope.fingerprint, browseScope.multiServer]);
+  }, [serverId, genre, musicLibraryFilterVersion, browseScope]);
 
   useEffect(() => {
-    if (!genre || loading) return;
-    const cached = browseScope.multiServer
-      ? null
-      : lookupGenreAlbumCount(serverId, genre, libraryScopeCacheKeyForServer(serverId));
-    if (cached != null) return;
+    if (!genre || loading || !hasMore) return;
+    const cached = lookupScopedGenreAlbumCount(browseScope, genre)
+      ?? lookupGenreAlbumCount(serverId, genre, libraryScopeCacheKeyForServer(serverId));
+    if (cached != null && !browseScope.multiServer) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
       void fetchGenreAlbumCount(serverId, genre, indexEnabled, sort, browseScope).then(count => {
@@ -147,7 +147,7 @@ export default function GenreDetail() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [serverId, genre, indexEnabled, sort, musicLibraryFilterVersion, browseScope, loading]);
+  }, [serverId, genre, indexEnabled, sort, musicLibraryFilterVersion, browseScope, loading, hasMore]);
 
   const fetchGenreTracks = useCallback(
     (shuffle?: boolean) => fetchGenreTracksForPlayback(serverId, genre, {
@@ -182,11 +182,13 @@ export default function GenreDetail() {
   const mainstageHeaderTight = useMainstageInpageHeaderTight(scrollBodyEl, [genre, albumCount, bulkLoading]);
 
   const headerCount = useMemo(() => {
-    if (!loading && !hasMore && albums.length > 0) return albums.length;
-    if (albumCount != null) return albumCount;
-    if (loading) return null;
-    return displayAlbums.length > 0 ? displayAlbums.length : null;
-  }, [loading, hasMore, albums.length, albumCount, displayAlbums.length]);
+    return resolveGenreHeaderCount({
+      loading,
+      hasMore,
+      loadedAlbumCount: albums.length,
+      albumCount,
+    });
+  }, [loading, hasMore, albums.length, albumCount]);
   const showPlayback = !loading && (displayAlbums.length > 0 || (albumCount ?? 0) > 0);
 
   return (
