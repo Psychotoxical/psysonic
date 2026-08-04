@@ -33,10 +33,17 @@ vi.mock('@/lib/perf/perfFlags', async importOriginal => ({
 // no cells. Render every item instead — this suite asserts on filtering, not on
 // windowing behaviour.
 vi.mock('@/ui/VirtualCardGrid', () => ({
-  VirtualCardGrid: <T,>({ items, renderItem }: {
+  VirtualCardGrid: <T,>({ items, renderItem, itemKey }: {
     items: readonly T[];
     renderItem: (item: T) => React.ReactNode;
-  }) => <div>{items.map(renderItem)}</div>,
+    itemKey?: (item: T, index: number) => string;
+  }) => (
+    <div>
+      {items.map((item, index) => (
+        <React.Fragment key={itemKey?.(item, index) ?? index}>{renderItem(item)}</React.Fragment>
+      ))}
+    </div>
+  ),
 }));
 
 import Composers from '@/features/composers/pages/Composers';
