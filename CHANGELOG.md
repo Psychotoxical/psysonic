@@ -306,6 +306,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * On a genre page, the add-to-queue button now matches the height of **Play** and carries a proper label for screen readers.
 * Internet radio shows its sort picker next to the browse and add buttons instead of on a separate line below them.
 
+### Composers — names outside A–Z can be found again
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1381](https://github.com/Psychotoxical/psysonic/pull/1381)**
+
+* The letter bar on **Composers** ended at Z, so a composer whose name begins with a quote, a bracket or a non-Latin character could not be filtered to at all. The bar now carries the same **Other** entry the Artists page already had. Reported by zunoz.
+* In the list view that group is labelled instead of showing the raw key, and it is placed after Z rather than between O and P.
+
 ## [1.50.0]
 
 ## Added
