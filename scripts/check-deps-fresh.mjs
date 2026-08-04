@@ -16,8 +16,13 @@
  * Related but distinct: check-boot-chunk-lucide.mjs inspects the built output
  * for one known cause of the same symptom. This one checks the input instead.
  *
+ * It runs before `dev` as well as `build`, for a second reason: the runtime
+ * benchmark procedure measures the app through `npm run dev`. A stale install
+ * would produce timings for a bundle that does not match the lockfile, and
+ * those numbers can end up in a PR as evidence.
+ *
  * npm already detects the drift (`npm ls` exits non-zero with ELSPROBLEMS);
- * this only runs it before the build and explains what to do.
+ * this only surfaces it early and explains what to do.
  */
 import { spawnSync } from 'node:child_process';
 

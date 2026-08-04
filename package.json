@@ -9,7 +9,7 @@
     "check:css-imports": "node scripts/check-css-import-graph.mjs",
     "check:deps": "node scripts/check-deps-fresh.mjs",
     "prebuild:release-notes": "node scripts/generate-release-notes-bundle.mjs",
-    "dev": "npm run prebuild:release-notes && vite",
+    "dev": "npm run check:deps && npm run prebuild:release-notes && vite",
     "build": "npm run check:deps && npm run prebuild:release-notes && tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
