@@ -53,26 +53,31 @@ pub(crate) fn maybe_emit_normalization_state(app: &AppHandle, payload: Normaliza
     let _ = app.emit("audio:normalization-state", payload);
 }
 
-/// Last `analysis:loudness-partial` gain emitted per track-identity, used to
+/// Last `analysis:loudness-partial` generation + gain emitted per track identity, used to
 /// suppress emits whose gain hasn't moved meaningfully (≥ 0.1 dB). The partial
-/// heuristic in `emit_partial_loudness_from_bytes` and the ranged-progress curve
-/// both produce values that drift by hundredths of a dB even on identical input,
-/// so the time-based throttle alone is not enough to keep the loop quiet.
-pub(crate) static LAST_PARTIAL_LOUDNESS_EMIT: OnceLock<Mutex<std::collections::HashMap<String, f32>>> = OnceLock::new();
+/// ranged-progress curve produces values that drift by hundredths of a dB, so
+/// the time-based throttle alone is not enough to keep the loop quiet. A replay
+/// starts a new generation and must emit its first provisional gain even when it
+/// happens to match the previous play.
+pub(crate) static LAST_PARTIAL_LOUDNESS_EMIT: OnceLock<Mutex<std::collections::HashMap<String, (u64, f32)>>> = OnceLock::new();
 pub(crate) const PARTIAL_LOUDNESS_DELTA_THRESHOLD_DB: f32 = 0.1;
 
-pub(crate) fn partial_loudness_should_emit(track_key: &str, gain_db: f32) -> bool {
+pub(crate) fn partial_loudness_should_emit(track_key: &str, generation: u64, gain_db: f32) -> bool {
     let mut guard = LAST_PARTIAL_LOUDNESS_EMIT
         .get_or_init(|| Mutex::new(std::collections::HashMap::new()))
         .lock()
         .unwrap();
     let prev = guard.get(track_key).copied();
-    if let Some(p) = prev {
+    if let Some((prev_generation, p)) = prev {
+        if prev_generation != generation {
+            guard.insert(track_key.to_string(), (generation, gain_db));
+            return true;
+        }
         if (p - gain_db).abs() < PARTIAL_LOUDNESS_DELTA_THRESHOLD_DB {
             return false;
         }
     }
-    guard.insert(track_key.to_string(), gain_db);
+    guard.insert(track_key.to_string(), (generation, gain_db));
     true
 }
 
@@ -155,15 +160,15 @@ mod tests {
     #[test]
     fn partial_loudness_emits_on_first_call_for_a_track_key() {
         let key = "test-emits-first-call";
-        assert!(partial_loudness_should_emit(key, -3.0));
+        assert!(partial_loudness_should_emit(key, 1, -3.0));
     }
 
     #[test]
     fn partial_loudness_suppresses_micro_drift_below_threshold() {
         let key = "test-emits-micro-drift";
-        assert!(partial_loudness_should_emit(key, -3.0));
+        assert!(partial_loudness_should_emit(key, 1, -3.0));
         assert!(
-            !partial_loudness_should_emit(key, -3.05),
+            !partial_loudness_should_emit(key, 1, -3.05),
             "delta < 0.1 dB is suppressed"
         );
     }
@@ -171,16 +176,24 @@ mod tests {
     #[test]
     fn partial_loudness_emits_again_when_threshold_is_crossed() {
         let key = "test-emits-after-threshold";
-        assert!(partial_loudness_should_emit(key, -3.0));
-        assert!(partial_loudness_should_emit(key, -3.5), "delta >= 0.1 dB re-emits");
+        assert!(partial_loudness_should_emit(key, 1, -3.0));
+        assert!(partial_loudness_should_emit(key, 1, -3.5), "delta >= 0.1 dB re-emits");
     }
 
     #[test]
     fn partial_loudness_treats_each_track_key_independently() {
-        assert!(partial_loudness_should_emit("track-A-independent", -3.0));
+        assert!(partial_loudness_should_emit("track-A-independent", 1, -3.0));
         assert!(
-            partial_loudness_should_emit("track-B-independent", -3.0),
+            partial_loudness_should_emit("track-B-independent", 1, -3.0),
             "different track keys do not share suppression state"
         );
+    }
+
+    #[test]
+    fn partial_loudness_emits_first_value_for_a_new_playback_generation() {
+        let key = "test-emits-new-generation";
+        assert!(partial_loudness_should_emit(key, 1, -4.5));
+        assert!(!partial_loudness_should_emit(key, 1, -4.5));
+        assert!(partial_loudness_should_emit(key, 2, -4.5));
     }
 }

@@ -15,6 +15,11 @@ export function coerceOpenArtistRefs(
  * individual artists (Navidrome docs, Usage → Library → Tagging): `" / "`,
  * `" feat. "`, `" feat "`, `" ft. "`, `" ft "` and `"; "`, matched case-insensitively.
  *
+ * `" • "` (space • space) is also split: it is the default `Scanner.ArtistJoiner`
+ * Navidrome uses to build the display name from only-plural ARTISTS tags
+ * (`Alice • Bob`), so a legacy flat credit that carries that joined string must
+ * still resolve to individual artists.
+ *
  * Two deliberate details from that spec:
  * - The slash form requires surrounding spaces. That is what keeps "AC/DC" intact,
  *   so it must not be relaxed to a bare `/`.
@@ -25,7 +30,7 @@ export function coerceOpenArtistRefs(
  * No `g` flag: `String.split` matches every occurrence anyway, and a shared global
  * regex would carry `lastIndex` state between calls.
  */
-const DISPLAY_ARTIST_SEPARATORS = / \/ | feat\. | feat | ft\. | ft |; /i;
+const DISPLAY_ARTIST_SEPARATORS = / \/ | feat\. | feat | ft\. | ft |; | • /i;
 
 /**
  * Individual artist names from a joined display credit, or `[]` when there is

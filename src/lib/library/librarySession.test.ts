@@ -7,7 +7,7 @@ import type { ServerProfile } from '@/store/authStoreTypes';
 
 const sessionMocks = vi.hoisted(() => ({
   ensureConnectUrlResolved: vi.fn(),
-  syncServerHttpContextForProfile: vi.fn(),
+  syncServerHttpContextForProfile: vi.fn(async () => undefined),
   syncAllServerHttpContexts: vi.fn(),
   libraryCoverClearFetchFailures: vi.fn(),
   libraryCoverBackfillRunFullPass: vi.fn(),
@@ -18,6 +18,7 @@ vi.mock('@/lib/server/serverEndpoint', () => ({
 }));
 
 vi.mock('@/lib/server/syncServerHttpContext', () => ({
+  setServerHttpContextIdentitySource: vi.fn(),
   syncServerHttpContextForProfile: sessionMocks.syncServerHttpContextForProfile,
   syncAllServerHttpContexts: sessionMocks.syncAllServerHttpContexts,
 }));

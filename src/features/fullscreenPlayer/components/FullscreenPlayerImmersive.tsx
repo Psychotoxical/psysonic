@@ -1,4 +1,4 @@
-import { queueSongStar, playbackCoverArtForAlbum, usePlayerStore } from '@/features/playback';
+import { queueSongStar, playbackCoverArtForAlbum, usePlayerStore, usePlaybackLibraryNavigate, TrackArtistLinks } from '@/features/playback';
 import { usePlaybackCoverArt } from '@/cover/usePlaybackCoverArt';
 import { useAlbumCoverRef } from '@/cover/useLibraryCoverRef';
 import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
@@ -24,6 +24,8 @@ import { FsVolume } from './FsVolume';
 import { useFsDynamicAccent } from '@/features/fullscreenPlayer/hooks/useFsDynamicAccent';
 import { useFsIdleFade } from '@/features/fullscreenPlayer/hooks/useFsIdleFade';
 import { useQueueTrackAt } from '@/features/queue';
+import { VisualizerPanel } from '@/features/visualizer';
+import { prepareTransientUiOpen } from '@/lib/dom/transientUi';
 
 interface FullscreenPlayerProps {
   onClose: () => void;
@@ -31,6 +33,7 @@ interface FullscreenPlayerProps {
 
 export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
   const { t } = useTranslation();
+  const navigatePlaybackLibrary = usePlaybackLibraryNavigate();
   const currentTrack       = usePlayerStore(s => s.currentTrack);
   const resolvedStreamFormat = usePlayerStore(s => s.resolvedStreamFormat);
   const repeatMode         = usePlayerStore(s => s.repeatMode);
@@ -130,6 +133,7 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
       role="dialog"
       aria-modal="true"
       aria-label={t('player.fullscreen')}
+      data-visualizer-overlay-host="fullscreen"
       data-idle={isIdle}
       data-lyrics={isAppleMode || undefined}
       onMouseMove={handleMouseMove}
@@ -186,7 +190,20 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
         <p className="fs-track-title">{currentTrack?.title ?? '—'}</p>
 
         {/* Artist — secondary, below track */}
-        <p className="fs-artist-name">{currentTrack?.artist ?? '—'}</p>
+        {currentTrack ? (
+          <TrackArtistLinks
+            track={currentTrack}
+            onNavigate={to => {
+              onClose();
+              void navigatePlaybackLibrary(to);
+            }}
+            outerClassName="fs-artist-name"
+            linkClassName="fs-artist-link"
+            plainClassName="fs-artist-name-plain"
+          />
+        ) : (
+          <p className="fs-artist-name">—</p>
+        )}
 
         {/* Metadata row */}
         {metaParts.length > 0 && (
@@ -200,8 +217,16 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
           </div>
         )}
 
+        {/* Visualizer strip — sits between the metadata and the transport so it
+            reads as part of the info cluster, not as a competing surface. */}
+        <VisualizerPanel surface="fullscreen" className="fs-visualizer" />
+
         {/* Controls */}
-        <div className="fs-controls" ref={fsControlsRef}>
+        <div
+          className="fs-controls"
+          ref={fsControlsRef}
+          data-visualizer-transport="fullscreen"
+        >
           <button className="fs-btn fs-btn-sm" onClick={stop} aria-label={t('player.stop')} data-tooltip={t('player.stop')}>
             <Square size={13} fill="currentColor" />
           </button>
@@ -235,7 +260,10 @@ export default function FullscreenPlayer({ onClose }: FullscreenPlayerProps) {
             <button
               ref={lyricsMenuTriggerRef}
               className={`fs-btn fs-btn-sm${lyricsMenuOpen ? ' active' : ''}`}
-              onClick={() => setLyricsMenuOpen(v => !v)}
+              onClick={() => {
+                if (!lyricsMenuOpen) prepareTransientUiOpen();
+                setLyricsMenuOpen(v => !v);
+              }}
               aria-label={t('player.fsLyricsToggle')}
               data-tooltip={lyricsMenuOpen ? undefined : t('player.fsLyricsToggle')}
               style={{ color: showFullscreenLyrics ? (dynamicAccent ?? 'var(--accent)') : 'rgba(255,255,255,0.35)' }}

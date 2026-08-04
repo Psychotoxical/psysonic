@@ -264,6 +264,18 @@
   overflow-wrap: break-word;
 }
 
+.fs-artist-link {
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+.fs-artist-link:hover {
+  text-decoration: underline;
+}
+.fs-artist-name-plain {
+  color: inherit;
+}
+
 /* Metadata row */
 .fs-meta {
   display: flex;

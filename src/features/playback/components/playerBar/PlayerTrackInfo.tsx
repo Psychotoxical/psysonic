@@ -25,6 +25,7 @@ import { ownedOverrideValue } from '@/lib/util/ownedEntityKey';
 import { useOfflineBrowseContext } from '@/features/offline';
 import { offlineActionPolicy } from '@/features/offline';
 import { buildAlbumDetailPath, buildArtistDetailPath } from '@/lib/navigation/detailServerScope';
+import { prepareTransientUiOpen } from '@/lib/dom/transientUi';
 
 interface Props {
   currentTrack: Track | null;
@@ -159,9 +160,10 @@ export function PlayerTrackInfo({
             ? (e) => {
                 e.preventDefault();
                 // The player bar represents the current song, so its menu is
-                // song-scoped (e.g. "Add to playlist" adds this track, not the
-                // whole album). pinToPlaybackServer: the track plays from the
-                // playback server, which may differ from the active one.
+                 // song-scoped (e.g. "Add to playlist" adds this track, not the
+                 // whole album). pinToPlaybackServer: the track plays from the
+                 // playback server, which may differ from the active one.
+                prepareTransientUiOpen();
                 openContextMenu(e.clientX, e.clientY, currentTrack, 'song', undefined, undefined, undefined, undefined, true);
               }
             : undefined}

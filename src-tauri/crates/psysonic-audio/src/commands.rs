@@ -16,6 +16,7 @@ use super::helpers::*;
 use super::hi_res_blend::{self, OutgoingBlendSnapshot};
 use super::ipc::{maybe_emit_normalization_state, NormalizationStatePayload};
 use super::play_input::{select_play_input, url_format_hint, PlayInputContext};
+use super::preload_commands::{publish_preloaded_if_current, PreloadSnapshot};
 use super::source_build::{build_playback_source_with_probe_fallback, BuildSourceArgs};
 use super::sink_swap::{
     spawn_legacy_stream_start_when_armed, swap_in_new_sink, LegacyStreamStartWhenArmed,
@@ -24,9 +25,28 @@ use super::sink_swap::{
 use super::playback_rate::{preserve_pitch_will_run, raw_counter_samples_for_content_position};
 use super::preview::preview_clear_for_new_main_playback;
 use super::progress_task::spawn_progress_task;
+use super::sources::CancellableSource;
 use super::state::{ChainedInfo, PreloadedTrack};
 
 // ─── Commands ─────────────────────────────────────────────────────────────────
+
+fn restore_chain_preload_if_current(
+    state: &AudioEngine,
+    snapshot: PreloadSnapshot,
+    url: &str,
+    raw_bytes: &Arc<Vec<u8>>,
+) {
+    let _ = publish_preloaded_if_current(
+        &state.generation,
+        &state.preload_epoch,
+        snapshot,
+        &state.preloaded,
+        PreloadedTrack {
+            url: url.to_string(),
+            data: (**raw_bytes).clone(),
+        },
+    );
+}
 
 /// `analysis_track_id`: Subsonic `song.id` from the UI — ties waveform/loudness
 /// cache to the track when playing `psysonic-local://` (hot/offline). Optional
@@ -178,6 +198,13 @@ pub async fn audio_play(
     *state.current_playback_server_id.lock().unwrap() = analysis_server_id.map(str::to_string);
 
     let format_hint = url_format_hint(&url);
+    let gain_inputs = resolve_track_gain_inputs(
+        &state,
+        &app,
+        &url,
+        logical_trim.as_deref(),
+        loudness_gain_db,
+    );
 
     let play_input = match select_play_input(
         PlayInputContext {
@@ -188,6 +215,7 @@ pub async fn audio_play(
             format_hint: format_hint.as_deref(),
             cache_id_for_tasks: cache_id_for_tasks.as_deref(),
             server_id: analysis_server_id,
+            needs_partial_loudness: gain_inputs.needs_partial_loudness(),
             reuse_chained_bytes,
         },
         &state,
@@ -212,7 +240,6 @@ pub async fn audio_play(
         return Ok(());
     }
 
-    let gain_inputs = resolve_track_gain_inputs(&state, &app, &url, logical_trim.as_deref(), loudness_gain_db);
     let (gain_linear, effective_volume) = compute_gain(
         gain_inputs.norm_mode,
         replay_gain_db,
@@ -358,10 +385,9 @@ pub async fn audio_play(
     }
 
     // Surface the real decoded format so now-playing badges reflect what the
-    // server is actually transmitting — it may differ from the library's
-    // stored metadata when the server transcodes. Emitted before the
-    // play/deferred-start branching so it fires on both paths; the frontend
-    // stamps it onto the current track and drops stale/mismatched events.
+    // server is actually transmitting (it may differ from stored metadata when
+    // the server transcodes). Emitted before the play/deferred-start branching
+    // so it fires on both paths. The frontend stamps it onto the current track.
     if let Some(fmt) = resolved_format.as_ref() {
         let ev = crate::decode::AudioFormatEvent::from_info(fmt, crate::decode::AudioFormatIdentity {
             track_id: logical_trim.clone(),
@@ -655,7 +681,7 @@ pub async fn audio_chain_preload(
         return Ok(());
     }
 
-    let snapshot_gen = state.generation.load(Ordering::SeqCst);
+    let snapshot = PreloadSnapshot::capture(&state);
 
     // Fetch bytes — use preload cache if available, otherwise HTTP.
     let data: Vec<u8> = {
@@ -688,8 +714,8 @@ pub async fn audio_chain_preload(
             let mut stream = resp.bytes_stream();
             let mut buf = Vec::with_capacity(hint);
             while let Some(chunk) = stream.next().await {
-                if state.generation.load(Ordering::SeqCst) != snapshot_gen {
-                    return Ok(()); // superseded by manual skip — abort download
+                if !snapshot.is_current(&state) {
+                    return Ok(()); // superseded or invalidated — abort download
                 }
                 buf.extend_from_slice(&chunk.map_err(|e| e.to_string())?);
             }
@@ -698,7 +724,7 @@ pub async fn audio_chain_preload(
     };
 
     // Bail if the user skipped to a different track while we were downloading.
-    if state.generation.load(Ordering::SeqCst) != snapshot_gen {
+    if !snapshot.is_current(&state) {
         return Ok(());
     }
 
@@ -725,8 +751,9 @@ pub async fn audio_chain_preload(
             sid,
             track_id,
             bytes,
+            Some(url.clone()),
             priority,
-            None,
+            Some((snapshot.generation, state.generation.clone())),
         );
     }
 
@@ -774,7 +801,7 @@ pub async fn audio_chain_preload(
     let duration_secs = built.duration_secs;
 
     // Final gen check — reject if a manual skip happened during decode.
-    if state.generation.load(Ordering::SeqCst) != snapshot_gen {
+    if !snapshot.is_current(&state) {
         return Ok(());
     }
 
@@ -790,42 +817,35 @@ pub async fn audio_chain_preload(
                     if hi_res_enabled && br > 48_000 {
                         tokio::time::sleep(Duration::from_millis(150)).await;
                     }
-                    if state.generation.load(Ordering::SeqCst) == snapshot_gen {
+                    if snapshot.is_current(&state) {
                         if let Err(e) = hi_res_blend::rebuild_current_track_at_blend_rate(
                             &app,
                             &state,
                             &snap,
                             br,
-                            snapshot_gen,
+                            snapshot.generation,
                         )
                         .await
                         {
                             crate::app_eprintln!("{e}");
-                            *state.preloaded.lock().unwrap() = Some(PreloadedTrack {
-                                url: url.clone(),
-                                data: Arc::try_unwrap(raw_bytes).unwrap_or_else(|a| (*a).clone()),
-                            });
+                            restore_chain_preload_if_current(&state, snapshot, &url, &raw_bytes);
                             return Ok(());
                         }
+                    } else {
+                        return Ok(());
                     }
                 } else {
                     crate::app_eprintln!(
                         "[psysonic] gapless blend stream reopen failed (wanted {br} Hz, had {stream_rate} Hz)"
                     );
-                    *state.preloaded.lock().unwrap() = Some(PreloadedTrack {
-                        url,
-                        data: Arc::try_unwrap(raw_bytes).unwrap_or_else(|a| (*a).clone()),
-                    });
+                    restore_chain_preload_if_current(&state, snapshot, &url, &raw_bytes);
                     return Ok(());
                 }
             } else {
                 crate::app_eprintln!(
                     "[psysonic] gapless blend skipped: current track not cached for realign"
                 );
-                *state.preloaded.lock().unwrap() = Some(PreloadedTrack {
-                    url,
-                    data: Arc::try_unwrap(raw_bytes).unwrap_or_else(|a| (*a).clone()),
-                });
+                restore_chain_preload_if_current(&state, snapshot, &url, &raw_bytes);
                 return Ok(());
             }
         }
@@ -836,16 +856,19 @@ pub async fn audio_chain_preload(
                 "[psysonic] gapless chain skipped: next track rate {} Hz ≠ stream {} Hz",
                 next_rate, stream_rate
             );
-            *state.preloaded.lock().unwrap() = Some(PreloadedTrack {
-                url,
-                data: Arc::try_unwrap(raw_bytes).unwrap_or_else(|a| (*a).clone()),
-            });
+            restore_chain_preload_if_current(&state, snapshot, &url, &raw_bytes);
             return Ok(());
         }
     }
 
     // Append to the existing Sink. The audio hardware stream never stalls.
     // Note: `set_volume` is deliberately NOT called here (see comment above).
+    let cancel = Arc::new(AtomicBool::new(false));
+    let source = CancellableSource::new(source, cancel.clone());
+    let mut chained = state.chained_info.lock().unwrap();
+    if !snapshot.is_current(&state) || chained.is_some() {
+        return Ok(());
+    }
     {
         let cur = state.current.lock().unwrap();
         match &cur.sink {
@@ -856,19 +879,20 @@ pub async fn audio_chain_preload(
         }
     }
 
-    *state.chained_info.lock().unwrap() = Some(ChainedInfo {
+    *chained = Some(ChainedInfo {
         url,
         analysis_track_id: logical_trim,
         server_id: analysis_server_id.map(str::to_string),
+        generation: snapshot.generation,
         raw_bytes,
         resolved_format: built.resolved_format,
         duration_secs,
         replay_gain_linear: gain_linear,
         base_volume: volume.clamp(0.0, 1.0),
         source_done: done_next,
+        cancel,
         sample_counter: chain_counter,
     });
 
     Ok(())
 }
-

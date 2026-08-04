@@ -36,6 +36,7 @@ import {
 import { showToast } from '@/lib/dom/toast';
 import { useAuthStore } from '@/store/authStore';
 import { indexKeyBelongsToServer } from '@/store/localPlaybackResolve';
+import { effectiveStreamCapKbps } from '@/features/playback/utils/playback/streamQualityResolve';
 import { getPlayGeneration, setIsAudioPaused } from '@/features/playback/store/engineState';
 import {
   clearPreloadingIds,
@@ -100,6 +101,7 @@ import {
   sameQueueTrack,
 } from '@/features/playback/utils/playback/queueIdentity';
 import { reportPlaybackSourceFailure } from '@/features/playback/store/playbackAlternativeStore';
+import type { StreamProvenance } from '@/lib/media/streamFormat';
 
 // Silence-aware crossfade (A-tail): guards the early advance to once per play
 // generation so a single playback instance triggers at most one trim-advance
@@ -153,9 +155,9 @@ export function handleAudioPlaying(duration: number): void {
 export type AudioFormatPayload = {
   /** Track the engine resolved this format for. Absent on legacy events. */
   trackId?: string | null;
-  /** Playback server index key — disambiguates duplicate track ids across servers. */
+  /** Owning server profile — disambiguates duplicate track ids across servers. */
   serverId?: string | null;
-  /** Playback generation of the stream (stale-event rejection). */
+  /** Playback generation of the stream (stale-event rejection on the Rust side). */
   generation?: number | null;
   /** `maxBitRate` the stream URL was opened with — latched per stream by Rust. */
   streamCapKbps?: number | null;
@@ -166,44 +168,82 @@ export type AudioFormatPayload = {
   lossless: boolean;
 };
 
+export type AudioStreamProvenancePayload = {
+  trackId: string;
+  serverId: string;
+  generation: number;
+  provenance: StreamProvenance;
+};
+
 /**
- * The engine resolved the real codec/format of the live stream. Stamp it onto
- * the current track so now-playing badges can show what the server is actually
- * transmitting (a server-side transcode differs from the library's stored
- * metadata). Identity-guarded: events for a since-skipped track, a duplicate
- * id on another server, or an older playback generation are dropped.
+ * The engine resolved the real codec/format of the live stream. Stamp it with
+ * the track playing right now (audio:format fires just after audio:playing, so
+ * `currentTrack` is already the correct one) so a later track never shows a
+ * stale format. When the decoded codec matches the file's suffix nothing
+ * visibly changes; when the server transcoded, the badges switch to the real
+ * format (see `effectiveAudioFormat`).
  */
 export function handleAudioFormat(payload: AudioFormatPayload): void {
-  const cur = usePlayerStore.getState().currentTrack;
+  const state = usePlayerStore.getState();
+  const cur = state.currentTrack;
   if (!cur || !payload?.codec) return;
+  // Identity guard: the engine resolves format asynchronously, so an event may
+  // land after a skip, or a duplicate Subsonic id on another server may collide.
+  // When the event names its track/server it must match what's playing now;
+  // otherwise the format belongs to a different track and is dropped. (Legacy
+  // events without identity fall back to stamping the current track.)
   if (payload.trackId != null && payload.trackId !== cur.id) return;
   // Rust sends the playback index key; the track carries a server profile id.
   // `indexKeyBelongsToServer` maps between the two so a duplicate id on another
   // server is rejected without false-rejecting the normal case.
   if (payload.serverId != null && cur.serverId != null
     && !indexKeyBelongsToServer(payload.serverId, cur.serverId)) return;
-  // Generation guard: a late event from a superseded playback of the SAME
-  // track (replay/restart) must not overwrite the current stream's format.
-  const prev = usePlayerStore.getState().resolvedStreamFormat;
-  if (
-    payload.generation != null
-    && prev?.generation != null
-    && prev.trackId === cur.id
-    && payload.generation < prev.generation
-  ) return;
+  // Generation guard: a late event from a superseded playback must not
+  // overwrite (or resurrect) format state. Keyed off a monotonic floor that
+  // SURVIVES format clears — same-track replays wipe `resolvedStreamFormat`,
+  // so the object itself cannot carry the guard.
+  const floor = state.streamFormatGenerationFloor;
+  if (payload.generation != null && payload.generation < floor) return;
   usePlayerStore.setState({
+    streamFormatGenerationFloor: payload.generation != null
+      ? Math.max(floor, payload.generation)
+      : floor,
     resolvedStreamFormat: {
       trackId: cur.id,
+      serverId: payload.serverId ?? undefined,
       generation: payload.generation ?? undefined,
       codec: payload.codec,
       sampleRate: payload.sampleRate ?? undefined,
       bitsPerSample: payload.bitsPerSample ?? undefined,
       channels: payload.channels ?? undefined,
       lossless: !!payload.lossless,
-      // The cap the stream was opened with, latched by Rust from the URL. No
-      // client-side cap feature exists yet, so this is normally absent/null —
-      // an explicit null is a real "no cap", never re-labelled.
-      streamCapKbps: payload.streamCapKbps ?? 0,
+      // The cap the stream was actually opened with, latched by Rust from the
+      // stream URL — a mid-playback settings change affects the next stream,
+      // never relabels the current one. An explicit `null` is a REAL "no cap"
+      // (Rust `None`); only a truly absent field (legacy event) falls back to
+      // a snapshot of the current per-address setting.
+      streamCapKbps: payload.streamCapKbps === undefined
+        ? effectiveStreamCapKbps(cur.serverId)
+        : (payload.streamCapKbps ?? 0),
+    },
+  });
+}
+
+/** Merge trusted HTTP stream provenance only into the exact format instance. */
+export function handleAudioStreamProvenance(payload: AudioStreamProvenancePayload): void {
+  if (!payload || !['original', 'transcoded', 'unknown'].includes(payload.provenance)) return;
+  const state = usePlayerStore.getState();
+  const cur = state.currentTrack;
+  const resolved = state.resolvedStreamFormat;
+  if (!cur || !resolved) return;
+  if (payload.trackId !== cur.id || resolved.trackId !== payload.trackId) return;
+  if (cur.serverId != null && !indexKeyBelongsToServer(payload.serverId, cur.serverId)) return;
+  if (resolved.serverId !== payload.serverId) return;
+  if (resolved.generation == null || resolved.generation !== payload.generation) return;
+  usePlayerStore.setState({
+    resolvedStreamFormat: {
+      ...resolved,
+      provenance: payload.provenance,
     },
   });
 }

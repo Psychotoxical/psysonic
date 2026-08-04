@@ -20,10 +20,17 @@ import {
   DEFAULT_LIBRARY_GRID_MAX_COLUMNS,
 } from './authStoreDefaults';
 import { computeAuthStoreRehydration } from './authStoreRehydrate';
-import { syncAllServerHttpContexts } from '@/lib/server/syncServerHttpContext';
+import {
+  setServerHttpContextIdentitySource,
+  syncAllServerHttpContexts,
+} from '@/lib/server/syncServerHttpContext';
 import type { AuthState } from './authStoreTypes';
 import { getCachedConnectBaseUrl } from '@/lib/server/serverEndpoint';
-import { serverProfileBaseUrl } from '@/lib/server/serverBaseUrl';
+import {
+  serverIndexKeyForProfile,
+  serverProfileBaseUrl,
+} from '@/lib/server/serverBaseUrl';
+import { isNavidromeServer } from '@/lib/server/subsonicServerIdentity';
 import {
   setDebugLoggingDepthSource,
   setDebugLoggingModeSource,
@@ -120,6 +127,8 @@ export const useAuthStore = create<AuthState>()(
       enableHiRes: false,
       hiResCrossfadeResampleHz: 44_100,
       audioOutputDevice: null,
+      streamQualityByAddress: {},
+      streamFormatByAddress: {},
       favoritesOfflineEnabled: false,
       hotCacheEnabled: false,
       hotCacheMaxMb: 256,
@@ -202,14 +211,27 @@ export const useAuthStore = create<AuthState>()(
       onRehydrateStorage: () => (state, error) => {
         if (error || !state) return;
         useAuthStore.setState(computeAuthStoreRehydration(state));
-        void syncAllServerHttpContexts(useAuthStore.getState().servers);
+        const current = useAuthStore.getState();
+        void syncAllServerHttpContexts(current.servers, current.subsonicServerIdentityByServer);
       },
     }
   )
 );
+
+/** Whether this saved profile has a verified Navidrome raw-original contract. */
+export function serverSupportsRawStream(serverId: string): boolean {
+  const { servers, subsonicServerIdentityByServer } = useAuthStore.getState();
+  const server = servers.find(
+    candidate => candidate.id === serverId || serverIndexKeyForProfile(candidate) === serverId,
+  );
+  return !!server && isNavidromeServer(subsonicServerIdentityByServer[server.id]);
+}
 
 // Wire the lib-safe debug-logging gate to the auth store's `loggingMode`
 // (store → lib injection; keeps `src/lib` instrumentation free of store imports).
 setDebugLoggingModeSource(() => useAuthStore.getState().loggingMode === 'debug');
 setDebugLoggingDepthSource(() => useAuthStore.getState().debugLoggingDepth);
 setLibraryBrowseScopeSource(() => useAuthStore.getState());
+setServerHttpContextIdentitySource(
+  () => useAuthStore.getState().subsonicServerIdentityByServer,
+);

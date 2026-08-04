@@ -258,6 +258,7 @@ async fn open_preview_decoder(
             state.loudness_pre_analysis_attenuation_db.clone(),
             None,
             None,
+            false,
             http_headers.clone(),
             None,
             playback_armed,

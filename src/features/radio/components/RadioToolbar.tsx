@@ -1,24 +1,16 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import CustomSelect from '@/ui/CustomSelect';
 
 export type RadioSortBy = 'manual' | 'az' | 'za' | 'newest';
 
 interface RadioToolbarProps {
-  sortBy: RadioSortBy;
   activeFilter: string;
-  onSortChange: (s: RadioSortBy) => void;
   onFilterChange: (f: string) => void;
 }
 
-export default function RadioToolbar({ sortBy, activeFilter, onSortChange, onFilterChange }: RadioToolbarProps) {
+/** Filter chips only — the sort picker sits in the page header beside the actions. */
+export default function RadioToolbar({ activeFilter, onFilterChange }: RadioToolbarProps) {
   const { t } = useTranslation();
-  const sortOptions = [
-    { value: 'manual', label: t('radio.sortManual') },
-    { value: 'az',     label: t('radio.sortAZ') },
-    { value: 'za',     label: t('radio.sortZA') },
-    { value: 'newest', label: t('radio.sortNewest') },
-  ];
   return (
     <div className="radio-toolbar">
       <div className="radio-toolbar-chips">
@@ -32,12 +24,6 @@ export default function RadioToolbar({ sortBy, activeFilter, onSortChange, onFil
           </button>
         ))}
       </div>
-      <CustomSelect
-        value={sortBy}
-        options={sortOptions}
-        onChange={v => onSortChange(v as RadioSortBy)}
-        style={{ width: 'max-content', minWidth: 130, maxWidth: 220, flexShrink: 0 }}
-      />
     </div>
   );
 }

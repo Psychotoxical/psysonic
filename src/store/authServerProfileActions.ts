@@ -1,7 +1,12 @@
 import type { AuthState } from './authStoreTypes';
 import { generateId } from './authStoreHelpers';
-import { getQueueServerId, clearQueueServerForPlayback } from './playbackEngineBridge';
+import {
+  clearQueueServerForPlayback,
+  getQueueServerId,
+  invalidatePlaybackPreloads,
+} from './playbackEngineBridge';
 import { resolveServerIdForIndexKey } from '@/lib/server/serverLookup';
+import { serverProfileBaseUrl } from '@/lib/server/serverBaseUrl';
 import { deriveLibraryBrowseServerIdsWithFallback } from '@/lib/library/libraryBrowseScope';
 import {
   emitMultiServerDebug,
@@ -12,6 +17,36 @@ type SetState = (
   partial: Partial<AuthState> | ((state: AuthState) => Partial<AuthState>),
 ) => void;
 type GetState = () => AuthState;
+
+/** Normalized `[url, alternateUrl]` of a profile (mirrors `allNormalizedAddresses`,
+ *  duplicated here because the store layer must not import the connect layer). */
+function profileAddresses(srv: { url: string; alternateUrl?: string }): string[] {
+  return [...new Set([srv.url, srv.alternateUrl]
+    .filter((u): u is string => !!u && u.trim().length > 0)
+    .map(u => serverProfileBaseUrl({ url: u })))];
+}
+
+function profileAddressSetChanged(
+  before: { url: string; alternateUrl?: string },
+  after: { url: string; alternateUrl?: string },
+): boolean {
+  const beforeAddresses = new Set(profileAddresses(before));
+  const afterAddresses = new Set(profileAddresses(after));
+  return beforeAddresses.size !== afterAddresses.size
+    || [...beforeAddresses].some(address => !afterAddresses.has(address));
+}
+
+function serverAddressSetsChanged(
+  before: Array<{ id: string; url: string; alternateUrl?: string }>,
+  after: Array<{ id: string; url: string; alternateUrl?: string }>,
+): boolean {
+  if (before.length !== after.length) return true;
+  const afterById = new Map(after.map(server => [server.id, server]));
+  return before.some((server) => {
+    const next = afterById.get(server.id);
+    return !next || profileAddressSetChanged(server, next);
+  });
+}
 
 /**
  * Server profile + connection lifecycle. `removeServer` is the
@@ -61,12 +96,46 @@ export function createServerProfileActions(set: SetState, get: GetState): Pick<
     },
 
     updateServer: (id, data) => {
-      set(s => ({
-        servers: s.servers.map(srv => srv.id === id ? { ...srv, ...data } : srv),
-      }));
+      let addressesChanged = false;
+      set(s => {
+        const prev = s.servers.find(srv => srv.id === id);
+        const servers = s.servers.map(srv => srv.id === id ? { ...srv, ...data } : srv);
+        const next = servers.find(srv => srv.id === id);
+        addressesChanged = Boolean(prev && next && profileAddressSetChanged(prev, next));
+        // Address edit invalidates that address's streaming-quality preference:
+        // the new address's Navidrome identity / transport is unverified until
+        // re-probed, so caps for addresses no longer on any profile are dropped.
+        let streamQualityByAddress = s.streamQualityByAddress;
+        let streamFormatByAddress = s.streamFormatByAddress;
+        let subsonicServerIdentityByServer = s.subsonicServerIdentityByServer;
+        if (addressesChanged) {
+          const live = new Set(
+            servers.flatMap(profileAddresses),
+          );
+          streamQualityByAddress = Object.fromEntries(
+            Object.entries(s.streamQualityByAddress).filter(([addr]) => live.has(addr)),
+          );
+          streamFormatByAddress = Object.fromEntries(
+            Object.entries(s.streamFormatByAddress).filter(([addr]) => live.has(addr)),
+          );
+          // The edited address is an unverified endpoint: drop the cached
+          // server identity so Navidrome-gated features (streaming quality)
+          // hide until the connection re-probe confirms what it is.
+          const { [id]: _stale, ...identityRest } = s.subsonicServerIdentityByServer;
+          subsonicServerIdentityByServer = identityRest;
+        }
+        return {
+          servers,
+          streamQualityByAddress,
+          streamFormatByAddress,
+          subsonicServerIdentityByServer,
+        };
+      });
+      if (addressesChanged) void invalidatePlaybackPreloads().catch(() => {});
     },
 
     removeServer: (id) => {
+      const serversBeforeRemoval = get().servers;
       // queueServerId is the canonical index key (B1); resolve the
       // canonical id back to a server UUID before comparing so a profile
       // delete still clears the matching queue binding.
@@ -86,6 +155,14 @@ export function createServerProfileActions(set: SetState, get: GetState): Pick<
         const { [id]: _ex, ...extRest } = s.openSubsonicExtensionsByServer;
         const { [id]: _folders, ...foldersRest } = s.musicFoldersByServer;
         const { [id]: _browseSelection, ...browseSelectionRest } = s.libraryBrowseSelectionByServer;
+        // Drop streaming-quality prefs for addresses no other profile uses.
+        const liveAddresses = new Set(newServers.flatMap(profileAddresses));
+        const streamQualityByAddress = Object.fromEntries(
+          Object.entries(s.streamQualityByAddress).filter(([addr]) => liveAddresses.has(addr)),
+        );
+        const streamFormatByAddress = Object.fromEntries(
+          Object.entries(s.streamFormatByAddress).filter(([addr]) => liveAddresses.has(addr)),
+        );
         const activeServerId = switchedAway ? (newServers[0]?.id ?? null) : s.activeServerId;
         return {
           servers: newServers,
@@ -109,8 +186,13 @@ export function createServerProfileActions(set: SetState, get: GetState): Pick<
           instantMixProbeByServer: probeRest,
           audiomusePluginProbeByServer: pluginProbeRest,
           openSubsonicExtensionsByServer: extRest,
+          streamQualityByAddress,
+          streamFormatByAddress,
         };
       });
+      if (serverAddressSetsChanged(serversBeforeRemoval, get().servers)) {
+        void invalidatePlaybackPreloads().catch(() => {});
+      }
     },
 
     setServers: (servers) => {
@@ -133,6 +215,9 @@ export function createServerProfileActions(set: SetState, get: GetState): Pick<
         configuredServerIds: after.libraryBrowseServerIds,
         libraryBrowseScopeVersion: after.libraryBrowseScopeVersion,
       });
+      if (serverAddressSetsChanged(before.servers, after.servers)) {
+        void invalidatePlaybackPreloads().catch(() => {});
+      }
     },
     setActiveServer: (id) => {
       const before = get();

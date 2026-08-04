@@ -63,6 +63,9 @@ pub(super) struct PlayInputContext<'a> {
     /// Playback server scope for the analysis-cache write key (empty/`None` →
     /// legacy `''`). Rides alongside `cache_id_for_tasks` into every seed path.
     pub server_id: Option<&'a str>,
+    /// Final loudness is absent for this playback identity, so stream progress
+    /// may emit provisional gain hints while loudness mode is active.
+    pub needs_partial_loudness: bool,
     /// `Some(bytes)` when manual-skip onto a pre-chained track reuses bytes
     /// from the chained-info block.
     pub reuse_chained_bytes: Option<Vec<u8>>,
@@ -90,6 +93,7 @@ fn spawn_playback_analysis_bytes(
         sid,
         track_id.to_string(),
         bytes,
+        Some(ctx.url.to_string()),
         high,
         Some((ctx.gen, state.generation.clone())),
     );
@@ -123,6 +127,7 @@ pub(super) async fn select_play_input(
                 sid,
                 track_id.to_string(),
                 d.clone(),
+                Some(ctx.url.to_string()),
                 high,
                 Some((ctx.gen, state.generation.clone())),
             );
@@ -195,6 +200,7 @@ fn open_local_file_input(
             sid,
             seed_id.to_string(),
             std::path::PathBuf::from(path),
+            None, // genuine local file — original by definition
             high,
             Some((ctx.gen, state.generation.clone())),
         );
@@ -313,8 +319,15 @@ async fn open_ranged_or_streaming_input(
             gen: ctx.gen,
             format_hint: stream_hint.clone(),
         });
-        let loudness_hold_for_defer = (total_usize <= super::stream::TRACK_STREAM_PROMOTE_MAX_BYTES)
-            .then_some(state.ranged_loudness_seed_hold.clone());
+        let analysis_seed_hold = (total_usize <= super::stream::TRACK_STREAM_PROMOTE_MAX_BYTES)
+            .then(|| {
+                super::stream::AnalysisSeedHoldGuard::arm(
+                    Some(&state.playback_analysis_seed_hold),
+                    ctx.cache_id_for_tasks,
+                    ctx.gen,
+                )
+            })
+            .flatten();
         tokio::spawn(ranged_download_task(
             ctx.gen,
             state.generation.clone(),
@@ -333,8 +346,9 @@ async fn open_ranged_or_streaming_input(
             state.loudness_pre_analysis_attenuation_db.clone(),
             ctx.cache_id_for_tasks.map(|s| s.to_string()),
             ctx.server_id.map(|s| s.to_string()),
+            ctx.needs_partial_loudness,
             http_headers.clone(),
-            loudness_hold_for_defer,
+            analysis_seed_hold,
             playback_armed,
             stream_hint.clone(),
             tail_ready.clone(),
@@ -393,6 +407,11 @@ async fn open_ranged_or_streaming_input(
     let done = Arc::new(AtomicBool::new(false));
     state.stream_playback_armed.store(false, Ordering::SeqCst);
     let playback_armed = state.stream_playback_armed.clone();
+    let analysis_seed_hold = super::stream::AnalysisSeedHoldGuard::arm(
+        Some(&state.playback_analysis_seed_hold),
+        ctx.cache_id_for_tasks,
+        ctx.gen,
+    );
     tokio::spawn(track_download_task(
         ctx.gen,
         state.generation.clone(),
@@ -403,11 +422,9 @@ async fn open_ranged_or_streaming_input(
         prod,
         done.clone(),
         state.stream_completed_cache.clone(),
-        state.normalization_engine.clone(),
-        state.normalization_target_lufs.clone(),
-        state.loudness_pre_analysis_attenuation_db.clone(),
         ctx.cache_id_for_tasks.map(|s| s.to_string()),
         ctx.server_id.map(|s| s.to_string()),
+        analysis_seed_hold,
         http_headers,
         playback_armed,
     ));
@@ -451,9 +468,9 @@ pub(crate) fn url_format_hint(url: &str) -> Option<String> {
 }
 
 /// The `maxBitRate` cap (kbps) a `stream.view` URL was opened with, if any.
-/// This latches the requested quality to the stream itself: today's frontend
-/// never sends the param, so it resolves to `None`; a future client-side cap
-/// feature (or a proxy) shows up here without further changes.
+/// This latches the requested quality to the stream itself — the setting may
+/// change while the track is still playing, but the URL records what this
+/// playback generation actually asked the server for.
 pub(crate) fn url_stream_cap_kbps(url: &str) -> Option<u32> {
     let query = url.split_once('?')?.1;
     query.split('&').find_map(|kv| {

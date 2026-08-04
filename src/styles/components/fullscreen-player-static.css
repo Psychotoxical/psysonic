@@ -211,6 +211,18 @@
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
 }
 
+.fsp-artist-link {
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+.fsp-artist-link:hover {
+  text-decoration: underline;
+}
+.fsp-artist-plain {
+  color: inherit;
+}
+
 .fsp-meta {
   display: flex;
   align-items: center;

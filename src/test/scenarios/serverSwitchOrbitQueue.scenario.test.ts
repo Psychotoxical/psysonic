@@ -26,7 +26,7 @@ vi.mock('@/features/playback/store/queueSyncUiState', async (io) => ({
 // wiring doesn't surface as an unhandled rejection after the assertion.
 vi.mock('@/lib/server/syncServerHttpContext', async (io) => ({
   ...(await io<typeof import('@/lib/server/syncServerHttpContext')>()),
-  syncServerHttpContextForProfile: vi.fn(),
+  syncServerHttpContextForProfile: vi.fn(async () => undefined),
 }));
 
 import { switchActiveServer } from '@/utils/server/switchActiveServer';

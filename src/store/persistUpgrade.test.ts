@@ -68,6 +68,33 @@ describe('localPlaybackStore rehydrate (partialize: entries)', () => {
     await useLocalPlaybackStore.persist.rehydrate();
     expect(useLocalPlaybackStore.getState().getEntry('t1', 'k')?.localPath).toBe('/disk/t1.opus');
   });
+
+  it('marks pre-verification entries untrusted while preserving persistent files', async () => {
+    localStorage.setItem('psysonic-local-playback', JSON.stringify({
+      version: 0,
+      state: {
+        entries: {
+          'k:t1': {
+            serverIndexKey: 'k',
+            trackId: 't1',
+            localPath: '/disk/t1.flac',
+            layoutFingerprint: 'fp',
+            sizeBytes: 10,
+            suffix: 'flac',
+            tier: 'library',
+            cachedAt: 1,
+          },
+        },
+      },
+    }));
+
+    await useLocalPlaybackStore.persist.rehydrate();
+
+    expect(useLocalPlaybackStore.getState().getEntry('t1', 'k')).toMatchObject({
+      localPath: '/disk/t1.flac',
+      originalBytesVerified: false,
+    });
+  });
 });
 
 describe('offlineStore rehydrate (partialize: albums)', () => {

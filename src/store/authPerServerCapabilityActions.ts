@@ -1,4 +1,5 @@
 import { isNavidromeAudiomuseSoftwareEligible } from '@/lib/server/subsonicServerIdentity';
+import { syncServerHttpContextForProfile } from '@/lib/server/syncServerHttpContext';
 import type { AuthState } from './authStoreTypes';
 
 type SetState = (
@@ -49,8 +50,10 @@ export function createPerServerCapabilityActions(set: SetState): Pick<
         return { audiomuseNavidromeByServer, audiomuseNavidromeIssueByServer: issueRest };
       }),
 
-    setSubsonicServerIdentity: (serverId, identity) =>
+    setSubsonicServerIdentity: (serverId, identity) => {
+      let profile: AuthState['servers'][number] | undefined;
       set(s => {
+        profile = s.servers.find(server => server.id === serverId);
         const prev = s.subsonicServerIdentityByServer[serverId];
         const subsonicServerIdentityByServer = { ...s.subsonicServerIdentityByServer, [serverId]: { ...identity } };
         if (!isNavidromeAudiomuseSoftwareEligible(identity)) {
@@ -81,7 +84,11 @@ export function createPerServerCapabilityActions(set: SetState): Pick<
           };
         }
         return { subsonicServerIdentityByServer };
-      }),
+      });
+      if (profile) {
+        void syncServerHttpContextForProfile(profile, identity).catch(() => {});
+      }
+    },
 
     setInstantMixProbe: (serverId, result) =>
       set(s => {

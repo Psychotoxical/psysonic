@@ -8,7 +8,8 @@ use std::collections::HashSet;
 use crate::analysis_cache;
 use crate::analysis_runtime::{
     analysis_backfill_queue_stats, analysis_pipeline_queue_stats, enqueue_seed_from_url,
-    prune_analysis_queues, AnalysisBackfillPriority, PlaybackPriorityHints,
+    prune_analysis_queues, AnalysisBackfillPriority, EnqueueSeedFromUrlOutcome,
+    PlaybackPriorityHints,
 };
 
 #[derive(serde::Serialize, specta::Type)]
@@ -318,7 +319,7 @@ pub fn analysis_enqueue_seed_from_url(
     server_id: Option<String>,
     priority: Option<String>,
     app: tauri::AppHandle,
-) -> Result<(), String> {
+) -> Result<EnqueueSeedFromUrlOutcome, String> {
     let explicit = AnalysisBackfillPriority::from_optional_str(priority.as_deref());
     enqueue_seed_from_url(
         &app,

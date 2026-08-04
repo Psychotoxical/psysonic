@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { prepareTransientUiOpen } from '@/lib/dom/transientUi';
 
 const LONG_PRESS_MS = 550;
 const MOVE_CANCEL_PX = 10;
@@ -25,6 +26,8 @@ export function usePlaybackDelayPress(togglePlay: () => void) {
     }
   }, []);
 
+  useEffect(() => () => clearTimer(), [clearTimer]);
+
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -33,6 +36,7 @@ export function usePlaybackDelayPress(togglePlay: () => void) {
       timerRef.current = window.setTimeout(() => {
         timerRef.current = null;
         ignoreNextClickRef.current = true;
+        prepareTransientUiOpen();
         setDelayModalOpen(true);
       }, LONG_PRESS_MS) as unknown as number;
     },

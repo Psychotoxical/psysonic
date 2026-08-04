@@ -56,12 +56,12 @@ describe('PlaylistsHeader', () => {
     const view = renderWithProviders(<HeaderHarness />);
 
     expect(view.queryByRole('textbox', { name: 'Playlist Name' })).not.toBeInTheDocument();
-    expect(view.queryByRole('button', { name: 'Servers' })).not.toBeInTheDocument();
+    expect(view.queryByRole('combobox', { name: 'Servers' })).not.toBeInTheDocument();
 
     await user.click(view.getByRole('button', { name: 'New Playlist' }));
 
     expect(view.getByRole('textbox', { name: 'Playlist Name' })).toBeInTheDocument();
-    const serverSelect = view.getByRole('button', { name: 'Servers' });
+    const serverSelect = view.getByRole('combobox', { name: 'Servers' });
     expect(serverSelect).toHaveTextContent('Server A');
 
     await user.click(serverSelect);
@@ -70,7 +70,7 @@ describe('PlaylistsHeader', () => {
 
     await user.click(view.getByRole('button', { name: 'Cancel' }));
     expect(view.queryByRole('textbox', { name: 'Playlist Name' })).not.toBeInTheDocument();
-    expect(view.queryByRole('button', { name: 'Servers' })).not.toBeInTheDocument();
+    expect(view.queryByRole('combobox', { name: 'Servers' })).not.toBeInTheDocument();
   });
 
   it('selects a Navidrome owner when opening the smart playlist editor', async () => {
@@ -82,7 +82,7 @@ describe('PlaylistsHeader', () => {
 
     expect(view.getByTestId('smart-editor-open')).toBeInTheDocument();
     expect(view.getByTestId('selected-server')).toHaveTextContent('server-b');
-    expect(view.queryByRole('button', { name: 'Servers' })).not.toBeInTheDocument();
+    expect(view.queryByRole('combobox', { name: 'Servers' })).not.toBeInTheDocument();
   });
 
   it('hides the server selector when creating in single-server mode', async () => {
@@ -94,6 +94,6 @@ describe('PlaylistsHeader', () => {
     await user.click(view.getByRole('button', { name: 'New Playlist' }));
 
     expect(view.getByRole('textbox', { name: 'Playlist Name' })).toBeInTheDocument();
-    expect(view.queryByRole('button', { name: 'Servers' })).not.toBeInTheDocument();
+    expect(view.queryByRole('combobox', { name: 'Servers' })).not.toBeInTheDocument();
   });
 });

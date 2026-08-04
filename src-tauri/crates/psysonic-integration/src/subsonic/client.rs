@@ -728,6 +728,7 @@ mod tests {
             endpoints: vec![(server.uri(), EndpointKind::Public)],
             headers: vec![("CF-Access-Client-Secret".into(), "gate-secret".into())],
             apply_to: CustomHeadersApplyTo::Public,
+            supports_raw_stream: false,
         };
         test_client(&server.uri())
             .with_http_context(ctx)
@@ -785,6 +786,7 @@ mod tests {
             endpoints: vec![(server.uri(), EndpointKind::Public)],
             headers: vec![("CF-Access-Client-Secret".into(), "gate-secret".into())],
             apply_to: CustomHeadersApplyTo::Public,
+            supports_raw_stream: false,
         };
         let params = vec![
             ("u".to_string(), "user".to_string()),

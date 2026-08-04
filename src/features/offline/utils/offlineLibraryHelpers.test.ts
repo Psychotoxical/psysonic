@@ -49,6 +49,7 @@ describe('offlineLibraryHelpers', () => {
     useAuthStore.setState({
       servers: [{ id: 'a', name: 'Home', url: 'http://a.test', username: 'u', password: 'p' }],
       activeServerId: 'a',
+      subsonicServerIdentityByServer: {},
     });
     useLocalPlaybackStore.setState({ entries: {} });
   });
@@ -98,6 +99,31 @@ describe('offlineLibraryHelpers', () => {
       },
     });
     expect(pendingOfflinePinSongs([{ id: 't1' }, { id: 't2' }], 'a')).toEqual([{ id: 't2' }]);
+  });
+
+  it('refreshes legacy Navidrome pins until native verification is persisted', () => {
+    useAuthStore.getState().setSubsonicServerIdentity('a', { type: 'navidrome' });
+    const entry = {
+      serverIndexKey: 'a.test',
+      trackId: 't1',
+      localPath: '/x',
+      layoutFingerprint: 'fp',
+      sizeBytes: 1,
+      tier: 'library' as const,
+      cachedAt: 1,
+      suffix: 'flac',
+      originalBytesVerified: false,
+    };
+    useLocalPlaybackStore.setState({ entries: { 'a.test:t1': entry } });
+
+    expect(pendingOfflinePinSongs([{ id: 't1' }], 'a')).toEqual([{ id: 't1' }]);
+    expect(isOfflinePinComplete('al1', 'a', ['t1'])).toBe(false);
+
+    useLocalPlaybackStore.setState({
+      entries: { 'a.test:t1': { ...entry, originalBytesVerified: true } },
+    });
+    expect(pendingOfflinePinSongs([{ id: 't1' }], 'a')).toEqual([]);
+    expect(isOfflinePinComplete('al1', 'a', ['t1'])).toBe(true);
   });
 
   it('isOfflinePinComplete with songIds finds entries stored under server UUID', () => {

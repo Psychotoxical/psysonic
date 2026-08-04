@@ -169,6 +169,47 @@ impl Source for DynSource {
     }
 }
 
+// ─── CancellableSource — exhaust a queued source without stopping its Sink ──
+
+pub(crate) struct CancellableSource<S: Source<Item = f32>> {
+    inner: S,
+    cancel: Arc<AtomicBool>,
+}
+
+impl<S: Source<Item = f32>> CancellableSource<S> {
+    pub(crate) fn new(inner: S, cancel: Arc<AtomicBool>) -> Self {
+        Self { inner, cancel }
+    }
+}
+
+impl<S: Source<Item = f32>> Iterator for CancellableSource<S> {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<f32> {
+        if self.cancel.load(Ordering::Acquire) {
+            None
+        } else {
+            self.inner.next()
+        }
+    }
+}
+
+impl<S: Source<Item = f32>> Source for CancellableSource<S> {
+    fn current_span_len(&self) -> Option<usize> {
+        if self.cancel.load(Ordering::Acquire) {
+            Some(0)
+        } else {
+            self.inner.current_span_len()
+        }
+    }
+    fn channels(&self) -> rodio::ChannelCount { self.inner.channels() }
+    fn sample_rate(&self) -> rodio::SampleRate { self.inner.sample_rate() }
+    fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
+    fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
+        self.inner.try_seek(pos)
+    }
+}
+
 // ─── EqualPowerFadeIn — per-sample sin(t·π/2) fade-in envelope ───────────────
 //
 // Applied to every new track:
@@ -556,5 +597,15 @@ mod counting_source_tests {
         let mut src2 = CountingSource::new_gated(TwoSamples(0), counter.clone(), gate);
         assert_eq!(src2.next(), Some(0.1));
         assert_eq!(counter.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn cancelled_source_exhausts_without_reading_more_successor_samples() {
+        let cancel = Arc::new(AtomicBool::new(false));
+        let mut src = CancellableSource::new(TwoSamples(0), cancel.clone());
+        assert_eq!(src.next(), Some(0.1));
+        cancel.store(true, Ordering::Release);
+        assert_eq!(src.next(), None);
+        assert_eq!(src.current_span_len(), Some(0));
     }
 }

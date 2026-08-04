@@ -6,3 +6,13 @@ export function serverProfileBaseUrl(server: Pick<ServerProfile, 'url'>): string
   const base = server.url.startsWith('http') ? server.url : `http://${server.url}`;
   return base.replace(/\/$/, '');
 }
+
+/** Stable index key derived from a server URL (host + optional path, no scheme). */
+export function serverIndexKeyFromUrl(urlRaw: string): string {
+  const base = serverProfileBaseUrl({ url: urlRaw });
+  return base.replace(/^https?:\/\//, '');
+}
+
+export function serverIndexKeyForProfile(server: Pick<ServerProfile, 'url'>): string {
+  return serverIndexKeyFromUrl(server.url);
+}

@@ -17,6 +17,7 @@ vi.mock('@/lib/api/subsonic', () => ({
 }));
 
 vi.mock('@/lib/server/syncServerHttpContext', () => ({
+  setServerHttpContextIdentitySource: vi.fn(),
   syncServerHttpContextForProfile: vi.fn(async () => undefined),
 }));
 

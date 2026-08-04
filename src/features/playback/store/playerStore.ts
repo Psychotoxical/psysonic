@@ -44,6 +44,7 @@ export const usePlayerStore = create<PlayerState>()(
       return {
       currentTrack: null,
       resolvedStreamFormat: null,
+      streamFormatGenerationFloor: 0,
       waveformBins: null,
       normalizationNowDb: null,
       normalizationTargetLufs: null,

@@ -3,6 +3,7 @@ import {
   headersForServerRequest,
   requestBaseUrlFromHttpUrl,
   serverCustomHeadersFromForm,
+  serverHttpContextWireForProfile,
   validateCustomHeaders,
 } from '@/lib/server/serverHttpHeaders';
 
@@ -65,5 +66,31 @@ describe('serverCustomHeadersFromForm', () => {
       customHeaders: [{ name: 'X-Gate', value: 'secret' }],
       customHeadersApplyTo: 'public',
     });
+  });
+});
+
+describe('serverHttpContextWireForProfile', () => {
+  const profile = {
+    id: 'profile-1',
+    url: 'https://music.example.com',
+  };
+
+  it('derives raw-stream support only from current Navidrome identity', () => {
+    expect(
+      serverHttpContextWireForProfile(profile, { type: 'Navidrome' }).supportsRawStream,
+    ).toBe(true);
+    expect(
+      serverHttpContextWireForProfile(profile, { type: 'subsonic' }).supportsRawStream,
+    ).toBe(false);
+    expect(serverHttpContextWireForProfile(profile).supportsRawStream).toBe(false);
+  });
+
+  it('keeps a capability-only context when the profile has no headers', () => {
+    expect(serverHttpContextWireForProfile(profile, { type: 'navidrome' })).toEqual(
+      expect.objectContaining({
+        customHeaders: [],
+        supportsRawStream: true,
+      }),
+    );
   });
 });

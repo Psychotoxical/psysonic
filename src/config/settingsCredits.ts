@@ -437,6 +437,7 @@ const CONTRIBUTOR_ENTRIES = [
       'Fullscreen player — volume slider added to the Minimal and Immersive styles (PR #1340)',
       'Multi-disc albums — disc covers next to "CD N" in the album track list (PR #1336)',
       'Theme Store — a random theme of the moment, surfacing older themes above the search box (PR #1357)',
+      'Visualizer — separate switches for Now Playing and the fullscreen player (PR #1378)',
     ],
   },
   {
@@ -502,6 +503,15 @@ const CONTRIBUTOR_ENTRIES = [
     since: '1.51.0',
     contributions: [
       'Now-playing badge shows the real decoded stream format on server transcode (PR #1338)',
+      'Audio visualizer across Now Playing, radio and fullscreen player surfaces (PR #1375)',
+      'Per-address Navidrome streaming quality with original-stream analysis and cache isolation (PR #1334)',
+    ],
+  },
+  {
+    github: 'enncoded',
+    since: '1.51.0',
+    contributions: [
+      'Clickable artist credits in the fullscreen, mini and mobile players (PR #1371)',
     ],
   },
 ] as const;

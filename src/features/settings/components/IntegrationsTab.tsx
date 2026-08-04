@@ -84,6 +84,7 @@ export function IntegrationsTab() {
                   options={discordCoverOptions}
                   value={auth.discordCoverSource}
                   onChange={auth.setDiscordCoverSource}
+                  ariaLabel={t('settings.discordCoverTitle')}
                 />
               </SettingsGroup>
 

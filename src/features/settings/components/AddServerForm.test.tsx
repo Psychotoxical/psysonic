@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '@/test/helpers/renderWithProviders';
+import { resetAuthStore } from '@/test/helpers/storeReset';
 import { AddServerForm } from '@/features/settings/components/AddServerForm';
 import { encodeServerMagicString } from '@/lib/server/serverMagicString';
+import { useAuthStore } from '@/store/authStore';
 
 // resolve_host_addresses Tauri command — hint-only, must not block save.
 vi.mock('@/lib/api/network', () => ({
@@ -19,6 +21,7 @@ import { showToast } from '@/lib/dom/toast';
 
 describe('AddServerForm — dual-address behaviour', () => {
   beforeEach(() => {
+    resetAuthStore();
     vi.clearAllMocks();
   });
 
@@ -146,6 +149,7 @@ describe('AddServerForm — dual-address behaviour', () => {
 
 describe('AddServerForm — custom HTTP headers', () => {
   beforeEach(() => {
+    resetAuthStore();
     vi.clearAllMocks();
   });
 
@@ -171,5 +175,133 @@ describe('AddServerForm — custom HTTP headers', () => {
     const arg = onSave.mock.calls[0]![0];
     expect(arg.customHeaders).toEqual([{ name: 'CF-Access-Client-Secret', value: 'gate-secret' }]);
     expect(arg.customHeadersApplyTo).toBe('public');
+  });
+});
+
+describe('AddServerForm — streaming quality', () => {
+  const editingServer = {
+    id: 'srv-1',
+    name: 'Home',
+    url: 'https://music.example.com',
+    alternateUrl: 'http://192.168.0.10:4533',
+    shareUsesLocalUrl: false,
+    username: 'tester',
+    password: 'pw',
+  };
+
+  beforeEach(() => {
+    resetAuthStore();
+    vi.clearAllMocks();
+    useAuthStore.setState({
+      servers: [editingServer],
+      subsonicServerIdentityByServer: {
+        'srv-1': { type: 'navidrome', serverVersion: '0.56.0', openSubsonic: true },
+      },
+      streamQualityByAddress: {
+        'https://music.example.com': 192,
+        'http://192.168.0.10:4533': 96,
+      },
+      streamFormatByAddress: {
+        'https://music.example.com': 'mp3',
+        'http://192.168.0.10:4533': 'opus',
+      },
+    });
+  });
+
+  it('shows both saved addresses in one disclosure below custom HTTP headers', async () => {
+    renderWithProviders(
+      <AddServerForm editingServer={editingServer} onSave={vi.fn()} onCancel={vi.fn()} />,
+    );
+    const user = userEvent.setup();
+    const customHeadersToggle = screen.getByRole('button', { name: /Custom HTTP headers/i });
+    const streamQualityToggle = screen.getByRole('button', { name: /Streaming Quality/ });
+
+    expect(customHeadersToggle.compareDocumentPosition(streamQualityToggle))
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(streamQualityToggle).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(streamQualityToggle);
+    expect(streamQualityToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('combobox', {
+      name: 'Streaming Quality · https://music.example.com',
+    })).toHaveTextContent('192 kbps');
+    expect(screen.getByRole('combobox', {
+      name: 'Transcode format · https://music.example.com',
+    })).toHaveTextContent('MP3');
+
+    expect(screen.getByRole('combobox', {
+      name: 'Streaming Quality · http://192.168.0.10:4533',
+    })).toHaveTextContent('96 kbps');
+  });
+
+  it('renders its disclosure with the same flat chrome as the one above it', () => {
+    renderWithProviders(
+      <AddServerForm editingServer={editingServer} onSave={vi.fn()} onCancel={vi.fn()} />,
+    );
+
+    // `.btn-ghost` carries a resting border and tint; `btn-ghost--flat` opts out.
+    // Both disclosures sit in the same form with `padding: 4px 0`, so an outline
+    // on one of them would box its text and split two identical controls.
+    for (const name of [/Custom HTTP headers/i, /Streaming Quality/]) {
+      expect(screen.getByRole('button', { name })).toHaveClass('btn-ghost--flat');
+    }
+  });
+
+  it('applies staged per-address values only after a successful save', async () => {
+    const onSave = vi.fn(async (_data, onPersisted?: () => void) => {
+      onPersisted?.();
+    });
+    renderWithProviders(
+      <AddServerForm editingServer={editingServer} onSave={onSave} onCancel={vi.fn()} />,
+    );
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: /Streaming Quality/ }));
+    await user.click(screen.getByRole('combobox', {
+      name: 'Streaming Quality · https://music.example.com',
+    }));
+    await user.click(screen.getByRole('option', { name: '128 kbps' }));
+    await user.click(screen.getByRole('combobox', {
+      name: 'Transcode format · https://music.example.com',
+    }));
+    await user.click(screen.getByRole('option', { name: 'OPUS' }));
+
+    expect(useAuthStore.getState().streamQualityByAddress['https://music.example.com']).toBe(192);
+    expect(useAuthStore.getState().streamFormatByAddress['https://music.example.com']).toBe('mp3');
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledTimes(1);
+      expect(useAuthStore.getState().streamQualityByAddress['https://music.example.com']).toBe(128);
+      expect(useAuthStore.getState().streamFormatByAddress['https://music.example.com']).toBe('opus');
+    });
+  });
+
+  it('does not apply staged values when the server edit is rejected', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    renderWithProviders(
+      <AddServerForm editingServer={editingServer} onSave={onSave} onCancel={vi.fn()} />,
+    );
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: /Streaming Quality/ }));
+    await user.click(screen.getByRole('combobox', {
+      name: 'Streaming Quality · https://music.example.com',
+    }));
+    await user.click(screen.getByRole('option', { name: '64 kbps' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(useAuthStore.getState().streamQualityByAddress['https://music.example.com']).toBe(192);
+  });
+
+  it('keeps the controls hidden until the server is verified as Navidrome', () => {
+    useAuthStore.setState({ subsonicServerIdentityByServer: {} });
+    renderWithProviders(
+      <AddServerForm editingServer={editingServer} onSave={vi.fn()} onCancel={vi.fn()} />,
+    );
+
+    expect(screen.queryByRole('button', { name: /Streaming Quality/ })).not.toBeInTheDocument();
   });
 });

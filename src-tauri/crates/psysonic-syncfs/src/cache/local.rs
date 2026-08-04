@@ -9,9 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 
-use psysonic_analysis::analysis_runtime::{
-    enqueue_offline_library_analysis_from_file, enqueue_track_analysis, AnalysisBackfillPriority,
-};
+use psysonic_analysis::analysis_runtime::enqueue_offline_library_analysis_from_file;
 use psysonic_audio as audio;
 use psysonic_core::cover_cache_layout::sanitize_path_segment;
 use psysonic_core::media_layout::{
@@ -21,11 +19,10 @@ use psysonic_core::media_layout::{
 use psysonic_library::repos::TrackRow;
 use psysonic_library::{repos::TrackRepository, LibraryRuntime};
 use tauri::{AppHandle, Manager, State};
+use tokio::io::AsyncReadExt;
 
 use crate::file_transfer::{apply_server_http_get, finalize_streamed_download, subsonic_http_client};
 use crate::{offline_cancel_flags, DownloadSemaphore};
-
-use super::offline::enqueue_analysis_seed_from_file;
 
 /// Resolved media root `M` — user `mediaDir` or `{app_data}/media/`.
 pub fn resolve_media_dir(custom_media_dir: Option<&str>, app: &AppHandle) -> Result<std::path::PathBuf, String> {
@@ -50,6 +47,7 @@ pub struct LocalTrackDownloadResult {
     pub path: String,
     pub size: u64,
     pub layout_fingerprint: String,
+    pub original_bytes_verified: bool,
 }
 
 #[derive(serde::Serialize, specta::Type)]
@@ -186,27 +184,54 @@ fn track_row_to_path_input(row: &psysonic_library::repos::TrackRow) -> TrackPath
     }
 }
 
+struct LocalTrackHitArgs<'a> {
+    file_path: &'a Path,
+    path_str: &'a str,
+    fingerprint: &'a str,
+    app: &'a AppHandle,
+    server_index_key: &'a str,
+    library_server_id: &'a str,
+    track_id: &'a str,
+    url: &'a str,
+    client: &'a reqwest::Client,
+    registry: Option<&'a psysonic_core::server_http::ServerHttpRegistry>,
+}
+
 async fn local_track_hit_if_exists(
-    file_path: &Path,
-    path_str: &str,
-    fingerprint: &str,
-    app: &AppHandle,
-    server_index_key: &str,
-    library_server_id: &str,
-    track_id: &str,
+    args: &LocalTrackHitArgs<'_>,
+    verified_raw_request: bool,
 ) -> Result<Option<LocalTrackDownloadResult>, String> {
-    if !file_path.is_file() {
+    if !args.file_path.is_file() {
         return Ok(None);
     }
-    let size = tokio::fs::metadata(file_path)
+    if verified_raw_request {
+        let trusted = psysonic_analysis::raw_probe::fetch_trusted_original_md5(
+            args.client,
+            args.registry,
+            Some(args.server_index_key),
+            args.url,
+        )
+        .await
+        .ok_or_else(|| "raw original identity unavailable for existing local file".to_string())?;
+        let prefix = read_raw_probe_prefix(args.file_path)
+            .await
+            .map_err(|e| e.to_string())?;
+        if !psysonic_analysis::raw_probe::bytes_match_trusted(&prefix, &trusted) {
+            tokio::fs::remove_file(args.file_path)
+                .await
+                .map_err(|e| format!("remove stale unverified local file: {e}"))?;
+            return Ok(None);
+        }
+    }
+    let size = tokio::fs::metadata(args.file_path)
         .await
         .map(|m| m.len())
         .unwrap_or(0);
-    let app_seed = app.clone();
-    let tid = track_id.to_string();
-    let index_key = server_index_key.to_string();
-    let library_id = library_server_id.to_string();
-    let fp = file_path.to_path_buf();
+    let app_seed = args.app.clone();
+    let tid = args.track_id.to_string();
+    let index_key = args.server_index_key.to_string();
+    let library_id = args.library_server_id.to_string();
+    let fp = args.file_path.to_path_buf();
     tokio::spawn(async move {
         let _ = enqueue_offline_library_analysis_from_file(
             &app_seed,
@@ -215,13 +240,15 @@ async fn local_track_hit_if_exists(
             &tid,
             &fp,
             None,
+            verified_raw_request,
         )
         .await;
     });
     Ok(Some(LocalTrackDownloadResult {
-        path: path_str.to_string(),
+        path: args.path_str.to_string(),
         size,
-        layout_fingerprint: fingerprint.to_string(),
+        layout_fingerprint: args.fingerprint.to_string(),
+        original_bytes_verified: verified_raw_request,
     }))
 }
 
@@ -289,18 +316,33 @@ pub async fn download_track_local(
     ensure_track_path_within_tier(&media_root, local_tier, &file_path)
         .map_err(|e| e.to_string())?;
 
-    if let Some(hit) = local_track_hit_if_exists(
-        &file_path,
-        &path_str,
-        &fingerprint,
-        &app,
-        &server_index_key,
-        &library_server_id,
-        &track_id,
-    )
-    .await?
-    {
-        return Ok(hit);
+    let client = subsonic_http_client(std::time::Duration::from_secs(120))?;
+    let http_registry = app
+        .try_state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>()
+        .map(|s| Arc::clone(&*s));
+    let verified_raw_request = psysonic_analysis::raw_probe::is_verified_raw_stream_request(
+        http_registry.as_deref(),
+        Some(&server_index_key),
+        &url,
+    );
+    let local_track_hit_args = LocalTrackHitArgs {
+        file_path: &file_path,
+        path_str: &path_str,
+        fingerprint: &fingerprint,
+        app: &app,
+        server_index_key: &server_index_key,
+        library_server_id: &library_server_id,
+        track_id: &track_id,
+        url: &url,
+        client: &client,
+        registry: http_registry.as_deref(),
+    };
+
+    if !verified_raw_request {
+        if let Some(hit) = local_track_hit_if_exists(&local_track_hit_args, false).await?
+        {
+            return Ok(hit);
+        }
     }
 
     let _track_guard = acquire_per_track_download_lock(&per_track_download_lock_key(
@@ -311,13 +353,8 @@ pub async fn download_track_local(
     .await;
 
     if let Some(hit) = local_track_hit_if_exists(
-        &file_path,
-        &path_str,
-        &fingerprint,
-        &app,
-        &server_index_key,
-        &library_server_id,
-        &track_id,
+        &local_track_hit_args,
+        verified_raw_request,
     )
     .await?
     {
@@ -339,18 +376,11 @@ pub async fn download_track_local(
         return Err("CANCELLED".to_string());
     }
 
-    if let Some(hit) = local_track_hit_if_exists(
-        &file_path,
-        &path_str,
-        &fingerprint,
-        &app,
-        &server_index_key,
-        &library_server_id,
-        &track_id,
-    )
-    .await?
-    {
-        return Ok(hit);
+    if !verified_raw_request {
+        if let Some(hit) = local_track_hit_if_exists(&local_track_hit_args, false).await?
+        {
+            return Ok(hit);
+        }
     }
 
     if let Some(parent) = file_path.parent() {
@@ -359,10 +389,21 @@ pub async fn download_track_local(
             .map_err(|e| e.to_string())?;
     }
 
-    let client = subsonic_http_client(std::time::Duration::from_secs(120))?;
-    let http_registry = app
-        .try_state::<Arc<psysonic_core::server_http::ServerHttpRegistry>>()
-        .map(|s| Arc::clone(&*s));
+    let trusted_raw_hash = if verified_raw_request {
+        Some(
+            psysonic_analysis::raw_probe::fetch_trusted_original_md5(
+                &client,
+                http_registry.as_deref(),
+                Some(&server_index_key),
+                &url,
+            )
+            .await
+            .ok_or_else(|| "raw original identity unavailable for local download".to_string())?,
+        )
+    } else {
+        None
+    };
+
     let response = apply_server_http_get(
         &client,
         http_registry.as_deref(),
@@ -375,6 +416,12 @@ pub async fn download_track_local(
     if !response.status().is_success() {
         return Err(format!("HTTP {}", response.status().as_u16()));
     }
+    if verified_raw_request && response.status() != reqwest::StatusCode::OK {
+        return Err(format!(
+            "raw original download returned HTTP {}",
+            response.status().as_u16()
+        ));
+    }
 
     let part_path = unique_part_path(&file_path, &suffix, &track_id);
     finalize_streamed_download(
@@ -385,6 +432,16 @@ pub async fn download_track_local(
     )
     .await?;
 
+    if let Some(trusted) = trusted_raw_hash.as_deref() {
+        let prefix = read_raw_probe_prefix(&file_path)
+            .await
+            .map_err(|e| e.to_string())?;
+        if !psysonic_analysis::raw_probe::bytes_match_trusted(&prefix, trusted) {
+            let _ = tokio::fs::remove_file(&file_path).await;
+            return Err("raw original changed or did not match the downloaded bytes".to_string());
+        }
+    }
+
     enqueue_offline_library_analysis_from_file(
         &app,
         &server_index_key,
@@ -392,6 +449,7 @@ pub async fn download_track_local(
         &track_id,
         &file_path,
         None,
+        verified_raw_request,
     )
     .await?;
 
@@ -404,6 +462,7 @@ pub async fn download_track_local(
         path: path_str,
         size,
         layout_fingerprint: fingerprint,
+        original_bytes_verified: verified_raw_request,
     })
 }
 
@@ -789,6 +848,36 @@ pub async fn prune_empty_media_tier_dirs(
     Ok(())
 }
 
+async fn read_raw_probe_prefix(path: &Path) -> std::io::Result<Vec<u8>> {
+    let limit = psysonic_analysis::raw_probe::RAW_PROBE_RANGE_END + 1;
+    let file = tokio::fs::File::open(path).await?;
+    let mut prefix = Vec::with_capacity(limit as usize);
+    file.take(limit).read_to_end(&mut prefix).await?;
+    Ok(prefix)
+}
+
+async fn retain_consumed_spill_if_trusted(
+    spill_path: &Path,
+    prefix_result: std::io::Result<Vec<u8>>,
+    trusted: &str,
+) -> Result<bool, String> {
+    if prefix_result
+        .as_ref()
+        .is_ok_and(|prefix| psysonic_analysis::raw_probe::bytes_match_trusted(prefix, trusted))
+    {
+        return Ok(true);
+    }
+
+    match tokio::fs::remove_file(spill_path).await {
+        Ok(()) => Ok(false),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(format!(
+            "remove rejected stream spill {}: {e}",
+            spill_path.display()
+        )),
+    }
+}
+
 /// Promotes stream-cache bytes into `{media}/cache/…` using library-index paths.
 #[tauri::command]
 #[specta::specta]
@@ -832,6 +921,7 @@ pub async fn promote_stream_cache_to_local(
             path: path_str,
             size,
             layout_fingerprint: fingerprint,
+            original_bytes_verified: false,
         }));
     }
 
@@ -851,6 +941,7 @@ pub async fn promote_stream_cache_to_local(
             path: path_str,
             size,
             layout_fingerprint: fingerprint,
+            original_bytes_verified: false,
         }));
     }
 
@@ -862,7 +953,31 @@ pub async fn promote_stream_cache_to_local(
 
     let part_path = unique_part_path(&file_path, &suffix, &track_id);
 
+    // Provenance gate: the live bytes are only promotable as the ORIGINAL
+    // file when their fingerprint matches a verified raw-probe of the
+    // original — a server-forced transcode (invisible on the wire) must never
+    // land on disk under the original suffix.
+    let registry = app
+        .try_state::<std::sync::Arc<psysonic_core::server_http::ServerHttpRegistry>>()
+        .map(|s| std::sync::Arc::clone(&*s));
+    let trusted = match psysonic_analysis::raw_probe::resolve_trusted_identity(
+        &reqwest::Client::new(),
+        registry.as_deref(),
+        Some(library_server_id.as_str()),
+        &url,
+    )
+    .await
+    {
+        psysonic_analysis::raw_probe::TrustedProbeVerdict::Trusted(h) => h,
+        psysonic_analysis::raw_probe::TrustedProbeVerdict::SkipCanonicalWrites => {
+            return Ok(None); // unverifiable — skip promotion entirely
+        }
+    };
+
     if let Some(bytes) = audio::take_stream_completed_for_url(&state, &url) {
+        if !psysonic_analysis::raw_probe::bytes_match_trusted(&bytes, &trusted) {
+            return Ok(None); // transcoded live bytes — not the original file
+        }
         if let Err(e) = tokio::fs::write(&part_path, &bytes).await {
             let _ = tokio::fs::remove_file(&part_path).await;
             return Err(e.to_string());
@@ -870,23 +985,11 @@ pub async fn promote_stream_cache_to_local(
         tokio::fs::rename(&part_path, &file_path)
             .await
             .map_err(|e| e.to_string())?;
-        let priority = psysonic_analysis::analysis_runtime::analysis_backfill_resolve_priority(
-            &app,
-            &library_server_id,
-            &track_id,
-            None,
-        );
-        let format_hint = Some(suffix.to_ascii_lowercase());
-        let _ = enqueue_track_analysis(
-            &app,
-            &library_server_id,
-            &track_id,
-            &bytes,
-            format_hint.as_deref(),
-            priority,
-        )
-        .await;
     } else if let Some(spill_path) = audio::take_stream_completed_spill_for_url(&state, &url) {
+        let prefix = read_raw_probe_prefix(&spill_path).await;
+        if !retain_consumed_spill_if_trusted(&spill_path, prefix, &trusted).await? {
+            return Ok(None); // transcoded spill — not the original file
+        }
         if let Err(e) = tokio::fs::rename(&spill_path, &file_path).await {
             if let Err(copy_err) = tokio::fs::copy(&spill_path, &file_path).await {
                 let _ = tokio::fs::remove_file(&spill_path).await;
@@ -894,17 +997,26 @@ pub async fn promote_stream_cache_to_local(
             }
             let _ = tokio::fs::remove_file(&spill_path).await;
         }
-        enqueue_analysis_seed_from_file(
-            &app,
-            &library_server_id,
-            &track_id,
-            &file_path,
-            Some(AnalysisBackfillPriority::Middle),
-        )
-        .await;
     } else {
         return Ok(None);
     }
+
+    let priority = psysonic_analysis::analysis_runtime::analysis_backfill_resolve_priority(
+        &app,
+        &server_index_key,
+        &track_id,
+        None,
+    );
+    let _ = enqueue_offline_library_analysis_from_file(
+        &app,
+        &server_index_key,
+        &library_server_id,
+        &track_id,
+        &file_path,
+        Some(priority),
+        true,
+    )
+    .await;
 
     let size = tokio::fs::metadata(&file_path)
         .await
@@ -914,6 +1026,7 @@ pub async fn promote_stream_cache_to_local(
         path: path_str,
         size,
         layout_fingerprint: fingerprint,
+        original_bytes_verified: true,
     }))
 }
 
@@ -1305,6 +1418,69 @@ pub async fn migrate_legacy_offline_disk(
 mod migrate_tests {
     use super::*;
 
+    #[tokio::test]
+    async fn stream_spill_probe_read_is_bounded_to_raw_window() {
+        let dir = tempfile::tempdir().unwrap();
+        let spill = dir.path().join("large.complete");
+        let limit = (psysonic_analysis::raw_probe::RAW_PROBE_RANGE_END + 1) as usize;
+        let mut bytes = vec![0x11; limit];
+        bytes.extend(std::iter::repeat_n(0x22, 4096));
+        tokio::fs::write(&spill, bytes).await.unwrap();
+
+        let prefix = read_raw_probe_prefix(&spill).await.unwrap();
+
+        assert_eq!(prefix.len(), limit);
+        assert!(prefix.iter().all(|byte| *byte == 0x11));
+    }
+
+    #[tokio::test]
+    async fn stream_spill_fingerprint_mismatch_removes_consumed_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let spill = dir.path().join("mismatch.complete");
+        tokio::fs::write(&spill, vec![0x33; 1024]).await.unwrap();
+        let prefix = read_raw_probe_prefix(&spill).await;
+        let trusted = psysonic_analysis::analysis_cache::md5_first_16kb(&vec![0x44; 1024]);
+
+        let retained = retain_consumed_spill_if_trusted(&spill, prefix, &trusted)
+            .await
+            .unwrap();
+
+        assert!(!retained);
+        assert!(!spill.exists());
+    }
+
+    #[tokio::test]
+    async fn stream_spill_read_error_removes_consumed_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let spill = dir.path().join("read-error.complete");
+        tokio::fs::write(&spill, vec![0x55; 1024]).await.unwrap();
+        let read_error = std::io::Result::<Vec<u8>>::Err(std::io::Error::other("read failed"));
+
+        let retained = retain_consumed_spill_if_trusted(&spill, read_error, "unused")
+            .await
+            .unwrap();
+
+        assert!(!retained);
+        assert!(!spill.exists());
+    }
+
+    #[tokio::test]
+    async fn trusted_stream_spill_is_retained_for_atomic_promotion() {
+        let dir = tempfile::tempdir().unwrap();
+        let spill = dir.path().join("trusted.complete");
+        let bytes = vec![0x66; 1024];
+        tokio::fs::write(&spill, &bytes).await.unwrap();
+        let prefix = read_raw_probe_prefix(&spill).await;
+        let trusted = psysonic_analysis::analysis_cache::md5_first_16kb(&bytes);
+
+        let retained = retain_consumed_spill_if_trusted(&spill, prefix, &trusted)
+            .await
+            .unwrap();
+
+        assert!(retained);
+        assert!(spill.is_file());
+    }
+
     #[test]
     fn scan_flat_offline_root_lists_track_files() {
         let base = std::env::temp_dir().join(format!(
@@ -1443,4 +1619,3 @@ mod migrate_tests {
         let _ = std::fs::remove_dir_all(&base);
     }
 }
-

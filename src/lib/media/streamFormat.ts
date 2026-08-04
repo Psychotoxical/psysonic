@@ -1,5 +1,7 @@
 import type { Track } from '@/lib/media/trackTypes';
 
+export type StreamProvenance = 'original' | 'transcoded' | 'unknown';
+
 /**
  * The format the Rust audio engine actually decoded for the live stream,
  * delivered by the `audio:format` event. This reflects what the server is
@@ -13,6 +15,8 @@ import type { Track } from '@/lib/media/trackTypes';
  */
 export interface ResolvedStreamFormat {
   trackId: string;
+  /** Canonical playback server key carried by the native format event. */
+  serverId?: string;
   /** Decoder codec short name, e.g. `mp3`, `flac`, `aac`, `opus`, `pcm_s16le`. */
   codec: string;
   /** Decoded sample rate in Hz. */
@@ -32,6 +36,8 @@ export interface ResolvedStreamFormat {
    * events from a superseded stream of the same track (replay, rapid restart).
    */
   generation?: number;
+  /** Trusted raw-prefix comparison for the captured HTTP stream. */
+  provenance?: StreamProvenance;
 }
 
 /**
@@ -105,9 +111,9 @@ export interface EffectiveAudioFormat {
  *
  * - No resolved format, or not the current track, or no transcode detected →
  *   the stored metadata is accurate; return it unchanged.
- * - Transcode detected → show the decoded codec/sample-rate. Bit depth is only
- *   kept for lossless output. The exact transmitted bitrate is not knowable, so
- *   show the requested cap (`streamCapKbps`) when the user set one, else omit.
+ * - Transcode proven by raw-prefix provenance, or by a definite codec-family
+ *   mismatch → show the decoded codec/sample-rate. The exact transmitted
+ *   bitrate is not knowable, so show the requested cap only as a ceiling.
  */
 export function effectiveAudioFormat(
   track: Pick<Track, 'id' | 'suffix' | 'bitRate' | 'samplingRate' | 'bitDepth'>,
@@ -127,12 +133,13 @@ export function effectiveAudioFormat(
 
   if (!resolved || resolved.trackId !== track.id) return base;
 
-  // A transcode is happening if the decoded codec differs from the file, OR a
-  // cap below the stored bitrate is in effect — the latter catches same-codec
-  // reductions (e.g. mp3@320 → mp3@128) that a codec comparison alone misses.
   const codecTranscoded = isStreamTranscoded(track.suffix, resolved.codec);
-  const capTranscoded = streamCapKbps > 0 && (track.bitRate == null || track.bitRate > streamCapKbps);
-  if (!codecTranscoded && !capTranscoded) {
+  // A trusted ORIGINAL verdict wins over request heuristics: a cap is only a
+  // request ceiling, not proof the server changed the bytes. UNKNOWN/legacy
+  // events may still use a definite codec-family mismatch as evidence.
+  const transcoded = resolved.provenance === 'transcoded'
+    || (resolved.provenance !== 'original' && codecTranscoded);
+  if (!transcoded) {
     // Not transcoded: the live decode confirms the stored metadata. Prefer the
     // decoded sample rate / bit depth when the server reported them.
     return {

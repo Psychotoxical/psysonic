@@ -25,3 +25,5 @@ oximedia-mir = { version = "0.1.7", default-features = false, features = ["tempo
 
 [dev-dependencies]
 tauri = { version = "2", features = ["test"] }
+tokio = { version = "1", features = ["rt", "macros", "rt-multi-thread"] }
+wiremock = { workspace = true }

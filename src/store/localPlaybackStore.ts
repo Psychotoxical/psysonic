@@ -38,6 +38,20 @@ export interface LocalPlaybackEntry {
   lastPlayedAt?: number;
   pinSource?: PinSource;
   suffix: string;
+  /**
+   * Streaming bitrate cap (kbps) the cached bytes were fetched at; 0/undefined
+   * means no client-requested cap. Ephemeral (hot) entries promoted from a live
+   * capped stream carry the cap so they are only reused when the current
+   * setting matches — a 128 kbps blob must not satisfy an uncapped request.
+   * Persistent tiers never carry a client-requested cap.
+   */
+  streamMaxBitRateKbps?: number;
+  /**
+   * True only when native code verified these bytes against a capability-bound
+   * raw-original request. Legacy entries rehydrate as false and are refreshed
+   * on confirmed Navidrome profiles before being treated as originals.
+   */
+  originalBytesVerified?: boolean;
 }
 
 export interface PinnedGroup {
@@ -347,6 +361,19 @@ export const useLocalPlaybackStore = create<LocalPlaybackState>()(
     {
       name: 'psysonic-local-playback',
       storage: createJSONStorage(() => localStorage),
+      version: 1,
+      migrate: (persisted, version) => {
+        const state = persisted as { entries?: Record<string, LocalPlaybackEntry> };
+        if (version >= 1) return { entries: state.entries ?? {} };
+        return {
+          entries: Object.fromEntries(
+            Object.entries(state.entries ?? {}).map(([key, entry]) => [
+              key,
+              { ...entry, originalBytesVerified: false },
+            ]),
+          ),
+        };
+      },
       partialize: s => ({ entries: s.entries }),
       onRehydrateStorage: () => (state, error) => {
         if (error || !state) return;

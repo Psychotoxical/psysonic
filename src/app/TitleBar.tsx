@@ -13,7 +13,11 @@ export default function TitleBar() {
   const showMinimizeButton = useAuthStore(s => s.showMinimizeButton);
 
   return (
-    <div className="titlebar" data-tauri-drag-region>
+    <div
+      className="titlebar"
+      data-tauri-drag-region
+      data-visualizer-overlay-exempt="shell"
+    >
       {/* macOS drops the now-playing label: subpixel antialiasing is disabled
           in the Overlay title-bar zone, so small text renders frayed. The bar
           stays a clean themed strip with the native traffic lights (#1198);

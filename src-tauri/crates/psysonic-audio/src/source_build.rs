@@ -265,6 +265,7 @@ pub(crate) async fn build_playback_source_with_probe_fallback(
                     sid,
                     track_id.to_string(),
                     data.clone(),
+                    Some(url.to_string()),
                     high,
                     Some((gen, state.generation.clone())),
                 );

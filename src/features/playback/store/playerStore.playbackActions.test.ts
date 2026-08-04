@@ -19,6 +19,14 @@ const orbitMocks = vi.hoisted(() => ({
   showToast: vi.fn(),
 }));
 
+const playbackMocks = vi.hoisted(() => ({
+  refreshLoudnessForTrack: vi.fn(async () => undefined),
+}));
+
+vi.mock('@/features/playback/store/loudnessRefresh', () => ({
+  refreshLoudnessForTrack: playbackMocks.refreshLoudnessForTrack,
+}));
+
 vi.mock('@/lib/api/subsonic', async () => {
   const actual = await vi.importActual<typeof import('@/lib/api/subsonic')>('@/lib/api/subsonic');
   return {
@@ -98,6 +106,7 @@ beforeEach(() => {
   orbitMocks.allowsTrackServer.mockReset();
   orbitMocks.allowsTrackServer.mockReturnValue(true);
   orbitMocks.showToast.mockReset();
+  playbackMocks.refreshLoudnessForTrack.mockClear();
   stubPlaybackInvokes();
 });
 
@@ -276,6 +285,31 @@ describe('mixed-server play selection', () => {
       id: 'shared',
       serverId: serverB.id,
     }));
+  });
+
+  it('waits for audio_play before refreshing initial loudness', async () => {
+    const server = makeServer({ id: 'srv-a', url: 'https://a.test' });
+    useAuthStore.setState({ servers: [server], activeServerId: server.id });
+    const track = makeTrack({ id: 'track-1', serverId: server.id });
+    seedQueue([track], { index: 0, currentTrack: track, serverId: server.id });
+    let resolveAudioPlay: (() => void) | undefined;
+    onInvoke('audio_play', () => new Promise<void>((resolve) => {
+      resolveAudioPlay = resolve;
+    }));
+
+    usePlayerStore.getState().playTrack(track);
+    for (let i = 0; i < 10 && !resolveAudioPlay; i++) await Promise.resolve();
+
+    expect(resolveAudioPlay).toBeTypeOf('function');
+    expect(playbackMocks.refreshLoudnessForTrack).not.toHaveBeenCalled();
+
+    resolveAudioPlay?.();
+    await vi.runAllTimersAsync();
+
+    expect(playbackMocks.refreshLoudnessForTrack).toHaveBeenCalledWith(
+      expect.objectContaining({ trackId: track.id }),
+      { syncPlayingEngine: false },
+    );
   });
 });
 

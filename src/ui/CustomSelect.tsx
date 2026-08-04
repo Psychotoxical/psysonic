@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown } from 'lucide-react';
 
@@ -32,8 +32,78 @@ export default function CustomSelect({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [dropStyle, setDropStyle] = useState<React.CSSProperties>({});
+  // Keyboard navigation: index of the highlighted option while the list is open.
+  const [activeIndex, setActiveIndex] = useState(-1);
+  // Stable, render-pure ids for the combobox/listbox relationship.
+  const baseId = `custom-select-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const triggerId = `${baseId}-trigger`;
+  const listboxId = `${baseId}-listbox`;
 
   const selected = options.find(o => o.value === value);
+
+  const openList = () => {
+    if (disabled) return;
+    const selectedIdx = options.findIndex(o => o.value === value && !o.disabled);
+    setActiveIndex(selectedIdx >= 0 ? selectedIdx : options.findIndex(o => !o.disabled));
+    setOpen(true);
+  };
+
+  const moveActive = (delta: 1 | -1) => {
+    setActiveIndex(prev => {
+      let i = prev;
+      for (let step = 0; step < options.length; step++) {
+        i = (i + delta + options.length) % options.length;
+        if (!options[i]?.disabled) return i;
+      }
+      return prev;
+    });
+  };
+
+  const commitActive = () => {
+    const opt = options[activeIndex];
+    if (opt && !opt.disabled) {
+      onChange(opt.value);
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
+  };
+
+  const onTriggerKeyDown = (e: React.KeyboardEvent) => {
+    if (disabled) return;
+    switch (e.key) {
+      case 'ArrowDown':
+      case 'ArrowUp':
+        e.preventDefault();
+        if (!open) openList();
+        else moveActive(e.key === 'ArrowDown' ? 1 : -1);
+        break;
+      case 'Home':
+      case 'End': {
+        if (!open) break;
+        e.preventDefault();
+        const enabled = options.map((o, i) => (o.disabled ? -1 : i)).filter(i => i >= 0);
+        if (enabled.length) setActiveIndex(e.key === 'Home' ? enabled[0] : enabled[enabled.length - 1]);
+        break;
+      }
+      case 'Enter':
+      case ' ':
+        // Closed: the native button click toggles. Open: select the highlight.
+        if (open) {
+          e.preventDefault();
+          commitActive();
+        }
+        break;
+      case 'Tab':
+        if (open) {
+          const opt = options[activeIndex];
+          if (opt && !opt.disabled) onChange(opt.value);
+          setOpen(false);
+        }
+        break;
+      default:
+        break;
+    }
+  };
 
   const updateDropStyle = () => {
     if (!triggerRef.current) return;
@@ -67,6 +137,13 @@ export default function CustomSelect({
     return () => cancelAnimationFrame(id);
   }, [open, options]);
 
+  // Keep the keyboard-highlighted option visible in long lists.
+  useEffect(() => {
+    if (!open || activeIndex < 0) return;
+    document.getElementById(`${listboxId}-opt-${activeIndex}`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [open, activeIndex, listboxId]);
+
   useEffect(() => {
     if (!open) return;
     window.addEventListener('scroll', updateDropStyle, true);
@@ -93,15 +170,20 @@ export default function CustomSelect({
   return (
     <>
       <button
+        id={triggerId}
         ref={triggerRef}
         type="button"
+        role="combobox"
         className={`custom-select-trigger ${className}`}
         style={style}
         disabled={disabled}
-        onClick={() => { if (!disabled) setOpen(v => !v); }}
+        onClick={() => { if (!disabled) { if (open) setOpen(false); else openList(); } }}
+        onKeyDown={onTriggerKeyDown}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}
+        aria-controls={open ? listboxId : undefined}
+        aria-activedescendant={open && activeIndex >= 0 ? `${listboxId}-opt-${activeIndex}` : undefined}
       >
         <span className="custom-select-label">{selected?.label ?? value}</span>
         <ChevronDown size={14} className={`custom-select-chevron ${open ? 'open' : ''}`} />
@@ -110,9 +192,11 @@ export default function CustomSelect({
       {open && createPortal(
         <div
           ref={listRef}
+          id={listboxId}
           className="custom-select-dropdown"
           style={dropStyle}
           role="listbox"
+          aria-labelledby={triggerId}
         >
           {options.reduce<React.ReactNode[]>((acc, opt, i) => {
             const prevGroup = i > 0 ? options[i - 1].group : undefined;
@@ -126,9 +210,12 @@ export default function CustomSelect({
             acc.push(
               <div
                 key={opt.value}
-                className={`custom-select-option ${opt.value === value ? 'selected' : ''} ${opt.disabled ? 'disabled' : ''}`}
+                id={`${listboxId}-opt-${i}`}
+                className={`custom-select-option ${opt.value === value ? 'selected' : ''} ${i === activeIndex ? 'active' : ''} ${opt.disabled ? 'disabled' : ''}`}
                 role="option"
-                aria-selected={opt.value === value}
+                aria-disabled={opt.disabled || undefined}
+                aria-selected={i === activeIndex}
+                onMouseEnter={() => { if (!opt.disabled) setActiveIndex(i); }}
                 onMouseDown={() => { if (!opt.disabled) { onChange(opt.value); setOpen(false); } }}
               >
                 {opt.label}

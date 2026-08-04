@@ -118,6 +118,7 @@ export function PersonalisationTab() {
               options={queueModeOptions}
               value={queueDisplayMode}
               onChange={setQueueDisplayMode}
+              ariaLabel={t('settings.queueModeTitle')}
             />
             <SettingsSubCard style={{ marginTop: '0.85rem' }}>
               <SettingsField desc={t(queueModeDescKey)} />

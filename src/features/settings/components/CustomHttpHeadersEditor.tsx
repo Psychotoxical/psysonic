@@ -28,7 +28,8 @@ export function CustomHttpHeadersEditor({
     <div className="form-group" style={{ marginBottom: '0.75rem' }}>
       <button
         type="button"
-        className="btn btn-ghost"
+        // Reads as a section heading, so it opts out of the ghost outline.
+        className="btn btn-ghost btn-ghost--flat"
         style={{ fontSize: 13, padding: '4px 0' }}
         onClick={() => onOpenChange(!open)}
       >
@@ -39,10 +40,17 @@ export function CustomHttpHeadersEditor({
           <p style={{ fontSize: 11, opacity: 0.75, margin: '0 0 8px' }}>
             {t('settings.customHeadersHelp')}
           </p>
+          {/* Deliberately not `form-row`: that is a two-column grid, and this
+              row has a third child, so the remove button wrapped onto its own
+              line and stretched to a full column — reading as another input. */}
           {headers.map((row, index) => (
-            <div key={index} className="form-row" style={{ marginBottom: 6, gap: 8 }}>
+            <div
+              key={index}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}
+            >
               <input
                 className="input"
+                style={{ flex: 1, minWidth: 0 }}
                 type="text"
                 value={row.name}
                 onChange={e => {
@@ -54,6 +62,7 @@ export function CustomHttpHeadersEditor({
               />
               <input
                 className="input"
+                style={{ flex: 1, minWidth: 0 }}
                 type="password"
                 value={row.value}
                 onChange={e => {
@@ -66,7 +75,9 @@ export function CustomHttpHeadersEditor({
               <button
                 type="button"
                 className="btn btn-ghost"
+                style={{ flexShrink: 0, padding: '4px 12px' }}
                 aria-label={t('settings.customHeadersRemoveRow')}
+                data-tooltip={t('settings.customHeadersRemoveRow')}
                 onClick={() =>
                   onHeadersChange(
                     headers.length <= 1

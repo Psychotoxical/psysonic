@@ -1,5 +1,5 @@
 import { libraryUpsertSongsFromApi } from '@/lib/api/library';
-import { buildStreamUrlForServer } from '@/lib/api/subsonicStreamUrl';
+import { buildOriginalStreamUrlForServer } from '@/lib/api/subsonicStreamUrl';
 import { getAlbumForServer } from '@/lib/api/subsonicLibrary';
 import { getArtistForServer } from '@/lib/api/subsonicArtists';
 import type { SubsonicSong } from '@/lib/api/subsonicTypes';
@@ -15,6 +15,7 @@ import { checkDirAccessible, clearOfflineCancel } from '@/lib/api/syncfs';
 import { findLocalPlaybackEntry } from '@/store/localPlaybackResolve';
 import {
   isOfflinePinComplete,
+  localEntrySatisfiesOriginalRequirement,
   pendingOfflinePinSongs,
 } from '@/features/offline/utils/offlineLibraryHelpers';
 import { librarySqlServerId } from '@/lib/api/coverCache';
@@ -190,7 +191,10 @@ async function runOfflinePinDownload(task: OfflinePinTask): Promise<void> {
           return { song, localPath: null as string | null, error: 'CANCELLED' };
         }
         const existing = findLocalPlaybackEntry(song.id, serverId);
-        if (existing?.tier === 'library' && existing.localPath) {
+        if (
+          existing?.tier === 'library'
+          && localEntrySatisfiesOriginalRequirement(existing, serverId)
+        ) {
           useLocalPlaybackStore.getState().upsertEntry({
             ...existing,
             serverIndexKey,
@@ -200,14 +204,19 @@ async function runOfflinePinDownload(task: OfflinePinTask): Promise<void> {
           return { song, localPath: existing.localPath, error: null as string | null };
         }
         try {
-          const res = await invoke<{ path: string; size: number; layoutFingerprint: string }>(
+          const res = await invoke<{
+            path: string;
+            size: number;
+            layoutFingerprint: string;
+            originalBytesVerified: boolean;
+          }>(
             'download_track_local',
             {
               tier: 'library',
               trackId: song.id,
               serverIndexKey,
               libraryServerId,
-              url: buildStreamUrlForServer(serverId, song.id),
+              url: buildOriginalStreamUrlForServer(serverId, song.id),
               suffix,
               mediaDir,
               downloadId,
@@ -222,6 +231,7 @@ async function runOfflinePinDownload(task: OfflinePinTask): Promise<void> {
             tier: 'library',
             pinSource,
             suffix,
+            originalBytesVerified: res.originalBytesVerified,
           });
           return { song, localPath: res.path, error: null as string | null };
         } catch (err) {

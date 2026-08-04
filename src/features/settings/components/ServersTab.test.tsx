@@ -9,12 +9,13 @@ const mocks = vi.hoisted(() => ({
   bootstrapIndexedServer: vi.fn(),
   ensureConnectUrlResolved: vi.fn(),
   pingWithCredentialsForProfile: vi.fn(),
-  syncServerHttpContextForProfile: vi.fn(),
+  syncServerHttpContextForProfile: vi.fn(async () => undefined),
   syncAllServerHttpContexts: vi.fn(),
   clearServerHttpContext: vi.fn(),
   invalidateReachableEndpointCache: vi.fn(),
   librarySyncClearSession: vi.fn(),
   libraryDeleteServerData: vi.fn(),
+  onPersisted: vi.fn(),
 }));
 
 vi.mock('@/lib/library/hooks/useLibraryIndexSync', () => ({
@@ -35,6 +36,7 @@ vi.mock('@/lib/api/subsonic', () => ({
 
 vi.mock('@/lib/server/syncServerHttpContext', () => ({
   clearServerHttpContext: mocks.clearServerHttpContext,
+  setServerHttpContextIdentitySource: vi.fn(),
   syncAllServerHttpContexts: mocks.syncAllServerHttpContexts,
   syncServerHttpContextForProfile: mocks.syncServerHttpContextForProfile,
 }));
@@ -47,6 +49,8 @@ vi.mock('@/lib/api/library', () => ({
 vi.mock('@/lib/server/serverEndpoint', () => ({
   ensureConnectUrlResolved: mocks.ensureConnectUrlResolved,
   invalidateReachableEndpointCache: mocks.invalidateReachableEndpointCache,
+  allNormalizedAddresses: (srv: { url: string; alternateUrl?: string }) =>
+    [srv.url, srv.alternateUrl].filter(Boolean),
   profileProbeFingerprint: (profile: {
     url: string;
     alternateUrl?: string;
@@ -107,7 +111,7 @@ vi.mock('@/features/settings/components/AddServerForm', () => ({
       url: string;
       username: string;
       password: string;
-    }) => void;
+    }, onPersisted?: () => void) => void;
     onDelete?: () => void;
   }) => editingServer ? (
     <>
@@ -116,7 +120,7 @@ vi.mock('@/features/settings/components/AddServerForm', () => ({
         url: editingServer.url,
         username: editingServer.username,
         password: `${editingServer.password}-new`,
-      })}>
+      }, mocks.onPersisted)}>
         save-edit
       </button>
       <button type="button" onClick={onDelete}>delete-edit</button>
@@ -141,6 +145,7 @@ beforeEach(() => {
   mocks.syncAllServerHttpContexts.mockReset().mockResolvedValue(undefined);
   mocks.clearServerHttpContext.mockReset().mockResolvedValue(undefined);
   mocks.invalidateReachableEndpointCache.mockReset();
+  mocks.onPersisted.mockReset();
   mocks.librarySyncClearSession.mockReset().mockResolvedValue(undefined);
   mocks.libraryDeleteServerData.mockReset().mockResolvedValue(undefined);
   useAuthStore.setState({
@@ -173,6 +178,7 @@ describe('ServersTab profile edit bootstrap ordering', () => {
     await user.click(screen.getByRole('button', { name: 'save-edit' }));
 
     expect(mocks.invalidateReachableEndpointCache).toHaveBeenCalledWith('a');
+    expect(mocks.onPersisted).toHaveBeenCalledTimes(1);
     expect(mocks.bootstrapIndexedServer).not.toHaveBeenCalled();
 
     await act(async () => {

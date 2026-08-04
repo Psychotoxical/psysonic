@@ -9,72 +9,6 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::engine::AudioEngine;
-use crate::ipc::{
-    partial_loudness_should_emit, PartialLoudnessPayload, PARTIAL_LOUDNESS_DELTA_THRESHOLD_DB,
-};
-
-pub(crate) fn emit_partial_loudness_from_bytes(
-    app: &AppHandle,
-    url: &str,
-    server_id: Option<&str>,
-    bytes: &[u8],
-    target_lufs: f32,
-    pre_analysis_attenuation_db: f32,
-) {
-    if bytes.len() < PARTIAL_LOUDNESS_MIN_BYTES {
-        crate::app_deprintln!(
-            "[normalization] partial-loudness skip reason=insufficient-bytes bytes={} min_bytes={}",
-            bytes.len(),
-            PARTIAL_LOUDNESS_MIN_BYTES
-        );
-        return;
-    }
-    // Lightweight fallback based on buffered bytes count to keep CPU low.
-    let mb = bytes.len() as f32 / (1024.0 * 1024.0);
-    let pre_floor = pre_analysis_attenuation_db.clamp(-24.0, 0.0);
-    // Target-derived hint (e.g. -12 LUFS → -1 dB). Old `(hint).clamp(pre, 0)` left
-    // the hint when it lay inside [pre, 0] — e.g. -1 with pre=-6, so AAC/M4A
-    // streaming often sat at -1 dB until full analysis. Combine with user trim:
-    // stricter (more negative) pre wins; milder pre still caps vs the hint.
-    let heuristic_floor = (target_lufs + 11.0).clamp(-6.0, 0.0);
-    let floor_db = if pre_floor < heuristic_floor {
-        pre_floor
-    } else {
-        pre_floor.max(heuristic_floor)
-    };
-    let gain_db = (-(mb * 0.7)).max(floor_db).min(0.0);
-    let track_key = playback_identity(url).unwrap_or_else(|| url.to_string());
-    if !partial_loudness_should_emit(&track_key, gain_db) {
-        crate::app_deprintln!(
-            "[normalization] partial-loudness skip reason=delta-below-threshold gain_db={:.2} threshold_db={:.2} track_id={:?}",
-            gain_db,
-            PARTIAL_LOUDNESS_DELTA_THRESHOLD_DB,
-            playback_identity(url)
-        );
-        return;
-    }
-    crate::app_deprintln!(
-        "[normalization] partial-loudness emit bytes={} gain_db={:.2} target_lufs={:.2} track_id={:?}",
-        bytes.len(),
-        gain_db,
-        target_lufs,
-        playback_identity(url)
-    );
-    let _ = app.emit(
-        "analysis:loudness-partial",
-        PartialLoudnessPayload {
-            track_id: playback_identity(url),
-            server_index_key: {
-                let sid = crate::analysis_dispatch::resolve_server_id_for_app(app, server_id);
-                (!sid.is_empty()).then_some(sid)
-            },
-            gain_db,
-            target_lufs,
-            is_partial: true,
-        },
-    );
-}
-
 pub(crate) fn provisional_loudness_gain_from_progress(
     downloaded: usize,
     total_size: usize,
@@ -300,19 +234,70 @@ pub(crate) fn analysis_cache_track_id(logical_track_id: Option<&str>, url: &str)
     logical.or_else(|| playback_identity(url))
 }
 
+/// Identity-relevant query params of a stream URL — the owning account (`u`)
+/// plus the requested transcode `format` and `maxBitRate` cap. Rotating auth
+/// params (`t`/`s`) stay excluded.
+fn stream_quality_signature(url: &str) -> String {
+    let Some(q) = url.split('?').nth(1) else {
+        return String::new();
+    };
+    let mut max_bit_rate = "";
+    let mut format = "";
+    let mut user = "";
+    for pair in q.split('&') {
+        if let Some(v) = pair.strip_prefix("maxBitRate=") {
+            max_bit_rate = v;
+        } else if let Some(v) = pair.strip_prefix("format=") {
+            format = v;
+        } else if let Some(v) = pair.strip_prefix("u=") {
+            // Owning account: per-user server transcoding policies can differ,
+            // so bytes are never shared across profiles on one endpoint.
+            user = v;
+        }
+    }
+    if max_bit_rate.is_empty() && format.is_empty() && user.is_empty() {
+        return String::new();
+    }
+    format!("{user}|{max_bit_rate}|{format}")
+}
+
+/// Server base of a Subsonic stream URL — scheme + authority + any path
+/// prefix before `/rest/`. Two Navidrome instances behind one reverse-proxy
+/// host on different prefixes (`https://host/nav-a` vs `…/nav-b`) are
+/// different servers and must never share cached bytes; likewise http vs
+/// https transports are kept distinct. Empty for non-HTTP URLs.
+fn stream_server_base(url: &str) -> &str {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return "";
+    }
+    if let Some(idx) = url.find("/rest/") {
+        return &url[..idx];
+    }
+    // No /rest/ segment: fall back to scheme + authority.
+    let scheme_end = url.find("://").map(|i| i + 3).unwrap_or(0);
+    match url[scheme_end..].find('/') {
+        Some(i) => &url[..scheme_end + i],
+        None => url.split('?').next().unwrap_or(url),
+    }
+}
+
+/// Byte-cache equality for stream/preload/chain matching. Two URLs are the
+/// same playback target only when they name the same track on the same server
+/// base (scheme + authority + path prefix) AND request the same transcode quality — a completed 128 kbps stream must
+/// not satisfy a later request for Original or a different cap/format.
+/// (Track-level identity for analysis/gain stays `playback_identity`, which is
+/// deliberately quality-independent.)
 pub(crate) fn same_playback_target(a_url: &str, b_url: &str) -> bool {
     match (playback_identity(a_url), playback_identity(b_url)) {
-        (Some(a), Some(b)) => a == b,
+        (Some(a), Some(b)) => a == b
+            && stream_server_base(a_url) == stream_server_base(b_url)
+            && stream_quality_signature(a_url) == stream_quality_signature(b_url),
         _ => a_url == b_url,
     }
 }
 
 #[derive(Clone, Copy)]
 pub(crate) struct ResolveLoudnessCacheOpts {
-    /// When false, skip `get_latest_waveform_for_track` — `audio_update_replay_gain` runs
-    /// on every partial-LUFS tick; loudness gain does not depend on waveform, and the extra
-    /// SQLite read was pure overhead on the IPC path.
-    pub(crate) touch_waveform: bool,
     /// When false, omit `cache-miss` / `cache-invalid` debug lines (still log hits and errors).
     pub(crate) log_soft_misses: bool,
 }
@@ -320,7 +305,6 @@ pub(crate) struct ResolveLoudnessCacheOpts {
 impl Default for ResolveLoudnessCacheOpts {
     fn default() -> Self {
         Self {
-            touch_waveform: true,
             log_soft_misses: true,
         }
     }
@@ -379,9 +363,6 @@ pub(crate) fn resolve_loudness_gain_from_cache_impl(
 /// recommended gain in dB, or `None` for any miss / non-finite / error case.
 /// Pulled out so tests can drive every branch via `AnalysisCache::open_in_memory()`.
 ///
-/// `opts.touch_waveform` keeps parity with production behaviour: when binding
-/// a track, we also touch `get_latest_waveform_for_track` so the SQLite
-/// connection's row cache is warm for the next IPC tick.
 pub(crate) fn resolve_loudness_gain_with_cache(
     cache: &psysonic_analysis::analysis_cache::AnalysisCache,
     server_id: &str,
@@ -389,10 +370,6 @@ pub(crate) fn resolve_loudness_gain_with_cache(
     target_lufs: f32,
     opts: ResolveLoudnessCacheOpts,
 ) -> Option<f32> {
-    if opts.touch_waveform {
-        // Bind / preload: verify waveform context exists alongside loudness lookup.
-        let _ = cache.get_latest_waveform_for_track(server_id, track_id);
-    }
     match cache.get_latest_loudness_for_track(server_id, track_id) {
         Ok(Some(row)) if row.integrated_lufs.is_finite() => {
             let recommended = psysonic_analysis::analysis_cache::recommended_gain_for_target(
@@ -497,6 +474,13 @@ pub(crate) struct TrackGainInputs {
     /// post-`loudness_gain_db_after_resolve` value, otherwise the raw cache
     /// resolution (or `None` when not in normalisation mode).
     pub(crate) effective_loudness_db: Option<f32>,
+}
+
+impl TrackGainInputs {
+    /// Partial stream hints are only useful until a final SQLite loudness row exists.
+    pub(crate) fn needs_partial_loudness(self) -> bool {
+        self.cache_loudness_db.is_none()
+    }
 }
 
 /// Read engine state + resolve the loudness cache for a track that's about to
@@ -1107,6 +1091,79 @@ mod tests {
         assert_eq!(sniff_stream_format_extension(&[0x00, 0x01, 0x02, 0x03]), None);
     }
 
+    // ── same_playback_target quality awareness ───────────────────────────────
+
+    #[test]
+    fn same_target_ignores_rotating_auth_but_not_quality() {
+        // Fresh salt/token → still the same target.
+        assert!(same_playback_target(
+            "https://s/rest/stream.view?id=42&t=aaa&s=x1",
+            "https://s/rest/stream.view?id=42&t=bbb&s=x2",
+        ));
+        // A completed 128 kbps stream must NOT satisfy an Original request…
+        assert!(!same_playback_target(
+            "https://s/rest/stream.view?id=42&maxBitRate=128",
+            "https://s/rest/stream.view?id=42",
+        ));
+        // …nor a different cap or a different requested format.
+        assert!(!same_playback_target(
+            "https://s/rest/stream.view?id=42&maxBitRate=128",
+            "https://s/rest/stream.view?id=42&maxBitRate=320",
+        ));
+        assert!(!same_playback_target(
+            "https://s/rest/stream.view?id=42&maxBitRate=128&format=opus",
+            "https://s/rest/stream.view?id=42&maxBitRate=128&format=mp3",
+        ));
+        // Identical quality matches.
+        assert!(same_playback_target(
+            "https://s/rest/stream.view?id=42&maxBitRate=128&format=opus&t=a",
+            "https://s/rest/stream.view?id=42&maxBitRate=128&format=opus&t=b",
+        ));
+    }
+
+    #[test]
+    fn same_target_distinguishes_hosts_sharing_a_track_id() {
+        assert!(!same_playback_target(
+            "https://lan.local/rest/stream.view?id=42",
+            "https://public.example/rest/stream.view?id=42",
+        ));
+    }
+
+    #[test]
+    fn same_target_distinguishes_user_accounts_on_one_endpoint() {
+        // Two profiles (accounts) on the same server: per-user transcoding
+        // policies can differ, so completed/preloaded bytes must never be
+        // reused across accounts even when track id and quality match.
+        assert!(!same_playback_target(
+            "https://s/rest/stream.view?id=42&u=alice&t=a1&s=x1",
+            "https://s/rest/stream.view?id=42&u=bob&t=b1&s=x2",
+        ));
+        // Same account with rotating auth still matches.
+        assert!(same_playback_target(
+            "https://s/rest/stream.view?id=42&u=alice&t=a1&s=x1",
+            "https://s/rest/stream.view?id=42&u=alice&t=a2&s=x2",
+        ));
+    }
+
+    #[test]
+    fn same_target_distinguishes_server_bases_behind_one_proxy_host() {
+        // Two Navidrome instances on one host, different path prefixes.
+        assert!(!same_playback_target(
+            "https://proxy.example/nav-a/rest/stream.view?id=42",
+            "https://proxy.example/nav-b/rest/stream.view?id=42",
+        ));
+        // Same instance, same prefix → same target.
+        assert!(same_playback_target(
+            "https://proxy.example/nav-a/rest/stream.view?id=42&t=x",
+            "https://proxy.example/nav-a/rest/stream.view?id=42&t=y",
+        ));
+        // http vs https transports stay distinct.
+        assert!(!same_playback_target(
+            "http://host/rest/stream.view?id=42",
+            "https://host/rest/stream.view?id=42",
+        ));
+    }
+
     // ── playback_identity ─────────────────────────────────────────────────────
 
     #[test]
@@ -1464,16 +1521,21 @@ mod tests {
     }
 
     #[test]
-    fn resolve_with_cache_touch_waveform_false_does_not_panic() {
-        // Smoke: opts.touch_waveform=false must not cause an SQL error or panic.
-        let cache = AnalysisCache::open_in_memory();
-        upsert_loudness_row(&cache, "abc", -20.0, -14.0);
-        let opts = ResolveLoudnessCacheOpts {
-            touch_waveform: false,
-            log_soft_misses: false,
+    fn cached_gain_disables_partial_loudness_hints() {
+        let cached = TrackGainInputs {
+            target_lufs: -14.0,
+            norm_mode: 2,
+            cache_loudness_db: Some(-6.0),
+            effective_loudness_db: Some(-6.0),
         };
-        let g = resolve_loudness_gain_with_cache(&cache, "", "abc", -14.0, opts);
-        assert!(g.is_some());
+        let uncached = TrackGainInputs {
+            cache_loudness_db: None,
+            effective_loudness_db: Some(-4.5),
+            ..cached
+        };
+
+        assert!(!cached.needs_partial_loudness());
+        assert!(uncached.needs_partial_loudness());
     }
 }
 

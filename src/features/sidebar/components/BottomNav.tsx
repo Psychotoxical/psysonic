@@ -22,7 +22,11 @@ export default function BottomNav() {
 
   return (
     <>
-      <nav className="bottom-nav" aria-label="Mobile navigation">
+      <nav
+        className="bottom-nav"
+        aria-label="Mobile navigation"
+        data-visualizer-overlay-exempt="shell"
+      >
         {NAV_ITEMS.map(({ to, end, icon: Icon, labelKey }) => (
           <NavLink
             key={to}

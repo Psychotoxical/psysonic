@@ -15,6 +15,7 @@ import {
   isBackfillInFlight,
   markBackfillInFlight,
   resetBackfillAttempts,
+  restoreBackfillAttempts,
 } from '@/features/playback/store/loudnessBackfillState';
 import {
   LOUDNESS_BACKFILL_WINDOW_AHEAD,
@@ -122,7 +123,21 @@ async function runRefreshLoudnessForTrack(ref: AnalysisTrackRef, syncEngine: boo
         void commands.analysisEnqueueSeedFromUrl(trackId, url, null, serverIndexKey, priority)
           .then((res) => {
             if (res.status === 'error') throw new Error(res.error);
-            emitNormalizationDebug('backfill:queued', { trackId, attempt: attempts + 1 });
+            switch (res.data) {
+              case 'enqueued':
+                emitNormalizationDebug('backfill:queued', { trackId, attempt: attempts + 1 });
+                break;
+              case 'alreadyReserved':
+                emitNormalizationDebug('backfill:already-reserved', { trackId, attempt: attempts + 1 });
+                break;
+              case 'skipped':
+                restoreBackfillAttempts(ref, attempts);
+                emitNormalizationDebug('backfill:skipped', { trackId, attempt: attempts + 1 });
+                break;
+              case 'unsupported':
+                emitNormalizationDebug('backfill:unsupported', { trackId, attempt: attempts + 1 });
+                break;
+            }
           })
           .catch((e) => emitNormalizationDebug('backfill:error', { trackId, error: String(e) }))
           .finally(() => {

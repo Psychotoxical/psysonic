@@ -15,8 +15,11 @@ import {
   type ServerMagicPayload,
 } from '@/lib/server/serverMagicString';
 import { shortHostFromServerUrl } from '@/lib/server/serverDisplayName';
-import { isLanUrl } from '@/lib/server/serverEndpoint';
+import { isLanUrl, normalizeServerBaseUrl } from '@/lib/server/serverEndpoint';
 import { resolveHostAddresses } from '@/lib/api/network';
+import { useAuthStore } from '@/store/authStore';
+import { isNavidromeServer } from '@/lib/server/subsonicServerIdentity';
+import { ServerStreamQualityEditor } from '@/features/settings/components/ServerStreamQualityEditor';
 
 type FormState = {
   name: string;
@@ -54,7 +57,10 @@ export function AddServerForm({
   initialInvite = null,
   editingServer = null,
 }: {
-  onSave: (data: Omit<ServerProfile, 'id'>) => void | Promise<void>;
+  onSave: (
+    data: Omit<ServerProfile, 'id'>,
+    onPersisted?: () => void,
+  ) => void | Promise<void>;
   onCancel: () => void;
   onDelete?: () => void | Promise<void>;
   initialInvite?: ServerMagicPayload | null;
@@ -62,6 +68,14 @@ export function AddServerForm({
 }) {
   const { t } = useTranslation();
   const isEdit = editingServer != null;
+  const editingServerIdentity = useAuthStore(s => (
+    editingServer ? s.subsonicServerIdentityByServer[editingServer.id] : undefined
+  ));
+  const storedStreamQualityByAddress = useAuthStore(s => s.streamQualityByAddress);
+  const storedStreamFormatByAddress = useAuthStore(s => s.streamFormatByAddress);
+  const setStreamQualityForAddress = useAuthStore(s => s.setStreamQualityForAddress);
+  const setStreamFormatForAddress = useAuthStore(s => s.setStreamFormatForAddress);
+  const showStreamQuality = isEdit && isNavidromeServer(editingServerIdentity);
   const [form, setForm] = useState<FormState>(
     editingServer
       ? {
@@ -92,6 +106,13 @@ export function AddServerForm({
   );
   const [magicString, setMagicString] = useState('');
   const [blockPasswordReveal, setBlockPasswordReveal] = useState(false);
+  const [streamQualityOpen, setStreamQualityOpen] = useState(false);
+  const [streamQualityDraftByAddress, setStreamQualityDraftByAddress] = useState(
+    () => ({ ...storedStreamQualityByAddress }),
+  );
+  const [streamFormatDraftByAddress, setStreamFormatDraftByAddress] = useState(
+    () => ({ ...storedStreamFormatByAddress }),
+  );
   // DNS-classified hint: 'lan' / 'public' / null (no hint, no lookup yet, or
   // literal IP — isLanUrl already classifies those without DNS).
   const [primaryDnsClass, setPrimaryDnsClass] = useState<'lan' | 'public' | null>(null);
@@ -198,6 +219,17 @@ export function AddServerForm({
   const customHeadersPayload = () =>
     serverCustomHeadersFromForm(form.customHeaders, form.customHeadersApplyTo);
 
+  const applyStreamQualityDrafts = (data: Omit<ServerProfile, 'id'>) => {
+    if (!showStreamQuality) return;
+    for (const rawAddress of [data.url, data.alternateUrl]) {
+      if (!rawAddress) continue;
+      const address = normalizeServerBaseUrl(rawAddress);
+      if (!address) continue;
+      setStreamQualityForAddress(address, streamQualityDraftByAddress[address] ?? 0);
+      setStreamFormatForAddress(address, streamFormatDraftByAddress[address] ?? 'auto');
+    }
+  };
+
   const submit = async () => {
     const ms = magicString.trim();
     if (ms) {
@@ -261,7 +293,10 @@ export function AddServerForm({
           }
         : {}),
     };
-    await onSave(data);
+    await onSave(
+      data,
+      showStreamQuality ? () => applyStreamQualityDrafts(data) : undefined,
+    );
   };
 
   // Hint to show under the second-address field: only when the primary is
@@ -388,6 +423,25 @@ export function AddServerForm({
         onApplyToChange={customHeadersApplyTo => setForm(f => ({ ...f, customHeadersApplyTo }))}
         radioGroupName="addServerCustomHeadersApplyTo"
       />
+      {showStreamQuality && (
+        <ServerStreamQualityEditor
+          url={form.url}
+          alternateUrl={form.alternateUrl}
+          open={streamQualityOpen}
+          qualityByAddress={streamQualityDraftByAddress}
+          formatByAddress={streamFormatDraftByAddress}
+          onOpenChange={setStreamQualityOpen}
+          onQualityChange={(address, quality) => setStreamQualityDraftByAddress(current => ({
+            ...current,
+            [address]: quality,
+          }))}
+          onFormatChange={(address, format) => setStreamFormatDraftByAddress(current => ({
+            ...current,
+            [address]: format,
+          }))}
+          t={t}
+        />
+      )}
       {!isEdit && (
         <div className="form-group" style={{ marginBottom: '0.75rem' }}>
           <label style={{ fontSize: 13 }}>{t('login.orMagicString')}</label>

@@ -39,6 +39,9 @@ pub struct AudioEngine {
     pub current: Arc<Mutex<AudioCurrent>>,
     /// Monotonically incremented on each audio_play (non-chain) / audio_stop call.
     pub generation: Arc<AtomicU64>,
+    /// Invalidates background byte/gapless preloads without superseding the
+    /// currently playing source or stopping its progress task.
+    pub(crate) preload_epoch: Arc<AtomicU64>,
     pub http_client: Arc<RwLock<reqwest::Client>>,
     pub eq_gains: Arc<[AtomicU32; 10]>,
     pub eq_enabled: Arc<AtomicBool>,
@@ -111,9 +114,9 @@ pub struct AudioEngine {
     /// While a `RangedHttpSource` download task is filling the buffer for this
     /// `(track_id, play_generation)`, skip `analysis_enqueue_seed_from_url` for the
     /// same id — otherwise a parallel full GET + Symphonia competes with playback
-    /// decode (ALSA underruns). The ranged task clears this on exit; `gen` avoids a
+    /// decode (ALSA underruns). The stream task clears this on exit; `gen` avoids a
     /// late drop clearing a newer play of the same track.
-    pub(crate) ranged_loudness_seed_hold: Arc<Mutex<Option<(String, u64)>>>,
+    pub(crate) playback_analysis_seed_hold: Arc<Mutex<Option<(String, u64)>>>,
     /// Secondary sink dedicated to track previews. Runs on the same `OutputStream`
     /// as the main sink (rodio mixes both internally) so we don't open a second
     /// device handle — important on ALSA-exclusive hardware.
@@ -468,6 +471,7 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
             fadeout_samples: None,
         })),
         generation: Arc::new(AtomicU64::new(0)),
+        preload_epoch: Arc::new(AtomicU64::new(0)),
         http_client: Arc::new(RwLock::new(
             reqwest::Client::builder()
                 .timeout(Duration::from_secs(30))
@@ -503,7 +507,7 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
         current_playback_url: Arc::new(Mutex::new(None)),
         current_analysis_track_id: Arc::new(Mutex::new(None)),
         current_playback_server_id: Arc::new(Mutex::new(None)),
-        ranged_loudness_seed_hold: Arc::new(Mutex::new(None)),
+        playback_analysis_seed_hold: Arc::new(Mutex::new(None)),
         preview_sink: Arc::new(Mutex::new(None)),
         preview_gen: Arc::new(AtomicU64::new(0)),
         preview_main_resume: Arc::new(AtomicBool::new(false)),
@@ -512,14 +516,14 @@ pub fn create_engine() -> (AudioEngine, std::thread::JoinHandle<()>) {
 
     (engine, thread)
 }
-/// `analysis_enqueue_seed_from_url` should bail while this track's ranged HTTP buffer
-/// is still filling — playback will seed on completion with the same bytes.
-pub fn ranged_loudness_backfill_should_defer(engine: &AudioEngine, track_id: &str) -> bool {
+/// `analysis_enqueue_seed_from_url` should bail while this track's HTTP playback
+/// buffer is still filling — playback will seed on completion with the same bytes.
+pub fn playback_analysis_backfill_should_defer(engine: &AudioEngine, track_id: &str) -> bool {
     let tid = track_id.trim();
     if tid.is_empty() {
         return false;
     }
-    let Ok(g) = engine.ranged_loudness_seed_hold.lock() else {
+    let Ok(g) = engine.playback_analysis_seed_hold.lock() else {
         return false;
     };
     matches!(&*g, Some((t, _)) if t.as_str() == tid)

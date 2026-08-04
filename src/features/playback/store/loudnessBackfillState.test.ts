@@ -13,6 +13,7 @@ import {
   isBackfillInFlight,
   markBackfillInFlight,
   resetBackfillAttempts,
+  restoreBackfillAttempts,
   resetLoudnessBackfillState,
 } from '@/features/playback/store/loudnessBackfillState';
 import { analysisTrackRef } from '@/features/playback/store/analysisTrackRef';
@@ -62,6 +63,15 @@ describe('resetBackfillAttempts', () => {
     markBackfillInFlight(ref('t1'), 2);
     resetBackfillAttempts(ref('t1'));
     expect(getBackfillAttempts(ref('t1'))).toBe(0);
+    expect(isBackfillInFlight(ref('t1'))).toBe(true);
+  });
+});
+
+describe('restoreBackfillAttempts', () => {
+  it('restores the count without changing the inflight flag', () => {
+    markBackfillInFlight(ref('t1'), 2);
+    restoreBackfillAttempts(ref('t1'), 1);
+    expect(getBackfillAttempts(ref('t1'))).toBe(1);
     expect(isBackfillInFlight(ref('t1'))).toBe(true);
   });
 });

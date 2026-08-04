@@ -303,7 +303,11 @@ export function ServersTab({
   // already saved), verify both addresses are the same server *before*
   // persisting. A mismatch here would silently bind library / cover / queue
   // data to two unrelated boxes — the spec blocks save in v1.
-  const handleEditServer = async (id: string, data: Omit<ServerProfile, 'id'>) => {
+  const handleEditServer = async (
+    id: string,
+    data: Omit<ServerProfile, 'id'>,
+    onPersisted?: () => void,
+  ) => {
     const editGeneration = (editGenerationRef.current[id] ?? 0) + 1;
     editGenerationRef.current[id] = editGeneration;
     const previous = auth.servers.find(s => s.id === id);
@@ -367,6 +371,7 @@ export function ServersTab({
 
     setEditingServerId(null);
     auth.updateServer(id, data);
+    onPersisted?.();
     const updated = useAuthStore.getState().servers.find(s => s.id === id);
     if (!updated) return;
     const updatedFingerprint = updated ? profileProbeFingerprint(updated) : null;
@@ -474,7 +479,7 @@ export function ServersTab({
                   <AddServerForm
                     key={srv.id}
                     editingServer={srv}
-                    onSave={(data) => handleEditServer(srv.id, data)}
+                    onSave={(data, onPersisted) => handleEditServer(srv.id, data, onPersisted)}
                     onCancel={() => setEditingServerId(null)}
                     onDelete={async () => {
                       await deleteServer(srv);

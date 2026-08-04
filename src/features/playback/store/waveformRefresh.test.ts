@@ -35,7 +35,11 @@ vi.mock('@/features/playback/store/waveformRefreshGen', () => ({
   getWaveformRefreshGen: hoisted.getGenMock,
 }));
 
-import { refreshWaveformForTrack } from '@/features/playback/store/waveformRefresh';
+import {
+  _resetWaveformRefreshInflightForTest,
+  fetchWaveformBins,
+  refreshWaveformForTrack,
+} from '@/features/playback/store/waveformRefresh';
 import { analysisTrackRef } from '@/features/playback/store/analysisTrackRef';
 
 const ref = (trackId: string, serverId = 'server-a') => analysisTrackRef(trackId, serverId);
@@ -47,6 +51,7 @@ function setCurrent(trackId: string, serverId = 'server-a'): void {
 }
 
 beforeEach(() => {
+  _resetWaveformRefreshInflightForTest();
   hoisted.invokeMock.mockReset();
   hoisted.invokeMock.mockResolvedValue(null);
   hoisted.coerceWaveformBinsMock.mockClear();
@@ -66,6 +71,44 @@ describe('refreshWaveformForTrack', () => {
   it('does not query waveform storage for an unknown profile UUID', async () => {
     await refreshWaveformForTrack(ref('t1', '9ee02895-4d12-4faa-9a9f-3fae22b64d18'));
     expect(hoisted.invokeMock).not.toHaveBeenCalled();
+  });
+
+  it('coalesces concurrent reads for the same track and generation', async () => {
+    setCurrent('t1');
+    let resolveFetch!: (value: unknown) => void;
+    hoisted.invokeMock.mockImplementationOnce(() => new Promise(resolve => { resolveFetch = resolve; }));
+    const first = refreshWaveformForTrack(ref('t1'));
+    const second = refreshWaveformForTrack(ref('t1'));
+    expect(hoisted.invokeMock).toHaveBeenCalledTimes(1);
+    resolveFetch({ bins: [1, 2, 3] });
+    await Promise.all([first, second]);
+    expect(hoisted.playerSetStateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('shares a cached miss with silence-aware playback reads in the same generation', async () => {
+    setCurrent('t1');
+    hoisted.invokeMock.mockResolvedValueOnce(null);
+
+    await refreshWaveformForTrack(ref('t1'));
+    const bins = await fetchWaveformBins(ref('t1'));
+
+    expect(bins).toBeNull();
+    expect(hoisted.invokeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts a new read after the refresh generation changes', async () => {
+    setCurrent('t1');
+    let resolveFirst!: (value: unknown) => void;
+    hoisted.invokeMock.mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve; }));
+    const first = refreshWaveformForTrack(ref('t1'));
+    hoisted.gen = 1;
+    hoisted.invokeMock.mockResolvedValueOnce({ bins: [4, 5, 6] });
+    const second = refreshWaveformForTrack(ref('t1'));
+    expect(hoisted.invokeMock).toHaveBeenCalledTimes(2);
+    resolveFirst({ bins: [1, 2, 3] });
+    await Promise.all([first, second]);
+    expect(hoisted.playerSetStateMock).toHaveBeenCalledTimes(1);
+    expect(hoisted.playerSetStateMock).toHaveBeenCalledWith({ waveformBins: [4, 5, 6] });
   });
 
   it('discards results when the gen has been bumped since the call started', async () => {

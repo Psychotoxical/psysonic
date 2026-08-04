@@ -6,9 +6,9 @@
 //! - response stream ends, or
 //! - response emits an error.
 
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use futures_util::StreamExt;
 use ringbuf::HeapProd;
@@ -18,8 +18,24 @@ use tauri::AppHandle;
 use super::super::engine::PlaybackHttpHeaders;
 use super::super::state::PreloadedTrack;
 use super::{
-    maybe_arm_stream_playback, TRACK_STREAM_MAX_RECONNECTS, TRACK_STREAM_PROMOTE_MAX_BYTES,
+    AnalysisSeedHoldGuard, TRACK_STREAM_MAX_RECONNECTS, TRACK_STREAM_PROMOTE_MAX_BYTES,
+    maybe_arm_stream_playback,
 };
+
+fn finish_legacy_stream_download(
+    completed: Option<PreloadedTrack>,
+    promote_cache_slot: &Mutex<Option<PreloadedTrack>>,
+    playback_armed: &AtomicBool,
+    done: &AtomicBool,
+    after_publish: impl FnOnce(),
+) {
+    if let Some(completed) = completed {
+        *promote_cache_slot.lock().unwrap() = Some(completed);
+    }
+    playback_armed.store(true, Ordering::SeqCst);
+    done.store(true, Ordering::SeqCst);
+    after_publish();
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn track_download_task(
@@ -32,12 +48,10 @@ pub(crate) async fn track_download_task(
     mut prod: HeapProd<u8>,
     done: Arc<AtomicBool>,
     promote_cache_slot: Arc<Mutex<Option<PreloadedTrack>>>,
-    normalization_engine: Arc<AtomicU32>,
-    normalization_target_lufs: Arc<AtomicU32>,
-    loudness_pre_analysis_attenuation_db: Arc<AtomicU32>,
     cache_track_id: Option<String>,
     // Playback server scope for the analysis-cache write key (empty/`None` → legacy '').
     server_id: Option<String>,
+    _analysis_seed_hold: Option<AnalysisSeedHoldGuard>,
     http_headers: PlaybackHttpHeaders,
     playback_armed: Arc<AtomicBool>,
 ) {
@@ -46,7 +60,6 @@ pub(crate) async fn track_download_task(
     let mut next_response: Option<reqwest::Response> = Some(initial_response);
     let mut capture: Vec<u8> = Vec::new();
     let mut capture_over_limit = false;
-    let mut last_partial_loudness_emit = Instant::now() - Duration::from_secs(5);
     'outer: loop {
         let response = if let Some(r) = next_response.take() {
             r
@@ -140,72 +153,95 @@ pub(crate) async fn track_download_task(
                             capture_over_limit = true;
                         }
                     }
-                    if !capture_over_limit
-                        && last_partial_loudness_emit.elapsed() >= Duration::from_millis(crate::helpers::PARTIAL_LOUDNESS_EMIT_INTERVAL_MS)
-                    {
-                        last_partial_loudness_emit = Instant::now();
-                        if normalization_engine.load(Ordering::Relaxed) == 2 {
-                            let target_lufs = f32::from_bits(normalization_target_lufs.load(Ordering::Relaxed));
-                            let pre_db = f32::from_bits(
-                                loudness_pre_analysis_attenuation_db.load(Ordering::Relaxed),
-                            )
-                            .clamp(-24.0, 0.0);
-                            crate::helpers::emit_partial_loudness_from_bytes(
-                                &app,
-                                &url,
-                                server_id.as_deref(),
-                                &capture,
-                                target_lufs,
-                                pre_db,
-                            );
-                        }
-                    }
                     offset += pushed;
                     downloaded += pushed as u64;
                     maybe_arm_stream_playback(downloaded, &playback_armed);
                 }
             }
         }
-        if !capture_over_limit && !capture.is_empty() {
+        let (completed, analysis_capture) = if !capture_over_limit && !capture.is_empty() {
             if gen_arc.load(Ordering::SeqCst) != gen {
                 done.store(true, Ordering::SeqCst);
                 return;
             }
-            if let Some(track_id) = cache_track_id {
-                crate::app_deprintln!(
-                    "[stream] legacy stream: capture complete track_id={} capture_mib={:.2} — full-track analysis (cpu-seed queue)",
-                    track_id,
-                    capture.len() as f64 / (1024.0 * 1024.0)
-                );
-                let sid = crate::analysis_dispatch::resolve_server_id_for_app(
-                    &app,
-                    server_id.as_deref(),
-                );
-                    let priority = crate::analysis_dispatch::analysis_priority_for_app(&app, &sid, &track_id, None);
-                if let Err(e) = crate::analysis_dispatch::dispatch_track_analysis_bytes(
-                    &app,
-                    crate::analysis_dispatch::TrackAnalysisOrigin::StreamDownloadComplete,
-                    &sid,
-                    &track_id,
-                    capture.clone(),
-                    priority,
-                )
-                .await
-                {
-                    crate::app_eprintln!("[analysis] track seed failed for {track_id}: {e}");
+            let analysis_capture = cache_track_id.as_ref().map(|_| capture.clone());
+            (
+                Some(PreloadedTrack {
+                    url: url.clone(),
+                    data: capture,
+                }),
+                analysis_capture,
+            )
+        } else {
+            (None, None)
+        };
+        finish_legacy_stream_download(
+            completed,
+            &promote_cache_slot,
+            &playback_armed,
+            &done,
+            || {
+                if let (Some(track_id), Some(capture)) = (cache_track_id, analysis_capture) {
+                    crate::app_deprintln!(
+                        "[stream] legacy stream: capture complete track_id={} capture_mib={:.2} — full-track analysis (cpu-seed queue)",
+                        track_id,
+                        capture.len() as f64 / (1024.0 * 1024.0)
+                    );
+                    let sid = crate::analysis_dispatch::resolve_server_id_for_app(
+                        &app,
+                        server_id.as_deref(),
+                    );
+                    let priority = crate::analysis_dispatch::analysis_priority_for_app(
+                        &app, &sid, &track_id, None,
+                    );
+                    crate::analysis_dispatch::spawn_track_analysis_bytes(
+                        app,
+                        crate::analysis_dispatch::TrackAnalysisOrigin::StreamDownloadComplete,
+                        sid,
+                        track_id,
+                        capture,
+                        Some(url),
+                        priority,
+                        Some((gen, gen_arc)),
+                    );
                 }
-            }
-            if gen_arc.load(Ordering::SeqCst) != gen {
-                done.store(true, Ordering::SeqCst);
-                return;
-            }
-            *promote_cache_slot.lock().unwrap() = Some(PreloadedTrack {
-                url: url.clone(),
-                data: capture,
-            });
-        }
-        playback_armed.store(true, Ordering::SeqCst);
-        done.store(true, Ordering::SeqCst);
+            },
+        );
         return;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn completion_publishes_before_analysis_callback() {
+        let body = vec![0xAB; 2048];
+        let done = Arc::new(AtomicBool::new(false));
+        let completed = Arc::new(Mutex::new(None));
+        let playback_armed = Arc::new(AtomicBool::new(false));
+        let analysis_started = AtomicBool::new(false);
+
+        finish_legacy_stream_download(
+            Some(PreloadedTrack {
+                url: "https://example.test/stream".to_string(),
+                data: body.clone(),
+            }),
+            &completed,
+            &playback_armed,
+            &done,
+            || {
+                let completed = completed.lock().unwrap();
+                assert_eq!(completed.as_ref().unwrap().data, body);
+                assert!(playback_armed.load(Ordering::SeqCst));
+                assert!(done.load(Ordering::SeqCst));
+                analysis_started.store(true, Ordering::SeqCst);
+            },
+        );
+
+        assert!(analysis_started.load(Ordering::SeqCst));
+        assert!(done.load(Ordering::SeqCst));
+        assert!(playback_armed.load(Ordering::SeqCst));
     }
 }

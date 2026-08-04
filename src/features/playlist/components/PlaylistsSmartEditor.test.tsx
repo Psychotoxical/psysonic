@@ -46,14 +46,14 @@ describe('PlaylistsSmartEditor', () => {
     const view = renderWithProviders(<SmartEditorHarness editingSmartId={null} />);
 
     expect(view.getByRole('textbox', { name: 'Playlist Name' })).toBeInTheDocument();
-    expect(view.getByRole('button', { name: 'Servers' })).toHaveTextContent('Server A');
+    expect(view.getByRole('combobox', { name: 'Servers' })).toHaveTextContent('Server A');
   });
 
   it('keeps the owner server fixed while editing a smart playlist', () => {
     const view = renderWithProviders(<SmartEditorHarness editingSmartId="smart-1" />);
 
     expect(view.getByRole('textbox', { name: 'Playlist Name' })).toBeInTheDocument();
-    expect(view.queryByRole('button', { name: 'Servers' })).not.toBeInTheDocument();
+    expect(view.queryByRole('combobox', { name: 'Servers' })).not.toBeInTheDocument();
   });
 
   it('hides the owner selector when creating in single-server mode', () => {
@@ -65,6 +65,6 @@ describe('PlaylistsSmartEditor', () => {
     );
 
     expect(view.getByRole('textbox', { name: 'Playlist Name' })).toBeInTheDocument();
-    expect(view.queryByRole('button', { name: 'Servers' })).not.toBeInTheDocument();
+    expect(view.queryByRole('combobox', { name: 'Servers' })).not.toBeInTheDocument();
   });
 });

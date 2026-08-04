@@ -3,8 +3,12 @@ import {
   sanitizeAutodjOverlapCapMode,
   sanitizeAutodjOverlapCapSec,
 } from '@/lib/audio/autodjOverlapCap';
+import { sanitizeStreamMaxBitRateKbps, sanitizeStreamRequestFormat } from '@/lib/audio/streamQuality';
 import { DEFAULT_LOUDNESS_PRE_ANALYSIS_ATTENUATION_DB } from './authStoreDefaults';
-import { updateReplayGainForCurrentTrack } from './playbackEngineBridge';
+import {
+  invalidatePlaybackPreloads,
+  updateReplayGainForCurrentTrack,
+} from './playbackEngineBridge';
 import type { AuthState } from './authStoreTypes';
 
 type SetState = (
@@ -39,6 +43,8 @@ export function createAudioSettingsActions(set: SetState): Pick<
   | 'setEnableHiRes'
   | 'setHiResCrossfadeResampleHz'
   | 'setAudioOutputDevice'
+  | 'setStreamQualityForAddress'
+  | 'setStreamFormatForAddress'
 > {
   return {
     setReplayGainEnabled: (v) => {
@@ -84,5 +90,32 @@ export function createAudioSettingsActions(set: SetState): Pick<
     setEnableHiRes: (v) => set({ enableHiRes: v }),
     setHiResCrossfadeResampleHz: (v) => set({ hiResCrossfadeResampleHz: v }),
     setAudioOutputDevice: (v) => set({ audioOutputDevice: v }),
+    setStreamQualityForAddress: (normalizedAddress, v) => {
+      const clean = sanitizeStreamMaxBitRateKbps(v);
+      let changed = false;
+      set((state) => {
+        if ((state.streamQualityByAddress[normalizedAddress] ?? 0) === clean) return {};
+        changed = true;
+        const next = { ...state.streamQualityByAddress };
+        // Original (0) is the default — store it as absence to keep the map tidy.
+        if (clean === 0) delete next[normalizedAddress];
+        else next[normalizedAddress] = clean;
+        return { streamQualityByAddress: next };
+      });
+      if (changed) void invalidatePlaybackPreloads().catch(() => {});
+    },
+    setStreamFormatForAddress: (normalizedAddress, v) => {
+      const clean = sanitizeStreamRequestFormat(v);
+      let changed = false;
+      set((state) => {
+        if ((state.streamFormatByAddress[normalizedAddress] ?? 'auto') === clean) return {};
+        changed = true;
+        const next = { ...state.streamFormatByAddress };
+        if (clean === 'auto') delete next[normalizedAddress];
+        else next[normalizedAddress] = clean;
+        return { streamFormatByAddress: next };
+      });
+      if (changed) void invalidatePlaybackPreloads().catch(() => {});
+    },
   };
 }

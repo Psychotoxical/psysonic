@@ -73,6 +73,39 @@ export function hasLocalFavoriteAutoBytes(trackId: string, serverId: string): bo
   return !!findFavoriteAutoEntry(trackId, serverId)?.localPath;
 }
 
+/** Resolve an `ephemeral` (hot-cache) tier row across index-key variants. */
+export function findEphemeralEntry(
+  trackId: string,
+  serverId: string,
+): LocalPlaybackEntry | null {
+  const lp = useLocalPlaybackStore.getState();
+  for (const key of serverIndexKeysForServerId(serverId)) {
+    const hit = lp.getEntry(trackId, key);
+    if (hit?.tier === 'ephemeral') return hit;
+  }
+  for (const entry of Object.values(lp.entries)) {
+    if (entry.trackId !== trackId || entry.tier !== 'ephemeral') continue;
+    if (entryBelongsToServer(entry, serverId)) return entry;
+  }
+  return null;
+}
+
+/**
+ * Whether a hot-cache (ephemeral) blob may be reused for the current streaming
+ * quality. A blob captured from a capped live stream carries the cap it was
+ * fetched at; it may only be reused when that matches the current request.
+ * Original (0/undefined) blobs satisfy any request. Unknown (no entry) is
+ * treated as original so non-hot-cache callers are unaffected.
+ */
+export function ephemeralServeableAtQuality(
+  trackId: string,
+  serverId: string,
+  currentMaxBitRateKbps: number,
+): boolean {
+  const cachedCap = findEphemeralEntry(trackId, serverId)?.streamMaxBitRateKbps ?? 0;
+  return cachedCap === 0 || cachedCap === currentMaxBitRateKbps;
+}
+
 /** Manual offline library or favorites auto-sync — skip redundant hot-cache prefetch/promote. */
 export function hasLocalPersistentPlaybackBytes(trackId: string, serverId: string): boolean {
   return hasLocalLibraryBytes(trackId, serverId) || hasLocalFavoriteAutoBytes(trackId, serverId);

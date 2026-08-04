@@ -43,9 +43,9 @@ impl PlaybackQueryHandle {
         (self.is_playing)(track_id)
     }
 
-    /// `true` if a ranged HTTP playback for `track_id` is mid-flight and will
+    /// `true` if an HTTP playback for `track_id` is mid-flight and will
     /// seed analysis on completion — the backfill enqueue should defer.
-    pub fn ranged_loudness_backfill_should_defer(&self, track_id: &str) -> bool {
+    pub fn analysis_backfill_should_defer(&self, track_id: &str) -> bool {
         (self.should_defer_backfill)(track_id)
     }
 }
@@ -77,6 +77,11 @@ impl ContentHashSink {
     /// Record `md5_16kb` as the library `content_hash` for `(server_id, track_id)`.
     /// Best-effort: the registered closure swallows errors and no-ops when the
     /// library has no matching row.
+    ///
+    /// Callers must only pass an ORIGINAL-file fingerprint: either computed
+    /// from untranscoded bytes, or the raw-prefix-probe trusted hash when the
+    /// analyzed bytes were a transcode. Unverified transcode hashes must never
+    /// reach this sink (readiness gating and track-ID remap key off it).
     pub fn record_content_hash(&self, server_id: &str, track_id: &str, md5_16kb: &str) {
         (self.record)(server_id, track_id, md5_16kb)
     }

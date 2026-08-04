@@ -1,4 +1,4 @@
-//! Per-server custom HTTP headers for reverse-proxy gates (Pangolin, Cloudflare Access).
+//! Per-server native HTTP context for reverse-proxy headers and server capabilities.
 //! Registry is keyed by index key; app server UUID aliases resolve via `ref_to_key`.
 
 use std::collections::HashMap;
@@ -47,6 +47,8 @@ pub struct ServerHttpContextSyncWire {
     pub custom_headers: Vec<CustomHeaderEntryWire>,
     #[serde(rename = "customHeadersApplyTo", default)]
     pub custom_headers_apply_to: Option<CustomHeadersApplyTo>,
+    #[serde(rename = "supportsRawStream", default)]
+    pub supports_raw_stream: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -54,6 +56,7 @@ pub struct ServerHttpContext {
     pub endpoints: Vec<(String, EndpointKind)>,
     pub headers: Vec<(String, String)>,
     pub apply_to: CustomHeadersApplyTo,
+    pub supports_raw_stream: bool,
 }
 
 impl From<ServerHttpContextSyncWire> for ServerHttpContext {
@@ -71,6 +74,7 @@ impl From<ServerHttpContextSyncWire> for ServerHttpContext {
                 .filter(|(n, _)| !n.is_empty())
                 .collect(),
             apply_to: w.custom_headers_apply_to.unwrap_or_default(),
+            supports_raw_stream: w.supports_raw_stream,
         }
     }
 }
@@ -200,15 +204,21 @@ impl ServerHttpRegistry {
         let index_key = wire.server_id.clone();
         let app_id = wire.app_server_id.clone();
         let ctx = Arc::new(ServerHttpContext::from(wire));
-        if ctx.headers.is_empty() {
-            self.remove(&index_key, &app_id);
+        let mut contexts = self.contexts.lock().unwrap();
+        let mut refs = self.ref_to_key.lock().unwrap();
+        if let Some(previous_key) = refs.get(&app_id).cloned() {
+            if previous_key != index_key {
+                contexts.remove(&previous_key);
+                refs.remove(&previous_key);
+            }
+        }
+        if ctx.headers.is_empty() && !ctx.supports_raw_stream {
+            contexts.remove(&index_key);
+            refs.remove(&index_key);
+            refs.remove(&app_id);
             return;
         }
-        {
-            let mut contexts = self.contexts.lock().unwrap();
-            contexts.insert(index_key.clone(), Arc::clone(&ctx));
-        }
-        let mut refs = self.ref_to_key.lock().unwrap();
+        contexts.insert(index_key.clone(), Arc::clone(&ctx));
         refs.insert(index_key.clone(), index_key.clone());
         refs.insert(app_id, index_key);
     }
@@ -220,7 +230,7 @@ impl ServerHttpRegistry {
             let index_key = wire.server_id.clone();
             let app_id = wire.app_server_id.clone();
             let ctx = Arc::new(ServerHttpContext::from(wire));
-            if ctx.headers.is_empty() {
+            if ctx.headers.is_empty() && !ctx.supports_raw_stream {
                 continue;
             }
             new_contexts.insert(index_key.clone(), Arc::clone(&ctx));
@@ -232,8 +242,13 @@ impl ServerHttpRegistry {
     }
 
     pub fn remove(&self, index_key: &str, app_server_id: &str) {
-        self.contexts.lock().unwrap().remove(index_key);
+        let mut contexts = self.contexts.lock().unwrap();
         let mut refs = self.ref_to_key.lock().unwrap();
+        if let Some(mapped_key) = refs.get(app_server_id).cloned() {
+            contexts.remove(&mapped_key);
+            refs.remove(&mapped_key);
+        }
+        contexts.remove(index_key);
         refs.remove(index_key);
         refs.remove(app_server_id);
     }
@@ -271,23 +286,34 @@ impl ServerHttpRegistry {
         None
     }
 
-    /// Resolve a context by `server_ref` first, then fall back to matching the
-    /// request URL against the registered endpoints. The URL fallback is what
-    /// keeps gated servers working when a caller passes a stale/foreign ref
-    /// (e.g. the audio engine's playback server id vs. the index key): endpoint
-    /// matching only ever hits a registered gated server, and `apply_to` is
-    /// still enforced downstream, so non-gated servers are never touched.
+    /// Resolve a context by `server_ref` when that context owns the request
+    /// endpoint, then fall back to endpoint matching. A known ref must never
+    /// lend headers or capabilities to an unrelated HTTP URL.
     pub fn resolve_context(
         &self,
         server_ref: Option<&str>,
         full_http_url: &str,
     ) -> Option<Arc<ServerHttpContext>> {
+        let request_base = request_base_url_from_http_url(full_http_url);
         if let Some(sid) = server_ref.filter(|s| !s.is_empty()) {
             if let Some(ctx) = self.get_for_server_ref(sid) {
-                return Some(ctx);
+                if ctx.endpoints.iter().any(|(url, _)| *url == request_base) {
+                    return Some(ctx);
+                }
             }
         }
         self.get_for_server_url(full_http_url)
+    }
+
+    /// `format=raw` is only trusted for a registered endpoint whose saved
+    /// server identity currently identifies Navidrome.
+    pub fn supports_raw_stream_for_request(
+        &self,
+        server_ref: Option<&str>,
+        full_http_url: &str,
+    ) -> bool {
+        self.resolve_context(server_ref, full_http_url)
+            .is_some_and(|ctx| ctx.supports_raw_stream)
     }
 
 }
@@ -335,6 +361,7 @@ mod tests {
             ],
             headers: vec![("X-Gate".into(), "secret".into())],
             apply_to: CustomHeadersApplyTo::Public,
+            supports_raw_stream: false,
         };
         let lan = headers_for_request_base_url(&ctx, "http://192.168.0.10");
         assert!(lan.is_empty());
@@ -358,6 +385,7 @@ mod tests {
                 value: "tok".into(),
             }],
             custom_headers_apply_to: Some(CustomHeadersApplyTo::Both),
+            supports_raw_stream: false,
         });
 
         let stream_url = "http://127.0.0.1:8899/rest/stream.view?id=42&u=x&t=y";
@@ -391,9 +419,108 @@ mod tests {
                 value: "tok".into(),
             }],
             custom_headers_apply_to: Some(CustomHeadersApplyTo::Public),
+            supports_raw_stream: false,
         });
         assert!(reg.get("music.example").is_some());
         assert!(reg.get_for_server_ref("uuid-1").is_some());
         assert!(reg.get("uuid-1").is_none());
+    }
+
+    #[test]
+    fn capability_only_context_is_retained_without_custom_headers() {
+        let reg = ServerHttpRegistry::new();
+        reg.sync(ServerHttpContextSyncWire {
+            server_id: "music.example".into(),
+            app_server_id: "uuid-1".into(),
+            endpoints: vec![ServerHttpEndpointWire {
+                url: "https://music.example".into(),
+                kind: EndpointKind::Public,
+            }],
+            custom_headers: Vec::new(),
+            custom_headers_apply_to: None,
+            supports_raw_stream: true,
+        });
+
+        let stream_url = "https://music.example/rest/stream.view?id=1";
+        assert!(reg.get_for_server_ref("uuid-1").is_some());
+        assert!(reg.supports_raw_stream_for_request(Some("uuid-1"), stream_url));
+        assert!(headers_for_request_base_url(
+            &reg.resolve_context(Some("uuid-1"), stream_url).unwrap(),
+            "https://music.example"
+        )
+        .is_empty());
+    }
+
+    #[test]
+    fn raw_capability_requires_both_navidrome_context_and_registered_endpoint() {
+        let reg = ServerHttpRegistry::new();
+        reg.sync(ServerHttpContextSyncWire {
+            server_id: "music.example".into(),
+            app_server_id: "uuid-1".into(),
+            endpoints: vec![ServerHttpEndpointWire {
+                url: "https://music.example".into(),
+                kind: EndpointKind::Public,
+            }],
+            custom_headers: Vec::new(),
+            custom_headers_apply_to: None,
+            supports_raw_stream: true,
+        });
+        reg.sync(ServerHttpContextSyncWire {
+            server_id: "subsonic.example".into(),
+            app_server_id: "uuid-2".into(),
+            endpoints: vec![ServerHttpEndpointWire {
+                url: "https://subsonic.example".into(),
+                kind: EndpointKind::Public,
+            }],
+            custom_headers: vec![CustomHeaderEntryWire {
+                name: "X-Gate".into(),
+                value: "token".into(),
+            }],
+            custom_headers_apply_to: Some(CustomHeadersApplyTo::Public),
+            supports_raw_stream: false,
+        });
+
+        assert!(!reg.supports_raw_stream_for_request(
+            Some("uuid-1"),
+            "https://unknown.example/rest/stream.view?id=1"
+        ));
+        assert!(!reg.supports_raw_stream_for_request(
+            Some("uuid-2"),
+            "https://subsonic.example/rest/stream.view?id=1"
+        ));
+    }
+
+    #[test]
+    fn profile_resync_revokes_the_previous_endpoint_context() {
+        let reg = ServerHttpRegistry::new();
+        reg.sync(ServerHttpContextSyncWire {
+            server_id: "old.example".into(),
+            app_server_id: "uuid-1".into(),
+            endpoints: vec![ServerHttpEndpointWire {
+                url: "https://old.example".into(),
+                kind: EndpointKind::Public,
+            }],
+            custom_headers: Vec::new(),
+            custom_headers_apply_to: None,
+            supports_raw_stream: true,
+        });
+        reg.sync(ServerHttpContextSyncWire {
+            server_id: "new.example".into(),
+            app_server_id: "uuid-1".into(),
+            endpoints: vec![ServerHttpEndpointWire {
+                url: "https://new.example".into(),
+                kind: EndpointKind::Public,
+            }],
+            custom_headers: Vec::new(),
+            custom_headers_apply_to: None,
+            supports_raw_stream: false,
+        });
+
+        assert!(reg.get("old.example").is_none());
+        assert!(reg.get_for_server_ref("uuid-1").is_none());
+        assert!(!reg.supports_raw_stream_for_request(
+            None,
+            "https://old.example/rest/stream.view?id=1"
+        ));
     }
 }

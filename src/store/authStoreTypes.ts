@@ -1,4 +1,5 @@
 import type { HiResCrossfadeResampleHz } from '@/lib/audio/hiResCrossfadeResample';
+import type { StreamMaxBitRateKbps, StreamRequestFormat } from '@/lib/audio/streamQuality';
 import type { EntityRatingSupportLevel } from '@/lib/api/subsonicTypes';
 import type { DebugLoggingDepth } from '@/lib/perf/debugLoggingMode';
 import type {
@@ -284,6 +285,17 @@ export interface AuthState {
   hiResCrossfadeResampleHz: HiResCrossfadeResampleHz;
   /** Selected audio output device name. null = system default. */
   audioOutputDevice: string | null;
+  /**
+   * Live-stream transcode cap (kbps) per NORMALIZED server address; 0/absent =
+   * Original. Keyed by address — not server id — because a profile's primary
+   * and alternate URLs are different transports (LAN vs reverse proxy) and may
+   * want different caps. Only honoured for addresses whose server identity
+   * probe reports Navidrome; playback uses the entry of the address the
+   * connect layer selected.
+   */
+  streamQualityByAddress: Record<string, StreamMaxBitRateKbps>;
+  /** Transcode target format per normalized address ('auto' stored as absence). */
+  streamFormatByAddress: Record<string, StreamRequestFormat>;
 
   /** Auto-download starred favorites into `media/favorites/` (separate from offline library). */
   favoritesOfflineEnabled: boolean;
@@ -480,6 +492,8 @@ export interface AuthState {
   setEnableHiRes: (v: boolean) => void;
   setHiResCrossfadeResampleHz: (v: HiResCrossfadeResampleHz) => void;
   setAudioOutputDevice: (v: string | null) => void;
+  setStreamQualityForAddress: (normalizedAddress: string, v: StreamMaxBitRateKbps) => void;
+  setStreamFormatForAddress: (normalizedAddress: string, v: StreamRequestFormat) => void;
   setFavoritesOfflineEnabled: (v: boolean) => void;
   setHotCacheEnabled: (v: boolean) => void;
   setHotCacheMaxMb: (v: number) => void;

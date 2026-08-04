@@ -86,25 +86,29 @@ describe('orbitRuntime seam contract', () => {
 });
 
 describe('playbackEngineBridge seam contract', () => {
-  it('default getQueueServerId is null and ops are no-ops', () => {
+  it('default getQueueServerId is null and ops are no-ops', async () => {
     expect(playbackEngineBridge.isPlaybackEngineBridgeRegistered()).toBe(false);
     expect(playbackEngineBridge.getQueueServerId()).toBeNull();
     expect(() => playbackEngineBridge.clearQueueServerForPlayback()).not.toThrow();
     expect(() => playbackEngineBridge.updateReplayGainForCurrentTrack()).not.toThrow();
+    await expect(playbackEngineBridge.invalidatePlaybackPreloads()).resolves.toBeUndefined();
   });
 
-  it('after registerPlaybackEngineBridge, delegates every op', () => {
+  it('after registerPlaybackEngineBridge, delegates every op', async () => {
     const impl = {
       getQueueServerId: vi.fn(() => 'srv-9'),
       clearQueueServerForPlayback: vi.fn(),
       updateReplayGainForCurrentTrack: vi.fn(),
+      invalidatePreloads: vi.fn(async () => undefined),
     };
     playbackEngineBridge.registerPlaybackEngineBridge(impl);
     expect(playbackEngineBridge.isPlaybackEngineBridgeRegistered()).toBe(true);
     expect(playbackEngineBridge.getQueueServerId()).toBe('srv-9');
     playbackEngineBridge.clearQueueServerForPlayback();
     playbackEngineBridge.updateReplayGainForCurrentTrack();
+    await playbackEngineBridge.invalidatePlaybackPreloads();
     expect(impl.clearQueueServerForPlayback).toHaveBeenCalledTimes(1);
     expect(impl.updateReplayGainForCurrentTrack).toHaveBeenCalledTimes(1);
+    expect(impl.invalidatePreloads).toHaveBeenCalledTimes(1);
   });
 });

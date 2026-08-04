@@ -208,7 +208,7 @@ install via Windows Package Manager (WinGet):
 winget install Psysonic
 ```
 
-or, install via [Scoop](https://scoop.sh/#/apps?q=psysonic&p=1):  
+or, install via [Scoop](https://scoop.sh/#/apps?q=psysonic&p=1):
 ```powershell
 scoop bucket add extras
 scoop install psysonic

@@ -2,7 +2,7 @@ import md5 from 'md5';
 import { coverStorageKeyFromRef } from '@/cover/storageKeys';
 import { coverEntryToRef, resolveAlbumCoverEntry } from '@/cover/resolveEntry';
 import type { CoverArtTier } from '@/cover/types';
-import { useAuthStore } from '@/store/authStore';
+import { serverSupportsRawStream, useAuthStore } from '@/store/authStore';
 import { connectBaseUrlForServer } from '@/lib/server/serverEndpoint';
 import { findServerByIdOrIndexKey } from '@/lib/server/serverLookup';
 import { restBaseFromUrl, SUBSONIC_CLIENT, secureRandomSalt } from '@/lib/api/subsonicClient';
@@ -27,6 +27,8 @@ function streamUrlFromProfile(
   username: string,
   password: string,
   id: string,
+  maxBitRateKbps = 0,
+  transcodeFormat = '',
 ): string {
   const baseUrl = restBaseFromUrl(serverUrl);
   const salt = secureRandomSalt();
@@ -40,25 +42,48 @@ function streamUrlFromProfile(
     c: SUBSONIC_CLIENT,
     f: 'json',
   });
+  // Ask the server to transcode the live stream down to this ceiling. Omitted
+  // when 0 ("No bitrate cap"); the server may still apply its own transcode
+  // policy. Only the live playback path passes a cap.
+  if (maxBitRateKbps > 0) p.set('maxBitRate', String(maxBitRateKbps));
+  // Explicit transcode target ('' / 'auto' = omit; server picks its default).
+  if (transcodeFormat && transcodeFormat !== 'auto') p.set('format', transcodeFormat);
   return `${baseUrl}/stream.view?${p.toString()}`;
 }
 
-export function buildStreamUrlForServer(serverId: string, id: string): string {
+export function buildStreamUrlForServer(serverId: string, id: string, maxBitRateKbps = 0, transcodeFormat = ''): string {
   const server = findServerByIdOrIndexKey(serverId);
-  if (!server) return buildStreamUrl(id);
+  if (!server) return buildStreamUrl(id, maxBitRateKbps, transcodeFormat);
   // Dual-address: route the stream through the cached connect endpoint.
-  return streamUrlFromProfile(connectBaseUrlForServer(server), server.username, server.password, id);
+  return streamUrlFromProfile(
+    connectBaseUrlForServer(server), server.username, server.password, id, maxBitRateKbps, transcodeFormat,
+  );
 }
 
-export function buildStreamUrl(id: string): string {
+/**
+ * URL for producers that need the original media bytes. Navidrome's verified
+ * `format=raw` contract bypasses server/player transcoding; unknown and other
+ * server types retain the ordinary uncapped stream request.
+ */
+export function buildOriginalStreamUrlForServer(serverId: string, id: string): string {
+  const server = findServerByIdOrIndexKey(serverId);
+  if (!server || !serverSupportsRawStream(serverId)) {
+    return buildStreamUrlForServer(serverId, id);
+  }
+  return streamUrlFromProfile(
+    connectBaseUrlForServer(server), server.username, server.password, id, 0, 'raw',
+  );
+}
+
+export function buildStreamUrl(id: string, maxBitRateKbps = 0, transcodeFormat = ''): string {
   const { getBaseUrl, getActiveServer } = useAuthStore.getState();
   const server = getActiveServer();
   const baseUrl = getBaseUrl();
-  if (!server || !baseUrl) return streamUrlFromProfile('', '', '', id);
+  if (!server || !baseUrl) return streamUrlFromProfile('', '', '', id, maxBitRateKbps, transcodeFormat);
   // `getBaseUrl()` already returns the cached connect URL; use it directly
   // instead of re-normalizing `server.url`, which would bypass the dual-
   // address connect cache.
-  return streamUrlFromProfile(baseUrl, server.username, server.password, id);
+  return streamUrlFromProfile(baseUrl, server.username, server.password, id, maxBitRateKbps, transcodeFormat);
 }
 
 /** @deprecated Use `coverStorageKey` from `src/cover/storageKeys` — shim until migration. */

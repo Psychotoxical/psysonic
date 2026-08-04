@@ -43,6 +43,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * **Settings → System → Logging** and **PsyLab → Logs** offer basic and verbose debug-depth levels while Debug logging is enabled. Verbose mode adds structured multi-server scope, reachability, music-folder and New Releases diagnostics, with credentials and sensitive URL data redacted.
 
+### Streaming quality — per-address Navidrome bitrate and format controls
+
+**By [@Manwe-777](https://github.com/Manwe-777), PR [#1334](https://github.com/Psychotoxical/psysonic/pull/1334)**
+
+* Saved Navidrome servers can request no bitrate cap or a 320…64 kbps ceiling, with Auto / MP3 / Opus / AAC as the target format. Settings are stored per address, so LAN and public endpoints can use different quality profiles and playback follows the connected endpoint.
+* Offline pins, favourites sync and hot-cache prefetch use the original-stream path; confirmed Navidrome profiles request `format=raw`, while other servers keep the existing uncapped request. Transcoded live bytes are not promoted as original files, and completed-stream reuse stays isolated by endpoint, account, format and bitrate cap.
+* Waveform, loudness and enrichment may analyse the played stream, but canonical results stay anchored to the original file's validated raw fingerprint. Different bitrate representations share one track revision, and a failed original probe cannot overwrite library identity.
+* Because analysis stays anchored to the original, the first play of a track that arrives transcoded also fetches that original once in the background. Later plays skip it, but on a slow link the first play of each new track costs the capped stream plus the original — the cap saves bandwidth from the second play onwards.
+* After updating, Psysonic checks every offline pin, synced favourite and hot-cache file once against the original's fingerprint, using a 16 KB request per file rather than a fresh download. Pinned albums can briefly show as incomplete while that runs; files that turn out to be a server transcode are replaced with the original.
+
 ### Album details — disc covers in the multi-disc separator
 
 **By [@Psychotoxical](https://github.com/Psychotoxical) and [@cucadmuh](https://github.com/cucadmuh), PR [#1336](https://github.com/Psychotoxical/psysonic/pull/1336)**
@@ -74,6 +84,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1357](https://github.com/Psychotoxical/psysonic/pull/1357)**
 
 * The store now suggests one theme above the search box, picked from further down the catalogue and preferring themes you have not installed. The store lists themes by last change, so older ones were only ever found by paging to the end. **Show another** picks a different one; installing or applying the suggestion leaves it in place.
+
+### Player views — click any artist of a credit
+
+**By [@enncoded](https://github.com/enncoded), PR [#1371](https://github.com/Psychotoxical/psysonic/pull/1371)**
+
+* Artist names link to the artist page in all three fullscreen styles, the detached mini player and the mobile layout — until now only album and queue rows offered this. Clicking one in fullscreen closes the overlay so the artist page is right there.
+* Joined credits such as "Primary feat. Guest" read as separate artists, including the bullet separator Navidrome uses when a track carries only plural artist tags. Names like AC/DC stay intact.
+
+### Audio visualizer — spectrum, scopes and fullscreen views
+
+**By [@Manwe-777](https://github.com/Manwe-777), PR [#1375](https://github.com/Psychotoxical/psysonic/pull/1375)**
+
+* **Now Playing** and every fullscreen-player style can show a responsive spectrum, oscilloscope, radial scope or stereo field, with cover-derived or theme colours and an expanded window view.
+* Sensitivity, response, frame rate and peak markers are configurable under **Settings → Appearance → Visualizer**. Internet radio is supported while its equalizer audio graph is active.
+
+### Visualizer — separate switches for Now Playing and the fullscreen player
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1378](https://github.com/Psychotoxical/psysonic/pull/1378)**
+
+* The visualizer can now be switched on for the fullscreen player alone, or for **Now Playing** alone, under **Settings → Appearance → Visualizer**. An existing off setting is kept as it was.
+* The section's controls are grouped into two panels, and long option names such as the radial scope are no longer cut off in translated interfaces.
 
 ## Changed
 
@@ -264,6 +295,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1369](https://github.com/Psychotoxical/psysonic/pull/1369)**, reported by [@moldavia](https://github.com/moldavia)
 
 * Resuming after a long pause could leave Now Playing several tracks ahead of what you were hearing, with a flat waveform to match, until you clicked back through the queue. Pausing long enough releases the audio stream, and restarting it was mistaken for a track change; that no longer moves the queue.
+
+### Buttons — outlines are visible without hovering first
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1379](https://github.com/Psychotoxical/psysonic/pull/1379)**
+
+* Secondary buttons such as **Back** on artist and album pages, **Cancel** in the server form and the connect actions under **Music Network** showed no outline until the pointer was over them. They now look clickable at rest. Reported by zunoz.
+* The row for a custom HTTP header no longer pushes its remove button onto a second line where it filled a whole column and looked like another input field.
+* On a genre page, the add-to-queue button now matches the height of **Play** and carries a proper label for screen readers.
+* Internet radio shows its sort picker next to the browse and add buttons instead of on a separate line below them.
 
 ## [1.50.0]
 

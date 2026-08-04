@@ -1,11 +1,14 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   _resetRadioEqGraphForTest,
   applyRadioEqSettings,
   clampBandGain,
   clampPreGainDb,
   dbToLinear,
+  getRadioSpectrumAvailability,
+  getRadioSpectrumAnalyser,
   setRadioEqMasterVolume,
+  subscribeRadioSpectrumAvailability,
   tryAttachRadioEqGraph,
   _radioEqGraphForTest,
 } from '@/features/playback/utils/audio/radioEqGraph';
@@ -32,7 +35,8 @@ describe('radioEqGraph helpers', () => {
 describe('radioEqGraph with mocked Web Audio', () => {
   class MockGain {
     gain = { value: 1 };
-    connect() { return this; }
+    connections: unknown[] = [];
+    connect(node: unknown) { this.connections.push(node); return node; }
   }
 
   class MockBiquad {
@@ -40,7 +44,16 @@ describe('radioEqGraph with mocked Web Audio', () => {
     frequency = { value: 1000 };
     Q = { value: 1 };
     gain = { value: 0 };
-    connect() { return this; }
+    connections: unknown[] = [];
+    connect(node: unknown) { this.connections.push(node); return node; }
+  }
+
+  class MockAnalyser {
+    fftSize = 32;
+    minDecibels = -100;
+    maxDecibels = -30;
+    smoothingTimeConstant = 0.8;
+    constructor(readonly context: MockContext) {}
   }
 
   class MockContext {
@@ -49,6 +62,7 @@ describe('radioEqGraph with mocked Web Audio', () => {
     destination = {};
     createGain() { return new MockGain(); }
     createBiquadFilter() { return new MockBiquad(); }
+    createAnalyser() { return new MockAnalyser(this); }
     createMediaElementSource() {
       return { connect() { return undefined; } };
     }
@@ -99,5 +113,66 @@ describe('radioEqGraph with mocked Web Audio', () => {
     const g = _radioEqGraphForTest();
     expect(g?.preGainNode.gain.value).toBeCloseTo(dbToLinear(-3), 5);
     expect(g?.bands[0]?.gain.value).toBe(4);
+  });
+
+  it('taps post-EQ before volume and configures the native display range', async () => {
+    (window as unknown as { AudioContext: typeof AudioContext }).AudioContext =
+      MockContext as unknown as typeof AudioContext;
+
+    const audio = document.createElement('audio');
+    await tryAttachRadioEqGraph(audio);
+    const analyser = getRadioSpectrumAnalyser() as unknown as MockAnalyser;
+    const g = _radioEqGraphForTest();
+    const analysisSource = g?.analysisSource as unknown as MockBiquad;
+    const masterGain = g?.masterGain as unknown as MockGain;
+
+    expect(analyser.fftSize).toBe(2048);
+    expect(analyser.minDecibels).toBe(-60);
+    expect(analyser.maxDecibels).toBe(0);
+    expect(analyser.smoothingTimeConstant).toBe(0);
+    expect(analysisSource.connections).toContain(analyser);
+    expect(masterGain.connections).not.toContain(analyser);
+
+    setRadioEqMasterVolume(0.1);
+    expect(analysisSource.connections).toContain(analyser);
+  });
+
+  it('publishes analyser availability and keeps it after EQ is bypassed', async () => {
+    (window as unknown as { AudioContext: typeof AudioContext }).AudioContext =
+      MockContext as unknown as typeof AudioContext;
+    const listener = vi.fn();
+    const unsubscribe = subscribeRadioSpectrumAvailability(listener);
+
+    expect(getRadioSpectrumAvailability()).toBe(false);
+    expect(await tryAttachRadioEqGraph(document.createElement('audio'))).toBe(true);
+    expect(getRadioSpectrumAvailability()).toBe(true);
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    applyRadioEqSettings([], false, 0);
+    expect(getRadioSpectrumAvailability()).toBe(true);
+    expect(listener).toHaveBeenCalledTimes(1);
+    unsubscribe();
+  });
+
+  it('stays unavailable when Web Audio attachment fails', async () => {
+    class FailingContext extends MockContext {
+      override createMediaElementSource(): ReturnType<MockContext['createMediaElementSource']> {
+        throw new Error('attach failed');
+      }
+    }
+    (window as unknown as { AudioContext: typeof AudioContext }).AudioContext =
+      FailingContext as unknown as typeof AudioContext;
+    const listener = vi.fn();
+    const unsubscribe = subscribeRadioSpectrumAvailability(listener);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      expect(await tryAttachRadioEqGraph(document.createElement('audio'))).toBe(false);
+      expect(getRadioSpectrumAvailability()).toBe(false);
+      expect(listener).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+      unsubscribe();
+    }
   });
 });

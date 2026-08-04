@@ -22,7 +22,7 @@ describe('RadioEditModal', () => {
       />,
     );
 
-    const serverSelect = view.getByRole('button', { name: 'Servers' });
+    const serverSelect = view.getByRole('combobox', { name: 'Servers' });
     expect(serverSelect).toHaveTextContent('Server A');
     await user.click(serverSelect);
     await user.click(view.getByRole('option', { name: 'Server B' }));
@@ -48,7 +48,7 @@ describe('RadioEditModal', () => {
       />,
     );
 
-    expect(view.queryByRole('button', { name: 'Servers' })).not.toBeInTheDocument();
+    expect(view.queryByRole('combobox', { name: 'Servers' })).not.toBeInTheDocument();
   });
 
   it('keeps the owner fixed while editing an existing station', () => {
@@ -67,6 +67,6 @@ describe('RadioEditModal', () => {
       />,
     );
 
-    expect(view.queryByRole('button', { name: 'Servers' })).not.toBeInTheDocument();
+    expect(view.queryByRole('combobox', { name: 'Servers' })).not.toBeInTheDocument();
   });
 });
