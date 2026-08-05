@@ -65,7 +65,6 @@ export const player = {
   lyricsSourceServer: 'Forrás: szerver',
   lyricsSourceLrclib: 'Forrás: LRCLIB',
   lyricsSourceNetease: 'Forrás: Netease',
-  lyricsSourceLyricsplus: 'Forrás: YouLyPlus',
   showDuration: 'Hossz megjelenítése',
   showRemainingTime: 'Hátralévő idő megjelenítése',
   sourceFailureTitle: 'A(z) {{title}} nem játszható le',

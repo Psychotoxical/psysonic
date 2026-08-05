@@ -31,7 +31,6 @@ beforeEach(() => {
   // A source must be enabled or the hook treats lyrics as switched off entirely.
   useAuthStore.setState({
     activeServerId: 'srv-a',
-    youLyPlusEnabled: false,
     lyricsSources: [
       { id: 'server', enabled: true },
       { id: 'lrclib', enabled: false },

@@ -65,7 +65,6 @@ export const player = {
   lyricsSourceServer: 'Fuente: Servidor',
   lyricsSourceLrclib: 'Fuente: LRCLIB',
   lyricsSourceNetease: 'Fuente: Netease',
-  lyricsSourceLyricsplus: 'Fuente: YouLyPlus',
   showDuration: 'Mostrar duración',
   showRemainingTime: 'Mostrar tiempo restante',
   sourceFailureTitle: 'No se pudo reproducir {{title}}',

@@ -311,12 +311,7 @@ describe('lyrics source setters', () => {
     expect(useAuthStore.getState().lyricsSources).toEqual(sources);
   });
 
-  it('setYouLyPlusEnabled + setSidebarLyricsStyle write values through', () => {
-    useAuthStore.getState().setYouLyPlusEnabled(true);
-    expect(useAuthStore.getState().youLyPlusEnabled).toBe(true);
-    useAuthStore.getState().setYouLyPlusEnabled(false);
-    expect(useAuthStore.getState().youLyPlusEnabled).toBe(false);
-
+  it('setSidebarLyricsStyle writes values through', () => {
     useAuthStore.getState().setSidebarLyricsStyle('apple');
     expect(useAuthStore.getState().sidebarLyricsStyle).toBe('apple');
   });

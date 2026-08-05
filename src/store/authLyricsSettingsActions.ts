@@ -6,7 +6,7 @@ type SetState = (
 
 /**
  * Lyrics fetch-pipeline settings: source order/enablement, mode
- * (standard pipeline vs lyricsplus first), and the static-only
+ * and the static-only
  * rendering toggle. Visual lyrics chrome (rail vs apple,
  * fullscreen show/hide) lives in `authUiAppearanceActions.ts`.
  */
@@ -15,14 +15,12 @@ export function createLyricsSettingsActions(set: SetState): Pick<
   | 'setLyricsServerFirst'
   | 'setEnableNeteaselyrics'
   | 'setLyricsSources'
-  | 'setYouLyPlusEnabled'
   | 'setLyricsStaticOnly'
 > {
   return {
     setLyricsServerFirst: (v) => set({ lyricsServerFirst: v }),
     setEnableNeteaselyrics: (v) => set({ enableNeteaselyrics: v }),
     setLyricsSources: (sources) => set({ lyricsSources: sources }),
-    setYouLyPlusEnabled: (v) => set({ youLyPlusEnabled: v }),
     setLyricsStaticOnly: (v) => set({ lyricsStaticOnly: v }),
   };
 }

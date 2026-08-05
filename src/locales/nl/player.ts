@@ -65,7 +65,6 @@ export const player = {
   lyricsSourceServer: 'Bron: Server',
   lyricsSourceLrclib: 'Bron: LRCLIB',
   lyricsSourceNetease: 'Bron: Netease',
-  lyricsSourceLyricsplus: 'Bron: YouLyPlus',
   showDuration: 'Toon duur',
   showRemainingTime: 'Toon resterende tijd',
   sourceFailureTitle: 'Kan {{title}} niet afspelen',
