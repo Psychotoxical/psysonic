@@ -302,6 +302,7 @@ impl MainWindowLifecycleState {
         apply()
     }
 
+    #[cfg(any(target_os = "linux", test))]
     pub(crate) fn apply_startup_decorations<T>(
         &self,
         generation: u64,
