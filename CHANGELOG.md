@@ -359,6 +359,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Starting an internet radio station no longer clears the whole window on systems installed from the AUR, `.deb` or `.rpm` packages. Those packages now ask for the GStreamer plugins that radio playback needs.
 * Root cause: radio is the one path that plays through the WebView rather than the audio engine, so it relies on GStreamer plugins the distributions treat as optional and do not install on their own. AppImage builds were never affected because they carry the plugins with them.
 
+### Lyrics — the YouLyPlus source has been removed
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1391](https://github.com/Psychotoxical/psysonic/pull/1391)**
+
+* The service behind this option no longer has a single working server, and its operator states publicly that a replacement cannot be funded, so the option has been removed rather than left pointing at dead addresses. If it was the only lyrics source you had switched on, LRCLIB is enabled for you automatically.
+* Word-by-word highlighting is unaffected: it also comes from lyrics embedded in your files and from Navidrome 0.63+.
+
 ## [1.50.0]
 
 ## Added
