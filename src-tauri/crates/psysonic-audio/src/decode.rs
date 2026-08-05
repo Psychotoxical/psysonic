@@ -236,9 +236,45 @@ pub(crate) struct SizedDecoder {
     spec: AudioSpec,
     /// Real decoded format (codec/rate/depth) for the now-playing UI badge.
     codec_info: ResolvedCodecInfo,
+    /// Whether Symphonia's own encoder-gap trimming is active for this stream.
+    /// When true the decoder already removed encoder delay/padding, so
+    /// `build_source` must not apply its manual `iTunSMPB` trim on top.
+    builtin_gapless: bool,
     /// Counts consecutive DecodeErrors in the hot-path. Reset to 0 on every
     /// successfully decoded frame. Used to detect fully undecodable streams.
     consecutive_decode_errors: usize,
+}
+
+/// Codecs whose encoder delay and end padding live in container metadata that
+/// Symphonia parses and can apply itself.
+///
+/// MP3 carries them in the Xing/LAME header. Symphonia 0.6 reads those values
+/// and puts them on the packet trim fields, but its MP3 decoder only applies
+/// them when decoder gapless mode is on — so leaving it off plays the encoder
+/// delay of every track and the padding of the previous one, which is the
+/// audible seam in a gapless chain (issue #1373).
+///
+/// M4A/AAC deliberately stays out: where those files are played from a byte
+/// buffer, `build_source`'s manual `iTunSMPB` parser owns the trim, and enabling
+/// both would trim twice. (On the streaming paths AAC currently gets no trim at
+/// all — pre-existing, out of scope here, see `build_streaming_source`.)
+///
+/// Decided on the resolved codec, never on a file extension — a server can
+/// transcode and hand us a different codec than the URL suggests. Pair it with
+/// [`encoder_gap_reported`]: the codec says *who could* trim, the demuxer values
+/// say *whether there is* anything to trim.
+pub(crate) fn should_use_builtin_gapless(codec_name: &str) -> bool {
+    codec_name == "mp3"
+}
+
+/// Whether the demuxer actually reported an encoder gap for this track.
+///
+/// Symphonia fills `delay`/`padding` only when it recognised the encoder that
+/// wrote the Xing extension. When both are absent or zero it will trim nothing,
+/// so the manual `iTunSMPB` path has to stay in charge — otherwise a file that
+/// carries only the iTunes tag would end up with no trimming at all.
+pub(crate) fn encoder_gap_reported(delay: Option<u32>, padding: Option<u32>) -> bool {
+    delay.unwrap_or(0) > 0 || padding.unwrap_or(0) > 0
 }
 
 impl SizedDecoder {
@@ -319,6 +355,9 @@ impl SizedDecoder {
             })?;
 
         let track_id = track.id;
+        // Read before `track` goes out of scope; drives the gapless ownership
+        // decision below.
+        let (track_delay, track_padding) = (track.delay, track.padding);
         // Encoder-delay-aware total duration (timebase units → Time).
         let total_duration = track
             .time_base
@@ -337,10 +376,25 @@ impl SizedDecoder {
         log_codec_resolution("bytes", &audio_params, format_hint);
         let codec_info = resolve_codec_info(&audio_params);
 
-        // Gapless trimming is performed by `build_source` (iTunSMPB), so disable
-        // the decoder's built-in trimming to avoid double-trimming.
+        // Encoder-gap trimming has exactly one owner per stream:
+        //   • the decoder, when the demuxer actually reported an encoder gap
+        //     (MP3 with a Xing/LAME header) — enabled here;
+        //   • otherwise `build_source`'s manual `iTunSMPB` trim.
+        // `build_source` reads `applies_builtin_gapless()` and skips its own trim
+        // when this is on, so no stream is ever trimmed twice.
+        //
+        // The decision is data-driven on purpose: symphonia only fills delay and
+        // padding when the Xing extension names LAME/Lavf/Lavc as the encoder
+        // (`symphonia-bundle-mp3/src/demuxer.rs`). An iTunes-encoded MP3 reports
+        // nothing there but carries an `iTunSMPB` tag, so keying only on the codec
+        // would take its trim away and leave it with none at all.
+        let builtin_gapless = should_use_builtin_gapless(codec_info.codec_name)
+            && encoder_gap_reported(track_delay, track_padding);
         let mut decoder = psysonic_codec_registry()
-            .make_audio_decoder(&audio_params, &AudioDecoderOptions::default().gapless(false))
+            .make_audio_decoder(
+                &audio_params,
+                &AudioDecoderOptions::default().gapless(builtin_gapless),
+            )
             .map_err(|e| {
                 crate::app_eprintln!("[psysonic] codec init failed: {e}");
                 if e.to_string().to_lowercase().contains("unsupported") {
@@ -354,13 +408,17 @@ impl SizedDecoder {
         // DecodeErrors (e.g. "invalid main_data offset") are non-fatal: drop the
         // frame and try the next packet up to MAX_CONSECUTIVE_DECODE_ERRORS times.
         let mut decode_errors: usize = 0;
-        let decoded = loop {
+        let (spec, buffer) = loop {
             let packet = match format.next_packet() {
                 Ok(Some(p)) => p,
                 // Clean EOF before any decodable packet.
-                Ok(None) => break decoder.last_decoded(),
+                Ok(None) => {
+                    let last = decoder.last_decoded();
+                    break (last.spec().clone(), Self::make_buffer(&last));
+                }
                 Err(symphonia::core::errors::Error::IoError(_)) => {
-                    break decoder.last_decoded();
+                    let last = decoder.last_decoded();
+                    break (last.spec().clone(), Self::make_buffer(&last));
                 }
                 Err(e) => {
                     crate::app_eprintln!("[psysonic] next_packet error: {e}");
@@ -372,7 +430,20 @@ impl SizedDecoder {
                 continue;
             }
             match decoder.decode(&packet) {
-                Ok(decoded) => break decoded,
+                Ok(decoded) => {
+                    // With gapless trimming enabled a packet can be trimmed away
+                    // *entirely*: an MPEG-2/2.5 Layer III frame carries only 576
+                    // samples while a LAME encoder delay is ~1105, so the first
+                    // frame of a 22.05 kHz MP3 decodes to zero frames. That is not
+                    // end-of-stream — keep reading. Breaking here would leave an
+                    // empty initial buffer, `current_span_len()` would report
+                    // `Some(0)`, and rodio's `UniformSourceIterator` (resampling
+                    // path) reads a zero-length span as end-of-source: the track
+                    // would play nothing at all.
+                    if decoded.frames() > 0 {
+                        break (decoded.spec().clone(), Self::make_buffer(&decoded));
+                    }
+                }
                 Err(symphonia::core::errors::Error::DecodeError(ref msg)) => {
                     decode_errors += 1;
                     crate::app_eprintln!("[psysonic] init: dropped corrupt frame #{decode_errors}: {msg}");
@@ -387,9 +458,6 @@ impl SizedDecoder {
             }
         };
 
-        let spec = decoded.spec().clone();
-        let buffer = Self::make_buffer(&decoded);
-
         Ok(SizedDecoder {
             decoder,
             current_frame_offset: 0,
@@ -398,16 +466,22 @@ impl SizedDecoder {
             buffer,
             spec,
             codec_info,
+            builtin_gapless,
             consecutive_decode_errors: 0,
         })
     }
 
     /// Build a decoder from any `MediaSource` (e.g. track-stream or radio).
-    /// Uses `enable_gapless: false` — live streams are not seekable; gapless
-    /// trimming requires seeking to read the LAME/iTunSMPB end-padding info.
+    ///
+    /// Gapless trimming follows the same ownership rule as [`Self::new`], but only
+    /// for random-access sources — see the comment at the decoder construction
+    /// below. Open-ended sources (radio, preview, the non-seekable fallback) stay
+    /// untrimmed.
+    ///
     /// `source_random_access`: the underlying source can cheaply seek to EOF
-    /// (e.g. a local file), so the probe-time trailing-metadata / stream-end scan
-    /// is not a full download. Progressive sources (ranged HTTP) pass `false`.
+    /// (e.g. a local file or the ranged-HTTP reader), so the probe-time
+    /// trailing-metadata / stream-end scan is not a full download. Radio, preview
+    /// and the non-seekable streaming fallback pass `false`.
     pub(crate) fn new_streaming(
         media: Box<dyn MediaSource>,
         format_hint: Option<&str>,
@@ -505,6 +579,7 @@ impl SizedDecoder {
             .find(|t| t.codec_params.as_ref().and_then(|c| c.audio()).is_some())
             .ok_or_else(|| format!("{source_tag}: no audio track found"))?;
         let track_id = track.id;
+        let (track_delay, track_padding) = (track.delay, track.padding);
         let audio_params = track
             .codec_params
             .as_ref()
@@ -515,8 +590,25 @@ impl SizedDecoder {
         let codec_info = resolve_codec_info(&audio_params);
         // Live streams have no known total frame count → total_duration = None.
         let total_duration = None;
-        let mut decoder = try_make_radio_decoder(&audio_params, &AudioDecoderOptions::default().gapless(false))
-            .map_err(|e| format!("{source_tag}: codec init failed: {e}"))?;
+        // Same ownership rule as `new`, restricted to random-access sources.
+        //
+        // `source_random_access` is true for local files *and* for the ranged-HTTP
+        // reader (`play_input.rs`), false for radio, preview and the non-seekable
+        // streaming fallback. Those three deliver an open-ended stream where the
+        // container's frame count cannot be trusted, so they keep the previous
+        // untrimmed behaviour.
+        //
+        // This matters because a locally cached MP3 plays through *this*
+        // constructor, not `new`: without it the predecessor of a gapless boundary
+        // would still emit its end padding — half the seam of issue #1373.
+        let builtin_gapless = source_random_access
+            && should_use_builtin_gapless(codec_info.codec_name)
+            && encoder_gap_reported(track_delay, track_padding);
+        let mut decoder = try_make_radio_decoder(
+            &audio_params,
+            &AudioDecoderOptions::default().gapless(builtin_gapless),
+        )
+        .map_err(|e| format!("{source_tag}: codec init failed: {e}"))?;
 
         let mut errors = 0usize;
         let decoded = loop {
@@ -540,7 +632,7 @@ impl SizedDecoder {
         };
         let spec = decoded.spec().clone();
         let buffer = Self::make_buffer(&decoded);
-        Ok(SizedDecoder { decoder, current_frame_offset: 0, format, total_duration, buffer, spec, codec_info, consecutive_decode_errors: 0 })
+        Ok(SizedDecoder { decoder, current_frame_offset: 0, format, total_duration, buffer, spec, codec_info, builtin_gapless, consecutive_decode_errors: 0 })
     }
 
     #[inline]
@@ -554,6 +646,12 @@ impl SizedDecoder {
     #[inline]
     pub(crate) fn codec_info(&self) -> &ResolvedCodecInfo {
         &self.codec_info
+    }
+
+    /// True when Symphonia already removed this stream's encoder delay/padding.
+    /// `build_source` uses it to skip its manual `iTunSMPB` trim (no double-trim).
+    pub(crate) fn applies_builtin_gapless(&self) -> bool {
+        self.builtin_gapless
     }
 
     /// Refine position after a coarse seek — decode packets until we reach the
@@ -596,9 +694,24 @@ impl SizedDecoder {
         }
 
         let decoded = decoded.map_err(|e| format!("refine decode: {e}"))?;
+        // `packet.dur` counts the frames the packet carries *before* trimming, but
+        // with gapless trimming on the decoder may have dropped the encoder gap
+        // from the front of this very packet. Skipping `samples_to_pass` frames of
+        // a buffer that no longer contains them would point past its end, and
+        // `next()` would then discard the whole packet — a seek to the start of a
+        // trimmed MP3 lost the remainder of its first frame.
+        // `samples_to_pass` was derived from `packet.dur`, which counts the frames
+        // the packet carries *before* trimming. The decoder removed `trim_start`
+        // of them from the front, so the buffer starts that much later; skipping
+        // the full amount would point past its end and `next()` would discard the
+        // whole packet — a seek to the start of a trimmed MP3 used to lose the
+        // remainder of its first frame. `trim_end` needs no handling here: it
+        // shortens the buffer at the back, which the offset never reaches.
+        let offset_frames = samples_to_pass.saturating_sub(packet.trim_start.get());
+
         self.spec = decoded.spec().clone();
         self.buffer = Self::make_buffer(&decoded);
-        self.current_frame_offset = samples_to_pass as usize * self.spec.channels().count();
+        self.current_frame_offset = offset_frames as usize * self.spec.channels().count();
         Ok(())
     }
 }
@@ -846,6 +959,9 @@ pub(crate) fn build_source(
     let sample_rate = decoder.sample_rate();
     let channels = decoder.channels();
     let resolved_format = Some(decoder.codec_info().clone());
+    // Skip the manual trim when the decoder already applied the encoder gap
+    // (MP3/Xing-LAME) — trimming both would cut real audio off the track.
+    let manual_trim = !decoder.applies_builtin_gapless();
 
     // Determine effective duration.
     // Prefer hint from Subsonic API (reliable) over decoder (unreliable for VBR MP3).
@@ -859,7 +975,9 @@ pub(crate) fn build_source(
 
     // Apply encoder-delay trim and optional end-padding trim,
     // then resample to the canonical target rate if needed.
-    let dyn_src: DynSource = if gapless.delay_samples > 0 || gapless.total_valid_samples.is_some() {
+    let dyn_src: DynSource = if manual_trim
+        && (gapless.delay_samples > 0 || gapless.total_valid_samples.is_some())
+    {
         let delay_dur = Duration::from_secs_f64(
             gapless.delay_samples as f64 / sample_rate.get() as f64
         );
@@ -1044,7 +1162,9 @@ mod tests {
         assert!(info.total_valid_samples.is_none());
     }
 
-    fn synth_itunsmpb_blob(delay_hex: &str, padding_hex: &str, total_hex: &str) -> Vec<u8> {
+    /// `pub(super)` so `build_source_tests` can reuse it instead of keeping a
+    /// second copy of the blob layout.
+    pub(super) fn synth_itunsmpb_blob(delay_hex: &str, padding_hex: &str, total_hex: &str) -> Vec<u8> {
         let mut v = Vec::new();
         v.extend_from_slice(b"random preamble bytes ");
         v.extend_from_slice(b"iTunSMPB");
@@ -1456,5 +1576,269 @@ mod build_source_tests {
         )
         .expect("resampled build_source must succeed");
         assert_eq!(built.output_rate, 48_000);
+    }
+
+    // ── Encoder-gap ownership per codec (issue #1373) ────────────────────────
+
+    #[test]
+    fn builtin_gapless_is_used_for_mp3() {
+        assert!(should_use_builtin_gapless("mp3"));
+    }
+
+    #[test]
+    fn builtin_gapless_is_not_used_for_other_codecs() {
+        // AAC/ALAC keep the manual iTunSMPB path; lossless codecs have no
+        // encoder gap at all. Any of these turning true would double-trim.
+        for codec in ["aac", "alac", "flac", "pcm_s16le", "vorbis", "opus", "?"] {
+            assert!(
+                !should_use_builtin_gapless(codec),
+                "{codec} must keep the manual trim path"
+            );
+        }
+    }
+
+    /// A 440 Hz sine encoded with libmp3lame, carrying the Xing/LAME `Info`
+    /// header. Reference numbers and the regeneration recipe live in
+    /// `fixtures/README.md`.
+    const LAME_SINE_MP3: &[u8] = include_bytes!("../fixtures/lame_sine_22050.mp3");
+    /// Samples of the signal that was encoded — what a correct decode returns.
+    const LAME_SINE_TRIMMED_FRAMES: u64 = 22_050;
+    /// 21 MP3 packets x 1152 samples — what an untrimmed decode returns.
+    const LAME_SINE_RAW_FRAMES: u64 = 24_192;
+    /// Same signal encoded without a Xing header: symphonia reports no encoder
+    /// gap for it, which is what an iTunes-encoded MP3 looks like to the decoder.
+    const NO_XING_MP3: &[u8] = include_bytes!("../fixtures/no_xing_sine.mp3");
+    const NO_XING_RAW_FRAMES: u64 = 24_192;
+    /// 22.05 kHz (MPEG-2 Layer III, 576 samples per frame) — its first packet is
+    /// shorter than the encoder delay and is trimmed away entirely.
+    const MPEG2_SINE_MP3: &[u8] = include_bytes!("../fixtures/mpeg2_sine_22050.mp3");
+
+    /// Decode `data` through the production `build_source` path and return the
+    /// frame count, cross-checked against the production sample counter.
+    fn decoded_frames(data: Vec<u8>, format_hint: Option<&str>) -> u64 {
+        decoded_frames_with_target(data, format_hint, 0)
+    }
+
+    /// As above, but with an explicit resampling target (0 = native rate). The
+    /// resampling branch wraps the source in rodio's `UniformSourceIterator`,
+    /// which is where a zero-length first span becomes silence.
+    fn decoded_frames_with_target(data: Vec<u8>, format_hint: Option<&str>, target_rate: u32) -> u64 {
+        let (samples, channels) = decoded_samples_with_target(data, format_hint, target_rate);
+        samples.len() as u64 / channels
+    }
+
+    /// The decoded samples plus the channel count — used where a test needs to
+    /// look at the waveform itself, not just how many samples came out.
+    fn decoded_samples_with_target(
+        data: Vec<u8>,
+        format_hint: Option<&str>,
+        target_rate: u32,
+    ) -> (Vec<f32>, u64) {
+        let (eq_gains, eq_enabled, eq_pre_gain, playback_rate, done_flag, sample_counter) =
+            default_source_args();
+        let counter = Arc::clone(&sample_counter);
+        let built = build_source(
+            data,
+            0.0,
+            eq_gains,
+            eq_enabled,
+            eq_pre_gain,
+            playback_rate,
+            done_flag,
+            // No fade: it would not change the sample count but adds noise to the
+            // thing under test.
+            Duration::ZERO,
+            sample_counter,
+            target_rate,
+            format_hint,
+            false,
+        )
+        .expect("fixture must decode");
+
+        let channels = built.output_channels as u64;
+        let samples: Vec<f32> = built.source.collect();
+        assert_eq!(
+            samples.len() as u64,
+            counter.load(Ordering::Relaxed),
+            "drain count and production CountingSource must agree"
+        );
+        (samples, channels)
+    }
+
+    #[test]
+    fn mp3_encoder_delay_and_padding_are_trimmed() {
+        // Regression for #1373. Before the fix this returned the raw frame count,
+        // i.e. every track played ~48 ms of encoder delay and padding as audio —
+        // the audible seam in a gapless chain.
+        let (samples, channels) = decoded_samples_with_target(LAME_SINE_MP3.to_vec(), Some("mp3"), 0);
+        let frames = samples.len() as u64 / channels;
+        assert_ne!(
+            frames, LAME_SINE_RAW_FRAMES,
+            "encoder delay and padding are still played as audio (issue #1373)"
+        );
+        assert_eq!(frames, LAME_SINE_TRIMMED_FRAMES);
+
+        // The count alone would also pass if the trim happened at the wrong end.
+        // The fixture is a 440 Hz sine starting at phase 0, so a correctly trimmed
+        // decode starts near zero and rises; a decode that kept the encoder delay
+        // (or cut only from the back) starts somewhere else on the curve.
+        let head: Vec<f32> = samples.iter().copied().take(6).collect();
+        assert!(
+            head[0].abs() < 0.05,
+            "first sample should sit at the start of the sine, got {head:?}"
+        );
+        assert!(
+            head[5] > head[0],
+            "sine should be rising out of phase 0, got {head:?}"
+        );
+    }
+
+    #[test]
+    fn mp3_with_itunsmpb_is_not_trimmed_twice() {
+        // Some MP3s carry an iTunSMPB tag in addition to the Xing/LAME header.
+        // Symphonia already trims those files, so the manual parser must stand
+        // down — otherwise its delay would be cut off real audio a second time.
+        let mut data = LAME_SINE_MP3.to_vec();
+        data.extend_from_slice(&super::tests::synth_itunsmpb_blob("00000840", "00000000", "00000000"));
+
+        // Guard the premise: the manual parser really does see the tag here.
+        let info = parse_gapless_info(&data);
+        assert_eq!(info.delay_samples, 0x840, "fixture must expose an iTunSMPB delay");
+
+        assert_eq!(
+            decoded_frames(data, Some("mp3")),
+            LAME_SINE_TRIMMED_FRAMES,
+            "decoder trim only — the manual iTunSMPB delay must not be applied on top"
+        );
+    }
+
+    /// Same measurement through the streaming path (`SeekableMedia` / radio),
+    /// which is what a locally cached `psysonic-local://` file plays through.
+    fn decoded_frames_streaming(data: Vec<u8>, format_hint: Option<&str>, random_access: bool) -> u64 {
+        let len = data.len() as u64;
+        let media: Box<dyn MediaSource> =
+            Box::new(SizedCursorSource { inner: Cursor::new(data), len });
+        let decoder = SizedDecoder::new_streaming(media, format_hint, "test-stream", random_access)
+            .expect("fixture must decode as a stream");
+
+        let (eq_gains, eq_enabled, eq_pre_gain, playback_rate, done_flag, sample_counter) =
+            default_source_args();
+        let counter = Arc::clone(&sample_counter);
+        let built = build_streaming_source(
+            decoder,
+            0.0,
+            eq_gains,
+            eq_enabled,
+            eq_pre_gain,
+            playback_rate,
+            done_flag,
+            Duration::ZERO,
+            sample_counter,
+            0,
+            None,
+        )
+        .expect("streaming source must build");
+
+        let channels = built.output_channels as u64;
+        let mut drained: u64 = 0;
+        for _ in built.source {
+            drained += 1;
+        }
+        assert_eq!(
+            drained,
+            counter.load(Ordering::Relaxed),
+            "drain count and production CountingSource must agree"
+        );
+        drained / channels
+    }
+
+    #[test]
+    fn cached_local_mp3_is_trimmed_on_the_streaming_path() {
+        // A pinned/cached file plays as a seekable local source, not from bytes.
+        // Without this the *predecessor* of a gapless boundary would still emit
+        // its end padding — half the seam would survive the fix.
+        assert_eq!(
+            decoded_frames_streaming(LAME_SINE_MP3.to_vec(), Some("mp3"), true),
+            LAME_SINE_TRIMMED_FRAMES
+        );
+    }
+
+    #[test]
+    fn progressive_mp3_stream_keeps_previous_behaviour() {
+        // Radio and a mid-download ranged HTTP read have no trustworthy frame
+        // count up front, so they deliberately stay untrimmed.
+        assert_eq!(
+            decoded_frames_streaming(LAME_SINE_MP3.to_vec(), Some("mp3"), false),
+            LAME_SINE_RAW_FRAMES
+        );
+    }
+
+    #[test]
+    fn mp3_without_encoder_gap_metadata_keeps_the_manual_trim() {
+        // symphonia only reports delay/padding when it recognises the encoder in
+        // the Xing extension; an iTunes-encoded MP3 (and this Xing-less fixture)
+        // reports nothing while still carrying an `iTunSMPB` tag. Keying ownership
+        // on the codec name alone would leave those files with no trim at all —
+        // a regression of the very bug this branch fixes.
+        let mut data = NO_XING_MP3.to_vec();
+        data.extend_from_slice(&super::tests::synth_itunsmpb_blob(
+            "00000840",
+            "00000000",
+            "00000000",
+        ));
+        assert_eq!(
+            decoded_frames(data, Some("mp3")),
+            NO_XING_RAW_FRAMES - 0x840,
+            "manual iTunSMPB trim must still run when the decoder reports no gap"
+        );
+    }
+
+    #[test]
+    fn fully_trimmed_first_packet_still_produces_audio() {
+        // An MPEG-2/2.5 Layer III frame holds 576 samples, less than the ~1105
+        // sample LAME delay, so the first packet is trimmed away completely. If the
+        // decoder treats that as end-of-stream, the resampling path (hi-res blend,
+        // AutoDJ) yields a silent track — this returned 0 frames before the fix.
+        let frames = decoded_frames_with_target(MPEG2_SINE_MP3.to_vec(), Some("mp3"), 48_000);
+        assert!(
+            frames > 40_000,
+            "resampled 22.05 kHz MP3 must still produce audio, got {frames} frames"
+        );
+    }
+
+    #[test]
+    fn seeking_a_trimmed_mp3_lands_on_the_requested_frame() {
+        // The seek refinement counts frames using the packet's untrimmed length.
+        // With the decoder trimming the encoder gap off the first packet, seeking
+        // to the start used to skip past the buffer and drop the rest of that
+        // frame (47 of 22050 frames for this fixture).
+        for (ms, expected) in [(0u64, LAME_SINE_TRIMMED_FRAMES), (250, LAME_SINE_TRIMMED_FRAMES / 2)] {
+            let mut decoder =
+                SizedDecoder::new(LAME_SINE_MP3.to_vec(), Some("mp3"), false).expect("decode");
+            let channels = decoder.channels().get() as u64;
+            decoder
+                .try_seek(Duration::from_millis(ms))
+                .expect("seek must succeed");
+            let remaining = decoder.count() as u64 / channels;
+            assert_eq!(remaining, expected, "seek to {ms} ms landed on the wrong frame");
+        }
+    }
+
+    #[test]
+    fn non_mp3_still_uses_the_manual_itunsmpb_trim() {
+        // The counterpart to the test above: the fix must not silently disable
+        // the manual path for the codecs it still owns.
+        let plain = synthetic_wav_bytes_local(0.5);
+        let untrimmed = decoded_frames(plain.clone(), Some("wav"));
+
+        let mut tagged = plain;
+        tagged.extend_from_slice(&super::tests::synth_itunsmpb_blob("00000100", "00000000", "00000000"));
+        let trimmed = decoded_frames(tagged, Some("wav"));
+
+        assert_eq!(
+            untrimmed - trimmed,
+            0x100,
+            "manual trim must still remove exactly the iTunSMPB delay for non-MP3"
+        );
     }
 }
