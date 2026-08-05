@@ -476,12 +476,13 @@ impl<S: Source<Item = f32>> Source for CountingSource<S> {
 // stutter. This wrapper sets the MMCSS "Pro Audio" task class on the first
 // `next()` call so the kernel keeps the render thread on a real-time class
 // alongside other audio applications. On Linux/macOS the wrapper compiles to
-// a no-op — those platforms already promote their audio threads externally
-// (PipeWire/rtkit, CoreAudio).
+// a no-op so platform scheduling stays outside the render callback.
 //
 // Idempotent across track changes: each new track instantiates a fresh
 // PriorityBoostSource, but `AvSetMmThreadCharacteristicsW` can be called
-// repeatedly on the same thread.
+// repeatedly on the same thread. Linux promotes the CPAL and PipeWire threads
+// asynchronously after opening the output stream instead of doing D-Bus work
+// from this callback.
 
 #[cfg(target_os = "windows")]
 fn promote_thread_to_pro_audio() {

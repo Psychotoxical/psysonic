@@ -177,7 +177,10 @@ fn finalize_mixer_device_sink(mut handle: rodio::MixerDeviceSink) -> Arc<rodio::
     if !crate::logging::should_log_debug() {
         handle.log_on_drop(false);
     }
-    Arc::new(handle)
+    let handle = Arc::new(handle);
+    #[cfg(target_os = "linux")]
+    crate::linux_realtime::promote_audio_threads();
+    handle
 }
 
 /// Returns `(stream_handle, actual_sample_rate)`.

@@ -26,6 +26,8 @@ pub mod transport_commands;
 mod device_resume;
 mod device_watcher;
 mod engine;
+#[cfg(target_os = "linux")]
+mod linux_realtime;
 mod stream_idle;
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 mod power_resume;
