@@ -366,6 +366,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The service behind this option no longer has a single working server, and its operator states publicly that a replacement cannot be funded, so the option has been removed rather than left pointing at dead addresses. If it was the only lyrics source you had switched on, LRCLIB is enabled for you automatically.
 * Word-by-word highlighting is unaffected: it also comes from lyrics embedded in your files and from Navidrome 0.63+.
 
+### Startup window — controls and close actions stay reliable
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1392](https://github.com/Psychotoxical/psysonic/pull/1392)**
+
+* On Linux with the custom title bar enabled, the loading splash keeps native window controls until Psysonic's own controls are ready, so startup no longer leaves a borderless window with no mouse-accessible close, minimise or maximise buttons.
+* Close, tray Exit, mini-player restore and second-instance focus actions are queued and ordered during startup or a webview reload instead of being lost or overridden by a stale window operation.
+
 ## [1.50.0]
 
 ## Added
