@@ -346,6 +346,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Back from an album opened on an artist page now returns to that artist, and Back from a related album returns to the previous album. A second Back continues to the original Albums or Artists page with its browse state intact.
 
+### Linux playback — keep audio smooth under heavy CPU load
+
+**By [@cucadmuh](https://github.com/cucadmuh), PR [#1385](https://github.com/Psychotoxical/psysonic/pull/1385)**
+
+* Sustained CPU-heavy work no longer starves Psysonic's audio threads and causes playback stutter or dropouts. The player now asks Linux's realtime service to prioritise both its output callback and PipeWire processing, while keeping the previous scheduling when that service is unavailable.
+
 ## [1.50.0]
 
 ## Added
