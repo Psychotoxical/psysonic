@@ -352,6 +352,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Sustained CPU-heavy work no longer starves Psysonic's audio threads and causes playback stutter or dropouts. The player now asks Linux's realtime service to prioritise both its output callback and PipeWire processing, while keeping the previous scheduling when that service is unavailable.
 
+### Linux — internet radio no longer blanks the window
+
+**By [@Psychotoxical](https://github.com/Psychotoxical), PR [#1390](https://github.com/Psychotoxical/psysonic/pull/1390)**
+
+* Starting an internet radio station no longer clears the whole window on systems installed from the AUR, `.deb` or `.rpm` packages. Those packages now ask for the GStreamer plugins that radio playback needs.
+* Root cause: radio is the one path that plays through the WebView rather than the audio engine, so it relies on GStreamer plugins the distributions treat as optional and do not install on their own. AppImage builds were never affected because they carry the plugins with them.
+
 ## [1.50.0]
 
 ## Added
