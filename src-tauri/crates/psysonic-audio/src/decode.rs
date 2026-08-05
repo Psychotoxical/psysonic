@@ -1634,6 +1634,10 @@ mod build_source_tests {
         format_hint: Option<&str>,
         target_rate: u32,
     ) -> (Vec<f32>, u64) {
+        // Draining a built source runs a `SpectrumTapSource` over the
+        // process-global spectrum ring and lease. Hold the lock the spectrum
+        // tests use so the two cannot interleave.
+        let _globals = crate::spectrum::tests::lock_globals();
         let (eq_gains, eq_enabled, eq_pre_gain, playback_rate, done_flag, sample_counter) =
             default_source_args();
         let counter = Arc::clone(&sample_counter);
@@ -1715,6 +1719,8 @@ mod build_source_tests {
     /// Same measurement through the streaming path (`SeekableMedia` / radio),
     /// which is what a locally cached `psysonic-local://` file plays through.
     fn decoded_frames_streaming(data: Vec<u8>, format_hint: Option<&str>, random_access: bool) -> u64 {
+        // Same reason as `decoded_samples_with_target`: this drains a real source.
+        let _globals = crate::spectrum::tests::lock_globals();
         let len = data.len() as u64;
         let media: Box<dyn MediaSource> =
             Box::new(SizedCursorSource { inner: Cursor::new(data), len });
