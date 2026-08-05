@@ -5,8 +5,8 @@ declare global {
     __psyHidden?: boolean;
     __psyBlurred?: boolean;
     __psyStartMinimizedToTray?: boolean;
-    __psyUseCustomTitlebar?: boolean;
     __psyIsTilingWm?: boolean;
+    __psyLifecycleGeneration?: number;
   }
 }
 

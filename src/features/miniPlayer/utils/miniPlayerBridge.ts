@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 import { setTransitionMode, type TransitionMode } from '@/features/playback/utils/playback/playbackTransition';
 import { resolveQueueTrack } from '@/features/playback/store/queueTrackView';
 import type { SubsonicOpenArtistRef } from '@/lib/api/subsonicTypes';
+import { showMainWindow } from '@/lib/api/miniPlayer';
 import { toMini, type MiniTrackInfo } from '@/features/miniPlayer/utils/miniTrackInfo';
 
 export type { MiniTrackInfo } from '@/features/miniPlayer/utils/miniTrackInfo';
@@ -76,6 +77,10 @@ export function initMiniPlayerBridgeOnMain(): () => void {
   // Only run on the main window
   if (getCurrentWindow().label !== 'main') return () => {};
 
+  const restoreMainWindow = () => {
+    showMainWindow().catch(() => {});
+  };
+
   // Push state to the mini window on every relevant store change.
   let last = '';
   const push = () => {
@@ -141,10 +146,7 @@ export function initMiniPlayerBridgeOnMain(): () => void {
       case 'next':     store.next(true); break;
       case 'prev':     store.previous(); break;
       case 'show-main': {
-        const w = getCurrentWindow();
-        w.unminimize().catch(() => {});
-        w.show().catch(() => {});
-        w.setFocus().catch(() => {});
+        restoreMainWindow();
         break;
       }
     }
@@ -190,10 +192,7 @@ export function initMiniPlayerBridgeOnMain(): () => void {
     const to = e.payload?.to;
     if (!to) return;
     // Surface the main window first so the navigation is visible.
-    const w = getCurrentWindow();
-    w.unminimize().catch(() => {});
-    w.show().catch(() => {});
-    w.setFocus().catch(() => {});
+    restoreMainWindow();
     // React Router lives in main; route via a custom event the AppShell
     // picks up (defined in App.tsx).
     window.dispatchEvent(new CustomEvent('psy:navigate', { detail: { to } }));
@@ -242,10 +241,7 @@ export function initMiniPlayerBridgeOnMain(): () => void {
   const songInfoUnlisten = listen<{ id: string; serverId?: string }>('mini:song-info', (e) => {
     const id = e.payload?.id;
     if (!id) return;
-    const w = getCurrentWindow();
-    w.unminimize().catch(() => {});
-    w.show().catch(() => {});
-    w.setFocus().catch(() => {});
+    restoreMainWindow();
     usePlayerStore.getState().openSongInfo(id, e.payload?.serverId);
   });
 

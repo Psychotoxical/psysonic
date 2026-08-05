@@ -33,6 +33,7 @@ use std::time::Duration;
 
 use futures_util::stream::{self, StreamExt};
 use lib_commands::*;
+use tauri::webview::PageLoadEvent;
 use tauri::{Emitter, Manager};
 
 /// Tracks which user-configured shortcuts are currently registered (shortcut_str → action).
@@ -113,10 +114,7 @@ fn on_second_instance<R: tauri::Runtime>(
         // RESUME_RENDERING_JS — second-launch restore must do the same,
         // otherwise the webview comes back with rendering still paused
         // and navigation looks blank (issue #497).
-        let _ = window.eval(RESUME_RENDERING_JS);
-        let _ = window.show();
-        let _ = window.unminimize();
-        let _ = window.set_focus();
+        let _ = crate::lib_commands::ui::restore_main_window(&window);
     }
 }
 
@@ -322,7 +320,13 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             cover_cache::cover_revalidate_tick,
             // top crate shell commands (set_tray_menu_labels >10 args, backup_*_full/cli_publish_* are Value — all excluded)
             crate::lib_commands::app_api::core::exit_app,
+            crate::lib_commands::app_api::core::window_lifecycle_begin,
+            crate::lib_commands::app_api::core::window_lifecycle_fallback,
+            crate::lib_commands::app_api::core::window_lifecycle_generation,
+            crate::lib_commands::app_api::core::window_lifecycle_hide,
             crate::lib_commands::app_api::core::window_lifecycle_ready,
+            crate::lib_commands::app_api::core::window_lifecycle_startup_visibility,
+            crate::lib_commands::app_api::core::window_lifecycle_update_fallback_policy,
             crate::lib_commands::app_api::core::set_logging_mode,
             crate::lib_commands::app_api::core::set_psylab_albums_browse_trace,
             crate::lib_commands::app_api::core::set_psylab_artists_browse_trace,
@@ -489,6 +493,13 @@ pub fn run() {
     let builder = builder.plugin(tauri_plugin_single_instance::init(on_second_instance));
 
     builder
+        .on_page_load(|webview, payload| {
+            if webview.label() == "main" && matches!(payload.event(), PageLoadEvent::Started) {
+                webview
+                    .state::<MainWindowLifecycleState>()
+                    .mark_frontend_loading();
+            }
+        })
         .setup(|app| {
             #[cfg(debug_assertions)]
             if let Some(window) = app.get_webview_window("main") {
@@ -1283,8 +1294,28 @@ pub fn run() {
                     // registered lifecycle listeners. Queue one close request until
                     // the frontend confirms readiness instead of emitting into a gap.
                     // Rendering is paused only by the frontend when it actually hides.
-                    if window.state::<MainWindowLifecycleState>().request_close() {
-                        let _ = window.emit("window:close-requested", ());
+                    match window.state::<MainWindowLifecycleState>().request_close() {
+                        LifecycleRequest::Queued => {}
+                        LifecycleRequest::EmitClose { transition } => {
+                            if window.emit("window:close-requested", transition).is_err() {
+                                let request = window
+                                    .state::<MainWindowLifecycleState>()
+                                    .native_request_after_emit_failure(
+                                        PendingLifecycleAction::Close { transition },
+                                    );
+                                let _ = run_native_lifecycle_fallback(
+                                    request,
+                                    window.app_handle().clone(),
+                                );
+                            }
+                        }
+                        LifecycleRequest::EmitForceQuit => {}
+                        request @ (LifecycleRequest::NativeHide | LifecycleRequest::NativeExit) => {
+                            let _ = run_native_lifecycle_fallback(
+                                request,
+                                window.app_handle().clone(),
+                            );
+                        }
                     }
                 } else if window.label() == "mini" {
                     // Native close on the mini: hide instead of destroying so
@@ -1317,7 +1348,13 @@ pub fn run() {
             server_http_context_clear,
             psysonic_syncfs::sync::batch::calculate_sync_payload,
             exit_app,
+            window_lifecycle_begin,
+            window_lifecycle_fallback,
+            window_lifecycle_generation,
+            window_lifecycle_hide,
             window_lifecycle_ready,
+            window_lifecycle_startup_visibility,
+            window_lifecycle_update_fallback_policy,
             cli_publish_player_snapshot,
             cli_publish_library_list,
             cli_publish_server_list,
