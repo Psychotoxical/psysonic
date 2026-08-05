@@ -492,6 +492,7 @@ export const commands = {
 	coverRevalidateEnqueue: () => typedError<null, string>(__TAURI_INVOKE("cover_revalidate_enqueue")),
 	coverRevalidateTick: (cycleDays: number | null) => typedError<number, string>(__TAURI_INVOKE("cover_revalidate_tick", { cycleDays })),
 	exitApp: () => __TAURI_INVOKE<void>("exit_app"),
+	windowLifecycleReady: () => __TAURI_INVOKE<void>("window_lifecycle_ready"),
 	setLoggingMode: (mode: string) => typedError<null, string>(__TAURI_INVOKE("set_logging_mode", { mode })),
 	setPsylabAlbumsBrowseTrace: (enabled: boolean) => typedError<null, string>(__TAURI_INVOKE("set_psylab_albums_browse_trace", { enabled })),
 	setPsylabArtistsBrowseTrace: (enabled: boolean) => typedError<null, string>(__TAURI_INVOKE("set_psylab_artists_browse_trace", { enabled })),
@@ -507,6 +508,11 @@ export const commands = {
 	setSubsonicWireUserAgent: (userAgent: string, windowLabel: string) => typedError<null, string>(__TAURI_INVOKE("set_subsonic_wire_user_agent", { userAgent, windowLabel })),
 	performanceCpuSnapshot: (includeThreadGroups: boolean | null) => typedError<PerformanceCpuSnapshot, string>(__TAURI_INVOKE("performance_cpu_snapshot", { includeThreadGroups })),
 	setWindowDecorations: (enabled: boolean) => __TAURI_INVOKE<void>("set_window_decorations", { enabled }),
+	/**
+	 *  Apply the final Linux title-bar mode before the startup splash reveals the
+	 *  hidden native window. Returns the tiling-WM decision for the frontend cache.
+	 */
+	prepareMainWindowForReveal: (useCustomTitlebar: boolean) => __TAURI_INVOKE<boolean>("prepare_main_window_for_reveal", { useCustomTitlebar }),
 	/**  Called from the frontend settings toggle (Linux); no-op on other platforms. */
 	setLinuxWebkitSmoothScrolling: (enabled: boolean) => typedError<null, string>(__TAURI_INVOKE("set_linux_webkit_smooth_scrolling", { enabled })),
 	/**

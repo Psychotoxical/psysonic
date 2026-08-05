@@ -46,6 +46,10 @@ export function exitApp(): Promise<void> {
   return commands.exitApp();
 }
 
+export function windowLifecycleReady(): Promise<void> {
+  return commands.windowLifecycleReady();
+}
+
 export function linuxWaylandTextRenderSettingsAvailable(): Promise<boolean> {
   return commands.linuxWaylandTextRenderSettingsAvailable();
 }

@@ -185,16 +185,47 @@ pub(crate) fn theme_animation_risk() -> bool {
     }
 }
 
+fn apply_window_decorations(win: &tauri::WebviewWindow, enabled: bool, restore_focus: bool) {
+    if win.is_decorated().ok() == Some(enabled) {
+        return;
+    }
+    let _ = win.set_decorations(enabled);
+    // Re-enabling native decorations on GTK causes the window manager to
+    // re-stack the window, which drops focus. Runtime preference changes need
+    // focus restored; startup preparation runs while the window is still hidden.
+    if enabled && restore_focus {
+        let _ = win.set_focus();
+    }
+}
+
+/// Apply the final Linux title-bar mode before the startup splash reveals the
+/// hidden native window. Returns the tiling-WM decision for the frontend cache.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn prepare_main_window_for_reveal(
+    use_custom_titlebar: bool,
+    app_handle: tauri::AppHandle,
+) -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        let is_tiling_wm = crate::lib_commands::sync::is_tiling_wm();
+        if let Some(win) = app_handle.get_webview_window("main") {
+            apply_window_decorations(&win, !is_tiling_wm && !use_custom_titlebar, false);
+        }
+        is_tiling_wm
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (use_custom_titlebar, app_handle);
+        false
+    }
+}
+
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn set_window_decorations(enabled: bool, app_handle: tauri::AppHandle) {
     if let Some(win) = app_handle.get_webview_window("main") {
-        let _ = win.set_decorations(enabled);
-        // Re-enabling native decorations on GTK causes the window manager to
-        // re-stack the window, which drops focus. Bring it back immediately.
-        if enabled {
-            let _ = win.set_focus();
-        }
+        apply_window_decorations(&win, enabled, true);
     }
 }
 

@@ -1,8 +1,56 @@
-use tauri::Manager;
+use std::sync::Mutex;
 
+use tauri::{Emitter, Manager};
+
+use crate::analysis_cache;
 use crate::lib_commands::sync::stop_audio_engine;
 use crate::runtime_subsonic_wire_user_agent;
-use crate::analysis_cache;
+
+#[derive(Default)]
+struct MainWindowLifecycleInner {
+    frontend_ready: bool,
+    close_pending: bool,
+}
+
+#[derive(Default)]
+pub(crate) struct MainWindowLifecycleState(Mutex<MainWindowLifecycleInner>);
+
+impl MainWindowLifecycleState {
+    pub(crate) fn request_close(&self) -> bool {
+        let mut state = self
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if state.frontend_ready {
+            true
+        } else {
+            state.close_pending = true;
+            false
+        }
+    }
+
+    fn mark_frontend_ready(&self) -> bool {
+        let mut state = self
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.frontend_ready = true;
+        std::mem::take(&mut state.close_pending)
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn window_lifecycle_ready(
+    state: tauri::State<'_, MainWindowLifecycleState>,
+    app_handle: tauri::AppHandle,
+) {
+    if state.mark_frontend_ready() {
+        if let Some(window) = app_handle.get_webview_window("main") {
+            let _ = window.emit("window:close-requested", ());
+        }
+    }
+}
 
 #[tauri::command]
 #[specta::specta]
@@ -20,6 +68,30 @@ pub(crate) fn exit_app(app_handle: tauri::AppHandle) {
     app_handle.exit(0);
 }
 
+#[cfg(test)]
+mod tests {
+    use super::MainWindowLifecycleState;
+
+    #[test]
+    fn close_is_queued_until_the_frontend_is_ready() {
+        let state = MainWindowLifecycleState::default();
+
+        assert!(!state.request_close());
+        assert!(state.mark_frontend_ready());
+        assert!(!state.mark_frontend_ready());
+        assert!(state.request_close());
+    }
+
+    #[test]
+    fn repeated_early_close_requests_coalesce() {
+        let state = MainWindowLifecycleState::default();
+
+        assert!(!state.request_close());
+        assert!(!state.request_close());
+        assert!(state.mark_frontend_ready());
+        assert!(!state.mark_frontend_ready());
+    }
+}
 
 #[tauri::command]
 #[specta::specta]
@@ -117,6 +189,3 @@ pub(crate) fn set_subsonic_wire_user_agent(
     crate::audio::refresh_http_user_agent(&app_handle.state::<crate::audio::AudioEngine>(), ua);
     Ok(())
 }
-
-
-

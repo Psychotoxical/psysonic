@@ -155,16 +155,19 @@
   }
 
   var persisted = readThemeState();
-  function readStartMinimizedToTray() {
+  function readStartupSettings() {
     try {
       var raw = localStorage.getItem('psysonic-auth');
-      if (!raw) return false;
+      if (!raw) return { startMinimizedToTray: false, useCustomTitlebar: false };
       var parsed = JSON.parse(raw);
       var state = parsed && parsed.state;
-      if (!state || !state.startMinimizedToTray) return false;
-      return state.showTrayIcon !== false;
+      if (!state) return { startMinimizedToTray: false, useCustomTitlebar: false };
+      return {
+        startMinimizedToTray: !!state.startMinimizedToTray && state.showTrayIcon !== false,
+        useCustomTitlebar: !!state.useCustomTitlebar,
+      };
     } catch (_err) {
-      return false;
+      return { startMinimizedToTray: false, useCustomTitlebar: false };
     }
   }
 
@@ -175,5 +178,7 @@
   try {
     trayHandled = sessionStorage.getItem('psy-startup-tray-handled') === '1';
   } catch (_err) {}
-  window.__psyStartMinimizedToTray = readStartMinimizedToTray() && !trayHandled;
+  var startupSettings = readStartupSettings();
+  window.__psyStartMinimizedToTray = startupSettings.startMinimizedToTray && !trayHandled;
+  window.__psyUseCustomTitlebar = startupSettings.useCustomTitlebar;
 })();

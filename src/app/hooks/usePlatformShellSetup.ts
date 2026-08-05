@@ -20,7 +20,7 @@ import { IS_LINUX, IS_MACOS, IS_WINDOWS } from '@/lib/util/platform';
  * AppShell can decide whether to mount the custom titlebar.
  */
 export function usePlatformShellSetup(): { isTilingWm: boolean } {
-  const [isTilingWm, setIsTilingWm] = useState(false);
+  const [isTilingWm, setIsTilingWm] = useState<boolean | null>(() => window.__psyIsTilingWm ?? null);
   const [waylandTextUi, setWaylandTextUi] = useState(false);
   const useCustomTitlebar = useAuthStore(s => s.useCustomTitlebar);
   const linuxWebkitKineticScroll = useAuthStore(s => s.linuxWebkitKineticScroll);
@@ -29,7 +29,10 @@ export function usePlatformShellSetup(): { isTilingWm: boolean } {
 
   useEffect(() => {
     if (!IS_LINUX) return;
-    isTilingWmCmd().then(setIsTilingWm).catch(() => {});
+    isTilingWmCmd().then(value => {
+      window.__psyIsTilingWm = value;
+      setIsTilingWm(value);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -91,6 +94,7 @@ export function usePlatformShellSetup(): { isTilingWm: boolean } {
   // On tiling WMs decorations are always off (no native title bar to replace).
   useEffect(() => {
     if (!IS_LINUX) return;
+    if (isTilingWm === null) return;
     const enabled = isTilingWm ? false : !useCustomTitlebar;
     setWindowDecorations({ enabled }).catch(() => {});
   }, [useCustomTitlebar, isTilingWm]);
@@ -121,5 +125,5 @@ export function usePlatformShellSetup(): { isTilingWm: boolean } {
     setLoggingMode({ mode: loggingMode }).catch(() => {});
   }, [loggingMode]);
 
-  return { isTilingWm };
+  return { isTilingWm: isTilingWm ?? false };
 }

@@ -7,30 +7,30 @@
 (function startupSplashReveal() {
   var MAX_ATTEMPTS = 60;
 
-  function tryShowMainWindow() {
+  function tryRevealMainWindow(hidden) {
     var internals = window.__TAURI_INTERNALS__;
     if (!internals || typeof internals.invoke !== 'function') return false;
-    internals.invoke('plugin:window|show', { label: 'main' }).catch(function () {});
-    return true;
-  }
-
-  function tryHideMainWindow() {
-    var internals = window.__TAURI_INTERNALS__;
-    if (!internals || typeof internals.invoke !== 'function') return false;
-    internals.invoke('plugin:window|hide', { label: 'main' }).catch(function () {});
+    internals.invoke('prepare_main_window_for_reveal', {
+      useCustomTitlebar: !!window.__psyUseCustomTitlebar,
+    }).then(function (isTilingWm) {
+      window.__psyIsTilingWm = !!isTilingWm;
+    }).catch(function () {}).then(function () {
+      var command = hidden ? 'plugin:window|hide' : 'plugin:window|show';
+      return internals.invoke(command, { label: 'main' });
+    }).catch(function () {});
     return true;
   }
 
   function reveal(attempt) {
     if (window.__psyStartMinimizedToTray) {
-      if (tryHideMainWindow()) return;
+      if (tryRevealMainWindow(true)) return;
       if (attempt >= MAX_ATTEMPTS) return;
       window.setTimeout(function () {
         reveal(attempt + 1);
       }, 50);
       return;
     }
-    if (tryShowMainWindow()) return;
+    if (tryRevealMainWindow(false)) return;
     if (attempt >= MAX_ATTEMPTS) return;
     window.setTimeout(function () {
       reveal(attempt + 1);
