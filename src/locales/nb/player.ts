@@ -65,7 +65,6 @@ export const player = {
   lyricsSourceServer: 'Kilde: Server',
   lyricsSourceLrclib: 'Kilde: LRCLIB',
   lyricsSourceNetease: 'Kilde: Netease',
-  lyricsSourceLyricsplus: 'Kilde: YouLyPlus',
   showDuration: 'Vis varighet',
   showRemainingTime: 'Vis gjenværende tid',
   sourceFailureTitle: 'Kunne ikke spille {{title}}',

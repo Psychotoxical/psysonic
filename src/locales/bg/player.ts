@@ -65,7 +65,6 @@ export const player = {
   lyricsSourceServer: 'Източник: сървър',
   lyricsSourceLrclib: 'Източник: LRCLIB',
   lyricsSourceNetease: 'Източник: Netease',
-  lyricsSourceLyricsplus: 'Източник: YouLyPlus',
   showDuration: 'Покажи времетраенето',
   showRemainingTime: 'Покажи оставащото време',
   sourceFailureTitle: 'Неуспешно възпроизвеждане на {{title}}',

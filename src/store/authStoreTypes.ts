@@ -241,15 +241,8 @@ export interface AuthState {
   enableNeteaselyrics: boolean;
   lyricsSources: LyricsSourceConfig[];
   /**
-   * YouLyPlus (karaoke) as the primary lyrics source. When on, it is tried
-   * first and the enabled `lyricsSources` act as fallback; when off, only the
-   * enabled `lyricsSources` are used. Independent of the source toggles, so all
-   * lyrics can be turned off (YouLyPlus off + every source off).
-   */
-  youLyPlusEnabled: boolean;
-  /**
    * Render synced lines as static text (no auto-scroll, no word highlighting).
-   * Honoured in both lyrics modes.
+   * Honoured for every lyrics source.
    */
   lyricsStaticOnly: boolean;
   /** Sidebar lyrics scroll style: 'classic' = scrollIntoView center; 'apple' = scroll to 35% */
@@ -472,7 +465,6 @@ export interface AuthState {
   setLyricsServerFirst: (v: boolean) => void;
   setEnableNeteaselyrics: (v: boolean) => void;
   setLyricsSources: (sources: LyricsSourceConfig[]) => void;
-  setYouLyPlusEnabled: (v: boolean) => void;
   setLyricsStaticOnly: (v: boolean) => void;
   setSidebarLyricsStyle: (v: 'classic' | 'apple') => void;
   setShowFullscreenLyrics: (v: boolean) => void;

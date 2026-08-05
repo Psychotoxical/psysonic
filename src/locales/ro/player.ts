@@ -65,7 +65,6 @@ export const player = {
   lyricsSourceServer: 'Sursa: Server',
   lyricsSourceLrclib: 'Sursa: LRCLIB',
   lyricsSourceNetease: 'Sursa: Netease',
-  lyricsSourceLyricsplus: 'Sursa: YouLyPlus',
   showDuration: 'Arată durata',
   showRemainingTime: 'Arată timpul rămas',
   sourceFailureTitle: 'Nu s-a putut reda {{title}}',
