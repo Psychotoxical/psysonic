@@ -263,18 +263,27 @@ pub(crate) struct SizedDecoder {
 /// transcode and hand us a different codec than the URL suggests. Pair it with
 /// [`encoder_gap_reported`]: the codec says *who could* trim, the demuxer values
 /// say *whether there is* anything to trim.
-pub(crate) fn should_use_builtin_gapless(codec_name: &str) -> bool {
+fn should_use_builtin_gapless(codec_name: &str) -> bool {
     codec_name == "mp3"
 }
 
-/// Whether the demuxer actually reported an encoder gap for this track.
+/// Whether the demuxer actually reported an encoder **delay** for this track.
 ///
 /// Symphonia fills `delay`/`padding` only when it recognised the encoder that
-/// wrote the Xing extension. When both are absent or zero it will trim nothing,
-/// so the manual `iTunSMPB` path has to stay in charge — otherwise a file that
-/// carries only the iTunes tag would end up with no trimming at all.
-pub(crate) fn encoder_gap_reported(delay: Option<u32>, padding: Option<u32>) -> bool {
-    delay.unwrap_or(0) > 0 || padding.unwrap_or(0) > 0
+/// wrote the Xing extension. When it reports no delay it will trim nothing off
+/// the front, so the manual `iTunSMPB` path has to stay in charge — otherwise a
+/// file that carries only the iTunes tag would end up with no trimming at all.
+///
+/// Deliberately keyed on the delay alone, not on `delay || padding`: trim
+/// ownership is all-or-nothing per stream (`build_source` stands down entirely
+/// once this is true), so a file reporting padding but no delay would hand the
+/// front-trim to a decoder that does not perform it while the manual parser —
+/// which may hold a real `iTunSMPB` delay — has already been switched off. That
+/// would replay the very encoder delay this module exists to remove. Padding
+/// without a delay is left to the manual path, which is the pre-existing
+/// behaviour for those files.
+fn encoder_gap_reported(delay: Option<u32>, _padding: Option<u32>) -> bool {
+    delay.unwrap_or(0) > 0
 }
 
 impl SizedDecoder {
@@ -414,21 +423,11 @@ impl SizedDecoder {
                 // Clean EOF, and the reader running out of bytes, are the two ways a
                 // finite buffer ends. Any other I/O error is a real failure and falls
                 // through to the arm below instead of masquerading as end-of-media.
-                Ok(None) => {
-                    let last = decoder.last_decoded();
-                    if last.frames() == 0 {
-                        return Err("audio stream ended before any frames were decoded".into());
-                    }
-                    break (last.spec().clone(), Self::make_buffer(&last));
-                }
+                Ok(None) => break Self::spec_and_buffer_at_eof(decoder.last_decoded(), "audio")?,
                 Err(symphonia::core::errors::Error::IoError(ref io))
                     if io.kind() == std::io::ErrorKind::UnexpectedEof =>
                 {
-                    let last = decoder.last_decoded();
-                    if last.frames() == 0 {
-                        return Err("audio stream ended before any frames were decoded".into());
-                    }
-                    break (last.spec().clone(), Self::make_buffer(&last));
+                    break Self::spec_and_buffer_at_eof(decoder.last_decoded(), "audio")?;
                 }
                 Err(e) => {
                     crate::app_eprintln!("[psysonic] next_packet error: {e}");
@@ -492,8 +491,13 @@ impl SizedDecoder {
     ///
     /// `source_random_access`: the underlying source can cheaply seek to EOF
     /// (e.g. a local file or the ranged-HTTP reader), so the probe-time
-    /// trailing-metadata / stream-end scan is not a full download. Radio, preview
-    /// and the non-seekable streaming fallback pass `false`.
+    /// trailing-metadata / stream-end scan is not a full download. Radio and the
+    /// non-seekable streaming fallback pass `false`.
+    ///
+    /// Note that "streaming" here is about the *reader*, not the feature: ranged
+    /// HTTP passes `true` (`play_input.rs`) and is therefore trimmed, and buffered
+    /// preview does not come through this constructor at all — it decodes from
+    /// bytes via [`Self::new`], which trims independently of this flag.
     pub(crate) fn new_streaming(
         media: Box<dyn MediaSource>,
         format_hint: Option<&str>,
@@ -637,16 +641,19 @@ impl SizedDecoder {
                 // packet decoded to audio means the stream ended empty, which is a
                 // construction failure — not a zero-length track the player should
                 // try to play.
-                Ok(None) => {
-                    let last = decoder.last_decoded();
-                    if last.frames() == 0 {
-                        return Err(format!(
-                            "{source_tag}: stream ended before any audio frames were decoded"
-                        ));
-                    }
-                    break (last.spec().clone(), Self::make_buffer(&last));
+                Ok(None) => break Self::spec_and_buffer_at_eof(decoder.last_decoded(), source_tag)?,
+                // A reader running out of bytes ends a finite stream the same way
+                // `Ok(None)` does — `new` treats it that way too, and the two
+                // constructors must not disagree about what EOF means for identical
+                // bytes. A superseded ranged/radio read surfaces here as well
+                // (`Ok(0)` on a track skip), which is an abandoned build, not a
+                // failure worth reporting.
+                Err(symphonia::core::errors::Error::IoError(ref io))
+                    if io.kind() == std::io::ErrorKind::UnexpectedEof =>
+                {
+                    break Self::spec_and_buffer_at_eof(decoder.last_decoded(), source_tag)?;
                 }
-                // Anything else is a real read failure (range read, timeout,
+                // Anything else is a real read failure (range read reset, timeout,
                 // malformed stream). Surfacing it lets the caller retry; folding it
                 // into EOF would hand the player a silent track instead — and with
                 // gapless trimming a fully trimmed first packet leaves the buffer
@@ -677,6 +684,25 @@ impl SizedDecoder {
             }
         };
         Ok(SizedDecoder { decoder, current_frame_offset: 0, format, total_duration, buffer, spec, codec_info, builtin_gapless, consecutive_decode_errors: 0 })
+    }
+
+    /// Turn the decoder's last buffer into the initial `(spec, buffer)` pair when
+    /// the stream ends during initialization.
+    ///
+    /// Shared by every end-of-media arm in both constructors — clean `Ok(None)`
+    /// and a reader running out of bytes are the same situation, and they must
+    /// stay in lockstep: an empty buffer here means the stream never produced
+    /// audio, which is a construction failure rather than a zero-length track.
+    fn spec_and_buffer_at_eof(
+        last: GenericAudioBufferRef<'_>,
+        ctx: &str,
+    ) -> Result<(AudioSpec, Vec<f32>), String> {
+        if last.frames() == 0 {
+            return Err(format!(
+                "{ctx}: stream ended before any audio frames were decoded"
+            ));
+        }
+        Ok((last.spec().clone(), Self::make_buffer(&last)))
     }
 
     #[inline]
@@ -735,8 +761,16 @@ impl SizedDecoder {
                 .map_err(|e| format!("refine seek: {e}"))?
             {
                 Some(p) => p,
-                // EOF while refining — nothing more to skip.
-                None => return Ok(()),
+                // EOF while refining — nothing more to skip. The buffer still holds
+                // samples decoded *before* the seek, and `try_seek` has already
+                // reset the decoder they came from. Replaying them would emit audio
+                // from the old position as if the seek had landed there, so drop
+                // them and let the iterator end cleanly.
+                None => {
+                    self.buffer.clear();
+                    self.current_frame_offset = 0;
+                    return Ok(());
+                }
             };
             if candidate.dur.get() > samples_to_pass {
                 break candidate;
@@ -770,26 +804,42 @@ impl SizedDecoder {
             }
         }
 
-        let decoded = decoded.map_err(|e| format!("refine decode: {e}"))?;
-        // `packet.dur` counts the frames the packet carries *before* trimming, but
-        // with gapless trimming on the decoder may have dropped the encoder gap
-        // from the front of this very packet. Skipping `samples_to_pass` frames of
-        // a buffer that no longer contains them would point past its end, and
-        // `next()` would then discard the whole packet — a seek to the start of a
-        // trimmed MP3 lost the remainder of its first frame.
         // `samples_to_pass` was derived from `packet.dur`, which counts the frames
-        // the packet carries *before* trimming. The decoder removed `trim_start`
-        // of them from the front, so the buffer starts that much later; skipping
-        // the full amount would point past its end and `next()` would discard the
-        // whole packet — a seek to the start of a trimmed MP3 used to lose the
-        // remainder of its first frame. `trim_end` needs no handling here: it
-        // shortens the buffer at the back, which the offset never reaches.
+        // the packet carries *before* trimming. The decoder removed `trim_start` of
+        // them from the front, so the buffer starts that much later; skipping the
+        // full amount would point past its end and `next()` would discard the whole
+        // packet — a seek to the start of a trimmed MP3 used to lose the remainder
+        // of its first frame. `trim_end` needs no handling here: it shortens the
+        // buffer at the back, which the offset never reaches.
         let offset_frames =
             Self::refined_offset_frames(samples_to_pass, &discarded_durs, packet_trim_start);
 
-        self.spec = decoded.spec().clone();
-        self.buffer = Self::make_buffer(&decoded);
-        self.current_frame_offset = offset_frames as usize * self.spec.channels().count();
+        {
+            let decoded = decoded.map_err(|e| format!("refine decode: {e}"))?;
+            self.spec = decoded.spec().clone();
+            self.buffer = Self::make_buffer(&decoded);
+            self.current_frame_offset = offset_frames as usize * self.spec.channels().count();
+        }
+
+        // Landing on a packet that gapless trimming emptied is not the end of the
+        // stream. Leaving the buffer empty makes `current_span_len()` report
+        // `Some(0)`, which rodio's resampling wrapper reads as end-of-source — the
+        // track would go silent from the seek onwards. Same rule as both
+        // constructors and `next()`; the offset is spent once we move on.
+        while self.buffer.is_empty() {
+            let Some(packet) = self
+                .format
+                .next_packet()
+                .map_err(|e| format!("refine fill: {e}"))?
+            else {
+                break;
+            };
+            if let Ok(decoded) = self.decoder.decode(&packet) {
+                self.spec = decoded.spec().clone();
+                self.buffer = Self::make_buffer(&decoded);
+                self.current_frame_offset = 0;
+            }
+        }
         Ok(())
     }
 }
@@ -812,6 +862,13 @@ impl Iterator for SizedDecoder {
                         self.spec = decoded.spec().clone();
                         self.buffer = Self::make_buffer(&decoded);
                         self.current_frame_offset = 0;
+                        // A packet that gapless trimming emptied is not the end of
+                        // the stream — the same rule both constructors follow.
+                        // Breaking here would hand `buffer.get(0)` a `None` and end
+                        // the iterator while packets are still coming.
+                        if self.buffer.is_empty() {
+                            continue;
+                        }
                         break;
                     }
                     Err(symphonia::core::errors::Error::DecodeError(ref msg)) => {
@@ -1296,7 +1353,7 @@ mod tests {
 
     // ── SizedDecoder::new with a synthetic WAV ───────────────────────────────
 
-    fn build_mono_pcm16_wav(samples: &[i16], sample_rate: u32) -> Vec<u8> {
+    pub(super) fn build_mono_pcm16_wav(samples: &[i16], sample_rate: u32) -> Vec<u8> {
         let num_channels: u16 = 1;
         let bits_per_sample: u16 = 16;
         let byte_rate = sample_rate * (bits_per_sample as u32 / 8) * num_channels as u32;
@@ -1324,7 +1381,7 @@ mod tests {
         out
     }
 
-    fn synthetic_wav_bytes(secs: f32) -> Vec<u8> {
+    pub(super) fn synthetic_wav_bytes(secs: f32) -> Vec<u8> {
         let sample_rate = 44_100u32;
         let n = (sample_rate as f32 * secs) as usize;
         let amp: f32 = 0.5 * i16::MAX as f32;

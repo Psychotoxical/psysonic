@@ -7,47 +7,6 @@
 
 use super::*;
 
-fn build_mono_pcm16_wav_local(samples: &[i16], sample_rate: u32) -> Vec<u8> {
-    let num_channels: u16 = 1;
-    let bits_per_sample: u16 = 16;
-    let byte_rate = sample_rate * (bits_per_sample as u32 / 8) * num_channels as u32;
-    let block_align = num_channels * (bits_per_sample / 8);
-    let data_size = (samples.len() * 2) as u32;
-    let riff_size = 36 + data_size;
-
-    let mut out = Vec::with_capacity(44 + data_size as usize);
-    out.extend_from_slice(b"RIFF");
-    out.extend_from_slice(&riff_size.to_le_bytes());
-    out.extend_from_slice(b"WAVE");
-    out.extend_from_slice(b"fmt ");
-    out.extend_from_slice(&16u32.to_le_bytes());
-    out.extend_from_slice(&1u16.to_le_bytes());
-    out.extend_from_slice(&num_channels.to_le_bytes());
-    out.extend_from_slice(&sample_rate.to_le_bytes());
-    out.extend_from_slice(&byte_rate.to_le_bytes());
-    out.extend_from_slice(&block_align.to_le_bytes());
-    out.extend_from_slice(&bits_per_sample.to_le_bytes());
-    out.extend_from_slice(b"data");
-    out.extend_from_slice(&data_size.to_le_bytes());
-    for s in samples {
-        out.extend_from_slice(&s.to_le_bytes());
-    }
-    out
-}
-
-fn synthetic_wav_bytes_local(secs: f32) -> Vec<u8> {
-    let sample_rate = 44_100u32;
-    let n = (sample_rate as f32 * secs) as usize;
-    let amp: f32 = 0.5 * i16::MAX as f32;
-    let samples: Vec<i16> = (0..n)
-        .map(|i| {
-            let t = i as f32 / sample_rate as f32;
-            ((2.0 * std::f32::consts::PI * 440.0 * t).sin() * amp) as i16
-        })
-        .collect();
-    build_mono_pcm16_wav_local(&samples, sample_rate)
-}
-
 type EqGains = Arc<[AtomicU32; 10]>;
 type SourceArgs = (
     EqGains,
@@ -71,8 +30,11 @@ fn default_source_args() -> SourceArgs {
 
 #[test]
 fn build_source_succeeds_for_synthetic_wav() {
+    // Building a source installs a SpectrumTapSource over the process-global
+    // spectrum ring and lease; hold the same lock the spectrum tests use.
+    let _globals = crate::spectrum::tests::lock_globals();
     let (eq_gains, eq_enabled, eq_pre_gain, playback_rate, done_flag, sample_counter) = default_source_args();
-    let wav = synthetic_wav_bytes_local(0.4);
+    let wav = super::tests::synthetic_wav_bytes(0.4);
     let built = build_source(
         wav,
         0.4,
@@ -115,8 +77,11 @@ fn build_source_returns_err_for_garbage_bytes() {
 
 #[test]
 fn build_streaming_source_succeeds_for_synthetic_wav() {
+    // Building a source installs a SpectrumTapSource over the process-global
+    // spectrum ring and lease; hold the same lock the spectrum tests use.
+    let _globals = crate::spectrum::tests::lock_globals();
     let (eq_gains, eq_enabled, eq_pre_gain, playback_rate, done_flag, sample_counter) = default_source_args();
-    let wav = synthetic_wav_bytes_local(0.4);
+    let wav = super::tests::synthetic_wav_bytes(0.4);
     let decoder = SizedDecoder::new(wav, Some("wav"), false).unwrap();
     let built = build_streaming_source(
         decoder,
@@ -138,8 +103,11 @@ fn build_streaming_source_succeeds_for_synthetic_wav() {
 
 #[test]
 fn build_source_with_target_rate_resamples() {
+    // Building a source installs a SpectrumTapSource over the process-global
+    // spectrum ring and lease; hold the same lock the spectrum tests use.
+    let _globals = crate::spectrum::tests::lock_globals();
     let (eq_gains, eq_enabled, eq_pre_gain, playback_rate, done_flag, sample_counter) = default_source_args();
-    let wav = synthetic_wav_bytes_local(0.3);
+    let wav = super::tests::synthetic_wav_bytes(0.3);
     let built = build_source(
         wav,
         0.3,
@@ -356,8 +324,10 @@ fn cached_local_mp3_is_trimmed_on_the_streaming_path() {
 
 #[test]
 fn progressive_mp3_stream_keeps_previous_behaviour() {
-    // Radio and a mid-download ranged HTTP read have no trustworthy frame
-    // count up front, so they deliberately stay untrimmed.
+    // Radio and the legacy non-seekable fallback have no trustworthy frame count
+    // up front, so they deliberately stay untrimmed. This models exactly those:
+    // ranged HTTP is *not* in this set — `play_input.rs` passes
+    // `random_access: true` for it, so a ranged read is trimmed like a local file.
     assert_eq!(
         decoded_frames_streaming(LAME_SINE_MP3.to_vec(), Some("mp3"), false, 0),
         LAME_SINE_RAW_FRAMES
@@ -427,8 +397,15 @@ fn a_failing_read_is_an_error_not_an_empty_track() {
         Ok(_) => panic!("a failing read must not construct a decoder"),
         Err(e) => e,
     };
+    // The point is that construction *fails* rather than yielding a silent track.
+    // Which stage notices is not pinned down: the cut-off sits past the probe
+    // today, but probe read-ahead and the stream buffer size are both outside
+    // this test's control, so a shift there must not turn into a red test without
+    // a production change.
     assert!(
-        err.contains("could not read audio data") || err.contains("ended before any audio"),
+        err.contains("could not read audio data")
+            || err.contains("ended before any audio")
+            || err.contains("format probe failed"),
         "error should name the read failure, got: {err}"
     );
 }
@@ -494,26 +471,34 @@ fn fully_trimmed_first_packet_still_produces_audio() {
 #[test]
 #[ignore]
 fn mp3_decode_throughput() {
-    const RUNS: usize = 40;
-    let mut samples_per_run = Vec::with_capacity(RUNS);
-    let mut frames = 0u64;
+    // Odd count so the median is a real sample rather than a pick between two.
+    const RUNS: usize = 41;
+    let mut elapsed_per_run = Vec::with_capacity(RUNS);
+    let mut frames: Option<u64> = None;
 
     for _ in 0..RUNS {
-        let t0 = std::time::Instant::now();
+        // Construction runs the probe, demuxer and codec init. That is startup
+        // cost, not decode throughput, so it stays outside the timed region —
+        // otherwise the number reported below is not what this change affects.
         let decoder =
             SizedDecoder::new(LAME_SINE_MP3.to_vec(), Some("mp3"), false).expect("decode");
+        let t0 = std::time::Instant::now();
         let n = decoder.count() as u64;
         let dt = t0.elapsed().as_secs_f64();
-        frames = n;
-        samples_per_run.push(dt);
+        elapsed_per_run.push(dt);
+        match frames {
+            None => frames = Some(n),
+            Some(prev) => assert_eq!(prev, n, "frame count must not vary between runs"),
+        }
     }
 
-    samples_per_run.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    let median = samples_per_run[RUNS / 2];
-    let min = samples_per_run[0];
-    let max = samples_per_run[RUNS - 1];
-    let mean = samples_per_run.iter().sum::<f64>() / RUNS as f64;
-    let var = samples_per_run
+    let frames = frames.expect("at least one run");
+    elapsed_per_run.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let median = elapsed_per_run[RUNS / 2];
+    let min = elapsed_per_run[0];
+    let max = elapsed_per_run[RUNS - 1];
+    let mean = elapsed_per_run.iter().sum::<f64>() / RUNS as f64;
+    let var = elapsed_per_run
         .iter()
         .map(|d| (d - mean).powi(2))
         .sum::<f64>()
@@ -546,6 +531,28 @@ fn refined_offset_accounts_for_packets_dropped_by_a_retry() {
 
     // Two failures in a row.
     assert_eq!(SizedDecoder::refined_offset_frames(2000, &[576, 576], 0), 848);
+}
+
+#[test]
+fn reported_duration_matches_the_frames_actually_delivered() {
+    // Crossfade schedules the fade-out from the reported duration
+    // (`commands.rs`: `remaining = duration_secs - position()`), so a source that
+    // ends earlier than it claims gets its fade cut off mid-curve — a click
+    // introduced by the very change that removes one. Whatever this decoder
+    // reports has to match what it actually yields.
+    let decoder = SizedDecoder::new(LAME_SINE_MP3.to_vec(), Some("mp3"), false).expect("decode");
+    let reported = decoder
+        .total_duration()
+        .expect("fixture must report a duration");
+    let rate = decoder.sample_rate().get() as f64;
+    let channels = decoder.channels().get() as u64;
+    let delivered = decoder.count() as u64 / channels;
+
+    let reported_frames = (reported.as_secs_f64() * rate).round() as u64;
+    assert_eq!(
+        reported_frames, delivered,
+        "reported duration is {reported_frames} frames but the source yields {delivered}"
+    );
 }
 
 #[test]
@@ -655,7 +662,7 @@ fn seeking_resets_decoder_state_and_keeps_the_waveform_aligned() {
 fn non_mp3_still_uses_the_manual_itunsmpb_trim() {
     // The counterpart to the test above: the fix must not silently disable
     // the manual path for the codecs it still owns.
-    let plain = synthetic_wav_bytes_local(0.5);
+    let plain = super::tests::synthetic_wav_bytes(0.5);
     let untrimmed = decoded_frames(plain.clone(), Some("wav"));
 
     let mut tagged = plain;
